@@ -2098,17 +2098,12 @@ impl Tabs<'_> {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
             }
         }
-        if self.view.content.is_none() {
-            self.header(ui, "Place objects", "");
-            ui.label(RichText::new("Open a project to place objects.").color(p.ink_muted));
-            return;
-        }
         // the browser's modes
         let mut mode = self.view.browser_mode;
         egui::Frame::new()
             .inner_margin(Margin::symmetric(m.space_2 as i8, m.space_1 as i8))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     for bm in crate::gameplay::BrowserMode::ALL {
                         if ui.selectable_label(mode == bm, bm.name()).clicked() {
                             mode = bm;
@@ -2117,6 +2112,19 @@ impl Tabs<'_> {
                 });
             });
         self.view.browser_mode = mode;
+        // round GR3: every mesh of the game copy, for the asset preview (no project needed)
+        if mode == crate::gameplay::BrowserMode::Meshes {
+            self.mesh_browser(ui);
+            return;
+        }
+        if self.view.content.is_none() {
+            self.header(ui, "Place objects", "");
+            ui.label(
+                RichText::new("Open a project to place objects (the Meshes mode previews any mesh without one).")
+                    .color(p.ink_muted),
+            );
+            return;
+        }
         if mode != crate::gameplay::BrowserMode::PlaceObjects {
             self.gameplay_browser(ui, mode);
             return;
@@ -2231,8 +2239,11 @@ impl Tabs<'_> {
                 }
             });
         self.view.content_rects = rects;
-        if picked.is_some() {
-            self.view.content_pick = picked;
+        if let Some(path) = picked {
+            // round GR3: the picked blueprint in the asset preview (Shift+click adds it to the comparison)
+            let add = ui.input(|i| i.modifiers.shift);
+            self.preview_show(crate::preview::Subject::Blueprint(path.clone()), add);
+            self.view.content_pick = Some(path);
         }
         if let Some(e) = start {
             self.view.start_placing(e);

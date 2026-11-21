@@ -64,7 +64,7 @@ pub struct Control {
 }
 
 /// The views' controls, as `app.rs`'s viewport handles them.
-pub const VIEW_CONTROLS: [Control; 16] = [
+pub const VIEW_CONTROLS: [Control; 17] = [
     Control {
         name: "Orbit",
         keys: "Left drag",
@@ -145,6 +145,12 @@ pub const VIEW_CONTROLS: [Control; 16] = [
         keys: "Drag an entry into a view",
         views: Views::All,
         help: "The object follows the pointer on the surface; let go to place it (one operation)",
+    },
+    Control {
+        name: "Preview an asset",
+        keys: "Click a tile (Shift+click: compare)",
+        views: Views::All,
+        help: "The Asset preview panel shows the blueprint's mesh, or a mesh picked in the browser's Meshes mode: drag to turn, right-drag to move, wheel to zoom; Side, Top and Front are the mesh viewer's pictures; click a part to select it",
     },
     Control {
         name: "Place the object being placed",
@@ -429,7 +435,12 @@ pub fn corner_hint(orthographic: bool) -> String {
     let mut parts: Vec<String> = VIEW_CONTROLS
         .iter()
         .filter(|c| match c.views {
-            Views::All => !c.name.contains("bookmark") && c.name != "Select" && c.name != "Select and focus",
+            Views::All => {
+                !c.name.contains("bookmark")
+                    && c.name != "Select"
+                    && c.name != "Select and focus"
+                    && c.name != "Preview an asset"
+            }
             Views::Perspective => !orthographic,
             Views::Orthographic => orthographic,
         })

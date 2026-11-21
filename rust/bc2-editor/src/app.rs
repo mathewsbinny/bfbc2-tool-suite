@@ -50,12 +50,14 @@ mod editui;
 mod inspectui;
 mod modes;
 mod navui;
+mod previewui;
 mod tools;
 
 pub use crate::workspace::Workspace;
 pub use create::HeightmapForm;
 pub use modes::StartPage;
 pub use navui::NAV_RUNNING;
+pub use previewui::{PreviewShown, preview_colours};
 pub use tools::{ContextTarget, MenuItem, MenuKind, Placing, SinkPopup, menu_items};
 
 /// The GPU and egui's renderer on it (the window's, or the headless runner's).
@@ -97,6 +99,8 @@ pub enum Tab {
     /// What differs between two levels: the project and its base, two levels, an export and its original (round
     /// EX1: LevelDiff folded in).
     Diff,
+    /// The asset preview: a blueprint or mesh drawn as the mesh viewer drew it (round GR3).
+    Preview,
 }
 
 impl Tab {
@@ -114,18 +118,24 @@ impl Tab {
             Self::NavIslands => "Islands and spawns",
             Self::NavEdits => "Navigation edits",
             Self::Diff => "Diff",
+            Self::Preview => "Asset preview",
         }
     }
 }
 
 /// The default layout: the 3D view in the middle, the outliner (and layers) left, properties (and navigation) right
-/// with the links (navigation edits, islands and spawns) below them, problems (and history) below the view.
+/// with the links (navigation edits, islands and spawns) below them, problems (and history) below the view; the asset
+/// preview is a tab beside the properties (round GR3: picking an asset shows it).
 #[must_use]
 pub fn default_layout() -> DockState<Tab> {
     let mut d = DockState::new(vec![Tab::Viewport(Projection::Perspective)]);
     let s = d.main_surface_mut();
     let [centre, _] = s.split_left(NodeIndex::root(), 0.2, vec![Tab::Outliner, Tab::Layers, Tab::Content]);
-    let [centre, right] = s.split_right(centre, 0.72, vec![Tab::Properties, Tab::Navigation, Tab::Diff]);
+    let [centre, right] = s.split_right(
+        centre,
+        0.72,
+        vec![Tab::Properties, Tab::Navigation, Tab::Diff, Tab::Preview],
+    );
     let [_, _] = s.split_below(right, 0.6, vec![Tab::Links, Tab::NavEdits, Tab::NavIslands]);
     let [_, _] = s.split_below(centre, 0.78, vec![Tab::Problems, Tab::History]);
     d
@@ -347,6 +357,11 @@ pub struct ViewState {
     pub mode_view: crate::modeview::ModeView,
     /// The level's weather states and the one both views show, read when the picker is first used.
     pub weather: Option<crate::weatherview::WeatherView>,
+    // ---- round GR3
+    /// The asset preview: the blueprint or meshes shown, the camera and the switches.
+    pub preview: crate::preview::Preview,
+    /// The preview's picture on screen and the Meshes mode's search.
+    pub preview_shown: PreviewShown,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -881,7 +896,9 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             Action::CompareWithBase if doc.is_none() => {
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }
-            Action::ToggleDiffMarks | Action::ShowPanel(PanelKind::Diff) if !open => Some("Open a map first"),
+            Action::ToggleDiffMarks | Action::ShowPanel(PanelKind::Diff | PanelKind::Preview) if !open => {
+                Some("Open a map first")
+            }
             Action::ToggleDiffMarks if v.is_none_or(|v| v.diff.current().is_none()) => {
                 Some("Compare first (the Diff panel)")
             }
@@ -1092,6 +1109,7 @@ impl EditorApp {
                     PanelKind::NavIslands => Tab::NavIslands,
                     PanelKind::NavEdits => Tab::NavEdits,
                     PanelKind::Diff => Tab::Diff,
+                    PanelKind::Preview => Tab::Preview,
                 };
                 if let Some(path) = self.dock.find_tab(&tab) {
                     let _ = self.dock.set_active_tab(path);
@@ -1674,6 +1692,8 @@ impl EditorApp {
             place_failed: None,
             thumbs: HashMap::new(),
             browser_mode: crate::gameplay::BrowserMode::PlaceObjects,
+            preview: crate::preview::Preview::default(),
+            preview_shown: PreviewShown::default(),
             place_team: 1,
             tiles: None,
             show_links: true,
@@ -3031,6 +3051,7 @@ impl TabViewer for Tabs<'_> {
             Tab::NavIslands => self.nav_islands(ui),
             Tab::NavEdits => self.nav_edits(ui),
             Tab::Diff => self.diff(ui),
+            Tab::Preview => self.preview_panel(ui),
         }
     }
 
@@ -3047,6 +3068,7 @@ impl TabViewer for Tabs<'_> {
                     | Tab::NavIslands
                     | Tab::NavEdits
                     | Tab::Diff
+                    | Tab::Preview
             )
     }
 

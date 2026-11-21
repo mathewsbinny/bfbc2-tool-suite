@@ -1628,7 +1628,7 @@ The user's plan (2026-11-19): for each of the suite's older GUIs, list what it d
 repository and from the hub's launcher, its docs pointing at the editor. The hub (`BFBC2 Tool Suite.pyw`) stays as
 the launcher. The planned AI behaviour simulator, bot AI debugger and tactical map tools become editor workspaces
 later, not tools of their own (section 10; their placeholder folders were deleted in round FM1). This replaces 3.8's "each Python GUI stays until its replacement works" with an
-order: the Map Inspector (GR1), the Navigation Studio (GR2), the mesh viewer (GR3), DbxEditGUI (GR4, the last C#);
+order: the Map Inspector (GR1), the Navigation Studio (GR2), the mesh viewer's page (GR3), DbxEditGUI (GR4, the last C#);
 LevelDiff, which has no window, became the editor's Diff panel and a `bfbc2.exe leveldiff` command in round EX1 (9.5).
 
 What each does, whether the editor has it (round GR1's read of their code and READMEs), and the plan. "Partly"
@@ -1687,15 +1687,47 @@ and the WW2 level GUADAL_CANAL's own layer: all identical. `tests/gr2.rs` drives
 edit, build, install and restore round trip on a scratch OPFOR copy. The folder keeps `overlay.py` (its README says
 only that); OPFOR's code never called the Studio.
 
-### 9.3 Mesh viewer (`bfbc2-mesh-viewer/meshview.py`)
+### 9.3 Mesh viewer (`bfbc2-mesh-viewer/meshview.py`): its page retired in GR3
+
+The mesh viewer's GUI was the page for a browser it wrote (`meshview.py <mesh>`: three.js, the models embedded). Round
+GR3 read `meshview.py` and the page's script for every feature, added what the editor lacked as the **Asset preview**
+panel (`src/preview.rs`, `src/app/previewui.rs`; a tab beside Properties, shown when an asset is picked) and the asset
+browser's **Meshes** mode, then retired the page. The picture command line stays (`meshview.py <mesh> [--view]
+[--size]`, `bfbc2.exe meshview`), and so does `meshview.py` as the library other tools read the game copy through.
 
 | Feature | In the editor? | Plan |
 |---|---|---|
-| An index of the game copy's bundles and every level's Dx9 shader database, cached | Partly: the content browser's catalogue reads every bundle's header (E2b) | GR3 |
-| `find <text>`: mesh names containing a text | Partly: the asset browser's search (blueprints, not meshes) | GR3: meshes in the asset browser |
-| A mesh's parts with their colour textures, orbit and zoom, a switch per part, wireframe (an HTML page with three.js) | No (type icons; the `work\editor\thumbs` hook) | GR3: the asset browser's preview, drawn by `bc2-render` |
-| Several meshes side by side; LOD choice | No | GR3 |
-| `--png` (side / top / front, size): a picture | No | Stays a command line (the user's plan): `bfbc2.exe meshview` or the Python, also the thumbnails' source |
+| An index of the game copy's bundles and every level's Dx9 shader database, cached (`work\tools_out\meshview_index.pkl`) | **Added in GR3**: the same index, read from the same cache (`bc2_convert::meshview::cache`: the pickle read in Rust; a stale or missing one built with `bc2_formats::meshindex` and written byte for byte as the Python writes it, under the same lock) | - |
+| `find <text>`: mesh names containing a text | **Added in GR3**: the asset browser's Meshes mode (the same list as `meshview.py find`, `Index::find`); click previews, Shift+click compares | `find` stays a command line too |
+| A mesh's parts with their colour textures (`load_mesh`: layouts from the databases, the blueprint's surfaces, the colour texture by name) | **Added in GR3**: `bc2_convert::meshview::load_mesh`, identical to the Python on every recorded mesh (below) | - |
+| Orbit, pan, zoom (three.js `OrbitControls`) | **Added in GR3**: drag turns, right or middle drag moves, the wheel zooms; Perspective or orthographic; Frame resets | - |
+| A switch per part, with its triangle count and colour texture | **Added in GR3**: the parts list (switch, name, triangles, texture), and a click in the picture selects the part, drawn in `view-selection` | - |
+| Wireframe | **Added in GR3**: Shading > Wireframe, and Edges over the shading | - |
+| Several meshes side by side (`stack_models`) | **Added in GR3**: Shift+click in Place Objects or Meshes adds to the comparison (laid out by `stack_models`, identical offsets); Remove, Clear comparison | - |
+| The level of detail (`--lod`) | **Added in GR3**: the LOD list of the mesh's levels | - |
+| `--png` (side / top / front, size): a picture | Yes: the Side, Top and Front presets are `render`'s framing and drawing, pixel for pixel; Save picture writes `work\tools_out\meshview\<names>_<view>.png` (1200 px, the command line's grey) | The command line stays (the user's plan) |
+| The page itself (a file holding the models and textures, three.js from a CDN) | Not carried over: the preview draws in the editor, nothing to share or to fetch | `meshview.page()` stays, deprecated, while Project OPFOR's WW2 tools (`attachments.py`, `scopes.py`) write their preview pages with it (`RETIRED.md`) |
+
+Beyond the page (the round's brief): **destruction states** (a blueprint's health states pick its mesh parts, as the
+simplified view does: Intact, each stage, Destroyed, Every part); **textures per channel** (each part's shader entry
+lists its textures, sorted into colour, normal, specular, mask, occlusion, detail, environment; the picture draws the
+chosen channel; Colour is the mesh viewer's choice); **normals** (lines from each vertex); **bounds** (a box) and
+**measurements** (the bounds' size and centre in metres, triangles and vertices per part and per mesh).
+Not carried over, and why: **a skeleton** (the mesh viewer has none - skinned meshes are drawn in their rest pose,
+as there; bones belong to the animation tools' Granny readers) and **collision** (not the mesh viewer's either; the
+level views' Collision mode draws each placed blueprint's Havok shapes). The index covers the stock game only, as
+the mesh viewer's does: an OPFOR-built asset (a WW2 level's) says so.
+
+How the preview draws: on the CPU, with the mesh viewer's own triangle loop ported (`bc2_convert::meshview::render`:
+float32 screen positions, float64 weights and depths, NumPy 2's promotion rules), so the presets need no tolerance;
+the orbit camera projects the vertices and runs the same loop. Proof (`tests/gr3.rs`, quick tier, about 3 s): the
+mesh viewer's answers recorded by `bfbc2-mesh-viewer/tests/record_preview_parity.py` (digests only,
+`tests/data/meshview_parity.json.gz`) on 8 meshes and all their levels of detail - a rifle, a guard tower, a barrack,
+a palm, the M1A2, a soldier, an ammo crate, a parrot: 18 levels of detail, 94 parts (names, surfaces, textures,
+vertex and triangle counts, positions, normals, texture coordinates, indices, decoded textures), the layout offsets
+and 55 pictures (side, top, front at 400 px, and two rifles stacked) - all identical; Save picture at 1200 px is
+identical to `meshview.py --png --size 1200` on the stacked rifles. The panel test (the demo level) draws, picks and
+hides a part; the screenshot test saves MP_005's guard tower and the rifles in Dark and Light.
 
 ### 9.4 DbxEditGUI (`bfbc2-dbx-tools/DbxEditGUI.cs`): the last C#
 
