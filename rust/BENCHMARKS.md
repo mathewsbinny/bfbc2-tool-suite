@@ -6428,3 +6428,37 @@ naming what to revert first). spec `transforms/install.md` XINST-GL-1..3.
 - Updated: `test_navkit_offline` (install / restore / adoption / refusal on the ledger), `test_stockmp`,
   `test_deep_scan_fixes` (a lasting lock on the Package bundle part way: every file back, exit 1),
   `test_review_fixes` / `_2`, the editor's `gr2` install / restore on a scratch game folder.
+
+**Project OPFOR's half (branch `df2` of project-opfor-bfbc2).**
+- `opforcore.stages`, the install-marker module on `opforcore.ledger`: whole-file layers (`derived` for every OPFOR
+  stage), one journalled commit per run, a redo built on the stage's own prior, a revert refused in words under a
+  later layer, an interrupted commit rolled back by the next run (`resume`). `ledger.py`: fsync before the rename,
+  derived layers, `keep_others` / partial uninstall, file-vs-slot conflicts, tree copies of exactly the planned files
+  (BUG-25).
+- On it: the 14 `console_*` stages and the three `apply_*` fixes (owner `<stage>:<level>`; DS-2: no `shutil.copyfile`
+  into the game copy any more; DS-10: no forwarded `-applied` records), `console_onslaught` (one commit of bundles,
+  path data and registration) and `console_port --from N` (reverts N..14 first), `wake_install` (owner `wake`; the
+  opfor.ini refresh re-states the prior; the manifest repair its own owner: SM-6; latin-1 registration: BUG-28;
+  DS-7), `menu_install` (`--mark` records the bat's build whenever the stage is installed: SM-5; `--revert` of a
+  bat-built bundle leaves it to `build_menus.bat` and exits 2: DS-11), the Pacific opt-out exiting 1 when the menu
+  mode is not out (BUG-7), `staged.json` written atomically and a damaged one asking for a new plan (BUG-22),
+  `mapedit_install` (owner `mapedit`), the import scripts `merge_startup.ps1` / `merge_manifests.ps1` /
+  `campaign_fill.ps1` (owner `import`, through `stages.py install`; `$LASTEXITCODE` checked, Dist fallback: DS-8),
+  `import_onslaught.bat` (the re-imported levels' owners dropped: `stages.py forget-under`). Readers of old backups
+  (`names.py`, `minimap_edges.py`, `console_markv.py`) read the ledger's priors (`stages.before_path`), the old
+  backup while a game copy is not migrated.
+- `opforcore.migrate`: the old markers into the ledger (backups hard-linked into blobs, markers moved to
+  `game\opfor\legacy-markers`), idempotent, inconsistent files refused in words and left alone. **This PC's game
+  copy (dry run, not migrated):** 23 marked files, 23 migratable, 0 refused. On a scratch copy of those 23 files and
+  their 129 markers: migrated (a second run: nothing to do, no marker left), the ledger's stacks and originals equal
+  the plan's, `console_input --revert` / `console_shaders --revert` (the real tools, GAME pointed at the copy) gave
+  back their old backups byte for byte, then all 45 owners reverted top-down, each step byte-identical to that
+  layer's old backup and every file at the end its bottom backup (DICE's or the import's original); no blob left.
+- Tests (OPFOR): `opforcore/tests/test_stages.py` (every order of two tools, DS-1, derived order, an exception at
+  every write - store and game - and a process killed at every rename of an install and of a revert, then resumed),
+  `test_migrate.py`, `test_suite_ledger_compat.py` (OPFOR's ledger, the suite's Python twin and `bfbc2.exe gameledger`
+  on one store), `tests/test_df2_installs.py` (the tools on fake game copies, a real stage's revert interrupted at
+  every write, a lint that no tool writes the game copy in place), the old-protocol tests rewritten; tools quick
+  367 / 367 (7 skipped), opforcore 89 / 89; `game\` unchanged (1,582 files, sizes and write times) before and after.
+- WW2 rebuild against the oracle (OPFOR main with df2 merged, 40b9cef; the readers of old backups changed): all 52
+  steps in 22 min, 10,852 of 10,852 files identical.
