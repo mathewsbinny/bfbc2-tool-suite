@@ -17,6 +17,7 @@ unchanged model, roundtrip --pack and a graft of its sprites into the next movie
   python test_apt_e3n.py [--game]
 """
 import hashlib
+import json
 import os
 import random
 import struct
@@ -376,7 +377,7 @@ def game_tools() -> None:
     import io
 
     import aptcheck
-    import aptrefs
+    import aptrefslib as aptrefs
     import bc2loc
     import menucommon as mc
     from bfbc2core import fbrb
@@ -393,9 +394,16 @@ def game_tools() -> None:
             d = os.path.join(work, str(native))
             os.makedirs(d)
             t0 = time.perf_counter()
-            with contextlib.redirect_stdout(io.StringIO()):
-                code = aptrefs.main(['aptrefs.py', 'xref', '--out', os.path.join(d, 'x.txt'), '--json',
-                                     os.path.join(d, 'x.json')])
+            # round RT3: aptrefs.py's command line was retired; its xref from the library, in process (the
+            # movies decoded by the Python or the Rust decoder as apt.use_native says)
+            img = mc.PEImage(mc.find_exe(None, None))
+            table, cases = aptrefs.extern_table(img), aptrefs.getter_cases(img)
+            scanned = aptrefs.scan_movies([], None, None)
+            rows = aptrefs.cross_reference(scanned, table, cases, img.strings())
+            with open(os.path.join(d, 'x.json'), 'w', encoding='utf-8') as fx:
+                json.dump({'movies': {label: refs for label, _, refs in scanned}, 'names': rows,
+                           'table': [{'name': n, 'id': i} for n, i, _ in table]}, fx, indent=1, default=list)
+            code = 0
             t1 = time.perf_counter()
             found = []
             for _key, rel in mc.MOVIE_SETS:

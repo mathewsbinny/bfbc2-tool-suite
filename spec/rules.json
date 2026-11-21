@@ -4801,7 +4801,7 @@
     },
     {
      "kind": "code",
-     "ref": "bfbc2-culltree/culltree.py:281-299"
+     "ref": "bfbc2-culltree/culltreelib.py:258-276"
     },
     {
      "kind": "test",
@@ -10834,7 +10834,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-readers/xiso/xiso.py:6-10"
+     "ref": "bfbc2-console-readers/xiso/xisolib.py:4-8"
     }
    ]
   },
@@ -10867,7 +10867,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-readers/xiso/xiso.py:7-10"
+     "ref": "bfbc2-console-readers/xiso/xisolib.py:5-8"
     }
    ]
   },
@@ -14602,7 +14602,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-stockmp-ai/stockmp.py:181-210"
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:168-197"
     },
     {
      "kind": "test",
@@ -14618,7 +14618,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-stockmp-ai/stockmp.py:211-232"
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:198-219"
     },
     {
      "kind": "test",

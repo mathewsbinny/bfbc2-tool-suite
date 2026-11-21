@@ -19,6 +19,7 @@ counted, not run.
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
 """
+import io
 import os
 import random
 import shutil
@@ -38,7 +39,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('core', 'xiso', 'stfs')
 import stfs  # noqa: E402
 import test_console_readers as tcr  # noqa: E402
-import xiso  # noqa: E402
+import xisolib as xiso  # noqa: E402
 from bfbc2core import native  # noqa: E402
 from f0_parity import Checks, canon, stdout_utf8  # noqa: E402
 
@@ -66,10 +67,12 @@ def package(path: str, on: bool) -> tuple[Any, ...]:
         stfs.use_native(True)
 
 
-def disc(path: str, on: bool) -> tuple[Any, ...]:
+def disc(path: str, on: bool, memory: bool = False) -> tuple[Any, ...]:
+    """The partition, the position find_partition leaves, the files and the position walk leaves; memory: the image
+    read from an io.BytesIO (round RT3: the Rust core's bytes entry point)."""
     xiso.use_native(on)
     try:
-        with open(path, 'rb') as f:
+        with (io.BytesIO(open(path, 'rb').read()) if memory else open(path, 'rb')) as f:
             base = xiso.find_partition(f)
             after_find = f.tell()
             f.seek(base + 32 * xiso.SECTOR + 20)
@@ -159,18 +162,18 @@ def main(argv: list[str]) -> int:
             discs.append((p, b))
         tx = Tally()
         for p, _ in discs:
-            a, r = disc(p, True), disc(p, False)
-            tx.add(a == r and a[0] == 'ok', os.path.basename(p))
+            a, r, m = disc(p, True), disc(p, False), disc(p, True, memory=True)
+            tx.add(a == r == m and a[0] == 'ok', os.path.basename(p))
         c.check(not tx.ndiff, f'built discs at each partition offset: {tx.same} identical (files, order, positions)',
                 '; '.join(tx.differ))
         txd = Tally()
         for i in range(300 if game else 30):
             p, b = discs[rng.randrange(2)]                      # the small ones: 0 and XGD2's offset is large but sparse
             damage(p, dst, rng, [(b + 32 * 2048, b + 32 * 2048 + 28), (b + 33 * 2048, b + 36 * 2048)])
-            a, r = disc(dst, True), disc(dst, False)
-            txd.add(a == r, f'damaged disc {i}: {str(a)[:100]} / {str(r)[:100]}')
-        c.check(not txd.ndiff, f'damaged discs: {txd.same} the same files and positions or the same error',
-                '; '.join(txd.differ))
+            a, r, m = disc(dst, True), disc(dst, False), disc(dst, True, memory=True)
+            txd.add(a == r == m, f'damaged disc {i}: {str(a)[:100]} / {str(r)[:100]} / in memory {str(m)[:100]}')
+        c.check(not txd.ndiff, f'damaged discs: {txd.same} the same files and positions or the same error, read from '
+                'the file and from memory (io.BytesIO, round RT3)', '; '.join(txd.differ))
 
         # an entry damaged to millions of blocks: the reference builds every block's bytes before it cuts at the size
         # (gigabytes for a chain that loops through the package); the port stops at the size: the same bytes as the
@@ -195,11 +198,15 @@ def main(argv: list[str]) -> int:
                     f'bytes, as the reference reads them ({time.perf_counter() - t0:.2f} s)')
         pk.f.close()
 
-        # not a plain file: the Python
-        import io
+        # round RT3: an image in memory is read by the Rust core (its bytes entry point), not the Python
         data = open(discs[0][0], 'rb').read()
-        bio = io.BytesIO(data)
-        c.check(xiso.find_partition(bio) == 0 and xiso._path_of(bio) is None, 'a file object without a path: the Python')
+        nat = native.require('xiso', 'xiso_walk_bytes')
+        c.check(xiso.find_partition(io.BytesIO(data)) == 0 and xiso._memory_of(io.BytesIO(data)) == data
+                and nat.xiso_find_partition_bytes(data) == 0 and xiso.find_partition_bytes(data) == 0
+                and xiso.walk_bytes(data, 0, *struct.unpack_from('<II', data, 32 * xiso.SECTOR + 20))
+                == list(xiso.walk_reference(io.BytesIO(data), 0, *struct.unpack_from('<II', data, 32 * xiso.SECTOR + 20))),
+                'an image in memory (io.BytesIO, find_partition_bytes / walk_bytes): read in the Rust core, as the '
+                'reference reads it')
 
         if game:
             xbox = argv[argv.index('--xbox') + 1] if '--xbox' in argv else tcr.XBOX_DEFAULT

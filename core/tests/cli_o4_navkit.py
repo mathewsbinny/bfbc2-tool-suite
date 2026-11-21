@@ -27,9 +27,9 @@ T = '1/0/0/0/0/1/0/0/0/0/1/0/{x}/{y}/{z}/1'
 
 
 def _nodes(data: bytes) -> list[tuple[float, float, float]]:
-    """The node positions of a path data file (the reference reader)."""
+    """The node positions of a path data file (hpdtool.parse: the reference reader until round RT3 retired it)."""
     hpdtool, _kymesh = nav._navkit()
-    f = hpdtool.parse_reference(data)
+    f = hpdtool.parse(data)
     return [tuple(n.pos) for s in f.sectors for n in s.nodes]
 
 
@@ -38,7 +38,7 @@ def _finite_hpd(seed: int, nodes: int = 30) -> bytes:
     for k in range(seed, seed + 200):
         data = nav._hpd_file(k, (1, 3), nodes)
         hpdtool, kymesh = nav._navkit()
-        f = hpdtool.parse_reference(data)
+        f = hpdtool.parse(data)
         ok = all(all(abs(v) < 1e30 for n in s.nodes for v in n.pos) for s in f.sectors)
         try:
             for s in f.sectors:

@@ -3,13 +3,15 @@
 //! types (`int`, `float`), choices, `append`, `nargs='*'` options, the help and the usage errors (at the pipe width of
 //! 80 the Python's texts, recorded; at the console's width or `COLUMNS` [`crate::argfmt`]'s, round RT2).
 //!
-//! Handed to the Python ([`Fail::Python`]): option abbreviations, `--`, attached short values (`-oX`), single-dash
+//! Option abbreviations are resolved as argparse resolves them, with its ambiguity error (round RT3).
+//! Handed to the Python ([`Fail::Python`]): `--`, attached short values (`-oX`), single-dash
 //! options it does not know, a second run of positional values (`argparse`'s own matching rules across options),
 //! `-h` after other arguments, and values whose `int()` / `float()` only Python decides (anything but plain ASCII
 //! digits).
 
 use std::collections::HashMap;
 
+use crate::argfmt::Long;
 use crate::pyfmt::str_repr;
 use crate::pyproc::{Fail, Py, PyResult};
 
@@ -346,21 +348,37 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
             Some((n, v)) if n.starts_with("--") => (n, Some(v)),
             _ => (a, None),
         };
-        let Some(k) = p.opts.iter().position(|o| o.strings.contains(&name)) else {
-            if !a.starts_with("--") || inline.is_some() {
-                return Err(Fail::Python); // single-dash forms and --x=v: argparse's own
+        let k = match p.opts.iter().position(|o| o.strings.contains(&name)) {
+            Some(k) => k,
+            None if !a.starts_with("--") => return Err(Fail::Python), // single-dash forms: argparse's own
+            None => {
+                // round RT3: an abbreviation resolved as argparse resolves it, or its ambiguity error
+                let strings: Vec<&'static str> = ["-h", "--help"]
+                    .into_iter()
+                    .chain(p.opts.iter().flat_map(|o| o.strings.iter().copied()))
+                    .collect();
+                match crate::argfmt::long_option(a, &strings) {
+                    Long::Found("--help") => {
+                        if i != 0 || inline.is_some() {
+                            return Err(Fail::Python); // as -h after other arguments, and help's explicit argument
+                        }
+                        py.write(&crate::argfmt::help_or(p.prog, p.help)?)?;
+                        py.flush_out();
+                        return Ok(Parsed::Exit(0));
+                    }
+                    Long::Found(s) => match p.opts.iter().position(|o| o.strings.contains(&s)) {
+                        Some(k) => k,
+                        None => return Err(Fail::Python),
+                    },
+                    Long::Ambiguous(m) => return error(py, p, &m),
+                    Long::Spaced => return Err(Fail::Python),
+                    Long::Unknown => {
+                        extras.push(a.to_owned());
+                        i += 1;
+                        continue;
+                    }
+                }
             }
-            if p.opts
-                .iter()
-                .flat_map(|o| o.strings.iter())
-                .chain(["--help"].iter())
-                .any(|s| s.starts_with(name))
-            {
-                return Err(Fail::Python); // an abbreviation
-            }
-            extras.push(a.to_owned());
-            i += 1;
-            continue;
         };
         let o = &p.opts[k];
         let oname = opt_name(o);
@@ -401,8 +419,15 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
                 slot.push(v);
             }
             Kind::Star => {
-                if inline.is_some() {
-                    return Err(Fail::Python);
+                if let Some(v) = inline {
+                    // `--x=v`: argparse matches the explicit argument alone (one value)
+                    match convert(o.ty, &oname, v)? {
+                        Ok(()) => {}
+                        Err(m) => return error(py, p, &m),
+                    }
+                    out.values.insert(key, vec![v.to_owned()]);
+                    i += 1;
+                    continue;
                 }
                 let mut vals = Vec::new();
                 let mut j = i + 1;

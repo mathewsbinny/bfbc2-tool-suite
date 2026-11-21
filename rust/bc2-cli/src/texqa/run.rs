@@ -1,7 +1,8 @@
 //! texqa's command line (`main`, `run`, `find`, the reports, the baseline): the files it writes, its printed lines.
 //!
-//! `--help` alone is argparse's help at the console's width ([`crate::argfmt`], round RT2). Handed to the Python
-//! ([`Fail::Python`], decided before anything is written or printed): argparse's help among other arguments, errors
+//! `--help` first (or an abbreviation of it) is argparse's help at the console's width ([`crate::argfmt`], round
+//! RT2); option abbreviations resolve as argparse resolves them (round RT3). Handed to the Python
+//! ([`Fail::Python`], decided before anything is written or printed): argparse's help after other arguments, errors
 //! and the option forms this port does not read; BF1943's bundles as a source (`bf1943import.Source`); DICE's copies
 //! (the stock bundles' index; give `--no-dice`); a run whose report would have contact sheets (PIL draws them: some
 //! texture flagged among `--worst`); a `--write-baseline` without a folder; anything NumPy itself would raise.
@@ -12,10 +13,31 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::analyse::{self, Out, composite};
 use super::decode::{self, name_of};
+use crate::argfmt::Long;
 use crate::pyfmt::{float_repr, str_repr};
 use crate::pyjson::{self, Value};
 use crate::pyos;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, os_error, suite_root};
+
+/// texqa.py's option strings in argparse's `_option_string_actions` order (abbreviations resolve over them).
+const STRINGS: [&str; 16] = [
+    "-h",
+    "--help",
+    "-o",
+    "--out",
+    "--bf1943",
+    "--no-bf1943",
+    "--console",
+    "--opfor",
+    "--no-dice",
+    "--cache",
+    "--worst",
+    "--skip",
+    "--baseline",
+    "--write-baseline",
+    "--threshold",
+    "--workers",
+];
 
 const VERSION: i128 = 1;
 const WHAT_TO_DO: &str = "Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.";
@@ -100,10 +122,17 @@ fn parse(argv: &[String]) -> PyResult<Args> {
             continue;
         }
         in_run = false;
-        let (opt, inline) = match arg.split_once('=') {
+        let (mut opt, inline) = match arg.split_once('=') {
             Some((o, v)) if o.starts_with("--") => (o.to_owned(), Some(v.to_owned())),
             _ => (arg.clone(), None),
         };
+        if arg.starts_with("--") && arg.len() > 2 {
+            // round RT3: an abbreviation resolved as argparse resolves it; its errors stay argparse's (below)
+            match crate::argfmt::long_option(arg, &STRINGS) {
+                Long::Found(s) => s.clone_into(&mut opt),
+                _ => return Err(Fail::Python),
+            }
+        }
         let flag = matches!(opt.as_str(), "--no-bf1943" | "--no-dice");
         if flag {
             if inline.is_some() {
@@ -849,8 +878,12 @@ fn regressions(rows: &[Value], base: &Value, threshold: f64) -> PyResult<Vec<Str
 
 /// texqa's `main` (`errors.guard` reports a `TexQaError`).
 pub fn main(py: &mut Py, argv: &[String]) -> PyResult<i32> {
-    if let [h] = argv
-        && (h == "-h" || h == "--help")
+    // the help consumed first (argparse takes the optional at index 0 before anything after it)
+    if let Some(h) = argv.first()
+        && (h == "-h"
+            || (h.starts_with("--")
+                && !h.contains('=')
+                && crate::argfmt::long_option(h, &STRINGS) == Long::Found("--help")))
     {
         // argparse's help, at the console's width (round RT2: crate::argfmt)
         py.write(&crate::argfmt::help("texqa")?)?;

@@ -7,7 +7,7 @@ never write into it. There is no menu viewer here.
 | Tool | For |
 |---|---|
 | `aptcheck.py` | checking menu patches before a build reaches the game: the rules whose breaking crashes the menu loader |
-| `aptrefs.py` | what the movies ask of the engine (`extern.<name>`), send it (FSCommands) and handle (engine events), with the exe's name / id table |
+| `bfbc2 aptrefs` (library `aptrefslib.py`; `aptrefs.py` retired in round RT3) | what the movies ask of the engine (`extern.<name>`), send it (FSCommands) and handle (engine events), with the exe's name / id table |
 | `bc2loc.py` | the game's localized texts: look up a key, search the texts, the keys a movie uses; write texts |
 | `aptgraft.py` | writing APT movies (round trip, the other byte order) and grafting between movies: a character with what it uses, the Onslaught HUD timer, mode cases and aliases, frame-label aliases, crosshairs; its commands and model are in its docstring (`python aptgraft.py` prints them) |
 
@@ -63,13 +63,13 @@ The rules (OPFOR's DEVELOPMENT_NOTES.md section 3, learned from menus that crash
 Exit code 1 when there is an error. Every movie of the game copy's movie sets (128: menus, HUDs, loaders) and the
 Xbox 360 menus pass the rules by themselves; OPFOR's 12 patch files lint with no error (2026-10-26).
 
-## aptrefs.py - externs, FSCommands and events
+## bfbc2 aptrefs - externs, FSCommands and events
 
 ```
-python aptrefs.py xref                       every name across every movie set -> work\tools_out\aptrefs.txt / .json
-python aptrefs.py find playerStats           one name: its kind, engine id, getter case, movies
-python aptrefs.py movie wag                  one movie: externs read, FSCommands sent, events handled
-python aptrefs.py table                      the exe's name -> id table
+bfbc2 aptrefs xref                           every name across every movie set -> work\tools_out\aptrefs.txt / .json
+bfbc2 aptrefs find playerStats               one name: its kind, engine id, getter case, movies
+bfbc2 aptrefs movie wag                      one movie: externs read, FSCommands sent, events handled
+bfbc2 aptrefs table                          the exe's name -> id table
 ```
 
 - **From the movies:** `extern.<name>` reads (`name$param` when a parameter is added: `unlockWeaponData$<id>`), the

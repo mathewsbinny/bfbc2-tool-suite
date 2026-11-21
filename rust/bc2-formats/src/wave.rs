@@ -3,24 +3,62 @@
 //! `read_sps`, `read_snr`, `write_sps`), round F0. The layouts are in that module's docstring; the codecs (EA-XAS,
 //! EA-XMA) are not here.
 //!
-//! The same words, segments and blocks as the reference, the same bytes written. Where the reference raises (an
-//! `AudioError`, or `struct.error` on a read past the end) this returns an [`Error`] and the Python reads or writes
-//! it itself, so the error stays the reference's. A NaN sample rate (BF1943's float word) is left to the reference
-//! too.
+//! The same words, segments and blocks as the reference, the same bytes written. Where the reference raises, the
+//! readers stop at the same point with its error (round RT3, so the readers' references could be retired):
+//! [`Error::Audio`] its `AudioError`'s message, [`Error::Struct`] `struct.error`'s in CPython's words (a read past the
+//! end that its checks let through). A NaN sample rate (BF1943's float word) is read as the file holds it.
 
 /// The padding after every blob.
 pub const PAD: &[u8; 3] = b"\xad\xde\xad";
 
-/// Why a resource or stream is left to the reference.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Where the reference raises.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    /// Where the reference raises (or a NaN rate).
-    Refused,
+    /// The reference's `AudioError(message)`.
+    Audio(String),
+    /// The reference's `struct.error(message)`.
+    Struct(String),
     /// A value past the field's width when writing.
     TooLarge,
 }
 
+impl Error {
+    /// The Python exception's name (`audio.py` raises it): `AudioError`, `struct.error`; `TooLarge` is the
+    /// writers' (`struct.error` too).
+    #[must_use]
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Audio(_) => "AudioError",
+            Self::Struct(_) | Self::TooLarge => "struct.error",
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Audio(m) | Self::Struct(m) => f.write_str(m),
+            Self::TooLarge => f.write_str("a blob too large for its u32 size"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
 type Result<T> = std::result::Result<T, Error>;
+
+fn audio(m: impl Into<String>) -> Error {
+    Error::Audio(m.into())
+}
+
+/// `struct.unpack_from` of `size` bytes at `at` past the buffer's end: CPython 3.13's message.
+fn short(size: usize, at: usize, len: usize) -> Error {
+    Error::Struct(format!(
+        "unpack_from requires a buffer of at least {} bytes for unpacking {size} bytes at offset {at} (actual buffer \
+         size is {len})",
+        at + size
+    ))
+}
 
 /// Which game and platform a Wave is from (`audio.SOURCES`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,11 +95,12 @@ pub struct Wave {
     pub bf1943: Option<(f32, u32, u32)>,
 }
 
+/// `struct.unpack_from(e + 'I', b, at)[0]`, or its `struct.error`.
 fn u32_at(b: &[u8], at: usize, big: bool) -> Result<u32> {
     let w: [u8; 4] = b
         .get(at..at + 4)
         .and_then(|s| s.try_into().ok())
-        .ok_or(Error::Refused)?;
+        .ok_or_else(|| short(4, at, b.len()))?;
     Ok(if big {
         u32::from_be_bytes(w)
     } else {
@@ -76,7 +115,9 @@ fn pad4(n: usize) -> usize {
 /// `audio.read_wave(b, source)`.
 ///
 /// # Errors
-/// [`Error::Refused`] where the reference raises.
+/// The reference's error where it raises (its `AudioError`, or `struct.error` for a stream-information size word
+/// past the end).
+#[allow(clippy::many_single_char_names, reason = "the reference's names (b, n, m, o)")]
 pub fn read_wave(b: &[u8], source: Source) -> Result<Wave> {
     let big = source != Source::Bfbc2Pc;
     let mut words = [0u32; 7];
@@ -84,19 +125,19 @@ pub fn read_wave(b: &[u8], source: Source) -> Result<Wave> {
     let mut rate = 0f32;
     if source == Source::Bf1943 {
         if b.len() < 40 {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "Wave: {} bytes, shorter than a Battlefield 1943 header",
+                b.len()
+            )));
         }
         rate = f32::from_bits(u32_at(b, 0, true)?);
-        if rate.is_nan() {
-            return Err(Error::Refused);
-        }
         for (k, w) in words.iter_mut().take(6).enumerate() {
             *w = u32_at(b, 4 + 4 * k, true)?;
         }
         o = 28;
     } else {
         if b.len() < 36 {
-            return Err(Error::Refused);
+            return Err(audio(format!("Wave: {} bytes, shorter than a BFBC2 header", b.len())));
         }
         for (k, w) in words.iter_mut().take(6).enumerate() {
             *w = u32_at(b, 4 * k, big)?;
@@ -104,9 +145,12 @@ pub fn read_wave(b: &[u8], source: Source) -> Result<Wave> {
         o = 24;
     }
     let mut segs: [Option<Segment>; 3] = [None, None, None];
-    for seg in &mut segs {
+    for (i, seg) in segs.iter_mut().enumerate() {
         if o + 4 > b.len() {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "Wave: segment {i} at {o:#x} runs past the end ({} bytes)",
+                b.len()
+            )));
         }
         let n = u32_at(b, o, big)? as usize;
         o += 4;
@@ -114,21 +158,32 @@ pub fn read_wave(b: &[u8], source: Source) -> Result<Wave> {
             continue;
         }
         if o + n + 4 > b.len() {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "Wave: segment {i}: {n} bytes at {o:#x} run past the end ({} bytes)",
+                b.len()
+            )));
         }
-        let data = b.get(o..o + n).ok_or(Error::Refused)?.to_vec();
+        let data = slice(b, o, o + n);
         o += n + pad4(n);
         let m = u32_at(b, o, big)? as usize;
         o += 4;
-        let info = b.get(o.min(b.len())..(o + m).min(b.len())).unwrap_or(&[]).to_vec();
+        let info = slice(b, o, o + m);
         if info.len() != m {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "Wave: segment {i}: {m} bytes of stream information run past the end"
+            )));
         }
         o = (o + m + pad4(m)).min(b.len());
         *seg = Some((data, info));
     }
-    if o != b.len() || segs[1].is_none() {
-        return Err(Error::Refused);
+    if o != b.len() {
+        return Err(audio(format!(
+            "Wave: the segments end at {o:#x}, the file at {:#x}",
+            b.len()
+        )));
+    }
+    if segs[1].is_none() {
+        return Err(audio("Wave: no loop segment"));
     }
     if source == Source::Bf1943 {
         let [w04, ch, total, loop_start, loop_end, fid, _] = words;
@@ -164,7 +219,7 @@ pub fn read_wave(b: &[u8], source: Source) -> Result<Wave> {
 /// `audio.write_wave_pc(w)` from its six words and three segments.
 ///
 /// # Errors
-/// [`Error::Refused`] without a loop segment; [`Error::TooLarge`] for a blob past `u32`.
+/// [`Error::Audio`] without a loop segment; [`Error::TooLarge`] for a blob past `u32`.
 pub fn write_wave_pc(words: &[u32; 6], segments: &[Option<(&[u8], &[u8])>; 3]) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     for w in words {
@@ -173,7 +228,7 @@ pub fn write_wave_pc(words: &[u32; 6], segments: &[Option<(&[u8], &[u8])>; 3]) -
     for (i, s) in segments.iter().enumerate() {
         let Some((data, info)) = s else {
             if i == 1 {
-                return Err(Error::Refused);
+                return Err(audio("Wave: no loop segment"));
             }
             out.extend_from_slice(&0u32.to_le_bytes());
             continue;
@@ -209,7 +264,9 @@ pub struct Stream {
 /// `_ea_header(h1, h2)`.
 fn ea_header(h1: u32, h2: u32, blocks: Vec<(u32, Vec<u8>)>) -> Result<Stream> {
     if (h2 >> 29) & 1 != 0 {
-        return Err(Error::Refused);
+        return Err(audio(
+            "EA stream: the loop flag is set (no Wave seen has it; its loop start word is not handled)",
+        ));
     }
     Ok(Stream {
         version: h1 >> 28,
@@ -235,19 +292,27 @@ fn slice(s: &[u8], a: usize, b: usize) -> Vec<u8> {
 /// `audio.read_sps(s)`.
 ///
 /// # Errors
-/// [`Error::Refused`] where the reference raises.
+/// The reference's error where it raises (`AudioError`, or `struct.error` for a header or audio block too short for
+/// its words).
 pub fn read_sps(s: &[u8]) -> Result<Stream> {
     let mut o = 0usize;
     let mut hdr: Option<(u32, u32)> = None;
     let mut blocks = Vec::new();
     while o + 4 <= s.len() {
-        let kind = *s.get(o).ok_or(Error::Refused)?;
+        let kind = s.get(o).copied().unwrap_or(0);
         let n = u32_at(s, o, true)? as usize & 0xFF_FFFF;
         if n < 4 || o + n > s.len() {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "SPS: block {kind:#x} of {n} bytes at {o:#x} does not fit ({} bytes)",
+                s.len()
+            )));
         }
         match kind {
             0x48 => {
+                // struct.unpack_from('>II', s, o + 4): one read of 8 bytes
+                if o + 12 > s.len() {
+                    return Err(short(8, o + 4, s.len()));
+                }
                 let (h1, h2) = (u32_at(s, o + 4, true)?, u32_at(s, o + 8, true)?);
                 // the loop flag is checked as the header is read (the reference's _ea_header)
                 ea_header(h1, h2, Vec::new())?;
@@ -258,13 +323,15 @@ pub fn read_sps(s: &[u8]) -> Result<Stream> {
                 o += n;
                 break;
             }
-            _ => return Err(Error::Refused),
+            _ => return Err(audio(format!("SPS: unknown block kind {kind:#x} at {o:#x}"))),
         }
         o += n;
     }
-    let (h1, h2) = hdr.ok_or(Error::Refused)?;
+    let Some((h1, h2)) = hdr else {
+        return Err(audio("SPS: no header block"));
+    };
     if o != s.len() {
-        return Err(Error::Refused);
+        return Err(audio(format!("SPS: ends at {o:#x} of {:#x}", s.len())));
     }
     ea_header(h1, h2, blocks)
 }
@@ -278,7 +345,10 @@ fn sns_blocks(s: &[u8], mut o: usize) -> Result<(Blocks, usize)> {
         let h = u32_at(s, o, true)?;
         let (flags, n) = (h >> 24, (h & 0xFF_FFFF) as usize);
         if n < 8 || o + n > s.len() {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "SNS: block of {n} bytes at {o:#x} does not fit ({} bytes)",
+                s.len()
+            )));
         }
         blocks.push((u32_at(s, o + 4, true)?, slice(s, o + 8, o + n)));
         o += n;
@@ -292,24 +362,32 @@ fn sns_blocks(s: &[u8], mut o: usize) -> Result<(Blocks, usize)> {
 /// `audio.read_snr(s, sns)`.
 ///
 /// # Errors
-/// [`Error::Refused`] where the reference raises.
+/// The reference's `AudioError` where it raises.
 pub fn read_snr(s: &[u8], sns: Option<&[u8]>) -> Result<Stream> {
     if s.len() < 8 {
-        return Err(Error::Refused);
+        return Err(audio(format!("SNR: {} bytes, shorter than the header", s.len())));
     }
     let (h1, h2) = (u32_at(s, 0, true)?, u32_at(s, 4, true)?);
     ea_header(h1, h2, Vec::new())?;
     let blocks = if s.len() == 8 {
-        let sns = sns.ok_or(Error::Refused)?;
+        let Some(sns) = sns else {
+            return Err(audio("SNR: a streamed sound (header only); pass its waveDataSns entry"));
+        };
         let (blocks, o) = sns_blocks(sns, 0)?;
         if o != sns.len() {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "SNS: the blocks end at {o:#x}, the stream at {:#x}",
+                sns.len()
+            )));
         }
         blocks
     } else {
         let (blocks, o) = sns_blocks(s, 8)?;
         if o != s.len() {
-            return Err(Error::Refused);
+            return Err(audio(format!(
+                "SNR: the blocks end at {o:#x}, the data at {:#x}",
+                s.len()
+            )));
         }
         blocks
     };
@@ -355,7 +433,33 @@ mod tests {
         assert_eq!(w.segments[2], Some((b"xy".to_vec(), b"info".to_vec())));
         assert!(read_wave(&b[..b.len() - 1], Source::Bfbc2Pc).is_err());
         assert!(read_wave(&b, Source::Bfbc2Xbox).is_err());
-        assert_eq!(write_wave_pc(&words, &[None, None, None]), Err(Error::Refused));
+        assert_eq!(
+            write_wave_pc(&words, &[None, None, None]),
+            Err(Error::Audio("Wave: no loop segment".into()))
+        );
+        // the reference's words where it raises (round RT3)
+        assert_eq!(
+            read_wave(&b[..30], Source::Bfbc2Pc).unwrap_err().to_string(),
+            "Wave: 30 bytes, shorter than a BFBC2 header"
+        );
+        let e = read_wave(&b[..b.len() - 1], Source::Bfbc2Pc).unwrap_err();
+        assert_eq!((e.kind(), e.to_string().starts_with("Wave: ")), ("AudioError", true));
+        // a one-byte loop blob with its padding cut: the info size word is read past the end (struct.error)
+        let segs1 = [None, Some((b"a".as_slice(), b"".as_slice())), None];
+        let one = write_wave_pc(&words, &segs1).unwrap();
+        let mut short_info = one[..32].to_vec();
+        short_info.extend_from_slice(&[b'a', 0xad, 0xde]);
+        short_info.extend_from_slice(&[0; 4]);
+        let e = read_wave(&short_info, Source::Bfbc2Pc).unwrap_err();
+        assert_eq!(
+            (e.kind(), e.to_string()),
+            (
+                "struct.error",
+                "unpack_from requires a buffer of at least 40 bytes for unpacking 4 bytes at offset 36 (actual \
+                 buffer size is 39)"
+                    .into()
+            )
+        );
     }
 
     #[test]
@@ -370,8 +474,25 @@ mod tests {
         assert_eq!(s.blocks, vec![(100, b"one".to_vec()), (200, b"two!".to_vec())]);
         let mut looped = b.clone();
         looped[8] |= 0x20;
-        assert_eq!(read_sps(&looped), Err(Error::Refused));
-        assert_eq!(read_sps(&b[..b.len() - 1]), Err(Error::Refused));
+        assert_eq!(
+            read_sps(&looped).unwrap_err().to_string(),
+            "EA stream: the loop flag is set (no Wave seen has it; its loop start word is not handled)"
+        );
+        assert_eq!(
+            read_sps(&b[..b.len() - 1]).unwrap_err().to_string(),
+            format!("SPS: ends at {:#x} of {:#x}", b.len() - 4, b.len() - 1)
+        );
+        // a header block of 8 bytes: its two words read past the end (struct.error, one read of 8 bytes)
+        let e = read_sps(b"\x48\x00\x00\x08\x00\x00\x00\x00").unwrap_err();
+        assert_eq!(
+            (e.kind(), e.to_string()),
+            (
+                "struct.error",
+                "unpack_from requires a buffer of at least 12 bytes for unpacking 8 bytes at offset 4 (actual \
+                 buffer size is 8)"
+                    .into()
+            )
+        );
     }
 
     #[test]
@@ -385,6 +506,11 @@ mod tests {
         whole.extend_from_slice(&block);
         assert_eq!(read_snr(&whole, None).unwrap().blocks, vec![(50, b"abc".to_vec())]);
         assert_eq!(read_snr(&s, Some(&block)).unwrap().blocks, vec![(50, b"abc".to_vec())]);
-        assert_eq!(read_snr(&s, None), Err(Error::Refused));
+        assert_eq!(
+            read_snr(&s, None),
+            Err(Error::Audio(
+                "SNR: a streamed sound (header only); pass its waveDataSns entry".into()
+            ))
+        );
     }
 }
