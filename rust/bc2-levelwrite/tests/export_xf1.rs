@@ -69,6 +69,7 @@ fn database(game: &Game, lv: &str, file: &str) -> Vec<u8> {
 }
 
 #[test]
+#[ignore = "game tier: whole exports of stock levels; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn stock_levels_carry_their_meshes_entries() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {
@@ -111,6 +112,7 @@ fn stock_levels_carry_their_meshes_entries() {
 }
 
 #[test]
+#[ignore = "game tier: a whole cross-set export; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn a_cross_set_object_gets_its_entries_and_shape() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {

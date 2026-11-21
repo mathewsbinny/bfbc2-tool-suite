@@ -18,13 +18,15 @@ SKIP_DIRS = {'.git', '__pycache__', 'target', '.mypy_cache', '.ruff_cache', 'bui
 EXTS = ('.py', '.pyw', '.rs', '.yml', '.yaml', '.bat', '.cs', '.cpp', '.h')
 OWN = {os.path.join(SUITE, 'core', 'bfbc2core', 'envvars.py'), os.path.abspath(__file__)}
 # a round code as a part of a name (BC2_GW1_OPFOR, BFBC2_O5_REF): names say what a variable does (round TS1, audit AU3
-# TS-13); the 21 named so before it stay until PR1c renames them, a new one fails
+# TS-13); the 22 named so before it (XF1's BC2_XF1_STAGE landed while TS1 ran) stay until PR1c renames them, a new
+# one fails
 ROUND = re.compile(r'_[A-Z]{1,2}[0-9]+[A-Z]?(?=_)')
 ROUND_CODED = frozenset({
     'BC2_EDITOR_G3', 'BC2_EDITOR_G3_ART', 'BC2_EDITOR_G3_KEEP', 'BC2_EDITOR_G3_OUT', 'BC2_EDITOR_G3_PROJECTS',
     'BC2_EDITOR_G3_ROOT', 'BC2_EDITOR_G3_SHOTS', 'BC2_EDITOR_G4_REAL', 'BC2_EDITOR_G4_SHOTS', 'BC2_EX1_STAGE',
     'BC2_GW1_LEVELS', 'BC2_GW1_OPFOR', 'BC2_GW1_PACKAGE_LEVELS', 'BC2_R5C_PACKAGE_LEVELS', 'BC2_R5C_PACKAGE_OPFOR',
     'BFBC2_O2_REF', 'BFBC2_O3_REF', 'BFBC2_O5_LEVELS', 'BFBC2_O5_REF', 'BFBC2_O5_STANDIN', 'BFBC2_SD1_SIBLINGS_OF',
+    'BC2_XF1_STAGE',
 })
 
 

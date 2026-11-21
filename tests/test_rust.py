@@ -392,7 +392,7 @@ def run_binary(b: dict[str, Any], game: bool, env: dict[str, str]) -> Result:
             res.failed.append((name, str(e.get('stdout') or '')))
         elif ev == 'ignored':
             res.ignored.append((name, str(e.get('message') or '')))
-    done = set(res.passed) | {n for n, _ in res.failed}
+    done = set(res.passed) | {n for n, _ in res.failed} | {n for n, _ in res.ignored}
     unfinished = [n for n in started if n not in done]
     res.trailer = '\n'.join(loose[-30:] + stderr.strip().splitlines()[-30:]
                             + [f'started, never finished: {n}' for n in unfinished])
