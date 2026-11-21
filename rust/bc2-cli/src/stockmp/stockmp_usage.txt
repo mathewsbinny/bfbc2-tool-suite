@@ -1,0 +1,17 @@
+Stock multiplayer maps with an AI layer: generate a per-map configuration, author it into the level data, package it
+and check it offline (STOCK_MP_AI_PLAN.md, option c). Nothing is written outside <OPFOR>\work\stockmp\<lv>\ except
+by `install --apply`, which is for the user to run (never run by the build).
+
+  bfbc2 stockmp summary  <lv>                       the level as the tool reads it: mode, teams, flags, stages
+  bfbc2 stockmp generate <lv> [--bots N] [--pathdata <level folder>] [--minimal] [--keep-stock-spawners]
+                                                    write work\stockmp\<lv>\config.json (a first proposal)
+  bfbc2 stockmp build    <lv> [--config <file>]     author, pack and stage: work\stockmp\<lv>\out\game\...
+  bfbc2 stockmp validate <lv>                       the offline checks (validate.py); exit 1 if any fails
+  bfbc2 stockmp all      <lv> [generate options]    generate (unless config.json exists), build, validate
+  bfbc2 stockmp install  <lv> [--apply | --revert] [--game <game folder>]
+                                                    copy out\game into the game with backups (default: --plan)
+  common options: --variant <name> (a second build, e.g. exp0: work\stockmp\<lv>-<name>), --work <folder>
+
+--pathdata names a folder under the game's Output\win32\ai\levels (default: the level's own, else the DICE folder of
+the same world known for it: mp_005 -> ons_mp_005gr). The output keeps the game's own paths, so an install is a plain
+copy of out\game over the game folder.

@@ -97,6 +97,9 @@ pub struct Doc {
     checkpoints: Vec<Checkpoint>,
     /// Operations the last rebuild, undo, redo or History jump applied (the rest came from a checkpoint).
     pub last_replayed: usize,
+    /// The entities the view's mode layer filter hides (round VW2, [`crate::modeview`]): left out of the views, the
+    /// outliner and the queries like a hidden layer's, never edited by it.
+    pub filtered: std::collections::HashSet<usize>,
 }
 
 /// A blueprint's path (lower case, as the scene keeps it) from its reference (`objects/x/x/<guid>`).
@@ -200,6 +203,7 @@ impl Doc {
             donors: RefCell::new(HashMap::new()),
             checkpoints: Vec::new(),
             last_replayed: 0,
+            filtered: std::collections::HashSet::new(),
         };
         d.rebuild();
         d
@@ -712,10 +716,11 @@ impl Doc {
         self.scene.entities.get(k).map(|e| e.guid.as_str())
     }
 
-    /// Whether an entity is drawn and listed: not deleted, and its layer shown.
+    /// Whether an entity is drawn and listed: not deleted, its layer shown, and not hidden by the view's mode layer
+    /// filter (round VW2).
     #[must_use]
     pub fn shown(&self, k: usize) -> bool {
-        !self.deleted.contains(&k) && self.guid(k).is_some_and(|g| self.org.shown(g))
+        !self.deleted.contains(&k) && !self.filtered.contains(&k) && self.guid(k).is_some_and(|g| self.org.shown(g))
     }
 
     /// Why an entity cannot be moved, turned, copied or deleted (`None`: it can).

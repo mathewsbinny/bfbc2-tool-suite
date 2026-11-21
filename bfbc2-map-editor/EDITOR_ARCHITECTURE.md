@@ -24,7 +24,7 @@ pipeline (2026-11-16). Items marked *(inferred)* were not checked in code.
 | Need | Existing piece | Gap |
 |---|---|---|
 | Load a level: entities, transforms, blueprints, teams, areas, routes | `core/bfbc2core/level.py` (`load`, `Entity`, `resolve_blueprints`, `assign_teams`, `shapes_of`) | Loads only a NavKit-prepared level (`work\levels\<lv>\dist`); no save path |
-| 3D view, camera, picking | `core/bfbc2core/viewer.py` (moderngl + GLFW + imgui-bundle; `Viewer.pick`, `project`) | Geometry is uploaded once (`_init`); no moving, adding or removing objects; no gizmo |
+| 3D view, camera, picking | `core/bfbc2core/viewer.py` (moderngl + GLFW + imgui-bundle; `Viewer.pick`, `project`; retired in round RT3, `RETIRED.md`: the editor's own view replaced it) | Geometry is uploaded once (`_init`); no moving, adding or removing objects; no gizmo |
 | Edit log, undo, apply, install | Navigation Studio: `navtune.py` side file (operations, `by`/`when`, base sha1, undo/redo), `editing.py` (save, then `navkit apply`, then install/restore) | Built for navigation operations only |
 | Add an entity to a level partition | `bfbc2-stockmp-ai/author.py` + `dbxbin.py`: clones a prototype, UUIDv5 guids, transforms, `EventConnections`, `LevelData.Objects` | One of three DBX mutation codebases (also DbxEdit and `core/dbx.py`'s writer) |
 | Validate a built level offline | `bfbc2-stockmp-ai/validate.py` (9 checks); `culltree.py verify`; `renderqa.py`; the harness; OPFOR's `qa_checks.py` and `wake_install --plan` checks | Spread across tools, not one gate |
@@ -820,12 +820,30 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
      until nothing more is asked for (Vietnam's NAM_MP_002CQ 11 rounds, 84 MB; Wake Island 12 rounds, 134 MB).
      Nothing is written to disk.
    - Proofs and costs: `rust/BENCHMARKS.md` "R5c".
-4. **Phase 3b (next):** the game's LODs (the mesh sets' LODs and their distances, switchable off for proofs) and
-   the instanced programs (`StreamInstancingFloat`) - the GPU is now most of a frame on wide views; the whole
-   terrain with the game's terrain LOD instead of the window of patches around the target; labels hidden by the game
-   frame's depth; the sky (`EnvironmentMain`) and Wake Island's tiled-mask terrain cells (black: the patch stream
-   reading of R5 does not cover the converted terrain); package levels' load (rounds read the large common bundles
-   again: a payload index or one pass for every name a mesh can need).
+4. **Phase 3b (R5d, done: the visual gaps; `rust/BENCHMARKS.md` "R5d", spec RNDR-TERR-5, RNDR-WATER-2,
+   RNDR-SKY-1..3, RNDR-LOD-1, RNDR-VIEW-1..2, TERR-VT-7):**
+   - **Terrain masks** (`terrain::Terrain::patch`): a mask tile spans `flag` x `flag` cells (8 or 4) aligned in the
+     patch map; each cell reads its part of the tile. R5 to GW1 stretched the whole tile over each cell (blocky,
+     repeating masks; the WW2 shores' ragged cell edges).
+   - **Engine values the terrain and water read** (`terrain::engine_values`): `heightmapWorldScaleY` is the height
+     field's range (the records' 500 is a placeholder: Wake's 1,000 m terrain drew its beach black);
+     `heightmapWorldScaleXZ` / `OffsetXZ` and the height map bound for the water (`water::load` takes the terrain's
+     values: DICE's Vietnam water and OPFOR's Wake water read them).
+   - **The sky** (`sky`): `EnvironmentMain` on a camera-following dome (`live::Key::Sky`, `Dyn::World`,
+     `Dyn::SkyDepth`), drawn first of the blended draws (after the depth pass, which it reads); values from the
+     weather state's `Sky`, `Sun` and `Clouds` by name; the panoramic clouds off (`sky::CLOUDS`) until their
+     composite is proven. `World::sky_pass` (off by default: the harness proofs draw no sky; the editor turns it on).
+   - **Levels of detail** (`live::Options::lod`, `Options::exact` for the proofs): terrain patches by distance
+     (`terrain::patch_lods`: one shared index buffer with every level, each level's outer edges whole, so no cracks;
+     `Step::range`), objects by their mesh set's `MeshLodSettingsAsset` (`material::LodSettings`, one source per level
+     with its distance band, `live::LodBand`); meshes with alpha-tested or blended parts keep level 0.
+   - **Labels** over the game view: the frame's depth read back after each drawn frame (`Device::read_depth`, about
+     2 ms at 920 x 660), `GameView::hidden` / `frame::occluded`.
+   - **Package loads** (`Files::fetch`): a round's bundles read at once through the suite's bundle cache
+     (`fbrb::read_many`: the in-process session and the shared disk cache), `BC2_RENDER_UNCACHED` for the old path.
+   - Not done: the instanced programs (`StreamInstancingFloat`: a per-instance stream and program choice, the draw
+     count is no longer the bottleneck after the LODs), the haze over the scene (`EnvironmentHalfResMain`, the fog:
+     with the capture), `MinScreenArea` culling (its unit).
 
 ### 3.12 Exporting a level as a new multiplayer level (round E3, 2026-11-18: study and first export)
 
@@ -1405,7 +1423,7 @@ donor from the game copy once. SP_01 as WW2 Conquest with 40 moves, release: und
 after; History jumps 1.4 s before, 73 - 98 ms after; every result equal to the log applied afresh.
 
 **Paste as a deep duplicate** (G-N23; XLOG-APP-7) and **typed gameplay operations** (D18, R23; XLOG-APP-6):
-`set-team`, `link-spawner`, `set-tickets`, `insert-point`, `remove-point` (project format 4; a version-3 file loads
+`set-team`, `link-spawner`, `set-tickets`, `insert-point`, `remove-point` (project format 5, after VW2's 4; a version-4 file loads
 as it is, a newer one is refused in words). An outline's points are a chain of `Next` and `Previous` and an area's
 `Geometry` names one point per outline: inserting and removing keep both links and the area's point. E4's tools
 build on these.
@@ -1416,6 +1434,50 @@ entries and part names in each database equal to Guadalcanal's, its leaves Guada
 `mapedit_install --apply` and `--revert` of that stage on a scratch copy of the six shared files with `--check-game`
 the real game copy: back byte for byte, `game\` unchanged. Not yet proven in game (in-game tests are paused): that
 the merged entries draw, and that the grafted objects' new shapes cull as on their own levels.
+#### Round VW2: the mode view layer, weather in the views and in exports (the user, 2026-11-21)
+
+The user's requests: show or hide objects by game mode and Rush stage; the weather states each level holds in both
+views; and "a night, rainy version of a level" as an export. Research round WX0 found nothing baked depends on the
+sun (per-asset occlusion, the per-level terrain art map and one reflection cube; light, shadows, fog, sky and
+exposure are computed per frame from the weather state), so weather is data: no re-bake.
+
+**The mode view layer** (`crate::modeview`, `modelayer::layer_view` / `rush_play`; a view setting, never in the log).
+The Mode switch over the 3D view: every object, the mode layer only, or the level without it; and one Rush stage as
+it is played (spec GAME-RUSH-9: L1's simulation of the stages' events from the instances' `Enabled`): the other
+stages' M-COMs with what belongs to them (`modelayer::cluster`), and the bases, combat areas and spawns disabled
+during the stage, are hidden - in the simplified view, the outliner, the overlays and the game-accurate view (which
+also leaves out what the project deletes or hides). With a project it reads the edited partition (the project's
+target layer), else the level as loaded; it is read again when the project's revision changes.
+
+**Weather in both views** (`crate::weatherview`, `bc2_render::world::level_weather`, `World::set_state`). The
+Weather switch lists every state of the level's system (WX0's kinds by DICE's names; the spawn switch and
+`ActiveState` named). The game-accurate view draws a state's light, post-process and sky, and opens on the level's
+own state: the spawn-time switch when it names one (RNDR-WTHR-6: in 45 of 70 levels with a switch it is another state
+than `ActiveState`, whose placeholders are dark). The simplified view is tinted by the state's look from its values
+(RNDR-WTHR-7).
+
+**Weather in exports** (`bc2_levelwrite::weather`, `Op::SetWeather`, project format 4; the Export window's Weather
+section, `crate::weather_ui`). Spec RNDR-WTHR-8, -9:
+
+- **VW2a**: one of the level's states: the settings copied with `ActiveState` set, the spawn switch's `State` set to
+  the same state, the weather entity re-pointed (a placed entity blueprint copied, its placement re-pointed);
+- **VW2b**: another level's state appended to a copy of the system (the level keeps its sky), or the donor's whole
+  system swapped in (its sky); renamed under the level's folder with new guids (no donor name can collide), the
+  system's 4-byte `WeatherSystem` resource beside it;
+- **VW2c**: night: `ons_mp_002_night` (MP_002's system, the Onslaught Package's) appended as the template, its
+  `ReflectionEnvmapScale` x 0.1 (the cube is a capture of the day), its panoramic `Trancparency` x 0.25 (the level's
+  own panorama darkened); lamps only with an editor tool (left: the cross-level emitter placement it needs);
+- **VW2d** (left): rain and snow beyond the state's values (SP_03's `afterrain` exports as a state; the area effects
+  and sound areas need the same emitter copy as the lamps);
+- every new partition under `weather/<level>/` in the level's own bundle; the base's stock partitions never change;
+- night and rain are off by default and marked "not yet seen in game": the build refuses them until "Build it anyway";
+- `mapexport check`: the entity names the recorded system and settings, every state resolves with its components,
+  `ActiveState` and the switch name the chosen state, a new system has its resource; the copies' sources are in
+  `stage.json` for the dangling-reference rule (a Setup's static Sun / Sky data are in no bundle of DICE's either).
+
+**Proof** (`rust/BENCHMARKS.md`, "VW2"): the stages against L1's on four levels; MP_009GR's filters in every view;
+MP_002SR's seven states drawn and measured against their looks; six export canaries, each against its baseline stage
+byte for byte but the intended changes, every check line passing; install and revert on a scratch copy exact.
 
 ## 4. Stage 2: new maps from imported or randomized terrain
 

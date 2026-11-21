@@ -23,25 +23,32 @@ landed on `main`.
 
 ## [Unreleased]
 
-### Fixed
-- **Map export: objects from other levels and sets get their shader entries** (round XF1): the export merges into
-  the level's Dx9 / 10 / 11 databases the entries of every mesh it reaches that the base lacked (placed objects,
-  another mode's layer, another era's kits), from the levels that draw them. Without them the game's renderer reads a
-  null program (0x98BD6E).
-- **Map export: each object's own cull shape** (round XF1): placed, copied and grafted objects take their own
-  blueprint's shape (from the base or another level), never their template's or another level's slot number.
-- **Map editor: undo, redo and History no longer replay the whole log** (round XF1): checkpoints and a cached donor
-  level; on Aurora as WW2 Conquest with 40 moves an undo went from 9-11 s to under 0.1 s.
-- **Map editor: Paste copies what an object owns** (round XF1): a pasted flag has its own capture area and marker,
-  so editing the copy leaves the original alone.
-
 ### Added
 - **Map editor: typed gameplay operations** (round XF1): set a team, link or unlink a soldier spawner and a capture
   point, set a team's tickets, insert or remove an outline point (the `Next` / `Previous` chain and the area's point
-  kept). The project format is 4; a version-3 project loads as it is, a newer one is refused in words.
+  kept). The project format is 5 (VW2 took 4); a version-4 project loads as it is, a newer one is refused in words.
 - **`mapexport check`: shader and cull-shape lines** (round XF1): every mesh the level reaches has entries in its
   shader databases; every re-slotted object stands in its own blueprint's shape; no new object at slot 0 that some
   level slots.
+- **Map editor: the mode view layer** (round VW2): show every object, the game mode layer only or the level without
+  it, and a Rush level one stage at a time as it is played (L1's simulation of the stages' events: MP_005GR,
+  MP_005SR, NAM_MP_002R and BC1_OASIS_GR give L1's bases per stage), in both views, the outliner and the overlays.
+- **Map editor: weather in the views** (round VW2): every state of the level's weather system in a picker (night,
+  dawn, fog, rain and cutscene states marked; the spawn-time switch and ActiveState named); the game-accurate view
+  draws a state's light, exposure and sky and opens on the state players see (the spawn switch: MP_005's `day_1`,
+  not its dark `default`); the simplified view is tinted by the state's look.
+- **Map editor: weather in exports** (rounds VW2a-c; project format 4, `set-weather`): the Export window's Weather
+  section makes the level start in one of its own states (ActiveState and the spawn switch set together), in another
+  level's state (appended: this level's sky; or that level's whole system: its sky), or at night (DICE's
+  `ons_mp_002_night` as the template, the reflection cube and the sky panorama darkened). Every new partition lies
+  under `weather/<level>/` in the level's own bundle; `mapexport check` checks the weather. Night and rain are off
+  by default and marked "not yet seen in game".
+- **`xisolib` reads disc images held in memory** in the Rust core (round RT3: `find_partition_bytes`, `walk_bytes`;
+  an `io.BytesIO` goes through them), so the Xbox disc reader has no Python-only path left.
+- **`run_tests.py --help`** (also `-h`, `/?`) prints the runner's text and runs nothing (round RT3); an argument the
+  runner does not know is a usage error (exit code 2) instead of being ignored.
+- **A repository rule** (round RT3, `tests\test_repo.py`): every `tests\*.rs` of a Rust crate with `autotests = false`
+  must be a `mod` of its test binary, so a test file can no longer silently never run.
 - **Map editor: every name of an exported level** (round EX1). The Export window's **Names**: the level id (what the
   game loads, `Levels/<ID>`, and where its `<ID>_NAME` / `<ID>_DESC` texts come from), its folder under
   `Package\levels\` (the id in lower case, as on every level of the game: renaming the folder renames the id), the
@@ -137,6 +144,27 @@ landed on `main`.
   mapexport]`; `bfbc2-editor --source-hash` and `mapexport --source-hash`.
 
 ### Changed
+- **Map editor: the Game-accurate view's sky, levels of detail and labels** (round R5d). The weather's sky dome is
+  drawn behind the level (DICE's `EnvironmentMain` with the weather state's sky, sun and halo values: a blue sky over
+  MP_005 instead of the flat fog colour; the panoramic clouds are left out until their composite is proven). Far
+  terrain patches are drawn coarser (every 2nd to 8th sample past 200 m, their edges kept whole so no cracks open)
+  and objects switch to their further levels of detail at the distances their mesh sets' LOD settings give (MP_005's
+  wide view: terrain indices 10.7 M to 1.7 M, object indices 6.2 M to 2.9 M). Labels whose point lies behind what the
+  game frame drew are hidden (the selection's never). Package levels (Vietnam, the Pacific War) open in 1.4 - 4.6 s
+  instead of 14 - 18 s: their bundles are read at once and through the suite's bundle cache.
+- **`bfbc2.exe` answers argparse's option abbreviations** as Python 3.13 does (`--fo` for `--format`, `--fo=v`, `--he`
+  for `--help`) and its `ambiguous option: ... could match ...` error, in caches, convert, audio, shaderdb, renderqa,
+  xdiff, dbxparity, portparity and texqa, instead of handing those command lines to the Python (round RT3). A
+  `nargs='*'` option takes `--x=v`; texqa answers its help when it is the first argument. Single-dash abbreviations,
+  `--` and texqa's argparse errors still go to the Python.
+- **One rule when the Rust port cannot answer** (round RT3, audit AU2 A17; README "bfbc2.exe"): while a tool's Python
+  is alive it answers (the command line handed to it, or a binding's Python reference); once it is retired, a plain
+  error, never a silent fallback. The retirement error of `bfbc2.exe` names the round that retired the tool.
+- **`hpdtool.parse` and `audio.read_wave` / `read_sps` / `read_snr` run in the Rust core only** (round RT3): a damaged
+  file raises the error and message the Python raised (`ValueError` or `struct.error` for path data, `AudioError` or
+  `struct.error` for sounds); a NaN in a file is read as Python's `struct` reads it instead of going to the Python.
+- **`navkit.py`'s usage** says a level's navigation side file is made in the map editor's AI workspace (the
+  Navigation Studio was retired in GR2).
 - **Map editor: the simplified view draws the objects' render meshes** (round SV1). Trees, bushes and palms now look
   like trees, bushes and palms instead of "spike balls": the view draws each object's render mesh (the one the
   Game-accurate view draws) with its leaves cut out by their texture and a muted tint from its texture (vegetation
@@ -221,6 +249,15 @@ landed on `main`.
   `%LOCALAPPDATA%\bfbc2-tool-suite\matplotlib`, and forgets durations of tests that no longer exist.
 
 ### Removed
+- **The Python command lines `aptrefs.py`, `xiso.py`, `culltree.py`, `stockmp.py` and `crashreader.py`** (round
+  RT3). `bfbc2.exe` runs them alone (`python rust\build_native.py --download` fetches it; the hub and Project OPFOR's
+  testrun use it); their libraries are `aptrefslib.py`, `xisolib.py`, `culltreelib.py`, `stockmplib.py` and
+  `crashreaderlib.py` (`exeref.py` imports the last). A damaged or unusual input that used to go to the Python now
+  ends with an error naming the retirement (exit code 1). `RETIRED.md` has the last commit with each.
+- **The Python references `hpdtool.parse_reference`, `audio.read_wave_reference`, `read_sps_reference` and
+  `read_snr_reference`** (round RT3), after their errors were ported; their recorded answers are the tests' reference.
+- **`core\bfbc2core\viewer.py` and `pick.py`** (round RT3), the Python 3D view and its level picker that no tool has
+  used since GR1 / GR2; with them `moderngl`, `glfw` and `imgui-bundle` leave `requirements.txt`.
 - **LevelDiff.exe** (round EX1): `bfbc2-diff-workbench\` (`level-diff\LevelDiff.cs`, `build.bat`, its tests, and the
   folder's README of planned tools, which `DESIGN.md` 4.7 keeps). Run `bfbc2.exe leveldiff` (above) with the same
   arguments; its answers on recorded real level pairs are LevelDiff.exe's, byte for byte. `RETIRED.md` has the last
@@ -244,6 +281,28 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Map export: objects from other levels and sets get their shader entries** (round XF1): the export merges into
+  the level's Dx9 / 10 / 11 databases the entries of every mesh it reaches that the base lacked (placed objects,
+  another mode's layer, another era's kits), from the levels that draw them. Without them the game's renderer reads a
+  null program (0x98BD6E).
+- **Map export: each object's own cull shape** (round XF1): placed, copied and grafted objects take their own
+  blueprint's shape (from the base or another level), never their template's or another level's slot number.
+- **Map editor: undo, redo and History no longer replay the whole log** (round XF1): checkpoints and a cached donor
+  level; on Aurora as WW2 Conquest with 40 moves an undo went from 9-11 s to under 0.1 s.
+- **Map editor: Paste copies what an object owns** (round XF1): a pasted flag has its own capture area and marker,
+  so editing the copy leaves the original alone.
+- **Map editor: the game-accurate view no longer draws the objects a project deleted or hid** (round VW2).
+- **Map editor: Wake Island's and Coral Sea's black ground in the Game-accurate view** (round R5d). Three causes in
+  the renderer, none in the data: the terrain's height scale was read as the database's placeholder 500 (Wake's
+  terrain spans 1,000 m, so BF1943's sea-floor layers drew the beach and shallows as deep water: black); the water did
+  not read the terrain's height map; and every terrain cell stretched its whole mask tile, where a tile spans a block
+  of 8 x 8 or 4 x 4 cells (each cell repeated the block's mask: the ragged, blocky shorelines and sand of the WW2
+  levels, and of DICE's own levels' tiled layers). Wake's lagoon view: 52.8 % of its pixels black before, 0.0 % after;
+  Coral Sea's 10.2 % to 0.3 %. The deep sea past the reefs stays dark until the haze over the scene is drawn.
+- **O2's command-line test on a PC running Microsoft Defender** (round RT3): Defender's machine-learning scan took
+  the menu group's stand-in executable for a trojan and blocked every read of it (`OSError 22`); the stand-in now
+  carries a text mark no tool reads, and a blocked file is reported as an antivirus block.
+- **`run_tests.py --help`** ran the quick tier (round RT3).
 - **Map editor: the cull tree view mode** called its no-slot colour orange (the selection's); it is yellow. Objects
   with a slot of their own are now green, and the slots and spheres use the 3D view's status tokens (round VW1).
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /

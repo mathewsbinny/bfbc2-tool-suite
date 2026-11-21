@@ -1354,6 +1354,34 @@
    ]
   },
   {
+   "id": "GAME-RUSH-9",
+   "title": "A stage as it is played: the counters' events from the start state",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:594-725"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:729-780"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::rush_stages_as_played_match_l1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::mode_view_layer_hides_by_mode_and_rush_stage"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-163"
+    }
+   ]
+  },
+  {
    "id": "GAME-SDM-1",
    "title": "Four squads, one pool of spawns, one vehicle",
    "file": "spec/engine/gameplay.md",
@@ -2647,6 +2675,31 @@
    ]
   },
   {
+   "id": "RNDR-TERR-5",
+   "title": "The height map's world scale is the height field's range",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:359-364"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's lagoon view: 52.8 % near-black pixels before round R5d, 0.0 % after; Coral Sea's 10.2 % -> 0.3 %"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's `Wake_Grey` cells (12,803, one constant black layer) lie 165.9 - 203.4 m: 11.6 m or more under the water"
+    }
+   ]
+  },
+  {
    "id": "RNDR-WATER-1",
    "title": "Visual water, range by range, in world positions",
    "file": "spec/engine/rendering.md",
@@ -2668,6 +2721,27 @@
     {
      "kind": "doc",
      "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:629-631"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WATER-2",
+   "title": "Water that reads the height map takes the terrain's world scale and offset",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:168-190"
+    },
+    {
+     "kind": "data",
+     "ref": "NAM_MP_005R's two water entries and Wake Island's `Wake_Water` bind `heightmap`; MP_005's water reads none"
     }
    ]
   },
@@ -2800,12 +2874,95 @@
      "ref": "rust/bc2-render/src/weather.rs::weather_entities_and_spawn_states_read_from_a_partition"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::game_view_opens_on_the_spawn_switch"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
      "kind": "data",
      "ref": "weather_refs.rs's run on OPFOR's game copy and prepared levels: the first spawn-transition State per level, printed beside the drawn state"
     },
     {
+     "kind": "data",
+     "ref": "WX0's inventory of 83 levels: 70 with an enabled spawn switch, 45 naming another state than ActiveState"
+    },
+    {
      "kind": "doc",
      "ref": "rust/bc2-render/src/weather.rs:163-179"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-7",
+   "title": "A state's look from its values",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:415-447"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:338-370"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::weather_states_in_both_views"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-8",
+   "title": "An exported level's weather: ActiveState and the spawn switch together, in partitions of its own",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:546-815"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:969-1060"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "data",
+     "ref": "examples/vw2_canaries.rs on OPFOR's game copy: six canaries, each stage against its baseline byte for byte but the intended changes, every mapexport check line passing; OPFOR's mapedit_install --apply and --revert on a scratch copy of the shared files, back byte for byte"
+    },
+    {
+     "kind": "data",
+     "ref": "WX0: the WeatherSystem resource of all 28 systems is 4 bytes, value 72"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-9",
+   "title": "Night: DICE's one night state as the template",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:50-62"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:856-890"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::the_night_template_resolves"
     }
    ]
   },
@@ -2827,6 +2984,61 @@
     {
      "kind": "doc",
      "ref": "rust/bc2-render/src/placement.rs:14-15"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-SKY-1",
+   "title": "The sky is EnvironmentMain on a dome at 0.9 of the view distance",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::the_sky_dome_is_drawn_behind_the_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/sky.rs:220-345"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005's and Wake Island's databases: 8 programs each, the four main-pass variants, state 0x481, the 44-byte layout"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-SKY-2",
+   "title": "The sky's constants are the state's Sky, Sun and Clouds values by name",
+   "file": "spec/engine/rendering.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the constants' names pair with the fields' names, and the shader's use fits each (a cubic horizon gradient in the elevation, a Gaussian halo with a power, a Henyey-Greenstein sun disc of g = 1 - Size)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/sky.rs::values_follow_the_sky_state_by_name"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/sky.rs:122-200"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-SKY-3",
+   "title": "The panoramic cloud layer's composite is open",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's Sunny state: AdditiveThreshhold 0.3, Trancparency 1, UV range 0 .. 0.3; the texture's rows 111 - 130 of 255 on average; the alpha texture white"
     }
    ]
   },
@@ -2923,6 +3135,31 @@
    ]
   },
   {
+   "id": "RNDR-LOD-1",
+   "title": "A mesh's levels of detail switch at its LOD settings' distances",
+   "file": "spec/engine/rendering.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the field names; the distances rise with the level (40 / 70 / 100 / 150 / 200 m on ObjectsLodSettings_1); the per-object assets with ShortCull / LongCull variants differ only in MinScreenArea"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: every placed mesh set names settings, 2 - 4 levels"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::levels_of_detail_draw_fewer_indices"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:615-700"
+    }
+   ]
+  },
+  {
    "id": "RNDR-CRASH-1",
    "title": "A jump to 0x00F30005 after a plane death (Coral Sea)",
    "file": "spec/engine/rendering.md",
@@ -2957,6 +3194,48 @@
     {
      "kind": "doc",
      "ref": "opfor:src/dll/levelfix.cpp:619-626"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-VIEW-1",
+   "title": "Labels behind the game frame are hidden",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::a_point_behind_drawn_depth_is_occluded"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/game_view_r5d.rs::game_view_draws_the_sky_and_hides_labels_behind_the_frame"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:405-445"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-VIEW-2",
+   "title": "The view's terrain levels keep their edges in full",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::patch_levels_cover_the_patch_and_keep_full_edges"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/whole_terrain.rs::the_whole_terrain_is_drawn_with_levels_of_detail"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:560-649"
     }
    ]
   },
@@ -4633,7 +4912,7 @@
     },
     {
      "kind": "code",
-     "ref": "bfbc2-culltree/culltree.py:281-299"
+     "ref": "bfbc2-culltree/culltreelib.py:258-276"
     },
     {
      "kind": "test",
@@ -9302,7 +9581,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2987-3044"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3016-3073"
     },
     {
      "kind": "test",
@@ -10003,6 +10282,27 @@
    ]
   },
   {
+   "id": "TERR-VT-7",
+   "title": "A mask tile spans flag x flag cells",
+   "file": "spec/formats/terrain.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::mask_tiles_span_aligned_blocks_and_read_on_across_cells"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:776-793"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's MP_009: 757 tiled masks in 51 tiles' blocks, MP_005: 1,033 in 59; OPFOR's Wake Island: 998 in 78 (flags 8 and 4); no tile named outside its block"
+    }
+   ]
+  },
+  {
    "id": "TERR-VT-6",
    "title": "PC and Xbox 360 visual terrain differ only where DICE edited the PC",
    "file": "spec/formats/terrain.md",
@@ -10691,7 +10991,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-readers/xiso/xiso.py:6-10"
+     "ref": "bfbc2-console-readers/xiso/xisolib.py:4-8"
     }
    ]
   },
@@ -10724,7 +11024,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-readers/xiso/xiso.py:7-10"
+     "ref": "bfbc2-console-readers/xiso/xisolib.py:5-8"
     }
    ]
   },
@@ -13059,7 +13359,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2856-2984"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2885-3013"
     },
     {
      "kind": "test",
@@ -14207,7 +14507,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-editor/src/edit.rs:207-318"
+     "ref": "rust/bc2-editor/src/edit.rs:211-322"
     },
     {
      "kind": "test",
@@ -14411,7 +14711,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-editor/src/app/tools.rs:1259-1288"
+     "ref": "rust/bc2-editor/src/app/tools.rs:1313-1342"
     },
     {
      "kind": "test",
@@ -14527,7 +14827,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-stockmp-ai/stockmp.py:181-210"
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:168-197"
     },
     {
      "kind": "test",
@@ -14543,7 +14843,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-stockmp-ai/stockmp.py:211-232"
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:198-219"
     },
     {
      "kind": "test",

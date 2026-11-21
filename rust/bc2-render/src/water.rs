@@ -47,7 +47,18 @@ pub fn depth_factors(near: f64, far: f64) -> [f32; 4] {
 ///
 /// # Errors
 /// The file is missing or does not read.
-pub fn load(files: &Files, db: &Db, terrain: &str, envmap: &str, cache: &mut TextureFiles) -> Result<Prepared, String> {
+#[allow(
+    clippy::implicit_hasher,
+    reason = "the terrain's engine values (`terrain::engine_values`)"
+)]
+pub fn load(
+    files: &Files,
+    db: &Db,
+    terrain: &str,
+    envmap: &str,
+    values: &HashMap<&'static str, [f32; 4]>,
+    cache: &mut TextureFiles,
+) -> Result<Prepared, String> {
     let name = format!("Terrains/{terrain}/{terrain}.Water.res");
     let data = files.read(&name).ok_or_else(|| format!("{name}: not found"))?;
     let visual = water::parse_visual(&data).map_err(|e| format!("{name}: {e}"))?;
@@ -87,7 +98,7 @@ pub fn load(files: &Files, db: &Db, terrain: &str, envmap: &str, cache: &mut Tex
         let entry = visual.slots.get(slot as usize).cloned().unwrap_or_default();
         let draw = made
             .entry(slot)
-            .or_insert_with(|| match water_draw(files, db, &entry, envmap, cache) {
+            .or_insert_with(|| match water_draw(files, db, &entry, envmap, values, cache) {
                 Ok(d) => Some(d),
                 Err(e) => {
                     out.notes.push(format!("water: {e}"));
@@ -114,7 +125,14 @@ pub fn load(files: &Files, db: &Db, terrain: &str, envmap: &str, cache: &mut Tex
 }
 
 /// One slot's draw (everything but the range).
-fn water_draw(files: &Files, db: &Db, entry: &str, envmap: &str, cache: &mut TextureFiles) -> Result<Draw, String> {
+fn water_draw(
+    files: &Files,
+    db: &Db,
+    entry: &str,
+    envmap: &str,
+    values: &HashMap<&'static str, [f32; 4]>,
+    cache: &mut TextureFiles,
+) -> Result<Draw, String> {
     let progs = db
         .entry_programs(entry)
         .ok_or_else(|| format!("{entry}: not in the database"))?;
@@ -151,6 +169,10 @@ fn water_draw(files: &Files, db: &Db, entry: &str, envmap: &str, cache: &mut Tex
         } else if engine.get(&r.point).is_some_and(|n| n == "DepthBuffer") {
             textures.push((r.point, DEPTH.to_owned()));
             continue;
+        } else if engine.get(&r.point).is_some_and(|n| n == "heightmap") && !values.is_empty() {
+            // the terrain's height map (DICE's Vietnam water, OPFOR's Wake water: the shore's foam and absorption)
+            textures.push((r.point, crate::terrain::HEIGHTMAP.to_owned()));
+            continue;
         } else {
             continue;
         };
@@ -159,6 +181,15 @@ fn water_draw(files: &Files, db: &Db, entry: &str, envmap: &str, cache: &mut Tex
         }
     }
     let constants = query::block_constants(block, false);
+    // the terrain renderer's values a record names (heightmapWorldScaleXZ / OffsetXZ / ScaleY), written over the
+    // stored placeholders as the patches' are
+    let ps_extra: Vec<(u8, [f32; 4])> = constants
+        .iter()
+        .filter_map(|c| {
+            let n: String = c.name.iter().map(|&b| char::from(b)).collect();
+            values.get(n.as_str()).map(|v| (c.register, *v))
+        })
+        .collect();
     Ok(Draw {
         part: entry.rsplit('/').next().unwrap_or(entry).to_owned(),
         entry: entry.to_owned(),
@@ -179,7 +210,7 @@ fn water_draw(files: &Files, db: &Db, entry: &str, envmap: &str, cache: &mut Tex
         bones: None,
         material: constants.iter().map(|c| (c.register, c.values)).collect(),
         vs_extra: Vec::new(),
-        ps_extra: Vec::new(),
+        ps_extra,
         named: material::engine_named(&constants),
         textures,
         vs_textures: Vec::new(),

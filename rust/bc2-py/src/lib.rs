@@ -494,7 +494,9 @@ mod bc2_native {
     use super::kymesh::{kymesh_parse, navkit_mesh_cells, navkit_navdata_areas, navkit_union_roots};
 
     #[pymodule_export]
-    use super::console::{StfsReader, stfs_open, stfs_refusal, xiso_find_partition, xiso_walk};
+    use super::console::{
+        StfsReader, stfs_open, stfs_refusal, xiso_find_partition, xiso_find_partition_bytes, xiso_walk, xiso_walk_bytes,
+    };
 
     #[pymodule_export]
     use super::wave::{snr_read, sps_read, sps_write, wave_read, wave_write_pc};

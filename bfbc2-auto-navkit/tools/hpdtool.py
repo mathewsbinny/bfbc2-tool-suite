@@ -12,10 +12,12 @@ Usage:
 Sector.mesh holds the raw runtime-mesh record; kymesh.parse_mesh / write_mesh convert it to and
 from the structured model (areas, portals, outlines, cells, neighbour links).
 
-parse and write run in the suite's Rust core when it is built (round F0: bc2_native.hpd_parse / hpd_write, the same
-objects value for value and the same bytes; where the reference would raise, or a value is a NaN, the Python runs, so
-the error stays this module's). parse_reference / write_reference are the Python, kept as the reference and the
-fallback; BFBC2_PURE_PYTHON=1 or use_native(False) runs them only. mesh_layout and mesh_coverage run in the Rust core
+parse runs in the suite's Rust core only (round F0: bc2_native.hpd_parse; round RT3 ported the reference's errors -
+its ValueError and struct.error, in its words - and its reading of NaNs, then retired parse_reference against its
+recorded answers, bfbc2-auto-navkit/tests/f0_pathdata_replay*.json). write runs in the Rust core when it is built
+(bc2_native.hpd_write, the same bytes; where the reference would raise, or a value is a NaN, the Python runs, so the
+error stays this module's): write_reference is the Python, kept as the reference and the fallback for the objects
+NavKit's Python build assembles; BFBC2_PURE_PYTHON=1 or use_native(False) runs it only. mesh_layout and mesh_coverage run in the Rust core
 only (round F3: bc2_native.hpd_mesh_layout / hpd_mesh_coverage, which raise the reference's ValueError and
 struct.error with its messages since round RT2); their Python was retired in round RT2 against its recorded answers
 (tests/f3_golden_hpd.json).
@@ -122,51 +124,17 @@ def use_native(on: bool) -> bool:
 
 
 def parse(data: bytes) -> HpdFile:
-    """The file as an HpdFile: in the Rust core when it is built (round F0), else parse_reference."""
-    nat = _native()
-    if nat is not None and type(data) is bytes:
-        got = nat.hpd_parse(data, Node, Edge, Sector, HpdFile)
-        if got is not None:
-            return cast(HpdFile, got)
-    return parse_reference(data)
-
-
-def parse_reference(data: bytes) -> HpdFile:
-    """The Python reader (the reference)."""
-    if data[:12] != MAGIC:
-        raise ValueError('not a Kynogon HPD file')
-    header = struct.unpack_from(f'<{HEADER_WORDS}I', data, 12)
-    count = header[2]
-    blocks = HEADER_SIZE + count * TABLE_ENTRY.size
-    sectors = []
-    for i in range(count):
-        e = TABLE_ENTRY.unpack_from(data, HEADER_SIZE + i * TABLE_ENTRY.size)
-        sid, bounds, reserved, size, offset, date, time = e[0], e[1:7], e[7], e[8], e[9], e[10], e[11]
-        start = blocks + offset
-        block = data[start:start + size]
-        n_nodes, n_edges = struct.unpack_from('<2I', block, 0)
-        pos = 8
-        end = pos + n_nodes * NODE.size
-        if end + n_edges * EDGE.size > len(block):          # cut short: one record at a time, raising as it always did
-            for _ in range(n_nodes):
-                NODE.unpack_from(block, pos)
-                pos += NODE.size
-            for _ in range(n_edges):
-                EDGE.unpack_from(block, pos)
-                pos += EDGE.size
-        # whole runs at once (iter_unpack: the same values as one record at a time; round E4e, the parity measures
-        # parse each file several times)
-        nodes = [Node(v[0], (v[1], v[2], v[3]), v[4], v[5], v[6], v[7], v[8]) for v in NODE.iter_unpack(block[pos:end])]
-        pos = end + n_edges * EDGE.size
-        edges = [Edge(*v) for v in EDGE.iter_unpack(block[end:pos])]
-        mesh = block[pos:]
-        if not mesh.startswith(MESH_MARKER):
-            raise ValueError(f'sector {i} ({sid:#x}): runtime mesh not where expected')
-        sectors.append(Sector(sid, bounds, reserved, date, time, nodes, edges, mesh))
-    # the length _block(s) writes, without writing it (each value was read from the file, so packs back)
-    if blocks + sum(8 + NODE.size * len(s.nodes) + EDGE.size * len(s.edges) + len(s.mesh) for s in sectors) != len(data):
-        raise ValueError('sector blocks do not cover the file')
-    return HpdFile(header, sectors)
+    """The file as an HpdFile, in the Rust core (round F0: bc2_native.hpd_parse; its only reader since round RT3,
+    which retired parse_reference against its recorded answers: a file the reference refused raises its ValueError or
+    struct.error with its message, a NaN reads as struct reads it). A bytearray or memoryview is read as its bytes
+    (Sector.mesh is then bytes, where the reference gave a slice of the caller's type); another type raises Refused."""
+    if type(data) is not bytes:
+        if not isinstance(data, bytes | bytearray | memoryview):
+            suite_paths.use('core')
+            from bfbc2core import native
+            raise native.refused(f'path data: a bytes-like object is needed, not {type(data).__name__}')
+        data = bytes(data)
+    return cast(HpdFile, _core().hpd_parse(data, Node, Edge, Sector, HpdFile))
 
 
 _shared: dict[tuple[str, int, int], HpdFile] | None = None

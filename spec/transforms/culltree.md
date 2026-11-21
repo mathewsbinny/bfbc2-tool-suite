@@ -2,7 +2,7 @@
 
 Two transformations give placed objects new leaves in a level's exclusive static cull tree (`formats/culltree.md`):
 
-- **`culltree add`** (`bfbc2-culltree/culltree.py`, its core in Rust `bc2_levelwrite::culltool`): input a cull tree
+- **`culltree add`** (`bfbc2.exe culltree`, its library `bfbc2-culltree/culltreelib.py`, its core in Rust `bc2_levelwrite::culltool`): input a cull tree
   partition, its level partition, the objects to add (named, or `--auto`: every slot-0 object) and optionally
   reference levels (`--ref`, `--ref-dir`) to take shapes from; output the tree and level written back, and a report.
   Used by OPFOR's console conversion (`console_cull`) and the WW2 install.
@@ -101,7 +101,7 @@ blueprint, and compares the object's leaves in the staged tree with the source's
 stands (centres within 0.5 m, radii within 0.5 m plus 5 %, the keys' rounding: CULL-SPH-1). An object the base does
 not have may stand at slot 0 only when the export recorded that no level slots its blueprint and the base does not.
 
-[code: rust/bc2-levelwrite/src/export.rs:2856-2984]
+[code: rust/bc2-levelwrite/src/export.rs:2885-3013]
 [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XCULL-RES-2: The stage's cull check

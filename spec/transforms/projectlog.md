@@ -32,7 +32,7 @@ donor level is read from the game copy once per document. The result equals the 
 a fresh document: the partition byte for byte, every transform, the deleted set. On SP_01 as WW2 Conquest with 40
 moves (release): undo 9.1 - 10.9 s before, 78 - 98 ms after; History jumps 1.4 s before, 73 - 98 ms after.
 
-[code: rust/bc2-editor/src/edit.rs:207-318] [test: rust/bc2-editor/tests/xf1.rs::undo_on_a_mode_project]
+[code: rust/bc2-editor/src/edit.rs:211-322] [test: rust/bc2-editor/tests/xf1.rs::undo_on_a_mode_project]
 
 ### XLOG-LOG-2: The file: whole writes, an autosave, versions
 
@@ -130,7 +130,7 @@ placed objects get the defaults of a template instance of the same blueprint.
 
 Status: **verified**
 
-Five operations (project format 4) edit gameplay in the data's own terms. `set-team` sets a capture point's
+Five operations (project format 5) edit gameplay in the data's own terms. `set-team` sets a capture point's
 `InitialOwnerTeam` or another object's `Team` to `Team1`, `Team2` or `TeamNeutral` (LEVEL-ENT-1). `link-spawner`
 adds a soldier spawner to a capture point's `Spawners` or takes it out (GAME-SPAWN-1). `set-tickets` sets a ticket
 counter's `InitialTicketCount` and `TicketLossPerMin` in the types the data gives them (GAME-TKT-2). `insert-point`
@@ -152,10 +152,10 @@ Paste copies what each pasted object owns (a flag's capture area and marker) wit
 copy moved by the paste's shift; an object another pasted one owns is copied as that one's. An edit of the copy's
 sub-objects (a ring point moved, the marker renamed) leaves the original's instances as they were.
 
-[code: rust/bc2-editor/src/app/tools.rs:1259-1288] [test: rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate]
+[code: rust/bc2-editor/src/app/tools.rs:1313-1342] [test: rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate]
 
 ## Open questions
 
-- Project versioning beyond version 4 (round V1): per-operation migrations (versions 2 - 4 only added kinds).
+- Project versioning beyond version 5 (round V1): per-operation migrations (versions 2 - 5 only added kinds).
 - Edits of static model-group members (their group files) and multi-object field edits are not operations yet
   (EDITOR_ARCHITECTURE section 5, E2).

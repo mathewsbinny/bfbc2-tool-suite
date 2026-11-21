@@ -43,6 +43,7 @@ pub mod profile;
 pub mod project;
 pub mod schema;
 pub mod shaders;
+pub mod weather;
 pub mod write;
 
 pub use ops::{FieldValue, Op, Operation, Placement, Rows, SinkUnit};

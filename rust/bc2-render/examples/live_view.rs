@@ -84,7 +84,7 @@ struct Lv {
 
 fn live_frame(dev: &mut Device, lv: &mut Lv, cam: &Camera, target: [f64; 3], size: [u32; 2], cull: bool) -> Rendered {
     lv.live.set(lv.world.sources(target));
-    lv.live.build(cam, size, Options { cull });
+    lv.live.build(cam, size, Options::exact(cull));
     let (depth, post) = lv.world.passes(cam, size, true).unwrap();
     let raw = lv.world.raw().clone();
     dev.render_live(

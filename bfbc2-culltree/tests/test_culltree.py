@@ -1,4 +1,4 @@
-r"""culltree.py on cull trees and levels built here (no game data):
+r"""culltreelib.py and `bfbc2 culltree` (round RT3 retired culltree.py) on cull trees and levels built here (no game data):
 
 - the DBX codec: a built file read and written back byte for byte;
 - sphere keys: centre / 16 and radius / 4 as the game decodes them, encode() always containing what it is given;
@@ -29,7 +29,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('culltree')
-import culltree as ct  # noqa: E402
+import culltreelib as ct  # noqa: E402
 
 
 class Checks:
@@ -184,8 +184,11 @@ def make_tree(objs, enum_offset):
 
 
 def run(args):
+    """`bfbc2 culltree <args>` (round RT3 retired culltree.py's command line: bfbc2.exe answers it alone)."""
     assert TMP is not None                          # main() sets it before running anything
-    return subprocess.run([sys.executable, os.path.join(ROOT, 'culltree.py')] + args, capture_output=True, text=True,
+    suite_paths.use('core')
+    from bfbc2core import native
+    return subprocess.run(native.cli_command('culltree') + args, capture_output=True, text=True,
                           errors='replace', env={**os.environ, 'LOCALAPPDATA': TMP})
 
 

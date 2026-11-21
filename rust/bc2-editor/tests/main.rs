@@ -26,6 +26,7 @@ mod g4;
 mod game_view;
 mod game_view_live;
 mod game_view_package;
+mod game_view_r5d;
 mod game_view_ww2;
 mod gr1;
 mod gr2;
@@ -37,6 +38,7 @@ mod render;
 mod simplified_view;
 mod view_geometry;
 mod view_toggles;
+mod vw2;
 mod xf1;
 
 /// At most this many of the binary's tests run at the same time.
