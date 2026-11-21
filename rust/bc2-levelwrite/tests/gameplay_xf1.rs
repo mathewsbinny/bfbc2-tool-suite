@@ -218,8 +218,10 @@ fn typed_gameplay_operations_on_valparaiso() {
     assert_eq!(gameplay::tickets_of(&w, &schema, &counter).unwrap().initial, 300);
     assert_eq!(closed(&w, &first), ring, "one point in, one out");
     assert!(w.find(&second).is_none());
-    // the file: version 5; a version-4 file loads as it is; a newer one is refused in words
-    assert_eq!(VERSION, 5);
+    // the file: version 5 or later (its log needs 5: `min_reader`); a version-4 file loads as it is; a newer one is
+    // refused in words
+    const { assert!(VERSION >= 5) };
+    assert_eq!(p.reader_needed(), 5);
     let text = p.to_json().unwrap();
     let back = MapProject::from_json(&text).unwrap();
     assert_eq!(back.operations, p.operations, "every typed operation kept by the file");
@@ -231,6 +233,7 @@ fn typed_gameplay_operations_on_valparaiso() {
     assert_eq!(old.version, VERSION);
     let mut newer = raw;
     newer["version"] = serde_json::Value::from(VERSION + 1);
+    newer["min_reader"] = serde_json::Value::from(VERSION + 1);
     let e = MapProject::from_json(&serde_json::to_string(&newer).unwrap()).unwrap_err();
     assert!(matches!(e, ProjectError::Version(_)), "{e}");
     assert!(e.to_string().contains("made by a newer editor"), "{e}");

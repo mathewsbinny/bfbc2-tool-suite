@@ -58,6 +58,9 @@ pub enum LevelWriteError {
     /// The DBX writer refused.
     #[error("{0}")]
     Dbx(String),
+    /// A file an operation names that the level does not have (round OP1: [`crate::files::Target`]).
+    #[error("{0} is not among the level's files")]
+    NoFile(String),
 }
 
 impl From<EditError> for LevelWriteError {
@@ -990,6 +993,21 @@ pub struct Applied {
     pub fields: usize,
     /// Objects placed (added instances).
     pub placed: usize,
+    /// Edits of files besides the partition (round OP1: [`crate::files`]).
+    pub files: usize,
+}
+
+impl Applied {
+    /// Another count added to this one (its `bytes` left alone).
+    pub fn add(&mut self, o: &Self) {
+        self.operations += o.operations;
+        self.transforms += o.transforms;
+        self.deleted += o.deleted;
+        self.duplicated += o.duplicated;
+        self.fields += o.fields;
+        self.placed += o.placed;
+        self.files += o.files;
+    }
 }
 
 /// Why [`apply`] stopped: the operation and the edit's error.
@@ -1145,9 +1163,57 @@ pub fn apply_one_with(
             out.deleted += c.removed.iter().map(|x| x.1).sum::<usize>();
             out.placed += c.grafted.iter().map(|x| x.1).sum::<usize>();
         }
+        Op::Files { .. } => {
+            // the partition's part of a multi-file operation (round OP1), whole or not at all; the caller holds
+            // the partition only ([`crate::files::LevelFiles::apply`] applies the other files' edits too)
+            let mut copy = w.clone();
+            let mut counts = Applied::default();
+            apply_partition_edits(&mut copy, o, schema, &mut counts, donors)?;
+            *w = copy;
+            out.add(&counts);
+        }
         _ => return Ok(()),
     }
     out.operations += 1;
+    Ok(())
+}
+
+/// A multi-file operation's partition edits ([`crate::files::FileEdit::Partition`]) applied in order to `w`, their
+/// counts added to `out` (round OP1). The caller makes them on a copy: an edit that fails leaves the ones before it
+/// made in `w`.
+///
+/// # Errors
+/// An edit cannot be applied (named by the operation, with why), or one is itself a multi-file operation.
+pub fn apply_partition_edits(
+    w: &mut LevelWriter,
+    o: &Operation,
+    schema: &Schema,
+    out: &mut Applied,
+    donors: &Donors<'_>,
+) -> std::result::Result<(), ApplyError> {
+    let fail = |error: LevelWriteError| ApplyError {
+        n: o.n,
+        name: o.name(),
+        error,
+    };
+    for op in o.op.parts() {
+        if matches!(op, Op::Files { .. }) {
+            return Err(fail(LevelWriteError::Refused(
+                "a multi-file operation holds another one".into(),
+            )));
+        }
+        let inner = Operation {
+            n: o.n,
+            by: o.by.clone(),
+            when: o.when.clone(),
+            label: String::new(),
+            op: op.clone(),
+        };
+        let mut counts = Applied::default();
+        apply_one_with(w, &inner, schema, &mut counts, donors).map_err(|x| fail(x.error))?;
+        counts.operations = 0;
+        out.add(&counts);
+    }
     Ok(())
 }
 

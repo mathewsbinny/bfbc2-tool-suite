@@ -26,10 +26,31 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 /// - 4: round VW2, the exported level's weather (`set-weather`); a version-3 file loads as it is;
 /// - 5: round XF1, the typed gameplay operations (`set-team`, `link-spawner`, `set-tickets`, `insert-point`,
 ///   `remove-point`); a version-4 file loads as it is.
-pub const VERSION: u32 = 5;
+/// - 6: round OP1, operations on any file of the level: the multi-file operation (`files`, [`crate::files`]), the
+///   brush strokes stored as delta tiles beside the project (`stroke`, [`crate::delta`]), the base files' sha1s
+///   (`base.files`) and the lowest version that reads the file (`min_reader`). A version-5 file is migrated: its
+///   `base` gets an empty `files`.
+pub const VERSION: u32 = 6;
 
-/// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; the full
-/// versioning work is round V1's). Version 1 to 2 changes nothing: version 2 only added operation kinds.
+/// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
+/// `min_reader` is made from ([`MapProject::reader_needed`]).
+pub const OP_VERSIONS: [(&str, u32); 12] = [
+    ("nav-add", 2),
+    ("nav-remove", 2),
+    ("nav-load", 2),
+    ("set-names", 3),
+    ("set-weather", 4),
+    ("set-team", 5),
+    ("link-spawner", 5),
+    ("set-tickets", 5),
+    ("insert-point", 5),
+    ("remove-point", 5),
+    ("files", 6),
+    ("stroke", 6),
+];
+
+/// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; round OP1 made
+/// the first step that changes the file).
 #[must_use]
 pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
     let mut at = from.max(1);
@@ -38,6 +59,12 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 2 -> 3: the names operation was added (round EX1); a version-2 log has none
         // 3 -> 4: the weather operation was added (round VW2); a version-3 log has none
         // 4 -> 5: the typed gameplay operations were added (round XF1); a version-4 log has none
+        // 5 -> 6: the base records its other files' sha1s (round OP1); a version-5 project edited none
+        if at == 5
+            && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
+        {
+            b.entry("files").or_insert_with(|| serde_json::json!({}));
+        }
         at += 1;
     }
     if let Some(o) = v.as_object_mut() {
@@ -153,6 +180,19 @@ pub struct Base {
     /// its campaign parts when exported. Absent in projects made before G4 (and where the mode was not known).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<BaseKind>,
+    /// The level's other files the log edits (round OP1: static group files, height fields), each as it was when
+    /// first edited, by [`crate::files::Target::base_key`]: the base-changed check of each.
+    #[serde(default)]
+    pub files: std::collections::BTreeMap<String, BaseFile>,
+}
+
+/// A base file besides the partition, as it was when the project first edited it (round OP1).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaseFile {
+    /// Its sha1.
+    pub sha1: String,
+    /// Its size in bytes.
+    pub size: u64,
 }
 
 /// The kind of a project's base level, decided from its description's `GameMode` (round G4): a campaign mode
@@ -240,6 +280,10 @@ pub enum ProjectError {
     /// Made by a newer editor.
     #[error("made by a newer editor version (project format {0}); this editor reads up to {VERSION}")]
     Version(u32),
+    /// The file's `version` is missing or not a version number (round OP1, audit AU4 BUG-13: never read as 0 or
+    /// cut to 32 bits).
+    #[error("not a map project this editor reads: its version is {0}")]
+    BadVersion(String),
     /// An operation of a kind this editor does not know (a newer editor's, or a damaged file).
     #[error(
         "operation {index} of the log is of a kind this editor does not know ({op:?}); it was made by a newer editor or the file is damaged"
@@ -387,6 +431,10 @@ pub struct MapProject {
     pub format: String,
     /// [`VERSION`].
     pub version: u32,
+    /// The lowest editor version that reads the file (round OP1): the newest operation kind of its log
+    /// ([`MapProject::reader_needed`]); a reader newer than that but older than `version` still reads it.
+    #[serde(default)]
+    pub min_reader: u32,
     /// The project's id (a UUID v5 of its name, level and time made): the namespace of its new guids.
     pub id: String,
     /// The map's name.
@@ -477,6 +525,7 @@ impl MapProject {
         Self {
             format: FORMAT.into(),
             version: VERSION,
+            min_reader: 1,
             id,
             name: name.to_owned(),
             created,
@@ -488,6 +537,7 @@ impl MapProject {
                 size: base.len() as u64,
                 profile,
                 kind: None,
+                files: std::collections::BTreeMap::new(),
             },
             operations: Vec::new(),
             redo: Vec::new(),
@@ -685,24 +735,61 @@ impl MapProject {
             for c in o.op.creates() {
                 known.insert(c.to_ascii_uppercase());
             }
-            let gone = match &o.op {
-                Op::Delete { guids } => guids.as_slice(),
-                Op::SetMode { to } => to.removed.as_slice(),
-                _ => &[],
-            };
-            for g in gone {
-                known.remove(&g.to_ascii_uppercase());
+            for part in o.op.parts() {
+                let gone = match part {
+                    Op::Delete { guids } => guids.as_slice(),
+                    Op::SetMode { to } => to.removed.as_slice(),
+                    _ => &[],
+                };
+                for g in gone {
+                    known.remove(&g.to_ascii_uppercase());
+                }
             }
         }
         out
     }
 
-    /// The project as its file holds it.
+    /// The lowest editor version that reads this project: the newest operation kind in its log and redo stack
+    /// ([`OP_VERSIONS`]), and 6 when it records base files (round OP1).
+    #[must_use]
+    pub fn reader_needed(&self) -> u32 {
+        let of = |o: &Operation| {
+            serde_json::to_value(&o.op)
+                .ok()
+                .and_then(|v| v.get("op").and_then(|k| k.as_str().map(str::to_owned)))
+                .and_then(|k| OP_VERSIONS.iter().find(|(n, _)| *n == k).map(|x| x.1))
+                .unwrap_or(1)
+        };
+        let ops = self.operations.iter().chain(&self.redo).map(of).max().unwrap_or(1);
+        if self.base.files.is_empty() { ops } else { ops.max(6) }
+    }
+
+    /// Records a base file the log is about to edit for the first time (round OP1): its sha1 and size, by
+    /// [`crate::files::Target::base_key`]. `false` when it was recorded already or the target has no base file.
+    pub fn note_file(&mut self, target: &crate::files::Target, bytes: &[u8]) -> bool {
+        let Some(key) = target.base_key() else { return false };
+        if self.base.files.contains_key(&key) {
+            return false;
+        }
+        self.base.files.insert(
+            key,
+            BaseFile {
+                sha1: sha1_hex(bytes),
+                size: bytes.len() as u64,
+            },
+        );
+        true
+    }
+
+    /// The project as its file holds it (`version` the current one, `min_reader` made from the log).
     ///
     /// # Errors
     /// Never in practice (`serde_json` on these types).
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        let mut s = serde_json::to_string_pretty(self)?;
+        let mut out = self.clone();
+        out.version = VERSION;
+        out.min_reader = self.reader_needed();
+        let mut s = serde_json::to_string_pretty(&out)?;
         s.push('\n');
         Ok(s)
     }
@@ -717,11 +804,16 @@ impl MapProject {
         if format != FORMAT {
             return Err(ProjectError::Format(format.to_owned()));
         }
-        let version = v.get("version").and_then(serde_json::Value::as_u64).unwrap_or(0) as u32;
-        if version > VERSION {
+        let version = read_version(v.get("version"))?;
+        // a newer file is read when its log uses nothing newer than this editor reads (`min_reader`)
+        let min_reader = match v.get("min_reader") {
+            None => version,
+            some => read_version(some)?,
+        };
+        if min_reader > VERSION {
             return Err(ProjectError::Version(version));
         }
-        let v = migrate(v, version);
+        let v = migrate(v, version.min(VERSION));
         // an operation of an unknown kind is named, not a bare serde error (nor dropped)
         for key in ["operations", "redo"] {
             for (index, o) in v
@@ -739,7 +831,9 @@ impl MapProject {
                 }
             }
         }
-        Ok(serde_json::from_value(v)?)
+        let mut p: Self = serde_json::from_value(v)?;
+        p.min_reader = p.reader_needed();
+        Ok(p)
     }
 
     /// Saves the project to `path` (whole or not at all: a temporary file replaced), and removes its autosave.
@@ -798,6 +892,14 @@ impl MapProject {
     pub fn discard_autosave(path: &Path) {
         let _ = std::fs::remove_file(autosave_path(path));
     }
+}
+
+/// A file's `version` (or `min_reader`): a whole number from 1 to `u32::MAX`, never cut or defaulted (audit AU4
+/// BUG-13).
+fn read_version(v: Option<&serde_json::Value>) -> Result<u32, ProjectError> {
+    let bad = || ProjectError::BadVersion(v.map_or_else(|| "missing".to_owned(), ToString::to_string));
+    let n = v.and_then(serde_json::Value::as_u64).ok_or_else(bad)?;
+    u32::try_from(n).ok().filter(|n| *n >= 1).ok_or_else(bad)
 }
 
 /// The autosave of a project file.
@@ -911,6 +1013,97 @@ mod tests {
         std::fs::write(lock_path(&path), "not json").unwrap();
         drop(ProjectLock::acquire(&path).unwrap());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Round OP1: the recorded projects of the earlier versions (`tests/data/projects`, synthetic: guids and
+    /// transforms of the test level only) load as the current version with every operation kept as it was written,
+    /// and their logs replay to the same partition as they always did (its sha1 recorded) and to no other file.
+    #[test]
+    fn old_projects_load_and_replay_the_same() {
+        let corpus = [
+            (1, include_str!("../tests/data/projects/v1.mapedit.json"), 7, 0),
+            (2, include_str!("../tests/data/projects/v2.mapedit.json"), 8, 0),
+            (4, include_str!("../tests/data/projects/v4.mapedit.json"), 9, 0),
+            (5, include_str!("../tests/data/projects/v5.mapedit.json"), 9, 1),
+        ];
+        let base = crate::write::tests::level();
+        let schema = crate::Schema::scan([&crate::write::LevelWriter::parse(&base).unwrap().d]);
+        let mut replayed = Vec::new();
+        for (version, text, ops, redo) in corpus {
+            let raw: serde_json::Value = serde_json::from_str(text).unwrap();
+            assert_eq!(raw["version"], version);
+            let p = MapProject::from_json(text).unwrap();
+            assert_eq!((p.version, p.operations.len(), p.redo.len()), (VERSION, ops, redo));
+            assert!(p.base.files.is_empty());
+            // every operation as it was written: the same JSON again
+            for (o, r) in p.operations.iter().chain(&p.redo).zip(
+                raw["operations"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .chain(raw["redo"].as_array().unwrap()),
+            ) {
+                assert_eq!(&serde_json::to_value(o).unwrap(), r, "v{version}");
+            }
+            let a =
+                crate::files::apply_files(&base, &p.operations, &schema, &|_| None, &crate::files::NoSources).unwrap();
+            assert_eq!(a.partition, crate::write::apply(&base, &p.operations, &schema).unwrap());
+            assert!(a.files.is_empty());
+            assert_eq!(p.reader_needed(), version, "v{version}: its newest kind in the log");
+            replayed.push(sha1_hex(&a.partition.bytes));
+            // saved again: the current version, and it loads back the same
+            let again = MapProject::from_json(&p.to_json().unwrap()).unwrap();
+            assert_eq!(again, p);
+        }
+        // the edits are the same in every version's log (only kinds of later versions were added after them)
+        assert!(replayed.iter().all(|s| *s == replayed[0]), "{replayed:?}");
+        assert_eq!(replayed[0], OLD_REPLAY_SHA1);
+    }
+
+    /// The test level after the corpus's partition edits (a move, a duplicate, a field set), as the version-5 editor
+    /// (main at 082f2d2, before round OP1) replays the same four files: checked there when the corpus was made.
+    const OLD_REPLAY_SHA1: &str = "9eb95861781c3387b0aab68b318af4faa4b46888";
+
+    /// Round OP1: versions read whole (audit AU4 BUG-13), the 5 -> 6 migration, `min_reader` from the log's kinds.
+    #[test]
+    fn versions_and_min_reader() {
+        let a = "AAAAAAAA-0000-0000-0000-000000000001";
+        let mut q = MapProject::new("Versions", "test", "levels/TEST", b"base", Profile::Bfbc2);
+        q.push(Op::Delete { guids: vec![a.into()] }, "");
+        // round OP1 (audit AU4 BUG-13): a version that is missing, 0, or wider than 32 bits is refused, never cut
+        let current = format!("\"version\": {VERSION}");
+        for bad in [
+            "\"version\": 4294967301",
+            "\"version\": 0",
+            "\"version\": \"6\"",
+            "\"vers\": 6",
+        ] {
+            let text = q.to_json().unwrap().replace(&current, bad);
+            let e = MapProject::from_json(&text).unwrap_err();
+            assert!(matches!(e, ProjectError::BadVersion(_)), "{bad}: {e}");
+        }
+        assert!(
+            MapProject::from_json(&q.to_json().unwrap().replace(&current, "\"vers\": 6"))
+                .unwrap_err()
+                .to_string()
+                .ends_with("its version is missing")
+        );
+        // a version-5 file gets its base's `files` (5 -> 6); the operations' kinds set `min_reader`
+        let mut v5: serde_json::Value = serde_json::from_str(&q.to_json().unwrap()).unwrap();
+        v5["version"] = 5.into();
+        v5["base"].as_object_mut().unwrap().remove("files");
+        v5.as_object_mut().unwrap().remove("min_reader");
+        let migrated = migrate(v5.clone(), 5);
+        assert_eq!(migrated["base"]["files"], serde_json::json!({}));
+        assert_eq!(migrated["version"], VERSION);
+        assert_eq!(MapProject::from_json(&v5.to_string()).unwrap().operations, q.operations);
+        let mut r = q.clone();
+        assert_eq!(r.reader_needed(), 1);
+        r.push(Op::RemovePoint { guid: a.into() }, "");
+        assert_eq!(r.reader_needed(), 5);
+        r.note_file(&crate::files::Target::group("x_havokasset.dbx"), b"group");
+        assert_eq!(r.reader_needed(), 6);
+        assert!(r.to_json().unwrap().contains("\"group:x_havokasset.dbx\""));
     }
 
     #[test]
@@ -1051,10 +1244,14 @@ mod tests {
             MapProject::from_json("{\"format\":\"x\"}"),
             Err(ProjectError::Format(_))
         ));
-        let newer = q
+        // round OP1: a newer file whose log needs nothing newer than this editor (`min_reader`) is read
+        let readable = q
             .to_json()
             .unwrap()
             .replace(&format!("\"version\": {VERSION}"), "\"version\": 9");
+        assert!(readable.contains("\"min_reader\": 1"), "{readable}");
+        assert_eq!(MapProject::from_json(&readable).unwrap().operations, q.operations);
+        let newer = readable.replace("\"min_reader\": 1", "\"min_reader\": 9");
         let e = MapProject::from_json(&newer).unwrap_err();
         assert!(matches!(e, ProjectError::Version(9)));
         assert_eq!(

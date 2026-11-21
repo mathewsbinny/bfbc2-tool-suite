@@ -14759,11 +14759,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:25-40"
+     "ref": "rust/bc2-levelwrite/src/project.rs:25-80"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:685-773"
+     "ref": "rust/bc2-levelwrite/src/project.rs:750-906"
     },
     {
      "kind": "test",
@@ -14776,6 +14776,14 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/ops.rs::json_shape_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::versions_and_min_reader"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same"
     }
    ]
   },
@@ -14832,6 +14840,62 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-FILE-1",
+   "title": "An operation names the files it changes; a multi-file operation is all or nothing",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/files.rs:20-360"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/ops.rs:410-460"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:1180-1220"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:360-410"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/files.rs::multi_file_operations_apply_whole_or_not_at_all"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-FILE-2",
+   "title": "A base file is recorded when first edited; the export writes the edited group files",
+   "file": "spec/transforms/projectlog.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:766-785"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:585-595"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1015-1060"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1185-1225"
     }
    ]
   },
