@@ -28,6 +28,14 @@ landed on `main`.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.12.0] - 2026-11-21
+
+Released at round OP1's merge under the rule above: OP1 removed Rust public API of the editor (`set_pending_target`,
+the Export window's `project` / `bound` fields, `Install.ok`, `nav::Job.done`; `Then::Create` changed shape). Project
+OPFOR needs `SUITE_REQUIRES = ('0.12.0', '0.13.0')`.
+
 ### Added
 - **Map editor projects can edit any file of a level** (round OP1, audit AU1 R18). An operation names the files it
   changes - the level partition, a static group file, a height field, a paint layer, the navigation side file, or
