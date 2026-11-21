@@ -1,16 +1,22 @@
-# The suite's Rust core (EDITOR_ARCHITECTURE.md 3.8): pure-Rust format libraries, and their Python bindings.
+# The suite's Rust core (bfbc2-map-editor/EDITOR_ARCHITECTURE.md 3.8): pure-Rust format libraries, their Python
+# bindings, the command-line binary and the map editor.
 #
 #   cargo test                                   every crate's unit, integration and doc tests
 #   cargo clippy --all-targets -- -D warnings
 #   cargo fmt --check
 #   python build_native.py                       the Python module (bc2_native) into core\ (README.md)
 #
-# Crates: bc2-formats (the game's file formats, no Python types), bc2-scene (a level: entities, collision, terrain,
-# water), bc2-py (PyO3 bindings, module bc2_native), bc2-editor (the map editor application, binary bfbc2-editor; an
-# application, not part of bc2_native: bfbc2core.native.APPLICATIONS), bc2-levelwrite (the map project's operation log
-# and its edits on a level partition, round E2), bc2-render (the editor's game-accurate view: DICE's Direct3D 11 shaders,
-# round R5), bc2-cli (the command-line binary bfbc2: the tools' command lines as subcommands, round O1). Later crates
-# join `members` and take their dependencies from [workspace.dependencies].
+# Crates (14): bc2-formats (the game's file formats, no Python types), bc2-scene (a level: entities, collision, terrain,
+# water), bc2-py (PyO3 bindings, module bc2_native), bc2-convert (the console converters and the BF1943 import's ports:
+# textures, meshes, Havok, audio, Granny, DBX; rounds E1d, R2, F2a), bc2-navbuild (NavKit's path-data generator, rounds
+# E1d / R1), bc2-shader (the Xbox 360 shader translator and disassembler, round R3), bc2-stockmp (the stock-MP AI layer,
+# round E4a), bc2-harness (the test harness and the crash reader, round E4f), bc2-editor (the map editor application,
+# binary bfbc2-editor; an application, not part of bc2_native: bfbc2core.native.APPLICATIONS; bfbc2-map-editor/),
+# bc2-levelwrite (the map project's operation log, its edits on a level partition and the export, binary mapexport;
+# rounds E2, E3), bc2-render (the editor's game-accurate view: DICE's Direct3D 11 shaders, round R5), bc2-cli (the
+# command-line binary bfbc2: the tools' command lines as subcommands, round O1), bc2-pyrt (what the Python command lines
+# show of the Python runtime, for bc2-cli's ports, rounds O2 - O3), bc2-menu (the menu tools' library, rounds O2 - O3).
+# Later crates join `members` and take their dependencies from [workspace.dependencies].
 
 [workspace]
 resolver = "3"

@@ -468,8 +468,8 @@ fn work_kind(name: &str) -> &'static str {
         | "stockmp" | "bf1943" | "playtest" | "audit" | "aptgraft" => "output",
         "console_deps" | "console_input" | "console_loading" | "console_loadset" | "console_mode"
         | "console_soldiers" | "console_vehicles" | "console_cull" | "console_markv" | "console_icons"
-        | "console_shaders" | "combat_a" | "combat_b" | "sectoroff" | "menus" | "ledgertest" => "scratch",
-        "console_hud" | "backups" | "import_backup" | "logs-archive" => "backup",
+        | "console_shaders" | "combat_a" | "combat_b" | "sectoroff" | "menus" => "scratch",
+        "console_hud" | "backups" | "logs-archive" => "backup",
         _ => "unknown",
     }
 }

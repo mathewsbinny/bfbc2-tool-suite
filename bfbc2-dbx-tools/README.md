@@ -33,9 +33,9 @@ window and LevelDiff are built on.
 
 **The window:** run `build.bat`. It compiles `DbxEditGUI.exe` (DbxEditGUI.cs and DbxEdit.cs) into this folder with
 the C# compiler that ships with Windows (.NET Framework 4) and needs no install. It stays until the map editor
-replaces it with a generic DBX inspector panel (round GR4, `ROADMAP.md`; the plan: bfbc2-map-inspector's
-EDITOR_ARCHITECTURE.md section 9.4). The map editor's Properties > All fields already shows every field of a level's
-objects (round GR1).
+replaces it with a generic DBX inspector panel (round GR4, `ROADMAP.md`; the plan:
+`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` section 9.4). The map editor's Properties > All fields already shows
+every field of a level's objects (round GR1).
 
 ## The window
 

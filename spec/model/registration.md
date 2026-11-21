@@ -137,7 +137,7 @@ whose registration misses a kind, names one twice, or targets a missing bundle.
 [code: rust/bc2-levelwrite/src/export.rs:563-596] [code: rust/bc2-levelwrite/src/export.rs:1505-1540]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
-[doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:830-838]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:830-838]
 
 ### REG-NEW-2: A new name only
 
@@ -147,7 +147,7 @@ A new level's name must not be a level of the game copy (no `levels/<lv>/level-0
 must not already be a `package.mft` source of another tool's level. Its id is `Levels/<LV>` with letters, digits and
 `_`.
 
-[code: rust/bc2-levelwrite/src/export.rs:644-655] [doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:822-825]
+[code: rust/bc2-levelwrite/src/export.rs:644-655] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:822-825]
 
 ### REG-NEW-3: No voice-over bundle
 
@@ -156,7 +156,7 @@ Status: **implemented**
 A new level ships and registers no `vo/<lang>` bundle; its announcer comes from the common bundles. (Stock levels
 register voice-over bundles that are absent, BNDL-LOC-3; a new level is not given that latitude, CSUM-CHK-2.)
 
-[code: rust/bc2-levelwrite/src/export.rs:40-44] [doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:817-818]
+[code: rust/bc2-levelwrite/src/export.rs:40-44] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:817-818]
 
 ### REG-NEW-4: Registration is written last and removed first
 
@@ -167,7 +167,7 @@ menus), and writes `package.mft` and `bundleManifest` **last**, so that at no po
 bundles are not there; a revert takes the registration out first.
 
 [code: opfor:src/tools/mapedit/mapedit_install.py:344-368] [code: opfor:src/tools/ww2/wake_install.py:3431-3445]
-[doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:887-903]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:887-903]
 
 ### REG-NEW-5: The menus need the startup bundle too
 
@@ -176,7 +176,7 @@ Status: **observed**
 Registration makes a level loadable, not visible: the level also needs its description partition and two
 `LevelListQuery` items in `async/startup-00.fbrb` (LEVEL-DESC-1), and OPFOR's `maps.ini` section for the launcher.
 
-[doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:810-814] [code: rust/bc2-levelwrite/src/export.rs:49-50]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:810-814] [code: rust/bc2-levelwrite/src/export.rs:49-50]
 [data: OPFOR's SP_005 and Onslaught installs: a level without the description crashed in state 13; without the list items it was in no menu]
 
 ## 4. The level checksum
@@ -200,7 +200,7 @@ A new level registered while its bundles are not in the game copy crashes the st
 registration is written last (REG-NEW-4) and why a new level registers no voice-over bundle (REG-NEW-3).
 
 [data: OPFOR's install audit C2: a failed install that left the level registered with absent bundles is the start-up checksum crash]
-[doc: opfor:research/PYTHON_CODE_AUDIT.md:30] [doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:1110]
+[doc: opfor:research/PYTHON_CODE_AUDIT.md:30] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1110]
 
 ### CSUM-CHK-3: The checksum dereferences every placement's blueprint
 
@@ -209,7 +209,7 @@ Status: **observed**
 The checksum walks the level's placements and reads each one's blueprint; a placement whose blueprint was not
 created (its references resolve nowhere, REF-RES-5) is a null read at 0x6EFCA4.
 
-[exe: BFBC2Game.exe 0x6EFCA4] [doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:1111]
+[exe: BFBC2Game.exe 0x6EFCA4] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1111]
 
 ### CSUM-CHK-4: Client and server need the same registration
 

@@ -1,4 +1,4 @@
-//! The map editor's game-accurate view (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.11, round R5): a level's
+//! The map editor's game-accurate view (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.11, round R5): a level's
 //! meshes and terrain drawn as BFBC2's Direct3D 11 renderer draws them - DICE's own compiled shaders from the level's
 //! `Dx11_Single.res`, their parameter blocks' textures, constants and sampler states, the programs' render states,
 //! the level's weather light - off screen, then shown in the editor.

@@ -3,7 +3,7 @@
 The one place for the suite's priorities and its queue of rounds. Keep it current: a round moves to **In progress**
 when its branch starts, to **Done** (with a one-line result) when it is merged to `main`, and the priority order
 changes only when the user changes it. Each round's evidence stays where it is: its commit messages, its section of
-`rust/BENCHMARKS.md`, and `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` for the editor. Released versions are in
+`rust/BENCHMARKS.md`, and `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` for the editor. Released versions are in
 `CHANGELOG.md`; how a round reaches `main` is in `RELEASING.md`.
 
 Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
@@ -76,7 +76,6 @@ In priority order (above); the next rounds:
 | QW1 | now (approved 2026-11-20; audit AU2's best-value list): the editor / levelwrite / render tests run once per quick tier; dev debug-info lowered and one integration-test binary per crate; the test scheduler's memory declarations from recorded peaks; a stale `bfbc2.exe` warns (strict mode) and each artefact has its own fingerprint; one suite locator in OPFOR with a version check; superseded FBRB cache payloads pruned; one env-variable registry and a pinned Python requirements file; mapexport's staleness check; one GUID helper for OPFOR's uuid5 sites; skipped tests counted as skipped; the matplotlib flake; stale test-time names |
 | VW2 | the mode view layer (show / hide by game mode and Rush stage, on the project's mode layer data); time-of-day and weather switches (the weather states each level holds) in both views; Guadalcanal's game view (weather partition not found); Vietnam levels in the game view |
 | EX1 | export: a preview mode comparing the export with the original (side by side or toggled), every name of the level editable (file / folder name, in-game level id, on-screen name per language, server browser name), and a visual diff of a project against its base; LevelDiff folded in as an editor panel (a `bfbc2.exe leveldiff` command kept for OPFOR's scripts), LevelDiff.exe retired |
-| FM1 | after GR2: the map editor's own folder `bfbc2-map-editor\` (design document, README, run instructions; the code stays in `rust\bc2-editor`), `bfbc2-map-inspector\` deleted and every reference fixed; the retirement policy: `RETIRED.md` (date, replacement, last commit, round) with the Map Inspector, graphstats.py and prepare_level.py; the three README-only planned-tool folders folded into the design document as workspaces and deleted |
 | RT3 | RT2's leftovers: hpdtool.parse's and the Wave readers' messages ported, then retired; the library parts split out of the command-line `.py` files that are still imported (aptrefs, xiso with a bytes entry point, culltree, stockmp, crashreader), then their command lines retired; argparse's option abbreviations; the kept references in BENCHMARKS RT2 |
 | GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (LevelDiff in EX1): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
@@ -116,6 +115,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Date | What |
 |---|---|---|
+| FM1 | 2026-11-20 | the map editor's own folder `bfbc2-map-editor\` (README, `EDITOR_ARCHITECTURE.md` moved with its history, section 10: the three planned AI tools as editor workspaces), `bfbc2-map-inspector\` and the three README-only placeholder folders deleted, every reference repointed (suite and OPFOR); `RETIRED.md` (the retirement policy, its checklist, 10 rows); DOC1's small code / help fixes |
 | SP1 | 2026-11-19 | the engine specification, layers 1-2 (`spec/`): 439 rules (250 verified, 48 implemented, 134 observed, 7 inferred), `spec/trace.py` checked by the quick tier |
 | P1 | 2026-11-19 | `ROADMAP.md`, `CHANGELOG.md`, `VERSION` 0.9.0 (tagged), `RELEASING.md`, CI (`checks.yml`), `run_tests.py quick --no-game` |
 

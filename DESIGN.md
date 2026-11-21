@@ -21,14 +21,14 @@ section 1; statuses in sections 3.1, 4.2 and 7).
 
 | Tool | For | In short |
 |---|---|---|
-| **bfbc2-map-inspector** (retired 2026-11-20, round GR1: in the map editor) | any BC2 modder | Browse a level in 3D: geometry, collision, spawns, objectives, destructibles, every placed entity. Click anything to see where it comes from and its properties. |
+| **Map Inspector** (retired 2026-11-20, round GR1: in the map editor; its folder deleted in FM1, `RETIRED.md`) | any BC2 modder | Browse a level in 3D: geometry, collision, spawns, objectives, destructibles, every placed entity. Click anything to see where it comes from and its properties. |
 | **bfbc2-navigation-studio** (the map editor's AI workspace since GR2) | any BC2 modder, Project OPFOR BFBC2 | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
-| **bfbc2-tactical-map-authoring-tool** | Project OPFOR BFBC2 bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
-| **bfbc2-bot-ai-debugger** | Project OPFOR BFBC2 bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
+| **tactical map authoring** (planned: a map editor workspace, `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.1) | Project OPFOR BFBC2 bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
+| **bot AI debugger** (planned: a map editor workspace, `EDITOR_ARCHITECTURE.md` 10.2) | Project OPFOR BFBC2 bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
 | **bfbc2-automated-map-and-bot-test-harness** | Project OPFOR BFBC2 | Repeatable scenarios across maps, with results saved per build so changes can be compared: reachability, path tests, bot traversal, stuck detection, squad coordination, vehicle use. |
 | **bfbc2-asset-pipeline** (in the core) | any BC2 modder | Batch extraction into common formats: geometry and collision to OBJ/glTF, entities and transforms, spawns and objectives to JSON, textures and materials later, dependency reports. It is the same readers the viewer uses. |
 | **bfbc2-diff-workbench** | research | Binary and asset diffing: ImHex pattern files for BC2 formats, plus a report of which structures are understood and what changed, with reproducible extraction logs and hashes. |
-| **bfbc2-ai-behavior-simulator** | Project OPFOR BFBC2 bots | Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls, physics or animation. |
+| **AI behaviour simulator** (planned: a map editor workspace, `EDITOR_ARCHITECTURE.md` 10.3) | Project OPFOR BFBC2 bots | Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls, physics or animation. |
 | **bfbc2-asset-builder** (asset builder & validator, in the OPFOR repo) | Project OPFOR BFBC2 | Turns editor outputs into versioned runtime packages for the standalone client, with schema and dependency checks and a report of missing or incompatible data. |
 
 Added beside these eight (2026-10-26, both built; their READMEs):
@@ -54,7 +54,7 @@ Added with the Rust core (2026-11-16 on; README.md, "The Rust core"):
 
 | Tool | For | In short |
 |---|---|---|
-| **the map editor** (`rust/bc2-editor`, `bfbc2-editor.exe`) | any BC2 modder | The Map Inspector's successor (section 4.1): view any map; edit a copy as a map project (objects, gameplay, layers, undo); the game-accurate view; export as a new multiplayer level for any era and mode, installed through Project OPFOR. Plan: `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md`. |
+| **the map editor** (`rust/bc2-editor`, `bfbc2-editor.exe`) | any BC2 modder | The Map Inspector's successor (section 4.1): view any map; edit a copy as a map project (objects, gameplay, layers, undo); the game-accurate view; export as a new multiplayer level for any era and mode, installed through Project OPFOR. Plan: `bfbc2-map-editor/EDITOR_ARCHITECTURE.md`. |
 | **`bfbc2.exe`** (`rust/bc2-cli`) | every user of the command lines | The tools' command lines in one Rust binary, each the same arguments and output as its Python (README.md, "bfbc2.exe"). |
 
 ## 2. Rules
@@ -173,7 +173,7 @@ the quick tier.
 
 ## 4. Tool scopes
 
-### 4.1 bfbc2-map-inspector (first)
+### 4.1 Map Inspector (first), then the map editor
 
 - **Load:** a level from the game copy, by name.
 - **Draw:**
@@ -187,11 +187,12 @@ the quick tier.
 - **Search, filter by type, measure** distances and heights.
 
 **Retired (round GR1, 2026-11-20):** everything above is in the map editor (`rust/bc2-editor`), which replaced the
-Map Inspector; `bfbc2-map-inspector/README.md` says where each feature went.
+Map Inspector; `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.1 says where each feature went (its folder was deleted
+in round FM1: `RETIRED.md`).
 
 **Map editor (planned 2026-11-16; built since 2026-11-18).** The Map Inspector gets an edit mode: first editing existing maps (BFBC2,
 Vietnam, WW2), then new maps from imported or randomized terrain populated with existing assets, for public
-modders too. The architecture plan is `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` (milestones E1-E6, S2, S3).
+modders too. The architecture plan is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` (milestones E1-E6, S2, S3).
 Status 2026-11-20: built in Rust as `rust/bc2-editor` (rounds G1 - G4, E2, E2b, R5 - R5c, E3 - E3d, GR1; README.md,
 "The map editor"): viewing every level, map projects with an operation log, the game-accurate view, and export of
 an edited map as a new multiplayer level for any era and mode with install / uninstall through Project OPFOR (built
@@ -201,7 +202,7 @@ Level from a height map (E7); `ROADMAP.md`.
 ### 4.2 bfbc2-navigation-studio
 
 (Round GR2, 2026-11-20: the Studio's window was retired; what follows is the map editor's AI workspace now -
-`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.4a and 9.2. The folder keeps `overlay.py`'s headless exports.)
+`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.4a and 9.2. The folder keeps `overlay.py`'s headless exports.)
 
 - **Generate:** run NavKit on a level, with its sampling settings, from the studio. Sampling starts the
   game (NavKit measures levels through OPFOR's in-game sampler), so the studio asks first. Building from
@@ -228,29 +229,17 @@ Level from a height map (E7); `ROADMAP.md`.
   - or a side file (§5.1), applied by `navkit apply` (§5.2) when a level is built or installed. This is
     the shareable form, and the only form for edits to DICE's files.
 
-### 4.3 bfbc2-tactical-map-authoring-tool (when OPFOR's bot layer takes shape)
+### 4.3 Tactical map authoring (when OPFOR's bot layer takes shape): a map editor workspace
 
-- **Layers:**
-  - objectives and their approaches;
-  - cover candidates (positions with protection from one or more directions);
-  - firing positions (with fields of view);
-  - rally points, vehicle approach routes, squad routes;
-  - strategic regions (sectors of a map with a role: base, front, flank).
-- **Generators propose candidates** from geometry and the navigation data: cover from collision near
-  walkable ground, sight lines by ray casts, approaches by path search. People correct them.
-- **Output:** a per-level annotation file (§5.3) that OPFOR's bot layer reads.
+Planned as a map editor workspace (the user, 2026-11-19); its plan - the layers, the candidate generators and the
+annotation file (section 5.3) - is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.1. Its placeholder folder
+`bfbc2-tactical-map-authoring-tool` was deleted in round FM1 (`RETIRED.md`).
 
-### 4.4 bfbc2-bot-ai-debugger (as soon as AI runs in OPFOR; first for the game's own AI)
+### 4.4 Bot AI debugger (as soon as AI runs in OPFOR; first for the game's own AI): a map editor workspace
 
-- **OPFOR side:** a telemetry module in OPFOR's DLL streams AI state over 127.0.0.1 (§5.4), a few times a
-  second: soldier positions and orientation, team, current order and goal, target, path request and
-  route, tactical state, perceived threats, squad membership. It starts with what the game's own AI
-  exposes, then adds OPFOR's bot layer as it is built.
-- **Suite side:** the same 3D view, with the live soldiers drawn over the level and navigation data:
-  - click a soldier for its state;
-  - its current route, line of sight and threat lines;
-  - a timeline to scrub back through the last minutes;
-  - recording to a file for later.
+Planned as a map editor workspace (the user, 2026-11-19); its plan - OPFOR's telemetry module (section 5.4) and
+the live view over the level - is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.2. Its placeholder folder
+`bfbc2-bot-ai-debugger` was deleted in round FM1 (`RETIRED.md`).
 
 ### 4.5 bfbc2-automated-map-and-bot-test-harness (grows from now on)
 
@@ -327,17 +316,11 @@ Level from a height map (E7); `ROADMAP.md`.
   and DbxEdit's parser; for unknown ones, changed byte ranges with their offsets.
 - **Extraction logs and hashes**, so any finding can be reproduced from the same inputs.
 
-### 4.8 bfbc2-ai-behavior-simulator (with OPFOR's bot layer)
+### 4.8 AI behaviour simulator (with OPFOR's bot layer): a map editor workspace
 
-- **The rule this brings forward:** OPFOR's bot decision logic is written as an engine-independent
-  library. It reaches the world only through an interface: positions, line of sight, paths, objective
-  states, squad messages. OPFOR's DLL connects that interface to the game; the simulator connects it to a
-  simplified map. Both run the same decision code, so a flaw found in simulation is a flaw in the bots.
-- **The simplified map** comes from NavKit's navigation data (route graph, areas), the tactical
-  annotations, and line of sight from collision geometry.
-- **Scenarios:** teams, spawns and objectives from the level; scripted or random enemy behaviour; many
-  runs faster than real time; results into the test harness.
-- **Out of scope:** controls, physics, animation, weapon ballistics. Those stay with in-game tests.
+Planned as a map editor workspace (the user, 2026-11-19); its plan - the engine-independent bot decision library,
+the simplified map, scenarios, what is out of scope - is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.3. Its
+placeholder folder `bfbc2-ai-behavior-simulator` was deleted in round FM1 (`RETIRED.md`).
 
 ### 4.9 bfbc2-asset-builder: asset builder & validator (in the Project OPFOR BFBC2 repo)
 
@@ -506,13 +489,13 @@ on the same points compare pair by pair. A newer version is refused by older rea
 | Milestone | Delivers | Also gives |
 |---|---|---|
 | M1 | the core: data layer (Python DBX reader, collision, terrain heightfield), scene, view, camera, picking, panels (done 2026-10-16) | |
-| M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16: see `bfbc2-map-inspector/README.md`; water added the same day) | |
+| M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16; water added the same day; retired in GR1: `RETIRED.md`) | |
 | M3 | Navigation Studio, viewing: navigation layers, islands, detailed zones, difference view against DICE (done 2026-10-16: `bfbc2-navigation-studio/README.md`, `core/bfbc2core/navdata.py`) | the 3D view for NavKit's parity work |
 | M4 | Navigation Studio, editing: regions, seeds, links, traversal annotations, path test, finished file and side file, `navkit apply` (steps 1-6 done 2026-10-16: `bfbc2-navigation-studio/README.md`; step 7, an in-game check that the game's AI uses a hand-made link, open) | |
 | M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19; the harness, 2026-10-26: `bfbc2-automated-map-and-bot-test-harness/harness.py` - structure, reachability, batteries, orders, sector offsets, parity, AI readiness from the game copy's bundles, saved runs and their comparison, `import-log` for in-game sessions; running `testrun.bat` per level on hold until play-tested) | the harness's level checks for stock-MP bot maps (`STOCK_MP_AI_PLAN.md` 6.3) |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
-| E1-E6, S2, S3 | Map editor in the Map Inspector (planning: `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md`): edit existing maps, then new maps from imported or randomized terrain, then custom models (2026-11-20: the editor is `rust/bc2-editor`; viewing, map projects and export to any era and mode done, E4-E7 next: `ROADMAP.md`) | |
+| E1-E6, S2, S3 | Map editor in the Map Inspector (planning: `bfbc2-map-editor/EDITOR_ARCHITECTURE.md`): edit existing maps, then new maps from imported or randomized terrain, then custom models (2026-11-20: the editor is `rust/bc2-editor`; viewing, map projects and export to any era and mode done, E4-E7 next: `ROADMAP.md`) | |
 | alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |
 | with Goal 3 | the bot decision library (engine-independent) and the AI behaviour simulator; bfbc2-asset-builder with the installer | |
 
