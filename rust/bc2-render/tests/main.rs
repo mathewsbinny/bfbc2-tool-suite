@@ -14,6 +14,9 @@
 
 use std::sync::{Condvar, Mutex, PoisonError};
 
+// the examples' helpers (OPFOR found, a level placed), loaded once for the files that use them
+#[path = "../examples/common/mod.rs"]
+mod common;
 mod live;
 mod warehouse;
 mod whole_terrain;

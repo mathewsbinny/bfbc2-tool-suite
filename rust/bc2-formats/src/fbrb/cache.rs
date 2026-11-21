@@ -471,7 +471,12 @@ fn payload_identity(file: &Path) -> Option<Identity> {
     let created = u128::from_le_bytes(key.get(24..40)?.try_into().ok()?);
     let path_len = u32::from_le_bytes(key.get(40..44)?.try_into().ok()?) as usize;
     let path = String::from_utf8(key.get(44..44 + path_len)?.to_vec()).ok()?;
-    (44 + path_len == key_len).then(|| Identity { path: PathBuf::from(path), len, modified, created })
+    (44 + path_len == key_len).then(|| Identity {
+        path: PathBuf::from(path),
+        len,
+        modified,
+        created,
+    })
 }
 
 /// The payload files of `folder` no read can use again (round QW1): for each bundle path the cache holds more than
@@ -492,12 +497,11 @@ pub fn superseded(folder: &Path) -> Vec<PathBuf> {
             continue;
         }
         let current = File::open(&bundle).ok().and_then(|f| Identity::of(&bundle, &f).ok());
-        match current {
-            Some(now) => out.extend(files.into_iter().filter(|f| f.1 != now).map(|f| f.0)),
-            None => {
-                files.sort_by_key(|f| std::cmp::Reverse(f.2));
-                out.extend(files.into_iter().skip(1).map(|f| f.0));
-            }
+        if let Some(now) = current {
+            out.extend(files.into_iter().filter(|f| f.1 != now).map(|f| f.0));
+        } else {
+            files.sort_by_key(|f| std::cmp::Reverse(f.2));
+            out.extend(files.into_iter().skip(1).map(|f| f.0));
         }
     }
     out.sort();
@@ -512,7 +516,7 @@ fn drop_superseded(folder: &Path, id: &Identity) {
     let stem = id.stem();
     let prefix = stem.rsplit_once('-').map_or(stem.as_str(), |(p, _)| p);
     for (file, _, _) in payload_files(folder) {
-        let named = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let named = file.file_name().map_or_default(|n| n.to_string_lossy().into_owned());
         if file != own
             && named.starts_with(prefix)
             && payload_identity(&file).is_some_and(|other| other.path == id.path && other != *id)

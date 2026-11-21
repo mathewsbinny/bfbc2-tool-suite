@@ -265,9 +265,13 @@ fn superseded_payloads() {
         .unwrap();
     read_twice();
     let second = files();
-    assert_eq!(second.len(), 1, "the old payload was deleted when the new one was written");
+    assert_eq!(
+        second.len(),
+        1,
+        "the old payload was deleted when the new one was written"
+    );
     assert_ne!(second, first);
-    assert!(superseded(&folder).is_empty());
+    assert_eq!(superseded(&folder), Vec::<PathBuf>::new());
     fs::write(folder.join("junk-0000000000000000.payload"), b"not a payload").unwrap();
     fs::copy(&kept, &first[0]).unwrap();
     File::options()
@@ -276,9 +280,17 @@ fn superseded_payloads() {
         .unwrap()
         .set_modified(SystemTime::now() - Duration::from_secs(60))
         .unwrap();
-    assert_eq!(superseded(&folder), first, "an old payload left behind is listed, the current one and junk not");
+    assert_eq!(
+        superseded(&folder),
+        first,
+        "an old payload left behind is listed, the current one and junk not"
+    );
     fs::remove_file(&p).unwrap();
-    assert_eq!(superseded(&folder), first, "the bundle gone: all but the most recently used");
+    assert_eq!(
+        superseded(&folder),
+        first,
+        "the bundle gone: all but the most recently used"
+    );
 }
 
 #[test]
