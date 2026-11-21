@@ -52,6 +52,7 @@ fn ms(t: Instant) -> f64 {
 }
 
 #[test]
+#[ignore = "game tier: Aurora as WW2 Conquest, 40 moves undone; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn undo_on_a_mode_project() {
     let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {

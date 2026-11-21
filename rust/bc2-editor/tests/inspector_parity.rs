@@ -115,6 +115,7 @@ fn outliner_lists_what_the_map_inspector_lists() {
 }
 
 #[test]
+#[ignore = "game tier: four whole levels drawn; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn each_level_draws_with_its_selection_outlined() {
     let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {

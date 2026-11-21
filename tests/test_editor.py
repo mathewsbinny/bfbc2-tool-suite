@@ -81,7 +81,7 @@ def main() -> int:
         return 0
     cargo = shutil.which('cargo', path=env.get('PATH')) or 'cargo'
     r = subprocess.run([cargo, 'test', '-p', 'bc2-editor', '-p', 'bc2-levelwrite', '-p', 'bc2-render', '--',
-                        '--nocapture', '--test-threads', '1'],
+                        '--nocapture', '--test-threads', '1', '--include-ignored'],     # the game tier's too (TS1)
                        cwd=RUST, env=env,
                        capture_output=True, text=True, encoding='utf-8', errors='replace')
     out = (r.stdout + r.stderr).splitlines()

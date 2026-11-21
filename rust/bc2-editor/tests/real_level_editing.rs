@@ -33,6 +33,7 @@ use eframe::egui::{Key, Modifiers};
 /// Placing on MP_005's terrain: at each sampled triangle's centroid, the surface below is the triangle's plane, and
 /// an object placed there sits at that height less its sink (0, 0.5 m, 25 % of its height).
 #[test]
+#[ignore = "game tier: MP_005's terrain; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn placement_on_real_terrain() {
     let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {

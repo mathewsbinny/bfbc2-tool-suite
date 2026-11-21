@@ -117,7 +117,7 @@ def path_of(name_or_path: str, folder: str) -> str:
 
 
 def save(run: Run, path: str) -> str:
-    tmp = path + '.tmp'
+    tmp = f'{path}.tmp-{os.getpid()}'                  # per process (AU4-CQ-18)
     with open(tmp, 'w', encoding='utf-8') as fh:
         json.dump(run, fh, indent=1)
     os.replace(tmp, path)

@@ -66,6 +66,7 @@ fn fields(nodes: &[PropNode]) -> usize {
 }
 
 #[test]
+#[ignore = "game tier: four whole levels; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn property_tree_and_links_as_the_map_inspector_showed_them() {
     let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {

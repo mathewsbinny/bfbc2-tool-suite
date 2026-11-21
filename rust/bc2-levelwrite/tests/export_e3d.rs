@@ -75,6 +75,7 @@ fn each_eras_modes_and_their_layers() {
 /// A mode choice is an operation: Atacama's Rush (`MP_005GR`) made a BFBC2 Conquest level - its Rush layer out, the
 /// donor's Conquest layer in, complete; an undo gives the base back.
 #[test]
+#[ignore = "game tier: a whole export; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn rush_to_conquest_as_a_project_operation() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {

@@ -36,6 +36,7 @@ fn harbour_camera() -> Camera {
 
 // spec: RNDR-VIEW-1, RNDR-SKY-1
 #[test]
+#[ignore = "game tier: a whole level in the game view; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn game_view_draws_the_sky_and_hides_labels_behind_the_frame() {
     let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {

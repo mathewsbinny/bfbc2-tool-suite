@@ -249,6 +249,8 @@ pub struct Game {
     mft: Vec<(String, Vec<String>)>,
     /// `bundleManifest`'s bundle names (`levels/mp_009cq/vo/en`), lower case; empty when there is none.
     manifest: Vec<String>,
+    /// The game copy has no `Dist\win32\bundleManifest` (round DF1, audit AU4-BUG-10).
+    manifest_missing: bool,
 }
 
 /// A live entry of a set of bundles: (bundle, entry).
@@ -258,13 +260,21 @@ impl Game {
     /// The game folder; its `package.mft` read.
     ///
     /// # Errors
-    /// No `Dist\win32\package.mft`.
+    /// No `Dist\win32\package.mft`, or a `bundleManifest` that is there but does not read (round DF1, audit
+    /// AU4-BUG-10: read as empty, an export would register voice-over bundles in `package.mft` without their
+    /// `bundleManifest` lines, the checksum crash).
     pub fn open(root: &Path) -> Result<Self> {
         let p = root.join("Dist").join("win32").join("package.mft");
         let text = std::fs::read(&p).map_err(|e| err(format!("{}: {e}", p.display())))?;
-        let bm = std::fs::read(root.join("Dist").join("win32").join("bundleManifest")).unwrap_or_default();
+        let bm_path = root.join("Dist").join("win32").join("bundleManifest");
+        let (bm, manifest_missing) = match std::fs::read(&bm_path) {
+            Ok(b) => (b, false),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Vec::new(), true),
+            Err(e) => return Err(err(format!("{}: {e}", bm_path.display()))),
+        };
         Ok(Self {
             root: root.to_path_buf(),
+            manifest_missing,
             mft: parse_mft(&String::from_utf8_lossy(&text)),
             manifest: String::from_utf8_lossy(&bm)
                 .lines()
@@ -273,6 +283,12 @@ impl Game {
                 .filter(|n| !n.is_empty())
                 .collect(),
         })
+    }
+
+    /// Whether the game copy has a `Dist\win32\bundleManifest` (read when it opened).
+    #[must_use]
+    pub fn has_manifest(&self) -> bool {
+        !self.manifest_missing
     }
 
     /// Whether `bundleManifest` names a bundle (`levels/mp_009cq/vo/en`).
@@ -3653,6 +3669,7 @@ pub fn patch_startup(
     if work.exists() {
         std::fs::remove_dir_all(work)?;
     }
+    let _scratch = Scratch(work);
     fbrb::unpack_path(source, work).map_err(|e| err(format!("{}: {e}", source.display())))?;
     let man_path = work.join("fbrb.manifest");
     let man = String::from_utf8_lossy(&std::fs::read(&man_path)?).into_owned();
@@ -3753,6 +3770,7 @@ fn repack(source: &Path, work: &Path, out: &Path, f: impl FnOnce(&Path, &mut Vec
     if work.exists() {
         std::fs::remove_dir_all(work)?;
     }
+    let _scratch = Scratch(work);
     fbrb::unpack_path(source, work).map_err(|e| err(format!("{}: {e}", source.display())))?;
     let man_path = work.join("fbrb.manifest");
     let man = String::from_utf8_lossy(&std::fs::read(&man_path)?).into_owned();
@@ -3767,6 +3785,18 @@ fn repack(source: &Path, work: &Path, out: &Path, f: impl FnOnce(&Path, &mut Vec
     fbrb::pack_path(work, out)?;
     std::fs::remove_dir_all(work)?;
     Ok(())
+}
+
+/// A scratch folder removed when it goes out of scope (round DF1, audit AU4-CQ-10): a bundle that does not unpack,
+/// parse or pack no longer leaves its whole unpack behind.
+struct Scratch<'a>(&'a Path);
+
+impl Drop for Scratch<'_> {
+    fn drop(&mut self) {
+        if self.0.exists() {
+            let _ = std::fs::remove_dir_all(self.0);
+        }
+    }
 }
 
 /// The manifest line's entry name.

@@ -81,7 +81,7 @@ zune-core = "=0.5.3"
 windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Direct3D_Fxc", "Win32_Security"] }
 # The command-line binary (bc2-cli, round O1): the local time, the ANSI code page and the console test Python's stdio
 # makes, so its output and logs are the Python command lines' byte for byte (already in the lock through eframe).
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console", "Win32_System_SystemInformation", "Win32_System_Time"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_System_Time"] }
 # The application icon as a Windows resource in bfbc2.exe, bfbc2-editor.exe and mapexport.exe (round I1: the build
 # scripts' rust/app_icon.rs; rc.exe of the Windows SDK, found by the crate; nothing on other targets).
 embed-resource = "=3.0.12"
@@ -113,12 +113,23 @@ codegen-units = 1
 
 # Debug and test builds keep line tables only (round QW1, audit AU2 S4: full debug info made each editor test binary
 # a ~370 MB PDB, and the debug folder of a worktree 24 GB): a panic's backtrace still names every function, file and
-# line; a debugger shows no local variables (set debug = "full" here for a session that needs them).
+# line; a debugger shows no local variables (set debug = "full" here for a session that needs them). The workspace's
+# own crates at opt-level 1 (round TS1, audit AU3 TS-2): the whole-level tests spend their time in our code (the
+# scene, the views, levelwrite), 1.2-5.8 times faster (rust/BENCHMARKS.md TS1); debug assertions and overflow checks
+# stay on. Set opt-level = 0 here for a debugger session that steps line by line.
 [profile.dev]
 debug = "line-tables-only"
+opt-level = 1
 
 [profile.bench]
 inherits = "release"
+
+# Dependencies optimised in debug and test builds (round TS1, audit AU3 TS-2): wgpu, egui, the image decoders, rayon
+# and serde ran unoptimised under the editor's, levelwrite's and the renderer's tests. Built once per PC with the
+# shared compile cache (README, "The Rust core"), else once per build folder; rust/BENCHMARKS.md (TS1) has the
+# compile cost against the test-time gain.
+[profile.dev.package."*"]
+opt-level = 2
 
 # The inflater optimised in test builds too: the bundle tests decompress megabytes many times over (round E3e).
 [profile.dev.package.zlib-rs]

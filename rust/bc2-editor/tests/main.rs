@@ -15,6 +15,7 @@
 use std::sync::{Condvar, Mutex, PoisonError};
 
 mod asset_browser;
+mod df1;
 mod e2b;
 mod editing;
 mod every_level;
@@ -52,6 +53,8 @@ pub(crate) struct Gate;
 
 /// Waits until fewer than [`GATE`] tests run, then holds a place: every test's first statement.
 pub(crate) fn gate() -> Gate {
+    // the binary's tests share each level's read (round TS1): MP_005 is read once, not once per test
+    bc2_editor::app::share_level_reads();
     let mut running = RUNNING.lock().unwrap_or_else(PoisonError::into_inner);
     while *running >= GATE {
         running = FREED.wait(running).unwrap_or_else(PoisonError::into_inner);
@@ -66,4 +69,16 @@ impl Drop for Gate {
         *running = running.saturating_sub(1);
         FREED.notify_one();
     }
+}
+
+/// The level `lv` is on this PC: the game copy is found and lists it (`game\Dist`, or an installed `game\Package`
+/// level). A test skips a level (printing "skipped") only when this is false: with the data there, a level that does
+/// not open, or a view that does not start, is a failure (round TS1, audit AU3 TS-7: four helpers turned such errors
+/// into skips that passed).
+pub(crate) fn level_here(lv: &str) -> bool {
+    bc2_editor::levels::find_opfor(None).is_ok_and(|root| {
+        bc2_editor::levels::list_levels(&root)
+            .iter()
+            .any(|l| l.lv.eq_ignore_ascii_case(lv))
+    })
 }
