@@ -29,7 +29,7 @@ are merged and versions released: `RELEASING.md`.
    - **Bundles, Level diff, Crash reader, Xbox files, Tests:** the command-line tools with file pickers and
      options; their output appears at the bottom. Bundles, the crash reader and the level prepare run through
      `bin\bfbc2.exe` when it is built from this checkout, else through the Python.
-   - **More tools:** the map editor, DbxEditGUI and NavKit's window.
+   - **More tools:** the map editor, its DBX inspector and NavKit's window.
 
    The test harness, the menu tools and the stock-MP AI tool have no tab yet: run them from a command prompt
    (their READMEs).
@@ -49,7 +49,7 @@ suite window checks the libraries when it opens, and when a tool it runs fails i
 The command-line tools - `bfbc2.exe` and the Python command lines it ports (FbrbTool `fbrbtool.py`, DbxEdit
 `dbxedit.py`, NavKit's `navkit.py` and `tools\*.py`, the crash reader, the console readers, the menu tools, the test
 harness, `leveldiff` ...), the test runner - log the same way and, on an error, print the cause, what to do and the
-log's path (exit code 1); DbxEditGUI and NavKit's window show it in a window. If you report a problem, send the
+log's path (exit code 1); the map editor and NavKit's window show it in a window. If you report a problem, send the
 log file.
 
 **Exit codes** (round QW2, audit AU2 Q7). Every command line follows Python's conventions, and `bfbc2.exe` gives
@@ -73,7 +73,7 @@ OPFOR's scripts stop with `SystemExit(<message>)`, which is exit code 1 too.
 | `rust/bc2-editor/` (`bin\bfbc2-editor.exe`) | **the map editor**: view any map of the game copy; edit a copy of it as a map project (objects, gameplay, layers, undo); export it as a new multiplayer level for any era and mode, and install or uninstall it through Project OPFOR ("The map editor" below) |
 | `rust/bc2-cli/` (`bin\bfbc2.exe`) | **`bfbc2.exe`**: the tools' command lines below in one Rust binary, `bfbc2 <tool> ...` with the same arguments, output and files as `python <tool>.py ...` ("bfbc2.exe" below) |
 | `bfbc2-auto-navkit/` | **BC2 NavKit**: generates AI navigation data (`pathdata.hpd`) for levels. Start with `QUICKSTART.md`, or `navkitGUI.pyw`. |
-| `bfbc2-dbx-tools/` | **DbxEdit** (`bfbc2.exe dbxedit`, or `dbxedit.py`; the Rust core) and **DbxEditGUI** (the window, C#): view, edit, check and repair binary `.dbx` files; XML export and import |
+| `bfbc2-dbx-tools/` | **DbxEdit** (`bfbc2.exe dbxedit`, or `dbxedit.py`; the Rust core) and its window, the map editor's **DBX inspector** (`bfbc2-editor --dbx <file>`; DbxEditGUI, the C# window, was retired in round GR4): view, edit, check and repair binary `.dbx` files; XML export and import |
 | `bfbc2-fbrb-tool/` | **FbrbTool** (`bfbc2.exe fbrbtool`, or `fbrbtool.py`; the Rust core): unpack and repack `.fbrb` bundles |
 | `bfbc2-console-readers/` | read-only readers for Xbox 360 disc images and content packages |
 | `bfbc2-automated-map-and-bot-test-harness/` | **test harness** (offline, M5): per level and path-data file (DICE's, NavKit's) structure, spawn-to-objective reachability, path-test batteries, orders near the route network, sector offsets, NavKit's DICE parity, and AI readiness from the game copy's bundles; saved runs compared between builds (`harness.py`); in-game tests on hold |
@@ -143,7 +143,8 @@ Run it (Rust as in "The Rust core" below; the first build takes a few minutes):
 
 (`--editor` builds `bfbc2-editor.exe` and `mapexport.exe` in this checkout's build folder and copies them to the
 suite's `bin\`: "Where Rust builds", below.) Or from the hub: Levels > "Open in Map Editor" / "Open navigation", or
-More tools > "Open Map Editor". Without a display,
+More tools > "Open Map Editor"; `--dbx <file.dbx>` (More tools > "DBX inspector") opens the DBX inspector,
+DbxEditGUI's successor (round GR4). Without a display,
 `bfbc2-editor.exe <level> --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]` draws the window
 offscreen and saves it (`--demo` instead of a level: a small made-up scene). The editor keeps its layout, theme and
 bookmarks in eframe's per-user storage under `%APPDATA%`.
@@ -469,8 +470,8 @@ Each run is logged in DbxEdit's own log (`dbxedit-<date>.log`, "started (in proc
 (round R4, 2026-11-18, after the full tier): the Rust core is required (`NativeMissing` says how to get it) and
 `BFBC2_DBXEDIT_EXE` is gone; `core/tests/test_dbxedit.py` checks the commands against the exe's recorded answers
 (`core/tests/dbxedit_golden.json`: DbxEdit's unit-test cases; `dbxedit_golden_game_0.json / _1.json`: a 1,592-file corpus
-sample through every command, 12,464 runs) and DbxEdit's edit fingerprints. DbxEdit.cs stays as the DBX classes
-of DbxEditGUI (the window, until the map editor replaces it). The suite's NavKit unpack and
+sample through every command, 12,464 runs) and DbxEdit's edit fingerprints. DbxEdit.cs stayed as the DBX classes
+of DbxEditGUI until round GR4 retired both (the window is the map editor's DBX inspector). The suite's NavKit unpack and
 `bfbc2-stockmp-ai`'s validation use it.
 **FbrbTool in process** (round E3k, 2026-11-17). `bfbc2core.fbrbtool` does the same for `FbrbTool.exe`'s `unpack`,
 `pack`, `list` and `big` (`rust/bc2-formats/src/fbrb/tool.rs`): `fbrbtool.run(args)`, `run_many`, `unpack`, `pack`,
@@ -729,8 +730,8 @@ own files, never (for the caps) a log written in the last 10 minutes (a running 
 folder (`logs-<date>_<time>.zip`, written whole before anything is deleted - if it cannot be written, nothing is
 deleted); the archives have their own cap, `BFBC2_LOG_ARCHIVE_MB` (default 1024), the oldest archive deleted first.
 Before
-E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). DbxEditGUI (C#,
-`ToolLog`) still writes one file per day; their logs are pruned with the rest. Also under
+E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). (DbxEditGUI's C#
+`ToolLog`, which wrote one file per day, was retired in round GR4.) Also under
 `%LOCALAPPDATA%\bfbc2-tool-suite`, not a cache: `test_times.json` (`run_tests.py`'s durations). In-memory caches
 (`BFBC2_FBRB_MEMORY_MB`, `pcbuild.MEMORY_LIMIT`, `functools.lru_cache`s) end with the process.
 
@@ -791,10 +792,10 @@ an estimate of its peak memory in GB (`mem`), and the shared things it reads or 
 OPFOR's `work\navkit\regress` (the regression test rewrites it; the apply, links and harness tests
 read it), every `pathdata.hpd` under `work\` (hpdtool reads them, the vehicle test rewrites one), the navigation
 data cache, `work\navkit\sp_004_b`, the suite's `build\` folder (shaderview.exe, renderqa's pickles), a window on
-the desktop, `DbxTests.exe` and the checkout's cargo build folder with `bin\` (`cargo`; `rust-targets\<checkout>`
+the desktop and the checkout's cargo build folder with `bin\` (`cargo`; `rust-targets\<checkout>`
 since round D1). A writer never runs beside a reader or another writer of the same
 thing, and tests that share a thing keep their listed order, so each sees it as a one-at-a-time run did. The build
-steps (Rust core, DbxEditGUI) run first, alone, before any test, since nearly every test loads
+step (the Rust core) runs first, alone, before any test, since nearly every test loads
 what they build. The runner starts a test while a slot, the CPU threads (`--cpus`, default all) and the memory
 (`--mem`, default three quarters of the PC's) it declares are free; the longest chains go first, and a test held
 back for room keeps its place (shorter tests fill in only while they end in time). A test missing from `NEEDS` runs

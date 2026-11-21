@@ -34,6 +34,7 @@ This builds `bfbc2-editor.exe` and `mapexport.exe` in this checkout's build fold
 suite README's "Where Rust builds") and copies them to the suite's `bin\`. Then:
 
     bin\bfbc2-editor.exe [level | --project <name>.mapedit.json] [--opfor <folder>] [--theme dark|light] [--navmesh]
+    bin\bfbc2-editor.exe --dbx <file.dbx>
 
 | Argument | What it does |
 |---|---|
@@ -41,6 +42,7 @@ suite README's "Where Rust builds") and copies them to the suite's `bin\`. Then:
 | `<level>` | opens that level read-only, e.g. `bin\bfbc2-editor.exe mp_005` (prepared first if it needs it) |
 | `--navmesh` | opens the level in the navmesh view mode with the Navigation panel (what the hub's "Open navigation" runs) |
 | `--project <file>` | opens a map project on its base level |
+| `--dbx <file.dbx>` | opens the DBX inspector on a binary `.dbx` file (round GR4, DbxEditGUI's successor; the hub's More tools > **DBX inspector**) |
 | `--mode bfbc1\|bfbc2\|vietnam\|ww2` | the start screen opens on that set's multiplayer maps |
 | `--opfor <folder>` | Project OPFOR BFBC2's folder (else `OPFOR_ROOT`, or a `project-opfor-bfbc2` folder beside or above the suite) |
 | `--theme dark\|light` | the theme for this run |

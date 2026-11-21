@@ -193,7 +193,7 @@ impl Project {
 
     /// `unpack(bundle, dest)` (round DF2, AU4-DS-14): unpacked again when the bundle's hash changed - into
     /// `<dest>.tmp-<pid>`, stamped there, then swapped in by renames under `<dest>.unpack.lock`, so a second process
-    /// never deletes a folder another is unpacking, and a file held in the old unpack (`DbxEditGUI`, the map editor)
+    /// never deletes a folder another is unpacking, and a file held in the old unpack (the map editor, its DBX inspector)
     /// never leaves a mix of two unpacks stamped as clean.
     pub fn unpack(&self, py: &mut Py, bundle: &str, dest: &str, log: &mut dyn Log) -> PyResult<()> {
         let stamp = join2(dest, ".source.sha256")?;
@@ -237,7 +237,7 @@ impl Project {
                 std::fs::rename(dest, &old).map_err(|e| {
                     navkit_error(format!(
                         "{dest} cannot be replaced by the new unpack: a file in it is held by another program (close \
-                         DbxEditGUI, the map editor or an Explorer window on it, then run again) - {e}"
+                         the map editor or an Explorer window on it, then run again) - {e}"
                     ))
                 })?;
             }
