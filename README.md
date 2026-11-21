@@ -546,14 +546,17 @@ the Python (`navbuild_golden.json`, `tests/navdata_golden.json`).
 `python tests\test_rust.py` runs fmt, clippy, the build and the quick tests in turn, `tests\test_rust.py run --game`
 the whole-level ones, `tests\test_rust.py list` names every test with the tier that runs it.
 
-**The shared compile cache** (round TS1). When [sccache](https://github.com/mozilla/sccache) is installed (`cargo
-install sccache --locked --no-default-features`, about 3 minutes), every cargo the suite runs goes through it
-(`bfbc2core.native.cargo_env`: `RUSTC_WRAPPER`, its folder `%LOCALAPPDATA%\bfbc2-tool-suite\sccache`, capped at
-`BFBC2_COMPILE_CACHE_GB`, default 6): the dependencies are compiled once per PC, not once per build folder, so a new
-worktree's first build takes the cache's copies. Each build folder stays its own (one cargo build at a time per
-folder; the workspace's own crates, whose paths differ per worktree, are built in it as ever). `BFBC2_COMPILE_CACHE=0`
-turns it off; a `RUSTC_WRAPPER` of your own wins. `run_tests.py` starts its server before any test, so no test's job
-object ends it.
+**A compile cache** (round TS1, off by default). With [sccache](https://github.com/mozilla/sccache) installed (`cargo
+install sccache --locked --no-default-features`, about 3 minutes) and `BFBC2_COMPILE_CACHE=1`, every cargo the suite
+runs goes through it (`bfbc2core.native.cargo_env`: `RUSTC_WRAPPER`, its folder
+`%LOCALAPPDATA%\bfbc2-tool-suite\sccache`, capped at `BFBC2_COMPILE_CACHE_GB`, default 6, and `SCCACHE_BASEDIRS` set to
+the build folders); `run_tests.py` starts its server before any test, so no test's job object ends it. It does not
+share dependencies between worktrees' build folders: cargo gives every crate with a build script an `OUT_DIR` inside
+its build folder, sccache 0.19 keeps that path in the key, and every crate built on such a crate misses in turn (2
+of 208 compiles hit on a second folder; `rust/BENCHMARKS.md` TS1). It serves a rebuild of the same folder. One
+`CARGO_TARGET_DIR` for several worktrees is not the answer either: cargo's lock keeps it consistent, but the release
+binaries (`bfbc2.exe` ...) have one path per folder, so one worktree's build could be copied into another's `bin\`.
+Each checkout keeps its own build folder.
 
 **Where Rust builds** (round D1, 2026-11-19). cargo's build folder is not `rust\target` but
 `C:\Programming\Projects\rust-targets\<checkout folder name>` (`rust-targets\bfbc2-tool-suite` for the main checkout,

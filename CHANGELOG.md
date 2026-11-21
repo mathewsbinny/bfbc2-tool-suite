@@ -32,8 +32,9 @@ landed on `main`.
   left out of clippy and the quick tests, and said (never on CI, in the full tier or with `--no-skip`). Every Rust
   test's own time is kept (`%LOCALAPPDATA%\bfbc2-tool-suite\rust_test_times.json`) and the slowest are printed.
   `tests\test_rust.py list` names every test with its tier.
-- **The shared compile cache**: with sccache installed, every cargo the suite runs goes through it, so a new worktree
-  takes the dependencies from the cache (`BFBC2_COMPILE_CACHE=0` turns it off; README, "The Rust core").
+- **An optional compile cache**: `BFBC2_COMPILE_CACHE=1` with sccache installed runs every cargo of the suite through
+  it. Off by default: it serves rebuilds of one build folder but not other worktrees' (cargo's per-folder `OUT_DIR`
+  stays in sccache's key; README, "The Rust core").
 - **`run_tests.py --timeout S`** and a default time limit per test (4 times its kept duration, at least 30 min /
   3 h / 8 h by tier): a hung test is ended with its processes and fails. The run's results and total go to the day
   log, not only "started".
