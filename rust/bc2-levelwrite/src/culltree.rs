@@ -446,6 +446,58 @@ impl CullTree {
         Ok(self.enum_offset + first)
     }
 
+    /// A leaf moved to a new sphere, keeping its index (round SG1: a moved static group member keeps its leaf, so
+    /// nothing that names the leaf changes): taken out from under its parent (the parent's place goes to its other
+    /// child; the ancestors keep their spheres, which still hold everything below them) and inserted where the
+    /// tree's spheres hold the new one ([`CullTree::add`]'s insert: ancestors' `Max` raised, the root grown).
+    ///
+    /// # Errors
+    /// No such leaf, the leaf is the root, or a sphere the tree's keys cannot hold.
+    pub fn reseat(&mut self, leaf: u32, sphere: &Sphere) -> Result<()> {
+        let id = *self
+            .leaves
+            .get(&leaf)
+            .ok_or_else(|| bad(format!("no leaf {leaf}")))?;
+        if id == self.root {
+            return Err(bad("the tree is a single leaf"));
+        }
+        let parent_of = |nodes: &[TNode], c: usize| {
+            nodes
+                .iter()
+                .position(|t| t.leaf.is_none() && (t.left == c || t.right == c))
+        };
+        let parent = parent_of(&self.nodes, id).ok_or_else(|| bad(format!("leaf {leaf} is not in the tree")))?;
+        let pn = *self.node(parent)?;
+        let sibling = if pn.left == id { pn.right } else { pn.left };
+        if parent == self.root {
+            self.root = sibling;
+        } else {
+            let gp = parent_of(&self.nodes, parent).ok_or_else(|| bad("internal: a node without a parent"))?;
+            if let Some(g) = self.nodes.get_mut(gp) {
+                if g.left == parent {
+                    g.left = sibling;
+                } else {
+                    g.right = sibling;
+                }
+            }
+        }
+        // the parent is no longer reached; it stays in the list, out of the tree
+        if let Some(p) = self.nodes.get_mut(parent) {
+            p.leaf = None;
+            p.left = usize::MAX;
+            p.right = usize::MAX;
+        }
+        let keys = encode(sphere, &[])?;
+        if let Some(n) = self.nodes.get_mut(id) {
+            n.keys = keys;
+        }
+        if self.node(self.root)?.leaf.is_some() {
+            return Err(bad("the tree would be a single leaf"));
+        }
+        let decoded = decode(keys);
+        self.insert(id, &decoded)
+    }
+
     /// The tree written into its partition (`CullTree.write`): `Nodes` rebuilt from the first node as the template,
     /// then the spare nodes; values written in the sizes they were read in.
     ///
@@ -492,7 +544,9 @@ impl CullTree {
     }
 }
 
-fn apply_rows(rows: &Rows, local: [f64; 3]) -> [f64; 3] {
+/// A point of an object's space placed by its rows (`local` x rows + position).
+#[must_use]
+pub fn apply_rows(rows: &Rows, local: [f64; 3]) -> [f64; 3] {
     std::array::from_fn(|i| {
         local[0] * f64::from(rows[0][i])
             + local[1] * f64::from(rows[1][i])
@@ -501,10 +555,41 @@ fn apply_rows(rows: &Rows, local: [f64; 3]) -> [f64; 3] {
     })
 }
 
-fn to_local(rows: &Rows, world: [f64; 3]) -> [f64; 3] {
+/// A world point in an object's space (its rows orthonormal: the inverse is the transpose).
+#[must_use]
+pub fn to_local(rows: &Rows, world: [f64; 3]) -> [f64; 3] {
     let d: [f64; 3] = std::array::from_fn(|i| world[i] - f64::from(rows[3][i]));
     // the rows are orthonormal (a placed object's rotation): the inverse is the transpose
     std::array::from_fn(|r| (0..3).map(|i| d[i] * f64::from(rows[r][i])).sum())
+}
+
+/// A cull tree partition's `EnumOffset` (round SG1: the exclusive tree's, when the client tree gets leaves).
+///
+/// # Errors
+/// Not a cull tree, or no 4-byte `EnumOffset`.
+pub fn set_enum_offset(d: &mut EditDbx, offset: u32) -> Result<()> {
+    let inst = tree_instance(d)?;
+    let eo = d.child(inst, b"EnumOffset").ok_or_else(|| bad("no EnumOffset"))?;
+    d.set_numbers(eo, &[offset.to_be_bytes()])?;
+    Ok(())
+}
+
+/// Every placed object's slot above `offset` moved up by `by` (round SG1: the client tree got `by` leaves, so the
+/// exclusive tree's slots, global over both trees, start `by` later): each instance's own `Enumeration` (not the
+/// static group members' `SpawnDatas` records, which name client leaves). The objects moved.
+///
+/// # Errors
+/// An `Enumeration` that is not a 4-byte number.
+pub fn shift_slots(w: &mut LevelWriter, offset: u32, by: u32) -> Result<usize> {
+    let mut n = 0;
+    for inst in w.d.instances() {
+        let s = slot_of(w, inst);
+        if s > offset {
+            set_slot(w, inst, s + by)?;
+            n += 1;
+        }
+    }
+    Ok(n)
 }
 
 /// An object's `Enumeration` (its slot), 0 when it has none.

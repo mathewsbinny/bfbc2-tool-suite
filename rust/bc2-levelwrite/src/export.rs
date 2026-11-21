@@ -1032,7 +1032,7 @@ pub fn build(
         )));
     }
     // round OP1: the log's other files (static group files) read from the base's bundles when it names them
-    let (edited_files, applied) = {
+    let (edited_files, applied, member_orders, members_added) = {
         let sources = |t: &crate::files::Target| base_level_file(game, &base_bundles, &base, t);
         let all = crate::files::apply_files(
             &base_bytes,
@@ -1042,14 +1042,14 @@ pub fn build(
             &sources,
         )
         .map_err(|e| err(e.to_string()))?;
-        (all.files, all.partition)
+        (all.files, all.partition, all.orders, all.added)
     };
     report.push(format!(
         "project: {} operations applied ({} transforms, {} deleted, {} duplicated, {} placed, {} fields)",
         applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.placed, applied.fields
     ));
     let mut edited_groups: HashMap<String, Vec<u8>> = HashMap::new();
-    for (t, data) in edited_files {
+    for (t, data) in edited_files.clone() {
         match &t {
             crate::files::Target::Group { file } => {
                 let note = match project.base.files.get(&t.base_key().unwrap_or_default()) {
@@ -1073,6 +1073,20 @@ pub fn build(
         }
     }
     let mut w = LevelWriter::parse(&applied.bytes)?;
+    // round SG1: the static group edits made whole - added members' leaves, moved members' leaves moved, the client
+    // cull tree and the groups' physics laid out again (nothing is done for a log without member edits)
+    let groups_staged = crate::groupexport::stage(
+        &base_w,
+        &mut w,
+        &edited_files,
+        &member_orders,
+        &members_added,
+        &|name| read_one(game, &base_bundles, &format!("levels/{base}/{name}")).ok(),
+    )?;
+    report.extend(groups_staged.report.iter().cloned());
+    for (name, data) in &groups_staged.files {
+        edited_groups.insert(format!("levels/{base}/{name}"), data.clone());
+    }
     // 2. multiplayer: the campaign out, the donor's layer in, placed, the level's fields
     let donor_bytes = level_partition(game, &donor_lv)?;
     let donor = LevelWriter::parse(&donor_bytes)?;
@@ -1244,7 +1258,21 @@ pub fn build(
     if let Some((name, mut d)) = exclusive {
         let t_cull = std::time::Instant::now();
         let mut others = LevelShapes::new(game, std::slice::from_ref(&donor_lv));
-        let r = crate::culltree::reslot(&base_w, &mut w, &mut d, &mut |bp| others.find(bp))?;
+        let mut r = crate::culltree::reslot(&base_w, &mut w, &mut d, &mut |bp| others.find(bp))?;
+        // round SG1: the client tree got leaves at its end, so the exclusive tree's slots start later
+        if groups_staged.appended > 0 {
+            let old = crate::culltree::CullTree::read(&d)?.enum_offset;
+            crate::culltree::set_enum_offset(&mut d, old + groups_staged.appended)?;
+            let n = crate::culltree::shift_slots(&mut w, old, groups_staged.appended)?;
+            for o in &mut r.objects {
+                o.new += groups_staged.appended;
+            }
+            report.push(format!(
+                "cull tree: the client tree has {} more leaves: the exclusive tree's EnumOffset {old} -> {}, {n}                  placed objects' slots moved up by as many",
+                groups_staged.appended,
+                old + groups_staged.appended
+            ));
+        }
         report.push(format!(
             "cull tree: {} objects given new leaves (leaves {} -> {}); {} left without a slot (no level slots their \
              blueprint)",
