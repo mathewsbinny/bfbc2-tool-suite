@@ -1,0 +1,967 @@
+{
+"[\"audio\", [\"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: audio.py [-h] [--stream N=FILE] {bfbc2,bf1943} input output\r\n\r\nAn Xbox 360 Wave resource (BFBC2 / Battlefield 1943) as BFBC2 PC.\r\n\r\npositional arguments:\r\n  {bfbc2,bf1943}\r\n  input\r\n  output\r\n\r\noptions:\r\n  -h, --help       show this help message and exit\r\n  --stream N=FILE  a streamed segment's waveDataSns_<N>.res (N: 0 intro, 1\r\n                   loop, 2 outro)\r\n"
+},
+"[\"audio\", [\"--s\", \"--zz-not-an-option\"]]": {
+"err": "usage: audio.py [-h] [--stream N=FILE] {bfbc2,bf1943} input output\r\naudio.py: error: argument --stream: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"audio\", [\"--s\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: audio.py [-h] [--stream N=FILE] {bfbc2,bf1943} input output\r\naudio.py: error: the following arguments are required: source, input, output\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"audio\", [\"--s=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: audio.py [-h] [--stream N=FILE] {bfbc2,bf1943} input output\r\naudio.py: error: the following arguments are required: source, input, output\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--c\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\n\r\nThe suite's on-disk caches, the project caches in Project OPFOR BFBC2's work\\\r\nfolder and the logs: list them, prune them to their caps, or clear them.\r\n\r\npositional arguments:\r\n  name             caches to act on: hlsl, fbrb, collision, effectport,\r\n                   culltree, bf1943source, shadercover, navstudio, harness,\r\n                   navwater, editor, logs\r\n\r\noptions:\r\n  -h, --help       show this help message and exit\r\n  --list           each cache: folder, size, files, cap (the default)\r\n  --prune          delete the least recently used files beyond each cap (every\r\n                   cache, project cache and the logs when no name)\r\n  --clear          delete the cached files (every suite cache when no name;\r\n                   project caches and logs only when named)\r\n  --report         every cache with its size and cap, the overall budget, the\r\n                   logs, the Rust build folders, Project OPFOR's work\\ by kind\r\n  --prune-targets  list the Rust build folders whose checkout is gone (--yes:\r\n                   delete them)\r\n  --yes            with --prune-targets: delete the folders listed\r\n  --no-work        with --report: leave out work\\ (its scan takes a while)\r\n  --opfor DIR      Project OPFOR BFBC2's folder (default: as the tools find\r\n                   it)\r\n"
+},
+"[\"caches\", [\"--l\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--n\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--o\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: argument --opfor: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--o\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--o=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--prune-\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--r\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"caches\", [\"--y\", \"--zz-not-an-option\"]]": {
+"err": "usage: python -m bfbc2core.caches [-h] [--list | --prune | --clear |\r\n                                  --report | --prune-targets] [--yes]\r\n                                  [--no-work] [--opfor DIR]\r\n                                  [name ...]\r\npython -m bfbc2core.caches: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: convert.py [-h] {havok,verify-havok,texture,verify-texture} ...\r\n\r\nConverts Xbox 360 Bad Company 2 resources to the PC's formats (the user's own\r\nconsole files; nothing is shipped).\r\n\r\npositional arguments:\r\n  {havok,verify-havok,texture,verify-texture}\r\n\r\noptions:\r\n  -h, --help            show this help message and exit\r\n"
+},
+"[\"convert\", [\"havok\", \"--e\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py havok [-h] [--exe EXE] input output\r\nconvert.py havok: error: argument --exe: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"havok\", \"--e\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py havok [-h] [--exe EXE] input output\r\nconvert.py havok: error: the following arguments are required: input, output\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"havok\", \"--e=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py havok [-h] [--exe EXE] input output\r\nconvert.py havok: error: the following arguments are required: input, output\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"havok\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: convert.py havok [-h] [--exe EXE] input output\r\n\r\npositional arguments:\r\n  input\r\n  output\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n  --exe EXE\r\n"
+},
+"[\"convert\", [\"texture\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: convert.py texture [-h] input output\r\n\r\npositional arguments:\r\n  input\r\n  output\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n"
+},
+"[\"convert\", [\"verify-havok\", \"--e\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-havok [-h] [--exe EXE] [--report REPORT]\r\n                               pc console [console ...]\r\nconvert.py verify-havok: error: argument --exe: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-havok\", \"--e\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-havok [-h] [--exe EXE] [--report REPORT]\r\n                               pc console [console ...]\r\nconvert.py verify-havok: error: the following arguments are required: pc, console\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-havok\", \"--e=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-havok [-h] [--exe EXE] [--report REPORT]\r\n                               pc console [console ...]\r\nconvert.py verify-havok: error: the following arguments are required: pc, console\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-havok\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: convert.py verify-havok [-h] [--exe EXE] [--report REPORT]\r\n                               pc console [console ...]\r\n\r\npositional arguments:\r\n  pc\r\n  console\r\n\r\noptions:\r\n  -h, --help       show this help message and exit\r\n  --exe EXE\r\n  --report REPORT\r\n"
+},
+"[\"convert\", [\"verify-havok\", \"--r\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-havok [-h] [--exe EXE] [--report REPORT]\r\n                               pc console [console ...]\r\nconvert.py verify-havok: error: argument --report: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-havok\", \"--r\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-havok [-h] [--exe EXE] [--report REPORT]\r\n                               pc console [console ...]\r\nconvert.py verify-havok: error: the following arguments are required: pc, console\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-havok\", \"--r=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-havok [-h] [--exe EXE] [--report REPORT]\r\n                               pc console [console ...]\r\nconvert.py verify-havok: error: the following arguments are required: pc, console\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-texture\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: convert.py verify-texture [-h] [--report REPORT]\r\n                                 pc console [console ...]\r\n\r\npositional arguments:\r\n  pc\r\n  console\r\n\r\noptions:\r\n  -h, --help       show this help message and exit\r\n  --report REPORT\r\n"
+},
+"[\"convert\", [\"verify-texture\", \"--r\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-texture [-h] [--report REPORT]\r\n                                 pc console [console ...]\r\nconvert.py verify-texture: error: argument --report: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-texture\", \"--r\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-texture [-h] [--report REPORT]\r\n                                 pc console [console ...]\r\nconvert.py verify-texture: error: the following arguments are required: pc, console\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"convert\", [\"verify-texture\", \"--r=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: convert.py verify-texture [-h] [--report REPORT]\r\n                                 pc console [console ...]\r\nconvert.py verify-texture: error: the following arguments are required: pc, console\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"dbxparity\", [\"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: dbxparity.py [-h] [-o O] [--predict] [names ...]\r\n\r\ndbxparity.py - BF1943's data partitions against DICE's own versions, field by\r\nfield: the ground truth for dbxport.\r\n\r\npositional arguments:\r\n  names\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n  -o O\r\n  --predict   score dbxport's value passes and DICE's conventions\r\n"
+},
+"[\"dbxparity\", [\"--p\", \"--zz-not-an-option\"]]": {
+"err": "usage: dbxparity.py [-h] [-o O] [--predict] [names ...]\r\ndbxparity.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"portparity\", [\"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: portparity.py [-h] [-o O] [names ...]\r\n\r\nportparity.py - how close our Battlefield 1943 conversions come to DICE's own.\r\nBFBC2 ships PC versions of many\r\n\r\npositional arguments:\r\n  names\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n  -o O\r\n"
+},
+"[\"renderqa\", [\"--c\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--d\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --db: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--d\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--d=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--e\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --envmap: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--e\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--e=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--f\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--he\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --he could match --help, --height\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--he=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --he=v could match --help, --height\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--hei\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --height: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--hei\", \"1.5\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--hei=1.5\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--hel\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\n\r\nrenderqa.py - draw meshes offline with the game's own PC shader programs,\r\ntextures and vertex data (Direct3D 11,\r\n\r\npositional arguments:\r\n  {render,compare,validate,wake,strips,patches}\r\n  meshes                mesh names (or with --find, parts of names)\r\n\r\noptions:\r\n  -h, --help            show this help message and exit\r\n  --db DB               the database to draw with (render, compare)\r\n  --truth TRUTH         compare: DICE's database (default auto: a BFBC2 level\r\n                        that draws the mesh)\r\n  --stage STAGE         unpacked bundles read before the game copy\r\n  --list LIST           a file of mesh names, one per line\r\n  --find                the mesh arguments are parts of names\r\n  --only ONLY           wake: only meshes whose name contains this; strips:\r\n                        only strips whose shader does; patches: only patch\r\n                        entries whose name does (repeatable)\r\n  --terrain TERRAIN     strips: the VisualTerrain (a file or a resource name;\r\n                        default for level:<name>\r\n                        terrains/<name>/<name>.visual.res)\r\n  --height HEIGHT       patches: the drawn patch's world height in metres\r\n                        (default 50.5; sea-floor layers shade by height)\r\n  --limit LIMIT         at most this many meshes\r\n  --size SIZE\r\n  --weather WEATHER     weather folder of the light (default weather/r_mp005)\r\n  --sun {noon,weather}  key light direction: a fixed high sun (default) or the\r\n                        weather state's theta / phi\r\n  --envmap ENVMAP       the cube the engine binds as\r\n                        outdoorLightReflectionEnvmap\r\n  --warp                the software rasterizer instead of the GPU\r\n  --opaque              draw every part opaque with no culling, in the mesh's\r\n                        order (as before render states)\r\n  --together            render: draw the meshes named into one picture (a\r\n                        building and its material-mask mesh)\r\n  --coverage            render / compare / wake: also write\r\n                        <mesh>.coverage.png - per view the kind of draw last\r\n                        to cover each pixel (opaque, alpha-tested, blended)\r\n                        and the render target's alpha\r\n  --opfor OPFOR         Project OPFOR BFBC2 folder (the game copy)\r\n  -o, --out OUT         output folder\r\n"
+},
+"[\"renderqa\", [\"--li\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --li could match --list, --limit\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--li=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --li=v could match --list, --limit\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--lim\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --limit: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--lim\", \"1\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--lim=1\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--lis\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --list: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--lis\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--lis=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--o\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --o could match --only, --opaque, --opfor, --out\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--o=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --o=v could match --only, --opaque, --opfor, --out\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--on\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --only: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--on\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--on=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--op\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --op could match --opaque, --opfor\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--op=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --op=v could match --opaque, --opfor\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--opa\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--opf\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --opfor: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--opf\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--opf=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--ou\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument -o/--out: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--ou\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--ou=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--s\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --s could match --stage, --size, --sun\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--s=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --s=v could match --stage, --size, --sun\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--si\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --size: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--si\", \"1\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--si=1\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--st\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --stage: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--st\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--st=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--su\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --sun: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--su\", \"noon\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--su=noon\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--t\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --t could match --truth, --terrain, --together\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--t=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --t=v could match --truth, --terrain, --together\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--te\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --terrain: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--te\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--te=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--to\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--tr\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --truth: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--tr\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--tr=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--w\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --w could match --weather, --warp\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--w=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: ambiguous option: --w=v could match --weather, --warp\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--wa\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--we\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: argument --weather: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--we\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"renderqa\", [\"--we=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: renderqa.py [-h] [--db DB] [--truth TRUTH] [--stage STAGE]\r\n                   [--list LIST] [--find] [--only ONLY] [--terrain TERRAIN]\r\n                   [--height HEIGHT] [--limit LIMIT] [--size SIZE]\r\n                   [--weather WEATHER] [--sun {noon,weather}]\r\n                   [--envmap ENVMAP] [--warp] [--opaque] [--together]\r\n                   [--coverage] [--opfor OPFOR] [-o OUT]\r\n                   {render,compare,validate,wake,strips,patches} [meshes ...]\r\nrenderqa.py: error: the following arguments are required: command\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"--d\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\nshaderdb.py: error: argument --dx: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"--d\", \"9\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\nshaderdb.py: error: the following arguments are required: cmd\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"--d=9\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\nshaderdb.py: error: the following arguments are required: cmd\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\n\r\nshaderdb.py - read, check, list and merge Battlefield: Bad Company 2's per-level compiled shader databases\r\n(Levels/<LV>/Shaders/Dx9_Single.res, Dx10_Single.res, Dx11_Single.res; FbrbTool types Dx9ShaderDatabase,\r\nDx10ShaderDatabase, Dx11ShaderDatabase). The format is described in FORMAT.md beside this file.\r\n\r\npositional arguments:\r\n  {info,list,textures,merge,cover,roundtrip,find,needs}\r\n\r\noptions:\r\n  -h, --help            show this help message and exit\r\n  --dx {9,10,11}        the database kind (default: from the file name)\r\n  --opfor OPFOR         Project OPFOR BFBC2 folder (for level:<name> and find)\r\n"
+},
+"[\"shaderdb\", [\"--o\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\nshaderdb.py: error: argument --opfor: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"--o\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\nshaderdb.py: error: the following arguments are required: cmd\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"--o=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\nshaderdb.py: error: the following arguments are required: cmd\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"cover\", \"--a\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py cover [-h] [--all] res level\r\nshaderdb.py cover: error: the following arguments are required: res, level\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"cover\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py cover [-h] [--all] res level\r\n\r\npositional arguments:\r\n  res\r\n  level\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n  --all\r\n"
+},
+"[\"shaderdb\", [\"find\", \"--b\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py find [-h] [--base BASE] need\r\nshaderdb.py find: error: argument --base: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"find\", \"--b\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py find [-h] [--base BASE] need\r\nshaderdb.py find: error: the following arguments are required: need\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"find\", \"--b=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py find [-h] [--base BASE] need\r\nshaderdb.py find: error: the following arguments are required: need\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"find\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py find [-h] [--base BASE] need\r\n\r\npositional arguments:\r\n  need\r\n\r\noptions:\r\n  -h, --help   show this help message and exit\r\n  --base BASE\r\n"
+},
+"[\"shaderdb\", [\"info\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py info [-h] res\r\n\r\npositional arguments:\r\n  res\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n"
+},
+"[\"shaderdb\", [\"list\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py list [-h] [--parts] res [filter]\r\n\r\npositional arguments:\r\n  res\r\n  filter\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n  --parts\r\n"
+},
+"[\"shaderdb\", [\"list\", \"--p\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py list [-h] [--parts] res [filter]\r\nshaderdb.py list: error: the following arguments are required: res\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"merge\", \"--a\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\nshaderdb.py merge: error: the following arguments are required: base, donors, --need, -o/--out\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"merge\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\n\r\npositional arguments:\r\n  base\r\n  donors\r\n\r\noptions:\r\n  -h, --help     show this help message and exit\r\n  --need NEED\r\n  -o, --out OUT\r\n  --all-names    also add donor entry names for meshes the base already has\r\n                 (other shader sets)\r\n"
+},
+"[\"shaderdb\", [\"merge\", \"--n\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\nshaderdb.py merge: error: argument --need: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"merge\", \"--n\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\nshaderdb.py merge: error: the following arguments are required: base, donors, -o/--out\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"merge\", \"--n=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\nshaderdb.py merge: error: the following arguments are required: base, donors, -o/--out\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"merge\", \"--o\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\nshaderdb.py merge: error: argument -o/--out: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"merge\", \"--o\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\nshaderdb.py merge: error: the following arguments are required: base, donors, --need\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"merge\", \"--o=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\r\n                         base donors [donors ...]\r\nshaderdb.py merge: error: the following arguments are required: base, donors, --need\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"needs\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py needs [-h] [-o OUT] level\r\n\r\npositional arguments:\r\n  level\r\n\r\noptions:\r\n  -h, --help     show this help message and exit\r\n  -o, --out OUT\r\n"
+},
+"[\"shaderdb\", [\"needs\", \"--o\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py needs [-h] [-o OUT] level\r\nshaderdb.py needs: error: argument -o/--out: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"needs\", \"--o\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py needs [-h] [-o OUT] level\r\nshaderdb.py needs: error: the following arguments are required: level\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"needs\", \"--o=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py needs [-h] [-o OUT] level\r\nshaderdb.py needs: error: the following arguments are required: level\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"roundtrip\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py roundtrip [-h] [--levels] [res ...]\r\n\r\npositional arguments:\r\n  res\r\n\r\noptions:\r\n  -h, --help  show this help message and exit\r\n  --levels    every shader database of the game copy's level bundles\r\n"
+},
+"[\"shaderdb\", [\"roundtrip\", \"--l\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\r\n                   {info,list,textures,merge,cover,roundtrip,find,needs} ...\r\nshaderdb.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"textures\", \"--c\", \"--zz-not-an-option\"]]": {
+"err": "usage: shaderdb.py textures [-h] [--constants] res [filter]\r\nshaderdb.py textures: error: the following arguments are required: res\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"shaderdb\", [\"textures\", \"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: shaderdb.py textures [-h] [--constants] res [filter]\r\n\r\npositional arguments:\r\n  res\r\n  filter\r\n\r\noptions:\r\n  -h, --help   show this help message and exit\r\n  --constants  also the named constants and their values\r\n"
+},
+"[\"texqa\", [\"--b\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --b could match --bf1943, --baseline\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--b=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --b=v could match --bf1943, --baseline\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--ba\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--ba\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--ba=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--bf\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--bf\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--bf=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--c\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --c could match --console, --cache\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--c=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --c=v could match --console, --cache\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--ca\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--ca\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--ca=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--co\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--co\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--co=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--h\", \"zz-no-such-input\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\n\r\ntexqa.py - offline QA of converted textures: every PC texture a build wrote, decoded with all its levels to RGBA and\r\n\r\npositional arguments:\r\n  inputs\r\n\r\noptions:\r\n  -h, --help            show this help message and exit\r\n  -o, --out OUT\r\n  --bf1943 BF1943       BF1943's extracted dist\\xenon (default:\r\n                        bf1943import's)\r\n  --no-bf1943\r\n  --console CONSOLE     a folder of unpacked console BFBC2 bundles\r\n  --opfor OPFOR         Project OPFOR BFBC2 (its game copy: DICE's PC copies)\r\n  --no-dice\r\n  --cache CACHE\r\n  --worst WORST\r\n  --skip SKIP\r\n  --baseline BASELINE\r\n  --write-baseline WRITE_BASELINE\r\n  --threshold THRESHOLD\r\n  --workers WORKERS     analysis processes (default: BFBC2_TEXQA_WORKERS, else\r\n                        every CPU thread)\r\n\r\ntexqa.py - offline QA of converted textures: every PC texture a build wrote, decoded with all its levels to RGBA and\r\ncompared with its Xbox 360 source (Battlefield 1943's, or a console BFBC2 folder) and, where BFBC2 ships a PC copy of\r\nthe same name, with DICE's copy.\r\n\r\n    python texqa.py <folder or .res> ... [-o <out folder>] [--bf1943 <dist\\xenon> | --no-bf1943] [--console <folder>]\r\n                    [--opfor <folder> | --no-dice] [--cache <folder>] [--worst N] [--skip <dir name>]...\r\n                    [--baseline <json>] [--write-baseline <json>] [--threshold <dB>]\r\n\r\nInputs: folders are walked for PC ITexture resources - loose .res files recognised by their header (92 bytes, version\r\n3, level sizes that add up to the file), and in unpacked bundles (a folder with FbrbTool's fbrb.manifest) the entries\r\ntyped ITexture, on-demand wrapped ones ('RES\\x02') unwrapped. A texture's name is its path under the bundle folder (or\r\nunder the folder given); the source and DICE's copy are found by that name, and by the name with leading folders\r\ndropped (work\\ww2\\bf1943\\Objects\\... is objects/...). <name>.res.orig beside a texture (OPFOR's grime.py keeps the\r\ntool's own output there before weathering it) is compared as well: an intentional repaint is reported as such.\r\n\r\nPer texture (row in texqa.json; the text report lists the flagged ones, worst first):\r\n  levels            every level of ours and of the source decoded to RGBA (DXT1 with its 1-bit alpha, DXT3, DXT5,\r\n                    BC5 / DXN as red and green, 8-bit L8, RGB565, BGRA8, RGBA16F); per level PSNR (dB, the channels the\r\n                    formats hold), an SSIM on luminance (8 x 8 windows), the largest error, the per-channel means\r\n  checks            dimensions and aspect; level count and sizes (each level's bytes against its format); each level\r\n                    against its box-filtered parent (against the source's own chain where there is one); channel order\r\n                    (every permutation of the colour channels, BC5's two swapped) and orientation (flipped, mirrored,\r\n                    rotated, transposed) against the source and against DICE's copy - a better match than as-is is a\r\n                    swizzle or a flip; alpha present in the source and lost, or an alpha format with no alpha used;\r\n                    the sRGB bit (flags bit 0) against the source, DICE's copy and the role; the format against DICE's\r\n                    formats for the role (ROLE_FORMATS); normal maps: where z is (blue, DXT1 18) or that red / green\r\n                    are a unit-disc x / y for BC5 (z = sqrt(1 - x^2 - y^2), positive, as BFBC2's shaders rebuild it)\r\n  degenerate        all black, all white, all transparent, one constant colour, NaN / infinity (RGBA16F), blocks of\r\n                    zero bytes the source does not have\r\n  DICE's copy       identical; the known differences reported as such (FORMAT.md 2.1: DICE's PC copy twice the\r\n                    console's size with flags bit 1; flags bit 1 on a same-size re-export); format; the picture at the\r\n                    smaller size (PSNR) - under 20 dB with a low correlation is DICE's own repaint / other art\r\nEach flag has a severity (error, warn, info) and a cause: converter (ours differs from the source where it should not),\r\nsource (the source has it too), dice (a known DICE difference), intentional (grime.py's .orig: the repaint is ours on\r\npurpose), or unknown.\r\n\r\nOutputs (-o, default .\\texqa_out): texqa.json, texqa.txt, sheets\\worst_NN.png - contact sheets of the worst N (source\r\n| ours | DICE's | difference heat map | ours' alpha). --cache keeps the rows by the sha1 of ours and the source's and\r\nDICE's identities (bundle, size, date, entry): unchanged textures are not decoded again.\r\n--write-baseline stores {texture: PSNR to source / DICE, flags}; --baseline compares with one: a new error flag (a\r\ndegenerate texture, a flip, a swizzle ...) or a PSNR drop over --threshold (default 1 dB) is a regression, exit code 1.\r\n\r\nThe textures are analysed on all cores (round E3o): --workers N, else BFBC2_TEXQA_WORKERS, else the CPU threads; each\r\nworker process runs analyse on one texture at a time (a few in flight per worker, so the sources' bytes are not all\r\nheld at once) and the rows come back in order - the same rows, report and cache as one process (--workers 1).\r\n"
+},
+"[\"texqa\", [\"--no-\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --no- could match --no-bf1943, --no-dice\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--no-=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --no-=v could match --no-bf1943, --no-dice\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--no-b\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--no-d\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--o\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --o could match --out, --opfor\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--o=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --o=v could match --out, --opfor\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--op\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--op\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--op=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--ou\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--ou\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--ou=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--s\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--s\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--s=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--t\", \"1.5\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--t\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: argument --threshold: invalid float value: 'zz-no-such-input'\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--t=1.5\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--w\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --w could match --worst, --write-baseline, --workers\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--w=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --w=v could match --worst, --write-baseline, --workers\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--wor\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --wor could match --worst, --workers\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--wor=v\", \"--zz-not-an-option\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: ambiguous option: --wor=v could match --worst, --workers\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--work\", \"1\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--work\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: argument --workers: invalid int value: 'zz-no-such-input'\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--work=1\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--wors\", \"1\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--wors\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: argument --worst: invalid int value: 'zz-no-such-input'\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--wors=1\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--wr\", \"x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"texqa\", [\"--wr\", \"zz-no-such-input\"]]": {
+"err": "usage: texqa.py [-h] [-o OUT] [--bf1943 BF1943] [--no-bf1943]\r\n                [--console CONSOLE] [--opfor OPFOR] [--no-dice]\r\n                [--cache CACHE] [--worst WORST] [--skip SKIP]\r\n                [--baseline BASELINE] [--write-baseline WRITE_BASELINE]\r\n                [--threshold THRESHOLD] [--workers WORKERS]\r\n                inputs [inputs ...]\r\ntexqa.py: error: the following arguments are required: inputs\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"texqa\", [\"--wr=x\", \"zz-no-such-input\"]]": {
+"err": "error: zz-no-such-input: no such file or folder\r\n  what to do: Give folders or .res files of PC textures (a build output, an unpacked bundle); texqa.py --help shows the options.\r\n  details: <lad>\\bfbc2-tool-suite\\logs\\texqa-<date>.log\r\n",
+"exit": 1,
+"out": ""
+},
+"[\"xdiff\", [\"--b\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--d\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --db: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--d\", \"x\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--d=x\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--h\", \"--zz-not-an-option\"]]": {
+"err": "",
+"exit": 0,
+"out": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\n\r\noptions:\r\n  -h, --help         show this help message and exit\r\n  --db DB\r\n  --ps [PS ...]\r\n  --n N\r\n  --seed SEED\r\n  --limit LIMIT\r\n  --bisect           find the first differing instruction (one --ps)\r\n  -o O\r\n  --workers WORKERS  shaders at a time (default BFBC2_XDIFF_WORKERS, else up\r\n                     to 4)\r\n"
+},
+"[\"xdiff\", [\"--l\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --limit: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--l\", \"1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--l=1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--p\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--p\", \"1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--p=1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--s\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --seed: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--s\", \"1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--s=1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--w\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: argument --workers: expected one argument\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--w\", \"1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+},
+"[\"xdiff\", [\"--w=1\", \"--zz-not-an-option\"]]": {
+"err": "usage: xdiff.py [-h] [--db DB] [--ps [PS ...]] [--n N] [--seed SEED]\r\n                [--limit LIMIT] [--bisect] [-o O] [--workers WORKERS]\r\nxdiff.py: error: unrecognized arguments: --zz-not-an-option\r\n",
+"exit": 2,
+"out": ""
+}
+}

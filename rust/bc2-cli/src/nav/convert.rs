@@ -3,7 +3,8 @@
 //! `argparse` parser ported for the command lines it takes (usage, errors and help; at the console's width or
 //! `COLUMNS` [`crate::argfmt`]'s texts, round RT2).
 //!
-//! Handed to the Python: option abbreviations, `--`, single-dash options other than `-h`; an executable whose class
+//! Option abbreviations resolve as argparse resolves them, with its ambiguity error (round RT3). Handed to the Python:
+//! `--`, single-dash options other than `-h`; an executable whose class
 //! layouts the core cannot read (the reference raises its own exception) or that the converter does not take; a
 //! wrapper or texture check the core leaves to the reference; a correlation within 1e-9 of the 0.9 threshold
 //! (NumPy's sums decide it there).
@@ -19,6 +20,7 @@ use std::collections::HashMap;
 use bc2_convert::{havok, hkclasses, texcheck, texture};
 
 use super::common::{bytes_repr, dirname, isdir, isfile, join, join_all};
+use crate::argfmt::Long;
 use crate::pyfmt::{str_repr, thousands};
 use crate::pyproc::{Fail, Py, PyErr, PyResult, os_error, read_file, suite_root, write_file};
 
@@ -149,6 +151,12 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<(usize, Args)>> {
     if cmd == "-h" || cmd == "--help" {
         return help(py, "convert.py", MAIN_HELP);
     }
+    if cmd.starts_with("--")
+        && !cmd.contains('=')
+        && crate::argfmt::long_option(cmd, &["-h", "--help"]) == Long::Found("--help")
+    {
+        return help(py, "convert.py", MAIN_HELP); // an abbreviation of --help (round RT3)
+    }
     if cmd.starts_with('-') && cmd != "-" {
         return Err(Fail::Python);
     }
@@ -177,9 +185,18 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<(usize, Args)>> {
             if a == "--" || !a.starts_with("--") {
                 return Err(Fail::Python);
             }
-            let (name, inline) = match a.split_once('=') {
-                Some((n, v)) => (n, Some(v)),
-                None => (a, None),
+            let inline = a.split_once('=').map(|(_, v)| v);
+            // round RT3: an abbreviation resolved as argparse resolves it, or its ambiguity error
+            let strings: Vec<&'static str> = ["-h", "--help"]
+                .into_iter()
+                .chain(sub.options.iter().copied())
+                .collect();
+            let name = match crate::argfmt::long_option(a, &strings) {
+                Long::Found("--help") if inline.is_none() => return help(py, &prog, sub.help),
+                Long::Found("--help") | Long::Spaced => return Err(Fail::Python),
+                Long::Found(s) => s,
+                Long::Ambiguous(m) => return error(py, sub.usage, &prog, &m),
+                Long::Unknown => "",
             };
             if let Some(&opt) = sub.options.iter().find(|o| **o == name) {
                 match inline {
@@ -194,10 +211,6 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<(usize, Args)>> {
                 };
                 i += 1;
                 continue;
-            }
-            // an abbreviation argparse would take (or refuse as ambiguous) is left to it
-            if sub.options.iter().chain(["--help"].iter()).any(|o| o.starts_with(name)) {
-                return Err(Fail::Python);
             }
             extras.push(a.to_owned());
             i += 1;
