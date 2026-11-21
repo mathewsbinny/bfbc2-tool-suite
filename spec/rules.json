@@ -1354,6 +1354,34 @@
    ]
   },
   {
+   "id": "GAME-RUSH-9",
+   "title": "A stage as it is played: the counters' events from the start state",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:594-725"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:729-780"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::rush_stages_as_played_match_l1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::mode_view_layer_hides_by_mode_and_rush_stage"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-163"
+    }
+   ]
+  },
+  {
    "id": "GAME-SDM-1",
    "title": "Four squads, one pool of spawns, one vehicle",
    "file": "spec/engine/gameplay.md",
@@ -2846,12 +2874,95 @@
      "ref": "rust/bc2-render/src/weather.rs::weather_entities_and_spawn_states_read_from_a_partition"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::game_view_opens_on_the_spawn_switch"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
      "kind": "data",
      "ref": "weather_refs.rs's run on OPFOR's game copy and prepared levels: the first spawn-transition State per level, printed beside the drawn state"
     },
     {
+     "kind": "data",
+     "ref": "WX0's inventory of 83 levels: 70 with an enabled spawn switch, 45 naming another state than ActiveState"
+    },
+    {
      "kind": "doc",
      "ref": "rust/bc2-render/src/weather.rs:163-179"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-7",
+   "title": "A state's look from its values",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:415-447"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:338-370"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::weather_states_in_both_views"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-8",
+   "title": "An exported level's weather: ActiveState and the spawn switch together, in partitions of its own",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:546-815"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:969-1060"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "data",
+     "ref": "examples/vw2_canaries.rs on OPFOR's game copy: six canaries, each stage against its baseline byte for byte but the intended changes, every mapexport check line passing; OPFOR's mapedit_install --apply and --revert on a scratch copy of the shared files, back byte for byte"
+    },
+    {
+     "kind": "data",
+     "ref": "WX0: the WeatherSystem resource of all 28 systems is 4 bytes, value 72"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-9",
+   "title": "Night: DICE's one night state as the template",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:50-62"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:856-890"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::the_night_template_resolves"
     }
    ]
   },

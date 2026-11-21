@@ -662,6 +662,9 @@ pub struct StageRecord {
     /// The mode layer came from the project's own target (round E3d) rather than the export file's graft.
     #[serde(default)]
     pub project_mode: bool,
+    /// The weather the export gave the level (round VW2); `None`: the base's own, untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weather: Option<crate::weather::WeatherRecord>,
 }
 
 /// Root files the engine finds by a level's name (`console_onslaught.rename_level_files`, `wake_install.ROOT_FILES`):
@@ -1081,6 +1084,15 @@ pub fn build(
     for (n, k, m) in &conv.placed {
         report.push(format!("  placed {n:?}: {k} instances moved {m:.0} m"));
     }
+    // round VW2: the project's weather (a state of the level's, another level's, the night look)
+    let weather = match project.weather() {
+        Some(c) => {
+            let s = crate::weather::stage(game, c, &mut w, &base, &low, &seed)?;
+            report.extend(s.report.iter().cloned());
+            Some(s)
+        }
+        None => None,
+    };
     // 3. the root files under the new name
     let live = game.live(&base_bundles)?;
     let prefix = format!("levels/{base}/");
@@ -1207,6 +1219,10 @@ pub fn build(
         },
     ];
     level_all.extend(level_entries);
+    let weather_record = weather.map(|s| {
+        level_all.extend(s.entries);
+        s.record
+    });
     // the announcer's voice-over as the donor's set has it (round E3c): the donor's own line banks and trigger sets
     // (a WW2 level's: BF1943's lines; BFBC2's, BFBC1's and Vietnam's levels have none, theirs are the commons') into
     // the level's own bundle, which comes first, so the layer's triggers name what the donor's do
@@ -1476,6 +1492,7 @@ pub fn build(
         announcer,
         closure: closure_record,
         project_mode: target.is_some(),
+        weather: weather_record,
     };
     write_record(out, &rec)?;
     Ok(rec)
@@ -2234,6 +2251,12 @@ fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>>
     } else if let Some(c) = rec.closure.iter().find(|c| c.name.eq_ignore_ascii_case(ours)) {
         // copied by the closure (round E3d): the bundle it came from
         sources.push((vec![game.root.join(&c.from)], o));
+    } else if let Some((src, lv)) = rec.weather.as_ref().and_then(|w| w.source_of(ours)) {
+        // round VW2: a weather partition the export copied under the level's folder: its source in its level's
+        // bundles
+        let mut b = game.loaded(lv, "level");
+        b.extend(game.startup());
+        sources.push((b, format!("{src}.dbx")));
     } else if rec.announcer.iter().any(|a| a.eq_ignore_ascii_case(ours)) {
         // the donor's own announcer partition (round E3c)
         sources.push((game.level_bundles(&rec.donor, "level"), o));
@@ -2551,6 +2574,12 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             cl.unresolved.iter().take(8).map(|(n, by)| format!("{n} (named by {by})")).collect::<Vec<_>>()
         ),
     );
+    // round VW2: the weather the export gave the level
+    if let (Some(wr), Some((_, lw))) = (&rec.weather, lvl) {
+        for (ok, what) in crate::weather::check(wr, &LevelWriter { d: lw.clone() }, &live) {
+            r.add(ok, what);
+        }
+    }
     // the map's ground: its height field is in a bundle the terrain or the level block loads (round E3d: a Vietnam
     // map's is in nam_common's terrain bundle, which its terrain block keeps under any profile)
     if let Some((_, lw)) = lvl

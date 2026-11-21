@@ -22,8 +22,9 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 /// - 1: rounds E2 - E3d (objects, layers, folders, groups, the export's strip and mode choices);
 /// - 2: round GR2, the navigation edits (`nav-add`, `nav-remove`, `nav-load`); nothing else changed, so a version-1
 ///   file loads as it is;
-/// - 3: round EX1, the exported level's names (`set-names`); a version-2 file loads as it is.
-pub const VERSION: u32 = 3;
+/// - 3: round EX1, the exported level's names (`set-names`); a version-2 file loads as it is;
+/// - 4: round VW2, the exported level's weather (`set-weather`); a version-3 file loads as it is.
+pub const VERSION: u32 = 4;
 
 /// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; the full
 /// versioning work is round V1's). Version 1 to 2 changes nothing: version 2 only added operation kinds.
@@ -33,6 +34,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
     while at < VERSION {
         // 1 -> 2: the navigation operations were added; a version-1 log has none
         // 2 -> 3: the names operation was added (round EX1); a version-2 log has none
+        // 3 -> 4: the weather operation was added (round VW2); a version-3 log has none
         at += 1;
     }
     if let Some(o) = v.as_object_mut() {
@@ -490,6 +492,19 @@ impl MapProject {
             Op::SetNames { to } => Some(to.as_ref()),
             _ => None,
         })
+    }
+
+    /// The exported level's weather as the log's last choice left it (round VW2), `None`: the level's own.
+    #[must_use]
+    pub fn weather(&self) -> Option<&crate::weather::WeatherChoice> {
+        self.operations
+            .iter()
+            .rev()
+            .find_map(|o| match &o.op {
+                Op::SetWeather { to } => Some(to.as_deref()),
+                _ => None,
+            })
+            .flatten()
     }
 
     /// The navigation edits the log leaves (round GR2: the AI workspace's edits, in the side file's form).

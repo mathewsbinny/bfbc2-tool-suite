@@ -94,6 +94,8 @@ pub struct ExportWindow {
     /// The project's layer counted, what it lacks, its anchors (kept until the log changes).
     #[allow(clippy::type_complexity, reason = "the four things the form shows of the layer")]
     layer: Option<(u64, modelayer::LayerSig, Vec<String>, Vec<(String, String, [f32; 3])>)>,
+    /// The Weather section (round VW2).
+    pub weather: crate::weather_ui::WeatherForm,
 }
 
 /// The Install dialog's state (round E3d): OPFOR's `mapedit_install.py` run on a worker - the plan first (what an
@@ -764,6 +766,10 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
         .as_ref()
         .is_some_and(|s| project_names.as_ref() != Some(&s.names()));
     let mut keep_names = false;
+    // round VW2: the weather the export gives the level
+    let project_weather = doc.as_deref().and_then(|d| d.project.weather().cloned());
+    let base_level = doc.as_deref().map(|d| d.project.base.level.to_ascii_lowercase());
+    let mut keep_weather: Option<Option<bc2_levelwrite::weather::WeatherChoice>> = None;
     let stage_ready = staged && !busy;
     let mut preview_stage = false;
     egui::Window::new("Export as a multiplayer level")
@@ -956,6 +962,17 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                         }
                     }
                     ui.separator();
+                    if let Some(b) = &base_level {
+                        keep_weather = crate::weather_ui::section(
+                            ui,
+                            &mut w.weather,
+                            game.as_ref(),
+                            b,
+                            project_weather.as_ref(),
+                            doc.as_deref().and_then(Doc::writer),
+                        );
+                        ui.separator();
+                    }
                     ui.heading("Level");
                     egui::Grid::new("export-form").num_columns(2).show(ui, |ui| {
                         let tgt = form_target.get_or_insert_with(|| {
@@ -1328,6 +1345,14 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                 go = false;
             }
         }
+        changed = true;
+    }
+    // round VW2: the weather into the project's log
+    if let (Some(c), Some(d)) = (keep_weather, doc.as_mut()) {
+        d.commit(
+            bc2_levelwrite::Op::SetWeather { to: c.map(Box::new) },
+            "Export: the level's weather",
+        );
         changed = true;
     }
     if preview_stage {

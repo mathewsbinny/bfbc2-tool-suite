@@ -6272,3 +6272,113 @@ rebuilding the module and `bfbc2.exe` (sources `bb00c3ff5f9d`):
   quick` 374 passed, 0 failed, 7 skipped (the game-copy and staged-export tests that need `OPFOR_TEST_GAME` or a
   staged export); `src\tools\opforcore\tests\run_tests.py` 75 of 75.
 - The WW2 rebuild (all 52 steps, 22 min) against the oracle: 10,852 of 10,852 files identical.
+
+## VW2: the mode view layer, weather in the views and in exports (2026-11-21, branch `rust-vw2`)
+
+`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.12, "Round VW2"; spec GAME-RUSH-9, RNDR-WTHR-6 (corrected), RNDR-WTHR-7 -
+9 (new). Research round WX0 (83 levels, 355 states) is the source of the weather facts. No Python replaced. Nothing
+written to `game\`; the game never launched (in-game tests paused): what only a playtest proves is listed at the end.
+
+### The mode view layer
+
+`modelayer::rush_play` ports L1's simulation (`l1_measure.simulate`) to Rust: every instance from its `Enabled`, a
+stage played while all its counters are enabled, its M-COMs' `onDestroyed` followed through the event glue
+(`Enable` / `Disable`, never another stage's counters). `modelayer::layer_view` gives the layer and, per stage, what
+is not in play (the other stages' M-COM clusters; the bases, combat areas and spawns disabled, with their clusters).
+One root cause found on the way: `Enabled` is a two-byte value, not a text (`modelayer::bool_field`); read as a text
+every base was "enabled" in every stage.
+
+| level | stages | bases in play per stage (Rust = L1, `l1_stages.py` on the same game copy) | layer | hidden per stage |
+|---|---:|---|---:|---|
+| MP_005GR | 4 | RUS Base + South Island; SI + Stranded Ship; SII + North Island; North Island + US Harbor | 821 | 319, 307, 303, 277 |
+| MP_005SR | 2 | US Base + Stranded ship; Stranded ship + RU Base | 279 | 46, 67 |
+| NAM_MP_002R | 3 | NVA Fish Market + US drop zone; US Fish Market + NVA Shrine; US Shrine + NVA Temple | 507 | 179, 132, 93 |
+| BC1_OASIS_GR | 5 | US Base + Farm; Plantation + Farm; Suburbs + Plantation; Streets + Suburbs; Plaza + Suburbs | 1,082 | 325, 331, 322, 312, 304 |
+
+Two combat areas in play in every stage, no ambiguous order (as L1). In the editor (MP_009GR, 10,005 entities, its
+layer 971): "Mode layer only" hides 9,034 (the outliner 10,005 -> 971 rows), "Without the mode layer" 971, each
+stage 481 - 509, exactly the layer data's hidden instances that are entities of the scene; the game-accurate view
+draws 7,422 objects with every stage and 7,406 with stage 1 (the other stages' M-COMs and props left out). The
+game-accurate view now leaves out what the project deletes or hides too (it drew them before).
+
+### Weather in both views
+
+`bc2_render::world::level_weather` / `weather::LevelWeather` (the entity chain of GW1, the system's states,
+`ActiveState`, the spawn switch); `World::set_state` (light, post-process, clear colour and sky dome again, the live
+list planned again); the game-accurate view opens on `LevelWeather::starts_in` (the switch when it names a state;
+MP_005: `day_1` instead of the dark `default`). `weather::look` predicts a state's look from its values (a grey
+ground lit by the key light at the view's sun and the sky colour, exposed and tonemapped as the post-process does);
+`weather::tint` (the look over a neutral day's) tints the simplified view's scene-lit colours and its sky
+(`view.wgsl`'s `weathered`, a fourth `Globals` vector).
+
+MP_002SR's 7 states in the game-accurate view (1600 x 950, the view's middle measured, sRGB 0..1):
+
+| state | frame mean | look's ground | blue / red: frame, light |
+|---|---|---|---|
+| 0 default | (0.288, 0.286, 0.213) | (0.638, 0.645, 0.656) | 0.74, 1.09 |
+| 1 nolighting | (0.283, 0.277, 0.199) | (0.625, 0.625, 0.625) | 0.70, 1.00 |
+| 2 midday (switch, ActiveState) | (0.373, 0.353, 0.264) | (0.633, 0.624, 0.611) | 0.71, 0.89 |
+| 3, 4 the win states | as midday | as midday | 0.71, 0.89 |
+| 5 ons_mp_002_night | (0.072, 0.132, 0.145) | (0.000, 0.058, 0.148) | 2.00, 8.55 |
+| 6 ons_mp_002_dawn | (0.326, 0.287, 0.196) | (0.741, 0.724, 0.689) | 0.60, 0.77 |
+
+Brightness: Pearson 0.86 between the frames and the looks; colour (blue over red): Spearman 0.79; the night a third
+of midday's brightness and the only blue frame. The model saturates for daytime states (the exposure adapts them all
+to middle grey), so it ranks day states only roughly: it is a tint, not a render. The simplified view: midday
+(0.213, 0.225, 0.202), the night (0.057, 0.058, 0.082). The picker reads the weather from a prepared level's folders,
+or a Package level's bundles in rounds (`world::weather_files`), or the loaded game view's files.
+
+Found: the prepared `work\levels\ons_mp_002` places SP_01's weather entity (`weather/r_sp01/weathersystementity_default`,
+an old preparation), while the game copy's ONS_MP_002 places MP_002's: the view of that prepared level lists SP_01's
+44 states. Not changed here (a stale preparation in the user's work folder; preparing the level again fixes it).
+
+### Weather in exports (VW2a - c)
+
+`bc2_levelwrite::weather` and `Op::SetWeather` (project format 4; a version-3 file loads as it is); the export's
+step after the mode layer, every new partition under `weather/<level>/` in the level's own bundle, the base's stock
+partitions never changed; `stage.json`'s `weather` record (each copy's source, which `mapexport check`'s dangling
+reference rule reads); the check's weather lines. Canaries (`cargo run --release -p bc2-levelwrite --example
+vw2_canaries -- <game> <projects> <stages>`): each built twice, with and without its weather (the baseline: the same
+id, another folder), the two stages compared entry by entry, each new partition against its source (XML with guids
+numbered and the renamed paths mapped back), then `mapexport check`:
+
+| canary | base | weather | level bundle: same / new | level partition differs in | each copy differs from its source in | check | time |
+|---|---|---|---|---|---|---|---:|
+| `state` | MP_002 | own state 6 `ons_mp_002_dawn` (ActiveState 2 -> 6, switch 2 -> 6) | 55 of 56 / 2 | `State`, `ReferencedObject` | settings: `Name`, `ActiveState`; entity: `Settings`, `Name` | 38 lines | 17 s |
+| `state_wake` | Wake Island (entity in the level partition, no switch) | own state 1 `iwo_jima` | 33 of 34 / 1 | `Settings` | `Name`, `ActiveState` | 40 | 23 s |
+| `borrow_append` | MP_005 | MP_008CQ's `mp_008_ons_fog` appended as state 25 | 21 of 22 / 12 | `State`, `ReferencedObject` | the 8 state partitions: `Name`; the system: `Name` and one `States` item | 39 | 20 s |
+| `borrow_swap` | MP_005 | MP_002's whole system (57 partitions), state 6 | 21 of 22 / 61 (+ the panorama texture the closure copied) | `State`, `ReferencedObject` | every copy `Name` only | 39 | 19 s |
+| `night` | MP_005 | `ons_mp_002_night` appended, `ReflectionEnvmapScale` 1 -> 0.1, panoramic `Trancparency` 0.02 -> 0.005 | 21 of 22 / 12 | `State`, `ReferencedObject` | `Name`; the two night values | 39 | 23 s |
+| `rain` | MP_005 | SP_03's `afterrain` appended (the state only) | 21 of 22 / 12 | `State`, `ReferencedObject` | `Name` | 39 | 22 s |
+
+The terrain, ingame and loader bundles byte for byte as the baseline's in all six; the only changed entry of the level
+bundle is the level partition. Each new system's `WeatherSystem` resource: 4 bytes, 72. Night and rain without
+"Build it anyway" are refused in words. OPFOR's `mapedit_install --apply` then `--revert` of the `state`, `night` and
+`borrow_swap` stages on a scratch copy of the six shared files, `--check-game` the real game copy (this branch's
+release `mapexport`): installed (11 `package.mft` blocks, the `maps.ini` section, the level folder), then every
+shared file and its last-writer record back byte for byte, the folder gone; the real game copy's shared files with
+the same sha256 before and after.
+
+### Left, with reasons
+
+- **VW2c's lamp tool**: point-light emitters (`ActAsPointLight`) from SP_01's effects, placed by the user. Placing an
+  effect blueprint of another level's bundle with its emitters needs E2b's "+bundle" placement to carry the emitter
+  system and atlas entries, and XF1's shader entries for objects from other levels (in progress); not started.
+- **VW2d's effects and sounds**: rain is exported as SP_03's `afterrain` state only; the grid of camera-proximity
+  area effects (SP_03's `fx_amb_sp3_rain_area20`, MP_007's snowflakes) and the sound areas need the effects' emitters
+  under the target level's emitter namespace (WX0 A.5): the same cross-level emitter copy as the lamps.
+- **VW1's leftovers**: the overlays follow the mode view layer and the project's hidden and deleted objects, not
+  moved ones (they are read once per level); damage and clear-area triggers, wall collision for the walk camera, the
+  FOV and box-evaluator readings: not started.
+- **Only a playtest can prove**: that the engine starts in the spawn switch's and ActiveState's state; a borrowed
+  state under the target's sky; the swapped system's sky; the night's exposure and readability; no checksum crash
+  from the new partitions (they are inside the level's own bundle, registered as before).
+
+### Tests
+
+`cargo test --release -p bc2-levelwrite --test levelwrite vw2::` (the stages as L1 plays them on 4 levels; the
+weather as the export reads it on MP_005, MP_002, ONS_MP_002, Wake Island, Coral Sea; the night template resolves
+through MP_002's bundles, in the Onslaught Package); `-p bc2-editor --test editor vw2::` (the mode view layer on
+MP_009GR in every view; the weather states on MP_002SR in both views, measured; the game view opens on MP_005's spawn
+switch); unit tests `modeview::tests`, `weatherview::tests`, `weather_ui::tests`, `weather::tests` (levelwrite).
+Screenshots (not in the repository): `vw2_mode_*` and `vw2_weather_*`, Dark and Light.

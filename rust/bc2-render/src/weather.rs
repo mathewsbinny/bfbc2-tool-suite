@@ -312,6 +312,140 @@ pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<us
     })
 }
 
+/// A weather system's states (partition paths, in `States` order: the index `ActiveState` and a state entity's
+/// `State` name), read through the level's files (round VW2).
+///
+/// # Errors
+/// The system partition is not found.
+pub fn system_states(files: &Files, system: &str) -> Result<Vec<String>, String> {
+    let yx = xml_of(files, system).ok_or_else(|| format!("{system}: not found"))?;
+    Ok(refs(&yx)
+        .into_iter()
+        .filter(|(_, n)| n.is_empty())
+        .map(|(r, _)| r)
+        .collect())
+}
+
+/// A level's weather as data (round VW2): where its weather entity is, the system and settings it names, the
+/// system's states, the settings' `ActiveState` and the level's spawn-time switch (RNDR-WTHR-6).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LevelWeather {
+    /// The partition holding the weather entity (the level partition, or a placed blueprint).
+    pub entity_at: String,
+    /// The `WeatherSystem` partition.
+    pub system: String,
+    /// The `WeatherSystemSettings` partition.
+    pub settings: String,
+    /// The system's states (partition paths).
+    pub states: Vec<String>,
+    /// The settings' `ActiveState`.
+    pub active: usize,
+    /// The state the level's first enabled `WeatherStateEntityData` with `StartTransitionOnSpawn` names.
+    pub spawn: Option<usize>,
+}
+
+impl LevelWeather {
+    /// The state players see as the level starts: the spawn-time switch when it names one of the system's states,
+    /// else `ActiveState` (WX0: in 45 of 70 levels with a switch it names another state than `ActiveState`; the
+    /// placeholder states some settings name are dark or unlit and never seen).
+    #[must_use]
+    pub fn starts_in(&self) -> usize {
+        self.spawn.filter(|&s| s < self.states.len()).unwrap_or(self.active)
+    }
+
+    /// A state's short name (`weather/r_mp02/states/ons_mp_002_night` -> `ons_mp_002_night`).
+    #[must_use]
+    pub fn name(&self, k: usize) -> String {
+        self.states
+            .get(k)
+            .map_or_else(String::new, |p| p.rsplit('/').next().unwrap_or(p).to_owned())
+    }
+
+    /// The level's weather read: its system's states and its settings' `ActiveState`.
+    ///
+    /// # Errors
+    /// The system or the settings partition is not found.
+    pub fn read(files: &Files, entity_at: &str, refs: &EntityRefs, spawn: Option<usize>) -> Result<Self, String> {
+        let sx = xml_of(files, &refs.settings).ok_or_else(|| format!("{}: not found", refs.settings))?;
+        let active = fields(&sx)
+            .get("ActiveState")
+            .and_then(|v| v.first().copied())
+            .unwrap_or(0.0) as usize;
+        Ok(Self {
+            entity_at: entity_at.to_owned(),
+            system: refs.system.clone(),
+            settings: refs.settings.clone(),
+            states: system_states(files, &refs.system)?,
+            active,
+            spawn,
+        })
+    }
+
+    /// State `k`'s partitions read.
+    ///
+    /// # Errors
+    /// [`read_system`]'s.
+    pub fn state(&self, files: &Files, k: usize) -> Result<Weather, String> {
+        read_system(files, &self.system, &self.settings, Some(k))
+    }
+}
+
+/// What a weather state looks like, worked out from its field values alone (round VW2): a grey ground (albedo 0.3)
+/// facing up under the state's key light at [`NOON_DIR`] and its sky (top) colour, exposed as the game's post-process
+/// exposes a frame of it (`MiddleGray` over its luminance, clamped to `MinExposure` .. `MaxExposure`) and tonemapped
+/// ([`crate::tonemap::map`]); the fog colour likewise. The simplified view tints by it; the game-accurate view's
+/// frames are measured against it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Look {
+    /// The lit ground in HDR (before exposure).
+    pub hdr: [f32; 3],
+    /// The exposure.
+    pub exposure: f32,
+    /// The ground on screen (0..1).
+    pub ground: [f32; 3],
+    /// The fog / haze colour on screen (0..1).
+    pub fog: [f32; 3],
+}
+
+/// The albedo [`look`] lights.
+pub const LOOK_ALBEDO: f32 = 0.3;
+
+/// A state's [`Look`].
+#[must_use]
+pub fn look(w: &Weather) -> Look {
+    let ol = &w.outdoor_light;
+    let len = NOON_DIR.iter().map(|v| v * v).sum::<f32>().sqrt();
+    let up = NOON_DIR.get(1).copied().unwrap_or(1.0) / len;
+    let key = rgb(ol, "KeyColor", 0.0).map(|c| c * first(ol, "KeyColorIntensity", 1.0));
+    let top = rgb(ol, "TopColor", 0.0).map(|c| c * first(ol, "TopColorIntensity", 1.0));
+    let hdr: [f32; 3] = std::array::from_fn(|k| {
+        LOOK_ALBEDO * (key.get(k).copied().unwrap_or(0.0) * up + top.get(k).copied().unwrap_or(0.0))
+    });
+    let (_, post) = light(w, NOON_DIR);
+    let lum = hdr.iter().zip([0.3, 0.59, 0.11]).map(|(c, w)| c * w).sum::<f32>();
+    let exposure =
+        (post.middle_gray / (lum + 0.001)).clamp(post.min_exposure, post.max_exposure.max(post.min_exposure));
+    let fog = rgb(&w.fog, "Color", 0.4);
+    Look {
+        hdr,
+        exposure,
+        ground: crate::tonemap::map(hdr, exposure, &post),
+        fog: crate::tonemap::map(fog, exposure, &post),
+    }
+}
+
+/// The simplified view's tint for a state: its [`Look`]'s ground over [`neutral`]'s (a plain day is about 1; a
+/// night about 0.3, blue), each channel within 0.05 .. 1.5.
+#[must_use]
+pub fn tint(w: &Weather) -> [f32; 3] {
+    let a = look(w).ground;
+    let b = look(&neutral()).ground;
+    std::array::from_fn(|k| {
+        let (x, y) = (a.get(k).copied().unwrap_or(0.0), b.get(k).copied().unwrap_or(1.0));
+        (x / y.max(1e-3)).clamp(0.05, 1.5)
+    })
+}
+
 /// A neutral daylight for a level without weather data ([`NO_WEATHER`]): a white key light, a pale blue sky light
 /// and a grey-blue fog, with the post-process values of DICE's daytime states (Guadalcanal's: middle grey 0.03,
 /// exposure 1.5 to 2.4). Not the game's look of any level.

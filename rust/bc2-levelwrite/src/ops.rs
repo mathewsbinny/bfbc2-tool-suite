@@ -326,6 +326,13 @@ pub enum Op {
         /// The names.
         to: Box<crate::names::LevelNames>,
     },
+    /// The exported level's weather chosen (round VW2, [`crate::weather`]): one of the level's states, another
+    /// level's state borrowed, or the night look; `None`: the level's own weather as it is. The partition is not
+    /// changed in the editor; the export writes the choice ([`crate::MapProject::weather`]).
+    SetWeather {
+        /// The choice.
+        to: Option<Box<crate::weather::WeatherChoice>>,
+    },
     /// The project's target chosen (round E3d): its era and multiplayer mode, the mode's layer brought in from a
     /// donor level of them as ordinary objects, the level's old layer taken out ([`crate::modelayer`]).
     SetMode {
@@ -399,6 +406,7 @@ impl Op {
             | Self::Ungroup { .. }
             | Self::SetStrip { .. }
             | Self::SetNames { .. }
+            | Self::SetWeather { .. }
             | Self::NavAdd { .. }
             | Self::NavRemove { .. }
             | Self::NavLoad { .. } => Vec::new(),
@@ -502,6 +510,9 @@ impl Op {
             Self::Ungroup { group } => format!("Ungroup {group}"),
             Self::SetStrip { to, .. } => format!("Campaign content: {}", to.describe()),
             Self::SetNames { to } => to.describe(),
+            Self::SetWeather { to } => to
+                .as_ref()
+                .map_or_else(|| "Weather: the level's own".to_owned(), |c| c.describe()),
             Self::SetMode { to } => to.describe(),
             Self::NavAdd { edit } => format!("Navigation edit: {}", edit.op),
             Self::NavRemove { edit, .. } => format!("Remove navigation edit: {}", edit.op),
@@ -656,6 +667,7 @@ impl Organisation {
             Op::SetField { .. }
             | Op::SetStrip { .. }
             | Op::SetNames { .. }
+            | Op::SetWeather { .. }
             | Op::NavAdd { .. }
             | Op::NavRemove { .. }
             | Op::NavLoad { .. } => {}
