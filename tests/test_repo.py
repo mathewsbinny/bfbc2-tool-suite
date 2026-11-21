@@ -11,7 +11,7 @@ r"""The repository's own rules, checked before anything is pushed (no game data 
   file left off that list silently never runs);
 - every tracked test_*.py is run by a tier of run_tests.py, or named in UNTIERED_ALLOWED with the reason (round TS1,
   audit AU3 TS-8);
-- no runner entry named by a round code (O4:, F2a, E3o ...) beyond the 59 named so before round TS1 (audit AU3 TS-14).
+- no runner entry named by a round code (O4:, F2a, E3o ...) beyond the 60 named so before round TS1's rule (audit AU3 TS-14).
 
   python tests\test_repo.py
 """
@@ -120,8 +120,8 @@ def untiered_test_files() -> list[str]:
 
 
 # Round codes in names (audit AU3 TS-14 / TS-13): a runner entry is named by what it tests, not the round that wrote
-# it (O4:, F2a, E3o ...). The 59 entries named so before round TS1 (sha1 of the name, first 10 hex digits) stay until
-# PR1c renames them; a new one fails.
+# it (O4:, F2a, E3o ...). The 60 entries named so before round TS1's rule landed (sha1 of the name, first 10 hex
+# digits; DF2's install ledger entry merged while TS1 ran) stay until PR1c renames them; a new one fails.
 ROUND = re.compile(r'(?<![A-Za-z0-9_])[A-Z]{1,2}[0-9]{1,2}[a-z]?(?![A-Za-z0-9_])')
 NOT_ROUND = {'BC2', 'WW2', 'L8'}            # the game, the war, a texture format
 ROUND_CODED_ENTRIES = frozenset({
@@ -132,7 +132,7 @@ ROUND_CODED_ENTRIES = frozenset({
     '93d7cb5d83', '95b68e96b4', '98eb46b82c', '9a3f9fce82', '9d7482bf87', '9dcd365005', 'a815aafbd5', 'b23216f4f6',
     'b94241399d', 'bdc20c65ea', 'c58ba4223d', 'c936d93036', 'cdeea98d79', 'd1249880b6', 'd2090a6c35', 'd3a5526e55',
     'd5798a540a', 'dc88e0f1a2', 'e31d19e216', 'e8cf6e9959', 'f100455992', 'f12d3dcd38', 'f13913f516', 'f48930e395',
-    'f5f448bde0', 'f6b979f075', 'f90182a684',
+    'f5f448bde0', 'f6b979f075', 'f90182a684', '70d789971a',
 })
 
 
