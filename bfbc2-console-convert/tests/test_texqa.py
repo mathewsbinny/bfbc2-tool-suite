@@ -10,7 +10,9 @@ r"""texqa.py, the converted-texture QA (quick tier: synthetic textures, no game 
   repaint (.orig beside it) is intentional;
 - inputs: loose textures recognised by their header, unpacked bundles by their manifest (on-demand wrapped entries
   unwrapped), .orig picked up; the cache: a second run analyses nothing;
-- the baseline: a new error flag and a PSNR drop are regressions, an unchanged run is not.
+- the baseline: a new error flag and a PSNR drop are regressions, an unchanged run is not;
+- DICE's copies (round QW2): from a stand-in game copy with an install ledger, a held bundle read as the ledger's
+  original, an added one left out, a backup suffix used only where no owner holds the bundle.
 
   python test_texqa.py
 """
@@ -288,12 +290,58 @@ def test_bad_entries() -> None:
         check(any('unreadable' in x for x in logs), 'the run reports DICE\'s unreadable bundles')
 
 
+def test_dice_ledger() -> None:
+    """Round QW2 (DF2's texqa.Dice had no test): DICE's copies from a stand-in game copy with an install ledger. A
+    bundle an install holds is read as it was before any install (the ledger's original); a bundle an install added
+    where there was none is left out; a bundle no ledger owner holds is read from its backup suffix when there is one,
+    else as it is; the index cached and read back gives the same answers."""
+    suite_paths.use('core')
+    from bfbc2core import fbrb, gameledger
+
+    def bundle(name: str, data: bytes) -> bytes:
+        return fbrb.build([(name, 'ITexture', data), ('other/mesh', 'MeshSet', b'm' * 8)])
+    with tempfile.TemporaryDirectory() as opfor:
+        game = os.path.join(opfor, 'game')
+        dist = os.path.join(game, 'Dist', 'win32')
+        files = {'Dist/win32/levels/mp_001/level-00.fbrb': bundle('textures/held_d', b'DICE held'),
+                 'Dist/win32/async-00.fbrb': bundle('textures/plain_d', b'DICE plain'),
+                 'Package/x/ui-00.fbrb': bundle('textures/suffix_d', b'patched by an old installer'),
+                 'Package/x/ui-00.fbrb.opfor-wake-orig': bundle('textures/suffix_d', b'DICE suffix')}
+        for rel, data in files.items():
+            os.makedirs(os.path.dirname(os.path.join(game, rel)), exist_ok=True)
+            with open(os.path.join(game, rel), 'wb') as f:
+                f.write(data)
+        gameledger.Ledger(game).install('test:qw2', {
+            'Dist/win32/levels/mp_001/level-00.fbrb': bundle('textures/held_d', b'an install changed it'),
+            'Dist/win32/levels/mp_001/added-00.fbrb': bundle('textures/added_d', b'an install added it')})
+        installed = fbrb.read(os.path.join(dist, 'levels', 'mp_001', 'level-00.fbrb'),
+                              ['textures/held_d'])['textures/held_d']
+        cache = os.path.join(opfor, 'cache')
+        got = []
+        for run in ('built', 'from its cache'):
+            dice = texqa.Dice(opfor, cache, originals=('.opfor-wake-orig',))
+            reads = {k: dice.data(k) for k in sorted(dice.entries)}
+            got.append(reads)
+            check(installed == b'an install changed it' and reads.get('textures/held_d') == b'DICE held',
+                  f'DICE\'s index {run}: a bundle an install holds read as the ledger\'s original ({reads})')
+            check('textures/added_d' not in reads, f'DICE\'s index {run}: a bundle an install added is left out')
+            check(reads.get('textures/suffix_d') == b'DICE suffix' and reads.get('textures/plain_d') == b'DICE plain',
+                  f'DICE\'s index {run}: a bundle no owner holds read from its backup suffix, else as it is')
+            check(not dice.problems, f'DICE\'s index {run}: no problems ({dice.problems})')
+        check(any(n.startswith('dice_textures_') for n in os.listdir(cache)) and got[0] == got[1],
+              'DICE\'s index cached, and the cached index gives the same textures')
+        many = texqa.Dice(opfor, cache).read_many(['textures/held_d', 'textures/plain_d'])
+        check(many == {'textures/held_d': b'DICE held', 'textures/plain_d': b'DICE plain'},
+              f'read_many reads the ledger\'s original too ({many})')
+
+
 def main() -> int:
     test_decode()
     test_xbox()
     test_checks()
     test_inputs_cache_baseline()
     test_bad_entries()
+    test_dice_ledger()
     print('all passed' if not FAILED else f'{len(FAILED)} check(s) failed')
     return 1 if FAILED else 0
 
