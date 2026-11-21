@@ -73,36 +73,46 @@ walkable ground inside it; the result reads back exactly or apply fails ("not us
 
 ## 3. Install and restore
 
-### XNAV-INS-1: Install keeps DICE's original once, writes whole
+### XNAV-INS-1: Install keeps the file it replaces once, in the install ledger, and writes whole
 
 Status: **verified**
 
-Install refuses while the game runs or before a build. On the first install DICE's file is kept as
-`pathdata.hpd.opfor-orig`, or, where the level had none, an `.opfor-new` marker is written so restore knows to
-remove the file; later installs keep that first backup. The file is copied into the game copy atomically (a cut-short
-copy once left a truncated file the AI loader read). Traversal annotations are installed only when made for that
-exact file (its SHA-1); stale ones are removed.
+Install refuses while the game runs (or while `tasklist` does not answer in 30 s) or before a build. It is one
+journalled commit of the owner `navkit:<lv>` in the game copy's install ledger (XINST-GL-1): the file there before
+NavKit is kept once by its sha256 (or recorded as none, so restore knows to remove the file); a later install keeps
+that first prior. Another tool's install of the same file stays below NavKit's. The file is written beside its target,
+flushed and moved over it. Traversal annotations are installed in the same commit only when made for that exact file
+(its SHA-1); stale ones nobody installed are removed. NavKit's markers from before the ledger (`.opfor-orig`,
+`.opfor-new`) are adopted into it first; another tool's are refused in words.
 
-[code: bfbc2-auto-navkit/navkit.py:751-785] [test: bfbc2-auto-navkit/tests/test_navkit_offline.py::main]
+[code: bfbc2-auto-navkit/navkit.py:836-883] [code: rust/bc2-cli/src/navkit/driver.rs:153-226]
+[test: bfbc2-auto-navkit/tests/test_navkit_offline.py::main] [test: core/tests/test_gameledger.py::cross]
 
-### XNAV-INS-2: Restore gives the level its original path data back
-
-Status: **verified**
-
-Restore puts DICE's kept original back (removing a stale no-original marker), or, for a level that had none, removes
-the installed file and the marker; it removes the traversal annotations; with nothing installed it says so and
-changes nothing; it refuses while the game runs.
-
-[code: bfbc2-auto-navkit/navkit.py:788-807] [test: bfbc2-auto-navkit/tests/test_navkit_offline.py::main]
-
-### XNAV-INS-3: DICE's original is found through every OPFOR backup
+### XNAV-INS-2: Restore gives the level the path data from before NavKit back
 
 Status: **verified**
 
-Where several OPFOR stages backed up a file, DICE's original is the earliest backup (NavKit's `.opfor-orig` first
-among equals); a file an OPFOR stage installed where there was none is reported as OPFOR's, never taken for DICE's.
+Restore takes `navkit:<lv>` out of the ledger: the file from before NavKit is written back, or, for a level that had
+none, the installed file removed; when another tool installed over NavKit since, NavKit's layer is taken out from
+under it (that tool's file stays, and its revert now gives back what was there before NavKit - audit AU4 DS-1). The
+traversal annotations go with it. With nothing installed it says so and changes nothing; it refuses while the game
+runs.
 
-[code: bfbc2-auto-navkit/navkit.py:77-100] [test: bfbc2-auto-navkit/tests/test_navkit_offline.py::main]
+[code: bfbc2-auto-navkit/navkit.py:886-922] [code: rust/bc2-cli/src/navkit/driver.rs:228-281]
+[test: bfbc2-auto-navkit/tests/test_navkit_offline.py::main] [test: core/tests/test_gameledger.py::cross]
+
+### XNAV-INS-3: DICE's original is the bottom of the ledger's stack
+
+Status: **verified**
+
+DICE's original of a game file is what was there before any owner of the install ledger (the bottom layer's prior,
+by its sha256); a file an install put where there was none is reported as installed, never taken for DICE's. A file
+no ledger owner holds is answered by the markers of before the ledger (the earliest backup). The three readers (the
+NavKit driver, its Rust twin, the map editor) answer alike.
+
+[code: bfbc2-auto-navkit/navkit.py:77-108] [code: rust/bc2-cli/src/navshared.rs:66-133]
+[code: rust/bc2-editor/src/navdata.rs:1479-1494]
+[test: core/tests/test_gameledger.py::python_twin] [test: rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file]
 
 ## Open questions
 

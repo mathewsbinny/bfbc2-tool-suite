@@ -6382,3 +6382,49 @@ through MP_002's bundles, in the Onslaught Package); `-p bc2-editor --test edito
 MP_009GR in every view; the weather states on MP_002SR in both views, measured; the game view opens on MP_005's spawn
 switch); unit tests `modeview::tests`, `weatherview::tests`, `weather_ui::tests`, `weather::tests` (levelwrite).
 Screenshots (not in the repository): `vw2_mode_*` and `vw2_weather_*`, Dark and Light.
+
+## DF2: install and revert safety - one install ledger (2026-11-21, branch `df2`)
+
+Audit AU4's DF2 findings, the suite's half (Project OPFOR's stages, migration and import scripts are OPFOR's own DF2
+branch). Nothing here is a speed change: the measure is that no order of installs and reverts, and no interruption,
+can lose a game file.
+
+**The store.** `bc2_formats::gameledger` (Rust) and `bfbc2core.gameledger` (its Python twin) read and write
+Project OPFOR's install ledger (`<game>\opfor\ledger`, `opforcore.ledger`'s format `opfor-ledger/1`): one record per
+owner, the bytes each install replaced in `blobs\<sha256>.bin`, a lock (`.lock`, a stale one - its pid gone - cleared
+by the next operation), a journal (`.txn.json` + pre-images, flushed before the first write). The suite writes
+whole-file contributions (kind `file`, `extra.derived`); other owners' records of other kinds are kept as they are.
+Per file the owners stack: install on top (refused when the file changed outside the ledger), uninstall of the top
+owner writes its prior back, of a buried owner splices it out unless the owner above is `derived` (then refused,
+naming what to revert first). spec `transforms/install.md` XINST-GL-1..3.
+
+**What moved onto it.**
+- NavKit install / restore (`bfbc2 navkit`, `navkit.py`): owner `navkit:<lv>`, the traversal annotations in the same
+  commit; `original_file()` in the three places (`navkit.py`, `navshared.rs`, the editor's `navdata.rs`) answers the
+  bottom layer's prior; the editor's install / restore plans read the ledger.
+- stock-MP install (`bfbc2 stockmp install`, `stockmplib.install`): owner `stockmp:<lv>`, one commit (DS-5), a revert
+  any later command can finish (DS-6), the installed files from the record and the level's own folders (DS-9), no
+  stale backup (DS-19); `pipeline.stock_file` / `level::stock_file` read the stockmp owner's prior.
+- Markers of before the ledger: each tool adopts its own family on first use (one journalled commit), another's are
+  refused in words ("migrate them first - Project OPFOR: python src\tools\opforcore\migrate.py --apply").
+- `bfbc2 gameledger status|holders|original|recover <game>`.
+- Also: `game_running()` with a 30 s timeout (BUG-20); NavKit's level unpack swapped in under a lock (DS-14, both
+  twins); per-process temporary names for the harness run, the stock-MP report and texqa's JSON (CQ-18); one SHA-256
+  (`bc2-stockmp`'s moved to `bc2_formats::sha256`; CQ-9); `stockmp::installed_files` (the whole-game walk) removed.
+
+**Proof (all on scratch game copies in temporary folders; the real game copy is never written).**
+- `bc2-formats` unit tests (`gameledger_tests.rs`, 12): AU4-DS-1's exact sequence; every order of NavKit and stock-MP
+  applied and reverted, with and without an original, checked byte for byte after each step; an interruption at
+  each write step of each of the four operations, as a failed write (rolled back at once) and as a crash (journal
+  and stale lock left; the next operation rolls it back), then the sequence finished; a held and a stale lock;
+  legacy adoption; OPFOR's records of other kinds kept byte for byte with their blobs; a spliced record's other
+  fields kept; a dry run writes nothing.
+- `core/tests/test_gameledger.py` (quick tier): the same on the Python twin (28 hook interruptions, plus a child
+  process really killed by `BC2_LEDGER_CRASH_AT` before each write step); legacy refusals; then with `bin\bfbc2.exe`:
+  the Rust store reading the Python one, DS-1 through the real command lines (`bfbc2 navkit install`, `bfbc2 stockmp
+  install --apply`, `bfbc2 navkit restore`, `bfbc2 stockmp install --revert`) on a stand-in OPFOR folder - every file
+  of the game copy byte for byte as before at the end - the same mixing the Rust NavKit with the Python stock-MP, and
+  `bfbc2 stockmp install --apply` killed before each write step, recovered, run again and reverted.
+- Updated: `test_navkit_offline` (install / restore / adoption / refusal on the ledger), `test_stockmp`,
+  `test_deep_scan_fixes` (a lasting lock on the Package bundle part way: every file back, exit 1),
+  `test_review_fixes` / `_2`, the editor's `gr2` install / restore on a scratch game folder.
