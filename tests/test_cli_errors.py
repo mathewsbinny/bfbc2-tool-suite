@@ -49,7 +49,7 @@ def main(argv: list[str]) -> int:
         ('navboundary, a missing NavKit file', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navboundary.py'), 'sp_004_b', missing], 'navboundary', 'what to do'),
         ('test harness, a missing saved run', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'harness.py'), 'show', missing + '.json'], 'harness', 'missing'),
         ('test harness, a file that is not a run', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'harness.py'), 'compare', notrun, notrun], 'harness', 'what to do'),
-        ('test runner, an unknown test name', [PY, os.path.join(SUITE, 'run_tests.py'), 'quick', '--only'], 'run-tests', 'what to do'),
+        ('test runner, --only without its value (a usage error since round RT3)', [PY, os.path.join(SUITE, 'run_tests.py'), 'quick', '--only'], 'run-tests', 'what to do'),
         ('BF1943 import, a missing source folder', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'bf1943import.py'), 'list', '--source', missing], 'bf1943import', 'what to do'),
         ('texture QA, a missing build folder', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'texqa.py'), missing, '--no-dice', '--no-bf1943'], 'texqa', 'what to do'),
     ]

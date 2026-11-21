@@ -331,20 +331,39 @@ pub fn python() -> Result<PathBuf, String> {
     Err(looked.join("; "))
 }
 
-/// The tools whose Python command line was retired (round RT1, `bfbc2core.native.RETIRED_CLI`): the port answers
-/// alone, and a command line it does not read ends with [`retired`]'s error instead of a hand-off.
-pub const RETIRED: &[&str] = &["graphstats", "prepare_level"];
+/// The tools whose Python command line was retired, with the round (`bfbc2core.native.RETIRED_CLI`, which
+/// `core/tests/test_native_required.py` checks against this list): the port answers alone, and a command line it
+/// does not read ends with [`retired`]'s error instead of a hand-off.
+///
+/// **The rule when the Rust port cannot answer** (round RT3, audit AU2 A17; README "bfbc2.exe"): while a tool's
+/// Python is alive, the Python answers ([`Fail::Python`]: the whole command line handed to it, the same output and
+/// exit code); once it is retired, a plain error, never a silent fallback ([`retired`] here, `native.Refused` in the
+/// module's bindings).
+pub const RETIRED: &[(&str, &str)] = &[
+    ("graphstats", "RT1"),
+    ("prepare_level", "RT1"),
+    ("aptrefs", "RT3"),
+    ("xiso", "RT3"),
+    ("culltree", "RT3"),
+    ("stockmp", "RT3"),
+    ("crashreader", "RT3"),
+];
+
+/// The round that retired `tool`'s Python command line, if it was.
+pub fn retired_in(tool: &str) -> Option<&'static str> {
+    RETIRED.iter().find(|(t, _)| *t == tool).map(|(_, r)| *r)
+}
 
 /// The error a retired tool gives where the port would have handed the command line to its Python (exit code 1,
 /// `BFBC2_CLI_TRACE` records `<tool> retired`).
-fn retired(tool: &Tool) -> i32 {
+fn retired(tool: &Tool, round: &str) -> i32 {
     trace(tool.name, "retired");
     pystdio::emit(
         "",
         &format!(
             "bfbc2 {}: this command line is outside what the Rust port reads (a damaged or unusual input, or an \
              argument form it does not take), and the Python command line that answered it ({}) was retired in \
-             round RT1.\n  what to do: check the input files (a cut or damaged file, values of another type) and \
+             round {round}.\n  what to do: check the input files (a cut or damaged file, values of another type) and \
              the arguments\n",
             tool.name, tool.script
         ),
@@ -354,8 +373,8 @@ fn retired(tool: &Tool) -> i32 {
 
 /// The command line handed to the Python: its exit code.
 fn hand_off(tool: &Tool, args: &[String]) -> i32 {
-    if RETIRED.contains(&tool.name) {
-        return retired(tool);
+    if let Some(round) = retired_in(tool.name) {
+        return retired(tool, round);
     }
     trace(tool.name, "python");
     let script = suite_root().join(tool.script);
@@ -391,7 +410,7 @@ fn pure_python() -> bool {
 
 /// Runs a ported command line: the port, or the Python where it hands off (and under `BFBC2_PURE_PYTHON`).
 pub fn run(tool: &Tool, args: &[String]) -> ExitCode {
-    let code = if pure_python() && !RETIRED.contains(&tool.name) {
+    let code = if pure_python() && retired_in(tool.name).is_none() {
         hand_off(tool, args)
     } else {
         let mut py = Py::new(tool.log.unwrap_or(tool.name), tool.log);
