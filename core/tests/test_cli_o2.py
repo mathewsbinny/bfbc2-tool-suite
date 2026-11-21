@@ -143,6 +143,8 @@ class Place:
                 text = self.norm(data)
                 data = text.encode('latin-1') if '<dir>' in text or '<cwd>' in text or '<lad>' in text else data
                 rel = os.path.relpath(os.path.join(d, f), self.d)
+                for rekey in REKEY:
+                    data = rekey(self.d, rel, data)
                 # round O3: a group's LOOSE files (a cache whose hash names the case folder) by size only
                 loose = any(re.search(p, rel.replace(os.sep, '/')) for p in LOOSE)
                 snap[rel] = f'{len(data)} bytes' if loose else hashlib.sha1(data).hexdigest()
@@ -274,6 +276,9 @@ def traceback_tail(err: str) -> str:
 NORMS: list[tuple[str, str]] = []
 # round O3: a group's files compared by size only (its LOOSE: path patterns)
 LOOSE: list[str] = []
+# round QW2: a group's file rewrite before its digest (its REKEY(case folder, relative path, bytes) -> bytes): a value
+# that by design follows something other than the case, e.g. texqa's cache keys, which hash texqa.py's source
+REKEY: list[Callable[[str, str, bytes], bytes]] = []
 
 
 def normed(text: str) -> str:
@@ -501,6 +506,7 @@ def main(argv: list[str]) -> int:
         LAD_SKIP = getattr(mod, 'LAD_SKIP', None)
         NORMS[:] = list(getattr(mod, 'NORMS', ()))
         LOOSE[:] = list(getattr(mod, 'LOOSE', ()))
+        REKEY[:] = list(getattr(mod, 'REKEY', ()))
         rows: list[Case] = mod.cases()
         keys = [r[0] for r in rows]
         if len(set(keys)) != len(keys):
