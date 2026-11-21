@@ -893,6 +893,15 @@ pub fn import(
 /// # Errors
 /// The text is not a value of the element's type.
 pub fn encode_value(file: &mut EditFile, e: &Element, text: &str) -> Result<Vec<u8>> {
+    encode_value_rounded(file, e, text).map(|(bytes, _)| bytes)
+}
+
+/// [`encode_value`] and whether a decimal had to be rounded to the nearest 4-byte value (`EncodeValue`'s `rounded`:
+/// the map editor's DBX inspector says so, as `DbxEditGUI` did; round GR4).
+///
+/// # Errors
+/// The text is not a value of the element's type.
+pub fn encode_value_rounded(file: &mut EditFile, e: &Element, text: &str) -> Result<(Vec<u8>, bool)> {
     let mut attributes = Vec::with_capacity(e.attributes.len());
     for &(k, v) in &e.attributes {
         attributes.push((file.table.s(k)?.to_owned(), file.table.s(v)?.to_owned()));
@@ -913,7 +922,8 @@ pub fn encode_value(file: &mut EditFile, e: &Element, text: &str) -> Result<Vec<
         key_x: String::new(),
         key_o: String::new(),
     };
-    imp.encode(e.kind, &x, Some(e), None, &Place::Text(&path))
+    let bytes = imp.encode(e.kind, &x, Some(e), None, &Place::Text(&path))?;
+    Ok((bytes, imp.report.rounded > 0))
 }
 
 #[cfg(test)]

@@ -528,6 +528,8 @@ pub struct EditorApp {
     pub close_asked: Option<String>,
     /// The user chose to close anyway.
     close_anyway: bool,
+    /// The DBX inspector's window (round GR4: `DbxEditGUI` folded in; [`crate::dbxpanel`]).
+    pub dbx: crate::dbxpanel::DbxPanel,
 }
 
 /// The folder new projects go to when none was chosen before: `Documents\BFBC2 Map Projects`.
@@ -613,6 +615,7 @@ impl EditorApp {
             generation: 0,
             close_asked: None,
             close_anyway: false,
+            dbx: crate::dbxpanel::DbxPanel::default(),
         })
     }
 
@@ -1057,6 +1060,7 @@ impl EditorApp {
                 let page = self.help.page;
                 self.help.show(page);
             }
+            Action::DbxInspector => self.dbx.open = true,
             Action::Export => {
                 if let Some(path) = self.view().and_then(|v| v.doc.as_ref()).map(|d| d.path.clone()) {
                     self.export
@@ -1732,6 +1736,21 @@ impl EditorApp {
         }
         if let Some(stage) = self.export.want_preview.take() {
             self.start_preview(&stage);
+        }
+        // round GR4: the DBX inspector; a field edit of the project's partition is the project's operation
+        let link = match &self.mode {
+            Mode::View(v) => Some(crate::dbxpanel::LevelLink {
+                lv: &v.lv,
+                bases: &v.bases,
+                doc: v.doc.as_ref(),
+            }),
+            _ => None,
+        };
+        let dbx_op = self.dbx.show(&ctx, &palette, &metrics, link.as_ref());
+        if let Some(op) = dbx_op
+            && let Mode::View(v) = &mut self.mode
+        {
+            v.commit(gpu, &palette, op, "");
         }
         let mut cancel = false;
         let Self {
