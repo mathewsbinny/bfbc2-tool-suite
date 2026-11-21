@@ -982,11 +982,23 @@ class Dice:
         """originals: backup suffixes an installer keeps of the stock bundles it patches ('.opfor-wake-orig'): where
         <bundle><suffix> exists, DICE's textures are read from it, not from the patched bundle - the WW2 award
         pictures added to ondemand_awards-00.fbrb passed as 'DICE's copy' of themselves, so a changed picture read
-        as a regression (2026-11-10)."""
+        as a regression (2026-11-10). Round DF2: a bundle some install holds in the game copy's install ledger is
+        read as it was before any install (gameledger.Ledger.original: the bottom layer's prior blob; a bundle an
+        install added where there was none is left out); the suffixes apply only to a bundle no ledger owner holds."""
         suite_paths.use('mesh-viewer')
         import meshview
+        from bfbc2core import gameledger
         bundles = []
         for _, b in meshview._bundles(opfor):
+            game = gameledger.find_game(b)
+            if game is not None:
+                led = gameledger.Ledger(game)
+                rel = os.path.relpath(b, game)
+                if led.holders(rel):
+                    first = led.original(rel)
+                    if first is not None:
+                        bundles.append(first)
+                    continue
             orig = next((b + s for s in originals if os.path.isfile(b + s)), None)
             bundles.append(orig or b)
         sig = [(b, os.path.getsize(b), int(os.path.getmtime(b))) for b in bundles]
