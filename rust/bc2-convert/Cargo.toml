@@ -14,6 +14,8 @@ thiserror.workspace = true
 rayon.workspace = true
 regex.workspace = true
 memchr.workspace = true
+# round GR3: the mesh viewer's index cache (meshview_index.pkl, a pickle) shared with the Python and bfbc2.exe
+bc2-pyrt.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
