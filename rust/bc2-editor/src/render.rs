@@ -112,13 +112,32 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    /// A device without a window (tests, screenshots): the system's adapter, else its software one.
+    /// A device without a window (tests, screenshots): the system's adapter, else its software one. One device per
+    /// process, made on the first call and shared by every later one (round HG1).
+    ///
+    /// **Why one.** Creating a Vulkan device on NVIDIA's driver (`nvoglv64.dll`, which serves Vulkan and OpenGL)
+    /// takes the driver's own lock and then loads a library, which needs Windows' loader lock; a thread that has used
+    /// the driver takes the loader lock when it exits and then, in the driver's `DllMain`, waits for the driver's
+    /// lock. A device made while such a thread exits deadlocks both, for good: the editor's tests did this two runs
+    /// in five on a loaded PC (each test made its own device on its own thread, and libtest's threads exit after
+    /// each test; a dump of the hung binary showed the exiting thread holding the loader lock in `DllMain` and the
+    /// other inside `wgpu_hal::vulkan::Adapter::open`'s `LoadLibraryExW`). Made once, no device is made while other
+    /// threads come and go. The instance has the primary backends only (Vulkan, Direct3D 12): the OpenGL one, never
+    /// used, loaded the driver's OpenGL side and ran a hidden-window thread per instance that exited with it.
     ///
     /// # Errors
     ///
-    /// No adapter or device.
+    /// No adapter or device (the same answer on every call).
     pub fn headless() -> Result<(Self, String), String> {
-        let instance = wgpu::Instance::default();
+        static SHARED: std::sync::OnceLock<Result<(Gpu, String), String>> = std::sync::OnceLock::new();
+        SHARED.get_or_init(Self::make_headless).clone()
+    }
+
+    fn make_headless() -> Result<(Self, String), String> {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::PRIMARY,
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
+        });
         let mut adapter = None;
         for fallback in [false, true] {
             if let Ok(a) = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
