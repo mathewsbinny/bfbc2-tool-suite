@@ -257,23 +257,30 @@ fn walk(app: &mut EditorApp, h: &mut Headless, lv: &str, fov: f64) {
             v.ground_below([x, t + 3.0, z], 10.0)
                 .is_some_and(|g| (g - t).abs() < 0.05)
         };
-        let start = v
+        // the most uneven of those (the walk climbs and descends): the spawns ranked by the height field's rise
+        // first (cheap), then the first that passes the ray test (21 rays through the level's collision each,
+        // slow in a debug build: testing every spawn took ~16 min on SP_01). The same spawn as max_by over the
+        // passing ones: reversed, then a stable sort, so ties pick the last as max_by does.
+        let rise = |p: &[f64; 3]| {
+            let hs: Vec<f64> = (0..=20)
+                .map(|k| hf.height(p[0] + f64::from(k), p[2] + 0.3 * f64::from(k)))
+                .collect();
+            hs.iter().copied().fold(f64::MIN, f64::max) - hs.iter().copied().fold(f64::MAX, f64::min)
+        };
+        let mut spawns: Vec<([f64; 3], f64)> = v
             .scene()
             .entities
             .iter()
             .filter(|e| e.category == "soldier spawn")
             .filter_map(bc2_scene::scene::Entity::position)
-            .filter(|p| (0..=20).all(|k| on_terrain(p[0] + f64::from(k), p[2] + 0.3 * f64::from(k))))
-            // the most uneven of those: the walk climbs and descends
-            .max_by(|a, b| {
-                let rise = |p: &[f64; 3]| {
-                    let hs: Vec<f64> = (0..=20)
-                        .map(|k| hf.height(p[0] + f64::from(k), p[2] + 0.3 * f64::from(k)))
-                        .collect();
-                    hs.iter().copied().fold(f64::MIN, f64::max) - hs.iter().copied().fold(f64::MAX, f64::min)
-                };
-                rise(a).total_cmp(&rise(b))
-            })
+            .map(|p| (p, rise(&p)))
+            .collect();
+        spawns.reverse();
+        spawns.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let start = spawns
+            .into_iter()
+            .map(|(p, _)| p)
+            .find(|p| (0..=20).all(|k| on_terrain(p[0] + f64::from(k), p[2] + 0.3 * f64::from(k))))
             .expect("a spawn on open terrain");
         let cam = Camera {
             target: start,
