@@ -3,7 +3,7 @@
 //!
 //! The editor's CPU ray (`bc2_editor::query::ray_hit_except`: the walk camera's ground below the feet every frame,
 //! placing on a surface, snapping) used to test every terrain triangle - two million on a 1024 x 1024 height field at
-//! stride 1 - and to measure each placed object's blueprint radius from all its triangles, for every ray. SP_01's walk
+//! stride 1 - and to measure each placed object's blueprint radius from all its triangles, for every ray. `SP_01`'s walk
 //! test spent minutes on it. Here:
 //!
 //! - [`TerrainGrid`]: the terrain mesh's triangles bucketed by their plan (x, z) bounds on a uniform grid of about
@@ -100,7 +100,10 @@ impl TerrainGrid {
         let cells = (placed as f64 / TRIS_PER_CELL).max(1.0);
         let mut cell = (w.max(PAD) * d.max(PAD) / cells).sqrt();
         // no side longer than MAX_SIDE cells
-        cell = cell.max(w / (MAX_SIDE - 1) as f64).max(d / (MAX_SIDE - 1) as f64).max(PAD);
+        cell = cell
+            .max(w / (MAX_SIDE - 1) as f64)
+            .max(d / (MAX_SIDE - 1) as f64)
+            .max(PAD);
         let side = |extent: f64| ((extent / cell).floor() as usize + 1).clamp(1, MAX_SIDE);
         let mut g = Self {
             x0: bounds[0],
@@ -216,12 +219,7 @@ impl TerrainGrid {
                 let ta = t0 + step * k as f64;
                 let tb = if k + 1 == pieces { t1 } else { ta + step };
                 let (ax, az, bx, bz) = (ox + dx * ta, oz + dz * ta, ox + dx * tb, oz + dz * tb);
-                add([
-                    ax.min(bx) - PAD,
-                    az.min(bz) - PAD,
-                    ax.max(bx) + PAD,
-                    az.max(bz) + PAD,
-                ]);
+                add([ax.min(bx) - PAD, az.min(bz) - PAD, ax.max(bx) + PAD, az.max(bz) + PAD]);
             }
         }
         out.sort_unstable();
@@ -242,12 +240,15 @@ pub fn radius_of(tris: &[Triangle]) -> f64 {
 /// The terrain grid of the mesh it was built from (that mesh's buffers' addresses and lengths).
 type Keyed = ((usize, usize, usize, usize), Arc<TerrainGrid>);
 
+/// A blueprint's radius, by its triangle list's address (the list held, so the address is not reused).
+type Radii = HashMap<usize, (Arc<Vec<Triangle>>, f64)>;
+
 /// A scene's ray structures, built when first asked for (see the module). Cloning a scene starts its clone's cache
 /// empty.
 #[derive(Default)]
 pub struct RayCache {
     terrain: Mutex<Option<Keyed>>,
-    radii: Mutex<HashMap<usize, (Arc<Vec<Triangle>>, f64)>>,
+    radii: Mutex<Radii>,
 }
 
 impl Clone for RayCache {
@@ -265,7 +266,12 @@ impl std::fmt::Debug for RayCache {
 impl RayCache {
     /// The grid of `mesh`, built on the first call and again when the mesh is another one.
     pub fn terrain(&self, mesh: &TerrainMesh) -> Arc<TerrainGrid> {
-        let key = (mesh.0.as_ptr() as usize, mesh.0.len(), mesh.1.as_ptr() as usize, mesh.1.len());
+        let key = (
+            mesh.0.as_ptr() as usize,
+            mesh.0.len(),
+            mesh.1.as_ptr() as usize,
+            mesh.1.len(),
+        );
         let mut slot = self.terrain.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some((k, g)) = slot.as_ref()
             && *k == key
@@ -291,7 +297,12 @@ impl RayCache {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::cast_precision_loss)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names
+)]
 mod tests {
     use super::*;
 
@@ -325,8 +336,14 @@ mod tests {
             let p = [origin[0] + dir[0] * t, origin[2] + dir[2] * t];
             for (i, tri) in m.1.iter().enumerate() {
                 let cs: Vec<[f64; 3]> = tri.iter().map(|&x| m.0[x as usize].map(f64::from)).collect();
-                let (lx, hx) = (cs.iter().map(|c| c[0]).fold(f64::MAX, f64::min), cs.iter().map(|c| c[0]).fold(f64::MIN, f64::max));
-                let (lz, hz) = (cs.iter().map(|c| c[2]).fold(f64::MAX, f64::min), cs.iter().map(|c| c[2]).fold(f64::MIN, f64::max));
+                let (lx, hx) = (
+                    cs.iter().map(|c| c[0]).fold(f64::MAX, f64::min),
+                    cs.iter().map(|c| c[0]).fold(f64::MIN, f64::max),
+                );
+                let (lz, hz) = (
+                    cs.iter().map(|c| c[2]).fold(f64::MAX, f64::min),
+                    cs.iter().map(|c| c[2]).fold(f64::MIN, f64::max),
+                );
                 if p[0] >= lx && p[0] <= hx && p[1] >= lz && p[1] <= hz {
                     assert!(c.binary_search(&(i as u32)).is_ok(), "triangle {i} under {p:?}");
                 }
@@ -359,7 +376,7 @@ mod tests {
         let g = TerrainGrid::new(&m);
         let c = g.candidates([100.0, 1.0, 100.0], [0.0, -1.0, 0.0]).unwrap();
         // the triangles touching vertex 5 always, the one naming vertex 999 never
-        assert!(!c.is_empty());
+        assert_ne!(c.len(), 0);
         assert!(c.iter().all(|&t| m.1[t as usize].contains(&5)));
         assert!(!c.contains(&((m.1.len() - 1) as u32)));
     }
