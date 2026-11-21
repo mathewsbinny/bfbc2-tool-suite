@@ -41,9 +41,12 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
      and pictures; Onslaught, menus and testrun. The map export's install side goes with it, and `rebuild_all`
      becomes a Rust step graph.
    - The process items of round P1 not finished there (see **Process** below).
-3. **R5d, the editor rendering's visual gaps:** Wake Island's black terrain cells, the sea under the carriers, the
-   sky pass, run-varying far-water pixels, game LODs and instancing, the whole terrain with LOD, labels occluded by
-   depth, faster Package loads.
+3. ~~**R5d, the editor rendering's visual gaps**~~ (done: Wake Island's black ground and the WW2 shores' ragged
+   edges - the terrain's height scale, the water's height map and the mask tiles spanning blocks of cells -, the sky
+   dome, mesh and terrain levels of detail, labels hidden behind the game frame, Package levels opened 4-12 x
+   faster). Left, with reasons in `rust/BENCHMARKS.md` "R5d": the instanced programs (`StreamInstancingFloat`), the
+   panoramic clouds' composite and `MinScreenArea` (capture), the haze over the scene that would turn Wake's deep sea
+   blue (the fog: RenderDoc, item 7), the far-water pixels (not reproduced in 400 runs).
 4. **PR1, the post-Rust improvements** (re-scoped 2026-11-20 by PR0 against S1, QW1 and audit AU2): stable test
    IDs, a determinism rule and two-seed check, one native-backend registry; one cache layer with content keys,
    restart points instead of whole payloads (and one BF1943 bundle reader), CT1-style memory fixes, one cull-tree
@@ -82,7 +85,6 @@ In priority order (above); the next rounds:
 | VW2 | the mode view layer (show / hide by game mode and Rush stage, on the project's mode layer data); time-of-day and weather switches (the weather states each level holds) in both views (Guadalcanal, Iwo Jima and Vietnam open in the game view since GW1); the spawn-time weather state switches (spec RNDR-WTHR-6); VW1's leftovers (overlays following project edits, damage and clear-area triggers, wall collision for the walk camera, the FOV and box-evaluator readings proved) |
 | GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (~~LevelDiff~~: EX1, done): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
-| R5d | the editor rendering's visual gaps (list above) |
 | PR1 | the post-Rust improvements, re-scoped (PR0, 2026-11-20; audit AU2 A1-A5, A8, A9, P4, P8, S2, S14), after RT3 and OPFOR in Rust, in three parts: **PR1a** stable test IDs (durations, memory and CI keyed by ID), determinism as a rule (two hash seeds checked, Rust hash order linted), one native-backend registry (the 24 `use_native` copies, the per-tool switches); **PR1b** one cache layer (one budget implementation, content keys, the caches outside the budget), restart points instead of the 16 GB of decompressed payloads and one BF1943 bundle reader in `bc2-formats` (the S1 restart points' Rust half), CT1-style memory fixes (the batch readers, NavKit regression's 15 GB, the terrain readers), one cull-tree model, one DBX document, `bc2-cli`'s tool logic in library crates with typed errors and the Python emulation kept to the edge, one worker pool, sounds decoded without an ffmpeg per sound; **PR1c** (before the release) round codes out of names, an installable package, one naming scheme, OPFOR's `wake_*` as `ww2_*`. Done earlier: stream packing and the per-level shader index (S1), the cache budget (E3p, D1), strict mode and superseded payloads (QW1); rebuild_all's step graph is OPFOR in Rust's |
 | Tests in Rust | the Python tests ported, with a synthetic test corpus generated from the specification |
 | OPFOR quality 2 | mypy baselines to 0, the tests baseline |
@@ -127,6 +129,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Merged | Result |
 |---|---|---|
+| R5d | 2026-11-21 | the game-accurate view's visual gaps: Wake Island's and Coral Sea's black ground (the height scale, the water's height map, mask tiles spanning 8 x 8 / 4 x 4 cells: the ragged WW2 shores too), the sky dome (`EnvironmentMain`), mesh LODs from the mesh sets' LOD settings and crack-free terrain LODs, labels hidden behind the game frame, Package levels through the bundle cache (Wake 17.7 s to 4.6 s cold, 1.4 s warm) |
 | VW1 | 2026-11-20 | the view toggles: effects (emitter spawn volumes), dynamic lights (point-light emitters) and sound emitters (min distance, falloff, sound areas), combat areas, capture areas and radii, spawn protection radii, all from the level's fields; the player's-eye walk camera (Alt+W); navmesh and cull tree modes checked on three levels (cull legend off the selection orange); collision per destruction state from the Havok per-part header with an up / down state stepper |
 | GW1 | 2026-11-20 | the game-accurate view finds a level's weather through its weather entity and the bundle stack (Guadalcanal and Iwo Jima open; all four WW2 levels draw their whole terrain), a default sky when a level has none |
 | EX1 | 2026-11-20 | every name of an export editable and checked together (level id, its folder, the server-browser name, the on-screen name and description per language; the black-screen and checksum rules in `mapexport check`; names in the project's log), Preview export (the stage read only beside the original, the same camera, T switches), the Diff panel (Compare with base / with level, filters, click-to-fly, tints and markers in the 3D view); LevelDiff folded in: `bfbc2.exe leveldiff` identical to LevelDiff.exe on 30 recorded cases, LevelDiff.exe retired |

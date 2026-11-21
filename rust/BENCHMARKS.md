@@ -6014,3 +6014,135 @@ per part); SP_01's 172: 0.002 / 0.001 s (40 split); the whole load 0.26 s on bot
 Screenshots (not in the repository): MP_005 flag B with capture areas, spawn checks, sounds and effects; the combat
 area; effects, sounds and lights; the player's eye; navmesh and cull tree; SP_01 lights and sounds, the guard tower's
 collision in each state, the player's eye; ONS_MP_004 navmesh and cull tree; Dark and Light.
+
+## R5d: the game-accurate view's visual gaps (2026-11-21, branch `rust-r5d`)
+
+`EDITOR_ARCHITECTURE.md` 3.11, "Phase 3b (R5d, done)"; spec RNDR-TERR-5, RNDR-WATER-2, RNDR-SKY-1 - 3, RNDR-LOD-1,
+RNDR-VIEW-1 - 2, TERR-VT-7. No Python replaced. Measured with `examples/render_probe.rs` (a level's live frame with
+sources left out, its near-black share, per-class HDR means, `--frames N` timings, `--dump` HDR for run-to-run
+comparisons), `examples/terrain_probe.rs` (a visual terrain's patch map, tiles and flags, cell heights against the
+water, each patch shader's programs and constants), `examples/entry_probe.rs` (any database entry's programs, key
+bytes, reflection, blocks; `PROBE_DUMP` writes the DXBC for `fxc /dumpbin`) and `examples/world_probe.rs` (a world's
+notes, weather fields, LOD settings). Development PC: GeForce RTX 4060 Laptop, Direct3D 11 hardware device.
+
+### Wake Island's black ground, the sea under the carriers, the ragged WW2 shores: three root causes
+
+Wake Island's lagoon view (`--view auto`, 1280 x 720) was 52.8 % near-black; dropping sources showed the black was the
+terrain under a water that drew almost nothing. Decoded:
+
+1. **The terrain's height scale** (RNDR-TERR-5). The patch pixel shaders take the world height as the height map's
+   sample times `heightmapWorldScaleY`; the view left the records' stored value, 500, in place. 500 is the range of
+   every stock height field read, but Wake's spans 0 - 1,000 m: BF1943's sea-floor layers (which darken by depth
+   below the water at 215 m) saw the island's beach and shallows about 100 m deep and drew them black. The engine
+   writes the range there (the vertex shader's `posScale.y` places the same height). Wake's `Wake_Grey` layer (12,803
+   cells, one constant black output) is DICE's / BF1943's own and lies 165.9 - 203.4 m: at least 11.6 m under the
+   water everywhere (`terrain_probe PROBE_HEIGHT=215`).
+2. **The water's height map** (RNDR-WATER-2). Wake's water (BF1943's ocean shader, OPFOR's `wake_water.py`) and DICE's
+   Vietnam water (`NAM_HaLongWaterShader`, `NAM_WaterGreen`) read the terrain's height map with
+   `heightmapWorldScaleXZ` / `OffsetXZ` / `ScaleY` (DICE's code: `(x + 0.5) * scale + offset`); the view bound no
+   height map and left the three at 0. Bound with the terrain's values, the lagoon draws as shallow green water over
+   sand.
+3. **The mask tiles span blocks of cells** (TERR-VT-7). A cell's mask flag is not "tiled" (8) but how many cells the
+   tile spans on a side: 8 or 4 (Wake holds both). The cells naming a tile form one aligned flag x flag block: on
+   DICE's MP_009 757 tiled masks name 51 tiles, MP_005 1,033 name 59, Wake 998 name 78, none outside its block. R5 to
+   GW1 stretched the whole tile over each cell, so each cell repeated the block's mask: the blocky sand and the ragged
+   cell-edged shores of the WW2 levels (GW1's leftover), and of DICE's own tiled layers. Each cell now reads its part
+   of the tile; DICE's MP_009 draws continuous roads and clearings.
+
+The open sea **is** in Wake's `VisualWater` (-4,236 .. 4,548 m at 215 m: the carriers stand on it; R5c's "no water"
+was a water that drew nothing). Past the reefs BF1943's water writes colour and alpha 0 over the black floor, so the
+deep sea stays dark until the haze over the scene (`EnvironmentHalfResMain`'s fog segments: the fog, item 7) is drawn.
+
+| level, view (1280 x 720) | near-black before | after |
+|---|---:|---:|
+| Wake Island, the lagoon (`auto`) | 52.8 % | 0.2 % |
+| Wake Island, 600 m out (deep sea in view) | 64.6 % | 53.3 % (the deep sea) |
+| Wake Island, the north beach | 49.0 % | 13.5 % (the deep sea) |
+| Coral Sea, `auto` / 900 m out | 10.2 % / 3.1 % | 0.6 % / 0.5 % |
+| Guadalcanal, Iwo Jima `auto` | 0.1 %, 0.5 % | 0.1 %, 0.4 % |
+| MP_005 west shore / `auto`, SP_01 `auto` | 0.1 % / 1.9 %, 42.3 % | the same (stock height fields span 500 m) |
+
+### The sky (RNDR-SKY-1 - 3)
+
+DICE's `Systems/Weather/Shaders/Surface/EnvironmentMain` drawn on a unit dome scaled to 0.9 x `g_viewDistance`
+(4,000 m, the views' far plane) around the camera, first of the blended draws (after the depth pass it reads), its
+main-pass variant by the panoramic textures present; the constants from the weather state's `Sky`, `Sun` and
+`Clouds` by name. MP_005 west shore: 52,098 background pixels (the fog colour) before, 0 after; the top row's mean HDR
+(0.266, 0.380, 0.588). The panoramic clouds are left out: with the data's values (`PcbmMultiplyAddAlpha`, threshold
+0.3, the texture sRGB at 0.17 on average) they draw a black band the game does not show (RNDR-SKY-3). Wake Island
+keeps BF1943's own skydome mesh (a placed object), now over a blue sky instead of the fog colour.
+
+### Levels of detail (RNDR-LOD-1, RNDR-VIEW-2)
+
+Every mesh set names a `MeshLodSettingsAsset` with `LodDistance0..4` (MP_005: 32 different settings over its meshes,
+2 - 4 levels each): level k is drawn from `LodDistance(k-1)` to `LodDistance(k)`, one live source per level with its
+distance band. Meshes with alpha-tested or blended parts keep level 0 (the vegetation's far levels are thin cards:
+`mebush_01` LOD 1 54 indices; with them switched, MP_005's alpha-tested pixels fell 13,271 to 1,523 in the `auto`
+view). Terrain patches: every sample within 200 m, then every 2nd / 4th / 8th sample at each doubling, each level's
+outer edges whole (one shared index buffer of every level; `Step::range`): no cracks.
+
+| view (1600 x 950, sky on) | draws, full -> LOD | build, ms | submit, ms | GPU, ms |
+|---|---:|---:|---:|---:|
+| MP_005 west shore | 12,629 -> 11,859 | 6.81 -> 6.60 | 3.94 -> 3.63 | 9.51 -> 9.33 |
+| MP_005 `auto` | 9,036 -> 8,387 | 5.27 -> 5.04 | 2.79 -> 2.51 | 1.56 -> 1.25 |
+| SP_01 `auto` | 11,632 -> 11,500 | 5.56 -> 5.78 | 3.68 -> 3.78 | 8.76 -> 8.70 |
+| SP_01 overview (1,700 m back) | 28,199 -> 27,684 | 12.70 -> 13.48 | 7.80 -> 8.00 | 2.12 -> 1.81 |
+| Wake Island `auto` | 6,709 -> 6,593 | 3.41 -> 3.57 | 2.39 -> 2.27 | 6.40 -> 6.28 |
+| Wake Island 600 m out | 17,618 -> 17,311 | 7.59 -> 8.50 | 4.93 -> 5.06 | 2.97 -> 2.71 |
+| NAM_MP_002CQ `auto` | 4,208 -> 4,197 | 2.27 -> 2.30 | 1.48 -> 1.44 | 4.07 -> 4.22 |
+
+Medians of 12 frames, the camera turning 0.05 degrees a frame, the GPU waited for (`Device::finish`). On MP_005's
+wide view (640 x 360, `tests/r5d.rs`) the terrain's indices fall 10.7 M to 1.7 M and the objects' 6.2 M to 2.9 M, but
+the frame barely changes: the views are bound by DICE's pixel shaders (the patch shaders' per-layer blends), not by
+vertices, and the draw count is unchanged by levels (the instanced programs, `StreamInstancingFloat`, would cut it;
+not done). `tests/whole_terrain.rs` with levels: every sampled terrain pixel still drawn (no crack), 95 % or more
+within 2 m of the height field (98 % in full).
+
+### Labels hidden behind the game frame (RNDR-VIEW-1)
+
+After each drawn frame the game view reads its depth back (`Device::read_depth`: 2.1 - 2.6 ms at 1600 x 950, the
+whole depth-stencil copied; only when the frame is drawn again) and `GameView::hidden` tests a label's point against
+the 3 x 3 pixels around it. MP_005's harbour view: 93 gameplay labels seen, 2 behind the buildings and hills.
+
+### Package loads
+
+Each round's bundles are read at once through the suite's bundle cache (`fbrb::read_many`: the in-process session,
+and a large bundle read twice written whole to the shared disk cache inside its one budget). Wake Island's 11 rounds
+read the 340 MB level bundle 11 times from its start before; the rounds' bundles now in parallel and from the cache:
+
+| level | before (R5c's read: one streamed pass a bundle, one after another) | cache off (parallel only) | cold cache | warm |
+|---|---:|---:|---:|---:|
+| Wake Island | 17.65 s | 11.9 s | 4.60 s (writes 1.7 GB of payloads) | 1.43 s |
+| Coral Sea | 13.84 s | | | 0.85 s |
+
+The same bytes as a plain read (`tests/r5d.rs::package_reads_through_the_bundle_cache_give_the_plain_bytes`);
+`BC2_RENDER_UNCACHED=1` reads as before.
+
+### The far-water pixels
+
+R5c's run-to-run differences at MP_005's west shore: 2 pixels (294 / 295, 411; 4.7e-4 in colour, the same depth and
+alpha) differed in 2 of 68 runs, then in none of 400 (200 one after another, 120 as two processes at once, 80 more);
+a hash of every CPU-side input of the frame (the steps, the constant arena, the draws' programs, textures, samplers,
+vertex and index data, the texture bytes) was the same in all 400, so the CPU side is deterministic. Not reproduced
+since, cause not settled. One latent hazard of the same family as R5c's fix closed: the device's material cache was
+keyed by a prepared mesh's address without keeping the mesh (a dropped mesh's address could hand a new mesh its
+material); it keeps it now.
+
+### Screenshots (not in the repository)
+
+`shots\before_*` / `shots\fix2_*` (`render_probe`, main against this branch, the same views on Wake Island, Coral
+Sea, Guadalcanal, Iwo Jima, MP_005, SP_01), `shots_editor\before` / `shots_editor\after` (the editor's game view in
+Dark and Light: MP_005's harbour and warehouses, the four WW2 levels; `r5d_game_view_dark` / `_light` with the sky
+and the labels), `probe\wake_top_v0` / `wake_top2_v0` (Wake's sand and shores from above, before and after the mask
+tiles), `probe\mp009_after_v0` (DICE's MP_009 terrain, continuous).
+
+### Tests
+
+`cargo test --release -p bc2-render`: 31 unit tests (new: `terrain::tests::patch_levels_cover_the_patch_and_keep_full_edges`,
+`sky::tests` x3, `frame::tests::a_point_behind_drawn_depth_is_occluded`) and 14 integration tests (new
+`tests/r5d.rs`: the mask blocks and continuous patches on MP_009 / MP_005 / Wake, Wake's and Coral Sea's ground, the
+sky, the levels of detail, the cached Package reads; `whole_terrain::the_whole_terrain_is_drawn_with_levels_of_detail`).
+`cargo test --release -p bc2-editor --test editor`: new `game_view_r5d` (the sky in the editor, labels behind the
+frame). `tests/live.rs` keeps every patch in full (`Options::exact`) and draws no sky: the live list against R5b's
+per-frame list, bit for bit as before; the editor's `game_view_live` compares like with like (shared against copied,
+an edit against a fresh load) with the sky and the levels on, still bit for bit.
