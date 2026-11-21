@@ -2,6 +2,7 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
 
   python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] [--mem GB] [--plan] [--times F]
   python run_tests.py quick --no-game [--ci-steps] [-j N]
+  python run_tests.py --help   this text (an argument the runner does not know is an error, exit code 2)
 
   --no-game    only the quick entries that need nothing but the checkout (CI, .github/workflows/checks.yml): no game
                copy, OPFOR folder, BF1943 / Xbox copies or graphics card; the others (NOT_GAME_FREE) are named with
@@ -166,6 +167,8 @@ def tests():
         ('test runner: a failure printed on any console encoding', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_runner_output.py')]),
         ('test runner: tests side by side (resources, failures, exit code, output per test)', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_runner_parallel.py')]),
+        ('test runner: its command line (--help, unknown arguments run nothing)', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_runner_args.py')]),
         ('lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
         ('types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
         ('core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),
@@ -537,6 +540,7 @@ NEEDS = {
     'specification: rule index and citations (spec/trace.py --check)': need(),
     'test runner: a failure printed on any console encoding': need(),
     'test runner: tests side by side (resources, failures, exit code, output per test)': need(cpu=2),
+    'test runner: its command line (--help, unknown arguments run nothing)': need(),
     'lint (ruff check, every folder)': need(cpu=2),
     'types (mypy, every folder)': need(mem=1, cargo='r'),
     'core edges (terrain / water names, errors in threads)': need(),
@@ -1164,8 +1168,46 @@ def print_plan(tier, jobs, slots, cpus, mem, source, known):
     print('(from durations measured one at a time: tests side by side run somewhat slower than this)')
 
 
+FLAGS = ('--list', '--plan', '--no-game', '--ci-steps')
+VALUED = {'--only': str, '-j': int, '--jobs': int, '--cpus': int, '--mem': float, '--times': str}
+HELP = ('-h', '--help', '/?')
+
+
+def bad_arguments(argv):
+    """What is wrong with the command line in words, else None (round RT3: an argument the runner does not know -
+    '--help' among them - was ignored before, so `run_tests.py --help` ran the quick tier)."""
+    args, i, tiers = argv[1:], 0, []
+    while i < len(args):
+        a = args[i]
+        if a in TIERS:
+            tiers.append(a)
+        elif a in VALUED:
+            if i + 1 >= len(args):
+                return f'{a} needs a value'
+            try:
+                VALUED[a](args[i + 1])
+            except ValueError:
+                return f'{a} takes {"a whole number" if VALUED[a] is int else "a number"}, not {args[i + 1]!r}'
+            i += 1
+        elif a not in FLAGS:
+            return f'unknown argument {a!r}'
+        i += 1
+    if len(tiers) > 1:
+        return f'one tier at a time, not {" and ".join(tiers)}'
+    return None
+
+
 def main(argv):
     safe_console()
+    if any(a in HELP for a in argv[1:]):
+        print(__doc__.rstrip())
+        return 0
+    wrong = bad_arguments(argv)
+    if wrong:
+        print(f'run_tests: {wrong}\nusage: python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] '
+              f'[--cpus N] [--mem GB] [--plan] [--times F] [--no-game] [--ci-steps]   (--help: the whole text)',
+              file=sys.stderr)
+        return 2
     tier = next((a for a in argv[1:] if a in TIERS), 'quick')
     only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
     chosen = [x for x in tests() if TIERS.index(x[1]) <= TIERS.index(tier) and (only is None or only in x[0].lower())]
