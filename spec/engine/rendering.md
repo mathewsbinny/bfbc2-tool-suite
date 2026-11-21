@@ -378,12 +378,67 @@ Most level partitions hold `GameSharedResources.WeatherStateEntityData` instance
 `State`, `FadeTime`, `StartTransitionOnSpawn`); in 34 of 43 levels read (37 prepared, 2 Package, OPFOR's 4 WW2),
 the first enabled one with `StartTransitionOnSpawn` true names a `State` (Coral Sea 4, `coral_sea`, where its
 settings say 0; MP_005 2; SP_008_B 36, more states than its system has, so such entities belong to scripted logic
-too). Whether the engine applies such a transition as the level loads, and which entity wins when several do, is
-open (no capture, no exe trace): the suite's view draws the settings' `ActiveState` and notes the transition.
+too). Research round WX0 (all 83 levels): 70 have such a switch, and in 45 it names another state than `ActiveState`;
+the `ActiveState` placeholders (`default`, `state1`, `deafult`) are dark or unlit by value, so the switch's state is
+what players see. Whether the engine applies the transition as the level loads, and which entity wins when several
+do, is still open (no capture, no exe trace). Since round VW2 the editor's game-accurate view opens on the switch's
+state (MP_005: `day_1`, not `default`) and notes it, and an export sets both (RNDR-WTHR-8).
 
 [test: rust/bc2-render/src/weather.rs::weather_entities_and_spawn_states_read_from_a_partition]
+[test: rust/bc2-editor/tests/vw2.rs::game_view_opens_on_the_spawn_switch]
+[test: rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it]
 [data: weather_refs.rs's run on OPFOR's game copy and prepared levels: the first spawn-transition State per level, printed beside the drawn state]
+[data: WX0's inventory of 83 levels: 70 with an enabled spawn switch, 45 naming another state than ActiveState]
 [doc: rust/bc2-render/src/weather.rs:163-179]
+
+### RNDR-WTHR-7: A state's look from its values
+
+Status: **verified** · Variants: PC
+
+A weather state's look is its values: the key light (colour times intensity, RNDR-WTHR-2) and the sky (top) colour
+light the ground; the post-process exposes the frame (`MiddleGray` over its luminance, within `MinExposure` ..
+`MaxExposure`) and tonemaps it. A grey ground lit so predicts how a state draws: on MP_002's seven states the
+game-accurate view's frames follow the prediction's brightness (Pearson 0.86) and its colour (blue over red, Spearman
+0.79); the Onslaught night (`ons_mp_002_night`: key (0.17, 0.46, 0.99) x 1, middle grey 0.02, minimum exposure 0) is a
+third of midday's brightness and blue. The editor's simplified view tints its scene-lit colours by the prediction
+against a neutral day.
+
+[code: rust/bc2-render/src/weather.rs:415-447] [code: rust/bc2-render/src/world.rs:338-370]
+[test: rust/bc2-editor/tests/vw2.rs::weather_states_in_both_views]
+
+### RNDR-WTHR-8: An exported level's weather: ActiveState and the spawn switch together, in partitions of its own
+
+Status: **verified** · Variants: PC
+
+To start a level in another state the suite's export sets the settings' `ActiveState` and the first enabled
+spawn switch's `State` to it (a level without a switch: `ActiveState` alone), in copies under `weather/<level>/` in
+the level's own bundle: the settings (and, for a placed weather entity, its blueprint, the placement re-pointed); the
+base's stock partitions, shared with its other modes, are never changed. Another level's state is appended to a copy
+of the system (the level keeps its Setup: its sky panorama and clouds) or the donor's whole system is swapped in (its
+sky); either is renamed under the level's folder with new guids, so no donor name can collide with the level's. A
+system the export writes has its compiled `WeatherSystem` resource beside it (`<system>.res`, 4 bytes, 72 - the value
+of all 28 of DICE's systems, whatever their state count). The other state entities (round end, scripted) keep their
+indices, which stay right for an appended state and change meaning for a swapped system (listed in the report).
+Untested in game: whether the engine starts in the state (RNDR-WTHR-6).
+
+[code: rust/bc2-levelwrite/src/weather.rs:546-815] [code: rust/bc2-levelwrite/src/weather.rs:969-1060]
+[test: rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it]
+[data: examples/vw2_canaries.rs on OPFOR's game copy: six canaries, each stage against its baseline byte for byte but the intended changes, every mapexport check line passing; OPFOR's mapedit_install --apply and --revert on a scratch copy of the shared files, back byte for byte]
+[data: WX0: the WeatherSystem resource of all 28 systems is 4 bytes, value 72]
+
+### RNDR-WTHR-9: Night: DICE's one night state as the template
+
+Status: **verified** · Variants: PC
+
+BFBC2 ships one night state, `weather/r_mp02/states/ons_mp_002_night` in MP_002's system (the Onslaught Package's
+`Package\levels\mp_002\level-00.fbrb`). Nothing baked depends on the sun (WX0): a night needs only the state's values.
+The suite's night export appends it to the level's system, scales the state's `ReflectionEnvmapScale` down (the level's
+reflection cube is a capture of the day sky) and its panoramic layer's `Trancparency` (DICE's spelling: the level's own
+day panorama, darkened). Lamps are point-light effect emitters (`ActAsPointLight`) placed with the editor's tools,
+never by the export. Night and rain exports are off by default and marked not yet seen in game.
+
+[code: rust/bc2-levelwrite/src/weather.rs:50-62] [code: rust/bc2-levelwrite/src/weather.rs:856-890]
+[test: rust/bc2-levelwrite/tests/vw2.rs::the_night_template_resolves]
 
 ### RNDR-LIGHT-1: Baked occlusion, irradiance volumes and Enlighten instead of lightmaps
 
