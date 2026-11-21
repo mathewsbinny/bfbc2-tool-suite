@@ -389,6 +389,14 @@ impl ViewState {
         let (meshes, lines) = self.nav_look(palette);
         look.meshes = meshes;
         look.overlay = lines;
+        // round VW1: the overlays the display's toggles turn on (read once; they replace the outlines they cover)
+        if self.overlays.is_none() {
+            self.overlays = Some(crate::overlays::load(self.scene(), &self.bases));
+        }
+        if let Some(o) = &self.overlays {
+            look.skip_shapes = o.covered.iter().copied().collect();
+            look.overlay.extend(o.lines(&self.gpu_scene.display.overlays, palette));
+        }
         match mode {
             ViewMode::Navmesh => {
                 self.mode_note = match &self.navs.loaded {
@@ -406,20 +414,27 @@ impl ViewState {
                     self.cull = Some(viewmodes::cull_view(self.scene(), &self.bases));
                 }
                 if let Some(c) = &self.cull {
+                    // round VW1: each slot in the 3D view's status colours (made for the terrain), its own too
+                    for &k in &c.own {
+                        look.tint.insert(k, palette.view_status_ok);
+                    }
                     for &k in &c.unslotted {
-                        look.tint.insert(k, palette.status_warn);
+                        look.tint.insert(k, palette.view_status_warn);
                     }
                     for &k in &c.shared {
-                        look.tint.insert(k, palette.status_error);
+                        look.tint.insert(k, palette.view_status_error);
                     }
                     look.overlay.extend(
                         c.leaves
                             .iter()
                             .take(4000)
                             .flat_map(|s| viewmodes::sphere_lines(*s))
-                            .map(|s| (s, palette.status_info)),
+                            .map(|s| (s, palette.view_status_info)),
                     );
-                    self.mode_note = format!("Cull tree: {} (orange: no slot, red: a shared slot)", c.source);
+                    self.mode_note = format!(
+                        "Cull tree: {} (green: a slot of its own, yellow: no slot, red: a shared slot; blue: the leaves' spheres)",
+                        c.source
+                    );
                 }
             }
             ViewMode::Collision => {
@@ -428,6 +443,48 @@ impl ViewState {
             _ => self.mode_note.clear(),
         }
         self.gpu_scene.look = look;
+    }
+
+    /// The surface's height below `from` within `depth` (the walk's ground: terrain and collision, the objects
+    /// shown).
+    #[must_use]
+    pub fn ground_below(&self, from: V3, depth: f64) -> Option<f64> {
+        let skip = |k: usize| self.doc.as_ref().is_some_and(|d| !d.shown(k));
+        query::ray_hit_except(self.scene(), from, [0.0, -1.0, 0.0], &skip)
+            .filter(|h| from[1] - h.point[1] <= depth)
+            .map(|h| h.point[1])
+    }
+
+    /// Starts the player's-eye camera below where the 3D view looks (round VW1).
+    pub fn start_walk(&mut self) {
+        let Some(cam) = self.viewports.get(&Projection::Perspective).map(|v| v.camera) else {
+            return;
+        };
+        let soldier = crate::walk::soldier(self.scene(), &self.bases);
+        let w = crate::walk::Walk::start(&cam, soldier, |p, d| self.ground_below(p, d));
+        self.message = format!(
+            "Player's eye: eye {:.2} m, field of view {:.1} degrees vertical (W A S D walk, drag looks, Shift sprints, C \
+             crouches, Esc returns) - {}",
+            w.eye_height(),
+            w.soldier.fov(),
+            w.soldier.source
+        );
+        if let Some(vp) = self.viewports.get_mut(&Projection::Perspective) {
+            vp.camera = w.camera();
+            vp.dirty = true;
+        }
+        self.walk = Some(w);
+    }
+
+    /// Ends the player's-eye camera: the 3D view's camera as it was before.
+    pub fn end_walk(&mut self) {
+        if let Some(w) = self.walk.take() {
+            if let Some(vp) = self.viewports.get_mut(&Projection::Perspective) {
+                vp.camera = w.previous;
+                vp.dirty = true;
+            }
+            self.message = "Back to the previous camera".into();
+        }
     }
 
     /// The tools' actions; `false` for actions that are not theirs.
@@ -497,6 +554,61 @@ impl ViewState {
                 self.gpu_scene.display.reset_overrides();
                 self.refresh(gpu, palette);
                 self.message = "View overrides cleared".into();
+            }
+            // round VW1: the overlays, the destruction-state stepper, the player's-eye camera
+            Action::ToggleOverlay(o) => {
+                let t = &mut self.gpu_scene.display.overlays;
+                let on = !t.on(o);
+                t.set(o, on);
+                self.apply_look(palette);
+                self.refresh(gpu, palette);
+                let n = self.overlays.as_ref().map_or(0, |x| x.count(o));
+                self.message = format!(
+                    "{}: {} ({n} in this level)",
+                    o.name(),
+                    if on { "shown" } else { "hidden" }
+                );
+            }
+            Action::ToggleOverlayLabels => {
+                let t = &mut self.gpu_scene.display.overlays;
+                t.labels = !t.labels;
+                self.message = format!("Overlay labels {}", if t.labels { "shown" } else { "hidden" });
+                self.redraw();
+            }
+            Action::StepState(next) => {
+                let mut stepped = Vec::new();
+                for &k in &self.selection {
+                    let Some(e) = self.scene().entities.get(k) else {
+                        continue;
+                    };
+                    let steps = crate::display::Destruction::steps(bc2_render::simple::stage_count(
+                        self.gpu_scene.components(e),
+                    ));
+                    if steps.is_empty() {
+                        continue;
+                    }
+                    let now = self.gpu_scene.display.state_of(e);
+                    stepped.push((e.guid.to_lowercase(), now.step(&steps, if next { 1 } else { -1 })));
+                }
+                let d = &mut self.gpu_scene.display;
+                for (g, s) in &stepped {
+                    if *s == crate::display::Destruction::Intact {
+                        d.states.remove(g);
+                    } else {
+                        d.states.insert(g.clone(), *s);
+                    }
+                }
+                self.refresh(gpu, palette);
+                if let Some((_, s)) = stepped.last() {
+                    self.message = format!("Destruction state: {}", s.name());
+                }
+            }
+            Action::PlayerEye => {
+                if self.walk.is_some() {
+                    self.end_walk();
+                } else {
+                    self.start_walk();
+                }
             }
             Action::SetViewMode(m) => {
                 self.view_mode = m;
@@ -1542,6 +1654,33 @@ impl Tabs<'_> {
                                 if ui.selectable_label(d.invisible == i, i.name()).clicked() {
                                     invisible = Some(Action::SetInvisibleAs(i));
                                 }
+                            }
+                            // round VW1: the overlays, each a toggle, their labels, the player's-eye camera
+                            ui.separator();
+                            ui.label(RichText::new("Overlays").color(p.ink_muted));
+                            let t = d.overlays;
+                            for o in crate::overlays::Overlay::ALL {
+                                let mut on = t.on(o);
+                                if ui.checkbox(&mut on, o.name()).on_hover_text(o.help()).changed() {
+                                    invisible = Some(Action::ToggleOverlay(o));
+                                }
+                            }
+                            let mut labels = t.labels;
+                            if ui.checkbox(&mut labels, "Overlay labels").changed() {
+                                invisible = Some(Action::ToggleOverlayLabels);
+                            }
+                            ui.separator();
+                            let walking = self.view.walk.is_some();
+                            let mut eye = walking;
+                            if ui
+                                .checkbox(&mut eye, "Player's eye camera  (Alt+W)")
+                                .on_hover_text(
+ "A soldier's eye height and the game's field of view, walking on the ground: W A S D, drag to look, Shift \
+                                     sprints, C crouches, Esc returns",
+                                )
+                                .changed()
+                            {
+                                invisible = Some(Action::PlayerEye);
                             }
                             ui.separator();
                             if ui

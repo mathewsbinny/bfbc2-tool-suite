@@ -448,6 +448,9 @@ pub struct Palette {
     pub view_status_error: Color32,
     pub view_status_info: Color32,
     pub view_link: Color32,
+    pub view_fx_effect: Color32,
+    pub view_fx_light: Color32,
+    pub view_fx_sound: Color32,
     pub view_nav_main: Color32,
     pub view_nav_ground: Color32,
     pub view_nav_ground_dice: Color32,
@@ -531,6 +534,9 @@ impl Palette {
             view_status_error: c("view-status-error"),
             view_status_info: c("view-status-info"),
             view_link: c("view-link"),
+            view_fx_effect: c("view-fx-effect"),
+            view_fx_light: c("view-fx-light"),
+            view_fx_sound: c("view-fx-sound"),
             view_nav_main: c("view-nav-main"),
             view_nav_ground: c("view-nav-ground"),
             view_nav_ground_dice: c("view-nav-ground-dice"),
@@ -586,6 +592,9 @@ impl Palette {
             ("view-status-error", self.view_status_error),
             ("view-status-info", self.view_status_info),
             ("view-link", self.view_link),
+            ("view-fx-effect", self.view_fx_effect),
+            ("view-fx-light", self.view_fx_light),
+            ("view-fx-sound", self.view_fx_sound),
         ]
         .into_iter()
         .chain(self.nav_entries())
@@ -920,7 +929,7 @@ mod tests {
         let t = tokens();
         let raw: Value = serde_json::from_str(TOKENS_JSON).unwrap();
         assert_eq!(t.colors.len(), raw["color"]["tokens"].as_array().unwrap().len());
-        assert_eq!(t.colors.len(), 76);
+        assert_eq!(t.colors.len(), 79);
         let styles: usize = raw["type"]["groups"]
             .as_array()
             .unwrap()
@@ -1178,6 +1187,9 @@ mod tests {
                 ("view-status-error", p.view_status_error),
                 ("view-status-info", p.view_status_info),
                 ("view-link", p.view_link),
+                ("view-fx-effect", p.view_fx_effect),
+                ("view-fx-light", p.view_fx_light),
+                ("view-fx-sound", p.view_fx_sound),
             ]
             .into_iter()
             .chain(p.nav_entries())

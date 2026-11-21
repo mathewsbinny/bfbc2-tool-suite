@@ -116,6 +116,14 @@ pub enum Action {
     SetInvisibleAs(InvisibleAs),
     /// Clears every object's and blueprint's display override, level of detail and state.
     ResetViewOverrides,
+    /// Round VW1: an overlay of the view on or off (effects, lights, sounds, the gameplay areas).
+    ToggleOverlay(crate::overlays::Overlay),
+    /// The overlays' labels on or off.
+    ToggleOverlayLabels,
+    /// The selected destructible objects' next (`true`) or previous destruction state.
+    StepState(bool),
+    /// The player's-eye camera on or off (Esc also returns to the previous camera).
+    PlayerEye,
     /// A terrain or vegetation brush (stubs until their rounds).
     Brush(Brush),
     /// Sets the team of the selected gameplay objects (1, 2; 0 neutral).
@@ -774,6 +782,49 @@ pub fn registry() -> Vec<Entry> {
         None,
         "Clears every object's and blueprint's Show as, level of detail and destruction state",
     ));
+    // round VW1: the overlays, the destruction-state stepper and the player's-eye camera
+    for o in crate::overlays::Overlay::ALL {
+        out.push(e(
+            Action::ToggleOverlay(o),
+            match o {
+                crate::overlays::Overlay::Effects => "Show or hide effects",
+                crate::overlays::Overlay::Lights => "Show or hide lights",
+                crate::overlays::Overlay::Sounds => "Show or hide sounds",
+                crate::overlays::Overlay::CombatAreas => "Show or hide combat areas",
+                crate::overlays::Overlay::CaptureAreas => "Show or hide capture areas",
+                crate::overlays::Overlay::SpawnProtection => "Show or hide spawn protection",
+            },
+            None,
+            o.help(),
+        ));
+    }
+    out.extend([
+        e(
+            Action::ToggleOverlayLabels,
+            "Show or hide overlay labels",
+            None,
+            "The overlays' labels: each light's radius and colour, each sound's distance, each area's name and team",
+        ),
+        e(
+            Action::StepState(false),
+            "Previous destruction state",
+            key(none, Key::PageUp),
+            "The selected destructible objects one state back towards intact (their mesh and, where split, collision)",
+        ),
+        e(
+            Action::StepState(true),
+            "Next destruction state",
+            key(none, Key::PageDown),
+            "The selected destructible objects one state on towards destroyed, then every part",
+        ),
+        e(
+            Action::PlayerEye,
+            "Player's eye camera",
+            key(Modifiers::ALT, Key::W),
+ "The 3D view at a soldier's eye (the game's height and field of view): W A S D walk on the ground, the mouse \
+             looks (drag), Shift sprints, C crouches, Esc returns to the previous camera",
+        ),
+    ]);
     for t in crate::nav::NavTool::ALL {
         out.push(e(
             Action::NavTool(t),

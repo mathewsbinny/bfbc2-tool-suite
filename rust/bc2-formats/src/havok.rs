@@ -538,6 +538,161 @@ pub fn triangles(data: &[u8]) -> Result<Option<Vec<Triangle>>> {
     Ok((!tris.is_empty()).then_some(tris))
 }
 
+/// The class of a storage extended mesh shape: its subparts' records and their storages.
+pub const STORAGE_SHAPE: &str = "hkpStorageExtendedMeshShape";
+
+/// [`Parts::part_of`]'s value for a triangle of no part (a convex shape's box, a subpart no shape names).
+pub const NO_PART: u16 = u16::MAX;
+
+/// The destructible parts of a blueprint's Havok asset (round VW1): the part names the file's header lists and the
+/// part of each triangle [`triangles`] gives.
+///
+/// BC2's `*_Havok.res` starts with a header before the packfile: the part count (twice), each part's name hash
+/// ([`part_hash`] of `PartInfoData.Name`: `part_1`, `part_1_dest`, `ruin_downed`, in the `HavokAsset` partition's
+/// `PartInfoDatas` order), each part's box and its material bytes. Each `hkpStorageExtendedMeshShape`'s subpart
+/// record (0x40 bytes, Havok 5.5) holds its part's index at +0x20; the record's triangle count (+0x10) matches its
+/// storage's index groups, which this reader checks before trusting the index. `SP_01`'s guard tower: two rigid bodies,
+/// 28 subparts, indices 0 - 5 for its six parts, every subpart inside the header's box of its part.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Parts {
+    /// The part-name hashes, by part index.
+    pub hashes: Vec<u32>,
+    /// Per triangle of [`triangles`] (the same order and count): its part index, or [`NO_PART`].
+    pub part_of: Vec<u16>,
+}
+
+impl Parts {
+    /// Whether the collision is split per part: the header names parts and the triangles fall in more than one.
+    #[must_use]
+    pub fn split(&self) -> bool {
+        let mut seen = self.part_of.iter().filter(|&&p| p != NO_PART);
+        let Some(first) = seen.next() else { return false };
+        !self.hashes.is_empty() && seen.any(|p| p != first)
+    }
+
+    /// The part index of a part named `name` (case does not matter), if the header lists it.
+    #[must_use]
+    pub fn index_of(&self, name: &str) -> Option<u16> {
+        let h = part_hash(name);
+        self.hashes
+            .iter()
+            .position(|&x| x == h)
+            .and_then(|k| u16::try_from(k).ok())
+    }
+}
+
+/// The hash BC2's Havok header gives a part's name: `h = h * 33 ^ byte` from 5381 over the lower-case name
+/// (`part_1` is `0x712913DC`, `ruin` `0x7C78B6A5`).
+#[must_use]
+pub fn part_hash(name: &str) -> u32 {
+    name.bytes()
+        .map(|b| b.to_ascii_lowercase())
+        .fold(5381u32, |h, b| h.wrapping_mul(33) ^ u32::from(b))
+}
+
+/// The header's part-name hashes: the count twice, then the hashes, all before the packfile.
+fn header_hashes(data: &[u8], base: u64) -> Vec<u32> {
+    let word = |at: usize| -> Option<u32> {
+        data.get(at..at + 4)
+            .and_then(|b| <[u8; 4]>::try_from(b).ok())
+            .map(u32::from_le_bytes)
+    };
+    let (Some(n), Some(again)) = (word(0), word(4)) else {
+        return Vec::new();
+    };
+    if n == 0 || n != again || n > 4096 || 8 + 4 * u64::from(n) > base {
+        return Vec::new();
+    }
+    (0..n as usize).filter_map(|k| word(8 + 4 * k)).collect()
+}
+
+/// Each storage's part index, from its shape's subpart records (Havok 5.5 only: the layout read).
+fn storage_parts(pf: &Packfile<'_>, data: &[u8], parts: usize) -> HashMap<u64, u16> {
+    let nonzero = |p: Option<u64>| p.filter(|&p| p != 0);
+    let mut out = HashMap::new();
+    if parts == 0 || !pf.contents_version.starts_with("Havok-5.5") {
+        return out;
+    }
+    for s in pf.objects_of(STORAGE_SHAPE) {
+        let (Some(records), Some(storages)) = (nonzero(pf.deref(s + 0x50)), nonzero(pf.deref(s + 0xC0))) else {
+            continue;
+        };
+        let (Ok(n_records), Ok(n_storages)) = (i32_at(data, s + 0x54), i32_at(data, s + 0xC4)) else {
+            continue;
+        };
+        for k in 0..u64::try_from(n_storages.min(n_records)).unwrap_or(0) {
+            let rec = records + 0x40 * k;
+            let Some(st) = nonzero(pf.deref(storages + 4 * k)) else {
+                continue;
+            };
+            let (Ok(part), Ok(tris), Ok(groups)) = (
+                u32_at(data, rec + 0x20),
+                i32_at(data, rec + 0x10),
+                i32_at(data, st + 0x18),
+            ) else {
+                continue;
+            };
+            if (part as usize) < parts && tris >= 0 && i64::from(tris) * 4 == i64::from(groups) {
+                out.insert(st, part as u16);
+            }
+        }
+    }
+    out
+}
+
+/// The destructible parts of a blueprint's Havok asset ([`Parts`]): `Ok(None)` where [`triangles`] gives `None`.
+/// A packfile that is not Havok 5.5 (the record layout this reads), or whose header lists no parts, gives every
+/// triangle [`NO_PART`].
+///
+/// # Errors
+///
+/// As [`triangles`].
+pub fn parts(data: &[u8]) -> Result<Option<Parts>> {
+    let pf = match Packfile::parse(data) {
+        Ok(pf) => pf,
+        Err(HavokError::NotPackfile | HavokError::Refused(_)) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let nonzero = |p: Option<u64>| p.filter(|&p| p != 0);
+    let hashes = header_hashes(data, pf.base);
+    let storage_part = storage_parts(&pf, data, hashes.len());
+    // the triangles' parts, in triangles()'s order and with its rules
+    let mut part_of: Vec<u16> = Vec::new();
+    for off in pf.objects_of(MESH_SUBPART) {
+        let p = nonzero(pf.deref(off + 8));
+        let n = i32_at(data, off + 12)?;
+        let ip = nonzero(pf.deref(off + 0x14));
+        let ni = i32_at(data, off + 0x18)?;
+        let (Some(_), Some(ip)) = (p, ip) else { continue };
+        if n <= 0 || ni <= 0 {
+            continue;
+        }
+        let idx: Vec<u16> = bytes::u16s(array(data, ip, ni as u64, 2)?).collect();
+        if ni % 4 != 0 {
+            return Err(HavokError::Damaged(format!("{ni} indices are not groups of four")));
+        }
+        let groups = idx.as_chunks::<4>().0;
+        if groups.iter().flat_map(|g| g.iter().take(3)).all(|&i| i32::from(i) < n) {
+            let part = storage_part.get(&off).copied().unwrap_or(NO_PART);
+            part_of.extend(std::iter::repeat_n(part, groups.len()));
+        }
+    }
+    for off in pf.objects_of(CONVEX_VERTICES) {
+        for k in (0x10..0x60).step_by(4) {
+            if nonzero(pf.deref(off + k)).is_none() {
+                continue;
+            }
+            let n = i32_at(data, off + k + 4)?;
+            if !(1..10_000).contains(&n) {
+                continue;
+            }
+            part_of.extend([NO_PART; 12]);
+            break;
+        }
+    }
+    Ok((!part_of.is_empty()).then_some(Parts { hashes, part_of }))
+}
+
 /// A small packfile with one storage extended mesh subpart holding `vertices` and `triangles` (a test writer, as
 /// [`fbrb::build`](crate::fbrb::build): the game's packfiles come from Havok's tools). [`triangles`] reads them back.
 ///
@@ -758,6 +913,35 @@ mod tests {
         // the box: corner 0 is (lo x, lo y, lo z), corner 7 (hi, hi, hi)
         assert_eq!(t[2][0], [-1.0, -1.0, -1.0]);
         assert_eq!(t[4][2], [2.0, 2.0, 2.0]);
+    }
+
+    #[test]
+    fn part_hashes_and_alignment() {
+        // the names' hashes as SP_01's guard tower header lists them
+        assert_eq!(part_hash("part_1"), 0x7129_13DC);
+        assert_eq!(part_hash("Part_1_Dest"), 0xDF7D_35A5);
+        assert_eq!(part_hash("ruin"), 0x7C78_B6A5);
+        assert_eq!(part_hash("ruin_downed"), 0xA23E_2F49);
+        // a header (two parts) before the packfile; the sample is Havok 6.5: no records read, every triangle no part
+        let mut prefix = Vec::new();
+        for w in [2u32, 2, part_hash("a"), part_hash("b")] {
+            prefix.extend(w.to_le_bytes());
+        }
+        let file = sample().build(&prefix);
+        let p = parts(&file).unwrap().unwrap();
+        assert_eq!(p.hashes, vec![part_hash("a"), part_hash("b")]);
+        assert_eq!(p.index_of("B"), Some(1));
+        assert_eq!(p.part_of.len(), triangles(&file).unwrap().unwrap().len());
+        assert!(p.part_of.iter().all(|&x| x == NO_PART));
+        assert!(!p.split());
+        // no header: no hashes; not a packfile: None
+        assert_eq!(parts(&sample().build(b"")).unwrap().unwrap().hashes, Vec::<u32>::new());
+        assert_eq!(parts(b"nothing").unwrap(), None);
+        let two = Parts {
+            hashes: vec![1, 2],
+            part_of: vec![0, 1, NO_PART],
+        };
+        assert!(two.split());
     }
 
     #[test]
