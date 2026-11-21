@@ -11,9 +11,10 @@ use regex::Regex;
 use crate::pyfmt::str_repr;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, os_error, suite_root};
 
-/// `crashreader.py`'s source (its `read_symbols`' lines name the warnings it logs).
+/// `crashreaderlib.py`'s source (its `read_symbols`' lines name the warnings it logs; round RT3 moved the library
+/// there from the retired `crashreader.py`).
 pub const CRASHREADER: &str =
-    include_str!("../../../../bfbc2-automated-map-and-bot-test-harness/crash-reader/crashreader.py");
+    include_str!("../../../../bfbc2-automated-map-and-bot-test-harness/crash-reader/crashreaderlib.py");
 
 /// The crash reader's folder, as `crashreader.HERE` (the suite's).
 pub fn here() -> String {
@@ -168,7 +169,7 @@ pub fn read_symbols(py: &mut Py, paths: &[Option<String>]) -> PyResult<Syms> {
     let mut syms = Syms::new();
     let re = SYMBOL_LINE.as_ref().ok_or(Fail::Python)?;
     if paths.iter().any(Option::is_none) {
-        // the line of `if not os.path.isfile(p):` in crashreader.read_symbols
+        // the line of `if not os.path.isfile(p):` in crashreaderlib.read_symbols
         let src = CRASHREADER.replace("\r\n", "\n");
         let def = src.find("def read_symbols").unwrap_or(0);
         let at = src[def..].find("if not os.path.isfile(p):").map_or(0, |k| def + k);
@@ -177,7 +178,7 @@ pub fn read_symbols(py: &mut Py, paths: &[Option<String>]) -> PyResult<Syms> {
             "WARNING",
             format!(
                 "{}:{lineno}: RuntimeWarning: bool is used as a file descriptor\n  if not os.path.isfile(p):\n",
-                join(&here(), "crashreader.py")
+                join(&here(), "crashreaderlib.py")
             ),
         );
     }

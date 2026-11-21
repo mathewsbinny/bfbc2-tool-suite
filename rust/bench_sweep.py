@@ -15,6 +15,7 @@ import cProfile
 import os
 import pstats
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -62,37 +63,39 @@ def _cull_inputs(root: str, tmp: str) -> tuple[str, str]:
     return tree, level
 
 
+def _cli(tool: str, args: list[str]) -> str:
+    """`bfbc2 <tool> <args>` (round RT3 retired the .py command lines of culltree and aptrefs): exit code, lines."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    r = subprocess.run(native.cli_command(tool) + args, capture_output=True, text=True, errors='replace')
+    return f'exit {r.returncode}, {len(r.stdout.splitlines())} report lines'
+
+
 @workload
 def culltree_add(root: str, tmp: str) -> str:
     """culltree add --auto --misplaced 2 on Onslaught MP_005 against every work\\levels folder (console_cull's run)."""
     suite_paths.use('culltree')
-    import culltree
     tree, level = _cull_inputs(root, tmp)
     refs: list[str] = []
     levels = os.path.join(root, 'work', 'levels')
     for d in sorted(os.listdir(levels)):
         if os.path.isdir(os.path.join(levels, d)):
             refs += ['--ref-dir', os.path.join(levels, d)]
-    out = culltree.Out()
-    code = culltree.cmd_add([tree, level, '--auto', '--misplaced', '2.0', *refs, '--out-tree',
-                             os.path.join(tmp, 'tree.dbx'), '--out-level', os.path.join(tmp, 'level.dbx')], out)
-    return f'exit {code}, {len(out.lines)} report lines'
+    return _cli('culltree', ['add', tree, level, '--auto', '--misplaced', '2.0', *refs, '--out-tree',
+                             os.path.join(tmp, 'tree.dbx'), '--out-level', os.path.join(tmp, 'level.dbx')])
 
 
 @workload
 def culltree_verify(root: str, tmp: str) -> str:
     """culltree verify on Onslaught MP_005 against every work\\levels folder."""
     suite_paths.use('culltree')
-    import culltree
     tree, level = _cull_inputs(root, tmp)
     refs: list[str] = []
     levels = os.path.join(root, 'work', 'levels')
     for d in sorted(os.listdir(levels)):
         if os.path.isdir(os.path.join(levels, d)):
             refs += ['--ref-dir', os.path.join(levels, d)]
-    out = culltree.Out()
-    code = culltree.cmd_verify([tree, level, *refs], out)
-    return f'exit {code}, {len(out.lines)} report lines'
+    return _cli('culltree', ['verify', tree, level, *refs])
 
 
 # ------------------------------------------------------------------------------------------------ navigation data
@@ -163,9 +166,7 @@ def aptcheck_all(root: str, tmp: str) -> str:
 def aptrefs_xref(root: str, tmp: str) -> str:
     """aptrefs xref: every name across every movie set and the exe's table (written to the temp folder)."""
     suite_paths.use('menu-tools')
-    import aptrefs
-    code = aptrefs.main(['aptrefs.py', 'xref', '--out', os.path.join(tmp, 'x.txt'), '--json', os.path.join(tmp, 'x.json')])
-    return f'exit {code}'
+    return _cli('aptrefs', ['xref', '--out', os.path.join(tmp, 'x.txt'), '--json', os.path.join(tmp, 'x.json')])
 
 
 @workload
@@ -218,7 +219,7 @@ def harness_import_log(root: str, tmp: str) -> str:
 def crashreader_log(root: str, tmp: str) -> str:
     """The crash reader's log_before_crash on the game copy's log (the last crash, and one at a given time)."""
     suite_paths.use('crash-reader')
-    import crashreader
+    import crashreaderlib as crashreader
     path = os.path.join(root, 'game', 'logs', 'opfor.log')
     a = crashreader.log_before_crash(path)
     b = crashreader.log_before_crash(path, when=os.path.getmtime(path))

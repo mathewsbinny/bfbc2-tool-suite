@@ -15,10 +15,11 @@ use super::common::{
     movie_from_members, out_dir, parse_bigf, read_entries, resolve, write_text,
 };
 use super::json::{J, dumps};
-use crate::pyfmt::docstring;
 use crate::pyproc::{Fail, Py, PyResult};
 
-const SOURCE: &str = include_str!("../../../../bfbc2-menu-tools/aptrefs.py");
+/// The usage `bfbc2 aptrefs` prints: `aptrefs.py`'s docstring, reworded when round RT3 retired that command
+/// line (the library is `aptrefslib.py`).
+const USAGE: &str = include_str!("aptrefs_usage.txt");
 
 const BUILD_STAMP: u32 = 0x4E55_445D;
 type Switch = (u64, usize, i64, u64);
@@ -436,7 +437,7 @@ pub fn run(py: &mut Py, cmdline: &[String]) -> PyResult<i32> {
         .first()
         .is_none_or(|a| !matches!(a.as_str(), "movie" | "table" | "xref" | "find"))
     {
-        py.print(&docstring(SOURCE))?;
+        py.print(&USAGE.replace("\r\n", "\n"))?;
         return Ok(i32::from(!args.is_empty()));
     }
     let cmd = args.remove(0);

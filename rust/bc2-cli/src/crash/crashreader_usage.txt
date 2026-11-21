@@ -1,0 +1,15 @@
+Battlefield: Bad Company 2 crash-report reader: turns crashreport.xml into something you can act on.
+
+  bfbc2 crashreader [crashreport.xml] [--exe BFBC2Game.exe] [--symbols file]... [--log opfor.log] [--no-code]
+
+Without a path it uses the newest crashreport.xml in Documents\Project OPFOR\BFBC2 or Documents\BFBC2 (OneDrive
+Documents too). It shows:
+  - when, which build, the crash address, and the registers (null ones marked)
+  - the code around the crash, disassembled from your own BFBC2Game.exe (needs: pip install pefile capstone),
+    with the register the faulting instruction reads through when that register is null
+  - the call stack: each return address with its function's name (from symbols_795745.txt and --symbols files)
+    and the call instruction that made it; values that are not code addresses are marked
+  - hints for known crash sites (e.g. a broken level: run DbxEdit check)
+  - with --log (or OPFOR's game\logs\opfor.log found next to the exe), the log lines just before the crash
+
+The game's own crash reporter writes the file; this tool only reads it and the exe. Nothing is sent anywhere.

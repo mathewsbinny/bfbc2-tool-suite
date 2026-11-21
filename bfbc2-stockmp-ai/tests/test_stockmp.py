@@ -346,7 +346,7 @@ def quick(tmp):
           'SectorOffsets asset: name, offsets as 4-byte integers, OPFOR\'s guids')
 
     # install / revert on a fake game folder
-    import stockmp
+    import stockmplib as stockmp
     root = os.path.join(tmp, 'opfor')
     game = os.path.join(root, 'game')
     paths = pipeline.Paths('test_01', opfor=root, work=os.path.join(root, 'work', 'stockmp'))
@@ -573,7 +573,7 @@ def native_parity(lvl, rl, donor, c, cr, cm):
 
 def game(tmp):
     import navkit
-    import stockmp
+    import stockmplib as stockmp
     import validate
     opfor = navkit.find_opfor(None)
     datas = []

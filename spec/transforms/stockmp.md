@@ -1,6 +1,6 @@
 # stockmp: an AI layer for a stock multiplayer level
 
-`bfbc2-stockmp-ai/stockmp.py` (and `bfbc2.exe stockmp`, its core in `rust/bc2-stockmp`) gives a stock multiplayer
+`bfbc2.exe stockmp` (its library `bfbc2-stockmp-ai/stockmplib.py`, its core in `rust/bc2-stockmp`; the Python command line `stockmp.py` was retired in round RT3) gives a stock multiplayer
 level, which ships with no AI, the data bots need: `generate` proposes a configuration from the level's own
 objectives and spawns (`config.json`, edited by hand); `build` authors the layer into the level partition, packs the
 bundles and stages them with the path data under `work\stockmp\<lv>\out\game\` (a mirror of the game folder);
@@ -79,7 +79,7 @@ any game file it would replace changed since an earlier install (its `-applied` 
 before the first is written. `--plan` changes nothing. Each replaced file is backed up once; each installed file
 gets an `-applied` record.
 
-[code: bfbc2-stockmp-ai/stockmp.py:181-210] [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick]
+[code: bfbc2-stockmp-ai/stockmplib.py:168-197] [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick]
 
 ### XSMP-INS-2: Revert restores or removes
 
@@ -89,7 +89,7 @@ Status: **verified**
 the records; a file changed since the install is not reverted. A file the install added is never taken for a stock
 file afterwards.
 
-[code: bfbc2-stockmp-ai/stockmp.py:211-232] [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick]
+[code: bfbc2-stockmp-ai/stockmplib.py:198-219] [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick]
 
 ## Open questions
 

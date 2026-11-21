@@ -23,7 +23,7 @@ use bc2_levelwrite::culltool::{
 };
 use bc2_pyrt::py::{abspath, basename, dirname, strip};
 
-use crate::pyfmt::{docstring, str_repr};
+use crate::pyfmt::str_repr;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, Tool};
 
 /// The group's tools.
@@ -34,7 +34,11 @@ pub const TOOLS: &[Tool] = &[Tool {
     run,
 }];
 
-const SOURCE: &str = include_str!("../../../../bfbc2-culltree/culltree.py");
+/// `culltreelib.py` (round RT3: the library of the retired `culltree.py`), whose hash keys the row cache this
+/// port shares with it (`_code_id`).
+const SOURCE: &str = include_str!("../../../../bfbc2-culltree/culltreelib.py");
+/// The usage `bfbc2 culltree` prints: `culltree.py`'s docstring, reworded when round RT3 retired it.
+const USAGE: &str = include_str!("culltree_usage.txt");
 
 /// `Out`: each line printed and flushed, and kept for `--report`.
 struct Out<'a> {
@@ -467,11 +471,11 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
 /// `main(argv)`.
 pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
     let Some((cmd, rest)) = argv.split_first() else {
-        py.print(&docstring(SOURCE))?;
+        py.print(&USAGE.replace("\r\n", "\n"))?;
         return Ok(0);
     };
     if matches!(cmd.as_str(), "-h" | "--help" | "help") {
-        py.print(&docstring(SOURCE))?;
+        py.print(&USAGE.replace("\r\n", "\n"))?;
         return Ok(0);
     }
     let mut out = Out { py, lines: Vec::new() };

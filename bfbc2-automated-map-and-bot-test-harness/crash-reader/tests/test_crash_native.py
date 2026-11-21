@@ -16,8 +16,6 @@ BFBC2_HARNESS_PYTHON=1; harness import-log's sessions of the real log as the ref
 
   python test_crash_native.py [--game [--full]]
 """
-import contextlib
-import io
 import os
 import random
 import shutil
@@ -37,7 +35,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools', 'navkit', 'core', 'harness', 'crash-reader')
 sys.path.insert(0, HERE)
-import crashreader  # noqa: E402
+import crashreaderlib as crashreader  # noqa: E402
 import harnesscore  # noqa: E402
 
 PY = sys.executable
@@ -358,6 +356,8 @@ def game(c: Checks, nat, full: bool, work: str) -> None:
             f'({tn:.1f} s, the reference {tr:.1f} s)', bad)
     # the crash reader on built reports at sampled code addresses
     import test_crashreader
+    suite_paths.use('core')
+    from bfbc2core import native as bfnative
     log = os.path.join(work, 'small.log')
     with open(log, 'w') as f:
         f.write('line\n[12:00:00.000] crash: crashreport.xml\n')
@@ -371,26 +371,18 @@ def game(c: Checks, nat, full: bool, work: str) -> None:
         path = os.path.join(work, f'report{k}.xml')
         with open(path, 'w', encoding='utf-8') as f:
             f.write(test_crashreader.report(eip, regs, stack))
-        texts: list[str] = []
-        for on in (True, False):
-            harnesscore.use_native(on)
-            buf = io.StringIO()
-            t = time.perf_counter()
-            with contextlib.redirect_stdout(buf):
-                crashreader.main(['crashreader.py', path, '--exe', exe, '--log', log])
-            dt = time.perf_counter() - t
-            if on:
-                tn += dt
-            else:
-                tr += dt
-            texts.append(buf.getvalue())
-        harnesscore.use_native(True)
-        if texts[0] == texts[1]:
+        # round RT3: crashreader.py's command line was retired; bfbc2.exe crashreader reads every report (the code
+        # view's pieces - around, call_before, function_start - are compared with capstone per call above)
+        t = time.perf_counter()
+        r = subprocess.run(bfnative.cli_command('crashreader') + [path, '--exe', exe, '--log', log], capture_output=True,
+                           text=True, errors='replace')
+        tn += time.perf_counter() - t
+        if r.returncode == 0 and f'Crash at 0x{eip:08X}' in r.stdout and 'Call stack' in r.stdout:
             same += 1
         elif not bad:
-            bad = f'{eip:x}'
-    c.check(same == len(addrs), f'crash reader: {same} of {len(addrs)} built reports at sampled code addresses byte for '
-            f'byte as the reference\'s ({tn:.1f} s, the reference {tr:.1f} s; each loads the exe)', bad)
+            bad = f'{eip:x}: exit {r.returncode}: {(r.stderr or r.stdout)[-200:]!r}'
+    c.check(same == len(addrs), f'bfbc2 crashreader: {same} of {len(addrs)} built reports at sampled code addresses '
+            f'read with their code view ({tn:.1f} s; each loads the exe)', bad)
     # import-log's sessions of the real log
     logp = os.path.join(os.path.dirname(exe), 'logs', 'opfor.log')
     if os.path.isfile(logp):

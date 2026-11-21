@@ -33,7 +33,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('menu-tools', 'apt')
 import apt  # noqa: E402
 import aptcheck  # noqa: E402
-import aptrefs  # noqa: E402
+import aptrefslib as aptrefs  # noqa: E402
 import bc2loc  # noqa: E402
 import menucommon as mc  # noqa: E402
 
@@ -213,7 +213,12 @@ def verify_report(orig, new, named=None):
 
 
 def run(script, *args, cwd=None):
-    r = subprocess.run([sys.executable, os.path.join(ROOT, script), *args], capture_output=True, text=True,
+    """A tool's command line; a retired one (round RT3: aptrefs.py) through bfbc2.exe, which answers it alone."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    tool = script[:-3]
+    cmd = native.cli_command(tool) if tool in native.RETIRED_CLI else [sys.executable, os.path.join(ROOT, script)]
+    r = subprocess.run([*cmd, *args], capture_output=True, text=True,
                        encoding='utf-8', errors='replace', cwd=cwd)
     return r.returncode, r.stdout + r.stderr
 

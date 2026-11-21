@@ -1,6 +1,6 @@
 r"""The console readers on images built here:
 
-- xiso.py: XDVDFS discs with the partition at offset 0 and at the XGD3 offset; a directory tree (binary
+- xisolib.py and `bfbc2 xiso` (round RT3 retired xiso.py's command line): XDVDFS discs with the partition at offset 0 and at the XGD3 offset; a directory tree (binary
   tree entries, a nested folder, an empty folder); list and extract, with a filter; no volume found;
 - stfs.py: STFS packages of both kinds (read-only: one hash table per level; others: two), with a
   consecutive file, a fragmented file (hash-entry chain), a folder; info, list and extract, with a filter.
@@ -33,7 +33,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('xiso', 'stfs')
 import stfs  # noqa: E402
-import xiso  # noqa: E402
+import xisolib as xiso  # noqa: E402
 
 XBOX_DEFAULT = r'C:\Games\Battlefield Bad Company 2 Limited Edition (XBOX 360)'
 SECTOR = 2048
@@ -104,8 +104,11 @@ def build_xiso(path, base):
     return data
 
 
-def xiso_cli(*args):
-    return subprocess.run([sys.executable, os.path.join(ROOT, 'xiso', 'xiso.py'), *args], capture_output=True, text=True)
+def xiso_cli(*args, timeout=None):
+    """`bfbc2 xiso <args>` (round RT3 retired xiso.py's command line: bfbc2.exe answers it alone)."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    return subprocess.run(native.cli_command('xiso') + list(args), capture_output=True, text=True, timeout=timeout)
 
 
 # ------------------------------------------------------------------------------------------------ STFS
@@ -376,8 +379,7 @@ def main(argv):
             f.truncate(43 * SECTOR)
         what = 'xiso: extract from a truncated image stops with an error (it used to loop forever)'
         try:
-            r = subprocess.run([sys.executable, os.path.join(ROOT, 'xiso', 'xiso.py'), 'extract', cut,
-                                os.path.join(work, 'cut')], capture_output=True, text=True, timeout=60)
+            r = xiso_cli('extract', cut, os.path.join(work, 'cut'), timeout=60)
             c.check(r.returncode != 0 and 'image ends' in (r.stdout + r.stderr), what, (r.stdout + r.stderr)[-300:])
         except subprocess.TimeoutExpired:
             c.check(False, what)

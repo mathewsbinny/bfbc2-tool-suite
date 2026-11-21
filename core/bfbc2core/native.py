@@ -489,7 +489,15 @@ def cli_exe() -> str | None:
 # lines its port does not read (damaged or unusual input) end with an error instead of the hand-off to the Python.
 # Their CLI_TOOLS paths stay as the record of the file each one ported (it no longer exists).
 # Round EX1: leveldiff, whose C# LevelDiff.exe was retired (it never had a Python): only the binary as well.
-RETIRED_CLI = frozenset({'graphstats', 'prepare_level', 'leveldiff'})
+# Round RT3: aptrefs, xiso, culltree, stockmp, crashreader - their libraries moved to <tool>lib.py (aptrefslib,
+# xisolib, culltreelib, stockmplib, crashreaderlib), their .py entry points deleted.
+# The rule when the Rust port cannot answer (round RT3, audit AU2 A17): while a tool's Python is alive it answers
+# (bfbc2.exe hands the command line to it); once retired, a plain error, never a fallback. RETIRED_ROUND is the
+# round each was retired in (bfbc2.exe's own list, rust\bc2-cli\src\pyproc.rs RETIRED, must agree:
+# core\tests\test_native_required.py checks it; leveldiff is not a Python port, so it is not in pyproc's list).
+RETIRED_ROUND = {'graphstats': 'RT1', 'prepare_level': 'RT1', 'leveldiff': 'EX1', 'aptrefs': 'RT3', 'xiso': 'RT3',
+                 'culltree': 'RT3', 'stockmp': 'RT3', 'crashreader': 'RT3'}
+RETIRED_CLI = frozenset(RETIRED_ROUND)
 
 
 class Refused(ValueError):

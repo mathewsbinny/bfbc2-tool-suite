@@ -33,7 +33,7 @@ suite_paths.use('menu-tools', 'apt', 'core')
 import apt  # noqa: E402
 import aptcheck  # noqa: E402
 import aptgraft as ag  # noqa: E402
-import aptrefs  # noqa: E402
+import aptrefslib as aptrefs  # noqa: E402
 import test_apt_e3n as T  # noqa: E402
 import test_aptgraft as tg  # noqa: E402
 from aptgraft import Ins, Ref, Str, Words  # noqa: E402
