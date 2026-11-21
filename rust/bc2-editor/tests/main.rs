@@ -26,6 +26,7 @@ mod g4;
 mod game_view;
 mod game_view_live;
 mod game_view_package;
+mod game_view_ww2;
 mod gr1;
 mod gr2;
 mod inspect_parity;
@@ -35,6 +36,7 @@ mod real_level_editing;
 mod render;
 mod simplified_view;
 mod view_geometry;
+mod view_toggles;
 
 /// At most this many of the binary's tests run at the same time.
 const GATE: usize = 2;

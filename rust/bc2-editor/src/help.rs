@@ -64,7 +64,7 @@ pub struct Control {
 }
 
 /// The views' controls, as `app.rs`'s viewport handles them.
-pub const VIEW_CONTROLS: [Control; 15] = [
+pub const VIEW_CONTROLS: [Control; 16] = [
     Control {
         name: "Orbit",
         keys: "Left drag",
@@ -95,6 +95,13 @@ pub const VIEW_CONTROLS: [Control; 15] = [
         views: Views::Perspective,
         help: "Looks around with the mouse while the right button is held; W A S D move, Q E go down and up, Shift \
                goes faster",
+    },
+    Control {
+        name: "Walk (player's eye camera)",
+        keys: "Alt+W, then W A S D, drag",
+        views: Views::Perspective,
+        help: "A soldier's eye on the ground (the game's eye height and field of view): W A S D walk, a drag looks, \
+               Shift sprints, C crouches, Esc returns to the camera before",
     },
     Control {
         name: "Select",
@@ -213,7 +220,7 @@ pub const WORKSPACES: [Workspace; 6] = [
 ];
 
 /// The getting-started guide: (title, text) steps.
-pub const GETTING_STARTED: [(&str, &str); 12] = [
+pub const GETTING_STARTED: [(&str, &str); 13] = [
     (
         "Start: three paths",
         "The start screen offers three buttons. Open project opens a map project you saved (a .mapedit.json file; \
@@ -258,6 +265,15 @@ pub const GETTING_STARTED: [(&str, &str); 12] = [
         "Use more views",
         "Alt+2, Alt+3 and Alt+4 open the top, front and side views beside the 3D view, each with its own camera. \
          Ctrl+1 to Ctrl+9 keep a camera bookmark, 1 to 9 go back to it.",
+    ),
+    (
+        "Show what the data holds",
+        "The View menu's Overlays switch on the level's effects, lights and sounds with their reach (a light's radius \
+         and colour, a sound's minimum distance, an effect's spawn volume), its combat areas (the out-of-bounds \
+         edge as a wall), the flags' capture areas and the spawns' enemy-check radius, each with labels. Player's \
+         eye camera (Alt+W) walks the map at a soldier's eye with the game's field of view. A destructible \
+         object's State in Properties (Page Up / Page Down) steps through its health states, its collision with \
+         them where its files split it per part.",
     ),
     (
         "Arrange the window",

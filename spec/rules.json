@@ -2680,7 +2680,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-render/src/weather.rs:125-177"
+     "ref": "rust/bc2-render/src/weather.rs:231-265"
     },
     {
      "kind": "test",
@@ -2705,7 +2705,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-render/src/weather.rs:192-277"
+     "ref": "rust/bc2-render/src/weather.rs:315-357"
     },
     {
      "kind": "test",
@@ -2752,6 +2752,60 @@
     {
      "kind": "doc",
      "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:658-664"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-5",
+   "title": "The weather is found through the level's weather entity, by reference",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:161-228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:151-196"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/weather_refs.rs::ww2_levels_find_their_weather_through_the_entity"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/weather_refs.rs::stock_levels_resolve_as_their_folder_did"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/game_view_ww2.rs::ww2_levels_open_in_the_game_accurate_view"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's game copy: guadal_canal's level-00.fbrb holds weather/wake_island/guadal_canal_e, guadal_canal (ActiveState 2) and weathersystem_wake (states sunny_day, iwo_jima, guadal_canal, default, coral_sea); coral_sea's level partition holds its own WeatherSystemEntityData naming weathersettings_wake (ActiveState 0)"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-6",
+   "title": "A level's state entities may move the weather on spawn",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/weather.rs::weather_entities_and_spawn_states_read_from_a_partition"
+    },
+    {
+     "kind": "data",
+     "ref": "weather_refs.rs's run on OPFOR's game copy and prepared levels: the first spawn-transition State per level, printed beside the drawn state"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/weather.rs:163-179"
     }
    ]
   },

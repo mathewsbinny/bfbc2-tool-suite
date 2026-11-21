@@ -162,6 +162,14 @@ fn main() {
         "  Havok triangles, one thread        {t:7.3} s  {} packfiles (from memory)",
         packfiles.len()
     );
+    // round VW1: the per-part split the scene now reads beside the triangles
+    let (t, split) = best(runs, || {
+        packfiles
+            .iter()
+            .filter(|d| havok::parts(d).ok().flatten().is_some_and(|p| p.split()))
+            .count()
+    });
+    println!("  Havok parts, one thread            {t:7.3} s  {split} packfiles split per part");
     if let Some(h) = heightfield {
         let data = fs::read(h).unwrap();
         let (t, hf) = best(runs, || terrain::parse(&data).unwrap());

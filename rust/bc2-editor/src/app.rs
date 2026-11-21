@@ -333,6 +333,11 @@ pub struct ViewState {
     pub measuring: bool,
     /// The measured path's points.
     pub measure: Vec<V3>,
+    // ---- round VW1
+    /// The level's overlays (effects, lights, sounds, gameplay areas), read when the look is first applied.
+    pub overlays: Option<crate::overlays::Overlays>,
+    /// The player's-eye camera, while it is on.
+    pub walk: Option<crate::walk::Walk>,
     /// What differs from another level, the Diff panel's filters and choice (round EX1).
     pub diff: crate::compare::DiffState,
 }
@@ -642,6 +647,23 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
                 Some("Open a map first")
             }
             Action::ShowObjectsAs(_) | Action::ShowBlueprintAs(_) if !selected => Some("Select an object first"),
+            Action::ToggleOverlay(_) | Action::ToggleOverlayLabels | Action::PlayerEye | Action::StepState(_)
+                if !open =>
+            {
+                Some("Open a map first")
+            }
+            Action::StepState(_)
+                if !v.is_some_and(|v| {
+                    v.selection.iter().any(|&k| {
+                        v.scene()
+                            .entities
+                            .get(k)
+                            .is_some_and(|e| !v.gpu_scene.components(e).is_empty())
+                    })
+                }) =>
+            {
+                Some("Select a destructible object first (its render meshes read)")
+            }
             Action::SetWorkspace(w) if w.edits() && doc.is_none() => {
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }
@@ -858,7 +880,7 @@ impl EditorApp {
                     if v.game_accurate && v.game.is_none() {
                         match crate::gameview::GameView::load(root, &v.lv, v.scene()) {
                             Ok(g) => {
-                                v.message = format!("Game-accurate view: loaded in {:.1} s", g.load_seconds);
+                                v.message = g.status();
                                 v.game = Some(g);
                             }
                             Err(e) => {
@@ -1342,11 +1364,13 @@ impl EditorApp {
             field_rects: Vec::new(),
             measuring: false,
             measure: Vec::new(),
+            overlays: None,
+            walk: None,
             diff: crate::compare::DiffState::default(),
         };
-        if editing {
-            v.refresh(gpu, &palette);
-        }
+        // the look (round VW1: the overlays the display's toggles turn on)
+        v.apply_look(&palette);
+        v.refresh(gpu, &palette);
         self.mode = Mode::View(Box::new(v));
     }
 
@@ -1638,6 +1662,16 @@ impl EditorApp {
             if v.has_transient() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
                 v.cancel_transient();
                 v.redraw();
+            }
+            // round VW1: walking, W A S D C are the walk's; Esc (or Alt+W) returns to the previous camera
+            if v.walk.is_some() {
+                let back = ctx.input_mut(|i| {
+                    i.consume_key(egui::Modifiers::NONE, Key::Escape) | i.consume_key(egui::Modifiers::ALT, Key::W)
+                });
+                if back {
+                    v.end_walk();
+                }
+                return;
             }
             if v.polygon.len() >= 3 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
                 v.polygon_close = true;
@@ -1996,7 +2030,13 @@ impl EditorApp {
                             let fly = v.viewports.values().any(|vp| vp.fly);
                             ui.label(small(format!(
                                 "camera: {}",
-                                if fly { "fly (right button held)" } else { "orbit" }
+                                if v.walk.is_some() {
+                                    "player's eye (Esc returns)"
+                                } else if fly {
+                                    "fly (right button held)"
+                                } else {
+                                    "orbit"
+                                }
                             )));
                             if v.selection.len() > 1 {
                                 ui.label(small(format!("{} selected", v.selection.len())));
@@ -2530,9 +2570,38 @@ impl Tabs<'_> {
             )
         });
         let h = f64::from(rect.height());
+        // round VW1: the player's-eye camera takes the 3D view's input (drag looks, W A S D walk, C crouches)
+        let walking = projection == Projection::Perspective && self.view.walk.is_some();
+        if walking {
+            let (crouch, sprint) = ui.input(|i| (i.key_pressed(Key::C), i.modifiers.shift));
+            let look = resp.dragged_by(PointerButton::Primary) || resp.dragged_by(PointerButton::Secondary);
+            let drag = resp.drag_delta();
+            let mut w = self.view.walk.take();
+            if let Some(w) = w.as_mut() {
+                if look && drag != Vec2::ZERO {
+                    w.look(f64::from(drag.x), f64::from(drag.y));
+                }
+                if crouch && !typing {
+                    w.crouch = !w.crouch;
+                }
+                if !typing && (keys[0] != 0.0 || keys[1] != 0.0) {
+                    w.step(keys[0], keys[1], dt, sprint, |p, d| self.view.ground_below(p, d));
+                    ui.ctx().request_repaint();
+                }
+                if vp.camera != w.camera() {
+                    vp.camera = w.camera();
+                    vp.dirty = true;
+                }
+            }
+            self.view.walk = w;
+        }
         // editing: the left button drags the gizmo or a selection box (Alt+left orbits or pans)
         let editing = self.view.doc.is_some() && self.view.workspace.moves_objects();
-        let (wheel_taken, tools_left) = self.tools_input(ui, &resp, rect, projection, &vp);
+        let (wheel_taken, tools_left) = if walking {
+            (true, true)
+        } else {
+            self.tools_input(ui, &resp, rect, projection, &vp)
+        };
         let consumed = tools_left || (editing && self.edit_input(ui, &resp, rect, projection, &mut vp));
         if resp.dragged_by(PointerButton::Primary) && !consumed {
             let d = resp.drag_delta();
@@ -2543,12 +2612,12 @@ impl Tabs<'_> {
             }
             vp.dirty = true;
         }
-        if resp.dragged_by(PointerButton::Middle) {
+        if resp.dragged_by(PointerButton::Middle) && !walking {
             let d = resp.drag_delta();
             vp.camera.pan(f64::from(d.x), f64::from(d.y), h);
             vp.dirty = true;
         }
-        vp.fly = !ortho && secondary && (resp.dragged_by(PointerButton::Secondary) || resp.hovered());
+        vp.fly = !ortho && !walking && secondary && (resp.dragged_by(PointerButton::Secondary) || resp.hovered());
         if vp.fly {
             if delta != Vec2::ZERO {
                 vp.camera.look(f64::from(delta.x), f64::from(delta.y));
@@ -2734,6 +2803,9 @@ impl Tabs<'_> {
         if self.view.labels {
             self.labels(ui, rect, &vp.camera);
         }
+        if self.view.gpu_scene.display.overlays.labels {
+            self.overlay_labels(ui, rect, &vp.camera);
+        }
         if self.view.show_links {
             self.links_overlay(ui, rect, &vp.camera);
         }
@@ -2786,6 +2858,55 @@ impl Tabs<'_> {
 
     /// Team and name labels at gameplay entities (spawns, flags, objectives, vehicle spawns), nearest first; the
     /// selection's always.
+    /// The overlays' labels (round VW1): the nearest of each toggled overlay's items, a light's with its colour's
+    /// swatch; labels that would cover nearer ones are left out.
+    fn overlay_labels(&self, ui: &egui::Ui, rect: Rect, cam: &Camera) {
+        let v = &*self.view;
+        let Some(o) = &v.overlays else { return };
+        let t = v.gpu_scene.display.overlays;
+        let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
+        let from = if view.ortho.is_some() { cam.target } else { view.eye };
+        let mut items: Vec<(f64, &crate::overlays::Item, Pos2)> = o
+            .items
+            .iter()
+            .filter(|i| t.on(i.overlay))
+            .filter_map(|i| {
+                let s = view.project(i.at)?;
+                let d =
+                    ((i.at[0] - from[0]).powi(2) + (i.at[1] - from[1]).powi(2) + (i.at[2] - from[2]).powi(2)).sqrt();
+                Some((d, i, rect.min + Vec2::new(s[0] as f32, s[1] as f32)))
+            })
+            .filter(|(d, _, at)| *d < 1200.0 && rect.contains(*at))
+            .collect();
+        items.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let painter = ui.painter().with_clip_rect(rect);
+        let p = &self.palette;
+        let m = &self.metrics;
+        let mut placed: Vec<Rect> = Vec::new();
+        for (d, item, at) in items.into_iter().take(60) {
+            let _ = d;
+            let g = painter.layout_no_wrap(item.label.clone(), FontId::proportional(11.0), p.ink);
+            let sq = 8.0 + m.space_1;
+            let r = Rect::from_center_size(
+                at + Vec2::new(0.0, 14.0),
+                Vec2::new(g.size().x + sq + 2.0 * m.space_1, 16.0),
+            );
+            if placed.iter().any(|q| q.intersects(r)) {
+                continue;
+            }
+            placed.push(r);
+            painter.rect_filled(r, CornerRadius::same(m.radius_sm as u8), p.scene_label);
+            // the overlay's colour, or a light's own
+            let sw = Rect::from_center_size(Pos2::new(r.left() + m.space_1 + 4.0, r.center().y), Vec2::splat(8.0));
+            painter.rect_filled(sw, CornerRadius::same(1), item.swatch.unwrap_or(item.paint.colour(p)));
+            painter.galley(
+                Pos2::new(sw.right() + m.space_1, r.center().y - g.size().y / 2.0),
+                g,
+                p.ink,
+            );
+        }
+    }
+
     fn labels(&self, ui: &egui::Ui, rect: Rect, cam: &Camera) {
         let v = &*self.view;
         let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
