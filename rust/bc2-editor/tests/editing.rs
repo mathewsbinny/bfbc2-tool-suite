@@ -74,6 +74,7 @@ fn along_x(app: &EditorApp, from: Pos2, metres: f64) -> Pos2 {
 
 #[test]
 fn editing_through_the_interface() {
+    let _gate = crate::gate();
     let mut h = match Headless::new([1400, 860]) {
         Ok(h) => h,
         Err(e) => {

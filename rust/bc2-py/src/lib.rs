@@ -14,7 +14,7 @@
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
 //! function's bundles run with the interpreter released. `fbrb_read` / `fbrb_read_many` go through the bundle
 //! cache (round E3e, `fbrb_cache.rs`: `fbrb_cache_config`, `fbrb_cache_configure`, `fbrb_cache_stats`,
-//! `fbrb_cache_clear`, and `fbrb_read_uncached`, the read without it).
+//! `fbrb_cache_clear`, `fbrb_cache_superseded` (round QW1), and `fbrb_read_uncached`, the read without it).
 //!
 //! APT movies (`apt.rs`, round E3n): `apt_constants`, `apt_decode` / `apt_decode_many`, for
 //! `bfbc2-console-readers/apt/apt.py`; the menu tools' movie model `AptModel` and `apt_roundtrip_many`,
@@ -394,7 +394,8 @@ mod bc2_native {
     use super::dbxport::{DbxCatalogue, DbxRules, DbxTemplates, dbx_instance_guids, dbxport_port};
     #[pymodule_export]
     use super::fbrb_cache::{
-        fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,
+        fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_cache_superseded,
+        fbrb_read_uncached,
     };
     #[pymodule_export]
     use super::fbrbtool::{fbrbtool_gunzip, fbrbtool_run, fbrbtool_run_many};

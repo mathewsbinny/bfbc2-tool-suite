@@ -199,6 +199,7 @@ impl Drop for StandIn {
 
 #[test]
 fn ww2_levels_open_in_the_game_accurate_view() {
+    let _gate = crate::gate();
     let Ok(opfor) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;

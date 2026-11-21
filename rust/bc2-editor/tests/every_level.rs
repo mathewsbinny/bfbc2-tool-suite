@@ -444,6 +444,7 @@ fn prove(lv: &str, base: &[u8]) -> Result<String, String> {
 
 #[test]
 fn levelwrite_on_every_prepared_level() {
+    let _gate = crate::gate();
     let root = match levels::find_opfor(None) {
         Ok(r) => r,
         Err(e) => {

@@ -58,6 +58,7 @@ fn teams(root: &Path, lv: &str) -> Option<Teams> {
 
 #[test]
 fn factions_on_each_profile() {
+    let _gate = crate::gate();
     let Some(root) = opfor() else { return };
     // (level, team 1, team 2, from the data)
     let cases = [
@@ -99,6 +100,7 @@ fn factions_on_each_profile() {
 /// team 2's kits with the `vietnam/vc_*` art and team 1's with `vietnam/us_*`.
 #[test]
 fn vietnam_team_2_has_the_vietnamese_kits() {
+    let _gate = crate::gate();
     let Some(root) = opfor() else { return };
     let Some(data) = partition(&root, "nam_mp_002cq") else {
         println!("nam_mp_002cq: not in this game copy");

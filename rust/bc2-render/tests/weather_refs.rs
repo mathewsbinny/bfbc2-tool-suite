@@ -20,8 +20,7 @@
     missing_docs
 )]
 
-#[path = "../examples/common/mod.rs"]
-mod common;
+use crate::common;
 
 use std::path::Path;
 
@@ -69,6 +68,7 @@ fn package_weather(game: &Path, lv: &str) -> Option<(Weather, Option<String>)> {
 
 #[test]
 fn ww2_levels_find_their_weather_through_the_entity() {
+    let _gate = crate::gate();
     let game = common::opfor().join("game");
     for (lv, state) in [
         ("guadal_canal", "weather/wake_island/states/guadal_canal"),
@@ -102,6 +102,7 @@ fn ww2_levels_find_their_weather_through_the_entity() {
 
 #[test]
 fn other_package_levels_find_a_weather_state() {
+    let _gate = crate::gate();
     let game = common::opfor().join("game");
     let wanted = std::env::var("BC2_GW1_PACKAGE_LEVELS").unwrap_or_else(|_| "nam_mp_002cq,ons_mp_002".into());
     for lv in wanted.split(',') {
@@ -119,6 +120,7 @@ fn other_package_levels_find_a_weather_state() {
 
 #[test]
 fn stock_levels_resolve_as_their_folder_did() {
+    let _gate = crate::gate();
     let opfor = common::opfor();
     let Ok(rd) = std::fs::read_dir(opfor.join("work").join("levels")) else {
         println!("skipped: no prepared levels");
@@ -172,6 +174,7 @@ fn stock_levels_resolve_as_their_folder_did() {
 
 #[test]
 fn a_level_without_weather_gets_the_default_sky() {
+    let _gate = crate::gate();
     // no level partition, no weather entity, no folder: the neutral weather and the status line's words
     let files = Files::default();
     let (w, note) = resolve_weather(&files, "nowhere", &[], Some("weather/r_nowhere"));

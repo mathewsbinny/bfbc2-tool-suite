@@ -5727,6 +5727,79 @@ with the same log, a version-9 file and a `warp` operation give their messages);
 mode choices with their donor layers) written as version 1: all 7 load with every operation, as version 1 and 2,
 and the newer-version and unknown-operation cases on each. The full versioning work is round V1's.
 
+## QW1: the audit's quick wins (2026-11-20, branch `qw1`)
+
+Audit AU2's "best value for effort" list (`P2`, `S4` + `P5`, `P3`, `A6` + `A7`, `A10` + `F14`, `S1`, `F5` + `F10`,
+`A19`, `A21`, `Q9`, `Q10`, `S9`). Measured on the development PC (16 threads, 15 GB) while two other rounds built and
+tested beside it: the times are a shared machine's. Both quick tiers ran with `CARGO_INCREMENTAL=0` and
+`CARGO_BUILD_JOBS=4` in this worktree's own build folder (`rust-targets\bfbc2-tool-suite-qw1`), the "before" on `main`
+`fac36d0` with its debug folder deleted first, the "after" on this branch with its debug folder deleted first.
+
+| | before | after |
+|---|---:|---:|
+| `python run_tests.py quick -j 2` | 4,677 s (126 of 127) | 2,276 s (125 of 127; see below) |
+| the cargo entry (fmt, clippy, workspace tests) | 2,275 s | 1,642 s |
+| the editor entry (`tests\test_editor.py`) | 2,073 s | - (its tests run in the cargo entry) |
+| debug folder after the tier | 25 GB | 3.5 GB |
+| of it `debug\build\bc2-editor` | 16 GB, 74 hash folders | 0.55 GB, 15 |
+| test binaries in the workspace | 57 | 30 |
+| editor relink (`bc2-editor\src\lib.rs` touched, `cargo test --workspace --no-run`) | 76 s | 18 s |
+| a full `cargo test --workspace --no-run` from an empty debug folder (after clippy) | - | 143 s |
+| bundle cache (`bfbc2 caches --report`, fbrb) | 16.0 GB, 129 files | 15.6 GB, 125 files |
+| kept test durations (`test_times.json`) | 288 names, 60 of no tier | 228 |
+| `--plan` on 15 GB (`--mem 11.5`, quick) | 6,579 s expected | 2,285 s expected |
+
+The two failures after: O2's command lines (`OSError: [Errno 22] Invalid argument` opening a stand-in `b.exe` the
+test wrote into its temp folder) fails the same way on `main` (the "before" run) and alone: this PC's, not QW1's;
+`test_native_required` failed on its own new checks (a cargo debug build of the editor has no fingerprint; the
+retired-tool check set the old cache) and passes after the test's fix (the commit after the tier).
+
+**P2: the editor's tests once.** The quick tier ran the editor's, levelwrite's and the renderer's cargo tests twice:
+in `test_rust.py`'s `cargo test --workspace` and again in `test_editor.py`'s `cargo test -p bc2-editor -p
+bc2-levelwrite -p bc2-render`, which unified other features and so built a second copy of everything (the 74 hash
+folders). Only the workspace run is left; it runs with `--nocapture` and prints the editor's evidence lines and the
+parts skipped. The same test functions run: `cargo test --workspace -- --list` before and after, the three crates'
+tests by file and function (`file::function` after, the binary's file name before): bc2-editor 41 integration and 55
+unit, bc2-levelwrite 10 and 24, bc2-render 4 and 21 - identical sets; the workspace 592 tests before, 593 after (the
+new `fbrb::cache::tests::superseded_payloads`).
+
+**S4 + P5: debug info and test binaries.** `[profile.dev] debug = "line-tables-only"` and one `[[test]]` per crate
+(`tests/main.rs` with each file as a module, `autotests = false`): bc2-editor's 19 test executables (each ~430 MB
+with its PDB), levelwrite's 7 and render's 4 became 3. The files' tests used to run in separate processes one file
+after another; in one process each test takes `gate()` first (two at a time), so the real-level tests never all hold
+whole levels at once.
+
+**P3: memory.** 25 declarations raised to their recorded peaks (the job object's `PeakJobMemoryUsed`, children
+included): the cargo entry 2 -> 12 GB, NavKit's full regression 3 -> 15, O4 live 1 -> 6.5, F2a model tools 1 -> 5.7,
+F0 textures 1.5 -> 5.4, E3o game 2 -> 5.5, F0 console containers 0.5 -> 2.8, ...; the four undeclared quick entries
+declared. `make_jobs` takes the larger of a declaration and the last recorded peak, so a declaration that falls behind
+is corrected by the next run; a test above `--mem` runs with nothing beside it (as before).
+
+**A6 + A7 + A19: fingerprints per artefact.** On this checkout: the module's sources are 9 crates / 205 files,
+`bfbc2.exe`'s 11 / 296 (with the 26 Python files whose docstrings it includes and `VERSION`), the editor's 10 / 237 (with its
+three fonts), `mapexport`'s 5 / 138. `bin\*.exe --source-hash` equals `build_native.py --fingerprint <artefact>` for all
+three binaries after `build_native.py` and `--editor` (359 s for the editor's release build). A stale `bfbc2.exe`
+warns once per process; `BFBC2_STRICT_NATIVE=1` makes it an error.
+
+**S1: superseded bundle-cache payloads.** The audit's "28 bundle names with 2-3 payloads, 3.8 GB superseded" were
+not superseded: each name was two bundles, a level's `game\Dist` and `game\Package` copies (the cache file's name
+keeps only the last two path parts; its header names the whole path), both current. Reading every payload's header:
+129 payloads of 129 bundle paths; 4 payloads (0.43 GiB) named bundles rewritten or gone (EX1's temporary stage
+folders, `work\mapedit\...\stage`). `bfbc2 caches --prune fbrb` deleted those 4 (436.7 MB): 16.0 GB -> 15.6 GB.
+From now on writing a bundle's payload deletes its older payloads at once.
+
+**A10 + F14 + A21 (Project OPFOR).** One suite locator (`opforcore.paths.suite_dir`; 12 copies replaced, one of which,
+`ww2\menu_art.py`, ignored `OPFOR_TOOLKIT`) and `SUITE_REQUIRES = ('0.9.0', '0.10.0')` checked at import (a warning
+once, `OPFOR_SUITE_STRICT=1` an error). One GUID helper (`opforcore.guid`, 10 named scopes) for the 24 inline
+`uuid5(NAMESPACE_URL, ...)` sites: `test_guid.py` holds each site's old formula against the helper on real names and
+300 random inputs (a number part too), every GUID equal. Against this branch (a toolkit folder of junctions -
+`bfbc2-tool-suite` to this worktree, `bf1943-tool-suite`, `operation-rising-sun`, `project-opfor-bfbc2` - with
+`OPFOR_TOOLKIT` / `OPFOR_ROOT`): OPFOR's tests 381 of 381 and opforcore's 75 of 75. The WW2 rebuild (`rebuild_all.py
+--no-qa`): the first run stopped at step 30 - `type95_icon.py` gives the helper its image index as an int, which the
+inline f-string had formatted and `str.join` refused - so a part is now formatted as an f-string formats it
+(`format(part, '')`); the second run: all 52 steps in 30 min, **10,852 of 10,852 files identical** to the oracle
+(`round0\hashes_qw1.json`); `game\` unchanged (1,582 files, every size and write time).
+
 ## GW1: the game-accurate view opens the WW2 levels (2026-11-20, branch `rust-gw1`)
 
 Round RV1 found the game-accurate view failing on Guadalcanal: "no WeatherSettings / WeatherSystem partition under

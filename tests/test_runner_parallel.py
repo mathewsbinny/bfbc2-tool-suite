@@ -7,7 +7,9 @@ Stand-in tests that log when they start and end are run through run_tests.main, 
   - one result line per test, each with that test's own summary line; -j 1 prints them in the listed order
 And without running anything: the scheduler holds room for a heavy test held back (shorter tests fill in only while
 they end in time), every NEEDS entry names a test in tests(), the log reader takes a run's durations, and
-atomicio.locked keeps two processes out of the same block.
+atomicio.locked keeps two processes out of the same block. Round QW1: a test whose summary line says "skipped" counts
+as skipped (not passed) and parts a passing test skipped are counted; the kept durations lose names no tier has once
+they are old; a test's last recorded peak raises its declared memory; matplotlib's folder is the suite's.
 
   python tests\test_runner_parallel.py
 """
@@ -196,6 +198,48 @@ def lock(tmp):
           f'{codes} {n}')
 
 
+def qw1(tmp):
+    """Round QW1: skipped tests, pruned durations, peaks in the schedule, matplotlib's folder."""
+    check(run_tests.skipped(True, 'skipped: no game copy') and run_tests.skipped(True, 'Skipped: Rust is not installed')
+          and not run_tests.skipped(True, 'all passed') and not run_tests.skipped(False, 'skipped: then failed'),
+          'a passing test whose summary line says skipped is skipped; a failure is a failure')
+    check(run_tests.result_line(True, 'x', 1.0, 'skipped: no data').startswith('skip '), 'its result line says skip')
+    code =('import sys; n = sys.argv[1]; print("skipped: part one has no data") if n == "partly" else None; '
+            'print("skipped: no game copy" if n == "nothing" else "all passed")')
+    spec = {'times': os.path.join(tmp, 'times_skip.json')}
+    child = ('import sys\nsys.path.insert(0, %r)\nimport run_tests\n'
+             'run_tests.TIMES_FILE = %r\nrun_tests.SEED_FILE = %r\n'
+             'run_tests.tests = lambda: [(n, "quick", [sys.executable, "-c", %r, n]) for n in ("plain", "partly", "nothing")]\n'
+             'run_tests.NEEDS = {n: run_tests.need() for n in ("plain", "partly", "nothing")}\n'
+             'sys.exit(run_tests.main(["run_tests.py", "quick", "-j", "1"]))\n'
+             % (SUITE, spec['times'], spec['times'] + '.none', code))
+    r = subprocess.run([sys.executable, '-c', child], capture_output=True, text=True, timeout=120)
+    out = r.stdout
+    check(r.returncode == 0 and '2 of 3 passed' in out and '1 skipped (ran nothing' in out
+          and '1 of them with parts skipped' in out and 'skip nothing' in out.replace('  ', ' '),
+          'the total: 2 of 3 passed, 1 skipped, 1 with parts skipped; the skipped test\'s line says skip', out[-700:])
+    kept = json.load(open(spec['times'], encoding='utf-8'))
+    check(set(kept) == {'plain', 'partly'}, 'a skipped test\'s duration is not kept', str(kept))
+    names = {'a', 'b'}
+    got = run_tests.prune_times({'a': {'when': '2026-01-01'}, 'gone old': {'when': '2026-01-01'},
+                                 'gone new': {'when': '2026-01-20'}, 'gone undated': {}}, names, today='2026-01-25')
+    check(set(got) == {'a', 'gone new'}, 'durations of names no tier has go once older than STALE_DAYS', str(got))
+    saved = run_tests.NEEDS
+    try:
+        run_tests.NEEDS = {'t': run_tests.need(mem=1), 'u': run_tests.need(mem=2)}
+        jobs = run_tests.make_jobs([('t', 'quick', []), ('u', 'quick', [])], {'t': (10.0, 3000), 'u': (5.0, 100)})
+        check([j.mem for j in jobs] == [3.0, 2], 'a recorded peak above the declaration raises it, never lowers it',
+              str([j.mem for j in jobs]))
+    finally:
+        run_tests.NEEDS = saved
+    env = dict(os.environ)
+    env.pop('MPLCONFIGDIR', None)
+    code = ('import os, sys; sys.path.insert(0, sys.argv[1]); import run_tests; '
+            'run_tests.subprocess.run = lambda *a, **k: None; run_tests.warm_matplotlib(); print(os.environ["MPLCONFIGDIR"])')
+    r = subprocess.run([sys.executable, '-c', code, SUITE], capture_output=True, text=True, env=env, timeout=60)
+    check(r.stdout.strip() == run_tests.MPL_DIR, 'MPLCONFIGDIR is the suite\'s own folder for the tests', r.stdout + r.stderr)
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix='runner_parallel_')
     try:
@@ -204,6 +248,7 @@ def main():
         scheduler()
         log_reader(tmp)
         lock(tmp)
+        qw1(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print('all passed' if not failed else f'{failed} check(s) failed')

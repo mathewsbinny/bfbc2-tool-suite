@@ -37,6 +37,7 @@ fn opfor() -> Option<PathBuf> {
 
 #[test]
 fn warehouse_as_the_harness_draws_it() {
+    let _gate = crate::gate();
     let Some(root) = opfor() else {
         println!("skipped: MP_005 is not prepared in Project OPFOR BFBC2");
         return;

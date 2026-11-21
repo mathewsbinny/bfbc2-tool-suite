@@ -111,6 +111,7 @@ fn click_menu(h: &mut Headless, app: &mut EditorApp, label: &str) {
 
 #[test]
 fn e2b_through_the_interface() {
+    let _gate = crate::gate();
     let mut h = match Headless::new([1500, 900]) {
         Ok(h) => h,
         Err(e) => {

@@ -3,6 +3,12 @@ window.
 
   python tests\test_editor.py
 
+Not in run_tests.py's tiers since round QW1 (audit AU2 P2): the quick tier's "Rust core: cargo fmt, clippy, tests"
+(tests\test_rust.py) runs these crates' tests in its workspace run and prints the same evidence lines (KEEP). This
+script stays for a run of the three crates by hand, one test at a time (--test-threads 1) with their output.
+Each crate's integration tests are one test binary (round QW1): --test editor / levelwrite / render, a file's tests
+by its module name (`cargo test -p bc2-editor --test editor g2::`).
+
   - the theme generated from design\project\tokens.json: every colour, type, spacing, radius, size and shadow token
     reaches the egui style, the dock style or the view's palette, in Dark and Light;
   - the outliner against the Python Map Inspector's lists recorded for SP_01, MP_005, MP_009GR and ONS_MP_004
@@ -56,6 +62,12 @@ suite_paths.use('rust')
 import build_native  # noqa: E402
 
 RUST = os.path.join(SUITE, 'rust')
+# the editor tests' evidence lines (tests\test_rust.py prints them from the workspace run too)
+KEEP = ('as the Map Inspector lists them', 'outline pixels', 'levels compared', 'levels in this game copy', 'median',
+        'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
+        'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ', 'g4 ',
+        'as the Map Inspector showed them', 'compared with the Map Inspector', 'gr1 ', 'as the Navigation Studio showed them',
+        'compared with the Navigation Studio', 'gr2 ', 'the same AI layer', 'WW2')
 
 
 def main() -> int:
@@ -69,14 +81,8 @@ def main() -> int:
                        cwd=RUST, env=env,
                        capture_output=True, text=True, encoding='utf-8', errors='replace')
     out = (r.stdout + r.stderr).splitlines()
-    keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared',
-            'levels in this game copy', 'median',
-            'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
-            'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ', 'g4 ', 'as the Map Inspector showed them',
-            'compared with the Map Inspector', 'gr1 ', 'as the Navigation Studio showed them',
-            'compared with the Navigation Studio', 'gr2 ', 'the same AI layer', 'WW2')
     for line in out:
-        if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
+        if any(k in line for k in ('test result:', 'skipped', *KEEP)) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))
     if r.returncode:
         print('\n'.join(out[-60:]).encode('ascii', errors='backslashreplace').decode('ascii'))
