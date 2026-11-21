@@ -15,7 +15,7 @@
 )]
 #![allow(clippy::cast_precision_loss, reason = "sphere keys are 16-bit integers")]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bc2_formats::dbx::NUMBERS;
 use bc2_formats::dbx::edit::{EditDbx, NodeId, numbers_of, varint_bytes};
@@ -524,65 +524,192 @@ fn set_slot(w: &mut LevelWriter, inst: NodeId, slot: u32) -> Result<()> {
     Ok(())
 }
 
+/// A blueprint's cull shape (round XF1): its leaves as one slotted placement of it has them, each centre in the
+/// object's own space, with its radius and `Max`; where it was read.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Shape {
+    /// The leaves: (sphere, its centre in the object's space; `Max`).
+    pub leaves: Vec<(Sphere, f32)>,
+    /// Where: `<level> <object guid> slot <n>`.
+    pub source: String,
+}
+
+impl Shape {
+    /// The leaves for an object standing at `rows`.
+    #[must_use]
+    pub fn placed(&self, rows: &Rows) -> Vec<(Sphere, f32)> {
+        self.leaves
+            .iter()
+            .map(|(s, mx)| {
+                (
+                    Sphere {
+                        c: apply_rows(rows, s.c),
+                        r: s.r,
+                    },
+                    *mx,
+                )
+            })
+            .collect()
+    }
+}
+
+/// A placed object's blueprint: its `ReferencedObject`'s partition, lower case (`objects/props/crate/crate`).
+#[must_use]
+pub fn blueprint_of(w: &LevelWriter, inst: NodeId) -> Option<String> {
+    let r = w.d.child(inst, b"ReferencedObject").and_then(|x| w.d.attr(x, b"ref"))?;
+    let i = r.iter().rposition(|&c| c == b'/')?;
+    Some(String::from_utf8_lossy(r.get(..i)?).to_ascii_lowercase())
+}
+
+/// An object's own shape in its level: (blueprint, slot, shape).
+pub type OwnShape = (String, u32, Shape);
+
+/// The slotted placed objects of a level with their own shapes (guid -> [`OwnShape`]), and per blueprint the shape
+/// of its first slotted placement (by slot). A slot's leaves run up to the next slot, at most two (`README.md`,
+/// "Leaves per object").
+#[must_use]
+pub fn shapes(
+    level: &LevelWriter,
+    tree: &CullTree,
+    label: &str,
+) -> (HashMap<String, OwnShape>, HashMap<String, Shape>) {
+    let mut by_slot: Vec<(u32, String, String, Rows)> = Vec::new();
+    for e in level.d.of_type(b".ReferenceObjectData") {
+        let s = slot_of(level, e);
+        let g = String::from_utf8_lossy(level.d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase();
+        if s > tree.enum_offset
+            && let Some(rows) = level.transform(&g)
+        {
+            by_slot.push((s, g, blueprint_of(level, e).unwrap_or_default(), rows));
+        }
+    }
+    by_slot.sort_by_key(|x| x.0);
+    let mut own = HashMap::new();
+    let mut per_bp: HashMap<String, Shape> = HashMap::new();
+    for (i, (s, g, bp, rows)) in by_slot.iter().enumerate() {
+        let next = by_slot.get(i + 1).map(|x| x.0);
+        let count = next.map_or(2, |n| (n - s).clamp(1, 2));
+        let first = s - tree.enum_offset;
+        let mut leaves = Vec::new();
+        for leaf in first..first + count {
+            let Some((sph, mx)) = tree.leaf(leaf) else { continue };
+            leaves.push((
+                Sphere {
+                    c: to_local(rows, sph.c),
+                    r: sph.r,
+                },
+                mx,
+            ));
+        }
+        if leaves.is_empty() {
+            continue;
+        }
+        let shape = Shape {
+            leaves,
+            source: format!("{label} {g} slot {s}"),
+        };
+        if !bp.is_empty() {
+            per_bp.entry(bp.clone()).or_insert_with(|| shape.clone());
+        }
+        own.insert(g.clone(), (bp.clone(), *s, shape));
+    }
+    (own, per_bp)
+}
+
+/// One object [`reslot`] gave new leaves.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Slotted {
+    /// The object.
+    pub guid: String,
+    /// Its blueprint.
+    pub blueprint: String,
+    /// Its slot before (0: none; else its own before it moved, or one that was not its own: a template's, another
+    /// level's).
+    pub old: u32,
+    /// Its new slot.
+    pub new: u32,
+    /// Its leaves.
+    pub leaves: usize,
+    /// The shape's source (`base <guid> slot <n>`: the object itself before it moved, or a placement of its
+    /// blueprint in the base or another level).
+    pub source: String,
+}
+
 /// What [`reslot`] did.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Reslotted {
-    /// (guid, old slot, new slot, leaves) of each object given new leaves.
-    pub objects: Vec<(String, u32, u32, usize)>,
+    /// Each object given new leaves.
+    pub objects: Vec<Slotted>,
+    /// Objects left without a slot (`Enumeration` 0): (guid, blueprint, its slot before). No level of the game copy
+    /// slots their blueprint (DICE leaves such objects unslotted too).
+    pub unslotted: Vec<(String, String, u32)>,
     /// Leaves before and after.
     pub leaves: (u32, u32),
 }
 
-/// Gives every placed object of `edited` that stands elsewhere than the object owning its slot stood in `base` (a
-/// moved or turned object, a copy sharing its original's slot) new leaves in the exclusive tree `tree`: its shape
-/// is the slot's leaves in the base (each one's centre taken into the base object's space and out into the object's
-/// new place), its `Enumeration` the new slot. An object keeps at most two leaves (`README.md`, "Leaves per object").
+/// Gives the placed objects of `edited` that need them their own leaves in the exclusive tree `tree` (round XF1: the
+/// object's own blueprint's shape, never a template's):
+/// - a base object in its own slot that moved or turned: its own leaves in the base, carried along;
+/// - any other object (a duplicate, a placed object, a mode layer's object from another level) that is not DICE's
+///   own unslotted one: the shape of its blueprint, from the base's placements of it, else from `more` (another
+///   level's: the donor's, the level the blueprint comes from), placed at the object; with no shape anywhere,
+///   `Enumeration` 0.
+///
+/// Each new shape gets new leaves, the object's `Enumeration` the new slot; unmoved base objects and their slots are
+/// left alone (old leaves stay, unregistered: CULL-ADD-1). With nothing to do the tree is not rewritten.
 ///
 /// # Errors
 /// A tree that does not read, or a sphere it cannot hold.
-pub fn reslot(base: &LevelWriter, edited: &mut LevelWriter, tree: &mut EditDbx) -> Result<Reslotted> {
+pub fn reslot(
+    base: &LevelWriter,
+    edited: &mut LevelWriter,
+    tree: &mut EditDbx,
+    more: &mut dyn FnMut(&str) -> Option<Shape>,
+) -> Result<Reslotted> {
     let mut t = CullTree::read(tree)?;
     let before = t.leaf_count();
-    // the base's slotted objects: slot -> (guid, transform)
-    let mut by_slot: Vec<(u32, String, Rows)> = Vec::new();
-    for e in base.d.of_type(b".ReferenceObjectData") {
-        let s = slot_of(base, e);
-        let g = String::from_utf8_lossy(base.d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase();
-        if s > t.enum_offset
-            && let Some(rows) = base.transform(&g)
-        {
-            by_slot.push((s, g, rows));
-        }
-    }
-    by_slot.sort_by_key(|x| x.0);
-    let next_slot: HashMap<u32, u32> = by_slot
-        .windows(2)
-        .filter_map(|w| Some((w.first()?.0, w.get(1)?.0)))
-        .collect();
-    let base_of: HashMap<u32, (String, Rows)> = by_slot.iter().map(|(s, g, r)| (*s, (g.clone(), *r))).collect();
+    let (own, per_bp) = shapes(base, &t, "base");
+    let in_base: HashSet<String> = base.guids().into_iter().collect();
     let mut out = Reslotted::default();
+    let mut found: HashMap<String, Option<Shape>> = HashMap::new();
     for e in edited.d.of_type(b".ReferenceObjectData") {
         let s = slot_of(edited, e);
-        let Some((owner, old)) = base_of.get(&s) else { continue };
         let g = String::from_utf8_lossy(edited.d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase();
-        let Some(new) = edited.transform(&g) else { continue };
-        if *owner == g && new == *old {
+        let Some(rows) = edited.transform(&g) else { continue };
+        let bp = blueprint_of(edited, e).unwrap_or_default();
+        let shape = if let Some((_, _, sh)) = own.get(&g).filter(|o| o.1 == s && o.0 == bp) {
+            // a base object in its own slot: carried along when it moved
+            if base.transform(&g) == Some(rows) {
+                continue;
+            }
+            Some(sh.clone())
+        } else if in_base.contains(&g) && s == 0 {
+            // DICE's own unslotted object: left as it is
             continue;
-        }
-        let first = s - t.enum_offset;
-        let count = next_slot.get(&s).map_or(2, |n| (n - s).clamp(1, 2));
-        let mut placed = Vec::new();
-        for leaf in first..first + count {
-            let Some((sph, mx)) = t.leaf(leaf) else { continue };
-            let c = apply_rows(&new, to_local(old, sph.c));
-            placed.push((Sphere { c, r: sph.r }, mx));
-        }
-        if placed.is_empty() {
+        } else {
+            match per_bp.get(&bp) {
+                Some(sh) => Some(sh.clone()),
+                None => found.entry(bp.clone()).or_insert_with(|| more(&bp)).clone(),
+            }
+        };
+        let Some(shape) = shape else {
+            if s != 0 {
+                set_slot(edited, e, 0)?;
+            }
+            out.unslotted.push((g, bp, s));
             continue;
-        }
+        };
+        let placed = shape.placed(&rows);
         let slot = t.add(&placed)?;
         set_slot(edited, e, slot)?;
-        out.objects.push((g, s, slot, placed.len()));
+        out.objects.push(Slotted {
+            guid: g,
+            blueprint: bp,
+            old: s,
+            new: slot,
+            leaves: placed.len(),
+            source: shape.source,
+        });
     }
     out.leaves = (before, t.leaf_count());
     if !out.objects.is_empty() {

@@ -326,6 +326,13 @@ pub enum Op {
         /// The names.
         to: Box<crate::names::LevelNames>,
     },
+    /// The exported level's weather chosen (round VW2, [`crate::weather`]): one of the level's states, another
+    /// level's state borrowed, or the night look; `None`: the level's own weather as it is. The partition is not
+    /// changed in the editor; the export writes the choice ([`crate::MapProject::weather`]).
+    SetWeather {
+        /// The choice.
+        to: Option<Box<crate::weather::WeatherChoice>>,
+    },
     /// The project's target chosen (round E3d): its era and multiplayer mode, the mode's layer brought in from a
     /// donor level of them as ordinary objects, the level's old layer taken out ([`crate::modelayer`]).
     SetMode {
@@ -344,6 +351,44 @@ pub enum Op {
         index: usize,
         /// The edit.
         edit: crate::navedit::NavEdit,
+    },
+    /// Objects' teams set (round XF1, a typed gameplay operation: [`crate::gameplay::set_team`]).
+    SetTeam {
+        /// The objects.
+        items: Vec<crate::gameplay::TeamSet>,
+    },
+    /// A soldier spawner linked to a capture point or unlinked from it ([`crate::gameplay::link_spawner`]).
+    LinkSpawner {
+        /// The capture point.
+        point: String,
+        /// The spawner.
+        spawner: String,
+        /// Linked (put in the point's `Spawners`) or unlinked (taken out).
+        linked: bool,
+    },
+    /// A team's tickets set ([`crate::gameplay::set_tickets`]).
+    SetTickets {
+        /// The ticket counter.
+        counter: String,
+        /// Its values before (for the History; `None` where they were not read).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from: Option<crate::gameplay::Tickets>,
+        /// Its values after.
+        to: crate::gameplay::Tickets,
+    },
+    /// An outline point inserted after another ([`crate::gameplay::insert_point`]).
+    InsertPoint {
+        /// The point it follows.
+        after: String,
+        /// The new point's guid ([`crate::new_guid`]).
+        guid: String,
+        /// Its transform.
+        transform: Rows,
+    },
+    /// An outline point removed, the outline closed over it ([`crate::gameplay::remove_point`]).
+    RemovePoint {
+        /// The point.
+        guid: String,
     },
     /// A side file's edits loaded: they replace the list (reload).
     NavLoad {
@@ -369,6 +414,11 @@ impl Op {
                 | Self::SetField { .. }
                 | Self::Place { .. }
                 | Self::SetMode { .. }
+                | Self::SetTeam { .. }
+                | Self::LinkSpawner { .. }
+                | Self::SetTickets { .. }
+                | Self::InsertPoint { .. }
+                | Self::RemovePoint { .. }
         )
     }
 
@@ -393,12 +443,18 @@ impl Op {
                 .collect(),
             Self::SetField { items } => items.iter().map(|f| f.guid.as_str()).collect(),
             Self::SetMode { to } => to.removed.iter().map(String::as_str).collect(),
+            Self::SetTeam { items } => items.iter().map(|t| t.guid.as_str()).collect(),
+            Self::LinkSpawner { point, spawner, .. } => vec![point.as_str(), spawner.as_str()],
+            Self::SetTickets { counter, .. } => vec![counter.as_str()],
+            Self::InsertPoint { after, .. } => vec![after.as_str()],
+            Self::RemovePoint { guid } => vec![guid.as_str()],
             Self::AddLayer { .. }
             | Self::SetLayer { .. }
             | Self::RemoveLayer { .. }
             | Self::Ungroup { .. }
             | Self::SetStrip { .. }
             | Self::SetNames { .. }
+            | Self::SetWeather { .. }
             | Self::NavAdd { .. }
             | Self::NavRemove { .. }
             | Self::NavLoad { .. } => Vec::new(),
@@ -418,12 +474,14 @@ impl Op {
                 .flat_map(|p| std::iter::once(p.guid.as_str()).chain(p.owned.iter().map(|o| o.guid.as_str())))
                 .collect(),
             Self::SetMode { to } => to.items.iter().map(|i| i.guid.as_str()).collect(),
+            Self::InsertPoint { guid, .. } => vec![guid.as_str()],
             _ => Vec::new(),
         }
     }
 
     /// The operation in words, as the History panel lists it.
     #[must_use]
+    #[allow(clippy::too_many_lines, reason = "one arm per operation kind")]
     pub fn describe(&self) -> String {
         let objects = |n: usize| {
             if n == 1 {
@@ -502,10 +560,30 @@ impl Op {
             Self::Ungroup { group } => format!("Ungroup {group}"),
             Self::SetStrip { to, .. } => format!("Campaign content: {}", to.describe()),
             Self::SetNames { to } => to.describe(),
+            Self::SetWeather { to } => to
+                .as_ref()
+                .map_or_else(|| "Weather: the level's own".to_owned(), |c| c.describe()),
             Self::SetMode { to } => to.describe(),
             Self::NavAdd { edit } => format!("Navigation edit: {}", edit.op),
             Self::NavRemove { edit, .. } => format!("Remove navigation edit: {}", edit.op),
             Self::NavLoad { edits, .. } => format!("Load {} navigation edit(s)", edits.len()),
+            Self::SetTeam { items } => match items.as_slice() {
+                [one] => format!("Set {} to {}", one.guid, one.to.word()),
+                many => format!("Set the team of {}", objects(many.len())),
+            },
+            Self::LinkSpawner { point, spawner, linked } => {
+                if *linked {
+                    format!("Link spawner {spawner} to capture point {point}")
+                } else {
+                    format!("Unlink spawner {spawner} from capture point {point}")
+                }
+            }
+            Self::SetTickets { to, .. } => format!(
+                "Set tickets to {}, losing {} a minute",
+                to.initial, to.loss_per_min as f32
+            ),
+            Self::InsertPoint { after, .. } => format!("Insert an outline point after {after}"),
+            Self::RemovePoint { guid } => format!("Remove outline point {guid}"),
         }
     }
 }
@@ -654,8 +732,14 @@ impl Organisation {
                 }
             }
             Op::SetField { .. }
+            | Op::SetTeam { .. }
+            | Op::LinkSpawner { .. }
+            | Op::SetTickets { .. }
+            | Op::InsertPoint { .. }
+            | Op::RemovePoint { .. }
             | Op::SetStrip { .. }
             | Op::SetNames { .. }
+            | Op::SetWeather { .. }
             | Op::NavAdd { .. }
             | Op::NavRemove { .. }
             | Op::NavLoad { .. } => {}

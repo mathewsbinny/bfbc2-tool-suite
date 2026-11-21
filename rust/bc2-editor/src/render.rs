@@ -631,6 +631,9 @@ pub struct SceneGpu {
     pub render_meshes: bool,
     /// How the objects are shown (round SV1: the view's, the objects', the blueprints', their variants).
     pub display: Display,
+    /// The weather state's tint (round VW2: [`bc2_render::weather::tint`]), multiplying the scene-lit colours and
+    /// the sky; `None`: the view's own light.
+    pub weather_tint: Option<[f32; 3]>,
 }
 
 /// A render mesh as uploaded: (its place in the level's render meshes, level of detail, destruction state).
@@ -669,6 +672,7 @@ impl SceneGpu {
             visual_bg: None,
             render_meshes: true,
             display: Display::default(),
+            weather_tint: None,
             wire_batches: Vec::new(),
             mask_wire_batches: Vec::new(),
             blueprint_mesh: HashMap::new(),
@@ -1669,7 +1673,7 @@ impl Renderer {
         let shader = d.create_shader_module(wgpu::include_wgsl!("view.wgsl"));
         let globals = d.create_buffer(&wgpu::BufferDescriptor {
             label: Some("globals"),
-            size: 80,
+            size: 96,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -2018,6 +2022,13 @@ impl Renderer {
         for v in [0.35f32, 0.85, 0.40, unlit] {
             g.extend_from_slice(&v.to_le_bytes());
         }
+        // round VW2: the weather's tint (the fourth value 1: tinted)
+        let tint = scene
+            .weather_tint
+            .map_or([1.0, 1.0, 1.0, 0.0], |t| [t[0], t[1], t[2], 1.0]);
+        for v in tint {
+            g.extend_from_slice(&v.to_le_bytes());
+        }
         gpu.queue.write_buffer(&self.globals, 0, &g);
         let sel = palette.view_selection;
         let mut c = Vec::with_capacity(32);
@@ -2035,10 +2046,11 @@ impl Renderer {
         }
         gpu.queue.write_buffer(&self.comp_uniform, 0, &c);
         let bg = colors.background;
+        let t = scene.weather_tint.map_or([1.0; 3], |t| t.map(f64::from));
         let clear = wgpu::Color {
-            r: f64::from(bg.r()) / 255.0,
-            g: f64::from(bg.g()) / 255.0,
-            b: f64::from(bg.b()) / 255.0,
+            r: (f64::from(bg.r()) / 255.0 * t[0]).min(1.0),
+            g: (f64::from(bg.g()) / 255.0 * t[1]).min(1.0),
+            b: (f64::from(bg.b()) / 255.0 * t[2]).min(1.0),
             a: 1.0,
         };
         let mut enc = gpu
