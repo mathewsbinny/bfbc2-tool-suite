@@ -32,6 +32,7 @@ mod inspector_parity;
 mod nav_parity;
 mod real_level_editing;
 mod render;
+mod simplified_view;
 mod view_geometry;
 
 /// At most this many of the binary's tests run at the same time.

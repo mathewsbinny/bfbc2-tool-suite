@@ -126,6 +126,7 @@ fn game_indices(world: &bc2_render::world::World, entity_of: &[usize], k: usize)
 
 #[test]
 fn the_simplified_view_draws_render_meshes() {
+    let _gate = crate::gate();
     let Ok(opfor) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;

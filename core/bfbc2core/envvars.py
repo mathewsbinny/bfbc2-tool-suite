@@ -105,6 +105,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_SUITE_REFERENCE': ('test', 'the reference checkout of the path locator test'),
     'BFBC2_TEST_SCRATCH': ('test', 'where the replay and argfmt tests write their scratch files'),
     'BC2_EDITOR_SHOTS': ('test', "the editor tests save their screenshots there"),
+    'BC2_EDITOR_COLLISION_VIEW': ('test', "1: the simplified view stays on collision (round SV1's before pictures)"),
     'BC2_EDITOR_PREPARE': ('test', "the editor's level prepare test on this level (a stand-in OPFOR folder)"),
     'BC2_EDITOR_G3': ('test', "G3's real Package levels test on these levels"),
     'BC2_EDITOR_G3_ART': ('test', "G3's content browser art test on"),

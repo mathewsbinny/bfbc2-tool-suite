@@ -6,7 +6,7 @@ the game and as bfbc2core.level does). Parsed with the suite's dbx reader (bfbc2
 import os
 import sys
 
-SUITE = os.environ.get('BFBC2_SUITE', r'C:\Programming\Projects\bfbc2-tool-suite')
+SUITE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 OPFOR = os.environ.get('OPFOR_ROOT', r'C:\Programming\Projects\project-opfor-bfbc2')
 sys.path.insert(0, os.path.join(SUITE, 'core'))
 
