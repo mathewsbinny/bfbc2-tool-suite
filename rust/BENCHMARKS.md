@@ -6772,3 +6772,95 @@ PR1b's tool-logic-in-libraries; and `bc2-convert` in levelwrite for the award pi
 have no Rust yet, and OPFOR is not this round's to change. Moved to OPFOR in Rust stage 3 (ROADMAP).
 
 Proof: `python run_tests.py quick -j 2` in the worktree, 135 of 135 passed in 837 s (O2 and O4 among them; the editor's tests did not hang this run; 8 parts skipped for want of data, named). cargo fmt, clippy `--workspace --all-targets -D warnings`, each bc2-cli group alone, the changed crates' cargo tests (bc2-formats, bc2-stockmp, bc2-harness, bc2-menu, bc2-levelwrite, bc2-cli: all passed), ruff and mypy (every folder), `spec/trace.py --check` (693 rules) clean. Release builds: `build_native.py` and `--editor`; `bfbc2 --version` prints 0.10.0.
+
+## R5e: the WW2 open sea drawn black (2026-11-21, branch `r5e`)
+
+`EDITOR_ARCHITECTURE.md` 3.11, "Phase 3c (R5e, done)"; spec RNDR-DRAW-8, RNDR-WATER-3. No Python replaced. Tools:
+R5d's `examples/render_probe.rs` (its `--pixel x,y` read-back) and `examples/entry_probe.rs`
+(now printing each block's header bytes 0x18 - 0x1f), `fxc /dumpbin` on the dumped DXBC.
+
+### Root cause: the water's material never reached its shader
+
+Wake Island 600 m out was 53.5 % near-black. The deep-sea pixels read back as HDR `(0, 0, 0, 0)`: the water wrote
+nothing (`--drop patches,strips`: the fog-coloured clear showed through, alpha 0 again). R5d read this as "BF1943's
+water writes alpha 0 past the reefs until the haze is drawn"; it is not the data's and not the haze.
+
+Decoded from the water's pixel shader (`Terrains/Wake_island_s/Shaders/Wake_Water`, program 11861, ps_5_0, 560
+slots): the output is `(colour x a, a)` with
+`a = min(1, ((1 - n.v)^8 + smoothstep((t + 30) / 85)) x smoothstep(t / 5))` and `t` the scene's view distance
+(`DepthBuffer`) less the water's own, both through `cb0[13]` - `waterMaterial[3]`, OPFOR's `g_depthScaleFactors`
+record (`wake_water.py`: BF1943's colour programs translated, their material array named `waterMaterial`). With
+`cb0[13] = 0` both distances are 0 (the shader guards its divisions to 0), `t = 0`, `a = 0`: the water draws
+nothing anywhere, the lagoon included. R5d's green lagoon was the terrain's sea-floor layers, not the water.
+
+The view (`frame::cbuffer`, `live::plan`, ports of `renderqa.cbuffer`) wrote a block's constants only inside a
+`$Globals` variable named `constants`. The Wake water has none: `heightmapWorld*` reached it only because R5d writes
+them through `ps_extra` at their registers; `g_depthScaleFactors` is a per-frame value (`Dyn::DepthFactors`) and went
+through the material path, so it was dropped. What the engine goes by is the program block's header: bytes 0x19 /
+0x18 are the material's first register and the `$Globals` end (FORMAT.md section 1). Measured over every program of
+six databases (`tests/r5e.rs`):
+
+| level | programs whose `constants` is the header window | without `constants`, reading none | read by name (terrain) | `waterMaterial` |
+|---|---:|---:|---:|---|
+| MP_005 | 1,840 (all) | 4 | 0 | - |
+| SP_01 | 1,790 (all) | 1 | 0 | - |
+| Wake Island | 1,793 (all) | 184 | 39 entries | `wake_water` |
+| Guadalcanal | 1,792 (all) | 216 | 40 entries | `guadal_canal_water` |
+| Iwo Jima | 1,794 (all) | 196 | 37 entries | `iwo_jima_water` |
+| Coral Sea | 1,755 (all) | 206 | 12 entries | `cs_water` |
+
+### The fix
+
+`query::block_registers` reads the window; `Draw::ps_window` keeps it (materials, water, terrain, sky);
+`frame::material_window` is the shader's `constants` where it has one (every DICE program: the same registers), else
+the header's window. The water then gets its depth factors as a per-frame hole like DICE's water. No reflection pass
+was needed: the shader's reflection is the level's static cube (`outdoorLightReflectionEnvmap`, as bound since R5b)
+and its own `Sky_Beach_Wake` cube, both already bound.
+
+### Before and after (`render_probe`, 1280 x 720; R5d's views)
+
+| level, view | near-black (< 8) before | after | dark (< 40) before | after |
+|---|---:|---:|---:|---:|
+| Wake Island `auto` (the lagoon) | 0.2 % | 0.1 % | 1.8 % | 1.5 % |
+| Wake Island 600 m out | **53.5 %** | **0.0 %** | 55.6 % | 0.3 % |
+| Wake Island north beach | 13.5 % | 0.0 % | 16.5 % | 0.6 % |
+| Coral Sea `auto` / 900 m out | 0.6 % / 0.5 % | 0.4 % / 0.1 % | 3.9 % / 2.2 % | 3.5 % / 1.2 % |
+| Guadalcanal `auto` / 1,200 m out | 0.1 % / 0.0 % | 0.0 % / 0.0 % | 5.5 % / **48.6 %** | 3.3 % / **0.0 %** |
+| Iwo Jima `auto` / 1,200 m out | 0.4 % / 0.0 % | 0.3 % / 0.0 % | 9.3 % / **56.7 %** | 4.2 % / **0.0 %** |
+| MP_005 west shore / `auto` | 0.1 % / 1.9 % | the same, HDR bit for bit | 35.4 % / 14.2 % | the same |
+| SP_01 `auto` | 41.7 % | the same, HDR bit for bit | 86.9 % | the same |
+
+Guadalcanal's and Iwo Jima's deep sea was a dark grey plane (above the near-black threshold, so R5d's table missed
+it). The opaque and alpha-tested classes' means are unchanged on every view (the terrain shaders without `constants`
+now also get their stored block values; their engine-named ones were and are written by `ps_extra`). A deep-sea pixel
+on Wake: `(0, 0, 0, 0)` -> `(0.034, 0.110, 0.220, 1.0)` HDR. Wake's sea mean (blended pixels) red 0.333, blue 0.468
+on `tests/r5e.rs`'s 640 x 360 view. SP_01's 41.7 % is its own dark interior view, not water (unchanged, R5d's).
+
+### Left
+
+- The in-game picture (`drive\ar_ok.png`, Wake from the Japanese carrier) shows whitecaps out to the horizon and a
+  stronger blue; the view's far sea is smoother and greyer near the horizon (the static reflection cube where the game
+  reflects a live one, `time` 0 so no moving waves, the haze over the scene not drawn: RNDR-WTHR-3). Not proven
+  against a capture.
+- Thin bright seams along a few far water triangles' edges (Guadalcanal, Iwo Jima at 1,200 m): cracks in the water
+  mesh or a depth-tie at a shared edge; not decoded.
+- The sun's highlight is wide and bright on Guadalcanal's 1,200 m view (the light's direction is RNDR-WTHR-4's
+  placeholder).
+
+### Screenshots (not in the repository)
+
+`scratchpad\r5e\shots\before_*` / `after_*` (`render_probe`, main against this branch, the views above),
+`shots_editor\gw1_<level>.png` / `gw1_<level>_light.png` (the editor's game view, dark and light, the four WW2
+levels: `tests/game_view_ww2.rs` now saves both themes), `r5d_game_view_dark` / `_light` (MP_005's harbour,
+unchanged).
+
+### Tests
+
+`cargo test --release -p bc2-formats --lib`: 215 passed (new `shaderdb::query::tests::material_registers`).
+`cargo test --release -p bc2-render`: 33 unit tests (new `frame::tests::a_shader_without_constants_takes_the_material_in_its_block_window`;
+`live::tests::a_plan_filled_gives_the_cbuffer` also with the window) and the integration binary, 4 + 12 game-tier,
+all passed (new `tests/r5e.rs`: `block_windows_are_the_material_registers` over the six databases,
+`the_ww2_open_sea_is_drawn` on Wake Island and Guadalcanal: the water plans `Dyn::DepthFactors`, under 1 % near-black
+and 5 % dark, the sea bluer than red). `cargo test --release -p bc2-editor --test editor` `game_view_ww2` (the four
+WW2 levels, both themes saved) and `game_view_r5d` passed. clippy `--all-targets -D warnings` on bc2-render,
+bc2-formats, bc2-editor and `cargo fmt --check` clean.

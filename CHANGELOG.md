@@ -28,7 +28,18 @@ landed on `main`.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- **Map editor: the WW2 levels' open sea is drawn** in the game-accurate view (round R5e). Past the shallows, Wake
+  Island, Guadalcanal, Iwo Jima and Coral Sea showed a black (or dark grey) plane to the horizon; they now show the
+  deep blue sea with the sun's highlight. The view wrote a material's constants only into a shader variable named
+  `constants`; OPFOR's translated BF1943 water names its material `waterMaterial`, so its depth factors stayed 0 and
+  the water drew nothing at all. A program's material now goes to the registers its parameter block's header names
+  (spec RNDR-DRAW-8, RNDR-WATER-3). DICE's own levels draw exactly as before.
+
+### Changed
+- `bc2_render` (Rust API, round R5e): `frame::cbuffer`, `live::plan` and `live::plan_with` take the pixel shader's
+  block window (`Option<[u8; 2]>`, before `extra`); `material::Draw` has a `ps_window` field; new
+  `frame::material_window` and `bc2_formats::shaderdb::query::block_registers`. No caller outside `bc2-render`.
 
 ## [0.10.0] - 2026-11-21
 
