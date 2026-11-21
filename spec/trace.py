@@ -27,6 +27,9 @@ citation, observed a data or exe item, inferred an inferred item.
 A test cites a rule when rules.json names it as evidence, or when a comment `# spec: ID[, ID ...]` (Python) or
 `// spec: ID[, ID ...]` (Rust) sits on its definition line or the lines directly above it; --check also checks that
 every such comment names an existing rule.
+
+Every rule ID the prose names must be defined. IDs of the areas in EXTERNAL belong to another index instead (L1: the
+map editor's placement study, bfbc2-map-editor/placement/l1_rules.json, IDs such as L1-CQ-001w) and must be in it.
 """
 from __future__ import annotations
 
@@ -215,11 +218,24 @@ def collect(problems: list[str], files: list[str] | None = None) -> list[Rule]:
     return rules
 
 
-MENTION = re.compile(rf'\b({ID})\b')
+MENTION = re.compile(rf'\b({ID}[a-z]?)\b')
+
+# Rule IDs of other indexes the specification may name: area -> the JSON list of {"id": ...} that defines them.
+# L1: the map editor's placement study (DICE's measured layouts), whose IDs may end in a letter (L1-CQ-001w).
+EXTERNAL = {'L1': 'bfbc2-map-editor/placement/l1_rules.json'}
+_external_cache: dict[str, set[str]] = {}
+
+
+def external_ids(area: str) -> set[str]:
+    if area not in _external_cache:
+        with open(os.path.join(SUITE, EXTERNAL[area]), encoding='utf-8') as f:
+            _external_cache[area] = {str(d['id']) for d in json.load(f)}
+    return _external_cache[area]
 
 
 def check_mentions(ids: dict[str, Rule], problems: list[str]) -> None:
-    """Every rule ID the prose names (outside code blocks) is defined somewhere: no dangling cross-reference."""
+    """Every rule ID the prose names (outside code blocks) is defined somewhere: no dangling cross-reference.
+    An ID of an EXTERNAL area must be in that area's index instead."""
     for p in md_files():
         in_fence = False
         for n, line in enumerate(file_lines(p), 1):
@@ -229,8 +245,13 @@ def check_mentions(ids: dict[str, Rule], problems: list[str]) -> None:
             if in_fence:
                 continue
             for m in MENTION.finditer(line):
-                if m.group(1) not in ids:
-                    problems.append(f'{rel(p)}:{n}: {m.group(1)} is named but defined nowhere')
+                name = m.group(1)
+                area = name.split('-')[0]
+                if area in EXTERNAL:
+                    if name not in external_ids(area):
+                        problems.append(f'{rel(p)}:{n}: {name} is not in {EXTERNAL[area]}')
+                elif name not in ids:
+                    problems.append(f'{rel(p)}:{n}: {name} is named but defined nowhere')
 
 
 # ------------------------------------------------------------------------------------------------ tests
