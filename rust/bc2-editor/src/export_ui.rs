@@ -20,7 +20,7 @@
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use bc2_levelwrite::awards::Rgb;
 use bc2_levelwrite::export::{self, ExportSpec, Game, Identity};
@@ -96,6 +96,66 @@ pub struct ExportWindow {
     layer: Option<(u64, modelayer::LayerSig, Vec<String>, Vec<(String, String, [f32; 3])>)>,
     /// The Weather section (round VW2).
     pub weather: crate::weather_ui::WeatherForm,
+    /// The project generation the window is bound to (round DF1, audit AU4-SM-2): the editor's
+    /// [`crate::app::EditorApp::generation`] when the window first drew for its project; `None` until then. A window
+    /// of another generation is unbound before it acts ([`ExportWindow::unbind`]).
+    pub bound: Option<u64>,
+    /// Why Export cannot run now, as last drawn (`None`: it can; the tests read it).
+    pub why_not: Option<String>,
+}
+
+/// Why the Export button waits while an install or uninstall runs (round DF1, audit AU4-CON-1).
+pub const WAIT_INSTALL: &str =
+    "An install or uninstall is running: Export waits for it (it would rebuild the stage being copied)";
+/// Why Install now / Uninstall now wait while an export runs.
+pub const WAIT_EXPORT: &str = "An export is running: wait for it (it rebuilds the stage the install copies)";
+/// Why Export cannot run while the project is not the open view (the export's preview shows the stage).
+pub const NO_PROJECT: &str = "The project is not shown: close the preview first (the export builds the open project)";
+
+/// What a worker that ended without an answer says (round DF1, audit AU4-BUG-4): its panic's text when it panicked.
+fn stopped(what: &str) -> String {
+    format!("{what}: the worker stopped unexpectedly (an internal error; see the console)")
+}
+
+/// Runs a worker's body, a panic turned into an error line (round DF1, audit AU4-BUG-4).
+///
+/// # Errors
+/// The body's error, or its panic's text.
+pub fn guarded<T>(what: &str, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(r) => r,
+        Err(p) => {
+            let text = p
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_owned())
+                .or_else(|| p.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "no message".to_owned());
+            Err(format!("{what}: internal error ({text})"))
+        }
+    }
+}
+
+/// A worker's answer, if it came: `Some(Err)` when the worker ended without one (it panicked).
+fn answer<T>(rx: &Receiver<Result<T, String>>, what: &str) -> Option<Result<T, String>> {
+    match rx.try_recv() {
+        Ok(r) => Some(r),
+        Err(TryRecvError::Empty) => None,
+        Err(TryRecvError::Disconnected) => Some(Err(stopped(what))),
+    }
+}
+
+/// The stage folder of an export (`<opfor>\work\mapedit\<id>\stage`), from the level id as the export makes it
+/// ([`ExportSpec::level_id`]: trimmed, checked) - the one place the editor computes it (round DF1, audit AU4-SM-3).
+#[must_use]
+pub fn stage_of(opfor: &Path, spec: &ExportSpec) -> Option<PathBuf> {
+    let id = spec.level_id().ok()?;
+    Some(
+        opfor
+            .join("work")
+            .join("mapedit")
+            .join(id.to_ascii_lowercase())
+            .join("stage"),
+    )
 }
 
 /// The Install dialog's state (round E3d): OPFOR's `mapedit_install.py` run on a worker - the plan first (what an
@@ -110,6 +170,11 @@ pub struct Install {
     pub text: Vec<String>,
     /// The last run succeeded.
     pub ok: bool,
+    /// The stage the plan was shown for, and its `stage.json` then (round DF1, audit AU4-SM-3): Install now installs
+    /// exactly that stage, and refuses when it was exported again since.
+    pub planned: Option<(PathBuf, Vec<u8>)>,
+    /// The level id Uninstall takes out (the export's id, as [`ExportSpec::level_id`] makes it).
+    pub lv: String,
     running: Option<Receiver<(bool, String)>>,
 }
 
@@ -126,6 +191,33 @@ pub fn install_command(opfor: &Path, args: &[String]) -> Vec<String> {
     v
 }
 
+/// Runs a command to its end, its output (stdout and stderr) going to a log file rather than to the editor's pipes
+/// (round DF1, audit AU4-DS-13: a child whose reader is gone - the editor closed - never fails on a broken pipe
+/// mid-install). Returns whether it succeeded and its output.
+fn run_logged(cmd: &[String], dir: &Path) -> (bool, String) {
+    static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let log = std::env::temp_dir().join(format!("bc2-editor-install-{}-{n}.log", std::process::id()));
+    let run = || -> std::io::Result<std::process::ExitStatus> {
+        let out = std::fs::File::create(&log)?;
+        let err = out.try_clone()?;
+        std::process::Command::new(cmd.first().map_or("python", String::as_str))
+            .args(cmd.iter().skip(1))
+            .current_dir(dir)
+            .stdin(std::process::Stdio::null())
+            .stdout(out)
+            .stderr(err)
+            .status()
+    };
+    let r = run();
+    let text = std::fs::read(&log).map_or_else(|_| String::new(), |b| String::from_utf8_lossy(&b).into_owned());
+    let _ = std::fs::remove_file(&log);
+    match r {
+        Ok(s) => (s.success(), text),
+        Err(e) => (false, format!("python could not be run: {e}")),
+    }
+}
+
 impl Install {
     /// Runs the install script on a worker: `--plan <stage>`, `--apply <stage>` or `--revert <LV>`.
     pub fn run(&mut self, opfor: &Path, step: &str, args: &[String]) {
@@ -138,22 +230,31 @@ impl Install {
         self.running = Some(rx);
         let dir = opfor.to_path_buf();
         std::thread::spawn(move || {
-            let r = std::process::Command::new(cmd.first().map_or("python", String::as_str))
-                .args(cmd.iter().skip(1))
-                .current_dir(&dir)
-                .output();
-            let _ = tx.send(match r {
-                Ok(o) => (
-                    o.status.success(),
-                    format!(
-                        "{}{}",
-                        String::from_utf8_lossy(&o.stdout),
-                        String::from_utf8_lossy(&o.stderr)
-                    ),
-                ),
-                Err(e) => (false, format!("python could not be run: {e}")),
-            });
+            let _ = tx.send(run_logged(&cmd, &dir));
         });
+    }
+
+    /// Runs the plan for a stage (`--plan <stage>`), keeping the stage and its `stage.json` for Install now.
+    pub fn plan(&mut self, opfor: &Path, stage: &Path) {
+        let json = std::fs::read(stage.join("stage.json")).unwrap_or_default();
+        self.planned = Some((stage.to_path_buf(), json));
+        self.run(opfor, "plan", &["--plan".into(), stage.display().to_string()]);
+    }
+
+    /// Why Install now cannot install the planned stage (`None`: it can): no plan, or the stage was exported again
+    /// after the plan was shown (round DF1, audit AU4-SM-3).
+    #[must_use]
+    pub fn stale_plan(&self) -> Option<String> {
+        let Some((stage, json)) = &self.planned else {
+            return Some("No plan was shown: run Install... again".into());
+        };
+        let now = std::fs::read(stage.join("stage.json")).unwrap_or_default();
+        (now != *json).then(|| {
+            format!(
+                "{} was exported again after the plan was shown: close this and run Install... again",
+                stage.display()
+            )
+        })
     }
 
     /// Whether a run is going on.
@@ -162,25 +263,61 @@ impl Install {
         self.running.is_some()
     }
 
-    fn poll(&mut self) {
-        if let Some(rx) = &self.running
-            && let Ok((ok, out)) = rx.try_recv()
-        {
-            self.ok = ok;
-            self.text.extend(out.lines().map(str::to_owned));
-            self.running = None;
+    fn take(&mut self, (ok, out): (bool, String)) {
+        self.ok = ok;
+        self.text.extend(out.lines().map(str::to_owned));
+        self.running = None;
+    }
+
+    /// The run's end, when it came (a worker that ended without an answer is a failed run, round DF1).
+    pub fn poll(&mut self) {
+        let Some(rx) = &self.running else { return };
+        match rx.try_recv() {
+            Ok(r) => self.take(r),
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => self.take((false, stopped("The install"))),
         }
     }
 
     /// Waits for the run (the headless screenshots).
     pub fn settle(&mut self) {
-        if let Some(rx) = self.running.take()
-            && let Ok((ok, out)) = rx.recv()
-        {
-            self.ok = ok;
-            self.text.extend(out.lines().map(str::to_owned));
+        if let Some(rx) = self.running.take() {
+            let r = rx.recv().unwrap_or_else(|_| (false, stopped("The install")));
+            self.take(r);
         }
     }
+
+    /// Hands a worker's receiver to the dialog (tests: a worker that ends without an answer).
+    #[doc(hidden)]
+    pub fn running_from(&mut self, rx: Receiver<(bool, String)>) {
+        self.running = Some(rx);
+    }
+}
+
+/// Writes a file whole (round DF1, audit AU4-BUG-14): beside it first, synced, then moved over it (the move tried
+/// again while a scanner holds the file); a write cut short leaves the old file.
+///
+/// # Errors
+/// The folder, the write or the move failed (the temporary file is removed).
+pub fn write_whole(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir)?;
+    }
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(format!(".tmp-{}", std::process::id()));
+    let tmp = PathBuf::from(tmp);
+    let r = (|| {
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        bc2_formats::atomic::replace(&tmp, path)
+    })();
+    if r.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    r
 }
 
 /// The settings file beside a project.
@@ -439,7 +576,12 @@ fn to_image(p: &Rgb) -> egui::ColorImage {
 impl ExportWindow {
     /// Opens the window for a project (its settings read from beside it, else a first form).
     pub fn open_for(&mut self, project: &Path, opfor: Option<&Path>) {
+        if self.project.as_deref() != Some(project) {
+            self.unbind();
+        }
         self.open = true;
+        // bound to the editor's project generation when it first draws for this project (round DF1)
+        self.bound = None;
         self.project = Some(project.to_path_buf());
         self.opfor = opfor.map(Path::to_path_buf);
         let from_file = std::fs::read_to_string(spec_path(project))
@@ -479,6 +621,47 @@ impl ExportWindow {
         }
     }
 
+    /// Lets go of the project the window was opened for (round DF1, audit AU4-SM-2: the map closed or another
+    /// project opened): the window, the campaign checklist and a finished Install dialog close, and the form, its
+    /// target, the layer counted, the preview pictures and the weather form are dropped. A running export or install
+    /// is kept: its end is still reported, and the stage it works on stays guarded until then. The game copy's
+    /// profiles, names and modes are the game copy's and are kept.
+    pub fn unbind(&mut self) {
+        self.open = false;
+        self.bound = None;
+        self.project = None;
+        self.spec = None;
+        self.target = None;
+        self.layer = None;
+        self.donor_sig = None;
+        self.preview = None;
+        self.previewing = None;
+        self.preview_error = None;
+        self.want_preview = None;
+        self.weather = crate::weather_ui::WeatherForm::default();
+        self.strip.open = false;
+        self.why_not = None;
+        if self.running.is_none() {
+            self.log.clear();
+        }
+        if !self.install.busy() {
+            self.install.open = false;
+            self.install.planned = None;
+        }
+    }
+
+    /// Whether an export runs now.
+    #[must_use]
+    pub fn exporting(&self) -> bool {
+        self.running.is_some()
+    }
+
+    /// Hands an export worker's receiver to the window (tests: a worker that ends without an answer).
+    #[doc(hidden)]
+    pub fn running_from(&mut self, rx: Receiver<Result<Vec<String>, String>>) {
+        self.running = Some(rx);
+    }
+
     /// The mode the form's target names (`conquest` before one is chosen).
     fn target_mode(&self) -> String {
         self.target
@@ -497,9 +680,11 @@ impl ExportWindow {
         let (tx, rx) = channel();
         self.scanning = Some(rx);
         std::thread::spawn(move || {
-            let r = Game::open(&opfor.join("game"))
-                .and_then(|g| bc2_levelwrite::profile::scan(&g, &mode))
-                .map_err(|e| e.to_string());
+            let r = guarded("Reading the content profiles", || {
+                Game::open(&opfor.join("game"))
+                    .and_then(|g| bc2_levelwrite::profile::scan(&g, &mode))
+                    .map_err(|e| e.to_string())
+            });
             let _ = tx.send(r);
         });
     }
@@ -535,7 +720,7 @@ impl ExportWindow {
                     key: format!("{picture}|{donor}"),
                 })
             };
-            let _ = tx.send(run());
+            let _ = tx.send(guarded("The preview pictures", run));
         });
     }
 
@@ -544,18 +729,29 @@ impl ExportWindow {
         else {
             return;
         };
-        if let Ok(json) = serde_json::to_string_pretty(&spec) {
-            let _ = std::fs::write(spec_path(&project), json + "\n");
+        // the settings beside the project, written whole (round DF1, audit AU4-BUG-14): a failed write is said
+        let mut notes = Vec::new();
+        match serde_json::to_string_pretty(&spec) {
+            Ok(json) => {
+                if let Err(e) = write_whole(&spec_path(&project), (json + "\n").as_bytes()) {
+                    notes.push(format!(
+                        "note: the export settings were not saved beside the project ({}: {e})",
+                        spec_path(&project).display()
+                    ));
+                }
+            }
+            Err(e) => notes.push(format!("note: the export settings were not saved ({e})")),
         }
         let (tx, rx) = channel();
         self.running = Some(rx);
         self.log = vec!["Exporting...".into()];
+        self.log.extend(notes.iter().cloned());
         std::thread::spawn(move || {
-            let run = || -> Result<Vec<String>, String> {
+            let run = move || -> Result<Vec<String>, String> {
                 let game = Game::open(&opfor.join("game")).map_err(|e| e.to_string())?;
                 let p = MapProject::load(&project).map_err(|e| e.to_string())?;
-                let lv = spec.level_id().map_err(|e| e.to_string())?.to_ascii_lowercase();
-                let stage = opfor.join("work").join("mapedit").join(&lv).join("stage");
+                spec.level_id().map_err(|e| e.to_string())?;
+                let stage = stage_of(&opfor, &spec).ok_or("no level id")?;
                 let rec = export::build(&game, &p, &project.display().to_string(), &spec, &stage)
                     .map_err(|e| e.to_string())?;
                 let r = export::check(&game, &stage).map_err(|e| e.to_string())?;
@@ -575,24 +771,27 @@ impl ExportWindow {
                 } else {
                     "A check failed: the stage is not ready to install".into()
                 });
+                out.extend(notes);
                 Ok(out)
             };
-            let _ = tx.send(run());
+            let _ = tx.send(guarded("The export", run));
         });
     }
 
-    fn poll(&mut self, ctx: &egui::Context) {
-        if let Some(rx) = &self.running
-            && let Ok(r) = rx.try_recv()
-        {
+    /// The workers' answers that came (round DF1, audit AU4-BUG-4: a worker that ended without one - it panicked -
+    /// is reported and its wait ended, never polled forever).
+    pub fn poll(&mut self, ctx: &egui::Context) {
+        if let Some(r) = self.running.as_ref().and_then(|rx| answer(rx, "The export")) {
             self.log = match r {
                 Ok(lines) => lines,
                 Err(e) => vec![format!("Not exported: {e}")],
             };
             self.running = None;
         }
-        if let Some(rx) = &self.scanning
-            && let Ok(r) = rx.try_recv()
+        if let Some(r) = self
+            .scanning
+            .as_ref()
+            .and_then(|rx| answer(rx, "Reading the content profiles"))
         {
             self.scanning = None;
             // a first form made before the profiles were read takes the profile's default donor
@@ -604,8 +803,10 @@ impl ExportWindow {
             }
             self.profiles = Some(r);
         }
-        if let Some(rx) = &self.previewing
-            && let Ok(r) = rx.try_recv()
+        if let Some(r) = self
+            .previewing
+            .as_ref()
+            .and_then(|rx| answer(rx, "The preview pictures"))
         {
             self.previewing = None;
             match r {
@@ -667,20 +868,42 @@ fn anchor_row(ui: &mut egui::Ui, a: &mut Anchor, pick: Option<[f32; 3]>) {
 }
 
 /// Draws the window and the campaign checklist (when open). `doc` is the open project (the checklist commits its
-/// choice to it), `selected` its primary selected entity (an anchor can take its place).
+/// choice to it), `selected` its primary selected entity (an anchor can take its place), `generation` the editor's
+/// project generation ([`crate::app::EditorApp::generation`]).
+///
+/// Round DF1 (audit AU4-SM-2): the window acts only on the project it was opened for. It binds to the generation it
+/// first draws in with that project; a window of another generation is unbound (closed, its form dropped), and a
+/// `doc` that is not its project is never written to.
 #[allow(clippy::too_many_lines, reason = "the form's rows in order")]
-pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Doc>, selected: Option<usize>) -> bool {
+pub fn window(
+    ctx: &egui::Context,
+    w: &mut ExportWindow,
+    doc: Option<&mut Doc>,
+    selected: Option<usize>,
+    generation: u64,
+) -> bool {
+    if w.bound.is_some_and(|g| g != generation) {
+        w.unbind();
+    }
+    // only the window's own project is acted on (the campaign checklist commits into the open project, whichever)
+    let mut doc = doc;
     crate::strip_ui::window(ctx, &mut w.strip, doc.as_deref_mut());
-    install_dialog(ctx, w, doc.as_deref());
+    let mut doc = doc.filter(|d| w.project.as_deref() == Some(d.path.as_path()));
+    // the workers' answers, the window shown or not (an export's end ungates Install)
+    w.install.poll();
+    w.poll(ctx);
+    install_dialog(ctx, w);
     if !w.open {
         return false;
     }
-    w.poll(ctx);
+    if w.bound.is_none() && doc.is_some() {
+        w.bound = Some(generation);
+    }
     let game = w.game();
-    let saved = w
-        .project
-        .as_ref()
-        .is_some_and(|p| !bc2_levelwrite::project::autosave_path(p).exists());
+    // round DF1 (audit AU4-DS-4): saved is the open project's own state, not the autosave file's absence (a failed
+    // autosave writes none); without the project shown (the preview), the export waits
+    let shown = doc.is_some();
+    let saved = doc.as_deref().is_none_or(|d| d.saved);
     let pick = doc.as_deref().zip(selected).and_then(|(d, k)| {
         let m = d.scene.entities.get(k)?.matrix?;
         Some([m[12] as f32, m[13] as f32, m[14] as f32])
@@ -742,20 +965,15 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
         .is_some_and(|(g, id)| export::is_custom(g, &id.to_ascii_lowercase()));
     let stage_dir = w
         .opfor
-        .clone()
-        .zip(w.spec.as_ref().and_then(|s| s.level_id().ok()))
-        .map(|(o, id)| {
-            o.join("work")
-                .join("mapedit")
-                .join(id.to_ascii_lowercase())
-                .join("stage")
-        });
+        .as_deref()
+        .zip(w.spec.as_ref())
+        .and_then(|(o, s)| stage_of(o, s));
     let staged = stage_dir.as_ref().is_some_and(|d| d.join("stage.json").is_file());
     let installing = w.install.busy();
     let has_doc = doc.is_some();
     let mut set_target = false;
     let mut move_anchor: Option<(String, [f32; 2])> = None;
-    let mut install_ask: Option<(&'static str, Vec<String>)> = None;
+    let mut install_ask: Option<&'static str> = None;
     let previewing = w.previewing.is_some();
     // round EX1: the names - the game copy's languages, the project's names, the rules against the game copy
     let languages: Vec<String> = w.taken.as_ref().map_or_default(|t| t.1.names());
@@ -772,6 +990,7 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
     let mut keep_weather: Option<Option<bc2_levelwrite::weather::WeatherChoice>> = None;
     let stage_ready = staged && !busy;
     let mut preview_stage = false;
+    let mut why_not: Option<String> = None;
     egui::Window::new("Export as a multiplayer level")
         .id(egui::Id::new("export-window"))
         .open(&mut open)
@@ -1209,17 +1428,29 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                     if let Some((_, _, miss, _)) = &layer_state {
                         problems.extend(miss.iter().map(|m| format!("The mode layer is incomplete: {m}")));
                     }
+                    if !shown {
+                        problems.insert(0, NO_PROJECT.into());
+                    }
                     for p in &problems {
                         ui.colored_label(ui.visuals().warn_fg_color, p);
                     }
-                    let tip = problems
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "Builds and checks the new level; the game copy is not changed".into());
+                    // round DF1 (audit AU4-CON-1): never while an install copies the stage, said in words
+                    let blocked = if busy {
+                        Some("Exporting...".to_owned())
+                    } else if installing {
+                        Some(WAIT_INSTALL.to_owned())
+                    } else {
+                        problems.first().cloned()
+                    };
+                    if installing && !busy {
+                        ui.colored_label(ui.visuals().warn_fg_color, WAIT_INSTALL);
+                    }
+                    why_not.clone_from(&blocked);
+                    let tip = "Builds and checks the new level; the game copy is not changed";
                     if ui
-                        .add_enabled(problems.is_empty() && !busy, egui::Button::new("Export"))
+                        .add_enabled(blocked.is_none(), egui::Button::new("Export"))
                         .on_hover_text(tip)
-                        .on_disabled_hover_text(problems.first().cloned().unwrap_or_else(|| "Exporting...".into()))
+                        .on_disabled_hover_text(blocked.unwrap_or_default())
                         .clicked()
                     {
                         go = true;
@@ -1246,25 +1477,38 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                     ui.separator();
                     ui.heading("Install (Project OPFOR)");
                     ui.horizontal(|ui| {
+                        let install_why = if busy {
+                            WAIT_EXPORT
+                        } else if installing {
+                            "An install or uninstall is running"
+                        } else {
+                            "Export the level first: the install takes its stage"
+                        };
                         if ui
                             .add_enabled(staged && !installing && !busy, egui::Button::new("Install..."))
                             .on_hover_text(
                                 "Shows what an install changes in the game copy (OPFOR's mapedit_install.py --plan), \
                                  then installs it when you confirm",
                             )
-                            .on_disabled_hover_text("Export the level first: the install takes its stage")
+                            .on_disabled_hover_text(install_why)
                             .clicked()
-                            && let Some(d) = &stage_dir
                         {
-                            install_ask = Some(("plan", vec!["--plan".into(), d.display().to_string()]));
+                            install_ask = Some("plan");
                         }
+                        let uninstall_why = if busy {
+                            WAIT_EXPORT
+                        } else if installing {
+                            "An install or uninstall is running"
+                        } else {
+                            "The level is not installed"
+                        };
                         if ui
-                            .add_enabled(installed && !installing, egui::Button::new("Uninstall..."))
+                            .add_enabled(installed && !installing && !busy, egui::Button::new("Uninstall..."))
                             .on_hover_text("Takes the level out of the game copy again (every shared file back)")
-                            .on_disabled_hover_text("The level is not installed")
+                            .on_disabled_hover_text(uninstall_why)
                             .clicked()
                         {
-                            install_ask = Some(("confirm-revert", Vec::new()));
+                            install_ask = Some("confirm-revert");
                         }
                         ui.weak(if installed { "installed" } else { "not installed" });
                     });
@@ -1274,19 +1518,24 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
     w.open = open;
     let mut changed = false;
     w.target = form_target;
-    if let Some((step, args)) = install_ask {
+    if let Some(step) = install_ask {
+        // the level id as the export makes it (trimmed; round DF1, audit AU4-SM-3)
+        w.install.lv = w
+            .spec
+            .as_ref()
+            .and_then(|s| s.level_id().ok())
+            .map_or_else(String::new, |id| id.to_ascii_uppercase());
         if step == "confirm-revert" {
             w.install.open = true;
             step.clone_into(&mut w.install.step);
             w.install.text = vec![format!(
                 "Take {} out of the game copy? Every shared file the install changed goes back from its backup.",
-                w.spec
-                    .as_ref()
-                    .map_or_else(String::new, |s| s.level.to_ascii_uppercase())
+                w.install.lv
             )];
             w.install.ok = true;
-        } else if let Some(o) = w.opfor.clone() {
-            w.install.run(&o, step, &args);
+            w.install.planned = None;
+        } else if let (Some(o), Some(d)) = (w.opfor.clone(), stage_dir.as_ref()) {
+            w.install.plan(&o, d);
         }
     }
     if let (Some(d), Some(g)) = (doc.as_deref_mut(), game.as_ref()) {
@@ -1358,7 +1607,11 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
     if preview_stage {
         w.want_preview.clone_from(&stage_dir);
     }
-    if go {
+    w.why_not = why_not;
+    // round DF1 (audit AU4-CON-1): checked again at the start (an install may have begun this frame)
+    if go && w.install.busy() {
+        w.log = vec![format!("Not exported: {WAIT_INSTALL}")];
+    } else if go {
         w.start();
     }
     changed
@@ -1366,26 +1619,21 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
 
 /// The Install dialog (round E3d): the plan's output (what an install changes), then Install on confirmation; the
 /// install's or the uninstall's output.
-fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow, _doc: Option<&Doc>) {
-    w.install.poll();
+fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow) {
     if !w.install.open {
         return;
     }
-    if w.install.busy() {
+    if w.install.busy() || w.running.is_some() {
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
     let mut open = true;
     let mut ask: Option<(&'static str, Vec<String>)> = None;
-    let lv = w
-        .spec
-        .as_ref()
-        .map_or_else(String::new, |s| s.level.to_ascii_uppercase());
-    let stage = w.opfor.clone().map(|o| {
-        o.join("work")
-            .join("mapedit")
-            .join(lv.to_ascii_lowercase())
-            .join("stage")
-    });
+    // round DF1 (audit AU4-SM-3): the level and the stage the plan was shown for, never the form as it is now
+    let lv = w.install.lv.clone();
+    let stage = w.install.planned.as_ref().map(|p| p.0.clone());
+    // round DF1 (audit AU4-CON-1): not while an export rebuilds the stage, and not a stage exported again since
+    let exporting = w.running.is_some();
+    let outdated = w.install.stale_plan();
     let title = match w.install.step.as_str() {
         "plan" => format!("Install {lv}: the plan"),
         "apply" => format!("Install {lv}"),
@@ -1425,8 +1673,19 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow, _doc: Option<&Doc>)
                     ui.label(
                         "Close the game before installing. The install writes the files listed above (backups first).",
                     );
+                    let why = if exporting {
+                        Some(WAIT_EXPORT.to_owned())
+                    } else {
+                        outdated.clone()
+                    };
+                    if let Some(why) = &why {
+                        ui.colored_label(ui.visuals().warn_fg_color, why);
+                    }
                     ui.horizontal(|ui| {
-                        if ui.button("Install now").clicked()
+                        if ui
+                            .add_enabled(why.is_none(), egui::Button::new("Install now"))
+                            .on_disabled_hover_text(why.clone().unwrap_or_default())
+                            .clicked()
                             && let Some(s) = &stage
                         {
                             ask = Some(("apply", vec!["--apply".into(), s.display().to_string()]));
@@ -1437,8 +1696,15 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow, _doc: Option<&Doc>)
                     });
                 }
                 ("confirm-revert", _) => {
+                    if exporting {
+                        ui.colored_label(ui.visuals().warn_fg_color, WAIT_EXPORT);
+                    }
                     ui.horizontal(|ui| {
-                        if ui.button("Uninstall now").clicked() {
+                        if ui
+                            .add_enabled(!exporting && !lv.is_empty(), egui::Button::new("Uninstall now"))
+                            .on_disabled_hover_text(WAIT_EXPORT)
+                            .clicked()
+                        {
                             ask = Some(("revert", vec!["--revert".into(), lv.clone()]));
                         }
                         if ui.button("Cancel").clicked() {
@@ -1462,7 +1728,12 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow, _doc: Option<&Doc>)
         w.install.open = false;
     }
     if let (Some((step, args)), Some(o)) = (ask, w.opfor.clone()) {
-        w.install.run(&o, step, &args);
+        // checked again at the click (an export may have begun this frame)
+        if w.running.is_some() {
+            w.install.text.push(WAIT_EXPORT.into());
+        } else {
+            w.install.run(&o, step, &args);
+        }
     }
 }
 

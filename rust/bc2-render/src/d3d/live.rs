@@ -32,7 +32,7 @@ use windows::Win32::Graphics::Dxgi::Common::{
 use windows::Win32::Graphics::Dxgi::{DXGI_SHARED_RESOURCE_READ, DXGI_SHARED_RESOURCE_WRITE, IDXGIResource1};
 use windows::core::{Interface, PCSTR, PCWSTR, s};
 
-use super::{Device, err, some, state_keys};
+use super::{DEVICE_REMOVED, Device, err, some, state_keys};
 use crate::live::{Live, Step};
 use crate::material::{Prepared, TextureFiles};
 use crate::post::Pass;
@@ -760,19 +760,30 @@ impl Device {
         }
         let q = some(self.gpu.query.clone(), "query")?;
         // SAFETY: an event query of this device; its data is one BOOL
-        unsafe {
+        let r = unsafe {
             self.ctx.End(&q);
             self.ctx.Flush();
             loop {
                 let mut done = 0i32;
                 let r = self.ctx.GetData(&q, Some((&raw mut done).cast()), 4, 0);
                 if r.is_err() || done != 0 {
-                    break;
+                    break r;
                 }
                 std::thread::yield_now();
             }
-        }
-        Ok(())
+        };
+        // round DF1 (audit AU4-BUG-9): a device removed (a driver reset, update or GPU switch) is an error, never a
+        // frame reported finished that was not
+        r.map_err(|e| self.removed().unwrap_or_else(|| format!("GetData (event query): {e}")))
+    }
+
+    /// Why the device was removed, in words (`None`: it is working). A removed device stays removed: everything made
+    /// on it must be made again on a new one.
+    #[must_use]
+    pub fn removed(&self) -> Option<String> {
+        // SAFETY: a plain query of the device's state
+        let r = unsafe { self.device.GetDeviceRemovedReason() };
+        r.err().map(|e| format!("{DEVICE_REMOVED}: {e}"))
     }
 
     /// The scene's colour, depth and classes, and a pass's RGBA8 output (`ldr`: its key), read back (proofs).

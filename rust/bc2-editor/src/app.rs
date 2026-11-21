@@ -54,6 +54,7 @@ mod tools;
 pub use crate::workspace::Workspace;
 pub use create::HeightmapForm;
 pub use modes::StartPage;
+pub use navui::NAV_RUNNING;
 pub use tools::{ContextTarget, MenuItem, MenuKind, Placing, SinkPopup, menu_items};
 
 /// The GPU and egui's renderer on it (the window's, or the headless runner's).
@@ -357,6 +358,8 @@ pub struct Viewport {
     /// Its rectangle on screen, last frame.
     pub rect: Option<Rect>,
     fly: bool,
+    /// egui's renderer its texture is registered with (round DF1, audit AU4-CQ-2: freed when the view goes).
+    registered: Option<Arc<RwLock<egui_wgpu::Renderer>>>,
 }
 
 impl Viewport {
@@ -368,11 +371,55 @@ impl Viewport {
             dirty: true,
             rect: None,
             fly: false,
+            registered: None,
+        }
+    }
+
+    /// The texture egui shows its picture through (`None` before its first frame).
+    #[must_use]
+    pub fn texture_id(&self) -> Option<egui::TextureId> {
+        self.texture
+    }
+}
+
+impl Drop for Viewport {
+    /// Its render target's texture is taken out of egui's renderer (round DF1, audit AU4-CQ-2: closing a map or a
+    /// preview no longer keeps every old view's target in video memory).
+    fn drop(&mut self) {
+        if let (Some(r), Some(id)) = (self.registered.take(), self.texture.take()) {
+            r.write().free_texture(&id);
         }
     }
 }
 
-type Loaded = Result<(Scene, Vec<String>, f64, Vec<PathBuf>), String>;
+/// A level as the loader gives it: the scene, its notes, the seconds it took, its bundles' folders.
+type LoadedOk = (Scene, Vec<String>, f64, Vec<PathBuf>);
+type Loaded = Result<LoadedOk, String>;
+
+/// What a click in the game-accurate view picks from its pick's answer (round DF1, audit AU4-BUG-15): the entity's
+/// pick id, or nothing - and why, when the pick failed (never the hidden simplified view's object instead).
+#[must_use]
+pub fn game_pick(r: Result<Option<usize>, String>) -> (u32, Option<String>) {
+    match r {
+        Ok(e) => (e.map_or(render::ID_NONE, render::entity_id), None),
+        Err(e) => (
+            render::ID_NONE,
+            Some(format!("Nothing picked: the game-accurate view's pick failed ({e})")),
+        ),
+    }
+}
+
+/// Whether two paths name the same file (round DF1, audit AU4-CQ-8): Windows' names are case-insensitive and take
+/// either slash, so `C:\Maps\a.json` and `c:/maps/A.json` are one file; elsewhere the paths are compared as they are.
+#[must_use]
+pub fn same_file(a: &Path, b: &Path) -> bool {
+    if cfg!(windows) {
+        let norm = |p: &Path| p.to_string_lossy().replace('/', "\\").to_lowercase();
+        norm(a) == norm(b)
+    } else {
+        a == b
+    }
+}
 
 /// The environment variable that keeps the simplified view on collision (no render meshes read; round SV1's
 /// "before" pictures).
@@ -472,6 +519,15 @@ pub struct EditorApp {
     preview: Option<Box<diffui::Preview>>,
     /// A preview being opened.
     preview_job: Option<diffui::PreviewJob>,
+    /// The project generation (round DF1, audit AU4 "the editor's implicit state"): a new number each time a level
+    /// or project is shown or the map is closed. The side state made for one project - the Export window, a preview
+    /// being opened - carries the generation it was made in and is dropped when it differs.
+    generation: u64,
+    /// Closing the window was asked for while work that must not be cut short ran (round DF1, audit AU4-DS-13):
+    /// what runs, in words; the close waits for an answer.
+    pub close_asked: Option<String>,
+    /// The user chose to close anyway.
+    close_anyway: bool,
 }
 
 /// The folder new projects go to when none was chosen before: `Documents\BFBC2 Map Projects`.
@@ -554,7 +610,79 @@ impl EditorApp {
             export: crate::export_ui::ExportWindow::default(),
             preview: None,
             preview_job: None,
+            generation: 0,
+            close_asked: None,
+            close_anyway: false,
         })
+    }
+
+    /// The project generation now ([`EditorApp::next_generation`]).
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// A new project generation (round DF1): the open project is replaced or closed, so the side state made for it
+    /// goes - the Export window lets go of its project, a preview being opened is dropped, and a target chosen for a
+    /// project that was never made is forgotten.
+    fn next_generation(&mut self) {
+        self.generation += 1;
+        self.export.unbind();
+        self.preview_job = None;
+        self.pending_target = None;
+    }
+
+    /// Sets the era and mode the next created project takes, as the new-project form's button does (tests).
+    #[doc(hidden)]
+    pub fn set_pending_target(&mut self, era: bc2_levelwrite::Profile, mode: &str) {
+        self.pending_target = Some((era, mode.to_owned()));
+    }
+
+    /// Work that must not be cut short by closing the editor, in words (`None`: none runs): an install or uninstall
+    /// (OPFOR's script writing the game copy), an export (writing the stage), a navkit command (round DF1, audit
+    /// AU4-DS-13).
+    #[must_use]
+    pub fn busy_work(&self) -> Option<String> {
+        let mut what = Vec::new();
+        if self.export.install.busy() {
+            what.push("an install or uninstall of the exported level (OPFOR's mapedit_install.py)");
+        }
+        if self.export.exporting() {
+            what.push("an export (writing its stage)");
+        }
+        let nav_running = |v: &ViewState| v.navs.job.as_ref().is_some_and(|j| j.done.is_none());
+        let parked = self.preview.as_ref().and_then(|p| p.project.as_deref());
+        if self.view().is_some_and(nav_running) || parked.is_some_and(nav_running) {
+            what.push("a navkit command (Build with these edits, Install or Restore)");
+        }
+        (!what.is_empty()).then(|| what.join(", "))
+    }
+
+    /// The window's close was asked for (round DF1, audit AU4-DS-13): `true` when it may close now; otherwise the
+    /// question is shown (what runs; Wait or Close anyway) and the close waits.
+    pub fn close_requested(&mut self) -> bool {
+        if self.close_anyway {
+            return true;
+        }
+        match self.busy_work() {
+            None => true,
+            Some(w) => {
+                self.close_asked = Some(w);
+                false
+            }
+        }
+    }
+
+    /// Answers the close question: close anyway (`true`), or wait (`false`).
+    pub fn answer_close(&mut self, close: bool) {
+        self.close_asked = None;
+        self.close_anyway = close;
+    }
+
+    /// Whether the user chose to close while work ran (the window closes at the next frame).
+    #[must_use]
+    pub fn closing_anyway(&self) -> bool {
+        self.close_anyway
     }
 
     /// The start screen's catalog (pictures, thumbnails, modes) once read.
@@ -591,6 +719,13 @@ impl EditorApp {
     #[must_use]
     pub fn why_not(&self, action: Action) -> Option<&'static str> {
         if let Some(w) = self.compare_why_not(action) {
+            return Some(w);
+        }
+        // the project parked behind a preview closes with the map too (round DF1)
+        if action == Action::CloseMap
+            && let Some(p) = self.preview.as_ref().and_then(|p| p.project.as_deref())
+            && let Some(w) = why_not_in(Some(p), action)
+        {
             return Some(w);
         }
         why_not_in(self.view(), action)
@@ -732,6 +867,10 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             {
                 Some("Open a map first")
             }
+            // round DF1 (audit AU4-CON-2): a running navkit command is never orphaned by closing its map
+            Action::CloseMap if v.is_some_and(|v| v.navs.job.as_ref().is_some_and(|j| j.done.is_none())) => {
+                Some("A navkit command is running (Build with these edits, Install or Restore): wait for it")
+            }
             Action::Undo
             | Action::Redo
             | Action::Save
@@ -853,7 +992,10 @@ impl EditorApp {
                 };
             }
             Action::CloseMap => {
+                // round DF1 (audit AU4-SM-4): a preview ends first (the project's view back, then closed with it)
+                self.close_preview();
                 self.stash_display();
+                self.next_generation();
                 self.mode = Mode::Start;
             }
             Action::OpenViewport(p) => self.open_viewport(p),
@@ -919,6 +1061,7 @@ impl EditorApp {
                 if let Some(path) = self.view().and_then(|v| v.doc.as_ref()).map(|d| d.path.clone()) {
                     self.export
                         .open_for(&path, self.opfor.as_ref().ok().map(PathBuf::as_path));
+                    self.export.bound = Some(self.generation);
                 }
             }
             // the editing actions ran above
@@ -1170,17 +1313,37 @@ impl EditorApp {
     }
 
     fn remember(&mut self, path: &Path) {
-        self.recent.retain(|p| p != path);
+        self.recent.retain(|p| !same_file(p, path));
         self.recent.insert(0, path.to_owned());
         self.recent.truncate(10);
     }
 
-    fn show_scene(
+    /// The recent projects, the latest first.
+    #[must_use]
+    pub fn recent(&self) -> &[PathBuf] {
+        &self.recent
+    }
+
+    /// Shows a loaded level as a new project generation ([`EditorApp::next_generation`]); a target chosen in the
+    /// new-project form goes only to the project `then` creates (round DF1, audit AU4-SM-1: never to the next project
+    /// opened after a Create that failed).
+    fn show_scene(&mut self, gpu: &GpuCtx, lv: &str, loaded: LoadedOk, then: Then) {
+        let target = self.pending_target.take();
+        self.next_generation();
+        // an earlier attempt's error is not this level's
+        self.error = None;
+        let target = if matches!(then, Then::Create(..)) { target } else { None };
+        self.show_scene_with(gpu, lv, loaded, then, target);
+    }
+
+    /// Shows a loaded level (the preview's sides come here directly: they are not a new project generation).
+    fn show_scene_with(
         &mut self,
         gpu: &GpuCtx,
         lv: &str,
-        (scene, notes, secs, bases): (Scene, Vec<String>, f64, Vec<PathBuf>),
+        (scene, notes, secs, bases): LoadedOk,
         then: Then,
+        target: Option<(bc2_levelwrite::Profile, String)>,
     ) {
         let palette = self.palette();
         self.stash_display();
@@ -1261,7 +1424,7 @@ impl EditorApp {
                 .ok()
                 .and_then(|r| bc2_levelwrite::export::Game::open(&r.join("game")).ok());
             d.set_game(game.clone());
-            if let (Some((profile, mode)), Some(g)) = (self.pending_target.take(), game.as_ref()) {
+            if let (Some((profile, mode)), Some(g)) = (target, game.as_ref()) {
                 match bc2_levelwrite::export::choose_mode(g, &d.project, profile, &mode, None) {
                     Ok(c) => {
                         d.commit(Op::SetMode { to: Box::new(c) }, "New project: era and mode");
@@ -1502,6 +1665,7 @@ impl EditorApp {
         if self.recover.is_some() {
             self.recovery_modal(&ctx, &palette);
         }
+        self.close_modal(&ctx, &palette);
         // the navigation (round GR2): the worker's answer, a command's end, the edits' undo; an install's confirm
         if let Mode::View(v) = &mut self.mode {
             v.nav_poll(gpu, &palette);
@@ -1543,7 +1707,7 @@ impl EditorApp {
             Mode::View(v) => (v.doc.as_mut(), v.selected),
             _ => (None, None),
         };
-        if crate::export_ui::window(&ctx, &mut self.export, doc, selected)
+        if crate::export_ui::window(&ctx, &mut self.export, doc, selected, self.generation)
             && let Mode::View(v) = &mut self.mode
         {
             // the target or a placement changed the project (round E3d): the views follow
@@ -1761,6 +1925,55 @@ impl EditorApp {
             });
         if let Some(a) = answer {
             self.answer_recovery(a);
+        }
+    }
+
+    /// The close question (round DF1, audit AU4-DS-13): what still runs; Wait, or Close anyway.
+    fn close_modal(&mut self, ctx: &egui::Context, p: &Palette) {
+        let Some(what) = &self.close_asked else { return };
+        // the question goes by itself once the work has ended
+        if self.busy_work().is_none() {
+            self.close_asked = None;
+            return;
+        }
+        let text = format!(
+            "Still running: {what}. Closing the editor now cuts it short: an install can be left half done in the \
+             game copy, an export or a navkit build half written. Wait for it, or close anyway."
+        );
+        let mut answer = None;
+        egui::Modal::new(egui::Id::new("close-while-busy"))
+            .frame(
+                egui::Frame::new()
+                    .fill(p.surface_2)
+                    .stroke(Stroke::new(1.0, p.line))
+                    .corner_radius(CornerRadius::same(6))
+                    .inner_margin(Margin::same(16)),
+            )
+            .show(ctx, |ui| {
+                ui.set_max_width(520.0);
+                ui.label(
+                    RichText::new("Work is still running")
+                        .text_style(style("title"))
+                        .color(p.ink),
+                );
+                ui.add_space(8.0);
+                ui.label(RichText::new(text).color(p.ink));
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(egui::Button::new(RichText::new("Wait").color(p.on_accent)).fill(p.accent))
+                        .clicked()
+                    {
+                        answer = Some(false);
+                    }
+                    if ui.button("Close anyway").clicked() {
+                        answer = Some(true);
+                    }
+                });
+            });
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        if let Some(a) = answer {
+            self.answer_close(a);
         }
     }
 
@@ -2700,20 +2913,17 @@ impl Tabs<'_> {
         if vp.target.as_ref().is_none_or(|t| t.size != px) {
             let t = self.renderer.target(gpu, px);
             let mut r = self.gpu.egui.write();
-            match vp.texture {
-                Some(id) => r.update_egui_texture_from_wgpu_texture(
+            if let Some(id) = vp.texture {
+                r.update_egui_texture_from_wgpu_texture(
                     &gpu.device,
                     &t.output_view,
                     egui_wgpu::wgpu::FilterMode::Nearest,
                     id,
-                ),
-                None => {
-                    vp.texture = Some(r.register_native_texture(
-                        &gpu.device,
-                        &t.output_view,
-                        egui_wgpu::wgpu::FilterMode::Nearest,
-                    ));
-                }
+                );
+            } else {
+                vp.texture =
+                    Some(r.register_native_texture(&gpu.device, &t.output_view, egui_wgpu::wgpu::FilterMode::Nearest));
+                vp.registered = Some(Arc::clone(&self.gpu.egui));
             }
             vp.target = Some(t);
             vp.dirty = true;
@@ -2735,12 +2945,17 @@ impl Tabs<'_> {
                 .renderer
                 .pick(gpu, t, [at.x.max(0.0) as u32, at.y.max(0.0) as u32], 4);
             // the game-accurate view picks what its own frame shows (round R5c)
+            // round DF1 (audit AU4-BUG-15): a pick that fails there picks nothing (never the hidden simplified view's
+            // object), and says why
             if projection == Projection::Perspective
                 && self.view.game_accurate
                 && let Some(g) = self.view.game.as_mut()
-                && let Ok(e) = g.pick([at.x.max(0.0) as u32, at.y.max(0.0) as u32], px)
             {
-                id = e.map_or(render::ID_NONE, render::entity_id);
+                let (picked, why) = game_pick(g.pick([at.x.max(0.0) as u32, at.y.max(0.0) as u32], px));
+                id = picked;
+                if let Some(w) = why {
+                    self.view.message = w;
+                }
             }
             let hit = if id == render::ID_NONE {
                 None
@@ -2824,6 +3039,14 @@ impl Tabs<'_> {
                 None => v.mode_view.hidden.clone(),
             };
             g.paint(ui, Some(self.gpu), rect, &vp.camera, px, scene, &v.selection);
+            // round DF1 (audit AU4-BUG-9): a removed device is never drawn with again; the view is let go, so turning
+            // it on again loads it on a new device
+            if let Some(why) = g.lost().map(str::to_owned) {
+                v.game = None;
+                v.game_accurate = false;
+                v.message = format!("Game-accurate view turned off: {why}. Turn it on again to reload it.");
+                vp.dirty = true;
+            }
         } else if let Some(tex) = vp.texture {
             ui.painter().image(
                 tex,

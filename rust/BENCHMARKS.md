@@ -6466,3 +6466,42 @@ through MP_002's bundles, in the Onslaught Package); `-p bc2-editor --test edito
 MP_009GR in every view; the weather states on MP_002SR in both views, measured; the game view opens on MP_005's spawn
 switch); unit tests `modeview::tests`, `weatherview::tests`, `weather_ui::tests`, `weather::tests` (levelwrite).
 Screenshots (not in the repository): `vw2_mode_*` and `vw2_weather_*`, Dark and Light.
+
+## DF1: the editor's state and gating (2026-11-21, branch `df1`)
+
+Audit AU4's 19 DF1 findings, each read at its code location on `main` after XF1 (none was already fixed by XF1),
+kept minimal: OP1 later turns the side fields into explicit state enums. No project or export-file format changed.
+
+| Finding | Root cause | Fix | Proof |
+|---|---|---|---|
+| SM-1 | `pending_target` taken after `show_scene`'s early returns | taken at the top of `show_scene`, used only for `Then::Create`, cleared with the generation | `df1::a_failed_create_leaves_no_target_for_the_next_project` (fails with the old behaviour: "era and mode were not set" on X) |
+| SM-2 | the Export window had no project identity | `EditorApp::generation` (bumped on every show / Close map); `ExportWindow::bound` / `unbind()`; `window()` acts only on the doc whose path is its project | `df1::the_export_window_lets_go_of_a_closed_project` |
+| SM-3 | Install now recomputed the stage from the live form (untrimmed) | `Install::plan` keeps the stage and its `stage.json`; `stage_of` from `level_id()` in one place; stale plans refused | `df1::install_now_takes_the_planned_stage_only` |
+| SM-4 | Close map left the preview parked; preview jobs had no identity | Close map ends the preview; `PreviewJob::generation`; a projectless preview closes to the start screen | `df1::a_preview_being_opened_goes_with_its_project` |
+| CON-1 | Export gated only on its own worker | Export waits for Install / Uninstall and the other way round, in words; checked again at the click | `df1::export_and_install_wait_for_each_other_and_a_dead_worker_is_reported` |
+| CON-2 | NavInstall / Restore ignored a running build; its Job was dropped | `NAV_RUNNING` gates Install, Restore, Build and Close map; `nav::Job` has a `Drop` (kill, remove `partial`) | `df1::navkit_commands_wait_for_the_one_running` |
+| CQ-6 | nav install / restore `wait()`ed on the UI thread | started like the build, its end reported by `nav_poll` (polled in every workspace) | `gr2` waits for the job |
+| BUG-4 | `if let Ok(r) = rx.try_recv()` ignored `Disconnected` | `answer()` maps it to an error line; workers run under `guarded` (panic text) | the CON-1 test |
+| DS-4 | saved = no autosave file | saved = `doc.saved` of the window's own project | the SM-2 test |
+| DS-13 | no close handler; the install's pipes were the editor's | `close_requested` / Wait - Close anyway modal (`CancelClose` in `main.rs`); install output to a log file | the CON-1 test (`busy_work`, `close_requested`) |
+| BUG-14 | `let _ = fs::write(...)` | `export_ui::write_whole` (sync, retried move); a failure goes to the log | `df1::paths_settings_and_picks` |
+| BUG-15 | `if let Ok(e) = g.pick(..)` | `game_pick`: an error picks nothing and says why | `df1::paths_settings_and_picks` |
+| CQ-8 | `PathBuf` equality | `same_file` (case and slashes on Windows) | `df1::paths_settings_and_picks` |
+| CQ-2 | no `free_texture` when a view went | `Drop` for `Viewport` and the game view's `Opened` | `df1::closing_the_map_frees_its_textures` |
+| BUG-9 | `finish()` broke out of its loop on a `GetData` error and returned `Ok` | the error returned (`Device::removed`, `DEVICE_REMOVED`); a lost view is dropped and reloads when turned on | `d3d::tests::only_rgba8_formats_are_read_as_rgba8` (a working device reports none); a real removal needs a TDR |
+| BUG-26 | rows read as `w * 4` bytes whatever the format | `is_rgba8` checked, `RowPitch >= w * 4` checked | `d3d::tests::only_rgba8_formats_are_read_as_rgba8` |
+| CON-11 | nothing waited for wgpu's sampling of a slot | `device.poll(Wait)` (1 s cap) before Direct3D writes the next shared frame | reasoning only (a race) |
+| BUG-10 | `bundleManifest` read with `unwrap_or_default` | `NotFound` alone is "none"; other errors fail `Game::open`; voice-over blocks without one refused (spec XEXP-REG-2) | `df1::a_missing_or_unreadable_bundle_manifest_is_never_read_as_empty` (levelwrite) |
+| CQ-10 | `remove_dir_all(work)` only on success | a `Scratch` guard in `patch_startup` / `repack` | `df1::a_bundle_failing_after_its_unpack_leaves_no_scratch_folder` (fails without the guard) |
+
+### Left, with reasons
+
+- **The game view's load on a worker** (CQ-6's other half): `GameView` holds the Direct3D device and COM objects;
+  moving the load off the UI thread needs a loading state on `ViewState` and Send-safe handover - OP1's state split.
+- **A keyed-mutex handover of the shared frames** (CON-11's lasting fix): needs Vulkan's keyed-mutex import through
+  wgpu-hal; the poll wait closes the race at the cost of the pipelining the game view never used (its frames are
+  waited for by an event query already).
+- **navkit apply writing `--out` in place** (CON-2's Python side, `navkit.py _apply`): the editor no longer installs
+  beside a build or keeps a half-written output after a kill; temp + rename in `navkit.py` is NavKit's (NK1).
+- **Unsaved edits on close** (AU1 G-N20, named with DS-13): the autosave keeps them; a save prompt is OP1's.
+- Only a playtest or a driver reset can prove BUG-9's recovery and CON-11 end to end.

@@ -429,6 +429,11 @@ fn edit_build_install_restore_on_a_scratch_copy() {
         Some(r) => h.click(&mut app, r.center()),
         None => app.view_mut().unwrap().nav_confirm(true),
     }
+    // round DF1: the install runs in the background like the build; its end is waited for here
+    assert!(
+        app.view_mut().unwrap().navs.job.as_mut().unwrap().wait(),
+        "navkit install"
+    );
     h.settle(&mut app, 2);
     assert!(app.view().unwrap().navs.confirm.is_none());
     assert_eq!(std::fs::read(&installed).unwrap(), built_bytes, "installed");
@@ -442,6 +447,10 @@ fn edit_build_install_restore_on_a_scratch_copy() {
     let plan = app.view().unwrap().navs.confirm.clone().unwrap();
     assert!(plan.lines[0].starts_with("Put DICE's file back"), "{:?}", plan.lines);
     app.view_mut().unwrap().nav_confirm(true);
+    assert!(
+        app.view_mut().unwrap().navs.job.as_mut().unwrap().wait(),
+        "navkit restore"
+    );
     h.settle(&mut app, 2);
     let after = snapshot(&scratch.join("game"));
     assert_eq!(after, before, "the scratch game folder byte for byte as it was");
