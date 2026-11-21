@@ -2409,7 +2409,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe 0x98BD6E, renderer"
+     "ref": "BFBC2Game.exe 0x98BD6E, renderer; 0x98BCE0-0x98BD7B: `mov edx,[ebx+8"
     },
     {
      "kind": "data",
@@ -9265,6 +9265,52 @@
    ]
   },
   {
+   "id": "SHDB-LVL-1",
+   "title": "A level draws through its own databases only",
+   "file": "spec/formats/shaderdb.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::stock_levels_carry_their_meshes_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy, 2026-11-21: SP_01, MP_005, MP_002 reached and covered by bundle; mp_common, sp_common, ww2_common, nam_common: no database"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md"
+    }
+   ]
+  },
+  {
+   "id": "SHDB-LVL-2",
+   "title": "An export adds the entries of the meshes it brings in",
+   "file": "spec/formats/shaderdb.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/shaders.rs:218-316"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:165-200"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2987-3044"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ]
+  },
+  {
    "id": "SHDB-RS-1",
    "title": "The program's state word",
    "file": "spec/formats/shaderdb.md",
@@ -12987,7 +13033,7 @@
   },
   {
    "id": "XCULL-RES-1",
-   "title": "Who gets new leaves",
+   "title": "Who gets new leaves, and whose shape",
    "file": "spec/transforms/culltree.md",
    "status": "verified",
    "evidence": [
@@ -13002,6 +13048,22 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-RES-3",
+   "title": "The check holds each new shape to its blueprint",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2856-2984"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
     }
    ]
   },
@@ -14138,6 +14200,22 @@
    ]
   },
   {
+   "id": "XLOG-LOG-3",
+   "title": "Undo replays from a checkpoint, not the whole log",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:207-318"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/xf1.rs::undo_on_a_mode_project"
+    }
+   ]
+  },
+  {
    "id": "XLOG-LOG-2",
    "title": "The file: whole writes, an autosave, versions",
    "file": "spec/transforms/projectlog.md",
@@ -14302,6 +14380,42 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-APP-6",
+   "title": "Typed gameplay operations check the data's rules",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:106-343"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:1115-1135"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_xf1.rs::typed_gameplay_operations_on_valparaiso"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-APP-7",
+   "title": "Paste is a deep duplicate",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/app/tools.rs:1259-1288"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate"
     }
    ]
   },

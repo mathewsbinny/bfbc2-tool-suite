@@ -662,6 +662,29 @@ pub struct StageRecord {
     /// The mode layer came from the project's own target (round E3d) rather than the export file's graft.
     #[serde(default)]
     pub project_mode: bool,
+    /// The objects given new cull leaves and whose shape each took (round XF1).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cull: Vec<SlotRecord>,
+    /// Objects left without a slot because no level slots their blueprint: (guid, blueprint) (round XF1).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unslotted: Vec<(String, String)>,
+    /// The shader entries added to the level's databases (round XF1).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shaders: Vec<crate::shaders::DatabaseAdds>,
+}
+
+/// An object the export gave new cull leaves (round XF1): its blueprint, its slot and the shape's source
+/// (`base <guid> slot <n>`, `<level> <guid> slot <n>`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlotRecord {
+    /// The object.
+    pub guid: String,
+    /// Its blueprint (partition, lower case).
+    pub blueprint: String,
+    /// Its slot.
+    pub slot: u32,
+    /// Where its shape was read.
+    pub source: String,
 }
 
 /// Root files the engine finds by a level's name (`console_onslaught.rename_level_files`, `wake_install.ROOT_FILES`):
@@ -1094,6 +1117,8 @@ pub fn build(
     let datas = read_found(&found)?;
     let mut level_entries: Vec<StagedEntry> = Vec::new();
     let mut tree_slots = None;
+    let mut cull_record: Vec<SlotRecord> = Vec::new();
+    let mut unslotted_record: Vec<(String, String)> = Vec::new();
     let mut exclusive: Option<(String, EditDbx)> = None;
     for ((_, (_, e)), data) in roots.iter().zip(datas) {
         let new_name = renamed_entry(&e.name, &base, &low);
@@ -1123,18 +1148,44 @@ pub fn build(
          trees, animation sound map)",
         roots.len()
     ));
-    // 4. the cull tree: moved and copied objects get new leaves
+    // 4. the cull tree: moved, copied, placed and grafted objects get new leaves of their own blueprint's shape
+    // (round XF1: never a template's), from the base's placements of it, else from another level's
     if let Some((name, mut d)) = exclusive {
-        let r = crate::culltree::reslot(&base_w, &mut w, &mut d)?;
+        let t_cull = std::time::Instant::now();
+        let mut others = LevelShapes::new(game, std::slice::from_ref(&donor_lv));
+        let r = crate::culltree::reslot(&base_w, &mut w, &mut d, &mut |bp| others.find(bp))?;
         report.push(format!(
-            "cull tree: {} objects given new leaves (leaves {} -> {})",
+            "cull tree: {} objects given new leaves (leaves {} -> {}); {} left without a slot (no level slots their \
+             blueprint)",
             r.objects.len(),
             r.leaves.0,
-            r.leaves.1
+            r.leaves.1,
+            r.unslotted.len()
         ));
-        for (g, a, b, n) in &r.objects {
-            report.push(format!("  {g}: slot {a} -> {b} ({n} leaves)"));
+        for o in &r.objects {
+            report.push(format!(
+                "  {}: slot {} -> {} ({} leaves, {}'s shape from {})",
+                o.guid, o.old, o.new, o.leaves, o.blueprint, o.source
+            ));
         }
+        for (g, bp, s) in &r.unslotted {
+            report.push(format!("  {g}: {bp}: slot {s} -> 0 (no level slots it)"));
+        }
+        report.push(format!(
+            "cull tree: shapes found in {:.1} s",
+            t_cull.elapsed().as_secs_f64()
+        ));
+        cull_record = r
+            .objects
+            .iter()
+            .map(|o| SlotRecord {
+                guid: o.guid.clone(),
+                blueprint: o.blueprint.clone(),
+                slot: o.new,
+                source: o.source.clone(),
+            })
+            .collect();
+        unslotted_record = r.unslotted.iter().map(|(g, bp, _)| (g.clone(), bp.clone())).collect();
         tree_slots = Some(r);
         level_entries.push(StagedEntry {
             name,
@@ -1338,6 +1389,51 @@ pub fn build(
     report.extend(closure_summary(&cl.record));
     let closure_record = cl.record;
     level_all.extend(cl.copied);
+    // round XF1: the level's shader databases get the entries of every mesh it reaches that the base's lack (an
+    // object placed from another level or set, another mode's layer, another set's kits): a level draws only through
+    // its own databases (SHDB-LVL-1), and a part with no program crashes the renderer (0x98BD6E, RNDR-DRAW-6)
+    let t_shaders = std::time::Instant::now();
+    let live_block = game.live(&block_loaded)?;
+    let reached = crate::shaders::reach_staged(&level_all, &live_block)?;
+    let mut prefer = vec![donor_lv.clone(), base.clone()];
+    for c in &closure_record {
+        if let Some(l) = c
+            .from
+            .replace('\\', "/")
+            .to_ascii_lowercase()
+            .strip_suffix("/level-00.fbrb")
+            .and_then(|x| x.rsplit('/').next())
+        {
+            prefer.push(l.to_owned());
+        }
+    }
+    let shader_record = crate::shaders::add_entries(game, &mut level_all, &reached, &prefer)?;
+    for s in &shader_record {
+        report.push(format!(
+            "shaders: {}: {} of the {} meshes the level reaches had no entry; {} entries added for {} of them ({}); \
+             {} in no level's database",
+            s.database,
+            s.missing,
+            reached.len(),
+            s.added.iter().map(|a| a.2).sum::<usize>(),
+            s.added.len(),
+            {
+                let mut by: BTreeMap<&str, usize> = BTreeMap::new();
+                for a in &s.added {
+                    *by.entry(a.1.as_str()).or_default() += 1;
+                }
+                by.iter()
+                    .map(|(l, n)| format!("{n} from {l}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            },
+            s.nowhere.len()
+        ));
+    }
+    report.push(format!(
+        "shaders: the reach and the merges in {:.1} s",
+        t_shaders.elapsed().as_secs_f64()
+    ));
     // 7. the other bundles: the base's terrain overlay, its minimap, its loading music
     let pick = |bundles: Vec<PathBuf>, keep: &dyn Fn(&str) -> bool| -> Result<Vec<StagedEntry>> {
         let live = game.live(&bundles)?;
@@ -1476,9 +1572,91 @@ pub fn build(
         announcer,
         closure: closure_record,
         project_mode: target.is_some(),
+        cull: cull_record,
+        unslotted: unslotted_record,
+        shaders: shader_record,
     };
     write_record(out, &rec)?;
     Ok(rec)
+}
+
+/// Blueprints' cull shapes from the game copy's levels (round XF1): for a blueprint the base does not slot, the
+/// first slotted placement of it in the levels of `first` (the mode's donor), then in the levels whose own level
+/// bundle holds its partition, then in every other level ([`crate::shaders::game_levels`]: DICE's first). Each
+/// level's partition and exclusive tree are read once.
+pub struct LevelShapes<'g> {
+    game: &'g Game,
+    first: Vec<String>,
+    levels: Option<Vec<String>>,
+    read: HashMap<String, HashMap<String, crate::culltree::Shape>>,
+}
+
+impl<'g> LevelShapes<'g> {
+    /// Looks in `first` before the others.
+    #[must_use]
+    pub fn new(game: &'g Game, first: &[String]) -> Self {
+        Self {
+            game,
+            first: first.iter().map(|l| l.to_ascii_lowercase()).collect(),
+            levels: None,
+            read: HashMap::new(),
+        }
+    }
+
+    /// The levels to look in after `first` ([`crate::shaders::game_levels`]).
+    fn levels(&mut self) -> &[String] {
+        let game = self.game;
+        self.levels.get_or_insert_with(|| crate::shaders::game_levels(game))
+    }
+
+    /// A level's blueprint shapes ([`crate::culltree::shapes`]); none where its partition or tree does not read.
+    fn of_level(&mut self, lv: &str) -> &HashMap<String, crate::culltree::Shape> {
+        let game = self.game;
+        self.read.entry(lv.to_owned()).or_insert_with(|| {
+            let read = || -> Result<HashMap<String, crate::culltree::Shape>> {
+                let w = LevelWriter::parse(&level_partition(game, lv)?)?;
+                let tree = read_one(
+                    game,
+                    &game.loaded(lv, "level"),
+                    &format!("levels/{lv}/staticculltree_exclusive.dbx"),
+                )?;
+                let d = EditDbx::parse(&tree).map_err(|e| err(e.0))?;
+                let t = crate::culltree::CullTree::read(&d)?;
+                Ok(crate::culltree::shapes(&w, &t, lv).1)
+            };
+            read().unwrap_or_default()
+        })
+    }
+
+    /// The blueprint's shape (`objects/props/crate/crate`, lower case), its source naming the level.
+    pub fn find(&mut self, blueprint: &str) -> Option<crate::culltree::Shape> {
+        if blueprint.is_empty() {
+            return None;
+        }
+        let part = format!("{blueprint}.dbx");
+        let mut order: Vec<String> = self.first.clone();
+        let all: Vec<String> = self.levels().to_vec();
+        let holders: Vec<String> = all
+            .iter()
+            .filter(|lv| {
+                self.game
+                    .live(&self.game.level_bundles(lv, "level"))
+                    .is_ok_and(|l| l.contains_key(&part))
+            })
+            .cloned()
+            .collect();
+        for lv in holders.into_iter().chain(all) {
+            if !order.contains(&lv) {
+                order.push(lv);
+            }
+        }
+        for lv in order {
+            if let Some(s) = self.of_level(&lv).get(blueprint) {
+                return Some(s.clone());
+            }
+        }
+        None
+    }
 }
 
 /// A partition the export copied into the level's own bundle (round E3d's closure): its entry, the bundle it was
@@ -2648,7 +2826,221 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             Err(e) => r.add(false, format!("cull tree: {e}")),
         }
     }
+    // round XF1: each re-slotted object stands in leaves of its own blueprint's shape, and a new object without a
+    // slot is one no level slots
+    if let (Some((_, lw)), Some((_, tree))) = (
+        lvl,
+        ours.iter()
+            .find(|(n, _)| n.to_ascii_lowercase().ends_with("staticculltree_exclusive.dbx")),
+    ) {
+        check_cull_shapes(game, &rec, lw, tree, &mut r)?;
+    }
+    // round XF1: every mesh the level reaches has entries in its shader databases, except those DICE's base level
+    // reaches without them too and those no level's database has
+    check_shaders(game, &rec, &own_entries, &live, &mut r)?;
     Ok(r)
+}
+
+/// The leaves a slot owns in a tree: from its first leaf to the next slot's (at most two), as [`crate::culltree`]
+/// counts them.
+fn slot_leaves(t: &crate::culltree::CullTree, slot: u32, n: usize) -> Vec<(crate::culltree::Sphere, f32)> {
+    let first = slot.saturating_sub(t.enum_offset);
+    (first..first + n as u32).filter_map(|l| t.leaf(l)).collect()
+}
+
+/// The check's cull-shape lines (round XF1, XCULL-RES-3).
+#[allow(
+    clippy::too_many_lines,
+    reason = "two check lines: the re-slotted objects' shapes, the new objects' slots"
+)]
+fn check_cull_shapes(game: &Game, rec: &StageRecord, lw: &EditDbx, tree: &EditDbx, r: &mut CheckReport) -> Result<()> {
+    let t = crate::culltree::CullTree::read(tree)?;
+    let w = LevelWriter { d: lw.clone() };
+    let base_w = LevelWriter::parse(&level_partition(game, &rec.base)?)?;
+    let base_tree = EditDbx::parse(&read_one(
+        game,
+        &game.loaded(&rec.base, "level"),
+        &format!("levels/{}/staticculltree_exclusive.dbx", rec.base),
+    )?)
+    .map_err(|e| err(e.0))?;
+    let bt = crate::culltree::CullTree::read(&base_tree)?;
+    let (base_own, base_bp) = crate::culltree::shapes(&base_w, &bt, "base");
+    let mut others: HashMap<String, HashMap<String, crate::culltree::OwnShape>> = HashMap::new();
+    let mut wrong = Vec::new();
+    for s in &rec.cull {
+        let Some(e) = w.find(&s.guid) else {
+            wrong.push(format!("{}: not in the level", s.guid));
+            continue;
+        };
+        let bp = crate::culltree::blueprint_of(&w, e).unwrap_or_default();
+        let (label, source_guid) = match s.source.split(' ').collect::<Vec<_>>().as_slice() {
+            [l, g, ..] => ((*l).to_owned(), g.to_ascii_uppercase()),
+            _ => (String::new(), String::new()),
+        };
+        let own = if label == "base" {
+            base_own.get(&source_guid).cloned()
+        } else {
+            if !others.contains_key(&label) {
+                let read = || -> Result<HashMap<String, crate::culltree::OwnShape>> {
+                    let lw2 = LevelWriter::parse(&level_partition(game, &label)?)?;
+                    let td = EditDbx::parse(&read_one(
+                        game,
+                        &game.loaded(&label, "level"),
+                        &format!("levels/{label}/staticculltree_exclusive.dbx"),
+                    )?)
+                    .map_err(|x| err(x.0))?;
+                    let tt = crate::culltree::CullTree::read(&td)?;
+                    Ok(crate::culltree::shapes(&lw2, &tt, &label).0)
+                };
+                others.insert(label.clone(), read().unwrap_or_default());
+            }
+            others.get(&label).and_then(|m| m.get(&source_guid)).cloned()
+        };
+        let Some((src_bp, _, shape)) = own else {
+            wrong.push(format!(
+                "{}: its shape's source {} is not a slotted object",
+                s.guid, s.source
+            ));
+            continue;
+        };
+        if src_bp != bp || s.blueprint != bp {
+            wrong.push(format!(
+                "{}: a {bp} took the shape of a {src_bp} ({})",
+                s.guid, s.source
+            ));
+            continue;
+        }
+        let slot = crate::culltree::slot_of(&w, e);
+        let Some(rows) = w.transform(&s.guid) else { continue };
+        let want = shape.placed(&rows);
+        let got = slot_leaves(&t, slot, want.len());
+        // the keys hold centres to 1/16 m... a radius rounded up: CULL-SPH-1
+        let close = got.len() == want.len()
+            && got.iter().zip(&want).all(|(a, b)| {
+                let d =
+                    a.0.c
+                        .iter()
+                        .zip(&b.0.c)
+                        .map(|(x, y)| (x - y).powi(2))
+                        .sum::<f64>()
+                        .sqrt();
+                d <= 0.5 && (a.0.r - b.0.r).abs() <= 0.5 + 0.05 * b.0.r
+            });
+        if slot != s.slot || !close {
+            wrong.push(format!(
+                "{}: slot {slot} does not hold its {bp}'s shape where it stands",
+                s.guid
+            ));
+        }
+    }
+    r.add(
+        wrong.is_empty(),
+        format!(
+            "cull shapes: each of the {} re-slotted objects stands in its own blueprint's shape{}",
+            rec.cull.len(),
+            if wrong.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " (not: {})",
+                    wrong.iter().take(5).cloned().collect::<Vec<_>>().join("; ")
+                )
+            }
+        ),
+    );
+    // new objects at slot 0: only those recorded as slotted by no level, and none whose blueprint the base slots
+    let in_base: HashSet<String> = base_w.guids().into_iter().collect();
+    let recorded: HashMap<&str, &str> = rec.unslotted.iter().map(|(g, b)| (g.as_str(), b.as_str())).collect();
+    let mut bad = Vec::new();
+    let mut new_objects = 0;
+    for e in w.d.of_type(b".ReferenceObjectData") {
+        let g = String::from_utf8_lossy(w.d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase();
+        if in_base.contains(&g) {
+            continue;
+        }
+        new_objects += 1;
+        if crate::culltree::slot_of(&w, e) != 0 {
+            continue;
+        }
+        let bp = crate::culltree::blueprint_of(&w, e).unwrap_or_default();
+        if !recorded.contains_key(g.as_str()) || base_bp.contains_key(&bp) {
+            bad.push(format!("{g} ({bp})"));
+        }
+    }
+    r.add(
+        bad.is_empty(),
+        format!(
+            "cull slots: every one of the {new_objects} objects not in the base has its own slot, or no level slots its \
+             blueprint ({} such){}",
+            rec.unslotted.len(),
+            if bad.is_empty() {
+                String::new()
+            } else {
+                format!(" (at slot 0: {})", bad.iter().take(5).cloned().collect::<Vec<_>>().join(", "))
+            }
+        ),
+    );
+    Ok(())
+}
+
+/// The check's shader lines (round XF1, SHDB-LVL-2).
+fn check_shaders(
+    game: &Game,
+    rec: &StageRecord,
+    own: &[StagedEntry],
+    live: &HashMap<String, Found>,
+    r: &mut CheckReport,
+) -> Result<()> {
+    let reached = crate::shaders::reach_staged(own, live)?;
+    let base_reach = crate::shaders::stock_reach(game, &rec.base)?;
+    for e in own {
+        let Some(file) = crate::shaders::database_file(&e.name, &e.type_name) else {
+            continue;
+        };
+        let lacking = crate::shaders::uncovered(&e.data, &file, &reached)?;
+        let stock = crate::shaders::stock_uncovered(game, &rec.base, &file, &base_reach)?;
+        let nowhere: HashSet<&str> = rec
+            .shaders
+            .iter()
+            .filter(|s| s.database == e.name)
+            .flat_map(|s| s.nowhere.iter().map(String::as_str))
+            .collect();
+        let bad: Vec<&String> = lacking
+            .iter()
+            .filter(|m| !stock.contains(*m) && !nowhere.contains(m.as_str()))
+            .collect();
+        let db_ok = {
+            let dx = bc2_formats::shaderdb::open::dx_in_name(&file).unwrap_or(10);
+            bc2_formats::shaderdb::open::open(&e.data, Some(if dx == 11 { 10 } else { dx }), Some(false), &e.name)
+                .map_or_else(|x| vec![x], |o| crate::shaders::check_db(&o.db))
+        };
+        r.add(
+            bad.is_empty() && db_ok.is_empty(),
+            format!(
+                "shaders: {}: entries for the {} meshes the level reaches but {} (the base's own reach without \
+                 entries: {}, in no level's database: {}){}{}",
+                e.name,
+                reached.len(),
+                lacking.len(),
+                lacking.iter().filter(|m| stock.contains(*m)).count(),
+                lacking.iter().filter(|m| nowhere.contains(m.as_str())).count(),
+                if bad.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "; NO ENTRY: {}",
+                        bad.iter().take(8).map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+                    )
+                },
+                if db_ok.is_empty() {
+                    String::new()
+                } else {
+                    format!("; the database fails its checks: {}", db_ok.join("; "))
+                }
+            ),
+        );
+    }
+    Ok(())
 }
 
 /// The mode of a record's maps.ini key (`Conquest` -> `conquest`, `Rush` -> `goldrush`).

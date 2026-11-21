@@ -23,7 +23,25 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Fixed
+- **Map export: objects from other levels and sets get their shader entries** (round XF1): the export merges into
+  the level's Dx9 / 10 / 11 databases the entries of every mesh it reaches that the base lacked (placed objects,
+  another mode's layer, another era's kits), from the levels that draw them. Without them the game's renderer reads a
+  null program (0x98BD6E).
+- **Map export: each object's own cull shape** (round XF1): placed, copied and grafted objects take their own
+  blueprint's shape (from the base or another level), never their template's or another level's slot number.
+- **Map editor: undo, redo and History no longer replay the whole log** (round XF1): checkpoints and a cached donor
+  level; on Aurora as WW2 Conquest with 40 moves an undo went from 9-11 s to under 0.1 s.
+- **Map editor: Paste copies what an object owns** (round XF1): a pasted flag has its own capture area and marker,
+  so editing the copy leaves the original alone.
+
 ### Added
+- **Map editor: typed gameplay operations** (round XF1): set a team, link or unlink a soldier spawner and a capture
+  point, set a team's tickets, insert or remove an outline point (the `Next` / `Previous` chain and the area's point
+  kept). The project format is 4; a version-3 project loads as it is, a newer one is refused in words.
+- **`mapexport check`: shader and cull-shape lines** (round XF1): every mesh the level reaches has entries in its
+  shader databases; every re-slotted object stands in its own blueprint's shape; no new object at slot 0 that some
+  level slots.
 - **Map editor: every name of an exported level** (round EX1). The Export window's **Names**: the level id (what the
   game loads, `Levels/<ID>`, and where its `<ID>_NAME` / `<ID>_DESC` texts come from), its folder under
   `Package\levels\` (the id in lower case, as on every level of the game: renaming the folder renames the id), the
