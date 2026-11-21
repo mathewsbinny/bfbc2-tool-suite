@@ -359,6 +359,11 @@ def run_binary(b: dict[str, Any], game: bool, env: dict[str, str]) -> Result:
         args += ['--test-threads', '2']
     # what cargo test sets for a test process at run time
     child = dict(env, RUSTC_BOOTSTRAP='1', CARGO_MANIFEST_DIR=b['cwd'], CARGO_PKG_NAME=b['crate'])
+    # the editor binary's hang guard (round HG1, tests/main.rs): one test held past half the quick limit ends the
+    # binary with the names of the tests running and their stacks (when frida is there), before the limit kills it
+    if not game:
+        child.setdefault('BC2_TEST_HANG_S', str(int(BINARY_LIMIT['quick'] / 2)))
+        child.setdefault('BC2_TEST_HANG_STACKS', '1')
     t0 = time.time()
     p = subprocess.Popen(args, cwd=b['cwd'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                          encoding='utf-8', errors='replace', env=child)

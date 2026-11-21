@@ -302,6 +302,8 @@ pub struct Scene {
     pub notes: Vec<String>,
     files: Vec<(PathBuf, Vec<u8>)>,
     changed: BTreeSet<usize>,
+    /// The ray structures (round HG1: [`crate::raygrid`]), built when a ray first needs them.
+    rays: crate::raygrid::RayCache,
 }
 
 impl Scene {
@@ -336,6 +338,24 @@ impl Scene {
     #[must_use]
     pub fn changed(&self) -> &BTreeSet<usize> {
         &self.changed
+    }
+
+    /// The terrain triangles (indices into [`Scene::terrain`]'s triangles, ascending) a ray from `origin` along
+    /// `dir` can meet: those of the grid cells its plan passes over ([`crate::raygrid::TerrainGrid`], built on the
+    /// first call). `None` when every triangle is to be tested (the ray is not finite); empty without a terrain.
+    #[must_use]
+    pub fn terrain_candidates(&self, origin: [f64; 3], dir: [f64; 3]) -> Option<Vec<u32>> {
+        match &self.terrain {
+            Some(mesh) => self.rays.terrain(mesh).candidates(origin, dir),
+            None => Some(Vec::new()),
+        }
+    }
+
+    /// The farthest corner of a blueprint's collision triangles from its origin ([`crate::raygrid::radius_of`]),
+    /// computed once per triangle list.
+    #[must_use]
+    pub fn collision_radius(&self, tris: &Arc<Vec<Triangle>>) -> f64 {
+        self.rays.radius(tris)
     }
 
     /// Entity `index`'s collision in world space (its blueprint's triangles placed by its transform), if it has any.

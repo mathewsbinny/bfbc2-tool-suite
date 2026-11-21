@@ -75,10 +75,16 @@ pub fn ray_hit_except(scene: &Scene, origin: V3, dir: V3, skip: &dyn Fn(usize) -
     };
     if let Some((v, tris)) = &scene.terrain {
         let at = |k: u32| v.get(k as usize).map(|p| p.map(f64::from));
-        for t in tris {
+        let mut test = |t: &[u32; 3]| {
             if let (Some(a), Some(b), Some(c)) = (at(t[0]), at(t[1]), at(t[2])) {
                 consider([a, b, c], None);
             }
+        };
+        // only the triangles near the ray's path (round HG1: the scene's terrain grid), in the mesh's order: the
+        // same first hit as testing all of them
+        match scene.terrain_candidates(origin, dir) {
+            Some(near) => near.iter().filter_map(|&k| tris.get(k as usize)).for_each(&mut test),
+            None => tris.iter().for_each(&mut test),
         }
     }
     if let Some(col) = &scene.collision {
@@ -92,11 +98,8 @@ pub fn ray_hit_except(scene: &Scene, origin: V3, dir: V3, skip: &dyn Fn(usize) -
             let Some(Some(local)) = e.blueprint.as_ref().and_then(|b| col.blueprints.get(b)) else {
                 continue;
             };
-            let radius = local
-                .iter()
-                .flat_map(|t| t.iter())
-                .map(|p| f64::from(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt())
-                .fold(0.0, f64::max);
+            // the blueprint's radius, measured once (round HG1: it was measured from every triangle for every ray)
+            let radius = scene.collision_radius(local);
             let scale = (0..3).map(|r| len(row(&m, r))).fold(0.0, f64::max);
             let centre = row(&m, 3);
             let oc = sub(centre, origin);

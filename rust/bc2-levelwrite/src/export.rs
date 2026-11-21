@@ -1878,6 +1878,10 @@ fn closure(
         for ((_, n), data) in visit.iter().zip(read_found(&found)?) {
             todo.push((data, n.clone(), Some(None)));
         }
+        // the round's copies: chosen one by one (a copy's resources are not another's), then read together, one pass
+        // per source bundle (round HG1: read one copy at a time, a WW2 export decompressed its source bundles' payloads
+        // of hundreds of MB once per copied partition - minutes in a release build)
+        let mut planned: Vec<(Vec<Found>, PathBuf, String, String)> = Vec::new();
         for (n, by, origin) in copies {
             if origin == Some(None) && !base_live.contains_key(&n) {
                 // the stock base names it and does not have it either: DICE's own dangling reference
@@ -1931,9 +1935,16 @@ fn closure(
                 .filter(|k| !have.contains(*k))
                 .collect();
             names.sort();
-            let found: Vec<&Found> = names.iter().filter_map(|k| common.get(*k)).collect();
-            for ((_, e), bytes) in found.iter().zip(read_found(&found)?) {
+            let found: Vec<Found> = names.iter().filter_map(|k| common.get(*k)).cloned().collect();
+            for (_, e) in &found {
                 have.insert(e.name.to_ascii_lowercase());
+            }
+            planned.push((found, from, why, by));
+        }
+        let all: Vec<&Found> = planned.iter().flat_map(|p| p.0.iter()).collect();
+        let mut data = read_found(&all)?.into_iter();
+        for (found, from, why, by) in planned {
+            for ((_, e), bytes) in found.iter().zip(data.by_ref()) {
                 if e.name.to_ascii_lowercase().ends_with(".dbx") {
                     todo.push((bytes.clone(), e.name.clone(), Some(Some(from.clone()))));
                 }

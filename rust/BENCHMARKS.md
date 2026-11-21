@@ -6772,3 +6772,100 @@ PR1b's tool-logic-in-libraries; and `bc2-convert` in levelwrite for the award pi
 have no Rust yet, and OPFOR is not this round's to change. Moved to OPFOR in Rust stage 3 (ROADMAP).
 
 Proof: `python run_tests.py quick -j 2` in the worktree, 135 of 135 passed in 837 s (O2 and O4 among them; the editor's tests did not hang this run; 8 parts skipped for want of data, named). cargo fmt, clippy `--workspace --all-targets -D warnings`, each bc2-cli group alone, the changed crates' cargo tests (bc2-formats, bc2-stockmp, bc2-harness, bc2-menu, bc2-levelwrite, bc2-cli: all passed), ruff and mypy (every folder), `spec/trace.py --check` (693 rules) clean. Release builds: `build_native.py` and `--editor`; `bfbc2 --version` prints 0.10.0.
+## HG1: the hangs and the slow tests of the Rust test binaries (2026-11-21, branch `hg1`)
+
+Four causes found and fixed in the product, each with its evidence. Measured on the development PC (16 threads,
+15 GB, RTX 4060 Laptop + Radeon iGPU) while main's quick tier, QW2 and OR0 ran beside it. `CARGO_INCREMENTAL=0`,
+`CARGO_BUILD_JOBS=4`, build folder `rust-targets\bfbc2-tool-suite-hg1`, main merged at TS1 (workspace opt-level 1,
+dependencies 2). Nothing written to `game\`; the game never launched.
+
+### 1. The g3 / g4 editor-test hang: a loader-lock deadlock in NVIDIA's driver
+
+Reproduced on TS1's profile with a loaded PC (the editor binary's quick tests, `--test-threads 2`): 4 hangs in 9 runs,
+always two Headless / `Gpu::headless` tests starting together (g3::sets_from_the_data + g4::create_and_open_projects,
+g2::view_tokens_reach_the_frame + g3::mode_cards_fall_back_to_the_tile). On the earlier opt-level-0 profile and an
+idle PC it did not show in 38 runs. Every thread waited (no CPU); Frida could not even attach (its agent needs the
+loader lock). A full dump (procdump, then dbghelp out of process: `rust\hang_stacks.py`) showed, in all four:
+
+- a thread holding the loader lock (`PEB.LoaderLock` owner) inside `nvoglv64.dll!DllMain`, reached from
+  `RtlExitUserThread -> LdrShutdownThread`: a thread that had used the driver exiting, the driver's thread-detach
+  waiting on its own SRW lock (two dumps) or spinning on `GetExitCodeThread` for its worker thread (two dumps, the
+  "100 % CPU" seen before);
+- another thread in `wgpu_hal::vulkan::Adapter::open` / Vulkan instance creation -> `nvoglv64.dll` (holding that
+  lock) -> `LoadLibraryExW` -> waiting for the loader lock.
+
+`nvoglv64.dll` serves NVIDIA's Vulkan and OpenGL. Each test made its own wgpu instance and device on its own thread
+(`Gpu::headless`), and libtest's threads exit after each test, so a device made while another test's thread exited
+deadlocked for good. The instance also had the OpenGL backend, which loaded the driver's OpenGL side and ran a hidden-
+window thread per instance that exited with it.
+
+Fix (`bc2_editor::render::Gpu::headless`): one device per process, made on the first call and shared (`OnceLock`),
+on an instance with the primary backends only (Vulkan, Direct3D 12). A real user's editor makes its window device once
+on the main thread (eframe); the headless path is the tests' and the screenshots'.
+
+| editor quick tests, `--test-threads 2`, TS1's profile, loaded PC | runs | hangs |
+|---|---:|---:|
+| before (merged main, `Gpu::headless` per test) | 9 | 4 |
+| after | 30 | 0 |
+
+A guard for the next one: the editor test binary's `gate()` records the tests holding a place; one held past
+`BC2_TEST_HANG_S` seconds (default 1200; the quick tier sets 450, half its limit) ends the binary with the running
+tests' names and times, and with `BC2_TEST_HANG_STACKS=1` (the quick tier sets it) first prints each thread's stack
+(`rust\hang_stacks.py <pid> [dump]`: a full minidump written with dbghelp, nothing injected, each thread's stack scan
+named from the PDBs, the loader lock's owner named).
+
+### 2. ex1's shared folder
+
+`ex1::names_form_and_the_export_preview` previewed its stage as `MAPEDIT_EX1_PREVIEW`, prepared into OPFOR's shared
+`work\editor\levels\mapedit_ex1_preview`, so two runs at once wrote and deleted the same folder ("Access is denied").
+The canary's id is now the run's own (`MAPEDIT_EX1_P<pid>`), its prepared copy removed by a guard even when the test
+fails. Passes (44 s); nothing left in `work\editor\levels`.
+
+### 3. XF1's slow levelwrite tests: one decompression per partition
+
+The tests run with the bundle cache's disk files off (`BFBC2_FBRB_CACHE=0`, as the quick tier sets it), and every
+stock level bundle's payload (`mp_common` 300 MB, `sp_01` 221 MB, `ww2_common` 302 MB compressed) is over the
+in-process budget (128 MB): each read decompresses the payload from its start to the entry. Profiled (Frida stack
+samples, dbghelp names): all the time in `zlib_rs::inflate`, under:
+
+- `shaders::reach` (the export's shader reach, `stock_reach` in the check): a depth-first walk reading one partition
+  at a time, thousands of partitions, each a pass over hundreds of MB. Now it walks a step at a time, each step's
+  partitions read in one call (one pass per bundle per step). The meshes found are the same set (a mesh's recorded
+  partition is now the first by name of the first step that reaches it; it was HashMap order before, and only the
+  names are used);
+- `export::closure`'s copies (a WW2 export copies hundreds of partitions from `ww2_common` / Guadalcanal): read one
+  copy at a time; now a round's copies are chosen one by one as before and read together.
+
+| release build, `BFBC2_FBRB_CACHE=0` | before | after |
+|---|---:|---:|
+| `export_xf1::stock_levels_carry_their_meshes_entries` | over 240 s (stopped) | 11.2 s |
+| `export_xf1::a_cross_set_object_gets_its_entries_and_shape` | over 25 min (TS1) | 275 s (616 s with the reach fix alone) |
+| `mapexport build` of that test's canary (SP_01 as WW2 Conquest with Guadalcanal's bunker) | 1,886.7 s | 96.1 s |
+| the same, the bundle cache on (two runs each) | 20.1, 17.7 s | 14.8, 16.3 s |
+
+The canary's stage from the before and after `mapexport` (main's and this branch's), cache on and off: all eight
+bundles and files byte for byte the same; `stage.json` and `report.txt` differ only in their timing lines. The rest of
+the cross-set test is the check's own passes (each step of the base's reach, each database read) and stays a game-tier
+test.
+
+### 4. The SP_01 walk: every terrain triangle per ray
+
+`query::ray_hit_except` (the walk camera's `ground_below` every frame, placing on a surface, snapping) tested all of
+the terrain mesh's 2,093,058 triangles for every ray, and measured each placed object's blueprint radius from all its
+triangles for every ray. Now the scene keeps (`bc2_scene::raygrid`, built on the first ray, about 0.13 s in release):
+a plan grid of the terrain's triangles (about 4 a cell; each triangle's bounds and the ray's path padded by 1 mm, so
+every triangle the ray can meet is listed) and each blueprint's radius. The candidates are tested in mesh order with
+the same test, so the hit is the same, bit for bit.
+
+`cargo run --release -p bc2-editor --example ray_bench -- <OPFOR> <level> 1000` (1,000 rays of each kind, the same
+deterministic rays in both builds):
+
+| per ray, release | SP_01 before | SP_01 after | MP_005 before | MP_005 after |
+|---|---:|---:|---:|---:|
+| vertical (`ground_below`) | 34.8 ms | 0.50 ms | 30.9 ms | 0.37 ms |
+| picking (any direction) | 39.6 ms | 0.67 ms | 35.4 ms | 0.57 ms |
+| `surface_below` | 36.7 ms | 0.38 ms | 33.5 ms | 0.26 ms |
+| digest of every hit | `706ea3bb` | `706ea3bb` | `b423931c` | `b423931c` |
+
+`view_toggles::sp_01_lights_collision_states_walk_and_modes` (TS1's profile): 52.1 s -> 10.0 s (573 s at opt-level 0
+before TS1); the walk's lines are the same.

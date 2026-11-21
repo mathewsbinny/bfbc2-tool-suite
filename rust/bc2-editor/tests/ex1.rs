@@ -70,7 +70,21 @@ fn temp(name: &str) -> PathBuf {
     d
 }
 
-const ID: &str = "MAPEDIT_EX1_PREVIEW";
+/// The canary's level id: this run's own (round HG1). The preview prepares the stage into OPFOR's
+/// `work\editor\levels\<id>`, shared by every process: a fixed id made concurrent runs (two rounds' quick tiers)
+/// write and delete the same folder ("Access is denied").
+fn id() -> String {
+    format!("MAPEDIT_EX1_P{}", std::process::id())
+}
+
+/// Removes the preview's prepared copy of [`id`] at the end, a failing run's too.
+struct PreparedCopy(PathBuf);
+
+impl Drop for PreparedCopy {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 /// The canary: Atacama's Rush (`MP_005GR`) as a BFBC2 Conquest level, saved in `dir`, its export file under new names.
 fn atacama(game: &Game, dir: &Path) -> (PathBuf, ExportSpec) {
@@ -92,7 +106,7 @@ fn atacama(game: &Game, dir: &Path) -> (PathBuf, ExportSpec) {
     let spec = ExportSpec {
         format: export::FORMAT.into(),
         version: export::VERSION,
-        level: ID.into(),
+        level: id(),
         folder: String::new(),
         title: "Atacama Conquest (EX1)".into(),
         mode: "conquest".into(),
@@ -131,6 +145,7 @@ fn names_form_and_the_export_preview() {
         return;
     };
     let game = Game::open(&root.join("game")).unwrap();
+    let _prepared = PreparedCopy(bc2_editor::package::cache_dir(&root, &id()));
     let dir = temp("preview");
     let (path, spec) = atacama(&game, &dir);
     let p = MapProject::load(&path).unwrap();
@@ -152,7 +167,7 @@ fn names_form_and_the_export_preview() {
         app.export.open_for(&path, Some(&root));
         h.settle(&mut app, 4);
         let s = app.export.spec.clone().unwrap();
-        assert_eq!(s.names().id(), ID);
+        assert_eq!(s.names().id(), id());
         assert_eq!(s.names().texts("french").0, "D\u{c9}SERT D'ATACAMA - CONQU\u{ca}TE");
         let (taken, langs) = app.export.taken.clone().unwrap();
         let mode = "Conquest";
@@ -165,7 +180,7 @@ fn names_form_and_the_export_preview() {
         let bad = bc2_editor::export_ui::checks(app.export.spec.as_ref().unwrap(), Some(&game), true, None);
         assert!(bad.iter().any(|m| m.contains("black loading screen")), "{bad:?}");
         shot(&format!("ex1_names_problem_{}.png", theme.key()), &mut h);
-        app.export.spec.as_mut().unwrap().level = ID.into();
+        app.export.spec.as_mut().unwrap().level = id();
         app.export.open = false;
         h.settle(&mut app, 2);
         // the preview: the stage beside the original, the same camera
@@ -174,7 +189,7 @@ fn names_form_and_the_export_preview() {
         h.settle(&mut app, 6);
         assert_eq!(app.preview_side(), Some(Side::B));
         let v = app.view().unwrap();
-        assert_eq!(v.lv, ID.to_ascii_lowercase());
+        assert_eq!(v.lv, id().to_ascii_lowercase());
         assert!(v.doc.is_none(), "the preview is read only");
         assert_eq!(
             v.viewports.values().next().map(|x| x.camera),
@@ -220,7 +235,6 @@ fn names_form_and_the_export_preview() {
         );
     }
     let _ = rec;
-    let _ = std::fs::remove_dir_all(bc2_editor::package::cache_dir(&root, ID));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
