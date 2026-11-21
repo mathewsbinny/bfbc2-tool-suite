@@ -243,7 +243,7 @@ One patch map per terrain block:
 | bounds | 6 x f32 |
 | header | 5 x u32: tile size (66), border (1), tiles per row - 1, rows - 1, W cells per side |
 | tiles | W x W cells x 4 x u16: the cell's mask-atlas tiles |
-| flags | W x W cells x 4 x u8: per mask, non-zero (8) where the mask is tiled |
+| flags | W x W cells x 4 x u8: per mask, 0 where it is not tiled, else the cells its tile spans on a side (8 or 4; TERR-VT-7) |
 | shader map | u32 S, then S x S u8: each cell's patch shader index |
 | names | the block's height field name, the mask-tile atlas name |
 
@@ -266,6 +266,21 @@ resolution bytes and `heightmapWorldScaleY` (always 500, set by the engine) were
 
 [data: OPFOR's Wake Island conversion 2026-11-07: an Oasis-layout donor drew black tiled cells, an MP_009-layout donor (1024 x 512) drew correctly]
 [inferred: the tile index in each cell is resolved against the atlas's tiles per row and rows, so another layout addresses other tiles]
+
+### TERR-VT-7: A mask tile spans flag x flag cells
+
+Status: **verified** · Variants: PC
+
+A cell's mask flag is the number of cells its atlas tile spans on a side, 8 or 4 (never another value), and the
+cells that name a tile form one block of flag x flag cells aligned to multiples of the flag in the patch map: a cell
+reads the part of the tile its place in the block gives (its column `x mod flag`, its row `z mod flag`, each a
+`1 / flag` of the tile's 64 inner pixels), so a mask runs on from cell to cell without a seam. Stretching the whole
+tile over each cell (the suite's reading until round R5d) repeats the block's mask in every cell and draws ragged
+edges at each cell's border (OPFOR's WW2 shores).
+
+[test: rust/bc2-render/tests/r5d.rs::mask_tiles_span_aligned_blocks_and_read_on_across_cells]
+[code: rust/bc2-render/src/terrain.rs:776-793]
+[data: DICE's MP_009: 757 tiled masks in 51 tiles' blocks, MP_005: 1,033 in 59; OPFOR's Wake Island: 998 in 78 (flags 8 and 4); no tile named outside its block]
 
 ### TERR-VT-6: PC and Xbox 360 visual terrain differ only where DICE edited the PC
 

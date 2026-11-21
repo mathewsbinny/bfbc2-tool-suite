@@ -18,6 +18,7 @@ use std::sync::{Condvar, Mutex, PoisonError};
 #[path = "../examples/common/mod.rs"]
 mod common;
 mod live;
+mod r5d;
 mod warehouse;
 mod weather_refs;
 mod whole_terrain;
