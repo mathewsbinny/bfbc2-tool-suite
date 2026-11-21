@@ -7130,3 +7130,49 @@ screenshots stayed in the session's scratch folder.
   `game tier:`) and those entries passed again (the Rust core's eight entries in 122 s). O2 fails on this PC as noted
   in the rules (Microsoft Defender holds its stand-in `b.exe`: environmental).
 - ruff and mypy on the changed Python (`core\bfbc2core\envvars.py`).
+## AV1: O2's stand-in exe out of Defender's reach (2026-11-21, branch `av1`)
+
+**The problem.** O2's aptrefs cases write `exe_795745()`, a synthetic 32-bit PE with build 795745's time stamp and
+its two getters' switch tables at their real addresses (0x76F000 and 0x95D000, megabytes apart). Microsoft
+Defender's machine-learning scan blocked reads of it (Trojan:Win32/Bearfoos.A!ml, Errno 22). QW2's loadable layout
+passed for a few hours. Then `Get-MpThreatDetection` listed it again at 17:26, 17:32 and 17:44: 33 detections on
+this PC, all `b.exe` under `cli_o2_*` or QW2's probes. One was `b.bin` (20 Nov, 23:32), so the extension does not
+matter; the content does. Any synthetic program is a new, unknown file to the cloud model.
+
+**What aptrefs needs.** `bc2_menu::common::PeImage::open` reads the file and `bc2_formats::pe::raw::parse` wants
+`MZ`, `PE\0\0` at `e_lfanew` and the PE32 magic. It then reads the time stamp and the section table. The getter
+addresses are fixed and absolute, and the PE32 magic rules out the suite's own binaries (`bfbc2.exe` is PE32+), so
+neither a real compiled exe the suite builds nor a non-PE file works as it stands.
+
+**The design.** The case writes the stand-in with `SI` in place of `MZ` and `SI\0\0` in place of `PE\0\0`. These
+are the only 4 bytes that change, at 0x0-0x1 and 0x80-0x81. Without the signatures the file is not a program to any
+scanner. The cases that read it set `BFBC2_TEST_STAND_IN_EXE=1` (registered in `envvars.py` as a test variable).
+Only then, and only for a file with both marks, `PeImage::open` puts the signatures back before parsing. The tools
+therefore read exactly the bytes they read before, through the same command line, process, logs and files. The
+other aptrefs cases still read real on-disk PEs unchanged (`x.exe`, the game copy's exe, the error cases), and the
+`--game` tier reads the real `BFBC2Game.exe`. Other options I ruled out: a further hand-made layout (the same
+moving target), and an exe from the suite's own builds (all 64-bit).
+
+**The proof.** aptrefs' Python is retired, so the golden was re-proved, not re-recorded:
+
+- The restored bytes equal `exe_795745()` byte for byte, which is the file the golden's digests were taken over.
+- With the kept bytes swapped back before the digest, every line holding the stand-in is as recorded: all 34, on
+  code, both streams, files and log.
+- Run plainly, those 34 differ in their files digest only. Those digests were written to the golden (34 lines).
+- `bc2-menu` has a unit test: both marks restored, a program read as it is, one mark alone or a short file
+  untouched.
+
+O2 then ran 6 times in a row with Defender on: all passed, 966 lines each. `Get-MpThreatDetection` went from 33 to
+34 entries. The new one (18:04:15) was raised for OP1's worktree binary
+(`bfbc2-tool-suite-op1\bin\bfbc2.exe`) reading OP1's own old-layout `b.exe`. None was for this round's files.
+The count was still 34 after the quick tier below, which runs O2 too.
+
+The rest of the checks:
+
+- `python run_tests.py quick -j 2`: 135 of 135 passed in 868 s, O2 among them (1 with parts skipped for want of
+  data).
+- `cargo fmt`: clean.
+- clippy `-p bc2-menu --all-targets -D warnings`: clean.
+- `bc2-menu`'s tests: passed.
+- ruff and mypy on the changed Python: clean.
+- `spec/trace.py --check`: 695 rules, clean.
