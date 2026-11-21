@@ -10,7 +10,7 @@
   python navkit.py apply   SP_01 [--navtune file] [--out file] [--install]
                                               build with the edits of the level's navigation side file
                                               (work\\navkit\\<level>\\<level>.navtune.json, made in the
-                                              Navigation Studio) into work\\navkit\\<level>\\pathdata.hpd,
+                                              map editor's AI workspace) into work\\navkit\\<level>\\pathdata.hpd,
                                               traversals into <level>.traversal.json, a report next to it;
                                               --install: then install it
   python navkit.py install SP_01 [--from file]  copy it (or another built file) into the game, with its
