@@ -270,8 +270,8 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   reader (2026-11-18, round F1a) - README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python". The tests themselves move to Rust once every Python tool is
   retired (the user, 2026-11-18).
   The C# tools whose commands were ported went the same way (round R4, 2026-11-18, after the full tier's 173 of
-  173): DbxEdit.exe and FbrbTool.exe are retired, their answers recorded (`core/tests/*_golden*.json`); DbxEditGUI
-  stays, built on DbxEdit.cs, until this editor replaces it (`rust/BENCHMARKS.md`, "Retired C# tools").
+  173): DbxEdit.exe and FbrbTool.exe are retired, their answers recorded (`core/tests/*_golden*.json`); DbxEditGUI,
+  built on DbxEdit.cs, was folded into this editor as the DBX inspector in round GR4 and retired with it (9.4).
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
   Each Python GUI stays until its replacement works. **Status (G2, 2026-11-18):** the editor application's shell and
@@ -1746,17 +1746,36 @@ and 55 pictures (side, top, front at 400 px, and two rifles stacked) - all ident
 identical to `meshview.py --png --size 1200` on the stacked rifles. The panel test (the demo level) draws, picks and
 hides a part; the screenshot test saves MP_005's guard tower and the rifles in Dark and Light.
 
-### 9.4 DbxEditGUI (`bfbc2-dbx-tools/DbxEditGUI.cs`): the last C#
+### 9.4 DbxEditGUI (`bfbc2-dbx-tools/DbxEditGUI.cs`, the last C#): retired in GR4
+
+The **DBX inspector** (round GR4): a window of its own (`dbxpanel.rs`, its model `dbxinspect.rs`; a thin hook in
+`app.rs`), opened from the start screen ("Inspect a DBX file"), the command palette ("DBX inspector") and
+`bfbc2-editor --dbx <file>` (the hub's More tools > DBX inspector). It needs no level. Every edit is
+`bc2_formats::dbxedit`'s, the code `bfbc2.exe dbxedit` runs, so whatever an edit does not touch is written back byte
+for byte.
 
 | Feature | In the editor? | Plan |
 |---|---|---|
-| Open any binary `.dbx` (File > Open, drop) | No (levels and projects only) | GR4: a DBX inspector panel opening any partition of a level's bundles or a file |
-| The tree: instances (bold), fields, lists, values | Partly: GR1's *All fields* tree for a level's objects (`inspect::PropNode`, a widget the panel reuses) | GR4 |
-| Edit a value or an attribute, Apply; Go to reference | Partly: typed fields of level instances through levelwrite (E2b); references followed (GR1) | GR4 |
-| Instance menu: remove, graft from another file, copy a field, add a list entry | Partly: levelwrite's delete, place and copy for the level partition | GR4, on `bfbc2.exe dbxedit`'s commands |
-| Edit menu: undo, find (Ctrl+F, F3), replace strings, remove a field everywhere, set a bool everywhere, the partition's GUID | No (undo for the project's own operations) | GR4 |
-| Level menu: check (F5), cull slots against another level, fix cull slots; results with go-to | No (the export's checks run `mapexport check`) | GR4 |
-| File: save keeping `.bak`, export / import XML, save the edits as a DbxEdit script | No | GR4 |
+| Open any binary `.dbx` (File > Open, drop) | **Added in GR4**: Open (a path), a file dropped on the editor, From bundle (an entry read in memory), Level file (the open level's own files), Project partition | - |
+| The tree: instances (bold), fields, lists, values | **Added in GR4**: DbxEditGUI's labels, headings and value texts (identical on 19 real files); rows drawn only where seen (SP_01's 3 MB opens at once) | - |
+| Edit a value or an attribute, Apply; Go to reference | **Added in GR4**: the attributes and the value (numbers separated by `/`) typed like the field as the XML import types it, a rounded decimal said; a denormal's stored decimal shown beside its printed bits; Revert. On the project's partition a field edit is an `Op::SetField` of the project (History, Ctrl+Z, saved with it) carrying exactly the bits the file would take | - |
+| Instance menu: remove, graft from another file, copy a field, add a list entry | **Added in GR4** (and Copy GUID) | - |
+| Edit menu: undo, find (Ctrl+F, F3), replace strings, remove a field everywhere, set a bool everywhere, the partition's GUID | **Added in GR4**: Undo (snapshots, as DbxEditGUI), Find / Next (F3), the five commands | Ctrl+Z / Ctrl+F stay the editor's own shortcuts: the inspector's are buttons |
+| Level menu: check (F5), cull slots against another level, fix cull slots; results with go-to | **Added in GR4**: the output pane, a line's guid double-clicked goes to its instance | - |
+| File: save keeping `.bak`, export / import XML, save the edits as a DbxEdit script | **Added in GR4**, and Save into bundle (a copy of the entry's bundle, FbrbTool's unpack and pack). The script's header names `bfbc2.exe dbxedit edit` (DbxEdit.exe is retired) | - |
+| Help menu (FORMAT.md, README) | Not carried over: the editor's Help window and `bfbc2-dbx-tools/README.md` | - |
+| Its log (`ToolLog`, a file a day) and crash window | Not carried over: the editor's own error handling; an error shows in the window | - |
+
+What the inspector does was compared with what DbxEditGUI did before it went (`tests/dbxedit_parity.rs` against
+`tests/data/dbxeditgui_gr4.json.gz`, recorded by the round's recorder driving DbxEditGUI's window through reflection,
+its prompts answered; digests only): on 19 real files (MP_005, MP_005SR and SP_01's level partitions, a description,
+a terrain, and files with denormals, 8- and 2-byte numbers, bytes, lists) 1,232 steps - the tree, 618 Applies (513
+changed, 41 unchanged, 64 refused with DbxEditGUI's message; 39 denormals typed as decimals, 125 rounded), Undo,
+Save and the `.bak`, the edit script, 114 finds, 194 menu commands, 57 grafts, 57 field copies, the level check, the
+check against MP_005SR's cull trees, fix slots, XML export and import of an edited export, Save as - every file's
+bytes, line and message identical. `every_level_file_round_trips_through_the_inspector` writes back every unique
+`.dbx` of the prepared levels (31,037) and imports each one's XML back, byte for byte. `tests/gr4.rs` drives the
+window headless (Apply gives `dbxedit edit setfield=`'s bytes) and the project route on MP_005.
 
 ### 9.5 LevelDiff (`bfbc2-diff-workbench/level-diff/LevelDiff.cs`, a folder deleted in EX1): retired in EX1
 

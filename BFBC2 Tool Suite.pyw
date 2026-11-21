@@ -3,7 +3,7 @@ the Rust map editor, bin\\bfbc2-editor.exe).
 
 Tabs: Levels (open a level in the map editor, or its navigation there), Bundles (FbrbTool), Level diff
 (bfbc2.exe leveldiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
-(the Map Editor, DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane
+(the Map Editor, its DBX inspector, NavKit's window). Every tool runs as its own process; its output appears in the pane
 at the bottom. The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
 """
 import contextlib
@@ -47,9 +47,6 @@ def fbrbtool():
     """FbrbTool's command line (cli)."""
     return cli('fbrbtool')
 
-TOOLS = {
-    'dbxgui': (os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEditGUI.exe'), os.path.join(SUITE, 'bfbc2-dbx-tools', 'build.bat')),
-}
 SCRIPTS = {
     'fbrb': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),           # FbrbTool's commands (the Rust core)
     'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
@@ -73,18 +70,6 @@ def editor_exe():
     raise RuntimeError('The map editor is not built yet. Build it once with Rust: in the suite\'s folder, run '
                        f'"{subprocess.list2cmdline(EDITOR_BUILD)}" (a few minutes the first time; README.md, '
                        '"The map editor").')
-
-
-def tool(name):
-    """The tool's exe, built first (with the C# compiler Windows ships) if it is not there yet."""
-    exe, bat = TOOLS[name]
-    if not os.path.isfile(exe):
-        r = subprocess.run(['cmd', '/c', bat], capture_output=True, text=True, errors='replace', creationflags=NO_WINDOW)
-        if not os.path.isfile(exe):
-            errors.logger().error(f'building {os.path.basename(exe)} failed:\n{r.stdout}{r.stderr}')
-            raise RuntimeError(f'{os.path.basename(exe)} could not be built (the C# compiler that comes with Windows, '
-                               f'.NET Framework 4, is needed). Run {bat} to see why.')
-    return exe
 
 
 class Hub:
@@ -386,6 +371,17 @@ class Hub:
             return
         self.launch([exe] + ([lv] if lv else []), f'Map Editor{": " + lv if lv else ""}{note}')
 
+    def open_dbx(self):
+        """The map editor's DBX inspector (round GR4: DbxEditGUI, the suite's last C# window, folded into the editor) on
+        a chosen .dbx file, or on the editor's start screen when none is chosen (its link opens the inspector)."""
+        try:
+            exe, note = editor_exe()
+        except RuntimeError as e:
+            messagebox.showinfo('BFBC2 Tool Suite', str(e))
+            return
+        p = filedialog.askopenfilename(title='A binary .dbx file', filetypes=(('Binary DBX', '*.dbx'), ('All files', '*.*')))
+        self.launch([exe] + (['--dbx', p] if p else []), f'DBX inspector{": " + os.path.basename(p) if p else ""}{note}')
+
     def prepare(self):
         lv = self.chosen_level()
         if lv:
@@ -541,8 +537,9 @@ class Hub:
         rows = [('Map Editor', 'The map editor (Rust): view any map - every object\'s fields and links - or edit a '
                                'copy as a project; command palette (Ctrl+Shift+P).',
                  lambda: self.open_editor('')),
-                ('DbxEditGUI', 'View, edit, check and repair binary .dbx files; XML export and import.',
-                 lambda: self.launch([tool('dbxgui')], 'DbxEditGUI')),
+                ('DBX inspector', 'View, edit, check and repair any binary .dbx file (or a bundle\'s entry); XML '
+                                  'export and import - the map editor\'s DBX inspector (DbxEditGUI\'s successor).',
+                 self.open_dbx),
                 ('NavKit', 'Generate AI navigation data for a level: prepare, sample in game, build, check, install.',
                  lambda: self.launch([PYTHON, SCRIPTS['navkitgui']], 'NavKit')),
                 ('Suite folder', 'The suite\'s files, READMEs and DESIGN.md.', lambda: os.startfile(SUITE))]

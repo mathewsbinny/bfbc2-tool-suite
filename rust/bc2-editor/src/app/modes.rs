@@ -283,6 +283,15 @@ impl EditorApp {
                 }
             });
         }
+        // round GR4: the DBX inspector (DbxEditGUI folded in) needs no level
+        ui.add_space(m.space_2);
+        let b = ui
+            .add(egui::Button::new(RichText::new("Inspect a DBX file\u{2026}").color(p.accent_text)).frame(false))
+            .on_hover_text("Any binary .dbx - a file or a bundle's entry: its tree, edits, checks, XML");
+        self.start_ui.start_buttons.push(("Inspect a DBX file".into(), b.rect));
+        if b.clicked() {
+            self.dbx.open = true;
+        }
     }
 
     /// Open project.

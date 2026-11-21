@@ -7176,3 +7176,81 @@ The rest of the checks:
 - `bc2-menu`'s tests: passed.
 - ruff and mypy on the changed Python: clean.
 - `spec/trace.py --check`: 695 rules, clean.
+
+## GR4: DbxEditGUI folded into the map editor as the DBX inspector, then retired (2026-11-21, branch `gr4`)
+
+The suite's last C# tool, DbxEditGUI (`bfbc2-dbx-tools\DbxEditGUI.cs`, with `DbxEdit.cs`, the C# DBX classes it was
+built on), became the map editor's **DBX inspector**: `rust/bc2-editor/src/dbxinspect.rs` (the model: DbxEditGUI's
+`MainWindow` method by method, every edit through `bc2_formats::dbxedit`, the code `bfbc2.exe dbxedit` runs) and
+`dbxpanel.rs` (the window, in the editor's theme), with a thin hook in `app.rs` (one field, one call, one action) so
+the concurrent rounds' edits of `app.rs` meet few lines. `bc2_formats::dbxedit::encode_value_rounded` gives
+`EncodeValue`'s `rounded`.
+
+**The inventory** (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.4): open (a file, a drop), the tree, Apply of
+attributes and value, Go to reference, Undo, Find / Next, the Instance menu (remove, graft, copy field, add item,
+copy GUID), the Edit menu (replace, replace prefix, remove a field everywhere, set a bool everywhere, the partition's
+GUID), the Level menu (check, against a cull level, fix slots; a guid on an output line goes to its instance), Save
+(`.bak` first), Save as, Export / Import XML, Save edit script: all carried over. New: a bundle's entry opened in
+memory and saved into a copy of the bundle (FbrbTool's unpack and pack: every other entry as it was), the open
+level's files, the project's level partition (a field edit is `Op::SetField` of the project, carrying exactly the
+bits the file would take: a decimal from its bits, a denormal included; a value the schema's type cannot carry
+exactly is refused, and the structural menus are left out there because they would bypass the log), a note under a
+4-byte number of 65,536 or more that the XML prints as a whole number though it may be a tiny decimal. Not carried
+over: the Help menu (FORMAT.md, README: the editor's Help and the folder's README), `ToolLog`'s file a day and the
+crash window (the editor's own error handling), Ctrl+Z / Ctrl+F / F5 as the window's keys (the editor's own
+shortcuts; the inspector's are buttons, F3 kept). The edit script's header names `bfbc2.exe dbxedit edit`, as
+DbxEdit.exe is retired.
+
+**The denormal trap.** DbxEdit's XML prints a 4-byte value whose top byte is 0 as a whole number (7.3e-40 as 524288,
+its bits). The inspector's value box shows the XML's text, and an Apply types it as DbxEdit's import does (the
+original bits' kind decides between the integer and the decimal reading), so the same text gives the same bits back
+and a typed decimal is rounded and said. Recorded: 39 denormals typed as decimals (`7.3e-40`), the same text typed
+again (unchanged), a neighbour's whole number, `1.5`: all as DbxEditGUI; the project route carries the bits
+(`f32::from_bits` widened exactly, checked to narrow back to the same bits). Nothing compares XML text for values:
+the parity compares the files' bytes.
+
+**Parity with DbxEditGUI** (`rust/bc2-editor/tests/dbxedit_parity.rs`, game tier). The round's recorder (C#, compiled
+with DbxEditGUI.cs and DbxEdit.cs at `f46b083`, run once; not kept) drove DbxEditGUI's own window through reflection,
+as `DbxTests.cs`' window test did, its prompts answered from a timer; the file-dialog commands ran their method
+bodies with the dialog's answer. It worked on copies of 19 files of the game copy's prepared levels: MP_005's,
+MP_005SR's and SP_01's level partitions, MP_005's description and terrain, and the smallest files with denormals,
+8-byte and 2-byte numbers, bytes, multi-number values, whole-number fields and lists. Kept as
+`tests/data/dbxeditgui_gr4.json.gz` (57 KB): the inputs (element paths, values typed, guids, prompt answers) as
+`core/tests/dbxedit_golden_game_*.json` keeps them, the outputs as SHA-1s (file bytes, output lines, script lines,
+messages). Replayed on `DbxDoc`, **1,232 of 1,232 steps identical**:
+
+| Step | Count | Checked |
+|---|---|---|
+| tree | 19 | every element's label, heading, attributes and value (SP_01: its whole tree) |
+| Apply | 618 | the file's bytes, the script line, the output, the outcome: 513 changed, 41 unchanged, 64 refused (DbxEditGUI's message); 125 rounded decimals said |
+| Save (`.bak`), Save as, Undo all | 19 each | the saved bytes, the `.bak`'s bytes, the file back to the original |
+| edit script | 38 | every line (`setfield=`, `# edited ...`, `drop=`, `graft=`, ...) |
+| Find | 114 | the matches' paths, the status line, the output |
+| menu commands | 194 | replace 30, replace prefix 28, set bool / byte 43, partition GUID 19, add item 32, remove field 14, remove instance 28: bytes and output |
+| graft, copy field | 57, 57 | bytes and output |
+| check, against MP_005SR's cull trees, fix slots | 19, 1, 1 | the output (every finding), the bytes |
+| Export XML, Import XML of an edited export | 19, 19 | the XML's bytes; the edited XML reproduced (its SHA-1), the imported bytes and the report |
+
+`every_level_file_round_trips_through_the_inspector` (game tier): every unique binary `.dbx` of the prepared levels'
+`dist` folders, **31,037** of 89,337 files, opened and written back byte for byte, its XML imported back byte for
+byte (33 s on 4 threads) - what `DbxTests.cs --corpus` (the full tier, 1,147 s) asked of the C# classes.
+
+`tests/gr4.rs`: the window headless - the start screen's link opens it, a row clicked selects, Apply gives
+`dbxedit edit setfield=`'s bytes, a denormal's text applied again changes nothing, Save as through its question,
+Undo, Find; and (game tier) MP_005's project partition: a decimal (`0.30000000000000004`, rounded), a whole-number
+field's `7` and `524289` in a decimal field applied in the inspector are each one `SetField` operation, after which
+the project's partition holds the bits the same edit gives the file; Ctrl+Z three times gives the base partition
+back in the inspector.
+
+**Nothing points at it** (`RETIRED.md`'s checklist): the hub's More tools > DbxEditGUI is More tools > DBX inspector
+(`bfbc2-editor --dbx <file>`); `run_tests.py` lost "DbxEditGUI build (when stale)", "DbxEditGUI and the DBX classes it
+is built on" (quick), "DbxEditGUI's DBX classes on the corpus" (full), the `dbxtests` resource, the no-game part and
+`tests/build_if_stale.py`, which only it used; the find_tool tests' stand-in became `ExampleTool.exe`; NavKit's
+"close DbxEditGUI" message names the map editor. Project OPFOR BFBC2 calls no DbxEditGUI: `opforcore.paths`'
+`TOOL_DIRS = {'DbxEditGUI': ...}` and two tests use the name as a stand-in only (left for OPFOR to tidy; nothing
+runs it).
+
+**Tests.** `cargo fmt`; clippy `--all-targets -D warnings` on bc2-editor, bc2-formats, bc2-cli: clean. Their cargo tests: 417 passed, 0 failed (24 ignored: the game tier), and the game-tier GR4 tests run here: `gr4::` 2 of 2, `dbxedit_parity::` 2 of 2 (after merging main's GR3, OP1 and AV1). `python run_tests.py quick -j 2`: 133 of 133 passed in 348 s (O2 included). `spec\trace.py --check`: ok, 695 rules. Release builds: `build_native.py` and `--editor` (`bfbc2-editor 0.13.0`). The version: 0.13.0 (a removal, after GR3's 0.11.0 and OP1's 0.12.0).
+
+**Left.** Static group files have no generic field operation in OP1's `Op::Files` (only members' transforms), so the inspector edits a group file through its own save path, not the project; OPFOR's `opforcore.paths.TOOL_DIRS` still names `DbxEditGUI` (unused) and its `SUITE_REQUIRES` must move to `('0.13.0', '0.14.0')`.
+
