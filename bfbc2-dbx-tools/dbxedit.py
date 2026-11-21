@@ -9,7 +9,8 @@ suite's Rust core (bfbc2core.dbxedit; DbxEdit.exe was retired 2026-11-18). The s
     python dbxedit.py fixslots <in.dbx> <out.dbx> --from <level.dbx>
 
 Without arguments it prints the usage. Needs the suite's Rust core (python rust\build_native.py --download, or build
-it: README.md, "The Rust core"). DbxEditGUI.exe, the window, is built by build.bat.
+it: README.md, "The Rust core"). The window is the map editor's DBX inspector (bfbc2-editor --dbx <file>; round
+GR4 retired DbxEditGUI.exe).
 """
 import os
 import sys

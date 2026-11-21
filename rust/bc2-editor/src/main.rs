@@ -5,6 +5,7 @@
 //! bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] [--navmesh]
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
 //!              [--export [--install-plan] | --no-strip] [--new-project <level> [--era <era>] [--target-mode <mode>]]
+//! bfbc2-editor --dbx <file.dbx>    the DBX inspector on a file (round GR4: `DbxEditGUI`'s successor)
 //! bfbc2-editor --version
 //! bfbc2-editor --source-hash        the Rust sources' fingerprint it was built from (bfbc2core.native)
 //! ```
@@ -55,6 +56,8 @@ struct Args {
     mode: Option<ContentSet>,
     /// Open the level in the navmesh view mode (`--navmesh`).
     navmesh: bool,
+    /// A file for the DBX inspector (`--dbx`).
+    dbx: Option<PathBuf>,
 }
 
 fn parse() -> Result<Args, EditorError> {
@@ -75,6 +78,7 @@ fn parse() -> Result<Args, EditorError> {
         target_mode: None,
         mode: None,
         navmesh: false,
+        dbx: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -88,6 +92,7 @@ fn parse() -> Result<Args, EditorError> {
             "--select" => a.select = Some(value("a GUID")?),
             "--demo" => a.demo = true,
             "--navmesh" => a.navmesh = true,
+            "--dbx" => a.dbx = Some(PathBuf::from(value("a .dbx file")?)),
             "--mode" => {
                 a.mode = Some(match value("bfbc1, bfbc2, vietnam or ww2")?.to_lowercase().as_str() {
                     "bfbc1" => ContentSet::Bfbc1,
@@ -130,7 +135,7 @@ fn parse() -> Result<Args, EditorError> {
             }
             "-h" | "--help" => {
                 return Err(
-                    EditorError::Input("bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] [--navmesh] \
+                    EditorError::Input("bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] [--navmesh] [--dbx <file>] \
                      [--screenshot out.png [--size 1600x950] [--select <guid>] [--demo] [--mode bfbc1|bfbc2|vietnam|ww2]]"
                         .into(),)
                 );
@@ -231,6 +236,9 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), EditorError> {
         if let Some(v) = app.view_mut() {
             v.nav_wait(&gpu, &p);
         }
+    }
+    if let Some(f) = &a.dbx {
+        app.dbx.open_file(f);
     }
     if let Some(g) = &a.select {
         let gpu = h.gpu.clone();
@@ -363,8 +371,14 @@ fn main() -> ExitCode {
         viewport,
         ..Default::default()
     };
-    let (opfor, theme, open, project, navmesh) =
-        (a.opfor.clone(), a.theme, a.level.clone(), a.project.clone(), a.navmesh);
+    let (opfor, theme, open, project, navmesh, dbx) = (
+        a.opfor.clone(),
+        a.theme,
+        a.level.clone(),
+        a.project.clone(),
+        a.navmesh,
+        a.dbx.clone(),
+    );
     let r = eframe::run_native(
         "BFBC2 Map Editor",
         options,
@@ -373,6 +387,9 @@ fn main() -> ExitCode {
             let mut app = EditorApp::new(opfor.as_deref(), saved)?;
             if let Some(t) = theme {
                 app.theme = t;
+            }
+            if let Some(f) = &dbx {
+                app.dbx.open_file(f);
             }
             Ok(Box::new(Window {
                 app,

@@ -67,6 +67,8 @@ pub mod camera;
 pub mod catalog;
 pub mod compare;
 pub mod content;
+pub mod dbxinspect;
+pub mod dbxpanel;
 pub mod demo;
 pub mod display;
 pub mod edit;

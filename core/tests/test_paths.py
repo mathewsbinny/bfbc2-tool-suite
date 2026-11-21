@@ -186,16 +186,16 @@ def main(argv: list[str]) -> int:
         os.chdir(cwd)
 
         # --- built tools ----------------------------------------------------------------------------------------
-        e = raised(lambda: paths.find_tool(opfor, 'DbxEditGUI.exe', 'bfbc2-dbx-tools', suite=suite))
+        e = raised(lambda: paths.find_tool(opfor, 'ExampleTool.exe', 'bfbc2-example-tool', suite=suite))
         check(isinstance(e, paths.ToolNotFound)
-              and str(e) == "DbxEditGUI.exe not found - run build.bat in the toolkit's bfbc2-dbx-tools folder",
+              and str(e) == "ExampleTool.exe not found - run build.bat in the toolkit's bfbc2-example-tool folder",
               'find_tool: neither built nor in tools\\ - ToolNotFound in NavKit\'s words', repr(e))
-        in_tools = touch(os.path.join(opfor, 'tools', 'DbxEditGUI.exe'))
-        check(paths.find_tool(opfor, 'DbxEditGUI.exe', 'bfbc2-dbx-tools', suite=suite) == in_tools,
+        in_tools = touch(os.path.join(opfor, 'tools', 'ExampleTool.exe'))
+        check(paths.find_tool(opfor, 'ExampleTool.exe', 'bfbc2-example-tool', suite=suite) == in_tools,
               'find_tool: OPFOR\'s tools\\ folder')
-        built = touch(paths.suite_tool('bfbc2-dbx-tools', 'DbxEditGUI.exe', suite))
-        check(built == os.path.join(suite, 'bfbc2-dbx-tools', 'DbxEditGUI.exe')
-              and paths.find_tool(opfor, 'DbxEditGUI.exe', 'bfbc2-dbx-tools', suite=suite) == built,
+        built = touch(paths.suite_tool('bfbc2-example-tool', 'ExampleTool.exe', suite))
+        check(built == os.path.join(suite, 'bfbc2-example-tool', 'ExampleTool.exe')
+              and paths.find_tool(opfor, 'ExampleTool.exe', 'bfbc2-example-tool', suite=suite) == built,
               'find_tool: the suite\'s own build first')
 
         # --- sibling projects -----------------------------------------------------------------------------------

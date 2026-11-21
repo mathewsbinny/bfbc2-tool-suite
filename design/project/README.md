@@ -1,5 +1,5 @@
 The shared look of every BFBC2 Tool Suite window: the map editor (the Map Inspector's and the Navigation Studio's successor), NavKit's
-window, DbxEditGUI, the suite launcher and every GUI to come. It follows the conventions modders already know from
+window, the suite launcher and every GUI to come. It follows the conventions modders already know from
 game-engine editors such as Unity and Unreal Engine: neutral grey docked panels around a 3D viewport, a blue
 interface accent, orange for what is selected in the viewport, compact rows, and a dark and a light theme. It
 borrows those conventions, not either product's look: the colours, sizes and parts here are this suite's own.
