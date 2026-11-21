@@ -831,7 +831,7 @@ impl EditorApp {
                     if v.game_accurate && v.game.is_none() {
                         match crate::gameview::GameView::load(root, &v.lv, v.scene()) {
                             Ok(g) => {
-                                v.message = format!("Game-accurate view: loaded in {:.1} s", g.load_seconds);
+                                v.message = g.status();
                                 v.game = Some(g);
                             }
                             Err(e) => {

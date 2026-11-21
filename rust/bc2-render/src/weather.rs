@@ -118,7 +118,86 @@ fn refs(xml: &str) -> Vec<(String, String)> {
     out
 }
 
-/// The active weather state of a weather folder (`weather/r_mp005`).
+/// The status line's words when a level has no weather the view can read (round GW1): it is drawn under
+/// [`neutral`].
+pub const NO_WEATHER: &str = "No weather data found for this level; showing a default sky";
+
+/// The game's weather entity: placed through a blueprint whose `Object` is one (Guadalcanal, `MP_005`), or an
+/// instance of the level partition itself (`SP_004_B`, Coral Sea).
+const ENTITY_TYPE: &str = "Weather.WeatherSystemEntityData";
+/// The entity that changes the weather's state (`State`), at once when `StartTransitionOnSpawn`.
+const STATE_ENTITY_TYPE: &str = "GameSharedResources.WeatherStateEntityData";
+
+/// A weather entity's references: its `WeatherSystem` and `Settings` (a `WeatherSystemSettings`) partitions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntityRefs {
+    /// The `WeatherSystem` partition (`weather/wake_island/weathersystem_wake`).
+    pub system: String,
+    /// The `Settings` partition (`weather/wake_island/guadal_canal`).
+    pub settings: String,
+}
+
+/// The instances of a partition's XML of one type (each `<instance ...>` to its end).
+fn instances_of<'a>(xml: &'a str, ty: &'a str) -> impl Iterator<Item = &'a str> + 'a {
+    xml.split("<instance ").skip(1).filter(move |b| {
+        b.split('>')
+            .next()
+            .is_some_and(|h| h.contains(&format!("type=\"{ty}\"")))
+    })
+}
+
+/// The weather entities of a partition's XML, in order, with both references set.
+#[must_use]
+pub fn entities_in(xml: &str) -> Vec<EntityRefs> {
+    instances_of(xml, ENTITY_TYPE)
+        .filter_map(|b| {
+            let by_name: HashMap<String, String> = refs(b).into_iter().map(|(r, n)| (n, r)).collect();
+            Some(EntityRefs {
+                system: by_name.get("WeatherSystem")?.clone(),
+                settings: by_name.get("Settings")?.clone(),
+            })
+        })
+        .collect()
+}
+
+/// The state a level's weather may move to as it starts: the first enabled `WeatherStateEntityData` of the level
+/// partition with `StartTransitionOnSpawn` names its `State` (Coral Sea: settings `ActiveState` 0, the entity's
+/// `State` 4, `coral_sea`). Read for notes only: whether the engine applies it at load is not known yet (no capture),
+/// so the view draws the settings' `ActiveState` (RNDR-WTHR-1).
+#[must_use]
+pub fn spawn_state_in(xml: &str) -> Option<usize> {
+    instances_of(xml, STATE_ENTITY_TYPE).find_map(|b| {
+        let text = |name: &str| {
+            let tag = format!("<field name=\"{name}\">");
+            let at = b.find(&tag)? + tag.len();
+            b.get(at..).and_then(|r| r.split('<').next())
+        };
+        (text("Enabled") == Some("true") && text("StartTransitionOnSpawn") == Some("true"))
+            .then(|| text("State")?.parse().ok())
+            .flatten()
+    })
+}
+
+/// The references of the weather entity a placed blueprint is (round GW1): its partition holds a
+/// `WeatherSystemEntityData`, which names its `WeatherSystem` and `Settings` partitions by path - in any folder and
+/// any bundle of the level's stack (Guadalcanal's `weather/wake_island/guadal_canal_e` names
+/// `weather/wake_island/weathersystem_wake` and `weather/wake_island/guadal_canal`). `None`: the blueprint is not
+/// read yet, or is not a weather entity.
+#[must_use]
+pub fn entity(files: &Files, blueprint: &str) -> Option<EntityRefs> {
+    let bytes = files.read(&format!("{blueprint}.dbx"))?;
+    // the type names are plain text in a binary partition: skip every blueprint that is not a weather entity before
+    // converting it
+    let short = ENTITY_TYPE.rsplit('.').next().unwrap_or(ENTITY_TYPE).as_bytes();
+    if !bytes.windows(short.len()).any(|w| w == short) {
+        return None;
+    }
+    entities_in(&dbx::to_xml(&bytes).ok()?).into_iter().next()
+}
+
+/// The active weather state of a weather folder (`weather/r_mp005`), its `WeatherSettings*` and `WeatherSystem*`
+/// partitions found by name (renderqa's rule; DICE's stock folders follow it, OPFOR's WW2 levels do not: use
+/// [`entity`] and [`read_system`]).
 ///
 /// # Errors
 /// No `WeatherSettings` / `WeatherSystem` partition, or the state's partitions are missing.
@@ -140,12 +219,24 @@ pub fn read(files: &Files, folder: &str) -> Result<Weather, String> {
     let (Some(settings), Some(system)) = (find("weathersettings"), find("weathersystem")) else {
         return Err(format!("no WeatherSettings / WeatherSystem partition under {folder}/"));
     };
-    let sx = xml_of(files, &settings).ok_or_else(|| format!("{settings}: unreadable"))?;
-    let yx = xml_of(files, &system).ok_or_else(|| format!("{system}: unreadable"))?;
-    let active = fields(&sx)
-        .get("ActiveState")
-        .and_then(|v| v.first().copied())
-        .unwrap_or(0.0) as usize;
+    read_system(files, &system, &settings, None)
+}
+
+/// The active state of a `WeatherSystem` partition: `state` when given (the level's spawn transition,
+/// [`spawn_state_in`]), else its `WeatherSystemSettings` partition's `ActiveState` (both by partition path, as a
+/// weather entity names them: [`entity`]).
+///
+/// # Errors
+/// A partition is not found (or not read yet), or the state's partitions are missing.
+pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<usize>) -> Result<Weather, String> {
+    let sx = xml_of(files, settings).ok_or_else(|| format!("{settings}: not found"))?;
+    let yx = xml_of(files, system).ok_or_else(|| format!("{system}: not found"))?;
+    let active = state.unwrap_or_else(|| {
+        fields(&sx)
+            .get("ActiveState")
+            .and_then(|v| v.first().copied())
+            .unwrap_or(0.0) as usize
+    });
     let states: Vec<String> = refs(&yx)
         .into_iter()
         .filter(|(_, n)| n.is_empty())
@@ -153,7 +244,7 @@ pub fn read(files: &Files, folder: &str) -> Result<Weather, String> {
         .collect();
     let state = states
         .get(active)
-        .ok_or_else(|| format!("{folder}: ActiveState {active} of {} states", states.len()))?
+        .ok_or_else(|| format!("{settings}: ActiveState {active} of {system}'s {} states", states.len()))?
         .clone();
     let stx = xml_of(files, &state).ok_or_else(|| format!("{state}: not found"))?;
     let by_kind: HashMap<String, String> = refs(&stx).into_iter().map(|(r, n)| (n, r)).collect();
@@ -171,6 +262,38 @@ pub fn read(files: &Files, folder: &str) -> Result<Weather, String> {
         sky: part("Sky").unwrap_or_default(),
         state,
     })
+}
+
+/// A neutral daylight for a level without weather data ([`NO_WEATHER`]): a white key light, a pale blue sky light
+/// and a grey-blue fog, with the post-process values of DICE's daytime states (Guadalcanal's: middle grey 0.03,
+/// exposure 1.5 to 2.4). Not the game's look of any level.
+#[must_use]
+pub fn neutral() -> Weather {
+    let f = |pairs: &[(&str, &[f32])]| -> Fields { pairs.iter().map(|(k, v)| ((*k).to_owned(), v.to_vec())).collect() };
+    Weather {
+        state: "(default sky: no weather data)".to_owned(),
+        sun: Fields::new(),
+        outdoor_light: f(&[
+            ("KeyColor", &[1.0, 0.97, 0.92]),
+            ("KeyColorIntensity", &[4.0]),
+            ("KeySpecularScale", &[1.0]),
+            ("TopColor", &[0.4, 0.45, 0.57]),
+            ("TopColorIntensity", &[1.0]),
+            ("BottomColor", &[0.35, 0.4, 0.48]),
+            ("BottomColorIntensity", &[0.5]),
+        ]),
+        post_process: f(&[
+            ("MiddleGray", &[0.03]),
+            ("MinExposure", &[1.5]),
+            ("MaxExposure", &[2.4]),
+            ("Brightness", &[1.0, 1.0, 1.0]),
+            ("Contrast", &[1.0, 1.0, 1.0]),
+            ("Saturation", &[1.0, 1.0, 1.0]),
+            ("BloomScale", &[0.05, 0.05, 0.05]),
+        ]),
+        fog: f(&[("Color", &[0.58, 0.66, 0.74])]),
+        sky: Fields::new(),
+    }
 }
 
 /// Engine constants by name, as `f32`s laid out as the shaders read them (a matrix: 16, row by row).
@@ -257,6 +380,33 @@ mod tests {
         let r = refs(xml);
         assert_eq!(r.first(), Some(&("weather/a/sun".to_owned(), "Sun".to_owned())));
         assert_eq!(r.get(1), Some(&("weather/a/states/day".to_owned(), String::new())));
+    }
+
+    // spec: RNDR-WTHR-5, RNDR-WTHR-6
+    #[test]
+    fn weather_entities_and_spawn_states_read_from_a_partition() {
+        // Coral Sea's level partition, cut down: a state entity that transitions on spawn, then the weather entity
+        let xml = "<partition>\n\
+            <instance guid=\"1\" type=\"GameSharedResources.WeatherStateEntityData\">\n\
+            <field name=\"Enabled\">false</field>\n<field name=\"State\">3</field>\n\
+            <field name=\"StartTransitionOnSpawn\">true</field>\n</instance>\n\
+            <instance guid=\"2\" type=\"GameSharedResources.WeatherStateEntityData\">\n\
+            <field name=\"Enabled\">true</field>\n<field name=\"DefaultState\">0</field>\n\
+            <field name=\"State\">4</field>\n<field name=\"StartTransitionOnSpawn\">true</field>\n</instance>\n\
+            <instance guid=\"3\" type=\"Weather.WeatherSystemEntityData\">\n\
+            <field ref=\"weather/wake_island/weathersystem_wake/e136\" name=\"WeatherSystem\" />\n\
+            <field ref=\"weather/wake_island/guadal_canal/8697\" name=\"Settings\" />\n</instance>\n\
+            <instance guid=\"4\" type=\"Weather.WeatherSystemEntityData\">\n\
+            <field ref=\"null\" name=\"WeatherSystem\" />\n</instance>\n</partition>";
+        assert_eq!(
+            entities_in(xml),
+            vec![EntityRefs {
+                system: "weather/wake_island/weathersystem_wake".into(),
+                settings: "weather/wake_island/guadal_canal".into(),
+            }]
+        );
+        assert_eq!(spawn_state_in(xml), Some(4));
+        assert_eq!(spawn_state_in("<partition />"), None);
     }
 
     #[test]
