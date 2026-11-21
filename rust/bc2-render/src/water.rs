@@ -212,6 +212,9 @@ fn water_draw(
         vs_extra: Vec::new(),
         ps_extra,
         named: material::engine_named(&constants),
+        // OPFOR's Wake water (BF1943's, translated) reads its material in `waterMaterial`, not `constants`: without the
+        // block's window its `g_depthScaleFactors` stayed 0, the water's depth 0 and its alpha 0 (round R5e)
+        ps_window: query::block_registers(block),
         textures,
         vs_textures: Vec::new(),
         samplers: sampler_states(db.param(ps.param)),

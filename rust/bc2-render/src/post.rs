@@ -263,7 +263,7 @@ pub fn chain(shaders: &Shaders, post: &Post, size: [u32; 2]) -> Result<Vec<Pass>
         let mut v = base.clone();
         let inv = |s: [u32; 2]| vec![1.0 / s[0] as f32, 1.0 / s[1] as f32];
         v.insert("invPixelSize".into(), inv(dst));
-        let cb_vs = cbuffer(&vs.reflect, &v, &[], &[]);
+        let cb_vs = cbuffer(&vs.reflect, &v, &[], None, &[]);
         v.insert("invPixelSize".into(), inv(src));
         v.insert("invTexelSize".into(), inv(src));
         out.push(Pass {
@@ -271,7 +271,7 @@ pub fn chain(shaders: &Shaders, post: &Post, size: [u32; 2]) -> Result<Vec<Pass>
             vs: Arc::clone(&vs.code),
             ps: Arc::clone(&ps.code),
             cb_vs,
-            cb_ps: cbuffer(&ps.reflect, &v, &[], &[]),
+            cb_ps: cbuffer(&ps.reflect, &v, &[], None, &[]),
             inputs,
             output: output.to_owned(),
             size: dst,
@@ -368,8 +368,8 @@ pub fn unproject(shaders: &Shaders, cam: &Camera, size: [u32; 2]) -> Result<Pass
         name: "psUnprojectDepthBuffer".into(),
         vs: Arc::clone(&vs.code),
         ps: Arc::clone(&ps.code),
-        cb_vs: cbuffer(&vs.reflect, &v, &[], &[]),
-        cb_ps: cbuffer(&ps.reflect, &v, &[], &[]),
+        cb_vs: cbuffer(&vs.reflect, &v, &[], None, &[]),
+        cb_ps: cbuffer(&ps.reflect, &v, &[], None, &[]),
         inputs: vec![(0, SCENE_DEPTH.into())],
         output: crate::water::DEPTH.into(),
         size,
