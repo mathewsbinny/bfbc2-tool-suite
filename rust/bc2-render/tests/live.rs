@@ -15,8 +15,7 @@
     missing_docs
 )]
 
-#[path = "../examples/common/mod.rs"]
-mod common;
+use crate::common;
 
 use bc2_render::d3d::Device;
 use bc2_render::frame::{Camera, Rendered};
