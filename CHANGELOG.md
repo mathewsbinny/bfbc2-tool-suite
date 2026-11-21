@@ -119,6 +119,14 @@ landed on `main`.
   mapexport]`; `bfbc2-editor --source-hash` and `mapexport --source-hash`.
 
 ### Changed
+- **Map editor: the Game-accurate view's sky, levels of detail and labels** (round R5d). The weather's sky dome is
+  drawn behind the level (DICE's `EnvironmentMain` with the weather state's sky, sun and halo values: a blue sky over
+  MP_005 instead of the flat fog colour; the panoramic clouds are left out until their composite is proven). Far
+  terrain patches are drawn coarser (every 2nd to 8th sample past 200 m, their edges kept whole so no cracks open)
+  and objects switch to their further levels of detail at the distances their mesh sets' LOD settings give (MP_005's
+  wide view: terrain indices 10.7 M to 1.7 M, object indices 6.2 M to 2.9 M). Labels whose point lies behind what the
+  game frame drew are hidden (the selection's never). Package levels (Vietnam, the Pacific War) open in 1.4 - 4.6 s
+  instead of 14 - 18 s: their bundles are read at once and through the suite's bundle cache.
 - **Map editor: the simplified view draws the objects' render meshes** (round SV1). Trees, bushes and palms now look
   like trees, bushes and palms instead of "spike balls": the view draws each object's render mesh (the one the
   Game-accurate view draws) with its leaves cut out by their texture and a muted tint from its texture (vegetation
@@ -226,6 +234,13 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Map editor: Wake Island's and Coral Sea's black ground in the Game-accurate view** (round R5d). Three causes in
+  the renderer, none in the data: the terrain's height scale was read as the database's placeholder 500 (Wake's
+  terrain spans 1,000 m, so BF1943's sea-floor layers drew the beach and shallows as deep water: black); the water did
+  not read the terrain's height map; and every terrain cell stretched its whole mask tile, where a tile spans a block
+  of 8 x 8 or 4 x 4 cells (each cell repeated the block's mask: the ragged, blocky shorelines and sand of the WW2
+  levels, and of DICE's own levels' tiled layers). Wake's lagoon view: 52.8 % of its pixels black before, 0.0 % after;
+  Coral Sea's 10.2 % to 0.3 %. The deep sea past the reefs stays dark until the haze over the scene is drawn.
 - **Map editor: the cull tree view mode** called its no-slot colour orange (the selection's); it is yellow. Objects
   with a slot of their own are now green, and the slots and spheres use the 3D view's status tokens (round VW1).
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /

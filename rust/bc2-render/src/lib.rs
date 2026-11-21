@@ -12,6 +12,7 @@
 //! - [`placement`]: the level partition's shader-set overrides and model-group members.
 //! - [`water`]: the visual water drawn with its slots' entries.
 //! - [`terrain`]: terrain patches drawn with their `PatchMaskShaders` entries on the level's height map and mask atlas.
+//! - [`sky`]: the weather's sky dome (`EnvironmentMain`) with the state's sky, sun and cloud values (round R5d).
 //! - [`frame`]: the camera, the engine constants and the draw list of a frame.
 //! - [`post`]: DICE's own post-process shaders as full-screen passes; [`tonemap`]: the harness's CPU tonemap.
 //! - [`world`]: a level's whole drawable world (objects, group members, terrain, strips, water, post shaders).
@@ -42,6 +43,7 @@ pub mod material;
 pub mod placement;
 pub mod post;
 pub mod simple;
+pub mod sky;
 pub mod terrain;
 pub mod tonemap;
 pub mod water;

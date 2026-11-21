@@ -332,10 +332,9 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
     let inv = vec![1.0 / size[0].max(1) as f32, 1.0 / size[1].max(1) as f32, 0.0, 0.0];
     base.insert("invScreenSize".into(), inv.clone());
     base.insert("g_screenSizeInv".into(), inv);
-    base.insert(
-        "g_depthScaleFactors".into(),
-        crate::water::depth_factors(cam.near, cam.far).to_vec(),
-    );
+    let depth = crate::water::depth_factors(cam.near, cam.far);
+    base.insert("g_depthScaleFactors".into(), depth.to_vec());
+    base.insert("g_depthFactors".into(), vec![depth[0], depth[1], depth[0], depth[1]]);
     if let Some(d) = light.get("outdoorLightDir") {
         base.insert("sunDir".into(), d.clone());
     }
@@ -400,6 +399,57 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
     // a stable sort keeps the given order among equals
     keyed.sort_by(|a, b| a.0.0.cmp(&b.0.0).then(a.0.1.total_cmp(&b.0.1)));
     keyed.into_iter().map(|(_, c)| c).collect()
+}
+
+/// Whether a world point is hidden behind what a frame drew (round R5d: the editor's labels on the game view): the
+/// point projected with the frame's camera onto its depth (`size`, row by row, Direct3D depth), each depth taken back
+/// to a view distance; hidden when every pixel of the 3 x 3 around it lies nearer than the point by more than a
+/// margin (half a metre, or 2 % of the distance). `None` when the point is behind the camera or off the frame.
+#[must_use]
+pub fn occluded(cam: &Camera, size: [u32; 2], depth: &[f32], p: [f64; 3]) -> Option<bool> {
+    let vp = cam.view_proj();
+    let q = [p[0], p[1], p[2], 1.0];
+    let row = |r: usize| {
+        q.iter()
+            .enumerate()
+            .map(|(k, c)| vp.get(r * 4 + k).copied().unwrap_or(0.0) * c)
+            .sum::<f64>()
+    };
+    let (x, y, w) = (row(0), row(1), row(3));
+    if w <= cam.near {
+        return None;
+    }
+    let (sx, sy) = (
+        f64::midpoint(x / w, 1.0) * f64::from(size[0]),
+        (1.0 - y / w) * 0.5 * f64::from(size[1]),
+    );
+    if sx < 0.0 || sy < 0.0 || sx >= f64::from(size[0]) || sy >= f64::from(size[1]) {
+        return None;
+    }
+    let (n, f) = (cam.near, cam.far);
+    let q = f / (f - n);
+    let dist = |z: f64| if z >= 1.0 { f } else { n * q / (q - z).max(1e-12) };
+    let at = w; // the point's view depth (the projection's w is its distance along the view axis)
+    let margin = (0.02 * at).max(0.5);
+    let (cx, cy) = (sx as i64, sy as i64);
+    let mut nearer = 0;
+    let mut seen = 0;
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let (px, py) = (cx + dx, cy + dy);
+            if px < 0 || py < 0 || px >= i64::from(size[0]) || py >= i64::from(size[1]) {
+                continue;
+            }
+            let Some(&z) = depth.get(py as usize * size[0] as usize + px as usize) else {
+                continue;
+            };
+            seen += 1;
+            if dist(f64::from(z)) < at - margin {
+                nearer += 1;
+            }
+        }
+    }
+    Some(seen > 0 && nearer == seen)
 }
 
 /// A frame drawn and read back.
@@ -472,6 +522,26 @@ mod tests {
         assert!(z > 0.0 && z < 1.0);
         // right = forward x up: looking along +z, right is -x (the game's right-handed data)
         assert!((cam.right[0] + 1.0).abs() < 1e-12);
+    }
+
+    // spec: RNDR-VIEW-1
+    #[test]
+    fn a_point_behind_drawn_depth_is_occluded() {
+        let cam = Camera::look([0.0, 0.0, -10.0], [0.0; 3], 1.0, 1.0, 100.0, 1.0);
+        let size = [9, 9];
+        // a wall 5 m from the camera across the whole frame
+        let (n, f) = (1.0f64, 100.0f64);
+        let wall = (f / (f - n) - n * f / ((f - n) * 5.0)) as f32;
+        let depth = vec![wall; 81];
+        assert_eq!(occluded(&cam, size, &depth, [0.0, 0.0, 0.0]), Some(true));
+        // in front of the wall, or nothing drawn: seen
+        assert_eq!(occluded(&cam, size, &depth, [0.0, 0.0, -6.0]), Some(false));
+        assert_eq!(occluded(&cam, size, &[1.0; 81], [0.0, 0.0, 0.0]), Some(false));
+        // just behind the wall, within the margin: seen
+        assert_eq!(occluded(&cam, size, &depth, [0.0, 0.0, -4.7]), Some(false));
+        // behind the camera or off the frame
+        assert_eq!(occluded(&cam, size, &depth, [0.0, 0.0, -20.0]), None);
+        assert_eq!(occluded(&cam, size, &depth, [50.0, 0.0, 0.0]), None);
     }
 
     #[test]

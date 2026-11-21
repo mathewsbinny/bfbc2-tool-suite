@@ -9,6 +9,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use bc2_formats::fbrb;
 
+/// The environment variable that reads Package bundles without the bundle cache, one after another ([`Files::fetch`]
+/// as rounds R5c to GW1 read them).
+pub const UNCACHED_ENV: &str = "BC2_RENDER_UNCACHED";
+
 /// The files of a set of unpacked bundle folders.
 #[derive(Debug, Clone, Default)]
 pub struct Files {
@@ -93,7 +97,12 @@ impl Files {
         })
     }
 
-    /// Reads names from the bundles (each bundle's payload streamed once); returns how many were read.
+    /// Reads names from the bundles; returns how many were read. Round R5d: the bundles of a round are read at once
+    /// (one task a bundle: a payload is one gzip stream) and through the suite's bundle cache
+    /// ([`bc2_formats::fbrb::read_many`]: the payload decompressed so far kept in the process, and a large bundle read
+    /// a second time written whole to the shared disk cache, `BFBC2_FBRB_CACHE`, inside its one budget), so a later
+    /// round seeks instead of decompressing the payload from its start again. [`UNCACHED_ENV`] (or the cache turned
+    /// off) reads as before: one streamed pass a bundle, one bundle after another.
     ///
     /// # Errors
     /// A bundle cannot be read.
@@ -108,16 +117,32 @@ impl Files {
                     .push((n.to_lowercase(), stored.clone()));
             }
         }
-        let mut read = 0;
         let mut keys: Vec<usize> = by_bundle.keys().copied().collect();
         keys.sort_unstable();
-        for k in keys {
-            let list = by_bundle.remove(&k).unwrap_or_default();
-            let Some(path) = b.paths.get(k) else { continue };
-            let stored: Vec<&str> = list.iter().map(|(_, s)| s.as_str()).collect();
-            let got = fbrb::read_path_uncached(path, &stored).map_err(|e| format!("{}: {e}", path.display()))?;
-            let mut data = b.data.lock().unwrap_or_else(PoisonError::into_inner);
-            for ((low, _), bytes) in list.into_iter().zip(got) {
+        let lists: Vec<(usize, Vec<(String, String)>)> = keys
+            .into_iter()
+            .map(|k| (k, by_bundle.remove(&k).unwrap_or_default()))
+            .collect();
+        let items: Vec<(&PathBuf, Vec<&str>)> = lists
+            .iter()
+            .filter_map(|(k, list)| Some((b.paths.get(*k)?, list.iter().map(|(_, s)| s.as_str()).collect())))
+            .collect();
+        let got: Vec<Result<Vec<Vec<u8>>, String>> = if std::env::var_os(UNCACHED_ENV).is_some() {
+            items
+                .iter()
+                .map(|(p, n)| fbrb::read_path_uncached(p, n).map_err(|e| format!("{}: {e}", p.display())))
+                .collect()
+        } else {
+            fbrb::read_many(&items)
+                .into_iter()
+                .zip(&items)
+                .map(|(r, (p, _))| r.map_err(|e| format!("{}: {e}", p.display())))
+                .collect()
+        };
+        let mut read = 0;
+        let mut data = b.data.lock().unwrap_or_else(PoisonError::into_inner);
+        for ((_, list), got) in lists.into_iter().zip(got) {
+            for ((low, _), bytes) in list.into_iter().zip(got?) {
                 data.insert(low, Arc::new(bytes));
                 read += 1;
             }

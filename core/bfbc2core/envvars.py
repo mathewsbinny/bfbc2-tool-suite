@@ -75,6 +75,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BF1943_SOURCE_WHOLE': ('switch', '1: the BF1943 Source reads whole bundles (the reference of the lazy Source)'),
     'BC2_GAMEVIEW_COPY': ('switch', "the editor's game-accurate view reads the frame back instead of sharing the texture"),
     'BC2_RENDER_NO_CB_OFFSETS': ('switch', "the renderer does not use Direct3D 11.1's constant buffer offsets"),
+    'BC2_RENDER_UNCACHED': ('switch', "the renderer reads a level's bundles one after another without the bundle cache"),
     # paths
     'BFBC2_DBXEDIT_EXE': ('paths', "a DbxEdit.exe to record answers from (the retired exe's tests)"),
     'BFBC2_FBRBTOOL_EXE': ('paths', "an FbrbTool.exe to record answers from (the retired exe's tests)"),
