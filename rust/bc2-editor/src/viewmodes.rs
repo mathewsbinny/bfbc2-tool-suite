@@ -28,6 +28,8 @@ pub struct CullView {
     pub shared: Vec<usize>,
     /// Placed objects with a slot of their own.
     pub slotted: usize,
+    /// Those objects (scene indices; round VW1: drawn in their own colour too).
+    pub own: Vec<usize>,
     /// Where the tree came from, or why there is none.
     pub source: String,
 }
@@ -102,10 +104,12 @@ pub fn cull_view(scene: &Scene, bases: &[PathBuf]) -> CullView {
             out.shared.extend(ks);
         } else {
             out.slotted += 1;
+            out.own.extend(ks);
         }
     }
     out.unslotted.sort_unstable();
     out.shared.sort_unstable();
+    out.own.sort_unstable();
     let Some(file) = tree_file(scene, bases) else {
         out.source =
             "The level's static cull tree was not found in its folders; only the objects' slots are shown.".into();

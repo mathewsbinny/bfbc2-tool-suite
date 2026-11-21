@@ -79,6 +79,7 @@ pub mod model;
 pub mod nav;
 pub mod navdata;
 pub mod navview;
+pub mod overlays;
 pub mod package;
 pub mod prepare;
 pub mod query;
@@ -86,6 +87,7 @@ pub mod render;
 pub mod strip_ui;
 pub mod theme;
 pub mod viewmodes;
+pub mod walk;
 pub mod workspace;
 
 /// The `VERSION` file at the repository's root, as read at build time (round P1; `CHANGELOG.md`).

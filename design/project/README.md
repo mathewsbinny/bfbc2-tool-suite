@@ -108,6 +108,15 @@ between the marker's darkest tenth and the terrain's brightest tenth).
 | `view-status-error` | `#ff8c9c` | `#ff94a2` | 4.7 / 4.6 | 3.6 |
 | `view-status-info` | `#85adff` | `#8cb3ff` | 4.6 / 4.6 | 3.6 |
 | `view-link` | `#40d8c0` | `#46dcc6` | 5.8 / 5.7 | 4.4 |
+| `view-fx-effect` | `#b6e36a` | `#bce970` | 7.0 / 7.0 | 5.3 |
+| `view-fx-light` | `#fff08a` | `#fff690` | 8.9 / 8.7 | 6.6 |
+| `view-fx-sound` | `#ffa3e0` | `#ffa9e6` | 5.7 / 5.6 | 4.3 |
+
+The `view-fx-*` tokens (round VW1) are the overlays of what the level's data holds besides gameplay: effect
+emitters and their spawn volumes (a lime, 82 degrees), dynamic lights and their radius (a pale yellow, 52 degrees; a
+light's own colour is its label's swatch) and sound emitters and areas (a pink, 320 degrees). Told from their
+neighbours by shape and label as the others are: the lime from `view-nav-edit-link` (another workspace's), the yellow
+from `view-status-warn` (a warning is always its triangle), the pink from `view-nav-small`.
 
 The terrain is `#3f4837` (Dark) and `#434c3b` (Light), the sky `#1c1f23` and `#747d87`. Known closenesses, carried
 by shape and word as everywhere: `view-team-2` and `view-status-error` (both light reds, 19 degrees apart), and
