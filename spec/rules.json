@@ -14788,6 +14788,82 @@
    ]
   },
   {
+   "id": "XLOG-AUTO-1",
+   "title": "The autosave is a journal: crash-safe, resumable, compacted",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/journal.rs:1-290"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:880-960"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:775-800"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/journal.rs::a_journal_cut_anywhere_gives_its_last_whole_line"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/journal.rs::written_resumed_and_compacted"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-DELTA-1",
+   "title": "Brush strokes are tiles beside the project, named by sha1",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/delta.rs:1-430"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/files.rs:270-330"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:800-870"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/delta.rs::rasters_tiles_and_strokes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/delta.rs::tiles_in_a_folder"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/files.rs::strokes_apply_from_their_tiles"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::stroke_budgets"
+    }
+   ]
+  },
+  {
    "id": "XLOG-LOG-4",
    "title": "One editor per project; a save never overwrites another writer's file",
    "file": "spec/transforms/projectlog.md",

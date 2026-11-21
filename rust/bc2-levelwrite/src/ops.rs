@@ -405,6 +405,16 @@ pub enum Op {
         /// The edits, in order.
         edits: Vec<crate::files::FileEdit>,
     },
+    /// A brush stroke on a raster (round OP1, [`crate::delta`]): a height field's or a paint layer's tiles it
+    /// changed, stored as tile files beside the project and named here by their sha1s before and after.
+    Stroke {
+        /// The raster: [`crate::files::Target::Terrain`] or [`crate::files::Target::Paint`].
+        target: crate::files::Target,
+        /// The raster's width and height in samples (a paint layer is made at this size by its first stroke).
+        size: [u32; 2],
+        /// The tiles changed, in row order.
+        tiles: Vec<crate::delta::TileDelta>,
+    },
 }
 
 impl Op {
@@ -424,6 +434,7 @@ impl Op {
                 out
             }
             Self::NavAdd { .. } | Self::NavRemove { .. } | Self::NavLoad { .. } => vec![Target::Navigation],
+            Self::Stroke { target, .. } => vec![target.clone()],
             o if o.edits_partition() => vec![Target::Partition],
             _ => vec![Target::Project],
         }
@@ -506,7 +517,8 @@ impl Op {
             | Self::SetWeather { .. }
             | Self::NavAdd { .. }
             | Self::NavRemove { .. }
-            | Self::NavLoad { .. } => Vec::new(),
+            | Self::NavLoad { .. }
+            | Self::Stroke { .. } => Vec::new(),
         }
     }
 
@@ -634,6 +646,12 @@ impl Op {
             ),
             Self::InsertPoint { after, .. } => format!("Insert an outline point after {after}"),
             Self::RemovePoint { guid } => format!("Remove outline point {guid}"),
+            Self::Stroke { target, tiles, .. } => format!(
+                "Stroke on {}: {} tile{}",
+                target.describe(),
+                tiles.len(),
+                if tiles.len() == 1 { "" } else { "s" }
+            ),
             Self::Files { edits } => {
                 let files = self.files().len();
                 let what = edits
@@ -761,8 +779,10 @@ impl Organisation {
         self.groups.retain(|_, m| !m.is_empty());
     }
 
+    /// The organisation after one more operation (round OP1, audit AU1 R17: the editor follows each new operation
+    /// instead of reading the whole log again; [`Organisation::of`] is this over the log).
     #[allow(clippy::too_many_lines, reason = "one arm per operation, read top to bottom")]
-    fn apply(&mut self, op: &Op) {
+    pub fn apply(&mut self, op: &Op) {
         let up = |g: &str| g.to_ascii_uppercase();
         match op {
             Op::Move { items } | Op::Rotate { items } => {
@@ -810,7 +830,8 @@ impl Organisation {
             | Op::SetWeather { .. }
             | Op::NavAdd { .. }
             | Op::NavRemove { .. }
-            | Op::NavLoad { .. } => {}
+            | Op::NavLoad { .. }
+            | Op::Stroke { .. } => {}
             Op::Place { items } => {
                 for p in items {
                     if let Some(pl) = p.placement {

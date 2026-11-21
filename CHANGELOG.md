@@ -35,6 +35,15 @@ landed on `main`.
   static group members' transforms (Wake keeps 2,999 of its objects in group files). It applies whole or not at all;
   the editor keeps a writer per file in its checkpoints, so undo, redo and History bring every file back together.
   The export writes the edited group files in place of the base's. Editing members in the views is round SG1's.
+- **Brush strokes stored as tiles beside the project** (round OP1, audit AU1 R24, for E5's terrain and paint
+  brushes). A `stroke` operation names only the 64 x 64 tiles it changed, by sha1; the tiles live once each in
+  `<project>.mapedit.json.tiles`. Undo and redo touch only those tiles. On a 2048 x 2048 height field a stroke's
+  commit takes about 2 ms and an undo about 3 ms (`rust/BENCHMARKS.md` "OP1"). The export refuses projects with
+  strokes until E5 writes terrain.
+- **A journalled autosave** (round OP1, audit AU1 R17 / P3). The autosave is now an append-only journal, one
+  checksummed line per change instead of the whole project after every edit; a crash (tested by killing the writer
+  mid-line) recovers every whole line, and the journal is compacted when it grows. Older whole-project autosaves still
+  read.
 
 ### Changed
 - **Project format 6** (round OP1). A project records the sha1 of each level file it edits besides the partition
@@ -44,6 +53,9 @@ landed on `main`.
   read as 0 or cut to 32 bits (audit AU4 BUG-13).
 
 ### Fixed
+- **Project saves are durable** (round OP1, audit AU4 DS-20 / BUG-12): the temporary file is synced before it is
+  moved over the project, the move is retried while another process holds the file for a moment, and the temporary
+  file is removed when anything fails.
 - **The editor tests' hang** (round HG1): two tests making GPU devices at once could deadlock for good on NVIDIA's
   driver (a Vulkan device made while another thread exited through the driver's `DllMain` holding Windows' loader
   lock; 4 hangs in 9 loaded runs). The headless device is made once per process and shared, on Vulkan / Direct3D 12

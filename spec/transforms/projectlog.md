@@ -38,8 +38,8 @@ moves (release): undo 9.1 - 10.9 s before, 78 - 98 ms after; History jumps 1.4 s
 
 Status: **verified**
 
-A save writes the whole file through a temporary file and removes the autosave; every change writes the autosave
-beside it, and an autosave that reads and differs from the saved project is offered for recovery. A file of another
+A save writes the whole file through a temporary file and removes the autosave; every change goes into the autosave
+beside it (XLOG-AUTO-1), and an autosave that reads and differs from the saved project is offered for recovery. A file of another
 format, from a newer editor, or with an operation of an unknown kind is refused in words (the operation named, not
 dropped); an older version is migrated as it loads, one step at a time (versions 2 - 5 only added operation kinds;
 5 to 6 gives the base an empty `files`). Round OP1 (project format 6): `version` and `min_reader` are read whole -
@@ -53,6 +53,47 @@ version-5 editor gives (sha1 checked on main at 082f2d2).
 [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files] [test: rust/bc2-levelwrite/tests/project_versions.rs::canary_projects_load_as_version_1]
 [test: rust/bc2-levelwrite/src/ops.rs::json_shape_and_names] [test: rust/bc2-levelwrite/src/project.rs::versions_and_min_reader]
 [test: rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same]
+
+### XLOG-AUTO-1: The autosave is a journal: crash-safe, resumable, compacted
+
+Status: **verified**
+
+Since round OP1 (audit AU1 R17 / P3) the autosave `<project>.mapedit.json.autosave` is an append-only journal: a
+first line holding the project as it was at the first change since the last save, then one line per change (an
+operation added or amended, undo, redo, a History jump, a base file recorded). Each line is the JSON's CRC-32 in 8
+hex digits, a space, the JSON and an end of line; it is written and flushed at once and synced to the disk at most
+once a second. Reading takes lines up to the first one that is cut short, fails its checksum or does not follow (an
+operation number out of order, an undo with nothing to undo) and guesses nothing after it; resuming cuts that end off
+and appends after the last good line; after 4,096 lines or 8 MB it is rewritten as one first line, whole or not at
+all. A journal cut at every byte gives the project after its last whole line; a writer killed mid-write (six kills,
+three of them inside a line) is recovered to operations 1 ... k and resumed. An autosave of the whole project, as
+editors before OP1 wrote it, still reads. Project and lock files are written through a synced temporary file moved
+over the file with retries, the temporary removed on any failure (audit AU4 DS-20 / BUG-12).
+
+[code: rust/bc2-levelwrite/src/journal.rs:1-290] [code: rust/bc2-levelwrite/src/project.rs:880-960]
+[code: rust/bc2-editor/src/edit.rs:775-800]
+[test: rust/bc2-levelwrite/src/journal.rs::a_journal_cut_anywhere_gives_its_last_whole_line]
+[test: rust/bc2-levelwrite/src/journal.rs::written_resumed_and_compacted]
+[test: rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed]
+[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal]
+
+### XLOG-DELTA-1: Brush strokes are tiles beside the project, named by sha1
+
+Status: **verified**
+
+A `stroke` operation (round OP1, audit AU1 R24 / D19) changes a raster - a height field's stored values or a paint
+layer's weights - and names only the 64 x 64 tiles it changed: their places and the sha1s of their files before and
+after. A tile's file (`BC2TILE1`, width, height, little-endian `u16` samples) is kept once in
+`<project>.mapedit.json.tiles\<sha1>.tile`; a file whose sha1 does not match is never read as the tile. A stroke
+applies only where every tile is still its `before` (else nothing is written and it is refused in words); a paint
+layer starts at 0 at the stroke's size. Rasters keep their tiles shared with the editor's checkpoints, so undo and
+redo cost only the tiles touched. The export does not write rasters yet (round E5) and refuses such a project in words.
+
+[code: rust/bc2-levelwrite/src/delta.rs:1-430] [code: rust/bc2-levelwrite/src/files.rs:270-330]
+[code: rust/bc2-editor/src/edit.rs:800-870]
+[test: rust/bc2-levelwrite/src/delta.rs::rasters_tiles_and_strokes] [test: rust/bc2-levelwrite/src/delta.rs::tiles_in_a_folder]
+[test: rust/bc2-levelwrite/src/files.rs::strokes_apply_from_their_tiles]
+[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal] [test: rust/bc2-editor/tests/op1.rs::stroke_budgets]
 
 ### XLOG-LOG-4: One editor per project; a save never overwrites another writer's file
 

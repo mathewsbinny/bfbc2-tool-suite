@@ -73,6 +73,14 @@ The log follows `navtune.json`'s proven pattern:
   member edits the views need) and applies them on copies: all or nothing, one undo step, the scene following only
   a whole apply. The export applies the log to all files at once and writes the edited group files in place of the
   base's; a target it does not write yet (terrain before E5) refuses the export in words.
+- **Brush strokes** (round OP1, audit AU1 R24 / D19): a `stroke` operation names the 64 x 64 tiles of a raster
+  (height field, paint layer) it changed, by the sha1s of their files before and after; the tiles are kept once each
+  in `<project>.mapedit.json.tiles` (`bc2_levelwrite::delta`). Rasters share unchanged tiles with the checkpoints,
+  so a stroke and its undo cost the tiles touched. E5's brushes call `Doc::stroke(target, after, label)` with a copy
+  of `Doc::raster(target)`; the terrain view and the export of rasters are E5's.
+- **Autosave** (round OP1, audit AU1 R17): an append-only journal (`bc2_levelwrite::journal`), one checksummed line
+  per change after a first line holding the project; crash-safe (a torn last line is left out), resumable and
+  compacted. The organisation follows each new operation instead of replaying the log.
 - **Versions** (project format 6): `version` is the writer's, `min_reader` the lowest version that reads the file
   (its newest operation kind); each version step has a migration (`project::migrate`), and the recorded projects of
   versions 1 - 5 (`rust/bc2-levelwrite/tests/data/projects`) must load and replay to the same partition.
