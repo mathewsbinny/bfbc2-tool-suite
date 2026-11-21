@@ -255,9 +255,17 @@ impl Overlays {
     /// The lines the toggles show, each with its colour.
     #[must_use]
     pub fn lines(&self, t: &Toggles, p: &Palette) -> Vec<(Segment, Color32)> {
+        self.lines_without(t, p, &|_| false)
+    }
+
+    /// [`Overlays::lines`] without the items of the entities `skip` says yes to (round VW2: deleted or hidden by the
+    /// project, or filtered out by the mode view layer).
+    #[must_use]
+    pub fn lines_without(&self, t: &Toggles, p: &Palette, skip: &dyn Fn(usize) -> bool) -> Vec<(Segment, Color32)> {
         self.items
             .iter()
             .filter(|i| t.on(i.overlay))
+            .filter(|i| !i.entity.is_some_and(skip))
             .flat_map(|i| {
                 let c = i.paint.colour(p);
                 i.lines.iter().map(move |s| (*s, c))

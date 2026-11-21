@@ -519,6 +519,259 @@ pub fn stages(w: &LevelWriter) -> Vec<Vec<String>> {
     groups.into_iter().map(|x| x.1).collect()
 }
 
+/// The event glue a Rush stage's completion runs through (L1's `GLUE`).
+const GLUE: &[&str] = &[
+    "MultipleTriggerEntityData",
+    "DelayTriggerEntityData",
+    "EventSplitterEntityData",
+    "TeamFilterEntityData",
+    "EventGateEntityData",
+];
+
+/// One event connection of the level (`LevelData.EventConnections`): source, target, their events' names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Event {
+    src: String,
+    dst: String,
+    sev: String,
+    tev: String,
+}
+
+fn events(w: &LevelWriter) -> HashMap<String, Vec<Event>> {
+    let mut out: HashMap<String, Vec<Event>> = HashMap::new();
+    for a in w.connection_arrays() {
+        for &c in w.d.children(a).unwrap_or_default() {
+            let end = |f: &[u8]| w.d.child(c, f).and_then(|x| w.d.attr(x, b"ref")).and_then(local_ref);
+            let name = |f: &[u8]| {
+                w.d.child(c, f)
+                    .and_then(|x| w.d.child(x, b"Name"))
+                    .and_then(|x| w.d.text(x))
+                    .map_or_default(|t| String::from_utf8_lossy(t).into_owned())
+            };
+            if let (Some(src), Some(dst)) = (end(b"Source"), end(b"Target")) {
+                out.entry(src.clone()).or_default().push(Event {
+                    src,
+                    dst,
+                    sev: name(b"SourceEvent"),
+                    tev: name(b"TargetEvent"),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// A boolean field of an instance (a two-byte value, its second byte; a text `true` / `false` as some partitions
+/// hold it), `None` when the instance has no such field.
+#[must_use]
+pub fn bool_field(w: &LevelWriter, e: NodeId, name: &[u8]) -> Option<bool> {
+    let c = w.d.child(e, name)?;
+    if let Some(t) = w.d.text(c) {
+        return Some(t == b"true");
+    }
+    let raw = w.d.raw(c);
+    (raw.len() == 2).then(|| raw.get(1).copied().unwrap_or(0) != 0)
+}
+
+/// A Rush stage as it is played (round VW2): its M-COMs and every instance's `Enabled` while it is being played.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RushStage {
+    /// The stage's M-COMs (upper-case guids).
+    pub mcoms: Vec<String>,
+    /// Instance -> enabled while the stage is played (instances with an `Enabled` field, and those an earlier
+    /// stage's completion enabled or disabled).
+    pub enabled: HashMap<String, bool>,
+}
+
+/// The Rush stages in play order, each with the state while it is played, and whether the order was ambiguous
+/// (round VW2; L1's `simulate`, `bfbc2-map-editor/placement/L1_placement_report.md` 3.2). The play starts from every
+/// instance's `Enabled`; a stage is played while all of its counters (`MultipleTriggerEntityData`) are enabled;
+/// its M-COMs' `onDestroyed` events are followed through the event glue, applying `Enable` / `Disable` (and the
+/// target's `OnEnabled` / `OnDisabled`), never through another stage's counters. Trigger counts are not modelled
+/// and gates are taken as open: a stage ends only when all its M-COMs are destroyed.
+#[must_use]
+#[allow(clippy::too_many_lines, reason = "L1's simulation in one piece")]
+pub fn rush_play(w: &LevelWriter) -> (Vec<RushStage>, bool) {
+    let g = graph(w);
+    let ev = events(w);
+    let mut groups: Vec<(BTreeSet<String>, Vec<String>)> = Vec::new();
+    for m in mcoms(w, &g) {
+        let key: BTreeSet<String> = ev
+            .get(&m)
+            .map_or(&[][..], Vec::as_slice)
+            .iter()
+            .filter(|e| g.ty(&e.dst) == "MultipleTriggerEntityData")
+            .map(|e| e.dst.clone())
+            .collect();
+        match groups.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, v)) => v.push(m),
+            None => groups.push((key, vec![m])),
+        }
+    }
+    let mut state: HashMap<String, bool> = HashMap::new();
+    for x in &g.order {
+        if let Some(&(e, _)) = g.by_guid.get(x)
+            && let Some(on) = bool_field(w, e, b"Enabled")
+        {
+            state.insert(x.clone(), on);
+        }
+    }
+    let all_keys: BTreeSet<String> = groups.iter().flat_map(|(k, _)| k.iter().cloned()).collect();
+    let mut remaining: Vec<usize> = (0..groups.len()).collect();
+    let mut out = Vec::new();
+    let mut uncertain = false;
+    let on = |state: &HashMap<String, bool>, x: &str| state.get(x).copied().unwrap_or(true);
+    while !remaining.is_empty() {
+        let mut cand: Vec<usize> = remaining
+            .iter()
+            .copied()
+            .filter(|&k| groups.get(k).is_some_and(|(key, _)| key.iter().all(|m| on(&state, m))))
+            .collect();
+        if cand.is_empty() {
+            uncertain = true;
+            cand = remaining
+                .iter()
+                .copied()
+                .filter(|&k| groups.get(k).is_some_and(|(key, _)| key.iter().any(|m| on(&state, m))))
+                .collect();
+        }
+        if cand.is_empty() {
+            cand = remaining.iter().take(1).copied().collect();
+        }
+        if cand.len() > 1 && !out.is_empty() {
+            uncertain = true;
+        }
+        let Some(&k) = cand.first() else { break };
+        remaining.retain(|&x| x != k);
+        let Some((key, ms)) = groups.get(k) else { break };
+        out.push(RushStage {
+            mcoms: ms.clone(),
+            enabled: state.clone(),
+        });
+        let blocked: BTreeSet<&String> = all_keys.difference(key).collect();
+        let mut queue: std::collections::VecDeque<Event> = ms
+            .iter()
+            .flat_map(|m| ev.get(m).into_iter().flatten())
+            .filter(|e| e.sev == "onDestroyed")
+            .cloned()
+            .collect();
+        let mut seen: HashSet<(String, String, String, String)> = HashSet::new();
+        let next = |x: &str, pred: &dyn Fn(&str) -> bool| -> Vec<Event> {
+            ev.get(x)
+                .map_or(&[][..], Vec::as_slice)
+                .iter()
+                .filter(|e| pred(&e.sev))
+                .cloned()
+                .collect()
+        };
+        while let Some(e) = queue.pop_front() {
+            if !seen.insert((e.src.clone(), e.dst.clone(), e.sev.clone(), e.tev.clone())) {
+                continue;
+            }
+            if !g.by_guid.contains_key(&e.dst) {
+                continue;
+            }
+            match e.tev.as_str() {
+                "Enable" => {
+                    state.insert(e.dst.clone(), true);
+                    queue.extend(next(&e.dst, &|s| s == "OnEnabled"));
+                }
+                "Disable" => {
+                    state.insert(e.dst.clone(), false);
+                    queue.extend(next(&e.dst, &|s| s == "OnDisabled"));
+                }
+                _ if GLUE.contains(&g.ty(&e.dst)) => {
+                    if blocked.contains(&e.dst) {
+                        continue;
+                    }
+                    if g.ty(&e.dst) == "MultipleTriggerEntityData" && !on(&state, &e.dst) {
+                        continue;
+                    }
+                    queue.extend(next(&e.dst, &|s| {
+                        s.starts_with("OnTrigger") || s.starts_with("OnImpulse") || s.starts_with("OnTeam")
+                    }));
+                }
+                _ => {}
+            }
+        }
+    }
+    (out, uncertain)
+}
+
+/// The mode view layer of a level (round VW2): its whole mode layer ([`layer`]) and, for a Rush level, what each
+/// stage hides - the editor's "Mode layer" and "Rush stage" view filters.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LayerView {
+    /// The mode layer (upper-case guids).
+    pub layer: HashSet<String>,
+    /// The Rush stages in play order (empty for other modes).
+    pub stages: Vec<StageView>,
+    /// The play order was ambiguous somewhere (L1: never on DICE's 30 Rush levels).
+    pub uncertain: bool,
+}
+
+/// One Rush stage as the view shows it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StageView {
+    /// Its M-COMs.
+    pub mcoms: Vec<String>,
+    /// The capture points (bases) enabled while it is played.
+    pub bases: Vec<String>,
+    /// The combat areas enabled while it is played.
+    pub combat_areas: Vec<String>,
+    /// The layer's instances not in play during the stage: the other stages' M-COMs with what belongs to them, and
+    /// the capture points, combat areas and spawns disabled then with theirs.
+    pub hidden: HashSet<String>,
+}
+
+/// The mode view layer of a level: [`layer`], and for a Rush level each stage's view from [`rush_play`].
+#[must_use]
+pub fn layer_view(w: &LevelWriter) -> LayerView {
+    let layer = layer(w);
+    let (play, uncertain) = rush_play(w);
+    let g = graph(w);
+    let of_type = |t: &str| -> Vec<String> { g.order.iter().filter(|x| g.ty(x) == t).cloned().collect() };
+    let cps = of_type("CapturePointEntityData");
+    let cas = of_type("CombatAreaTriggerEntityData");
+    let spawns = of_type("SoldierSpawnEntityData");
+    let mut clusters: HashMap<String, Vec<String>> = HashMap::new();
+    let mut cl = |x: &str| -> Vec<String> { clusters.entry(x.to_owned()).or_insert_with(|| cluster(w, x)).clone() };
+    let mut stages = Vec::new();
+    for (k, s) in play.iter().enumerate() {
+        let on = |x: &str| s.enabled.get(x).copied().unwrap_or(true);
+        let mine: HashSet<String> = s.mcoms.iter().flat_map(|m| cl(m)).collect();
+        let mut hidden: HashSet<String> = HashSet::new();
+        for (j, o) in play.iter().enumerate() {
+            if j != k {
+                for m in &o.mcoms {
+                    hidden.extend(cl(m).into_iter().filter(|x| !mine.contains(x)));
+                }
+            }
+        }
+        let bases: Vec<String> = cps.iter().filter(|c| on(c)).cloned().collect();
+        let areas: Vec<String> = cas.iter().filter(|c| on(c)).cloned().collect();
+        let mut keep: HashSet<String> = mine.clone();
+        for c in bases.iter().chain(&areas) {
+            keep.extend(cl(c));
+        }
+        for c in cps.iter().chain(&cas).chain(&spawns).filter(|c| !on(c)) {
+            hidden.extend(cl(c).into_iter().filter(|x| !keep.contains(x)));
+        }
+        hidden.retain(|x| layer.contains(x));
+        stages.push(StageView {
+            mcoms: s.mcoms.clone(),
+            bases,
+            combat_areas: areas,
+            hidden,
+        });
+    }
+    LayerView {
+        layer,
+        stages,
+        uncertain,
+    }
+}
+
 /// What a level's mode layer has: its pieces counted (round E3d's completeness check compares them with the donor's).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LayerSig {
