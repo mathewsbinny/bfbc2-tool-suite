@@ -8,7 +8,9 @@ r"""Tests of the stock-MP AI authoring tool.
                                          level bundles, then generate / build / validate Atacama Conquest (MP_005)
                                          in a temporary work folder, twice (the builds must be identical)
 """
+import contextlib
 import glob
+import io
 import json
 import os
 import shutil
@@ -360,14 +362,16 @@ def quick(tmp):
     check(open(tgt, 'rb').read() == b'stock bundle', 'install --plan changes nothing')
 
     def refused(argv):
-        try:
-            stockmp.install(paths, argv)
-        except SystemExit as e:
-            return str(e)
-        return None
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = stockmp.install(paths, argv)
+        return err.getvalue() if code else None
+    from bfbc2core import gameledger
+    led = gameledger.Ledger(game)
+    tgt_rel = 'Package/levels/test_01/level-00.fbrb'
     said = refused(['--apply'])
     check(said is not None and 'no build_report.json' in said and open(tgt, 'rb').read() == b'stock bundle'
-          and not os.path.exists(tgt + stockmp.BACKUP),
+          and not led.records(),
           f'install --apply: no build report (a build that did not finish) - nothing installed ({said})')
     rel = os.path.relpath(outf, paths.root)
     report = {'outputs': {rel: pipeline.sha(outf)}}
@@ -384,9 +388,10 @@ def quick(tmp):
           f'install --apply: a file the build report does not list - nothing installed ({said})')
     os.remove(extra)
     stockmp.install(paths, ['--apply'])
-    check(open(tgt, 'rb').read() == b'new bundle' and open(tgt + stockmp.BACKUP, 'rb').read() == b'stock bundle',
-          'install --apply copies the build and keeps the original')
-    check(paths.bundles() == [('pkg', tgt + stockmp.BACKUP)],
+    kept = led.before('stockmp:test_01', tgt_rel)[1]
+    check(open(tgt, 'rb').read() == b'new bundle' and kept is not None and open(kept, 'rb').read() == b'stock bundle',
+          'install --apply copies the build and keeps the original (in the install ledger)')
+    check(paths.bundles() == [('pkg', kept)],
           'after install --apply the stock input is the kept original, not the installed (authored) bundle')
     pdg = os.path.join(game, 'Output', 'win32', 'ai', 'levels', 'test_01', 'infantry', 'pathdata.hpd')
     os.makedirs(os.path.dirname(pdg))
@@ -418,8 +423,8 @@ def quick(tmp):
     check(os.listdir(os.path.join(paths.root, 'out', 'game')) == ['f'] and not os.path.exists(os.path.join(paths.root, 'out.partial'))
           and not os.path.exists(os.path.join(paths.root, 'out.old')), 'swap_in: the finished outputs replace out whole')
     stockmp.install(paths, ['--revert'])
-    check(open(tgt, 'rb').read() == b'stock bundle' and not os.path.exists(tgt + stockmp.BACKUP)
-          and not os.path.exists(tgt + stockmp.APPLIED), 'install --revert restores the original')
+    check(open(tgt, 'rb').read() == b'stock bundle' and not led.records()
+          and not gameledger.legacy_markers(tgt), 'install --revert restores the original')
 
     # generate: the configuration checks run at once (not first at build)
     gp = pipeline.Paths('test_01', opfor=tmp, work=os.path.join(tmp, 'stockmp_g'), game=os.path.join(tmp, 'game_g'))

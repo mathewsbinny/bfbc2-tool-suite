@@ -61,7 +61,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
-from bfbc2core import atomicio, dbxedit, fbrbtool, paths  # noqa: E402
+from bfbc2core import atomicio, dbxedit, fbrbtool, gameledger, paths  # noqa: E402
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
                            # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at
@@ -75,10 +75,18 @@ NEW_SUFFIX = '.opfor-new'       # where NavKit installed onto a level that had n
 
 
 def original_file(p: str) -> str | None:
-    """DICE's original of game file p, or None. The earliest backup any OPFOR stage kept (<file>.opfor-orig or
-    <file>.opfor-<stage>-orig, the oldest first - a later stage backs up an earlier one's write), else p itself
-    unless an OPFOR stage wrote it where there was no original (NavKit's .opfor-new marker, or a
-    .opfor-<stage>-applied marker with no backup of that stage): then the file there is OPFOR's, not DICE's."""
+    """DICE's original of game file p, or None. From the game copy's install ledger when an owner holds the file
+    there (round DF2: the bottom layer's prior, kept once by its sha256; None where an install put the file where
+    there was none). Else by the markers of before the ledger: the earliest backup any OPFOR stage kept
+    (<file>.opfor-orig or <file>.opfor-<stage>-orig, the oldest first - a later stage backs up an earlier one's
+    write), else p itself unless an OPFOR stage wrote it where there was no original (NavKit's .opfor-new marker, or
+    a .opfor-<stage>-applied marker with no backup of that stage): then the file there is OPFOR's, not DICE's."""
+    game = gameledger.find_game(p)
+    if game is not None:
+        led = gameledger.Ledger(game)
+        rel = os.path.relpath(p, game)
+        if led.holders(rel):
+            return led.original(rel)
     d, base = os.path.split(p)
     try:
         names = {f.lower(): f for f in os.listdir(d or '.')}
@@ -217,19 +225,56 @@ class Project:
         return out
 
     def unpack(self, bundle: str, dest: str, log: Log) -> None:
+        """Unpacked again when the bundle's hash changed (round DF2, AU4-DS-14): into <dest>.tmp-<pid>, stamped
+        there, then swapped in by renames under <dest>.unpack.lock - a second process never deletes a folder another
+        is unpacking, and a file held in the old unpack (DbxEditGUI, the map editor) never leaves a mix of two unpacks
+        stamped as clean."""
         stamp = os.path.join(dest, '.source.sha256')
         source_hash = _sha256(bundle)
-        if os.path.isfile(os.path.join(dest, 'fbrb.manifest')) and os.path.isfile(stamp) \
-                and open(stamp).read().strip() == source_hash:
+
+        def fresh() -> bool:
+            if os.path.isfile(os.path.join(dest, 'fbrb.manifest')) and os.path.isfile(stamp):
+                with open(stamp) as f:
+                    return f.read().strip() == source_hash
+            return False
+        if fresh():
             log(f'  {os.path.relpath(dest, self.root)} already unpacked')
             return
-        log(f'  unpacking {os.path.relpath(bundle, self.game)} ...')
-        if os.path.isdir(dest):
-            shutil.rmtree(dest, ignore_errors=True)
-        self.run([self.fbrbtool, 'unpack', bundle, dest], log)
-        log('  converting binary DBX to XML ...')
-        log('  ' + self.run([self.dbxedit, 'xml', dest], log)[-1])
-        open(stamp, 'w').write(source_hash)
+        with atomicio.locked(dest + '.unpack.lock'):
+            if fresh():
+                log(f'  {os.path.relpath(dest, self.root)} already unpacked')
+                return
+            log(f'  unpacking {os.path.relpath(bundle, self.game)} ...')
+            new = f'{dest}.tmp-{os.getpid()}'
+            if os.path.isdir(new):
+                shutil.rmtree(new)
+            try:
+                self.run([self.fbrbtool, 'unpack', bundle, new], log)
+                log('  converting binary DBX to XML ...')
+                log('  ' + self.run([self.dbxedit, 'xml', new], log)[-1])
+            except BaseException:
+                shutil.rmtree(new, ignore_errors=True)         # this process's own unfinished unpack
+                raise
+            atomicio.write_bytes(os.path.join(new, '.source.sha256'), source_hash.encode())
+            old = f'{dest}.tmp-{os.getpid()}-0'
+            if os.path.isdir(dest):
+                try:
+                    os.rename(dest, old)
+                except OSError as e:
+                    raise NavKitError(f'{dest} cannot be replaced by the new unpack: a file in it is held by another '
+                                      'program (close DbxEditGUI, the map editor or an Explorer window on it, then run '
+                                      f'again) - {e}') from e
+            try:
+                os.rename(new, dest)
+            except OSError:
+                if os.path.isdir(old):
+                    os.rename(old, dest)
+                raise
+            if os.path.isdir(old):
+                try:
+                    shutil.rmtree(old)
+                except OSError:
+                    log(f'  the old unpack {old} could not be deleted (a file in it is held): delete it later')
 
 
 # --- steps -----------------------------------------------------------------------------------------------
@@ -242,7 +287,7 @@ def levels(pr: Project, log: Log = print) -> None:
             done.append('prepared')
         if os.path.isfile(os.path.join(pr.work, 'navkit', lv, 'pathdata.hpd')):
             done.append('built')
-        if os.path.isfile(pr.pathdata(lv) + BACKUP_SUFFIX) or os.path.isfile(pr.pathdata(lv) + NEW_SUFFIX):
+        if installed(pr, lv):
             done.append('INSTALLED')
         log(f'{lv:12s} {ai:14s} {", ".join(done)}')
 
@@ -351,8 +396,13 @@ def fmt(v: Iterable[float]) -> str:
 
 
 def game_running() -> bool:
-    r = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq BFBC2Game.exe', '/NH'], capture_output=True, text=True,
-                       creationflags=NO_WINDOW)
+    """tasklist names BFBC2Game.exe. A tasklist that does not answer in 30 s (the service host busy, as during the
+    game's crash dump) counts as the game running: a refusal, never a hang (AU4-BUG-20)."""
+    try:
+        r = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq BFBC2Game.exe', '/NH'], capture_output=True, text=True,
+                           creationflags=NO_WINDOW, timeout=30)
+    except subprocess.TimeoutExpired:
+        return True
     return 'BFBC2Game.exe' in r.stdout
 
 
@@ -748,63 +798,132 @@ def traversal_path(folder: str, lv: str) -> str:
     return os.path.join(folder, f'{lv}.traversal.json')
 
 
+def owner(lv: str) -> str:
+    """The owner NavKit installs a level's path data as, in the game copy's install ledger."""
+    return f'navkit:{lv.lower()}'
+
+
+def installed(pr: Project, lv: str) -> bool:
+    """NavKit's install of the level is in the game copy's install ledger, or its markers from before the ledger are
+    beside the path data."""
+    pd = pr.pathdata(lv)
+    if os.path.isfile(pd + BACKUP_SUFFIX) or os.path.isfile(pd + NEW_SUFFIX):
+        return True
+    try:
+        return bool(gameledger.Ledger(pr.game).owner_files(owner(lv)))
+    except gameledger.LedgerError as e:
+        raise NavKitError(str(e)) from e
+
+
+def _game_rel(pr: Project, p: str) -> str:
+    return os.path.relpath(p, pr.game).replace('\\', '/')
+
+
+def _adopt_legacy(led: gameledger.Ledger, lv: str, rel: str, log: Log) -> None:
+    """NavKit's own legacy markers beside the path data (.opfor-orig / .opfor-new, from before the install ledger)
+    adopted into the ledger; another tool's refused in words."""
+    if gameledger.adopt_legacy(led, owner(lv), [rel], 'navkit') is not None:
+        log(f"  NavKit's markers from before the install ledger moved into it ({rel})")
+
+
+def _traversal_made_for(trav: str) -> str | None:
+    if not os.path.isfile(trav):
+        return None
+    try:
+        with open(trav, encoding='utf-8') as f:
+            made_for: str | None = json.load(f).get('pathdata_sha1')
+            return made_for
+    except (OSError, ValueError):
+        return None
+
+
 def install(pr: Project, lv: str, log: Log = print, src: str | None = None) -> None:
-    """Copies a built file into the game (DICE's original is kept once, as <file>.opfor-orig), with the level's
-    traversal annotations when it has them (next to the installed path data, for OPFOR's bot layer)."""
+    """The built file (and its traversal annotations, when made for it) installed as navkit:<lv> in the game copy's
+    install ledger (round DF2): what was there is kept there once, by its sha256, and restore gives it back whatever
+    was installed over NavKit since."""
     ours = src or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     if not os.path.isfile(ours):
         raise NavKitError(f'{lv}: not built yet')
     if game_running():
         raise NavKitError('the game is running - close it first')
     dest = pr.pathdata(lv)
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    if not os.path.isfile(dest + NEW_SUFFIX) and not os.path.isfile(dest + BACKUP_SUFFIX):
-        if os.path.isfile(dest):
-            atomicio.copy_file(dest, dest + BACKUP_SUFFIX)
-            log(f'  original kept as {os.path.basename(dest)}{BACKUP_SUFFIX}')
-        else:
-            open(dest + NEW_SUFFIX, 'w').close()  # no original: record that, so restore can remove the file
-            log(f'  noting {os.path.basename(dest)} had no original (restore will remove it)')
-    # into the game copy whole or not at all (suite deep scan 2026-11-15, C2: a copy cut short left a truncated
-    # pathdata.hpd that the game's AI loader reads)
-    atomicio.copy_file(ours, dest)
-    log(f'== installed {os.path.relpath(ours, pr.root)} as {os.path.relpath(dest, pr.root)}')
-    trav, trav_dest = traversal_path(os.path.dirname(ours), lv), traversal_path(os.path.dirname(dest), lv)
-    sha = hashlib.sha1(open(ours, 'rb').read()).hexdigest()
+    rel = _game_rel(pr, dest)
+    led = gameledger.Ledger(pr.game)
     try:
-        made_for = json.load(open(trav, encoding='utf-8')).get('pathdata_sha1') if os.path.isfile(trav) else None
-    except (OSError, ValueError):
-        made_for = None
-    if made_for == sha:
-        atomicio.copy_file(trav, trav_dest)
-        log(f'  traversal annotations installed as {os.path.relpath(trav_dest, pr.root)}')
-    else:
-        if os.path.isfile(trav):                 # written for another build of the file (its node ids differ)
-            log(f'  traversal annotations {os.path.basename(trav)} not installed: made for another path-data file')
-        if os.path.isfile(trav_dest):
-            os.remove(trav_dest)                 # none with this file: no stale annotations from an earlier one
+        _adopt_legacy(led, lv, rel, log)
+        me = owner(lv)
+        holders = led.holders(rel)
+        with open(ours, 'rb') as f:
+            data = f.read()
+        trav, trav_dest = traversal_path(os.path.dirname(ours), lv), traversal_path(os.path.dirname(dest), lv)
+        trav_rel = _game_rel(pr, trav_dest)
+        with_trav = _traversal_made_for(trav) == hashlib.sha1(data).hexdigest()
+        files = {rel: data}
+        if with_trav:
+            with open(trav, 'rb') as f:
+                files[trav_rel] = f.read()
+        if me not in holders:
+            if holders:
+                log(f"  installed over {holders[-1]}'s file (either can be reverted first: the ledger keeps what each "
+                    'one replaced)')
+            elif os.path.isfile(dest):
+                log(f"  the original {os.path.basename(dest)} kept in the game copy's install ledger (restore puts it "
+                    'back)')
+            else:
+                log(f'  noting {os.path.basename(dest)} had no original (restore will remove it)')
+        plan = led.install(me, files, derived=False, note='NavKit path data')
+        for n in plan.notes:
+            log(f'  {n}')
+        log(f'== installed {os.path.relpath(ours, pr.root)} as {os.path.relpath(dest, pr.root)}')
+        if with_trav:
+            log(f'  traversal annotations installed as {os.path.relpath(trav_dest, pr.root)}')
+        else:
+            if os.path.isfile(trav):
+                log(f'  traversal annotations {os.path.basename(trav)} not installed: made for another path-data file')
+            # stale annotations nobody installed through the ledger (from before it): none for another file
+            if os.path.isfile(trav_dest) and not led.holders(trav_rel):
+                os.remove(trav_dest)
+    except gameledger.LedgerError as e:
+        raise NavKitError(str(e)) from e
 
 
 def restore(pr: Project, lv: str, log: Log = print) -> None:
+    """NavKit's install taken out of the game copy's install ledger: the file from before NavKit put back, or, when
+    another tool installed over NavKit since, NavKit's layer taken out from under it (that tool's revert then gives
+    back what was there before NavKit)."""
     dest = pr.pathdata(lv)
-    if not os.path.isfile(dest + BACKUP_SUFFIX) and not os.path.isfile(dest + NEW_SUFFIX):
-        log(f'{lv}: nothing to restore (no NavKit file installed)')
-        return
-    if game_running():
-        raise NavKitError('the game is running - close it first')
-    if os.path.isfile(dest + BACKUP_SUFFIX):
-        shutil.move(dest + BACKUP_SUFFIX, dest)
-        if os.path.isfile(dest + NEW_SUFFIX):
-            os.remove(dest + NEW_SUFFIX)      # a stale no-original marker: the original is restored now
-        log(f'== restored the original {os.path.relpath(dest, pr.root)}')
-    else:
-        if os.path.isfile(dest):
-            os.remove(dest)
-        os.remove(dest + NEW_SUFFIX)
-        log(f'== removed the installed {os.path.relpath(dest, pr.root)} (the level had no path data before)')
-    trav = traversal_path(os.path.dirname(dest), lv)
-    if os.path.isfile(trav):
-        os.remove(trav)
+    rel = _game_rel(pr, dest)
+    me = owner(lv)
+    legacy = any(m.lower() in (BACKUP_SUFFIX, NEW_SUFFIX) for m in gameledger.legacy_markers(dest))
+    led = gameledger.Ledger(pr.game)
+    try:
+        if not led.owner_files(me) and not legacy:
+            log(f'{lv}: nothing to restore (no NavKit file installed)')
+            return
+        if game_running():
+            raise NavKitError('the game is running - close it first')
+        _adopt_legacy(led, lv, rel, log)
+        if not led.owner_files(me):
+            log(f'{lv}: nothing to restore (no NavKit file installed)')
+            return
+        holders = led.holders(rel)
+        above = holders[holders.index(me) + 1] if me in holders and holders.index(me) + 1 < len(holders) else None
+        plan = led.uninstall(me)
+        for n in plan.notes:
+            if 'taken out from under' not in n:
+                log(f'  {n}')
+        if above:
+            log(f"== NavKit's {os.path.relpath(dest, pr.root)} taken out from under {above}'s install: the file stays "
+                f"{above}'s, and its revert now puts back what was there before NavKit")
+        elif os.path.isfile(dest):
+            log(f'== restored the original {os.path.relpath(dest, pr.root)}')
+        else:
+            log(f'== removed the installed {os.path.relpath(dest, pr.root)} (the level had no path data before)')
+        trav = traversal_path(os.path.dirname(dest), lv)
+        if os.path.isfile(trav) and not led.holders(_game_rel(pr, trav)):
+            os.remove(trav)
+    except gameledger.LedgerError as e:
+        raise NavKitError(str(e)) from e
 
 
 def apply(pr: Project, lv: str, navtune_path: str | None = None, out: str | None = None, log: Log = print,
@@ -911,7 +1030,7 @@ def status(pr: Project, lv: str, log: Log = print) -> None:
         log(f'  samples{suf or "":12s}: {time.ctime(os.path.getmtime(p)) if os.path.isfile(p) else "no"}')
     p = os.path.join(pr.work, 'navkit', lv, 'pathdata.hpd')
     log(f'  built              : {time.ctime(os.path.getmtime(p)) if os.path.isfile(p) else "no"}')
-    log(f'  installed in game  : {"yes" if os.path.isfile(pr.pathdata(lv) + BACKUP_SUFFIX) or os.path.isfile(pr.pathdata(lv) + NEW_SUFFIX) else "no"}')
+    log(f'  installed in game  : {"yes" if installed(pr, lv) else "no"}')
     del L
 
 

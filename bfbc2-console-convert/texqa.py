@@ -1033,7 +1033,7 @@ class Dice:
 
 def _write_json(path: str, data: Any) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + '.tmp'
+    tmp = f'{path}.tmp-{os.getpid()}'                  # per process (AU4-CQ-18)
     with open(tmp, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=0)
     os.replace(tmp, path)

@@ -133,7 +133,10 @@ def stockmp_install(c, work):
     with contextlib.redirect_stdout(buf):
         run()
     c.check('already' in buf.getvalue(), 'stock-MP install: an unchanged build is "already" installed', buf.getvalue().strip())
-    c.check(open(dst + stockmp.BACKUP, 'rb').read() == b'original', 'stock-MP install: the backup stays the original')
+    from bfbc2core import gameledger
+    _held, kept = gameledger.Ledger(game).before('stockmp:mp_test', 'Levels/level.fbrb')
+    c.check(kept is not None and open(kept, 'rb').read() == b'original',
+            'stock-MP install: what it replaced stays the original (in the install ledger)')
     with contextlib.redirect_stdout(io.StringIO()):
         stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--revert'])
     c.check(open(dst, 'rb').read() == b'original', 'stock-MP install: revert restores the original after a reinstall')
