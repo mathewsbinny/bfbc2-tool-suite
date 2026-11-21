@@ -271,12 +271,14 @@ waves.
 
 Status: **verified** · Variants: PC
 
-A level's weather folder holds a `WeatherSettings` and a `WeatherSystem`; `WeatherSettings.ActiveState` indexes the
-system's states, and the active state names its `Sun` (theta, phi), `OutdoorLight` (key, top and bottom colours with
-intensities, specular scale, hemisphere), `PostProcess`, `Fog` (start, end, colour, density, height fall-off) and
-`Sky` (horizon coefficients, halo, haze, Mie / Rayleigh constants) partitions.
+A level's weather entity (RNDR-WTHR-5) names a `WeatherSystem` and its settings (a `WeatherSystemSettings`);
+the settings' `ActiveState` indexes the system's `States`, and the active state names its `Sun` (theta, phi),
+`OutdoorLight` (key, top and bottom colours with intensities, specular scale, hemisphere), `PostProcess`, `Fog`
+(start, end, colour, density, height fall-off) and `Sky` (horizon coefficients, halo, haze, Mie / Rayleigh
+constants) partitions. DICE's stock folders name the two `WeatherSettings_*` and `WeatherSystem_*` side by side,
+but that is a naming habit, not the rule (OPFOR's Guadalcanal: `weather/wake_island/guadal_canal`).
 
-[code: rust/bc2-render/src/weather.rs:125-177] [test: rust/bc2-render/src/weather.rs::fields_and_refs_read_as_renderqa_does]
+[code: rust/bc2-render/src/weather.rs:231-265] [test: rust/bc2-render/src/weather.rs::fields_and_refs_read_as_renderqa_does]
 [test: rust/bc2-render/tests/warehouse.rs::warehouse_as_the_harness_draws_it]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:633-636]
 
@@ -287,7 +289,7 @@ Status: **verified** · Variants: PC
 The light colours the shaders receive (`outdoorLightKeyColor`, `TopColor`, `BottomColor`) are the state's colours
 multiplied by their intensities, as OPFOR measured in the game.
 
-[code: rust/bc2-render/src/weather.rs:192-277] [test: rust/bc2-render/src/weather.rs::light_multiplies_colours_by_their_intensities]
+[code: rust/bc2-render/src/weather.rs:315-357] [test: rust/bc2-render/src/weather.rs::light_multiplies_colours_by_their_intensities]
 
 ### RNDR-WTHR-3: No object reads fog; the sky and haze are one pass over the depth
 
@@ -312,6 +314,43 @@ states), so the mapping is open.
 
 [data: MP_005's states: no stored light direction; the Wake formula gives a direction below the horizon]
 [doc: rust/bc2-render/src/weather.rs:6-9] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:658-664]
+
+### RNDR-WTHR-5: The weather is found through the level's weather entity, by reference
+
+Status: **verified** · Variants: PC
+
+A level's weather is a `Weather.WeatherSystemEntityData`: an instance of the level partition itself (SP_004_B,
+OPFOR's Coral Sea and Wake Island) or the `Object` of a blueprint a `ReferenceObjectData` places through its
+`ReferencedObject` (MP_005's `weather/r_mp005/weathersystementity_mp005`, OPFOR's Guadalcanal
+`weather/wake_island/guadal_canal_e`). Its `WeatherSystem` and `Settings` fields name their partitions by path; each
+is found like any other partition, by name through the level's bundle stack (PREC-ORD-1, deleted markers hiding
+shared copies: BNDL-DEL-2), in whatever folder it lies. The partition names follow no pattern: Guadalcanal's and Iwo
+Jima's settings are named after the level (`weather/wake_island/guadal_canal`, `.../iwo_jima`) and share
+`weathersystem_wake`'s five states with Wake Island and Coral Sea (which use `weathersettings_wake`). A view that
+looked for `weathersettings*` in a guessed folder found no weather for Guadalcanal and Iwo Jima (round GW1). On the
+37 prepared stock and Onslaught levels the reference chain gives the state the folder read gave on the 36 where the
+folder read worked (SP_004_B's folder, `weather/r_sp04`, is not the level's name).
+
+[code: rust/bc2-render/src/world.rs:161-228] [code: rust/bc2-render/src/weather.rs:151-196]
+[test: rust/bc2-render/tests/weather_refs.rs::ww2_levels_find_their_weather_through_the_entity]
+[test: rust/bc2-render/tests/weather_refs.rs::stock_levels_resolve_as_their_folder_did]
+[test: rust/bc2-editor/tests/game_view_ww2.rs::ww2_levels_open_in_the_game_accurate_view]
+[data: OPFOR's game copy: guadal_canal's level-00.fbrb holds weather/wake_island/guadal_canal_e, guadal_canal (ActiveState 2) and weathersystem_wake (states sunny_day, iwo_jima, guadal_canal, default, coral_sea); coral_sea's level partition holds its own WeatherSystemEntityData naming weathersettings_wake (ActiveState 0)]
+
+### RNDR-WTHR-6: A level's state entities may move the weather on spawn
+
+Status: **observed** · Variants: PC
+
+Most level partitions hold `GameSharedResources.WeatherStateEntityData` instances (`Enabled`, `DefaultState`,
+`State`, `FadeTime`, `StartTransitionOnSpawn`); in 34 of 43 levels read (37 prepared, 2 Package, OPFOR's 4 WW2),
+the first enabled one with `StartTransitionOnSpawn` true names a `State` (Coral Sea 4, `coral_sea`, where its
+settings say 0; MP_005 2; SP_008_B 36, more states than its system has, so such entities belong to scripted logic
+too). Whether the engine applies such a transition as the level loads, and which entity wins when several do, is
+open (no capture, no exe trace): the suite's view draws the settings' `ActiveState` and notes the transition.
+
+[test: rust/bc2-render/src/weather.rs::weather_entities_and_spawn_states_read_from_a_partition]
+[data: weather_refs.rs's run on OPFOR's game copy and prepared levels: the first spawn-transition State per level, printed beside the drawn state]
+[doc: rust/bc2-render/src/weather.rs:163-179]
 
 ### RNDR-LIGHT-1: Baked occlusion, irradiance volumes and Enlighten instead of lightmaps
 

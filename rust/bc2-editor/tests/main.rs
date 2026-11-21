@@ -26,6 +26,7 @@ mod g4;
 mod game_view;
 mod game_view_live;
 mod game_view_package;
+mod game_view_ww2;
 mod gr1;
 mod gr2;
 mod inspect_parity;
