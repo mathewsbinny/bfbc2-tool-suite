@@ -36,9 +36,11 @@ recompiles only what changed; across worktrees the compile cache (README, "The R
 
 Times. Every test's own time comes from libtest's JSON events (--report-time; stable libtest takes them with
 RUSTC_BOOTSTRAP=1, set for the test processes only: cargo never sees it, so no build is invalidated) and is kept per
-test in RUST_TIMES (%LOCALAPPDATA%\bfbc2-tool-suite\rust_test_times.json); the slowest are printed after each run. The
-gated binaries (bc2-editor, bc2-levelwrite, bc2-render, whose gate() lets two tests run at once) run with
---test-threads 2, so a test's time is its own and not its wait.
+test in RUST_TIMES (%LOCALAPPDATA%\bfbc2-tool-suite\rust_test_times.json); the slowest are printed after each run. In
+the game group the gated binaries (bc2-editor, bc2-levelwrite, bc2-render, whose gate() lets two tests run at once)
+run with --test-threads 2, so a test's time is its own and not its wait; in the quick group a gated test's time
+includes its wait for gate(). A binary still running after BINARY_LIMIT is ended, the tests that started and never
+finished named.
 
 Skips. Each test's output (--show-output) is read: a line saying "skipped" (a level or a graphics adapter not on this
 PC) is a part skipped for want of data, counted and named per test (audit TS-7: the "<level>: skipped, ..." lines
@@ -350,7 +352,10 @@ def run_binary(b: dict[str, Any], game: bool, env: dict[str, str]) -> Result:
     args = [b['exe'], '--format', 'json', '-Z', 'unstable-options', '--report-time', '--show-output']
     if game:
         args.append('--ignored')
-    if b['kind'] == 'test' and b['crate'] in GATED:
+    if game and b['kind'] == 'test' and b['crate'] in GATED:
+        # the whole-level tests: two at a time (as gate() lets them), so each one's time is its own, not its wait.
+        # Not in the quick group: there libtest's fixed order with two threads always pairs g3::sets_from_the_data
+        # with g4::create_and_open_projects, which hang together (2 runs in 5, TS1; a round of its own finds why)
         args += ['--test-threads', '2']
     # what cargo test sets for a test process at run time
     child = dict(env, RUSTC_BOOTSTRAP='1', CARGO_MANIFEST_DIR=b['cwd'], CARGO_PKG_NAME=b['crate'])
