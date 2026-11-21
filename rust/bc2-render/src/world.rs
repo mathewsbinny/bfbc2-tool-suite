@@ -70,6 +70,13 @@ pub struct World {
     pub light: Values,
     /// The weather's post-process settings.
     pub post: Post,
+    /// The weather state drawn (its partitions read).
+    pub weather: weather::Weather,
+    /// The level's weather as data (round VW2: its system's states, `ActiveState`, the spawn switch), when it
+    /// resolves.
+    pub level_weather: Option<weather::LevelWeather>,
+    /// The state [`World::set_state`] chose (`None`: the one the load resolved, the settings' `ActiveState`).
+    pub state_shown: Option<usize>,
     /// The clear colour (the fog colour; the sky is not drawn yet).
     pub background: [f32; 3],
     /// No weather was found: the level is drawn under [`weather::neutral`] (round GW1; the editor says
@@ -244,7 +251,118 @@ pub fn resolve_weather(
     )
 }
 
+/// The level's weather as data (round VW2): the first weather entity that resolves, as [`resolve_weather`] finds it
+/// (the level partition's own, then the placed ones in order), with its system's states, the settings'
+/// `ActiveState` and the level's spawn-time switch.
+///
+/// # Errors
+/// No weather entity resolves (what was tried, in words).
+pub fn level_weather(files: &Files, level: &str, placed: &[Placed]) -> Result<weather::LevelWeather, String> {
+    let partition = format!("levels/{level}");
+    let level_xml = files
+        .read(&format!("{partition}.dbx"))
+        .and_then(|d| bc2_formats::dbx::to_xml(&d).ok());
+    let spawn = level_xml.as_deref().and_then(weather::spawn_state_in);
+    let mut entities: Vec<(String, weather::EntityRefs)> = level_xml
+        .as_deref()
+        .map_or_else(Vec::new, weather::entities_in)
+        .into_iter()
+        .map(|e| (partition.clone(), e))
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    for p in placed.iter().filter(|p| p.group.is_none()) {
+        let b = p.blueprint.to_lowercase();
+        if seen.insert(b.clone())
+            && let Some(refs) = weather::entity(files, &b)
+        {
+            entities.push((b, refs));
+        }
+    }
+    let mut tried = Vec::new();
+    for (at, e) in &entities {
+        match weather::LevelWeather::read(files, at, e, spawn) {
+            Ok(w) if !w.states.is_empty() => return Ok(w),
+            Ok(_) => tried.push(format!("{at}: {} has no states", e.system)),
+            Err(x) => tried.push(format!("{at}: {x}")),
+        }
+    }
+    if entities.is_empty() {
+        tried.push("no weather entity (WeatherSystemEntityData)".to_owned());
+    }
+    Err(tried.join("; "))
+}
+
+/// A level's files for its weather alone (round VW2: the editor's weather picker before the game-accurate view is
+/// loaded): a prepared level's folders, else its `game\Package` bundles read in place, in rounds until the weather's
+/// partitions are all read. The level's weather with them.
+///
+/// # Errors
+/// The level is in neither, or its weather does not resolve.
+pub fn weather_files(
+    opfor: &Path,
+    lv: &str,
+    level: &str,
+    placed: &[Placed],
+    package: bool,
+) -> Result<(Files, weather::LevelWeather), String> {
+    let files = if package {
+        let stack = crate::files::package_stack(&opfor.join("game"), lv)
+            .ok_or_else(|| format!("{lv}: not in the game's bundle registry (package.mft), or a bundle is missing"))?;
+        Files::bundles(&stack)?
+    } else {
+        Files::new(&level_folders(opfor, lv))
+    };
+    for _ in 0..12 {
+        let got = level_weather(&files, level, placed).inspect(|w| {
+            // every state's partitions read once, so a later read finds them
+            for k in 0..w.states.len() {
+                let _ = w.state(&files, k);
+            }
+        });
+        let missed = files.missed();
+        if !package || missed.is_empty() {
+            return got.map(|w| (files, w));
+        }
+        files.fetch(&missed)?;
+    }
+    level_weather(&files, level, placed).map(|w| (files, w))
+}
+
 impl World {
+    /// The state the world is drawn under now (round VW2): `index` of the level's weather system's states. The
+    /// light, the post-process, the clear colour and the sky dome follow; the caller plans its live list again
+    /// ([`crate::live::Live::new`] with [`World::light`]).
+    ///
+    /// # Errors
+    /// The level's weather is not known, or the state's partitions are not read.
+    pub fn set_state(&mut self, index: usize) -> Result<(), String> {
+        let lw = self.level_weather.as_ref().ok_or("the level's weather is not known")?;
+        let w = lw.state(&self.files, index)?;
+        self.set_weather(&w);
+        self.state_shown = Some(index);
+        Ok(())
+    }
+
+    /// Draws the world under a weather state's values (round VW2).
+    pub fn set_weather(&mut self, w: &weather::Weather) {
+        let (light, post) = weather::light(w, weather::NOON_DIR);
+        self.light = light;
+        self.post = post;
+        let fog = w.fog.get("Color").cloned().unwrap_or_else(|| vec![0.32, 0.36, 0.42]);
+        self.background = [0, 1, 2].map(|k| fog.get(k).copied().unwrap_or(0.4));
+        self.sky = crate::sky::load(
+            &self.files,
+            &self.db,
+            w,
+            weather::NOON_DIR,
+            crate::sky::CLOUDS,
+            &mut self.textures,
+        )
+        .ok()
+        .map(Arc::new);
+        self.weather = w.clone();
+    }
+
     /// Loads a level (`lv`: its folder under `work\levels`; `level`: its partition's name, `MP_005`): database,
     /// weather (the placed weather entity's references; `weather`: a folder to read by name when the level places
     /// none, [`resolve_weather`]), the placed things, terrain, strips, water and the post shaders.
@@ -416,12 +534,16 @@ impl World {
                 None
             }
         };
+        let level_weather = level_weather(&files, level, placed).ok();
         let mut world = Self {
             files,
             db,
             textures,
             light,
             post,
+            weather: w,
+            level_weather,
+            state_shown: None,
             background,
             default_weather,
             objects: Vec::new(),

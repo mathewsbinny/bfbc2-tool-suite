@@ -38,6 +38,8 @@ mod render;
 mod simplified_view;
 mod view_geometry;
 mod view_toggles;
+mod vw2;
+mod xf1;
 
 /// At most this many of the binary's tests run at the same time.
 const GATE: usize = 2;

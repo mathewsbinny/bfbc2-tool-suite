@@ -41,6 +41,25 @@ landed on `main`.
 - **Three test files in a tier at last**: `test_aimanim.py`, `test_column_sectors.py` and `test_trees.py` (quick, and
   game with `--game`); `tests\test_repo.py` fails on a test file no tier runs, and on a new runner entry or
   environment variable named by a round code.
+- **Map editor: typed gameplay operations** (round XF1): set a team, link or unlink a soldier spawner and a capture
+  point, set a team's tickets, insert or remove an outline point (the `Next` / `Previous` chain and the area's point
+  kept). The project format is 5 (VW2 took 4); a version-4 project loads as it is, a newer one is refused in words.
+- **`mapexport check`: shader and cull-shape lines** (round XF1): every mesh the level reaches has entries in its
+  shader databases; every re-slotted object stands in its own blueprint's shape; no new object at slot 0 that some
+  level slots.
+- **Map editor: the mode view layer** (round VW2): show every object, the game mode layer only or the level without
+  it, and a Rush level one stage at a time as it is played (L1's simulation of the stages' events: MP_005GR,
+  MP_005SR, NAM_MP_002R and BC1_OASIS_GR give L1's bases per stage), in both views, the outliner and the overlays.
+- **Map editor: weather in the views** (round VW2): every state of the level's weather system in a picker (night,
+  dawn, fog, rain and cutscene states marked; the spawn-time switch and ActiveState named); the game-accurate view
+  draws a state's light, exposure and sky and opens on the state players see (the spawn switch: MP_005's `day_1`,
+  not its dark `default`); the simplified view is tinted by the state's look.
+- **Map editor: weather in exports** (rounds VW2a-c; project format 4, `set-weather`): the Export window's Weather
+  section makes the level start in one of its own states (ActiveState and the spawn switch set together), in another
+  level's state (appended: this level's sky; or that level's whole system: its sky), or at night (DICE's
+  `ons_mp_002_night` as the template, the reflection cube and the sky panorama darkened). Every new partition lies
+  under `weather/<level>/` in the level's own bundle; `mapexport check` checks the weather. Night and rain are off
+  by default and marked "not yet seen in game".
 - **`xisolib` reads disc images held in memory** in the Rust core (round RT3: `find_partition_bytes`, `walk_bytes`;
   an `io.BytesIO` goes through them), so the Xbox disc reader has no Python-only path left.
 - **`run_tests.py --help`** (also `-h`, `/?`) prints the runner's text and runs nothing (round RT3); an argument the
@@ -288,6 +307,17 @@ landed on `main`.
   kill-on-close), and a passing test's leftover child process no longer outlives it.
 - **`build_native.py`'s install** retries a target held for a moment (a scanner), and when the new file cannot go in
   puts the live one back instead of leaving it moved aside.
+- **Map export: objects from other levels and sets get their shader entries** (round XF1): the export merges into
+  the level's Dx9 / 10 / 11 databases the entries of every mesh it reaches that the base lacked (placed objects,
+  another mode's layer, another era's kits), from the levels that draw them. Without them the game's renderer reads a
+  null program (0x98BD6E).
+- **Map export: each object's own cull shape** (round XF1): placed, copied and grafted objects take their own
+  blueprint's shape (from the base or another level), never their template's or another level's slot number.
+- **Map editor: undo, redo and History no longer replay the whole log** (round XF1): checkpoints and a cached donor
+  level; on Aurora as WW2 Conquest with 40 moves an undo went from 9-11 s to under 0.1 s.
+- **Map editor: Paste copies what an object owns** (round XF1): a pasted flag has its own capture area and marker,
+  so editing the copy leaves the original alone.
+- **Map editor: the game-accurate view no longer draws the objects a project deleted or hid** (round VW2).
 - **Map editor: Wake Island's and Coral Sea's black ground in the Game-accurate view** (round R5d). Three causes in
   the renderer, none in the data: the terrain's height scale was read as the database's placeholder 500 (Wake's
   terrain spans 1,000 m, so BF1943's sea-floor layers drew the beach and shallows as deep water: black); the water did

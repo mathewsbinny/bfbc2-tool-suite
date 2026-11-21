@@ -12,6 +12,7 @@ use super::*;
 
 use bc2_levelwrite::Operation;
 use bc2_levelwrite::ops::Organisation;
+use std::fmt::Write as _;
 
 /// The views' corner hint in the Objects workspace.
 pub(super) const EDITING_HINT: &str = "Select: click, Ctrl+click, drag a box   Gizmo: drag a handle   Menu: right \
@@ -380,20 +381,132 @@ fn rows(m: &M) -> bc2_levelwrite::Rows {
 impl ViewState {
     /// The views and the outliner again after the project changed (an edit, an undo, a layer hidden).
     pub(super) fn refresh(&mut self, gpu: &GpuCtx, palette: &Palette) {
-        match &self.doc {
-            Some(d) => {
-                let skip = |k: usize| !d.shown(k);
-                self.gpu_scene.refresh(&gpu.gpu, &d.scene, palette, &skip);
-                self.outliner = Outliner::new_without(&d.scene, &d.deleted);
-                let n = d.scene.entities.len();
-                self.selection.retain(|&k| k < n && d.shown(k));
-            }
-            None => self.gpu_scene.refresh(&gpu.gpu, &self.base, palette, &|_| false),
+        if self.update_mode_view() {
+            self.mode_view.outliner_stale = true;
         }
+        if let Some(d) = &self.doc {
+            let skip = |k: usize| !d.shown(k);
+            self.gpu_scene.refresh(&gpu.gpu, &d.scene, palette, &skip);
+            let mut without = d.deleted.clone();
+            without.extend(d.filtered.iter().copied());
+            self.outliner = Outliner::new_without(&d.scene, &without);
+            let n = d.scene.entities.len();
+            self.selection.retain(|&k| k < n && d.shown(k));
+        } else {
+            // round VW2: the mode layer filter hides objects of a level opened read only too
+            let hidden = &self.mode_view.hidden;
+            self.gpu_scene
+                .refresh(&gpu.gpu, &self.base, palette, &|k| hidden.contains(&k));
+            if self.mode_view.outliner_stale {
+                self.outliner = Outliner::new_without(&self.base, &hidden.iter().copied().collect());
+            }
+            self.selection.retain(|k| !hidden.contains(k));
+        }
+        self.mode_view.outliner_stale = false;
         self.selected = self.selection.last().copied();
         let sel = self.selection.clone();
         self.gpu_scene.set_selection(&gpu.gpu, &sel);
         self.redraw();
+    }
+
+    /// The mode view layer's hidden objects again (round VW2): the layer and the Rush stages read from the edited
+    /// partition (or the level as loaded) when the project changed, the filter applied to the scene and handed to the
+    /// project. Returns whether the hidden set changed.
+    pub(super) fn update_mode_view(&mut self) -> bool {
+        let before = std::mem::take(&mut self.mode_view.hidden);
+        if self.mode_view.active() {
+            if let Some(d) = &self.doc {
+                self.mode_view.read(d.writer(), d.revision);
+            } else {
+                let w = self
+                    .base
+                    .file(0)
+                    .and_then(|(_, b)| bc2_levelwrite::write::LevelWriter::parse(b).ok());
+                self.mode_view.read(w.as_ref(), 0);
+            }
+        }
+        let scene = self.doc.as_ref().map_or(&self.base, |d| &d.scene);
+        self.mode_view.apply(scene);
+        let hidden = self.mode_view.hidden.clone();
+        if let Some(d) = self.doc.as_mut() {
+            d.filtered = hidden;
+        }
+        let changed = before != self.mode_view.hidden;
+        self.mode_view.outliner_stale |= changed;
+        changed
+    }
+
+    /// The mode view layer's state in words (the status bar).
+    pub(super) fn mode_view_message(&self) -> String {
+        let m = &self.mode_view;
+        let mut s = format!("Mode view layer: {}", m.describe());
+        if m.active() {
+            let _ = write!(s, " (the mode layer has {} instances", m.layer_size());
+            if let Some(st) = m.stage.and_then(|k| m.view.as_ref().and_then(|(_, v)| v.stages.get(k))) {
+                let _ = write!(
+                    s,
+                    "; this stage's {} M-COMs, {} bases and {} combat areas in play",
+                    st.mcoms.len(),
+                    st.bases.len(),
+                    st.combat_areas.len()
+                );
+            }
+            s.push(')');
+        }
+        s
+    }
+
+    /// Round VW2: the level's weather read (once): from the game-accurate view's files when it is loaded, else the
+    /// level's own (a prepared level's folders, a Package level's bundles).
+    pub(super) fn ensure_weather(&mut self) -> Result<(), String> {
+        if self.weather.is_some() {
+            return Ok(());
+        }
+        let from_game = self
+            .game
+            .as_ref()
+            .and_then(|g| Some((g.files().clone(), g.world().level_weather.clone()?)));
+        let w = if let Some((files, lw)) = from_game {
+            crate::weatherview::WeatherView::with(files, lw)
+        } else {
+            let root = self.root.clone().ok_or("Project OPFOR BFBC2's folder was not found")?;
+            let scene = self.scene();
+            let placed = crate::gameview::placed(scene);
+            let package = crate::gameview::is_package(&root, &self.lv);
+            crate::weatherview::WeatherView::load(&root, &self.lv, &scene.name, &placed, package)?
+        };
+        self.weather = Some(w);
+        Ok(())
+    }
+
+    /// Round VW2: both views under weather state `k` (`None`: the level's own, the one players see as it starts);
+    /// the status line's words.
+    pub(super) fn show_weather(&mut self, k: Option<usize>) -> Result<String, String> {
+        self.ensure_weather()?;
+        let w = self.weather.as_mut().ok_or("no weather")?;
+        let k = k.unwrap_or_else(|| w.level.starts_in());
+        let row = w
+            .rows
+            .get(k)
+            .ok_or_else(|| format!("the level's weather system has {} states, not {}", w.rows.len(), k + 1))?;
+        let tint = row.tint;
+        w.shown = Some(k);
+        let label = w.label(k);
+        self.gpu_scene.weather_tint = tint;
+        let mut note = String::new();
+        if let Some(g) = self.game.as_mut()
+            && let Err(e) = g.set_state(k)
+        {
+            note = format!(" (the game-accurate view: {e})");
+        }
+        self.redraw();
+        Ok(format!(
+            "Weather: state {label}{}{note}",
+            tint.map_or_else(String::new, |t| format!(
+                "; the simplified view tinted ({:.2}, {:.2}, {:.2})",
+                t[0], t[1], t[2]
+            ))
+        ))
     }
 
     /// The selected entities that can be edited (all of them when not editing: none).

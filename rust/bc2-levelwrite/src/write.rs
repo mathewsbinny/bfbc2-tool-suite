@@ -1112,6 +1112,27 @@ pub fn apply_one_with(
                 out.fields += 1;
             }
         }
+        Op::SetTeam { items } => {
+            for t in items {
+                crate::gameplay::set_team(w, schema, &t.guid, t.to).map_err(fail)?;
+                out.fields += 1;
+            }
+        }
+        Op::LinkSpawner { point, spawner, linked } => {
+            crate::gameplay::link_spawner(w, point, spawner, *linked).map_err(fail)?;
+            out.fields += 1;
+        }
+        Op::SetTickets { counter, to, .. } => {
+            crate::gameplay::set_tickets(w, schema, counter, *to).map_err(fail)?;
+            out.fields += 2;
+        }
+        Op::InsertPoint { after, guid, transform } => {
+            crate::gameplay::insert_point(w, after, guid, transform).map_err(fail)?;
+            out.duplicated += 1;
+        }
+        Op::RemovePoint { guid } => {
+            remove_point_counted(w, guid, out).map_err(fail)?;
+        }
         Op::SetMode { to } => {
             let bytes = donors(&to.donor).ok_or_else(|| {
                 fail(LevelWriteError::Refused(format!(
@@ -1127,6 +1148,13 @@ pub fn apply_one_with(
         _ => return Ok(()),
     }
     out.operations += 1;
+    Ok(())
+}
+
+/// [`crate::gameplay::remove_point`], its instance counted as deleted.
+fn remove_point_counted(w: &mut LevelWriter, guid: &str, out: &mut Applied) -> Result<()> {
+    crate::gameplay::remove_point(w, guid)?;
+    out.deleted += 1;
     Ok(())
 }
 

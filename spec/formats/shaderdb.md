@@ -257,6 +257,38 @@ round-trip.
 
 Evidence: [code: rust/bc2-formats/src/shaderdb.rs:474-531] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: bfbc2-shader-tools/tests/test_shaderdb.py::xbox] [test: bfbc2-shader-tools/tests/test_shaderdb.py::wake] [doc: bfbc2-shader-tools/FORMAT.md:9-13]
 
+### SHDB-LVL-1: A level draws through its own databases only
+
+Status: **verified** · Variants: PC
+
+Each level bundle holds its own `levels/<lv>/shaders/dx{9,10,11}_single.res`; no shared bundle (`mp_common`,
+`sp_common`, `nam_common`, `ww2_common`) holds a shader database. A level's own files carry the entries of the meshes
+it draws wherever the mesh lives: of the meshes MP_005 reaches (its own partitions and every partition they name),
+384 of `mp_common`'s 431 have entries in MP_005's database, SP_01 157 of `sp_common`'s 163. The meshes a level
+reaches without entries are pieces and variants it never draws (MP_005 69 of 489 with OPFOR's own Package
+additions, SP_01 7 of 329). A mesh brought in from another level or set has no entry until one is added: Guadalcanal's
+radar bunker (2 entries, 12 mesh-part names there) has none in SP_01's files.
+
+[test: rust/bc2-levelwrite/tests/export_xf1.rs::stock_levels_carry_their_meshes_entries]
+[data: the game copy, 2026-11-21: SP_01, MP_005, MP_002 reached and covered by bundle; mp_common, sp_common, ww2_common, nam_common: no database]
+[doc: rust/BENCHMARKS.md]
+
+### SHDB-LVL-2: An export adds the entries of the meshes it brings in
+
+Status: **verified** · Variants: PC
+
+An exported level's databases (the base's, renamed) get, for every mesh the level reaches that they have no entry
+for, the entries and mesh-part names of that mesh from the database of the same kind of the first level that has
+them: the mode's donor, the base, the levels the closure copied from, then the game copy's levels with DICE's
+(`Dist`) first. The merge (SHDB-CHK-1's checks on the result) copies each program, shader, parameter block,
+fragment and vertex layout by content, so an added entry draws as in its source; a mesh no level's database has is
+listed. The check refuses a mesh the level reaches without entries unless the stock base reaches it without them too
+or no database has it.
+
+[code: rust/bc2-levelwrite/src/shaders.rs:218-316] [code: rust/bc2-formats/src/shaderdb/merge.rs:165-200]
+[code: rust/bc2-levelwrite/src/export.rs:3016-3073]
+[test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
+
 ## Render state
 
 ### SHDB-RS-1: The program's state word

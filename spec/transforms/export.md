@@ -146,7 +146,9 @@ every external reference names a partition of a bundle the level loads, and an i
 to partitions no bundle has are allowed only where DICE's own source partition has them); `LevelData.Name` and the
 description's `LevelName` are `Levels/<LV>`; the closure resolves; the terrain's height field is loaded; the mode
 layer is complete against the donor's; the profile's commons, game mode, factions, kits and announcer are the
-target era's; the cull tree check (XCULL-RES-2) passes. Each failing line is stated in words.
+target era's; the cull tree check (XCULL-RES-2) passes; each re-slotted object stands in its own blueprint's
+shape and no new object is at slot 0 that some level slots (XCULL-RES-3); every mesh the level reaches has entries
+in its shader databases (SHDB-LVL-2). Each failing line is stated in words.
 
 [code: rust/bc2-levelwrite/src/export.rs:2194-2569] [code: rust/bc2-levelwrite/src/export.rs:2588-2711]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level] [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
@@ -166,5 +168,4 @@ Deathmatch with fewer teams. Conquest may lose flags, never a base.
 
 - The in-game proof: no exported level has yet been loaded in the game by the user (EDITOR_ARCHITECTURE 3.12,
   "Open for the in-game test"); the start-up checksum (CSUM-CHK-1) is proven only through the registration rules.
-- New shader entries for meshes a level places that its base's shader databases lack (E4's placing).
 - Bots: `HasAI` stays false; the NavKit hook after the strip (XNAV) is not wired into the export yet.
