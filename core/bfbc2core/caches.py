@@ -2,7 +2,8 @@ r"""The suite's on-disk caches in %LOCALAPPDATA%\bfbc2-tool-suite\cache: where e
 least recently used files deleted first, and a command to see and clear them (round E3p, 2026-11-17).
 
     python -m bfbc2core.caches                    each cache: folder, size, files, cap (also --list)
-    python -m bfbc2core.caches --prune [name...]  delete the least recently used files beyond each cap now
+    python -m bfbc2core.caches --prune [name...]  delete the least recently used files beyond each cap now (and the
+                                                  bundle cache's superseded payloads, round QW1)
     python -m bfbc2core.caches --clear [name...]  delete the cached files (every cache when no name is given)
     python -m bfbc2core.caches --report           every cache (size, cap), the overall budget, the logs, each
                                                   checkout's Rust build folder, Project OPFOR's work\ by kind
@@ -315,14 +316,40 @@ def _drop_stale(scan: _Scan, now: float, marker_age: float, r: Result) -> None:
             r.stale += 1
 
 
+def superseded_payloads(top: str) -> set[str]:
+    """The file names of the bundle cache's payloads in top that no read can use again (round QW1, audit AU2 S1: a
+    bundle rewritten at the same path leaves its old payload; bc2_formats' fbrb::cache::superseded through the Rust
+    core, which writes them). Empty without the module or when it is older than this function."""
+    m = native.load()
+    find = getattr(m, 'fbrb_cache_superseded', None) if m is not None else None
+    if find is None:
+        return set()
+    return {os.path.basename(p) for p in find(top)}
+
+
 def _prune_unlocked(top: str, cap_bytes: int, suffixes: Sequence[str], markers: Sequence[str],
-                    marker_age: float, keep: Iterable[str]) -> Result:
+                    marker_age: float, keep: Iterable[str], superseded: bool = False) -> Result:
     r = Result()
     scan = _scan(top, suffixes, markers)
     _drop_stale(scan, time.time(), marker_age, r)
     keep_set = {os.path.normcase(os.path.abspath(k)) for k in keep}
     total = sum(f.size for f in scan.entries)
-    for f in sorted(scan.entries, key=lambda f: (f.used, f.path)):
+    gone = superseded_payloads(top) if superseded else set()
+    rest = []
+    for f in scan.entries:
+        if os.path.basename(f.path) not in gone or os.path.normcase(os.path.abspath(f.path)) in keep_set:
+            rest.append(f)
+            continue
+        done = _delete_if_unchanged(f)
+        if done is False:
+            r.busy += 1
+            rest.append(f)
+            continue
+        total -= f.size
+        if done:
+            r.deleted_bytes += f.size
+            r.deleted_files += 1
+    for f in sorted(rest, key=lambda f: (f.used, f.path)):
         if total <= cap_bytes:
             break
         if os.path.normcase(os.path.abspath(f.path)) in keep_set:
@@ -341,14 +368,15 @@ def _prune_unlocked(top: str, cap_bytes: int, suffixes: Sequence[str], markers: 
 
 
 def prune(top: str, cap_bytes: int, suffixes: Sequence[str], *, markers: Sequence[str] = (),
-          marker_age: float = 30 * 86400.0, keep: Iterable[str] = ()) -> Result:
+          marker_age: float = 30 * 86400.0, keep: Iterable[str] = (), superseded: bool = False) -> Result:
     """Deletes the least recently used entries (files under top ending in one of suffixes; by the later of their
     access and modification times) until the rest fit in cap_bytes, never one named in keep; also temporary files
-    older than STALE_TMP and markers older than marker_age. Under the folder's lock; a missing folder is empty."""
+    older than STALE_TMP and markers older than marker_age. superseded (the bundle cache's folder): its superseded
+    payloads first, whatever the cap (superseded_payloads). Under the folder's lock; a missing folder is empty."""
     if not os.path.isdir(top):
         return Result()
     with atomicio.locked(os.path.join(top, LOCK)):
-        r = _prune_unlocked(top, cap_bytes, suffixes, markers, marker_age, keep)
+        r = _prune_unlocked(top, cap_bytes, suffixes, markers, marker_age, keep, superseded)
         with contextlib.suppress(OSError):
             with open(os.path.join(top, STAMP), 'wb'):
                 pass
@@ -961,7 +989,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f'{n:<11} ' + ('no project folder (--opfor, OPFOR_ROOT)' if s.project else f'off ({s.env}=0)'))
                 continue
             if a.prune:
-                r = prune(top, cap(n), s.suffixes, markers=s.markers, marker_age=s.marker_age)
+                r = prune(top, cap(n), s.suffixes, markers=s.markers, marker_age=s.marker_age,
+                          superseded=n == 'fbrb')
             else:
                 r = clear(top, s.suffixes, s.markers)
             print(_done(n, r))

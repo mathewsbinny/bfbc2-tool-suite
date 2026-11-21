@@ -21,6 +21,11 @@
 //! repeats the identity in its own header, checked before use. Cache files are written beside their final name and
 //! moved over it ([`crate::atomic::replace`]), so a reader in another process sees a whole file or none.
 //!
+//! **Superseded payloads** (round QW1, audit AU2 S1: 3.8 GB of 16 were): a bundle rewritten at the same path (an
+//! install, a scratch copy) is a new identity, and its old payload can never be read again. Writing a bundle's
+//! payload deletes the other payloads of the same canonical path ([`drop_superseded`]); [`superseded`] lists every
+//! such file of a folder for the caches tool's `--prune` (`bfbc2core.caches`, `bfbc2 caches`).
+//!
 //! **The same results.** The reference reads the payload 1 MiB of compressed bytes at a time, from the start, until
 //! the decompressed bytes reach the end of the last entry asked for; an error in any chunk it reads is raised, and
 //! nothing after that chunk is looked at. A [`Session`] feeds the same chunks to the same inflater, so its state
@@ -446,6 +451,77 @@ pub fn disk_usage(folder: &Path) -> (u64, usize) {
     (files.iter().map(|f| f.1).sum(), files.len())
 }
 
+/// The identity a payload file's header names (`None`: not a payload file of this format, or damaged).
+fn payload_identity(file: &Path) -> Option<Identity> {
+    let mut f = File::open(file).ok()?;
+    let mut head = [0u8; 20];
+    f.read_exact(&mut head).ok()?;
+    let (magic, rest) = head.split_at(8);
+    if magic != MAGIC {
+        return None;
+    }
+    let key_len = u32::from_le_bytes(rest.get(8..12)?.try_into().ok()?) as usize;
+    if !(44..=44 + 32_768).contains(&key_len) {
+        return None;
+    }
+    let mut key = vec![0; key_len];
+    f.read_exact(&mut key).ok()?;
+    let len = u64::from_le_bytes(key.get(..8)?.try_into().ok()?);
+    let modified = u128::from_le_bytes(key.get(8..24)?.try_into().ok()?);
+    let created = u128::from_le_bytes(key.get(24..40)?.try_into().ok()?);
+    let path_len = u32::from_le_bytes(key.get(40..44)?.try_into().ok()?) as usize;
+    let path = String::from_utf8(key.get(44..44 + path_len)?.to_vec()).ok()?;
+    (44 + path_len == key_len).then(|| Identity { path: PathBuf::from(path), len, modified, created })
+}
+
+/// The payload files of `folder` no read can use again (round QW1): for each bundle path the cache holds more than
+/// one payload of, every one but the bundle's current identity's (the file at that path now), or, when that file is
+/// gone, every one but the most recently used. A path with one payload is left to the least-recently-used cap, and a
+/// file that is not a readable payload of this format is never listed.
+#[must_use]
+pub fn superseded(folder: &Path) -> Vec<PathBuf> {
+    let mut by_path: HashMap<PathBuf, Vec<(PathBuf, Identity, SystemTime)>> = HashMap::new();
+    for (file, _, used) in payload_files(folder) {
+        if let Some(id) = payload_identity(&file) {
+            by_path.entry(id.path.clone()).or_default().push((file, id, used));
+        }
+    }
+    let mut out = Vec::new();
+    for (bundle, mut files) in by_path {
+        if files.len() < 2 {
+            continue;
+        }
+        let current = File::open(&bundle).ok().and_then(|f| Identity::of(&bundle, &f).ok());
+        match current {
+            Some(now) => out.extend(files.into_iter().filter(|f| f.1 != now).map(|f| f.0)),
+            None => {
+                files.sort_by_key(|f| std::cmp::Reverse(f.2));
+                out.extend(files.into_iter().skip(1).map(|f| f.0));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Deletes the payload files of the bundle `id` names other than its own (the bundle was rewritten: they are never
+/// read again). Only files whose header names the same canonical path are touched; one another process holds open
+/// stays (Windows) and goes with the least-recently-used cap or the caches tool's `--prune`.
+fn drop_superseded(folder: &Path, id: &Identity) {
+    let own = payload_path(folder, id);
+    let stem = id.stem();
+    let prefix = stem.rsplit_once('-').map_or(stem.as_str(), |(p, _)| p);
+    for (file, _, _) in payload_files(folder) {
+        let named = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if file != own
+            && named.starts_with(prefix)
+            && payload_identity(&file).is_some_and(|other| other.path == id.path && other != *id)
+        {
+            let _ = fs::remove_file(&file);
+        }
+    }
+}
+
 /// `[(path, length, modified)]` of the payload files in `folder`.
 fn payload_files(folder: &Path) -> Vec<(PathBuf, u64, SystemTime)> {
     let Ok(rd) = fs::read_dir(folder) else {
@@ -775,6 +851,7 @@ impl Cache {
             st.stats.written += 1;
             st.stats.written_bytes += total;
             drop(st);
+            drop_superseded(folder, id);
             trim(folder, config.disk_cap, &target);
         } else {
             let _ = fs::remove_file(&tmp);

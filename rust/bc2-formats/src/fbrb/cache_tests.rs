@@ -226,6 +226,59 @@ fn a_changed_bundle_is_never_answered_from_the_cache() {
         Cache::new(config(0, Some(&folder))).read_path(&p, &names).unwrap(),
         want
     );
+    // round QW1: the first identity's payload went when the second's was written
+    assert_eq!(disk_usage(&folder).1, 1);
+}
+
+/// Round QW1 (audit AU2 S1): a rewritten bundle's old payload is deleted when its new one is written; one left behind
+/// is listed by `superseded`, as is every payload but the most recently used of a bundle that is gone; a file that is
+/// not a payload of this format never is.
+#[test]
+fn superseded_payloads() {
+    let dir = TempDir::new("superseded");
+    let folder = dir.0.join("cache");
+    let p = dir.0.join("b.fbrb");
+    fs::write(&p, bundle(true)).unwrap();
+    let names = ["levels/part20.dbx"];
+    let read_twice = || {
+        let cache = Cache::new(config(0, Some(&folder)));
+        for _ in 0..2 {
+            cache.read_path(&p, &names).unwrap();
+        }
+    };
+    let files = || -> Vec<PathBuf> {
+        let mut v: Vec<PathBuf> = payload_files(&folder).into_iter().map(|f| f.0).collect();
+        v.sort();
+        v
+    };
+    read_twice();
+    let first = files();
+    assert_eq!(first.len(), 1);
+    let kept = dir.0.join("old.keep");
+    fs::copy(&first[0], &kept).unwrap();
+    fs::write(&p, bundle(true)).unwrap();
+    File::options()
+        .write(true)
+        .open(&p)
+        .unwrap()
+        .set_modified(SystemTime::now() + Duration::from_secs(5))
+        .unwrap();
+    read_twice();
+    let second = files();
+    assert_eq!(second.len(), 1, "the old payload was deleted when the new one was written");
+    assert_ne!(second, first);
+    assert!(superseded(&folder).is_empty());
+    fs::write(folder.join("junk-0000000000000000.payload"), b"not a payload").unwrap();
+    fs::copy(&kept, &first[0]).unwrap();
+    File::options()
+        .write(true)
+        .open(&first[0])
+        .unwrap()
+        .set_modified(SystemTime::now() - Duration::from_secs(60))
+        .unwrap();
+    assert_eq!(superseded(&folder), first, "an old payload left behind is listed, the current one and junk not");
+    fs::remove_file(&p).unwrap();
+    assert_eq!(superseded(&folder), first, "the bundle gone: all but the most recently used");
 }
 
 #[test]
