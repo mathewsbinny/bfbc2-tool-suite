@@ -260,7 +260,7 @@ set of a new map (every seeded sector).
 2. Done: `navbuild.write_file(graphs, out, log, t0, cfg)` (DistEdgeMax from the settings).
 3. `navkit.py build <level> --vehicle` (and `all`): after the infantry build, `navvehicle.build_level(root, lv,
    <work>\navkit\<lv>\vehicle\pathdata.hpd, sectors='all' or 'reference')`; `install` / `restore` to copy it to
-   `ai\levels\<lv>\vehicle\pathdata.hpd` keeping DICE's original as `pathdata.hpd.opfor-orig` (as infantry), and the
+   `ai\levels\<lv>\vehicle\pathdata.hpd` keeping DICE's original in the game copy's install ledger (as infantry, round DF2), and the
    level's `Precomputed/Vehicle/SectorOffsets` written with the build's offsets (OPFOR's apply_sector_offsets.py).
 4. `navregress.py`: a vehicle column set from `navvehicle.compare` (saved run `tonight_v1` as the first reference).
 5. The window: a "Vehicle data" checkbox on the build step.

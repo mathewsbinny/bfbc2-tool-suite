@@ -93,6 +93,7 @@ fn near_black(r: &Rendered) -> f64 {
 
 // spec: TERR-VT-7
 #[test]
+#[ignore = "game tier: a level's terrain masks; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn mask_tiles_span_aligned_blocks_and_read_on_across_cells() {
     let _gate = crate::gate();
     let opfor = common::opfor();
@@ -168,6 +169,7 @@ fn mask_tiles_span_aligned_blocks_and_read_on_across_cells() {
 
 // spec: RNDR-TERR-5, RNDR-WATER-2
 #[test]
+#[ignore = "game tier: Wake Island drawn; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn wake_island_draws_its_beach_and_lagoon() {
     let _gate = crate::gate();
     let opfor = common::opfor();
@@ -220,6 +222,7 @@ fn wake_island_draws_its_beach_and_lagoon() {
 
 // spec: RNDR-SKY-1
 #[test]
+#[ignore = "game tier: MP_005 drawn; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn the_sky_dome_is_drawn_behind_the_level() {
     let _gate = crate::gate();
     let opfor = common::opfor();
@@ -259,6 +262,7 @@ fn the_sky_dome_is_drawn_behind_the_level() {
 
 // spec: RNDR-LOD-1, RNDR-VIEW-2
 #[test]
+#[ignore = "game tier: MP_005 drawn; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn levels_of_detail_draw_fewer_indices() {
     let _gate = crate::gate();
     let opfor = common::opfor();

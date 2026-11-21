@@ -51,6 +51,9 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_CLI_PYTHON': ('native', "1: the ported command lines run their Python instead of bfbc2.exe (no warning)"),
     'BFBC2_STRICT_NATIVE': ('native', '1: a stale or missing bfbc2.exe is an error instead of a fall-back to the Python (round QW1)'),
     'BFBC2_RUST_TARGETS': ('native', "the root of every checkout's cargo build folder (default rust-targets beside the checkouts)"),
+    'BFBC2_COMPILE_CACHE': ('native', "1: the suite's cargo runs go through sccache when installed (off by default: it serves rebuilds of one build folder, not other worktrees'; round TS1)"),
+    'BFBC2_COMPILE_CACHE_GB': ('cache', "the shared compile cache's cap in GB (sccache's SCCACHE_CACHE_SIZE; default 6)"),
+    'BFBC2_RUST_NO_SKIP': ('test', "1: tests\\test_rust.py checks every crate, even one unchanged since its last green run on this PC (run_tests.py full sets it; round TS1)"),
     'BFBC2_NATIVE_REPO': ('native', 'owner/name of the repository build_native.py --download fetches from (a fork)'),
     'BFBC2_PYTHON': ('native', 'the Python bfbc2.exe and the editor hand a command line to (default bin\\python.txt, then PATH)'),
     'BFBC2_CLI_SUITE': ('native', "the suite folder bfbc2.exe's hand-offs run the .py of (default: the one above the binary)"),
@@ -105,6 +108,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_SD1_SIBLINGS_OF': ('test', "the folder whose siblings hold BF1943's copy for the SD1 test"),
     'BFBC2_SUITE_REFERENCE': ('test', 'the reference checkout of the path locator test'),
     'BFBC2_TEST_SCRATCH': ('test', 'where the replay and argfmt tests write their scratch files'),
+    'BC2_LEDGER_CRASH_AT': ('test', "the install ledger stops the process (exit 9) before its n-th write step, as a "
+                            'kill would (round DF2)'),
     'BC2_EDITOR_SHOTS': ('test', "the editor tests save their screenshots there"),
     'BC2_EDITOR_COLLISION_VIEW': ('test', "1: the simplified view stays on collision (round SV1's before pictures)"),
     'BC2_EX1_STAGE': ('test', "EX1's names test keeps its staged canary export in this folder"),

@@ -6466,3 +6466,268 @@ through MP_002's bundles, in the Onslaught Package); `-p bc2-editor --test edito
 MP_009GR in every view; the weather states on MP_002SR in both views, measured; the game view opens on MP_005's spawn
 switch); unit tests `modeview::tests`, `weatherview::tests`, `weather_ui::tests`, `weather::tests` (levelwrite).
 Screenshots (not in the repository): `vw2_mode_*` and `vw2_weather_*`, Dark and Light.
+
+## DF2: install and revert safety - one install ledger (2026-11-21, branch `df2`)
+
+Audit AU4's DF2 findings, the suite's half (Project OPFOR's stages, migration and import scripts are OPFOR's own DF2
+branch). Nothing here is a speed change: the measure is that no order of installs and reverts, and no interruption,
+can lose a game file.
+
+**The store.** `bc2_formats::gameledger` (Rust) and `bfbc2core.gameledger` (its Python twin) read and write
+Project OPFOR's install ledger (`<game>\opfor\ledger`, `opforcore.ledger`'s format `opfor-ledger/1`): one record per
+owner, the bytes each install replaced in `blobs\<sha256>.bin`, a lock (`.lock`, a stale one - its pid gone - cleared
+by the next operation), a journal (`.txn.json` + pre-images, flushed before the first write). The suite writes
+whole-file contributions (kind `file`, `extra.derived`); other owners' records of other kinds are kept as they are.
+Per file the owners stack: install on top (refused when the file changed outside the ledger), uninstall of the top
+owner writes its prior back, of a buried owner splices it out unless the owner above is `derived` (then refused,
+naming what to revert first). spec `transforms/install.md` XINST-GL-1..3.
+
+**What moved onto it.**
+- NavKit install / restore (`bfbc2 navkit`, `navkit.py`): owner `navkit:<lv>`, the traversal annotations in the same
+  commit; `original_file()` in the three places (`navkit.py`, `navshared.rs`, the editor's `navdata.rs`) answers the
+  bottom layer's prior; the editor's install / restore plans read the ledger.
+- stock-MP install (`bfbc2 stockmp install`, `stockmplib.install`): owner `stockmp:<lv>`, one commit (DS-5), a revert
+  any later command can finish (DS-6), the installed files from the record and the level's own folders (DS-9), no
+  stale backup (DS-19); `pipeline.stock_file` / `level::stock_file` read the stockmp owner's prior.
+- Markers of before the ledger: each tool adopts its own family on first use (one journalled commit), another's are
+  refused in words ("migrate them first - Project OPFOR: python src\tools\opforcore\migrate.py --apply").
+- `bfbc2 gameledger status|holders|original|recover <game>`.
+- Also: `game_running()` with a 30 s timeout (BUG-20); NavKit's level unpack swapped in under a lock (DS-14, both
+  twins); per-process temporary names for the harness run, the stock-MP report and texqa's JSON (CQ-18); one SHA-256
+  (`bc2-stockmp`'s moved to `bc2_formats::sha256`; CQ-9); `stockmp::installed_files` (the whole-game walk) removed.
+
+**Proof (all on scratch game copies in temporary folders; the real game copy is never written).**
+- `bc2-formats` unit tests (`gameledger_tests.rs`, 12): AU4-DS-1's exact sequence; every order of NavKit and stock-MP
+  applied and reverted, with and without an original, checked byte for byte after each step; an interruption at
+  each write step of each of the four operations, as a failed write (rolled back at once) and as a crash (journal
+  and stale lock left; the next operation rolls it back), then the sequence finished; a held and a stale lock;
+  legacy adoption; OPFOR's records of other kinds kept byte for byte with their blobs; a spliced record's other
+  fields kept; a dry run writes nothing.
+- `core/tests/test_gameledger.py` (quick tier): the same on the Python twin (28 hook interruptions, plus a child
+  process really killed by `BC2_LEDGER_CRASH_AT` before each write step); legacy refusals; then with `bin\bfbc2.exe`:
+  the Rust store reading the Python one, DS-1 through the real command lines (`bfbc2 navkit install`, `bfbc2 stockmp
+  install --apply`, `bfbc2 navkit restore`, `bfbc2 stockmp install --revert`) on a stand-in OPFOR folder - every file
+  of the game copy byte for byte as before at the end - the same mixing the Rust NavKit with the Python stock-MP, and
+  `bfbc2 stockmp install --apply` killed before each write step, recovered, run again and reverted.
+- Updated: `test_navkit_offline` (install / restore / adoption / refusal on the ledger), `test_stockmp`,
+  `test_deep_scan_fixes` (a lasting lock on the Package bundle part way: every file back, exit 1),
+  `test_review_fixes` / `_2`, the editor's `gr2` install / restore on a scratch game folder.
+
+**Project OPFOR's half (branch `df2` of project-opfor-bfbc2).**
+- `opforcore.stages`, the install-marker module on `opforcore.ledger`: whole-file layers (`derived` for every OPFOR
+  stage), one journalled commit per run, a redo built on the stage's own prior, a revert refused in words under a
+  later layer, an interrupted commit rolled back by the next run (`resume`). `ledger.py`: fsync before the rename,
+  derived layers, `keep_others` / partial uninstall, file-vs-slot conflicts, tree copies of exactly the planned files
+  (BUG-25).
+- On it: the 14 `console_*` stages and the three `apply_*` fixes (owner `<stage>:<level>`; DS-2: no `shutil.copyfile`
+  into the game copy any more; DS-10: no forwarded `-applied` records), `console_onslaught` (one commit of bundles,
+  path data and registration) and `console_port --from N` (reverts N..14 first), `wake_install` (owner `wake`; the
+  opfor.ini refresh re-states the prior; the manifest repair its own owner: SM-6; latin-1 registration: BUG-28;
+  DS-7), `menu_install` (`--mark` records the bat's build whenever the stage is installed: SM-5; `--revert` of a
+  bat-built bundle leaves it to `build_menus.bat` and exits 2: DS-11), the Pacific opt-out exiting 1 when the menu
+  mode is not out (BUG-7), `staged.json` written atomically and a damaged one asking for a new plan (BUG-22),
+  `mapedit_install` (owner `mapedit`), the import scripts `merge_startup.ps1` / `merge_manifests.ps1` /
+  `campaign_fill.ps1` (owner `import`, through `stages.py install`; `$LASTEXITCODE` checked, Dist fallback: DS-8),
+  `import_onslaught.bat` (the re-imported levels' owners dropped: `stages.py forget-under`). Readers of old backups
+  (`names.py`, `minimap_edges.py`, `console_markv.py`) read the ledger's priors (`stages.before_path`), the old
+  backup while a game copy is not migrated.
+- `opforcore.migrate`: the old markers into the ledger (backups hard-linked into blobs, markers moved to
+  `game\opfor\legacy-markers`), idempotent, inconsistent files refused in words and left alone. **This PC's game
+  copy (dry run, not migrated):** 23 marked files, 23 migratable, 0 refused. On a scratch copy of those 23 files and
+  their 129 markers: migrated (a second run: nothing to do, no marker left), the ledger's stacks and originals equal
+  the plan's, `console_input --revert` / `console_shaders --revert` (the real tools, GAME pointed at the copy) gave
+  back their old backups byte for byte, then all 45 owners reverted top-down, each step byte-identical to that
+  layer's old backup and every file at the end its bottom backup (DICE's or the import's original); no blob left.
+- Tests (OPFOR): `opforcore/tests/test_stages.py` (every order of two tools, DS-1, derived order, an exception at
+  every write - store and game - and a process killed at every rename of an install and of a revert, then resumed),
+  `test_migrate.py`, `test_suite_ledger_compat.py` (OPFOR's ledger, the suite's Python twin and `bfbc2.exe gameledger`
+  on one store), `tests/test_df2_installs.py` (the tools on fake game copies, a real stage's revert interrupted at
+  every write, a lint that no tool writes the game copy in place), the old-protocol tests rewritten; tools quick
+  367 / 367 (7 skipped), opforcore 89 / 89; `game\` unchanged (1,582 files, sizes and write times) before and after.
+- WW2 rebuild against the oracle (OPFOR main with df2 merged, 40b9cef; the readers of old backups changed): all 52
+  steps in 22 min, 10,852 of 10,852 files identical.
+## DF1: the editor's state and gating (2026-11-21, branch `df1`)
+
+Audit AU4's 19 DF1 findings, each read at its code location on `main` after XF1 (none was already fixed by XF1),
+kept minimal: OP1 later turns the side fields into explicit state enums. No project or export-file format changed.
+
+| Finding | Root cause | Fix | Proof |
+|---|---|---|---|
+| SM-1 | `pending_target` taken after `show_scene`'s early returns | taken at the top of `show_scene`, used only for `Then::Create`, cleared with the generation | `df1::a_failed_create_leaves_no_target_for_the_next_project` (fails with the old behaviour: "era and mode were not set" on X) |
+| SM-2 | the Export window had no project identity | `EditorApp::generation` (bumped on every show / Close map); `ExportWindow::bound` / `unbind()`; `window()` acts only on the doc whose path is its project | `df1::the_export_window_lets_go_of_a_closed_project` |
+| SM-3 | Install now recomputed the stage from the live form (untrimmed) | `Install::plan` keeps the stage and its `stage.json`; `stage_of` from `level_id()` in one place; stale plans refused | `df1::install_now_takes_the_planned_stage_only` |
+| SM-4 | Close map left the preview parked; preview jobs had no identity | Close map ends the preview; `PreviewJob::generation`; a projectless preview closes to the start screen | `df1::a_preview_being_opened_goes_with_its_project` |
+| CON-1 | Export gated only on its own worker | Export waits for Install / Uninstall and the other way round, in words; checked again at the click | `df1::export_and_install_wait_for_each_other_and_a_dead_worker_is_reported` |
+| CON-2 | NavInstall / Restore ignored a running build; its Job was dropped | `NAV_RUNNING` gates Install, Restore, Build and Close map; `nav::Job` has a `Drop` (kill, remove `partial`) | `df1::navkit_commands_wait_for_the_one_running` |
+| CQ-6 | nav install / restore `wait()`ed on the UI thread | started like the build, its end reported by `nav_poll` (polled in every workspace) | `gr2` waits for the job |
+| BUG-4 | `if let Ok(r) = rx.try_recv()` ignored `Disconnected` | `answer()` maps it to an error line; workers run under `guarded` (panic text) | the CON-1 test |
+| DS-4 | saved = no autosave file | saved = `doc.saved` of the window's own project | the SM-2 test |
+| DS-13 | no close handler; the install's pipes were the editor's | `close_requested` / Wait - Close anyway modal (`CancelClose` in `main.rs`); install output to a log file | the CON-1 test (`busy_work`, `close_requested`) |
+| BUG-14 | `let _ = fs::write(...)` | `export_ui::write_whole` (sync, retried move); a failure goes to the log | `df1::paths_settings_and_picks` |
+| BUG-15 | `if let Ok(e) = g.pick(..)` | `game_pick`: an error picks nothing and says why | `df1::paths_settings_and_picks` |
+| CQ-8 | `PathBuf` equality | `same_file` (case and slashes on Windows) | `df1::paths_settings_and_picks` |
+| CQ-2 | no `free_texture` when a view went | `Drop` for `Viewport` and the game view's `Opened` | `df1::closing_the_map_frees_its_textures` |
+| BUG-9 | `finish()` broke out of its loop on a `GetData` error and returned `Ok` | the error returned (`Device::removed`, `DEVICE_REMOVED`); a lost view is dropped and reloads when turned on | `d3d::tests::only_rgba8_formats_are_read_as_rgba8` (a working device reports none); a real removal needs a TDR |
+| BUG-26 | rows read as `w * 4` bytes whatever the format | `is_rgba8` checked, `RowPitch >= w * 4` checked | `d3d::tests::only_rgba8_formats_are_read_as_rgba8` |
+| CON-11 | nothing waited for wgpu's sampling of a slot | `device.poll(Wait)` (1 s cap) before Direct3D writes the next shared frame | reasoning only (a race) |
+| BUG-10 | `bundleManifest` read with `unwrap_or_default` | `NotFound` alone is "none"; other errors fail `Game::open`; voice-over blocks without one refused (spec XEXP-REG-2) | `df1::a_missing_or_unreadable_bundle_manifest_is_never_read_as_empty` (levelwrite) |
+| CQ-10 | `remove_dir_all(work)` only on success | a `Scratch` guard in `patch_startup` / `repack` | `df1::a_bundle_failing_after_its_unpack_leaves_no_scratch_folder` (fails without the guard) |
+
+### Left, with reasons
+
+- **The game view's load on a worker** (CQ-6's other half): `GameView` holds the Direct3D device and COM objects;
+  moving the load off the UI thread needs a loading state on `ViewState` and Send-safe handover - OP1's state split.
+- **A keyed-mutex handover of the shared frames** (CON-11's lasting fix): needs Vulkan's keyed-mutex import through
+  wgpu-hal; the poll wait closes the race at the cost of the pipelining the game view never used (its frames are
+  waited for by an event query already).
+- **navkit apply writing `--out` in place** (CON-2's Python side, `navkit.py _apply`): the editor no longer installs
+  beside a build or keeps a half-written output after a kill; temp + rename in `navkit.py` is NavKit's (NK1).
+- **Unsaved edits on close** (AU1 G-N20, named with DS-13): the autosave keeps them; a save prompt is OP1's.
+- Only a playtest or a driver reset can prove BUG-9's recovery and CON-11 end to end.
+
+## TS1: faster test tiers (2026-11-21, branch `ts1`)
+
+Audit AU3's testing findings TS-1 to TS-8, TS-12 to TS-14 and AU4's DF4. Measured on the development PC (16 threads,
+15 GB) while other rounds (XF1, VW2, then DF1, DF2, OR0's WW2 rebuilds) built and tested beside it; every time here
+is that shared machine's. `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4`, the build folder
+`rust-targets\bfbc2-tool-suite-ts1`.
+
+### TS-5: where the cargo entry's time went
+
+Main `f1921de`, its own layout (all opt-level 0): every test binary of `cargo test --workspace --no-run` run one
+after another as cargo runs them, with libtest's JSON events and `--report-time` (`RUSTC_BOOTSTRAP=1` for the test
+processes only), the gated binaries at `--test-threads 2` (= `GATE`), so each time is the test's own. Cold test
+build 158 s; the 31 binaries 3,032 s: `editor` 2,018 s, `levelwrite` 821 s, `render` 172 s, the other 28 together
+21 s; 594 tests (2 ignored: the corpus tests). The 30 slowest (seconds; they run two at a time, so they sum to more
+than the binaries' wall time):
+
+| # | crate | test | s |
+|---:|---|---|---:|
+| 1 | `bc2-editor` | `view_toggles::sp_01_lights_collision_states_walk_and_modes` | 1,342.1 |
+| 2 | `bc2-levelwrite` | `export_e3c::a_ww2_export_takes_its_donors_announcer` | 678.5 |
+| 3 | `bc2-editor` | `every_level::levelwrite_on_every_prepared_level` | 542.1 |
+| 4 | `bc2-levelwrite` | `export_e3b::a_vietnam_export_with_its_own_name_and_picture` | 413.1 |
+| 5 | `bc2-editor` | `view_toggles::mp_005_overlays_walk_and_modes` | 265.1 |
+| 6 | `bc2-editor` | `ex1::names_form_and_the_export_preview` | 175.1 |
+| 7 | `bc2-levelwrite` | `export_ex1::every_name_lands_in_a_staged_canary` | 164.6 |
+| 8 | `bc2-levelwrite` | `culltool_ct1::streamed_readers_answer_as_the_whole_document` | 141.9 |
+| 9 | `bc2-editor` | `game_view_ww2::ww2_levels_open_in_the_game_accurate_view` | 109.4 |
+| 10 | `bc2-levelwrite` | `export_sp01::sp_01_exports_as_a_new_conquest_level` | 101.4 |
+| 11 | `bc2-editor` | `nav_parity::navigation_as_the_studio_showed_it` | 73.4 |
+| 12 | `bc2-editor` | `ex1::diff_panel_on_aurora_made_ww2_conquest` | 69.6 |
+| 13 | `bc2-render` | `weather_refs::ww2_levels_find_their_weather_through_the_entity` | 66.3 |
+| 14 | `bc2-render` | `r5d::wake_island_draws_its_beach_and_lagoon` | 56.2 |
+| 15 | `bc2-editor` | `simplified_view::the_simplified_view_draws_render_meshes` | 41.5 |
+| 16 | `bc2-editor` | `inspect_parity::property_tree_and_links_as_the_map_inspector_showed_them` | 41.4 |
+| 17 | `bc2-editor` | `gr2::ai_workspace_on_ons_mp_004` | 40.9 |
+| 18 | `bc2-editor` | `real_level_editing::placement_on_real_terrain` | 39.7 |
+| 19 | `bc2-render` | `weather_refs::stock_levels_resolve_as_their_folder_did` | 37.2 |
+| 20 | `bc2-editor` | `view_geometry::both_views_show_the_same_objects` | 35.5 |
+| 21 | `bc2-editor` | `game_view_live::game_view_shares_picks_outlines_and_follows_edits` | 31.8 |
+| 22 | `bc2-levelwrite` | `export_e3d::rush_to_conquest_as_a_project_operation` | 31.7 |
+| 23 | `bc2-levelwrite` | `export_ex1::names_are_checked_against_the_game_copy` | 30.5 |
+| 24 | `bc2-render` | `r5d::mask_tiles_span_aligned_blocks_and_read_on_across_cells` | 29.8 |
+| 25 | `bc2-render` | `live::mp_005_live_list_is_the_frame_edits_and_picks` | 26.3 |
+| 26 | `bc2-render` | `whole_terrain::the_whole_terrain_is_drawn` | 24.1 |
+| 27 | `bc2-render` | `whole_terrain::the_whole_terrain_is_drawn_with_levels_of_detail` | 23.6 |
+| 28 | `bc2-render` | `weather_refs::other_package_levels_find_a_weather_state` | 20.8 |
+| 29 | `bc2-render` | `world::mp_005_world_draws_and_matches_the_harness` | 19.7 |
+| 30 | `bc2-editor` | `game_view::game_accurate_view_of_mp_005` | 17.9 |
+
+These 30 are 4,691 s of the 4,904 s the 594 tests' times add up to. `tests\test_rust.py` now keeps every test's
+time on each run (`%LOCALAPPDATA%\bfbc2-tool-suite\rust_test_times.json`) and prints the slowest.
+
+### TS-3: what moved to the game tier
+
+Every test in the table except the last two, plus `inspector_parity::each_level_draws_with_its_selection_outlined`,
+`gr2::edit_build_install_restore_on_a_scratch_copy`, `asset_browser::every_placeable_object_of_the_content_set`,
+`view_toggles::ons_mp_004_navmesh_and_cull_tree`, `game_view_r5d::...`, `r5d::levels_of_detail_draw_fewer_indices` /
+`the_sky_dome_is_drawn_behind_the_level`, and from the merges XF1's `export_xf1` pair (more than 900 s each with two
+threads, no result within 3,000 s alone) and `xf1::undo_on_a_mode_project` (43 s): 38 tests, each
+`#[ignore = "game tier: <why>"]`, run by the game tier's `Rust core: the game tests` entry (`test_rust.py run
+--game`). The quick tier keeps one real level per crate: the editor's MP_005 game view, MP_005 project and outliner
+parity (4 levels, 2 s), levelwrite's edits on three levels, the renderer's MP_005 world against the harness,
+leveldiff's real pairs.
+
+Coverage, before (main `f1921de`) against after (this branch with main merged), from `cargo test -- --list` and
+`test_rust.py list` and `run_tests.py <tier> --list`: no Rust test lost; 594 before (592 quick, 2 corpus); after,
+every test of before in a tier (quick, game or corpus), none in no tier (the quick run fails on an ignored test
+whose reason is not "game tier"), plus the tests merged from main since (XF1, VW2, DF1). Python: every entry of
+before in the same tier after; added: the four Rust entries (in place of the one), the game tier's Rust entry,
+`test_rust_skip.py`, and TS-8's `test_aimanim.py`, `test_column_sectors.py`, `test_trees.py` (quick, and `--game`
+in the game tier).
+
+### TS-2: optimised test builds
+
+| | before (all opt 0) | dependencies at 2 | + workspace at 1 |
+|---|---:|---:|---:|
+| cold `cargo test --workspace --no-run` | 158 s | 381 s | 536-626 s (in the tier, beside its other entries) |
+| the workspace's crates rebuilt alone | - | - | 265 s |
+| `every_level::levelwrite_on_every_prepared_level` | 542 s | 574 s | 98 s |
+| `export_e3c::a_ww2_export_takes_its_donors_announcer` | 679 s | 676 s | 558 s (its exports' Python and C# steps) |
+| `game_view::game_accurate_view_of_mp_005` | 18 s | 20 s | 4.7 s |
+| the game group (the 35 tests then), one binary at a time | - | 48.9 min | - |
+
+The dependencies alone gained nothing: the time is in our own crates (the scene, the views, levelwrite). The
+workspace at opt-level 1 is 1.2 to 5.8 times faster on the whole-level tests; debug assertions and overflow checks
+stay on. Both stay: the compile costs about 380-470 s more cold, once per build folder, and a warm build is 20 s.
+
+### Skip unchanged, the split, the compile cache
+
+- **Green crates.** A warm quick tier (nothing changed since a green run): clippy 0.7 s (113-137 s cold), the build
+  entry 20 s, the quick tests leave out every green crate.
+- **The split.** The build entry first (cpu 4), then the quick tests beside clippy (cpu 4 each), fmt and the Python
+  entries; the old entry held every CPU for 3,154 s.
+- **The compile cache.** sccache 0.19 (`cargo install sccache --locked --no-default-features`, 204 s): a second
+  build folder with an empty cache took 0 of 208 compiles from the cache; with `SCCACHE_BASEDIRS` set to the build
+  folders, 2 of 208 (a crate with no dependencies hits; anything with a build script keeps its folder's `OUT_DIR` in
+  the key, and every crate above it misses in turn). Cold builds A / B: 247 s / 308 s with the cache, against 265-381 s
+  without (the machine shared). So it is opt-in (`BFBC2_COMPILE_CACHE=1`) and serves rebuilds of one folder only. One
+  shared `CARGO_TARGET_DIR` was rejected: cargo's lock keeps it consistent, but the release binaries have one path per
+  folder, so one worktree's `bfbc2.exe` could be copied into another's `bin\`.
+- **Levels read once.** `bc2_editor::app::share_level_reads` (called by the editor tests' `gate()`): a level's read is
+  reused while its partition, static groups and height field are unchanged (size and write time), at most three
+  kept.
+
+### TS-7, TS-8, DF4, TS-12 to TS-14
+
+- simplified_view, view_geometry and view_toggles: a level in the game copy that does not open, a game view that
+  does not start, render meshes not read: a failure (`level_here`); a level not in the copy: "skipped". Every
+  "skipped" line of a test's output is counted and named per test.
+- `test_repo.py` fails on a `test_*.py` no tier runs (one allowed: `tests\test_editor.py`), on a new runner entry
+  named by a round code (60 kept by digest), `test_envvars.py` on a new round-coded variable (22 kept).
+- `run_tests.py`: a time limit per test (`--timeout`, default 4 x the kept duration, at least 30 min / 3 h / 8 h);
+  `--only` matching nothing is exit code 2; job objects `KILL_ON_JOB_CLOSE` (a runner killed mid-test leaves no
+  test process); results and the total in the day log. `build_native.install` retries and puts the live file back.
+  `test_rust.py` ends a binary still running after 900 s (quick) / 3 h (game) and names the tests that never ended.
+  `test_runner_parallel.py` checks each.
+
+### The hang found on the way
+
+With the editor's binary run on its own, `g3::sets_from_the_data` and `g4::create_and_open_projects` (once
+`g2::view_tokens_reach_the_frame` and `g3::mode_cards_fall_back_to_the_tile`) start together and never end: 2 runs in 5 at
+`--test-threads 2` (opt-level 0 and 1 alike), 1 in 6 with the dependencies at opt-level 0, 1 in 3 at libtest's
+default threads, and in 3 of the 4 quick tiers below. Before TS1 it went unseen: the old entry had no limit and nobody
+saw which test held it. Round HG1 has it (and the `export_xf1` slowness).
+
+### Proof
+
+| `python run_tests.py quick -j 2` | wall | result |
+|---|---:|---|
+| main before (the coordinator's last, 2026-11-21) | 3,593 s | 127 of 127 |
+| first cold run (ts1 + main `465ca1b`, quick group at `--test-threads 2`) | 1,647 s | 131 of 134: the editor binary ended at 900 s by the hang |
+| cold (debug folder and green record deleted; default threads) | 1,636 s | 131 of 134: the hang again, O2 (Defender), trace.py (OPFOR's DF2, fixed on main since) |
+| warm (straight after, nothing changed) | 1,278 s | the same three; build 20 s, clippy 0.7 s |
+| final (ts1 + main `abcbae2`; the module rebuilt, 273 s; warm debug folder) | **854 s** | **133 of 135**: O2 (Defender's Errno 22, environmental) and O4's texqa (74 of 80; fails the same on main `abcbae2`) |
+
+In the final run the Rust entries took: build 285 s (the merge's crates), clippy 23 s, fmt 3 s, quick tests 44 s
+(all passed; 8 parts skipped for want of data, named). Without the hang a cold tier is about 740 s (1,636 - 900 + the
+44 s the tests take): the critical path is now the cold build (536-626 s), then the Python entries. The game tier's
+new entry: the 35 whole-level tests of the time ran 48.9 min one binary at a time with the dependencies optimised and
+the workspace not; the workspace at opt-level 1 cuts the longest 1.2-5.8 times (table above); XF1's `export_xf1`
+pair, now in it, did not end within 3,000 s and is HG1's. Not rerun whole at opt-level 1 for that reason.
+
+Finish checks: cargo fmt, clippy `--all-targets -D warnings` on the workspace and the quick cargo tests (in the tier),
+ruff and mypy over every folder (the tier's entries), `spec/trace.py --check` clean on `abcbae2`;
+`test_runner_parallel.py`, `test_rust_skip.py`, `test_repo.py` and `test_envvars.py` pass. No WW2 path touched: no
+rebuild.

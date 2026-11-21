@@ -1,19 +1,19 @@
 //! Round O3's `stockmp` group: `bfbc2 stockmp`, `bfbc2-stockmp-ai\stockmp.py`'s command line on `bc2-stockmp`.
 //!
 //! Answered here: the usage, finding Project OPFOR's folder (and its error), and `install` in its three modes -
-//! `--plan` (out\game against its `build_report.json`, each file new or replacing one), `--apply` (one transaction:
-//! staged copies, the originals' backups, markers; put back on a failure) and `--revert` (the backups restored, the
-//! added files removed, from the build output and the game folder's markers); `summary` and `generate` (`level.rs`:
+//! `--plan` (out\game against its `build_report.json`, each file new or replacing one), `--apply` (one journalled
+//! commit of `stockmp:<lv>` in the game copy's install ledger, round DF2: what each file replaced kept once by sha256,
+//! a failure or a kill puts every file back) and `--revert` (that install taken out of the ledger); `summary` and `generate` (`level.rs`:
 //! the level's unpack, its model, `mp_common`'s kits; round O5: the full layer placed on the path data,
 //! `generate.rs`), `build` (`build.rs`: authored, packed, staged), `validate` (`validate.rs`: the offline checks,
 //! DbxEdit in process) and `all`. Handed to the Python: any reading the ports refuse (a damaged report, odd names,
 //! links, text not UTF-8, a configuration of a shape the authoring port leaves, a check the reference words itself).
 
+use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, Read, Write as _};
 
+use bc2_formats::gameledger::{self, Ledger, Legacy};
 use bc2_stockmp::install::{self, APPLIED, BACKUP, Fault, isfile, join};
-use bc2_stockmp::sha256;
 
 mod build;
 mod generate;
@@ -26,9 +26,6 @@ use crate::pyproc::{Fail, Py, PyErr, PyResult, Tool, os_error, suite_root};
 /// line (the library is `stockmplib.py`).
 const USAGE: &str = include_str!("stockmp_usage.txt");
 const COMMANDS: [&str; 6] = ["summary", "generate", "build", "validate", "all", "install"];
-/// `stockmp.STAGED`, `stockmp.PREV`.
-const STAGED: &str = ".opfor-stockmp-new";
-const PREV: &str = ".opfor-stockmp-prev";
 
 /// The group's tools.
 pub const TOOLS: &[Tool] = &[Tool {
@@ -252,7 +249,67 @@ fn pipeline(py: &mut Py, paths: &Paths, args: &[String], cmd: &str) -> PyResult<
     Ok(i32::from(!passed))
 }
 
-/// `stockmp.install(paths, argv)`.
+/// The owner stock-MP installs a level's build as, in the game copy's install ledger.
+fn owner(lv: &str) -> String {
+    format!("stockmp:{}", lv.to_lowercase())
+}
+
+/// The level's own folders in the game copy (where stock-MP installs and its old markers can be).
+const LEVEL_FOLDERS: [&[&str]; 3] = [
+    &["Dist", "win32", "levels"],
+    &["Package", "levels"],
+    &["Output", "win32", "ai", "levels"],
+];
+
+/// The legacy stock-MP marker suffixes (`.opfor-stockmp-*`, from before the install ledger).
+const LEGACY: [&str; 4] = [BACKUP, APPLIED, ".opfor-stockmp-new", ".opfor-stockmp-prev"];
+
+/// The game files under the level's own folders with a stock-MP marker beside them (game-relative, `/`): read only
+/// there, never the whole game folder - a junction or an odd name elsewhere in the game copy is no concern of the
+/// revert (AU4-DS-9). Folders that cannot be read are skipped.
+fn legacy_files(game: &str, lv: &str) -> Vec<String> {
+    let mut out = BTreeSet::new();
+    for parts in LEVEL_FOLDERS {
+        let top = parts
+            .iter()
+            .fold(std::path::PathBuf::from(game), |p, x| p.join(x))
+            .join(lv);
+        let mut stack = vec![top];
+        while let Some(d) = stack.pop() {
+            let Ok(rd) = fs::read_dir(&d) else { continue };
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                    continue;
+                }
+                let name = e.file_name().to_string_lossy().into_owned();
+                let low = name.to_lowercase();
+                if let Some(suf) = LEGACY.iter().find(|s| low.ends_with(*s))
+                    && let Some(base) = p.to_string_lossy().get(..p.to_string_lossy().len() - suf.len())
+                    && let Ok(rel) = std::path::Path::new(base).strip_prefix(game)
+                {
+                    out.insert(rel.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
+fn shown(rel: &str) -> String {
+    rel.replace('/', "\\")
+}
+
+/// `stockmp.install(paths, argv)` (round DF2): `--plan` lists the built files; `--apply` installs them as one
+/// journalled commit of `stockmp:<lv>` in the game copy's install ledger (each file's previous bytes kept once by
+/// sha256; a failure, or a kill, puts every file back); `--revert` takes that install out (the files from before it
+/// back, or stock-MP's layer taken out from under a later install). stock-MP's markers from before the ledger are
+/// adopted first.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the three modes and their messages, in the reference's order"
+)]
 fn install(py: &mut Py, paths: &Paths, args: &[String]) -> PyResult<i32> {
     let game = opt(args, "--game").map_or_else(|| paths.game.clone(), str::to_owned);
     let out = join(&join(&paths.root, "out"), "game");
@@ -264,19 +321,11 @@ fn install(py: &mut Py, paths: &Paths, args: &[String]) -> PyResult<i32> {
     } else {
         "--plan"
     };
-    let mut files = install::walk_rel(&out).map_err(fault)?;
-    if mode == "--revert" {
-        files.extend(install::installed_files(&game, &paths.lv).map_err(fault)?);
-        files.sort();
-        files.dedup();
-        if files.is_empty() {
-            py.print(&format!(
-                "nothing installed by stock-MP in {game} (no {APPLIED} markers, nothing built)"
-            ))?;
-            return Ok(0);
-        }
-    } else {
-        if files.is_empty() {
+    let me = owner(&paths.lv);
+    let mut led = Ledger::new(std::path::Path::new(&game));
+    let built: Vec<String> = install::walk_rel(&out).map_err(fault)?;
+    if mode != "--revert" {
+        if built.is_empty() {
             return Ok(system_exit(py, &format!("nothing built in {out} (run build first)")));
         }
         let problems = install::check_report(&paths.root).map_err(fault)?;
@@ -288,253 +337,108 @@ fn install(py: &mut Py, paths: &Paths, args: &[String]) -> PyResult<i32> {
             }
             py.print(&format!("warning: {msg}"))?;
         }
-        files.sort();
-    }
-    if mode == "--apply" || mode == "--revert" {
-        // every file checked before any is written
-        let mut changed = Vec::new();
-        for rel in &files {
-            let dst = join(&game, rel);
-            let marker = format!("{dst}{APPLIED}");
-            if isfile(&dst) && isfile(&marker) && !install::marker_matches(&marker, &dst).map_err(fault)? {
-                changed.push(rel.as_str());
-            }
-        }
-        if !changed.is_empty() {
-            let what = if mode == "--apply" { "installed" } else { "reverted" };
-            return Ok(system_exit(
-                py,
-                &format!(
-                    "changed after the install (by something else) - nothing {what}: {} (delete their {APPLIED} \
-                     markers to take them as they are now)",
-                    changed.join(", ")
-                ),
-            ));
-        }
-    }
-    if mode == "--apply" {
-        return apply_files(py, &game, &out, &files);
-    }
-    for rel in &files {
-        let dst = join(&game, rel);
-        let marker = format!("{dst}{APPLIED}");
-        let backup = format!("{dst}{BACKUP}");
-        if mode == "--plan" {
-            let state = if isfile(&dst) { "replace" } else { "new" };
-            py.print(&format!("{state:8} {rel}"))?;
-            continue;
-        }
-        if isfile(&dst) && isfile(&marker) && !install::marker_matches(&marker, &dst).map_err(fault)? {
-            return Ok(system_exit(
-                py,
-                &format!("{rel} changed after the install - not reverting it"),
-            ));
-        }
-        if isfile(&backup) {
-            fs::rename(&backup, &dst).map_err(|e| os_error(&backup, &e))?;
-            py.print(&format!("restored  {rel}"))?;
-        } else if isfile(&marker) {
-            if isfile(&dst) {
-                fs::remove_file(&dst).map_err(|e| os_error(&dst, &e))?;
-            }
-            py.print(&format!("removed   {rel}"))?;
-        }
-        if isfile(&marker) {
-            fs::remove_file(&marker).map_err(|e| os_error(&marker, &e))?;
-        }
     }
     if mode == "--plan" {
+        let mut files = built;
+        files.sort();
+        for rel in &files {
+            let state = if isfile(&join(&game, rel)) { "replace" } else { "new" };
+            py.print(&format!("{state:8} {rel}"))?;
+        }
         let var = paths
             .variant
             .as_ref()
             .map_or(String::new(), |v| format!(" --variant {v}"));
         py.print(&format!(
-            "(plan only: `install {}{var} --apply` copies these into {game}, keeping *{BACKUP} backups)",
+            "(plan only: `install {}{var} --apply` copies these into {game}, keeping what they replace in the game \
+             copy's install ledger)",
             paths.lv
         ))?;
+        return Ok(0);
     }
-    Ok(0)
-}
-
-/// `atomicio.copy_file(src, dst)`: the bytes copied beside the target, flushed to disk, then moved over it.
-fn copy_file(src: &str, dst: &str) -> PyResult<()> {
-    let tmp = format!("{dst}.tmp-{}", std::process::id());
-    let done = (|| -> Result<(), (String, io::Error)> {
-        let mut r = fs::File::open(src).map_err(|e| (src.to_owned(), e))?;
-        let mut w = fs::File::create(&tmp).map_err(|e| (tmp.clone(), e))?;
-        let mut buf = vec![0u8; 1 << 20];
-        loop {
-            let n = r.read(&mut buf).map_err(|e| (src.to_owned(), e))?;
-            if n == 0 {
-                break;
+    // stock-MP's markers from before the ledger: adopted (the built files' and any in the level's own folders)
+    let mut legacy: BTreeSet<String> = legacy_files(&game, &paths.lv).into_iter().collect();
+    legacy.extend(built.iter().map(|r| r.replace('\\', "/")));
+    match led.adopt_legacy(&me, &legacy.into_iter().collect::<Vec<_>>(), Legacy::StockMp) {
+        Ok(Some(p)) => py.print(&format!(
+            "stock-MP's markers from before the install ledger moved into it ({} file(s))",
+            p.writes.iter().filter(|w| w.starts_with("adopt ")).count()
+        ))?,
+        Ok(None) => {}
+        Err(e) => {
+            let what = if mode == "--apply" { "installed" } else { "reverted" };
+            return Ok(system_exit(py, &format!("nothing {what}: {e}")));
+        }
+    }
+    if mode == "--apply" {
+        let mut files = Vec::new();
+        for rel in &built {
+            let src = join(&out, rel);
+            files.push((rel.replace('\\', "/"), fs::read(&src).map_err(|e| os_error(&src, &e))?));
+        }
+        files.sort_by(|a, b| a.0.cmp(&b.0));
+        return match led.install(&me, &files, false, "stock-MP AI layer", false) {
+            Ok(plan) => {
+                for n in &plan.notes {
+                    match n.strip_suffix(": already installed") {
+                        Some(rel) => py.print(&format!("already   {}", shown(rel)))?,
+                        None => py.print(&format!("  {n}"))?,
+                    }
+                }
+                for w in &plan.writes {
+                    if let Some(rel) = w.strip_prefix("write ") {
+                        py.print(&format!("installed {}", shown(rel)))?;
+                    } else if let Some(rel) = w.strip_prefix("remove ") {
+                        py.print(&format!("removed   {} (no longer in the build)", shown(rel)))?;
+                    }
+                }
+                Ok(0)
             }
-            w.write_all(buf.get(..n).unwrap_or_default())
-                .map_err(|e| (tmp.clone(), e))?;
-        }
-        w.sync_all().map_err(|e| (tmp.clone(), e))?;
-        drop(w);
-        crate::pyos::files::replace(&tmp, dst).map_err(|e| (tmp.clone(), e))
-    })();
-    if let Err((p, e)) = done {
-        let _ = fs::remove_file(&tmp);
-        return Err(os_error(&p, &e));
-    }
-    Ok(())
-}
-
-/// `atomicio.write_text(path, text)`.
-fn write_text(path: &str, text: &str) -> PyResult<()> {
-    let tmp = format!("{path}.tmp-{}", std::process::id());
-    let done = (|| -> io::Result<()> {
-        let mut w = fs::File::create(&tmp)?;
-        w.write_all(text.replace('\n', "\r\n").as_bytes())?;
-        w.sync_all()?;
-        drop(w);
-        crate::pyos::files::replace(&tmp, path)
-    })();
-    if let Err(e) = done {
-        let _ = fs::remove_file(&tmp);
-        return Err(os_error(path, &e));
-    }
-    Ok(())
-}
-
-fn sha(path: &str) -> PyResult<String> {
-    sha256::file(path).map_err(|e| os_error(path, &e))
-}
-
-/// A built file to install: (its path below the game folder, target, source, whether the original needs a backup).
-type Todo<'a> = (&'a str, String, String, bool);
-
-/// `stockmp.apply_files(game, out, rels)`: decide every file, stage every built file beside its target, then commit
-/// file by file (the original's backup once, the target moved aside, the staged file in, its marker) - a failure
-/// puts back every target already replaced before it is raised.
-fn apply_files(py: &mut Py, game: &str, out: &str, rels: &[String]) -> PyResult<i32> {
-    let mut todo: Vec<Todo> = Vec::new();
-    for rel in rels {
-        let (dst, src) = (join(game, rel), join(out, rel));
-        let marker = format!("{dst}{APPLIED}");
-        let mut installed = false;
-        if isfile(&marker) && isfile(&dst) {
-            installed = install::marker_matches(&marker, &dst).map_err(fault)?;
-            if !installed {
-                return Ok(system_exit(
-                    py,
-                    &format!(
-                        "{rel} changed after the install - not overwriting it (revert it first, or delete {marker})"
-                    ),
-                ));
-            }
-        }
-        if installed && sha(&dst)? == sha(&src)? {
-            py.print(&format!("already   {rel}"))?;
-            continue;
-        }
-        let backup = isfile(&dst) && !isfile(&format!("{dst}{BACKUP}")) && !installed;
-        todo.push((rel, dst, src, backup));
-    }
-    // stage: a failure removes the staged copies, the game copy unchanged
-    let mut staged: Vec<String> = Vec::new();
-    if let Err(e) = stage(&todo, &mut staged) {
-        for s in &staged {
-            let _ = fs::remove_file(s);
-        }
-        return Err(e);
-    }
-    let mut done: Vec<(&str, bool, Option<String>)> = Vec::new();
-    if let Err(e) = commit(&todo, &mut done) {
-        if e == Fail::Python {
-            return Err(e);
-        }
-        rollback(py, &todo, &done)?;
-        return Err(e);
-    }
-    for (dst, had, _) in &done {
-        let prev = format!("{dst}{PREV}");
-        if *had && isfile(&prev) {
-            fs::remove_file(&prev).map_err(|e| os_error(&prev, &e))?;
-        }
-    }
-    for (rel, ..) in &todo {
-        py.print(&format!("installed {rel}"))?;
-    }
-    Ok(0)
-}
-
-/// Every built file copied whole next to its target (`*.opfor-stockmp-new`).
-fn stage(todo: &[Todo], staged: &mut Vec<String>) -> PyResult<()> {
-    for (rel, dst, src, _) in todo {
-        if let Some(dir) = std::path::Path::new(dst).parent() {
-            fs::create_dir_all(dir).map_err(|e| os_error(&dir.to_string_lossy(), &e))?;
-        }
-        let s = format!("{dst}{STAGED}");
-        copy_file(src, &s)?;
-        staged.push(s.clone());
-        if sha(&s)? != sha(src)? {
-            return Err(Fail::Err(PyErr::new(
-                "OSError",
-                format!("{rel}: the staged copy differs from the build"),
-            )));
-        }
-    }
-    Ok(())
-}
-
-/// Per file: the original's backup (once), the target moved aside, the staged file renamed in, its marker.
-fn commit<'a>(todo: &'a [Todo], done: &mut Vec<(&'a str, bool, Option<String>)>) -> PyResult<()> {
-    for (_, dst, _, backup) in todo {
-        if *backup {
-            copy_file(dst, &format!("{dst}{BACKUP}"))?;
-        }
-        let had = isfile(dst);
-        let marker = format!("{dst}{APPLIED}");
-        let old_marker = if isfile(&marker) {
-            Some(install::read_marker(&marker).map_err(fault)?)
-        } else {
-            None
+            Err(e) => Ok(system_exit(py, &format!("nothing installed: {e}"))),
         };
-        if had {
-            let prev = format!("{dst}{PREV}");
-            fs::rename(dst, &prev).map_err(|e| os_error(dst, &e))?;
-        }
-        done.push((dst.as_str(), had, old_marker));
-        let s = format!("{dst}{STAGED}");
-        fs::rename(&s, dst).map_err(|e| os_error(&s, &e))?;
-        write_text(&marker, &sha(dst)?)?;
     }
-    Ok(())
+    // --revert
+    let mine = led.owner_files(&me).map_err(|e| ledger(&e))?;
+    if mine.is_empty() {
+        py.print(&format!(
+            "nothing installed by stock-MP in {game} (no install of {me} in its install ledger)"
+        ))?;
+        return Ok(0);
+    }
+    let mut what: Vec<(String, String)> = Vec::new();
+    for rel in &mine {
+        let holders = led.holders(rel).map_err(|e| ledger(&e))?;
+        let above = holders
+            .iter()
+            .position(|h| *h == me)
+            .and_then(|i| holders.get(i + 1))
+            .cloned();
+        let before = led.before(&me, rel).map_err(|e| ledger(&e))?.flatten();
+        let line = match (above, before) {
+            (Some(o), _) => format!(
+                "kept      {} (stock-MP's layer taken out from under {o}'s install: its revert now puts back what was \
+                 there before stock-MP)",
+                shown(rel)
+            ),
+            (None, Some(_)) => format!("restored  {}", shown(rel)),
+            (None, None) => format!("removed   {}", shown(rel)),
+        };
+        what.push((rel.clone(), line));
+    }
+    match led.uninstall(&me, false) {
+        Ok(plan) => {
+            for n in plan.notes.iter().filter(|n| !n.contains("taken out from under")) {
+                py.print(&format!("  {n}"))?;
+            }
+            for (_, line) in &what {
+                py.print(line)?;
+            }
+            Ok(0)
+        }
+        Err(e) => Ok(system_exit(py, &format!("nothing reverted: {e}"))),
+    }
 }
 
-/// A failed commit: every target already replaced put back (and its marker), the staged copies removed.
-fn rollback(py: &mut Py, todo: &[Todo], done: &[(&str, bool, Option<String>)]) -> PyResult<()> {
-    for (dst, had, old_marker) in done.iter().rev() {
-        let marker = format!("{dst}{APPLIED}");
-        let back = (|| -> PyResult<()> {
-            if *had {
-                let prev = format!("{dst}{PREV}");
-                fs::rename(&prev, dst).map_err(|e| os_error(&prev, &e))?;
-            } else if isfile(dst) {
-                fs::remove_file(dst).map_err(|e| os_error(dst, &e))?;
-            }
-            match old_marker {
-                None if isfile(&marker) => fs::remove_file(&marker).map_err(|e| os_error(&marker, &e))?,
-                None => {}
-                Some(t) => write_text(&marker, t)?,
-            }
-            Ok(())
-        })();
-        if let Err(Fail::Err(err)) = back {
-            py.print(&format!(
-                "ROLLBACK FAILED for {dst}: {} (its earlier file is {dst}{PREV})",
-                err.msg
-            ))?;
-        }
-    }
-    for (_, dst, _, _) in todo {
-        let s = format!("{dst}{STAGED}");
-        if isfile(&s) {
-            fs::remove_file(&s).map_err(|e| os_error(&s, &e))?;
-        }
-    }
-    py.print("nothing installed: every file put back as it was")
+fn ledger(e: &gameledger::Error) -> Fail {
+    Fail::Err(PyErr::new("LedgerError", e.to_string()))
 }

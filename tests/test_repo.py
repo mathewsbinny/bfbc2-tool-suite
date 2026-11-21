@@ -8,7 +8,10 @@ r"""The repository's own rules, checked before anything is pushed (no game data 
 - a README in every tool folder, a LICENSE at the root;
 - every Python file compiles;
 - every tests/*.rs of a Rust crate with `autotests = false` is a `mod` of its test binary's main.rs (round RT3: a
-  file left off that list silently never runs).
+  file left off that list silently never runs);
+- every tracked test_*.py is run by a tier of run_tests.py, or named in UNTIERED_ALLOWED with the reason (round TS1,
+  audit AU3 TS-8);
+- no runner entry named by a round code (O4:, F2a, E3o ...) beyond the 60 named so before round TS1's rule (audit AU3 TS-14).
 
   python tests\test_repo.py
 """
@@ -92,8 +95,65 @@ def registration_self_check() -> list[str]:
     return [] if got == want else [f'the check on a stand-in crate named {got}, not {want}']
 
 
+# test files no tier of run_tests.py runs, on purpose (round TS1, audit AU3 TS-8): path -> why
+UNTIERED_ALLOWED = {
+    'tests/test_editor.py': "by hand only since round QW1: its tests are the Rust entries' (tests/test_rust.py)",
+}
+
+
+def untiered_test_files() -> list[str]:
+    """Every tracked test_*.py that no entry of run_tests.py's tiers runs and UNTIERED_ALLOWED does not name (audit
+    AU3 TS-8: three such files, two cited by the specification as a rule's evidence, ran in no tier)."""
+    sys.path.insert(0, SUITE)
+    import run_tests
+    named = set()
+    for _name, _tier, args in run_tests.tests():
+        argv = args(os.path.join(SUITE, 'no such folder')) if callable(args) else args
+        named |= {os.path.normcase(os.path.abspath(a)) for a in argv if isinstance(a, str) and a.endswith('.py')}
+    out = []
+    for t in git('ls-files').splitlines():
+        base = t.rsplit('/', 1)[-1]
+        if (base.startswith('test_') and base.endswith('.py') and t not in UNTIERED_ALLOWED
+                and os.path.normcase(os.path.abspath(os.path.join(SUITE, t))) not in named):
+            out.append(f'{t}: in no tier of run_tests.py (add it, or to UNTIERED_ALLOWED with the reason)')
+    return out
+
+
+# Round codes in names (audit AU3 TS-14 / TS-13): a runner entry is named by what it tests, not the round that wrote
+# it (O4:, F2a, E3o ...). The 60 entries named so before round TS1's rule landed (sha1 of the name, first 10 hex
+# digits; DF2's install ledger entry merged while TS1 ran) stay until PR1c renames them; a new one fails.
+ROUND = re.compile(r'(?<![A-Za-z0-9_])[A-Z]{1,2}[0-9]{1,2}[a-z]?(?![A-Za-z0-9_])')
+NOT_ROUND = {'BC2', 'WW2', 'L8'}            # the game, the war, a texture format
+ROUND_CODED_ENTRIES = frozenset({
+    '02aa7430b9', '0b39cb78d7', '0dc7c911af', '162a4d28cb', '1bf943b5c6', '21868d8850', '27828863ee', '279aa2fe3c',
+    '2f809a8616', '33a7edec34', '36bc4e759d', '3eeeb9c5b3', '4314d9c213', '4370e48fcd', '51d8fe9d62', '5211a212dc',
+    '532c2dd425', '5438edfee8', '554403a9a2', '645b821c2e', '662afc5c05', '6c666ea9c7', '75d1fc2d3a', '76aa64a49e',
+    '76ed5933ac', '79ee3659ab', '7b034a0d88', '7feaec2c83', '8bc7b31bb6', '8c928af5bb', '8feda28914', '934f4b2f13',
+    '93d7cb5d83', '95b68e96b4', '98eb46b82c', '9a3f9fce82', '9d7482bf87', '9dcd365005', 'a815aafbd5', 'b23216f4f6',
+    'b94241399d', 'bdc20c65ea', 'c58ba4223d', 'c936d93036', 'cdeea98d79', 'd1249880b6', 'd2090a6c35', 'd3a5526e55',
+    'd5798a540a', 'dc88e0f1a2', 'e31d19e216', 'e8cf6e9959', 'f100455992', 'f12d3dcd38', 'f13913f516', 'f48930e395',
+    'f5f448bde0', 'f6b979f075', 'f90182a684', '70d789971a',
+})
+
+
+def round_coded_entries() -> list[str]:
+    """Runner entries named with a round code that were not so named before round TS1."""
+    import hashlib
+    sys.path.insert(0, SUITE)
+    import run_tests
+    out = []
+    for name, _tier, _args in run_tests.tests():
+        codes = [c for c in ROUND.findall(name) if c not in NOT_ROUND]
+        if codes and hashlib.sha1(name.encode()).hexdigest()[:10] not in ROUND_CODED_ENTRIES:
+            out.append(f'{name[:80]}: named by round {", ".join(codes)}; name it by what it tests')
+    return out
+
+
 def main(argv: list[str]) -> int:
     results = []
+    results.append(('every test_*.py runs in a tier of run_tests.py (or is allowed out with its reason)',
+                    untiered_test_files()))
+    results.append(('no new runner entry named by a round code (O4:, F2a, E3o ...)', round_coded_entries()))
     results.append(('every tests/*.rs of a crate with autotests = false is a module of its test binary (and the '
                     'check finds one that is not)',
                     registration_self_check() + unregistered_test_files(os.path.join(SUITE, 'rust'))))

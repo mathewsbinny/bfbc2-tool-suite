@@ -174,6 +174,7 @@ def main(argv: list[str]) -> int:
     t = time.time()
     for group in groups:
         mod = group_module(group)
+        o2.LOOSE[:] = list(getattr(mod, 'LOOSE', ()))   # round DF2: files compared by size (the ledger's records)
         rows: list[o2.Case] = mod.cases()
         keys = [r[0] for r in rows]
         if len(set(keys)) != len(keys):

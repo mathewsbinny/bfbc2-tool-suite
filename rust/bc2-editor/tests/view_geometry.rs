@@ -63,7 +63,11 @@ fn views(h: &mut Headless, lv: &str) -> Option<Views> {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     if let Err(e) = app.open_level_blocking(&gpu, lv) {
-        println!("{lv}: skipped, {e}");
+        assert!(
+            !crate::level_here(lv),
+            "{lv} is in this game copy but does not open: {e}"
+        );
+        println!("{lv}: skipped, not in this game copy ({e})");
         return None;
     }
     h.settle(&mut app, 2);
@@ -71,9 +75,9 @@ fn views(h: &mut Headless, lv: &str) -> Option<Views> {
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
     h.settle(&mut app, 2);
     let v = app.view().unwrap();
+    // the level opened: the game view not starting is a failure, not a skip (audit AU3 TS-7)
     let Some(g) = v.game.as_ref() else {
-        println!("{lv}: skipped, {}", v.message);
-        return None;
+        panic!("{lv}: the game-accurate view did not start: {}", v.message);
     };
     let scene = v.scene();
     let col = scene.collision.as_ref().unwrap();
@@ -101,6 +105,7 @@ fn views(h: &mut Headless, lv: &str) -> Option<Views> {
 }
 
 #[test]
+#[ignore = "game tier: opens MP_005 and SP_01 in both views; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn both_views_show_the_same_objects() {
     let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {

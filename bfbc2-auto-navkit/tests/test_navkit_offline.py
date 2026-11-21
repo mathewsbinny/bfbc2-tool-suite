@@ -47,7 +47,7 @@ import navregress  # noqa: E402
 import navsample  # noqa: E402
 import navtraversal  # noqa: E402,F401
 import navvehicle  # noqa: E402
-from bfbc2core import navtune  # noqa: E402
+from bfbc2core import gameledger, navtune  # noqa: E402
 
 hpdtool_write = hpdtool.write
 EMPTY_HPD = hpdtool.write(hpdtool.HpdFile(tuple([0] * hpdtool.HEADER_WORDS), []))   # reads back exactly
@@ -530,9 +530,13 @@ def main(argv):
             write(trav_src, json.dumps({'pathdata_sha1': hashlib.sha1(EMPTY_HPD).hexdigest()}))
             navkit.install(pr, 'sp_01', log=ilog.append)
             trav_dest = navkit.traversal_path(os.path.dirname(dest1), 'sp_01')
-            check(read(dest1, 'rb') == EMPTY_HPD and os.path.isfile(dest1 + navkit.NEW_SUFFIX) and not os.path.isfile(dest1 + navkit.BACKUP_SUFFIX)
+            led = gameledger.Ledger(pr.game)
+            rel1 = os.path.relpath(dest1, pr.game)
+            check(read(dest1, 'rb') == EMPTY_HPD and not gameledger.legacy_markers(dest1)
+                  and led.holders(rel1) == ['navkit:sp_01'] and led.before('navkit:sp_01', rel1) == (True, None)
                   and os.path.isfile(trav_dest) and any('had no original' in m for m in ilog),
-                  'install: a level without path data - the no-original marker; traversal annotations made for this file installed')
+                  'install: a level without path data - recorded in the install ledger with nothing before it; '
+                  'traversal annotations made for this file installed', str(ilog))
             check(pr.dice_pathdata('sp_01') is None, 'install: NavKit\'s file on a level without one is not taken for DICE\'s')
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
@@ -544,8 +548,8 @@ def main(argv):
             check(sorted(navkit.level_names(pr)) == [('mp_005', True), ('sp_01', False)], 'level_names: (level, samplable) for the GUI',
                   str(navkit.level_names(pr)))
             navkit.restore(pr, 'sp_01', log=ilog.append)
-            check(not os.path.isfile(dest1) and not os.path.isfile(dest1 + navkit.NEW_SUFFIX) and not os.path.isfile(trav_dest)
-                  and 'had no path data before' in ilog[-1], 'restore: NavKit\'s file, its marker and annotations removed (no original)')
+            check(not os.path.isfile(dest1) and not led.holders(rel1) and not os.path.isfile(trav_dest)
+                  and 'had no path data before' in ilog[-1], 'restore: NavKit\'s file and annotations removed (no original)')
             navkit.restore(pr, 'sp_01', log=ilog.append)
             check('nothing to restore' in ilog[-1], 'restore: nothing installed - nothing to do')
             # a level with DICE's file: the original kept once
@@ -554,16 +558,32 @@ def main(argv):
             ilog.clear()
             navkit.install(pr, 'mp_005', log=ilog.append)
             navkit.install(pr, 'mp_005', log=ilog.append)
-            check(read(pd + navkit.BACKUP_SUFFIX, 'rb') == b'dice' and read(pd, 'rb') == EMPTY_HPD and not os.path.isfile(trav5)
-                  and sum('original kept' in m for m in ilog) == 1 and any('made for another path-data file' in m for m in ilog),
-                  'install: DICE\'s file kept once (a second install keeps it); annotations for another file not installed, stale ones removed',
-                  str(ilog))
+            dice = pr.dice_pathdata('mp_005')
+            check(dice is not None and read(dice, 'rb') == b'dice' and read(pd, 'rb') == EMPTY_HPD and not os.path.isfile(trav5)
+                  and sum('original pathdata.hpd kept' in m for m in ilog) == 1
+                  and any('made for another path-data file' in m for m in ilog),
+                  'install: DICE\'s file kept once in the ledger (a second install keeps it); annotations for another file not '
+                  'installed, stale ones removed', str(ilog))
             write(trav5, '{}')
-            write(pd + navkit.NEW_SUFFIX)                   # a stale marker next to a kept original
             navkit.restore(pr, 'mp_005', log=ilog.append)
-            check(read(pd, 'rb') == b'dice' and not os.path.isfile(pd + navkit.BACKUP_SUFFIX) and not os.path.isfile(pd + navkit.NEW_SUFFIX)
-                  and not os.path.isfile(trav5) and 'restored the original' in ilog[-1],
-                  'restore: the original back, a stale marker and the annotations removed')
+            check(read(pd, 'rb') == b'dice' and not os.path.isfile(trav5) and 'restored the original' in ilog[-1]
+                  and pr.dice_pathdata('mp_005') == pd,
+                  'restore: the original back from the ledger, the annotations removed')
+            # NavKit's markers from before the install ledger: adopted, then restored as before
+            write(pd + navkit.BACKUP_SUFFIX, b'dice')
+            write(pd, b'navkit of before')
+            navkit.restore(pr, 'mp_005', log=ilog.append)
+            check(read(pd, 'rb') == b'dice' and not gameledger.legacy_markers(pd) and 'restored the original' in ilog[-1]
+                  and any('markers from before the install ledger moved into it' in m for m in ilog),
+                  'restore: NavKit\'s markers of before the ledger adopted, DICE\'s file back', str(ilog[-3:]))
+            # another tool's markers of before the ledger: refused in words, nothing changed
+            write(pd + '.opfor-stockmp-orig', b'dice')
+            write(pd + '.opfor-stockmp-applied', hashlib.sha256(b'dice').hexdigest())
+            msg = raises(navkit.install, pr, 'mp_005')
+            check(msg is not None and 'migrate them first' in msg and read(pd, 'rb') == b'dice',
+                  'install: another tool\'s markers of before the ledger - refused, nothing written', str(msg))
+            for f in ('.opfor-stockmp-orig', '.opfor-stockmp-applied'):
+                os.remove(pd + f)
 
             # --- apply -------------------------------------------------------------------------------
             alog: list[str] = []

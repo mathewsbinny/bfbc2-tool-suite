@@ -14,6 +14,11 @@ rayon.workspace = true
 flate2.workspace = true
 # culltree::contains: the level mark searched with memmem (round CT1)
 memchr.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
