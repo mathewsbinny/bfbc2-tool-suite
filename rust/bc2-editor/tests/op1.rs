@@ -4,6 +4,9 @@
 //! - **Part A** (audit AU1 R18 / D4): an operation that edits the partition and a static group file at once is one
 //!   undo step; it applies whole or not at all, in the files and in the scene; undo, redo and History jumps across
 //!   the checkpoints bring every file back; the group file's base sha1 is recorded on its first edit.
+//! - **Part B** (audit AU1 R24 / R17 / P3 / P16): brush strokes on the height field and a paint layer are stored as
+//!   tiles beside the project and undone and redone with the log; the autosave is a journal of the changes that a
+//!   reopened editor recovers after a crash; a stroke's commit and an undo on a long log stay within E5's budgets.
 #![allow(
     clippy::panic,
     clippy::unwrap_used,
@@ -18,6 +21,7 @@ use std::path::PathBuf;
 
 use bc2_editor::edit::Doc;
 use bc2_formats::dbx::{self, DbxFile, Element};
+use bc2_levelwrite::delta::{DirStore, Raster};
 use bc2_levelwrite::files::{FileEdit, Target, member_guid, member_transform};
 use bc2_levelwrite::ops::Moved;
 use bc2_levelwrite::{MapProject, Op, Profile, rows_at};
@@ -239,4 +243,174 @@ fn a_multi_file_operation_is_one_step_whole_or_not_at_all() {
     let fresh = doc("reopen");
     let again = Doc::with(p, fresh.path.clone(), fresh.scene.clone());
     assert_eq!(xs(&again), (11.0, 49.0, 49.0));
+}
+
+/// The synthetic level with a height field of `side` x `side` samples, all 1000.
+pub(crate) fn doc_with_terrain(name: &str, side: u32) -> Doc {
+    let d = doc(name);
+    let mut scene = d.scene.clone();
+    scene.heightfield = Some(bc2_formats::terrain::Heightfield {
+        min: [0.0, 0.0, 0.0],
+        max: [1024.0, 300.0, 1024.0],
+        size: side,
+        header: bc2_formats::terrain::HeaderWords::default(),
+        raw: vec![1000; (side * side) as usize],
+        tail: bc2_formats::terrain::Tail::Unknown(Vec::new()),
+    });
+    let (project, path) = (d.project.clone(), d.path.clone());
+    drop(d);
+    Doc::with(project, path, scene)
+}
+
+/// A round dab of `radius` samples at `(cx, cy)`, raised by `by`.
+fn dab(r: &mut Raster, cx: u32, cy: u32, radius: u32, by: u16) {
+    for y in cy.saturating_sub(radius)..(cy + radius).min(r.height()) {
+        for x in cx.saturating_sub(radius)..(cx + radius).min(r.width()) {
+            let (dx, dy) = (f64::from(x) - f64::from(cx), f64::from(y) - f64::from(cy));
+            if dx * dx + dy * dy <= f64::from(radius * radius) {
+                let v = r.get(x, y).saturating_add(by);
+                r.set(x, y, v);
+            }
+        }
+    }
+}
+
+#[test]
+fn strokes_are_tiles_and_the_autosave_is_a_journal() {
+    let _gate = crate::gate();
+    let mut d = doc_with_terrain("strokes", 256);
+    let terrain = d.terrain_target().unwrap();
+    assert_eq!(
+        terrain,
+        Target::Terrain {
+            file: "heightfield".into()
+        }
+    );
+    let flat = d.raster(&terrain).unwrap();
+    // a dab across four tiles' corner, and a paint layer's first stroke
+    let mut hill = flat.clone();
+    dab(&mut hill, 64, 64, 10, 500);
+    let n = d.stroke(&terrain, &hill, "Raise").unwrap().unwrap();
+    assert_eq!(d.raster(&terrain).unwrap(), hill);
+    let paint = Target::Paint { layer: "grass".into() };
+    let mut grass = Raster::new(256, 256, 0);
+    dab(&mut grass, 200, 200, 4, 255);
+    d.stroke(&paint, &grass, "").unwrap().unwrap();
+    assert_eq!(d.raster(&paint).unwrap(), grass);
+    assert!(
+        d.stroke(&paint, &grass, "").unwrap().is_none(),
+        "nothing changed: no operation"
+    );
+    // the log names the tiles; the samples are in the tile folder, not the project
+    let names: Vec<String> = d
+        .project
+        .operations
+        .iter()
+        .map(bc2_levelwrite::Operation::name)
+        .collect();
+    assert_eq!(names[0], "Raise (Stroke on the height field heightfield: 4 tiles)");
+    let tiles = std::fs::read_dir(DirStore::of(&d.path).dir).unwrap().count();
+    // the 4 tiles before are alike (all 1000): kept once, as is the paint tile before (zeros)
+    assert_eq!(tiles, 1 + 4 + 1 + 1);
+    assert!(d.problems.is_empty(), "{:?}", d.problems);
+    // undo, redo
+    assert!(d.undo());
+    assert!(d.raster(&paint).is_none(), "no paint layer before its first stroke");
+    assert!(d.undo());
+    assert_eq!(d.raster(&terrain).unwrap(), flat);
+    assert!(d.redo() && d.redo());
+    assert_eq!(d.raster(&terrain).unwrap(), hill);
+    assert_eq!(d.raster(&paint).unwrap(), grass);
+    assert_eq!(d.last_n(), Some(n + 1));
+
+    // the autosave is a journal: its first line the project, then one line per change since
+    let auto = bc2_levelwrite::project::autosave_path(&d.path);
+    let text = std::fs::read_to_string(&auto).unwrap();
+    assert_eq!(d.journal().unwrap().lines(), text.lines().count());
+    assert!(text.lines().count() >= 5, "{text}");
+    assert!(!text.starts_with('{'));
+    // the editor stops without a save: the reopened editor offers the journal's project, with its strokes
+    let path = d.path.clone();
+    let (ops, redo) = (d.project.operations.clone(), d.project.redo.clone());
+    let base = doc_with_terrain("strokes_base", 256).scene.clone();
+    drop(d);
+    let recovered = MapProject::recover(&path).expect("an autosave that differs from the saved project");
+    assert_eq!((&recovered.operations, &recovered.redo), (&ops, &redo));
+    let mut e = Doc::with(recovered, path.clone(), base);
+    assert_eq!(e.raster(&terrain).unwrap(), hill);
+    assert_eq!(e.raster(&paint).unwrap(), grass);
+    // a change after the recovery starts a journal whole; a save removes it and keeps the tiles
+    e.go_to(1);
+    assert!(e.journal().is_some_and(|j| j.lines() == 1));
+    e.save().unwrap();
+    assert!(!auto.exists() && e.journal().is_none());
+    assert!(DirStore::of(&path).dir.is_dir());
+    assert!(MapProject::recover(&path).is_none());
+    let saved = MapProject::load(&path).unwrap();
+    assert_eq!(saved.reader_needed(), 6);
+    assert!(std::fs::read_to_string(&path).unwrap().contains("\"op\": \"stroke\""));
+}
+
+/// Round OP1's budgets for E5 (audit AU1 P16): a stroke's commit under 16 ms and an undo under 100 ms on a long log,
+/// here 400 strokes on a 2048 x 2048 height field (the ignored `stroke_budgets_on_10000_strokes` is the measurement
+/// of `rust/BENCHMARKS.md` "OP1").
+#[test]
+fn stroke_budgets() {
+    let _gate = crate::gate();
+    budgets("budgets", 400);
+}
+
+#[test]
+#[ignore = "a measurement: cargo test -p bc2-editor --test editor op1::stroke_budgets_on -- --ignored --nocapture"]
+fn stroke_budgets_on_10000_strokes() {
+    let _gate = crate::gate();
+    budgets("budgets_10000", 10_000);
+}
+
+fn budgets(name: &str, strokes: u32) {
+    let mut d = doc_with_terrain(name, 2048);
+    let terrain = d.terrain_target().unwrap();
+    let mut r = d.raster(&terrain).unwrap();
+    let mut times = Vec::new();
+    let t_all = std::time::Instant::now();
+    for k in 0..strokes {
+        // dabs of radius 24 walking over the map: each touches 1 - 4 tiles
+        let (cx, cy) = (37 + (k * 97) % 1970, 41 + (k * 53) % 1960);
+        let t = std::time::Instant::now();
+        dab(&mut r, cx, cy, 24, 3);
+        d.stroke(&terrain, &r, "").unwrap().unwrap();
+        times.push(t.elapsed().as_secs_f64() * 1000.0);
+    }
+    let total = t_all.elapsed().as_secs_f64();
+    times.sort_by(f64::total_cmp);
+    let pct = |p: f64| {
+        let last = times.len() - 1;
+        times[(f64::from(u32::try_from(last).unwrap()) * p) as usize]
+    };
+    let t = std::time::Instant::now();
+    assert!(d.undo());
+    let undo = t.elapsed().as_secs_f64() * 1000.0;
+    let t = std::time::Instant::now();
+    d.go_to(d.project.operations.len() - 40);
+    let jump = t.elapsed().as_secs_f64() * 1000.0;
+    let t = std::time::Instant::now();
+    assert!(d.redo());
+    let redo = t.elapsed().as_secs_f64() * 1000.0;
+    let project_bytes = d.project.to_json().unwrap().len();
+    let journal = d.journal().map_or(0, bc2_levelwrite::journal::Journal::bytes);
+    let tile_bytes: u64 = std::fs::read_dir(DirStore::of(&d.path).dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.metadata().unwrap().len())
+        .sum();
+    println!(
+        "{strokes} strokes on 2048 x 2048 in {total:.1} s: commit median {:.2} ms, p95 {:.2} ms, max {:.2} ms; undo \
+         {undo:.1} ms, History jump of 40 {jump:.1} ms, redo {redo:.1} ms; project file {project_bytes} bytes, \
+         journal {journal} bytes, tiles {tile_bytes} bytes",
+        pct(0.5),
+        pct(0.95),
+        pct(1.0)
+    );
+    assert!(pct(0.5) < 16.0, "a stroke's commit: {:.2} ms", pct(0.5));
+    assert!(undo < 100.0 && redo < 100.0, "undo {undo:.1} ms, redo {redo:.1} ms");
 }

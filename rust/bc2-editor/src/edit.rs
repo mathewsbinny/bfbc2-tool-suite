@@ -5,8 +5,9 @@
 //! every [`CHECKPOINT_EVERY`] operations is kept; the base is never edited), and a mode choice's donor level is read
 //! from the game copy once per document.
 //!
-//! Every change is autosaved beside the project at once (crash recovery); **Save** writes the project and removes the
-//! autosave. Entities are named by guid in the log and by index in the scene: base entities keep their index,
+//! Every change is autosaved beside the project at once (crash recovery), since round OP1 as one line appended to the
+//! project's journal ([`bc2_levelwrite::journal`]); **Save** writes the project and removes the autosave. Brush strokes
+//! (round OP1, for E5) are kept as tiles beside the project ([`bc2_levelwrite::delta`]) and named by the log. Entities are named by guid in the log and by index in the scene: base entities keep their index,
 //! deleted ones stay in the scene's list (left out of the views, the outliner and the queries), copies are added at
 //! its end.
 
@@ -14,7 +15,9 @@ use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
-use bc2_levelwrite::files::{FileEdit, LevelFiles, Target};
+use bc2_levelwrite::delta::{DirStore, Raster, TileStore as _};
+use bc2_levelwrite::files::{FileEdit, LevelFiles, Sources, Target};
+use bc2_levelwrite::journal::{Entry, Journal};
 use bc2_levelwrite::ops::Organisation;
 use bc2_levelwrite::project::BaseReport;
 use bc2_levelwrite::write::{Applied, LevelWriter};
@@ -109,6 +112,36 @@ pub struct Doc {
     /// The project's lock file while this editor has it open (round QW2; `None` for documents made by tests and
     /// headless runs, which take no lock).
     lock: Option<bc2_levelwrite::project::ProjectLock>,
+    /// The autosave journal since the last save (round OP1, audit AU1 R17): started at the first change.
+    journal: Option<Journal>,
+    /// The project's tile folder (round OP1: brush strokes), its recent tiles in memory.
+    tiles: DirStore,
+}
+
+/// Where the document's level files come from (round OP1): the scene as loaded (static group files, the height field)
+/// and the project's tile folder.
+struct DocSources<'a> {
+    base: &'a Scene,
+    terrain: Option<&'a Target>,
+    tiles: &'a DirStore,
+}
+
+impl Sources for DocSources<'_> {
+    fn file(&self, target: &Target) -> Option<Vec<u8>> {
+        base_file(self.base, target)
+    }
+
+    fn raster(&self, target: &Target) -> Option<Raster> {
+        if Some(target) != self.terrain {
+            return None;
+        }
+        let hf = self.base.heightfield.as_ref()?;
+        Some(Raster::from_samples(hf.size, hf.size, &hf.raw))
+    }
+
+    fn tile(&self, sha1: &str) -> Option<Vec<u8>> {
+        self.tiles.get(sha1)
+    }
 }
 
 /// A blueprint's path (lower case, as the scene keeps it) from its reference (`objects/x/x/<guid>`).
@@ -231,7 +264,10 @@ impl Doc {
             filtered: std::collections::HashSet::new(),
             disk: None,
             lock: None,
+            journal: None,
+            tiles: DirStore::of(Path::new("")),
         };
+        d.tiles = DirStore::of(&d.path);
         d.disk = bc2_levelwrite::project::disk_stamp(&d.path);
         d.rebuild();
         d
@@ -377,9 +413,13 @@ impl Doc {
             cache.borrow_mut().insert(key, b.clone());
             b
         };
-        // the level's other files are read from the scene as loaded (round OP1)
-        let base = &self.base;
-        let sources = |t: &Target| base_file(base, t);
+        // the level's other files are read from the scene as loaded, a stroke's tiles from beside the project (OP1)
+        let terrain = self.terrain_target();
+        let sources = DocSources {
+            base: &self.base,
+            terrain: terrain.as_ref(),
+            tiles: &self.tiles,
+        };
         let applied = self
             .files
             .apply(o, &self.schema, &mut Applied::default(), &donors, &sources);
@@ -696,7 +736,9 @@ impl Doc {
             self.apply(&o);
         }
         self.org = self.project.organisation();
-        self.changed();
+        if let Some(op) = self.project.operations.last().cloned() {
+            self.changed(&[Entry::Amend { op }]);
+        }
         true
     }
 
@@ -709,9 +751,16 @@ impl Doc {
     /// Adds an operation (applied to the scene and the partition at once, autosaved); its number.
     pub fn commit(&mut self, op: Op, label: &str) -> u64 {
         // a base file edited for the first time is recorded with its sha1 (round OP1: its base-changed check)
+        let mut entries = Vec::new();
         for t in op.files() {
-            if let Some(b) = base_file(&self.base, &t) {
-                self.project.note_file(&t, &b);
+            if let (Some(b), Some(key)) = (base_file(&self.base, &t), t.base_key())
+                && self.project.note_file(&t, &b)
+                && let Some(file) = self.project.base.files.get(&key)
+            {
+                entries.push(Entry::BaseFile {
+                    key,
+                    file: file.clone(),
+                });
             }
         }
         let n = self.project.push(op, label);
@@ -719,15 +768,104 @@ impl Doc {
             self.apply(&o);
             let len = self.project.operations.len();
             self.checkpoint_after(len, &o);
+            // the organisation follows the new operation (round OP1, audit AU1 R17: not the whole log again)
+            self.org.apply(&o.op);
+            entries.push(Entry::Push { op: o });
         }
-        self.org = self.project.organisation();
-        self.changed();
+        self.changed(&entries);
         n
     }
 
-    fn changed(&mut self) {
+    /// The project changed: unsaved, and the change appended to the autosave journal (started with the project as it
+    /// is now at the first change since the last save, compacted when it grows long).
+    fn changed(&mut self, entries: &[Entry]) {
         self.saved = false;
-        self.autosave_error = self.project.autosave(&self.path).err().map(|e| e.to_string());
+        let written = match self.journal.as_mut() {
+            Some(j) => entries.iter().try_for_each(|e| j.append(e)).and_then(|()| {
+                if j.needs_compaction() {
+                    j.compact(&self.project)
+                } else {
+                    Ok(())
+                }
+            }),
+            None => Journal::start(&bc2_levelwrite::project::autosave_path(&self.path), &self.project)
+                .map(|j| self.journal = Some(j)),
+        };
+        self.autosave_error = written.err().map(|e| {
+            // a journal that failed is started afresh (whole) at the next change
+            self.journal = None;
+            format!("The autosave was not written: {e}")
+        });
+    }
+
+    /// The autosave journal, while one is being written (round OP1).
+    #[must_use]
+    pub fn journal(&self) -> Option<&Journal> {
+        self.journal.as_ref()
+    }
+
+    /// The height field's target (round OP1): the level's main height field by its terrain reference (`heightfield`
+    /// when the partition names none), `None` when the scene read no height field.
+    #[must_use]
+    pub fn terrain_target(&self) -> Option<Target> {
+        self.base.heightfield.as_ref()?;
+        let file = self
+            .files
+            .partition
+            .as_ref()
+            .and_then(bc2_levelwrite::export::heightfield_name)
+            .unwrap_or_else(|| "heightfield".into());
+        Some(Target::Terrain { file })
+    }
+
+    /// A raster as the log leaves it (round OP1): a height field's stored values, a paint layer's weights; `None`
+    /// before the first stroke on a paint layer, or for a height field the scene did not read.
+    #[must_use]
+    pub fn raster(&self, target: &Target) -> Option<Raster> {
+        if let Some(r) = self.files.rasters.get(target) {
+            return Some(r.clone());
+        }
+        let terrain = self.terrain_target();
+        DocSources {
+            base: &self.base,
+            terrain: terrain.as_ref(),
+            tiles: &self.tiles,
+        }
+        .raster(target)
+    }
+
+    /// A brush stroke (round OP1, for E5's brushes): the raster `target` as `after` holds it, from the raster as the
+    /// log leaves it (a paint layer starts at 0, `after`'s size). Only the tiles that changed are kept, beside the
+    /// project; the log's operation names them. `None` when nothing changed.
+    ///
+    /// # Errors
+    /// No such raster, another size, or a tile not written.
+    pub fn stroke(&mut self, target: &Target, after: &Raster, label: &str) -> Result<Option<u64>, String> {
+        let before = match (self.raster(target), target) {
+            (Some(r), _) => r,
+            (None, Target::Paint { .. }) => Raster::new(after.width(), after.height(), 0),
+            (None, other) => return Err(format!("{} is not in this level", other.describe())),
+        };
+        let tiles = bc2_levelwrite::delta::stroke(&before, after, &self.tiles).map_err(|e| e.to_string())?;
+        if tiles.is_empty() {
+            return Ok(None);
+        }
+        let n = self.commit(
+            Op::Stroke {
+                target: target.clone(),
+                size: [after.width(), after.height()],
+                tiles,
+            },
+            label,
+        );
+        // applied: the raster takes `after`'s tiles (the same samples), so the brush's next copy shares them and the
+        // next stroke compares only the tiles it touches
+        if let Some(r) = self.files.rasters.get_mut(target)
+            && r == after
+        {
+            *r = after.clone();
+        }
+        Ok(Some(n))
     }
 
     /// Undoes the last operation; `false` when there is none.
@@ -736,7 +874,7 @@ impl Doc {
             return false;
         }
         self.restore();
-        self.changed();
+        self.changed(&[Entry::Undo]);
         true
     }
 
@@ -746,7 +884,7 @@ impl Doc {
             return false;
         }
         self.restore();
-        self.changed();
+        self.changed(&[Entry::Redo]);
         true
     }
 
@@ -755,7 +893,7 @@ impl Doc {
         if applied != self.project.operations.len() {
             self.project.go_to(applied);
             self.restore();
-            self.changed();
+            self.changed(&[Entry::GoTo { applied }]);
         }
     }
 
@@ -764,6 +902,11 @@ impl Doc {
     /// # Errors
     /// The file cannot be written.
     pub fn save(&mut self) -> Result<(), String> {
+        // the journal is closed first: the save removes its file (a failed save leaves it; the next change starts a
+        // whole one)
+        if let Some(mut j) = self.journal.take() {
+            let _ = j.sync();
+        }
         self.disk = self
             .project
             .save_checked(&self.path, self.disk)

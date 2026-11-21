@@ -4,9 +4,10 @@
 //! (operations whose target is gone are named, never dropped). The file is data only: guids, transforms, values and
 //! names; no game content (section 6, ruling 2).
 //!
-//! Crash recovery: every change is written at once to `<name>.mapedit.json.autosave` beside the project; a clean
-//! save removes it. A project opened with an autosave that differs from it offers to recover it
-//! ([`MapProject::recover`]).
+//! Crash recovery: every change is written at once to `<name>.mapedit.json.autosave` beside the project, since round
+//! OP1 as an append-only journal of the changes ([`crate::journal`]); a clean save removes it. A project opened with
+//! an autosave that differs from it offers to recover it ([`MapProject::recover`]; an autosave of the whole project,
+//! as editors before OP1 wrote it, still reads).
 
 use std::path::{Path, PathBuf};
 
@@ -868,20 +869,32 @@ impl MapProject {
         Self::from_json(&std::fs::read_to_string(path)?)
     }
 
-    /// Writes the autosave beside the project file (after every change).
+    /// Writes the autosave beside the project file: a journal holding the project as it is now (the editor appends
+    /// its changes to it: [`crate::journal::Journal`]).
     ///
     /// # Errors
     /// The file cannot be written.
     pub fn autosave(&self, path: &Path) -> Result<(), ProjectError> {
-        write_whole(&autosave_path(path), &self.to_json()?)?;
+        drop(crate::journal::Journal::start(&autosave_path(path), self)?);
         Ok(())
+    }
+
+    /// The project an autosave holds: a journal up to its last good line, or (written before round OP1) the whole
+    /// project's JSON. `None` when it does not read.
+    #[must_use]
+    pub fn read_autosave(path: &Path) -> Option<Self> {
+        let bytes = std::fs::read(autosave_path(path)).ok()?;
+        if bytes.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'{') {
+            return Self::from_json(std::str::from_utf8(&bytes).ok()?).ok();
+        }
+        crate::journal::replay(&bytes).project
     }
 
     /// The autosave of the project at `path`, when there is one that reads and differs from the saved project (the
     /// editor stopped before a save): what to offer to recover.
     #[must_use]
     pub fn recover(path: &Path) -> Option<Self> {
-        let auto = Self::load(&autosave_path(path)).ok()?;
+        let auto = Self::read_autosave(path)?;
         match Self::load(path) {
             Ok(saved) if saved == auto => None,
             _ => Some(auto),
@@ -911,14 +924,37 @@ pub fn autosave_path(path: &Path) -> PathBuf {
 }
 
 fn write_whole(path: &Path, text: &str) -> std::io::Result<()> {
+    write_bytes(path, text.as_bytes())
+}
+
+/// Writes a file whole or not at all (round OP1, audit AU4 DS-20 / BUG-12): the bytes go to a temporary file beside
+/// it, flushed to the disk (`sync_all`, so a power cut cannot leave the new name on empty data), then moved over the
+/// file, the move tried again while another process holds the file for a moment ([`bc2_formats::atomic::replace`]:
+/// a virus scanner, a sync client). On any failure the temporary file is removed.
+///
+/// # Errors
+/// The folder cannot be made, or the file written or moved.
+pub fn write_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
     }
     let mut tmp = path.as_os_str().to_owned();
-    tmp.push(format!(".tmp-{}", std::process::id()));
+    let k = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    tmp.push(format!(".tmp-{}-{k}", std::process::id()));
     let tmp = PathBuf::from(tmp);
-    std::fs::write(&tmp, text)?;
-    std::fs::rename(&tmp, path)
+    let written = (|| {
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        bc2_formats::atomic::replace(&tmp, path)
+    })();
+    if written.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    written
 }
 
 #[cfg(test)]

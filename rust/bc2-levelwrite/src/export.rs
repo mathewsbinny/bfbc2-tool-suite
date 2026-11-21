@@ -805,7 +805,8 @@ fn heightfield(game: &Game, lv: &str, partition: &LevelWriter) -> Result<Option<
 
 /// The entry of a level's main height field (`terrains/sp_01/sp_01.heightfield-000.res`, lower case), from its
 /// `TerrainEntityData`'s terrain reference; `None` when it has none.
-fn heightfield_name(partition: &LevelWriter) -> Option<String> {
+#[must_use]
+pub fn heightfield_name(partition: &LevelWriter) -> Option<String> {
     let terrain = partition
         .d
         .of_type(b".TerrainEntityData")
@@ -1017,6 +1018,19 @@ pub fn build(
     }
     let base_w = LevelWriter::parse(&base_bytes)?;
     let schema = Schema::scan([&base_w.d]);
+    // round OP1: a stroke's raster (terrain, paint) is not written by the export yet (round E5): refused before the
+    // log is applied, in words
+    if let Some(t) = project.operations.iter().flat_map(|o| o.op.files()).find(|t| {
+        matches!(
+            t,
+            crate::files::Target::Terrain { .. } | crate::files::Target::Paint { .. }
+        )
+    }) {
+        return Err(err(format!(
+            "{} is edited by the project, and the export does not write it yet (round E5)",
+            t.describe()
+        )));
+    }
     // round OP1: the log's other files (static group files) read from the base's bundles when it names them
     let (edited_files, applied) = {
         let sources = |t: &crate::files::Target| base_level_file(game, &base_bundles, &base, t);

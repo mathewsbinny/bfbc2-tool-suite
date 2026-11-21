@@ -142,10 +142,21 @@ pub fn member_guid(instance: &str, item: usize) -> String {
 }
 
 /// The base bytes of the level's files besides its partition, read the first time an operation names one (the
-/// editor: from the scene as loaded; the export: from the base level's bundles).
+/// editor: from the scene as loaded; the export: from the base level's bundles), and the project's tile files.
 pub trait Sources {
     /// The file's bytes as the base level has it; `None`: the level has no such file.
     fn file(&self, target: &Target) -> Option<Vec<u8>>;
+    /// A raster's samples as the base level has them (a height field's stored values); `None`: none (a paint layer
+    /// starts at 0).
+    fn raster(&self, target: &Target) -> Option<crate::delta::Raster> {
+        let _ = target;
+        None
+    }
+    /// A stroke's tile file by its sha1 ([`crate::delta::TileStore`]).
+    fn tile(&self, sha1: &str) -> Option<Vec<u8>> {
+        let _ = sha1;
+        None
+    }
 }
 
 /// No files besides the partition (a project whose log edits the partition only, or a test).
@@ -171,6 +182,9 @@ pub struct LevelFiles {
     pub partition: Option<LevelWriter>,
     /// The static group files edited, by [`Target::group`]'s name.
     pub groups: BTreeMap<String, LevelWriter>,
+    /// The rasters strokes changed (height fields, paint layers), by target: their tiles shared with the
+    /// checkpoints that hold them ([`crate::delta::Raster`]).
+    pub rasters: BTreeMap<Target, crate::delta::Raster>,
 }
 
 impl LevelFiles {
@@ -180,6 +194,7 @@ impl LevelFiles {
         Self {
             partition,
             groups: BTreeMap::new(),
+            rasters: BTreeMap::new(),
         }
     }
 
@@ -199,6 +214,9 @@ impl LevelFiles {
         donors: &Donors<'_>,
         sources: &dyn Sources,
     ) -> Result<(), ApplyError> {
+        if let Op::Stroke { target, size, tiles } = &o.op {
+            return self.stroke(o, target, *size, tiles, out, sources);
+        }
         let Op::Files { edits } = &o.op else {
             if let Some(w) = self.partition.as_mut() {
                 apply_one_with(w, o, schema, out, donors)?;
@@ -266,15 +284,64 @@ impl LevelFiles {
         Ok(())
     }
 
-    /// The files besides the partition as the log leaves them: their bytes by target.
+    /// A stroke applied to its raster (taken from the sources, or made at `size` for a paint layer, the first time):
+    /// every tile checked first, nothing written unless all are the ones it was made on.
+    fn stroke(
+        &mut self,
+        o: &Operation,
+        target: &Target,
+        size: [u32; 2],
+        tiles: &[crate::delta::TileDelta],
+        out: &mut Applied,
+        sources: &dyn Sources,
+    ) -> Result<(), ApplyError> {
+        let fail = |error: LevelWriteError| ApplyError {
+            n: o.n,
+            name: o.name(),
+            error,
+        };
+        let raster = match self.rasters.entry(target.clone()) {
+            std::collections::btree_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::btree_map::Entry::Vacant(e) => {
+                let r = match (sources.raster(target), target) {
+                    (Some(r), _) => r,
+                    (None, Target::Paint { .. }) => crate::delta::Raster::new(size[0], size[1], 0),
+                    (None, other) => return Err(fail(LevelWriteError::NoFile(other.describe()))),
+                };
+                e.insert(r)
+            }
+        };
+        if [raster.width(), raster.height()] != size {
+            return Err(fail(LevelWriteError::Refused(format!(
+                "the stroke was made on {} x {} samples; {} has {} x {}",
+                size[0],
+                size[1],
+                target.describe(),
+                raster.width(),
+                raster.height()
+            ))));
+        }
+        crate::delta::apply_stroke(raster, tiles, &|s| sources.tile(s), true).map_err(fail)?;
+        out.operations += 1;
+        out.files += tiles.len();
+        Ok(())
+    }
+
+    /// The files besides the partition as the log leaves them: their bytes by target (a raster's samples as
+    /// little-endian `u16`s, row by row).
     ///
     /// # Errors
     /// A file that does not write.
     pub fn edited(&self) -> Result<BTreeMap<Target, Vec<u8>>, LevelWriteError> {
-        self.groups
+        let mut out: BTreeMap<Target, Vec<u8>> = self
+            .groups
             .iter()
             .map(|(f, w)| Ok((Target::Group { file: f.clone() }, w.write()?)))
-            .collect()
+            .collect::<Result<_, LevelWriteError>>()?;
+        for (t, r) in &self.rasters {
+            out.insert(t.clone(), r.samples().iter().flat_map(|s| s.to_le_bytes()).collect());
+        }
+        Ok(out)
     }
 }
 
@@ -564,5 +631,90 @@ pub(crate) mod tests {
         let x = apply_files(&base, &old, &schema, &|_| None, &NoSources).unwrap();
         assert_eq!(x.partition, crate::write::apply(&base, &old, &schema).unwrap());
         assert!(x.files.is_empty());
+    }
+
+    /// Round OP1 part B: strokes on a height field (from the sources) and a paint layer (made by its first stroke),
+    /// their tiles in a store; a stroke on another raster or one applied twice is refused, nothing written.
+    #[test]
+    fn strokes_apply_from_their_tiles() {
+        use crate::delta::{MemStore, Raster, TileStore as _, stroke};
+        struct Src {
+            store: MemStore,
+            terrain: Raster,
+        }
+        impl Sources for Src {
+            fn file(&self, _: &Target) -> Option<Vec<u8>> {
+                None
+            }
+            fn raster(&self, t: &Target) -> Option<Raster> {
+                matches!(t, Target::Terrain { .. }).then(|| self.terrain.clone())
+            }
+            fn tile(&self, sha1: &str) -> Option<Vec<u8>> {
+                self.store.get(sha1)
+            }
+        }
+        let src = Src {
+            store: MemStore::default(),
+            terrain: Raster::new(200, 200, 1000),
+        };
+        let terrain = Target::Terrain {
+            file: "terrains/t/t.heightfield-000.res".into(),
+        };
+        let paint = Target::Paint { layer: "grass".into() };
+        let mut hill = src.terrain.clone();
+        for x in 60..70 {
+            hill.set(x, 10, 2000);
+        }
+        let mut grass = Raster::new(200, 200, 0);
+        grass.set(199, 199, 255);
+        let ops = [
+            op(
+                1,
+                Op::Stroke {
+                    target: terrain.clone(),
+                    size: [200, 200],
+                    tiles: stroke(&src.terrain, &hill, &src.store).unwrap(),
+                },
+            ),
+            op(
+                2,
+                Op::Stroke {
+                    target: paint.clone(),
+                    size: [200, 200],
+                    tiles: stroke(&Raster::new(200, 200, 0), &grass, &src.store).unwrap(),
+                },
+            ),
+        ];
+        assert_eq!(
+            ops[0].name(),
+            "Stroke on the height field terrains/t/t.heightfield-000.res: 2 tiles"
+        );
+        assert_eq!(ops[0].op.files(), std::slice::from_ref(&terrain));
+        let schema = Schema::default();
+        let mut files = LevelFiles::default();
+        let mut out = Applied::default();
+        for o in &ops {
+            files.apply(o, &schema, &mut out, &|_| None, &src).unwrap();
+        }
+        assert_eq!((out.operations, out.files), (2, 3));
+        assert_eq!(files.rasters[&terrain], hill);
+        assert_eq!(files.rasters[&paint], grass);
+        // again: the tiles are no longer the ones the strokes were made on
+        let before = files.clone();
+        let e = files.apply(&ops[0], &schema, &mut out, &|_| None, &src).unwrap_err();
+        assert!(e.to_string().contains("is not the one the stroke was made on"), "{e}");
+        assert_eq!(files.rasters, before.rasters);
+        // a stroke made for another size
+        let mut wrong = ops[1].clone();
+        if let Op::Stroke { size, .. } = &mut wrong.op {
+            *size = [256, 256];
+        }
+        assert!(files.apply(&wrong, &schema, &mut out, &|_| None, &src).is_err());
+        // a height field the level does not have
+        let mut none = LevelFiles::default();
+        let e = none
+            .apply(&ops[0], &schema, &mut out, &|_| None, &NoSources)
+            .unwrap_err();
+        assert!(e.to_string().contains("is not among the level's files"), "{e}");
     }
 }
