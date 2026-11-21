@@ -10,7 +10,7 @@ are merged and versions released: `RELEASING.md`.
 
 1. Install Python 3.12 or newer (`pyproject.toml` targets 3.12: bf1943-import uses its f-string syntax), then the
    libraries the tools use:
-   `python -m pip install -r requirements.txt` (numpy, matplotlib, moderngl, glfw, imgui-bundle, pillow, pefile and
+   `python -m pip install -r requirements.txt` (numpy, matplotlib, pillow, pefile and
    capstone for the crash reader's code view, maturin, ruff and mypy, pinned to the versions CI uses).
 2. Get the suite's Rust core and its command-line binary: in a command prompt in this folder,
    `python rust\build_native.py --download`. It fetches the prebuilt module (`core\bfbc2core\bc2_native.pyd`: nearly
@@ -43,9 +43,8 @@ see "The 3D tools and your GPU" below.
 Every tool keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` (one file per tool and day, a big day split
 into numbered parts, each tool's 20 newest days kept within size caps: README "Caches"): what it did, warnings, and every error with its full details. When a tool crashes, a window says what
 happened, the likely cause and what to do - for example "a Python library the tool needs is not installed
-(imgui_bundle) - pip install imgui-bundle", "the 3D view could not start OpenGL 3.3 - update the graphics driver",
-"the level is not prepared", "a file could not be written - close the game" - and where the log is. In the 3D
-tools an error in one panel does not close the window: it is listed in a Problems window and logged once. The
+(PIL) - pip install pillow", "the level is not prepared", "a file could not be written - close the game" - and
+where the log is. The
 suite window checks the libraries when it opens, and when a tool it runs fails it shows that tool's last lines.
 The command-line tools - `bfbc2.exe` and the Python command lines it ports (FbrbTool `fbrbtool.py`, DbxEdit
 `dbxedit.py`, NavKit's `navkit.py` and `tools\*.py`, the crash reader, the console readers, the menu tools, the test

@@ -1,5 +1,5 @@
-"""BFBC2 Tool Suite - one window for every tool (double-click to start; needs Python 3 with numpy, and for the 3D
-tools moderngl, glfw and imgui-bundle).
+"""BFBC2 Tool Suite - one window for every tool (double-click to start; needs Python 3 with numpy; the 3D tools are
+the Rust map editor, bin\\bfbc2-editor.exe).
 
 Tabs: Levels (open a level in the map editor, or its navigation there), Bundles (FbrbTool), Level diff
 (bfbc2.exe leveldiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
@@ -26,9 +26,8 @@ import bfbc2core  # noqa: E402
 from bfbc2core import appicon, errors, native  # noqa: E402
 
 # library -> what needs it (checked when the window opens)
-LIBRARIES = [('numpy', 'every tool'), ('matplotlib', 'NavKit, screenshots'), ('moderngl', 'the 3D tools'),
-             ('glfw', 'the 3D tools'), ('imgui_bundle', 'the 3D tools'), ('pefile', 'the crash reader\'s code view'),
-             ('capstone', 'the crash reader\'s code view')]
+LIBRARIES = [('numpy', 'every tool'), ('matplotlib', 'NavKit, screenshots'),
+             ('pefile', 'the crash reader\'s code view'), ('capstone', 'the crash reader\'s code view')]
 PYTHON = os.path.join(os.path.dirname(sys.executable), 'python.exe')        # console python for the tools
 if not os.path.isfile(PYTHON):
     PYTHON = sys.executable

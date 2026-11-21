@@ -1,7 +1,7 @@
 r"""The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 7 tabs and the
 game copy's levels; FbrbTool lists a bundle, bfbc2.exe leveldiff compares a level with itself, the crash reader reads a
-report built here, the test runner lists a tier - each through its tab's button, its output in the pane; and
-the 3D tools' level picker lists the levels. Needs a display and Project OPFOR BFBC2's game copy.
+report built here, the test runner lists a tier - each through its tab's button, its output in the pane. Needs a
+display and Project OPFOR BFBC2's game copy. (The Python 3D tools' level picker, pick.py, was retired in round RT3.)
 
   python tests\test_hub.py [--shots <folder>]       --shots: a screenshot of every tab (for a look)
 """
@@ -134,11 +134,6 @@ def main(argv: list[str]) -> int:
 
     check(not hasattr(hub, 'open_3d') and hasattr(hub, 'open_navigation'),
           'Levels: the navigation opens in the map editor (the Navigation Studio was retired in round GR2)')
-
-    from bfbc2core import pick
-    items = pick.levels()
-    check(len(items) == len(levels) and any(lv == 'sp_01' and 'prepared' in s for lv, s in items),
-          'the 3D tools\' level picker lists the same levels')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 

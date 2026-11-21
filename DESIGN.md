@@ -140,7 +140,8 @@ can always say where something comes from.
   through the `bc2_native` module; the map editor is Rust (egui on wgpu, Direct3D 11 for its game-accurate view),
   and `bfbc2.exe` runs the command lines (README.md, "The Rust core", "bfbc2.exe").
 - `moderngl` with `glfw` and Dear ImGui (`imgui-bundle`) were the Python 3D tools' view and panels (`core/viewer.py`);
-  since the Navigation Studio's retirement (round GR2) no tool uses them.
+  since the Navigation Studio's retirement (round GR2) no tool used them, and round RT3 retired `viewer.py` and
+  dropped them from `requirements.txt`.
 - `numpy`.
 
 NavKit's Python code (reader, writer, sector build, checks) is used directly. That is the main reason for
