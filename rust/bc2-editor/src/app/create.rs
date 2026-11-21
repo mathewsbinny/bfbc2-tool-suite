@@ -157,7 +157,7 @@ impl EditorApp {
         let f = &mut self.heightmap;
         let checked = f.refresh();
         let colour = f.refresh_colour();
-        let folder = &mut self.new_folder;
+        let folder = &mut self.new_project.new_folder;
         let mut buttons = Vec::new();
         super::editui::card(ui, p, m, (column - 2.0 * m.space_3 - 2.0).max(200.0), &mut |ui| {
             let grid = |ui: &mut egui::Ui, id: &str, add: &mut dyn FnMut(&mut egui::Ui)| {
@@ -314,7 +314,8 @@ impl EditorApp {
             });
         });
         let create = buttons.iter().any(|(l, _)| l == "clicked:Create project");
-        self.start_buttons
+        self.start_ui
+            .start_buttons
             .extend(buttons.into_iter().filter(|(l, _)| !l.starts_with("clicked:")));
         if create {
             self.create_from_heightmap();
@@ -325,7 +326,7 @@ impl EditorApp {
     pub fn create_from_heightmap(&mut self) {
         let f = &self.heightmap;
         let (hm, colour) = (unquoted(&f.path), unquoted(&f.colour));
-        let folder = PathBuf::from(self.new_folder.trim());
+        let folder = PathBuf::from(self.new_project.new_folder.trim());
         let r = heightmap::Request {
             name: &f.name,
             folder: &folder,
@@ -346,7 +347,7 @@ impl EditorApp {
 
     /// A height-map project's page: what it records, and that the terrain comes later.
     pub(super) fn import_page(&mut self, ui: &mut egui::Ui, p: &Palette, m: &Metrics, column: f32) {
-        let Some((path, project)) = self.import_shown.clone() else {
+        let Some((path, project)) = self.start_ui.import_shown.clone() else {
             self.go(StartPage::Home);
             return;
         };
@@ -417,7 +418,7 @@ impl EditorApp {
         });
         ui.add_space(m.space_4);
         let b = ui.add(egui::Button::new("Back to the start").min_size(Vec2::new(0.0, m.control)));
-        self.start_buttons.push(("Back to the start".into(), b.rect));
+        self.start_ui.start_buttons.push(("Back to the start".into(), b.rect));
         if b.clicked() {
             self.go(StartPage::Home);
         }

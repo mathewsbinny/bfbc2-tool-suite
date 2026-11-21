@@ -62,6 +62,11 @@ landed on `main`.
   level being prepared with what follows (`Mode::Preparing { job, then }`), the new project's era and mode carried by
   its Create (`Then::Create(name, folder, target)`), the install script's run (`InstallRun`), a navkit job's end, and
   the game-accurate view (`GameSlot`: off, loading, ready).
+- **The editor's two god objects split** (round OP1, audit AU1 D9 / AU4 CQ-7): `ViewState` went from 74 fields to 45
+  (eight focused parts: `browser`, `menus`, `outline`, `measures`, `inspect`, `props`, `pointer`, `game_view`) and
+  `EditorApp` from 37 to 22 (`command`, `new_project`, `start_ui`, `catalog_state`). Behaviour unchanged: the editor's
+  tests pass and seven screenshots of the main views (start screen dark, light, WW2; the demo level dark, light, with
+  a selection, the navigation view) are byte for byte the same before and after.
 - **Project format 6** (round OP1). A project records the sha1 of each level file it edits besides the partition
   (`base.files`) and `min_reader`, the lowest editor version that reads it (the newest operation kind in its log);
   a newer file is read when its `min_reader` allows. Projects of versions 1 - 5 load and are migrated as they load;

@@ -197,16 +197,16 @@ fn mode_view_layer_hides_by_mode_and_rush_stage() {
     assert!(app.view().unwrap().mode_view.hidden.is_empty());
     // the game-accurate view leaves the hidden objects out
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
-    if app.view().unwrap().game.is_none() {
+    if app.view().unwrap().game_view.game.is_none() {
         println!("game view skipped: {}", app.view().unwrap().message);
         return;
     }
     h.settle(&mut app, 3);
-    let objects_all = app.view().unwrap().game.as_ref().unwrap().object_count();
+    let objects_all = app.view().unwrap().game_view.game.as_ref().unwrap().object_count();
     app.run_action(&gpu, &ctx, Action::SetRushStage(Some(0)));
     h.settle(&mut app, 3);
     let v = app.view().unwrap();
-    let g = v.game.as_ref().unwrap();
+    let g = v.game_view.game.as_ref().unwrap();
     let drawn_hidden = v
         .mode_view
         .hidden
@@ -375,7 +375,7 @@ fn weather_states_in_both_views() {
     assert!(night_tinted[2] > night_tinted[0], "and turns it blue");
     // the game-accurate view: every state drawn, measured
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
-    if app.view().unwrap().game.is_none() {
+    if app.view().unwrap().game_view.game.is_none() {
         println!("game view skipped: {}", app.view().unwrap().message);
         return;
     }
@@ -388,7 +388,7 @@ fn weather_states_in_both_views() {
     for k in 0..n {
         app.run_action(&gpu, &ctx, Action::SetWeatherState(k));
         h.settle(&mut app, 4);
-        let g = app.view().unwrap().game.as_ref().unwrap();
+        let g = app.view().unwrap().game_view.game.as_ref().unwrap();
         assert!(g.error.is_none(), "{:?}", g.error);
         assert_eq!(g.world().state_shown, Some(k));
         let m = view_mean(&mut h, &app, 1600);
@@ -436,7 +436,7 @@ fn weather_states_in_both_views() {
     // the level's own state, back
     app.run_action(&gpu, &ctx, Action::LevelWeather);
     assert_eq!(
-        app.view().unwrap().game.as_ref().unwrap().world().state_shown,
+        app.view().unwrap().game_view.game.as_ref().unwrap().world().state_shown,
         Some(own)
     );
 }
@@ -462,7 +462,7 @@ fn game_view_opens_on_the_spawn_switch() {
     let gpu = h.gpu.clone();
     let ctx = h.ctx.clone();
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
-    let Some(g) = app.view().unwrap().game.as_ref() else {
+    let Some(g) = app.view().unwrap().game_view.game.as_ref() else {
         println!("skipped: {}", app.view().unwrap().message);
         return;
     };

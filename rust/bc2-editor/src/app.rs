@@ -235,21 +235,8 @@ pub struct ViewState {
     pub space: Space,
     /// Snapping.
     pub snap: Snap,
-    drag: Option<Drag>,
-    box_from: Option<(Projection, Pos2)>,
-    /// The ruler's points (up to two).
-    pub ruler: Vec<V3>,
     /// The last edit or action, in words (the status bar).
     pub message: String,
-    /// The handle under the pointer.
-    hover: Option<Handle>,
-    folder_input: String,
-    /// A typed transform edit under way in the properties: the entity and its transform before it.
-    prop_from: Option<(usize, M)>,
-    /// The properties' surface placement for the primary object.
-    prop_place: Option<(usize, Placement)>,
-    /// A field being typed in the properties: the entity, the field, the text.
-    field_edit: Option<(usize, String, String)>,
     /// The views of the map, by projection (each opened once, each with its own camera).
     pub viewports: HashMap<Projection, Viewport>,
     search: String,
@@ -260,14 +247,8 @@ pub struct ViewState {
     reveal: bool,
     /// Labels at spawns, flags and objectives.
     pub labels: bool,
-    /// The surface point under the last click (the status bar's read-out).
-    pub last_hit: Option<query::Hit>,
     /// Which faction each team is (the labels), from the level's data.
     pub teams: Teams,
-    /// The 3D view draws the level as the game does (round R5: [`crate::gameview`]).
-    pub game_accurate: bool,
-    /// The game-accurate view's level, read on a worker when the mode is first turned on (round OP1).
-    pub game: crate::gameview::GameSlot,
     /// The level's render meshes being read for the simplified view (round SV1), until they arrive.
     visuals_rx: Option<Receiver<Result<bc2_render::simple::Simple, bc2_render::RenderError>>>,
     // ---- round E2b
@@ -286,65 +267,12 @@ pub struct ViewState {
     pub bases: Vec<PathBuf>,
     /// Project OPFOR BFBC2's folder.
     root: Option<PathBuf>,
-    /// The content browser's catalogue (a project open).
-    pub content: Option<crate::content::Catalogue>,
-    content_query: String,
-    /// The content browser's chosen entry (its blueprint path).
-    pub content_pick: Option<String>,
-    /// An object being placed.
-    pub placing: Option<Placing>,
-    /// The sink popup.
-    pub sink: Option<SinkPopup>,
     /// The "Place object here..." picker.
     pub picker: Option<tools::Picker>,
-    /// The last right-click's target.
-    pub context: Option<ContextTarget>,
-    /// The point a context menu entry acts at (taken once).
-    menu_point: Option<V3>,
-    /// The ray under the pointer in the view it is over (last frame).
-    pointer_ray: Option<(V3, V3)>,
-    /// The polygon selection's corners (screen) and the view they are drawn in.
-    pub polygon: Vec<Pos2>,
-    polygon_view: Option<Projection>,
-    /// Enter was pressed: the polygon closes.
-    polygon_close: bool,
     /// The objects Copy remembered (guids).
     pub clipboard: Vec<String>,
     /// Actions asked for by menus and panels, run by the app after the frame's panels.
     pub pending: Vec<Action>,
-    /// The last context menu's entries on screen: (label, rectangle, enabled) - the tests click them.
-    pub menu_rects: Vec<(String, Rect, bool)>,
-    /// Which menu that was.
-    pub menu_kind: Option<MenuKind>,
-    /// The content browser's tiles on screen: (blueprint path, rectangle) - the tests drag them.
-    pub content_rects: Vec<(String, Rect)>,
-    /// An entry that could not be placed (not read again while it is dragged).
-    place_failed: Option<String>,
-    /// Rendered thumbnails loaded from the cache, by blueprint path (`None`: none there).
-    thumbs: HashMap<String, Option<egui::TextureHandle>>,
-    /// The asset browser's mode: Place Objects, Spawners, Objectives.
-    pub browser_mode: crate::gameplay::BrowserMode,
-    /// The team placed spawns, flags and vehicle spawners take (1, 2; 0 neutral).
-    pub place_team: u8,
-    /// The Spawners and Objectives tiles, with what they were made from (the log's and the catalogue's sizes).
-    tiles: Option<((usize, usize), Vec<crate::gameplay::Tile>)>,
-    // ---- round GR1: the Map Inspector's views
-    /// The links are drawn in the 3D view (the selection's references and event connections).
-    pub show_links: bool,
-    /// The partitions read for the property tree and the links, and the project revision they were read at.
-    inspection: Option<(u64, crate::inspect::Inspection)>,
-    /// The selected entity's property tree (entity, revision, the tree or why it could not be read).
-    fields_tree: Option<(usize, u64, Result<Vec<crate::inspect::PropNode>, EditorError>)>,
-    /// The objects a link was followed from, the latest last (Links' Back).
-    pub link_back: Vec<usize>,
-    /// The Links panel's rows on screen: (the entity a row leads to, its rectangle) - the tests click them.
-    pub link_rects: Vec<(usize, Rect)>,
-    /// All fields' container headers on screen: (field path by name, rectangle) - the tests open them.
-    pub field_rects: Vec<(String, Rect)>,
-    /// Measuring (M): clicks add points to [`ViewState::measure`] instead of selecting.
-    pub measuring: bool,
-    /// The measured path's points.
-    pub measure: Vec<V3>,
     // ---- round VW1
     /// The level's overlays (effects, lights, sounds, gameplay areas), read when the look is first applied.
     pub overlays: Option<crate::overlays::Overlays>,
@@ -362,6 +290,144 @@ pub struct ViewState {
     pub preview: crate::preview::Preview,
     /// The preview's picture on screen and the Meshes mode's search.
     pub preview_shown: PreviewShown,
+    /// The content browser and Place Objects (rounds E2b, E4b, GR3). Round OP1: split out of `ViewState`.
+    pub browser: BrowserState,
+    /// The context menu and the pointer over the views. Round OP1: split out of `ViewState`.
+    pub menus: MenuState,
+    /// An outline (polygon) being drawn in a view. Round OP1: split out of `ViewState`.
+    pub outline: OutlineDraw,
+    /// The ruler and the measuring tool. Round OP1: split out of `ViewState`.
+    pub measures: Measures,
+    /// The Inspector: the property tree, its links and their rows (round GR1).
+    /// Round OP1: split out of `ViewState`.
+    pub inspect: InspectState,
+    /// What is being typed in the Properties panel. Round OP1: split out of `ViewState`.
+    pub props: PropsInput,
+    /// The pointer in the views: a drag, a box selection, the handle under it, the last hit.
+    /// Round OP1: split out of `ViewState`.
+    pub pointer: PointerState,
+    /// The game-accurate view (round R5): on or off, and its level. Round OP1: split out of `ViewState`.
+    pub game_view: GameViewUi,
+}
+
+/// The content browser and Place Objects (rounds E2b, E4b, GR3).
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct BrowserState {
+    /// The content browser's catalogue (a project open).
+    pub content: Option<crate::content::Catalogue>,
+    content_query: String,
+    /// The content browser's chosen entry (its blueprint path).
+    pub content_pick: Option<String>,
+    /// The content browser's tiles on screen: (blueprint path, rectangle) - the tests drag them.
+    pub content_rects: Vec<(String, Rect)>,
+    /// Rendered thumbnails loaded from the cache, by blueprint path (`None`: none there).
+    thumbs: HashMap<String, Option<egui::TextureHandle>>,
+    /// The asset browser's mode: Place Objects, Spawners, Objectives.
+    pub browser_mode: crate::gameplay::BrowserMode,
+    /// The team placed spawns, flags and vehicle spawners take (1, 2; 0 neutral).
+    pub place_team: u8,
+    /// The Spawners and Objectives tiles, with what they were made from (the log's and the catalogue's sizes).
+    tiles: Option<((usize, usize), Vec<crate::gameplay::Tile>)>,
+    /// An entry that could not be placed (not read again while it is dragged).
+    place_failed: Option<String>,
+    /// An object being placed.
+    pub placing: Option<Placing>,
+    /// The sink popup.
+    pub sink: Option<SinkPopup>,
+}
+
+/// The context menu and the pointer over the views.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct MenuState {
+    /// The last right-click's target.
+    pub context: Option<ContextTarget>,
+    /// The point a context menu entry acts at (taken once).
+    menu_point: Option<V3>,
+    /// The last context menu's entries on screen: (label, rectangle, enabled) - the tests click them.
+    pub menu_rects: Vec<(String, Rect, bool)>,
+    /// Which menu that was.
+    pub menu_kind: Option<MenuKind>,
+    /// The ray under the pointer in the view it is over (last frame).
+    pointer_ray: Option<(V3, V3)>,
+}
+
+/// An outline (polygon) being drawn in a view.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct OutlineDraw {
+    /// The polygon selection's corners (screen) and the view they are drawn in.
+    pub polygon: Vec<Pos2>,
+    polygon_view: Option<Projection>,
+    /// Enter was pressed: the polygon closes.
+    polygon_close: bool,
+}
+
+/// The ruler and the measuring tool.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct Measures {
+    /// The ruler's points (up to two).
+    pub ruler: Vec<V3>,
+    /// Measuring (M): clicks add points to [`ViewState::measure`] instead of selecting.
+    pub measuring: bool,
+    /// The measured path's points.
+    pub measure: Vec<V3>,
+}
+
+/// The Inspector: the property tree, its links and their rows (round GR1).
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct InspectState {
+    /// The partitions read for the property tree and the links, and the project revision they were read at.
+    inspection: Option<(u64, crate::inspect::Inspection)>,
+    /// The selected entity's property tree (entity, revision, the tree or why it could not be read).
+    fields_tree: Option<(usize, u64, Result<Vec<crate::inspect::PropNode>, EditorError>)>,
+    /// The objects a link was followed from, the latest last (Links' Back).
+    pub link_back: Vec<usize>,
+    /// The Links panel's rows on screen: (the entity a row leads to, its rectangle) - the tests click them.
+    pub link_rects: Vec<(usize, Rect)>,
+    /// All fields' container headers on screen: (field path by name, rectangle) - the tests open them.
+    pub field_rects: Vec<(String, Rect)>,
+    // ---- round GR1: the Map Inspector's views
+    /// The links are drawn in the 3D view (the selection's references and event connections).
+    pub show_links: bool,
+}
+
+/// What is being typed in the Properties panel.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct PropsInput {
+    folder_input: String,
+    /// A typed transform edit under way in the properties: the entity and its transform before it.
+    prop_from: Option<(usize, M)>,
+    /// The properties' surface placement for the primary object.
+    prop_place: Option<(usize, Placement)>,
+    /// A field being typed in the properties: the entity, the field, the text.
+    field_edit: Option<(usize, String, String)>,
+}
+
+/// The pointer in the views: a drag, a box selection, the handle under it, the last hit.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct PointerState {
+    drag: Option<Drag>,
+    box_from: Option<(Projection, Pos2)>,
+    /// The handle under the pointer.
+    hover: Option<Handle>,
+    /// The surface point under the last click (the status bar's read-out).
+    pub last_hit: Option<query::Hit>,
+}
+
+/// The game-accurate view (round R5): on or off, and its level.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
+pub struct GameViewUi {
+    /// The 3D view draws the level as the game does (round R5: [`crate::gameview`]).
+    pub game_accurate: bool,
+    /// The game-accurate view's level, read on a worker when the mode is first turned on (round OP1).
+    pub game: crate::gameview::GameSlot,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -485,7 +551,6 @@ pub struct EditorApp {
     applied: Option<ThemeId>,
     opfor: Result<PathBuf, EditorError>,
     levels: Vec<LevelInfo>,
-    level_filter: String,
     dock: DockState<Tab>,
     mode: Mode,
     error: Option<String>,
@@ -493,46 +558,12 @@ pub struct EditorApp {
     /// How the simplified view shows each level's objects (the open level's is its view's until it closes).
     displays: HashMap<String, crate::display::Display>,
     renderer: Option<render::Renderer>,
-    /// The command palette: open, its query, the highlighted row.
-    palette_open: bool,
-    palette_query: String,
-    palette_row: usize,
     /// The Help window.
     pub help: HelpState,
-    /// "New map from an existing map": the base level, the name, the folder.
-    new_level: Option<String>,
-    new_name: String,
-    new_folder: String,
-    /// The new project form's target (round E3d): the era (`None`: the base's own, its layer kept) and the mode.
-    new_target: (Option<bc2_levelwrite::Profile>, String),
-    /// The game copy's multiplayer modes per era, read once (round E3d: the target pickers list them).
-    era_modes: Option<Result<EraModes, EditorError>>,
-    /// The target the next created project takes (set by the form's button).
-    /// "Open a project": the path typed.
-    open_path: String,
-    recent: Vec<PathBuf>,
     /// An autosave to offer before a project opens: the project file and the autosave.
     recover: Option<(PathBuf, Box<MapProject>)>,
-    /// What to do with a level being prepared once it is loaded.
-    /// The start screen's page (round G4; never remembered: every start opens on the three paths).
-    start: StartPage,
     /// "Create level - from a height map": the form.
     pub heightmap: HeightmapForm,
-    /// A height-map project shown on the start screen (it has no level to open until E7): its file and project.
-    import_shown: Option<(PathBuf, Box<MapProject>)>,
-    /// The start screen's buttons drawn this frame, by label (the tests click them).
-    start_buttons: Vec<(String, Rect)>,
-    /// The top bar's buttons' width as last drawn (the room left for the map's name).
-    top_right: std::cell::Cell<f32>,
-    /// The top bar as last drawn: the right edge of the map's badge and name, the left edge of the buttons.
-    top_spans: std::cell::Cell<[f32; 2]>,
-    /// "Open project": the project files found in the projects folder (read when the page opens).
-    found_projects: Vec<PathBuf>,
-    /// The start screen's pictures, thumbnails and modes from the game copy, and the thread reading them.
-    catalog: Option<Catalog>,
-    catalog_rx: Option<Receiver<Catalog>>,
-    /// The catalog's pictures made into textures, by key.
-    pictures: HashMap<String, egui::TextureHandle>,
     /// The Export window (round E3: `export_ui`).
     pub export: crate::export_ui::ExportWindow,
     /// The export's preview (round EX1): the side not shown, the project kept aside.
@@ -544,6 +575,76 @@ pub struct EditorApp {
     /// Closing the window or the map, as asked (round OP1: one state for DF1's `close_asked` and `close_anyway`,
     /// and the question about unsaved edits).
     closing: Closing,
+    /// The command palette: open, its query, the highlighted row. Round OP1: split out of `EditorApp`.
+    pub command: CommandPalette,
+    /// The new-project form: its level, name, folder and target, the eras' modes.
+    /// Round OP1: split out of `EditorApp`.
+    pub new_project: NewProjectForm,
+    /// The start screen: its page, filter, the recent and found projects, its layout.
+    /// Round OP1: split out of `EditorApp`.
+    pub start_ui: StartScreen,
+    /// The start screen's catalogue (pictures, thumbnails, modes) and its worker.
+    /// Round OP1: split out of `EditorApp`.
+    pub catalog_state: CatalogState,
+}
+
+/// The command palette: open, its query, the highlighted row.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `EditorApp` was split into.
+pub struct CommandPalette {
+    /// The command palette: open, its query, the highlighted row.
+    open: bool,
+    query: String,
+    row: usize,
+}
+
+/// The new-project form: its level, name, folder and target, the eras' modes.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `EditorApp` was split into.
+pub struct NewProjectForm {
+    /// "New map from an existing map": the base level, the name, the folder.
+    new_level: Option<String>,
+    new_name: String,
+    new_folder: String,
+    /// The new project form's target (round E3d): the era (`None`: the base's own, its layer kept) and the mode.
+    new_target: (Option<bc2_levelwrite::Profile>, String),
+    /// The game copy's multiplayer modes per era, read once (round E3d: the target pickers list them).
+    era_modes: Option<Result<EraModes, EditorError>>,
+}
+
+/// The start screen: its page, filter, the recent and found projects, its layout.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `EditorApp` was split into.
+pub struct StartScreen {
+    level_filter: String,
+    /// The target the next created project takes (set by the form's button).
+    /// "Open a project": the path typed.
+    open_path: String,
+    recent: Vec<PathBuf>,
+    /// What to do with a level being prepared once it is loaded.
+    /// The start screen's page (round G4; never remembered: every start opens on the three paths).
+    start: StartPage,
+    /// The start screen's buttons drawn this frame, by label (the tests click them).
+    start_buttons: Vec<(String, Rect)>,
+    /// The top bar's buttons' width as last drawn (the room left for the map's name).
+    top_right: std::cell::Cell<f32>,
+    /// The top bar as last drawn: the right edge of the map's badge and name, the left edge of the buttons.
+    top_spans: std::cell::Cell<[f32; 2]>,
+    /// "Open project": the project files found in the projects folder (read when the page opens).
+    found_projects: Vec<PathBuf>,
+    /// A height-map project shown on the start screen (it has no level to open until E7): its file and project.
+    import_shown: Option<(PathBuf, Box<MapProject>)>,
+}
+
+/// The start screen's catalogue (pictures, thumbnails, modes) and its worker.
+///
+/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `EditorApp` was split into.
+pub struct CatalogState {
+    /// The start screen's pictures, thumbnails and modes from the game copy, and the thread reading them.
+    catalog: Option<Catalog>,
+    catalog_rx: Option<Receiver<Catalog>>,
+    /// The catalog's pictures made into textures, by key.
+    pictures: HashMap<String, egui::TextureHandle>,
 }
 
 /// What a close closes.
@@ -636,39 +737,47 @@ impl EditorApp {
             applied: None,
             opfor,
             levels,
-            level_filter: String::new(),
             dock,
             mode: Mode::Start,
             error: None,
             bookmarks,
             displays,
             renderer: None,
-            palette_open: false,
-            palette_query: String::new(),
-            palette_row: 0,
             help: HelpState::default(),
-            new_level: None,
-            new_name: String::new(),
-            new_folder: folder.unwrap_or_else(default_project_folder).display().to_string(),
-            new_target: (None, "conquest".into()),
-            era_modes: None,
-            open_path: String::new(),
-            recent,
             recover: None,
-            start: StartPage::Home,
             heightmap: HeightmapForm::default(),
-            import_shown: None,
-            start_buttons: Vec::new(),
-            top_right: std::cell::Cell::new(640.0),
-            top_spans: std::cell::Cell::new([0.0, 0.0]),
-            found_projects: Vec::new(),
-            catalog: None,
-            catalog_rx,
-            pictures: HashMap::new(),
             export: crate::export_ui::ExportWindow::default(),
             preview: diffui::PreviewState::None,
             generation: 0,
             closing: Closing::No,
+            command: CommandPalette {
+                open: false,
+                query: String::new(),
+                row: 0,
+            },
+            new_project: NewProjectForm {
+                new_level: None,
+                new_name: String::new(),
+                new_folder: folder.unwrap_or_else(default_project_folder).display().to_string(),
+                new_target: (None, "conquest".into()),
+                era_modes: None,
+            },
+            start_ui: StartScreen {
+                level_filter: String::new(),
+                open_path: String::new(),
+                recent,
+                start: StartPage::Home,
+                start_buttons: Vec::new(),
+                top_right: std::cell::Cell::new(640.0),
+                top_spans: std::cell::Cell::new([0.0, 0.0]),
+                found_projects: Vec::new(),
+                import_shown: None,
+            },
+            catalog_state: CatalogState {
+                catalog: None,
+                catalog_rx,
+                pictures: HashMap::new(),
+            },
         })
     }
 
@@ -834,27 +943,27 @@ impl EditorApp {
     #[must_use]
     pub fn catalog(&mut self) -> Option<&Catalog> {
         self.poll_catalog();
-        self.catalog.as_ref()
+        self.catalog_state.catalog.as_ref()
     }
 
     /// Waits for the catalog (headless runs, screenshots), at most `limit`.
     pub fn wait_for_catalog(&mut self, limit: std::time::Duration) {
         let start = Instant::now();
-        while self.catalog_rx.is_some() && start.elapsed() < limit {
+        while self.catalog_state.catalog_rx.is_some() && start.elapsed() < limit {
             self.poll_catalog();
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
     }
 
     fn poll_catalog(&mut self) {
-        if let Some(rx) = &self.catalog_rx {
+        if let Some(rx) = &self.catalog_state.catalog_rx {
             match rx.try_recv() {
                 Ok(c) => {
-                    self.catalog = Some(c);
-                    self.catalog_rx = None;
-                    self.pictures.clear();
+                    self.catalog_state.catalog = Some(c);
+                    self.catalog_state.catalog_rx = None;
+                    self.catalog_state.pictures.clear();
                 }
-                Err(TryRecvError::Disconnected) => self.catalog_rx = None,
+                Err(TryRecvError::Disconnected) => self.catalog_state.catalog_rx = None,
                 Err(TryRecvError::Empty) => {}
             }
         }
@@ -963,7 +1072,7 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             Action::SetWorkspace(w) if w.edits() && doc.is_none() => {
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }
-            Action::SelectAllOfType if !(selected || v.is_some_and(|v| v.content_pick.is_some())) => {
+            Action::SelectAllOfType if !(selected || v.is_some_and(|v| v.browser.content_pick.is_some())) => {
                 Some("Select an object or a content browser entry first")
             }
             Action::ShowPanel(PanelKind::Content) if doc.is_none() => {
@@ -1128,9 +1237,9 @@ impl EditorApp {
                 }
             }
             Action::CommandPalette => {
-                self.palette_open = true;
-                self.palette_query.clear();
-                self.palette_row = 0;
+                self.command.open = true;
+                self.command.query.clear();
+                self.command.row = 0;
             }
             Action::ResetLayout => self.dock = default_layout(),
             Action::ToggleTheme => {
@@ -1159,14 +1268,14 @@ impl EditorApp {
             }
             Action::ToggleLinks => {
                 if let Mode::View(v) = &mut self.mode {
-                    v.show_links = !v.show_links;
+                    v.inspect.show_links = !v.inspect.show_links;
                 }
             }
             Action::ToggleMeasure => {
                 if let Mode::View(v) = &mut self.mode {
-                    v.measuring = !v.measuring;
-                    v.measure.clear();
-                    v.message = if v.measuring {
+                    v.measures.measuring = !v.measures.measuring;
+                    v.measures.measure.clear();
+                    v.message = if v.measures.measuring {
                         "Measuring: click points on the terrain or objects (M ends it)".to_owned()
                     } else {
                         String::new()
@@ -1175,10 +1284,10 @@ impl EditorApp {
             }
             Action::ToggleGameView => {
                 if let (Mode::View(v), Ok(root)) = (&mut self.mode, &self.opfor) {
-                    v.game_accurate = !v.game_accurate;
-                    if v.game_accurate && matches!(v.game, crate::gameview::GameSlot::Off) {
+                    v.game_view.game_accurate = !v.game_view.game_accurate;
+                    if v.game_view.game_accurate && matches!(v.game_view.game, crate::gameview::GameSlot::Off) {
                         // round OP1 (AU4 CQ-6's other half): read on a worker; the window keeps drawing meanwhile
-                        v.game = crate::gameview::GameSlot::Loading(crate::gameview::GameLoad::start(
+                        v.game_view.game = crate::gameview::GameSlot::Loading(crate::gameview::GameLoad::start(
                             root,
                             &v.lv,
                             v.scene(),
@@ -1231,8 +1340,8 @@ impl EditorApp {
             theme: self.theme,
             dock: self.dock.clone(),
             bookmarks: self.bookmarks.clone(),
-            recent: self.recent.clone(),
-            project_folder: Some(PathBuf::from(&self.new_folder)),
+            recent: self.start_ui.recent.clone(),
+            project_folder: Some(PathBuf::from(&self.new_project.new_folder)),
             displays: {
                 let mut d = self.displays.clone();
                 if let Mode::View(v) = &self.mode {
@@ -1248,7 +1357,7 @@ impl EditorApp {
     /// (round G4: the first is never past the second).
     #[must_use]
     pub fn top_bar_spans(&self) -> [f32; 2] {
-        self.top_spans.get()
+        self.start_ui.top_spans.get()
     }
 
     /// Keeps the open level's display settings (round SV1) for when it is opened again.
@@ -1415,8 +1524,8 @@ impl EditorApp {
                 // a new level from a height map: no level to open until its terrain is generated (round E7)
                 self.error = None;
                 self.remember(path);
-                self.import_shown = Some((path.to_owned(), Box::new(p)));
-                self.start = StartPage::ImportProject;
+                self.start_ui.import_shown = Some((path.to_owned(), Box::new(p)));
+                self.start_ui.start = StartPage::ImportProject;
             }
             Ok(p) => {
                 if let Some(auto) = MapProject::recover(path) {
@@ -1460,15 +1569,15 @@ impl EditorApp {
     }
 
     fn remember(&mut self, path: &Path) {
-        self.recent.retain(|p| !same_file(p, path));
-        self.recent.insert(0, path.to_owned());
-        self.recent.truncate(10);
+        self.start_ui.recent.retain(|p| !same_file(p, path));
+        self.start_ui.recent.insert(0, path.to_owned());
+        self.start_ui.recent.truncate(10);
     }
 
     /// The recent projects, the latest first.
     #[must_use]
     pub fn recent(&self) -> &[PathBuf] {
-        &self.recent
+        &self.start_ui.recent
     }
 
     /// Shows a loaded level as a new project generation ([`EditorApp::next_generation`]); a target chosen in the
@@ -1646,25 +1755,14 @@ impl EditorApp {
             tool: Tool::Move,
             space: Space::World,
             snap: Snap::default(),
-            drag: None,
-            box_from: None,
-            ruler: Vec::new(),
             message: String::new(),
-            hover: None,
-            folder_input: String::new(),
-            prop_from: None,
-            prop_place: None,
-            field_edit: None,
             viewports: HashMap::from([(Projection::Perspective, Viewport::new(camera))]),
             search: String::new(),
             notes,
             load_seconds: secs,
             reveal: false,
             labels: true,
-            game_accurate: false,
-            game: crate::gameview::GameSlot::Off,
             visuals_rx,
-            last_hit: None,
             filter: None,
             view_mode: crate::workspace::ViewMode::Lit,
             mode_note: String::new(),
@@ -1672,43 +1770,70 @@ impl EditorApp {
             cull: None,
             bases,
             root: self.opfor.clone().ok(),
-            content,
-            content_query: String::new(),
-            content_pick: None,
-            placing: None,
-            sink: None,
             picker: None,
-            context: None,
-            menu_point: None,
-            pointer_ray: None,
-            polygon: Vec::new(),
-            polygon_view: None,
-            polygon_close: false,
             clipboard: Vec::new(),
             pending: Vec::new(),
-            menu_rects: Vec::new(),
-            menu_kind: None,
-            content_rects: Vec::new(),
-            place_failed: None,
-            thumbs: HashMap::new(),
-            browser_mode: crate::gameplay::BrowserMode::PlaceObjects,
             preview: crate::preview::Preview::default(),
             preview_shown: PreviewShown::default(),
-            place_team: 1,
-            tiles: None,
-            show_links: true,
-            inspection: None,
-            fields_tree: None,
-            link_back: Vec::new(),
-            link_rects: Vec::new(),
-            field_rects: Vec::new(),
-            measuring: false,
-            measure: Vec::new(),
             overlays: None,
             walk: None,
             diff: crate::compare::DiffState::default(),
             mode_view: crate::modeview::ModeView::default(),
             weather: None,
+            browser: BrowserState {
+                content,
+                content_query: String::new(),
+                content_pick: None,
+                content_rects: Vec::new(),
+                thumbs: HashMap::new(),
+                browser_mode: crate::gameplay::BrowserMode::PlaceObjects,
+                place_team: 1,
+                tiles: None,
+                place_failed: None,
+                placing: None,
+                sink: None,
+            },
+            menus: MenuState {
+                context: None,
+                menu_point: None,
+                menu_rects: Vec::new(),
+                menu_kind: None,
+                pointer_ray: None,
+            },
+            outline: OutlineDraw {
+                polygon: Vec::new(),
+                polygon_view: None,
+                polygon_close: false,
+            },
+            measures: Measures {
+                ruler: Vec::new(),
+                measuring: false,
+                measure: Vec::new(),
+            },
+            inspect: InspectState {
+                inspection: None,
+                fields_tree: None,
+                link_back: Vec::new(),
+                link_rects: Vec::new(),
+                field_rects: Vec::new(),
+                show_links: true,
+            },
+            props: PropsInput {
+                folder_input: String::new(),
+                prop_from: None,
+                prop_place: None,
+                field_edit: None,
+            },
+            pointer: PointerState {
+                drag: None,
+                box_from: None,
+                hover: None,
+                last_hit: None,
+            },
+            game_view: GameViewUi {
+                game_accurate: false,
+                game: crate::gameview::GameSlot::Off,
+            },
         };
         // the look (round VW1: the overlays the display's toggles turn on)
         v.apply_look(&palette);
@@ -1735,8 +1860,8 @@ impl EditorApp {
         self.run(gpu, ctx, action);
         // a headless run goes on with what the action loaded (the window polls the game view's worker instead)
         if let Mode::View(v) = &mut self.mode
-            && v.game.loading()
-            && let crate::gameview::GameSlot::Loading(load) = std::mem::take(&mut v.game)
+            && v.game_view.game.loading()
+            && let crate::gameview::GameSlot::Loading(load) = std::mem::take(&mut v.game_view.game)
         {
             v.game_loaded(load.wait());
         }
@@ -1818,12 +1943,12 @@ impl EditorApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         self.poll_catalog();
-        if self.catalog_rx.is_some() {
+        if self.catalog_state.catalog_rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         self.shortcuts(gpu, &ctx);
         let palette = self.palette();
-        if self.palette_open {
+        if self.command.open {
             self.command_palette(gpu, &ctx, &palette);
         }
         if self.recover.is_some() {
@@ -1834,9 +1959,9 @@ impl EditorApp {
         if let Mode::View(v) = &mut self.mode {
             v.nav_poll(gpu, &palette);
             // round OP1: the game-accurate view's worker
-            if let crate::gameview::GameSlot::Loading(load) = &v.game {
+            if let crate::gameview::GameSlot::Loading(load) = &v.game_view.game {
                 if let Some(r) = load.poll() {
-                    v.game = crate::gameview::GameSlot::Off;
+                    v.game_view.game = crate::gameview::GameSlot::Off;
                     v.game_loaded(r);
                     v.redraw();
                 } else {
@@ -2011,7 +2136,7 @@ impl EditorApp {
     /// The registry's shortcuts, while no text field has the keyboard (the palette's keys are its own).
     fn shortcuts(&mut self, gpu: &GpuCtx, ctx: &egui::Context) {
         // no shortcuts while typing, or while flying (W A S D Q E fly with the right button held)
-        if self.palette_open
+        if self.command.open
             || self.recover.is_some()
             || ctx.memory(|m| m.focused().is_some())
             || ctx.input(|i| i.pointer.secondary_down())
@@ -2033,8 +2158,8 @@ impl EditorApp {
                 }
                 return;
             }
-            if v.polygon.len() >= 3 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
-                v.polygon_close = true;
+            if v.outline.polygon.len() >= 3 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
+                v.outline.polygon_close = true;
             }
         }
         let redo2 = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), Key::Z);
@@ -2211,7 +2336,7 @@ impl EditorApp {
 
     /// The command palette: type to find an action, Up / Down to choose, Enter to run, Esc to close.
     fn command_palette(&mut self, gpu: &GpuCtx, ctx: &egui::Context, p: &Palette) {
-        let hits = actions::search(&self.palette_query);
+        let hits = actions::search(&self.command.query);
         let (up, down, enter, escape) = ctx.input_mut(|i| {
             (
                 i.consume_key(egui::Modifiers::NONE, Key::ArrowUp),
@@ -2221,14 +2346,14 @@ impl EditorApp {
             )
         });
         if down {
-            self.palette_row = (self.palette_row + 1).min(hits.len().saturating_sub(1));
+            self.command.row = (self.command.row + 1).min(hits.len().saturating_sub(1));
         }
         if up {
-            self.palette_row = self.palette_row.saturating_sub(1);
+            self.command.row = self.command.row.saturating_sub(1);
         }
-        self.palette_row = self.palette_row.min(hits.len().saturating_sub(1));
+        self.command.row = self.command.row.min(hits.len().saturating_sub(1));
         let mut chosen = if enter {
-            hits.get(self.palette_row).map(|e| e.action)
+            hits.get(self.command.row).map(|e| e.action)
         } else {
             None
         };
@@ -2244,19 +2369,19 @@ impl EditorApp {
             .show(ctx, |ui| {
                 ui.set_width(width);
                 let edit = ui.add(
-                    egui::TextEdit::singleline(&mut self.palette_query)
+                    egui::TextEdit::singleline(&mut self.command.query)
                         .hint_text(RichText::new("Type a command").color(p.ink_faint))
                         .desired_width(f32::INFINITY),
                 );
                 edit.request_focus();
                 if edit.changed() {
-                    self.palette_row = 0;
+                    self.command.row = 0;
                 }
                 ui.add_space(4.0);
                 for (k, e) in hits.iter().enumerate() {
                     let why = self.why_not(e.action);
                     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 26.0), Sense::click());
-                    if k == self.palette_row {
+                    if k == self.command.row {
                         ui.painter().rect_filled(rect, CornerRadius::same(2), p.accent_subtle);
                     } else if resp.hovered() {
                         ui.painter().rect_filled(rect, CornerRadius::same(2), p.surface_3);
@@ -2290,10 +2415,10 @@ impl EditorApp {
                 }
             });
         if escape || modal.should_close() {
-            self.palette_open = false;
+            self.command.open = false;
         }
         if let Some(a) = chosen {
-            self.palette_open = false;
+            self.command.open = false;
             if a != Action::CommandPalette {
                 self.run(gpu, ctx, a);
             }
@@ -2302,15 +2427,15 @@ impl EditorApp {
 
     /// Opens the command palette with a query (tests).
     pub fn open_palette(&mut self, query: &str) {
-        self.palette_open = true;
-        query.clone_into(&mut self.palette_query);
-        self.palette_row = 0;
+        self.command.open = true;
+        query.clone_into(&mut self.command.query);
+        self.command.row = 0;
     }
 
     /// Whether the command palette is open.
     #[must_use]
     pub fn palette_is_open(&self) -> bool {
-        self.palette_open
+        self.command.open
     }
 
     /// The top bar; what its buttons and its Help menu ask for.
@@ -2368,7 +2493,7 @@ impl EditorApp {
                             ),
                             None => (profile_of(&v.lv), v.scene().name.clone(), "read-only".to_owned()),
                         };
-                        let room = (ui.available_width() - self.top_right.get() - m.space_4).max(0.0);
+                        let room = (ui.available_width() - self.start_ui.top_right.get() - m.space_4).max(0.0);
                         let h = ui.available_height();
                         let info = ui.allocate_ui_with_layout(
                             Vec2::new(room, h),
@@ -2390,8 +2515,8 @@ impl EditorApp {
                                 );
                             },
                         );
-                        let s = self.top_spans.get();
-                        self.top_spans.set([info.response.rect.right(), s[1]]);
+                        let s = self.start_ui.top_spans.get();
+                        self.start_ui.top_spans.set([info.response.rect.right(), s[1]]);
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         // right to left: Help last on screen, then the theme
@@ -2424,7 +2549,7 @@ impl EditorApp {
                             buttons.push((Action::CloseMap, "Close map"));
                             buttons.push((
                                 Action::ToggleGameView,
-                                if v.game_accurate {
+                                if v.game_view.game_accurate {
                                     "Editor view"
                                 } else {
                                     "Game-accurate"
@@ -2464,9 +2589,9 @@ impl EditorApp {
                                 }
                             }
                         }
-                        self.top_right.set(ui.min_rect().width());
-                        let s = self.top_spans.get();
-                        self.top_spans.set([s[0], ui.min_rect().left()]);
+                        self.start_ui.top_right.set(ui.min_rect().width());
+                        let s = self.start_ui.top_spans.get();
+                        self.start_ui.top_spans.set([s[0], ui.min_rect().left()]);
                     });
                 });
             });
@@ -2508,7 +2633,7 @@ impl EditorApp {
                             if v.selection.len() > 1 {
                                 ui.label(small(format!("{} selected", v.selection.len())));
                             }
-                            if let Some(h) = &v.last_hit {
+                            if let Some(h) = &v.pointer.last_hit {
                                 let what = match h.entity.and_then(|k| v.scene().entities.get(k)) {
                                     Some(e) => model::display_name(e),
                                     None => "terrain".into(),
@@ -2867,11 +2992,11 @@ impl ViewState {
                 {
                     self.message = format!("{} (weather state {k}: {e})", self.message);
                 }
-                self.game = crate::gameview::GameSlot::Ready(Box::new(g));
+                self.game_view.game = crate::gameview::GameSlot::Ready(Box::new(g));
             }
             Err(e) => {
                 self.message = format!("Game-accurate view: {e}");
-                self.game_accurate = false;
+                self.game_view.game_accurate = false;
             }
         }
     }
@@ -3256,8 +3381,8 @@ impl Tabs<'_> {
             // round DF1 (audit AU4-BUG-15): a pick that fails there picks nothing (never the hidden simplified view's
             // object), and says why
             if projection == Projection::Perspective
-                && self.view.game_accurate
-                && let Some(g) = self.view.game.as_mut()
+                && self.view.game_view.game_accurate
+                && let Some(g) = self.view.game_view.game.as_mut()
             {
                 let (picked, why) = game_pick(g.pick([at.x.max(0.0) as u32, at.y.max(0.0) as u32], px));
                 id = picked;
@@ -3290,12 +3415,12 @@ impl Tabs<'_> {
             };
             let marker = self.nav_marker_at(rect, &vp.camera, pos);
             let palette = self.palette;
-            if !self.view.measuring && self.view.nav_click(self.gpu, &palette, nav_point, marker) {
+            if !self.view.measures.measuring && self.view.nav_click(self.gpu, &palette, nav_point, marker) {
                 // the navigation's
-            } else if self.view.measuring {
+            } else if self.view.measures.measuring {
                 // measuring: the click adds the surface point under it, the selection stays
                 if let Some(h) = hit {
-                    self.view.measure.push(h.point);
+                    self.view.measures.measure.push(h.point);
                 }
             } else if editing {
                 let ctrl = ui.input(|i| i.modifiers.command || i.modifiers.shift);
@@ -3303,7 +3428,7 @@ impl Tabs<'_> {
             } else {
                 self.view.select(self.gpu, render::id_entity(id), true);
             }
-            self.view.last_hit = hit;
+            self.view.pointer.last_hit = hit;
             if resp.double_clicked() {
                 self.view.focus_selected();
                 if let Some(e) = self.view.selected.and_then(|k| self.view.scene().entities.get(k))
@@ -3330,9 +3455,10 @@ impl Tabs<'_> {
         }
         let v = &mut *self.view;
         let game = v
+            .game_view
             .game
             .as_mut()
-            .filter(|_| projection == Projection::Perspective && v.game_accurate);
+            .filter(|_| projection == Projection::Perspective && v.game_view.game_accurate);
         if let Some(g) = game {
             // the game frame follows the scene's edits and outlines the selection (round R5c)
             let scene = v.doc.as_ref().map_or(&v.base, |d| &d.scene);
@@ -3350,8 +3476,8 @@ impl Tabs<'_> {
             // round DF1 (audit AU4-BUG-9): a removed device is never drawn with again; the view is let go, so turning
             // it on again loads it on a new device
             if let Some(why) = g.lost().map(str::to_owned) {
-                v.game = crate::gameview::GameSlot::Off;
-                v.game_accurate = false;
+                v.game_view.game = crate::gameview::GameSlot::Off;
+                v.game_view.game_accurate = false;
                 v.message = format!("Game-accurate view turned off: {why}. Turn it on again to reload it.");
                 vp.dirty = true;
             }
@@ -3369,7 +3495,7 @@ impl Tabs<'_> {
         if self.view.gpu_scene.display.overlays.labels {
             self.overlay_labels(ui, rect, &vp.camera);
         }
-        if self.view.show_links {
+        if self.view.inspect.show_links {
             self.links_overlay(ui, rect, &vp.camera);
         }
         self.measure_overlay(ui, rect, &vp.camera);
@@ -3430,7 +3556,11 @@ impl Tabs<'_> {
         let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
         let from = if view.ortho.is_some() { cam.target } else { view.eye };
         // over the game frame, a label behind what it drew is left out (round R5d)
-        let game = v.game.as_ref().filter(|_| v.game_accurate && view.ortho.is_none());
+        let game = v
+            .game_view
+            .game
+            .as_ref()
+            .filter(|_| v.game_view.game_accurate && view.ortho.is_none());
         let mut items: Vec<(f64, &crate::overlays::Item, Pos2)> = o
             .items
             .iter()
@@ -3487,7 +3617,11 @@ impl Tabs<'_> {
         // the orthographic views have no near and far: distance from what they look at
         let from = if view.ortho.is_some() { cam.target } else { view.eye };
         // over the game frame, a label behind what it drew is left out, the selection's never (round R5d)
-        let game = v.game.as_ref().filter(|_| v.game_accurate && view.ortho.is_none());
+        let game = v
+            .game_view
+            .game
+            .as_ref()
+            .filter(|_| v.game_view.game_accurate && view.ortho.is_none());
         let mut items: Vec<(f64, usize, Pos2)> = Vec::new();
         for e in &v.scene().entities {
             if v.doc.as_ref().is_some_and(|d| !d.shown(e.index)) {

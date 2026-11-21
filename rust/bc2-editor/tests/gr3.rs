@@ -370,7 +370,7 @@ fn asset_preview_screenshots() {
     app.open_level_blocking_then(
         &gpu,
         "mp_005",
-        bc2_editor::app::Then::Create("Preview".into(), tmp.clone()),
+        bc2_editor::app::Then::Create("Preview".into(), tmp.clone(), None),
     )
     .unwrap();
     // MP_005 offers the campaign strip checklist on a new project: closed for the pictures
@@ -393,7 +393,7 @@ fn asset_preview_screenshots() {
         v.preview.bounds = true;
         v.preview.wireframe = true;
         v.preview.selected = Some((0, 0));
-        v.content_pick = Some("objects/buildings/guardtower/guardtower".into());
+        v.browser.content_pick = Some("objects/buildings/guardtower/guardtower".into());
     }
     app.run_action(&gpu, &ctx, Action::ShowPanel(PanelKind::Preview));
     for (theme, tag) in [(ThemeId::Dark, "dark"), (ThemeId::Light, "light")] {
@@ -415,7 +415,7 @@ fn asset_preview_screenshots() {
     // the Meshes mode: two rifles stacked, the mesh viewer's Side framing, the normal maps
     {
         let v = app.view_mut().unwrap();
-        v.browser_mode = bc2_editor::gameplay::BrowserMode::Meshes;
+        v.browser.browser_mode = bc2_editor::gameplay::BrowserMode::Meshes;
         v.preview_shown.mesh_query = "m1garand".into();
         v.preview.show(
             &root,

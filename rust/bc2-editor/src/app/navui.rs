@@ -874,8 +874,8 @@ impl ViewState {
                 if self.navs.path.active {
                     self.navs.tool = None;
                     self.navs.clicks.clear();
-                    self.measuring = false;
-                    if let Some(p) = self.menu_point.take() {
+                    self.measures.measuring = false;
+                    if let Some(p) = self.menus.menu_point.take() {
                         self.navs.path.points.clear();
                         self.navs.path_click(p);
                     }
@@ -890,9 +890,9 @@ impl ViewState {
                 self.navs.tool = if self.navs.tool == Some(t) { None } else { Some(t) };
                 self.navs.clicks.clear();
                 self.navs.path.active = false;
-                self.measuring = false;
+                self.measures.measuring = false;
                 // from the context menu: the point there is the first click
-                if let (Some(t), Some(p)) = (self.navs.tool, self.menu_point.take()) {
+                if let (Some(t), Some(p)) = (self.navs.tool, self.menus.menu_point.take()) {
                     self.navs.clicks.push(p);
                     self.nav_try_commit(gpu, palette, t, false);
                 }
@@ -1915,7 +1915,7 @@ impl Tabs<'_> {
             return;
         };
         let moved = ui.input(|i| i.pointer.delta() != Vec2::ZERO);
-        if moved && let Some((o, d)) = self.view.pointer_ray {
+        if moved && let Some((o, d)) = self.view.menus.pointer_ray {
             let at = self.view.nav_ray_point(o, d);
             self.view.navs.hover = at
                 .and_then(|p| self.view.navs.area_at(p))

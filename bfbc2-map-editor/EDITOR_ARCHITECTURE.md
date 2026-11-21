@@ -218,7 +218,9 @@ project's era and mode inside the Create that asked for it (`Then::Create(name, 
 leaves none behind), the install script's run (`InstallRun`), a navkit job's end (`nav::Job::running` /
 `outcome`) and the game-accurate view (`gameview::GameSlot`: off, loading on a worker, ready). Errors are typed
 (`error::EditorError`, `bc2_render::RenderError`) and the Problems panel's entries are `error::Problem`s (severity,
-code, operation, objects).
+code, operation, objects). The two state structs are split into focused parts (`ViewState`: `browser`, `menus`,
+`outline`, `measures`, `inspect`, `props`, `pointer`, `game_view`; `EditorApp`: `command`, `new_project`,
+`start_ui`, `catalog_state`); a new workspace or tool adds its own part rather than fields of `ViewState`.
 
 ### 3.7 Live validation in the GUI
 
