@@ -95,7 +95,7 @@ constants from the program's second parameter block by register (SHDB-PB-1). Tex
 (`heightmap`, `maskTileMap`, `DepthBuffer`, the shadow map, `outdoorLightReflectionEnvmap`) are named in the register
 tables (SHDB-REG-1).
 
-[code: rust/bc2-render/src/frame.rs:185-216] [test: rust/bc2-render/src/frame.rs::cbuffer_places_values_by_name_and_material_by_register]
+[code: rust/bc2-render/src/frame.rs:192-228] [test: rust/bc2-render/src/frame.rs::cbuffer_places_values_by_name_and_material_by_register]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:601-609]
 
 ### RNDR-DRAW-4: Engine values written over block placeholders
@@ -152,6 +152,27 @@ in OPFOR's port; Fill_Tree's `Vegetation_Lod1` exists nowhere).
 
 [exe: BFBC2Game.exe 0x8D59FB, null read in the client's mesh set-up]
 [doc: opfor:src/tools/ww2/wake_install.py:1244-1245] [doc: opfor:research/WW2_SUBSTITUTION_AUDIT.md:48]
+
+### RNDR-DRAW-8: A program's material registers are its block header's window
+
+Status: **verified** · Variants: PC, BF1943
+
+The material constants of a program's second parameter block go to the registers `[first, end)` its header gives
+(bytes 0x19 and 0x18, SHDB-PB-1), whatever the pixel shader calls them. On DICE's own programs the window is the
+shader's `constants` array: 1,840 programs on MP_005 and 1,790 on SP_01, every one whose shader has the array (the
+other 4 and 1 read none of their block constants, compiled out). OPFOR's WW2 levels hold two more kinds: terrain
+patch and road shaders that declare the block's constants one by one at the records' registers
+(`heightmapScaleAndOffsetXZ` ...), and the translated BF1943 water (`wake_water`, `guadal_canal_water`,
+`iwo_jima_water`, `cs_water`), whose material array is `waterMaterial` (`heightmapWorld*` and
+`g_depthScaleFactors`, RNDR-WATER-2). The view wrote the material only inside a variable named `constants` until round
+R5e, so the WW2 water never received its `g_depthScaleFactors` (RNDR-DRAW-4): its depth factors 0, its water depth 0,
+its alpha 0 everywhere (RNDR-WATER-3).
+
+[test: rust/bc2-render/tests/r5e.rs::block_windows_are_the_material_registers]
+[test: rust/bc2-render/src/frame.rs::a_shader_without_constants_takes_the_material_in_its_block_window]
+[test: rust/bc2-formats/src/shaderdb/query.rs::material_registers]
+[code: rust/bc2-render/src/frame.rs:181-228] [code: rust/bc2-formats/src/shaderdb/query.rs:151-162]
+[data: the six levels' Dx11 databases: every program with a `constants` array has the header window of its registers]
 
 ## 3. Order, depth and culling
 
@@ -302,6 +323,24 @@ suite's view until round R5d) the lagoon's water reads one corner sample and let
 
 [test: rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon] [code: rust/bc2-render/src/water.rs:168-190]
 [data: NAM_MP_005R's two water entries and Wake Island's `Wake_Water` bind `heightmap`; MP_005's water reads none]
+
+### RNDR-WATER-3: The WW2 water's alpha is its depth below the water, from the depth factors
+
+Status: **verified** · Variants: PC, BF1943
+
+OPFOR's WW2 water (BF1943's ocean colour programs translated, `wake_water.py`) writes its colour premultiplied by
+its alpha, and the alpha is `min(1, ((1 - n.v)^8 + smoothstep((t + 30) / 85)) x smoothstep(t / 5))`, with `t` the
+distance from the water to what lies behind it: the scene's view distance (`DepthBuffer`, RNDR-ORD-3) less the
+water's own, both through `g_depthScaleFactors` (`waterMaterial[3]`). With the factors written (RNDR-DRAW-8) the open
+sea is opaque deep blue past about 55 m of water, with the sun's highlight and the reflection cube
+(`Sky_Beach_Wake`); with them 0 both distances read 0, `t` is 0 and the water draws nothing anywhere: the suite's
+view until round R5e showed the black `Wake_Grey` floor (RNDR-TERR-3) to the horizon, and the green lagoon it showed
+after round R5d was the terrain's sea floor, not the water.
+
+[test: rust/bc2-render/tests/r5e.rs::the_ww2_open_sea_is_drawn]
+[code: rust/bc2-render/src/water.rs:193-226]
+[data: Wake Island 600 m out: 53.5 % near-black pixels before round R5e, 0.0 % after; a deep-sea pixel (0, 0, 0, 0) -> (0.034, 0.110, 0.220, 1.0) HDR; Guadalcanal and Iwo Jima 1,200 m out: 48.6 % and 56.7 % of the view darker than 40 / 255 -> 0.0 %]
+[data: the Wake water's pixel shader disassembled (`entry_probe`, `fxc /dumpbin`): `o0 = (colour x a, a)`; `t` from `texture_DepthBuffer` and `cb0[13]`]
 
 ## 6. Weather, light and sky
 
@@ -639,10 +678,11 @@ C++ harness draw every patch in full (`Options::exact`).
   terrain's own LOD (the view's is RNDR-VIEW-2), and when the game draws a group member with the instanced program
   (`StreamInstancingFloat`) rather than one draw per instance are open.
 - **Enlighten and the irradiance volumes**: `IrradianceVolume` is not decoded; how Enlighten's entries contribute.
-- **The open sea**: Wake Island's `VisualWater` does cover the sea (-4,236 .. 4,548 m at 215 m: the carriers stand
-  on it), but BF1943's water there writes alpha 0 over the black `Wake_Grey` floor (RNDR-TERR-5), so the deep sea
-  draws black until the haze over the scene is drawn; whether BF1943's own blend for its water differs from the PC
-  state `0x585` OPFOR's conversion keeps is not checked. `WaterOcean` is a slot no MP_005 range draws.
+- **The open sea** (settled by round R5e, RNDR-WATER-3): Wake Island's `VisualWater` covers the sea (-4,236 .. 4,548
+  m at 215 m); its alpha 0 was the view's unwritten `g_depthScaleFactors` (RNDR-DRAW-8), not BF1943's blend. Still
+  open: the game's water reflects a live environment cube (`outdoorLightReflectionEnvmap`; the view binds the level's
+  static one), the whitecaps the in-game picture shows at a distance, and thin bright seams along a few water
+  triangles' edges far out (Guadalcanal, Iwo Jima). `WaterOcean` is a slot no MP_005 range draws.
 - **0x98BD6E's console case**: why Isla Inocentes' road and stop signs crash when drawn (RNDR-DRAW-6), and whether
   the address is one check (no program for the layout) or several.
 - **Depth ties**: 0-16 far water pixels at MP_005's west shore changed between runs in every path (R5c). Round R5d

@@ -148,6 +148,19 @@ pub fn block_constants(block: &[u8], be: bool) -> Vec<Constant<'_>> {
         .collect()
 }
 
+/// A program block's material registers `[first, end)` (header bytes 0x19 and 0x18, FORMAT.md "Section 1"): where
+/// the shader reads the block's constants. On DICE's Direct3D 10 / 11 programs this is the shader's `constants` array
+/// (the `$Globals` offset / 16 to its end); OPFOR's translated BF1943 water names the same registers `waterMaterial`.
+/// `None` for a block shorter than its header or whose first register lies past its end.
+#[must_use]
+pub fn block_registers(block: &[u8]) -> Option<[u8; 2]> {
+    if block.len() < PARAM_HEADER {
+        return None;
+    }
+    let (end, first) = (*block.get(0x18)?, *block.get(0x19)?);
+    (first <= end).then_some([first, end])
+}
+
 /// The textures the engine binds itself, `(parameter name, sampler)` (`block_engine_textures`).
 #[must_use]
 pub fn block_engine_textures(block: &[u8], be: bool) -> Vec<(&[u8], u16)> {
@@ -657,6 +670,19 @@ mod tests {
             assert_eq!(block_textures(&b[..b.len() - 1], be), Vec::new());
             assert_eq!(block_constants(&b[..10], be), Vec::new());
         }
+    }
+
+    #[test]
+    fn material_registers() {
+        let mut b = block(false, &[], &[(b"g_depthScaleFactors", 13, 4, [0.0; 4])], &[]);
+        // Wake's water program: $Globals 14 registers, its material from register 10
+        (b[0x18], b[0x19]) = (14, 10);
+        assert_eq!(block_registers(&b), Some([10, 14]));
+        (b[0x18], b[0x19]) = (8, 8);
+        assert_eq!(block_registers(&b), Some([8, 8]));
+        (b[0x18], b[0x19]) = (3, 5);
+        assert_eq!(block_registers(&b), None);
+        assert_eq!(block_registers(&b[..0x1f]), None);
     }
 
     #[test]
