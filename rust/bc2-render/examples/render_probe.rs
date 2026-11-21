@@ -224,7 +224,10 @@ fn main() {
                 let _ = dev.read_depth().unwrap();
                 td.push(t0.elapsed().as_secs_f64() * 1e3);
             }
-            println!("  depth read back (the labels' test): {:.2} ms (median of 5)", med(&mut td));
+            println!(
+                "  depth read back (the labels' test): {:.2} ms (median of 5)",
+                med(&mut td)
+            );
             live.build(&cam, size, Options { cull: true, lod });
         }
         let t = Instant::now();
