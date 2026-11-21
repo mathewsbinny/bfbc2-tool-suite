@@ -276,7 +276,9 @@ or from the hub: Levels > "Open in Map Editor", or More tools > "Open Map Editor
 offscreen and saves it (`--demo` instead of a level: a small made-up scene). The editor keeps its layout, theme and
 bookmarks in eframe's per-user storage under `%APPDATA%`.
 
-Its tests (`python tests\test_editor.py`, quick tier) prove it headless: the theme generated from every token in both
+Its tests (the quick tier's workspace `cargo test`, `tests\test_rust.py`; `python tests\test_editor.py` runs them alone,
+one at a time; each crate's integration tests are one binary since round QW1: `--test editor`, a file's tests by its
+module, `g2::`) prove it headless: the theme generated from every token in both
 themes; the outliner against the retired Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004
 (recorded before its retirement by `rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
 view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
