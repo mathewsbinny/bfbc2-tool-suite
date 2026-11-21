@@ -245,6 +245,7 @@ fn stand_in_all_sets(root: &Path) {
 #[test]
 fn sets_from_the_data() {
     use bc2_editor::levels::ContentSet;
+    let _gate = crate::gate();
     let root = temp("sets");
     stand_in_all_sets(&root);
     let app = EditorApp::new(Some(&root), None).unwrap();
@@ -275,6 +276,7 @@ fn sets_from_the_data() {
 fn mode_cards_fall_back_to_the_tile() {
     use bc2_editor::catalog;
     use bc2_editor::levels::ContentSet;
+    let _gate = crate::gate();
     let root = temp("tiles");
     stand_in_all_sets(&root);
     // a loading screen that is not a texture: no picture
@@ -333,6 +335,7 @@ fn mode_cards_fall_back_to_the_tile() {
 fn card_art_on_the_real_game_copy() {
     use bc2_editor::catalog;
     use bc2_editor::levels::ContentSet;
+    let _gate = crate::gate();
     if std::env::var_os("BC2_EDITOR_G3_ART").is_none() {
         println!("skipped: set BC2_EDITOR_G3_ART=1 to read the cards' art from the real game copy");
         return;
@@ -372,6 +375,7 @@ fn card_art_on_the_real_game_copy() {
 
 #[test]
 fn stand_in_package_levels() {
+    let _gate = crate::gate();
     let root = temp("stand_in");
     stand_in(&root);
     let all = package::package_levels(&root);
@@ -493,6 +497,7 @@ fn junction(link: &Path, target: &Path) {
 
 #[test]
 fn real_package_levels() {
+    let _gate = crate::gate();
     let Some(which) = std::env::var_os("BC2_EDITOR_G3").map(|v| v.to_string_lossy().to_lowercase()) else {
         println!("skipped: set BC2_EDITOR_G3=all (or a comma list) to prepare and open the real Package levels");
         return;

@@ -65,10 +65,13 @@ EDITOR_BUILD = ['python', os.path.join('rust', 'build_native.py'), '--editor']  
 
 def editor_exe():
     """The map editor (rust\\bc2-editor, round G1): bin\\bfbc2-editor.exe (build_native.py --editor puts it there),
-    else this checkout's build folder (release, debug; native.find_binary)."""
-    exe = native.find_binary('bfbc2-editor')
+    else this checkout's build folder (release, debug), and a note when it is older than this checkout's Rust sources
+    (native.binary_status, round QW1: it still opens, the note says how to build it again): (exe, note)."""
+    status, exe, _ = native.binary_status('bfbc2-editor')
     if exe:
-        return exe
+        note = '' if status == 'ok' else (' - built from older Rust sources than this checkout has; build it again: '
+                                          + subprocess.list2cmdline(EDITOR_BUILD))
+        return exe, note
     raise RuntimeError('The map editor is not built yet. Build it once with Rust: in the suite\'s folder, run '
                        f'"{subprocess.list2cmdline(EDITOR_BUILD)}" (a few minutes the first time; README.md, '
                        '"The map editor").')
@@ -366,12 +369,12 @@ class Hub:
         if not lv:
             return
         try:
-            exe = editor_exe()
+            exe, note = editor_exe()
         except RuntimeError as e:
             messagebox.showinfo('BFBC2 Tool Suite', str(e))
             return
         self.launch([exe, lv, '--navmesh'], f'Map editor: {lv}, its navigation (the window opens at once, the level '
-                                             'loads in it)')
+                                             f'loads in it){note}')
 
     def open_editor(self, lv=None):
         """The Rust map editor on the chosen level (read-only; a project edits a copy), or on its start screen without
@@ -379,11 +382,11 @@ class Hub:
         if lv is None and self.tree.selection():
             lv = self.tree.selection()[0]
         try:
-            exe = editor_exe()
+            exe, note = editor_exe()
         except RuntimeError as e:
             messagebox.showinfo('BFBC2 Tool Suite', str(e))
             return
-        self.launch([exe] + ([lv] if lv else []), f'Map Editor{": " + lv if lv else ""}')
+        self.launch([exe] + ([lv] if lv else []), f'Map Editor{": " + lv if lv else ""}{note}')
 
     def prepare(self):
         lv = self.chosen_level()

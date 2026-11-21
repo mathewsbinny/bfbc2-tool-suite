@@ -59,12 +59,8 @@ jobs:
           shared-key: checks
           save-if: ${{ github.ref == 'refs/heads/main' }}   # branches read main's cache; only main writes it
 
-      - name: Python packages (the development PC's versions)
-        run: >-
-          python -m pip install --disable-pip-version-check
-          "maturin==1.16.0" "numpy==2.5.4" "pillow==12.3.0" "matplotlib==3.11.2" "pefile==2024.8.26"
-          "capstone==5.0.9" "glfw==2.11.0" "moderngl==5.13.0" "imgui-bundle==1.92.900"
-          "ruff==0.17.3" "mypy==2.4.1"
+      - name: Python packages (requirements.txt, the development PC's versions)
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
 
       - name: Build the module and bfbc2.exe
         run: |

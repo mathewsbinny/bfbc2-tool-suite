@@ -354,6 +354,7 @@ fn check_compare(want: &Value, c: &nav::Compare, navkit: Option<&NavData>) {
 
 #[test]
 fn navigation_as_the_studio_showed_it() {
+    let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;
