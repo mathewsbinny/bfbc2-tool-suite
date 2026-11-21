@@ -26,6 +26,7 @@ fn game_dir() -> Option<PathBuf> {
 }
 
 #[test]
+#[ignore = "game tier: a whole SP_01 export; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn sp_01_exports_as_a_new_conquest_level() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {

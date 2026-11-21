@@ -58,15 +58,20 @@ fn open(h: &mut Headless, lv: &str, saved: Option<Saved>) -> Option<EditorApp> {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     if let Err(e) = app.open_level_blocking(&gpu, lv) {
-        println!("{lv}: skipped, {e}");
+        assert!(
+            !crate::level_here(lv),
+            "{lv} is in this game copy but does not open: {e}"
+        );
+        println!("{lv}: skipped, not in this game copy ({e})");
         return None;
     }
     let v = app.view_mut().unwrap();
     v.labels = false;
-    if v.gpu_scene().visuals().is_none() {
-        println!("{lv}: skipped, the render meshes were not read: {:?}", v.notes.last());
-        return None;
-    }
+    assert!(
+        v.gpu_scene().visuals().is_some(),
+        "{lv}: the render meshes were not read: {:?}",
+        v.notes.last()
+    );
     h.settle(&mut app, 2);
     Some(app)
 }
@@ -125,6 +130,7 @@ fn game_indices(world: &bc2_render::world::World, entity_of: &[usize], k: usize)
 }
 
 #[test]
+#[ignore = "game tier: opens MP_005 and SP_01; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn the_simplified_view_draws_render_meshes() {
     let _gate = crate::gate();
     let Ok(opfor) = levels::find_opfor(None) else {

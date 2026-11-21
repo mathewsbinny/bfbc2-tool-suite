@@ -353,6 +353,7 @@ fn check_compare(want: &Value, c: &nav::Compare, navkit: Option<&NavData>) {
 }
 
 #[test]
+#[ignore = "game tier: five levels' navigation; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn navigation_as_the_studio_showed_it() {
     let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {

@@ -134,7 +134,8 @@ More tools > "Open Map Editor". Without a display,
 offscreen and saves it (`--demo` instead of a level: a small made-up scene). The editor keeps its layout, theme and
 bookmarks in eframe's per-user storage under `%APPDATA%`.
 
-Its tests (the quick tier's workspace `cargo test`, `tests\test_rust.py`; `python tests\test_editor.py` runs them alone,
+Its tests (the quick tier's Rust entries, `tests\test_rust.py`; the whole-level ones in the game tier since round TS1;
+`python tests\test_editor.py` runs them alone,
 one at a time; each crate's integration tests are one binary since round QW1: `--test editor`, a file's tests by its
 module, `g2::`) prove it headless: the theme generated from every token in both
 themes; the outliner against the retired Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004
@@ -540,8 +541,22 @@ areas, the tracing, the route graphs, the floods), `navdiff.area_cells`, `bfbc2c
 not finite or a route graph the core cannot search raises `ValueError`. Their tests check the answers recorded from
 the Python (`navbuild_golden.json`, `tests/navdata_golden.json`).
 
-**Develop:** `python rust\build_native.py --cargo test` (unit, property and doc tests), `--cargo clippy --all-targets
--- -D warnings`, `--cargo fmt`; `python tests\test_rust.py` runs all three.
+**Develop:** `python rust\build_native.py --cargo test` (unit, property and doc tests; the whole-level tests marked
+`#[ignore = "game tier: ..."]` need `-- --ignored`), `--cargo clippy --all-targets -- -D warnings`, `--cargo fmt`;
+`python tests\test_rust.py` runs fmt, clippy, the build and the quick tests in turn, `tests\test_rust.py run --game`
+the whole-level ones, `tests\test_rust.py list` names every test with the tier that runs it.
+
+**A compile cache** (round TS1, off by default). With [sccache](https://github.com/mozilla/sccache) installed (`cargo
+install sccache --locked --no-default-features`, about 3 minutes) and `BFBC2_COMPILE_CACHE=1`, every cargo the suite
+runs goes through it (`bfbc2core.native.cargo_env`: `RUSTC_WRAPPER`, its folder
+`%LOCALAPPDATA%\bfbc2-tool-suite\sccache`, capped at `BFBC2_COMPILE_CACHE_GB`, default 6, and `SCCACHE_BASEDIRS` set to
+the build folders); `run_tests.py` starts its server before any test, so no test's job object ends it. It does not
+share dependencies between worktrees' build folders: cargo gives every crate with a build script an `OUT_DIR` inside
+its build folder, sccache 0.19 keeps that path in the key, and every crate built on such a crate misses in turn (2
+of 208 compiles hit on a second folder; `rust/BENCHMARKS.md` TS1). It serves a rebuild of the same folder. One
+`CARGO_TARGET_DIR` for several worktrees is not the answer either: cargo's lock keeps it consistent, but the release
+binaries (`bfbc2.exe` ...) have one path per folder, so one worktree's build could be copied into another's `bin\`.
+Each checkout keeps its own build folder.
 
 **Where Rust builds** (round D1, 2026-11-19). cargo's build folder is not `rust\target` but
 `C:\Programming\Projects\rust-targets\<checkout folder name>` (`rust-targets\bfbc2-tool-suite` for the main checkout,
@@ -738,8 +753,8 @@ input; they are small next to the path data caches capped above.
 ## Tests
 
 ```
-python run_tests.py quick      before every commit: no game data, about a minute
-python run_tests.py game       before every push: uses Project OPFOR BFBC2's game copy, about 10 minutes
+python run_tests.py quick      before every commit: no whole levels (see "The Rust tiers" below)
+python run_tests.py game       before every push: uses Project OPFOR BFBC2's game copy, the whole-level Rust tests too
 python run_tests.py full       after changing a format reader: every unpacked file and NavKit's regression on all 15 levels, about 5 hours with -j 2
 python run_tests.py --list     what each tier runs;   --only <name> runs the tests whose name contains it
 python run_tests.py game -j 8  tests side by side, 8 at a time (the default: half the CPU threads, at most 8)
@@ -748,6 +763,8 @@ python run_tests.py game --plan   the schedule and expected wall-clock, from the
 python run_tests.py quick --no-game   only the entries that need nothing but the checkout (no game copy, OPFOR,
                                       BF1943 / Xbox copies or graphics card); the others are named with the reason
 python run_tests.py quick --no-game --ci-steps   as CI runs it: also leaves out cargo, ruff and mypy (CI's own steps)
+python run_tests.py game --timeout 3600   end (and fail) any test still running after an hour (default: 4 x its
+                                      kept duration, at least 30 min / 3 h / 8 h by tier)
 ```
 
 **CI.** `.github/workflows/checks.yml` runs on every push and pull request (Windows): the module's build, cargo fmt,
@@ -775,17 +792,32 @@ The output is the same in both modes: one line per test as it finishes, the fail
 order), the total and exit code 1 if any failed. Every run keeps each passed test's duration and peak memory (all
 its processes, measured with a Windows job object) in `%LOCALAPPDATA%\bfbc2-tool-suite\test_times.json`; the next
 run starts the longest first, and `--plan` uses them (`--times <log or json>` for others; `tests\test_durations.json`
-seeds a PC that has none). `tests/test_runner_parallel.py` (quick) checks the scheduler itself.
+seeds a PC that has none). `tests/test_runner_parallel.py` (quick) checks the scheduler itself. Each test's
+processes are in a job object that ends them when the runner ends, however it ends (Ctrl+C, a crash, killed), and
+the run's result lines and total go to the day log (`%LOCALAPPDATA%\bfbc2-tool-suite\logs\run-tests-<date>.log`).
 
-The quick tier has 127 entries, the game tier those and 103 more, the full tier 5 more again (235; `--list`,
-2026-11-20; round RT1 ran the full tier, then 232 entries, in 5 h with `-j 2`: 232 of 232 passed). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
+**The Rust tiers** (round TS1). The Rust core's checks are four quick entries: the test build (`cargo test
+--no-run` and the doc tests), then the quick tests beside clippy, fmt and the Python entries. A whole-level editor,
+levelwrite or renderer test (whole levels prepared, opened, exported or drawn) is marked `#[ignore = "game tier:
+<why>"]` and runs in the game tier's entry `Rust core: the game tests`; the quick tier keeps the synthetic tests and
+one real level per crate (MP_005's game view and project, levelwrite's edits on three levels, the renderer's MP_005
+world). A test ignored for any other reason fails the quick run: none runs in no tier (`python tests\test_rust.py
+list` names every test and its tier). A crate whose fingerprint (its files, those of the workspace crates it uses,
+the workspace's manifests and lock) is unchanged since its last green clippy or quick run on this PC is left out of
+them, and said so (`%LOCALAPPDATA%\bfbc2-tool-suite\rust_green.json`); never on CI, in the full tier or with
+`tests\test_rust.py ... --no-skip`. Every Rust test's own time is kept in `rust_test_times.json` beside
+`test_times.json`, and each run prints its slowest.
+
+The quick tier has 134 entries, the game tier those and 103 more, the full tier 5 more again (242; `--list`,
+2026-11-21; round RT1 ran the full tier, then 232 entries, in 5 h with `-j 2`: 232 of 232 passed). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
 `tests/test_types.py`; settings in `pyproject.toml`), the path finder on a stand-in tree, the converter units, the
 dbxport rules and the emitter atlas. A test that needs game data the machine lacks is skipped and says so. The table
 lists a selection; `--list` gives every test.
 
 | Test | Tier | Checks |
 |---|---|---|
-| `tests/test_rust.py` | quick, game | the Rust core: `cargo fmt --check`, clippy with warnings as errors, every crate's unit, property and doc tests; with `--corpus` (game) every unpacked `.dbx` read in Rust and its XML against DbxEdit's 31,404 fingerprints, and every bundle of the game copy extracted; skipped without Rust |
+| `tests/test_rust.py` | quick, game | the Rust core: `fmt` (`cargo fmt --check`), `clippy` (warnings as errors), `build` (the test binaries and the doc tests), `run` (every crate's unit, property and integration tests but the whole-level ones), `run --game` (the whole-level ones, game tier); with `--corpus` (game) every unpacked `.dbx` read in Rust and its XML against DbxEdit's 31,404 fingerprints, and every bundle of the game copy extracted; skipped without Rust |
+| `tests/test_rust_skip.py` | quick | test_rust.py's rules on a stand-in workspace: a crate's fingerprint follows its own files, its dependencies' and dev-dependencies', included files, the lock and the build flags, and no other crate; green records from three processes at once lose none; never left out on CI or with `--no-skip`; which "skipped" lines count |
 | `core/tests/test_dbx_native.py` | quick, game | the DBX reader (Rust; its Python retired 2026-11-18, round F1a) against the answers recorded from the Python (`dbx_golden.json`, `dbx_golden_corpus_*.json`): the same XML, trees and refusals on 10 built files and 4,754 damaged and random ones, and 200 corpus files (quick) or every corpus file (game: 48,120 distinct, levels, NavKit's common data and the WW2 work; each file's XML, tree, and the writer's bytes as read and after seeded edits; a file changed since is counted, not compared); the batch functions; XML against DbxEdit's fingerprints; needs the module |
 | `core/tests/test_dbx_write_native.py` | quick, game | the DBX writer (Rust; its Python retired in round F1a) against the bytes recorded from the Python writer: a built partition, 41 edge trees (5 deliberately otherwise: `DELIBERATE`), 2,000 random trees, 200 work\ww2 files written back and edited (quick) or every corpus file (game); DbxEdit's roundtrip of the written files |
 | `bfbc2-console-convert/tests/test_texture_native.py` | quick, game | the texture converter (Rust; its Python retired 2026-11-17) against the results recorded from the Python (`texture_golden.json`): 1,362 seeded built and damaged textures (every format, 2D and cube, packed tails, every mip count; the output's SHA-1 or the refusal's message), the batch function (quick); every XenonTexture of BF1943's source and OPFOR's Onslaught builds, input and output SHA-1 (game); needs the module; `--record` rewrites the recording |
@@ -797,7 +829,7 @@ lists a selection; `--list` gives every test.
 | `core/tests/test_scene_native.py` | game | `level.load` (the Rust scene; the Python loader retired in round F1a) against the Levels recorded from the Python loader (`scene_golden.json`): SP_01, MP_005, MP_009GR and ONS_MP_004 with and without geometry, piece by piece |
 | `bfbc2-culltree/tests/test_culltree_native.py` | quick, game | `culltreelib.py`'s element reader (Rust; its Python retired in round F1a) against the answers recorded from the Python (`culltree_golden.json`): 2,146 built, damaged and random files (a stream cut inside an element: `CullTreeError` where the Python raised `IndexError`; a varint past 64 bits, which the Python read as a big integer: `CullTreeError`), add on a built level, the folder listing against glob (quick); every cull tree and level partition of the game copy and work, and console_cull's add run on Onslaught MP_005 against the recorded Python run (game) |
 | `tests/test_runner_parallel.py` | quick | the test runner side by side: stand-in tests run through `run_tests.main` with `-j 4` and `-j 1` - a writer of a shared thing never overlaps its readers and they keep their listed order, an undeclared or all-core test runs beside nothing, a failure gives exit code 1 and its own output, one result line per test with its own summary; the scheduler's reservation for a held-back heavy test; the log reader; `atomicio.locked` across three processes |
-| `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles |
+| `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles, every Rust test file a module of its binary, every `test_*.py` in a tier (or allowed out with its reason), no new runner entry named by a round code |
 | `tests/test_review_fixes.py` | quick | three defects from a code review (2026-10-26): NavKit's apply builds with the normal build's inputs (detailed zones, ladders); the stock-MP installer reinstalls a rebuilt file and keeps the original as its backup; the navigation cache key follows the terrain's content |
 | `tests/test_review_fixes2.py` | quick | defects from the follow-up review (2026-10-27): the harness records a missing path-data file per file key, refuses to overwrite its reference through a casing alias; NavKit's restore after a second install on a map without an original; the stock-MP installer's markers found case-insensitively; FbrbTool refuses an older manifest whose size2 differs |
 | `bfbc2-culltree/tests/test_culltree.py` | quick | cull trees and levels built in the test: the DBX codec, sphere keys, the tree layout and checks, verify, adding places for slot-0 objects (leaves, spheres, ancestors, spare nodes), the command line |

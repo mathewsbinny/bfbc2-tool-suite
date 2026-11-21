@@ -102,6 +102,7 @@ fn damaged(src: &Path, tmp: &Path) {
 }
 
 #[test]
+#[ignore = "game tier: whole cull trees; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn streamed_readers_answer_as_the_whole_document() {
     let _gate = crate::gate();
     let Some(dir) = levels_dir() else {

@@ -24,6 +24,23 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Faster test tiers** (round TS1). The quick tier's single cargo entry (fmt, clippy, the workspace's tests: about
+  53 minutes alone, every CPU) is four entries - the test build, the quick tests, clippy, fmt - and the tests run
+  beside clippy and the Python entries. The whole-level editor, levelwrite and renderer tests (35, marked
+  `#[ignore = "game tier: ..."]`) moved to the game tier's new entry; the quick tier keeps one real level per crate.
+  Dependencies are optimised in debug and test builds. Crates unchanged since their last green run on this PC are
+  left out of clippy and the quick tests, and said (never on CI, in the full tier or with `--no-skip`). Every Rust
+  test's own time is kept (`%LOCALAPPDATA%\bfbc2-tool-suite\rust_test_times.json`) and the slowest are printed.
+  `tests\test_rust.py list` names every test with its tier.
+- **An optional compile cache**: `BFBC2_COMPILE_CACHE=1` with sccache installed runs every cargo of the suite through
+  it. Off by default: it serves rebuilds of one build folder but not other worktrees' (cargo's per-folder `OUT_DIR`
+  stays in sccache's key; README, "The Rust core").
+- **`run_tests.py --timeout S`** and a default time limit per test (4 times its kept duration, at least 30 min /
+  3 h / 8 h by tier): a hung test is ended with its processes and fails. The run's results and total go to the day
+  log, not only "started".
+- **Three test files in a tier at last**: `test_aimanim.py`, `test_column_sectors.py` and `test_trees.py` (quick, and
+  game with `--game`); `tests\test_repo.py` fails on a test file no tier runs, and on a new runner entry or
+  environment variable named by a round code.
 - **Map editor: typed gameplay operations** (round XF1): set a team, link or unlink a soldier spawner and a capture
   point, set a team's tickets, insert or remove an outline point (the `Next` / `Previous` chain and the area's point
   kept). The project format is 5 (VW2 took 4); a version-4 project loads as it is, a newer one is refused in words.
@@ -290,6 +307,15 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Tests that passed by skipping** (round TS1, audit AU3 TS-7): the simplified-view, view-geometry and view-toggle
+  tests turned a level that did not open, a game view that did not start or render meshes not read into a "skipped"
+  that passed; with the level in the game copy each is now a failure. The Rust tests' "<level>: skipped, ..." lines
+  are counted and named per test.
+- **The test runner** (audit AU4 DF4): `--only` matching nothing is exit code 2 (it said "0 of 0 passed", exit 0);
+  every test's processes end with the runner however it ends - Ctrl+C, a crash, killed - (its job objects are
+  kill-on-close), and a passing test's leftover child process no longer outlives it.
+- **`build_native.py`'s install** retries a target held for a moment (a scanner), and when the new file cannot go in
+  puts the live one back instead of leaving it moved aside.
 - **Map editor: side state no longer outlives its project** (round DF1, audit AU4-SM-1 / -2 / -4): a project
   generation is counted each time a level or project is shown or the map is closed. A Create that fails no longer
   leaves its era / mode target for the next project opened (it was committed and saved into that project). The

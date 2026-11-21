@@ -113,12 +113,23 @@ codegen-units = 1
 
 # Debug and test builds keep line tables only (round QW1, audit AU2 S4: full debug info made each editor test binary
 # a ~370 MB PDB, and the debug folder of a worktree 24 GB): a panic's backtrace still names every function, file and
-# line; a debugger shows no local variables (set debug = "full" here for a session that needs them).
+# line; a debugger shows no local variables (set debug = "full" here for a session that needs them). The workspace's
+# own crates at opt-level 1 (round TS1, audit AU3 TS-2): the whole-level tests spend their time in our code (the
+# scene, the views, levelwrite), 1.2-5.8 times faster (rust/BENCHMARKS.md TS1); debug assertions and overflow checks
+# stay on. Set opt-level = 0 here for a debugger session that steps line by line.
 [profile.dev]
 debug = "line-tables-only"
+opt-level = 1
 
 [profile.bench]
 inherits = "release"
+
+# Dependencies optimised in debug and test builds (round TS1, audit AU3 TS-2): wgpu, egui, the image decoders, rayon
+# and serde ran unoptimised under the editor's, levelwrite's and the renderer's tests. Built once per PC with the
+# shared compile cache (README, "The Rust core"), else once per build folder; rust/BENCHMARKS.md (TS1) has the
+# compile cost against the test-time gain.
+[profile.dev.package."*"]
+opt-level = 2
 
 # The inflater optimised in test builds too: the bundle tests decompress megabytes many times over (round E3e).
 [profile.dev.package.zlib-rs]

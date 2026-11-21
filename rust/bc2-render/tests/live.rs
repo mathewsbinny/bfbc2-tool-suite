@@ -54,6 +54,7 @@ fn live(
 }
 
 #[test]
+#[ignore = "game tier: MP_005 drawn live; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn mp_005_live_list_is_the_frame_edits_and_picks() {
     let _gate = crate::gate();
     let opfor = common::opfor();

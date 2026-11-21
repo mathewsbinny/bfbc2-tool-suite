@@ -67,6 +67,7 @@ fn package_weather(game: &Path, lv: &str) -> Option<(Weather, Option<String>)> {
 }
 
 #[test]
+#[ignore = "game tier: the WW2 levels; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn ww2_levels_find_their_weather_through_the_entity() {
     let _gate = crate::gate();
     let game = common::opfor().join("game");
@@ -101,6 +102,7 @@ fn ww2_levels_find_their_weather_through_the_entity() {
 }
 
 #[test]
+#[ignore = "game tier: every Package level; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn other_package_levels_find_a_weather_state() {
     let _gate = crate::gate();
     let game = common::opfor().join("game");
@@ -119,6 +121,7 @@ fn other_package_levels_find_a_weather_state() {
 }
 
 #[test]
+#[ignore = "game tier: every stock level; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn stock_levels_resolve_as_their_folder_did() {
     let _gate = crate::gate();
     let opfor = common::opfor();
