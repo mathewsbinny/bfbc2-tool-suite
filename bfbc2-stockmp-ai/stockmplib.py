@@ -1,11 +1,10 @@
 r"""Stock multiplayer maps with an AI layer: the library half of `bfbc2 stockmp` (summary, the path data a level
-uses, installing a build into the game with backups). Round RT3 retired the command line stockmp.py: bfbc2.exe
-answers it alone (bfbc2core.native.RETIRED_CLI; its usage text is rust\bc2-cli\src\stockmp\stockmp_usage.txt).
-The tests import pathdata_for, summary, installed_files, apply_files, install, BACKUP, APPLIED; the pipeline is
+uses, installing a build into the game on its install ledger, round DF2). Round RT3 retired the command line
+stockmp.py: bfbc2.exe answers it alone (bfbc2core.native.RETIRED_CLI; its usage text is
+rust\bc2-cli\src\stockmp\stockmp_usage.txt). The tests import pathdata_for, summary, installed_files, apply_files, install, BACKUP, APPLIED; the pipeline is
 pipeline.py (STOCK_MP_AI_PLAN.md, option c). Nothing is written outside <OPFOR>\work\stockmp\<lv>\ except by
 install(paths, ['--apply']), which is for the user to run (never run by the build).
 """
-import contextlib
 import os
 import sys
 from typing import Any
@@ -20,7 +19,7 @@ suite_paths.use('core', 'stockmp')
 
 import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
-from bfbc2core import atomicio  # noqa: E402
+from bfbc2core import gameledger  # noqa: E402
 
 # worlds whose path data the user's install has under another level's name (DICE's console Onslaught files, which
 # Napisal's ports install): stock level -> path-data folder
@@ -71,154 +70,126 @@ def summary(paths: pipeline.Paths) -> None:
         print(f'  stage {st.index}: {st.trigger_name}, M-COMs {[tuple(round(x) for x in p) for _g, p in st.mcoms]}')
 
 
+def owner(lv: str) -> str:
+    """The owner stock-MP installs a level's build as, in the game copy's install ledger."""
+    return f'stockmp:{lv.lower()}'
+
+
+LEVEL_FOLDERS = (('Dist', 'win32', 'levels'), ('Package', 'levels'), ('Output', 'win32', 'ai', 'levels'))
+LEGACY = (BACKUP, APPLIED, '.opfor-stockmp-new', '.opfor-stockmp-prev')
+
+
 def installed_files(game: str, lv: str) -> list[str]:
-    """Rel paths of the files --apply installed for <lv>, from the *.opfor-stockmp-applied markers under the game
-    folder - the installation record, independent of what is still in the build output."""
-    rels = []
-    for dp, _d, fs in os.walk(game):
-        for f in fs:
-            if f.endswith(APPLIED):
-                rel = os.path.relpath(os.path.join(dp, f), game)[:-len(APPLIED)]
-                if lv.lower() in {c.lower() for c in rel.replace(os.sep, '/').split('/')}:
-                    rels.append(rel)
-    return rels
+    """The game files under the level's own folders with a stock-MP marker from before the install ledger beside them
+    (game-relative, '/'): read only there, never the whole game folder - a junction or an odd name elsewhere in the
+    game copy is no concern of the revert (AU4-DS-9). Folders that cannot be read are skipped."""
+    out = set()
+    for parts in LEVEL_FOLDERS:
+        top = os.path.join(game, *parts, lv)
+        for dp, _d, fs in os.walk(top):
+            for f in fs:
+                low = f.lower()
+                suf = next((s for s in LEGACY if low.endswith(s)), None)
+                if suf:
+                    out.add(os.path.relpath(os.path.join(dp, f[:-len(suf)]), game).replace('\\', '/'))
+    return sorted(out)
 
 
-STAGED = '.opfor-stockmp-new'      # a built file copied next to its target, before any target changes
-PREV = '.opfor-stockmp-prev'        # the target as it was, kept until every file of the install is in
+def _shown(rel: str) -> str:
+    return rel.replace('/', '\\')
 
 
-def apply_files(game: str, out: str, rels: list[str]) -> None:
-    """--apply as one transaction (suite deep scan 2026-11-15, C1: the files were copied over the game's one by one,
-    so a locked file or a full disk part way left Dist and Package from different builds, and a copy cut short a
-    truncated bundle without a marker that made --apply and --revert both refuse):
-      1. decide every file (nothing written): already installed, or to install, and whether the original needs its
-         backup;
-      2. stage: every built file copied whole next to its target (*.opfor-stockmp-new) - a failure removes the staged
-         copies, and the game copy is unchanged;
-      3. commit: per file the original's backup (once, atomic), the target moved aside (*.opfor-stockmp-prev), the
-         staged file renamed in, its marker written atomically - a failure puts back every target already replaced
-         (and its marker) before it re-raises; the moved-aside targets are deleted only once every file is in."""
-    todo = []
-    for rel in rels:
-        dst, src = os.path.join(game, rel), os.path.join(out, rel)
-        marker = dst + APPLIED
-        installed = False
-        if os.path.isfile(marker) and os.path.isfile(dst):
-            installed = open(marker).read().strip() == pipeline.sha(dst)
-            if not installed:
-                raise SystemExit(f'{rel} changed after the install - not overwriting it '
-                                 f'(revert it first, or delete {marker})')
-        if installed and pipeline.sha(dst) == pipeline.sha(src):
-            print(f'already   {rel}')
-            continue
-        # the original only - never an earlier build of ours; a target deleted after the install is installed again
-        todo.append((rel, dst, src, os.path.isfile(dst) and not os.path.isfile(dst + BACKUP) and not installed))
-    staged: list[str] = []
+def apply_files(game: str, out: str, rels: list[str], lv: str) -> int:
+    """--apply as one journalled commit of stockmp:<lv> in the game copy's install ledger (round DF2): what each file
+    replaced kept once by sha256; a failure (a locked file, a full disk) or a kill part way puts every file back, so
+    Dist, Package and the path data are never from different builds (deep scan C1, AU4-DS-5). 0, or 1 with the
+    reason on stderr."""
+    led = gameledger.Ledger(game)
+    files = {}
+    for rel in sorted(rels, key=lambda r: r.replace('\\', '/')):
+        with open(os.path.join(out, rel), 'rb') as f:
+            files[rel.replace('\\', '/')] = f.read()
     try:
-        for rel, dst, src, _ in todo:
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            atomicio.copy_file(src, dst + STAGED)
-            staged.append(dst + STAGED)
-            if pipeline.sha(dst + STAGED) != pipeline.sha(src):
-                raise OSError(f'{rel}: the staged copy differs from the build')
-    except BaseException:
-        for s in staged:
-            with contextlib.suppress(OSError):
-                os.remove(s)
-        raise
-    done: list[tuple[str, bool, str | None]] = []       # (dst, had a target, its marker text before)
-    try:
-        for _rel, dst, _src, backup in todo:
-            if backup:
-                atomicio.copy_file(dst, dst + BACKUP)
-            had = os.path.isfile(dst)
-            old_marker = open(dst + APPLIED).read() if os.path.isfile(dst + APPLIED) else None
-            if had:
-                os.replace(dst, dst + PREV)
-            done.append((dst, had, old_marker))
-            os.replace(dst + STAGED, dst)
-            atomicio.write_text(dst + APPLIED, pipeline.sha(dst))
-    except BaseException:
-        for dst, had, old_marker in reversed(done):
-            try:
-                if had:
-                    os.replace(dst + PREV, dst)
-                elif os.path.isfile(dst):
-                    os.remove(dst)
-                if old_marker is None:
-                    if os.path.isfile(dst + APPLIED):
-                        os.remove(dst + APPLIED)
-                else:
-                    atomicio.write_text(dst + APPLIED, old_marker)
-            except OSError as e:
-                print(f'ROLLBACK FAILED for {dst}: {e} (its earlier file is {dst + PREV})')
-        for _, dst, _, _ in todo:
-            if os.path.isfile(dst + STAGED):
-                os.remove(dst + STAGED)
-        print('nothing installed: every file put back as it was')
-        raise
-    for dst, had, _ in done:
-        if had and os.path.isfile(dst + PREV):
-            os.remove(dst + PREV)
-    for rel, *_ in todo:
-        print(f'installed {rel}')
+        plan = led.install(owner(lv), files, derived=False, note='stock-MP AI layer')
+    except gameledger.LedgerError as e:
+        print(f'nothing installed: {e}', file=sys.stderr)
+        return 1
+    for n in plan.notes:
+        if n.endswith(': already installed'):
+            print(f'already   {_shown(n[:-len(": already installed")])}')
+        else:
+            print(f'  {n}')
+    for w in plan.writes:
+        if w.startswith('write '):
+            print(f'installed {_shown(w[6:])}')
+        elif w.startswith('remove '):
+            print(f'removed   {_shown(w[7:])} (no longer in the build)')
+    return 0
 
 
-def install(paths: pipeline.Paths, argv: list[str]) -> None:
+def install(paths: pipeline.Paths, argv: list[str]) -> int:
+    """--plan / --apply / --revert (round DF2: on the game copy's install ledger; stock-MP's markers from before it
+    adopted first). The exit code (1 with the reason on stderr when nothing was done)."""
     game = opt(argv, '--game', paths.game)
     out = os.path.join(paths.root, 'out', 'game')
     mode = '--apply' if '--apply' in argv else '--revert' if '--revert' in argv else '--plan'
-    files: set[str] | list[str]
-    if mode == '--revert':
-        files = set(os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs)
-        files |= set(installed_files(game, paths.lv))
-        if not files:
-            print(f'nothing installed by stock-MP in {game} (no {APPLIED} markers, nothing built)')
-            return
-    else:
-        files = [os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs]
-        if not files:
-            raise SystemExit(f'nothing built in {out} (run build first)')
+    me = owner(paths.lv)
+    led = gameledger.Ledger(game)
+    built = [os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs]
+    if mode != '--revert':
+        if not built:
+            print(f'nothing built in {out} (run build first)', file=sys.stderr)
+            return 1
         problems = pipeline.check_report(paths)
         if problems:                    # out\game must be one complete build, as its report lists it
             msg = f'{out} is not one complete build: ' + '; '.join(problems[:6])
             if mode == '--apply':
-                raise SystemExit(msg + ' - nothing installed')
+                print(msg + ' - nothing installed', file=sys.stderr)
+                return 1
             print('warning: ' + msg)
-    if mode in ('--apply', '--revert'):
-        # every file checked before any is written: a refusal half-way would leave Dist and Package (and the path
-        # data) from different builds
-        changed = []
-        for rel in sorted(files):
-            dst = os.path.join(game, rel)
-            if os.path.isfile(dst) and os.path.isfile(dst + APPLIED) and \
-                    open(dst + APPLIED).read().strip() != pipeline.sha(dst):
-                changed.append(rel)
-        if changed:
-            raise SystemExit(f'changed after the install (by something else) - nothing {"installed" if mode == "--apply" else "reverted"}: '
-                             + ', '.join(changed) + f' (delete their {APPLIED} markers to take them as they are now)')
-    if mode == '--apply':
-        apply_files(game, out, sorted(files))
-        return
-    for rel in sorted(files):
-        dst = os.path.join(game, rel)
-        if mode == '--plan':
-            state = 'replace' if os.path.isfile(dst) else 'new'
-            print(f'{state:8s} {rel}')
-        else:
-            if os.path.isfile(dst) and os.path.isfile(dst + APPLIED) and \
-                    open(dst + APPLIED).read().strip() != pipeline.sha(dst):
-                raise SystemExit(f'{rel} changed after the install - not reverting it')
-            if os.path.isfile(dst + BACKUP):
-                os.replace(dst + BACKUP, dst)
-                print(f'restored  {rel}')
-            elif os.path.isfile(dst + APPLIED):
-                if os.path.isfile(dst):
-                    os.remove(dst)
-                print(f'removed   {rel}')
-            if os.path.isfile(dst + APPLIED):
-                os.remove(dst + APPLIED)
     if mode == '--plan':
+        for rel in sorted(built):
+            print(f'{"replace" if os.path.isfile(os.path.join(game, rel)) else "new":8s} {rel}')
         var = f' --variant {paths.variant}' if paths.variant else ''
-        print(f'(plan only: `install {paths.lv}{var} --apply` copies these into {game}, keeping *{BACKUP} backups)')
+        print(f"(plan only: `install {paths.lv}{var} --apply` copies these into {game}, keeping what they replace in "
+              "the game copy's install ledger)")
+        return 0
+    legacy = sorted(set(installed_files(game, paths.lv)) | {r.replace('\\', '/') for r in built})
+    try:
+        p = gameledger.adopt_legacy(led, me, legacy, 'stockmp')
+    except gameledger.LedgerError as e:
+        print(f'nothing {"installed" if mode == "--apply" else "reverted"}: {e}', file=sys.stderr)
+        return 1
+    if p is not None:
+        print(f"stock-MP's markers from before the install ledger moved into it "
+              f"({sum(1 for w in p.writes if w.startswith('adopt '))} file(s))")
+    if mode == '--apply':
+        return apply_files(game, out, built, paths.lv)
+    mine = led.owner_files(me)
+    if not mine:
+        print(f'nothing installed by stock-MP in {game} (no install of {me} in its install ledger)')
+        return 0
+    lines = []
+    for rel in mine:
+        holders = led.holders(rel)
+        i = holders.index(me) if me in holders else -1
+        above = holders[i + 1] if 0 <= i < len(holders) - 1 else None
+        _held, before = led.before(me, rel)
+        if above:
+            lines.append(f"kept      {_shown(rel)} (stock-MP's layer taken out from under {above}'s install: its revert "
+                         'now puts back what was there before stock-MP)')
+        elif before is not None:
+            lines.append(f'restored  {_shown(rel)}')
+        else:
+            lines.append(f'removed   {_shown(rel)}')
+    try:
+        plan = led.uninstall(me)
+    except gameledger.LedgerError as e:
+        print(f'nothing reverted: {e}', file=sys.stderr)
+        return 1
+    for n in plan.notes:
+        if 'taken out from under' not in n:
+            print(f'  {n}')
+    for line in lines:
+        print(line)
+    return 0

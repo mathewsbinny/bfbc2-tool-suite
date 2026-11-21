@@ -30,6 +30,15 @@ landed on `main`.
 - **`mapexport check`: shader and cull-shape lines** (round XF1): every mesh the level reaches has entries in its
   shader databases; every re-slotted object stands in its own blueprint's shape; no new object at slot 0 that some
   level slots.
+- **The game copy's install ledger** (round DF2): every tool that writes the game copy records what it installed in
+  one ledger (`<game>\opfor\ledger`, Project OPFOR's `opforcore.ledger` format): what each install replaced is kept
+  once by its sha256, a revert gives back exactly what was there before that tool in any order, and an install or
+  revert cut short (a locked file, a full disk, a kill) is rolled back by the next command. `bfbc2 gameledger
+  status|holders|original|recover <game>` shows it and finishes an interrupted one. The suite's half:
+  `bc2_formats::gameledger` and its Python twin `bfbc2core.gameledger`.
+  Project OPFOR's half (its own DF2 branch): every Onslaught stage, the Pacific War install and menu mode, the map
+  export's install and the import scripts write through `opforcore.stages` on the same ledger, and
+  `opforcore\migrate.py` moves a game copy's old `.opfor-*` backup markers into it without losing an original.
 - **Map editor: the mode view layer** (round VW2): show every object, the game mode layer only or the level without
   it, and a Rush level one stage at a time as it is played (L1's simulation of the stages' events: MP_005GR,
   MP_005SR, NAM_MP_002R and BC1_OASIS_GR give L1's bases per stage), in both views, the outliner and the overlays.
@@ -291,6 +300,22 @@ landed on `main`.
   level; on Aurora as WW2 Conquest with 40 moves an undo went from 9-11 s to under 0.1 s.
 - **Map editor: Paste copies what an object owns** (round XF1): a pasted flag has its own capture area and marker,
   so editing the copy leaves the original alone.
+- **NavKit and stock-MP could lose DICE's path data** (audit AU4 DS-1): both installed `pathdata.hpd` with their own
+  backups and did not see each other; installing NavKit, applying stock-MP, restoring NavKit and reverting stock-MP
+  left NavKit's build where DICE's file was, and DICE's original was reported as NavKit's. Both now install through
+  the ledger (owners `navkit:<lv>`, `stockmp:<lv>`): a restore under another tool's install takes NavKit's layer out
+  from under it, every order of the two ends with DICE's file, and `original_file()` (the NavKit driver, `bfbc2.exe`,
+  the map editor) answers the ledger's bottom layer. Their markers of before the ledger are adopted on first use;
+  another tool's are refused in words.
+- **stock-MP install** (audit AU4 DS-5, DS-6, DS-9, DS-19): `--apply` is one journalled commit (a failure part way,
+  the old `Fail::Python` early return included, can no longer leave Dist and Package from different builds); an
+  interrupted `--revert` is finished by running it again; the revert reads the ledger and the level's own folders,
+  never the whole game folder (junctions and odd names elsewhere no longer refuse it); a stale backup is never
+  restored over a newer file; the advice to delete markers is gone.
+- NavKit: `tasklist` given 30 s (a hung one counts as the game running, AU4 BUG-20); a level's unpack goes to a
+  temporary folder swapped in under a lock, never `rmtree(ignore_errors=True)` under a stamp that says clean (DS-14,
+  Python and Rust); the harness, stock-MP report and texqa JSON written through per-process temporary names and the
+  retrying replace (CQ-18); one SHA-256 in Rust (`bc2_formats::sha256`, CQ-9).
 - **Map editor: the game-accurate view no longer draws the objects a project deleted or hid** (round VW2).
 - **Map editor: Wake Island's and Coral Sea's black ground in the Game-accurate view** (round R5d). Three causes in
   the renderer, none in the data: the terrain's height scale was read as the database's placeholder 500 (Wake's

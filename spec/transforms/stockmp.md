@@ -70,26 +70,34 @@ fails on a broken synthetic build made to break it.
 
 ## 3. Install
 
-### XSMP-INS-1: Install only a complete build, every file checked first
+### XSMP-INS-1: Install only a complete build, as one journalled commit
 
 Status: **verified**
 
-`install --apply` refuses when nothing is built or the staged folder is not the one build its report lists, and when
-any game file it would replace changed since an earlier install (its `-applied` sha differs); every file is checked
-before the first is written. `--plan` changes nothing. Each replaced file is backed up once; each installed file
-gets an `-applied` record.
+`install --apply` refuses when nothing is built or the staged folder is not the one build its report lists. The
+build's files go into the game copy as one journalled commit of `stockmp:<lv>` in the install ledger (XINST-GL-1):
+every check comes first (a file changed outside the ledger since an install refuses the whole commit); what each file
+replaced is kept once by its sha256; a failure part way (a locked file, a full disk) or a kill puts every file back,
+so Dist, Package and the path data are never from different builds (audit AU4 DS-5). `--plan` changes nothing. stock-MP's
+markers from before the ledger, found only in the level's own folders (audit AU4 DS-9), are adopted first; inconsistent
+ones (a changed file, an interrupted commit, a backup without its record) are refused in words.
 
-[code: bfbc2-stockmp-ai/stockmplib.py:168-197] [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick]
+[code: bfbc2-stockmp-ai/stockmplib.py:102-127] [code: rust/bc2-cli/src/stockmp/mod.rs:309-436]
+[test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick] [test: tests/test_deep_scan_fixes.py::stockmp_rollback]
+[test: core/tests/test_gameledger.py::cross]
 
-### XSMP-INS-2: Revert restores or removes
+### XSMP-INS-2: Revert gives back what was there before stock-MP
 
 Status: **verified**
 
-`install --revert` puts each backup back, or removes a file the install added where the level had none, and removes
-the records; a file changed since the install is not reverted. A file the install added is never taken for a stock
-file afterwards.
+`install --revert` takes `stockmp:<lv>` out of the ledger from its record (not from the build output): each file's
+prior back, or a file the install added removed; under another tool's later independent install stock-MP's layer is
+taken out from under it. A file changed outside the ledger is not reverted, and nothing is. An interrupted revert is
+rolled back by the next command, which can then run it again (audit AU4 DS-6). A file the install added is never taken for
+a stock file afterwards.
 
-[code: bfbc2-stockmp-ai/stockmplib.py:198-219] [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick]
+[code: bfbc2-stockmp-ai/stockmplib.py:130-195] [code: rust/bc2-cli/src/stockmp/mod.rs:309-436]
+[test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick] [test: core/tests/test_gameledger.py::cross]
 
 ## Open questions
 

@@ -1,12 +1,14 @@
 //! `stockmp.py install`'s readings of the build output and the game folder (round O3): the files of `out\game`
-//! (`os.walk` + `relpath`), the install markers (`*.opfor-stockmp-applied`: the SHA-256 of the file written),
-//! `installed_files` (the installation record in the game folder) and `pipeline.check_report` (out\game against its
-//! `build_report.json`). The copying and its prints are `bfbc2.exe`'s (`bc2-cli`'s `stockmp` group).
+//! (`os.walk` + `relpath`), the install markers of before round DF2 (`*.opfor-stockmp-applied`: the SHA-256 of the
+//! file written; `stock_file` still reads them on a game copy whose install was not adopted into the install ledger)
+//! and `pipeline.check_report` (out\game against its `build_report.json`). The install itself is `bfbc2.exe`'s
+//! (`bc2-cli`'s `stockmp` group) on the game copy's install ledger (`bc2_formats::gameledger`, round DF2).
 //!
 //! Where Windows' path rules or Python's readers would see something the port does not reproduce - a name
 //! `GetFullPathNameW` / `normcase` changes (a trailing dot or space, a cased letter outside the ranges below), a link
 //! or junction, a marker that is not ASCII, a report that is not a JSON object the reference reads the same way - the
-//! reading gives [`Fault::Refuse`] and the caller hands the command line to the Python.
+//! reading gives [`Fault::Refuse`]. stockmp's Python command line was retired in round RT3, so the caller reports it
+//! as an error (exit code 1) - before anything is written.
 
 use std::collections::HashMap;
 use std::fs;
@@ -176,21 +178,6 @@ pub fn marker_matches(marker: &str, file: &str) -> Result<bool, Fault> {
 #[must_use]
 pub fn isfile(p: &str) -> bool {
     !p.is_empty() && std::path::Path::new(p).is_file()
-}
-
-/// `stockmp.installed_files(game, lv)`: the paths (relative to the game folder) of the files `--apply` installed for
-/// the level - every `*.opfor-stockmp-applied` marker under the game folder whose path has a part named as the level.
-///
-/// # Errors
-/// As [`walk_rel`].
-pub fn installed_files(game: &str, lv: &str) -> Result<Vec<String>, Fault> {
-    let lv = lv.to_lowercase();
-    Ok(walk_rel(game)?
-        .into_iter()
-        .filter(|rel| rel.ends_with(APPLIED))
-        .map(|rel| rel[..rel.len() - APPLIED.len()].to_owned())
-        .filter(|rel| rel.replace('\\', "/").split('/').any(|c| c.to_lowercase() == lv))
-        .collect())
 }
 
 /// `pipeline.check_report(paths)`: the problems of `<root>\out\game` against `<root>\build_report.json`; empty when

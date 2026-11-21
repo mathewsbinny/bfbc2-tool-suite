@@ -209,6 +209,8 @@ def tests():
          [PY, os.path.join(SUITE, 'tests', 'test_review_fixes2.py')]),
         ('deep scan fixes: atomic installs and writes, honest caches, damaged files said', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_deep_scan_fixes.py')]),
+        ('install ledger (DF2): DS-1, every order of two tools, an interruption at every write step, the real installs',
+         'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_gameledger.py')]),
         ('navigation side files (navtune)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_navtune.py')]),
         ('NavKit water rule (ground too deep under water)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_water_rule.py')]),
         ('NavKit walkability edits (navedits)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navedits.py')]),
