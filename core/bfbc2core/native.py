@@ -5,18 +5,21 @@ sources, and the error a tool raises when it needs it (README.md, "The Rust core
     m = native.load()                   # the module, or None (not there, or built from other sources: warns once)
     m = native.require('texture conversion')    # the module, or NativeMissing saying how to get it
 
-The source fingerprint. fingerprint() is a SHA-256 over every file whose change makes a new module (sources(): the
-workspace and crate manifests, the lock file, the toolchain file, each crate's build.rs and src\**\*.rs, and the
-suite's VERSION file, which bfbc2.exe reads at build time), each as
+The source fingerprint. fingerprint() is a SHA-256 over every file whose change makes a new artefact (sources(): the
+workspace manifest, the lock file, the toolchain file, the suite's VERSION file, which the binaries read at build
+time, and for each crate the artefact links - crates(), its crate's closure of workspace dependencies, round QW1 -
+its manifest, build.rs, src\**\*.rs and the files they include), each as
 its path relative to rust\ with forward slashes, its length and its bytes with CRLF turned into LF, in path order:
 a Windows checkout with autocrlf, a Linux one and the release workflow's all give the same value. build_native.py
 bakes it into the module (the environment variable BC2_SOURCE_HASH, read at compile time: bc2_native.__source_hash__,
-next to __version__, the crates' version) and writes bc2_native.json beside the module.
+next to __version__, the crates' version) and writes bc2_native.json beside the module. Each artefact has its own
+fingerprint (ARTEFACTS: the module, bfbc2.exe, bfbc2-editor.exe, mapexport.exe), baked into it the same way (the
+binaries print it with --source-hash), so an edit to the editor does not make the module or bfbc2.exe stale.
 
 The check, on the first import in a process: the module's __source_hash__ against this checkout's fingerprint. The
 checkout's fingerprint is not hashed on every run: bc2_native.json keeps it with each source file's size and time
-(nanoseconds) when it was last computed, and while every file still has them it is taken from there (a stat of
-about 60 files). A changed time (an edit, a git checkout, a rebuild of nothing) hashes the files again, a few
+(nanoseconds) when it was last computed, per artefact, and while every file still has them it is taken from there
+(a stat of 140-300 files). A changed time (an edit, a git checkout, a rebuild of nothing) hashes the files again, a few
 milliseconds, and refreshes bc2_native.json when the module matches. A checkout without rust\ (only core\
 copied somewhere) has no fingerprint and any module is taken as it is.
 
@@ -26,13 +29,21 @@ Python), require() raises NativeMissing. BFBC2_PURE_PYTHON=1 turns off only the 
 the pieces whose Python was retired (texture conversion, NavKit's grid walks: 2026-11-17; the conversions, the rest
 of NavKit, and the core formats - dbx, fbrb, terrain, water, collision, level, culltree's reader -: 2026-11-18)
 always need the module.
+
+The binaries (round QW1, audit AU2 A6 / A19): binary(name) is bfbc2.exe, bfbc2-editor.exe or mapexport.exe only
+while its --source-hash is this checkout's fingerprint of it. cli_command falls back to a tool's Python when
+bfbc2.exe is stale, with one RuntimeWarning per process on stderr naming the fix (python rustuild_native.py);
+BFBC2_STRICT_NATIVE=1 makes a stale or missing bfbc2.exe an error (NativeStale) instead. BFBC2_CLI_PYTHON=1 still
+asks for the Python, with no warning.
 """
 import hashlib
 import importlib
 import json
 import os
+import re
 import subprocess
 import sys
+import tomllib
 import warnings
 from collections.abc import Iterator
 from types import ModuleType
@@ -43,29 +54,101 @@ SUITE = os.path.dirname(os.path.dirname(HERE))
 RUST = os.path.join(SUITE, 'rust')
 STAMP = os.path.join(HERE, 'bc2_native.json')
 BUILD = os.path.join(RUST, 'build_native.py')
-SOURCE_ENV = 'BC2_SOURCE_HASH'           # what build_native.py passes to cargo; bc2-py's build.rs reads it
-# The workspace's applications: crates the module never links (bc2-py does not depend on them), so their sources are
-# not the module's and a change to them does not make a new module (the map editor, round G1, 2026-11-18). The
-# workspace files (Cargo.toml, Cargo.lock) still count, as a dependency they add changes them.
+SOURCE_ENV = 'BC2_SOURCE_HASH'           # what build_native.py passes to cargo; the artefacts bake it in
+# Round QW1 (audit AU2 A7): one fingerprint per built artefact, over the crates it links. artefact -> the crate that
+# builds it; its sources are the workspace files and that crate's closure of workspace path dependencies (normal,
+# build and target-specific ones, optional ones included; dev-dependencies are the tests'), so an edit to a crate an
+# artefact does not link (the map editor's, the renderer's) leaves that artefact up to date.
+ARTEFACTS = {
+    'module': 'bc2-py',             # bc2_native.pyd (maturin); its release tag is this fingerprint's
+    'bfbc2': 'bc2-cli',             # bin\bfbc2.exe
+    'bfbc2-editor': 'bc2-editor',   # bin\bfbc2-editor.exe (build_native.py --editor)
+    'mapexport': 'bc2-levelwrite',  # bin\mapexport.exe: a binary of the levelwrite crate (src\bin\mapexport.rs)
+}
+# Before round QW1 the module's sources were every crate but these (one fingerprint served the module and bfbc2.exe).
 APPLICATIONS = ('bc2-editor',)
+STRICT_ENV = 'BFBC2_STRICT_NATIVE'      # 1: a stale or missing bfbc2.exe is an error, not a fall-back to the Python
+_INCLUDE = re.compile(rb'include_(?:str|bytes)!\(\s*"([^"]+)"\s*\)')
 
 
-def sources(rust: str = RUST) -> list[str]:
-    """Every file whose change makes a new module: the workspace's manifests, lock and toolchain files, and each crate
-    (a folder of rust\\ with a Cargo.toml: a new crate needs no entry here) with its build.rs, src\\**\\*.rs and the
-    Python package file maturin reads (pyproject.toml); not the APPLICATIONS' crates. And the suite's VERSION file
-    beside rust\\ (round P1): bfbc2.exe reads it at build time, so a new version is a new build (and release)."""
+def _manifest(path: str) -> dict[str, Any]:
+    try:
+        with open(path, 'rb') as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def _dep_tables(manifest: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    for key in ('dependencies', 'build-dependencies'):
+        yield manifest.get(key) or {}
+    for target in (manifest.get('target') or {}).values():
+        if isinstance(target, dict):
+            for key in ('dependencies', 'build-dependencies'):
+                yield target.get(key) or {}
+
+
+def crates(rust: str = RUST, artefact: str = 'module') -> list[str]:
+    r"""The crate folders (names under rust\) whose sources make `artefact`: its crate (ARTEFACTS) and every workspace
+    crate it depends on, directly or not. A workspace without the artefact's crate (a stand-in in a test, a copied
+    rust\ of an older layout): every crate but APPLICATIONS, the rule before round QW1."""
+    root = _manifest(os.path.join(rust, 'Cargo.toml'))
+    ws_paths = {name: str(v['path']) for name, v in ((root.get('workspace') or {}).get('dependencies') or {}).items()
+                if isinstance(v, dict) and 'path' in v}
+    start = ARTEFACTS[artefact]
+    if not os.path.isfile(os.path.join(rust, start, 'Cargo.toml')):
+        return sorted(d for d in os.listdir(rust) if os.path.isfile(os.path.join(rust, d, 'Cargo.toml'))
+                      and d not in APPLICATIONS) if os.path.isdir(rust) else []
+    seen: set[str] = set()
+    todo = [start]
+    while todo:
+        crate = todo.pop()
+        if crate in seen:
+            continue
+        seen.add(crate)
+        base = os.path.join(rust, crate)
+        for table in _dep_tables(_manifest(os.path.join(base, 'Cargo.toml'))):
+            for name, spec in table.items():
+                path = None
+                if isinstance(spec, dict) and spec.get('workspace'):
+                    path = ws_paths.get(str(spec.get('package', name)))
+                    path = os.path.join(rust, path) if path else None
+                elif isinstance(spec, dict) and 'path' in spec:
+                    path = os.path.join(base, str(spec['path']))
+                if path:
+                    rel = os.path.relpath(os.path.normpath(path), rust)
+                    if os.sep not in rel and os.path.isfile(os.path.join(rust, rel, 'Cargo.toml')):
+                        todo.append(rel)
+    return sorted(seen)
+
+
+def sources(rust: str = RUST, artefact: str = 'module') -> list[str]:
+    r"""Every file whose change makes a new `artefact` (ARTEFACTS; the module by default): the workspace's manifests,
+    lock and toolchain files, the suite's VERSION file beside rust\ (round P1: the binaries read it at build time, so
+    a new version is a new build and release), and for each crate of crates(): its Cargo.toml, build.rs, the Python
+    package file maturin reads (pyproject.toml), src\**\*.rs and the files its sources and build script include
+    (include_str! / include_bytes!: the Python docstrings bfbc2.exe prints, the editor's fonts, the icon's
+    app_icon.rs)."""
     out = [os.path.join(rust, n) for n in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml')]
     out.append(os.path.join(os.path.dirname(os.path.abspath(rust)), 'VERSION'))
     if os.path.isdir(rust):
-        for crate in sorted(d for d in os.listdir(rust)
-                            if os.path.isfile(os.path.join(rust, d, 'Cargo.toml')) and d not in APPLICATIONS):
+        for crate in crates(rust, artefact):
             base = os.path.join(rust, crate)
             out += [os.path.join(base, n) for n in ('Cargo.toml', 'build.rs', 'pyproject.toml')]
+            code = [os.path.join(base, 'build.rs')]
             for top, dirs, files in os.walk(os.path.join(base, 'src')):
                 dirs.sort()
-                out += [os.path.join(top, f) for f in sorted(files) if f.endswith('.rs')]
-    return sorted((p for p in out if os.path.isfile(p)), key=lambda p: _rel(p, rust))
+                code += [os.path.join(top, f) for f in sorted(files) if f.endswith('.rs')]
+            out += code[1:]
+            for p in code:
+                try:
+                    with open(p, 'rb') as f:
+                        text = f.read()
+                except OSError:
+                    continue
+                for m in _INCLUDE.finditer(text):
+                    out.append(os.path.normpath(os.path.join(os.path.dirname(p), m.group(1).decode('utf-8', 'replace'))))
+    return sorted({p for p in out if os.path.isfile(p)}, key=lambda p: _rel(p, rust))
 
 
 def _rel(path: str, rust: str) -> str:
@@ -104,43 +187,49 @@ def read_stamp() -> dict[str, Any]:
 
 def write_stamp(module_hash: str, origin: str, version: str = '', rust: str = RUST) -> None:
     """bc2_native.json for a module just built or downloaded: its fingerprint, where it came from, and this
-    checkout's fingerprint with the files' sizes and times (the cache checkout_fingerprint reads)."""
-    paths = sources(rust)
-    d = {'source_hash': module_hash, 'version': version, 'origin': origin,
-         'checkout': {'fingerprint': fingerprint(rust, paths), 'files': _stats(paths, rust)}}
+    checkout's fingerprint per artefact with the files' sizes and times (the cache checkout_fingerprint reads)."""
+    checkouts = {}
+    for artefact in ARTEFACTS:
+        paths = sources(rust, artefact)
+        checkouts[artefact] = {'fingerprint': fingerprint(rust, paths), 'files': _stats(paths, rust)}
+    d = {'source_hash': module_hash, 'version': version, 'origin': origin, 'checkouts': checkouts}
     tmp = STAMP + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
         json.dump(d, f, indent=1, sort_keys=True)
     os.replace(tmp, STAMP)
 
 
-def _checkout(rust: str = RUST) -> tuple[str | None, bool]:
-    """(this checkout's fingerprint, whether it came from bc2_native.json's cache): the cache while every source
-    file has the size and time it recorded, else hashed now; None when there is no rust\\ folder (no sources to
-    compare with)."""
+def _checkout(rust: str = RUST, artefact: str = 'module') -> tuple[str | None, bool]:
+    r"""(this checkout's fingerprint of `artefact`, whether it came from bc2_native.json's cache): the cache while
+    every source file has the size and time it recorded, else hashed now; None when there is no rust\ folder (no
+    sources to compare with)."""
     if not os.path.isfile(os.path.join(rust, 'Cargo.toml')):
         return None, False
-    paths = sources(rust)
-    cached = read_stamp().get('checkout') or {}
+    paths = sources(rust, artefact)
+    cached = (read_stamp().get('checkouts') or {}).get(artefact) or {}
     if cached.get('files') == _stats(paths, rust) and isinstance(cached.get('fingerprint'), str):
         return str(cached['fingerprint']), True
     return fingerprint(rust, paths), False
 
 
-def checkout_fingerprint(rust: str = RUST) -> str | None:
-    """This checkout's fingerprint (None without a rust\\ folder), from the cache when it holds."""
-    return _checkout(rust)[0]
+def checkout_fingerprint(rust: str = RUST, artefact: str = 'module') -> str | None:
+    r"""This checkout's fingerprint of `artefact` (ARTEFACTS; None without a rust\ folder), from the cache when it
+    holds."""
+    return _checkout(rust, artefact)[0]
 
 
-def _refresh_cache(fp: str, rust: str = RUST) -> None:
-    """The stamp's checkout cache brought up to date (the files' times changed, their contents give the module's
-    fingerprint)."""
+def _refresh_cache(fp: str, rust: str = RUST, artefact: str = 'module') -> None:
+    """The stamp's checkout cache of `artefact` brought up to date (the files' times changed, their contents give
+    the built artefact's fingerprint)."""
     d = read_stamp()
     if not d:
         return
     try:
-        d['checkout'] = {'fingerprint': fp, 'files': _stats(sources(rust), rust)}
-        tmp = STAMP + '.tmp'
+        got = d.get('checkouts')
+        checkouts: dict[str, Any] = got if isinstance(got, dict) else {}
+        checkouts[artefact] = {'fingerprint': fp, 'files': _stats(sources(rust, artefact), rust)}
+        d['checkouts'] = checkouts
+        tmp = f'{STAMP}.tmp-{os.getpid()}'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(d, f, indent=1, sort_keys=True)
         os.replace(tmp, STAMP)
@@ -226,6 +315,7 @@ def reset() -> None:
     holds the old one until it restarts)."""
     _state.clear()
     _cli.clear()
+    _binaries.clear()
 
 
 # ------------------------------------------------------------------------------- the command-line binary (round O1)
@@ -339,6 +429,7 @@ CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line
     'bf1943import': os.path.join(SUITE, 'bfbc2-bf1943-import', 'bf1943import.py'),
 }
 _cli: dict[str, str | None] = {}
+_binaries: dict[str, tuple[str, str | None, str]] = {}
 
 
 def cli_path(profile: str | None = None) -> str:
@@ -347,21 +438,49 @@ def cli_path(profile: str | None = None) -> str:
     return bin_path('bfbc2') if profile is None else built_path('bfbc2', profile)
 
 
-def cli_exe() -> str | None:
-    """The command-line binary when it is built from this checkout's Rust sources (its --source-hash is the
-    checkout's fingerprint: build_native.py builds it with the module), else None. Asked once per process."""
-    if 'exe' not in _cli:
-        exe, found = find_binary('bfbc2') or cli_path(), None
-        if os.path.isfile(exe):
+def _candidates_of(name: str) -> list[str]:
+    return [p for p in (bin_path(name), built_path(name, 'release'), built_path(name, 'debug'),
+                        os.path.join(RUST, 'target', 'release', name + EXE),
+                        os.path.join(RUST, 'target', 'debug', name + EXE)) if os.path.isfile(p)]
+
+
+def binary_status(name: str) -> tuple[str, str | None, str]:
+    """('ok', path, '') for the first of find_binary's places whose binary was built from this checkout's Rust
+    sources (`<binary> --source-hash` is checkout_fingerprint(artefact=name)); ('stale', the first found, why) when
+    every copy there was built from other sources (or by cargo alone, without a fingerprint); ('missing', None, why)
+    when none is there. Asked once per process and name (reset() forgets)."""
+    if name not in _binaries:
+        found = _candidates_of(name)
+        want = checkout_fingerprint(artefact=name) if name in ARTEFACTS else None
+        status: tuple[str, str | None, str] = ('missing', None, f'{bin_path(name)} is not built or downloaded')
+        for exe in found:
             try:
                 r = subprocess.run([exe, '--source-hash'], capture_output=True, text=True, timeout=30)
-                want = checkout_fingerprint()
-                if r.returncode == 0 and (want is None or r.stdout.strip() == want):
-                    found = exe
+                have = r.stdout.strip() if r.returncode == 0 else None
             except (OSError, subprocess.SubprocessError):
-                pass
-        _cli['exe'] = found
-    return _cli['exe']
+                have = None
+            if have is not None and (want is None or have == want):
+                status = ('ok', exe, '')
+                break
+            if status[0] == 'missing':
+                status = ('stale', exe, f'{exe} was built from other Rust sources than this checkout has (binary '
+                                        f'{(have or "without a fingerprint")[:12]}, checkout {(want or "")[:12]})')
+        _binaries[name] = status
+    return _binaries[name]
+
+
+def binary(name: str) -> str | None:
+    """The binary `name` (bfbc2, bfbc2-editor, mapexport) when it is built from this checkout's Rust sources, else
+    None (binary_status says why)."""
+    status, path, _ = binary_status(name)
+    return path if status == 'ok' else None
+
+
+def cli_exe() -> str | None:
+    """The command-line binary when it is built from this checkout's Rust sources (its --source-hash is the
+    checkout's fingerprint of bfbc2: build_native.py builds it with the module), else None. Asked once per
+    process."""
+    return binary('bfbc2')
 
 
 # Round RT1 (2026-11-20): the command lines whose Python was retired - bfbc2.exe answers them alone, and the
@@ -393,10 +512,31 @@ class CliMissing(NativeMissing):
 
 
 def _cli_why() -> str:
-    exe = find_binary('bfbc2')
-    if exe is None:
-        return 'bin\\bfbc2.exe is not built or downloaded'
-    return f'{exe} was built from other Rust sources than this checkout has'
+    status, _, why = binary_status('bfbc2')
+    return why if status != 'ok' else ''
+
+
+class NativeStale(NativeMissing):
+    """BFBC2_STRICT_NATIVE=1: a ported tool's command line found bfbc2.exe stale or missing instead of falling back to
+    its Python."""
+
+
+def _cli_fix() -> str:
+    py = os.path.basename(sys.executable).removesuffix('.exe') or 'python'
+    return f'Build it again with "{py} {BUILD}" (or "{py} {BUILD} --download" for a prebuilt one).'
+
+
+def _cli_fallback(tool: str) -> None:
+    """A ported tool's command line falls back to its Python because bfbc2.exe is stale (or missing): one warning
+    per process on stderr when it is stale, naming the fix (round QW1, audit AU2 A6; the Python is 1.3 to 18 times
+    slower); BFBC2_STRICT_NATIVE=1 makes a stale or missing binary an error (NativeStale)."""
+    status, _, why = binary_status('bfbc2')
+    if os.environ.get(STRICT_ENV, '').strip() == '1':
+        raise NativeStale(f'bfbc2 {tool}: {why} ({STRICT_ENV}=1 refuses the Python fall-back). {_cli_fix()}')
+    if status == 'stale' and not _cli.get('warned'):
+        _cli['warned'] = 'yes'
+        warnings.warn(f'bfbc2core: {why}; the tools\' command lines run in Python instead (slower). {_cli_fix()}',
+                      RuntimeWarning, stacklevel=3)
 
 
 def cli_command(tool: str) -> list[str]:
@@ -411,5 +551,9 @@ def cli_command(tool: str) -> list[str]:
             raise CliMissing(f'bfbc2 {tool} needs the suite\'s command-line binary (its Python command line was '
                              f'retired): {_cli_why()}. {_fix()}')
         return [exe, tool]
-    exe = None if os.environ.get(CLI_PYTHON_ENV, '').strip() == '1' else cli_exe()
+    if os.environ.get(CLI_PYTHON_ENV, '').strip() == '1':
+        return [sys.executable, script]
+    exe = cli_exe()
+    if exe is None:
+        _cli_fallback(tool)
     return [exe, tool] if exe else [sys.executable, script]

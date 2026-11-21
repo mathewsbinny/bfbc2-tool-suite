@@ -89,6 +89,7 @@ fn print(what: &str, t: &Timings) {
 
 #[test]
 fn game_view_shares_picks_outlines_and_follows_edits() {
+    let _gate = crate::gate();
     let Ok(opfor) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;

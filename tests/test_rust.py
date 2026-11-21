@@ -1,13 +1,20 @@
 r"""The Rust core's own checks (rust\): formatting, clippy with warnings as errors, and every crate's tests.
 
   python tests\test_rust.py            quick: cargo fmt --check, cargo clippy --all-targets -D warnings, cargo test
+                                       --workspace (every crate's tests, the map editor's, levelwrite's and the
+                                       renderer's too: round QW1 ran them here only, not again in test_editor.py)
   python tests\test_rust.py --corpus   game: the corpus tests in Rust, release build (every unpacked .dbx of the
                                        game copy against DbxEdit's fingerprints; every bundle of the game copy and
                                        work\ww2 extracted)
 
 Skipped (exit 0) when Rust is not installed: the suite then runs on the Python readers.
+
+The workspace's tests run with --nocapture: the parts a test skipped for want of data ("skipped: no game copy", "no
+graphics adapter") are counted and said (round QW1, audit AU2 Q9), and the map editor's evidence lines (test_editor.KEEP:
+the levels compared, the outline pixels, ...) are printed as test_editor.py printed them.
 """
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +26,9 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('rust')
 import build_native  # noqa: E402
+import test_editor  # noqa: E402  (its KEEP: the editor's evidence lines)
+
+SKIP = re.compile(r'^\s*skipped\b', re.I)
 
 RUST = os.path.join(SUITE, 'rust')
 
@@ -36,7 +46,7 @@ def main(argv: list[str]) -> int:
     else:
         steps = [('cargo fmt --check', ['cargo', 'fmt', '--all', '--check']),
                  ('cargo clippy --all-targets -D warnings', ['cargo', 'clippy', '--all-targets', '--', '-D', 'warnings']),
-                 ('cargo test (unit, integration, doc)', ['cargo', 'test', '--workspace'])]
+                 ('cargo test (unit, integration, doc)', ['cargo', 'test', '--workspace', '--', '--nocapture'])]
     # the full path: Windows looks a program up on this process's PATH, not the child's
     cargo = shutil.which('cargo', path=env.get('PATH')) or 'cargo'
     failed = 0
@@ -47,11 +57,20 @@ def main(argv: list[str]) -> int:
         failed += not ok
         summary = [l for l in out.splitlines() if l.startswith('test result:') or (l[:1].isdigit() and ('files (' in l or ' bundles, ' in l))]
         passed = sum(int(l.split(' passed')[0].rsplit(' ', 1)[-1]) for l in summary if ' passed' in l)
+        skips = sorted({l.strip() for l in out.splitlines() if SKIP.match(l)})
         detail = f'{passed} tests passed' if summary and ok else ''
+        if detail and skips:
+            detail += f' ({len(skips)} kinds of part skipped for want of data or a graphics adapter: see "skipped" below)'
         print(f'{"ok  " if ok else "FAIL"} {name}' + (f': {detail}' if detail else ''))
         for l in summary:
             if 'files (' in l or ' bundles, ' in l:
                 print('       ' + l)
+        if args[1] == 'test' and '--corpus' not in argv:
+            for l in out.splitlines():
+                if any(k in l for k in test_editor.KEEP) and not l.startswith('test result:'):
+                    print('       ' + l.strip().encode('ascii', errors='backslashreplace').decode('ascii'))
+            for l in skips:
+                print('       skipped part: ' + l.encode('ascii', errors='backslashreplace').decode('ascii'))
         if not ok:
             tail = '\n'.join(out.splitlines()[-40:])
             print(tail.encode('ascii', errors='backslashreplace').decode('ascii'))     # prints on any console

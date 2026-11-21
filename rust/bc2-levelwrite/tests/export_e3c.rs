@@ -30,6 +30,7 @@ fn game_dir() -> Option<PathBuf> {
 /// WW2 levels carry their own banks and trigger sets and an English voice-over bundle of their own.
 #[test]
 fn each_sets_announcer() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
@@ -106,6 +107,7 @@ fn each_sets_announcer() {
 /// the donor: WW2's voices).
 #[test]
 fn a_ww2_export_takes_its_donors_announcer() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;

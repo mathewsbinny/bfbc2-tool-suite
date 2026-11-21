@@ -15,8 +15,7 @@
     missing_docs
 )]
 
-#[path = "../examples/common/mod.rs"]
-mod common;
+use crate::common;
 
 use bc2_render::d3d::Device;
 use bc2_render::frame::{Camera, Rendered};
@@ -56,6 +55,7 @@ fn live(
 
 #[test]
 fn mp_005_live_list_is_the_frame_edits_and_picks() {
+    let _gate = crate::gate();
     let opfor = common::opfor();
     if !opfor.join("work").join("levels").join("mp_005").join("dist").is_dir() {
         println!("skipped: MP_005 not prepared");
