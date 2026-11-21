@@ -150,6 +150,7 @@ fn demo_level(h: &mut Headless, project: bool) {
 
 #[test]
 fn links_and_fields_on_the_demo_level() {
+    let _gate = crate::gate();
     let Ok(mut h) = Headless::new(SIZE) else {
         println!("skipped: no graphics adapter");
         return;
@@ -160,6 +161,7 @@ fn links_and_fields_on_the_demo_level() {
 
 #[test]
 fn links_and_fields_on_mp_005() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;

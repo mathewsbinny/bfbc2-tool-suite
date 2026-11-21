@@ -61,6 +61,7 @@ fn spread(img: &[u8]) -> f64 {
 
 #[test]
 fn game_accurate_view_of_mp_005() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;
