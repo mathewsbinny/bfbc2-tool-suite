@@ -21,6 +21,7 @@ use std::sync::{Condvar, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 mod asset_browser;
+mod dbxedit_parity;
 mod df1;
 mod e2b;
 mod editing;
@@ -38,6 +39,7 @@ mod game_view_ww2;
 mod gr1;
 mod gr2;
 mod gr3;
+mod gr4;
 mod inspect_parity;
 mod inspector_parity;
 mod nav_parity;

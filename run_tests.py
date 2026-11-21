@@ -16,10 +16,10 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
                tests, ruff, mypy
 
   quick   no game data, about a minute: the Rust core (built when stale, its cargo checks, its DBX reader against
-          the retired Python reader's recorded answers), repository rules, DbxEditGUI's unit tests, and on files
-          built by the tests: DbxEdit's and FbrbTool's commands against the retired exes' recorded answers,
-          the crash reader and exeref, the console readers, the menu tools, the test harness (needs Windows for
-          the C# tool: DbxEditGUI); leveldiff's parity with the retired LevelDiff.exe is bc2-cli's cargo tests
+          the retired Python reader's recorded answers), repository rules, and on files built by the tests:
+          DbxEdit's and FbrbTool's commands against the retired exes' recorded answers, the crash reader and
+          exeref, the console readers, the menu tools, the test harness; leveldiff's parity with the retired
+          LevelDiff.exe is bc2-cli's cargo tests, the DBX inspector's with the retired DbxEditGUI bc2-editor's
   game    + Project OPFOR BFBC2's game copy, about 13 minutes: the DBX reader against the retired Python reader's
           recorded answers and DbxEdit's fingerprints on every unpacked .dbx, FbrbTool's commands on 12 game
           bundles, water on every level,
@@ -29,8 +29,7 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
           readers on your own Xbox 360 files (skipped when they are not on the PC), the 3D tools opening a
           level (needs a display), the structure of DICE's path data (hpdcheck), the test harness on two small
           levels, NavKit's regression test on two small levels
-  full    + the corpus runs, about 90 minutes: DbxEditGUI's DBX classes and the DBX reader on every unpacked
-          .dbx, FbrbTool's commands on every game bundle, NavKit's regression test on the 13 campaign levels and the imported
+  full    + the corpus runs, about 90 minutes: the DBX reader on every unpacked .dbx, FbrbTool's commands on every game bundle, NavKit's regression test on the 13 campaign levels and the imported
           Onslaught maps (about 5 hours)
 
 Run `quick` before every commit and `game` before every push; `full` after changes to a format reader.
@@ -76,18 +75,6 @@ import suite_paths  # noqa: E402
 
 PY = sys.executable
 TIERS = ['quick', 'game', 'full']
-
-
-def stale_build(folder, exes, sources):
-    """A build step that runs folder's build.bat only when its .exe files are older than their sources
-    (tests\\build_if_stale.py): rebuilding every run gave the tools new bytes and times (QA 2026-11-15)."""
-    d = os.path.join(SUITE, folder)
-    return [PY, os.path.join(SUITE, 'tests', 'build_if_stale.py'), os.path.join(d, 'build.bat'),
-            *[os.path.join(d, e) for e in exes], '--', *[os.path.join(SUITE, s) for s in sources]]
-
-
-DBX_BUILD = stale_build('bfbc2-dbx-tools', ['DbxEditGUI.exe'],
-                        [os.path.join('bfbc2-dbx-tools', 'DbxEdit.cs'), os.path.join('bfbc2-dbx-tools', 'DbxEditGUI.cs')])
 
 
 def opfor():
@@ -195,8 +182,6 @@ def tests():
         ('paths: OPFOR, game copy, tools and sibling projects on a stand-in tree', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_paths.py')]),
         ('converter edges (dbx numbers, dbxport references, texture check)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_edges.py')]),
         ('converter units (havok w lanes, MOPP byte code, L8 textures and flags, mesh rename, texcoords, mesh relayout)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_units.py')]),
-        ('DbxEditGUI build (when stale)', 'quick', DBX_BUILD),
-        ('DbxEditGUI and the DBX classes it is built on (DbxEdit.cs): unit tests and the window', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
         ("DBX writer (Rust) against the retired Python writer's recorded bytes (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_write_native.py')]),
@@ -510,8 +495,6 @@ def tests():
         ('NavKit regression, 2 small levels', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py'),
                                                        '--levels', 'sp_004_b,sp_009']),
         ('NavKit regression, all levels with DICE path data', 'full', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py')]),
-        ("DbxEditGUI's DBX classes (DbxEdit.cs) on the corpus: round trip, XML import identity, edited imports", 'full', lambda root: ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat'),
-                                                                 os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
         ('DBX reader against DbxEdit, every unpacked .dbx', 'full', lambda root: [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx.py'),
                                                                    os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
         ('FbrbTool round trip, every game bundle', 'full', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py'), '--game', '0']),
@@ -533,8 +516,7 @@ def need(cpu: int | str = 1, mem: float = 0.5, setup: bool = False, alone: bool 
 #   navstudio   OPFOR work\navstudio\cache (navdata's cache files, replaced while another process may read them)
 #   sp_004_b    OPFOR work\navkit\sp_004_b\detailed.json (NavKit apply writes it)
 #   shaderview  the suite's build\ folder: shaderview.exe built on first use, renderqa's index and truth pickles
-#   display     a window on the desktop (Tk, OpenGL, WinForms)
-#   dbxtests    bfbc2-dbx-tools\tests\DbxTests.exe, compiled by every run of run_tests.bat
+#   display     a window on the desktop (Tk, OpenGL)
 #   cargo       the checkout's cargo build folder (native.target_dir, round D1: rust-targets\<checkout>; cargo's
 #               lock) and bin\ (build_native.py copies the binaries there)
 #   rusttests   the workspace's test binaries and their record (tests\test_rust.py build writes them, its runs read
@@ -591,8 +573,6 @@ NEEDS = {
     'paths: OPFOR, game copy, tools and sibling projects on a stand-in tree': need(),
     'converter edges (dbx numbers, dbxport references, texture check)': need(),
     'converter units (havok w lanes, MOPP byte code, L8 textures and flags, mesh rename, texcoords, mesh relayout)': need(),
-    'DbxEditGUI build (when stale)': need(setup=True),
-    'DbxEditGUI and the DBX classes it is built on (DbxEdit.cs): unit tests and the window': need(display='w', dbxtests='w'),
     'FbrbTool round trip, built bundle': need(),
     "DBX writer (Rust) against the retired Python writer's recorded bytes (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)": need(cpu=2, mem=1),
     "DbxEdit's commands in process against DbxEdit.exe's recorded answers (the unit tests' 82 cases, the drop-in runner, the batch, the log)": need(cpu=2),
@@ -792,7 +772,6 @@ NEEDS = {
     'NavKit regression, 2 small levels': need(mem=3, regress='w'),
     # full
     'NavKit regression, all levels with DICE path data': need(mem=15, regress='w'),     # 15.0 GB measured: runs alone
-    "DbxEditGUI's DBX classes (DbxEdit.cs) on the corpus: round trip, XML import identity, edited imports": need(mem=1, display='w', dbxtests='w'),
     'DBX reader against DbxEdit, every unpacked .dbx': need(mem=1),
     'FbrbTool round trip, every game bundle': need(mem=3.2),
     'Rust EA-XAS audio encoder: every BF1943 Wave and in-memory BFBC2 Xbox Wave converted as recorded, byte for byte': need(cpu=4, mem=2.5),
@@ -807,12 +786,9 @@ NEEDS = {
 # Checked with the game copy out of reach: a checkout outside the projects folder, so no project-opfor-bfbc2 is found
 # beside or above it (OPFOR_ROOT alone does not hide it: the locators walk up from the suite), and OPFOR_ROOT /
 # BF1943_XENON / BF1943_SUITE_FBRB pointing at a folder that does not exist: 121 of 121 passed. An entry that cannot
-# run so goes here (name in tests() -> why) and is skipped with the reason. One part is left out instead of the
-# entry: DbxEditGUI's window test (DBX_TESTS_ARGS=--no-gui; the unit tests still run), as a CI runner's desktop
-# session is not guaranteed.
+# run so goes here (name in tests() -> why) and is skipped with the reason.
 NOT_GAME_FREE: dict[str, str] = {
 }
-NO_GAME_PARTS = ["DbxEditGUI's window test (DBX_TESTS_ARGS=--no-gui; its unit tests run)"]
 
 # The entries CI runs as steps of its own (checks.yml: cargo fmt, clippy, the workspace's tests, ruff, mypy):
 # `--ci-steps` skips them, so they are not built and run twice.
@@ -1363,10 +1339,6 @@ def main(argv):
           + (f', {slots} at a time' if slots > 1 else '') + (', game-free entries only' if no_game else ''))
     for name, why in skipped:
         print(f'skip {name}: {why}')
-    if no_game:
-        os.environ.setdefault('DBX_TESTS_ARGS', '--no-gui')
-        for part in NO_GAME_PARTS:
-            print(f'skip part: {part}')
     global SKIPPED
     SKIPPED = len(skipped)
     if any(not callable(a) and len(a) > 1 and str(a[1]).endswith(('test_rust.py', 'build_native.py'))
@@ -1374,7 +1346,6 @@ def main(argv):
         suite_paths.use('core')
         from bfbc2core import native
         native.start_compile_cache()        # outside every test's job object (they end their processes)
-    os.environ['DBX_SKIP_BUILD'] = '1'          # run_tests.bat: DbxEditGUI is the 'DbxEditGUI build (when stale)' step's
     # the tests read bundles without the bundle cache's disk files (round E3e): a sweep of the game copy would fill
     # the user's cache with every bundle; the cache's own tests give theirs a folder of their own
     os.environ.setdefault('BFBC2_FBRB_CACHE', '0')

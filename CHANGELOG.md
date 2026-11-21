@@ -36,6 +36,35 @@ landed on `main`.
   menu tools put the signatures back as they read it, so aptrefs reads the same bytes as before and gives the same
   answers.
 
+## [0.13.0] - 2026-11-21
+
+Released by round GR4 under the rule above: DbxEditGUI, the suite's last C# tool, was removed (the map editor's DBX
+inspector replaces it). Project OPFOR needs `SUITE_REQUIRES = ('0.13.0', '0.14.0')`; it calls no DbxEditGUI.
+
+### Added
+- **The map editor's DBX inspector** (round GR4: DbxEditGUI folded in): any binary `.dbx` - a file (typed or dropped),
+  an entry of a bundle (read in memory), one of the open level's files, or the open project's level partition - as
+  DbxEditGUI showed it: the tree, the attributes and value edited and applied (typed like the field, a rounded
+  decimal said), Go to reference, Undo, Find / Next, the Instance menu (remove, graft, copy field, add item, copy
+  GUID), the Edit menu (replace, replace prefix, remove a field everywhere, set a bool everywhere, the partition's
+  GUID), the Level menu (check, against a cull-tree level, fix slots), Save (`.bak` first), Save as, Export / Import
+  XML, Save edit script; new: Save into bundle (a copy of the entry's bundle), a field edit of the project's partition
+  as an operation of the project (History, Ctrl+Z), a note under a number the XML prints as a whole number that may
+  be a tiny decimal (its bits always kept). `bfbc2-editor --dbx <file>`, the start screen's "Inspect a DBX file", the
+  command palette's "DBX inspector", the hub's More tools > DBX inspector. Identical to DbxEditGUI's recorded answers
+  on 19 real files, 1,232 steps (`rust/BENCHMARKS.md`, "GR4").
+
+### Changed
+- The hub's More tools: "DBX inspector" (the map editor on a chosen `.dbx`) replaces "DbxEditGUI".
+- `bc2_formats::dbxedit::encode_value_rounded`: `encode_value` and whether a decimal was rounded.
+
+### Removed
+- **DbxEditGUI** (`bfbc2-dbx-tools\DbxEditGUI.cs`), the suite's last C# tool, with `DbxEdit.cs` (the C# DBX classes it
+  was built on), `build.bat`, `tests\DbxTests.cs`, `tests\run_tests.bat` and `tests\build_if_stale.py`; the test
+  runner's "DbxEditGUI build (when stale)", "DbxEditGUI and the DBX classes it is built on" (quick) and "DbxEditGUI's
+  DBX classes (DbxEdit.cs) on the corpus" (full) entries. Its window is the map editor's DBX inspector (above); the
+  corpus round trip moved to `bc2-editor`'s game tier (`dbxedit_parity.rs`). `RETIRED.md`.
+
 ## [0.12.0] - 2026-11-21
 
 Released at round OP1's merge under the rule above: OP1 removed Rust public API of the editor (`set_pending_target`,

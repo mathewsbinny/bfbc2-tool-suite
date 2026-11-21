@@ -227,7 +227,7 @@ class Project:
     def unpack(self, bundle: str, dest: str, log: Log) -> None:
         """Unpacked again when the bundle's hash changed (round DF2, AU4-DS-14): into <dest>.tmp-<pid>, stamped
         there, then swapped in by renames under <dest>.unpack.lock - a second process never deletes a folder another
-        is unpacking, and a file held in the old unpack (DbxEditGUI, the map editor) never leaves a mix of two unpacks
+        is unpacking, and a file held in the old unpack (the map editor, its DBX inspector) never leaves a mix of two unpacks
         stamped as clean."""
         stamp = os.path.join(dest, '.source.sha256')
         source_hash = _sha256(bundle)
@@ -262,7 +262,7 @@ class Project:
                     os.rename(dest, old)
                 except OSError as e:
                     raise NavKitError(f'{dest} cannot be replaced by the new unpack: a file in it is held by another '
-                                      'program (close DbxEditGUI, the map editor or an Explorer window on it, then run '
+                                      'program (close the map editor or an Explorer window on it, then run '
                                       f'again) - {e}') from e
             try:
                 os.rename(new, dest)
