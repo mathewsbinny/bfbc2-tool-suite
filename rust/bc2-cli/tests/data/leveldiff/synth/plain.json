@@ -1,0 +1,15 @@
+{
+ "a": "a.dbx",
+ "b": "b.dbx",
+ "same_instances": 5,
+ "only_in_a": [
+  {"type": "ReferenceObjectData", "id": null, "guid": "00000020-0000-0000-0000-000000000000"},
+  {"type": "AlternateSpawnEntityData", "id": null, "guid": "00000060-0000-0000-0000-000000000000"}],
+ "only_in_b": [
+  {"type": "ReferenceObjectData", "id": null, "guid": "00000021-0000-0000-0000-000000000000"},
+  {"type": "AlternateSpawnEntityData", "id": null, "guid": "00000070-0000-0000-0000-000000000000"}],
+ "changed": [
+  {"type": "ReferenceObjectData", "id": null, "guid": "00000010-0000-0000-0000-000000000000", "guid_b": "00000010-0000-0000-0000-000000000000", "fields": [{"path": "Enumeration", "a": "5", "b": "9"}], "removed": [], "added": []},
+  {"type": "SoldierSpawnEntityData", "id": null, "guid": "00000030-0000-0000-0000-000000000000", "guid_b": "00000030-0000-0000-0000-000000000000", "fields": [{"path": "Team", "a": "Team1", "b": "Team2"}], "removed": ["AlternativeSpawnPoints: 00000040-0000-0000-0000-000000000000"], "added": ["AlternativeSpawnPoints: 00000070-0000-0000-0000-000000000000"]},
+  {"type": "ObjectSet", "id": null, "guid": "00000080-0000-0000-0000-000000000000", "guid_b": "00000080-0000-0000-0000-000000000000", "fields": [{"path": "Objects", "a": "same 2 entries", "b": "in another order"}], "removed": [], "added": []}]
+}

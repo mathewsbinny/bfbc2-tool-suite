@@ -24,6 +24,32 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: every name of an exported level** (round EX1). The Export window's **Names**: the level id (what the
+  game loads, `Levels/<ID>`, and where its `<ID>_NAME` / `<ID>_DESC` texts come from), its folder under
+  `Package\levels\` (the id in lower case, as on every level of the game: renaming the folder renames the id), the
+  **server-browser name** (`maps.ini`: the launcher's row and the browser's `OPFOR - <name> (<mode>)`), and the
+  **on-screen name and description per language** (the menus, the loading screen, the browser's map column), with
+  each language's own letters (French, Russian, Japanese ... stored through that language's text table). The names
+  are checked together and refused in words: a stock level's id or another project's installed export, an id
+  holding `_NAME` (the loading screen would look for another picture: a black screen), a text or loading picture the
+  game already has (`SP_05_A` would rename Heavy Metal), a folder that is not the id, a browser name another map has
+  or too long for the row, a letter a language cannot show. They are kept in the project's log (`Op::SetNames`,
+  "Keep in project", and on Export). `mapexport names <export.json>` checks them; `mapexport build` refuses names
+  that fail; `mapexport check` repeats the rules on a stage and proves every place names the same level (the
+  description, the menus' list items, every `package.mft` block and `bundleManifest` line, the name key's picture).
+- **Map editor: Preview export** (round EX1). After an export, the stage opens read only beside the original base
+  level, with the same camera: T switches between them, Close preview gives the project back. The Diff panel lists
+  what the export changed (the mode layer in and out, the campaign content stripped, objects from other sets).
+- **Map editor: the Diff panel** (round EX1, LevelDiff folded in). **Compare with base** (a project against its base
+  level, again by itself after each edit) and **Compare with level** (the open level against any other): every
+  object added, removed, moved or changed, with filters (kind, group - mode layer, from other sets, campaign
+  content, world -, text, placed objects only); a click selects it and flies there; its fields as LevelDiff prints
+  them (Inspect opens All fields). In the 3D view the differing objects are tinted and a box marks where an object
+  of the other level stands, with a line from a moved object's old place: 4 new colour tokens (`view-diff-added`,
+  `-removed`, `-moved`, `-changed`; never orange, the selection's).
+- **`bfbc2.exe leveldiff`** (round EX1): LevelDiff's command line in Rust - the same arguments, text, `--json` file
+  and exit codes, proven byte for byte on LevelDiff.exe's recorded answers on real level pairs - and 4 to 40 times
+  faster. The hub's Level diff tab and Project OPFOR's `opforcore.paths.leveldiff()` run it.
 - **Map editor: the AI workspace's navigation** (round GR2, the Navigation Studio folded in). The navmesh view mode
   and the AI workspace draw a level's path data: NavKit's newest build and DICE's file side by side (read on a worker
   thread), the walkable ground coloured by island, sector, pitch, difference (NavKit's extra ground, DICE's ground
@@ -137,6 +163,10 @@ landed on `main`.
   prints them as before (now without the Python); the EA framing raises `AudioError`'s messages.
 
 ### Removed
+- **LevelDiff.exe** (round EX1): `bfbc2-diff-workbench\` (`level-diff\LevelDiff.cs`, `build.bat`, its tests, and the
+  folder's README of planned tools, which `DESIGN.md` 4.7 keeps). Run `bfbc2.exe leveldiff` (above) with the same
+  arguments; its answers on recorded real level pairs are LevelDiff.exe's, byte for byte. `RETIRED.md` has the last
+  commit with it.
 - **Navigation Studio** (round GR2): `bfbc2-navigation-studio\studio.py` and `editing.py`, their tests, the hub's
   "Open in Navigation Studio" and its NavKit-file field, `tests\test_viewers.py` and `bench_sweep.py`'s
   `studio_load`. Everything it did is in the map editor's AI workspace (above; `EDITOR_ARCHITECTURE.md` 9.2), proven

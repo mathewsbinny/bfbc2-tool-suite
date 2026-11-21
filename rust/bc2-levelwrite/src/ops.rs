@@ -319,6 +319,13 @@ pub enum Op {
         /// The choice after.
         to: crate::mpconvert::Strip,
     },
+    /// Every name of the exported level set (round EX1: the Export window's Names - the id, the folder, the server
+    /// browser's name, the on-screen names per language). The partition is not changed; the Export window takes the
+    /// log's last names ([`crate::MapProject::names`]).
+    SetNames {
+        /// The names.
+        to: Box<crate::names::LevelNames>,
+    },
     /// The project's target chosen (round E3d): its era and multiplayer mode, the mode's layer brought in from a
     /// donor level of them as ordinary objects, the level's old layer taken out ([`crate::modelayer`]).
     SetMode {
@@ -391,6 +398,7 @@ impl Op {
             | Self::RemoveLayer { .. }
             | Self::Ungroup { .. }
             | Self::SetStrip { .. }
+            | Self::SetNames { .. }
             | Self::NavAdd { .. }
             | Self::NavRemove { .. }
             | Self::NavLoad { .. } => Vec::new(),
@@ -493,6 +501,7 @@ impl Op {
             Self::Group { group, guids } => format!("Group {} as {group}", objects(guids.len())),
             Self::Ungroup { group } => format!("Ungroup {group}"),
             Self::SetStrip { to, .. } => format!("Campaign content: {}", to.describe()),
+            Self::SetNames { to } => to.describe(),
             Self::SetMode { to } => to.describe(),
             Self::NavAdd { edit } => format!("Navigation edit: {}", edit.op),
             Self::NavRemove { edit, .. } => format!("Remove navigation edit: {}", edit.op),
@@ -646,6 +655,7 @@ impl Organisation {
             }
             Op::SetField { .. }
             | Op::SetStrip { .. }
+            | Op::SetNames { .. }
             | Op::NavAdd { .. }
             | Op::NavRemove { .. }
             | Op::NavLoad { .. } => {}

@@ -129,6 +129,7 @@ fn a_vietnam_export_with_its_own_name_and_picture() {
         format: export::FORMAT.into(),
         version: export::VERSION,
         level: "MAPEDIT_E3BTEST_NAM".into(),
+        folder: String::new(),
         title: "E3b test (Vietnam)".into(),
         mode: "conquest".into(),
         layer: LayerSpec {
@@ -141,6 +142,7 @@ fn a_vietnam_export_with_its_own_name_and_picture() {
         identity: Some(Identity {
             description: "A test of the export's own name.".into(),
             picture: picture.display().to_string(),
+            ..Identity::default()
         }),
     };
     let stage = tmp.join("stage");

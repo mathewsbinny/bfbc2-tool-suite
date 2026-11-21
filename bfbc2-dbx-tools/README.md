@@ -29,7 +29,7 @@ tools call `bfbc2core.dbxedit.run([...])`, or
 **DbxEdit.exe was retired** (round R4, 2026-11-18): the C# command line was the reference its port was proven
 against (the same files, messages and exit codes); its answers are recorded in `core/tests/dbxedit_golden*.json` and
 `tests/fingerprints_795745.txt`, and the tests check the port against them. `DbxEdit.cs` stays as the DBX classes the
-window and LevelDiff are built on.
+window is built on (LevelDiff's too, until round EX1 made it `bfbc2.exe leveldiff`).
 
 **The window:** run `build.bat`. It compiles `DbxEditGUI.exe` (DbxEditGUI.cs and DbxEdit.cs) into this folder with
 the C# compiler that ships with Windows (.NET Framework 4) and needs no install. It stays until the map editor
@@ -152,7 +152,7 @@ now-unused strings stay in the file.
 
 ## Errors and logs
 
-DbxEdit (in process: `dbxedit-<date>.log`), DbxEditGUI and LevelDiff (which builds on `DbxEdit.cs`: `ToolLog`)
+DbxEdit (in process: `dbxedit-<date>.log`) and DbxEditGUI (which builds on `DbxEdit.cs`: `ToolLog`)
 keep a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\`, as all the suite's tools do. An unexpected
 error is explained - the likely cause (a file in use, read-only, missing, not a binary .dbx or damaged, out of
 memory) and what to do - with the log's path: on the command line with exit code 1, in DbxEditGUI in a window

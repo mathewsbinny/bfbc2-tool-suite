@@ -5726,3 +5726,114 @@ with the same log, a version-9 file and a `warp` operation give their messages);
 `BC2_PROJECTS` on the canary examples' projects (Aurora's first export and E3d's six: 2 - 4 operations each, the
 mode choices with their donor layers) written as version 1: all 7 load with every operation, as version 1 and 2,
 and the newer-version and unknown-operation cases on each. The full versioning work is round V1's.
+
+
+## EX1: every name of an export, its preview, the Diff panel; LevelDiff folded in and retired (2026-11-20, branch `rust-ex1`)
+
+The user's requests (2026-11-20): every name of an exported level editable and checked together; the staged export
+opened beside the original; a visual diff of a project against its base (and of any two levels); LevelDiff become
+the editor's Diff panel and a `bfbc2.exe leveldiff` command, proven identical, then retired.
+
+### `bfbc2.exe leveldiff` against LevelDiff.exe
+
+`bc2_formats::dbxedit::leveldiff` is `LevelDiff.cs` ported on DbxEdit's own model (`EditFile`, `value_text`,
+`PlacedObject`), its quirks kept (a list reorder reported only while the instance has no list entry added or removed
+so far; a field path seen twice keeps its first place; texts cut at 120 UTF-16 units; .NET's `Math.Round(x, 1)` and
+`G15` for positions). `bfbc2 leveldiff` prints as .NET's `Console` does (`\r\n`, the console's code page off a
+console, Unicode on one) and logs to `leveldiff-<date>.log`.
+
+LevelDiff.exe's answers were recorded **before** the port ran, on 21 cases over 13 partitions of OPFOR's game copy
+and the E3d stages (stock against export: SP_01 / Aurora as WW2 Conquest, MP_005 / Atacama Rush as Conquest,
+Guadalcanal / as BFBC2 Rush; mode variants MP_005 / MP_005GR, NAM_MP_002CQ / R and their descriptions; a WW2 level
+against its rebuild, Guadalcanal against `work\ww2\install_guadal_canal`; MP_005's Dist copy against its Package
+copy; a level against itself; and the bad input: one file, three files, a switch without its value, a file that is
+not binary, a missing file, a `--json` folder that is not there) with every switch (`--match-objects`, `--type`,
+`--ignore` twice, `--summary`, `--all`, `--json`), and on LevelDiff's own 7-instance test levels (9 cases). All 30
+are identical: stdout and stderr byte for byte (the log's path and the pairs' folder normalised), the `--json` file
+byte for byte, the exit codes (0, 1, 2, 3). `tests/leveldiff.rs` (bc2-cli) repeats them: the test levels against
+LevelDiff.exe's full texts (`tests/data/leveldiff/synth`), the real pairs against their digests
+(`tests/data/leveldiff/leveldiff_golden.tsv`; no game content in the repository).
+
+| Case (best of 3, release, whole process) | LevelDiff.exe | `bfbc2 leveldiff` |
+|---|---:|---:|
+| SP_01 against Aurora as WW2 Conquest (9,616 / 8,109 instances) | 0.97 s | 0.46 s |
+| the same, `--all --json` (2.7 MB text, 3.6 MB JSON) | 18.15 s | 0.46 s |
+| MP_005 against MP_005GR, `--match-objects --all --json` | 8.13 s | 0.17 s |
+| Guadalcanal against it as BFBC2 Rush, `--all --json` | 3.30 s | 0.15 s |
+| NAM_MP_002CQ against NAM_MP_002R, `--json` | 0.33 s | 0.12 s |
+| MP_005 against itself, `--json` | 0.25 s | 0.20 s |
+
+LevelDiff.exe looked each listed object's placement up by scanning every placed object (`--all` on big levels); the
+port indexes them once.
+
+### Every name of the level (`bc2_levelwrite::names`)
+
+From the data (OPFOR's game copy: 83 level descriptions in the startup bundles, every level folder, `maps.ini`,
+OPFOR's `server_browser.cpp`, the loader movie's `initLoadingScreen`):
+
+- the folder under `Package\levels\` (or `Dist\win32\levels\`) is the id in lower case on all 83 (8 ids mix cases:
+  `BC1_Harvest_Day_CQ` ...): the id and the folder are one name; the form shows both and a new folder renames the id;
+- the on-screen name is the description's `Name` key's text in each of the 8 languages; DICE gives every mode of a map
+  the map's keys (82 keys end in `_NAME`, 14 are `<ID>_NAME`; `MP_005GR` reads `MP_005_NAME`; Napisal's
+  `ONS_MP_005GR` has a literal, no key); the loading screen cuts the key at its first `_NAME` for its picture;
+- the launcher and OPFOR's Server Browser show `maps.ini`'s `name=` (the browser's row is `OPFOR - <name> (<mode>)`,
+  cut at 159 characters, its section found by the level id's last part); the browser's map column is the
+  description's name key, localised;
+- the menus' level list holds `<id>.dbx` and `<id>_description.dbx` for 78 of the 83 (Napisal's 5 Onslaught levels
+  are in none: OPFOR starts them from its own menus).
+
+`names::check` refuses in words: an id that is a stock level or another project's installed export (an earlier
+install of the same project may be replaced), an id holding `_NAME` (the picture looked for would be another: the
+black loading screen), an id whose `<ID>_NAME` / `<ID>_DESC` the localisation already has or whose loading picture
+the awards bundles hold (`SP_05_A` would rename Heavy Metal), characters or lengths the files cannot hold (A-Z, digits,
+`_`, 3 - 40, a letter first; the browser name plain ASCII without `"` or outer spaces and its row within 159; names
+up to 64, descriptions up to 400), a folder that is not the id, a browser name another map has, a letter a language's
+text table has no code for. `loc::encode` stores a text through its language's histogram (one-byte codes, else a
+lead byte and `0x80 | low` as every two-byte character of the Japanese file is), checked by `decode`.
+
+Proof:
+
+- `tests/export_ex1.rs`: the rules against the game copy (each refusal's words; the build refuses what the check
+  refuses, nothing staged); E3d's Atacama canary built as `MAPEDIT_EX1_RENAMED` with its own server-browser name and
+  on-screen names (French and Russian of their own): in 12 - 16 s, the id in `LevelData.Name`, the description, the
+  menus' list items, all 11 `package.mft` blocks and 11 `bundleManifest` lines, the name keys and their picture;
+  `mapexport check` passing its 33 lines (two new: the names' rules, every place naming the same level); the overlay an
+  install builds holding each language's text (French with its accents, Russian in Cyrillic,
+  decoded through their histograms).
+- OPFOR's `mapedit_install --apply` then `--revert` of that stage on a scratch copy of the six shared files,
+  `--check-game` the real game copy: the plan's check passes with the names lines; while installed the level's folder,
+  `maps.ini`'s `[MAPEDIT_EX1_RENAMED] name=Atacama renamed (EX1) Conquest=Levels/MAPEDIT_EX1_RENAMED`, the browser row
+  `OPFOR - Atacama renamed (EX1) (Conquest)`, a `package.mft` block per bundle, 11 manifest lines, the description in
+  `startup-00`, both texts in all 8 languages (French and Russian their own), the loading picture under the name key;
+  after the revert every shared file byte for byte with its last-writer record, the folder gone; `game\`: its 1,582
+  files kept their size and time and the shared files their sha256.
+
+### The Diff panel and Preview export (`bc2-editor`)
+
+`compare.rs` turns LevelDiff's answer into rows (added, removed, moved - the `Transform` changed -, changed), grouped
+(the mode layer of either side, `modelayer::layer`; placed objects whose blueprint the export's closure copied;
+the campaign content the export strips; the world), and the marks a view draws on either side. `app/diffui.rs`: the
+Diff panel (filters, rows, a row's fields as LevelDiff prints them, Inspect), Compare with base (again by itself after
+each edit), Compare with level, Preview export (the stage opened as a Package level, `compare::stage_level`, beside the
+base, the project kept aside; T switches, the same camera; Close preview), and the 3D marks (tints, boxes, the moves'
+lines). 4 new tokens: `view-diff-added` `#5cf0a8`, `-removed` `#ff8fb6`, `-moved` `#7cc8ff`, `-changed` `#e2a8ff`
+(Light 6 per channel lighter), each at least 45 degrees of hue from the selection's orange and from each other, each
+3.5:1 on the lit terrain and the water (`theme::tests`).
+
+`tests/ex1.rs`, headless, Dark and Light:
+
+| | rows | compared in | what it shows |
+|---|---:|---:|---|
+| Aurora made WW2 Conquest with Guadalcanal's radar bunker, against SP_01 | 1,662 (278 added, 395 removed, 989 changed) | 0.62 - 0.68 s | the WW2 layer added (277), the campaign's spawns, player and menus removed (215 campaign, the rest its old layer), the bunker added; a click on its row selects it |
+| Atacama Rush as Conquest, the stage against MP_005GR (Preview export) | 1,268 | 0.25 s | the Conquest layer added (317), the Rush layer removed (821); T to the original and back; Close preview gives the project back |
+
+The Export window's Names section with the canary's names (the per-language rows open), and an id holding `_NAME`
+refused in words.
+
+### Retired
+
+`bfbc2-diff-workbench\` (`level-diff\LevelDiff.cs`, `build.bat`, `tests\test_leveldiff.py`, the folder's README of
+planned tools, kept in `DESIGN.md` 4.7); the hub's Level diff tab runs `bfbc2.exe leveldiff`; `run_tests.py`'s three
+LevelDiff entries (the build, the built levels, MP_005) are bc2-cli's cargo tests; `tests\test_cli_errors.py` checks
+`bfbc2 leveldiff`'s error. OPFOR: `opforcore.paths.leveldiff()` is the command, `paths.exe('LevelDiff')` refuses with
+it (nothing else in OPFOR called LevelDiff). `RETIRED.md` has the row.

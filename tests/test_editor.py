@@ -37,6 +37,10 @@ window.
     against what the Studio showed (SP_01, ONS_MP_004, ONS_MP_002, SP_009 and the WW2 level GUADAL_CANAL, its answers
     kept as digests); the AI workspace on ONS_MP_004 in Dark and Light; edit, build (navkit apply), install and
     restore on a scratch OPFOR copy, its game folder byte for byte as before.
+  - round EX1: every name of an export checked together and landing where the game and OPFOR read it (an E3d
+    canary renamed: the registration, the description, each language's text in the overlay; the rules' refusals in
+    words), the Export window's Names section, the export's preview beside the original (Atacama Rush as Conquest)
+    and the Diff panel on Aurora made WW2 Conquest (rows, filters, tints, a row clicked), in Dark and Light.
 
 Read only for the game copy and OPFOR's work folder: projects and edited partitions go to temp folders. The
 game-data parts are skipped (with a note) without the game copy, the GPU parts without any graphics adapter; the
@@ -74,7 +78,7 @@ def main() -> int:
             'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
             'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ', 'g4 ', 'as the Map Inspector showed them',
             'compared with the Map Inspector', 'gr1 ', 'as the Navigation Studio showed them',
-            'compared with the Navigation Studio', 'gr2 ', 'the same AI layer', 'WW2')
+            'compared with the Navigation Studio', 'gr2 ', 'the same AI layer', 'WW2', 'ex1 ')
     for line in out:
         if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))

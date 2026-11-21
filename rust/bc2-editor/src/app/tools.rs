@@ -427,6 +427,8 @@ impl ViewState {
             }
             _ => self.mode_note.clear(),
         }
+        // round EX1: the differences (the Diff panel's), over any mode
+        self.diff_look(&mut look, palette);
         self.gpu_scene.look = look;
     }
 
