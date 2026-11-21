@@ -220,7 +220,7 @@ pub const WORKSPACES: [Workspace; 6] = [
 ];
 
 /// The getting-started guide: (title, text) steps.
-pub const GETTING_STARTED: [(&str, &str); 13] = [
+pub const GETTING_STARTED: [(&str, &str); 15] = [
     (
         "Start: three paths",
         "The start screen offers three buttons. Open project opens a map project you saved (a .mapedit.json file; \
@@ -274,6 +274,22 @@ pub const GETTING_STARTED: [(&str, &str); 13] = [
          eye camera (Alt+W) walks the map at a soldier's eye with the game's field of view. A destructible \
          object's State in Properties (Page Up / Page Down) steps through its health states, its collision with \
          them where its files split it per part.",
+    ),
+    (
+        "Show one game mode or Rush stage",
+        "The Mode switch over the 3D view shows every object, the level's game mode layer only (its flags, bases, \
+         M-COMs, spawns, combat areas and their logic) or the level without it, and a Rush level one stage at a time \
+         as it is played: the other stages' M-COMs and the bases, combat areas and spawns not in play are hidden, in \
+         every view and the outliner. It is a view setting: the project and the export keep every object.",
+    ),
+    (
+        "See the weather",
+        "The Weather switch over the 3D view lists every state of the level's weather system (night, dawn, fog, rain \
+         and the cutscene states are marked, with the spawn-time switch - what players see - and the settings' \
+         ActiveState). The game-accurate view draws the state's light, exposure and sky and opens on the level's own \
+         state; the simplified view is tinted by it. The Export window's Weather section makes the exported level \
+         start in one of them, in another level's state (keeping this level's sky, or with that level's whole sky) \
+         or at night. Night and rain are not yet seen in game: they build only with Build it anyway.",
     ),
     (
         "Arrange the window",

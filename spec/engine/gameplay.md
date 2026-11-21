@@ -450,6 +450,23 @@ defenders' at 1,500 (Squad Rush 1,000) with `BaseCount` the number of stages. L1
 [data: L1: 16 of 16 Rush and 14 of 14 Squad Rush levels]
 [doc: bfbc2-map-editor/placement/L1_placement_report.md:292] [doc: bfbc2-map-editor/placement/L1_placement_report.md:470]
 
+### GAME-RUSH-9: A stage as it is played: the counters' events from the start state
+
+Status: **verified**
+
+What is in play during a Rush stage follows from the data alone: every instance starts from its `Enabled`; a stage
+is played while all of its counters (`MultipleTriggerEntityData`) are enabled; its M-COMs' `onDestroyed` events,
+followed through the event glue (multiple and delay triggers, event splitters, team filters, gates), `Enable` and
+`Disable` the next stage's bases, combat areas, spawns and counters, never through another stage's counters. The
+editor's mode view layer shows one stage so: the other stages' M-COMs with what belongs to them, and the bases,
+combat areas and spawns disabled during it, are hidden. On MP_005GR, MP_005SR, NAM_MP_002R and BC1_OASIS_GR the
+bases and the two combat areas in play per stage are L1's, in L1's play order, with no ambiguity.
+
+[code: rust/bc2-levelwrite/src/modelayer.rs:594-725] [code: rust/bc2-levelwrite/src/modelayer.rs:729-780]
+[test: rust/bc2-levelwrite/tests/vw2.rs::rush_stages_as_played_match_l1]
+[test: rust/bc2-editor/tests/vw2.rs::mode_view_layer_hides_by_mode_and_rush_stage]
+[doc: bfbc2-map-editor/placement/L1_placement_report.md:146-163]
+
 ## 6. Squad Deathmatch
 
 ### GAME-SDM-1: Four squads, one pool of spawns, one vehicle

@@ -4,7 +4,17 @@
 struct Globals {
     view_proj: mat4x4<f32>,
     light: vec4<f32>,
+    // round VW2: the weather state's tint of scene-lit colours (w 1: tinted)
+    tint: vec4<f32>,
 };
+
+// a scene-lit colour under the weather's tint (overlays, alpha 0, keep their colour)
+fn weathered(c: vec3<f32>, scene_lit: f32) -> vec3<f32> {
+    if (g.tint.w > 0.5 && scene_lit > 0.5) {
+        return min(c * g.tint.rgb, vec3<f32>(1.0));
+    }
+    return c;
+}
 @group(0) @binding(0) var<uniform> g: Globals;
 
 struct MeshOut {
@@ -65,7 +75,7 @@ fn shade_of(world: vec3<f32>, scene_lit: f32) -> f32 {
 fn fs_mesh(i: MeshOut) -> SceneOut {
     let shade = shade_of(i.world, i.color.a);
     var o: SceneOut;
-    o.color = vec4<f32>(i.color.rgb * shade, 1.0);
+    o.color = vec4<f32>(weathered(i.color.rgb * shade, i.color.a), 1.0);
     o.id = i.id;
     return o;
 }
@@ -152,7 +162,7 @@ fn fs_visual(i: VisualOut) -> SceneOut {
         base = mix(min(c, vec3<f32>(1.0)), i.color.rgb, 0.2);
     }
     var o: SceneOut;
-    o.color = vec4<f32>(base * shade, 1.0);
+    o.color = vec4<f32>(weathered(base * shade, i.color.a), 1.0);
     o.id = i.id;
     return o;
 }
