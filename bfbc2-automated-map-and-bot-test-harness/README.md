@@ -77,7 +77,7 @@ working tree had changes), the options, and per level:
   (`objects/objects/mpobjective` objects), capture points and mission objectives; AI orders (AreaOrder, PatrolOrder
   and its waypoints, InterludeOrder, FireAtArea - NavKit's `ordercheck.order_points`); each with its class (below):
   the infantry ones are tested, the others counted (`excluded`);
-- per **path-data file** (`dice`: DICE's original, the kept `.opfor-orig` where NavKit's file is installed;
+- per **path-data file** (`dice`: DICE's original, kept in the game copy's install ledger where NavKit's file is installed;
   `navkit`: NavKit's build; `installed`: what the game loads, when it is not DICE's) its path, sha1 and the
   results of the file tests;
 - the **level checks** (AI readiness from files) and the **in-game** checks (on hold until a session is imported).

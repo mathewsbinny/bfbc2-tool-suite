@@ -13790,6 +13790,98 @@
    ]
   },
   {
+   "id": "XINST-GL-1",
+   "title": "Whole files stack; a revert gives back what was there before that tool, in any order",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/gameledger.rs:949-1335"
+    },
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/gameledger.py:560-760"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/gameledger_tests.rs::every_order_of_two_tools"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/gameledger_tests.rs::a_derived_layer_refuses_its_base_leaving"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/gameledger_tests.rs::opfors_records_are_kept"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::python_twin"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ]
+  },
+  {
+   "id": "XINST-GL-2",
+   "title": "No interruption leaves a half-written game copy",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/gameledger.rs:257-280"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/gameledger.rs:715-947"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/gameledger_tests.rs::an_interruption_at_every_write_step"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::interruptions"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ]
+  },
+  {
+   "id": "XINST-GL-3",
+   "title": "Markers of before the ledger are adopted, or refused in words",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/gameledger.rs:1504-1617"
+    },
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/gameledger.py:856-918"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/gameledger_tests.rs::legacy_markers_are_adopted"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::legacy"
+    }
+   ]
+  },
+  {
    "id": "XINST-STG-1",
    "title": "Writes are atomic",
    "file": "spec/transforms/install.md",
@@ -14139,49 +14231,77 @@
   },
   {
    "id": "XNAV-INS-1",
-   "title": "Install keeps DICE's original once, writes whole",
+   "title": "Install keeps the file it replaces once, in the install ledger, and writes whole",
    "file": "spec/transforms/navkit.md",
    "status": "verified",
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/navkit.py:751-785"
+     "ref": "bfbc2-auto-navkit/navkit.py:836-883"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/driver.rs:153-226"
     },
     {
      "kind": "test",
      "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
     }
    ]
   },
   {
    "id": "XNAV-INS-2",
-   "title": "Restore gives the level its original path data back",
+   "title": "Restore gives the level the path data from before NavKit back",
    "file": "spec/transforms/navkit.md",
    "status": "verified",
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/navkit.py:788-807"
+     "ref": "bfbc2-auto-navkit/navkit.py:886-922"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/driver.rs:228-281"
     },
     {
      "kind": "test",
      "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
     }
    ]
   },
   {
    "id": "XNAV-INS-3",
-   "title": "DICE's original is found through every OPFOR backup",
+   "title": "DICE's original is the bottom of the ledger's stack",
    "file": "spec/transforms/navkit.md",
    "status": "verified",
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/navkit.py:77-100"
+     "ref": "bfbc2-auto-navkit/navkit.py:77-108"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navshared.rs:66-133"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/navdata.rs:1479-1494"
     },
     {
      "kind": "test",
-     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+     "ref": "core/tests/test_gameledger.py::python_twin"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file"
     }
    ]
   },
@@ -14707,33 +14827,53 @@
   },
   {
    "id": "XSMP-INS-1",
-   "title": "Install only a complete build, every file checked first",
+   "title": "Install only a complete build, as one journalled commit",
    "file": "spec/transforms/stockmp.md",
    "status": "verified",
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-stockmp-ai/stockmplib.py:168-197"
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:102-127"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/stockmp/mod.rs:309-436"
     },
     {
      "kind": "test",
      "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_deep_scan_fixes.py::stockmp_rollback"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
     }
    ]
   },
   {
    "id": "XSMP-INS-2",
-   "title": "Revert restores or removes",
+   "title": "Revert gives back what was there before stock-MP",
    "file": "spec/transforms/stockmp.md",
    "status": "verified",
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-stockmp-ai/stockmplib.py:198-219"
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:130-195"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/stockmp/mod.rs:309-436"
     },
     {
      "kind": "test",
      "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
     }
    ]
   },

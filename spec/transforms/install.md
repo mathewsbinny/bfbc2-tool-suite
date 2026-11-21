@@ -13,6 +13,63 @@ again. Its inverse, **revert**, must give the game copy back byte for byte. Thre
 
 The suite's editor never writes the game copy; it runs OPFOR's installer (EDITOR_ARCHITECTURE 3.12, E3d).
 
+## 0. The install ledger: one record of every install (round DF2)
+
+The game copy's install ledger (`<game>\opfor\ledger`, OPFOR's `opforcore.ledger` format `opfor-ledger/1`) is the one
+install record of every tool that writes the game copy: the suite's NavKit and stock-MP installs (whole files,
+`bc2_formats::gameledger` and its Python twin `bfbc2core.gameledger`) and OPFOR's stages (section 1 and 4 below).
+One record per owner (`navkit:<lv>`, `stockmp:<lv>`, OPFOR's stages), the bytes each install replaced kept once by
+sha256 in `blobs\`, a lock while an operation runs, a journal while one writes.
+
+### XINST-GL-1: Whole files stack; a revert gives back what was there before that tool, in any order
+
+Status: **verified**
+
+Per game file the owners holding it whole form a stack: the bottom one's prior is what was there before any owner
+(DICE's original, kept once by sha256, or none), each one's value the sha256 it wrote. Install puts a new layer on
+top, refused when the file changed outside the ledger since the top owner wrote it; a re-install of the top owner
+keeps its prior. Uninstall of the top owner writes its prior back (or removes a file it added); uninstall of a buried
+owner splices it out - the owner above inherits its prior and the file is untouched - unless the owner above is
+derived (built from the file it found), then it is refused, naming what to revert first. So audit AU4 DS-1's sequence
+(install NavKit, apply stock-MP, restore NavKit, revert stock-MP) ends with DICE's file, and every order of two
+independent tools applied and reverted gives every file back byte for byte. Every check comes before the first write;
+other owners' records of other kinds are kept as they are, and a whole-file install over a file another owner holds
+slots in is refused.
+
+[code: rust/bc2-formats/src/gameledger.rs:949-1335] [code: core/bfbc2core/gameledger.py:560-760]
+[test: rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file] [test: rust/bc2-formats/src/gameledger_tests.rs::every_order_of_two_tools]
+[test: rust/bc2-formats/src/gameledger_tests.rs::a_derived_layer_refuses_its_base_leaving] [test: rust/bc2-formats/src/gameledger_tests.rs::opfors_records_are_kept]
+[test: core/tests/test_gameledger.py::python_twin] [test: core/tests/test_gameledger.py::cross]
+
+### XINST-GL-2: No interruption leaves a half-written game copy
+
+Status: **verified**
+
+Before the first write every file a commit writes or removes (game files and records) is recorded with its pre-image
+in the journal (flushed to disk). Each game file is written beside its target, flushed (`sync_all` / fsync) and moved
+over it, the move retried while another process holds the target for a moment; the live file is never moved aside.
+A failed write rolls the commit back at once; a killed process leaves the journal and a stale lock, and the next
+operation (or `bfbc2 gameledger recover`) rolls it back first, so the command can simply be run again.
+
+[code: rust/bc2-formats/src/gameledger.rs:257-280] [code: rust/bc2-formats/src/gameledger.rs:715-947]
+[test: rust/bc2-formats/src/gameledger_tests.rs::an_interruption_at_every_write_step] [test: core/tests/test_gameledger.py::interruptions]
+[test: core/tests/test_gameledger.py::cross]
+
+### XINST-GL-3: Markers of before the ledger are adopted, or refused in words
+
+Status: **verified**
+
+A suite install finding its own markers of before the ledger beside a file (NavKit's `.opfor-orig` / `.opfor-new`,
+stock-MP's `.opfor-stockmp-*`) adopts them into the ledger in one journalled commit (the backup's bytes become the
+prior) and removes them; another tool's markers, or markers that do not describe one finished install, are refused
+in plain words before anything is written (OPFOR's migration moves the rest).
+
+[code: rust/bc2-formats/src/gameledger.rs:1504-1617] [code: core/bfbc2core/gameledger.py:856-918]
+[test: rust/bc2-formats/src/gameledger_tests.rs::legacy_markers_are_adopted] [test: core/tests/test_gameledger.py::legacy]
+
+<!-- DF2: Project OPFOR's half (its stages on the ledger, the migration of their markers) goes here. -->
+
+
 ## 1. The stage protocol
 
 ### XINST-STG-1: Writes are atomic
