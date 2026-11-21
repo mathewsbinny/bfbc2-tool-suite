@@ -6822,3 +6822,13 @@ test against `render`).
 preview pages in `work\ww2\preview`), so `page()` and `PAGE` stay unchanged (deprecated in their docstring only);
 `meshview.py`'s library path the rebuild uses (`Index`, `load_mesh`, `stack_models`, `render`, `page`) is byte for
 byte the same code: the round changed only the module docstring, `page()`'s docstring and `main()`.
+
+Proof: `python run_tests.py quick -j 2` in the worktree, 134 of 135 passed in 795 s - the one failure is O2, whose
+stand-in `b.exe` Microsoft Defender blocked on this PC (`OSError: [Errno 22]`, the known environmental case; O2
+covers no command line this round touched), and O3 (meshview's recorded answers, its usage lines re-recorded from the
+Python) passed. cargo fmt, clippy `--all-targets -D warnings` on bc2-convert, bc2-render, bc2-editor and bc2-cli (and
+bc2-cli's meshview, bf1943 and caches groups alone), their cargo tests (the editor's g3 / g4, round HG1's, ran in the
+quick tier), ruff and mypy on the changed Python, `spec/trace.py --check` (693 rules) clean. Release builds:
+`build_native.py` and `--editor`; `bfbc2 --version` and `bfbc2-editor --version` print 0.11.0. Screenshots (Dark and
+Light: the guard tower with its edges and bounds, destroyed, the rifles from the Meshes mode, the normal-map channel,
+the demo panel) went to the session's scratch folder, not the repository.
