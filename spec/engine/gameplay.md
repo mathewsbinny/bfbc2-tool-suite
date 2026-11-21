@@ -47,7 +47,7 @@ BF1943 ports) Conquest and Air Superiority. WW2 has no Rush.
 [code: rust/bc2-levelwrite/src/profile.rs:385-397]
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers]
 [data: stock levels per mode: BFBC2 Conquest 9, Rush 10, Squad Rush 7, Squad Deathmatch 8, Onslaught 4; BFBC1 2 each; Vietnam 5 each; WW2 Conquest 3, Air Superiority 1]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1139-1152]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1152-1165]
 
 ### GAME-MODE-3: Mode keys and names
 
@@ -118,7 +118,7 @@ mode; its rules are OPFOR's Pacific War work, still queued).
 
 [code: rust/bc2-levelwrite/src/modelayer.rs:94-103]
 [test: rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1149-1152]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1162-1165]
 
 ## 2. The mode layer
 
@@ -151,7 +151,7 @@ instances, `mp_005gr` 821, `mp_005sr` 279, `mp_009sdm` 172, `nam_mp_002r` 507, `
 [code: rust/bc2-levelwrite/src/modelayer.rs:46-67] [code: rust/bc2-levelwrite/src/mpconvert.rs:333-362]
 [code: rust/bc2-levelwrite/src/modelayer.rs:253-288]
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1169-1177]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1182-1190]
 
 ### GAME-LAYER-3: Every stock Conquest layer has the same types
 
@@ -164,7 +164,7 @@ announcer's `VoiceOver`s and lines, an MP `HumanPlayer`, `Mission`, `Menu`s, `In
 `CombatAreaTrigger` with its outline.
 
 [data: the Conquest layer compared on every stock Conquest level and DICE's MP_SP_005CQ conversion (round E3)]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:805-816]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:818-829]
 
 ### GAME-LAYER-4: A layer complete for its mode
 
@@ -369,7 +369,7 @@ stages of 2, `nam_mp_002r` 3 of 2, `mp_005sr` 2 of 1.
 
 [code: rust/bc2-levelwrite/src/modelayer.rs:219-232] [code: rust/bc2-levelwrite/src/modelayer.rs:499-520]
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1179-1181]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1192-1194]
 
 ### GAME-RUSH-2: Stage order follows the counters' enable chain
 

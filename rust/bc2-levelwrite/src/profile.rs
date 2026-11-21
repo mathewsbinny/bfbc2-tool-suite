@@ -105,6 +105,15 @@ impl Announcer {
             .collect();
         partitions.sort_by_key(|n| n.to_ascii_lowercase());
         let blocks = game.vo_blocks(&low);
+        // round DF1 (audit AU4-BUG-10): voice-over blocks with no bundleManifest to name them would be registered in
+        // package.mft alone (the checksum crash): refused, never copied without their lines
+        if !blocks.is_empty() && !game.has_manifest() {
+            return Err(ExportError(format!(
+                "{lv}: package.mft names {} voice-over bundle(s) but the game copy has no Dist/win32/bundleManifest to \
+                 register them in",
+                blocks.len()
+            )));
+        }
         let mut manifest = Vec::new();
         let mut bundles = Vec::new();
         for (kind, _) in &blocks {

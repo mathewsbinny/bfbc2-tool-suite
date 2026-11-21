@@ -187,17 +187,19 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
         app.export.settle(&h.ctx, &base);
         if a.install_plan {
             h.settle(&mut app, 4);
-            let stage = app.export.spec.as_ref().and_then(|s| s.level_id().ok()).map(|id| {
-                opfor
-                    .join("work")
-                    .join("mapedit")
-                    .join(id.to_ascii_lowercase())
-                    .join("stage")
-            });
+            let stage = app
+                .export
+                .spec
+                .as_ref()
+                .and_then(|s| bc2_editor::export_ui::stage_of(&opfor, s));
             if let Some(st) = stage {
-                app.export
-                    .install
-                    .run(&opfor, "plan", &["--plan".into(), st.display().to_string()]);
+                app.export.install.lv = app
+                    .export
+                    .spec
+                    .as_ref()
+                    .and_then(|s| s.level_id().ok())
+                    .map_or_else(String::new, |id| id.to_ascii_uppercase());
+                app.export.install.plan(&opfor, &st);
                 app.export.install.settle();
             }
         }
@@ -275,7 +277,16 @@ impl eframe::App for Window {
                 bc2_editor::actions::Action::SetViewMode(bc2_editor::workspace::ViewMode::Navmesh),
             );
         }
+        // round DF1 (audit AU4-DS-13): the window does not close under an install, an export or a navkit command
+        // without asking
+        let ctx = ui.ctx().clone();
+        if ctx.input(|i| i.viewport().close_requested()) && !self.app.close_requested() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        }
         self.app.ui(ui, &gpu);
+        if self.app.closing_anyway() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {

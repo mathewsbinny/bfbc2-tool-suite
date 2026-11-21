@@ -117,6 +117,17 @@ pub struct Device {
     linear: ID3D11SamplerState,
 }
 
+/// How an error of a removed device begins ([`Device::removed`]; round DF1).
+pub const DEVICE_REMOVED: &str = "the Direct3D device was removed";
+
+/// Whether a DXGI format holds four 8-bit channels (`R8G8B8A8_*`, `B8G8R8A8_*`, `B8G8R8X8_*`): the texel layout
+/// [`Device::read_rgba8`] reads (round DF1, audit AU4-BUG-26).
+#[must_use]
+pub fn is_rgba8(format: u32) -> bool {
+    // R8G8B8A8 TYPELESS..SINT (27-32), B8G8R8A8_UNORM, B8G8R8X8_UNORM (87, 88), their TYPELESS / SRGB (90-93)
+    matches!(format, 27..=32 | 87 | 88 | 90..=93)
+}
+
 fn err(what: &str) -> impl Fn(windows::core::Error) -> String + '_ {
     move |e| format!("{what}: {e}")
 }
@@ -987,6 +998,13 @@ impl Device {
 
     /// A pass's RGBA8 output read back, row by row.
     fn read_rgba8(&mut self, p: &Pass) -> Result<Vec<u8>, String> {
+        // the rows are read as four bytes a texel: any other format is refused, never read past its rows
+        if !is_rgba8(p.format) {
+            return Err(format!(
+                "pass {}: its output's format {} is not four 8-bit channels: it cannot be read back as RGBA8",
+                p.output, p.format
+            ));
+        }
         let (_, tex) = self.pass_target(p)?;
         let (w, h) = (p.size[0] as usize, p.size[1] as usize);
         let desc = D3D11_TEXTURE2D_DESC {
@@ -1015,8 +1033,16 @@ impl Device {
                 .Map(&st, 0, D3D11_MAP_READ, 0, Some(&raw mut m))
                 .map_err(err("Map (post)"))?;
             let base: *const u8 = m.pData.cast();
+            let pitch = m.RowPitch as usize;
+            if base.is_null() || pitch < w * 4 {
+                self.ctx.Unmap(&st, 0);
+                return Err(format!(
+                    "pass {}: the mapped rows ({pitch} bytes) are shorter than {w} texels",
+                    p.output
+                ));
+            }
             for y in 0..h {
-                out.extend_from_slice(std::slice::from_raw_parts(base.add(y * m.RowPitch as usize), w * 4));
+                out.extend_from_slice(std::slice::from_raw_parts(base.add(y * pitch), w * 4));
             }
             self.ctx.Unmap(&st, 0);
         }
@@ -1287,6 +1313,23 @@ impl Device {
 mod tests {
     use super::*;
     use windows::core::Interface;
+
+    /// Round DF1 (audit AU4-BUG-26): only four-8-bit-channel formats are read back as RGBA8 rows.
+    #[test]
+    fn only_rgba8_formats_are_read_as_rgba8() {
+        // R8G8B8A8_UNORM, its sRGB, B8G8R8A8_UNORM, its sRGB
+        for f in [28, 29, 87, 91] {
+            assert!(is_rgba8(f), "{f}");
+        }
+        // R16G16B16A16_FLOAT, R32_FLOAT, R8_UNORM, R16_FLOAT, R10G10B10A2_UNORM
+        for f in [10, 41, 61, 54, 24] {
+            assert!(!is_rgba8(f), "{f}");
+        }
+        // a device that works reports no removal (round DF1, audit AU4-BUG-9)
+        if let Ok(dev) = Device::new(false) {
+            assert_eq!(dev.removed(), None);
+        }
+    }
 
     /// A buffer cached for data that is then dropped is never handed to other data of the same length that takes its
     /// address (a post pass once drew with another size's full-screen quad this way).
