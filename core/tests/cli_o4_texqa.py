@@ -14,6 +14,7 @@ import json
 import math
 import os
 import random
+import re
 import struct
 import sys
 from typing import Any
@@ -366,6 +367,51 @@ def _random_set(n: int, seed: int) -> dict[str, Any]:
 def _code() -> str:
     with open(os.path.join(SUITE, 'bfbc2-console-convert', 'texqa.py'), 'rb') as fh:
         return hashlib.sha1(fh.read().replace(b'\r\n', b'\n')).hexdigest()[:12]
+
+
+def rekey_cache(case: str, rel: str, data: bytes) -> bytes:
+    """REKEY (round QW2): a rows cache's keys with texqa.py's source hash taken out. A key hashes [VERSION, the hash of
+    texqa.py's source, the texture's sha1, its source, DICE's copy, its .orig's sha1, its name] (texqa.run; the Rust
+    reads the same source through include_bytes), so ANY edit of texqa.py - round DF2's to texqa.Dice, which no case
+    here runs - changed the three cached cases' file digests: the goldens failed after the merge, and builds made from
+    two of DF2's commits wrote two digests, which read as run-to-run noise. Each key the case's own textures give
+    under the current hash becomes the same key with '<texqa.py>' in the hash's place; a key that matches none stays
+    as it is, so a wrong key still fails."""
+    if not re.fullmatch(r'cache[\\/]rows_v\d+\.json', rel):
+        return data
+    try:
+        rows = json.loads(data)
+    except ValueError:
+        return data
+    if not isinstance(rows, dict):
+        return data
+    files: dict[str, str] = {}
+    for d, _ds, fs in os.walk(case):
+        for f in fs:
+            files[os.path.relpath(os.path.join(d, f), case).replace(os.sep, '/').lower()] = os.path.join(d, f)
+
+    def sha(p: str) -> str:
+        with open(p, 'rb') as fh:
+            return hashlib.sha1(fh.read()).hexdigest()
+    code = _code()
+    known: dict[str, str] = {}                 # a key under the current hash -> the same key under '<texqa.py>'
+    for r, p in files.items():
+        if r.endswith('.orig') or not r.endswith('.res'):
+            continue
+        parts = r.split('/')
+        for name in ('/'.join(parts[i:]) for i in range(len(parts))):     # the name under any input root
+            for orig in [None] + ([sha(files[r + '.orig'])] if r + '.orig' in files else []):
+                ident: list[Any] = [1, code, sha(p), None, None, orig, name]
+                key = hashlib.sha1(json.dumps(ident).encode()).hexdigest()
+                ident[1] = '<texqa.py>'
+                known[key] = hashlib.sha1(json.dumps(ident).encode()).hexdigest()
+    for key in rows:
+        if key in known:
+            data = data.replace(key.encode(), known[key].encode())
+    return data
+
+
+REKEY = [rekey_cache]
 
 
 def _cache_with(data: bytes, name: str, row: dict[str, Any]) -> str:
