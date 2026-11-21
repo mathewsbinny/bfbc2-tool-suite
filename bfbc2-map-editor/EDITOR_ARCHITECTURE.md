@@ -817,12 +817,30 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
      until nothing more is asked for (Vietnam's NAM_MP_002CQ 11 rounds, 84 MB; Wake Island 12 rounds, 134 MB).
      Nothing is written to disk.
    - Proofs and costs: `rust/BENCHMARKS.md` "R5c".
-4. **Phase 3b (next):** the game's LODs (the mesh sets' LODs and their distances, switchable off for proofs) and
-   the instanced programs (`StreamInstancingFloat`) - the GPU is now most of a frame on wide views; the whole
-   terrain with the game's terrain LOD instead of the window of patches around the target; labels hidden by the game
-   frame's depth; the sky (`EnvironmentMain`) and Wake Island's tiled-mask terrain cells (black: the patch stream
-   reading of R5 does not cover the converted terrain); package levels' load (rounds read the large common bundles
-   again: a payload index or one pass for every name a mesh can need).
+4. **Phase 3b (R5d, done: the visual gaps; `rust/BENCHMARKS.md` "R5d", spec RNDR-TERR-5, RNDR-WATER-2,
+   RNDR-SKY-1..3, RNDR-LOD-1, RNDR-VIEW-1..2, TERR-VT-7):**
+   - **Terrain masks** (`terrain::Terrain::patch`): a mask tile spans `flag` x `flag` cells (8 or 4) aligned in the
+     patch map; each cell reads its part of the tile. R5 to GW1 stretched the whole tile over each cell (blocky,
+     repeating masks; the WW2 shores' ragged cell edges).
+   - **Engine values the terrain and water read** (`terrain::engine_values`): `heightmapWorldScaleY` is the height
+     field's range (the records' 500 is a placeholder: Wake's 1,000 m terrain drew its beach black);
+     `heightmapWorldScaleXZ` / `OffsetXZ` and the height map bound for the water (`water::load` takes the terrain's
+     values: DICE's Vietnam water and OPFOR's Wake water read them).
+   - **The sky** (`sky`): `EnvironmentMain` on a camera-following dome (`live::Key::Sky`, `Dyn::World`,
+     `Dyn::SkyDepth`), drawn first of the blended draws (after the depth pass, which it reads); values from the
+     weather state's `Sky`, `Sun` and `Clouds` by name; the panoramic clouds off (`sky::CLOUDS`) until their
+     composite is proven. `World::sky_pass` (off by default: the harness proofs draw no sky; the editor turns it on).
+   - **Levels of detail** (`live::Options::lod`, `Options::exact` for the proofs): terrain patches by distance
+     (`terrain::patch_lods`: one shared index buffer with every level, each level's outer edges whole, so no cracks;
+     `Step::range`), objects by their mesh set's `MeshLodSettingsAsset` (`material::LodSettings`, one source per level
+     with its distance band, `live::LodBand`); meshes with alpha-tested or blended parts keep level 0.
+   - **Labels** over the game view: the frame's depth read back after each drawn frame (`Device::read_depth`, about
+     2 ms at 920 x 660), `GameView::hidden` / `frame::occluded`.
+   - **Package loads** (`Files::fetch`): a round's bundles read at once through the suite's bundle cache
+     (`fbrb::read_many`: the in-process session and the shared disk cache), `BC2_RENDER_UNCACHED` for the old path.
+   - Not done: the instanced programs (`StreamInstancingFloat`: a per-instance stream and program choice, the draw
+     count is no longer the bottleneck after the LODs), the haze over the scene (`EnvironmentHalfResMain`, the fog:
+     with the capture), `MinScreenArea` culling (its unit).
 
 ### 3.12 Exporting a level as a new multiplayer level (round E3, 2026-11-18: study and first export)
 
