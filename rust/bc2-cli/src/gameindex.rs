@@ -5,13 +5,11 @@
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::LazyLock;
 
+use bc2_convert::meshview::cache;
 use bc2_formats::meshindex;
 use bc2_pyrt::pickle::{self, Value};
-use bc2_pyrt::pickle_write;
 use bc2_pyrt::py::{abspath, dirname, isdir, join, suite_root};
-use regex::Regex;
 
 use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, Py, PyErr, PyResult};
@@ -43,74 +41,10 @@ pub fn find_opfor(given: Option<&str>) -> PyResult<String> {
     )))
 }
 
-static SKIP: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"^levels/(ons_|opfor_)").ok());
-static INSTALLED: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"(?s)^opfor-.+-installed\.json\z").ok());
-
-/// `os.walk(top)` with the folders sorted as `_bundles` sorts them: each folder's (path, sub-folder names, file
-/// names), top-down; `visit` returns false to prune the folder's sub-folders.
-fn walk(top: &str, visit: &mut dyn FnMut(&str, &[String]) -> bool) {
-    let Ok(rd) = std::fs::read_dir(top) else { return };
-    let (mut dirs, mut files) = (Vec::new(), Vec::new());
-    for e in rd.flatten() {
-        let name = e.file_name().to_string_lossy().into_owned();
-        let path = join(top, &[&name]);
-        let is_dir = std::fs::metadata(&path).is_ok_and(|m| m.is_dir());
-        if is_dir {
-            // os.walk does not descend into symbolic links (followlinks=False)
-            let link = e.file_type().is_ok_and(|t| t.is_symlink());
-            dirs.push((name, link));
-        } else {
-            files.push(name);
-        }
-    }
-    dirs.sort();
-    if !visit(top, &files) {
-        return;
-    }
-    for (d, link) in dirs {
-        if !link {
-            walk(&join(top, &[&d]), visit);
-        }
-    }
-}
-
-/// `meshview._bundles(root)`: (level-relative folder, bundle path) of the stock bundles, Package before Dist.
+/// `meshview._bundles(root)`: (level-relative folder, bundle path) of the stock bundles, Package before Dist
+/// (`bc2_convert::meshview::cache`, shared with the map editor's asset preview since round GR3).
 pub fn bundles(root: &str) -> Vec<(String, String)> {
-    let mut out = Vec::new();
-    for w in ["Package", "Dist\\win32"] {
-        let top = join(root, &["game", w]);
-        let n = top.chars().count();
-        walk(&top, &mut |dp, files| {
-            let rel = if dp == top {
-                ".".to_owned()
-            } else {
-                dp.chars()
-                    .skip(n + 1)
-                    .collect::<String>()
-                    .replace('\\', "/")
-                    .to_lowercase()
-            };
-            if SKIP.as_ref().is_some_and(|r| r.is_match(&rel)) {
-                return true;
-            }
-            if rel.starts_with("levels/")
-                && files
-                    .iter()
-                    .any(|f| INSTALLED.as_ref().is_some_and(|r| r.is_match(&f.to_lowercase())))
-            {
-                return false;
-            }
-            let mut fs: Vec<&String> = files.iter().collect();
-            fs.sort();
-            for f in fs {
-                if f.to_lowercase().ends_with(".fbrb") {
-                    out.push((rel.clone(), join(dp, &[f])));
-                }
-            }
-            true
-        });
-    }
-    out
+    cache::bundles(root)
 }
 
 /// The index's `where`: entry name (lower case) -> (bundle, entry name), in the cache's order (the strings shared
@@ -233,82 +167,11 @@ fn write_atomic(path: &str, data: &[u8]) -> std::io::Result<()> {
     r
 }
 
-/// `Index._write`'s pickle: `{'version': 3, 'sig': sig, 'data': {'where', 'parts', 'entries'}}` with the objects the
-/// reference shares shared (each bundle path: its sig tuple's and its entries'; a layout record: every part using it;
-/// the empty bytes object).
+/// `Index._write`'s pickle ([`cache::cache_bytes`]).
 fn cache_bytes(ix: &meshindex::MeshIndex, sig: &[(String, u64, i128)]) -> Option<Vec<u8>> {
-    use std::cell::RefCell;
-    let s = |x: &str| Value::Str(Rc::from(x));
-    let dict = |items: Vec<(Value, Value)>| Value::Dict(Rc::new(RefCell::new(items)));
-    let list = |items: Vec<Value>| Value::List(Rc::new(RefCell::new(items)));
-    let tuple = |items: Vec<Value>| Value::Tuple(Rc::new(items));
-    let paths: Vec<Rc<str>> = sig.iter().map(|(b, _, _)| Rc::from(b.as_str())).collect();
-    let sig_v = list(
-        sig.iter()
-            .zip(&paths)
-            .map(|((_, size, ns), p)| {
-                tuple(vec![
-                    Value::Str(Rc::clone(p)),
-                    pickle_write::int(i128::from(*size)),
-                    pickle_write::int(*ns),
-                ])
-            })
-            .collect(),
-    );
-    let mut where_ = Vec::with_capacity(ix.where_.len());
-    for (key, bi, name) in &ix.where_ {
-        let p = paths.get(*bi)?;
-        where_.push((s(key), tuple(vec![Value::Str(Rc::clone(p)), s(name)])));
-    }
-    let empty: Rc<[u8]> = Rc::from(&b""[..]);
-    let layouts: Vec<Rc<[u8]>> = ix
-        .layouts
-        .iter()
-        .map(|l| {
-            if l.is_empty() {
-                Rc::clone(&empty)
-            } else {
-                Rc::from(l.as_slice())
-            }
-        })
-        .collect();
-    let mut parts = Vec::with_capacity(ix.parts.len());
-    for (key, id) in &ix.parts {
-        parts.push((s(key), Value::Bytes(Rc::clone(layouts.get(*id)?))));
-    }
-    let entries = ix
-        .entries
-        .iter()
-        .map(|(k, tex)| (s(k), list(tex.iter().map(|t| s(t)).collect())))
-        .collect();
-    let top = dict(vec![
-        (s("version"), Value::Int(CACHE_VERSION)),
-        (s("sig"), sig_v),
-        (
-            s("data"),
-            dict(vec![
-                (s("where"), dict(where_)),
-                (s("parts"), dict(parts)),
-                (s("entries"), dict(entries)),
-            ]),
-        ),
-    ]);
-    pickle_write::dumps(&top).ok()
+    cache::cache_bytes(ix, sig)
 }
 
 fn same_sig(v: Option<Value>, sig: &[(String, u64, i128)]) -> bool {
-    let Some(Value::List(l)) = v else { return false };
-    let l = l.borrow();
-    l.len() == sig.len()
-        && l.iter().zip(sig).all(|(entry, (bundle, size, ns))| match entry {
-            Value::Tuple(t) => match t.as_slice() {
-                [Value::Str(path), got_size, got_ns] => {
-                    &**path == bundle.as_str()
-                        && got_size.as_int().is_some_and(|s| i128::from(s) == i128::from(*size))
-                        && got_ns.as_int().is_some_and(|m| i128::from(m) == *ns)
-                }
-                _ => false,
-            },
-            _ => false,
-        })
+    cache::same_sig(v, sig)
 }

@@ -36,11 +36,13 @@ pub enum BrowserMode {
     Spawners,
     /// Flags, M-COMs, combat areas and the other objectives.
     Objectives,
+    /// Every mesh of the game copy by name, for the asset preview (round GR3: the mesh viewer's `find`).
+    Meshes,
 }
 
 impl BrowserMode {
     /// Every mode, in the browser's order.
-    pub const ALL: [Self; 3] = [Self::PlaceObjects, Self::Spawners, Self::Objectives];
+    pub const ALL: [Self; 4] = [Self::PlaceObjects, Self::Spawners, Self::Objectives, Self::Meshes];
 
     /// Its name.
     #[must_use]
@@ -49,6 +51,7 @@ impl BrowserMode {
             Self::PlaceObjects => "Place Objects",
             Self::Spawners => "Spawners",
             Self::Objectives => "Objectives",
+            Self::Meshes => "Meshes",
         }
     }
 }

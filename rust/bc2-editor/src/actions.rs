@@ -197,6 +197,8 @@ pub enum PanelKind {
     NavEdits,
     /// The differences (round EX1).
     Diff,
+    /// The asset preview (round GR3: the mesh viewer folded in).
+    Preview,
 }
 
 /// The Terrain and Vegetation workspaces' brushes (registered; their tools come in later rounds).
@@ -580,6 +582,12 @@ pub fn registry() -> Vec<Entry> {
             "Show asset browser",
             None,
             "The asset browser: every placeable object of the content set, spawners and objectives, to drag into the view",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::Preview),
+            "Show asset preview",
+            None,
+            "A blueprint or mesh of the game copy: levels of detail, parts, destruction states, textures by channel,              wireframe, normals, bounds, the mesh viewer's side, top and front pictures",
         ),
         e(
             Action::ShowPanel(PanelKind::History),
