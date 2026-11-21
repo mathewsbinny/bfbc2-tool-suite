@@ -1,5 +1,5 @@
 //! Battlefield: Bad Company 2 file formats in pure Rust: the BFBC2 Tool Suite's shared core
-//! (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8).
+//! (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.8).
 //!
 //! Each format is a port of the suite's Python reference implementation and replaces it only when it gives the
 //! same answers on the same test corpora. This crate has no Python types: the bindings live in `bc2-py`.

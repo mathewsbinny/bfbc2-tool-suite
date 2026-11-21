@@ -1,6 +1,6 @@
 # Rust core: baseline timings
 
-Milestone E0 (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8, "measured, not assumed"): the DBX reader in Python
+Milestone E0 (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.8, "measured, not assumed"): the DBX reader in Python
 (`core/bfbc2core/dbx.py`) and in Rust (`rust/bc2-formats`), on the same files on the same machine.
 
 **Machine:** AMD Ryzen 7 8845HS (8 cores, 16 threads), 15.3 GB RAM, Windows 11, Python 3.13.15, Rust 1.100.0
@@ -1820,7 +1820,8 @@ The tools no earlier round had profiled, on their real workloads: `rust\bench_sw
 (the game copy and OPFOR's work folders read only; outputs and caches in a temporary folder) and each tool's
 game-tier test under cProfile. Not profiled: the tools other agents own this round (NavKit, Granny, stock-MP AI, FBRB,
 renderqa / xdiff / disasm), and four folders that hold only a README (`bfbc2-ai-behavior-simulator`,
-`bfbc2-bot-ai-debugger`, `bfbc2-tactical-map-authoring-tool`; `bfbc2-diff-workbench` is LevelDiff, C#: 2.4 s on MP_005).
+`bfbc2-bot-ai-debugger`, `bfbc2-tactical-map-authoring-tool`, deleted in round FM1 as planned editor workspaces:
+`RETIRED.md`; `bfbc2-diff-workbench` is LevelDiff, C#: 2.4 s on MP_005).
 
 ### The ranked table
 
@@ -5538,7 +5539,7 @@ O2's nav group: 336 of 336.
 ## GR1: the Map Inspector folded into the editor, then retired (2026-11-20, branch `rust-gr1`)
 
 The first round of the user's GUI plan (2026-11-19): the five older GUIs inventoried (feature, in the editor?, plan:
-`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` section 9), then what the editor lacked of the Map Inspector added
+`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` section 9), then what the editor lacked of the Map Inspector added
 and the inspector retired.
 
 ### What the editor gained (`rust/bc2-editor`)

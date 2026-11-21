@@ -22,6 +22,9 @@ queue of rounds is `ROADMAP.md`.
 6. Move the round to **Done** in `ROADMAP.md` with its one-line result, and add its user-visible changes to the
    **Unreleased** section of `CHANGELOG.md` (create it at the top when there is none).
 
+A round that retires a tool or folder follows `RETIRED.md`'s checklist (proven equal on recorded data, nothing
+pointing at it, the hub and OPFOR updated, then deleted) and adds its row there.
+
 Branch protection (requiring the checks before a merge) is not switched on; that is the repository owner's choice.
 
 ## Releasing a version

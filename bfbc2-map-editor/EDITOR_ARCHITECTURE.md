@@ -1366,7 +1366,7 @@ The user's plan (2026-11-19): for each of the suite's older GUIs, list what it d
 (`rust/bc2-editor`, `bfbc2-editor`) does not, add that to the editor, then retire the GUI - removed from the
 repository and from the hub's launcher, its docs pointing at the editor. The hub (`BFBC2 Tool Suite.pyw`) stays as
 the launcher. The planned AI behaviour simulator, bot AI debugger and tactical map tools become editor workspaces
-later, not tools of their own. This replaces 3.8's "each Python GUI stays until its replacement works" with an
+later, not tools of their own (section 10; their placeholder folders were deleted in round FM1). This replaces 3.8's "each Python GUI stays until its replacement works" with an
 order: the Map Inspector (GR1), the Navigation Studio (GR2), the mesh viewer (GR3), DbxEditGUI (GR4, the last C#);
 LevelDiff, which has no window, becomes a `bfbc2.exe` command when its round comes (GR1 if time allowed; it did not:
 GR2 or a round of its own).
@@ -1374,7 +1374,7 @@ GR2 or a round of its own).
 What each does, whether the editor has it (round GR1's read of their code and READMEs), and the plan. "Partly"
 says which part.
 
-### 9.1 Map Inspector (`bfbc2-map-inspector/inspector.py`): retired in GR1
+### 9.1 Map Inspector (`bfbc2-map-inspector/inspector.py`, a folder deleted in FM1): retired in GR1
 
 | Feature | In the editor? | Plan |
 |---|---|---|
@@ -1382,7 +1382,7 @@ says which part.
 | The 3D view: terrain (height field), water, collision by layer, markers for objects without collision, spawn facing lines, outlines as prisms | Yes (G1; R5's Game-accurate view besides) | - |
 | Orbit, pan, zoom, fly (F), double-click flies to the object | Yes (fly on the right button; F focuses; double-click focuses) | - |
 | Layers with colours and counts, shown and hidden; area points, effects and other hidden at start | Yes (the Outliner's groups, Hide / Show, `HIDDEN_AT_START`) | - |
-| Search by GUID, type, id, name or blueprint | Yes (the Outliner's search, the same haystack; Ctrl+P) | The type filter combo: the Outliner's groups are the types' categories; "Select all of type" covers the rest |
+| Search by GUID, type, id, name or blueprint | Yes (the Outliner's search, the same haystack; no shortcut: Ctrl+Shift+P is the command palette, P polygon select) | The type filter combo: the Outliner's groups are the types' categories; "Select all of type" covers the rest |
 | Selection panel: type, full type, GUID, id, name, category, blueprint, its object type, source partition and group, team, player type, destructible, position; fly to; copy GUID | Yes (Properties, G1/G2) | - |
 | **The full property tree**: every field nested, child counts, values as the XML shows them, references as buttons that follow them, *back* | **Added in GR1**: Properties, *All fields* (types too; long lists paged; references go to their object, Back in Links) | - |
 | **Referenced by** (every entity whose fields name this one, `LevelData` left out) | **Added in GR1**: the *Links* panel | - |
@@ -1398,8 +1398,9 @@ editor shows was compared with what it showed before it went: the outliner in G1
 property tree, references and referrers in GR1 (`inspect_parity.rs`: 1,074 objects of SP_01, MP_005, MP_009GR and
 ONS_MP_004 - of every type the first, middle and last, every 50th group member, the most referencing and most
 referenced - 102,243 fields, 35,263 references, 1,939 referrers, all identical; the inspector's answers kept as
-digests in `rust/bc2-editor/tests/data/inspector_props_*.json.gz`). The folder keeps this plan and a README saying
-where each feature went; nothing else in the suite or OPFOR used its code.
+digests in `rust/bc2-editor/tests/data/inspector_props_*.json.gz`). The folder kept this plan and a README saying
+where each feature went (this table) until round FM1 moved the plan to `bfbc2-map-editor/` and deleted the folder
+(`RETIRED.md`); nothing else in the suite or OPFOR used its code.
 
 ### 9.2 Navigation Studio (`bfbc2-navigation-studio`: `studio.py`, `editing.py`, `overlay.py`): retired in GR2
 
@@ -1455,3 +1456,67 @@ only that); OPFOR's code never called the Studio.
 | Two `.dbx` files compared instance by instance: added, removed, changed fields (`path: old -> new`), reference lists as sets, reorderings | Partly: `bc2_levelwrite::diff` (field level, behind Check edits) | `bfbc2.exe leveldiff`, proven identical to LevelDiff.exe's output (text, JSON, exit codes) on real level pairs, then LevelDiff.exe, its hub tab's tool and OPFOR's `paths.exe('LevelDiff')` move to it |
 | `--match-objects` (placed objects paired by blueprint and position), `--type`, `--ignore`, `--summary`, `--all`, `--json`; exit codes 0 / 1 / 2 / 3 | No | The same command |
 | (no window) | - | Later: "Compare with base" in the editor's History, on the same diff |
+
+## 10. Planned workspaces: tactical authoring, the bot AI debugger, the AI behaviour simulator (round FM1, 2026-11-20)
+
+Three tools of `DESIGN.md`'s first plan (2026-10-16) were never built: the tactical map authoring tool, the bot AI
+debugger and the AI behaviour simulator. Each had a folder holding only a README ("Planned - see ../DESIGN.md"). The
+user ruled (2026-11-19) that they become workspaces of the editor, not tools of their own, and that planned tools get
+no folders (2026-11-20); round FM1 deleted the three folders (`RETIRED.md`) and moved their plans here from
+`DESIGN.md` 4.3, 4.4 and 4.8. They build on the AI workspace (3.4a), and the same project, undo and apply rules
+hold. Nothing here is scheduled yet: each waits for Project OPFOR's bot layer (`ROADMAP.md`).
+
+### 10.1 Tactical authoring (milestone M7, when OPFOR's bot layer takes shape)
+
+A layer above the navigation data, for OPFOR's bots: generated as candidates, corrected by hand.
+
+- **Layers:**
+  - objectives and their approaches;
+  - cover candidates (positions with protection from one or more directions);
+  - firing positions (with fields of view);
+  - rally points, vehicle approach routes, squad routes;
+  - strategic regions (sectors of a map with a role: base, front, flank).
+- **Generators propose candidates** from geometry and the navigation data: cover from collision near walkable
+  ground, sight lines by ray casts (the editor's CPU ray-cast on the scene's surfaces, 3.10), approaches by path
+  search (the AI workspace's A*, GR2). People correct them in the workspace, each correction an operation of the
+  project's log.
+- **Output:** a per-level annotation file, `<level>.tactical.json` (`DESIGN.md` 5.3: typed annotations, each with a
+  position, orientation, extent, team relevance, game-mode relevance and source - generated or hand-made; the schema
+  is fixed when the bot layer's needs are known), which OPFOR's bot layer reads. It is not stockmp-ai's layer:
+  stockmp writes game data, this writes annotation side files.
+
+### 10.2 The bot AI debugger (milestone M6, as soon as AI runs in OPFOR; first for the game's own AI)
+
+A live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of
+sight, threats, squads.
+
+- **OPFOR side:** a telemetry module in OPFOR's DLL streams AI state over 127.0.0.1 a few times a second (`DESIGN.md`
+  5.4: JSON lines over TCP, one frame per update, `{"t": ..., "soldiers": [...], "squads": [...], "events": [...]}`,
+  the schema fixed and versioned with the first module): soldier positions and orientation, team, current order and
+  goal, target, path request and route, tactical state, perceived threats, squad membership. It starts with what the
+  game's own AI exposes, then adds OPFOR's bot layer as it is built.
+- **Editor side:** a workspace on the same 3D view, with the live soldiers drawn over the level and its navigation
+  data:
+  - click a soldier for its state;
+  - its current route, line of sight and threat lines;
+  - a timeline to scrub back through the last minutes;
+  - recording to a file for later, and playing a recording back without the game.
+- It also feeds the test harness's in-game tests (bot traversal, stuck detection, squads, vehicles), which are on
+  hold with the user's pause of in-game tests (2026-11-20).
+
+### 10.3 The AI behaviour simulator (with OPFOR's bot layer, Goal 3)
+
+Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective
+priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls,
+physics or animation.
+
+- **The rule this brings forward:** OPFOR's bot decision logic is written as an engine-independent library. It
+  reaches the world only through an interface: positions, line of sight, paths, objective states, squad messages.
+  OPFOR's DLL connects that interface to the game; the simulator connects it to a simplified map. Both run the same
+  decision code, so a flaw found in simulation is a flaw in the bots.
+- **The simplified map** comes from NavKit's navigation data (route graph, areas), the tactical annotations (10.1),
+  and line of sight from collision geometry.
+- **Scenarios:** teams, spawns and objectives from the level (or the project's mode layer); scripted or random enemy
+  behaviour; many runs faster than real time; results into the test harness. The workspace draws a run as 10.2 draws
+  a live game, so one view serves both.
+- **Out of scope:** controls, physics, animation, weapon ballistics. Those stay with in-game tests.
