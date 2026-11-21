@@ -104,6 +104,7 @@ fn two_spawns(app: &EditorApp) -> (usize, usize) {
 
 #[test]
 fn ai_workspace_on_ons_mp_004() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;
@@ -269,6 +270,7 @@ fn scratch_opfor(dir: &Path, root: &Path, lv: &str) -> PathBuf {
 
 #[test]
 fn edit_build_install_restore_on_a_scratch_copy() {
+    let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;

@@ -149,14 +149,18 @@ must not already be a `package.mft` source of another tool's level. Its id is `L
 
 [code: rust/bc2-levelwrite/src/export.rs:644-655] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:822-825]
 
-### REG-NEW-3: No voice-over bundle
+### REG-NEW-3: Voice-over: the donor's blocks, no bundle of its own
 
-Status: **implemented**
+Status: **verified**
 
-A new level ships and registers no `vo/<lang>` bundle; its announcer comes from the common bundles. (Stock levels
-register voice-over bundles that are absent, BNDL-LOC-3; a new level is not given that latitude, CSUM-CHK-2.)
+A new level ships none of the four kinds' `vo/<lang>` bundles of its own making (`export::KINDS`: level, terrain,
+ingame, loader). Since round E3c it registers its donor's voice-over blocks under its own name: as on every stock
+level, their sources are absent and their targets are the set's common voice-over bundles, which are there
+(SND-VO-3); a WW2 donor's own `vo/en-00` bundle is staged byte for byte and installed with the level. (Corrected in
+round SP2: the rule first said a new level registers no voice-over block at all, which was E3's behaviour.)
 
-[code: rust/bc2-levelwrite/src/export.rs:40-44] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:817-818]
+[code: rust/bc2-levelwrite/src/export.rs:40-44] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:842-845]
+[test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 
 ### REG-NEW-4: Registration is written last and removed first
 
@@ -197,7 +201,8 @@ on both the server and the client, crashes the server while it computes the leve
 Status: **observed**
 
 A new level registered while its bundles are not in the game copy crashes the start-up checksum. This is why the
-registration is written last (REG-NEW-4) and why a new level registers no voice-over bundle (REG-NEW-3).
+registration is written last (REG-NEW-4) and why a new level registers voice-over blocks only as stock levels do,
+with targets that are there (REG-NEW-3).
 
 [data: OPFOR's install audit C2: a failed install that left the level registered with absent bundles is the start-up checksum crash]
 [doc: opfor:research/PYTHON_CODE_AUDIT.md:30] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1110]

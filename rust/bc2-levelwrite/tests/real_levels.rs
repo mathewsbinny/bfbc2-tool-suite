@@ -208,6 +208,7 @@ fn moved(r: &Rows, by: [f32; 3]) -> Rows {
 
 #[test]
 fn edits_on_real_levels() {
+    let _gate = crate::gate();
     let Some(root) = opfor() else {
         println!("skipped: no game copy (project-opfor-bfbc2)");
         return;

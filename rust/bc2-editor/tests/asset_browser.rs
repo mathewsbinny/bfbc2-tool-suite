@@ -17,6 +17,7 @@ use bc2_editor::levels::{self, ContentSet};
 
 #[test]
 fn every_placeable_object_of_the_content_set() {
+    let _gate = crate::gate();
     let root = match levels::find_opfor(None) {
         Ok(r) => r,
         Err(e) => {
@@ -126,6 +127,7 @@ fn every_placeable_object_of_the_content_set() {
 /// it, the game copy or a graphics adapter.
 #[test]
 fn asset_browser_screenshots() {
+    let _gate = crate::gate();
     let Some(dir) = std::env::var_os("BC2_EDITOR_SHOTS") else {
         println!("skipped: BC2_EDITOR_SHOTS is not set");
         return;

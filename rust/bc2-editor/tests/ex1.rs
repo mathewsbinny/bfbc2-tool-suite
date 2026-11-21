@@ -120,6 +120,7 @@ fn atacama(game: &Game, dir: &Path) -> (PathBuf, ExportSpec) {
 
 #[test]
 fn names_form_and_the_export_preview() {
+    let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;
@@ -257,6 +258,7 @@ fn aurora_ww2(game: &Game, dir: &Path) -> (PathBuf, String) {
 
 #[test]
 fn diff_panel_on_aurora_made_ww2_conquest() {
+    let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;

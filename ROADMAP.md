@@ -44,7 +44,13 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 3. **R5d, the editor rendering's visual gaps:** Wake Island's black terrain cells, the sea under the carriers, the
    sky pass, run-varying far-water pixels, game LODs and instancing, the whole terrain with LOD, labels occluded by
    depth, faster Package loads.
-4. **The 10 post-Rust improvements** (algorithms, architecture, naming).
+4. **PR1, the post-Rust improvements** (re-scoped 2026-11-20 by PR0 against S1, QW1 and audit AU2): stable test
+   IDs, a determinism rule and two-seed check, one native-backend registry; one cache layer with content keys,
+   restart points instead of whole payloads (and one BF1943 bundle reader), CT1-style memory fixes, one cull-tree
+   model and one DBX document, tool logic in library crates with typed errors, one worker pool, sounds decoded in
+   process; then round codes out of names, an installable package, one naming scheme and OPFOR's `wake_*` as
+   `ww2_*`. Already done: stream packing and the per-level shader index (S1); rebuild_all's step graph is OPFOR in
+   Rust's.
 5. **Tests ported to Rust.**
 6. **OPFOR quality round 2:** the mypy baselines down to 0; the tests baseline (drifted from 193 to 207).
 7. **Then:**
@@ -74,13 +80,12 @@ In priority order (above); the next rounds:
 | SG1 | after XF1 (the user, 2026-11-20; audit AU1): editing static group members (their group files), so WW2 maps (Wake: 2,999 members, about 69 % of its objects) are fully editable; needs OP1's multi-file operations, so it lands with or after OP1's first part |
 | OP1 | before E5 (the user, 2026-11-20; audit AU1 R14 / R17 / R18 / R24): project operations that can target any file (group files, terrain, navigation side files), delta storage for brush-scale edits, a journalled autosave, typed errors in the editor and renderer, the UI state split out of the two god objects (ViewState, EditorApp) |
 | IN1 | before the public release (the user, 2026-11-20; audit AU1 R42-R49): the level installer in the suite (no Python, no OPFOR needed), a game-folder setting, portable and anonymised project sharing (no PC name, no absolute paths), a small "install this project" tool for players, old export stages pruned |
-| QW1 | now (approved 2026-11-20; audit AU2's best-value list): the editor / levelwrite / render tests run once per quick tier; dev debug-info lowered and one integration-test binary per crate; the test scheduler's memory declarations from recorded peaks; a stale `bfbc2.exe` warns (strict mode) and each artefact has its own fingerprint; one suite locator in OPFOR with a version check; superseded FBRB cache payloads pruned; one env-variable registry and a pinned Python requirements file; mapexport's staleness check; one GUID helper for OPFOR's uuid5 sites; skipped tests counted as skipped; the matplotlib flake; stale test-time names |
 | VW2 | the mode view layer (show / hide by game mode and Rush stage, on the project's mode layer data); time-of-day and weather switches (the weather states each level holds) in both views; Guadalcanal's game view (weather partition not found); Vietnam levels in the game view |
 | RT3 | RT2's leftovers: hpdtool.parse's and the Wave readers' messages ported, then retired; the library parts split out of the command-line `.py` files that are still imported (aptrefs, xiso with a bytes entry point, culltree, stockmp, crashreader), then their command lines retired; argparse's option abbreviations; the kept references in BENCHMARKS RT2 |
 | GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (~~LevelDiff~~: EX1, done): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
-| Post-Rust | the 10 improvements |
+| PR1 | the post-Rust improvements, re-scoped (PR0, 2026-11-20; audit AU2 A1-A5, A8, A9, P4, P8, S2, S14), after RT3 and OPFOR in Rust, in three parts: **PR1a** stable test IDs (durations, memory and CI keyed by ID), determinism as a rule (two hash seeds checked, Rust hash order linted), one native-backend registry (the 24 `use_native` copies, the per-tool switches); **PR1b** one cache layer (one budget implementation, content keys, the caches outside the budget), restart points instead of the 16 GB of decompressed payloads and one BF1943 bundle reader in `bc2-formats` (the S1 restart points' Rust half), CT1-style memory fixes (the batch readers, NavKit regression's 15 GB, the terrain readers), one cull-tree model, one DBX document, `bc2-cli`'s tool logic in library crates with typed errors and the Python emulation kept to the edge, one worker pool, sounds decoded without an ffmpeg per sound; **PR1c** (before the release) round codes out of names, an installable package, one naming scheme, OPFOR's `wake_*` as `ww2_*`. Done earlier: stream packing and the per-level shader index (S1), the cache budget (E3p, D1), strict mode and superseded payloads (QW1); rebuild_all's step graph is OPFOR in Rust's |
 | Tests in Rust | the Python tests ported, with a synthetic test corpus generated from the specification |
 | OPFOR quality 2 | mypy baselines to 0, the tests baseline |
 | V1, L1, A1 | the export's robustness: a compatibility / validation layer (plain errors, spec rules); DICE's placement tendencies studied on the stock maps, driving editor warnings ("stage 3 is 40 m from stage 2"); an optional auto shaping / layering of a mode's gameplay; exports regenerating path data with NavKit and the bot module |
@@ -115,6 +120,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Date | What |
 |---|---|---|
+| QW1 | 2026-11-20 | audit AU2's quick wins: the editor / levelwrite / render tests once per quick tier (quick tier 4,677 -> 2,276 s on this PC); dev builds with line tables and one integration-test binary per crate (debug folder 25 -> 3.4 GB, editor relink 76 -> 18 s); memory declarations from recorded peaks; a fingerprint per artefact, a stale `bfbc2.exe` warned about (`BFBC2_STRICT_NATIVE`), mapexport / editor staleness checks; superseded FBRB payloads pruned (437 MB here); `bfbc2core.envvars` (92 variables) and `requirements.txt`; skipped tests counted as skipped; MPLCONFIGDIR; 60 stale test-time names; OPFOR: one suite locator with a version check, one GUID helper (24 sites, byte-identical) |
 | FM1 | 2026-11-20 | the map editor's own folder `bfbc2-map-editor\` (README, `EDITOR_ARCHITECTURE.md` moved with its history, section 10: the three planned AI tools as editor workspaces), `bfbc2-map-inspector\` and the three README-only placeholder folders deleted, every reference repointed (suite and OPFOR); `RETIRED.md` (the retirement policy, its checklist, 10 rows); DOC1's small code / help fixes |
 | SP1 | 2026-11-19 | the engine specification, layers 1-2 (`spec/`): 439 rules (250 verified, 48 implemented, 134 observed, 7 inferred), `spec/trace.py` checked by the quick tier |
 | P1 | 2026-11-19 | `ROADMAP.md`, `CHANGELOG.md`, `VERSION` 0.9.0 (tagged), `RELEASING.md`, CI (`checks.yml`), `run_tests.py quick --no-game` |

@@ -7,6 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
+# one test binary: tests/main.rs holds each file of tests/ as a module (round QW1)
+autotests = false
 
 [dependencies]
 bc2-formats.workspace = true
@@ -36,3 +38,7 @@ bc2-scene.workspace = true
 
 [lints]
 workspace = true
+
+[[test]]
+name = "levelwrite"
+path = "tests/main.rs"

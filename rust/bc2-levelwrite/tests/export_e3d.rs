@@ -36,6 +36,7 @@ fn level(game: &Game, lv: &str) -> LevelWriter {
 /// The modes of each era, from the data, and the layer each mode's stock level has.
 #[test]
 fn each_eras_modes_and_their_layers() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
@@ -75,6 +76,7 @@ fn each_eras_modes_and_their_layers() {
 /// donor's Conquest layer in, complete; an undo gives the base back.
 #[test]
 fn rush_to_conquest_as_a_project_operation() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;

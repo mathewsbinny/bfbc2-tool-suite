@@ -34,6 +34,7 @@ use eframe::egui::{Key, Modifiers};
 /// an object placed there sits at that height less its sink (0, 0.5 m, 25 % of its height).
 #[test]
 fn placement_on_real_terrain() {
+    let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;
@@ -104,6 +105,7 @@ fn placement_on_real_terrain() {
 
 #[test]
 fn an_mp_005_project_through_the_interface() {
+    let _gate = crate::gate();
     let Ok(_root) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;
