@@ -15,7 +15,7 @@
 //! ```no_run
 //! use bc2_scene::scene::{self, LoadOptions};
 //!
-//! let options = LoadOptions::new("MP_005", r"work\levels\mp_005\dist\levels\MP_005.dbx", vec![
+//! let options = LoadOptions::new("`MP_005`", r"work\levels\mp_005\dist\levels\`MP_005`.dbx", vec![
 //!     r"work\levels\mp_005\pkg".into(),
 //!     r"work\levels\mp_005\dist".into(),
 //! ]);
@@ -227,6 +227,9 @@ pub struct Collision {
     pub meshes: Vec<(usize, String)>,
     /// The blueprints of placed entities without collision, sorted.
     pub missing: Vec<String>,
+    /// Round VW1: each blueprint's destructible parts in its packfile ([`havok::Parts`]: the part names' hashes and
+    /// each triangle's part, aligned with [`Collision::blueprints`]), for the blueprints whose triangles were read.
+    pub parts: HashMap<String, Arc<havok::Parts>>,
 }
 
 /// The water, as `water.Water`.
@@ -817,6 +820,9 @@ fn water_of(mesh: &Path, visual: Option<&Path>) -> std::result::Result<Water, St
     Ok(Water { mesh: m, shaders })
 }
 
+/// A blueprint's packfile as read: its triangles and its parts.
+type BlueprintCollision = (Option<Arc<Vec<Triangle>>>, Option<Arc<havok::Parts>>);
+
 /// Each placed entity's collision (`level.load`'s collision step): the packfiles of the blueprints, read on all
 /// cores; the first damaged one in entity order is the error.
 fn collision_of(entities: &[Entity], havok: &collision::FirstWins<PathBuf>) -> Result<Collision> {
@@ -831,19 +837,35 @@ fn collision_of(entities: &[Entity], havok: &collision::FirstWins<PathBuf>) -> R
             wanted.push(bp);
         }
     }
-    let read: Vec<Result<Option<Arc<Vec<Triangle>>>>> = wanted
+    let read: Vec<Result<BlueprintCollision>> = wanted
         .par_iter()
         .map(|bp| {
             let path = havok.get(bp).cloned().unwrap_or_default();
             let data = read(&path)?;
-            havok::triangles(&data)
-                .map(|t| t.map(Arc::new))
-                .map_err(|source| SceneError::Havok { path, source })
+            let tris = havok::triangles(&data).map_err(|source| SceneError::Havok {
+                path: path.clone(),
+                source,
+            })?;
+            // the parts only beside triangles (the same reading, so the same refusals); a part map that does not
+            // line up is dropped
+            let parts = match &tris {
+                Some(t) => havok::parts(&data)
+                    .ok()
+                    .flatten()
+                    .filter(|p| p.part_of.len() == t.len())
+                    .map(Arc::new),
+                None => None,
+            };
+            Ok((tris.map(Arc::new), parts))
         })
         .collect();
     let mut out = Collision::default();
-    for (bp, t) in wanted.iter().zip(read) {
-        out.blueprints.insert((*bp).to_owned(), t?);
+    for (bp, r) in wanted.iter().zip(read) {
+        let (t, parts) = r?;
+        out.blueprints.insert((*bp).to_owned(), t);
+        if let Some(p) = parts {
+            out.parts.insert((*bp).to_owned(), p);
+        }
     }
     let mut missing = BTreeSet::new();
     for e in placed {

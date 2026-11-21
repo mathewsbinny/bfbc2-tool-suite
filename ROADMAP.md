@@ -67,6 +67,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
+| VW1 | `rust-vw1` | the editor's view toggles: effects, lights and sounds with their reach, combat areas, capture areas and spawn protection from the data; the player's-eye camera; the navmesh and cull tree modes checked; collision per destruction state with the state stepper (merge pending) |
 | GR1 | `rust-gr1` | the five GUIs inventoried (`EDITOR_ARCHITECTURE.md` section 9); the Map Inspector folded into the editor (All fields, Links, `view-link` lines, Measure) and retired |
 
 ## Queued
@@ -75,7 +76,6 @@ In priority order (above); the next rounds:
 
 | Round | What |
 |---|---|
-| VW1 | after SV1, the editor's views (the user, 2026-11-20): toggles that show particle effects, dynamic lights and sound emitters with their reach; toggles for combat areas, capture radii, spawn protection zones and out-of-bounds edges drawn as the game uses them; an optional player's-eye camera (soldier height, the game's field of view); the navmesh and cull tree view modes checked and fixed; collision per destruction state (the Havok per-part bodies split out in the scene loader), selectable with the destruction-state picker, which gains up / down arrows to step through the states (the user, 2026-11-20) |
 | XF1 | right after EX1 (the user, 2026-11-20; audit AU1): objects placed from other levels get their shader entries in the export (0x98BD6E) and their own cull shapes (not the template's; unslotted placements checked); the donor level cached and the undo replay checkpointed (undo no longer replays the whole log); deep-duplicate paste (owned sub-objects copied, not shared); typed gameplay operations |
 | SG1 | after XF1 (the user, 2026-11-20; audit AU1): editing static group members (their group files), so WW2 maps (Wake: 2,999 members, about 69 % of its objects) are fully editable; needs OP1's multi-file operations, so it lands with or after OP1's first part |
 | OP1 | before E5 (the user, 2026-11-20; audit AU1 R14 / R17 / R18 / R24): project operations that can target any file (group files, terrain, navigation side files), delta storage for brush-scale edits, a journalled autosave, typed errors in the editor and renderer, the UI state split out of the two god objects (ViewState, EditorApp) |

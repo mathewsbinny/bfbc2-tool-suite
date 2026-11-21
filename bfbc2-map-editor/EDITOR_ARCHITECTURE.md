@@ -562,10 +562,60 @@ Havok collision; for vegetation that is the render mesh's leaf cards without the
   render meshes and 124 of MP_005's 146 have 2 - 4) and, for a destructible blueprint, its parts' health states
   (`PartComponentData.HealthStates[].MeshName`: `part_1`, `part_1_dest`, `ruin`, `ruin_downed`): Intact, Destroyed,
   All parts. The parts' states are not split in the collision the scene reads (one shape list per blueprint), so
-  collision has no per-state variant yet.
+  collision has no per-state variant yet (round VW1 split them: below).
 - These are view settings: kept per level in the editor's settings (`Saved::displays`), never in the project's log;
   "Reset view overrides" clears the objects', blueprints', levels of detail and states.
 - Picking reads the id of what is drawn (the render mesh); snapping, placing and the ruler still use collision.
+
+*Done in round VW1 (2026-11-20; `rust/BENCHMARKS.md` "VW1"): the view toggles the user asked for.* Every size and
+shape is read from the level's partitions, never made up (`rust/bc2-editor/src/overlays.rs`, `walk.rs`):
+
+- **Overlays**, each a toggle in the View dropdown and the palette (`Show or hide ...`), with their own labels
+  (`Overlay labels`); kept with the level's display settings (`Display::overlays`). Colours: the new tokens
+  `view-fx-effect`, `view-fx-light`, `view-fx-sound` (each 3.5:1 on the lit terrain and the water, none orange) and
+  the team tokens, `view-team-neutral` for what the data marks neutral, `view-unowned` (the third neutral) for what
+  no team owns.
+  - *Effects*: the placed effects (`GameEffectEntityData.Effect`, and placed objects whose blueprint is an effect),
+    each emitter of the blueprint at its `Transform`, with its spawn volume where the emitter document gives one
+    (`SpawnPositionData.Pre`: `SphereEvaluatorData` `Radius` x `Scale` per axis at `Pivot`, or `BoxEvaluatorData`
+    `Dimensions`, drawn as extents from `Pivot`). Particles are not drawn.
+  - *Lights*: BC2 has no light entities. Its dynamic lights are emitters whose template acts as a point light
+    (`EmitterTemplateData.ActAsPointLight`): a sphere of `PointLightRadius` at the emitter plus `PointLightPivot`, the
+    label's swatch `PointLightColor` (HDR, scaled to its largest channel). No spot lights exist in the data. MP_005
+    places none (its three light emitters belong to weapons and the detonation pack); SP_01 places 15.
+  - *Sounds*: `GameSoundEntityData.Sound` in the level and `SoundEntityData.SoundTemplate` in effects, with the
+    template's minimum distance (the largest of `MasterMinDistance` and its positional emitters' `MinDistance`).
+    BC2's sounds have **no maximum distance**: past the minimum they fall off logarithmically by `DistanceSlope`, so
+    the label says the slope; the only `MaxDistance` fields are the BigWorld one-shot settings (where around the
+    listener a distant sound is played), not an emitter's reach. Sound areas: their `Geometry` and `OuterGeometry`
+    (the fade edge, `FadeWidth`).
+  - *Combat areas*: `CombatAreaTriggerEntityData.Geometry` (the out-of-bounds edge) as a wall from the ground to its
+    points' `Height`, or 20 m where the data has none (labelled unbounded: MP_005's has `Height` 0), and
+    `SurroundingGeometry` as a line on the ground; the team's colour with `UseTeamRestriction`.
+  - *Capture areas*: `CapturePointEntityData.Geometry` (a prism of its points' `Height`) and `CaptureRadius` above 0
+    (a circle; a sphere with `IsCapturedInUpperSphere`), `InitialOwnerTeam`'s colour; `UnableToChangeTeam` is an HQ.
+  - *Spawn protection*: `SoldierSpawnEntityData.SpawnEnemyRadius` around each of its `AlternativeSpawnPoints` (the
+    spawner's own position without them): the radius a spawn checks for enemies. BC2's level data has no safe-zone
+    volume; `ContinueEntityData.SoldierImmortalTimer` (the campaign) is a time, not a place.
+  - The overlays replace the scene's outlines of what they cover (`Look::skip_shapes`), so a toggle off draws none.
+- **Player's eye camera** (View dropdown, Alt+W; Esc returns to the camera before): the 3D view at the soldier's eye,
+  walking on the surface with the CPU ray cast (W A S D, a drag looks, Shift sprints, C crouches). Eye height
+  `CharacterPoseData.EyePosition` of `DefaultSoldierPhysics` (stand 1.6 m, crouch 1.0 m; BC2 has no prone pose),
+  `StepHeight` 0.3 m, speeds `CharacterStatePoseInfo.Velocity` (4 / 2.5 m/s) and `SprintMultiplier` 1.5; field of
+  view `LevelData.DefaultFOV` (55 on every level) x `InfantryFOVMultiplier` (1 multiplayer, 0.82 campaign), taken as
+  vertical with the width following the window (Hor+), as the editor's cameras are - not proved against the
+  executable in this round.
+- **Navmesh and cull tree modes** checked on MP_005 and SP_01: both draw their data (`tests/view_toggles.rs`). The
+  cull tree mode now colours all three slot kinds in the 3D view's status tokens (its own green, none yellow, shared
+  red; the leaves' spheres blue) - its note had called the yellow orange, the selection's colour.
+- **Collision per destruction state.** The scene loader keeps each blueprint's Havok parts beside its merged
+  triangles (`Collision::parts`, `bc2_formats::havok::parts`): BC2's `*_Havok.res` starts with a header listing its
+  parts (each name's hash, `h * 33 ^ byte` from 5381 over the lower-case `PartInfoData.Name`), and each
+  `hkpStorageExtendedMeshShape` subpart record holds its part's index at +0x20. The merged list is unchanged (snapping,
+  picking, NavKit); the view draws, per object, the parts its destruction state shows (`collision_part_shown`: a
+  part a health state names when that state is its component's). The Display section's State gains the ranks between
+  intact and destroyed (`Destruction::Stage`), up / down arrows and Page Up / Page Down, and says plainly when a
+  blueprint's collision is one piece in its files.
 
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to

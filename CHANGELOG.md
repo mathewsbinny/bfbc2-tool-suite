@@ -95,6 +95,20 @@ landed on `main`.
   ("Rush stage 2 has one M-COM (the donor's has 2)").
 - **Map editor:** Install and Uninstall in the Export window (Project OPFOR's `mapedit_install.py`: the plan first,
   then the install on confirmation).
+- **Map editor: view toggles** (round VW1). The View dropdown's **Overlays** draw what the level's data holds, each
+  with labels: **Effects** (each placed effect's emitters and their spawn volumes), **Lights** (emitters that act as
+  point lights: their radius and colour; BC2 has no spot lights), **Sounds** (emitters with their minimum distance -
+  BC2's sounds have no maximum, the label gives the falloff slope - and sound areas with their fade edge), **Combat
+  areas** (the out-of-bounds edge as a wall, the outer edge, the team they bound), **Capture areas** (the flags'
+  polygon and height or capture radius, HQs) and **Spawn protection** (each spawn point's enemy-check radius). Three
+  new view tokens: `view-fx-effect`, `view-fx-light`, `view-fx-sound`.
+- **Map editor: player's-eye camera** (View dropdown, Alt+W): the 3D view at a soldier's eye height (1.6 m standing,
+  1.0 m crouching, from the game's soldier physics) with the level's field of view (55 degrees, x 0.82 on the
+  campaign), walking on the ground with W A S D (Shift sprints, C crouches); Esc returns to the camera before.
+- **Map editor: collision per destruction state.** The scene reads each blueprint's Havok parts
+  (`bc2_formats::havok::parts`, `Collision::parts`); the Display section's State picker also chooses the collision
+  drawn (Collision, Visual + collision), gains the states between intact and destroyed, up / down arrows and Page Up
+  / Page Down, and says when a blueprint's collision is one piece in its files.
 - **`requirements.txt`** (round QW1): the Python packages pinned to the versions CI uses; CI installs it, and so
   does README's first step (`python -m pip install -r requirements.txt`).
 - **One registry of environment variables** (round QW1): `bfbc2core.envvars` lists every `BFBC2_*`, `BC2_*`,
@@ -212,6 +226,8 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Map editor: the cull tree view mode** called its no-slot colour orange (the selection's); it is yellow. Objects
+  with a slot of their own are now green, and the slots and spheres use the 3D view's status tokens (round VW1).
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /
   `OverflowError` from the Rust core instead of reading the file as the Python does (round SD1).
 - **The map editor's game-accurate view opens OPFOR's WW2 levels** (round GW1): Guadalcanal and Iwo Jima failed with
