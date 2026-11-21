@@ -107,11 +107,28 @@ def exe_795745() -> bytes:
     # (OSError 22). The text alone did not stop that on every PC; round QW2's `loadable` layout (sections without
     # holes between them, an import table) did: written and read back 4 of 4 times where this layout was blocked
     # 4 of 4 times
+    # That layout was flagged in its turn hours later (round AV1): the cases keep the file on disk only as
+    # kept_on_disk() makes it
     put(b, 0x95D000, 0x95E000 - len(STAND_IN_MARK), STAND_IN_MARK)
     return bytes(tmt.pe32([('.text', 0x1000, b'\xc3' + b'\xcc' * 15, 0x60000020),
                            ('.rdata', 0x2000, bytes(rdata), 0x40000040),
                            ('.data1', 0x36F000, bytes(a), 0xC0000040), ('.data2', 0x55D000, bytes(b), 0xC0000040)],
                           base, stamp=0x4E55445D, loadable=True))
+
+
+# round AV1: the variable under which bfbc2.exe's menu tools read kept_on_disk()'s file as the program it stands for
+STAND_IN = {'BFBC2_TEST_STAND_IN_EXE': '1'}
+
+
+def kept_on_disk(exe: bytes) -> bytes:
+    """Round AV1: a synthetic exe as a case writes it - 'SI' for 'MZ' and 'SI\\0\\0' for 'PE\\0\\0', every other byte
+    as it is. Microsoft Defender's machine-learning scan blocked reads of every synthetic build-795745 layout tried
+    (Trojan:Win32/Bearfoos.A!ml; round QW2's passed for hours, then was flagged too); a file without the signatures
+    is no program to any scanner. Under STAND_IN (BFBC2_TEST_STAND_IN_EXE=1) bc2_menu::common::PeImage::open puts
+    both back, so the tools read exactly exe's bytes; a file without both marks is read as it is."""
+    pe = struct.unpack_from('<I', exe, 0x3C)[0]
+    assert exe[:2] == b'MZ' and exe[pe:pe + 4] == b'PE\0\0'
+    return b'SI' + exe[2:pe] + b'SI\0\0' + exe[pe + 4:]
 
 
 def khash(key: str) -> int:
@@ -334,7 +351,7 @@ def aptrefs_cases() -> list[Case]:
     op = fake_opfor()
     plain = bytes(tmt.pe32([('.text', 0x1000, b'\xc3', 0x60000020),
                             ('.rdata', 0x2000, b'\0presenceRequestOnline\0', 0x40000040)]))
-    files = {'t.res': ok_res, 'x.exe': bytes(tmt.build_exe()), 'b.exe': exe_795745()}
+    files = {'t.res': ok_res, 'x.exe': bytes(tmt.build_exe()), 'b.exe': kept_on_disk(exe_795745())}
     rows: list[tuple[str, dict[str, Any], list[str], dict[str, str]]] = [
         ('the usage', {}, [], {}),
         ('an unknown command', {}, ['x'], {}),
@@ -349,7 +366,7 @@ def aptrefs_cases() -> list[Case]:
         ('movie --json into a missing folder', {'t.res': ok_res},
          ['movie', '{d}\\t.res', '--json', '{d}\\no\\o.json'], {}),
         ('table', files, ['table', '--exe', '{d}\\x.exe'], {}),
-        ('table, build 795745', files, ['table', '--exe', '{d}\\b.exe'], {}),
+        ('table, build 795745', files, ['table', '--exe', '{d}\\b.exe'], STAND_IN),
         ('table, the game copy\'s exe', op, ['table'], OP),
         ('table, no exe in the game copy', {'op\\game\\x': b''}, ['table'], OP),
         ('table, a missing --exe', {}, ['table', '--exe', '{d}\\no.exe'], {}),
@@ -361,14 +378,14 @@ def aptrefs_cases() -> list[Case]:
         ('xref --movie', files, ['xref', '--exe', '{d}\\x.exe', '--movie', '{d}\\t.res', '--out', '{d}\\x.txt',
                                  '--json', '{d}\\x.json'], {}),
         ('xref --movie, build 795745', files, ['xref', '--exe', '{d}\\b.exe', '--movie', '{d}\\t.res', '--movie',
-                                               '{d}\\t.res', '--out', '{d}\\x.txt'], {}),
+                                               '{d}\\t.res', '--out', '{d}\\x.txt'], STAND_IN),
         ('xref the game copy\'s sets', op, ['xref', '--out', '{d}\\x.txt', '--json', '{d}\\x.json'], OP),
-        ('xref the game copy\'s sets, build 795745', {**op, 'op\\game\\BFBC2Game.exe': exe_795745()},
-         ['xref', '--out', '{d}\\x.txt', '--json', '{d}\\x.json'], OP),
+        ('xref the game copy\'s sets, build 795745', {**op, 'op\\game\\BFBC2Game.exe': kept_on_disk(exe_795745())},
+         ['xref', '--out', '{d}\\x.txt', '--json', '{d}\\x.json'], {**OP, **STAND_IN}),
         ('xref --sets', op, ['xref', '--sets', 'mp_hud,nothing', '--out', '{d}\\x.txt'], OP),
         ('xref, the default outputs', op, ['xref'], OP),
         ('find', files, ['find', 'live', '--exe', '{d}\\x.exe', '--movie', '{d}\\t.res'], {}),
-        ('find, build 795745', files, ['find', 'e', '--exe', '{d}\\b.exe', '--movie', '{d}\\t.res'], {}),
+        ('find, build 795745', files, ['find', 'e', '--exe', '{d}\\b.exe', '--movie', '{d}\\t.res'], STAND_IN),
         ('find only in the table', files, ['find', 'NAME1', '--exe', '{d}\\x.exe', '--movie', '{d}\\t.res'], {}),
         ('find nothing', files, ['find', 'zzz', '--exe', '{d}\\x.exe', '--movie', '{d}\\t.res'], {}),
         ('find without a name', files, ['find', '--exe', '{d}\\x.exe', '--movie', '{d}\\t.res'], {}),
