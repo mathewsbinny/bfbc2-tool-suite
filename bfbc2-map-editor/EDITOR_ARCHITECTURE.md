@@ -176,6 +176,19 @@ replaced by a later build of its own project (section 6).
 **Play-test** builds, installs and starts the level offline: OPFOR's `opfor.ini [dev] level`, then the crash reader
 on a crash. The GUI asks first, because the game starts.
 
+**What waits for what (round DF1, audit AU4).** The editor counts a *project generation*: a new number each time a
+level or project is shown or the map is closed (`EditorApp::generation`). The state made for one project carries
+it and goes with it: the Export window binds to the generation it first draws in with its project and is unbound
+(closed, its form and target dropped) when the generation changes, and it never writes into a project it was not
+opened for; a preview being opened is dropped; the new-project form's era / mode target goes only to the project
+that Create makes. Work that writes shared files waits, with the reason in words: Export while an install or
+uninstall runs (it would rebuild the stage being copied), Install now / Uninstall now while an export runs, and
+navigation Install, Restore, Build and Close map while a navkit command runs. Install now installs exactly the stage
+its plan was shown for and refuses it when `stage.json` changed since. A worker that ends without an answer is
+reported, never polled forever. Closing the window while any of this runs asks first (Wait / Close anyway); a navkit
+command still running then is stopped and its half-written output removed, and the install script's output goes to
+a log file rather than the editor's pipes. OP1 replaces these side fields with explicit state enums.
+
 ### 3.7 Live validation in the GUI
 
 These warnings show while editing, before an apply:

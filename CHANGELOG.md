@@ -281,6 +281,39 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Map editor: side state no longer outlives its project** (round DF1, audit AU4-SM-1 / -2 / -4): a project
+  generation is counted each time a level or project is shown or the map is closed. A Create that fails no longer
+  leaves its era / mode target for the next project opened (it was committed and saved into that project). The
+  Export window lets go of its project when the map closes (it wrote the old project's names into the next one and
+  exported the old one) and never writes into a project it was not opened for. Close map ends a preview first, and a
+  preview answered after the project changed is dropped.
+- **Map editor: Export, Install and the navigation commands wait for each other** (round DF1, audit AU4-CON-1 / -2):
+  Export is disabled while an install or uninstall runs and Install now / Uninstall now while an export runs, each
+  with the reason. Install now installs the stage its plan was shown for and refuses one exported again since
+  (AU4-SM-3); the stage path is computed in one place from the trimmed level id. Navigation Install, Restore and
+  Build wait for a running navkit command, and Close map waits too; install and restore run in the background like
+  the build (the window no longer freezes); a navkit command still running when the editor closes is stopped and its
+  half-written file removed.
+- **Map editor: Export reads the project's own saved state** (round DF1, audit AU4-DS-4): not the autosave file's
+  absence (a failed autosave writes none, so an unsaved session could be exported as the file on disk).
+- **Map editor: a worker that fails is reported** (round DF1, audit AU4-BUG-4): an export, profile scan, preview or
+  install whose worker panicked now ends with an error line (its panic's text) instead of "Exporting..." forever.
+- **Map editor: closing the window asks while work runs** (round DF1, audit AU4-DS-13): an install, export or navkit
+  command running when the window is closed is named, with Wait or Close anyway; the install's output goes to a log
+  file, so a closed editor no longer breaks its pipes mid-install.
+- **Map editor: the game-accurate view after a GPU reset** (round DF1, audit AU4-BUG-9 / -15 / -26, CON-11): a
+  removed Direct3D device is an error (it was reported as a finished frame), the view is turned off and loads anew
+  when turned on again; a failed game-view pick picks nothing and says why (it fell back to the hidden simplified
+  view's object); the read-back refuses a non-RGBA8 pass; each shared frame is written only after the editor's
+  device finished the frames that sampled it.
+- **Map editor: textures freed with their views** (round DF1, audit AU4-CQ-2): closing a map or a preview frees its
+  views' and the game view's textures in egui's renderer (they stayed in video memory for the session).
+- **Map editor: small fixes** (round DF1): the recent projects compare paths as Windows does (case and slashes,
+  AU4-CQ-8); the export settings are written whole and a failed write is said (AU4-BUG-14).
+- **Map export: no voice-over without its bundleManifest line** (round DF1, audit AU4-BUG-10, spec XEXP-REG-2): a
+  `bundleManifest` that does not read stops the export (it was read as empty: `package.mft` blocks without their
+  lines, the checksum crash); a donor with voice-over on a game copy without one is refused. The startup, overlay
+  and awards patches remove their scratch unpack on errors too (AU4-CQ-10).
 - **Map export: objects from other levels and sets get their shader entries** (round XF1): the export merges into
   the level's Dx9 / 10 / 11 databases the entries of every mesh it reaches that the base lacked (placed objects,
   another mode's layer, another era's kits), from the levels that draw them. Without them the game's renderer reads a

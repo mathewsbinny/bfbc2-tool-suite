@@ -116,7 +116,7 @@ after another on a scratch copy and reverting them gives every shared file back 
 
 [code: opfor:src/tools/mapedit/mapedit_install.py:361-376] [code: opfor:src/tools/mapedit/mapedit_install.py:405-436]
 [test: opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:924-936]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:937-949]
 
 ### XINST-MAP-4: Text patches add and take out exactly
 
