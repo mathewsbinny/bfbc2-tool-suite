@@ -16,6 +16,8 @@
     clippy::print_stdout,
     clippy::indexing_slicing,
     clippy::too_many_lines,
+    clippy::many_single_char_names,
+    clippy::similar_names,
     missing_docs
 )]
 
@@ -190,7 +192,7 @@ fn a_cross_set_object_gets_its_entries_and_shape() {
         rec.report.iter().filter(|l| l.contains("slot")).collect::<Vec<_>>()
     );
     // its shader entries: in each of the level's databases, Guadalcanal's names for the bunker's mesh
-    let (h, data) = bc2_formats::fbrb::extract_path_uncached(&stage.join("level-00.fbrb")).unwrap();
+    let (h, data) = bc2_formats::fbrb::extract_path_uncached(stage.join("level-00.fbrb")).unwrap();
     let mut seen = 0;
     for (e, d) in h.entries.iter().zip(&data) {
         let Some(file) = shaders::database_file(&e.name, &e.type_name) else {

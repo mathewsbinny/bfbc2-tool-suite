@@ -9,6 +9,8 @@
     clippy::print_stdout,
     clippy::indexing_slicing,
     clippy::too_many_lines,
+    clippy::many_single_char_names,
+    clippy::similar_names,
     missing_docs
 )]
 
