@@ -1263,6 +1263,18 @@ impl EditorApp {
     /// Opens a project file: its base level is loaded first (in the background), then the project on it; an
     /// autosave that differs from the file is offered first (crash recovery).
     pub fn open_project(&mut self, path: &Path) {
+        // round QW2 (audit AU1 R4): a project another running editor holds is refused before its level loads
+        if let Some(by) = bc2_levelwrite::project::ProjectLock::held_by(path) {
+            self.error = Some(
+                bc2_levelwrite::project::ProjectError::Locked {
+                    path: path.display().to_string(),
+                    by,
+                    lock: bc2_levelwrite::project::lock_path(path).display().to_string(),
+                }
+                .to_string(),
+            );
+            return;
+        }
         match MapProject::load(path) {
             Ok(p) if p.is_import() => {
                 // a new level from a height map: no level to open until its terrain is generated (round E7)
@@ -1401,6 +1413,11 @@ impl EditorApp {
                     Ok(p) => {
                         self.remember(&path);
                         let mut d = Doc::with(p, path, scene.clone());
+                        if let Err(e) = d.take_lock() {
+                            self.error = Some(e);
+                            self.mode = Mode::Start;
+                            return;
+                        }
                         if !d.saved || MapProject::recover(&d.path).is_some() {
                             // a recovered autosave: unsaved until saved
                             d.saved = false;

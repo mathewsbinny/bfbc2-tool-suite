@@ -17,6 +17,8 @@
 pub mod exe;
 pub mod graph;
 pub mod oplog;
-pub mod pe;
+/// The PE reader, now in `bc2-formats` (round QW2, audit AU2 A5: a file format, and the menu tools need it without
+/// the harness); kept under its old path for this crate's callers.
+pub use bc2_formats::pe;
 pub mod x86;
 mod x86_verified;

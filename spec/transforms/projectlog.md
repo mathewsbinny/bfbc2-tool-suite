@@ -18,7 +18,7 @@ Adding an operation clears the redo stack; undo moves the last operation to the 
 "go to" undoes or redoes to a given count. A continuing gesture (a drag, a wheel burst) amends the last operation in
 place, keeping its number: one gesture is one undo step.
 
-[code: rust/bc2-levelwrite/src/project.rs:413-461] [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files]
+[code: rust/bc2-levelwrite/src/project.rs:541-589] [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files]
 
 ### XLOG-LOG-3: Undo replays from a checkpoint, not the whole log
 
@@ -32,7 +32,7 @@ donor level is read from the game copy once per document. The result equals the 
 a fresh document: the partition byte for byte, every transform, the deleted set. On SP_01 as WW2 Conquest with 40
 moves (release): undo 9.1 - 10.9 s before, 78 - 98 ms after; History jumps 1.4 s before, 73 - 98 ms after.
 
-[code: rust/bc2-editor/src/edit.rs:211-322] [test: rust/bc2-editor/tests/xf1.rs::undo_on_a_mode_project]
+[code: rust/bc2-editor/src/edit.rs:222-333] [test: rust/bc2-editor/tests/xf1.rs::undo_on_a_mode_project]
 
 ### XLOG-LOG-2: The file: whole writes, an autosave, versions
 
@@ -43,9 +43,22 @@ beside it, and an autosave that reads and differs from the saved project is offe
 format, from a newer editor, or with an operation of an unknown kind is refused in words (the operation named, not
 dropped); an older version is migrated as it loads (version 1 to 2 changes nothing: 2 only added operation kinds).
 
-[code: rust/bc2-levelwrite/src/project.rs:25-40] [code: rust/bc2-levelwrite/src/project.rs:557-631]
+[code: rust/bc2-levelwrite/src/project.rs:25-40] [code: rust/bc2-levelwrite/src/project.rs:685-773]
 [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files] [test: rust/bc2-levelwrite/tests/project_versions.rs::canary_projects_load_as_version_1]
 [test: rust/bc2-levelwrite/src/ops.rs::json_shape_and_names]
+
+### XLOG-LOG-4: One editor per project; a save never overwrites another writer's file
+
+Status: **implemented**
+
+An editor that opens or creates a project holds `<project>.mapedit.json.lock` (the PC, the process, the time) until
+the project closes; another editor refuses the project in words while the holder runs, and a lock whose process is
+gone from this PC (or that does not read) is taken over. Before a save the file's modified time and length must be
+the ones this editor last read or wrote; otherwise nothing is written and the refusal says so (the changes stay in
+the autosave). Round QW2, audit AU1 R4.
+
+[code: rust/bc2-levelwrite/src/project.rs:272-382] [code: rust/bc2-levelwrite/src/project.rs:755-768]
+[test: rust/bc2-levelwrite/src/project.rs::lock_and_stamp]
 
 ### XLOG-GUID-1: New guids are UUID v5 of the project, the operation and the source
 
@@ -55,7 +68,7 @@ An entity an operation creates gets `uuid5("opfor:mapedit", project id, operatio
 (INST-GUID-5), so applying the same log again gives the same guids, and two copies of one source in two operations
 differ.
 
-[code: rust/bc2-levelwrite/src/lib.rs:50-62] [code: rust/bc2-levelwrite/src/project.rs:402-411]
+[code: rust/bc2-levelwrite/src/lib.rs:50-62] [code: rust/bc2-levelwrite/src/project.rs:530-539]
 [test: rust/bc2-levelwrite/src/lib.rs::guids_are_deterministic]
 
 ### XLOG-BASE-1: The base-changed report names, never drops
@@ -66,7 +79,7 @@ When the base partition's bytes no longer have the project's sha1, the report sa
 whose target is absent from the base as the log would have it at that point (objects created by earlier operations
 count as there, deleted ones and those a mode change removed as gone). The log itself is left as it is.
 
-[code: rust/bc2-levelwrite/src/project.rs:513-544] [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files]
+[code: rust/bc2-levelwrite/src/project.rs:641-672] [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files]
 
 ## 2. Apply
 

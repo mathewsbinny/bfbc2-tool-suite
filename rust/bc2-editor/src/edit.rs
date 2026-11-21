@@ -100,6 +100,11 @@ pub struct Doc {
     /// The entities the view's mode layer filter hides (round VW2, [`crate::modeview`]): left out of the views, the
     /// outliner and the queries like a hidden layer's, never edited by it.
     pub filtered: std::collections::HashSet<usize>,
+    /// The project file as this editor last read or wrote it: a save checks it first (round QW2, audit AU1 R4).
+    disk: Option<bc2_levelwrite::project::DiskStamp>,
+    /// The project's lock file while this editor has it open (round QW2; `None` for documents made by tests and
+    /// headless runs, which take no lock).
+    lock: Option<bc2_levelwrite::project::ProjectLock>,
 }
 
 /// A blueprint's path (lower case, as the scene keeps it) from its reference (`objects/x/x/<guid>`).
@@ -167,10 +172,13 @@ impl Doc {
                 path.display()
             ));
         }
+        let lock = bc2_levelwrite::project::ProjectLock::acquire(&path).map_err(|e| e.to_string())?;
         project
             .save(&path)
             .map_err(|e| format!("The project could not be written to {}: {e}", path.display()))?;
-        Ok(Self::with(project, path, scene))
+        let mut d = Self::with(project, path, scene);
+        d.lock = Some(lock);
+        Ok(d)
     }
 
     /// A project on its loaded level (the project's base level).
@@ -204,7 +212,10 @@ impl Doc {
             checkpoints: Vec::new(),
             last_replayed: 0,
             filtered: std::collections::HashSet::new(),
+            disk: None,
+            lock: None,
         };
+        d.disk = bc2_levelwrite::project::disk_stamp(&d.path);
         d.rebuild();
         d
     }
@@ -692,8 +703,23 @@ impl Doc {
     /// # Errors
     /// The file cannot be written.
     pub fn save(&mut self) -> Result<(), String> {
-        self.project.save(&self.path).map_err(|e| e.to_string())?;
+        self.disk = self
+            .project
+            .save_checked(&self.path, self.disk)
+            .map_err(|e| e.to_string())?;
         self.saved = true;
+        Ok(())
+    }
+
+    /// Takes the project's lock file (round QW2, audit AU1 R4): an editor that opens a project holds it until the
+    /// document is closed, so a second editor refuses the project in words instead of overwriting it.
+    ///
+    /// # Errors
+    /// Another running editor holds it, or the lock file cannot be written.
+    pub fn take_lock(&mut self) -> Result<(), String> {
+        if self.lock.is_none() {
+            self.lock = Some(bc2_levelwrite::project::ProjectLock::acquire(&self.path).map_err(|e| e.to_string())?);
+        }
         Ok(())
     }
 

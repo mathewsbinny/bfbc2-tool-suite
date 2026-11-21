@@ -250,6 +250,134 @@ pub enum ProjectError {
         /// Its kind (`op`).
         op: String,
     },
+    /// The file changed on disk after this editor read or last wrote it (round QW2, audit AU1 R4): not saved.
+    #[error(
+        "{0} was changed on disk after this editor opened or last saved it (another editor or tool wrote it), so it was not saved and neither version is lost. Your changes are in the project's autosave: reopen the project to compare, or close the other editor and save again."
+    )]
+    ChangedOnDisk(String),
+    /// Another editor holds the project's lock file (round QW2, audit AU1 R4).
+    #[error(
+        "{path} is already open in another editor ({by}). Close it there first. If no editor has it open (the PC restarted or the editor stopped), delete {lock} and open it again."
+    )]
+    Locked {
+        /// The project file.
+        path: String,
+        /// Who holds it, in words (the PC, the process, since when).
+        by: String,
+        /// The lock file.
+        lock: String,
+    },
+}
+
+/// The lock file's extension, after the project file's name (round QW2).
+pub const LOCK: &str = ".lock";
+
+/// The lock file of a project file.
+#[must_use]
+pub fn lock_path(path: &Path) -> PathBuf {
+    let mut s = path.as_os_str().to_owned();
+    s.push(LOCK);
+    PathBuf::from(s)
+}
+
+/// What a save checks before it writes (round QW2): the project file's modified time and length as this editor last
+/// read or wrote it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiskStamp {
+    modified: Option<std::time::SystemTime>,
+    len: u64,
+}
+
+/// The project file's stamp now (`None`: no file).
+#[must_use]
+pub fn disk_stamp(path: &Path) -> Option<DiskStamp> {
+    let m = std::fs::metadata(path).ok()?;
+    Some(DiskStamp {
+        modified: m.modified().ok(),
+        len: m.len(),
+    })
+}
+
+/// A project held open by this editor (round QW2, audit AU1 R4 / G-N17): `<project>.lock` beside the file, naming the
+/// PC, the process and the time; removed when the lock is dropped (if it is still this lock's). A second editor
+/// refuses the project while the holder runs; a lock left by a process that is gone (on this PC) is taken over.
+#[derive(Debug)]
+pub struct ProjectLock {
+    path: PathBuf,
+    token: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LockFile {
+    pc: String,
+    pid: i64,
+    since: String,
+    token: String,
+}
+
+impl ProjectLock {
+    /// Takes the lock of the project at `project` (the project file need not exist yet).
+    ///
+    /// # Errors
+    /// [`ProjectError::Locked`] while another running editor holds it; [`ProjectError::Io`] when the lock file
+    /// cannot be written.
+    pub fn acquire(project: &Path) -> Result<Self, ProjectError> {
+        let path = lock_path(project);
+        if let Some(by) = Self::held_by(project) {
+            return Err(ProjectError::Locked {
+                path: project.display().to_string(),
+                by,
+                lock: path.display().to_string(),
+            });
+        }
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let pid = std::process::id();
+        let token = format!("{pid}-{nanos}");
+        let file = LockFile {
+            pc: author(),
+            pid: i64::from(pid),
+            since: now(),
+            token: token.clone(),
+        };
+        write_whole(&path, &serde_json::to_string(&file)?)?;
+        Ok(Self { path, token })
+    }
+
+    /// Who holds the project's lock, in words, when another running editor does (`None`: free, a lock this
+    /// process holds, a lock whose process is gone on this PC, or a lock file that does not read).
+    #[must_use]
+    pub fn held_by(project: &Path) -> Option<String> {
+        let text = std::fs::read_to_string(lock_path(project)).ok()?;
+        let f: LockFile = serde_json::from_str(&text).ok()?;
+        if f.pc == author() {
+            if f.pid == i64::from(std::process::id()) || !bc2_formats::gameledger::pid_alive(f.pid) {
+                return None;
+            }
+            return Some(format!("on this PC, process {}, since {}", f.pid, f.since));
+        }
+        Some(format!("on the PC {}, process {}, since {}", f.pc, f.pid, f.since))
+    }
+
+    /// The lock file.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for ProjectLock {
+    fn drop(&mut self) {
+        // only this lock's own file: another editor may have taken a stale one over meanwhile
+        let ours = std::fs::read_to_string(&self.path)
+            .ok()
+            .and_then(|t| serde_json::from_str::<LockFile>(&t).ok())
+            .is_some_and(|f| f.token == self.token);
+        if ours {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
 }
 
 /// A map project.
@@ -345,7 +473,7 @@ impl MapProject {
     pub fn new(name: &str, level: &str, partition: &str, base: &[u8], profile: Profile) -> Self {
         let created = now();
         let by = author();
-        let id = bc2_stockmp::guid::new_guid(crate::NAMESPACE, &["project", name, level, &created, &by]);
+        let id = bc2_formats::guid::new_guid(crate::NAMESPACE, &["project", name, level, &created, &by]);
         Self {
             format: FORMAT.into(),
             version: VERSION,
@@ -624,6 +752,20 @@ impl MapProject {
         Ok(())
     }
 
+    /// [`MapProject::save`] only when the file on disk is still what this editor last read or wrote (`expected`:
+    /// its [`disk_stamp`] then, `None` when there was no file); the new stamp (round QW2, audit AU1 R4: a second or
+    /// a stale editor can no longer overwrite the project without a word).
+    ///
+    /// # Errors
+    /// [`ProjectError::ChangedOnDisk`] when the file changed (nothing written), else as [`MapProject::save`].
+    pub fn save_checked(&self, path: &Path, expected: Option<DiskStamp>) -> Result<Option<DiskStamp>, ProjectError> {
+        if disk_stamp(path) != expected {
+            return Err(ProjectError::ChangedOnDisk(path.display().to_string()));
+        }
+        self.save(path)?;
+        Ok(disk_stamp(path))
+    }
+
     /// Loads a project file.
     ///
     /// # Errors
@@ -687,6 +829,89 @@ fn write_whole(path: &Path, text: &str) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::ops::{Duplicated, Moved};
+
+    /// Round QW2 (audit AU1 R4): the lock file and the check before a save.
+    #[test]
+    fn lock_and_stamp() {
+        let dir = std::env::temp_dir().join(format!("bc2_levelwrite_lock_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let p = MapProject::new("Locked", "mp_001", "levels/mp_001/mp_001", b"base", Profile::Bfbc2);
+        let path = dir.join(p.file_name());
+        // a save that expects no file writes one; the next save must expect what it wrote
+        let first = p.save_checked(&path, None).unwrap();
+        assert!(first.is_some());
+        let again = p.save_checked(&path, first).unwrap();
+        // another writer (a second editor, a stale one): refused, in words, the other version kept
+        let mut other = p.clone();
+        other.name = "Changed elsewhere".into();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        other.save(&path).unwrap();
+        let e = p.save_checked(&path, again).unwrap_err();
+        assert!(matches!(e, ProjectError::ChangedOnDisk(_)));
+        assert!(
+            e.to_string()
+                .contains("was changed on disk after this editor opened or last saved it"),
+            "{e}"
+        );
+        assert_eq!(MapProject::load(&path).unwrap().name, "Changed elsewhere");
+        let e = p.save_checked(&dir.join("gone.mapedit.json"), again).unwrap_err();
+        assert!(
+            matches!(e, ProjectError::ChangedOnDisk(_)),
+            "a removed file is a change too"
+        );
+
+        // the lock: free, taken, this process may take it again (reopening), dropped -> removed
+        assert!(ProjectLock::held_by(&path).is_none());
+        let lock = ProjectLock::acquire(&path).unwrap();
+        assert!(lock.path().is_file());
+        assert!(
+            ProjectLock::held_by(&path).is_none(),
+            "this process's own lock does not refuse it"
+        );
+        let reopened = ProjectLock::acquire(&path).unwrap();
+        drop(lock); // the older lock no longer owns the file: it stays
+        assert!(reopened.path().is_file());
+        drop(reopened);
+        assert!(!lock_path(&path).exists());
+        // another running process on this PC holds it: refused, naming it and the lock file
+        let holder = std::process::Command::new("cmd")
+            .args(["/c", "ping", "-n", "30", "127.0.0.1"])
+            .stdout(std::process::Stdio::null())
+            .spawn();
+        if let Ok(mut child) = holder {
+            let held = format!(
+                "{{\"pc\":{:?},\"pid\":{},\"since\":\"2026-11-21T00:00:00Z\",\"token\":\"x\"}}",
+                author(),
+                child.id()
+            );
+            std::fs::write(lock_path(&path), &held).unwrap();
+            let e = ProjectLock::acquire(&path).unwrap_err();
+            let _ = child.kill();
+            let _ = child.wait();
+            assert!(matches!(e, ProjectError::Locked { .. }));
+            let text = e.to_string();
+            assert!(
+                text.contains("is already open in another editor (on this PC, process"),
+                "{text}"
+            );
+            assert!(text.contains(&lock_path(&path).display().to_string()), "{text}");
+            // the same process gone: a stale lock, taken over
+            let lock = ProjectLock::acquire(&path).unwrap();
+            drop(lock);
+            assert!(!lock_path(&path).exists());
+        }
+        // another PC's lock: refused (its process cannot be checked from here)
+        std::fs::write(
+            lock_path(&path),
+            "{\"pc\":\"ANOTHER-PC\",\"pid\":4,\"since\":\"2026-11-21T00:00:00Z\",\"token\":\"x\"}",
+        )
+        .unwrap();
+        assert!(ProjectLock::held_by(&path).unwrap().contains("on the PC ANOTHER-PC"));
+        // a lock file that does not read is taken over
+        std::fs::write(lock_path(&path), "not json").unwrap();
+        drop(ProjectLock::acquire(&path).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn dates() {

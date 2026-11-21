@@ -413,6 +413,9 @@ first.
 - The base map is read-only; there is no "save over the original".
 - The WW2 profile hides modern kits and assets that need a licence.
 - An unsaved project is kept in an autosave log.
+- One editor per project (round QW2, audit AU1 R4): an open project holds `<project>.mapedit.json.lock`; a
+  second editor refuses it in words, a lock whose process is gone is taken over, and a save first checks that the
+  file is still the one this editor read or wrote (modified time and length), else writes nothing and says so.
 - Long work never freezes the window.
 
 **Getting started**

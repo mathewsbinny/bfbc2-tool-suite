@@ -42,10 +42,12 @@ Status: **observed** · Variants: PC
 
 A `_waveDataSns_<n>` entry (typed `<non-resource>`) copied into a level bundle is read by the loader as a partition,
 and the load crashes at 0x49EDF4 (Wake Island's first load). A level bundle must carry no streamed wave data; the
-copy sources of an export or port leave the streaming bundles out.
+copy sources of an export or port leave the streaming bundles out. `mapexport check` refuses a staged bundle holding
+such an entry (round QW2).
 
 [exe: BFBC2Game.exe 0x49EDF4, the loader reading streamed wave data as a partition]
 [doc: opfor:src/tools/ww2/wake_install.py:177-181] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
+[code: rust/bc2-levelwrite/src/export.rs:2491-2495] [test: rust/bc2-levelwrite/src/export.rs::streamed_waves_named]
 
 ### SND-OD-1: On-demand waves play only from their own bundle's partitions
 
@@ -138,7 +140,7 @@ WW2 level's own `vo_common` / `vo_en` make any level built on it speak BF1943's 
 The announcer partitions must be the target set's own load's: where the base's own bundle shadows them, the
 target's versions go into the level's bundle first.
 
-[code: rust/bc2-levelwrite/src/export.rs:1764-1775] [code: rust/bc2-levelwrite/src/export.rs:2740-2750]
+[code: rust/bc2-levelwrite/src/export.rs:1764-1775] [code: rust/bc2-levelwrite/src/export.rs:2770-2780]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1231-1235]
 
