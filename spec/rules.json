@@ -2386,7 +2386,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-render/src/frame.rs:185-216"
+     "ref": "rust/bc2-render/src/frame.rs:192-228"
     },
     {
      "kind": "test",
@@ -2487,6 +2487,39 @@
     {
      "kind": "doc",
      "ref": "opfor:research/WW2_SUBSTITUTION_AUDIT.md:48"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-8",
+   "title": "A program's material registers are its block header's window",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5e.rs::block_windows_are_the_material_registers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::a_shader_without_constants_takes_the_material_in_its_block_window"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs::material_registers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:181-228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:151-162"
+    },
+    {
+     "kind": "data",
+     "ref": "the six levels' Dx11 databases: every program with a `constants` array has the header window of its registers"
     }
    ]
   },
@@ -2750,6 +2783,31 @@
     {
      "kind": "data",
      "ref": "NAM_MP_005R's two water entries and Wake Island's `Wake_Water` bind `heightmap`; MP_005's water reads none"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WATER-3",
+   "title": "The WW2 water's alpha is its depth below the water, from the depth factors",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5e.rs::the_ww2_open_sea_is_drawn"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:193-226"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island 600 m out: 53.5 % near-black pixels before round R5e, 0.0 % after; a deep-sea pixel (0, 0, 0, 0) -> (0.034, 0.110, 0.220, 1.0) HDR; Guadalcanal and Iwo Jima 1,200 m out: 48.6 % and 56.7 % of the view darker than 40 / 255 -> 0.0 %"
+    },
+    {
+     "kind": "data",
+     "ref": "the Wake water's pixel shader disassembled (`entry_probe`, `fxc /dumpbin`): `o0 = (colour x a, a)`; `t` from `texture_DepthBuffer` and `cb0[13"
     }
    ]
   },

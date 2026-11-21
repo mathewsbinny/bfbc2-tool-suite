@@ -92,7 +92,8 @@ fn main() {
             for (what, b) in [("block1", pr.block1), ("block2", pr.block2)] {
                 let blk = db.param(b);
                 println!(
-                    "    {what}: constants {:?} textures {:?} engine {:?}",
+                    "    {what}: header {:?} constants {:?} textures {:?} engine {:?}",
+                    blk.get(24..32).unwrap_or_default(),
                     query::block_constants(blk, false)
                         .iter()
                         .map(|c| (s(c.name), c.register, c.values))
