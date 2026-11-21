@@ -679,34 +679,8 @@ impl ViewState {
                 } else {
                     2.0
                 };
-                // an object another selected one owns is copied as that one's sub-object
-                let owned: Vec<(usize, Vec<String>)> = sel.iter().map(|&k| (k, d.owned(k))).collect();
-                let all_owned: Vec<&String> = owned.iter().flat_map(|(_, o)| o.iter()).collect();
-                let mut items = Vec::new();
-                for (k, subs) in &owned {
-                    let Some(g) = d.guid(*k) else { continue };
-                    if all_owned.iter().any(|o| o.eq_ignore_ascii_case(g)) {
-                        continue;
-                    }
-                    let Some(m) = self.matrix(*k) else { continue };
-                    let owned = subs
-                        .iter()
-                        .map(|s| bc2_levelwrite::ops::SubCopy {
-                            source: s.clone(),
-                            guid: d.project.new_guid(s),
-                            transform: d
-                                .index(s)
-                                .and_then(|x| self.matrix(x))
-                                .map(|sm| bc2_levelwrite::rows_of(&math::translate(&sm, [offset, 0.0, 0.0]))),
-                        })
-                        .collect();
-                    items.push(bc2_levelwrite::ops::Duplicated {
-                        source: g.to_owned(),
-                        guid: d.project.new_guid(g),
-                        transform: bc2_levelwrite::rows_of(&math::translate(&m, [offset, 0.0, 0.0])),
-                        owned,
-                    });
-                }
+                let picks: Vec<(usize, [f64; 3])> = sel.iter().map(|&k| (k, [offset, 0.0, 0.0])).collect();
+                let items = self.deep_copies(d, &picks);
                 let copies: Vec<String> = items.iter().map(|i| i.guid.clone()).collect();
                 self.commit(gpu, palette, Op::Duplicate { items }, "");
                 if let Some(d) = &self.doc {
@@ -765,15 +739,10 @@ impl ViewState {
                     ),
                     None => [2.0, 0.0, 2.0],
                 };
-                let items: Vec<bc2_levelwrite::ops::Duplicated> = ms
-                    .iter()
-                    .map(|(g, m)| bc2_levelwrite::ops::Duplicated {
-                        source: g.clone(),
-                        guid: d.project.new_guid(g),
-                        transform: bc2_levelwrite::rows_of(&math::translate(m, shift)),
-                        owned: Vec::new(),
-                    })
-                    .collect();
+                // round XF1: a deep duplicate, as Duplicate makes it: what an object owns (a flag's capture area and
+                // marker) is copied with it, never shared with the original
+                let picks: Vec<(usize, [f64; 3])> = ms.iter().filter_map(|(g, _)| Some((d.index(g)?, shift))).collect();
+                let items = self.deep_copies(d, &picks);
                 let copies: Vec<String> = items.iter().map(|i| i.guid.clone()).collect();
                 self.commit(gpu, palette, Op::Duplicate { items }, "Paste");
                 if let Some(d) = &self.doc {
@@ -1336,6 +1305,40 @@ impl ViewState {
             .collect();
         self.message = format!("{} selected", list.len());
         self.set_selection(gpu, list, true);
+    }
+
+    /// Deep duplicates of entities (Duplicate and Paste, round XF1): each copy moved by its shift, with copies of the
+    /// sub-instances it owns ([`crate::edit::Doc::owned`]: a flag's capture area and marker) moved with it; an entity
+    /// another one of them owns is copied as that one's sub-instance, not on its own.
+    pub(super) fn deep_copies(&self, d: &Doc, picks: &[(usize, [f64; 3])]) -> Vec<bc2_levelwrite::ops::Duplicated> {
+        let owned: Vec<(usize, [f64; 3], Vec<String>)> = picks.iter().map(|&(k, s)| (k, s, d.owned(k))).collect();
+        let all_owned: Vec<&String> = owned.iter().flat_map(|(_, _, o)| o.iter()).collect();
+        let mut items = Vec::new();
+        for (k, shift, subs) in &owned {
+            let Some(g) = d.guid(*k) else { continue };
+            if all_owned.iter().any(|o| o.eq_ignore_ascii_case(g)) {
+                continue;
+            }
+            let Some(m) = self.matrix(*k) else { continue };
+            let owned = subs
+                .iter()
+                .map(|s| bc2_levelwrite::ops::SubCopy {
+                    source: s.clone(),
+                    guid: d.project.new_guid(s),
+                    transform: d
+                        .index(s)
+                        .and_then(|x| self.matrix(x))
+                        .map(|sm| bc2_levelwrite::rows_of(&math::translate(&sm, *shift))),
+                })
+                .collect();
+            items.push(bc2_levelwrite::ops::Duplicated {
+                source: g.to_owned(),
+                guid: d.project.new_guid(g),
+                transform: bc2_levelwrite::rows_of(&math::translate(&m, *shift)),
+                owned,
+            });
+        }
+        items
     }
 }
 

@@ -23,8 +23,10 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 /// - 2: round GR2, the navigation edits (`nav-add`, `nav-remove`, `nav-load`); nothing else changed, so a version-1
 ///   file loads as it is;
 /// - 3: round EX1, the exported level's names (`set-names`); a version-2 file loads as it is;
-/// - 4: round VW2, the exported level's weather (`set-weather`); a version-3 file loads as it is.
-pub const VERSION: u32 = 4;
+/// - 4: round VW2, the exported level's weather (`set-weather`); a version-3 file loads as it is;
+/// - 5: round XF1, the typed gameplay operations (`set-team`, `link-spawner`, `set-tickets`, `insert-point`,
+///   `remove-point`); a version-4 file loads as it is.
+pub const VERSION: u32 = 5;
 
 /// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; the full
 /// versioning work is round V1's). Version 1 to 2 changes nothing: version 2 only added operation kinds.
@@ -35,6 +37,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 1 -> 2: the navigation operations were added; a version-1 log has none
         // 2 -> 3: the names operation was added (round EX1); a version-2 log has none
         // 3 -> 4: the weather operation was added (round VW2); a version-3 log has none
+        // 4 -> 5: the typed gameplay operations were added (round XF1); a version-4 log has none
         at += 1;
     }
     if let Some(o) = v.as_object_mut() {

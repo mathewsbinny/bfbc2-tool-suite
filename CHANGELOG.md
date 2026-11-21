@@ -24,6 +24,12 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: typed gameplay operations** (round XF1): set a team, link or unlink a soldier spawner and a capture
+  point, set a team's tickets, insert or remove an outline point (the `Next` / `Previous` chain and the area's point
+  kept). The project format is 5 (VW2 took 4); a version-4 project loads as it is, a newer one is refused in words.
+- **`mapexport check`: shader and cull-shape lines** (round XF1): every mesh the level reaches has entries in its
+  shader databases; every re-slotted object stands in its own blueprint's shape; no new object at slot 0 that some
+  level slots.
 - **Map editor: the mode view layer** (round VW2): show every object, the game mode layer only or the level without
   it, and a Rush level one stage at a time as it is played (L1's simulation of the stages' events: MP_005GR,
   MP_005SR, NAM_MP_002R and BC1_OASIS_GR give L1's bases per stage), in both views, the outliner and the overlays.
@@ -275,6 +281,16 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Map export: objects from other levels and sets get their shader entries** (round XF1): the export merges into
+  the level's Dx9 / 10 / 11 databases the entries of every mesh it reaches that the base lacked (placed objects,
+  another mode's layer, another era's kits), from the levels that draw them. Without them the game's renderer reads a
+  null program (0x98BD6E).
+- **Map export: each object's own cull shape** (round XF1): placed, copied and grafted objects take their own
+  blueprint's shape (from the base or another level), never their template's or another level's slot number.
+- **Map editor: undo, redo and History no longer replay the whole log** (round XF1): checkpoints and a cached donor
+  level; on Aurora as WW2 Conquest with 40 moves an undo went from 9-11 s to under 0.1 s.
+- **Map editor: Paste copies what an object owns** (round XF1): a pasted flag has its own capture area and marker,
+  so editing the copy leaves the original alone.
 - **Map editor: the game-accurate view no longer draws the objects a project deleted or hid** (round VW2).
 - **Map editor: Wake Island's and Coral Sea's black ground in the Game-accurate view** (round R5d). Three causes in
   the renderer, none in the data: the terrain's height scale was read as the database's placeholder 500 (Wake's

@@ -33,6 +33,7 @@ pub mod culltool;
 pub mod culltree;
 pub mod diff;
 pub mod export;
+pub mod gameplay;
 pub mod modelayer;
 pub mod mpconvert;
 pub mod names;
@@ -41,6 +42,7 @@ pub mod ops;
 pub mod profile;
 pub mod project;
 pub mod schema;
+pub mod shaders;
 pub mod weather;
 pub mod write;
 

@@ -27,6 +27,7 @@
 //! # Ok::<(), shaderdb::ShaderDbError>(())
 //! ```
 
+pub mod merge;
 pub mod open;
 pub mod query;
 

@@ -6016,6 +6016,90 @@ Screenshots (not in the repository): MP_005 flag B with capture areas, spawn che
 area; effects, sounds and lights; the player's eye; navmesh and cull tree; SP_01 lights and sounds, the guard tower's
 collision in each state, the player's eye; ONS_MP_004 navmesh and cull tree; Dark and Light.
 
+## XF1: the export fixes before E4 (2026-11-21, branch `rust-xf1`)
+
+Audit AU1's XF1 items (the user, 2026-11-20). `EDITOR_ARCHITECTURE.md` 3.12, "Round XF1"; spec SHDB-LVL-1, SHDB-LVL-2,
+RNDR-DRAW-6, XCULL-RES-1, XCULL-RES-3, XLOG-LOG-3, XLOG-APP-6, XLOG-APP-7. No Python replaced; `game\` only read.
+
+### The ground truth
+
+- **0x98BD6E** is in the draw-record builder at 0x98BCE0 (it zeroes a 0x58-byte record and fills it from the part's
+  resolved draw state): `mov edx,[ebx+8]` ... `movups xmm0,[edx+8]` with no test of `edx`, where the state's +4
+  pointer is tested just before. A part whose layout found no program leaves +8 null, and a mesh without entries in
+  the level's databases has no program at all.
+- **Where entries live.** No shared bundle holds a shader database (`mp_common`, `sp_common`, `ww2_common`,
+  `nam_common`: none). Of the meshes a level reaches (every partition of its own bundle, every reference followed
+  through the bundles it loads), its own Dx11 database covers: SP_01 165 of its own 166 and 157 of `sp_common`'s
+  163; MP_005 25 of 25 own (Dist), 384 of `mp_common`'s 431, 11 of OPFOR's 33 Package additions; MP_002 433 of 455.
+  So DICE registers the commons' meshes a level draws in the level's own files. Guadalcanal's radar bunker: 2
+  entries and 12 mesh-part names in Guadalcanal's three databases, none in SP_01's.
+- **Cull shapes.** Placed objects of the stock mode layers are slotted (MP_005GR's objectives 16 of 16, MP_002's 20 of
+  20). Before XF1 the E3d canaries showed the template's shape: Aurora's placed bunker took slot 3636's one leaf (a
+  map prop's); Guadalcanal as Rush gave its 20 grafted M-COMs, carrying Arica Harbor's `Enumeration` values (4874 -
+  4930), the leaves of the Guadalcanal objects that own those numbers.
+
+### E3d's canaries rebuilt (`cargo run --release -p bc2-levelwrite --example e3d_matrix`)
+
+Release build, the bundle cache warm, other rounds building on the PC. "Lacked" is meshes the level reaches without
+entries in the base's databases; the check's shader line counts the ones still without (allowed: the stock base
+reaches them without entries too, or no level's database has them).
+
+| Canary | Lacked / reached | Entries added (from) | Still without | Cull: re-slotted (shape from) | Build, check (before XF1) |
+|---|---:|---|---:|---|---:|
+| Aurora -> WW2 Conquest, Guadalcanal's bunker and Kurogane | 91 / 359 | 217 for 91 meshes (87 `guadal_canal`, 3 `mp_002`, 1 `sp_003_b`) | 0 | 2: the moved prop (its own), the bunker (Guadalcanal's, 2 leaves) | 29.4 s, 14.8 s (32 s) |
+| Atacama Rush -> Conquest | 48 / 376 | 84 for 43 (10 `mp_001`, 20 `sp_004_b`, others DICE's) | 8 (MP_005GR reaches them without entries too) | 1 (its own) | 21.7 s, 9.5 s (14 s) |
+| Wake Island -> BFBC2 Conquest | 4 / 331 | 0 | 4 (in no level's database) | 1 (its own) | 20.3 s, 8.5 s (16 s) |
+| Vietnam -> WW2 Conquest | 77 / 209 | 198 for 77 (76 `guadal_canal`) | 0 | 1 (its own) | 18.9 s, 9.3 s (18 s) |
+| Arica Harbor -> Vietnam Squad DM | 91 / 319 | 239 for 90 (76 `nam_mp_002sdm`, 7 `guadal_canal`) | 1 (nowhere) | 1 (its own) | 22.5 s, 18.9 s (31 s) |
+| Guadalcanal -> BFBC2 Rush | 8 / 336 | 22 for 4 (`mp_002`) | 4 (nowhere) | 21: the moved lamp, 20 M-COMs (Arica Harbor's shapes) | 27.0 s, 9.9 s (19 s) |
+
+Every check line passes on all six (Air Superiority stays refused, PENDING). The exports take 5 - 10 s more to build
+(the reach walk and the merges, 4.8 - 10.0 s) and the checks 5 - 10 s more (the staged and the stock base's reach).
+
+### Undo (`tests/xf1.rs::undo_on_a_mode_project`, release)
+
+SP_01 made WW2 Conquest (the mode choice reads Guadalcanal's partition), then 40 moves; each result compared with
+the log applied afresh in a new document (partition bytes, every transform, the deleted set).
+
+| | before (full replay, donor read each time) | after (checkpoints, donor cached) |
+|---|---:|---:|
+| mode choice applied | 4,133 ms | 1,086 ms |
+| undo (3 in a row) | 10,872 / 9,386 / 9,078 ms | 98 / 83 / 78 ms |
+| redo (3) | 3,964 / 1,951 / 1,685 ms | 87 / 86 / 77 ms |
+| History: after the mode choice / op 20 / the end | 1,475 / 1,442 / 1,404 ms | 75 / 73 / 98 ms |
+| History: the base | 70 ms | 70 ms |
+
+About 70 ms of each is the base scene's clone; at most 15 operations are replayed after a checkpoint.
+
+### Paste and the typed operations
+
+- `tests/xf1.rs::paste_is_a_deep_duplicate` (headless, the demo level): Copy and Paste of the flag make one
+  operation copying its ring and marker (5 sub-objects); after the copy's ring point is moved and its marker renamed,
+  the original flag and its 5 sub-objects are element for element as before. Before XF1, Paste's copies had no
+  owned sub-objects.
+- `tests/gameplay_xf1.rs` (Valparaiso, `MP_001`): a capture point to team 2, a spawner unlinked and linked (and the
+  refusals), the tickets 200 -> 300 at 6 a minute, a point inserted into the 47-point combat area and removed (the
+  partition's content as before), the area's named point removed (the area names its next, 46 points, closed);
+  the same as five project operations applied from the log, saved and loaded at version 5 (VW2 took 4).
+
+### Install round trip
+
+`tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape` staged `MAPEDIT_XF1_AURORA_BUNKER` (Aurora as
+WW2 Conquest with Guadalcanal's bunker from a template of another blueprint: its entries and part names in each
+database equal to Guadalcanal's; its leaves Guadalcanal's shape). OPFOR's `mapedit_install.py --apply` with this
+branch's release `mapexport` (`BFBC2_MAPEXPORT`), `--game` a scratch copy of the six shared files and `--check-game`
+the real game copy: the plan's check passed every line, the level bundle installed byte for byte, 9 `package.mft`
+lines and 5 manifest lines; `--revert`: the six shared files back with their sha256, the level folder gone.
+`game\`: 1,582 files with the same size and write time before and after.
+
+Not proven until a playtest (in-game tests paused): that the merged entries draw (a placed bunker visible and no
+0x98BD6E), and that grafted and placed objects cull as on their own levels.
+
+### WW2 rebuild
+
+The shader-database merge moved from `bc2-cli` into `bc2_formats::shaderdb::merge`, so the WW2 rebuild (which merges
+shader databases) was run against the oracle: OPFOR main 86220cd, `OPFOR_TOOLKIT` at a toolkit folder holding this
+worktree, all 52 steps in 24 min, the QA checks clean, **10,852 of 10,852 files identical**.
 ## R5d: the game-accurate view's visual gaps (2026-11-21, branch `rust-r5d`)
 
 `EDITOR_ARCHITECTURE.md` 3.11, "Phase 3b (R5d, done)"; spec RNDR-TERR-5, RNDR-WATER-2, RNDR-SKY-1 - 3, RNDR-LOD-1,
