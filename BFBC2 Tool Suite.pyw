@@ -3,8 +3,8 @@ tools moderngl, glfw and imgui-bundle).
 
 Tabs: Levels (open a level in the map editor, or its navigation there), Bundles (FbrbTool), Level diff
 (LevelDiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
-(DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane at the bottom.
-The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
+(the Map Editor, DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane
+at the bottom. The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
 """
 import contextlib
 import json
@@ -56,8 +56,6 @@ SCRIPTS = {
     'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
     'navkitgui': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkitGUI.pyw'),
     'crash': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'),
-    'stfs': os.path.join(SUITE, 'bfbc2-console-readers', 'stfs', 'stfs.py'),
-    'xiso': os.path.join(SUITE, 'bfbc2-console-readers', 'xiso', 'xiso.py'),
     'tests': os.path.join(SUITE, 'run_tests.py'),
 }
 
@@ -509,7 +507,7 @@ class Hub:
         iso = self.xb_kind.get() == 'iso'
         if cmd == 'info' and iso:
             cmd = 'list'
-        args = [PYTHON, SCRIPTS['xiso' if iso else 'stfs'], cmd, self.xb_file.get()]
+        args = cli('xiso' if iso else 'stfs') + [cmd, self.xb_file.get()]      # round O5: bfbc2.exe stfs / xiso
         if cmd == 'extract':
             if not self.need(('a folder to extract into', self.xb_dir)):
                 return

@@ -1,7 +1,7 @@
 r"""What the retired C# tools answered (round R4, 2026-11-18): DbxEdit.exe's and FbrbTool.exe's outputs, messages,
-exit codes and files, recorded from the exes themselves before they were retired (EDITOR_ARCHITECTURE.md 3.8), so the
-tests keep checking the in-process tools (bfbc2core.dbxedit / bfbc2core.fbrbtool, the Rust core) against fixed
-answers.
+exit codes and files, recorded from the exes themselves before they were retired (bfbc2-map-editor/
+EDITOR_ARCHITECTURE.md 3.8; RETIRED.md), so the tests keep checking the in-process tools (bfbc2core.dbxedit /
+bfbc2core.fbrbtool, the Rust core) against fixed answers.
 
     dbxedit_golden.json        test_dbxedit's cases (DbxTests.cs' unit cases as command lines)
     dbxedit_golden_game_0.json / _1.json   a corpus sample (OPFOR's work\levels, work\navkit\common, work\ww2) through every

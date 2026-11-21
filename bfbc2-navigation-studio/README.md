@@ -2,7 +2,7 @@
 
 The Navigation Studio's window was retired in round GR2 (2026-11-20): a level's navigation data, its colourings,
 path test, anomaly and compare overlays and its edits are the map editor's AI workspace now (`bin\bfbc2-editor.exe
-<level> --navmesh`; `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 9.2).
+<level> --navmesh`; `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.2).
 
 What stays here is `overlay.py`, two headless exports as JSON:
 
