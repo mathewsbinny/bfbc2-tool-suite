@@ -379,6 +379,10 @@ pub struct Draw {
     /// Block constants the engine writes by name at draw time ([`ENGINE_NAMED`]): (register, name), the frame's value
     /// of that name written over the block's placeholder in both shaders' `constants`.
     pub named: Vec<(u8, String)>,
+    /// The pixel shader's material registers `[first, end)` from its program block's header
+    /// ([`query::block_registers`]): where the material is written when the shader has no `constants` array
+    /// ([`crate::frame::material_window`], round R5e).
+    pub ps_window: Option<[u8; 2]>,
     /// Bound textures: (t slot, texture name; `engine:<name>` for a texture the engine makes).
     pub textures: Vec<(u32, String)>,
     /// The vertex shader's own textures (else it sees the pixel shader's).
@@ -847,6 +851,7 @@ fn prepare_with(
             vs_extra: Vec::new(),
             ps_extra: Vec::new(),
             named: engine_named(&query::block_constants(block2, false)),
+            ps_window: query::block_registers(block2),
             textures: Vec::new(),
             vs_textures: Vec::new(),
             samplers: sampler_states(db.param(ps.param)),

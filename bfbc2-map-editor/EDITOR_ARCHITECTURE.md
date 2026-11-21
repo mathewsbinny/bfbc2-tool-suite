@@ -880,6 +880,12 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
    - Not done: the instanced programs (`StreamInstancingFloat`: a per-instance stream and program choice, the draw
      count is no longer the bottleneck after the LODs), the haze over the scene (`EnvironmentHalfResMain`, the fog:
      with the capture), `MinScreenArea` culling (its unit).
+5. **Phase 3c (R5e, done: the WW2 open sea; `rust/BENCHMARKS.md` "R5e", spec RNDR-DRAW-8, RNDR-WATER-3):** a
+   program's material goes to the registers its block header names (`query::block_registers`, `Draw::ps_window`,
+   `frame::material_window`): the shader's `constants` array where it has one (every DICE program), else the header's
+   window. OPFOR's translated BF1943 water reads its material as `waterMaterial`; before R5e its `g_depthScaleFactors`
+   was never written, the water's alpha was 0 everywhere and the black sea floor showed to the horizon (R5d's
+   "haze" reading of the deep sea was wrong: no fog is needed). DICE's levels draw bit for bit as before.
 
 ### 3.12 Exporting a level as a new multiplayer level (round E3, 2026-11-18: study and first export)
 

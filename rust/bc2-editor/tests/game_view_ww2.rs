@@ -12,7 +12,8 @@
 //! The levels live only in the game copy's `game\Package`; the editor prepares them into its `work\editor\levels`.
 //! So that nothing is written to OPFOR's `work\`, the test makes a stand-in OPFOR folder in temp whose `game` is a
 //! junction to the game copy (removed again at the end, the junction first), or uses `BC2_GW1_OPFOR` (a stand-in
-//! kept between runs: the levels stay prepared). `BC2_EDITOR_SHOTS=<folder>` saves each level's view.
+//! kept between runs: the levels stay prepared). `BC2_EDITOR_SHOTS=<folder>` saves each level's view
+//! in the dark and the light theme.
 //!
 //! Skipped (with a note) without the game copy's WW2 levels, a graphics adapter or Direct3D 11.
 #![cfg(windows)]
@@ -38,6 +39,7 @@ use bc2_editor::app::EditorApp;
 use bc2_editor::camera::{Camera, Projection};
 use bc2_editor::headless::Headless;
 use bc2_editor::levels;
+use bc2_editor::theme::ThemeId;
 use bc2_formats::terrain::Heightfield;
 use bc2_render::d3d::Device;
 use bc2_render::frame;
@@ -317,6 +319,12 @@ fn ww2_levels_open_in_the_game_accurate_view() {
         }
         if let Some(d) = &shots {
             h.save(&d.join(format!("gw1_{lv}.png"))).unwrap();
+            // and in the light theme (round R5e: the open sea in both)
+            app.theme = ThemeId::Light;
+            h.settle(&mut app, 4);
+            h.save(&d.join(format!("gw1_{lv}_light.png"))).unwrap();
+            app.theme = ThemeId::Dark;
+            h.settle(&mut app, 2);
         }
         // the whole terrain drawn, from above its middle and from its south-west corner (whole_terrain.rs; a device
         // of its own: a device keeps the engine textures it was given by name, the height map among them)
