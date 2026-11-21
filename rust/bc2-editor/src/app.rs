@@ -31,6 +31,7 @@ use crate::actions::{self, Action, PanelKind};
 use crate::camera::{self, Camera, Projection};
 use crate::catalog::{self, Catalog};
 use crate::edit::Doc;
+use crate::error::EditorError;
 use crate::factions::{Profile, Teams};
 use crate::gizmo::{self, Frame, Handle, Space, Tool};
 use crate::help::{self, HelpState};
@@ -255,10 +256,10 @@ pub struct ViewState {
     pub teams: Teams,
     /// The 3D view draws the level as the game does (round R5: [`crate::gameview`]).
     pub game_accurate: bool,
-    /// The game-accurate view's level, loaded when the mode is first turned on.
-    pub game: Option<crate::gameview::GameView>,
+    /// The game-accurate view's level, read on a worker when the mode is first turned on (round OP1).
+    pub game: crate::gameview::GameSlot,
     /// The level's render meshes being read for the simplified view (round SV1), until they arrive.
-    visuals_rx: Option<Receiver<Result<bc2_render::simple::Simple, String>>>,
+    visuals_rx: Option<Receiver<Result<bc2_render::simple::Simple, bc2_render::RenderError>>>,
     // ---- round E2b
     /// The Objects workspace's category filter (also the content browser's).
     pub filter: Option<crate::workspace::Category>,
@@ -323,7 +324,7 @@ pub struct ViewState {
     /// The partitions read for the property tree and the links, and the project revision they were read at.
     inspection: Option<(u64, crate::inspect::Inspection)>,
     /// The selected entity's property tree (entity, revision, the tree or why it could not be read).
-    fields_tree: Option<(usize, u64, Result<Vec<crate::inspect::PropNode>, String>)>,
+    fields_tree: Option<(usize, u64, Result<Vec<crate::inspect::PropNode>, EditorError>)>,
     /// The objects a link was followed from, the latest last (Links' Back).
     pub link_back: Vec<usize>,
     /// The Links panel's rows on screen: (the entity a row leads to, its rectangle) - the tests click them.
@@ -394,12 +395,12 @@ impl Drop for Viewport {
 
 /// A level as the loader gives it: the scene, its notes, the seconds it took, its bundles' folders.
 type LoadedOk = (Scene, Vec<String>, f64, Vec<PathBuf>);
-type Loaded = Result<LoadedOk, String>;
+type Loaded = Result<LoadedOk, EditorError>;
 
 /// What a click in the game-accurate view picks from its pick's answer (round DF1, audit AU4-BUG-15): the entity's
 /// pick id, or nothing - and why, when the pick failed (never the hidden simplified view's object instead).
 #[must_use]
-pub fn game_pick(r: Result<Option<usize>, String>) -> (u32, Option<String>) {
+pub fn game_pick(r: Result<Option<usize>, EditorError>) -> (u32, Option<String>) {
     match r {
         Ok(e) => (e.map_or(render::ID_NONE, render::entity_id), None),
         Err(e) => (
@@ -430,8 +431,10 @@ pub const COLLISION_VIEW_ENV: &str = "BC2_EDITOR_COLLISION_VIEW";
 pub enum Then {
     /// Show it read-only.
     View,
-    /// Make a new project on it: its name, its folder.
-    Create(String, PathBuf),
+    /// Make a new project on it: its name, its folder, and the era and mode chosen in the new-project form (round
+    /// OP1: the target travels with the Create that asked for it, so a Create that fails leaves none behind - audit
+    /// AU4-SM-1 - where DF1 kept it in a side field cleared by the project generation).
+    Create(String, PathBuf, Option<(bc2_levelwrite::Profile, String)>),
     /// Open this project on it (with the autosave recovered, when the user chose that).
     Open(PathBuf, Option<Box<MapProject>>),
 }
@@ -444,8 +447,12 @@ enum TopBar {
 
 enum Mode {
     Start,
-    /// The level is being prepared (NavKit's prepare, the terrain unpack); it opens when that is done.
-    Preparing(Box<Job>),
+    /// The level is being prepared (NavKit's prepare, the terrain unpack); it opens when that is done, and `then` is
+    /// done with it (round OP1: carried by the state, where DF1 kept a side field).
+    Preparing {
+        job: Box<Job>,
+        then: Then,
+    },
     Loading {
         lv: String,
         rx: Receiver<Loaded>,
@@ -461,7 +468,7 @@ pub struct EditorApp {
     /// The current theme.
     pub theme: ThemeId,
     applied: Option<ThemeId>,
-    opfor: Result<PathBuf, String>,
+    opfor: Result<PathBuf, EditorError>,
     levels: Vec<LevelInfo>,
     level_filter: String,
     dock: DockState<Tab>,
@@ -484,16 +491,14 @@ pub struct EditorApp {
     /// The new project form's target (round E3d): the era (`None`: the base's own, its layer kept) and the mode.
     new_target: (Option<bc2_levelwrite::Profile>, String),
     /// The game copy's multiplayer modes per era, read once (round E3d: the target pickers list them).
-    era_modes: Option<Result<EraModes, String>>,
+    era_modes: Option<Result<EraModes, EditorError>>,
     /// The target the next created project takes (set by the form's button).
-    pending_target: Option<(bc2_levelwrite::Profile, String)>,
     /// "Open a project": the path typed.
     open_path: String,
     recent: Vec<PathBuf>,
     /// An autosave to offer before a project opens: the project file and the autosave.
     recover: Option<(PathBuf, Box<MapProject>)>,
     /// What to do with a level being prepared once it is loaded.
-    after_prepare: Then,
     /// The start screen's page (round G4; never remembered: every start opens on the three paths).
     start: StartPage,
     /// "Create level - from a height map": the form.
@@ -516,18 +521,58 @@ pub struct EditorApp {
     /// The Export window (round E3: `export_ui`).
     pub export: crate::export_ui::ExportWindow,
     /// The export's preview (round EX1): the side not shown, the project kept aside.
-    preview: Option<Box<diffui::Preview>>,
-    /// A preview being opened.
-    preview_job: Option<diffui::PreviewJob>,
+    preview: diffui::PreviewState,
     /// The project generation (round DF1, audit AU4 "the editor's implicit state"): a new number each time a level
     /// or project is shown or the map is closed. The side state made for one project - the Export window, a preview
     /// being opened - carries the generation it was made in and is dropped when it differs.
     generation: u64,
-    /// Closing the window was asked for while work that must not be cut short ran (round DF1, audit AU4-DS-13):
-    /// what runs, in words; the close waits for an answer.
-    pub close_asked: Option<String>,
-    /// The user chose to close anyway.
-    close_anyway: bool,
+    /// Closing the window or the map, as asked (round OP1: one state for DF1's `close_asked` and `close_anyway`,
+    /// and the question about unsaved edits).
+    closing: Closing,
+}
+
+/// What a close closes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseWhat {
+    /// The editor's window.
+    Window,
+    /// The open map (back to the start screen).
+    Map,
+}
+
+/// Where a close stands (round OP1, audit AU1 R7 / G-N20 and AU4 CQ-7: one state instead of side fields).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Closing {
+    /// Nothing asked.
+    #[default]
+    No,
+    /// Work runs that the close would cut short (round DF1, audit AU4-DS-13): what, in words; Wait or Close anyway.
+    Busy {
+        /// What runs.
+        what: String,
+        /// What closes.
+        then: CloseWhat,
+    },
+    /// The open project has edits not saved: Save, Don't save, or Cancel.
+    Unsaved {
+        /// The project's name.
+        project: String,
+        /// What closes.
+        then: CloseWhat,
+    },
+    /// The window closes at the next frame.
+    Now,
+}
+
+/// The answer to the question about unsaved edits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnsavedAnswer {
+    /// Save the project, then close (a save that fails keeps it open, saying why).
+    Save,
+    /// Close without saving: the edits since the last save and their autosave are let go.
+    Discard,
+    /// Do not close.
+    Cancel,
 }
 
 /// The folder new projects go to when none was chosen before: `Documents\BFBC2 Map Projects`.
@@ -592,11 +637,9 @@ impl EditorApp {
             new_folder: folder.unwrap_or_else(default_project_folder).display().to_string(),
             new_target: (None, "conquest".into()),
             era_modes: None,
-            pending_target: None,
             open_path: String::new(),
             recent,
             recover: None,
-            after_prepare: Then::View,
             start: StartPage::Home,
             heightmap: HeightmapForm::default(),
             import_shown: None,
@@ -608,11 +651,9 @@ impl EditorApp {
             catalog_rx,
             pictures: HashMap::new(),
             export: crate::export_ui::ExportWindow::default(),
-            preview: None,
-            preview_job: None,
+            preview: diffui::PreviewState::None,
             generation: 0,
-            close_asked: None,
-            close_anyway: false,
+            closing: Closing::No,
         })
     }
 
@@ -628,14 +669,9 @@ impl EditorApp {
     fn next_generation(&mut self) {
         self.generation += 1;
         self.export.unbind();
-        self.preview_job = None;
-        self.pending_target = None;
-    }
-
-    /// Sets the era and mode the next created project takes, as the new-project form's button does (tests).
-    #[doc(hidden)]
-    pub fn set_pending_target(&mut self, era: bc2_levelwrite::Profile, mode: &str) {
-        self.pending_target = Some((era, mode.to_owned()));
+        if self.preview.opening().is_some() {
+            self.preview = diffui::PreviewState::None;
+        }
     }
 
     /// Work that must not be cut short by closing the editor, in words (`None`: none runs): an install or uninstall
@@ -650,39 +686,133 @@ impl EditorApp {
         if self.export.exporting() {
             what.push("an export (writing its stage)");
         }
-        let nav_running = |v: &ViewState| v.navs.job.as_ref().is_some_and(|j| j.done.is_none());
-        let parked = self.preview.as_ref().and_then(|p| p.project.as_deref());
+        let nav_running = |v: &ViewState| v.navs.job.as_ref().is_some_and(crate::nav::Job::running);
+        let parked = self.preview.shown().and_then(|p| p.project.as_deref());
         if self.view().is_some_and(nav_running) || parked.is_some_and(nav_running) {
             what.push("a navkit command (Build with these edits, Install or Restore)");
         }
         (!what.is_empty()).then(|| what.join(", "))
     }
 
-    /// The window's close was asked for (round DF1, audit AU4-DS-13): `true` when it may close now; otherwise the
-    /// question is shown (what runs; Wait or Close anyway) and the close waits.
+    /// The window's close was asked for (round DF1, audit AU4-DS-13; round OP1 the unsaved edits): `true` when it
+    /// may close now; otherwise a question is shown - what runs (Wait or Close anyway), or the project's unsaved
+    /// edits (Save, Don't save, Cancel) - and the close waits.
     pub fn close_requested(&mut self) -> bool {
-        if self.close_anyway {
+        if self.closing == Closing::Now {
             return true;
         }
-        match self.busy_work() {
-            None => true,
-            Some(w) => {
-                self.close_asked = Some(w);
-                false
+        self.ask_close(CloseWhat::Window);
+        // nothing to ask: it closes (the state stays as it was: a test may ask again)
+        if self.closing == Closing::Now {
+            self.closing = Closing::No;
+            return true;
+        }
+        false
+    }
+
+    /// Asks to close the window or the map: the busy question first, then the unsaved edits' question, else at
+    /// once.
+    fn ask_close(&mut self, then: CloseWhat) {
+        if let Some(what) = self.busy_work() {
+            self.closing = Closing::Busy { what, then };
+            return;
+        }
+        self.ask_unsaved(then);
+    }
+
+    fn ask_unsaved(&mut self, then: CloseWhat) {
+        self.closing = match self.unsaved_project() {
+            Some(project) => Closing::Unsaved { project, then },
+            None => self.close_now(then),
+        };
+    }
+
+    /// The close done: the window's at the next frame; the map's at once (a preview ends first).
+    fn close_now(&mut self, then: CloseWhat) -> Closing {
+        match then {
+            CloseWhat::Window => Closing::Now,
+            CloseWhat::Map => {
+                // round DF1 (audit AU4-SM-4): a preview ends first (the project's view back, then closed with it)
+                self.close_preview();
+                self.stash_display();
+                self.next_generation();
+                self.mode = Mode::Start;
+                Closing::No
             }
         }
     }
 
-    /// Answers the close question: close anyway (`true`), or wait (`false`).
-    pub fn answer_close(&mut self, close: bool) {
-        self.close_asked = None;
-        self.close_anyway = close;
+    /// The open project's name when it has edits not saved (also the one a preview keeps aside).
+    #[must_use]
+    pub fn unsaved_project(&self) -> Option<String> {
+        let parked = self.preview.shown().and_then(|p| p.project.as_deref());
+        [self.view(), parked]
+            .into_iter()
+            .flatten()
+            .find_map(|v| v.doc.as_ref().filter(|d| !d.saved).map(|d| d.project.name.clone()))
     }
 
-    /// Whether the user chose to close while work ran (the window closes at the next frame).
+    /// The close question being asked (`None`: none).
+    #[must_use]
+    pub fn closing(&self) -> &Closing {
+        &self.closing
+    }
+
+    /// What runs, while the busy question is asked (round DF1's `close_asked`).
+    #[must_use]
+    pub fn close_asked(&self) -> Option<&str> {
+        match &self.closing {
+            Closing::Busy { what, .. } => Some(what),
+            _ => None,
+        }
+    }
+
+    /// Answers the busy question: close anyway (`true`: the unsaved edits are asked about next), or wait.
+    pub fn answer_close(&mut self, close: bool) {
+        let then = match &self.closing {
+            Closing::Busy { then, .. } => *then,
+            _ => CloseWhat::Window,
+        };
+        self.closing = Closing::No;
+        if close {
+            self.ask_unsaved(then);
+            if self.closing == Closing::No && then == CloseWhat::Window {
+                self.closing = Closing::Now;
+            }
+        }
+    }
+
+    /// Answers the question about unsaved edits (round OP1, audit AU1 R7 / G-N20).
+    pub fn answer_unsaved(&mut self, answer: UnsavedAnswer) {
+        let Closing::Unsaved { then, .. } = self.closing.clone() else {
+            return;
+        };
+        self.closing = Closing::No;
+        match answer {
+            UnsavedAnswer::Cancel => {}
+            UnsavedAnswer::Save => {
+                let saved = self.view_mut().and_then(|v| v.doc.as_mut()).map(Doc::save);
+                match saved {
+                    Some(Err(e)) => self.error = Some(format!("Not closed: the project was not saved ({e}).")),
+                    _ => self.closing = self.close_now(then),
+                }
+            }
+            UnsavedAnswer::Discard => {
+                if let Some(path) = self.view().and_then(|v| v.doc.as_ref()).map(|d| d.path.clone()) {
+                    if let Some(d) = self.view_mut().and_then(|v| v.doc.as_mut()) {
+                        d.forget_autosave();
+                    }
+                    MapProject::discard_autosave(&path);
+                }
+                self.closing = self.close_now(then);
+            }
+        }
+    }
+
+    /// Whether the window closes now (the questions answered).
     #[must_use]
     pub fn closing_anyway(&self) -> bool {
-        self.close_anyway
+        self.closing == Closing::Now
     }
 
     /// The start screen's catalog (pictures, thumbnails, modes) once read.
@@ -723,7 +853,7 @@ impl EditorApp {
         }
         // the project parked behind a preview closes with the map too (round DF1)
         if action == Action::CloseMap
-            && let Some(p) = self.preview.as_ref().and_then(|p| p.project.as_deref())
+            && let Some(p) = self.preview.shown().and_then(|p| p.project.as_deref())
             && let Some(w) = why_not_in(Some(p), action)
         {
             return Some(w);
@@ -868,7 +998,7 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
                 Some("Open a map first")
             }
             // round DF1 (audit AU4-CON-2): a running navkit command is never orphaned by closing its map
-            Action::CloseMap if v.is_some_and(|v| v.navs.job.as_ref().is_some_and(|j| j.done.is_none())) => {
+            Action::CloseMap if v.is_some_and(|v| v.navs.job.as_ref().is_some_and(crate::nav::Job::running)) => {
                 Some("A navkit command is running (Build with these edits, Install or Restore): wait for it")
             }
             Action::Undo
@@ -991,13 +1121,8 @@ impl EditorApp {
                     ThemeId::Light => ThemeId::Dark,
                 };
             }
-            Action::CloseMap => {
-                // round DF1 (audit AU4-SM-4): a preview ends first (the project's view back, then closed with it)
-                self.close_preview();
-                self.stash_display();
-                self.next_generation();
-                self.mode = Mode::Start;
-            }
+            // round OP1: unsaved edits are asked about first (a preview ends first: round DF1, audit AU4-SM-4)
+            Action::CloseMap => self.ask_unsaved(CloseWhat::Map),
             Action::OpenViewport(p) => self.open_viewport(p),
             Action::FocusSelection => self.focus_selected(),
             Action::ClearSelection => self.select(gpu, None),
@@ -1033,23 +1158,14 @@ impl EditorApp {
             Action::ToggleGameView => {
                 if let (Mode::View(v), Ok(root)) = (&mut self.mode, &self.opfor) {
                     v.game_accurate = !v.game_accurate;
-                    if v.game_accurate && v.game.is_none() {
-                        match crate::gameview::GameView::load(root, &v.lv, v.scene()) {
-                            Ok(mut g) => {
-                                v.message = g.status();
-                                // round VW2: the weather state chosen in the picker before the view was loaded
-                                if let Some(k) = v.weather.as_ref().and_then(|w| w.shown)
-                                    && let Err(e) = g.set_state(k)
-                                {
-                                    v.message = format!("{} (weather state {k}: {e})", v.message);
-                                }
-                                v.game = Some(g);
-                            }
-                            Err(e) => {
-                                v.message = format!("Game-accurate view: {e}");
-                                v.game_accurate = false;
-                            }
-                        }
+                    if v.game_accurate && matches!(v.game, crate::gameview::GameSlot::Off) {
+                        // round OP1 (AU4 CQ-6's other half): read on a worker; the window keeps drawing meanwhile
+                        v.game = crate::gameview::GameSlot::Loading(crate::gameview::GameLoad::start(
+                            root,
+                            &v.lv,
+                            v.scene(),
+                        ));
+                        v.message = "Game-accurate view: reading the level's shaders, textures and terrain...".into();
                     }
                 }
             }
@@ -1061,7 +1177,7 @@ impl EditorApp {
                 if let Some(path) = self.view().and_then(|v| v.doc.as_ref()).map(|d| d.path.clone()) {
                     self.export
                         .open_for(&path, self.opfor.as_ref().ok().map(PathBuf::as_path));
-                    self.export.bound = Some(self.generation);
+                    self.export.bind(self.generation);
                 }
             }
             // the editing actions ran above
@@ -1171,11 +1287,7 @@ impl EditorApp {
         self.error = None;
         match prepare::plan(&root, lv) {
             Plan::Ready => self.load_level(lv, then),
-            plan => {
-                // what to do once prepared and loaded
-                self.after_prepare = then;
-                self.start_preparing(Job::start(&root, lv, plan));
-            }
+            plan => self.start_preparing(Job::start(&root, lv, plan), then),
         }
     }
 
@@ -1183,14 +1295,19 @@ impl EditorApp {
     pub fn open_level_preparing_with(&mut self, script: &Path, lv: &str) {
         let Ok(root) = self.opfor.clone() else { return };
         self.error = None;
-        self.start_preparing(Job::start_with(script, &root, lv, Plan::Full));
+        self.start_preparing(Job::start_with(script, &root, lv, Plan::Full), Then::View);
     }
 
-    fn start_preparing(&mut self, job: Result<Job, String>) {
+    fn start_preparing(&mut self, job: Result<Job, EditorError>, then: Then) {
         match job {
-            Ok(job) => self.mode = Mode::Preparing(Box::new(job)),
+            Ok(job) => {
+                self.mode = Mode::Preparing {
+                    job: Box::new(job),
+                    then,
+                }
+            }
             Err(e) => {
-                self.error = Some(e);
+                self.error = Some(e.to_string());
                 self.mode = Mode::Start;
             }
         }
@@ -1200,7 +1317,7 @@ impl EditorApp {
     #[must_use]
     pub fn preparing(&self) -> Option<&prepare::Progress> {
         match &self.mode {
-            Mode::Preparing(job) => Some(&job.progress),
+            Mode::Preparing { job, .. } => Some(&job.progress),
             _ => None,
         }
     }
@@ -1232,7 +1349,7 @@ impl EditorApp {
     /// # Errors
     ///
     /// No game copy, or the level does not load.
-    pub fn open_level_blocking(&mut self, gpu: &GpuCtx, lv: &str) -> Result<(), String> {
+    pub fn open_level_blocking(&mut self, gpu: &GpuCtx, lv: &str) -> Result<(), EditorError> {
         self.open_level_blocking_then(gpu, lv, Then::View)
     }
 
@@ -1241,13 +1358,13 @@ impl EditorApp {
     /// # Errors
     ///
     /// No game copy, the level does not load, or the project cannot be made or opened.
-    pub fn open_level_blocking_then(&mut self, gpu: &GpuCtx, lv: &str, then: Then) -> Result<(), String> {
+    pub fn open_level_blocking_then(&mut self, gpu: &GpuCtx, lv: &str, then: Then) -> Result<(), EditorError> {
         let root = self.opfor.clone()?;
         let plan = prepare::plan(&root, lv);
         if plan != Plan::Ready {
             let mut job = Job::start(&root, lv, plan)?;
             if let Outcome::Failed(e) = job.wait(std::time::Duration::from_mins(15)) {
-                return Err(e);
+                return Err(EditorError::Tool(e));
             }
         }
         let loaded = load(&root, lv)?;
@@ -1257,7 +1374,7 @@ impl EditorApp {
         if let Mode::View(v) = &mut self.mode {
             v.take_visuals(gpu, &palette, true);
         }
-        self.error.clone().map_or(Ok(()), Err)
+        self.error.clone().map_or(Ok(()), |e| Err(EditorError::Level(e)))
     }
 
     /// Opens a project file: its base level is loaded first (in the background), then the project on it; an
@@ -1340,11 +1457,13 @@ impl EditorApp {
     /// new-project form goes only to the project `then` creates (round DF1, audit AU4-SM-1: never to the next project
     /// opened after a Create that failed).
     fn show_scene(&mut self, gpu: &GpuCtx, lv: &str, loaded: LoadedOk, then: Then) {
-        let target = self.pending_target.take();
         self.next_generation();
         // an earlier attempt's error is not this level's
         self.error = None;
-        let target = if matches!(then, Then::Create(..)) { target } else { None };
+        let target = match &then {
+            Then::Create(_, _, target) => target.clone(),
+            _ => None,
+        };
         self.show_scene_with(gpu, lv, loaded, then, target);
     }
 
@@ -1392,29 +1511,30 @@ impl EditorApp {
         }
         let mut doc = match then {
             Then::View => None,
-            Then::Create(name, folder) => match Doc::create_kind(&name, &folder, lv, scene.clone(), self.base_kind(lv))
-            {
-                Ok(d) => {
-                    self.remember(&d.path);
-                    Some(d)
+            Then::Create(name, folder, _) => {
+                match Doc::create_kind(&name, &folder, lv, scene.clone(), self.base_kind(lv)) {
+                    Ok(d) => {
+                        self.remember(&d.path);
+                        Some(d)
+                    }
+                    Err(e) => {
+                        self.error = Some(e.to_string());
+                        self.mode = Mode::Start;
+                        return;
+                    }
                 }
-                Err(e) => {
-                    self.error = Some(e);
-                    self.mode = Mode::Start;
-                    return;
-                }
-            },
+            }
             Then::Open(path, recovered) => {
                 let project = match recovered {
                     Some(p) => Ok(*p),
-                    None => MapProject::load(&path).map_err(|e| e.to_string()),
+                    None => MapProject::load(&path).map_err(|e| EditorError::Level(e.to_string())),
                 };
                 match project {
                     Ok(p) => {
                         self.remember(&path);
                         let mut d = Doc::with(p, path, scene.clone());
                         if let Err(e) = d.take_lock() {
-                            self.error = Some(e);
+                            self.error = Some(e.to_string());
                             self.mode = Mode::Start;
                             return;
                         }
@@ -1425,7 +1545,7 @@ impl EditorApp {
                         Some(d)
                     }
                     Err(e) => {
-                        self.error = Some(e);
+                        self.error = Some(e.to_string());
                         self.mode = Mode::Start;
                         return;
                     }
@@ -1446,7 +1566,7 @@ impl EditorApp {
                     Ok(c) => {
                         d.commit(Op::SetMode { to: Box::new(c) }, "New project: era and mode");
                         if let Err(e) = d.save() {
-                            self.error = Some(e);
+                            self.error = Some(e.to_string());
                         }
                     }
                     Err(e) => self.error = Some(format!("The project's era and mode were not set: {e}")),
@@ -1524,7 +1644,7 @@ impl EditorApp {
             reveal: false,
             labels: true,
             game_accurate: false,
-            game: None,
+            game: crate::gameview::GameSlot::Off,
             visuals_rx,
             last_hit: None,
             filter: None,
@@ -1593,6 +1713,13 @@ impl EditorApp {
     /// Runs an action as the keyboard or palette would (tests).
     pub fn run_action(&mut self, gpu: &GpuCtx, ctx: &egui::Context, action: Action) {
         self.run(gpu, ctx, action);
+        // a headless run goes on with what the action loaded (the window polls the game view's worker instead)
+        if let Mode::View(v) = &mut self.mode
+            && v.game.loading()
+            && let crate::gameview::GameSlot::Loading(load) = std::mem::take(&mut v.game)
+        {
+            v.game_loaded(load.wait());
+        }
     }
 
     /// Moves the camera to the selection, as F does.
@@ -1686,7 +1813,17 @@ impl EditorApp {
         // the navigation (round GR2): the worker's answer, a command's end, the edits' undo; an install's confirm
         if let Mode::View(v) = &mut self.mode {
             v.nav_poll(gpu, &palette);
-            if v.navs.reading() || v.navs.job.as_ref().is_some_and(|j| j.done.is_none()) {
+            // round OP1: the game-accurate view's worker
+            if let crate::gameview::GameSlot::Loading(load) = &v.game {
+                if let Some(r) = load.poll() {
+                    v.game = crate::gameview::GameSlot::Off;
+                    v.game_loaded(r);
+                    v.redraw();
+                } else {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                }
+            }
+            if v.navs.reading() || v.navs.job.as_ref().is_some_and(crate::nav::Job::running) {
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
         }
@@ -1782,7 +1919,7 @@ impl EditorApp {
                     });
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
-            Mode::Preparing(job) => {
+            Mode::Preparing { job, .. } => {
                 cancel = preparing_view(ui, job, &palette, &metrics);
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
@@ -1795,23 +1932,23 @@ impl EditorApp {
         for a in pending {
             self.run(gpu, &ctx, a);
         }
-        if cancel && let Mode::Preparing(job) = &mut self.mode {
+        if cancel && let Mode::Preparing { job, .. } = &mut self.mode {
             job.cancel();
             self.mode = Mode::Start;
         }
     }
 
     fn poll_loading(&mut self, gpu: &GpuCtx, ctx: &egui::Context) {
-        if let Mode::Preparing(job) = &mut self.mode {
+        if let Mode::Preparing { job, then } = &mut self.mode {
             match job.poll() {
                 Outcome::Running => {}
                 Outcome::Done => {
                     let lv = job.lv.clone();
+                    let then = std::mem::replace(then, Then::View);
                     if let Ok(root) = &self.opfor {
                         // listed as prepared from here on
                         self.levels = levels::list_levels(root);
                     }
-                    let then = std::mem::replace(&mut self.after_prepare, Then::View);
                     self.load_level(&lv, then);
                     ctx.request_repaint();
                 }
@@ -1840,7 +1977,7 @@ impl EditorApp {
                 ctx.request_repaint();
             }
             Ok(Err(e)) => {
-                self.error = Some(e);
+                self.error = Some(e.to_string());
                 self.mode = Mode::Start;
             }
             Err(TryRecvError::Empty) => {}
@@ -1947,10 +2084,21 @@ impl EditorApp {
 
     /// The close question (round DF1, audit AU4-DS-13): what still runs; Wait, or Close anyway.
     fn close_modal(&mut self, ctx: &egui::Context, p: &Palette) {
-        let Some(what) = &self.close_asked else { return };
-        // the question goes by itself once the work has ended
+        if let Closing::Unsaved { project, .. } = &self.closing {
+            let project = project.clone();
+            self.unsaved_modal(ctx, p, &project);
+            return;
+        }
+        let Closing::Busy { what, then } = &self.closing else {
+            return;
+        };
+        // the question goes by itself once the work has ended (the unsaved edits are asked about then)
         if self.busy_work().is_none() {
-            self.close_asked = None;
+            let then = *then;
+            self.closing = Closing::No;
+            if then == CloseWhat::Window {
+                self.ask_unsaved(then);
+            }
             return;
         }
         let text = format!(
@@ -1991,6 +2139,53 @@ impl EditorApp {
         ctx.request_repaint_after(std::time::Duration::from_millis(250));
         if let Some(a) = answer {
             self.answer_close(a);
+        }
+    }
+
+    /// The question about unsaved edits (round OP1, audit AU1 R7): Save, Don't save, Cancel.
+    fn unsaved_modal(&mut self, ctx: &egui::Context, p: &Palette, project: &str) {
+        let mut answer = None;
+        egui::Modal::new(egui::Id::new("close-unsaved"))
+            .frame(
+                egui::Frame::new()
+                    .fill(p.surface_2)
+                    .stroke(Stroke::new(1.0, p.line))
+                    .corner_radius(CornerRadius::same(6))
+                    .inner_margin(Margin::same(16)),
+            )
+            .show(ctx, |ui| {
+                ui.set_max_width(520.0);
+                ui.label(
+                    RichText::new("Save your changes?")
+                        .text_style(style("title"))
+                        .color(p.ink),
+                );
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(format!(
+                        "{project} has changes that are not saved. Save them before closing? Don't save lets them go \
+                         (the autosave too)."
+                    ))
+                    .color(p.ink),
+                );
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(egui::Button::new(RichText::new("Save").color(p.on_accent)).fill(p.accent))
+                        .clicked()
+                    {
+                        answer = Some(UnsavedAnswer::Save);
+                    }
+                    if ui.button("Don't save").clicked() {
+                        answer = Some(UnsavedAnswer::Discard);
+                    }
+                    if ui.button("Cancel").clicked() {
+                        answer = Some(UnsavedAnswer::Cancel);
+                    }
+                });
+            });
+        if let Some(a) = answer {
+            self.answer_unsaved(a);
         }
     }
 
@@ -2310,7 +2505,7 @@ impl EditorApp {
                         Mode::Loading { lv, .. } => {
                             ui.label(small(format!("opening {lv}")));
                         }
-                        Mode::Preparing(job) => {
+                        Mode::Preparing { job, .. } => {
                             ui.label(small(format!("preparing {} for the editor", job.lv)));
                         }
                         Mode::Start => {
@@ -2375,7 +2570,7 @@ fn load(root: &Path, lv: &str) -> Loaded {
             return Ok(read.clone());
         }
     }
-    let s = scene::load(&found.options).map_err(|e| format!("{lv} could not be read: {e}"))?;
+    let s = scene::load(&found.options).map_err(|e| EditorError::Level(format!("{lv} could not be read: {e}")))?;
     let mut notes = found.notes;
     notes.extend(s.notes.iter().cloned());
     let read = (s, notes, t.elapsed().as_secs_f64(), found.options.bases);
@@ -2638,6 +2833,28 @@ fn elided(ui: &egui::Ui, text: &str, font: FontId, color: Color32, width: f32) -
         overflow_character: Some('\u{2026}'),
     };
     ui.painter().layout_job(job)
+}
+
+impl ViewState {
+    /// The game-accurate view read (round OP1): shown, the weather state chosen in the picker before it was loaded
+    /// applied (round VW2); or the error said and the mode turned off.
+    fn game_loaded(&mut self, r: Result<crate::gameview::GameView, EditorError>) {
+        match r {
+            Ok(mut g) => {
+                self.message = g.status();
+                if let Some(k) = self.weather.as_ref().and_then(|w| w.shown)
+                    && let Err(e) = g.set_state(k)
+                {
+                    self.message = format!("{} (weather state {k}: {e})", self.message);
+                }
+                self.game = crate::gameview::GameSlot::Ready(Box::new(g));
+            }
+            Err(e) => {
+                self.message = format!("Game-accurate view: {e}");
+                self.game_accurate = false;
+            }
+        }
+    }
 }
 
 impl ViewState {
@@ -3111,7 +3328,7 @@ impl Tabs<'_> {
             // round DF1 (audit AU4-BUG-9): a removed device is never drawn with again; the view is let go, so turning
             // it on again loads it on a new device
             if let Some(why) = g.lost().map(str::to_owned) {
-                v.game = None;
+                v.game = crate::gameview::GameSlot::Off;
                 v.game_accurate = false;
                 v.message = format!("Game-accurate view turned off: {why}. Turn it on again to reload it.");
                 vp.dirty = true;
@@ -3661,7 +3878,8 @@ impl Tabs<'_> {
         egui::Frame::new()
             .inner_margin(Margin::same(m.space_3 as i8))
             .show(ui, |ui| {
-                let doc_problems: &[String] = self.view.doc.as_ref().map_or(&[], |d| d.problems.as_slice());
+                let doc_problems: &[crate::error::Problem] =
+                    self.view.doc.as_ref().map_or(&[], |d| d.problems.as_slice());
                 let autosave = self.view.doc.as_ref().and_then(|d| d.autosave_error.clone());
                 if self.view.notes.is_empty() && doc_problems.is_empty() && autosave.is_none() {
                     ui.label(
@@ -3674,7 +3892,12 @@ impl Tabs<'_> {
                     );
                 }
                 for n in doc_problems {
-                    status_line(ui, p, "Error", p.status_error, n);
+                    let (word, colour) = match n.severity {
+                        crate::error::Severity::Error => ("Error", p.status_error),
+                        crate::error::Severity::Warning => ("Warning", p.status_warn),
+                        crate::error::Severity::Note => ("Information", p.status_info),
+                    };
+                    status_line(ui, p, word, colour, &n.text);
                 }
                 if let Some(a) = autosave {
                     status_line(

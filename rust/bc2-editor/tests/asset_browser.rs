@@ -149,7 +149,7 @@ fn asset_browser_screenshots() {
     app.open_level_blocking_then(
         &gpu,
         "mp_005",
-        bc2_editor::app::Then::Create("Browser".into(), tmp.clone()),
+        bc2_editor::app::Then::Create("Browser".into(), tmp.clone(), None),
     )
     .unwrap();
     app.run_action(

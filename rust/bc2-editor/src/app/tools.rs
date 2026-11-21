@@ -26,6 +26,7 @@ use bc2_levelwrite::ops::{FieldIs, Placed};
 use crate::actions::Brush;
 use crate::content::Entry;
 use crate::display::{InvisibleAs, ShowAs};
+use crate::error::EditorError;
 use crate::viewmodes;
 use crate::workspace::{Category, ViewMode};
 
@@ -941,18 +942,26 @@ impl ViewState {
     ///
     /// # Errors
     /// The text is not a value of the field's type, or nothing is selected.
-    pub fn set_common_field(&mut self, gpu: &GpuCtx, palette: &Palette, path: &str, text: &str) -> Result<(), String> {
+    pub fn set_common_field(
+        &mut self,
+        gpu: &GpuCtx,
+        palette: &Palette,
+        path: &str,
+        text: &str,
+    ) -> Result<(), EditorError> {
         let ks = self.editable_selection();
         if ks.is_empty() {
-            return Err("Select objects that can be edited first".into());
+            return Err(EditorError::Input("Select objects that can be edited first".into()));
         }
         let text = text.trim();
         if let Some(axis) = path.strip_prefix("Position.") {
             let c = ["X", "Y", "Z"]
                 .iter()
                 .position(|a| *a == axis)
-                .ok_or("no such coordinate")?;
-            let v: f64 = text.parse().map_err(|_| format!("{text} is not a number"))?;
+                .ok_or(EditorError::Input("no such coordinate".into()))?;
+            let v: f64 = text
+                .parse()
+                .map_err(|_| EditorError::Input(format!("{text} is not a number")))?;
             let items: Vec<_> = ks
                 .iter()
                 .filter_map(|&k| {
@@ -973,17 +982,26 @@ impl ViewState {
             .find(|(p, _, _)| p == path)
             .map(|(_, t, _)| t)
         else {
-            return Err(format!("not every selected object has {path}"));
+            return Err(EditorError::Input(format!("not every selected object has {path}")));
         };
         let value = match ty {
-            FieldType::Int => FieldValue::Int(text.parse().map_err(|_| format!("{text} is not a whole number"))?),
-            FieldType::Float => FieldValue::Float(text.parse().map_err(|_| format!("{text} is not a number"))?),
+            FieldType::Int => FieldValue::Int(
+                text.parse()
+                    .map_err(|_| EditorError::Input(format!("{text} is not a whole number")))?,
+            ),
+            FieldType::Float => FieldValue::Float(
+                text.parse()
+                    .map_err(|_| EditorError::Input(format!("{text} is not a number")))?,
+            ),
             FieldType::Bool => FieldValue::Bool(match text {
                 "true" | "1" => true,
                 "false" | "0" => false,
-                _ => return Err(format!("{text} is not true or false")),
+                _ => return Err(EditorError::Input(format!("{text} is not true or false"))),
             }),
-            FieldType::Byte => FieldValue::Byte(text.parse().map_err(|_| format!("{text} is not a byte"))?),
+            FieldType::Byte => FieldValue::Byte(
+                text.parse()
+                    .map_err(|_| EditorError::Input(format!("{text} is not a byte")))?,
+            ),
             _ => FieldValue::Text(text.to_owned()),
         };
         let Some(d) = &self.doc else { return Ok(()) };

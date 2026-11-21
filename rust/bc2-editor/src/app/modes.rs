@@ -23,6 +23,7 @@ use eframe::egui::{
 use super::editui::{self, FormText, StartChoice, StartForm};
 use super::{EditorApp, Then, elided, status_line, style};
 use crate::catalog::{LevelKind, Picture};
+use crate::error::EditorError;
 use crate::levels::{ContentSet, LevelInfo};
 use crate::theme::{Metrics, Palette};
 
@@ -157,7 +158,7 @@ impl EditorApp {
                     }
                     if let Err(e) = &self.opfor {
                         let e = e.clone();
-                        status_line(ui, p, "Error", p.status_error, &e);
+                        status_line(ui, p, "Error", p.status_error, &e.to_string());
                         if !matches!(self.start, StartPage::OpenProject | StartPage::ImportProject) {
                             // without a game copy, only projects (a height-map project needs none to be shown)
                             self.start = StartPage::OpenProject;
@@ -639,8 +640,8 @@ impl EditorApp {
         }
         if let Some(StartChoice::Create(lv, name, folder)) = choice {
             self.new_level = None;
-            self.pending_target = self.new_target.0.map(|e| (e, self.new_target.1.clone()));
-            self.open_level_then(&lv, Then::Create(name, folder));
+            let target = self.new_target.0.map(|e| (e, self.new_target.1.clone()));
+            self.open_level_then(&lv, Then::Create(name, folder, target));
         }
     }
 
@@ -775,7 +776,7 @@ impl EditorApp {
         self.era_modes = Some(match &self.opfor {
             Ok(root) => bc2_levelwrite::export::Game::open(&root.join("game"))
                 .and_then(|g| bc2_levelwrite::profile::modes(&g))
-                .map_err(|e| e.to_string()),
+                .map_err(|e| EditorError::Level(e.to_string())),
             Err(e) => Err(e.clone()),
         });
     }

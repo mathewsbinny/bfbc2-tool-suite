@@ -14,6 +14,7 @@ use super::*;
 
 use std::collections::BTreeSet;
 
+use crate::error::EditorError;
 use crate::inspect::{Inspection, Links, PropNode};
 
 /// The most rows a list or a section shows at first ("Show more" adds as many again).
@@ -54,20 +55,20 @@ impl ViewState {
     ///
     /// # Errors
     /// Its partition cannot be read, or its element is not in it ([`Inspection::with_element`]).
-    pub fn property_tree(&mut self, k: usize) -> Result<&[PropNode], String> {
+    pub fn property_tree(&mut self, k: usize) -> Result<&[PropNode], EditorError> {
         self.refresh_inspection();
         let rev = self.inspection_rev();
         if !self.fields_tree.as_ref().is_some_and(|(e, r, _)| *e == k && *r == rev) {
             let tree = match &self.inspection {
                 Some((_, ins)) => ins.tree(self.scene(), k),
-                None => Err("not read".to_owned()),
+                None => Err(EditorError::Level("not read".to_owned())),
             };
             self.fields_tree = Some((k, rev, tree));
         }
         match &self.fields_tree {
             Some((_, _, Ok(t))) => Ok(t.as_slice()),
             Some((_, _, Err(e))) => Err(e.clone()),
-            None => Err("not read".to_owned()),
+            None => Err(EditorError::Level("not read".to_owned())),
         }
     }
 
@@ -268,10 +269,10 @@ impl Tabs<'_> {
         // read (or kept) once per selection and revision; drawn from the cache below
         let _ = self.view.property_tree(k);
         let v = &*self.view;
-        let tree: Result<&[PropNode], &str> = match &v.fields_tree {
+        let tree: Result<&[PropNode], EditorError> = match &v.fields_tree {
             Some((_, _, Ok(t))) => Ok(t.as_slice()),
-            Some((_, _, Err(e))) => Err(e.as_str()),
-            None => Err("not read"),
+            Some((_, _, Err(e))) => Err(e.clone()),
+            None => Err(EditorError::Level("not read".into())),
         };
         ui.add_space(m.space_4);
         let id = ui.make_persistent_id("all fields");

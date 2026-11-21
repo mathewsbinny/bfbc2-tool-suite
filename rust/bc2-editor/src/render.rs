@@ -30,6 +30,7 @@ use eframe::egui::Color32;
 use eframe::egui_wgpu::wgpu;
 use wgpu::util::DeviceExt;
 
+use crate::error::EditorError;
 use crate::theme::Palette;
 use crate::workspace::ViewMode;
 
@@ -128,12 +129,12 @@ impl Gpu {
     /// # Errors
     ///
     /// No adapter or device (the same answer on every call).
-    pub fn headless() -> Result<(Self, String), String> {
-        static SHARED: std::sync::OnceLock<Result<(Gpu, String), String>> = std::sync::OnceLock::new();
+    pub fn headless() -> Result<(Self, String), EditorError> {
+        static SHARED: std::sync::OnceLock<Result<(Gpu, String), EditorError>> = std::sync::OnceLock::new();
         SHARED.get_or_init(Self::make_headless).clone()
     }
 
-    fn make_headless() -> Result<(Self, String), String> {
+    fn make_headless() -> Result<(Self, String), EditorError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
             ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -150,15 +151,15 @@ impl Gpu {
                 break;
             }
         }
-        let adapter = adapter.ok_or("no graphics adapter")?;
+        let adapter = adapter.ok_or(EditorError::Gpu("no graphics adapter".into()))?;
         let info = adapter.get_info();
         // the game-accurate view's shared frame (round R5c), when the adapter can
         let desc = wgpu::DeviceDescriptor {
             required_features: crate::gameview::device_features(&adapter),
             ..Default::default()
         };
-        let (device, queue) =
-            pollster::block_on(adapter.request_device(&desc)).map_err(|e| format!("no graphics device: {e}"))?;
+        let (device, queue) = pollster::block_on(adapter.request_device(&desc))
+            .map_err(|e| EditorError::Gpu(format!("no graphics device: {e}")))?;
         Ok((Self { device, queue }, format!("{} ({:?})", info.name, info.backend)))
     }
 }
@@ -2295,12 +2296,12 @@ pub fn read_rgba(gpu: &Gpu, tex: &wgpu::Texture, size: [u32; 2]) -> Option<Vec<u
 /// # Errors
 ///
 /// The file cannot be written.
-pub fn write_png(path: &std::path::Path, size: [u32; 2], rgba: &[u8]) -> Result<(), String> {
-    let file = std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?;
+pub fn write_png(path: &std::path::Path, size: [u32; 2], rgba: &[u8]) -> Result<(), EditorError> {
+    let file = std::fs::File::create(path).map_err(|e| EditorError::Gpu(format!("{}: {e}", path.display())))?;
     let mut enc = png::Encoder::new(std::io::BufWriter::new(file), size[0], size[1]);
     enc.set_color(png::ColorType::Rgba);
     enc.set_depth(png::BitDepth::Eight);
-    let mut w = enc.write_header().map_err(|e| e.to_string())?;
-    w.write_image_data(rgba).map_err(|e| e.to_string())?;
-    w.finish().map_err(|e| e.to_string())
+    let mut w = enc.write_header().map_err(|e| EditorError::Gpu(e.to_string()))?;
+    w.write_image_data(rgba).map_err(|e| EditorError::Gpu(e.to_string()))?;
+    w.finish().map_err(|e| EditorError::Gpu(e.to_string()))
 }

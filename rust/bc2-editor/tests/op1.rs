@@ -7,6 +7,8 @@
 //! - **Part B** (audit AU1 R24 / R17 / P3 / P16): brush strokes on the height field and a paint layer are stored as
 //!   tiles beside the project and undone and redone with the log; the autosave is a journal of the changes that a
 //!   reopened editor recovers after a crash; a stroke's commit and an undo on a long log stay within E5's budgets.
+//! - **Part C** (audit AU1 R7 / D13, DF1's left items): problems are typed; closing with unsaved edits asks first;
+//!   the game-accurate view is read on a worker.
 #![allow(
     clippy::panic,
     clippy::unwrap_used,
@@ -206,7 +208,10 @@ fn a_multi_file_operation_is_one_step_whole_or_not_at_all() {
     );
     assert_eq!(xs(&d), (11.0, 9.0, 9.0), "the partition's move was not made either");
     assert!(
-        d.problems.last().is_some_and(|p| p.contains("#5 is not in the level")),
+        d.problems.last().is_some_and(|p| p.contains("#5 is not in the level")
+            && p.code == bc2_editor::error::ProblemCode::NotApplied
+            && p.severity == bc2_editor::error::Severity::Error
+            && p.operation == d.last_n()),
         "{:?}",
         d.problems
     );
@@ -413,4 +418,118 @@ fn budgets(name: &str, strokes: u32) {
     );
     assert!(pct(0.5) < 16.0, "a stroke's commit: {:.2} ms", pct(0.5));
     assert!(undo < 100.0 && redo < 100.0, "undo {undo:.1} ms, redo {redo:.1} ms");
+}
+
+/// Part C (audit AU1 R7 / G-N20, DF1's left items): closing the map or the window with unsaved edits asks first -
+/// Save, Don't save, Cancel - as one close state, after the busy question.
+#[test]
+fn closing_with_unsaved_edits_asks_first() {
+    use bc2_editor::actions::Action;
+    use bc2_editor::app::{CloseWhat, Closing, EditorApp, Then, UnsavedAnswer};
+    let _gate = crate::gate();
+    let dir = temp("close");
+    let mut h = match bc2_editor::headless::Headless::new([1280, 800]) {
+        Ok(h) => h,
+        Err(e) => {
+            println!("skipped: {e}");
+            return;
+        }
+    };
+    let mut app = EditorApp::new(None, None).unwrap();
+    h.settle(&mut app, 2);
+    let (gpu, ctx) = (h.gpu.clone(), h.ctx.clone());
+    let open = |app: &mut EditorApp, h: &mut bc2_editor::headless::Headless, name: &str| {
+        let scene = bc2_editor::demo::level(&dir.join("level")).unwrap();
+        app.open_scene_then(
+            &h.gpu.clone(),
+            "demo",
+            scene,
+            Then::Create(name.into(), dir.clone(), None),
+        );
+        h.settle(app, 2);
+        app.view().unwrap().doc.as_ref().unwrap().path.clone()
+    };
+    let edit = |app: &mut EditorApp| {
+        let d = app.view_mut().unwrap().doc.as_mut().unwrap();
+        let g = d.guid(1).unwrap().to_owned();
+        d.commit(
+            Op::Hide {
+                guids: vec![g],
+                hidden: true,
+            },
+            "",
+        );
+        assert!(!d.saved);
+    };
+    // nothing unsaved: the map closes at once, the window may close
+    open(&mut app, &mut h, "OP1 close A");
+    assert!(app.close_requested());
+    app.answer_close(false);
+    let mut app = EditorApp::new(None, None).unwrap();
+    h.settle(&mut app, 2);
+    let path = open(&mut app, &mut h, "OP1 close B");
+    edit(&mut app);
+    // Close map: asked; Cancel keeps the map open
+    app.run_action(&gpu, &ctx, Action::CloseMap);
+    assert!(matches!(app.closing(), Closing::Unsaved { then: CloseWhat::Map, project } if project == "OP1 close B"));
+    assert!(app.view().is_some());
+    app.answer_unsaved(UnsavedAnswer::Cancel);
+    assert_eq!(app.closing(), &Closing::No);
+    assert!(app.view().is_some());
+    // Save: saved, then closed
+    app.run_action(&gpu, &ctx, Action::CloseMap);
+    app.answer_unsaved(UnsavedAnswer::Save);
+    assert!(app.view().is_none(), "closed after the save");
+    assert_eq!(MapProject::load(&path).unwrap().operations.len(), 1);
+    assert!(MapProject::recover(&path).is_none());
+    // the window: asked; Don't save lets the edits and their autosave go, and the window closes
+    let path = open(&mut app, &mut h, "OP1 close C");
+    edit(&mut app);
+    assert!(!app.close_requested());
+    assert!(matches!(
+        app.closing(),
+        Closing::Unsaved {
+            then: CloseWhat::Window,
+            ..
+        }
+    ));
+    app.answer_unsaved(UnsavedAnswer::Discard);
+    assert!(app.closing_anyway());
+    assert!(
+        !bc2_levelwrite::project::autosave_path(&path).exists(),
+        "the autosave let go"
+    );
+    assert_eq!(MapProject::load(&path).unwrap().operations.len(), 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Part C: the game-accurate view's world is read on a worker; a level that does not read is an error from the
+/// worker, typed, never a hang.
+#[test]
+fn the_game_view_loads_on_a_worker() {
+    let _gate = crate::gate();
+    let scene = bc2_editor::demo::scene();
+    let missing = temp("no_opfor");
+    let load = bc2_editor::gameview::GameLoad::start(&missing, "demo", &scene);
+    let t = std::time::Instant::now();
+    let r = loop {
+        if let Some(r) = load.poll() {
+            break r;
+        }
+        assert!(t.elapsed().as_secs() < 60, "the worker answers");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    let Err(e) = r else { panic!("no level there") };
+    assert!(
+        matches!(
+            e,
+            bc2_editor::error::EditorError::Render(_) | bc2_editor::error::EditorError::Worker(_)
+        ),
+        "{e:?}"
+    );
+    assert!(
+        bc2_editor::gameview::GameLoad::start(&missing, "demo", &scene)
+            .wait()
+            .is_err()
+    );
 }

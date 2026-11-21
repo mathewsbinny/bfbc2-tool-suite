@@ -158,7 +158,7 @@ fn stock_levels_resolve_as_their_folder_did() {
             "{lv}: {} {}| by folder {folder}: {}",
             w.state,
             note.as_deref().map_or_else(String::new, |n| format!("({n}) ")),
-            old.as_ref().map_or_else(Clone::clone, |o| o.state.clone())
+            old.as_ref().map_or_else(ToString::to_string, |o| o.state.clone())
         );
         assert!(
             !note.as_deref().is_some_and(|n| n.starts_with(weather::NO_WEATHER)),

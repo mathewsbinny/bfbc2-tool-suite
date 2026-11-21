@@ -24,6 +24,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use crate::error::EditorError;
 use bc2_formats::dbx::{self, DbxTree, NUMBERS, Node, TEXT};
 use bc2_scene::scene::{Entity, Scene, Source};
 
@@ -295,8 +296,16 @@ impl Inspection {
     ///
     /// # Errors
     /// The partition cannot be read, or the entity's element is not in it.
-    pub fn with_element<T>(&self, scene: &Scene, k: usize, f: impl FnOnce(&Node<'_, '_>) -> T) -> Result<T, String> {
-        let e = scene.entities.get(k).ok_or("no such object")?;
+    pub fn with_element<T>(
+        &self,
+        scene: &Scene,
+        k: usize,
+        f: impl FnOnce(&Node<'_, '_>) -> T,
+    ) -> Result<T, EditorError> {
+        let e = scene
+            .entities
+            .get(k)
+            .ok_or(EditorError::Level("no such object".into()))?;
         let (file, pick) = match self.place(e) {
             Place::Index(file, inst, item) => (file, (Some(inst), item, None)),
             Place::Guid(g) => (0, (None, None, Some(g))),
@@ -306,19 +315,19 @@ impl Inspection {
         } else {
             scene.file(file).map(|(_, b)| b)
         }
-        .ok_or("its partition is not loaded")?;
-        let tree = dbx::parse_tree(bytes).map_err(|e| e.to_string())?;
+        .ok_or(EditorError::Level("its partition is not loaded".into()))?;
+        let tree = dbx::parse_tree(bytes).map_err(|e| EditorError::Level(e.to_string()))?;
         let inst = match pick {
             (Some(i), _, _) => tree.instances().nth(i),
             (_, _, Some(g)) => tree.instance(g),
             _ => None,
         }
-        .ok_or_else(|| format!("{} is not in its partition", e.guid))?;
+        .ok_or_else(|| EditorError::Level(format!("{} is not in its partition", e.guid)))?;
         let el = match pick.1 {
             Some(item) => inst
                 .child("Assets")
                 .and_then(|a| a.children().nth(item))
-                .ok_or_else(|| format!("{} has no Assets item {item}", e.guid))?,
+                .ok_or_else(|| EditorError::Level(format!("{} has no Assets item {item}", e.guid)))?,
             None => inst,
         };
         Ok(f(&el))
@@ -328,7 +337,7 @@ impl Inspection {
     ///
     /// # Errors
     /// As [`Inspection::with_element`].
-    pub fn tree(&self, scene: &Scene, k: usize) -> Result<Vec<PropNode>, String> {
+    pub fn tree(&self, scene: &Scene, k: usize) -> Result<Vec<PropNode>, EditorError> {
         self.with_element(scene, k, nodes_of)
     }
 

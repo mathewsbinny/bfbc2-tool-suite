@@ -460,6 +460,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1_smol",
+ "thiserror 2.0.21",
  "windows",
 ]
 
@@ -558,6 +559,7 @@ dependencies = [
  "bc2-scene",
  "png",
  "rayon",
+ "thiserror 2.0.21",
  "windows",
 ]
 

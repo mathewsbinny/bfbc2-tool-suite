@@ -15,8 +15,11 @@ use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
+use crate::error::EditorError;
 use bc2_levelwrite::delta::{DirStore, Raster, TileStore as _};
 use bc2_levelwrite::files::{FileEdit, LevelFiles, Sources, Target};
+
+use crate::error::{Problem, ProblemCode, Severity};
 use bc2_levelwrite::journal::{Entry, Journal};
 use bc2_levelwrite::ops::Organisation;
 use bc2_levelwrite::project::BaseReport;
@@ -59,7 +62,7 @@ struct Checkpoint {
     by_guid: HashMap<String, usize>,
     /// Every file's writer (round OP1): a multi-file operation is undone as one step.
     files: LevelFiles,
-    problems: Vec<String>,
+    problems: Vec<Problem>,
 }
 
 /// A map project open on its level.
@@ -83,7 +86,7 @@ pub struct Doc {
     /// The field types (the level partition's data, `dbxcatalogue`'s rules).
     pub schema: Schema,
     /// What did not apply, and the base-changed report, in words.
-    pub problems: Vec<String>,
+    pub problems: Vec<Problem>,
     /// Saved since the last change.
     pub saved: bool,
     /// The base-changed check made when the project was opened.
@@ -182,7 +185,7 @@ impl Doc {
     ///
     /// # Errors
     /// A project of that name is already in the folder, or it cannot be written.
-    pub fn create(name: &str, folder: &Path, level: &str, scene: Scene) -> Result<Self, String> {
+    pub fn create(name: &str, folder: &Path, level: &str, scene: Scene) -> Result<Self, EditorError> {
         Self::create_kind(name, folder, level, scene, None)
     }
 
@@ -196,10 +199,10 @@ impl Doc {
         level: &str,
         scene: Scene,
         kind: Option<bc2_levelwrite::BaseKind>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, EditorError> {
         let name = name.trim();
         if name.is_empty() {
-            return Err("Give the new map a name.".into());
+            return Err(EditorError::Project("Give the new map a name.".into()));
         }
         let bytes = scene.file(0).map_or_else(Vec::new, |(_, b)| b.to_vec());
         let mut project = MapProject::new(
@@ -217,15 +220,16 @@ impl Doc {
         project.base.kind = kind;
         let path = folder.join(project.file_name());
         if path.exists() {
-            return Err(format!(
+            return Err(EditorError::Project(format!(
                 "{} is already in this folder. Open it with \"Open project\", or choose another name.",
                 path.display()
-            ));
+            )));
         }
-        let lock = bc2_levelwrite::project::ProjectLock::acquire(&path).map_err(|e| e.to_string())?;
-        project
-            .save(&path)
-            .map_err(|e| format!("The project could not be written to {}: {e}", path.display()))?;
+        let lock =
+            bc2_levelwrite::project::ProjectLock::acquire(&path).map_err(|e| EditorError::Project(e.to_string()))?;
+        project.save(&path).map_err(|e| {
+            EditorError::Project(format!("The project could not be written to {}: {e}", path.display()))
+        })?;
         let mut d = Self::with(project, path, scene);
         d.lock = Some(lock);
         Ok(d)
@@ -364,17 +368,27 @@ impl Doc {
         self.problems.clear();
         let r = &self.base_report;
         if r.changed {
-            self.problems.push(format!(
-                "The level changed since this project was made (a game patch, or a rebuilt level): its partition is \
-                 not the one the edits were made on. {} operation(s) name objects it no longer has; they are kept, \
-                 not dropped.",
-                r.missing.len()
+            self.problems.push(Problem::new(
+                Severity::Warning,
+                ProblemCode::BaseChanged,
+                format!(
+                    "The level changed since this project was made (a game patch, or a rebuilt level): its partition \
+                     is not the one the edits were made on. {} operation(s) name objects it no longer has; they are \
+                     kept, not dropped.",
+                    r.missing.len()
+                ),
             ));
         }
         for (n, name, guid) in &r.missing {
-            self.problems.push(format!(
-                "Operation {n} ({name}) names {guid}, which the level does not have."
-            ));
+            self.problems.push(
+                Problem::new(
+                    Severity::Error,
+                    ProblemCode::MissingObject,
+                    format!("Operation {n} ({name}) names {guid}, which the level does not have."),
+                )
+                .at(*n)
+                .naming(vec![guid.clone()]),
+            );
         }
         let ops = self.project.operations.clone();
         self.last_replayed = ops.len();
@@ -424,7 +438,8 @@ impl Doc {
             .files
             .apply(o, &self.schema, &mut Applied::default(), &donors, &sources);
         if let Err(e) = &applied {
-            self.problems.push(e.to_string());
+            self.problems
+                .push(Problem::new(Severity::Error, ProblemCode::NotApplied, e.to_string()).at(e.n));
         }
         match &o.op {
             // a multi-file operation: the scene follows only when every edit applied (round OP1)
@@ -794,8 +809,13 @@ impl Doc {
         self.autosave_error = written.err().map(|e| {
             // a journal that failed is started afresh (whole) at the next change
             self.journal = None;
-            format!("The autosave was not written: {e}")
+            e.to_string()
         });
+    }
+
+    /// Lets the autosave journal go without a save (the user chose not to save: the caller removes its file).
+    pub fn forget_autosave(&mut self) {
+        self.journal = None;
     }
 
     /// The autosave journal, while one is being written (round OP1).
@@ -840,13 +860,19 @@ impl Doc {
     ///
     /// # Errors
     /// No such raster, another size, or a tile not written.
-    pub fn stroke(&mut self, target: &Target, after: &Raster, label: &str) -> Result<Option<u64>, String> {
+    pub fn stroke(&mut self, target: &Target, after: &Raster, label: &str) -> Result<Option<u64>, EditorError> {
         let before = match (self.raster(target), target) {
             (Some(r), _) => r,
             (None, Target::Paint { .. }) => Raster::new(after.width(), after.height(), 0),
-            (None, other) => return Err(format!("{} is not in this level", other.describe())),
+            (None, other) => {
+                return Err(EditorError::Project(format!(
+                    "{} is not in this level",
+                    other.describe()
+                )));
+            }
         };
-        let tiles = bc2_levelwrite::delta::stroke(&before, after, &self.tiles).map_err(|e| e.to_string())?;
+        let tiles = bc2_levelwrite::delta::stroke(&before, after, &self.tiles)
+            .map_err(|e| EditorError::Project(e.to_string()))?;
         if tiles.is_empty() {
             return Ok(None);
         }
@@ -901,7 +927,7 @@ impl Doc {
     ///
     /// # Errors
     /// The file cannot be written.
-    pub fn save(&mut self) -> Result<(), String> {
+    pub fn save(&mut self) -> Result<(), EditorError> {
         // the journal is closed first: the save removes its file (a failed save leaves it; the next change starts a
         // whole one)
         if let Some(mut j) = self.journal.take() {
@@ -910,7 +936,7 @@ impl Doc {
         self.disk = self
             .project
             .save_checked(&self.path, self.disk)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| EditorError::Project(e.to_string()))?;
         self.saved = true;
         Ok(())
     }
@@ -920,9 +946,12 @@ impl Doc {
     ///
     /// # Errors
     /// Another running editor holds it, or the lock file cannot be written.
-    pub fn take_lock(&mut self) -> Result<(), String> {
+    pub fn take_lock(&mut self) -> Result<(), EditorError> {
         if self.lock.is_none() {
-            self.lock = Some(bc2_levelwrite::project::ProjectLock::acquire(&self.path).map_err(|e| e.to_string())?);
+            self.lock = Some(
+                bc2_levelwrite::project::ProjectLock::acquire(&self.path)
+                    .map_err(|e| EditorError::Project(e.to_string()))?,
+            );
         }
         Ok(())
     }

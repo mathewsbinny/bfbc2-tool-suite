@@ -442,7 +442,7 @@ fn top_bar_fits() {
         &gpu,
         "wake_island_s",
         scene,
-        bc2_editor::app::Then::Create("Operation Long Project Name North Ridge".into(), dir.clone()),
+        bc2_editor::app::Then::Create("Operation Long Project Name North Ridge".into(), dir.clone(), None),
     );
     h.settle(&mut app, 6);
     let [info, buttons] = app.top_bar_spans();

@@ -32,6 +32,7 @@ use bc2_levelwrite::{MapProject, Profile};
 use eframe::egui;
 
 use crate::edit::Doc;
+use crate::error::EditorError;
 use crate::strip_ui::StripWindow;
 
 /// The mode an export file without a project target builds (E3's graft at export time), and its stock donor when the
@@ -62,8 +63,9 @@ struct Preview {
 pub struct ExportWindow {
     /// Shown.
     pub open: bool,
-    /// The project file.
-    pub project: Option<PathBuf>,
+    /// Which project the window is for, and whether it has bound to that project's generation (round OP1: one state
+    /// for DF1's `project` and `bound`).
+    pub binding: ExportFor,
     /// The game folder (OPFOR's `game\`) and OPFOR's folder.
     pub opfor: Option<PathBuf>,
     /// The form.
@@ -73,18 +75,18 @@ pub struct ExportWindow {
     /// The campaign-content checklist.
     pub strip: StripWindow,
     /// The game copy's content profiles for the form's mode (read on a worker).
-    pub profiles: Option<Result<Profiles, String>>,
-    running: Option<Receiver<Result<Vec<String>, String>>>,
-    scanning: Option<Receiver<Result<Profiles, String>>>,
-    previewing: Option<Receiver<Result<PreviewData, String>>>,
+    pub profiles: Option<Result<Profiles, EditorError>>,
+    running: Option<Receiver<Result<Vec<String>, EditorError>>>,
+    scanning: Option<Receiver<Result<Profiles, EditorError>>>,
+    previewing: Option<Receiver<Result<PreviewData, EditorError>>>,
     preview: Option<Preview>,
     preview_error: Option<String>,
     /// The target the form shows (round E3d): era, mode, donor; "Set target" makes it the project's.
     pub target: Option<(Profile, String, String)>,
     /// The game copy's modes per era (read once).
-    pub era_modes: Option<Result<crate::app::EraModes, String>>,
+    pub era_modes: Option<Result<crate::app::EraModes, EditorError>>,
     /// The donor's own layer counted (the completeness rows): (donor, its signature).
-    donor_sig: Option<(String, Result<modelayer::LayerSig, String>)>,
+    donor_sig: Option<(String, Result<modelayer::LayerSig, EditorError>)>,
     /// The Install dialog (round E3d).
     pub install: Install,
     /// The game copy's names in use and its languages (round EX1: the names' checks), read once.
@@ -96,12 +98,54 @@ pub struct ExportWindow {
     layer: Option<(u64, modelayer::LayerSig, Vec<String>, Vec<(String, String, [f32; 3])>)>,
     /// The Weather section (round VW2).
     pub weather: crate::weather_ui::WeatherForm,
-    /// The project generation the window is bound to (round DF1, audit AU4-SM-2): the editor's
-    /// [`crate::app::EditorApp::generation`] when the window first drew for its project; `None` until then. A window
-    /// of another generation is unbound before it acts ([`ExportWindow::unbind`]).
-    pub bound: Option<u64>,
     /// Why Export cannot run now, as last drawn (`None`: it can; the tests read it).
     pub why_not: Option<String>,
+}
+
+/// The project the Export window is for (round OP1, audit AU4 CQ-7: an explicit state keyed by the project's path,
+/// for DF1's two side fields).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ExportFor {
+    /// No project.
+    #[default]
+    None,
+    /// Opened for this project file; not drawn with it yet.
+    Opened(PathBuf),
+    /// Drawn with its project in this project generation (round DF1, audit AU4-SM-2: the editor's
+    /// [`crate::app::EditorApp::generation`]); a window of another generation is unbound before it acts.
+    Bound {
+        /// The project file.
+        project: PathBuf,
+        /// The generation.
+        generation: u64,
+    },
+}
+
+impl ExportWindow {
+    /// The project file the window is for.
+    #[must_use]
+    pub fn project(&self) -> Option<&Path> {
+        match &self.binding {
+            ExportFor::None => None,
+            ExportFor::Opened(p) | ExportFor::Bound { project: p, .. } => Some(p),
+        }
+    }
+
+    /// The project generation it is bound to.
+    #[must_use]
+    pub fn bound(&self) -> Option<u64> {
+        match &self.binding {
+            ExportFor::Bound { generation, .. } => Some(*generation),
+            _ => None,
+        }
+    }
+
+    /// Binds the window to its project's generation (it draws with it; round DF1).
+    pub fn bind(&mut self, generation: u64) {
+        if let ExportFor::Opened(project) | ExportFor::Bound { project, .. } = std::mem::take(&mut self.binding) {
+            self.binding = ExportFor::Bound { project, generation };
+        }
+    }
 }
 
 /// Why the Export button waits while an install or uninstall runs (round DF1, audit AU4-CON-1).
@@ -121,7 +165,7 @@ fn stopped(what: &str) -> String {
 ///
 /// # Errors
 /// The body's error, or its panic's text.
-pub fn guarded<T>(what: &str, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+pub fn guarded<T>(what: &str, f: impl FnOnce() -> Result<T, EditorError>) -> Result<T, EditorError> {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
         Ok(r) => r,
         Err(p) => {
@@ -130,17 +174,17 @@ pub fn guarded<T>(what: &str, f: impl FnOnce() -> Result<T, String>) -> Result<T
                 .map(|s| (*s).to_owned())
                 .or_else(|| p.downcast_ref::<String>().cloned())
                 .unwrap_or_else(|| "no message".to_owned());
-            Err(format!("{what}: internal error ({text})"))
+            Err(EditorError::Tool(format!("{what}: internal error ({text})")))
         }
     }
 }
 
 /// A worker's answer, if it came: `Some(Err)` when the worker ended without one (it panicked).
-fn answer<T>(rx: &Receiver<Result<T, String>>, what: &str) -> Option<Result<T, String>> {
+fn answer<T>(rx: &Receiver<Result<T, EditorError>>, what: &str) -> Option<Result<T, EditorError>> {
     match rx.try_recv() {
         Ok(r) => Some(r),
         Err(TryRecvError::Empty) => None,
-        Err(TryRecvError::Disconnected) => Some(Err(stopped(what))),
+        Err(TryRecvError::Disconnected) => Some(Err(EditorError::Worker(stopped(what)))),
     }
 }
 
@@ -168,14 +212,25 @@ pub struct Install {
     pub step: String,
     /// The last run's output.
     pub text: Vec<String>,
-    /// The last run succeeded.
-    pub ok: bool,
     /// The stage the plan was shown for, and its `stage.json` then (round DF1, audit AU4-SM-3): Install now installs
     /// exactly that stage, and refuses when it was exported again since.
     pub planned: Option<(PathBuf, Vec<u8>)>,
     /// The level id Uninstall takes out (the export's id, as [`ExportSpec::level_id`] makes it).
     pub lv: String,
-    running: Option<Receiver<(bool, String)>>,
+    /// The run (round OP1: one state for DF1's `running` receiver and `ok`).
+    run: InstallRun,
+}
+
+/// Where the install script's run stands.
+#[derive(Default)]
+enum InstallRun {
+    /// None yet.
+    #[default]
+    Idle,
+    /// Running on a worker.
+    Running(Receiver<(bool, String)>),
+    /// Ended: whether it succeeded (a confirmation asked without a run counts as ready).
+    Ended(bool),
 }
 
 /// OPFOR's install script and its arguments as one command line (python, the script, the arguments).
@@ -225,9 +280,8 @@ impl Install {
         self.open = true;
         step.clone_into(&mut self.step);
         self.text = vec![format!("> {}", cmd.join(" "))];
-        self.ok = false;
         let (tx, rx) = channel();
-        self.running = Some(rx);
+        self.run = InstallRun::Running(rx);
         let dir = opfor.to_path_buf();
         std::thread::spawn(move || {
             let _ = tx.send(run_logged(&cmd, &dir));
@@ -260,18 +314,28 @@ impl Install {
     /// Whether a run is going on.
     #[must_use]
     pub fn busy(&self) -> bool {
-        self.running.is_some()
+        matches!(self.run, InstallRun::Running(_))
+    }
+
+    /// Whether the last run succeeded (or a confirmation waits).
+    #[must_use]
+    pub fn ok(&self) -> bool {
+        matches!(self.run, InstallRun::Ended(true))
+    }
+
+    /// A confirmation asked without a run (Uninstall's question): ready for the answer.
+    pub fn ready(&mut self) {
+        self.run = InstallRun::Ended(true);
     }
 
     fn take(&mut self, (ok, out): (bool, String)) {
-        self.ok = ok;
         self.text.extend(out.lines().map(str::to_owned));
-        self.running = None;
+        self.run = InstallRun::Ended(ok);
     }
 
     /// The run's end, when it came (a worker that ended without an answer is a failed run, round DF1).
     pub fn poll(&mut self) {
-        let Some(rx) = &self.running else { return };
+        let InstallRun::Running(rx) = &self.run else { return };
         match rx.try_recv() {
             Ok(r) => self.take(r),
             Err(TryRecvError::Empty) => {}
@@ -281,7 +345,7 @@ impl Install {
 
     /// Waits for the run (the headless screenshots).
     pub fn settle(&mut self) {
-        if let Some(rx) = self.running.take() {
+        if let InstallRun::Running(rx) = std::mem::take(&mut self.run) {
             let r = rx.recv().unwrap_or_else(|_| (false, stopped("The install")));
             self.take(r);
         }
@@ -290,7 +354,7 @@ impl Install {
     /// Hands a worker's receiver to the dialog (tests: a worker that ends without an answer).
     #[doc(hidden)]
     pub fn running_from(&mut self, rx: Receiver<(bool, String)>) {
-        self.running = Some(rx);
+        self.run = InstallRun::Running(rx);
     }
 }
 
@@ -576,13 +640,12 @@ fn to_image(p: &Rgb) -> egui::ColorImage {
 impl ExportWindow {
     /// Opens the window for a project (its settings read from beside it, else a first form).
     pub fn open_for(&mut self, project: &Path, opfor: Option<&Path>) {
-        if self.project.as_deref() != Some(project) {
+        if self.project() != Some(project) {
             self.unbind();
         }
         self.open = true;
         // bound to the editor's project generation when it first draws for this project (round DF1)
-        self.bound = None;
-        self.project = Some(project.to_path_buf());
+        self.binding = ExportFor::Opened(project.to_path_buf());
         self.opfor = opfor.map(Path::to_path_buf);
         let from_file = std::fs::read_to_string(spec_path(project))
             .ok()
@@ -612,8 +675,8 @@ impl ExportWindow {
         if self.era_modes.is_none() {
             self.era_modes = Some(
                 self.game()
-                    .ok_or_else(|| "no game copy".to_owned())
-                    .and_then(|g| bc2_levelwrite::profile::modes(&g).map_err(|e| e.to_string())),
+                    .ok_or_else(|| EditorError::Tool("no game copy".to_owned()))
+                    .and_then(|g| bc2_levelwrite::profile::modes(&g).map_err(|e| EditorError::Tool(e.to_string()))),
             );
         }
         if self.profiles.is_none() && self.scanning.is_none() {
@@ -628,8 +691,7 @@ impl ExportWindow {
     /// profiles, names and modes are the game copy's and are kept.
     pub fn unbind(&mut self) {
         self.open = false;
-        self.bound = None;
-        self.project = None;
+        self.binding = ExportFor::None;
         self.spec = None;
         self.target = None;
         self.layer = None;
@@ -658,7 +720,7 @@ impl ExportWindow {
 
     /// Hands an export worker's receiver to the window (tests: a worker that ends without an answer).
     #[doc(hidden)]
-    pub fn running_from(&mut self, rx: Receiver<Result<Vec<String>, String>>) {
+    pub fn running_from(&mut self, rx: Receiver<Result<Vec<String>, EditorError>>) {
         self.running = Some(rx);
     }
 
@@ -683,7 +745,7 @@ impl ExportWindow {
             let r = guarded("Reading the content profiles", || {
                 Game::open(&opfor.join("game"))
                     .and_then(|g| bc2_levelwrite::profile::scan(&g, &mode))
-                    .map_err(|e| e.to_string())
+                    .map_err(|e| EditorError::Tool(e.to_string()))
             });
             let _ = tx.send(r);
         });
@@ -703,15 +765,16 @@ impl ExportWindow {
         self.previewing = Some(rx);
         self.preview_error = None;
         std::thread::spawn(move || {
-            let run = || -> Result<PreviewData, String> {
-                let game = Game::open(&opfor.join("game")).map_err(|e| e.to_string())?;
+            let run = || -> Result<PreviewData, EditorError> {
+                let game = Game::open(&opfor.join("game")).map_err(|e| EditorError::Tool(e.to_string()))?;
                 let donor = spec.layer.donor.to_ascii_lowercase();
-                let dk = export::description_key(&game, &donor).map_err(|e| e.to_string())?;
-                let bk = export::description_key(&game, &base).map_err(|e| e.to_string())?;
-                let bp = export::base_picture_name(&game, &bk, &base).map_err(|e| e.to_string())?;
-                let mut p = export::pictures(&game, &donor, &dk, &bp, &picture).map_err(|e| e.to_string())?;
-                let level = p.pop().ok_or("no picture")?;
-                let loading = p.pop().ok_or("no picture")?;
+                let dk = export::description_key(&game, &donor).map_err(|e| EditorError::Tool(e.to_string()))?;
+                let bk = export::description_key(&game, &base).map_err(|e| EditorError::Tool(e.to_string()))?;
+                let bp = export::base_picture_name(&game, &bk, &base).map_err(|e| EditorError::Tool(e.to_string()))?;
+                let mut p = export::pictures(&game, &donor, &dk, &bp, &picture)
+                    .map_err(|e| EditorError::Tool(e.to_string()))?;
+                let level = p.pop().ok_or(EditorError::Tool("no picture".into()))?;
+                let loading = p.pop().ok_or(EditorError::Tool("no picture".into()))?;
                 Ok(PreviewData {
                     from: loading.from.clone(),
                     psnr: [loading.made.psnr, level.made.psnr],
@@ -725,8 +788,11 @@ impl ExportWindow {
     }
 
     fn start(&mut self) {
-        let (Some(project), Some(opfor), Some(spec)) = (self.project.clone(), self.opfor.clone(), self.spec.clone())
-        else {
+        let (Some(project), Some(opfor), Some(spec)) = (
+            self.project().map(Path::to_path_buf),
+            self.opfor.clone(),
+            self.spec.clone(),
+        ) else {
             return;
         };
         // the settings beside the project, written whole (round DF1, audit AU4-BUG-14): a failed write is said
@@ -747,14 +813,14 @@ impl ExportWindow {
         self.log = vec!["Exporting...".into()];
         self.log.extend(notes.iter().cloned());
         std::thread::spawn(move || {
-            let run = move || -> Result<Vec<String>, String> {
-                let game = Game::open(&opfor.join("game")).map_err(|e| e.to_string())?;
-                let p = MapProject::load(&project).map_err(|e| e.to_string())?;
-                spec.level_id().map_err(|e| e.to_string())?;
-                let stage = stage_of(&opfor, &spec).ok_or("no level id")?;
+            let run = move || -> Result<Vec<String>, EditorError> {
+                let game = Game::open(&opfor.join("game")).map_err(|e| EditorError::Tool(e.to_string()))?;
+                let p = MapProject::load(&project).map_err(|e| EditorError::Tool(e.to_string()))?;
+                spec.level_id().map_err(|e| EditorError::Tool(e.to_string()))?;
+                let stage = stage_of(&opfor, &spec).ok_or(EditorError::Tool("no level id".into()))?;
                 let rec = export::build(&game, &p, &project.display().to_string(), &spec, &stage)
-                    .map_err(|e| e.to_string())?;
-                let r = export::check(&game, &stage).map_err(|e| e.to_string())?;
+                    .map_err(|e| EditorError::Tool(e.to_string()))?;
+                let r = export::check(&game, &stage).map_err(|e| EditorError::Tool(e.to_string()))?;
                 let mut out = rec.report;
                 out.extend(
                     r.checks
@@ -794,9 +860,10 @@ impl ExportWindow {
             .and_then(|rx| answer(rx, "Reading the content profiles"))
         {
             self.scanning = None;
+            let project = self.project().map(Path::to_path_buf);
             // a first form made before the profiles were read takes the profile's default donor
-            if let (Ok(p), Some(spec), Some(project)) = (&r, self.spec.as_mut(), self.project.as_ref())
-                && !spec_path(project).is_file()
+            if let (Ok(p), Some(spec), Some(project)) = (&r, self.spec.as_mut(), project)
+                && !spec_path(&project).is_file()
             {
                 let profile = spec.profile;
                 set_profile(spec, p, profile);
@@ -818,7 +885,7 @@ impl ExportWindow {
                     ];
                     self.preview = Some(Preview { data, tex });
                 }
-                Err(e) => self.preview_error = Some(e),
+                Err(e) => self.preview_error = Some(e.to_string()),
             }
         }
         if self.running.is_some() || self.scanning.is_some() || self.previewing.is_some() {
@@ -834,12 +901,12 @@ impl ExportWindow {
     /// Waits for the workers (the headless screenshots): the profiles and the preview read.
     pub fn settle(&mut self, ctx: &egui::Context, base: &str) {
         if let Some(rx) = self.scanning.take() {
-            let r = rx.recv().unwrap_or_else(|e| Err(e.to_string()));
+            let r = rx.recv().unwrap_or_else(|e| Err(EditorError::Tool(e.to_string())));
             self.profiles = Some(r);
         }
         self.start_preview(base);
         if let Some(rx) = self.previewing.take() {
-            let r = rx.recv().unwrap_or_else(|e| Err(e.to_string()));
+            let r = rx.recv().unwrap_or_else(|e| Err(EditorError::Tool(e.to_string())));
             let (tx, rx2) = channel();
             let _ = tx.send(r);
             self.previewing = Some(rx2);
@@ -882,13 +949,13 @@ pub fn window(
     selected: Option<usize>,
     generation: u64,
 ) -> bool {
-    if w.bound.is_some_and(|g| g != generation) {
+    if w.bound().is_some_and(|g| g != generation) {
         w.unbind();
     }
     // only the window's own project is acted on (the campaign checklist commits into the open project, whichever)
     let mut doc = doc;
     crate::strip_ui::window(ctx, &mut w.strip, doc.as_deref_mut());
-    let mut doc = doc.filter(|d| w.project.as_deref() == Some(d.path.as_path()));
+    let mut doc = doc.filter(|d| w.project() == Some(d.path.as_path()));
     // the workers' answers, the window shown or not (an export's end ungates Install)
     w.install.poll();
     w.poll(ctx);
@@ -896,8 +963,8 @@ pub fn window(
     if !w.open {
         return false;
     }
-    if w.bound.is_none() && doc.is_some() {
-        w.bound = Some(generation);
+    if w.bound().is_none() && doc.is_some() {
+        w.bind(generation);
     }
     let game = w.game();
     // round DF1 (audit AU4-DS-4): saved is the open project's own state, not the autosave file's absence (a failed
@@ -940,8 +1007,8 @@ pub fn window(
         && w.donor_sig.as_ref().is_none_or(|x| x.0 != d)
     {
         let sig = export::level_partition(g, &d)
-            .map_err(|e| e.to_string())
-            .and_then(|b| bc2_levelwrite::LevelWriter::parse(&b).map_err(|e| e.to_string()))
+            .map_err(|e| EditorError::Tool(e.to_string()))
+            .and_then(|b| bc2_levelwrite::LevelWriter::parse(&b).map_err(|e| EditorError::Tool(e.to_string())))
             .map(|lw| modelayer::signature(&lw));
         w.donor_sig = Some((d, sig));
     }
@@ -1532,7 +1599,7 @@ pub fn window(
                 "Take {} out of the game copy? Every shared file the install changed goes back from its backup.",
                 w.install.lv
             )];
-            w.install.ok = true;
+            w.install.ready();
             w.install.planned = None;
         } else if let (Some(o), Some(d)) = (w.opfor.clone(), stage_dir.as_ref()) {
             w.install.plan(&o, d);
@@ -1668,7 +1735,7 @@ fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow) {
             if w.install.busy() {
                 return;
             }
-            match (w.install.step.as_str(), w.install.ok) {
+            match (w.install.step.as_str(), w.install.ok()) {
                 ("plan", true) => {
                     ui.label(
                         "Close the game before installing. The install writes the files listed above (backups first).",

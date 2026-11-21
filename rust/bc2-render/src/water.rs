@@ -28,6 +28,7 @@ use bc2_formats::shaderdb::query;
 use bc2_formats::water;
 
 use crate::dxbc;
+use crate::error::RenderError;
 use crate::files::Files;
 use crate::material::{self, Db, Draw, Prepared, RenderState, TextureFiles, sampler_states};
 use crate::u32_at;
@@ -58,14 +59,16 @@ pub fn load(
     envmap: &str,
     values: &HashMap<&'static str, [f32; 4]>,
     cache: &mut TextureFiles,
-) -> Result<Prepared, String> {
+) -> Result<Prepared, RenderError> {
     let name = format!("Terrains/{terrain}/{terrain}.Water.res");
-    let data = files.read(&name).ok_or_else(|| format!("{name}: not found"))?;
-    let visual = water::parse_visual(&data).map_err(|e| format!("{name}: {e}"))?;
+    let data = files
+        .read(&name)
+        .ok_or_else(|| RenderError::Data(format!("{name}: not found")))?;
+    let visual = water::parse_visual(&data).map_err(|e| RenderError::Data(format!("{name}: {e}")))?;
     let (stride, vbytes) = (u32_at(&data, 4), u32_at(&data, 8) as usize);
     let vertices = data
         .get(12..12 + vbytes)
-        .ok_or_else(|| format!("{name}: vertices run past the file"))?
+        .ok_or_else(|| RenderError::Data(format!("{name}: vertices run past the file")))?
         .to_vec();
     let mut out = Prepared {
         mesh: name.clone(),
@@ -132,19 +135,23 @@ fn water_draw(
     envmap: &str,
     values: &HashMap<&'static str, [f32; 4]>,
     cache: &mut TextureFiles,
-) -> Result<Draw, String> {
+) -> Result<Draw, RenderError> {
     let progs = db
         .entry_programs(entry)
-        .ok_or_else(|| format!("{entry}: not in the database"))?;
+        .ok_or_else(|| RenderError::Data(format!("{entry}: not in the database")))?;
     let layout = progs
         .iter()
         .filter_map(|&k| db.programs.get(k))
         .find(|p| p.key_byte(0x30) == 0)
         .map(material::Program::layout)
-        .ok_or_else(|| format!("{entry}: no main-pass program"))?;
-    let (k, _) = material::pick_program(db, progs, &layout).ok_or_else(|| format!("{entry}: no program"))?;
-    let prog = db.programs.get(k).ok_or("program")?;
-    let (vs, ps) = (db.vs.get(prog.vs).ok_or("vs")?, db.ps.get(prog.ps).ok_or("ps")?);
+        .ok_or_else(|| RenderError::Data(format!("{entry}: no main-pass program")))?;
+    let (k, _) =
+        material::pick_program(db, progs, &layout).ok_or_else(|| RenderError::Data(format!("{entry}: no program")))?;
+    let prog = db.programs.get(k).ok_or(RenderError::Data("program".into()))?;
+    let (vs, ps) = (
+        db.vs.get(prog.vs).ok_or(RenderError::Data("vs".into()))?,
+        db.ps.get(prog.ps).ok_or(RenderError::Data("ps".into()))?,
+    );
     let block = db.param(prog.block2);
     let state = RenderState::of(prog.state.0, prog.state.1);
     let ps_reflect = Arc::new(dxbc::reflect(&ps.code));

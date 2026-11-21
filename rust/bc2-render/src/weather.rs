@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 use bc2_formats::dbx;
 
+use crate::error::RenderError;
 use crate::files::Files;
 
 /// Towards the key light (`renderqa.NOON_DIR`): about 53 degrees up.
@@ -247,7 +248,7 @@ pub fn entity(files: &Files, blueprint: &str) -> Option<EntityRefs> {
 ///
 /// # Errors
 /// No `WeatherSettings` / `WeatherSystem` partition, or the state's partitions are missing.
-pub fn read(files: &Files, folder: &str) -> Result<Weather, String> {
+pub fn read(files: &Files, folder: &str) -> Result<Weather, RenderError> {
     let folder = folder.trim_matches('/').to_lowercase();
     let mut names: Vec<&str> = files.names().collect();
     names.sort_unstable();
@@ -263,7 +264,9 @@ pub fn read(files: &Files, folder: &str) -> Result<Weather, String> {
             .map(|n| n.trim_end_matches(".dbx").to_owned())
     };
     let (Some(settings), Some(system)) = (find("weathersettings"), find("weathersystem")) else {
-        return Err(format!("no WeatherSettings / WeatherSystem partition under {folder}/"));
+        return Err(RenderError::Data(format!(
+            "no WeatherSettings / WeatherSystem partition under {folder}/"
+        )));
     };
     read_system(files, &system, &settings, None)
 }
@@ -274,9 +277,9 @@ pub fn read(files: &Files, folder: &str) -> Result<Weather, String> {
 ///
 /// # Errors
 /// A partition is not found (or not read yet), or the state's partitions are missing.
-pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<usize>) -> Result<Weather, String> {
-    let sx = xml_of(files, settings).ok_or_else(|| format!("{settings}: not found"))?;
-    let yx = xml_of(files, system).ok_or_else(|| format!("{system}: not found"))?;
+pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<usize>) -> Result<Weather, RenderError> {
+    let sx = xml_of(files, settings).ok_or_else(|| RenderError::Data(format!("{settings}: not found")))?;
+    let yx = xml_of(files, system).ok_or_else(|| RenderError::Data(format!("{system}: not found")))?;
     let active = state.unwrap_or_else(|| {
         fields(&sx)
             .get("ActiveState")
@@ -290,15 +293,22 @@ pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<us
         .collect();
     let state = states
         .get(active)
-        .ok_or_else(|| format!("{settings}: ActiveState {active} of {system}'s {} states", states.len()))?
+        .ok_or_else(|| {
+            RenderError::Data(format!(
+                "{settings}: ActiveState {active} of {system}'s {} states",
+                states.len()
+            ))
+        })?
         .clone();
-    let stx = xml_of(files, &state).ok_or_else(|| format!("{state}: not found"))?;
+    let stx = xml_of(files, &state).ok_or_else(|| RenderError::Data(format!("{state}: not found")))?;
     let by_kind: HashMap<String, String> = refs(&stx).into_iter().map(|(r, n)| (n, r)).collect();
-    let part = |kind: &str| -> Result<Fields, String> {
+    let part = |kind: &str| -> Result<Fields, RenderError> {
         let r = by_kind
             .get(kind)
-            .ok_or_else(|| format!("{state}: no {kind} partition"))?;
-        Ok(fields(&xml_of(files, r).ok_or_else(|| format!("{r}: not found"))?))
+            .ok_or_else(|| RenderError::Data(format!("{state}: no {kind} partition")))?;
+        Ok(fields(
+            &xml_of(files, r).ok_or_else(|| RenderError::Data(format!("{r}: not found")))?,
+        ))
     };
     Ok(Weather {
         sun: part("Sun")?,
@@ -317,8 +327,8 @@ pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<us
 ///
 /// # Errors
 /// The system partition is not found.
-pub fn system_states(files: &Files, system: &str) -> Result<Vec<String>, String> {
-    let yx = xml_of(files, system).ok_or_else(|| format!("{system}: not found"))?;
+pub fn system_states(files: &Files, system: &str) -> Result<Vec<String>, RenderError> {
+    let yx = xml_of(files, system).ok_or_else(|| RenderError::Data(format!("{system}: not found")))?;
     Ok(refs(&yx)
         .into_iter()
         .filter(|(_, n)| n.is_empty())
@@ -365,8 +375,9 @@ impl LevelWeather {
     ///
     /// # Errors
     /// The system or the settings partition is not found.
-    pub fn read(files: &Files, entity_at: &str, refs: &EntityRefs, spawn: Option<usize>) -> Result<Self, String> {
-        let sx = xml_of(files, &refs.settings).ok_or_else(|| format!("{}: not found", refs.settings))?;
+    pub fn read(files: &Files, entity_at: &str, refs: &EntityRefs, spawn: Option<usize>) -> Result<Self, RenderError> {
+        let sx =
+            xml_of(files, &refs.settings).ok_or_else(|| RenderError::Data(format!("{}: not found", refs.settings)))?;
         let active = fields(&sx)
             .get("ActiveState")
             .and_then(|v| v.first().copied())
@@ -385,7 +396,7 @@ impl LevelWeather {
     ///
     /// # Errors
     /// [`read_system`]'s.
-    pub fn state(&self, files: &Files, k: usize) -> Result<Weather, String> {
+    pub fn state(&self, files: &Files, k: usize) -> Result<Weather, RenderError> {
         read_system(files, &self.system, &self.settings, Some(k))
     }
 }

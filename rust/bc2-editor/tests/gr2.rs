@@ -291,7 +291,7 @@ fn edit_build_install_restore_on_a_scratch_copy() {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     let ctx = h.ctx.clone();
-    if let Err(e) = app.open_level_blocking_then(&gpu, lv, Then::Create("GR2 nav".into(), tmp.join("projects"))) {
+    if let Err(e) = app.open_level_blocking_then(&gpu, lv, Then::Create("GR2 nav".into(), tmp.join("projects"), None)) {
         println!("skipped {lv}: {e}");
         return;
     }

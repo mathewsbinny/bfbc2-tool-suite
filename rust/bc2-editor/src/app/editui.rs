@@ -10,6 +10,7 @@
 )]
 use super::*;
 
+use crate::error::EditorError;
 use bc2_levelwrite::Operation;
 use bc2_levelwrite::ops::Organisation;
 use std::fmt::Write as _;
@@ -458,7 +459,7 @@ impl ViewState {
 
     /// Round VW2: the level's weather read (once): from the game-accurate view's files when it is loaded, else the
     /// level's own (a prepared level's folders, a Package level's bundles).
-    pub(super) fn ensure_weather(&mut self) -> Result<(), String> {
+    pub(super) fn ensure_weather(&mut self) -> Result<(), EditorError> {
         if self.weather.is_some() {
             return Ok(());
         }
@@ -469,7 +470,10 @@ impl ViewState {
         let w = if let Some((files, lw)) = from_game {
             crate::weatherview::WeatherView::with(files, lw)
         } else {
-            let root = self.root.clone().ok_or("Project OPFOR BFBC2's folder was not found")?;
+            let root = self
+                .root
+                .clone()
+                .ok_or(EditorError::Level("Project OPFOR BFBC2's folder was not found".into()))?;
             let scene = self.scene();
             let placed = crate::gameview::placed(scene);
             let package = crate::gameview::is_package(&root, &self.lv);
@@ -481,14 +485,17 @@ impl ViewState {
 
     /// Round VW2: both views under weather state `k` (`None`: the level's own, the one players see as it starts);
     /// the status line's words.
-    pub(super) fn show_weather(&mut self, k: Option<usize>) -> Result<String, String> {
+    pub(super) fn show_weather(&mut self, k: Option<usize>) -> Result<String, EditorError> {
         self.ensure_weather()?;
-        let w = self.weather.as_mut().ok_or("no weather")?;
+        let w = self.weather.as_mut().ok_or(EditorError::Level("no weather".into()))?;
         let k = k.unwrap_or_else(|| w.level.starts_in());
-        let row = w
-            .rows
-            .get(k)
-            .ok_or_else(|| format!("the level's weather system has {} states, not {}", w.rows.len(), k + 1))?;
+        let row = w.rows.get(k).ok_or_else(|| {
+            EditorError::Level(format!(
+                "the level's weather system has {} states, not {}",
+                w.rows.len(),
+                k + 1
+            ))
+        })?;
         let tint = row.tint;
         w.shown = Some(k);
         let label = w.label(k);
