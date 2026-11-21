@@ -104,3 +104,13 @@ pub fn fbrb_cache_stats(py: Python<'_>, reset: bool) -> PyResult<Bound<'_, PyDic
 pub fn fbrb_cache_clear() {
     cache::clear_memory();
 }
+
+/// The payload files of the disk cache's `folder` that no read can use again (a bundle rewritten at the same path:
+/// every payload of it but the current one's; round QW1): `bfbc2core.caches`' `--prune` deletes them first.
+#[pyfunction]
+pub fn fbrb_cache_superseded(folder: &str) -> Vec<String> {
+    cache::superseded(std::path::Path::new(folder))
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect()
+}
