@@ -175,6 +175,7 @@ def main(argv: list[str]) -> int:
     for group in groups:
         mod = group_module(group)
         o2.LOOSE[:] = list(getattr(mod, 'LOOSE', ()))   # round DF2: files compared by size (the ledger's records)
+        o2.REKEY[:] = list(getattr(mod, 'REKEY', ()))   # round QW2: texqa's cache keys without texqa.py's hash
         rows: list[o2.Case] = mod.cases()
         keys = [r[0] for r in rows]
         if len(set(keys)) != len(keys):
