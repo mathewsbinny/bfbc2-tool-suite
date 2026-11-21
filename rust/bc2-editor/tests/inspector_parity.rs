@@ -42,6 +42,7 @@ fn recorded(lv: &str) -> Value {
 
 #[test]
 fn outliner_lists_what_the_map_inspector_lists() {
+    let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {
         println!("skipped: no game copy");
         return;
@@ -115,6 +116,7 @@ fn outliner_lists_what_the_map_inspector_lists() {
 
 #[test]
 fn each_level_draws_with_its_selection_outlined() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;

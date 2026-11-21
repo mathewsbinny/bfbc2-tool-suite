@@ -27,6 +27,7 @@ fn game_dir() -> Option<PathBuf> {
 
 #[test]
 fn sp_01_exports_as_a_new_conquest_level() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;

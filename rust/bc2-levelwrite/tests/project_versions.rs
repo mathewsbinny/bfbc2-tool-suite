@@ -12,6 +12,7 @@ use bc2_levelwrite::project::{ProjectError, VERSION};
 
 #[test]
 fn canary_projects_load_as_version_1() {
+    let _gate = crate::gate();
     let Some(dir) = std::env::var_os("BC2_PROJECTS") else {
         println!("skipped: BC2_PROJECTS not set (the canary examples' projects)");
         return;

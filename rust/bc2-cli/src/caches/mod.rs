@@ -148,7 +148,36 @@ fn prune(top: &str, cap_bytes: u64, s: &Spec) -> PyResult<Done> {
         let sc = scan(top, s.suffixes, s.markers);
         drop_stale(&sc.temps, &sc.markers, fsx::now(), MARKER_AGE, &mut r);
         let mut total: u64 = sc.entries.iter().map(|f| f.size).sum();
-        let mut order: Vec<&Seen> = sc.entries.iter().collect();
+        // round QW1: the bundle cache's superseded payloads (a bundle rewritten at the same path) go first, whatever
+        // the cap; caches.py's prune does the same through the same bc2_formats function
+        let gone: HashSet<String> = if s.name == "fbrb" {
+            bc2_formats::fbrb::cache::superseded(std::path::Path::new(top))
+                .iter()
+                .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .collect()
+        } else {
+            HashSet::new()
+        };
+        let mut order: Vec<&Seen> = Vec::new();
+        for f in &sc.entries {
+            if !gone.contains(&basename(&f.path)) {
+                order.push(f);
+                continue;
+            }
+            match f.delete_if_unchanged(true) {
+                Some(false) => {
+                    r.busy += 1;
+                    order.push(f);
+                }
+                gone_now => {
+                    total -= f.size;
+                    if gone_now == Some(true) {
+                        r.deleted_bytes += f.size;
+                        r.deleted_files += 1;
+                    }
+                }
+            }
+        }
         order.sort_by(|a, b| by_use(a, b));
         for f in order {
             if total <= cap_bytes {
