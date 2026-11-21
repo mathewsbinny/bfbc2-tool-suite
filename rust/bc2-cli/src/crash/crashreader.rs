@@ -16,10 +16,11 @@ use super::common::{
     dirname, fromtimestamp, getmtime, here, isfile, join, read_symbols, regex_safe, seconds_of_day, split, strip,
 };
 use super::xml;
-use crate::pyfmt::docstring;
 use crate::pyproc::{Fail, Py, PyResult, os_error};
 
-const SOURCE: &str = super::common::CRASHREADER;
+/// The usage `bfbc2 crashreader` prints: `crashreader.py`'s docstring, reworded when round RT3 retired that
+/// command line (the library is `crashreaderlib.py`).
+const USAGE: &str = include_str!("crashreader_usage.txt");
 
 const REGISTERS: [&str; 9] = ["Eax", "Ebx", "Ecx", "Edx", "Esi", "Edi", "Ebp", "Esp", "Eip"];
 
@@ -361,7 +362,7 @@ fn print_log(py: &mut Py, log: Option<String>, exe_path: Option<&String>, mtime:
 pub fn run(py: &mut Py, command_line: &[String]) -> PyResult<i32> {
     let o = options(command_line);
     if o.help {
-        py.print(&docstring(SOURCE))?;
+        py.print(&USAGE.replace("\r\n", "\n"))?;
         return Ok(0);
     }
     if std::env::var("BFBC2_CRASHREADER_REFERENCE").is_ok_and(|v| !v.is_empty() && v != "0") {

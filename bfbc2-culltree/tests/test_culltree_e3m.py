@@ -39,7 +39,8 @@ def check(ok: object, what: str, detail: str = '') -> None:
 def run(cmd: str, tree: str, level: str, refs: list[str], out: str, env: dict[str, str]) -> tuple[int, str, list]:
     """One culltree command; (exit code, report with the output folder masked, the written files' bytes)."""
     os.makedirs(out, exist_ok=True)
-    args = [sys.executable, os.path.join(ROOT, 'culltree.py'), cmd, tree, level, *refs]
+    from bfbc2core import native  # round RT3: culltree.py retired, bfbc2.exe's command line
+    args = [*native.cli_command('culltree'), cmd, tree, level, *refs]
     if cmd == 'add':
         args += ['--auto', '--misplaced', '2.0', '--out-tree', os.path.join(out, 'tree.dbx'),
                  '--out-level', os.path.join(out, 'level.dbx')]

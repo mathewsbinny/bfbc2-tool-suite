@@ -371,6 +371,7 @@ def game_check(check: Any, exe: str, ref: str) -> None:
         check(False, f'stockmp builds: the stand-in folder {root} exists already (remove it)')
         return
     script = os.path.join(ref, 'bfbc2-stockmp-ai', 'stockmp.py')
+    retired = 'stockmp' in o2.RETIRED or not os.path.isfile(script)
     levels = [x for x in (os.environ.get('BFBC2_O5_LEVELS') or 'mp_005,mp_002,mp_008cq').split(',') if x]
     stand = os.path.join(root, 'opfor')
     lad = os.path.join(root, 'lad')
@@ -383,7 +384,10 @@ def game_check(check: Any, exe: str, ref: str) -> None:
             return
         for lv in levels:
             got: dict[str, Any] = {}
-            for side, cmd in (('python', [sys.executable, script]), ('rust', [exe, 'stockmp'])):
+            # round RT3 retired stockmp.py: bfbc2.exe alone then, its run must succeed and be its own
+            sides = [('rust', [exe, 'stockmp'])] if retired else [('python', [sys.executable, script]),
+                                                                   ('rust', [exe, 'stockmp'])]
+            for side, cmd in sides:
                 work = os.path.join(stand, 'work')
                 shutil.rmtree(work, ignore_errors=True)
                 shutil.rmtree(lad, ignore_errors=True)
@@ -409,7 +413,8 @@ def game_check(check: Any, exe: str, ref: str) -> None:
                              'took': took}
                 print(f'     stockmp all {lv}: {side} {took:.1f} s, exit {p.returncode}, {len(files)} files under '
                       'work\\', flush=True)
-            a, b = got['python'], got['rust']
+            b = got['rust']
+            a = got.get('python', b)
             why = ''
             for k in ('code', 'out', 'err', 'log'):
                 if a[k] != b[k]:
@@ -431,10 +436,14 @@ def game_check(check: Any, exe: str, ref: str) -> None:
                     who = f.read().split()[-1]
             except (OSError, IndexError):
                 pass
-            check(not why and a['code'] == 0 and who == 'rust',
-                  f'stockmp all {lv} in a stand-in OPFOR folder: {len(a["files"])} files under work\\ identical by '
-                  f'SHA-256, both streams, exit codes and log records the same (Python {a["took"]:.1f} s, Rust '
-                  f'{b["took"]:.1f} s; answered by {who or "?"})', why or f'exit {a["code"]}, who {who}')
+            what = (f'stockmp all {lv} in a stand-in OPFOR folder: {len(b["files"])} files under work\\, built by '
+                    f'bfbc2.exe alone (stockmp.py retired in round RT3; {b["took"]:.1f} s; answered by {who or "?"})'
+                    if retired else
+                    f'stockmp all {lv} in a stand-in OPFOR folder: {len(a["files"])} files under work\\ identical by '
+                    f'SHA-256, both streams, exit codes and log records the same (Python {a["took"]:.1f} s, Rust '
+                    f'{b["took"]:.1f} s; answered by {who or "?"})')
+            check(not why and a['code'] == 0 and who == 'rust' and bool(b['files']), what,
+                  why or f'exit {a["code"]}, who {who}')
             shutil.rmtree(os.path.join(stand, 'work'), ignore_errors=True)
     finally:
         junction = os.path.join(stand, 'game')

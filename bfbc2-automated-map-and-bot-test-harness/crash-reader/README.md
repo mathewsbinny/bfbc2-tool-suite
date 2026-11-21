@@ -20,9 +20,12 @@ Python 3.12 or newer (the suite's). For the code view, also run `pip install pef
 without the Rust core, below) you still get the names, the stack and the hints.
 
 Without Python: `bin\bfbc2.exe crashreader ...` and `bin\bfbc2.exe exeref ...` (the suite's `bin\`, round O2) take the
-same arguments and print the same; code another exe holds that the Rust decoder does not take is handed to the Python
-(the suite's README, "bfbc2.exe"). The suite's hub and Project OPFOR's `testrun.bat` run the binary when it is built,
-else `crashreader.py`.
+same arguments and print the same. Round RT3 retired the crash reader's Python command line (`crashreader.py`; its
+library is `crashreaderlib.py`, which exeref.py and the tests import): `bfbc2 crashreader` is the only one, and a
+report it does not read (not XML, UTF-16), an exe that is not a PE file or another exe's code the Rust decoder does
+not take ends with an error naming the retirement. `exeref` keeps its Python, which answers what the port hands it
+(the suite's README, "bfbc2.exe"). The suite's hub and Project OPFOR's `testrun.bat` run the binary; without it they
+say how to get it (`python rust\build_native.py --download`).
 
 With the suite's Rust core built (`python rust\build_native.py`; round E4f, `rust/bc2-harness`) the exe is mapped
 and disassembled there, with capstone's own text: every byte offset of `BFBC2Game.exe`'s code (build 795745) decodes
@@ -34,11 +37,11 @@ The log lines before a crash are found there too. `BFBC2_HARNESS_PYTHON=1` runs 
 ## Use
 
 ```
-python crashreader.py                         the newest crashreport.xml in Documents (OPFOR's or the game's)
-python crashreader.py path\to\crashreport.xml
-python crashreader.py --exe "C:\Games\Battlefield Bad Company 2\BFBC2Game.exe"
-python crashreader.py --symbols my_names.txt  add your own function names and hints
-python crashreader.py --log path\to\opfor.log
+bfbc2 crashreader                             the newest crashreport.xml in Documents (OPFOR's or the game's)
+bfbc2 crashreader path\to\crashreport.xml
+bfbc2 crashreader --exe "C:\Games\Battlefield Bad Company 2\BFBC2Game.exe"
+bfbc2 crashreader --symbols my_names.txt      add your own function names and hints
+bfbc2 crashreader --log path\to\opfor.log
 ```
 
 It finds `BFBC2Game.exe` in Project OPFOR BFBC2's game copy (`OPFOR_ROOT`, or a `project-opfor-bfbc2` folder next to one of

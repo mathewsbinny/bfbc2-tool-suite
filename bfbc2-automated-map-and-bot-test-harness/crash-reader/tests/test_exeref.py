@@ -126,7 +126,7 @@ def main(argv: list[str]) -> int:
         c.check(code == 1 and 'not in the exe\'s code' in out and 'what to do' in out, 'an address outside the code is refused', out)
 
         if '--game' in argv:
-            import crashreader
+            import crashreaderlib as crashreader
             game = crashreader.find_exe()
             if not game:
                 print('skip --game: BFBC2Game.exe not found')

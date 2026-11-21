@@ -2,6 +2,7 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
 
   python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] [--mem GB] [--plan] [--times F]
   python run_tests.py quick --no-game [--ci-steps] [-j N]
+  python run_tests.py --help   this text (an argument the runner does not know is an error, exit code 2)
 
   --no-game    only the quick entries that need nothing but the checkout (CI, .github/workflows/checks.yml): no game
                copy, OPFOR folder, BF1943 / Xbox copies or graphics card; the others (NOT_GAME_FREE) are named with
@@ -166,6 +167,8 @@ def tests():
         ('test runner: a failure printed on any console encoding', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_runner_output.py')]),
         ('test runner: tests side by side (resources, failures, exit code, output per test)', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_runner_parallel.py')]),
+        ('test runner: its command line (--help, unknown arguments run nothing)', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_runner_args.py')]),
         ('lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
         ('types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
         ('core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),
@@ -267,6 +270,8 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_f2a_native.py')]),
         ("bfbc2.exe argparse help and usage errors at the console width (COLUMNS) against the recorded answers of the Python (41 command lines x 23 values; the generated parser pieces)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_argfmt.py')]),
+        ("bfbc2.exe argparse option abbreviations and their ambiguity errors against the recorded answers of the Python (every parser's prefixes)", 'quick',
+         [PY, os.path.join(SUITE, 'core', 'tests', 'test_abbrev.py')]),
         ('Rust F3 formats against aimanim / hpdtool mesh layout / audio framing / navsample / hkpack / xenos.disasm (built, damaged, changed, a few real files)', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_f3_native.py')]),
         ("Rust F4 against culltree's string table / xenos.disasm's header / hkpack's handle / asset_bodies / texqa / meshview / audio.convert (built, damaged, edited, a few real files)", 'quick',
@@ -537,6 +542,7 @@ NEEDS = {
     'specification: rule index and citations (spec/trace.py --check)': need(),
     'test runner: a failure printed on any console encoding': need(),
     'test runner: tests side by side (resources, failures, exit code, output per test)': need(cpu=2),
+    'test runner: its command line (--help, unknown arguments run nothing)': need(),
     'lint (ruff check, every folder)': need(cpu=2),
     'types (mypy, every folder)': need(mem=1, cargo='r'),
     'core edges (terrain / water names, errors in threads)': need(),
@@ -608,6 +614,7 @@ NEEDS = {
     'Rust F2a model tools against texwrite.py / skinmesh.py (built pictures and skinned LODs, damaged, the Garand and Type 5 LODs)': need(mem=0.5),
     "Rust F2a Granny writing against granny.py (CRC, shift, orientations, add_tracks on the WW2 rifles' animations, damaged)": need(mem=0.5),
     "bfbc2.exe argparse help and usage errors at the console width (COLUMNS) against the recorded answers of the Python (41 command lines x 23 values; the generated parser pieces)": need(),
+    "bfbc2.exe argparse option abbreviations and their ambiguity errors against the recorded answers of the Python (every parser's prefixes)": need(),
     'Rust F3 formats against aimanim / hpdtool mesh layout / audio framing / navsample / hkpack / xenos.disasm (built, damaged, changed, a few real files)': need(mem=0.5),
     "Rust F4 against culltree's string table / xenos.disasm's header / hkpack's handle / asset_bodies / texqa / meshview / audio.convert (built, damaged, edited, a few real files)": need(mem=1),
     'Rust F0 texture.py helpers and PC texture reader against their Python (tiled, packed, layout) and the recorded answers of the retired levels / decode (built, damaged)': need(),
@@ -1164,8 +1171,52 @@ def print_plan(tier, jobs, slots, cpus, mem, source, known):
     print('(from durations measured one at a time: tests side by side run somewhat slower than this)')
 
 
+class UsageError(ValueError):
+    what_to_do = 'python run_tests.py --help lists the tiers and options'
+
+
+FLAGS = ('--list', '--plan', '--no-game', '--ci-steps')
+VALUED = {'--only': str, '-j': int, '--jobs': int, '--cpus': int, '--mem': float, '--times': str}
+HELP = ('-h', '--help', '/?')
+
+
+def bad_arguments(argv):
+    """What is wrong with the command line in words, else None (round RT3: an argument the runner does not know -
+    '--help' among them - was ignored before, so `run_tests.py --help` ran the quick tier)."""
+    args, i, tiers = argv[1:], 0, []
+    while i < len(args):
+        a = args[i]
+        if a in TIERS:
+            tiers.append(a)
+        elif a in VALUED:
+            if i + 1 >= len(args):
+                return f'{a} needs a value'
+            try:
+                VALUED[a](args[i + 1])
+            except ValueError:
+                return f'{a} takes {"a whole number" if VALUED[a] is int else "a number"}, not {args[i + 1]!r}'
+            i += 1
+        elif a not in FLAGS:
+            return f'unknown argument {a!r}'
+        i += 1
+    if len(tiers) > 1:
+        return f'one tier at a time, not {" and ".join(tiers)}'
+    return None
+
+
 def main(argv):
     safe_console()
+    if any(a in HELP for a in argv[1:]):
+        print(__doc__.rstrip())
+        return 0
+    wrong = bad_arguments(argv)
+    if wrong:
+        print('usage: python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] '
+              '[--mem GB] [--plan] [--times F] [--no-game] [--ci-steps]', file=sys.stderr)
+        suite_paths.use('core')
+        from bfbc2core import errors
+        errors.report(UsageError(f'run_tests: {wrong}'), show=False)       # logged, the cause and what to do
+        return 2
     tier = next((a for a in argv[1:] if a in TIERS), 'quick')
     only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
     chosen = [x for x in tests() if TIERS.index(x[1]) <= TIERS.index(tier) and (only is None or only in x[0].lower())]

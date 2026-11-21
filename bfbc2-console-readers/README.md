@@ -6,7 +6,7 @@ there is no decryption, and no keys are involved. The menu reader (`apt.py`) rea
 
 | Folder | Reads | Commands |
 |---|---|---|
-| `xiso\xiso.py` | Xbox / Xbox 360 game disc images (XDVDFS) | `list <image.iso> [filter]`, `extract <image.iso> <outdir> [filter]` |
+| `bfbc2 xiso` (library `xiso\xisolib.py`; `xiso.py` retired in round RT3) | Xbox / Xbox 360 game disc images (XDVDFS) | `list <image.iso> [filter]`, `extract <image.iso> <outdir> [filter]` |
 | `stfs\stfs.py` | Xbox 360 content packages (STFS: LIVE / PIRS / CON), e.g. downloaded map packs | `info <package>`, `list <package> [filter]`, `extract <package> <outdir> [filter]` |
 | `apt\apt.py` | EA APT menu movies (a menu `.res`, or `<name>.apt` with its `.const`), PC and Xbox 360 - the byte order is detected | `info <movie>`, `chars <movie> [type]`, `dump <movie> [out.txt]`, `find <movie> <text>` |
 
@@ -32,7 +32,7 @@ python apt\apt.py dump menu\Menu\main_nav.res main_nav.txt
 ```
 
 ```
-python xiso\xiso.py list "D:\BFBC2.iso" levels
+bfbc2 xiso list "D:\BFBC2.iso" levels
 python stfs\stfs.py extract "D:\Update3" out levels/ons_mp_008
 ```
 

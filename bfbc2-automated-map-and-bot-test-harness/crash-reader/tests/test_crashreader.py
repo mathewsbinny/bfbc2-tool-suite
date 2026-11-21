@@ -10,10 +10,9 @@ r"""The crash reader on crash reports built here, in the layout the game writes 
 
   python test_crashreader.py [--game]
 """
-import contextlib
-import io
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -26,7 +25,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('crash-reader')
-import crashreader  # noqa: E402
+import crashreaderlib as crashreader  # noqa: E402
 
 MD5_SITE, MD5_FUNCTION = 0x006EFF8A, 0x006EFBC0      # Md5Buffer object-list crash, inside its function
 
@@ -50,10 +49,11 @@ class Checks:
 
 
 def run(argv: list[str]) -> tuple[int, str]:
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        code = crashreader.main(['crashreader.py'] + argv)
-    return code, buf.getvalue()
+    """`bfbc2 crashreader <argv>` (round RT3 retired crashreader.py: the command line is bfbc2.exe's alone)."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    r = subprocess.run(native.cli_command('crashreader') + argv, capture_output=True, text=True, errors='replace')
+    return r.returncode, r.stdout
 
 
 def logs_alike(c: Checks, work: str, n: int = 300) -> None:

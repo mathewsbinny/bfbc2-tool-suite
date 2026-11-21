@@ -2,7 +2,7 @@
 
 Two transformations give placed objects new leaves in a level's exclusive static cull tree (`formats/culltree.md`):
 
-- **`culltree add`** (`bfbc2-culltree/culltree.py`, its core in Rust `bc2_levelwrite::culltool`): input a cull tree
+- **`culltree add`** (`bfbc2.exe culltree`, its library `bfbc2-culltree/culltreelib.py`, its core in Rust `bc2_levelwrite::culltool`): input a cull tree
   partition, its level partition, the objects to add (named, or `--auto`: every slot-0 object) and optionally
   reference levels (`--ref`, `--ref-dir`) to take shapes from; output the tree and level written back, and a report.
   Used by OPFOR's console conversion (`console_cull`) and the WW2 install.

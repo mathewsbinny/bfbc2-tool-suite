@@ -14,7 +14,7 @@ sys.path.insert(0, SUITE)
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools', 'navkit', 'core', 'harness', 'crash-reader')
-import crashreader  # noqa: E402
+import crashreaderlib as crashreader  # noqa: E402
 import exeref  # noqa: E402
 import harnesscore  # noqa: E402
 from testharness import ingame  # noqa: E402

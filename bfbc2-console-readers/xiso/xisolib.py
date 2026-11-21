@@ -1,7 +1,5 @@
-"""xiso.py - read-only lister/extractor for Xbox / Xbox 360 game discs (XDVDFS).
-
-Usage: python xiso.py list <image.iso> [filter]
-       python xiso.py extract <image.iso> <outdir> [filter]     (filter = case-insensitive substring)
+"""xisolib.py - read-only reader of Xbox / Xbox 360 game discs (XDVDFS): the library of `bfbc2 xiso list |
+extract` (round RT3 retired the command line xiso.py: bfbc2.exe answers it alone, bfbc2core.native.RETIRED_CLI).
 
 XDVDFS: the game partition starts at a disc-type dependent offset (redump-style images contain the
 video partition first). Volume descriptor at sector 32 of the partition: "MICROSOFT*XBOX*MEDIA",
@@ -9,11 +7,12 @@ root directory sector (u32) and size (u32). Directory entries form a binary tree
 u16 left, u16 right (offsets in dwords), u32 sector, u32 size, u8 attributes, u8 name length, name;
 entries are 4-byte aligned and never cross a sector (0xFF padding). All little-endian.
 
-find_partition and walk read the image in the suite's Rust core when it is built and f is a file opened for reading
-by path (round F0: bc2_native.xiso_find_partition / xiso_walk, the same partition and the same files in the same
-order, the file left where the Python leaves it). Elsewhere, or where the reference would raise or recurse too deep,
-the Python runs (find_partition_reference, walk_reference: the reference, kept as the fallback);
-BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
+find_partition and walk read the image in the suite's Rust core when it is built: a file opened for reading by path
+(round F0: bc2_native.xiso_find_partition / xiso_walk) or, since round RT3, an image in memory (io.BytesIO, or
+find_partition_bytes / walk_bytes on bytes: bc2_native.xiso_find_partition_bytes / xiso_walk_bytes) - the same
+partition and the same files in the same order, the file left where the Python leaves it. Elsewhere (another file
+object), or where the reference would raise or recurse too deep, the Python runs (find_partition_reference,
+walk_reference: the reference, kept as the fallback); BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
 """
 import io
 import os
@@ -70,16 +69,35 @@ def _path_of(f: BinaryIO) -> str | None:
     return name if isinstance(name, str) and os.path.isfile(name) else None
 
 
+def _memory_of(f: BinaryIO) -> bytes | None:
+    """An image in memory (round RT3: an io.BytesIO, open) as bytes, when the Rust core has its bytes entry point."""
+    if type(f) is not io.BytesIO or f.closed or not hasattr(_native(), 'xiso_walk_bytes'):
+        return None
+    return f.getvalue()
+
+
 def find_partition(f: BinaryIO) -> int:
-    """The game partition's offset: in the Rust core when it is built (round F0), else find_partition_reference."""
+    """The game partition's offset: in the Rust core when it is built (round F0; an io.BytesIO too since round RT3),
+    else find_partition_reference."""
     nat = _native()
     path = _path_of(f) if nat is not None else None
-    if path is not None:
-        base = nat.xiso_find_partition(path)
+    data = _memory_of(f) if nat is not None and path is None else None
+    if path is not None or data is not None:
+        base = nat.xiso_find_partition(path) if path is not None else nat.xiso_find_partition_bytes(data)
         if base is not None:
             f.seek(base + 32 * SECTOR + len(MAGIC))     # where the reference's last read leaves the file
             return int(base)
     return find_partition_reference(f)
+
+
+def find_partition_bytes(data: bytes) -> int:
+    """find_partition of an image held in memory (round RT3)."""
+    return find_partition(io.BytesIO(data))
+
+
+def walk_bytes(data: bytes, base: int, sector: int, size: int, prefix: str = '') -> list[tuple[str, int, int]]:
+    """list(walk(...)) of an image held in memory (round RT3)."""
+    return list(walk(io.BytesIO(data), base, sector, size, prefix))
 
 
 def find_partition_reference(f: BinaryIO) -> int:
@@ -96,7 +114,9 @@ def walk(f: BinaryIO, base: int, sector: int, size: int, prefix: str = '') -> It
     walk_reference."""
     nat = _native()
     path = _path_of(f) if nat is not None else None
-    got = nat.xiso_walk(path, base, sector, size, prefix) if path is not None else None
+    data = _memory_of(f) if nat is not None and path is None else None
+    got = (nat.xiso_walk(path, base, sector, size, prefix) if path is not None else
+           nat.xiso_walk_bytes(data, base, sector, size, prefix) if data is not None else None)
     if got is None:
         yield from walk_reference(f, base, sector, size, prefix)
         return
@@ -126,47 +146,3 @@ def walk_reference(f: BinaryIO, base: int, sector: int, size: int, prefix: str =
         if right: yield from node(right * 4)
 
     yield from node(0)
-
-
-def main() -> int:
-    cmd, iso = sys.argv[1], sys.argv[2]
-    with open(iso, 'rb') as f:
-        base = find_partition(f)
-        f.seek(base + 32 * SECTOR + 20)
-        root_sec, root_size = struct.unpack('<II', f.read(8))
-        files = list(walk(f, base, root_sec, root_size))
-        if cmd == 'list':
-            flt = sys.argv[3].lower() if len(sys.argv) > 3 else ''
-            print(f'partition at 0x{base:X}, {len(files)} files')
-            for path, _sec, sz in files:
-                if flt in path.lower(): print(f'{sz:12d}  {path}')
-        elif cmd == 'extract':
-            out = sys.argv[3]; flt = sys.argv[4].lower() if len(sys.argv) > 4 else ''
-            n = 0
-            for path, sec, sz in files:
-                if flt not in path.lower(): continue
-                dst = os.path.join(out, *path.split('/'))
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                f.seek(base + sec * SECTOR)
-                with open(dst, 'wb') as o:
-                    left = sz
-                    while left:
-                        chunk = f.read(min(left, 1 << 22))
-                        if not chunk:           # the image ends inside the file (truncated, or a corrupt entry)
-                            raise SystemExit(f'{path}: the image ends {left:,} bytes before the end of the file')
-                        o.write(chunk); left -= len(chunk)
-                n += 1
-            print(f'extracted {n} files to {out}')
-    return 0
-
-
-if __name__ == '__main__':
-    _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if _ROOT not in sys.path:
-        sys.path.insert(0, _ROOT)
-    import suite_paths
-    suite_paths.use('core')
-    from bfbc2core import errors
-    errors.setup('xiso', gui=False)       # a log; an unexpected error explained in words (exit code 1)
-    with errors.guard():
-        sys.exit(main())
