@@ -102,6 +102,7 @@ fn views(h: &mut Headless, lv: &str) -> Option<Views> {
 
 #[test]
 fn both_views_show_the_same_objects() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;

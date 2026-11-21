@@ -10,8 +10,8 @@ are merged and versions released: `RELEASING.md`.
 
 1. Install Python 3.12 or newer (`pyproject.toml` targets 3.12: bf1943-import uses its f-string syntax), then the
    libraries the tools use:
-   `pip install numpy matplotlib moderngl glfw imgui-bundle pillow` (and `pefile capstone` for the crash
-   reader's code view).
+   `python -m pip install -r requirements.txt` (numpy, matplotlib, moderngl, glfw, imgui-bundle, pillow, pefile and
+   capstone for the crash reader's code view, maturin, ruff and mypy, pinned to the versions CI uses).
 2. Get the suite's Rust core and its command-line binary: in a command prompt in this folder,
    `python rust\build_native.py --download`. It fetches the prebuilt module (`core\bfbc2core\bc2_native.pyd`: nearly
    every tool reads the game's files through it) and `bin\bfbc2.exe` (the tools' command lines in Rust: "bfbc2.exe"
@@ -130,8 +130,37 @@ Run it (Rust as in "The Rust core" below; the first build takes a few minutes):
 
 (`--editor` builds `bfbc2-editor.exe` and `mapexport.exe` in this checkout's build folder and copies them to the
 suite's `bin\`: "Where Rust builds", below.) Or from the hub: Levels > "Open in Map Editor" / "Open navigation", or
-More tools > "Open Map Editor". Its tests: `python tests\test_editor.py` (quick tier) and `cargo test -p
-bc2-levelwrite`.
+More tools > "Open Map Editor". Without a display,
+`bfbc2-editor.exe <level> --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]` draws the window
+offscreen and saves it (`--demo` instead of a level: a small made-up scene). The editor keeps its layout, theme and
+bookmarks in eframe's per-user storage under `%APPDATA%`.
+
+Its tests (the quick tier's workspace `cargo test`, `tests\test_rust.py`; `python tests\test_editor.py` runs them alone,
+one at a time; each crate's integration tests are one binary since round QW1: `--test editor`, a file's tests by its
+module, `g2::`) prove it headless: the theme generated from every token in both
+themes; the outliner against the retired Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004
+(recorded before its retirement by `rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
+view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
+the command palette opening a top view) and each of the four levels drawn with a flag selected; round GR1's property
+tree, references and referrers against what the Map Inspector showed for 1,074 objects of the same four levels
+(`tests\inspect_parity.rs`, its answers kept as digests) and its Links, All fields and Measure driven headless
+(`tests\gr1.rs`). Round G2's
+(`tests\g2.rs`, `tests\factions.rs`): every `view-*` / `scene-*` token found in a rendered frame, the overlays'
+contrast measured on the frame's own pixels, panel contrast and the third neutral's hue distance, the faction labels
+on BFBC2, Vietnam and WW2 levels (read only), Help generated from the registry (an action without a description
+fails), and opening a level that needs preparing (a stand-in script: its steps, then the level; a failure in words).
+`BC2_EDITOR_PREPARE=<level>` also runs the real preparation on a stand-in OPFOR folder in temp.
+Round E2 adds levelwrite's proofs (`cargo test -p bc2-levelwrite`: the project log, its file, undo / redo, autosave and recovery,
+the base-changed report; edits on MP_005, SP_01 and Guadalcanal copied to a temp folder: they parse, differ from the
+base exactly where the operations say, round-trip through the Rust DBX writers, load in the scene with each object
+where the log put it, and equal DbxEdit's `drop` / `setfield` and the Python `dbxbin` reference byte for byte), the
+surface placement with sink depths on terrain and on a mesh, the gizmo's maths, and the editing interface driven
+headless (`tests/editing.rs`: click, a 5 m drag on the grid, undo, redo, a 15-degree turn, box selection, duplicate,
+delete, snap to ground sunk 0.5 m and kept on the next move, a layer, save and reopen).
+The later rounds' tests sit beside them: `tests\e2b.rs` and `tests\asset_browser.rs` (E2b), `tests\g3.rs` and
+`tests\g4.rs` (the start screens), `tests\game_view*.rs` (R5 - R5c), and in `rust\bc2-levelwrite\tests` the exports
+(`export_sp01.rs`, `export_e3b.rs`, `export_e3c.rs`, `export_e3d.rs`); each round's figures are in its
+`rust/BENCHMARKS.md` section.
 
 ## The Rust core (required for the core formats, the console converters and NavKit's builds)
 

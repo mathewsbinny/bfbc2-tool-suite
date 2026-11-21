@@ -125,6 +125,54 @@ Terms as the specification uses them. The rule that defines a term in full is na
 | key hash | the localization hash: `h = 0xFFFFFFFF; h = h*33 + byte` (32-bit) |
 | histogram | a language's u16 character table used to decode localized texts |
 
+## Engine subsystems (layer 3)
+
+| Term | Meaning |
+|---|---|
+| session state | the session's state machine number; a load runs 5, 7, 13, 4, 8, 6, 9, 14, 3 (3 = in play) (LOAD-PH-1) |
+| Md5Buffer | the level checksum's pass over `LevelData.Objects` (FUN_006EFBC0), faulting at 0x6EFF8A / 0x6EFCA4 (LOAD-CSUM-1) |
+| startup bundle | `async/startup-00.fbrb` (Package, then Dist): descriptions, game modes, the level list, menu config, post shaders (LOAD-START-1) |
+| mode level | one level per game mode of a map (MP_005, MP_005GR, MP_005SR), loading its map's bundles after its own (LVL-MODE-1) |
+| content set / game mod | BFBC2, BFBC1, Vietnam or WW2; the client's game mod is BC2 (0) or VIETNAM (1), a level declares its own by `MatchmakingModID` (GAME-MODE-6, LVL-DESC-1) |
+| mode layer | a level's gameplay entities for its mode (seed types, objectives and what they reach), apart from the world objects (GAME-LAYER-2) |
+| HQ / base | a capture point with `UnableToChangeTeam` true, owned by one team; a flag has it false (GAME-CQ-1) |
+| M-COM | a Rush objective: a placed object whose events reach an arm / disarm `GameInteractionEntityData` (GAME-RUSH-1) |
+| stage (Rush) | the M-COMs whose `onDestroyed` feed the same `MultipleTriggerEntityData` counters (GAME-RUSH-1) |
+| prominence | an objective's ground height minus the median ground 30-100 m around it (GAME-CQ-9) |
+| mode key | a mode's matchmaking key (`CONQUEST`, `RUSH`, `SQRUSH`, `SQDM`), the server browser's mode column (GAME-MODE-3, NET-SB-1) |
+| in-process host | the server `hostMultiplayerLocal` creates inside the game's own process, reached through the in-memory transport (NET-SES-2, NET-SES-3) |
+| transport mode | the client-server link: 0 in-memory, 1 sockets, 2 remote join (NET-SES-3) |
+| level catalogue | the UI manager's table of levels built from the description partitions (MENU-CAT-1) |
+| working AI level | a level on which bots were seen to move and fight in a play test (AI-NEED-2) |
+| Flat data mode | Kynapse's mode in which a go-to computes its path inside the call (AI-KY-3) |
+| draw class | opaque, tested (alpha test, alpha to coverage or a discard) or blended; it sets the draw order (RNDR-ORD-1) |
+| depth pass | `psUnprojectDepthBuffer`, turning scene depth into view distances before the first draw that reads them (RNDR-ORD-3) |
+| EnvironmentMain | the weather pass drawing the sky, haze and fog over the scene by depth (RNDR-WTHR-3) |
+| patch map | the visual terrain's per-cell patch shader and mask tiles (RNDR-TERR-1) |
+| tiled layer / rule layer | a terrain layer whose mask is read from the mask atlas / computed in the shader (RNDR-TERR-3) |
+| shader-set override | a placement's choice of another of its mesh set's shader sets, named `<partition>/<GUID>` (RNDR-DRAW-2) |
+| on-demand wave | a wave with `IsOnDemand`, its audio in `async/ondemand_sounds`, loaded by the game itself (SND-OD-1) |
+| streamed wave | a wave with `IsStreaming`: a stub whose audio is in `streaming_sounds` or `streaming_vo_<lang>` (SND-WAVE-1) |
+| trigger set (VOAsset) | voice-over events with their conditions and lines (SND-VO-1) |
+| line bank | `sound/vo/vo_<lang>` or `vo_common`: the announcer's recorded lines (SND-VO-1) |
+| VOTypes | a kit's list of voice-over persons (SND-VO-1) |
+| voice-over system | the server's or the client's instance of the raise-and-match machinery (SND-EVT-2) |
+
+## The suite's transformations (layer 4)
+
+| Term | Meaning |
+|---|---|
+| twin | a resource both the console (or BF1943) copy and the PC copy of BFBC2 ship: a conversion's ground truth (XCONS-HK-1) |
+| oracle (WW2 rebuild) | the recorded sha1 of every WW2 rebuild output; a change gives the same outputs only if a full rebuild reproduces them all (XWW2-RB-2) |
+| recorded golden | a retired Python or C# tool's answers, recorded before it was deleted: the parity oracle of the Rust ports |
+| stage protocol | OPFOR's install bookkeeping: `<file>.opfor-<stage>-orig` backups, last-writer records, atomic writes (XINST-STG-1 to XINST-STG-5) |
+| last writer | the stage whose record names a shared file's current sha1; only it may rebuild from its backup or revert (XINST-STG-3, XINST-STG-4) |
+| ledger | opforcore's per-slot install records, giving files back byte for byte in any order of installs and uninstalls (XINST-LED-1) |
+| stage (map export) | the folder `mapexport build` writes: the bundles, `stage.json`, `report.txt`, `registration.txt`; `mapexport check` proves it (XEXP-CHK-1) |
+| closure (export) | the walk of the partitions a new level names; what does not resolve is copied into the level's bundle, never registered (XEXP-CLO-1) |
+| reslot | the export's step giving moved or duplicated objects new exclusive cull-tree leaves (XCULL-RES-1) |
+| side file (navtune) | a level's navigation edits, which `navkit apply` applies (XNAV-APP-1) |
+
 ## The specification
 
 | Term | Meaning |
@@ -133,3 +181,5 @@ Terms as the specification uses them. The rule that defines a term in full is na
 | verified / implemented / observed / inferred | a test checks it / code relies on it / seen in files or the exe / reasoned |
 | the game copy | Project OPFOR BFBC2's `game\`: DICE's PC files plus OPFOR's installed bundles |
 | stock | DICE's files only |
+| L1 study / L1 rule | the map editor's placement study of DICE's layouts (`bfbc2-map-editor/placement/`) and its warning rules (`L1-CQ-001` ...), which the gameplay rules name; `trace.py` checks each named L1 ID against `l1_rules.json` |
+| crash index | `engine/crashes.md`: every recorded fault address with the rule behind it |

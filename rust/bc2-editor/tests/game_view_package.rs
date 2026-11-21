@@ -27,6 +27,7 @@ use bc2_editor::headless::Headless;
 
 #[test]
 fn package_levels_in_the_game_accurate_view() {
+    let _gate = crate::gate();
     let Some(root) = std::env::var_os("BC2_R5C_PACKAGE_OPFOR").map(PathBuf::from) else {
         println!("skipped: BC2_R5C_PACKAGE_OPFOR not set");
         return;

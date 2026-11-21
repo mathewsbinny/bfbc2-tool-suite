@@ -10,6 +10,7 @@
 //! mapexport overlay <overlay-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]... [--remove <LEVEL>]...
 //! mapexport awards  <ondemand_awards-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]...
 //!                   [--remove <LEVEL>]...
+//! mapexport --source-hash   the Rust sources' fingerprint it was built from (bfbc2core.native, round QW1)
 //! ```
 //!
 //! `overlay` puts each added stage's texts (its own name and description: `stage.json`'s `strings`) in every
@@ -206,6 +207,12 @@ fn run(args: &[String]) -> Result<bool, String> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.len() == 1 && args.first().map(String::as_str) == Some("--source-hash") {
+        // `build_native.py --editor` passes the fingerprint as BC2_SOURCE_HASH (empty when built by cargo alone)
+        use std::io::Write as _;
+        let ok = writeln!(std::io::stdout(), "{}", option_env!("BC2_SOURCE_HASH").unwrap_or("")).is_ok();
+        return if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE };
+    }
     match run(&args) {
         Ok(true) => ExitCode::SUCCESS,
         Ok(false) => ExitCode::from(1),
