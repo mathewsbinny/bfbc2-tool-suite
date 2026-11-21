@@ -31,7 +31,7 @@ found by name (PART-NAME-3). Game-mode content is not a separate layer either; a
 its own (`MP_005GR`) that loads its base level's bundles.
 
 [data: 32 level partitions: no instance type containing SubWorld or Layer; the World-named types are WorldObjectListData 159 and BigWorldSetting 6]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:830-832]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:843-845]
 
 ### LEVEL-PART-3: Instances in the level partition
 
@@ -68,7 +68,7 @@ description's `LevelName` to the new name.
 
 [code: rust/bc2-levelwrite/src/mpconvert.rs:1062-1075] [code: rust/bc2-levelwrite/src/export.rs:880-881]
 [test: rust/bc2-levelwrite/src/mpconvert.rs::names_follow_the_level_and_case]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:826-827]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:839-840]
 
 ### LEVEL-DATA-3: Campaign and multiplayer values
 
@@ -79,7 +79,7 @@ A campaign level sets `HasAI` true, `StartLevelFadedToBlack`, a `SubtitleAsset`,
 empty and 1.
 
 [data: DICE's MP_SP_005CQ against SP_005, SP_01, MP_005 and MP_009CQ, instance type by instance type (round E3)]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:792-797]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:805-810]
 
 ### LEVEL-DESC-1: The level's description
 
@@ -92,7 +92,7 @@ loads: `GameMode` (a reference to `gamemodes/<mode>/<guid>`), `FactionTeam1` / `
 `LevelListQuery` items (`<lv>.dbx`, `<lv>_description.dbx`) the level is in no menu.
 
 [exe: state 13 crash, _stricmp in the name table FUN_00BD2D30 (OPFOR BFBC2_NAPISAL_RESEARCH.md)]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:810-814] [code: rust/bc2-levelwrite/src/export.rs:49-50]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:823-827] [code: rust/bc2-levelwrite/src/export.rs:49-50]
 
 ### LEVEL-DESC-2: A GameMode that does not resolve crashes
 
@@ -100,7 +100,7 @@ Status: **observed**
 
 A description whose `GameMode` reference does not resolve crashes the game at 0x74EAB3 (Coral Sea).
 
-[exe: BFBC2Game.exe 0x74EAB3] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1113]
+[exe: BFBC2Game.exe 0x74EAB3] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1126]
 
 ## 3. The Objects list
 
@@ -322,7 +322,7 @@ filters), ticket counters, `PreRound`, `Spectate`, squads, messages, the announc
 between them. Without it a campaign level hosted as a match stalls in session state 14.
 
 [data: the Conquest layer is the same set of types on every stock Conquest level; OPFOR's SP_005 hosting test stalled in state 14]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:780-791]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:793-804]
 
 ## Open questions
 
