@@ -1,5 +1,5 @@
 //! Round OP1 part B: the journalled autosave survives its writer being killed mid-write. A child process (this test
-//! binary again, `BC2_OP1_JOURNAL_CHILD=<folder>`) appends operations with large labels to a project's journal as
+//! binary again, `BC2_JOURNAL_KILL_CHILD=<folder>`) appends operations with large labels to a project's journal as
 //! fast as it can - three times through the editor's writer, three times each line in flushed 1 KB pieces so the kill
 //! lands inside a line - and the parent kills it at six different sizes. Each time the journal must read back to the
 //! operations 1 ... k in order with nothing guessed (a cut-short last line left out), resume after its last good line,
@@ -20,7 +20,7 @@ use bc2_levelwrite::journal::{self, Entry, Journal};
 use bc2_levelwrite::project::autosave_path;
 use bc2_levelwrite::{MapProject, Op, Profile};
 
-const CHILD: &str = "BC2_OP1_JOURNAL_CHILD";
+const CHILD: &str = "BC2_JOURNAL_KILL_CHILD";
 
 fn project() -> MapProject {
     MapProject::new("Killed", "test", "levels/TEST", b"base", Profile::Bfbc2)

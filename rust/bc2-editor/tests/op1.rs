@@ -366,7 +366,7 @@ fn stroke_budgets() {
 }
 
 #[test]
-#[ignore = "a measurement: cargo test -p bc2-editor --test editor op1::stroke_budgets_on -- --ignored --nocapture"]
+#[ignore = "game tier: a measurement of 10,000 strokes (rust/BENCHMARKS.md OP1)"]
 fn stroke_budgets_on_10000_strokes() {
     let _gate = crate::gate();
     budgets("budgets_10000", 10_000);
