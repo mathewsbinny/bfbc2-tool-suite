@@ -30,6 +30,36 @@ landed on `main`.
 
 Nothing yet.
 
+## [0.11.0] - 2026-11-21
+
+Released by round GR3 under the rule above: the mesh viewer's page for a browser was removed (its command line now
+writes the picture). Project OPFOR needs `SUITE_REQUIRES = ('0.11.0', '0.12.0')`; its WW2 tools keep working (they
+call `meshview.page()`, which stays, deprecated).
+
+### Added
+- **The map editor's Asset preview** (round GR3: the mesh viewer folded in). Click a tile in Place Objects, or a mesh
+  in the asset browser's new **Meshes** mode (every mesh of the game copy by name, as `meshview.py find`), and the
+  Asset preview panel shows it: drag to turn, right-drag to move, the wheel to zoom (perspective or orthographic);
+  **Side, Top and Front** are the mesh viewer's pictures pixel for pixel; every **level of detail**; the **parts**
+  (switch each on or off, click one in the picture to select it, drawn in the viewport's selection orange); a
+  blueprint's **destruction states**; every **texture** of a part's shader **by channel** (colour, normal, specular,
+  mask, occlusion, detail, environment); **wireframe** and edges, **normals**, the **bounds** with their size and
+  centre in metres, triangle and vertex counts; Shift+click adds a mesh below the others to **compare**; **Save
+  picture** writes `work\tools_out\meshview\<names>_<view>.png` (a preset's is `meshview.py --png`'s). It reads the
+  same index and cache as the mesh viewer (`work\tools_out\meshview_index.pkl`, built in Rust when stale).
+- **`bc2_convert::meshview`**: the mesh viewer's index cache, `load_mesh`, `stack_models` and `render` in Rust,
+  identical to the Python on 18 levels of detail of 8 real meshes (94 parts, 55 pictures; `rust/BENCHMARKS.md` GR3).
+
+### Changed
+- **`meshview.py <mesh>...` writes the picture** (`<names>_<view>.png`; `--png` is still accepted) instead of the
+  page; `--view`, `--size`, `--lod`, `--out` and `find` are unchanged (`bfbc2.exe meshview` too).
+
+### Removed
+- **The mesh viewer's page for a browser** (round GR3): `meshview.py` no longer writes `<names>.html` (three.js, the
+  models embedded). The editor's Asset preview replaces it (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.3 lists
+  where each feature went). `meshview.page()` stays, deprecated, only because Project OPFOR's WW2 tools
+  (`attachments.py`, `scopes.py`) still write their preview pages with it; `RETIRED.md` has the record.
+
 ## [0.10.0] - 2026-11-21
 
 Released by round QW2 under the rule above, for what rounds RT1 to RT3, GR1, GR2, EX1 and FM1 removed since 0.9.0

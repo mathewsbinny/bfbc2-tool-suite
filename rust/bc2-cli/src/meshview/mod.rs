@@ -1,6 +1,7 @@
-//! Round O3's `meshview` group: `bfbc2-mesh-viewer\meshview.py`'s command line (its non-GUI part). `bfbc2 meshview
-//! find <text>` runs here on the index's cache ([`crate::gameindex`]); drawing meshes (the page, `--png`: NumPy, the
-//! texture decoder, PIL) and building a missing index are the Python's, which the command line is handed to.
+//! Round O3's `meshview` group: `bfbc2-mesh-viewer\meshview.py`'s command line. `bfbc2 meshview find <text>` runs
+//! here on the index's cache ([`crate::gameindex`]); drawing meshes (the picture: NumPy, the texture decoder, PIL)
+//! and building a missing index are the Python's, which the command line is handed to. Round GR3 retired the page for
+//! a browser (the map editor's asset preview replaced it); the picture is what a mesh given draws now.
 
 use std::sync::LazyLock;
 
@@ -66,7 +67,7 @@ fn main(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         return Ok(1);
     };
     if first != "find" {
-        return Err(Fail::Python); // drawing a mesh: NumPy, the texture decoder, PIL (the Python's)
+        return Err(Fail::Python); // drawing a mesh's picture: NumPy, the texture decoder, PIL (the Python's)
     }
     let opt = |k: &str| opts.iter().find(|(n, _)| *n == k).map(|(_, v)| *v);
     if opt("--level").is_some() {
