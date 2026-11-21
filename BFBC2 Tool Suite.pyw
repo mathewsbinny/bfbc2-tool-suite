@@ -36,7 +36,9 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 def cli(tool):
     """A ported tool's command line: the Rust binary bfbc2.exe when it is built from this checkout (rounds O1 / O2),
-    else the Python one (BFBC2_CLI_PYTHON=1: always the Python one) - the same output either way."""
+    else the Python one (BFBC2_CLI_PYTHON=1: always the Python one) - the same output either way. A retired one
+    (native.RETIRED_CLI: the crash reader and xiso among them, round RT3) has only the binary: without it CliMissing
+    says how to get it (the window reports it)."""
     cmd = native.cli_command(tool)
     return [PYTHON, cmd[1]] if cmd[0] == sys.executable else cmd
 
@@ -52,7 +54,6 @@ SCRIPTS = {
     'fbrb': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),           # FbrbTool's commands (the Rust core)
     'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
     'navkitgui': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkitGUI.pyw'),
-    'crash': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'),
     'tests': os.path.join(SUITE, 'run_tests.py'),
 }
 
@@ -472,7 +473,7 @@ class Hub:
         ttk.Button(f, text='Read the crash report', command=self.crash).grid(row=4, column=1, sticky='w', pady=6)
 
     def crash(self):
-        args = cli('crashreader')                            # bfbc2.exe crashreader, else crashreader.py
+        args = cli('crashreader')                            # bfbc2.exe crashreader (crashreader.py retired, RT3)
         if self.cr_file.get().strip():
             args.append(self.cr_file.get().strip())
         if self.cr_log.get().strip():

@@ -117,25 +117,38 @@ pub fn xiso_walk<'py>(
     size: &Bound<'py, PyAny>,
     prefix: &Bound<'py, PyAny>,
 ) -> PyResult<Option<Bound<'py, PyTuple>>> {
-    let (Ok(base), Ok(sector), Ok(size), Ok(prefix)) = (
-        base.extract::<u64>(),
-        sector.extract::<u32>(),
-        size.extract::<u32>(),
-        prefix.extract::<String>(),
-    ) else {
-        return Ok(None);
-    };
-    let Some(prefix) = prefix
-        .chars()
-        .map(|c| u8::try_from(u32::from(c)).ok())
-        .collect::<Option<Vec<u8>>>()
-    else {
+    let Some((base, sector, size, prefix)) = walk_args(base, sector, size, prefix) else {
         return Ok(None);
     };
     let got = py.detach(|| {
         let mut f = BufReader::new(File::open(path).ok()?);
         xiso::walk(&mut f, base, sector, size, &prefix).ok()
     });
+    walked(py, got)
+}
+
+/// The walk's arguments as the port reads them (`None`: a value the reference takes and the port does not).
+fn walk_args(
+    base: &Bound<'_, PyAny>,
+    sector: &Bound<'_, PyAny>,
+    size: &Bound<'_, PyAny>,
+    prefix: &Bound<'_, PyAny>,
+) -> Option<(u64, u32, u32, Vec<u8>)> {
+    let prefix = prefix.extract::<String>().ok()?;
+    let prefix = prefix
+        .chars()
+        .map(|c| u8::try_from(u32::from(c)).ok())
+        .collect::<Option<Vec<u8>>>()?;
+    Some((
+        base.extract().ok()?,
+        sector.extract().ok()?,
+        size.extract().ok()?,
+        prefix,
+    ))
+}
+
+/// `(files, position)` of a walk, or `None`.
+fn walked(py: Python<'_>, got: Option<(Vec<xiso::File>, u64)>) -> PyResult<Option<Bound<'_, PyTuple>>> {
     let Some((files, pos)) = got else {
         return Ok(None);
     };
@@ -144,6 +157,32 @@ pub fn xiso_walk<'py>(
         list.append((latin1(p), sec, sz))?;
     }
     Ok(Some((list, pos).into_pyobject(py)?))
+}
+
+/// `xiso.find_partition` of an image in memory (round RT3: an `io.BytesIO`'s buffer, or bytes), or `None` (no
+/// volume: the reference raises).
+#[pyfunction]
+pub fn xiso_find_partition_bytes(py: Python<'_>, data: &Bound<'_, PyBytes>) -> Option<u64> {
+    let bytes = data.as_bytes();
+    py.detach(|| xiso::find_partition(&mut std::io::Cursor::new(bytes)).ok())
+}
+
+/// `list(xiso.walk(f, base, sector, size, prefix))` of an image in memory (round RT3), as `xiso_walk` answers it.
+#[pyfunction]
+pub fn xiso_walk_bytes<'py>(
+    py: Python<'py>,
+    data: &Bound<'py, PyBytes>,
+    base: &Bound<'py, PyAny>,
+    sector: &Bound<'py, PyAny>,
+    size: &Bound<'py, PyAny>,
+    prefix: &Bound<'py, PyAny>,
+) -> PyResult<Option<Bound<'py, PyTuple>>> {
+    let Some((base, sector, size, prefix)) = walk_args(base, sector, size, prefix) else {
+        return Ok(None);
+    };
+    let bytes = data.as_bytes();
+    let got = py.detach(|| xiso::walk(&mut std::io::Cursor::new(bytes), base, sector, size, &prefix).ok());
+    walked(py, got)
 }
 
 /// Why `stfs_open` left a package to the reference: `"header"`, `"table"`, `"cycle"` (the reference never

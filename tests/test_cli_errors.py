@@ -41,10 +41,8 @@ def main(argv: list[str]) -> int:
         ('FbrbTool, a missing bundle', [PY, os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'), 'list', missing], 'fbrbtool', 'missing'),
         ('DbxEdit, a missing file', [PY, os.path.join(SUITE, 'bfbc2-dbx-tools', 'dbxedit.py'), 'edit', missing, junk + '.out', 'drop=x'], 'dbxedit', 'missing'),
         ('hpdtool, a file that is not path data', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'), 'info', junk], 'hpdtool', 'what to do'),
-        ('crash reader, a report that is not XML', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'), junk, '--no-code'], 'crashreader', 'what to do'),
         ('STFS reader, a missing package', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'stfs', 'stfs.py'), 'info', missing], 'stfs', 'missing'),
         ('aptcheck, a file that is not a menu movie', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'aptcheck.py'), 'check', junk], 'aptcheck', 'not a menu movie'),
-        ('aptrefs, an exe that is not one', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'aptrefs.py'), 'table', '--exe', junk], 'aptrefs', 'not a windows program'),
         ('bc2loc, a file that is not a language file', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'bc2loc.py'), 'get', 'X', '--file', junk], 'bc2loc', 'not a localization'),
         ('exeref, a missing exe', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'exeref.py'), 'str', 'x', '--exe', missing], 'exeref', 'missing'),
         ('navdiff, missing files', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navdiff.py'), missing, missing], 'navdiff', 'missing'),
@@ -57,8 +55,13 @@ def main(argv: list[str]) -> int:
     ]
     if bfbc2:                                   # LevelDiff.exe's port (round EX1): the binary only
         cases.insert(2, ('leveldiff, a missing file', [bfbc2, 'leveldiff', missing, junk], 'leveldiff', 'what to do'))
+        # round RT3: the crash reader's and aptrefs' Python command lines were retired: the binary only
+        cases.append(('crash reader, a missing report', [bfbc2, 'crashreader', missing, '--no-code'], 'crashreader',
+                      'missing'))
+        cases.append(('aptrefs, an exe that is not one', [bfbc2, 'aptrefs', 'table', '--exe', junk], 'aptrefs',
+                      'not a windows program'))
     else:
-        print('skip leveldiff: bin\\bfbc2.exe is not built (python rust\\build_native.py)')
+        print('skip leveldiff, crashreader, aptrefs: bin\\bfbc2.exe is not built (python rust\\build_native.py)')
     try:
         for label, args, log_name, says in cases:
             r = subprocess.run(args, capture_output=True, text=True, errors='replace', env=env, timeout=300)

@@ -267,7 +267,7 @@ def main(argv):
 
         # ---- the owners: culltree's row cache, pcbuild's disk cache
         suite_paths.use('culltree')
-        import culltree
+        import culltreelib as culltree
         d = os.path.join(tmp, 'culltree_rows')
         rc = culltree._RowCache(d)
         src = write(os.path.join(tmp, 'lvl', 'a.dbx'), 10)

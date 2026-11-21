@@ -39,7 +39,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('culltree', 'core')
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(_ROOT, 'core', 'tests'))
-import culltree as ct  # noqa: E402
+import culltreelib as ct  # noqa: E402
 import goldens  # noqa: E402
 import test_culltree as tc  # noqa: E402
 from bfbc2core import fbrb, native, paths  # noqa: E402
@@ -336,7 +336,7 @@ def add_run(root: str, tmp: str, env: dict[str, str]) -> tuple[str, str, Any] | 
     inputs = goldens.rh((goldens.file_sha(tree), goldens.file_sha(level), dirs), 16)
     o = os.path.join(tmp, 'out')
     os.makedirs(o, exist_ok=True)
-    r = subprocess.run([sys.executable, os.path.join(ROOT, 'culltree.py'), 'add', tree, level, '--auto',
+    r = subprocess.run([*native.cli_command('culltree'), 'add', tree, level, '--auto',
                         '--misplaced', '2.0', *refs, '--out-tree', os.path.join(o, 'tree.dbx'),
                         '--out-level', os.path.join(o, 'level.dbx')],
                        capture_output=True, text=True, errors='replace', env={**os.environ, **env})

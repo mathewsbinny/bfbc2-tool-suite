@@ -1,26 +1,17 @@
-"""Battlefield: Bad Company 2 crash-report reader: turns crashreport.xml into something you can act on.
+r"""Battlefield: Bad Company 2 crash-report reader's library: the report, the symbols, the exe's code (Image), the
+log lines before a crash. `bfbc2 crashreader` is the command line (round RT3 retired crashreader.py: bfbc2.exe
+answers it alone, bfbc2core.native.RETIRED_CLI; its usage text is rust\bc2-cli\src\crash\crashreader_usage.txt).
+exeref.py (a live command line) and the tests import this module: find_reports, find_exe, read_report, read_symbols
+(its warning's line is emulated by bfbc2.exe exeref: rust\bc2-cli\src\crash\common.rs includes this file), Insn,
+Image, null_operands, name_of, log_before_crash and its references.
 
-  python crashreader.py [crashreport.xml] [--exe BFBC2Game.exe] [--symbols file]... [--log opfor.log] [--no-code]
-
-Without a path it uses the newest crashreport.xml in Documents\\Project OPFOR\\BFBC2 or Documents\\BFBC2 (OneDrive
-Documents too). It shows:
-  - when, which build, the crash address, and the registers (null ones marked)
-  - the code around the crash, disassembled from your own BFBC2Game.exe (needs: pip install pefile capstone),
-    with the register the faulting instruction reads through when that register is null
-  - the call stack: each return address with its function's name (from symbols_795745.txt and --symbols files)
-    and the call instruction that made it; values that are not code addresses are marked
-  - hints for known crash sites (e.g. a broken level: run DbxEdit check)
-  - with --log (or OPFOR's game\\logs\\opfor.log found next to the exe), the log lines just before the crash
-
-The game's own crash reporter writes the file; this tool only reads it and the exe. Nothing is sent anywhere.
+The game's own crash reporter writes the report; this module only reads it and the exe. Nothing is sent anywhere.
 """
-import datetime
 import glob
 import os
 import re
 import sys
 import xml.etree.ElementTree as ET
-from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REGISTERS = ['Eax', 'Ebx', 'Ecx', 'Edx', 'Esi', 'Edi', 'Ebp', 'Esp', 'Eip']
@@ -372,114 +363,3 @@ def log_before_crash_reference(path, lines=18, when=None):
     # skip the per-frame spam probes write, keep what led up to the crash
     picked = [l for l in text[max(0, end - 400):end] if 'Kynapse error' not in l and 'per frame' not in l]
     return picked[-lines:] + [text[end]]
-
-
-def main(argv):
-    args: list[str] = []
-    opts: dict[str, Any] = {'--symbols': []}
-    i = 1
-    while i < len(argv):
-        a = argv[i]
-        if a in ('--exe', '--log') and i + 1 < len(argv):
-            opts[a] = argv[i + 1]; i += 2; continue
-        if a == '--symbols' and i + 1 < len(argv):
-            opts['--symbols'].append(argv[i + 1]); i += 2; continue
-        if a in ('-h', '--help'):
-            print(__doc__); return 0
-        if a == '--no-code':
-            opts[a] = True
-        else:
-            args.append(a)
-        i += 1
-    report_path = args[0] if args else next(iter(find_reports()), None)
-    if not report_path:
-        print('No crashreport.xml found (looked in Documents\\Project OPFOR\\BFBC2 and Documents\\BFBC2). Give its path.')
-        return 1
-    r = read_report(report_path)
-    syms = read_symbols([os.path.join(HERE, 'symbols_795745.txt')] + opts['--symbols'])
-    exe = opts.get('--exe') or find_exe()
-    image = None
-    if exe and not opts.get('--no-code'):
-        try:
-            image = Image(exe)
-        except ImportError:
-            print('(code view off: pip install pefile capstone)')
-        except Exception as e:
-            print(f'(code view off: cannot read {exe}: {e})')
-
-    when = datetime.datetime.fromtimestamp(os.path.getmtime(report_path)).strftime('%Y-%m-%d %H:%M:%S')
-    print(f'Crash report {report_path}')
-    print(f'  written {when} local ({r["time"]} UTC); type {r["type"]}; build {r["build"]}; {r["sku"]}')
-    if r['build'] and r['build'] != '795745':
-        print('  note: this is not build 795745 - the bundled names may not match')
-    eip = r['registers'].get('Eip') or r['category']
-    name, hint = name_of(eip, syms, image) if eip else ('', '')
-    print(f'\nCrash at 0x{eip:08X}  {name}' if eip else '\nCrash address unknown')
-    regs = r['registers']
-    print('  registers: ' + '  '.join(f'{k} {regs[k]:08X}' + (' (null)' if regs[k] == 0 else '') for k in REGISTERS if k in regs))
-
-    if image and eip and image.is_code(eip):
-        start, ins, at = image.around(eip)
-        print(f'\nCode (function starts near 0x{start:08X}):')
-        window = ins[max(0, (at or 0) - 10):(at or 0) + 4] if at is not None else ins[-14:]
-        for x in window:
-            mark = '>' if x.address == eip else ' '
-            print(f'  {mark} {x.address:08X}  {x.mnemonic} {x.op_str}')
-        if at is not None:
-            for reg, v, disp in null_operands(ins[at], regs):
-                print(f'\n  The faulting instruction reads memory through {reg} = 0x{v:X} (+0x{disp:X}): a null pointer.')
-                print('  The value it expected was never set - typically data the game looked up and did not find.')
-    if hint:
-        print(f'\nHint: {hint}')
-
-    print('\nCall stack (innermost first; return addresses):')
-    shown = 0
-    for a in r['stack']:
-        if image and not (image.base <= a < image.end):
-            label = '(outside the exe: a system DLL, or a value on the stack that is not an address)'
-            if 0x20202020 <= a <= 0x7A7A7A7A and all(32 <= b < 127 for b in a.to_bytes(4, 'little')):
-                label = f'(text on the stack: "{a.to_bytes(4, "little").decode()}" - not an address)'
-            print(f'  0x{a:08X}  {label}')
-            continue
-        n, h = name_of(a, syms, image)
-        call = image.call_before(a) if image and image.is_code(a) and a != eip else None
-        line = f'  0x{a:08X}  {n or "?"}'
-        if call:
-            line += f'    <- {call.mnemonic} {call.op_str}'
-        elif image and image.is_code(a) and a != eip:
-            line += '    (no call before it: probably not a return address)'
-        elif image and not image.is_code(a):
-            line += '    (not code)'
-        print(line)
-        if h and a != eip:
-            print(f'              hint: {h}')
-        shown += 1
-        if shown >= 40:
-            print('  ...')
-            break
-
-    log = opts.get('--log')
-    if not log and exe:
-        candidate = os.path.join(os.path.dirname(exe), 'logs', 'opfor.log')
-        log = candidate if os.path.isfile(candidate) else None
-    if log:
-        before = log_before_crash(log, when=os.path.getmtime(report_path))
-        if before:
-            print(f'\nLast log lines before the crash ({log}):')
-            for l in before:
-                print('  ' + l[:200])
-        else:
-            print(f'\n(no crash at the report\'s time in {log}: its log lines are not shown)')
-    return 0
-
-
-if __name__ == '__main__':
-    _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if _ROOT not in sys.path:
-        sys.path.insert(0, _ROOT)
-    import suite_paths
-    suite_paths.use('core')
-    from bfbc2core import errors
-    errors.setup('crashreader', gui=False)       # a log; an unexpected error explained in words (exit code 1)
-    with errors.guard():
-        sys.exit(main(sys.argv))

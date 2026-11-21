@@ -29,7 +29,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('crash-reader')
-import crashreader  # noqa: E402
+import crashreaderlib as crashreader  # noqa: E402
 
 MAX_WINDOW = 0x100
 

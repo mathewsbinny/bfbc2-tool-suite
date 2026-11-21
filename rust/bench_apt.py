@@ -25,6 +25,7 @@ import io
 import os
 import pstats
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -40,7 +41,7 @@ suite_paths.use('menu-tools', 'apt', 'core')
 sys.path.insert(0, os.path.join(SUITE, 'bfbc2-menu-tools', 'tests'))
 import aptcheck  # noqa: E402
 import aptgraft as ag  # noqa: E402
-import aptrefs  # noqa: E402
+import aptrefslib as aptrefs  # noqa: E402
 import menucommon as mc  # noqa: E402
 import test_apt_e3n as T  # noqa: E402
 
@@ -144,9 +145,10 @@ def w_refs(movies: list[tuple[str, Members]], tmp: str) -> str:
 def w_xref(movies: list[tuple[str, Members]], tmp: str) -> str:
     d = os.path.join(tmp, 'xref')
     os.makedirs(d, exist_ok=True)
-    with contextlib.redirect_stdout(io.StringIO()):
-        code = aptrefs.main(['aptrefs.py', 'xref', '--out', os.path.join(d, 'x.txt'), '--json', os.path.join(d, 'x.json')])
-    return f'exit {code}'
+    from bfbc2core import native  # round RT3: aptrefs.py retired, `bfbc2 aptrefs` alone
+    r = subprocess.run(native.cli_command('aptrefs') + ['xref', '--out', os.path.join(d, 'x.txt'), '--json',
+                       os.path.join(d, 'x.json')], capture_output=True)
+    return f'exit {r.returncode}'
 
 
 WORK: dict[str, Callable[[list[tuple[str, Members]], str], str]] = {

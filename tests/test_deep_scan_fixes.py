@@ -81,7 +81,7 @@ def atomic_writes(c, work):
 
 def stockmp_rollback(c, work):
     import pipeline
-    import stockmp
+    import stockmplib as stockmp
     sys.path.insert(0, os.path.join(SUITE, 'tests'))
     from test_review_fixes import write_build_report
     game = os.path.join(work, 'game')
