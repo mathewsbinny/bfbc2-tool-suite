@@ -136,6 +136,7 @@ fn top_camera() -> Camera {
 /// light (their top face is the token at the light's 0.93).
 #[test]
 fn view_tokens_reach_the_frame() {
+    let _gate = crate::gate();
     let Some(gpu) = gpu() else { return };
     let tokens = Tokens::embedded().unwrap();
     let r = Renderer::new(&gpu);
@@ -211,6 +212,7 @@ fn view_tokens_reach_the_frame() {
 /// the marker's darkest tenth and the terrain's brightest tenth, both themes.
 #[test]
 fn overlays_read_on_the_rendered_terrain() {
+    let _gate = crate::gate();
     let Some(gpu) = gpu() else { return };
     let tokens = Tokens::embedded().unwrap();
     let r = Renderer::new(&gpu);
@@ -287,6 +289,7 @@ fn key(k: Key, modifiers: Modifiers) -> Event {
 /// the faction labels show on the demo level's labels and properties.
 #[test]
 fn help_opens_and_searches() {
+    let _gate = crate::gate();
     let Ok(mut h) = Headless::new([1280, 800]) else {
         println!("skipped: no graphics adapter");
         return;
@@ -376,6 +379,7 @@ print('@done', flush=True)
 /// start screen lists the level as prepared afterwards.
 #[test]
 fn preparing_then_opening() {
+    let _gate = crate::gate();
     if !python_ok() {
         println!("skipped: no python");
         return;
@@ -449,6 +453,7 @@ fn preparing_then_opening() {
 /// `BC2_EDITOR_PREPARE=<level>` (rust/BENCHMARKS.md, G2, has a run); the junction is removed before the folder.
 #[test]
 fn prepare_a_level_on_a_stand_in_opfor() {
+    let _gate = crate::gate();
     let Some(lv) = std::env::var_os("BC2_EDITOR_PREPARE").map(|v| v.to_string_lossy().to_lowercase()) else {
         println!("skipped: set BC2_EDITOR_PREPARE=<level> to prepare a level on a stand-in OPFOR folder");
         return;

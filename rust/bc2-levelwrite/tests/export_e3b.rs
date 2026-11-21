@@ -49,6 +49,7 @@ fn types(w: &LevelWriter) -> BTreeMap<String, usize> {
 /// nothing else; the choice is an undoable entry of the project's log.
 #[test]
 fn the_campaign_checklist() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
@@ -101,6 +102,7 @@ fn the_campaign_checklist() {
 /// bundles hold the texts and pictures, and every other entry and text is as it was.
 #[test]
 fn a_vietnam_export_with_its_own_name_and_picture() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
