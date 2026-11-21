@@ -1477,11 +1477,20 @@ pub fn installed_pathdata(opfor: &Path, lv: &str) -> PathBuf {
         .join("pathdata.hpd")
 }
 
-/// `navkit.original_file`: DICE's original of a game file - the earliest backup an OPFOR stage kept
+/// `navkit.original_file`: DICE's original of a game file. From the game copy's install ledger when an owner holds
+/// the file there (round DF2: the bottom layer's prior, kept once by its sha256; None where an install put the file
+/// where there was none); else by the markers of before the ledger - the earliest backup an OPFOR stage kept
 /// (`<file>.opfor-orig` or `<file>.opfor-<stage>-orig`, the oldest first), else the file itself unless an OPFOR
 /// stage wrote it where there was no original (`.opfor-new`, or a `-applied` marker without its backup).
 #[must_use]
 pub fn original_file(p: &Path) -> Option<PathBuf> {
+    if let Some(game) = bc2_formats::gameledger::find_game(p) {
+        let led = bc2_formats::gameledger::Ledger::new(&game);
+        let rel = p.strip_prefix(&game).ok()?.to_string_lossy().into_owned();
+        if !led.holders(&rel).ok()?.is_empty() {
+            return led.original(&rel).ok()?;
+        }
+    }
     let d = p.parent()?;
     let base = p.file_name()?.to_string_lossy().to_lowercase();
     let names: HashMap<String, String> = std::fs::read_dir(d)

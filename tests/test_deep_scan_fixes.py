@@ -83,6 +83,7 @@ def stockmp_rollback(c, work):
     import pipeline
     import stockmplib as stockmp
     sys.path.insert(0, os.path.join(SUITE, 'tests'))
+    from bfbc2core import gameledger
     from test_review_fixes import write_build_report
     game = os.path.join(work, 'game')
     paths = pipeline.Paths('mp_test', opfor=work, work=os.path.join(work, 'stockmp'), game=game)
@@ -97,27 +98,28 @@ def stockmp_rollback(c, work):
     calls = []
 
     def failing_replace(a, b):
-        # the staged Package file's rename fails (a locked target): Dist is already in by then
-        if a.endswith(stockmp.STAGED) and 'Package' in a:
+        # the Package file's move over its target fails (a lasting lock): Dist is already in by then (round DF2: the
+        # install ledger's journal puts it back)
+        if b.replace(os.sep, '/').endswith('Package/level.fbrb'):
             calls.append(a)
             raise PermissionError('locked')
         return real(a, b)
-    stockmp.os.replace = failing_replace
+    gameledger.os.replace = failing_replace
+    err = io.StringIO()
     try:
-        with contextlib.redirect_stdout(io.StringIO()):
-            stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply'])
-        raised = False
-    except PermissionError:
-        raised = True
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply'])
     finally:
-        stockmp.os.replace = real
-    left = sorted(os.path.relpath(os.path.join(d, f), game).replace(os.sep, '/') for d, _, fs in os.walk(game) for f in fs)
-    c.check(raised and calls, 'stock-MP install: the failure is raised', str(calls))
+        gameledger.os.replace = real
+    left = sorted(os.path.relpath(os.path.join(d, f), game).replace(os.sep, '/') for d, ds, fs in os.walk(game)
+                  for f in fs if 'opfor' not in os.path.relpath(d, game).split(os.sep))
+    c.check(code == 1 and calls and 'nothing changed' in err.getvalue(), 'stock-MP install: the failure is reported, '
+            'exit 1', f'{code} {calls[:1]} {err.getvalue()[-200:]}')
     c.check(all(open(os.path.join(game, r), 'rb').read() == b'original ' + r.encode()
                 for r in ('Dist/level.fbrb', 'Package/level.fbrb')),
             'stock-MP install: a failure part way puts every file back (Dist and Package from one build)')
-    c.check(not any(f.endswith((stockmp.APPLIED, stockmp.STAGED, stockmp.PREV)) for f in left),
-            'stock-MP install: no marker, staged or moved-aside file left after the rollback', str(left))
+    c.check(left == ['Dist/level.fbrb', 'Package/level.fbrb'] and not gameledger.Ledger(game).records(),
+            'stock-MP install: nothing left beside the files after the rollback (no temporary, no record)', str(left))
     with contextlib.redirect_stdout(io.StringIO()):
         stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply'])
     c.check(all(open(os.path.join(game, r), 'rb').read() == b'new ' + r.encode()
