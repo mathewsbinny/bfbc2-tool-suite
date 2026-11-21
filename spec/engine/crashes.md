@@ -21,7 +21,7 @@ crash gets a rule in its subsystem's file first, then a row here. The suite's cr
 | 0x008D59FB | client mesh set-up | a mesh set's LOD settings that resolve nowhere | RNDR-DRAW-7 |
 | 0x008F4720 | static-model-group part set-up | client group physics on an AI level | AI-CRASH-3 |
 | 0x00943B20 | `weaponProficiency$` | the EA stats copy, absent offline | GAME-AWARD-1 |
-| 0x0098BD6E | renderer | a mesh part with no program for its vertex layout | RNDR-DRAW-6, XCONS-STG-2 |
+| 0x0098BD6E | renderer, draw-record builder 0x98BCE0 | a mesh part with no program for its vertex layout (a mesh without entries in the level's databases) | RNDR-DRAW-6, SHDB-LVL-1, SHDB-LVL-2, XCONS-STG-2 |
 | 0x009BC68E | renderer state flush | a released texture view still bound | RNDR-CRASH-2 |
 | 0x00AB4E58 | model-group part bitset | a group's parts not matching a member's physics | LEVEL-MG-4, LOAD-MG-1 |
 | 0x00AF7144 | model-group construction | an empty `PhysicsData` or `MeshEntityType` | LEVEL-MG-3, LOAD-MG-1 |

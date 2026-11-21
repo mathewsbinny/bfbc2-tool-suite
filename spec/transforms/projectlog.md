@@ -20,6 +20,20 @@ place, keeping its number: one gesture is one undo step.
 
 [code: rust/bc2-levelwrite/src/project.rs:413-461] [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files]
 
+### XLOG-LOG-3: Undo replays from a checkpoint, not the whole log
+
+Status: **verified**
+
+The editor keeps the document's state (its entities, outlines, collision placements, deleted set and edited
+partition) after each mode choice and after every 16 operations, at most 8 of them (a mode choice's kept longest).
+Undo, redo and History start from the newest checkpoint the log still passes through (the operation number at its
+place unchanged: an amend or a new branch after an undo drops the ones it passes) and apply the rest; a mode choice's
+donor level is read from the game copy once per document. The result equals the whole log applied from the base in
+a fresh document: the partition byte for byte, every transform, the deleted set. On SP_01 as WW2 Conquest with 40
+moves (release): undo 9.1 - 10.9 s before, 78 - 98 ms after; History jumps 1.4 s before, 73 - 98 ms after.
+
+[code: rust/bc2-editor/src/edit.rs:211-322] [test: rust/bc2-editor/tests/xf1.rs::undo_on_a_mode_project]
+
 ### XLOG-LOG-2: The file: whole writes, an autosave, versions
 
 Status: **verified**
@@ -112,8 +126,36 @@ placed objects get the defaults of a template instance of the same blueprint.
 
 [code: rust/bc2-levelwrite/src/write.rs:475-500] [test: rust/bc2-levelwrite/src/schema.rs::types_from_the_data] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 
+### XLOG-APP-6: Typed gameplay operations check the data's rules
+
+Status: **verified**
+
+Five operations (project format 5) edit gameplay in the data's own terms. `set-team` sets a capture point's
+`InitialOwnerTeam` or another object's `Team` to `Team1`, `Team2` or `TeamNeutral` (LEVEL-ENT-1). `link-spawner`
+adds a soldier spawner to a capture point's `Spawners` or takes it out (GAME-SPAWN-1). `set-tickets` sets a ticket
+counter's `InitialTicketCount` and `TicketLossPerMin` in the types the data gives them (GAME-TKT-2). `insert-point`
+puts a copy of an outline point between it and its `Next`, setting `Next` and `Previous` of all three; `remove-point`
+links its neighbours to each other, makes a list that named it as its outline's point (an area's `Geometry`) name its
+`Next`, and deletes it with its wiring (LEVEL-ENT-2: an outline's points are a chain of `Next` and `Previous`, the
+area names one point per outline). Each refuses in words: an object of another type, a link already there or not
+there, a negative ticket count, a closed outline left with fewer than three points. On Valparaiso an insert then a
+remove gives the partition's content back.
+
+[code: rust/bc2-levelwrite/src/gameplay.rs:106-343] [code: rust/bc2-levelwrite/src/write.rs:1115-1135]
+[test: rust/bc2-levelwrite/tests/gameplay_xf1.rs::typed_gameplay_operations_on_valparaiso]
+
+### XLOG-APP-7: Paste is a deep duplicate
+
+Status: **verified**
+
+Paste copies what each pasted object owns (a flag's capture area and marker) with it, as Deep duplicate does, each
+copy moved by the paste's shift; an object another pasted one owns is copied as that one's. An edit of the copy's
+sub-objects (a ring point moved, the marker renamed) leaves the original's instances as they were.
+
+[code: rust/bc2-editor/src/app/tools.rs:1313-1342] [test: rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate]
+
 ## Open questions
 
-- Project versioning beyond version 2 (round V1): per-operation migrations.
+- Project versioning beyond version 5 (round V1): per-operation migrations (versions 2 - 5 only added kinds).
 - Edits of static model-group members (their group files) and multi-object field edits are not operations yet
   (EDITOR_ARCHITECTURE section 5, E2).

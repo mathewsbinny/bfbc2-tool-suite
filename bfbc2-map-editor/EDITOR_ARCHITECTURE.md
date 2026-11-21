@@ -58,7 +58,9 @@ The log follows `navtune.json`'s proven pattern:
 - **Operations, each with `by` and `when`:** move, rotate, delete, duplicate, place blueprint, set field, and the
   gameplay operations in 3.4. An operation names an existing entity by its guid, and a new one by the UUIDv5 guid
   it was given when made.
-- **Undo and redo** as a list plus a redo stack, as in `navtune.py`.
+- **Undo and redo** as a list plus a redo stack, as in `navtune.py`. The editor replays from checkpoints (round
+  XF1): the state after each mode choice and after every 16 operations is kept (at most 8), so an undo applies the
+  operations after the newest one the log still passes through, not the whole log.
 - **Base changed** (a new game patch or a rebuilt WW2 level): operations whose target guid is gone are reported,
   never dropped silently.
 - **New maps (stage 2)** use the same file, with a generated base in place of a stock level.
@@ -516,7 +518,8 @@ Company 1 maps, mode layouts such as MP_005GR) are listed, prepared and opened b
   (each object's slot: none, shared, its own; the leaves' spheres). **Polygon selection** (P). **Several objects'
   fields** in Properties, "Mixed" where they differ, one operation for all.
 - Static group members stay read-only (queued). Placed and copied objects keep their template's `Enumeration` (cull
-  slot) until the build round runs `culltree add` for them.
+  slot) in the project; the export gives each its own blueprint's shape (round XF1, 3.12). **Paste** is a deep
+  duplicate (round XF1): a pasted flag has its own capture area and marker.
 
 *Done in round G4 (2026-11-19; `rust/BENCHMARKS.md` "G4"): the start flow of the user's design.* The start screen
 opens on three buttons (`rust/bc2-editor/src/app/modes.rs`, `create.rs`; Back and a trail of links lead up again):
@@ -1391,6 +1394,46 @@ places (`view-diff-*`, never orange).
 and revert of the renamed canary on a scratch copy of the shared files, back byte for byte; `tests/ex1.rs` (the Names
 section, the preview of Atacama Rush as Conquest, the Diff panel on Aurora made WW2 Conquest).
 
+#### Round XF1: the export fixes before E4 (the user, 2026-11-20; audit AU1)
+
+**Shader entries for objects from other levels** (G-N1; spec SHDB-LVL-1, SHDB-LVL-2, RNDR-DRAW-6). The ground truth: a
+level draws through its own `levels/<lv>/shaders/dx{9,10,11}_single.res` only (no `_common` bundle has a database),
+and DICE puts the entries of every mesh a level draws in them, the commons' too (MP_005: 384 of `mp_common`'s 431
+meshes it reaches). 0x98BD6E is the draw-record builder (0x98BCE0) reading a part's program through a null pointer:
+a part with no program for its layout, which is what a mesh without entries is. The export now walks every mesh the
+level reaches (its own partitions, through the bundles it loads), and for those its databases lack merges the
+entries and mesh-part names from the database of the same kind of the first level that has them (the donor, the
+base, the closure's sources, then the game copy's levels with DICE's first): `bc2_levelwrite::shaders`, on the
+shader-database merge that moved from `bc2-cli` to `bc2_formats::shaderdb::merge`. Not only placed objects needed
+it: every E3d canary lacked entries for the new mode's and era's meshes (Aurora as WW2: 91 of 359, the WW2 kits
+among them; Arica as Vietnam SDM 91 of 319). `mapexport check` has a line per database.
+
+**Each object's own cull shape** (G-N2; XCULL-RES-1, XCULL-RES-3). `reslot` gave an object its slot owner's leaves:
+Aurora's placed radar bunker took a map prop's one leaf (the bunker has two on Guadalcanal), and Guadalcanal as Rush
+gave 20 M-COMs grafted with Arica Harbor's `Enumeration` the shapes of Guadalcanal's objects with those slot
+numbers. Now a moved base object carries its own leaves and every other object (copy, placement, grafted object)
+takes its blueprint's shape: the base's first slotted placement of it, else another level's (donor, the levels that
+hold the blueprint, then all, DICE's first); with no shape anywhere it gets slot 0, never another's slot. The check
+reads each shape's source again and compares the leaves where the object stands, and refuses a new object at slot 0
+whose blueprint some level slots.
+
+**Undo without the whole log** (D1, D2, P1; XLOG-LOG-3). `Doc` keeps checkpoints (entities, outlines, collision
+placements, deleted set, edited partition) after mode choices and every 16 operations, and reads a mode choice's
+donor from the game copy once. SP_01 as WW2 Conquest with 40 moves, release: undo 9.1 - 10.9 s before, 78 - 98 ms
+after; History jumps 1.4 s before, 73 - 98 ms after; every result equal to the log applied afresh.
+
+**Paste as a deep duplicate** (G-N23; XLOG-APP-7) and **typed gameplay operations** (D18, R23; XLOG-APP-6):
+`set-team`, `link-spawner`, `set-tickets`, `insert-point`, `remove-point` (project format 5, after VW2's 4; a version-4 file loads
+as it is, a newer one is refused in words). An outline's points are a chain of `Next` and `Previous` and an area's
+`Geometry` names one point per outline: inserting and removing keep both links and the area's point. E4's tools
+build on these.
+
+**Proof** (`rust/BENCHMARKS.md`, "XF1"): E3d's six canaries rebuilt, every `mapexport check` line passing (the new
+shader and cull lines among them); `tests/export_xf1.rs` (DICE's own coverage; Aurora with Guadalcanal's bunker: its
+entries and part names in each database equal to Guadalcanal's, its leaves Guadalcanal's shape); OPFOR's
+`mapedit_install --apply` and `--revert` of that stage on a scratch copy of the six shared files with `--check-game`
+the real game copy: back byte for byte, `game\` unchanged. Not yet proven in game (in-game tests are paused): that
+the merged entries draw, and that the grafted objects' new shapes cull as on their own levels.
 #### Round VW2: the mode view layer, weather in the views and in exports (the user, 2026-11-21)
 
 The user's requests: show or hide objects by game mode and Rush stage; the weather states each level holds in both
@@ -1520,7 +1563,7 @@ The validation gate checks each of these, or the design avoids it.
 | A model-group member's physics part count differs from the group's (0xAB4E58) | OPFOR DEVELOPMENT_NOTES.md |
 | Streaming wave data placed in a level bundle (0x49EDF4); waves hidden by deleted markers (0xFF2AC2) | `wake_install.py` |
 | A description whose GameMode does not resolve (0x74EAB3, Coral Sea) | `wake_install.py` |
-| A mesh part with no shader vertex layout; console-only shader entries (0x98BD6E) | `wake_install.py`, memory note console-resource-formats |
+| A mesh part with no shader vertex layout; console-only shader entries; a mesh brought in without entries in the level's databases (0x98BD6E: a null program read in the draw-record builder 0x98BCE0) - the export adds them and `mapexport check` refuses a mesh without them (round XF1, 3.12; spec SHDB-LVL-1/2, RNDR-DRAW-6) | `wake_install.py`, memory note console-resource-formats |
 | A level missing from LevelListQuery: in no menu; a `_NAME` prefix mismatch: a black loading screen; a key shared by two modes: blank browser rows (2026-11-16) - the names' rules and *names agree* of `mapexport check` (round EX1, 3.12) | OPFOR research notes; commit 6f809e1 |
 | An object at cull slot 0: draws see-through and cannot be destroyed | `bfbc2-culltree` |
 | A terrain mask atlas that differs from the donor's: black terrain cells | memory note terrain-patch-donor-rules |
