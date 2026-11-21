@@ -104,13 +104,10 @@ def stockmp_rollback(c, work):
             calls.append(a)
             raise PermissionError('locked')
         return real(a, b)
-    gameledger.os.replace = failing_replace
     err = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            code = stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply'])
-    finally:
-        gameledger.os.replace = real
+    with (unittest.mock.patch.object(gameledger.os, 'replace', failing_replace),
+          contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err)):
+        code = stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply'])
     left = sorted(os.path.relpath(os.path.join(d, f), game).replace(os.sep, '/') for d, ds, fs in os.walk(game)
                   for f in fs if 'opfor' not in os.path.relpath(d, game).split(os.sep))
     c.check(code == 1 and calls and 'nothing changed' in err.getvalue(), 'stock-MP install: the failure is reported, '
