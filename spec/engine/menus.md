@@ -19,7 +19,7 @@ mode key. The menus' level lists, the server browser's rows (NET-SB-1) and the m
 is in no `LevelListQuery` item is in no menu (LEVEL-DESC-1).
 
 [exe: BFBC2Game.exe catalogue builder 0x951480 into UiManager+0xC3F34; mode keys CONQUEST, RUSH, SQRUSH, SQDM]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:836-838]
+[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:131-133] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:849-851]
 
 ### MENU-EVT-1: The engine talks to the movies by events and extern getters
 

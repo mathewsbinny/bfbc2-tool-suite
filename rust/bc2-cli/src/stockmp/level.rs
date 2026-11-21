@@ -33,9 +33,28 @@ pub(super) fn sha(path: &str) -> PyResult<String> {
     sha256::file(path).map_err(|e| os_error(path, &e))
 }
 
-/// `pipeline.stock_file(p)`: the game file as before stock-MP's install (its backup; None where the install added
-/// it or it is missing).
+/// `pipeline.stock_file(p)`: the game file as before stock-MP's install - in the game copy's install ledger (round
+/// DF2) what was there before a `stockmp:` owner (its blob; None where the install added it); else by the markers of
+/// before the ledger (its backup; None where the install added it or it is missing).
 pub fn stock_file(p: &str) -> PyResult<Option<String>> {
+    let path = std::path::Path::new(p);
+    if let Some(game) = bc2_formats::gameledger::find_game(path) {
+        let led = bc2_formats::gameledger::Ledger::new(&game);
+        let rel = crate::pyos::relpath(p, &game.to_string_lossy())?;
+        let fail = |e: bc2_formats::gameledger::Error| Fail::Err(PyErr::new("LedgerError", e.to_string()));
+        if let Some(o) = led
+            .holders(&rel)
+            .map_err(fail)?
+            .into_iter()
+            .find(|o| o.starts_with("stockmp:"))
+        {
+            return Ok(led
+                .before(&o, &rel)
+                .map_err(fail)?
+                .flatten()
+                .map(|b| b.to_string_lossy().into_owned()));
+        }
+    }
     let backup = format!("{p}{BACKUP}");
     if isfile(&backup) {
         return Ok(Some(backup));

@@ -431,19 +431,36 @@ fn edit_build_install_restore_on_a_scratch_copy() {
         Some(r) => h.click(&mut app, r.center()),
         None => app.view_mut().unwrap().nav_confirm(true),
     }
+    // round DF1: the install runs in the background like the build; its end is waited for here
+    assert!(
+        app.view_mut().unwrap().navs.job.as_mut().unwrap().wait(),
+        "navkit install"
+    );
     h.settle(&mut app, 2);
     assert!(app.view().unwrap().navs.confirm.is_none());
     assert_eq!(std::fs::read(&installed).unwrap(), built_bytes, "installed");
-    let mut kept = installed.as_os_str().to_owned();
-    kept.push(".opfor-orig");
+    // DICE's file kept once in the game copy's install ledger (round DF2)
+    let kept = bc2_editor::navdata::original_file(&installed).expect("DICE's kept in the ledger");
+    assert!(
+        kept.starts_with(scratch.join("game").join("opfor").join("ledger")),
+        "{kept:?}"
+    );
     assert_eq!(std::fs::read(&kept).unwrap(), original, "DICE's kept");
     let trav = installed.parent().unwrap().join(format!("{lv}.traversal.json"));
     assert!(trav.is_file(), "the traversal annotations installed beside it");
     // restore: the plan, confirmed: the game folder as it was
     app.run_action(&gpu, &ctx, Action::NavRestore);
     let plan = app.view().unwrap().navs.confirm.clone().unwrap();
-    assert!(plan.lines[0].starts_with("Put DICE's file back"), "{:?}", plan.lines);
+    assert!(
+        plan.lines[0].starts_with("Put the file from before NavKit back"),
+        "{:?}",
+        plan.lines
+    );
     app.view_mut().unwrap().nav_confirm(true);
+    assert!(
+        app.view_mut().unwrap().navs.job.as_mut().unwrap().wait(),
+        "navkit restore"
+    );
     h.settle(&mut app, 2);
     let after = snapshot(&scratch.join("game"));
     assert_eq!(after, before, "the scratch game folder byte for byte as it was");

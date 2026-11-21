@@ -80,11 +80,13 @@ def harness_baseline_case(c, work):
 
 def navkit_restore_reinstall(c, work):
     import navkit
+    from bfbc2core import gameledger
     saved_gr = navkit.game_running
     navkit.game_running = lambda: False
 
     class Pr:
         root = work
+        game = os.path.join(work, 'game')
 
         def pathdata(self, lv):
             return os.path.join(work, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
@@ -102,11 +104,13 @@ def navkit_restore_reinstall(c, work):
         open(ours, 'wb').write(b'build 2')
         navkit.install(pr, 'sp_01', src=ours, log=lambda *a: None)
         dest = pr.pathdata('sp_01')
-        c.check(open(dest, 'rb').read() == b'build 2' and os.path.isfile(dest + navkit.NEW_SUFFIX)
-                and not os.path.isfile(dest + navkit.BACKUP_SUFFIX),
-                'navkit: reinstalling onto a no-original map keeps the no-original record, not a fake backup')
+        led = gameledger.Ledger(pr.game)
+        rel = os.path.relpath(dest, pr.game)
+        c.check(open(dest, 'rb').read() == b'build 2' and led.before('navkit:sp_01', rel) == (True, None),
+                'navkit: reinstalling onto a no-original map keeps the no-original record (the ledger), not a fake '
+                'backup')
         navkit.restore(pr, 'sp_01', log=lambda *a: None)
-        c.check(not os.path.isfile(dest) and not os.path.isfile(dest + navkit.NEW_SUFFIX),
+        c.check(not os.path.isfile(dest) and not led.holders(rel),
                 'navkit: restore after a second no-original install removes the generated file')
     finally:
         navkit.game_running = saved_gr
@@ -114,11 +118,13 @@ def navkit_restore_reinstall(c, work):
 
 def navkit_restore_deleted(c, work):
     import navkit
+    from bfbc2core import gameledger
     saved_gr = navkit.game_running
     navkit.game_running = lambda: False
 
     class Pr:
         root = work
+        game = os.path.join(work, 'game')
 
         def pathdata(self, lv):
             return os.path.join(work, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
@@ -142,11 +148,13 @@ def navkit_restore_deleted(c, work):
         pr, ours, dest = setup('sp_02')
         os.remove(dest)                                          # the installed file is deleted
         navkit.install(pr, 'sp_02', src=ours, log=lambda *a: None)   # reinstall
-        c.check(not os.path.isfile(dest + navkit.NEW_SUFFIX) and os.path.isfile(dest + navkit.BACKUP_SUFFIX),
-                'navkit: reinstalling after the installed file was deleted keeps the backup, not a no-original marker')
+        kept = pr.dice_pathdata('sp_02') if hasattr(pr, 'dice_pathdata') else navkit.original_file(dest)
+        c.check(kept is not None and open(kept, 'rb').read() == b'original',
+                'navkit: reinstalling after the installed file was deleted keeps the original (in the ledger), not a '
+                'no-original record')
         navkit.restore(pr, 'sp_02', log=lambda *a: None)
-        c.check(open(dest, 'rb').read() == b'original' and not os.path.isfile(dest + navkit.NEW_SUFFIX),
-                'navkit: restore recovers the original and leaves no no-original marker')
+        c.check(open(dest, 'rb').read() == b'original' and not gameledger.legacy_markers(dest),
+                'navkit: restore recovers the original and leaves no marker')
         navkit.restore(pr, 'sp_02', log=lambda *a: None)
         c.check(open(dest, 'rb').read() == b'original', 'navkit: a second restore does not delete the recovered original')
 

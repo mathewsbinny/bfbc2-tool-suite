@@ -191,27 +191,68 @@ impl Project {
         Ok(out)
     }
 
-    /// `unpack(bundle, dest, log)`: the bundle unpacked and its DBX converted to XML once, stamped with its SHA-256.
+    /// `unpack(bundle, dest)` (round DF2, AU4-DS-14): unpacked again when the bundle's hash changed - into
+    /// `<dest>.tmp-<pid>`, stamped there, then swapped in by renames under `<dest>.unpack.lock`, so a second process
+    /// never deletes a folder another is unpacking, and a file held in the old unpack (`DbxEditGUI`, the map editor)
+    /// never leaves a mix of two unpacks stamped as clean.
     pub fn unpack(&self, py: &mut Py, bundle: &str, dest: &str, log: &mut dyn Log) -> PyResult<()> {
         let stamp = join2(dest, ".source.sha256")?;
         let source_hash = pyos::sha256_file(bundle)?;
-        if pyos::isfile(&join2(dest, "fbrb.manifest")?) && pyos::isfile(&stamp) {
-            let data = pyos::read(&stamp)?;
-            if data.is_ascii() && strip(&String::from_utf8_lossy(&data)) == source_hash {
+        let fresh = || -> PyResult<bool> {
+            if pyos::isfile(&join2(dest, "fbrb.manifest")?) && pyos::isfile(&stamp) {
+                let data = pyos::read(&stamp)?;
+                return Ok(data.is_ascii() && strip(&String::from_utf8_lossy(&data)) == source_hash);
+            }
+            Ok(false)
+        };
+        if fresh()? {
+            return log.log(py, &format!("  {} already unpacked", pyos::relpath(dest, &self.root)?));
+        }
+        let lock = format!("{dest}.unpack.lock");
+        let r = pyos::files::locked(&lock, || -> PyResult<()> {
+            if fresh()? {
                 return log.log(py, &format!("  {} already unpacked", pyos::relpath(dest, &self.root)?));
             }
-        }
-        log.log(py, &format!("  unpacking {} ...", pyos::relpath(bundle, &self.game)?))?;
-        if pyos::isdir(dest) {
-            pyos::rmtree_quiet(dest);
-        }
-        self.run(&["FbrbTool", "unpack", bundle, dest])?;
-        log.log(py, "  converting binary DBX to XML ...")?;
-        let out = self.run(&["DbxEdit", "xml", dest])?;
-        let last = out
-            .last()
-            .ok_or_else(|| Fail::Err(PyErr::new("IndexError", "list index out of range")))?;
-        log.log(py, &format!("  {last}"))?;
-        pyos::write_text_plain(&stamp, &source_hash)
+            log.log(py, &format!("  unpacking {} ...", pyos::relpath(bundle, &self.game)?))?;
+            let new = format!("{dest}.tmp-{}", std::process::id());
+            if pyos::isdir(&new) {
+                std::fs::remove_dir_all(&new).map_err(|e| crate::pyproc::os_error(&new, &e))?;
+            }
+            let ran = (|| -> PyResult<()> {
+                self.run(&["FbrbTool", "unpack", bundle, &new])?;
+                log.log(py, "  converting binary DBX to XML ...")?;
+                let out = self.run(&["DbxEdit", "xml", &new])?;
+                let last = out
+                    .last()
+                    .ok_or_else(|| Fail::Err(PyErr::new("IndexError", "list index out of range")))?;
+                log.log(py, &format!("  {last}"))
+            })();
+            if ran.is_err() {
+                let _ = std::fs::remove_dir_all(&new); // this process's own unfinished unpack
+            }
+            ran?;
+            pyos::atomic_write(&join2(&new, ".source.sha256")?, source_hash.as_bytes())?;
+            let old = format!("{dest}.tmp-{}-0", std::process::id());
+            if pyos::isdir(dest) {
+                std::fs::rename(dest, &old).map_err(|e| {
+                    navkit_error(format!(
+                        "{dest} cannot be replaced by the new unpack: a file in it is held by another program (close \
+                         DbxEditGUI, the map editor or an Explorer window on it, then run again) - {e}"
+                    ))
+                })?;
+            }
+            if let Err(e) = std::fs::rename(&new, dest) {
+                let _ = std::fs::rename(&old, dest);
+                return Err(crate::pyproc::os_error(&new, &e));
+            }
+            if pyos::isdir(&old) && std::fs::remove_dir_all(&old).is_err() {
+                log.log(
+                    py,
+                    &format!("  the old unpack {old} could not be deleted (a file in it is held): delete it later"),
+                )?;
+            }
+            Ok(())
+        });
+        r.map_err(|e| crate::pyproc::os_error(&lock, &e))?
     }
 }

@@ -34,7 +34,7 @@ map's first mode (Conquest on MP_001, MP_003, MP_005, MP_007; Rush on MP_002, MP
 `R` is Rush. The level, not the session, decides the mode: the suite's exports are likewise one mode per level.
 
 [data: OPFOR's logged level catalogue of the stock levels: 10 BFBC2 maps with 2-4 mode levels each (MP_009 all four), Harvest Day and Oasis four each, Cold War three, Heavy Metal two, five Vietnam maps four each]
-[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:604-620] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1243-1245]
+[doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:604-620] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1256-1258]
 
 ### LVL-MODE-2: A mode level loads its map's bundles after its own
 
@@ -47,7 +47,7 @@ the files the engine finds by the level's name (PART-NAME-3), and deleted marker
 except its map's.
 
 [data: stock package.mft: mode levels' level blocks target the base map's bundles after their own (MP_005GR -> MP_005); MP_005GR holds the shader databases, emitter system, model groups and cull trees under its own name]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:828-832] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1207-1215]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:841-845] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1220-1228]
 
 ### LVL-RT-1: The level data object at run time
 
@@ -73,7 +73,7 @@ Island, installed from NAM_MP_002CQ's description, was `VIETNAM` until OPFOR cha
 exports take the target era's donor's (XEXP-PRE-2).
 
 [data: descriptions measured: Vietnam's levels MatchmakingModID VIETNAM, Licenses nam, KickIfLicenseMissing true, KIT_*_NAM; BFBC2's levels MatchmakingModID BC2 and no licence]
-[doc: opfor:research/WW2_THIRD_MODE.md:98-103] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1002-1008]
+[doc: opfor:research/WW2_THIRD_MODE.md:98-103] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1015-1021]
 
 ### LVL-DESC-2: The loading picture is found by the name key
 
@@ -87,7 +87,7 @@ picture.
 
 [data: OPFOR's records: a _NAME prefix mismatch gave a black loading screen; stock keys such as MP_009_NAME name mp_009's picture]
 [code: rust/bc2-levelwrite/src/export.rs:135-150] [code: rust/bc2-levelwrite/src/export.rs:1920-1930]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1021-1027] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1359]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1034-1040] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1372]
 
 ## Open questions
 

@@ -43,6 +43,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit', 'navkit-tools', 'core')
 from bfbc2core import fbrb as corefbrb  # noqa: E402
+from bfbc2core import gameledger  # noqa: E402
 from bfbc2core import paths as corepaths  # noqa: E402  (not `paths`: the functions below name their Paths that)
 
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
@@ -107,7 +108,15 @@ def sha(path: str) -> str:
 def stock_file(p: str) -> str | None:
     """Game file p as it was before stock-MP AI's install: its backup where `install --apply` replaced it, None where
     the install added it (the level had none; a file changed since the install - its marker's hash no longer
-    matches - is someone else's and taken as it is), else p (None if missing)."""
+    matches - is someone else's and taken as it is), else p (None if missing). In the game copy's install ledger
+    (round DF2): what was there before a stockmp: owner (its blob; None where the install added it)."""
+    game = gameledger.find_game(p)
+    if game is not None:
+        led = gameledger.Ledger(game)
+        rel = os.path.relpath(p, game)
+        o = next((h for h in led.holders(rel) if h.startswith('stockmp:')), None)
+        if o is not None:
+            return led.before(o, rel)[1]
     if os.path.isfile(p + BACKUP):
         return p + BACKUP
     if not os.path.isfile(p):
@@ -458,7 +467,7 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         log(f'{v}: {counts_text}; packed {os.path.relpath(paths.out_bundle(v), paths.opfor)}')
     rep['guids'] = {'note': 'deterministic: UUIDv5(NAMESPACE_URL, "opfor:stockmp:<lv>:<role>:<id>")'}
     swap_in(paths, stage)
-    tmp = paths.report() + '.tmp'
+    tmp = f'{paths.report()}.tmp-{os.getpid()}'        # per process (AU4-CQ-18)
     with open(tmp, 'w', encoding='utf-8') as fh:
         json.dump(rep, fh, indent=1)
     os.replace(tmp, paths.report())

@@ -20,6 +20,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
+use bc2_formats::gameledger::{self, Ledger};
 use bc2_formats::terrain::Heightfield;
 use bc2_levelwrite::navedit::{NavBase, NavEdit, NavRegion};
 use bc2_navbuild::astar::Graph;
@@ -290,9 +291,39 @@ pub struct Job {
     pub done: Option<bool>,
     /// When it started.
     pub started: Instant,
+    /// The file it writes, removed when the job is dropped before it ended (round DF1, audit AU4-CON-2): a build
+    /// cut short leaves no half-written file for a later Install to copy.
+    pub partial: Option<PathBuf>,
+}
+
+impl Drop for Job {
+    /// A command still running when its job goes (the editor closed under it) is stopped, never left orphaned.
+    fn drop(&mut self) {
+        if self.done.is_none() && matches!(self.child.try_wait(), Ok(None)) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            if let Some(p) = &self.partial {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+    }
 }
 
 impl Job {
+    /// A job of a child already started (tests: a stand-in for a long navkit command).
+    #[doc(hidden)]
+    #[must_use]
+    pub fn from_child(child: Child, what: &str) -> Self {
+        Self {
+            child,
+            what: what.to_owned(),
+            lines: Arc::new(Mutex::new(Vec::new())),
+            done: None,
+            started: Instant::now(),
+            partial: None,
+        }
+    }
+
     /// Whether it has ended (and how), polled.
     pub fn poll(&mut self) -> Option<bool> {
         if self.done.is_none()
@@ -395,6 +426,7 @@ pub fn start_navkit(root: &Path, args: &[String], what: &str) -> Result<Job, Str
         lines,
         done: None,
         started: Instant::now(),
+        partial: None,
     })
 }
 
@@ -683,19 +715,29 @@ pub struct Plan {
     pub blocked: Option<String>,
 }
 
-fn with_suffix(p: &Path, suffix: &str) -> PathBuf {
-    let mut s = p.as_os_str().to_owned();
-    s.push(suffix);
-    PathBuf::from(s)
-}
-
 fn traversal_of(dir: &Path, lv: &str) -> PathBuf {
     dir.join(format!("{}.traversal.json", lv.to_lowercase()))
 }
 
-/// What `navkit install <lv> --from <built>` will do (`navkit.install`): DICE's file kept once as `.opfor-orig` (or
-/// a `.opfor-new` marker where the level had none), the built file copied in, its traversal annotations beside it
-/// when they were made for it.
+/// The game copy's install ledger, NavKit's owner name for a level, and the game-relative path of a game file.
+fn ledger_of(root: &Path, lv: &str, p: &Path) -> (Ledger, String, String) {
+    let game = root.join("game");
+    let rel = p.strip_prefix(&game).unwrap_or(p).to_string_lossy().replace('\\', "/");
+    (Ledger::new(&game), format!("navkit:{}", lv.to_lowercase()), rel)
+}
+
+/// NavKit's markers from before the install ledger beside the path data (`.opfor-orig` / `.opfor-new`), and any
+/// other tool's.
+fn legacy_of(dest: &Path) -> (Vec<String>, Vec<String>) {
+    gameledger::legacy_markers(dest)
+        .into_iter()
+        .partition(|m| m.eq_ignore_ascii_case(".opfor-orig") || m.eq_ignore_ascii_case(".opfor-new"))
+}
+
+/// What `navkit install <lv> --from <built>` will do (`navkit.install`, round DF2): the file there kept once in the
+/// game copy's install ledger (by its sha256; or noted as none), the built file copied in, its traversal annotations
+/// beside it when they were made for it. Another tool's install there stays below NavKit's (either can be restored
+/// first).
 #[must_use]
 pub fn install_plan(root: &Path, lv: &str, built: &Path) -> Plan {
     let dest = navdata::installed_pathdata(root, lv);
@@ -716,19 +758,38 @@ pub fn install_plan(root: &Path, lv: &str, built: &Path) -> Plan {
         plan.blocked = Some(format!("{}: not built yet (Build with these edits first)", rel(built)));
         return plan;
     }
-    let (orig, new) = (with_suffix(&dest, ".opfor-orig"), with_suffix(&dest, ".opfor-new"));
-    if !new.is_file() && !orig.is_file() {
-        if dest.is_file() {
-            plan.lines.push(format!("Keep DICE's file as {}", rel(&orig)));
-            plan.touches.push(orig);
-        } else {
-            plan.lines
-                .push("The level has no path data: note that (restore will remove the file)".to_owned());
-            plan.touches.push(new);
+    let (led, owner, game_rel) = ledger_of(root, lv, &dest);
+    let (own, foreign) = legacy_of(&dest);
+    if !foreign.is_empty() {
+        plan.blocked = Some(gameledger::legacy_refusal(&game_rel, &foreign));
+        return plan;
+    }
+    let holders = match led.holders(&game_rel) {
+        Ok(h) => h,
+        Err(e) => {
+            plan.blocked = Some(e.to_string());
+            return plan;
         }
+    };
+    if !own.is_empty() {
+        plan.lines.push(format!(
+            "Move NavKit's markers from before the install ledger ({}) into it",
+            own.join(", ")
+        ));
+    }
+    if holders.contains(&owner) || !own.is_empty() {
+        plan.lines
+            .push("The file from before NavKit is already kept (an earlier install): it stays as it is".to_owned());
+    } else if let Some(top) = holders.last() {
+        plan.lines.push(format!(
+            "Install over {top}'s file (the ledger keeps it: either install can be restored first)"
+        ));
+    } else if dest.is_file() {
+        plan.lines
+            .push("Keep DICE's file in the game copy's install ledger (game\\opfor\\ledger)".to_owned());
     } else {
         plan.lines
-            .push("DICE's file is already kept (an earlier install): it stays as it is".to_owned());
+            .push("The level has no path data: note that (restore will remove the file)".to_owned());
     }
     plan.lines.push(format!("Copy {} to {}", rel(built), rel(&dest)));
     let (trav, trav_dest) = (
@@ -751,12 +812,12 @@ pub fn install_plan(root: &Path, lv: &str, built: &Path) -> Plan {
     plan
 }
 
-/// What `navkit restore <lv>` will do (`navkit.restore`).
+/// What `navkit restore <lv>` will do (`navkit.restore`, round DF2): the file from before NavKit put back from the
+/// install ledger, or NavKit's layer taken out from under a later install (which then puts that file back).
 #[must_use]
 pub fn restore_plan(root: &Path, lv: &str) -> Plan {
     let dest = navdata::installed_pathdata(root, lv);
     let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).display().to_string();
-    let (orig, new) = (with_suffix(&dest, ".opfor-orig"), with_suffix(&dest, ".opfor-new"));
     let mut plan = Plan {
         what: "restore",
         args: vec!["restore".into(), lv.to_uppercase()],
@@ -764,20 +825,39 @@ pub fn restore_plan(root: &Path, lv: &str) -> Plan {
         touches: vec![dest.clone()],
         blocked: None,
     };
-    if orig.is_file() {
-        plan.lines.push(format!("Put DICE's file back from {}", rel(&orig)));
-        plan.touches.push(orig);
-        if new.is_file() {
-            plan.lines.push(format!("Remove the stale marker {}", rel(&new)));
-            plan.touches.push(new);
-        }
-    } else if new.is_file() {
-        plan.lines
-            .push(format!("Remove {} (the level had no path data before)", rel(&dest)));
-        plan.touches.push(new);
-    } else {
+    let (led, owner, game_rel) = ledger_of(root, lv, &dest);
+    let (own, foreign) = legacy_of(&dest);
+    let holders = led.holders(&game_rel).unwrap_or_default();
+    let at = holders.iter().position(|h| *h == owner);
+    if at.is_none() && own.is_empty() {
         plan.blocked = Some("Nothing to restore: no NavKit file is installed".to_owned());
         return plan;
+    }
+    if !foreign.is_empty() {
+        plan.blocked = Some(gameledger::legacy_refusal(&game_rel, &foreign));
+        return plan;
+    }
+    if !own.is_empty() {
+        plan.lines.push(format!(
+            "Move NavKit's markers from before the install ledger ({}) into it",
+            own.join(", ")
+        ));
+    }
+    let above = at.and_then(|i| holders.get(i + 1));
+    let before = led.before(&owner, &game_rel).ok().flatten();
+    let had_none = before.as_ref().is_some_and(Option::is_none)
+        || (own.len() == 1 && own.first().is_some_and(|m| m.eq_ignore_ascii_case(".opfor-new")));
+    if let Some(o) = above {
+        plan.lines.push(format!(
+            "Take NavKit's file out from under {o}'s install: the file stays {o}'s, its revert then puts back what was \
+             there before NavKit"
+        ));
+    } else if had_none {
+        plan.lines
+            .push(format!("Remove {} (the level had no path data before)", rel(&dest)));
+    } else {
+        plan.lines
+            .push("Put the file from before NavKit back from the install ledger".to_owned());
     }
     let trav = traversal_of(dest.parent().unwrap_or(root), lv);
     if trav.is_file() {
