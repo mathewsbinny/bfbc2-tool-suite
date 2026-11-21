@@ -85,7 +85,7 @@ Added with the Rust core (2026-11-16 on; README.md, "The Rust core"):
 | Tool | Where | Used for |
 |---|---|---|
 | FbrbTool | `bfbc2-fbrb-tool` | unpacking bundles |
-| DbxEdit, DbxEditGUI, `FORMAT.md`, test suite and fingerprints | `bfbc2-dbx-tools` | DBX reading and editing, level checks, cull-slot repair; the spec the Python reader is written from |
+| DbxEdit (`dbxedit.py`, the Rust core; its window the map editor's DBX inspector since round GR4), `FORMAT.md`, fingerprints | `bfbc2-dbx-tools` | DBX reading and editing, level checks, cull-slot repair; the spec the Python reader is written from |
 | `bfbc2.exe leveldiff` (LevelDiff, round EX1) | `rust/bc2-formats` (`dbxedit::leveldiff`), the map editor's Diff panel | field-level diffs of `.dbx` files |
 | crash reader | `bfbc2-automated-map-and-bot-test-harness/crash-reader` | in-game test failures |
 | console readers | `bfbc2-console-readers` | Xbox 360 sources |

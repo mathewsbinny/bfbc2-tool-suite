@@ -1,5 +1,5 @@
 r"""navkit.py's orchestration without the game: a stand-in Project OPFOR BFBC2 folder built in a temp folder (a game
-folder with BFBC2Game.exe, level bundles, path data, opfor.ini and its log; tools\DbxEditGUI.exe as an empty
+folder with BFBC2Game.exe, level bundles, path data, opfor.ini and its log; tools\ExampleTool.exe as an empty
 file) and every step driven with its heavy parts stood in (FbrbTool / DbxEdit runs, the build, the game launch, the
 running-game check). Every file the steps write must land under the temp folder - checked by a guard on open,
 os.remove, os.makedirs, shutil.move and shutil.rmtree while the steps run.
@@ -141,7 +141,7 @@ def make_opfor(root):
     write(os.path.join(game, 'BFBC2Game.exe'), b'MZ')
     write(os.path.join(game, 'opfor.ini'), '[dev]\r\nlevel=Levels/MP_005\r\nnavsample=0\r\n\r\n[debug]\r\nprobes=0\r\n')
     write(os.path.join(game, 'logs', 'opfor.log'), 'old log line\n')
-    write(os.path.join(root, 'tools', 'DbxEditGUI.exe'), b'MZ')       # a built tool (find_tool)
+    write(os.path.join(root, 'tools', 'ExampleTool.exe'), b'MZ')       # a built tool (find_tool)
     levels = os.path.join(game, 'Dist', 'win32', 'levels')
     for d in ('SP_01', 'mp_005', 'sp_common', 'opfor_fill', 'MP_009'):
         if d != 'MP_009':
@@ -197,10 +197,10 @@ def main(argv):
             check(env_found == os.path.abspath(root), 'find_opfor: OPFOR_ROOT when the given folder has no game\\')
             check(msg is not None and 'not found' in msg and 'nowhere' in msg and 'also nowhere' in msg
                   and 'project-opfor-bfbc2' in msg, 'find_opfor: nothing found - the error names every folder looked in', str(msg))
-            check(navkit.find_tool(root, 'DbxEditGUI.exe', 'bfbc2-dbx-tools') == os.path.join(root, 'tools', 'DbxEditGUI.exe'),
+            check(navkit.find_tool(root, 'ExampleTool.exe', 'bfbc2-example-tool') == os.path.join(root, 'tools', 'ExampleTool.exe'),
                   'find_tool: OPFOR\'s tools\\ folder when the toolkit has no build')
-            write(os.path.join(tmp, 'suite', 'bfbc2-dbx-tools', 'DbxEditGUI.exe'), b'MZ')
-            check(navkit.find_tool(root, 'DbxEditGUI.exe', 'bfbc2-dbx-tools') == os.path.join(tmp, 'suite', 'bfbc2-dbx-tools', 'DbxEditGUI.exe'),
+            write(os.path.join(tmp, 'suite', 'bfbc2-example-tool', 'ExampleTool.exe'), b'MZ')
+            check(navkit.find_tool(root, 'ExampleTool.exe', 'bfbc2-example-tool') == os.path.join(tmp, 'suite', 'bfbc2-example-tool', 'ExampleTool.exe'),
                   'find_tool: the toolkit\'s own build first')
             msg = raises(navkit.find_tool, root, 'Nothing.exe', 'bfbc2-nothing')
             check(msg is not None and 'Nothing.exe not found' in msg and 'build.bat' in msg and 'bfbc2-nothing' in msg,

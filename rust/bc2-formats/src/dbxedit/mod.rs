@@ -1,4 +1,5 @@
-//! DbxEdit's commands in process: a port of `bfbc2-dbx-tools/DbxEdit.cs` (FORMAT.md sections 3, 5-7) that gives
+//! DbxEdit's commands in process: a port of `bfbc2-dbx-tools/DbxEdit.cs` (retired in round GR4 with `DbxEditGUI`, the
+//! window built on it, whose window is the map editor's DBX inspector now; FORMAT.md sections 3, 5-7) that gives
 //! DbxEdit's output byte for byte - the same files, messages and exit codes - without starting .NET.
 //!
 //! | `DbxEdit.cs` | here |
@@ -43,4 +44,6 @@ pub use fault::{Fault, FaultKind, Result};
 pub use file::{
     CONTAINER, EditFile, Element, MAX_DEPTH, NUMBERS, TEXT, Table, read_varint, varint_bytes, write_varint,
 };
-pub use import::{ImportReport, Node, TypeBook, encode_value, import, parse_xml, prints_as_whole};
+pub use import::{
+    ImportReport, Node, TypeBook, encode_value, encode_value_rounded, import, parse_xml, prints_as_whole,
+};

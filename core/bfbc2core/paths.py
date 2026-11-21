@@ -72,7 +72,7 @@ class GameCopyNotFound(PathsError):
 
 
 class ToolNotFound(PathsError):
-    """A tool the suite builds (DbxEditGUI.exe) is neither built nor in OPFOR's tools\\ folder."""
+    """A built tool (OPFOR's AptTool.exe; the suite builds none since round GR4) is neither built nor in OPFOR's tools\\ folder."""
 
 
 def suite_root() -> str:
