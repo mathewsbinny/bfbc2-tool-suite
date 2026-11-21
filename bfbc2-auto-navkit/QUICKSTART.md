@@ -172,7 +172,7 @@ All of these are inside the Project OPFOR BFBC2 folder:
 | `work\navkit\<level>\pathdata.hpd` | **the result** |
 | `work\navkit\<level>\check.txt` | the full check report |
 | `work\levels\<level>\` | the unpacked level and the objects NavKit read from it |
-| `game\Output\win32\ai\levels\<level>\infantry\pathdata.hpd` | the file the game uses; Install puts NavKit's here and keeps the original as `pathdata.hpd.opfor-orig` |
+| `game\Output\win32\ai\levels\<level>\infantry\pathdata.hpd` | the file the game uses; Install puts NavKit's here and keeps the original in the game copy's install ledger (`game\opfor\ledger`) |
 
 NavKit never changes your original Bad Company 2 install. It works only on OPFOR's copy in `game\`.
 

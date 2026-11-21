@@ -16,7 +16,7 @@
 //! | `author.NumberKinds`, `author.Author` | [`author::NumberKinds`], [`author::author`] |
 //! | `validate.check_structure` / `check_changes` / `check_external` / `check_stages` (their readings) | [`checks`] |
 //! | `validate._folder_index`, `validate.check_packed` | [`files::folder_index`], [`files::packed_check`] |
-//! | `pipeline.sha`, `pipeline.check_report`, `stockmp.installed_files` (round O3) | [`sha256`], [`install`] |
+//! | `pipeline.sha`, `pipeline.check_report` (round O3) | [`sha256`], [`install`] |
 
 pub mod author;
 pub mod checks;
@@ -25,7 +25,8 @@ pub mod guid;
 pub mod install;
 pub mod model;
 pub mod pytext;
-pub mod sha256;
+/// SHA-256: moved to `bc2_formats::sha256` (round DF2: one implementation for the installers and the ledger).
+pub use bc2_formats::sha256;
 
 /// The Python reference decides: an input, or a path through it, where the port does not give the reference's
 /// answer itself (the reason, for tests and logs).

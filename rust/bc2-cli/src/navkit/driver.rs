@@ -2,6 +2,9 @@
 //! Python) and `prepare_level.py` (the editor's prepare: NavKit's prepare and the terrain unpack, its progress as
 //! `@step` / `@log` / `@error` / `@done` lines flushed as they come).
 
+use std::path::Path;
+
+use bc2_formats::gameledger::{self, Ledger, Legacy};
 use regex::Regex;
 
 use super::navcompare;
@@ -17,16 +20,37 @@ fn index_error() -> Fail {
     Fail::Err(PyErr::new("IndexError", "list index out of range"))
 }
 
-/// `game_running()`: `tasklist` names BFBC2Game.exe.
-fn game_running() -> bool {
+/// `game_running()`: `tasklist` names BFBC2Game.exe. A `tasklist` that does not answer in 30 s (the service host
+/// busy, as during the game's crash dump) counts as the game running: a refusal, never a hang (AU4-BUG-20).
+pub(crate) fn game_running() -> bool {
     let mut c = std::process::Command::new("tasklist");
-    c.args(["/FI", "IMAGENAME eq BFBC2Game.exe", "/NH"]);
+    c.args(["/FI", "IMAGENAME eq BFBC2Game.exe", "/NH"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt as _;
         c.creation_flags(0x0800_0000);
     }
-    c.output()
+    let Ok(mut child) = c.spawn() else {
+        return false;
+    };
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if start.elapsed() < std::time::Duration::from_secs(30) => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return true;
+            }
+        }
+    }
+    child
+        .wait_with_output()
         .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("BFBC2Game.exe"))
 }
 
@@ -50,8 +74,7 @@ fn levels(py: &mut Py, pr: &Project) -> PyResult<()> {
         if pyos::isfile(&join(&pr.work, &["navkit", &lv, "pathdata.hpd"])?) {
             done.push("built");
         }
-        let pd = pr.pathdata(&lv)?;
-        if pyos::isfile(&format!("{pd}{BACKUP_SUFFIX}")) || pyos::isfile(&format!("{pd}{NEW_SUFFIX}")) {
+        if installed(pr, &lv)? {
             done.push("INSTALLED");
         }
         py.print(&format!("{lv:<12} {ai:<14} {}", done.join(", ")))?;
@@ -59,7 +82,74 @@ fn levels(py: &mut Py, pr: &Project) -> PyResult<()> {
     Ok(())
 }
 
-/// `install(pr, lv, src=src)`.
+/// The owner NavKit installs a level's path data as, in the game copy's install ledger.
+pub(crate) fn owner(lv: &str) -> String {
+    format!("navkit:{}", lv.to_lowercase())
+}
+
+fn ledger_fail(e: &gameledger::Error) -> Fail {
+    navkit_error(e.to_string())
+}
+
+/// The game-relative path of a game file.
+fn game_rel(pr: &Project, p: &str) -> PyResult<String> {
+    Ok(pyos::relpath(p, &pr.game)?.replace('\\', "/"))
+}
+
+/// `installed(pr, lv)`: NavKit's install of the level is in the game copy's install ledger, or its markers from
+/// before the ledger are beside the path data.
+fn installed(pr: &Project, lv: &str) -> PyResult<bool> {
+    let pd = pr.pathdata(lv)?;
+    if pyos::isfile(&format!("{pd}{BACKUP_SUFFIX}")) || pyos::isfile(&format!("{pd}{NEW_SUFFIX}")) {
+        return Ok(true);
+    }
+    let led = Ledger::new(Path::new(&pr.game));
+    Ok(!led.owner_files(&owner(lv)).map_err(|e| ledger_fail(&e))?.is_empty())
+}
+
+/// NavKit's own legacy markers beside the path data (`.opfor-orig` / `.opfor-new`, from before the install ledger)
+/// adopted into the ledger; another tool's refused in words.
+fn adopt_legacy(py: &mut Py, led: &mut Ledger, lv: &str, rel: &str) -> PyResult<()> {
+    match led.adopt_legacy(&owner(lv), &[rel.to_owned()], Legacy::NavKit) {
+        Ok(Some(_)) => py.print(&format!(
+            "  NavKit's markers from before the install ledger moved into it ({rel})"
+        )),
+        Ok(None) => Ok(()),
+        Err(e) => Err(ledger_fail(&e)),
+    }
+}
+
+/// `traversal_made_for(trav)`: the `pathdata_sha1` the annotations were made for (None: no file, not JSON, no key).
+fn made_for(trav: &str) -> PyResult<Option<String>> {
+    if !pyos::isfile(trav) {
+        return Ok(None);
+    }
+    Ok(match std::fs::read(trav).ok().and_then(|d| pyjson::loads_utf8(&d)) {
+        Some(Value::Dict(items)) => items
+            .into_iter()
+            .find(|(k, _)| k == "pathdata_sha1")
+            .and_then(|(_, v)| v.as_str().map(str::to_owned)),
+        Some(other) => {
+            let t = match other {
+                Value::List(_) => "list",
+                Value::Str(_) => "str",
+                Value::Int(_) => "int",
+                Value::Float(_) => "float",
+                Value::Bool(_) => "bool",
+                _ => "NoneType",
+            };
+            return Err(Fail::Err(PyErr::new(
+                "AttributeError",
+                format!("'{t}' object has no attribute 'get'"),
+            )));
+        }
+        None => None,
+    })
+}
+
+/// `install(pr, lv, src=src)`: the built file (and its traversal annotations, when made for it) installed as
+/// `navkit:<lv>` in the game copy's install ledger (round DF2): what was there is kept there once, by its sha256, and
+/// `restore` gives it back whatever was installed over NavKit since.
 fn install(py: &mut Py, pr: &Project, lv: &str, src: Option<&str>) -> PyResult<()> {
     let ours = match src.filter(|s| !s.is_empty()) {
         Some(s) => s.to_owned(),
@@ -72,56 +162,47 @@ fn install(py: &mut Py, pr: &Project, lv: &str, src: Option<&str>) -> PyResult<(
         return Err(navkit_error("the game is running - close it first"));
     }
     let dest = pr.pathdata(lv)?;
-    pyos::makedirs(&pyos::dirname(&dest)?)?;
-    let (bak, new) = (format!("{dest}{BACKUP_SUFFIX}"), format!("{dest}{NEW_SUFFIX}"));
-    if !pyos::isfile(&new) && !pyos::isfile(&bak) {
-        if pyos::isfile(&dest) {
-            pyos::atomic_copy(&dest, &bak)?;
-            py.print(&format!("  original kept as {}{BACKUP_SUFFIX}", pyos::basename(&dest)?))?;
-        } else {
-            std::fs::write(&new, b"").map_err(|e| crate::pyproc::os_error(&new, &e))?;
-            py.print(&format!(
+    let rel = game_rel(pr, &dest)?;
+    let mut led = Ledger::new(Path::new(&pr.game));
+    adopt_legacy(py, &mut led, lv, &rel)?;
+    let me = owner(lv);
+    let holders = led.holders(&rel).map_err(|e| ledger_fail(&e))?;
+    let data = pyos::read(&ours)?;
+    let trav = traversal_path(&pyos::dirname(&ours)?, lv)?;
+    let trav_dest = traversal_path(&pyos::dirname(&dest)?, lv)?;
+    let trav_rel = game_rel(pr, &trav_dest)?;
+    let with_trav = made_for(&trav)?.as_deref() == Some(pyos::sha1_hex(&data).as_str());
+    let mut files = vec![(rel.clone(), data)];
+    if with_trav {
+        files.push((trav_rel.clone(), pyos::read(&trav)?));
+    }
+    if !holders.contains(&me) {
+        match holders.last() {
+            Some(top) => py.print(&format!(
+                "  installed over {top}'s file (either can be reverted first: the ledger keeps what each one replaced)"
+            ))?,
+            None if pyos::isfile(&dest) => py.print(&format!(
+                "  the original {} kept in the game copy's install ledger (restore puts it back)",
+                pyos::basename(&dest)?
+            ))?,
+            None => py.print(&format!(
                 "  noting {} had no original (restore will remove it)",
                 pyos::basename(&dest)?
-            ))?;
+            ))?,
         }
     }
-    pyos::atomic_copy(&ours, &dest)?;
+    let plan = led
+        .install(&me, &files, false, "NavKit path data", false)
+        .map_err(|e| ledger_fail(&e))?;
+    for n in &plan.notes {
+        py.print(&format!("  {n}"))?;
+    }
     py.print(&format!(
         "== installed {} as {}",
         pyos::relpath(&ours, &pr.root)?,
         pyos::relpath(&dest, &pr.root)?
     ))?;
-    let trav = traversal_path(&pyos::dirname(&ours)?, lv)?;
-    let trav_dest = traversal_path(&pyos::dirname(&dest)?, lv)?;
-    let sha = pyos::sha1_hex(&pyos::read(&ours)?);
-    let made_for = if pyos::isfile(&trav) {
-        match std::fs::read(&trav).ok().and_then(|d| pyjson::loads_utf8(&d)) {
-            Some(Value::Dict(items)) => items
-                .into_iter()
-                .find(|(k, _)| k == "pathdata_sha1")
-                .and_then(|(_, v)| v.as_str().map(str::to_owned)),
-            Some(other) => {
-                let t = match other {
-                    Value::List(_) => "list",
-                    Value::Str(_) => "str",
-                    Value::Int(_) => "int",
-                    Value::Float(_) => "float",
-                    Value::Bool(_) => "bool",
-                    _ => "NoneType",
-                };
-                return Err(Fail::Err(PyErr::new(
-                    "AttributeError",
-                    format!("'{t}' object has no attribute 'get'"),
-                )));
-            }
-            None => None,
-        }
-    } else {
-        None
-    };
-    if made_for.as_deref() == Some(sha.as_str()) {
-        pyos::atomic_copy(&trav, &trav_dest)?;
+    if with_trav {
         py.print(&format!(
             "  traversal annotations installed as {}",
             pyos::relpath(&trav_dest, &pr.root)?
@@ -133,43 +214,68 @@ fn install(py: &mut Py, pr: &Project, lv: &str, src: Option<&str>) -> PyResult<(
                 pyos::basename(&trav)?
             ))?;
         }
-        if pyos::isfile(&trav_dest) {
+        // stale annotations nobody installed through the ledger (from before it): none for another file
+        if pyos::isfile(&trav_dest) && led.holders(&trav_rel).map_err(|e| ledger_fail(&e))?.is_empty() {
             std::fs::remove_file(&trav_dest).map_err(|e| crate::pyproc::os_error(&trav_dest, &e))?;
         }
     }
     Ok(())
 }
 
-/// `restore(pr, lv)`.
+/// `restore(pr, lv)`: NavKit's install taken out of the game copy's install ledger - the file from before NavKit put
+/// back, or, when another tool installed over NavKit since, NavKit's layer taken out from under it (that tool's
+/// revert then gives back what was there before NavKit).
 fn restore(py: &mut Py, pr: &Project, lv: &str) -> PyResult<()> {
     let dest = pr.pathdata(lv)?;
-    let (bak, new) = (format!("{dest}{BACKUP_SUFFIX}"), format!("{dest}{NEW_SUFFIX}"));
-    if !pyos::isfile(&bak) && !pyos::isfile(&new) {
+    let rel = game_rel(pr, &dest)?;
+    let me = owner(lv);
+    let legacy = gameledger::legacy_markers(Path::new(&dest))
+        .iter()
+        .any(|m| m.eq_ignore_ascii_case(BACKUP_SUFFIX) || m.eq_ignore_ascii_case(NEW_SUFFIX));
+    let mut led = Ledger::new(Path::new(&pr.game));
+    let installed = !led.owner_files(&me).map_err(|e| ledger_fail(&e))?.is_empty();
+    if !installed && !legacy {
         return py.print(&format!("{lv}: nothing to restore (no NavKit file installed)"));
     }
     if game_running() {
         return Err(navkit_error("the game is running - close it first"));
     }
-    let rm = |p: &str| std::fs::remove_file(p).map_err(|e| crate::pyproc::os_error(p, &e));
-    if pyos::isfile(&bak) {
-        std::fs::rename(&bak, &dest).map_err(|e| crate::pyproc::os_error(&bak, &e))?;
-        if pyos::isfile(&new) {
-            rm(&new)?;
-        }
+    adopt_legacy(py, &mut led, lv, &rel)?;
+    if led.owner_files(&me).map_err(|e| ledger_fail(&e))?.is_empty() {
+        return py.print(&format!("{lv}: nothing to restore (no NavKit file installed)"));
+    }
+    let holders = led.holders(&rel).map_err(|e| ledger_fail(&e))?;
+    let above = holders
+        .iter()
+        .position(|h| *h == me)
+        .and_then(|i| holders.get(i + 1))
+        .cloned();
+    let plan = led.uninstall(&me, false).map_err(|e| ledger_fail(&e))?;
+    for n in plan.notes.iter().filter(|n| !n.contains("taken out from under")) {
+        py.print(&format!("  {n}"))?;
+    }
+    if let Some(o) = above {
+        py.print(&format!(
+            "== NavKit's {} taken out from under {o}'s install: the file stays {o}'s, and its revert now puts back \
+             what was there before NavKit",
+            pyos::relpath(&dest, &pr.root)?
+        ))?;
+    } else if pyos::isfile(&dest) {
         py.print(&format!("== restored the original {}", pyos::relpath(&dest, &pr.root)?))?;
     } else {
-        if pyos::isfile(&dest) {
-            rm(&dest)?;
-        }
-        rm(&new)?;
         py.print(&format!(
             "== removed the installed {} (the level had no path data before)",
             pyos::relpath(&dest, &pr.root)?
         ))?;
     }
     let trav = traversal_path(&pyos::dirname(&dest)?, lv)?;
-    if pyos::isfile(&trav) {
-        rm(&trav)?;
+    if pyos::isfile(&trav)
+        && led
+            .holders(&game_rel(pr, &trav)?)
+            .map_err(|e| ledger_fail(&e))?
+            .is_empty()
+    {
+        std::fs::remove_file(&trav).map_err(|e| crate::pyproc::os_error(&trav, &e))?;
     }
     Ok(())
 }
@@ -355,11 +461,9 @@ fn status(py: &mut Py, pr: &Project, lv: &str) -> PyResult<()> {
     }
     let built = join(&pr.work, &["navkit", lv, "pathdata.hpd"])?;
     out.push(format!("  built              : {}", when(&built)?));
-    let pd = pr.pathdata(lv)?;
-    let installed = pyos::isfile(&format!("{pd}{BACKUP_SUFFIX}")) || pyos::isfile(&format!("{pd}{NEW_SUFFIX}"));
     out.push(format!(
         "  installed in game  : {}",
-        if installed { "yes" } else { "no" }
+        if installed(pr, lv)? { "yes" } else { "no" }
     ));
     for line in out {
         py.print(&line)?;

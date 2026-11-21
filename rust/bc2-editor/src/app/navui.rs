@@ -264,6 +264,13 @@ impl ViewState {
 
     /// Each frame: the worker's answer, the running command, the project's edits changed (an undo).
     pub(super) fn nav_poll(&mut self, gpu: &GpuCtx, palette: &Palette) {
+        // a running command's end, whichever workspace is shown (round DF1: Install and Restore wait for it)
+        if let Some(j) = self.navs.job.as_mut()
+            && j.done.is_none()
+            && let Some(ok) = j.poll()
+        {
+            self.navs.message = job_message(j, ok);
+        }
         if !self.nav_active() {
             return;
         }
@@ -274,16 +281,6 @@ impl ViewState {
             }
         }
         let mut again = self.navs.poll() || std::mem::take(&mut self.navs.dirty);
-        if let Some(j) = self.navs.job.as_mut()
-            && j.done.is_none()
-            && let Some(ok) = j.poll()
-        {
-            self.navs.message = if ok {
-                format!("navkit {}: done", j.what)
-            } else {
-                format!("navkit {}: failed (its output below)", j.what)
-            };
-        }
         let rev = self.doc.as_ref().map(|d| d.revision);
         if rev != self.navs.drawn {
             self.navs.drawn = rev;
@@ -804,7 +801,9 @@ impl ViewState {
             out.display().to_string(),
         ];
         match nav::start_navkit(&root, &args, "apply") {
-            Ok(j) => {
+            Ok(mut j) => {
+                // a build cut short (the editor closed) leaves no half-written file behind (round DF1)
+                j.partial = Some(out.clone());
                 self.navs.job = Some(j);
                 self.navs.message = if self.nav_kind() == "dice" {
                     "Applying the edits to a copy of DICE's file ...".into()
@@ -848,24 +847,16 @@ impl ViewState {
             return;
         }
         let Some(root) = self.nav_root() else { return };
+        // round DF1 (audit AU4-CON-2): never beside a running build (it writes the file the install copies), and
+        // its Job is never dropped
+        if self.navs.job.as_ref().is_some_and(|j| j.done.is_none()) {
+            self.navs.message = format!("{} not started: {NAV_RUNNING}", plan.what);
+            return;
+        }
+        // round DF1 (audit AU4-CQ-6): run in the background like the build, its end reported by nav_poll
         match nav::start_navkit(&root, &plan.args, plan.what) {
-            Ok(mut j) => {
-                let ok = j.wait();
-                let out = j.output();
-                let tail: Vec<&String> = out.iter().filter(|l| !l.trim().is_empty()).collect();
-                let last = tail
-                    .iter()
-                    .rev()
-                    .take(2)
-                    .rev()
-                    .map(|s| s.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" / ");
-                self.navs.message = if ok {
-                    last
-                } else {
-                    format!("navkit {} failed: {last}", plan.what)
-                };
+            Ok(j) => {
+                self.navs.message = format!("navkit {} ...", plan.what);
                 self.navs.job = Some(j);
             }
             Err(e) => self.navs.message = format!("navkit did not start: {e}"),
@@ -952,8 +943,10 @@ impl ViewState {
             Action::NavTool(t) if t.region() && self.nav_kind() == "dice" => {
                 Some("Region edits need a NavKit base (DICE's data takes only links, route edges, traversals, notes)")
             }
-            Action::NavBuild if self.navs.job.as_ref().is_some_and(|j| j.done.is_none()) => {
-                Some("A navkit command is running")
+            Action::NavBuild | Action::NavInstall | Action::NavRestore
+                if self.navs.job.as_ref().is_some_and(|j| j.done.is_none()) =>
+            {
+                Some(NAV_RUNNING)
             }
             Action::NavInstall if self.nav_out().is_none_or(|p| !p.is_file()) => Some("Build with these edits first"),
             Action::NavRestore
@@ -965,6 +958,33 @@ impl ViewState {
             }
             _ => None,
         }
+    }
+}
+
+/// Why a navkit command waits for the one running (round DF1, audit AU4-CON-2).
+pub const NAV_RUNNING: &str =
+    "A navkit command is running: wait for it (an install beside a build would copy a half-written file)";
+
+/// What the status says when a navkit command ended: a build's end, an install's or a restore's last lines.
+fn job_message(j: &nav::Job, ok: bool) -> String {
+    if j.what == "apply" {
+        return if ok {
+            format!("navkit {}: done", j.what)
+        } else {
+            format!("navkit {}: failed (its output below)", j.what)
+        };
+    }
+    let out = j.output();
+    let tail: Vec<&str> = out
+        .iter()
+        .map(String::as_str)
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+    let last = tail.iter().rev().take(2).rev().copied().collect::<Vec<_>>().join(" / ");
+    if ok {
+        last
+    } else {
+        format!("navkit {} failed: {last}", j.what)
     }
 }
 
