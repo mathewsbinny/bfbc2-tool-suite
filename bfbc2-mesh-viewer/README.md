@@ -1,25 +1,39 @@
 # Mesh viewer (meshview)
 
-Look at Battlefield: Bad Company 2's models from your game copy: a mesh's parts with their colour textures, as a page
-you open in a browser (orbit, zoom, a switch per part, wireframe) and, with `--png`, as a picture.
+A picture of any of Battlefield: Bad Company 2's models from your game copy: a mesh's parts with their colour
+textures, drawn from the side, the top or the front; and the index of the game copy's bundles that other tools read it
+through.
 
 ```
-python meshview.py <mesh>... [--png] [--view side|top|front] [--size W] [--lod N] [--out <folder>]
+python meshview.py <mesh>... [--view side|top|front] [--size W] [--lod N] [--out <folder>]
 python meshview.py find <text>
 ```
 
 `<mesh>` is a mesh asset name, e.g. `Objects/Weapons/Handheld/Beach/M1Garand/M1Garand_Mesh`; several are drawn one
-above the other. Output goes to `<OPFOR>\work\tools_out\meshview` by default. The page loads three.js from a CDN; the
-models and textures are embedded in it, so it is game content: keep it in your work folder, do not share it.
+above the other. The picture goes to `<OPFOR>\work\tools_out\meshview\<names>_<view>.png` by default (`--png` is still
+accepted). It is game content: keep it in your work folder, do not share it.
+
+**To look around a mesh**, open the map editor's **Asset preview** (`bfbc2-editor`; round GR3 retired this tool's
+browser page): pick an object in the asset browser's Place Objects, or any mesh by name in its Meshes mode. It reads
+the mesh as this tool does (the same index and cache) and draws it with this tool's own drawing, so its Side, Top and
+Front views are this command line's pictures pixel for pixel; besides, it orbits, and shows each level of detail, the
+parts (on / off, picked in the view), a blueprint's destruction states, every texture of a part's shader by channel,
+wireframe, normals, the bounds with their measurements, several meshes stacked, and saves a picture.
+`bfbc2-map-editor\EDITOR_ARCHITECTURE.md` 9.3 lists where each feature of the page went.
 
 The first run indexes the game copy's bundles (levels, async weapon / character bundles, the rest) and every level's
-Dx9 shader database, and caches that in `work\tools_out\meshview_index.pkl` (rebuilt when a bundle changes). How a
-mesh is read is in the docstring of `meshview.py` and the console converter's FORMAT.md. Needs Python 3.12+, `numpy`,
-`Pillow` and the suite's Rust core (the bundles are read through it; since round F4 its part reader runs there too).
+Dx9 shader database, and caches that in `work\tools_out\meshview_index.pkl` (rebuilt when a bundle changes; the map
+editor reads and writes the same cache). How a mesh is read is in the docstring of `meshview.py` and the console
+converter's FORMAT.md. Needs Python 3.12+, `numpy`, `Pillow` and the suite's Rust core.
 
 `bin\bfbc2.exe meshview ...` (the suite's `bin\`, round O3) takes the same arguments: it answers `find` and the help
-from a current index in Rust and hands the drawing (the page and the picture) to the Python (the suite's README,
-"bfbc2.exe"). The map editor's asset browser is to take over the viewing (round GR3, `ROADMAP.md`); the picture
-command line stays.
+from a current index in Rust and hands the drawing to the Python (the suite's README, "bfbc2.exe").
+
+`meshview.page()` (the page for a browser) is deprecated: the command line no longer writes it, and it stays only for
+Project OPFOR BFBC2's WW2 tools (`attachments.py`, `scopes.py`), which still write their preview pages with it
+(`RETIRED.md`).
+
+`tests\record_preview_parity.py` records this tool's answers on real meshes (digests only) for the editor's parity
+tests (`rust\bc2-editor\tests\gr3.rs`).
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

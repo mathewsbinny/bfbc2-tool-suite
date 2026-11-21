@@ -3,7 +3,8 @@ r"""meshview.py on the game's files (game tier; skipped without them):
 - the M1 Garand's first-person mesh reads as DICE's parts (2005 + 3825 triangles for the rifle; the bayonet, launcher
   and rifle grenade parts are stubs of 1, 2 and 8), with its colour textures decoded;
 - a weapon from an async bundle (the Vietnam M1 Garand) and a rigid projectile are found and read;
-- the page embeds every part, and the picture shows the model (a few thousand coloured pixels);
+- the page (deprecated since round GR3, kept for OPFOR's WW2 preview pages) embeds every part, and the picture
+  shows the model (a few thousand coloured pixels);
 - a soldier's texture coordinates are its half2 (offset 40), not the grey half4 at 16 that comes first among the
   usage-0 elements (US body: every part with coordinates; most span the texture; mesh.decode reads the same).
 
