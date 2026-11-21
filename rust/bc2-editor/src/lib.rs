@@ -90,6 +90,7 @@ pub mod strip_ui;
 pub mod theme;
 pub mod viewmodes;
 pub mod walk;
+pub mod weather_ui;
 pub mod weatherview;
 pub mod workspace;
 

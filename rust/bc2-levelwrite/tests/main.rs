@@ -22,6 +22,7 @@ mod export_ex1;
 mod export_sp01;
 mod project_versions;
 mod real_levels;
+mod vw2;
 
 /// At most this many of the binary's tests run at the same time.
 const GATE: usize = 2;
