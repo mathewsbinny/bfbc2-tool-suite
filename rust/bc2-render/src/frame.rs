@@ -178,15 +178,30 @@ fn floats(m: &Mat) -> Vec<f32> {
     m.iter().map(|&v| v as f32).collect()
 }
 
-/// A shader's `$Globals` (`renderqa.cbuffer` / `strip_cbuffer`): engine values by name; the material's constants by
-/// register, only inside the shader's own `constants` array; then `extra` at their registers (the engine-named block
-/// constants of a terrain shader).
+/// The registers `[first, end)` of a shader's `$Globals` that hold its material (RNDR-DRAW-8, round R5e): the shader's
+/// own `constants` array (every DICE program's: the block header's window is the same registers), else `block`, the
+/// window its parameter block's header gives ([`bc2_formats::shaderdb::query::block_registers`]): OPFOR's translated
+/// BF1943 water reads its material in `waterMaterial`.
 #[must_use]
-pub fn cbuffer(r: &Reflection, values: &Values, material: &[(u8, [f32; 4])], extra: &[(u8, [f32; 4])]) -> Vec<u8> {
+pub fn material_window(r: &Reflection, block: Option<[u8; 2]>) -> Option<(usize, usize)> {
+    r.var("constants")
+        .map(|v| (v.offset as usize / 16, (v.offset + v.size) as usize / 16))
+        .or_else(|| block.map(|[a, b]| (usize::from(a), usize::from(b))))
+}
+
+/// A shader's `$Globals` (`renderqa.cbuffer` / `strip_cbuffer`): engine values by name; the material's constants by
+/// register, only inside the shader's material registers ([`material_window`]; `block`: its block header's); then
+/// `extra` at their registers (the engine-named block constants of a terrain shader).
+#[must_use]
+pub fn cbuffer(
+    r: &Reflection,
+    values: &Values,
+    material: &[(u8, [f32; 4])],
+    block: Option<[u8; 2]>,
+    extra: &[(u8, [f32; 4])],
+) -> Vec<u8> {
     let mut buf = vec![0f32; r.globals_size() / 4];
-    let constants = r
-        .var("constants")
-        .map(|v| (v.offset as usize / 16, (v.offset + v.size) as usize / 16));
+    let constants = material_window(r, block);
     for v in &r.globals {
         let Some(x) = values.get(&v.name) else { continue };
         let at = v.offset as usize / 4;
@@ -371,7 +386,7 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
                     Some((*reg, [0, 1, 2, 3].map(|k| v.get(k).copied().unwrap_or(0.0))))
                 })
                 .collect();
-            // the named values after the stored ones: written over them, inside each shader's own `constants`
+            // the named values after the stored ones: written over them, inside each shader's material registers
             let material: Vec<(u8, [f32; 4])> = d.material.iter().chain(&named).copied().collect();
             let call = DrawCall {
                 vs: Arc::clone(&d.vs),
@@ -384,8 +399,8 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
                 wide: p.wide,
                 index_count: d.index_count,
                 first_index: d.first_index,
-                cb_vs: cbuffer(&d.vs_reflect, &vals, &material, &d.vs_extra),
-                cb_ps: cbuffer(&d.ps_reflect, &vals, &material, &d.ps_extra),
+                cb_vs: cbuffer(&d.vs_reflect, &vals, &material, None, &d.vs_extra),
+                cb_ps: cbuffer(&d.ps_reflect, &vals, &material, d.ps_window, &d.ps_extra),
                 samplers: d.samplers.clone(),
                 vs_samplers: d.vs_samplers.clone(),
                 textures: d.textures.clone(),
@@ -578,14 +593,50 @@ mod tests {
         };
         let mut v = Values::new();
         v.insert("cameraPos".into(), vec![1.0, 2.0, 3.0, 9.0]);
-        let b = cbuffer(&r, &v, &[(1, [7.0; 4]), (2, [5.0; 4]), (9, [4.0; 4])], &[(1, [6.0; 4])]);
-        let f: Vec<f32> = b
+        let floats = |b: Vec<u8>| -> Vec<f32> {
+            b.chunks_exact(4)
+                .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                .collect()
+        };
+        let material = [(1, [7.0; 4]), (2, [5.0; 4]), (9, [4.0; 4])];
+        // the block's window does not move a shader's own `constants`
+        for block in [None, Some([1, 2])] {
+            let f = floats(cbuffer(&r, &v, &material, block, &[(1, [6.0; 4])]));
+            assert_eq!(f.len(), 16);
+            assert_eq!(&f[..4], &[1.0, 2.0, 3.0, 0.0]); // the size cuts the fourth
+            assert_eq!(&f[4..8], &[6.0; 4]); // extra at its register
+            assert_eq!(&f[8..12], &[5.0; 4]); // material inside constants
+        }
+    }
+
+    #[test]
+    fn a_shader_without_constants_takes_the_material_in_its_block_window() {
+        // Wake's water (round R5e): `waterMaterial` at registers 2 - 3, the block header's window [2, 4)
+        let r = Reflection {
+            globals: vec![
+                Var {
+                    name: "cameraPos".into(),
+                    offset: 0,
+                    size: 16,
+                },
+                Var {
+                    name: "waterMaterial".into(),
+                    offset: 32,
+                    size: 32,
+                },
+            ],
+            resources: Vec::new(),
+        };
+        let v = Values::new();
+        let material = [(0, [9.0; 4]), (3, [5.0; 4])];
+        let f: Vec<f32> = cbuffer(&r, &v, &material, Some([2, 4]), &[])
             .chunks_exact(4)
             .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect();
-        assert_eq!(f.len(), 16);
-        assert_eq!(&f[..4], &[1.0, 2.0, 3.0, 0.0]); // the size cuts the fourth
-        assert_eq!(&f[4..8], &[6.0; 4]); // extra at its register
-        assert_eq!(&f[8..12], &[5.0; 4]); // material inside constants
+        assert_eq!(&f[..4], &[0.0; 4]); // outside the window: not written
+        assert_eq!(&f[12..16], &[5.0; 4]);
+        // no window: nothing of the material written (R5d's black sea)
+        let none = cbuffer(&r, &v, &material, None, &[]);
+        assert!(none.iter().all(|&b| b == 0));
     }
 }

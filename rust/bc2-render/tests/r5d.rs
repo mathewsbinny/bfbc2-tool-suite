@@ -38,7 +38,7 @@ use bc2_render::terrain::{HEIGHTMAP, PATCH_STRIDE};
 use bc2_render::world::World;
 
 /// A level of the work folder (prepared) or of the game copy (Package), loaded; `None` (with a note) when absent.
-fn world(opfor: &Path, lv: &str) -> Option<World> {
+pub(crate) fn world(opfor: &Path, lv: &str) -> Option<World> {
     let prepared = opfor.join("work").join("levels").join(lv).join("dist").is_dir();
     let package = files::package_stack(&opfor.join("game"), lv).is_some()
         && opfor.join("work").join("editor").join("levels").join(lv).is_dir();

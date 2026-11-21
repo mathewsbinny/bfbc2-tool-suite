@@ -118,10 +118,17 @@ enum Src {
 }
 
 /// [`crate::frame::cbuffer`] as a plan: the same writes in the same order (engine values by name, the material by
-/// register inside the shader's `constants`, then `extra`), the per-frame values as holes.
+/// register inside the shader's material registers ([`crate::frame::material_window`]), then `extra`), the per-frame
+/// values as holes.
 #[must_use]
-pub fn plan(r: &Reflection, values: &Values, material: &[(u8, Item)], extra: &[(u8, [f32; 4])]) -> Plan {
-    plan_with(r, values, material, extra, false)
+pub fn plan(
+    r: &Reflection,
+    values: &Values,
+    material: &[(u8, Item)],
+    block: Option<[u8; 2]>,
+    extra: &[(u8, [f32; 4])],
+) -> Plan {
+    plan_with(r, values, material, block, extra, false)
 }
 
 /// [`plan`], with `worldMatrix` a per-frame value when the instance follows the camera ([`Dyn::World`]).
@@ -130,13 +137,12 @@ pub fn plan_with(
     r: &Reflection,
     values: &Values,
     material: &[(u8, Item)],
+    block: Option<[u8; 2]>,
     extra: &[(u8, [f32; 4])],
     follow: bool,
 ) -> Plan {
     let mut buf = vec![Src::Const(0.0); r.globals_size() / 4];
-    let constants = r
-        .var("constants")
-        .map(|v| (v.offset as usize / 16, (v.offset + v.size) as usize / 16));
+    let constants = crate::frame::material_window(r, block);
     for v in &r.globals {
         let at = v.offset as usize / 4;
         let n = v.size as usize / 4;
@@ -398,8 +404,8 @@ pub fn instance(source: Source, base: &Values) -> Inst {
                 _ => None,
             };
             InstDraw {
-                vs: plan_with(&d.vs_reflect, &vals, &material, &d.vs_extra, follow),
-                ps: plan_with(&d.ps_reflect, &vals, &material, &d.ps_extra, follow),
+                vs: plan_with(&d.vs_reflect, &vals, &material, None, &d.vs_extra, follow),
+                ps: plan_with(&d.ps_reflect, &vals, &material, d.ps_window, &d.ps_extra, follow),
                 bounds,
                 centre,
                 class: d.class,
@@ -862,26 +868,31 @@ mod tests {
         // register 8 named cameraPos: the frame's value over the stored one
         let named = [(8u8, [1.0, 2.0, 3.0, 4.0])];
         let all: Vec<(u8, [f32; 4])> = mat.iter().chain(&named).copied().collect();
-        let want = cbuffer(&r, &v, &all, &[(7, [8.0; 4])]);
         let items: Vec<(u8, Item)> = mat
             .iter()
             .map(|(r, x)| (*r, Item::Const(*x)))
             .chain([(8u8, Item::Named(Dyn::CameraPos))])
             .collect();
-        let p = plan(&r, &v, &items, &[(7, [8.0; 4])]);
-        let mut got = p.bytes.clone();
-        for h in &p.holes {
-            let src = match h.key {
-                Dyn::ViewProj => &vp,
-                _ => &v["cameraPos"],
-            };
-            for c in 0..usize::from(h.count) {
-                let o = (h.at as usize + c) * 4;
-                got[o..o + 4].copy_from_slice(&src[usize::from(h.from) + c].to_le_bytes());
+        // the shader's `constants`; then the same registers named otherwise, the block header's window (round R5e)
+        let mut other = r.clone();
+        other.globals[3].name = "waterMaterial".into();
+        for (r, block) in [(&r, None), (&other, Some([6, 9]))] {
+            let want = cbuffer(r, &v, &all, block, &[(7, [8.0; 4])]);
+            let p = plan(r, &v, &items, block, &[(7, [8.0; 4])]);
+            let mut got = p.bytes.clone();
+            for h in &p.holes {
+                let src = match h.key {
+                    Dyn::ViewProj => &vp,
+                    _ => &v["cameraPos"],
+                };
+                for c in 0..usize::from(h.count) {
+                    let o = (h.at as usize + c) * 4;
+                    got[o..o + 4].copy_from_slice(&src[usize::from(h.from) + c].to_le_bytes());
+                }
             }
+            assert_eq!(got, want);
+            assert_eq!(p.holes.len(), 3, "{:?}", p.holes);
         }
-        assert_eq!(got, want);
-        assert_eq!(p.holes.len(), 3, "{:?}", p.holes);
     }
 
     #[test]

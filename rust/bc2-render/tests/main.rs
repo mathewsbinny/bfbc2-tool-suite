@@ -19,6 +19,7 @@ use std::sync::{Condvar, Mutex, PoisonError};
 mod common;
 mod live;
 mod r5d;
+mod r5e;
 mod warehouse;
 mod weather_refs;
 mod whole_terrain;

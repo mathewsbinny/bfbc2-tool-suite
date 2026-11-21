@@ -39,8 +39,9 @@ minor: `RELEASING.md`).
    edges - the terrain's height scale, the water's height map and the mask tiles spanning blocks of cells -, the sky
    dome, mesh and terrain levels of detail, labels hidden behind the game frame, Package levels opened 4-12 x
    faster). Left, with reasons in `rust/BENCHMARKS.md` "R5d": the instanced programs (`StreamInstancingFloat`), the
-   panoramic clouds' composite and `MinScreenArea` (capture), the haze over the scene that would turn Wake's deep sea
-   blue (the fog: RenderDoc, item 7), the far-water pixels (not reproduced in 400 runs).
+   panoramic clouds' composite and `MinScreenArea` (capture), the haze over the scene (the fog: RenderDoc, item 7),
+   the far-water pixels (not reproduced in 400 runs). ~~The WW2 deep sea drawn black~~ (R5e, done: the water's
+   material registers, not the haze).
 4. **PR1, the post-Rust improvements** (re-scoped 2026-11-20 by PR0 against S1, QW1 and audit AU2): stable test
    IDs, a determinism rule and two-seed check, one native-backend registry; one cache layer with content keys,
    restart points instead of whole payloads (and one BF1943 bundle reader), CT1-style memory fixes, one cull-tree
@@ -66,7 +67,7 @@ minor: `RELEASING.md`).
 | Round | Branch | What |
 |---|---|---|
 | GR3 | `gr3` | the mesh viewer folded into the asset browser's preview, then retired (its PNG command line kept) |
-| R5e | `r5e` | the game-accurate view's open sea drawn black beyond the shallows (WW2 maps and others; the game draws it) |
+| OP1 | `op1` | the editor's core before E5: operations on any file of a level, delta storage, a journalled autosave, typed errors and state enums, the UI state split |
 
 ## Queued
 
@@ -130,6 +131,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Merged | Result |
 |---|---|---|
+| R5e | 2026-11-21 | the WW2 open sea drawn (Wake Island, Guadalcanal, Iwo Jima, Coral Sea): a program's material goes to its block header's registers (`[0x19, 0x18)`), not only to a variable named `constants`; OPFOR's translated BF1943 water (`waterMaterial`) now gets its `g_depthScaleFactors`, so its alpha is no longer 0 everywhere. Wake 600 m out 53.5 % -> 0.0 % near-black; DICE's MP_005 and SP_01 bit for bit as before |
 | DF1 | 2026-11-21 | the editor's state and gating (audit AU4, 19 findings, all fixed; three parts left with reasons in `rust/BENCHMARKS.md` "DF1": the game view's load on a worker, a keyed-mutex handover of the shared frames, navkit apply's in-place `--out`): a project generation counted on every show / close, the side state bound to it (a failed Create no longer re-modes the next project; the Export window lets go of a closed project and writes into no other; a preview dropped with its project); Export, Install / Uninstall and the navkit commands wait for each other, in words (Install now takes the planned stage only); dead workers reported; Export reads the project's own saved state; closing the window asks while work runs; device-lost recovery, textures freed with their views; no voice-over block without its `bundleManifest` line. OP1 later turns the side state into state enums |
 | R5d | 2026-11-21 | the game-accurate view's visual gaps: Wake Island's and Coral Sea's black ground (the height scale, the water's height map, mask tiles spanning 8 x 8 / 4 x 4 cells: the ragged WW2 shores too), the sky dome (`EnvironmentMain`), mesh LODs from the mesh sets' LOD settings and crack-free terrain LODs, labels hidden behind the game frame, Package levels through the bundle cache (Wake 17.7 s to 4.6 s cold, 1.4 s warm) |
 | VW2 | 2026-11-21 | the mode view layer (every object, the mode layer only or the world, one Rush stage as played: L1's simulation, its bases per stage proved on 4 levels) in both views, the outliner and the overlays; the weather picker in both views (the game-accurate view draws a state, opens on the spawn-time switch; the simplified view tinted by the state's look, measured against the frames); exports start in a state (**VW2a**: ActiveState and the spawn switch together), another level's state appended or its whole system swapped (**VW2b**, with the 4-byte WeatherSystem resource), or at night (**VW2c**: `ons_mp_002_night` as the template, cube and panorama darkened; the lamp tool left), rain as a borrowed state only (VW2d's effects and sounds left); six canaries byte for byte against their baselines, install and revert exact; night / rain off by default |
