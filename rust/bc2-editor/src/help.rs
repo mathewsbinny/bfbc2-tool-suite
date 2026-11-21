@@ -213,7 +213,7 @@ pub const WORKSPACES: [Workspace; 6] = [
 ];
 
 /// The getting-started guide: (title, text) steps.
-pub const GETTING_STARTED: [(&str, &str); 9] = [
+pub const GETTING_STARTED: [(&str, &str); 10] = [
     (
         "Start: three paths",
         "The start screen offers three buttons. Open project opens a map project you saved (a .mapedit.json file; \
@@ -268,6 +268,15 @@ pub const GETTING_STARTED: [(&str, &str); 9] = [
         "Find any command",
         "Ctrl+Shift+P opens the command palette: type a few letters of what you want to do and press Enter. Every \
          button of the top bar is there too, with its shortcut.",
+    ),
+    (
+        "Export and install",
+        "With a project open, Export as a multiplayer level (command palette) opens the Export window: the era and \
+         game mode, the map's name and level id. Its checks run as you type; Export stays greyed, with the reason, \
+         until they pass. Export builds the new level into a stage folder in Project OPFOR's work folder and checks \
+         it. Install... shows what an install changes in the game copy, Install now (with the game closed) adds the \
+         level under its new name, and Uninstall... takes it out again. The game's own levels are never \
+         overwritten.",
     ),
 ];
 

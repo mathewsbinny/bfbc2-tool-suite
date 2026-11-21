@@ -160,7 +160,7 @@ a new level (8,578 references into 777 partitions on SP_01).
 
 [code: rust/bc2-levelwrite/src/export.rs:1541-1600] [code: rust/bc2-levelwrite/src/export.rs:254-273]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
-[doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:879-883]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:879-883]
 
 ### REF-RES-3: Stock data has dangling external references
 
@@ -171,7 +171,7 @@ DICE's own partitions contain external references to partitions that no bundle o
 the stock source partition has the same reference.
 
 [data: level corpus: 89,974 external references name a partition path outside the 41 level bundles (they may resolve in ingame, loader, startup or async bundles, or nowhere); SP_01 export: 2 partitions no bundle of the game copy has, both named by DICE's own source]
-[code: rust/bc2-levelwrite/src/export.rs:1600-1640] [doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:881-883]
+[code: rust/bc2-levelwrite/src/export.rs:1600-1640] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:881-883]
 
 ### REF-RES-4: Two-step blueprint references
 
@@ -194,7 +194,7 @@ does not create it, and the placement reads a null blueprint during the level ch
 Island's first load).
 
 [exe: BFBC2Game.exe 0x6EFCA4, null blueprint read in the level checksum]
-[code: opfor:src/tools/ww2/wake_install.py:1276-1280] [doc: bfbc2-map-inspector/EDITOR_ARCHITECTURE.md:93-94]
+[code: opfor:src/tools/ww2/wake_install.py:1276-1280] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:93-94]
 
 ## 5. Removing a target
 

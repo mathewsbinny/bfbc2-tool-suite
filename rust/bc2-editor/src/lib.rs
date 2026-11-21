@@ -1,4 +1,4 @@
-//! The BFBC2 Tool Suite's map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8, 3.9): one
+//! The BFBC2 Tool Suite's map editor application (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.8, 3.9): one
 //! window in Rust and egui, its look generated from the suite's design language (`design/project/tokens.json`).
 //!
 //! Round G1 (2026-11-18): the shell and the read-only map view - the start screen ("View a map": the game copy's

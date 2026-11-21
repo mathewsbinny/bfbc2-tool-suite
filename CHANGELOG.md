@@ -48,7 +48,7 @@ landed on `main`.
   solid, event connections dashed, arrows by direction; K shows or hides them). **Measure** (M): clicks add points;
   the last segment's length, horizontal distance, height and slope, the path's total, the height above the terrain
   and below the water. A project's links and fields are read from its edited partition. The plan for the other
-  GUIs is `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` section 9.
+  GUIs is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` section 9.
 - **Specification:** the engine specification's first two layers, the file formats and the data model (`spec/`,
   439 rules with their evidence; `spec/trace.py` checks the index).
 
@@ -71,6 +71,13 @@ landed on `main`.
   then the install on confirmation).
 
 ### Changed
+- **The map editor's own folder** (round FM1): `bfbc2-map-editor\` holds the editor's README (what it does, how to
+  build and run it, its command-line switches, `mapexport.exe`, its tests) and its design document,
+  `EDITOR_ARCHITECTURE.md` (moved from `bfbc2-map-inspector\` with its history; new section 10: the planned AI
+  workspaces). The root README keeps a summary. `RETIRED.md` is the one record of retired tools, with the
+  retirement checklist (`RELEASING.md` points at it). The editor's Help guide has an Export and install step; the
+  hub's Xbox files tab runs `bfbc2.exe stfs` / `xiso` (the Python without the binary); `bfbc2.exe caches` and the
+  Python no longer class OPFOR's deleted `work\import_backup` and `work\ledgertest`.
 - **Map projects are format version 2** (round GR2: the navigation edits are new operation kinds). Version-1
   projects load unchanged (`bc2_levelwrite::project::migrate`, one step at a time; 1 to 2 changes nothing); a
   project from a newer editor is refused in words ("made by a newer editor version (project format N); this editor
@@ -145,6 +152,10 @@ landed on `main`.
   panel were already the editor's; its property tree, "referenced by", link lines and Measure are the editor's All
   fields, Links and Measure (above). The hub's Levels tab opens levels in the map editor; the folder keeps
   `EDITOR_ARCHITECTURE.md` and a README saying where each feature went.
+- **`bfbc2-map-inspector\`** (round FM1): its README's table is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.1, the
+  plan moved to `bfbc2-map-editor\`. **The placeholder folders** `bfbc2-ai-behavior-simulator\`,
+  `bfbc2-bot-ai-debugger\` and `bfbc2-tactical-map-authoring-tool\` (a README each, never built): they are planned
+  map editor workspaces (`EDITOR_ARCHITECTURE.md` section 10). `RETIRED.md` has the last commits that had them.
 
 ## [0.9.0] - 2026-11-19
 

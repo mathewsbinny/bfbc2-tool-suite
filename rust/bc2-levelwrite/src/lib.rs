@@ -1,4 +1,4 @@
-//! The map editor's level writer and map project (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.1, 3.2 item 4;
+//! The map editor's level writer and map project (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.1, 3.2 item 4;
 //! round E2, 2026-11-18).
 //!
 //! - [`project`]: the map project, `<name>.mapedit.json`: the base level (its name, partition, sha1 and content

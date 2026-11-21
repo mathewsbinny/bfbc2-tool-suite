@@ -7,8 +7,9 @@ module put into core\bfbc2core\bc2_native.pyd, where bfbc2core finds it (README.
                                            3.12 or later)
   python rust\build_native.py --if-stale   only when the module is missing or was made from other sources: build it
                                            when Rust and maturin are there, else download it
-  python rust\build_native.py --remove     delete the module (texture conversion and NavKit's builds then stop with
-                                           an error saying how to get it; the readers run in Python)
+  python rust\build_native.py --remove     delete the module (the module is required since round F1a: the core
+                                           formats - dbx, fbrb, terrain, water, collision, level - texture conversion
+                                           and NavKit's builds then stop with an error saying how to get it)
   python rust\build_native.py --fingerprint   print this checkout's source fingerprint (the release tag's)
   python rust\build_native.py --editor     build the map editor (bfbc2-editor.exe) and mapexport.exe into bin\
   python rust\build_native.py --target-dir print cargo's build folder for this checkout

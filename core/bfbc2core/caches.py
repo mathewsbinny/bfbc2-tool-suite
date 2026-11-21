@@ -739,8 +739,8 @@ WORK_KINDS: dict[str, str] = {
     'console_deps': 'scratch', 'console_input': 'scratch', 'console_loading': 'scratch', 'console_loadset': 'scratch',
     'console_mode': 'scratch', 'console_soldiers': 'scratch', 'console_vehicles': 'scratch', 'console_cull': 'scratch',
     'console_markv': 'scratch', 'console_icons': 'scratch', 'console_shaders': 'scratch', 'combat_a': 'scratch',
-    'combat_b': 'scratch', 'sectoroff': 'scratch', 'menus': 'scratch', 'ledgertest': 'scratch',
-    'console_hud': 'backup', 'backups': 'backup', 'import_backup': 'backup', 'logs-archive': 'backup',
+    'combat_b': 'scratch', 'sectoroff': 'scratch', 'menus': 'scratch',
+    'console_hud': 'backup', 'backups': 'backup', 'logs-archive': 'backup',
 }
 KINDS = ('input', 'output', 'cache', 'scratch', 'backup', 'unknown')
 

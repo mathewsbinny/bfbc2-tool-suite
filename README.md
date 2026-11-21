@@ -75,22 +75,23 @@ log file.
 | `bfbc2-anim-tools/` | **Granny tools** (`granny.py`): the soldier skeleton and animations - bones, tracks and curves decoded; a bone's position track moved (constant, quantized, re-quantized ramp) with the Granny CRC recomputed; orientation curves written (`set_orientations`); tracks added from a donor (`add_tracks`); Xbox 360 resources read and converted to the PC's format (`topc`), DICE's bone table renumbered onto another skeleton; reading and `to_pc` in the Rust core when it is built, `to_pc_many` / `roots` for many files on all cores; generated aim poses (`aimanim.py`) |
 | `bfbc2-bf1943-import/` | **Battlefield 1943 import**: the user's BF1943 Xbox 360 resources into BFBC2's PC formats, from the user's own copy - animations, skeletons and textures (`bf1943import.py`, a record per resource in `import.json`; the 3p undeploys get the tracks DICE adds), models (`meshport.py`), physics (`havokport.py`, Havok 4.6.1 -> 5.5.0; `mopp.py` decodes and checks the MOPP trees), DBX partitions (`dbxport.py` on BFBC2's own schema from `dbxcatalogue.py`; `dbxparity.py` / `portparity.py` against DICE's own conversions), effects (`effectport.py`) and merged emitter atlases (`emitteratlas.py`) |
 | `core/` | the shared core (Python over the Rust core, `bc2_native`): `.dbx` (reader and writer), `.fbrb` bundles (read, pack, unpack), terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking; `paths.py`, the one place that finds Project OPFOR BFBC2, its game copy, the built tools and the sibling projects (every tool's own locator wraps it) |
-| `bfbc2-map-inspector/` | the map editor's plan (`EDITOR_ARCHITECTURE.md`); the **Map Inspector** that was here was retired in round GR1 (2026-11-20): its views are the map editor's Properties (All fields), Links and Measure (the folder's README) |
+| `bfbc2-map-editor/` | the map editor's README (build, run, what it does) and design document (`EDITOR_ARCHITECTURE.md`); its code is in `rust/bc2-editor` and the crates it names. The Map Inspector it grew from was retired in round GR1 (2026-11-20; `RETIRED.md`) |
 | `bfbc2-navigation-studio/` | `overlay.py`: a reference level's AI layer against a level's NavKit build, and the anomalies of a NavKit build, as JSON (headless). The Navigation Studio's window was retired in round GR2 (2026-11-20): its views and edits are the map editor's AI workspace ("The map editor") |
 | `bfbc2-stockmp-ai/` | **stock-MP AI layer**: gives a stock multiplayer level AI spawners, AI orders and their event wiring (HasAI, PathfindingTypes, SectorOffsets, AI template), proposed from the level's own objectives and spawns, built into its bundles and checked offline (`stockmp.py`) |
 
 **Planned** (see [DESIGN.md](DESIGN.md)). The user's plan of 2026-11-19 (`ROADMAP.md`): the bot AI debugger, the
 tactical map authoring tool and the AI behaviour simulator become workspaces of the map editor rather than tools of
-their own.
+their own (their plans: `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` section 10). Planned tools get no folders of their
+own until they are built (`RETIRED.md`).
 
 | Folder | Tool | Milestone |
 |---|---|---|
 | `rust/bc2-editor` (AI workspace) | M4 step 7: an in-game check that the game's AI uses a hand-made link (steps 1-6 - path test, editing, side files, `navkit apply`, install - are done) | M4 |
 | `bfbc2-automated-map-and-bot-test-harness/` | in-game tests: `testrun.bat` per level (on hold: the user paused in-game tests on 2026-11-20), bot traversal, stuck detection, squads and vehicles from OPFOR's telemetry | M6, then growing |
-| `bfbc2-bot-ai-debugger/` | live view of the AI while the game runs (through Project OPFOR BFBC2) | M6 |
-| `bfbc2-tactical-map-authoring-tool/` | tactical annotations above the navigation data for bots | M7 |
+| `rust/bc2-editor` (bot AI debugger workspace) | live view of the AI while the game runs (through Project OPFOR BFBC2): `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.2 | M6 |
+| `rust/bc2-editor` (tactical authoring workspace) | tactical annotations above the navigation data for bots: `EDITOR_ARCHITECTURE.md` 10.1 | M7 |
 | `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs (LevelDiff, in `level-diff/`, is ready) | alongside |
-| `bfbc2-ai-behavior-simulator/` | runs OPFOR's bot decision code on simplified maps, without the game | with Goal 3 |
+| `rust/bc2-editor` (AI behaviour simulator workspace) | runs OPFOR's bot decision code on simplified maps, without the game: `EDITOR_ARCHITECTURE.md` 10.3 | with Goal 3 |
 
 The asset builder & validator, `bfbc2-asset-builder`, is part of the Project OPFOR BFBC2 repository (DESIGN.md
 section 4.9).
@@ -110,201 +111,33 @@ shows the GPU it uses. On a laptop with two GPUs, Windows may give it the slower
 
 ## The map editor (preview: view a map, edit a copy of it)
 
-`rust/bc2-editor` is the map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8 - 3.12), in Rust
-with egui on wgpu (Vulkan, DirectX 12 or a software adapter). Its rounds (`ROADMAP.md`, Done): G1 - G3 (2026-11-18)
-the shell, the read-only map view and the Package-only levels; E2 (2026-11-18) and E2b (2026-11-19) editing a map as
-a **map project**; R5 - R5c (2026-11-18 / 19) the game-accurate view; G4 (2026-11-19) the start flow; E3 - E3d
-(2026-11-18 / 20) export as a new multiplayer level of any era and mode, with Install and Uninstall through Project
-OPFOR; GR1 (2026-11-20) the Map Inspector folded in and retired: Properties' *All fields* (every field of an object,
-nested, with its type), the *Links* panel (references, referenced by and event connections, both ways; K draws them
-in the views) and Measure (M). The editor's exports are built and checked offline; none has been tested in the game
-yet (the user paused in-game tests on 2026-11-20).
+The map editor (`bin\bfbc2-editor.exe`; its code in `rust/bc2-editor`, `bc2-levelwrite`, `bc2-render` and
+`bc2-scene`) has its own folder since round FM1: **[bfbc2-map-editor/README.md](bfbc2-map-editor/README.md)** (what
+it does, how to build and run it, its command-line switches, `mapexport.exe`, its tests) and its design document,
+[bfbc2-map-editor/EDITOR_ARCHITECTURE.md](bfbc2-map-editor/EDITOR_ARCHITECTURE.md).
 
-**The start screen (round G4).** Three paths: **Open project** (a `.mapedit.json`; the recent projects are listed),
-**Edit existing level** (the four sets - BFBC1, BFBC2, Vietnam, WW2 - as cards, then that set's multiplayer maps:
-**Open** views one read-only, **New project** starts a project on it) and **Create level** (from any existing level,
-campaign levels included, whose campaign parts the export's checklist strips; or from a height map - a 16-bit PNG or
-RAW of 1024 / 2048 samples a side, or 1025 / 2049, its size, height range, water level and the set its content
-comes from, recorded in the project; the terrain itself is generated in a later round, E7). **Back** goes up a step.
-
-**Editing a map (rounds E2, E2b).**
-
-- **A project:** a new project gets a name and a folder (default `Documents\BFBC2 Map Projects`); the editor writes
-  `<name>.mapedit.json` there at once and opens it in the **Objects** workspace. Opening a project loads its base
-  map first. The workspaces: View, Objects, Gameplay (flags, spawns, vehicle spawns, objectives and areas only),
-  AI (orders, AI spawns and area points; the navmesh view), and Terrain and Vegetation (their brushes greyed until
-  their rounds). Round E2b added context menus per workspace, edit modes, sinking an object into the surface with
-  Alt+wheel, deep duplicate (what an object owns comes with it), copy and paste, polygon selection, and the
-  **asset browser** over the whole content set with its Spawners and Objectives modes. The project is data only - the base level, its partition's sha1, the content profile and the operation log (each
-  operation with who and when, new objects named by UUIDv5 guids) - never game files; the base map is never changed.
-  A project whose base level has changed (a game patch, a rebuilt WW2 level) opens with the operations naming
-  objects it no longer has listed under Problems; none is dropped.
-- **Select:** click (with its group), Ctrl or Shift + click adds or removes, drag a box on empty ground (Select tool,
-  or any tool off the gizmo). Alt + left drag orbits (pans in the top / front / side views) while editing.
-- **Gizmo** (toolbar at the top of each view; **Q** select, **W** move, **E** rotate, **R** ruler, **X** world or
-  local axes): drag an arrow, a plane square or the centre to move, a ring to turn; the dragged handle turns
-  orange, the arms are in the axis colours. **Snapping:** grid (**G**, its size in metres), angle (its step in
-  degrees), vertex (**V**: the pivot goes to the corner under the pointer, Shift for the edge), and **surface**
-  (**B**): moved objects sit on the terrain or mesh below them, sunk by the **sink depth** (metres, or a percentage
-  of the object's height; along the surface normal or straight down; optionally turned to the normal). The depth is
-  stored with the object's operation and kept when it is moved again; Properties shows and changes it per object
-  ("Place on surface"). **End** (Snap to ground) puts the selection on the surface below it.
-- **Delete** (Del: the object, its array entries elsewhere, and its event connections), **Duplicate** (Ctrl+D: a copy
-  with a new guid, in `LevelData.Objects` and with copies of its event connections, 2 m along X and selected),
-  **Align** on X / Y / Z (to the primary, the last selected) and **Distribute** on X / Z, **Group** (Ctrl+G) and
-  **Ungroup** (Ctrl+Shift+G), from the command palette.
-- **Ruler** (R): click two points (vertex snapping applies); the distance, its horizontal part and the height
-  difference.
-- **Layers** panel: a layer from the selection, hide, isolate, lock (locked objects cannot be selected in the views),
-  colour (shown beside its objects in the outliner); objects stay in the build when hidden. **Folders** (Properties >
-  Folder, `Buildings/North`) and groups are listed at the top of the outliner.
-- **Properties:** position and yaw as numbers, the surface placement, the layer and folder, and the object's own
-  fields typed from the level's data (`dbxcatalogue`'s rules: text with the values the level uses, yes / no, whole
-  numbers, decimals; a number the data does not say is whole or decimal is shown, not written).
-- **History** panel: every operation with who and when; click one to undo or redo to it. **Ctrl+Z** / **Ctrl+Y**
-  (or Ctrl+Shift+Z). **Ctrl+S** saves; every change is written at once to `<name>.mapedit.json.autosave`, and a
-  project opened with an autosave that differs from it offers to recover it. **Check edits** (palette) applies the
-  whole log to the base partition again and says what it changes.
-
-The edits are written by `rust/bc2-levelwrite` (levelwrite: one mutation API on the level partition, the port of
-`dbxbin`; README of the crate in its `lib.rs`): an untouched partition writes back byte for byte, a moved object
-changes only its `Transform`, and a delete, duplicate or field set only what it names (proven on MP_005, SP_01 and
-Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.md`, "E2").
-
-**The game-accurate view (rounds R5 - R5c).** "Game-accurate view" (command palette) draws the 3D view as the game
-draws it: DICE's own Direct3D 11 shaders, textures and the level's light, pixel for pixel against the C++ render
-harness. Since R5c it is interactive and editable: edits show at once and picking works in it. Its known gaps (Wake
-Island's black terrain cells, the sky pass, game LODs ...) are round R5d (`ROADMAP.md`).
-
-**Exporting a map (rounds E3 - E3d).** "Export as a multiplayer level" (command palette) opens the Export window:
-
-- **The target:** the era (BFBC1, BFBC2, Vietnam, WW2) and the game mode are project settings, also chosen in the
-  New project form. Only the modes the era's stock levels have are offered (WW2: Conquest; Onslaught and Air
-  Superiority are listed greyed with the reason). Choosing a target brings the donor level's mode layer into the
-  project as ordinary, editable objects (flags, bases, M-COMs per Rush stage, spawns, combat areas) and takes the
-  base's own layer out, as one undo step; "Use selection" moves a flag, base or M-COM with what belongs to it.
-- **The export:** the form (map name, level id, the target) is kept as `<project>.export.json`; its checks run as it
-  changes and Export stays disabled, with the reason, while one fails. Export builds the level on a worker into a
-  stage folder in Project OPFOR's `work\mapedit\` - the level's bundles, its own name and description in every
-  language, its loading and map-list pictures, the target era's kits, teams and announcer voice-over, and what the
-  level needs from other sets' bundles copied into its own (`closure.txt`) - then runs `mapexport check` and shows
-  the report. The same from a command prompt: `bin\mapexport.exe build <project> <export.json> --game <game> --out
-  <stage>` and `bin\mapexport.exe check <stage> --game <game>`.
-- **Install and Uninstall:** "Install..." runs Project OPFOR's `src\tools\mapedit\mapedit_install.py --plan` and shows
-  what an install changes; "Install now" (the game closed) runs `--apply`; "Uninstall..." runs `--revert <LV>`. The
-  editor itself never writes the game copy.
-
-Six canary exports (Aurora as WW2 Conquest with WW2 objects, Atacama Rush as Conquest, Wake Island as BFBC2,
-a Vietnam map as WW2, Valparaiso as Vietnam Squad Deathmatch, Guadalcanal as BFBC2 Rush) pass the check and install
-/ revert on a scratch copy of the game's shared files (`rust/BENCHMARKS.md`, "E3d"). Not yet tested in the game.
-
-**Viewing a map (rounds G1 and G2).**
-
-- **Opening a level:** the start screen's levels are the game copy's (found as the suite finds them: `--opfor`,
-  OPFOR_ROOT, or a `project-opfor-bfbc2` folder beside or above the suite). A level NavKit has not
-  prepared yet, or whose terrain unpack is missing or older than its bundle, is **prepared first, in the editor**:
-  "Preparing MP_005 - Step 2 of 4: Unpacking the level", a progress bar, the tools' last line and Cancel, then the
-  map opens. The steps are the suite's own, run by `bin\bfbc2.exe prepare_level` (its Python twin
-  `prepare_level.py` was retired in round RT1: the editor needs `python rust\build_native.py`, or `--download`, once):
-  NavKit's prepare (the shared bundles, the level's bundles, its
-  objects, collision and spawn points; 10 - 60 s since round E4e) and the terrain unpack (`level.heightfield_of`'s,
-  once the Map Inspector's). They write
-  only OPFOR's `work\levels\<level>` and `work\navkit`, never the game copy; a failure is said in plain words on the
-  start screen.
-- **The set cards (round G3, the user's design; since round G4 behind "Edit existing level", and only multiplayer
-  maps listed):** four cards - BFBC1, BFBC2, Vietnam, WW2 - each with its installed map count and its own picture, the game's loading screen read from the game copy at run
-  time (`awards/images/loadingscreens/` in `ondemand_awards-00.fbrb`: DICE's `bc1_oasis`, `mp_005` and `nam_mp_002`,
-  OPFOR's converted `wake_island_s` for WW2; a set without it gets a plain tile, a set with no installed map is greyed
-  "Not installed"); four in a row, two by two in a narrow window.
-  A card opens that set's maps: Back, the set's name and a search box, a row per map with its picture
-  (`awards/images/levels/<level>.res`), name, game mode (its description's `GameMode`), prepared or not, **Open** and
-  **New project** (the name, folder, era and mode). The sets come from the
-  levels' data: the `bc1_` maps of `game\Package` (badge BFBC1), the levels loading `nam_common` (Vietnam) or
-  `ww2_common` (WW2), every other level BFBC2. No game art is kept in the repository: the pictures are decoded
-  once into Project OPFOR BFBC2's `work\editor\art` (`art.json` records the bundles' sizes and times; made again when
-  they change; about 1 MB) - 4.8 s the first time, 0.1 s after.
-- **Levels in `game\Package` only (round G3):** Vietnam's (`NAM_*`, badge VIETNAM), the Pacific War's (Wake Island,
-  Coral Sea, Guadalcanal, Iwo Jima ...; badge WW2 - PACIFIC WAR) and DICE's other Package-only levels (the Bad
-  Company 1 maps, extra mode layouts such as MP_005GR) are listed too, when installed: the game's registry
-  (`game\Dist\win32\package.mft`) names the level and every bundle it loads is there. Pacific War and Vietnam are
-  optional; a level that is not installed is simply not listed. Opening one prepares it in the editor itself, in
-  Rust and in memory (no Python, no whole unpack): the bundles the level loads are read in the game's order (its own,
-  then `nam_common` / `ww2_common` / `mp2_common`, then `mp_common`; a `*deleted*` marker hides a later bundle's
-  file, as in the game) and only what the map view opens is kept - the level partition and static groups, the placed
-  blueprints, their collision and `Mesh` aliases, the terrain and water. 2 - 5 s and 8 - 20 MB per level; opening it then takes a third of a second
-  (rust/BENCHMARKS.md, G3: all 45 Package levels of OPFOR's game copy, each the same as a whole unpack loaded by the
-  suite's level loader).
-  **Where it goes:** `work\editor\levels\<level>\` - deliberately **not** `work\levels`, whose folders several tests
-  compare against recorded corpora. It is a cache (`python -m bfbc2core.caches --list` shows it as `editor`;
-  `--prune editor` / `--clear editor` trim it; `BFBC2_EDITOR_CACHE_MB`, default 2048): each level's
-  `editor-level.json` records the bundles' sizes and times and every file, and a copy whose bundles changed or with a
-  file missing is made again on its next opening. The editor drops the least recently opened copies beyond the cap.
-- **Teams by faction:** labels, the outliner and Properties name each side's faction as the level's data says it
-  (`LevelDescription.FactionTeam1` / `FactionTeam2`, through the content profile): US / RU on BFBC2 levels (RU / US
-  where the Russians are team 1, as on MP_012GR), US / NVA on Vietnam's, US / JP on the Pacific War's; T1 / T2 where
-  the level names no faction (the campaign, squad deathmatch), and Properties says so. Gameplay no team owns
-  (objectives, combat areas) is violet (`unowned`), team-neutral flags light grey with NEU.
-- **Help** (the top bar's Help menu, or F1): controls and shortcuts, a getting-started guide, what each workspace is
-  for; searchable. It is generated from the action registry and the views' control list, so it cannot go stale.
-- **The window:** docked panels (drag a tab to dock, tab or float it; **Reset layout** puts them back): the Outliner
-  (the map by kind and group, searchable, Hide / Show per group), the views, Properties (the selection's type, GUID,
-  team, blueprint, source partition and element, transform), Problems, and with a project History and Layers. The
-  top bar has the workspace switcher (View; with a project Objects, Gameplay, AI, and Terrain and Vegetation greyed),
-  the level or project and its content profile
-  badge, Save / Undo / Redo, Help and the commands; the theme (Dark or Light) follows
-  the suite's design language (`design/project/tokens.json`, IBM Plex fonts). The 3D view draws with its own tokens
-  (`scene-*` for the sky, terrain, water and object greys; `view-*` for team, unowned, selection and status colours,
-  each at least 3.5:1 on the lit terrain in both themes).
-- **The views:** the 3D view and top, front and side views (top bar, or Alt+1 - Alt+4), each with its own camera.
-  3D view: left drag orbits, middle drag pans, the wheel zooms, hold the right button to fly (W A S D, Q / E, Shift
-  faster); the orthographic views pan with the left or middle button. Click selects (the selection is outlined in
-  orange; the status bar shows the surface point under the click), double click also focuses, **F** focuses every
-  view on the selection, **Esc** clears it, **L** shows or hides the labels. Ctrl+1 - Ctrl+9 keep a camera bookmark,
-  1 - 9 recall it (per level and view).
-- **Command palette:** Ctrl+Shift+P lists every command with its shortcut; type to filter, Enter runs.
+In short: view any map of the game copy (BFBC1, BFBC2, Vietnam and WW2 levels, the Package-only ones too), read-only;
+edit a copy of it as a **map project** (objects, gameplay, the AI workspace's navigation, layers, undo; the project
+holds only the edits, never game files); see it as the game draws it (the game-accurate view, DICE's own Direct3D 11
+shaders); and export it as a new multiplayer level for any era and mode, installed and uninstalled through Project
+OPFOR's `mapedit_install.py`. The exports are built and checked offline; none has been tested in the game yet (the
+user paused in-game tests on 2026-11-20). The Map Inspector (GR1) and the Navigation Studio's window (GR2) were
+folded into it and retired (`RETIRED.md`).
 
 Run it (Rust as in "The Rust core" below; the first build takes a few minutes):
 
     python rust\build_native.py --editor
-    bin\bfbc2-editor.exe [level | --project <name>.mapedit.json] [--opfor <folder>] [--theme light]
+    bin\bfbc2-editor.exe [level | --project <name>.mapedit.json] [--opfor <folder>] [--theme light] [--navmesh]
 
 (`--editor` builds `bfbc2-editor.exe` and `mapexport.exe` in this checkout's build folder and copies them to the
-suite's `bin\`: "Where Rust builds", below.)
-
-or from the hub: Levels > "Open in Map Editor", or More tools > "Open Map Editor". Without a display,
-`bfbc2-editor.exe <level> --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]` draws the window
-offscreen and saves it (`--demo` instead of a level: a small made-up scene). The editor keeps its layout, theme and
-bookmarks in eframe's per-user storage under `%APPDATA%`.
-
-Its tests (`python tests\test_editor.py`, quick tier) prove it headless: the theme generated from every token in both
-themes; the outliner against the retired Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004
-(recorded before its retirement by `rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
-view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
-the command palette opening a top view) and each of the four levels drawn with a flag selected; round GR1's property
-tree, references and referrers against what the Map Inspector showed for 1,074 objects of the same four levels
-(`tests\inspect_parity.rs`, its answers kept as digests) and its Links, All fields and Measure driven headless
-(`tests\gr1.rs`). Round G2's
-(`tests\g2.rs`, `tests\factions.rs`): every `view-*` / `scene-*` token found in a rendered frame, the overlays'
-contrast measured on the frame's own pixels, panel contrast and the third neutral's hue distance, the faction labels
-on BFBC2, Vietnam and WW2 levels (read only), Help generated from the registry (an action without a description
-fails), and opening a level that needs preparing (a stand-in script: its steps, then the level; a failure in words).
-`BC2_EDITOR_PREPARE=<level>` also runs the real preparation on a stand-in OPFOR folder in temp.
-Round E2 adds levelwrite's proofs (`cargo test -p bc2-levelwrite`: the project log, its file, undo / redo, autosave and recovery,
-the base-changed report; edits on MP_005, SP_01 and Guadalcanal copied to a temp folder: they parse, differ from the
-base exactly where the operations say, round-trip through the Rust DBX writers, load in the scene with each object
-where the log put it, and equal DbxEdit's `drop` / `setfield` and the Python `dbxbin` reference byte for byte), the
-surface placement with sink depths on terrain and on a mesh, the gizmo's maths, and the editing interface driven
-headless (`tests/editing.rs`: click, a 5 m drag on the grid, undo, redo, a 15-degree turn, box selection, duplicate,
-delete, snap to ground sunk 0.5 m and kept on the next move, a layer, save and reopen).
-The later rounds' tests sit beside them: `tests\e2b.rs` and `tests\asset_browser.rs` (E2b), `tests\g3.rs` and
-`tests\g4.rs` (the start screens), `tests\game_view*.rs` (R5 - R5c), and in `rust\bc2-levelwrite\tests` the exports
-(`export_sp01.rs`, `export_e3b.rs`, `export_e3c.rs`, `export_e3d.rs`); each round's figures are in its
-`rust/BENCHMARKS.md` section.
+suite's `bin\`: "Where Rust builds", below.) Or from the hub: Levels > "Open in Map Editor" / "Open navigation", or
+More tools > "Open Map Editor". Its tests: `python tests\test_editor.py` (quick tier) and `cargo test -p
+bc2-levelwrite`.
 
 ## The Rust core (required for the core formats, the console converters and NavKit's builds)
 
 `rust/` is a Cargo workspace: the start of the shared Rust core the map editor is built on
-(`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8). Today it holds the binary DBX reader and writer, the FBRB bundle
+(`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.8). Today it holds the binary DBX reader and writer, the FBRB bundle
 reader and packer, the terrain, water and Havok collision readers, the shader database reader / writer, the cull tree tool's element reader and level search, and the level loader (a Rust scene), ported from
 `core/bfbc2core/dbx.py`, `fbrb.py`, `terrain.py`, `water.py`, `level.py` and NavKit's `levelobjects.py` / `hkpack.py`
 and proven identical to them on every corpus file, every bundle of the game copy and, entity by entity, on 18

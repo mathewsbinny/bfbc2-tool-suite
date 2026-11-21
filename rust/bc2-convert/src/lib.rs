@@ -1,4 +1,4 @@
-//! The converter pipeline's hot spots in pure Rust (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8: the
+//! The converter pipeline's hot spots in pure Rust (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.8: the
 //! pipeline stays in Python; what a profile shows the time goes to is ported here, one at a time, measured in
 //! `rust/BENCHMARKS.md`).
 //!
