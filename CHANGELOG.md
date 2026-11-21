@@ -158,6 +158,12 @@ landed on `main`.
 ### Fixed
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /
   `OverflowError` from the Rust core instead of reading the file as the Python does (round SD1).
+- **The map editor's game-accurate view opens OPFOR's WW2 levels** (round GW1): Guadalcanal and Iwo Jima failed with
+  "no WeatherSettings / WeatherSystem partition under weather/wake_island/". The view now finds a level's weather
+  the way the game does: the placed weather entity (`WeatherSystemEntityData`) names its `WeatherSystem` and
+  `Settings` partitions, read wherever the level's bundles hold them, instead of looking for partitions named
+  `weathersettings*` in a guessed folder (the WW2 levels name their settings after the level). A level with no
+  weather data opens under a default sky and the status line says so, instead of failing.
 
 ### Removed
 - **The Map Inspector** (`bfbc2-map-inspector/inspector.py`, round GR1): its 3D view, layers, search and Selection

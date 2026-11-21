@@ -5726,3 +5726,48 @@ with the same log, a version-9 file and a `warp` operation give their messages);
 `BC2_PROJECTS` on the canary examples' projects (Aurora's first export and E3d's six: 2 - 4 operations each, the
 mode choices with their donor layers) written as version 1: all 7 load with every operation, as version 1 and 2,
 and the newer-version and unknown-operation cases on each. The full versioning work is round V1's.
+
+## GW1: the game-accurate view opens the WW2 levels (2026-11-20, branch `rust-gw1`)
+
+Round RV1 found the game-accurate view failing on Guadalcanal: "no WeatherSettings / WeatherSystem partition under
+weather/wake_island/ ... r_guadalcanal/". **Root cause:** the view found a level's weather by guessing folders (the
+weather entity's blueprint path up to `/weathersystementity`, the partition's weather folder, a folder a placed
+blueprint lies in, `weather/r_<lv without _>`) and in each looked for partitions *named* `weathersettings*` and
+`weathersystem*`. Guadalcanal's entity `weather/wake_island/guadal_canal_e` (in its own `level-00.fbrb`) names
+`weathersystem_wake` and a settings partition named after the level, `weather/wake_island/guadal_canal`
+(`ActiveState` 2); Iwo Jima's likewise (`.../iwo_jima`). So no settings were found. Wake Island and Coral Sea worked
+only because they use `weathersettings_wake`.
+
+**Fix (`bc2_render::world::resolve_weather`, `weather::entity` / `entities_in` / `read_system`):** the game's
+reference chain. The level's `WeatherSystemEntityData` - an instance of the level partition (SP_004_B, Coral Sea,
+Wake Island) or the object of a blueprint a `ReferenceObjectData` places (`ReferencedObject`: MP_005, Guadalcanal,
+Iwo Jima) - names its `WeatherSystem` and `Settings` partitions by path; each is read through the level's stack
+(first bundle wins, deleted markers hide). A caller's folder is read by name only when no entity resolves; with
+nothing, `weather::neutral` and the status line says "No weather data found for this level; showing a default
+sky" (`World::default_weather`, `GameView::status`) instead of failing. Spec: RNDR-WTHR-1 corrected, RNDR-WTHR-5 and
+-6 new.
+
+| level (read in place from OPFOR's game copy) | weather state drawn | load (release) | draws | terrain coverage, above / corner |
+|---|---|---:|---:|---|
+| Guadalcanal | `weather/wake_island/states/guadal_canal` | 16.6-25.7 s | 15,322 | 576/576, 477/477 |
+| Iwo Jima | `.../states/iwo_jima` | 17.0 s | 12,263 | 484/484, 453/453 |
+| Coral Sea | `.../states/sunny_day` (settings 0; see below) | 11.5 s | 12,618 | 900/900, 520/520 |
+| Wake Island | `.../states/sunny_day` | 19.4 s | 17,848 | 576/576, 481/481 |
+| NAM_MP_002CQ, NAM_MP_005R (Vietnam) | `weather/nam_mp_002/states/mp_002_default`, `weather/nam_mp_005r/states/default` | 7.4 s, 10.9 s | 8,398, 8,937 listed | - |
+| ONS_MP_002 (Onslaught) | `weather/default/states/default` (Package: `weather/r_mp02/states/midday`) | 0.4 s | 18,974 listed | - |
+
+Stock and Onslaught levels prepared under `work\levels` (37): the reference chain gives the state the old folder
+read gave on all 36 where it worked; SP_004_B (folder `weather/r_sp04`, not its name) now resolves through its
+partition's own entity. E3d's canary stages are projects, not installed levels: not openable as levels, not checked.
+
+**Open (RNDR-WTHR-6):** 34 of 43 levels read have an enabled `WeatherStateEntityData` with `StartTransitionOnSpawn`
+naming another state (Coral Sea's names 4, `coral_sea`; some name more states than the system has, so they belong
+to scripted logic). Whether the engine applies it as the level loads is not known (no capture); the view draws the
+settings' `ActiveState` and notes the transition. Unchanged from R5c: the sky is the fog colour (no sky pass), and
+the WW2 shores show ragged terrain patch edges.
+
+Tests: `bc2-render` `tests/weather_refs.rs` (the 4 WW2 levels' states from their bundles in place, other Package
+levels, the 37 prepared levels against the folder read, the default sky), `weather::tests::weather_entities_and_spawn_states_read_from_a_partition`;
+`bc2-editor` `tests/game_view_ww2.rs` (Guadalcanal and Iwo Jima by default, `BC2_GW1_LEVELS` for more, opened
+through a temporary stand-in OPFOR folder whose `game` is a junction: each level's own state, the key light, and
+whole_terrain.rs's coverage from above and from outside a corner, with a 5 m near plane for the 2 km maps).
