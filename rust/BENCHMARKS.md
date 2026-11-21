@@ -6146,3 +6146,8 @@ sky, the levels of detail, the cached Package reads; `whole_terrain::the_whole_t
 frame). `tests/live.rs` keeps every patch in full (`Options::exact`) and draws no sky: the live list against R5b's
 per-frame list, bit for bit as before; the editor's `game_view_live` compares like with like (shared against copied,
 an edit against a fresh load) with the sky and the levels on, still bit for bit.
+
+After merging main (2026-11-21): `cargo test --release -p bc2-render` 31 + 14 passed, `-p bc2-editor` 61 + 49 passed
+(GR2's scratch-copy test needs the module `build_native.py` builds), clippy `-D warnings` clean on both crates,
+`spec/trace.py --check` 674 rules, `run_tests.py quick -j 2` 124 of 125 (O2, Microsoft Defender holding a freshly
+written .exe: environmental). `BC2_RENDER_UNCACHED` registered in `bfbc2core.envvars`.
