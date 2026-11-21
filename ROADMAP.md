@@ -6,7 +6,8 @@ changes only when the user changes it. Each round's evidence stays where it is: 
 `rust/BENCHMARKS.md`, and `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` for the editor. Released versions are in
 `CHANGELOG.md`; how a round reaches `main` is in `RELEASING.md`.
 
-Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
+Last updated: 2026-11-21 (round QW2). Version: 0.10.0 (`VERSION`; a merge that removes something releases the next
+minor: `RELEASING.md`).
 
 ## Priority order (the user, 2026-11-19)
 
@@ -14,16 +15,9 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    picture, the campaign strip checklist) and E3c (the announcer's voice-over follows the export's profile: WW2 uses
    BF1943's voices, Vietnam the Vietnam DLC's, BFBC2 its own) are done.
 2. **Rust porting:**
-   - **O5**, the last command-line batch: render QA, xdiff, the command lines of shaderdb, the BF1943 importer and
-     the console readers, and the Python cores behind O3 / O4's hand-offs.
-   - The full test tier, then retiring the Python twins (E4a-f, F0, F2a, F2b, F3, and the O1-O5 command-line
-     Python).
-   - The shaderdb reader port.
-   - **F4**, F3's leftovers: the disassembly's header lines, audio decoding and its ffmpeg glue, hkpack's object
-     reading with a handle-based Packfile, navsample_offline's hull geometry, meshview's readers, texqa's readers,
-     culltree's string table.
-   - **culltree `add`'s memory:** the Rust peaks at 1.65 GB against the Python's 200 MB warm; cut it and add a
-     persistent cache.
+   - ~~O5, the last command-line batch~~ (O5), ~~the full test tier and retiring the Python twins~~ (RT1-RT3), ~~the
+     shaderdb reader port~~ (SD1), ~~F4, F3's leftovers~~ (F4), ~~culltree `add`'s memory~~ (CT1): done.
+   - **NavKit's build and apply** (NK1, below): the largest Python left.
    - **The GUIs:** per GUI, list what the editor lacks, add it, then retire the GUI.
      - ~~Map Inspector: the link view, the full property tree~~ (GR1: All fields, Links, Measure; retired). The
        other GUIs' features, whether the editor has them and the plan: `EDITOR_ARCHITECTURE.md` section 9.
@@ -55,7 +49,8 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    `ww2_*`. Already done: stream packing and the per-level shader index (S1); rebuild_all's step graph is OPFOR in
    Rust's.
 5. **Tests ported to Rust.**
-6. **OPFOR quality round 2:** the mypy baselines down to 0; the tests baseline (drifted from 193 to 207).
+6. ~~**OPFOR quality round 2:** the mypy baselines down to 0~~ (done in Project OPFOR, 86220cd: mypy 0 in all 8
+   folders, the baseline removed).
 7. **Then:**
    - the editor's **E4** gameplay tools: add and delete flags, spawns, Rush stages with M-COMs, teams / tickets /
      round rules from the game's preset options, the stock formula by default;
@@ -70,6 +65,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
+| HG1 | `hg1` | the editor tests' g3 / g4 hang, `export_xf1`'s slowness, EX1's shared test folder, `ground_below` |
 
 ## Queued
 
@@ -77,15 +73,13 @@ In priority order (above); the next rounds:
 
 | Round | What |
 |---|---|
-| OR0 | OPFOR in Rust's stage 0, in Python (audit AU3 OP-2, OP-5, TS-9, TS-10; AU4 BUG-1): the WW2 oracle's digests committed to OPFOR plus an install oracle; relative paths in outputs (the emitter-atlas manifests hold 445 absolute paths); the step tracker scanning only each step's outputs and seeing the Rust core's reads; a rebuild lock; the independent level builds in parallel (about 450-550 of 1,480 s) |
-| QW2 | small leftovers of the four audits: a version bump when a merge removes something (OPFOR's pin, AU3 AR-9) and the bump itself; the ROADMAP and CHANGELOG tidied; the Python shader Merger retired after XF1 (AR-5); a project lock with a modified-time check before save (AU1 R4); misplaced code between crates (AU2 A5); feature subsets built alone; exit codes documented; the crash-risk checks never run (AU1 RISK-4 / -7 / -8) |
 | SG1 | after XF1 (the user, 2026-11-20; audit AU1): editing static group members (their group files), so WW2 maps (Wake: 2,999 members, about 69 % of its objects) are fully editable; needs OP1's multi-file operations, so it lands with or after OP1's first part |
 | OP1 | before E5 (the user, 2026-11-20; audit AU1 R14 / R17 / R18 / R24): project operations that can target any file (group files, terrain, navigation side files), delta storage for brush-scale edits, a journalled autosave, typed errors in the editor and renderer, the UI state split out of the two god objects (ViewState, EditorApp) |
 | IN1 | before the public release (the user, 2026-11-20; audit AU1 R42-R49): the level installer in the suite (no Python, no OPFOR needed), a game-folder setting, portable and anonymised project sharing (no PC name, no absolute paths), a small "install this project" tool for players, old export stages pruned; the users' diagnostics (the user, 2026-11-21): `bfbc2.exe doctor` (setup, versions, fingerprints, install state, plain fixes), a one-button anonymised bug-report bundle (doctor, crash reading, logs), Help > Diagnostics in the editor |
 | VW2-rest | the rest of round VW2 (left 2026-11-21, reasons in `rust/BENCHMARKS.md` "VW2"): **VW2c** the lamp tool (point-light effect emitters with `ActAsPointLight` from SP_01's donors, placed by the user in the Objects workspace: needs placing a blueprint of another level's bundle with its emitters, E2b's "+bundle" and XF1's shader entries); **VW2d** rain and snow beyond the state's values (the grid of camera-proximity area effects over the combat area and the sound areas, from SP_03 rain / MP_007 snow donors: the effects' emitters under the target's emitter namespace and the atlas entries, the sound partitions and their Wave chunks); VW1's leftovers (overlays following project edits, damage and clear-area triggers, wall collision for the walk camera, the FOV and box-evaluator readings proved); all exported night / rain off by default until seen in game |
 | VW3 | with VW2-rest, after E5 (the user, 2026-11-21): a weather editor - a state's own values edited, not only picked: the sun (direction, colour, intensity), fog (start / end, colour), ambient and sky tint, exposure and the other fields WX0 inventoried (`weather_inventory.json`), as sliders and colour pickers in a Weather panel; both views follow live (the game-accurate view redraws the edited state, the simplified view re-tinted); the edited state saved in the project (a typed operation, project format bump) and exported as the level's state (a new state appended beside DICE's, never DICE's overwritten); reset to the picked state; values held to the ranges seen across DICE's 355 states with a warning outside them; canaries byte for byte when nothing is edited, off by default until seen in game. No re-bake (WX0: nothing baked depends on the sun) |
 | GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (~~LevelDiff~~: EX1, done): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
-| OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
+| OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph. Stage 3 (shader glue) starts with retiring the Python shader `Merger` (audit AU3 AR-5, found too big for QW2): `bc2_formats::shaderdb::merge` has `add_donor` and `finish` but not `clone_entry` / `add_part`, which OPFOR's 21 in-process `Merger` sites use (wake_install 10, ww2_level_build, wake_shaders, wake_translate 2, the weapon ports); port those two, expose the merger through `bc2_native`, move OPFOR's sites onto it with the oracle byte for byte, then delete the Python class (RETIRED.md) |
 | PR1 | the post-Rust improvements, re-scoped (PR0, 2026-11-20; audit AU2 A1-A5, A8, A9, P4, P8, S2, S14), after RT3 and OPFOR in Rust, in three parts: **PR1a** stable test IDs (durations, memory and CI keyed by ID), determinism as a rule (two hash seeds checked, Rust hash order linted), one native-backend registry (the 24 `use_native` copies, the per-tool switches); **PR1b** one cache layer (one budget implementation, content keys, the caches outside the budget), restart points instead of the 16 GB of decompressed payloads and one BF1943 bundle reader in `bc2-formats` (the S1 restart points' Rust half), CT1-style memory fixes (the batch readers, NavKit regression's 15 GB, the terrain readers), one cull-tree model, one DBX document, `bc2-cli`'s tool logic in library crates with typed errors and the Python emulation kept to the edge, one worker pool, sounds decoded without an ffmpeg per sound; **PR1c** (before the release) round codes out of names, an installable package, one naming scheme, OPFOR's `wake_*` as `ww2_*`. Done earlier: stream packing and the per-level shader index (S1), the cache budget (E3p, D1), strict mode and superseded payloads (QW1); rebuild_all's step graph is OPFOR in Rust's |
 | NK1 | NavKit's build and apply in Rust (audit AU3 AR-4: the largest Python left, 12.5k lines, no round owned it) |
 | Tests in Rust | a synthetic test corpus generated from the specification, so CI and other people can run the tests without the game copy, and the Python tests ported (for one language, not for speed: the Python entries run hidden behind the cargo entry) |
@@ -121,6 +115,8 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Date | What |
 |---|---|---|
+| QW2 | 2026-11-21 | the audits' leftovers: version 0.10.0 released for RT1-RT3 / GR1 / GR2 / EX1 / FM1's removals and the rule that a merge removing something releases the next minor (`RELEASING.md`; OPFOR's `SUITE_REQUIRES` follows); CHANGELOG's two Removed sections one; a project lock and a modified-time check before every save in the editor (AU1 R4); `mapexport check` refuses streamed wave data (AU1 RISK-4; RISK-7 and RISK-8 were already checked by EX1 and XF1); `guid` and `pe` moved into `bc2-formats` (AU2 A5; culltree's model left in levelwrite for PR1b); each of `bfbc2.exe`'s 17 tool groups builds alone (seven fixed) and CI checks it; exit codes documented; O2's stand-in exe no longer blocked by Defender; O4 texqa's goldens freed from texqa.py's source hash (the red quick-tier entry since DF2); `texqa.Dice`'s ledger originals tested. The Python shader Merger's retirement moved to OPFOR in Rust stage 3 (too big: needs `clone_entry` / `add_part` in Rust and OPFOR's 21 sites moved) |
+| OR0 | 2026-11-21 | Project OPFOR's round (merged there as 19dd0da; audit AU3 OP-2, OP-5, TS-9, TS-10, AU4 BUG-1): the WW2 rebuild oracle and an install oracle (21,197 staging digests) committed to OPFOR, relative paths in the emitter-atlas manifests, the step tracker reading only each step's outputs and the Rust core's reads, a rebuild lock, the independent level builds side by side; rebuilds from main and from a worktree 10,852 of 10,852 identical, 15-18 min against ~23 |
 | TS1 | 2026-11-21 | faster test tiers (audit AU3 TS-1 to TS-8, TS-12 to TS-14; AU4 DF4): quick tier 3,593 -> 854 s on this PC (warm folder; about 740 s cold); per-test Rust times (`rust_test_times.json`, the 30 slowest in BENCHMARKS); 38 whole-level editor / levelwrite / render tests `#[ignore = "game tier: ..."]` in the game tier's new entry; the cargo entry split into build, quick tests, clippy and fmt; green crates skipped (never on CI / full / `--no-skip`); dependencies at opt-level 2 and the workspace at 1 (whole-level tests 1.2-5.8x faster); levels read once per editor test binary; skips that hid failures are failures; three untiered test files tiered; per-test time limits, `--only` nothing exits 2, kill-on-close job objects, build_native's install retried; sccache measured (no cross-worktree hits) and left opt-in. Found: the g3 / g4 editor-test hang and XF1's `export_xf1` slowness (round HG1) |
 | DF2 | 2026-11-21 | install and revert safety (audit AU4, 23 findings): one install ledger for every tool that writes the game copy (OPFOR's `opforcore.ledger` format; the suite's whole-file half in `bc2_formats::gameledger` and `bfbc2core.gameledger`); NavKit and stock-MP on it, so AU4-DS-1 (NavKit and stock-MP both backing up `pathdata.hpd`) can no longer lose DICE's original; journalled, fsync'd, retried writes, a killed install rolled back by the next command; `bfbc2 gameledger`; OPFOR's half: every Onslaught stage, the Pacific War install / menu mode, mapedit_install and the import scripts on `opforcore.stages`, `opforcore\migrate.py` for the old markers (this PC: 23 files, all migratable; a scratch copy migrated and reverted byte for byte) |
 | QW1 | 2026-11-20 | audit AU2's quick wins: the editor / levelwrite / render tests once per quick tier (quick tier 4,677 -> 2,276 s on this PC); dev builds with line tables and one integration-test binary per crate (debug folder 25 -> 3.4 GB, editor relink 76 -> 18 s); memory declarations from recorded peaks; a fingerprint per artefact, a stale `bfbc2.exe` warned about (`BFBC2_STRICT_NATIVE`), mapexport / editor staleness checks; superseded FBRB payloads pruned (437 MB here); `bfbc2core.envvars` (92 variables) and `requirements.txt`; skipped tests counted as skipped; MPLCONFIGDIR; 60 stale test-time names; OPFOR: one suite locator with a version check, one GUID helper (24 sites, byte-identical) |
