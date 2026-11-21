@@ -299,6 +299,44 @@ pub enum State {
     Destroyed,
     /// Every mesh part, whatever its state (as the game-accurate view draws the mesh).
     All,
+    /// Round VW1: every part at its health state of this rank (0 the healthiest), or its last when it has fewer:
+    /// the steps between intact and destroyed ([`stage_count`]).
+    Stage(u8),
+}
+
+/// How many states a destructible object steps through: the most health states any of its parts has (`SP_01`'s guard
+/// tower: 3 - `part_1` / `part_1_dest` / gone, `ruin` / `ruin_downed`); 0 for none.
+#[must_use]
+pub fn stage_count(components: &[Component]) -> usize {
+    components.iter().map(|c| c.states.len()).max().unwrap_or(0)
+}
+
+/// The health state a component shows in a state: (its mesh name), `None` for every part (`State::All`).
+fn chosen(c: &Component, state: State) -> Option<&str> {
+    let s = match state {
+        State::All => return None,
+        State::Intact => c.states.first(),
+        State::Destroyed => c.states.last(),
+        State::Stage(k) => c.states.get(usize::from(k)).or_else(|| c.states.last()),
+    };
+    s.map(|(_, m)| m.as_str())
+}
+
+/// Whether a collision part (its name's hash, `bc2_formats::havok::Parts::hashes`) is in a state of a blueprint's
+/// destructible parts: a part a health state names (`part_1_dest`) when that state is its component's in the state;
+/// a part no state names always.
+#[must_use]
+pub fn collision_part_shown(components: &[Component], hash: u32, state: State) -> bool {
+    if state == State::All {
+        return true;
+    }
+    let owner = components.iter().find(|c| {
+        c.states
+            .iter()
+            .any(|(_, m)| !m.is_empty() && bc2_formats::havok::part_hash(m) == hash)
+    });
+    let Some(c) = owner else { return true };
+    chosen(c, state).is_some_and(|m| !m.is_empty() && bc2_formats::havok::part_hash(m) == hash)
 }
 
 /// A blueprint's destructible parts, from its partition (`<blueprint>.dbx`).
@@ -359,11 +397,7 @@ pub fn part_shown(components: &[Component], part: &str, state: State) -> bool {
         .filter(|(_, m)| fits(m))
         .max_by_key(|(_, m)| m.len());
     let Some((c, m)) = owner else { return true };
-    let chosen = match state {
-        State::Destroyed => c.states.last(),
-        _ => c.states.first(),
-    };
-    chosen.is_some_and(|(_, s)| s == m)
+    chosen(c, state).is_some_and(|s| s == m)
 }
 
 /// A vertex layout's elements: (format, usage, offset, stream), and its stride.
@@ -856,5 +890,17 @@ mod tests {
         // a part no state names, and every part with All
         assert!(shown("lod0|window_Glass", State::Destroyed));
         assert!(shown("export|lod0|part_1_dest_Metal", State::All));
+        // round VW1: the steps between, and the collision parts by their names' hashes
+        assert_eq!(stage_count(&parts), 3);
+        assert!(shown("export|lod0|part_1_dest_Metal", State::Stage(1)));
+        assert!(shown("export|lod0|ruin_downed_Concrete_LOD2", State::Stage(1)));
+        assert!(!shown("export|lod0|part_1_dest_Metal", State::Stage(2)));
+        let h = bc2_formats::havok::part_hash;
+        let col = |p: &str, s: State| collision_part_shown(&parts, h(p), s);
+        assert!(col("part_1", State::Intact) && !col("part_1_dest", State::Intact) && col("ruin", State::Intact));
+        assert!(col("part_1_dest", State::Stage(1)) && col("ruin_downed", State::Stage(1)));
+        assert!(!col("part_1", State::Destroyed) && !col("part_1_dest", State::Destroyed));
+        assert!(col("ruin_downed", State::Destroyed) && col("window", State::Destroyed));
+        assert!(col("part_1_dest", State::All));
     }
 }

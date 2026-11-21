@@ -137,6 +137,7 @@ pub fn scene() -> Scene {
         blueprints,
         meshes: vec![(0, "objects/props/demo_crate".to_owned())],
         missing: Vec::new(),
+        parts: HashMap::new(),
     });
     // terrain: 41 x 41 vertices over 100 m, gently rolling
     let n = 41u32;
@@ -377,6 +378,7 @@ pub fn level(dir: &std::path::Path) -> Result<Scene, String> {
         blueprints,
         meshes,
         missing: Vec::new(),
+        parts: HashMap::new(),
     });
     Ok(s)
 }

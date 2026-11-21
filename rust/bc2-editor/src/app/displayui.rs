@@ -33,6 +33,16 @@ impl Tabs<'_> {
         let d = &scene.display;
         let lods = scene.lod_count(e);
         let parts = scene.components(e).len();
+        let steps = Destruction::steps(bc2_render::simple::stage_count(scene.components(e)));
+        // round VW1: whether the collision follows the state (the packfile splits it per part)
+        let collision_split = e.blueprint.as_deref().is_some_and(|bp| {
+            self.view
+                .scene()
+                .collision
+                .as_ref()
+                .and_then(|c| c.parts.get(bp))
+                .is_some_and(|p| p.split())
+        });
         let mut change: Option<Change> = None;
         egui::Grid::new("display")
             .num_columns(2)
@@ -97,25 +107,52 @@ impl Tabs<'_> {
                 if parts > 0 {
                     ui.label(RichText::new("State").color(p.ink_muted))
                         .on_hover_text(format!(
-                            "Its {parts} destructible parts' health states (its blueprint's data)"
+ "Its {parts} destructible parts' health states (its blueprint's data); Page Up / Page Down step through them"
                         ));
                     let now = d.state_of(e);
-                    egui::ComboBox::from_id_salt("display state")
-                        .selected_text(now.name())
-                        .show_ui(ui, |ui| {
-                            for s in Destruction::ALL {
-                                if ui.selectable_label(now == s, s.name()).clicked() {
-                                    let k = guid.clone();
-                                    change = Some(Box::new(move |d| {
-                                        if s == Destruction::Intact {
-                                            d.states.remove(&k);
-                                        } else {
-                                            d.states.insert(k, s);
-                                        }
-                                    }));
-                                }
+                    let set = |s: Destruction| -> Change {
+                        let k = guid.clone();
+                        Box::new(move |d| {
+                            if s == Destruction::Intact {
+                                d.states.remove(&k);
+                            } else {
+                                d.states.insert(k, s);
                             }
-                        });
+                        })
+                    };
+                    ui.horizontal(|ui| {
+                        egui::ComboBox::from_id_salt("display state")
+                            .selected_text(now.name())
+                            .show_ui(ui, |ui| {
+                                for s in &steps {
+                                    if ui.selectable_label(now == *s, s.name()).clicked() {
+                                        change = Some(set(*s));
+                                    }
+                                }
+                            });
+                        // the up / down arrows: the previous and the next state of the list (the user's request)
+                        let at = steps.iter().position(|s| *s == now).unwrap_or(0);
+                        if arrow_button(ui, true, at > 0, p.ink)
+                            .on_hover_text("The previous state (Page Up)")
+                            .clicked()
+                        {
+                            change = Some(set(now.step(&steps, -1)));
+                        }
+                        if arrow_button(ui, false, at + 1 < steps.len(), p.ink)
+                            .on_hover_text("The next state (Page Down)")
+                            .clicked()
+                        {
+                            change = Some(set(now.step(&steps, 1)));
+                        }
+                    });
+                    ui.end_row();
+                    ui.label(RichText::new("Collision").color(p.ink_muted));
+                    let text = if collision_split {
+                        "Follows the state (its packfile splits it per part)"
+                    } else {
+                        "One piece in its files: not split per part, the same in every state"
+                    };
+                    ui.label(RichText::new(text).color(if collision_split { p.ink } else { p.ink_faint }));
                     ui.end_row();
                 }
             });
@@ -125,4 +162,18 @@ impl Tabs<'_> {
         }
         ui.add_space(m.space_3);
     }
+}
+
+/// A small button with an up or down arrow drawn in it (the destruction-state stepper).
+fn arrow_button(ui: &mut egui::Ui, up: bool, enabled: bool, ink: Color32) -> egui::Response {
+    let resp = ui.add_enabled(enabled, egui::Button::new("").min_size(Vec2::new(22.0, 20.0)));
+    let r = resp.rect.shrink2(Vec2::new(6.0, 6.0));
+    let colour = if enabled { ink } else { ink.gamma_multiply(0.35) };
+    let pts = if up {
+        vec![Pos2::new(r.center().x, r.top()), r.right_bottom(), r.left_bottom()]
+    } else {
+        vec![r.left_top(), r.right_top(), Pos2::new(r.center().x, r.bottom())]
+    };
+    ui.painter().add(egui::Shape::convex_polygon(pts, colour, Stroke::NONE));
+    resp
 }
