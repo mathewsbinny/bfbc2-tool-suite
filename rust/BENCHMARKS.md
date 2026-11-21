@@ -6123,4 +6123,16 @@ never a silent fallback: the retirement error (exit code 1, naming the round: `p
 
 ### Proof (the whole branch)
 
-RT3-PROOF
+After merging main (c6cf4a4: GW1, VW1, EX1's `BC2_EX1_STAGE` and GW1's `BC2_GW1_*` in `envvars.py`) and
+rebuilding the module and `bfbc2.exe` (sources `bb00c3ff5f9d`):
+
+- `run_tests.py quick -j 2`: 127 of 127 passed (3,530 s); 2 with parts skipped for want of data (the Rust core's
+  cargo checks, run separately below; the stale-module case).
+- `core/tests/test_cli_o2.py` 3 runs in a row: 966 of 966 each (menu 372, crash 258, nav 336).
+- `cargo fmt --check`; clippy `--all-targets -D warnings` on bc2-cli, bc2-formats and bc2-py; their tests (bc2-cli,
+  bc2-formats): 286 passed, 0 failed.
+- `spec/trace.py --check`: 665 rules in 45 files. ruff and mypy (every folder): nothing found.
+- Project OPFOR against this branch (a toolkit folder of junctions, `OPFOR_TOOLKIT`): `src\tools\tests\run_tests.py
+  quick` 374 passed, 0 failed, 7 skipped (the game-copy and staged-export tests that need `OPFOR_TEST_GAME` or a
+  staged export); `src\tools\opforcore\tests\run_tests.py` 75 of 75.
+- The WW2 rebuild (all 52 steps, 22 min) against the oracle: 10,852 of 10,852 files identical.
