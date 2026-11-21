@@ -332,7 +332,7 @@ pub fn python() -> Result<PathBuf, String> {
 }
 
 /// The tools whose Python command line was retired, with the round (`bfbc2core.native.RETIRED_CLI`, which
-/// `core/tests/test_native_required.py` checks against this list): the port answers alone, and a command line it
+/// `tests/test_native_required.py` checks against this list): the port answers alone, and a command line it
 /// does not read ends with [`retired`]'s error instead of a hand-off.
 ///
 /// **The rule when the Rust port cannot answer** (round RT3, audit AU2 A17; README "bfbc2.exe"): while a tool's
