@@ -12,13 +12,13 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
   quick   no game data, about a minute: the Rust core (built when stale, its cargo checks, its DBX reader against
           the retired Python reader's recorded answers), repository rules, DbxEditGUI's unit tests, and on files
           built by the tests: DbxEdit's and FbrbTool's commands against the retired exes' recorded answers,
-          LevelDiff, the crash reader and exeref, the console readers, the menu tools, the test harness (needs
-          Windows for the C# tools: DbxEditGUI, LevelDiff)
+          the crash reader and exeref, the console readers, the menu tools, the test harness (needs Windows for
+          the C# tool: DbxEditGUI); leveldiff's parity with the retired LevelDiff.exe is bc2-cli's cargo tests
   game    + Project OPFOR BFBC2's game copy, about 13 minutes: the DBX reader against the retired Python reader's
           recorded answers and DbxEdit's fingerprints on every unpacked .dbx, FbrbTool's commands on 12 game
           bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
-          round trips, LevelDiff on MP_005, the crash reader's code view and exeref on BFBC2Game.exe, the menu
+          round trips, the crash reader's code view and exeref on BFBC2Game.exe, the menu
           tools on the game's movies and OPFOR's menu patches, the console
           readers on your own Xbox 360 files (skipped when they are not on the PC), the 3D tools opening a
           level (needs a display), the structure of DICE's path data (hpdcheck), the test harness on two small
@@ -232,10 +232,6 @@ def tests():
         ('overlay exports, no game (AI layer, anomalies, usage)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_overlay_offline.py')]),
         ('NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navkit_offline.py')]),
         ('mesh viewer index and cache, stand-in bundles', 'quick', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview_index.py')]),
-        ('LevelDiff build (when stale)', 'quick', stale_build(os.path.join('bfbc2-diff-workbench', 'level-diff'), ['LevelDiff.exe'],
-                                                              [os.path.join('bfbc2-diff-workbench', 'level-diff', 'LevelDiff.cs'),
-                                                               os.path.join('bfbc2-dbx-tools', 'DbxEdit.cs')])),
-        ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
         ('crash reader, built reports', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py')]),
         ('console readers, built images', 'quick', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py')]),
         ('menu tools (aptcheck, aptrefs, bc2loc), built data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'tests', 'test_menu_tools.py')]),
@@ -398,7 +394,6 @@ def tests():
         ("NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core against the retired Python path's recorded results (SP_009, SP_004_B)", 'game',
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_collision_backends.py')]),
         ('path locators: the same answers as a reference checkout (main)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_locators.py')]),
-        ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),
         ('console resource converter: physics (havok)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_havok.py')]),
         ('console resource converter: textures', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_texture.py')]),
@@ -595,8 +590,6 @@ NEEDS = {
     'overlay exports, no game (AI layer, anomalies, usage)': need(),
     'NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)': need(),
     'mesh viewer index and cache, stand-in bundles': need(),
-    'LevelDiff build (when stale)': need(setup=True),
-    'LevelDiff, built levels': need(),
     'crash reader, built reports': need(),
     'console readers, built images': need(),
     'menu tools (aptcheck, aptrefs, bc2loc), built data': need(),
@@ -691,7 +684,6 @@ NEEDS = {
     "level loader (Rust scene) against the retired Python loader's recorded Levels, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)": need(cpu=8, mem=3),
     "NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core against the retired Python path's recorded results (SP_009, SP_004_B)": need(cpu=4, mem=2),
     'path locators: the same answers as a reference checkout (main)': need(),
-    'LevelDiff on MP_005': need(),
     'crash reader code view (BFBC2Game.exe)': need(mem=1.8),
     'console resource converter: physics (havok)': need(mem=1),
     'console resource converter: textures': need(mem=2),

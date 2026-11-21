@@ -21,8 +21,9 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 ///
 /// - 1: rounds E2 - E3d (objects, layers, folders, groups, the export's strip and mode choices);
 /// - 2: round GR2, the navigation edits (`nav-add`, `nav-remove`, `nav-load`); nothing else changed, so a version-1
-///   file loads as it is.
-pub const VERSION: u32 = 2;
+///   file loads as it is;
+/// - 3: round EX1, the exported level's names (`set-names`); a version-2 file loads as it is.
+pub const VERSION: u32 = 3;
 
 /// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; the full
 /// versioning work is round V1's). Version 1 to 2 changes nothing: version 2 only added operation kinds.
@@ -31,6 +32,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
     let mut at = from.max(1);
     while at < VERSION {
         // 1 -> 2: the navigation operations were added; a version-1 log has none
+        // 2 -> 3: the names operation was added (round EX1); a version-2 log has none
         at += 1;
     }
     if let Some(o) = v.as_object_mut() {
@@ -477,6 +479,15 @@ impl MapProject {
     pub fn strip_chosen(&self) -> Option<crate::mpconvert::Strip> {
         self.operations.iter().rev().find_map(|o| match &o.op {
             Op::SetStrip { to, .. } => Some(to.clone()),
+            _ => None,
+        })
+    }
+
+    /// The exported level's names as the log's last choice left them (round EX1), `None` before one is made.
+    #[must_use]
+    pub fn names(&self) -> Option<&crate::names::LevelNames> {
+        self.operations.iter().rev().find_map(|o| match &o.op {
+            Op::SetNames { to } => Some(to.as_ref()),
             _ => None,
         })
     }

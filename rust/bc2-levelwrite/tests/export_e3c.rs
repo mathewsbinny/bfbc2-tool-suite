@@ -127,6 +127,7 @@ fn a_ww2_export_takes_its_donors_announcer() {
         format: export::FORMAT.into(),
         version: export::VERSION,
         level: "MAPEDIT_E3CTEST_WW2".into(),
+        folder: String::new(),
         title: "E3c test (WW2)".into(),
         mode: "conquest".into(),
         layer: LayerSpec {

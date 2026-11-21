@@ -213,7 +213,7 @@ pub const WORKSPACES: [Workspace; 6] = [
 ];
 
 /// The getting-started guide: (title, text) steps.
-pub const GETTING_STARTED: [(&str, &str); 10] = [
+pub const GETTING_STARTED: [(&str, &str); 12] = [
     (
         "Start: three paths",
         "The start screen offers three buttons. Open project opens a map project you saved (a .mapedit.json file; \
@@ -277,6 +277,23 @@ pub const GETTING_STARTED: [(&str, &str); 10] = [
          it. Install... shows what an install changes in the game copy, Install now (with the game closed) adds the \
          level under its new name, and Uninstall... takes it out again. The game's own levels are never \
          overwritten.",
+    ),
+    (
+        "Name the level",
+        "The Export window's Names: the level id (what the game loads), its folder (the id in lower case), the name \
+         the launcher and the server browser show, and the on-screen name and description - one for every language, \
+         or each language its own (Per language). They are checked together as you type, with the reason: an id of \
+         the game's own levels or another project's export, an id holding _NAME (a black loading screen), a name \
+         another map has, a letter a language cannot show. Keep in project puts them in the project (Export does \
+         too).",
+    ),
+    (
+        "Compare and preview",
+        "Compare with base (command palette, or the Diff panel) lists what the project changed: objects added, \
+         removed, moved and changed, filtered by kind, group and text; click one to fly there. The 3D view tints them \
+         and marks with a box where an object of the other level stands. Compare with level does the same against \
+         any level. After an export, Preview export opens it read only beside the original level with the same \
+         camera: T switches between them, Close preview goes back to the project.",
     ),
 ];
 

@@ -1,0 +1,8 @@
+{
+ "a": "a.dbx",
+ "b": "a.dbx",
+ "same_instances": 7,
+ "only_in_a": [],
+ "only_in_b": [],
+ "changed": []
+}

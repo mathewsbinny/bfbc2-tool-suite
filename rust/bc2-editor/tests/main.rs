@@ -18,6 +18,7 @@ mod asset_browser;
 mod e2b;
 mod editing;
 mod every_level;
+mod ex1;
 mod factions;
 mod g2;
 mod g3;
