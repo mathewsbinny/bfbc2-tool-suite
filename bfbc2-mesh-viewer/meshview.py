@@ -1,15 +1,13 @@
-r"""meshview.py - look at the game's models: a mesh's parts with their colour textures, as a page you open in a
-browser (orbit, zoom, a switch per part) and as a picture.
+r"""meshview.py - look at the game's models: a picture of a mesh's parts with their colour textures. To look around
+a mesh (orbit, levels of detail, parts, destruction states, textures by channel), use the map editor's asset preview.
 
-  python meshview.py <mesh>... [--out <folder>] [--lod N] [--png] [--size W] [--view side|top|front]
-                                                                                 [--opfor <folder>]
+  python meshview.py <mesh>... [--out <folder>] [--lod N] [--size W] [--view side|top|front] [--opfor <folder>]
   python meshview.py find <text> [--opfor <folder>]          mesh names containing <text>
 
 <mesh> is a mesh asset name as the game's files give it, e.g. Objects/Weapons/Handheld/Beach/M1Garand/M1Garand_Mesh
-(any case; the .dbx / _lod0_data.res endings may be given). Several meshes are drawn side by side in one page.
-Default output: <OPFOR>\work\tools_out\meshview\<last name part>.html (and .png with --png). The page draws with
-three.js from a CDN (needs an internet connection once); the models and textures are inside the page itself, which
-is written into your work folder only - it contains game content, so do not share it.
+(any case; the .dbx / _lod0_data.res endings may be given). Several meshes are drawn one above the other.
+Default output: <OPFOR>\work\tools_out\meshview\<last name part>_<view>.png (--png is accepted: the picture is
+always drawn). The picture contains game content: keep it in your work folder, do not share it.
 
 How a mesh is read (the console converter's FORMAT.md sections 3-4): <mesh>_lod<N>_data.res (MeshData) names its parts,
 their vertex and index ranges; each part's vertex layout is in the shader database of a level that draws the mesh
@@ -596,6 +594,9 @@ renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, came
 
 
 def page(laid, title):
+    """The laid-out models as a page for a browser (three.js). Deprecated (round GR3): the command line no longer
+    writes it - the map editor's asset preview replaced it - and it stays only because Project OPFOR BFBC2's WW2 tools
+    (attachments.py, scopes.py) still write their preview pages with it; its output is unchanged."""
     import json
     models = []
     for name, parts, off in laid:
@@ -659,14 +660,11 @@ def main(argv):
     out = opts.get('--out') or os.path.join(root, 'work', 'tools_out', 'meshview')
     os.makedirs(out, exist_ok=True)
     stem = '+'.join(n.split('/')[-1] for n, _ in models)[:120]
-    html = os.path.join(out, stem + '.html')
-    open(html, 'w', encoding='utf-8').write(page(laid, ' + '.join(n.split('/')[-1] for n, _ in models)))
-    print(f'page: {html}')
-    if '--png' in flags:
-        from PIL import Image
-        png = os.path.join(out, f'{stem}_{opts.get("--view") or "side"}.png')
-        Image.fromarray(render(laid, int(opts.get('--size') or 1200), opts.get('--view') or 'side')).save(png)
-        print(f'picture: {png}')
+    # round GR3: the picture only (the page for a browser went: the map editor's asset preview shows a mesh)
+    from PIL import Image
+    png = os.path.join(out, f'{stem}_{opts.get("--view") or "side"}.png')
+    Image.fromarray(render(laid, int(opts.get('--size') or 1200), opts.get('--view') or 'side')).save(png)
+    print(f'picture: {png}')
     return 0
 
 

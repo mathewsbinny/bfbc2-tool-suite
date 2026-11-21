@@ -43,6 +43,12 @@
 //!
 //! Round I1 (2026-11-19): [`appicon`] - the window's icon, the suite's application icon (the .exe carries it too,
 //! embedded by `build.rs`).
+//!
+//! Round GR3 (2026-11-21): [`preview`] - the asset preview (the mesh viewer's browser page folded into the editor): a
+//! blueprint picked in Place Objects or any mesh found by name (the asset browser's Meshes mode) read as
+//! `meshview.py` reads it and drawn with its own triangle loop (`bc2_convert::meshview`), so the Side, Top and Front
+//! views are its pictures pixel for pixel; besides, an orbiting camera, levels of detail, parts, destruction states,
+//! textures by channel, wireframe, normals, bounds, comparisons and Save picture.
 #![deny(unsafe_code)]
 #![allow(
     clippy::many_single_char_names,
@@ -85,6 +91,7 @@ pub mod navview;
 pub mod overlays;
 pub mod package;
 pub mod prepare;
+pub mod preview;
 pub mod query;
 pub mod render;
 pub mod strip_ui;
