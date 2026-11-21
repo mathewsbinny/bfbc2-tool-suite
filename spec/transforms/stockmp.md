@@ -40,7 +40,7 @@ New instances get UUID v5 guids of (`opfor:stockmp`, level, kind, id), so the sa
 bytes; two builds give identical bundles and staged path data. Authoring a level that already has a stock-MP AI layer
 is refused and changes nothing.
 
-[code: rust/bc2-stockmp/src/guid.rs:1-30] [test: rust/bc2-stockmp/src/guid.rs::python_uuid5]
+[code: rust/bc2-formats/src/guid.rs:1-31] [test: rust/bc2-formats/src/guid.rs::python_uuid5]
 [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick] [test: bfbc2-stockmp-ai/tests/test_stockmp.py::game]
 
 ### XSMP-PAR-1: The Rust core answers as the Python

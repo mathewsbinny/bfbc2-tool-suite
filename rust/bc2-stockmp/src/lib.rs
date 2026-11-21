@@ -21,7 +21,8 @@
 pub mod author;
 pub mod checks;
 pub mod files;
-pub mod guid;
+/// The GUID helper, now in `bc2-formats` (round QW2): kept under its old path for this crate's callers.
+pub use bc2_formats::guid;
 pub mod install;
 pub mod model;
 pub mod pytext;

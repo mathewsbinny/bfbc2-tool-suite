@@ -11,6 +11,11 @@ What changed for the suite's users, version by version. The format follows
   Before 1.0 a minor version may also change how a tool is called or what it writes; such changes are listed under
   **Changed** or **Removed**.
 - **PATCH** goes up for fixes only.
+- **A merge that removes something bumps MINOR at once** (round QW2, audit AU3 AR-9): a command line, a subcommand
+  or option, a Python function or module another project imports (Project OPFOR's), a Rust public API, or a file
+  format or folder a tool reads or writes. The merge itself writes the new `VERSION` and turns **Unreleased** into
+  that version (`RELEASING.md`, "A merge that removes something"), so Project OPFOR's version pin
+  (`opforcore.paths.SUITE_REQUIRES`, at least one version and below the next minor) sees every breaking change.
 - 1.0 is the full suite release (`ROADMAP.md`, priority 8).
 
 The version lives in one place, the `VERSION` file at the repository's root. `bfbc2core.__version__`,
@@ -23,7 +28,25 @@ landed on `main`.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.10.0] - 2026-11-21
+
+Released by round QW2 under the rule above, for what rounds RT1 to RT3, GR1, GR2, EX1 and FM1 removed since 0.9.0
+(command lines Project OPFOR called among them). Project OPFOR needs `SUITE_REQUIRES = ('0.10.0', '0.11.0')`.
+
 ### Added
+- **A project lock and a check before every save in the map editor** (round QW2, audit AU1 R4 / G-N17). An open
+  project holds `<project>.mapedit.json.lock` (the PC, the process, since when); a second editor refuses it in
+  words ("... is already open in another editor (on this PC, process N, since ...). Close it there first ..."),
+  a lock whose process is gone is taken over, and the lock goes when the project closes. Each save first checks that
+  the file is still the one this editor read or last wrote (its modified time and length); if another editor or
+  tool wrote it, nothing is saved, the message says so, and the changes stay in the autosave.
+- **`mapexport check` refuses streamed wave data** (`_waveDataSns_` entries) in any staged bundle (round QW2, audit
+  AU1 RISK-4; spec SND-STRM-1: the load crashes at 0x49EDF4).
+- **Exit codes documented** (round QW2, audit AU2 Q7): README "When something goes wrong".
+- **CI builds each of `bfbc2.exe`'s tool groups alone** (round QW2, audit AU2 A18; `checks.yml`); seven groups
+  failed to (dead-code warnings in the shared argument formatter), now fixed.
 - **Faster test tiers** (round TS1). The quick tier's single cargo entry (fmt, clippy, the workspace's tests: about
   53 minutes alone, every CPU) is four entries - the test build, the quick tests, clippy, fmt - and the tests run
   beside clippy and the Python entries. The whole-level editor, levelwrite and renderer tests (35, marked
@@ -170,6 +193,10 @@ landed on `main`.
   mapexport]`; `bfbc2-editor --source-hash` and `mapexport --source-hash`.
 
 ### Changed
+- **Code moved between crates** (round QW2, audit AU2 A5): `guid::new_guid` into `bc2-formats` (from `bc2-stockmp`,
+  which re-exports it), so `bc2-levelwrite` and with it the editor no longer build `bc2-stockmp`; the 32-bit PE
+  reader `pe` into `bc2-formats` (from `bc2-harness`, which re-exports it), so `bc2-menu` no longer builds the
+  harness. Same answers: the moved modules' tests pass unchanged.
 - **Map editor: the Game-accurate view's sky, levels of detail and labels** (round R5d). The weather's sky dome is
   drawn behind the level (DICE's `EnvironmentMain` with the weather state's sky, sun and halo values: a blue sky over
   MP_005 instead of the flat fog colour; the panoramic clouds are left out until their composite is proven). Far
@@ -305,8 +332,25 @@ landed on `main`.
   `navtune` (3), `xmlinst` (2), `navvehicle.obstacle_distance_reference` and
   `navsample_offline.terrain_blocks_reference`. Their answers are recorded (`*_replay*.json` beside the tests,
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
+- **The Map Inspector** (`bfbc2-map-inspector/inspector.py`, round GR1): its 3D view, layers, search and Selection
+  panel were already the editor's; its property tree, "referenced by", link lines and Measure are the editor's All
+  fields, Links and Measure (above). The hub's Levels tab opens levels in the map editor; the folder keeps
+  `EDITOR_ARCHITECTURE.md` and a README saying where each feature went.
+- **`bfbc2-map-inspector\`** (round FM1): its README's table is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.1, the
+  plan moved to `bfbc2-map-editor\`. **The placeholder folders** `bfbc2-ai-behavior-simulator\`,
+  `bfbc2-bot-ai-debugger\` and `bfbc2-tactical-map-authoring-tool\` (a README each, never built): they are planned
+  map editor workspaces (`EDITOR_ARCHITECTURE.md` section 10). `RETIRED.md` has the last commits that had them.
 
 ### Fixed
+- **O4's texqa goldens failed on every run since round DF2** (round QW2): texqa's cache keys hash texqa.py's own
+  source, so DF2's edit of `texqa.Dice` re-keyed the cached rows of three cases; the digests were not random (one
+  per texqa.py revision). The test now compares the cache with that hash taken out of each key it can rebuild, so
+  an edit of texqa.py no longer breaks it and a wrong key still does.
+- **O2 on PCs with Microsoft Defender** (round QW2): the stand-in `b.exe` of the aptrefs cases is a loadable image
+  (no holes between its sections, an import table), which Defender's machine-learning scan no longer blocks as
+  `Trojan:Win32/Bearfoos.A!ml` (Errno 22). No exclusion or security setting is needed.
+- **`texqa.Dice`'s reading of the install ledger's originals has a test** (round QW2): a stand-in game copy with a
+  ledger.
 - **Tests that passed by skipping** (round TS1, audit AU3 TS-7): the simplified-view, view-geometry and view-toggle
   tests turned a level that did not open, a game view that did not start or render meshes not read into a "skipped"
   that passed; with the level in the game copy each is now a failure. The Rust tests' "<level>: skipped, ..." lines
@@ -397,16 +441,6 @@ landed on `main`.
   `Settings` partitions, read wherever the level's bundles hold them, instead of looking for partitions named
   `weathersettings*` in a guessed folder (the WW2 levels name their settings after the level). A level with no
   weather data opens under a default sky and the status line says so, instead of failing.
-
-### Removed
-- **The Map Inspector** (`bfbc2-map-inspector/inspector.py`, round GR1): its 3D view, layers, search and Selection
-  panel were already the editor's; its property tree, "referenced by", link lines and Measure are the editor's All
-  fields, Links and Measure (above). The hub's Levels tab opens levels in the map editor; the folder keeps
-  `EDITOR_ARCHITECTURE.md` and a README saying where each feature went.
-- **`bfbc2-map-inspector\`** (round FM1): its README's table is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.1, the
-  plan moved to `bfbc2-map-editor\`. **The placeholder folders** `bfbc2-ai-behavior-simulator\`,
-  `bfbc2-bot-ai-debugger\` and `bfbc2-tactical-map-authoring-tool\` (a README each, never built): they are planned
-  map editor workspaces (`EDITOR_ARCHITECTURE.md` section 10). `RETIRED.md` has the last commits that had them.
 
 ## [0.9.0] - 2026-11-19
 

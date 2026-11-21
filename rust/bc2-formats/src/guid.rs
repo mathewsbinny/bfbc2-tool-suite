@@ -1,4 +1,5 @@
 //! `dbxbin.new_guid`: a deterministic GUID, `UUIDv5` over `NAMESPACE_URL` of the parts joined by `:`, upper case.
+//! Moved from `bc2-stockmp` (round QW2, audit AU2 A5): the editor's level writer needs it, not stock-MP's AI layer.
 
 use std::fmt::Write as _;
 
@@ -10,7 +11,7 @@ const NAMESPACE_URL: [u8; 16] = [
 /// `str(uuid.uuid5(uuid.NAMESPACE_URL, ':'.join([namespace, *parts]))).upper()`.
 ///
 /// ```
-/// assert_eq!(bc2_stockmp::guid::new_guid("opfor:stockmp", &["mp_005", "spawner", "t1_00"]).len(), 36);
+/// assert_eq!(bc2_formats::guid::new_guid("opfor:stockmp", &["mp_005", "spawner", "t1_00"]).len(), 36);
 /// ```
 #[must_use]
 pub fn new_guid(namespace: &str, parts: &[&str]) -> String {

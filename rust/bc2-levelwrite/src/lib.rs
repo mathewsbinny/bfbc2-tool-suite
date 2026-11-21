@@ -58,7 +58,7 @@ pub const NAMESPACE: &str = "opfor:mapedit";
 /// case as DICE writes them), so a replay of the log gives the same guids.
 #[must_use]
 pub fn new_guid(project: &str, operation: u64, source: &str) -> String {
-    bc2_stockmp::guid::new_guid(
+    bc2_formats::guid::new_guid(
         NAMESPACE,
         &[project, &operation.to_string(), &source.to_ascii_uppercase()],
     )

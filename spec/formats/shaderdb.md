@@ -286,7 +286,7 @@ listed. The check refuses a mesh the level reaches without entries unless the st
 or no database has it.
 
 [code: rust/bc2-levelwrite/src/shaders.rs:218-316] [code: rust/bc2-formats/src/shaderdb/merge.rs:165-200]
-[code: rust/bc2-levelwrite/src/export.rs:3016-3073]
+[code: rust/bc2-levelwrite/src/export.rs:3046-3103]
 [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ## Render state

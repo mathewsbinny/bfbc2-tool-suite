@@ -16,13 +16,14 @@ flate2.workspace = true
 memchr.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# guid::new_guid's UUID v5 (round QW2: moved from bc2-stockmp)
+sha1_smol.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
-sha1_smol.workspace = true
 stats_alloc.workspace = true
 
 [lints]

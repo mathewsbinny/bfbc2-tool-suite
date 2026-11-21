@@ -9,6 +9,8 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+# the PE reader (round QW2: moved into bc2-formats, re-exported here as bc2_harness::pe)
+bc2-formats.workspace = true
 rayon.workspace = true
 iced-x86.workspace = true
 memchr.workspace = true

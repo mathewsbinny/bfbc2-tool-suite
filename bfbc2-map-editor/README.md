@@ -130,7 +130,9 @@ comes from, recorded in the project; the terrain itself is generated in a later 
   numbers, decimals; a number the data does not say is whole or decimal is shown, not written).
 - **History** panel: every operation with who and when; click one to undo or redo to it. **Ctrl+Z** / **Ctrl+Y**
   (or Ctrl+Shift+Z). **Ctrl+S** saves; every change is written at once to `<name>.mapedit.json.autosave`, and a
-  project opened with an autosave that differs from it offers to recover it. **Check edits** (palette) applies the
+  project opened with an autosave that differs from it offers to recover it. A project is open in one editor at a
+  time (`<name>.mapedit.json.lock`, round QW2): a second editor refuses it, and a save refuses to overwrite a file
+  another editor or tool changed meanwhile (your changes stay in the autosave). **Check edits** (palette) applies the
   whole log to the base partition again and says what it changes.
 
 The edits are written by `rust/bc2-levelwrite` (levelwrite: one mutation API on the level partition, the port of

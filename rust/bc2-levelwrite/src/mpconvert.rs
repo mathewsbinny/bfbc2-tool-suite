@@ -616,7 +616,7 @@ fn remap(d: &mut EditDbx, n: NodeId, map: &HashMap<String, String>, cut: &mut Ve
 /// The guid a grafted donor instance gets: UUID v5 over the export, the donor and its guid (a rebuild gives the same).
 #[must_use]
 pub fn graft_guid(seed: &str, donor: &str, guid: &str) -> String {
-    bc2_stockmp::guid::new_guid(crate::NAMESPACE, &[seed, "graft", donor, &guid.to_ascii_uppercase()])
+    bc2_formats::guid::new_guid(crate::NAMESPACE, &[seed, "graft", donor, &guid.to_ascii_uppercase()])
 }
 
 fn named_capture_points(donor: &LevelWriter) -> HashMap<String, String> {
@@ -1075,7 +1075,7 @@ pub fn set_partition_guid(d: &mut EditDbx, guid: &str) -> Result<()> {
 /// copies), its strings renamed.
 #[must_use]
 pub fn partition_guid_for(entry: &str) -> String {
-    bc2_stockmp::guid::new_guid(crate::NAMESPACE, &["partition", &entry.to_ascii_lowercase()])
+    bc2_formats::guid::new_guid(crate::NAMESPACE, &["partition", &entry.to_ascii_lowercase()])
 }
 
 /// The id attribute of the level's `LevelData` (`id="SP_01"`).
