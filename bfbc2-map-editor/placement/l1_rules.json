@@ -1,0 +1,1577 @@
+[
+ {
+  "id": "L1-CQ-001",
+  "metric": "cq.flag_count",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   1,
+   null
+  ],
+  "info": [
+   3,
+   4
+  ],
+  "message": "Conquest has {v:.0f} flags; DICE's Conquest maps have 3-4.",
+  "records": 16,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   3.0,
+   4.0
+  ]
+ },
+ {
+  "id": "L1-CQ-001w",
+  "metric": "cq.flag_count",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "WW2"
+  ],
+  "warn": [
+   1,
+   null
+  ],
+  "info": [
+   5,
+   5
+  ],
+  "message": "WW2 Conquest has {v:.0f} flags; the BF1943 maps have 5.",
+  "records": 3,
+  "levels": 3,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   5.0,
+   5.0
+  ]
+ },
+ {
+  "id": "L1-CQ-002",
+  "metric": "cq.flag_nn_dist",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   50,
+   null
+  ],
+  "info": [
+   70,
+   300
+  ],
+  "message": "Flag {s} is {v:.0f} m from the nearest other flag; DICE keeps flags 58-450 m apart (median 121 m).",
+  "records": 52,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_006cq A",
+    58.0
+   ],
+   [
+    "mp_006cq B",
+    58.0
+   ],
+   [
+    "mp_006cq C",
+    67.6
+   ],
+   [
+    "mp_008cq C",
+    64.2
+   ],
+   [
+    "mp_008cq D",
+    64.2
+   ],
+   [
+    "mp_sp_005cq A:  UAV Station",
+    450.4
+   ],
+   [
+    "mp_sp_005cq B: TOW Defense",
+    406.8
+   ],
+   [
+    "mp_sp_005cq C: BMD Hill",
+    406.8
+   ]
+  ],
+  "range": [
+   58.0,
+   450.4
+  ]
+ },
+ {
+  "id": "L1-CQ-002w",
+  "metric": "cq.flag_nn_dist",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "WW2"
+  ],
+  "warn": [
+   80,
+   null
+  ],
+  "info": [
+   100,
+   250
+  ],
+  "message": "Flag {s} is {v:.0f} m from the nearest other flag; the WW2 maps keep 103-205 m.",
+  "records": 15,
+  "levels": 3,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   103.0,
+   205.2
+  ]
+ },
+ {
+  "id": "L1-CQ-003",
+  "metric": "cq.hq_nearest_flag",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   80,
+   null
+  ],
+  "info": [
+   100,
+   400
+  ],
+  "message": "HQ {s} is {v:.0f} m from its nearest flag; on DICE's maps an HQ is 85-384 m from the nearest flag.",
+  "records": 32,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_007 US_Guardpost",
+    96.8
+   ],
+   [
+    "nam_mp_002cq US Base",
+    99.9
+   ],
+   [
+    "nam_mp_002cq VC Base",
+    85.4
+   ]
+  ],
+  "range": [
+   85.4,
+   384.0
+  ]
+ },
+ {
+  "id": "L1-CQ-003w",
+  "metric": "cq.hq_nearest_flag",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "WW2"
+  ],
+  "warn": [
+   150,
+   null
+  ],
+  "info": [
+   200,
+   650
+  ],
+  "message": "HQ {s} is {v:.0f} m from its nearest flag; on the WW2 maps 202-633 m.",
+  "records": 6,
+  "levels": 3,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   202.2,
+   632.7
+  ]
+ },
+ {
+  "id": "L1-CQ-004",
+  "metric": "cq.hq_hq_dist",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   250,
+   null
+  ],
+  "info": [
+   280,
+   1000
+  ],
+  "message": "The HQs are {v:.0f} m apart; DICE's are 285-1358 m apart (median 424 m).",
+  "records": 16,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_sp_005cq",
+    1358.0
+   ]
+  ],
+  "range": [
+   285.0,
+   1358.0
+  ]
+ },
+ {
+  "id": "L1-CQ-005",
+  "metric": "cq.hq_nearest_flag_asymmetry",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   0,
+   60
+  ],
+  "message": "One HQ is {v:.0f} m closer to its nearest flag than the other; DICE keeps this within 54 m.",
+  "records": 19,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "wake_island_s",
+    94.2
+   ],
+   [
+    "guadal_canal",
+    64.6
+   ]
+  ],
+  "range": [
+   1.7,
+   94.2
+  ]
+ },
+ {
+  "id": "L1-CQ-006",
+  "metric": "cq.flag_axis_t",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   0.0,
+   1.0
+  ],
+  "info": [
+   0.1,
+   0.9
+  ],
+  "message": "Flag {s} is not between the HQs (at {v:.2f} of the way from Team 1's HQ); DICE's flags lie at 0.1-0.9.",
+  "records": 67,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   0.1,
+   0.9
+  ]
+ },
+ {
+  "id": "L1-CQ-007",
+  "metric": "cq.flag_axis_lateral",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   0,
+   0.5
+  ],
+  "message": "Flag {s} is {v:.2f} HQ-distances off the line between the HQs; DICE's are within 0.4.",
+  "records": 52,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   0.0,
+   0.4
+  ]
+ },
+ {
+  "id": "L1-CQ-008",
+  "metric": "cq.capture_zone",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   5,
+   null
+  ],
+  "info": [
+   7,
+   40
+  ],
+  "message": "Flag {s} has a capture zone of {v:.0f} m (equivalent radius); DICE's are 7.5-37 m.",
+  "records": 39,
+  "levels": 14,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   7.5,
+   36.8
+  ]
+ },
+ {
+  "id": "L1-CQ-009",
+  "metric": "cq.time_to_capture",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   20,
+   25
+  ],
+  "message": "Flag {s} takes {v:.0f} s to capture; DICE's Conquest flags take 20 s (one 25 s).",
+  "records": 52,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   20.0,
+   25.0
+  ]
+ },
+ {
+  "id": "L1-CQ-009w",
+  "metric": "cq.time_to_capture",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "WW2"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   10,
+   10
+  ],
+  "message": "Flag {s} takes {v:.0f} s to capture; BF1943's take 10 s.",
+  "records": 15,
+  "levels": 3,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   10.0,
+   10.0
+  ]
+ },
+ {
+  "id": "L1-CQ-010",
+  "metric": "cq.flag_spawn_points",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   1,
+   null
+  ],
+  "info": [
+   2,
+   null
+  ],
+  "message": "Flag {s} has {v:.0f} spawn points; DICE's flags have 2-21 (median 12; WW2 4-5).",
+  "records": 67,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   2.0,
+   21.0
+  ]
+ },
+ {
+  "id": "L1-CQ-011",
+  "metric": "cq.flag_spawn_dist_max",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   null,
+   200
+  ],
+  "info": [
+   null,
+   140
+  ],
+  "message": "A spawn point of flag {s} is {v:.0f} m from the flag; DICE's are within 137 m (median farthest 61 m).",
+  "records": 67,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   15.3,
+   137.3
+  ]
+ },
+ {
+  "id": "L1-CQ-012",
+  "metric": "cq.hq_spawn_points",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   1,
+   null
+  ],
+  "info": [
+   4,
+   null
+  ],
+  "message": "HQ {s} has {v:.0f} spawn points; DICE's HQs have 4-13 (median 9).",
+  "records": 38,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   4.0,
+   13.0
+  ]
+ },
+ {
+  "id": "L1-CQ-013",
+  "metric": "cq.flag_margin",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   0,
+   null
+  ],
+  "info": [
+   10,
+   null
+  ],
+  "message": "Flag {s} is {v:.0f} m inside the combat area edge (negative: outside); DICE's are 11 m or more inside.",
+  "records": 67,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   10.9,
+   400.5
+  ]
+ },
+ {
+  "id": "L1-CQ-014",
+  "metric": "cq.hq_margin",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   0,
+   null
+  ],
+  "info": [
+   1,
+   null
+  ],
+  "message": "HQ {s} is {v:.0f} m inside its team's combat area (negative: outside); every DICE HQ is inside.",
+  "records": 38,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   1.2,
+   65.4
+  ]
+ },
+ {
+  "id": "L1-CQ-015",
+  "metric": "cq.hq_vs_enemy_area",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   null,
+   0
+  ],
+  "info": [
+   null,
+   -3
+  ],
+  "message": "HQ {s} is inside the enemy's combat area by {v:.0f} m; where each team has its own area, DICE keeps every HQ outside the enemy's (by 3-88 m).",
+  "records": 16,
+  "levels": 8,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   -87.8,
+   -3.2
+  ]
+ },
+ {
+  "id": "L1-CQ-016",
+  "metric": "cq.tickets",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   200,
+   350
+  ],
+  "message": "Conquest starts with {v:.0f} tickets; DICE's maps use 200-350.",
+  "records": 32,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   200.0,
+   350.0
+  ]
+ },
+ {
+  "id": "L1-CQ-017",
+  "metric": "cq.combat_area_union",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   40000,
+   500000
+  ],
+  "message": "The combat area is {v:.0f} m2; DICE's Conquest areas are 44,000-479,000 m2.",
+  "records": 16,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   43560.0,
+   478772.0
+  ]
+ },
+ {
+  "id": "L1-RU-001",
+  "metric": "rush.stage_count",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   2,
+   null
+  ],
+  "info": [
+   3,
+   5
+  ],
+  "message": "Rush has {v:.0f} stages; DICE's Rush maps have 3-5.",
+  "records": 16,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   3.0,
+   5.0
+  ]
+ },
+ {
+  "id": "L1-RU-002",
+  "metric": "rush.mcoms_per_stage",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": null,
+  "info": null,
+  "message": "A Rush stage has {v} M-COMs; every DICE Rush stage has 2.",
+  "records": 16,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": null
+ },
+ {
+  "id": "L1-RU-003",
+  "metric": "rush.mcom_pair_dist",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   10,
+   120
+  ],
+  "info": [
+   25,
+   80
+  ],
+  "message": "The stage {st} M-COMs are {v:.0f} m apart; DICE's pairs are 12-91 m apart (median 40 m).",
+  "records": 59,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_006 s5",
+    16.3
+   ],
+   [
+    "mp_007gr s1",
+    11.7
+   ],
+   [
+    "mp_sp_002gr s3",
+    21.4
+   ],
+   [
+    "nam_mp_006r s1",
+    90.9
+   ]
+  ],
+  "range": [
+   11.7,
+   90.9
+  ]
+ },
+ {
+  "id": "L1-RU-004",
+  "metric": "rush.stage_step",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   75,
+   null
+  ],
+  "info": [
+   100,
+   320
+  ],
+  "message": "Stage {st} is {v:.0f} m from stage {pst}; DICE's Rush stages are 93-316 m apart (median 174 m).",
+  "records": 43,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_sp_002gr s3",
+    92.9
+   ]
+  ],
+  "range": [
+   92.9,
+   315.6
+  ]
+ },
+ {
+  "id": "L1-RU-004s",
+  "metric": "sr.stage_step",
+  "modes": [
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   40,
+   null
+  ],
+  "info": [
+   60,
+   180
+  ],
+  "message": "Squad Rush stage {st} is {v:.0f} m from stage {pst}; DICE's are 45-169 m apart (median 119 m).",
+  "records": 14,
+  "levels": 14,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_sp_002sr s2",
+    45.4
+   ]
+  ],
+  "range": [
+   45.4,
+   169.4
+  ]
+ },
+ {
+  "id": "L1-RU-005",
+  "metric": "rush.defender_spawn_to_obj_min",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   100
+  ],
+  "info": [
+   5,
+   65
+  ],
+  "message": "The defenders' nearest spawn is {v:.0f} m from a stage {st} M-COM; DICE's are 6-61 m (median 30 m).",
+  "records": 59,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   6.0,
+   61.1
+  ]
+ },
+ {
+  "id": "L1-RU-005s",
+  "metric": "sr.defender_spawn_to_obj_min",
+  "modes": [
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   100
+  ],
+  "info": [
+   20,
+   75
+  ],
+  "message": "The defenders' nearest spawn is {v:.0f} m from the stage {st} M-COM; DICE's are 23-72 m.",
+  "records": 28,
+  "levels": 14,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   22.7,
+   72.3
+  ]
+ },
+ {
+  "id": "L1-RU-006",
+  "metric": "rush.attacker_spawn_to_obj_min",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   40,
+   null
+  ],
+  "info": [
+   60,
+   460
+  ],
+  "message": "The attackers' nearest spawn is {v:.0f} m from a stage {st} M-COM; DICE's are 72-459 m (median 160 m).",
+  "records": 59,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   71.5,
+   458.9
+  ]
+ },
+ {
+  "id": "L1-RU-006s",
+  "metric": "sr.attacker_spawn_to_obj_min",
+  "modes": [
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   40,
+   null
+  ],
+  "info": [
+   50,
+   170
+  ],
+  "message": "The attackers' nearest spawn is {v:.0f} m from the stage {st} M-COM; DICE's are 55-165 m.",
+  "records": 28,
+  "levels": 14,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   54.9,
+   165.0
+  ]
+ },
+ {
+  "id": "L1-RU-007",
+  "metric": "rush.spawn_ratio",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   1.0,
+   null
+  ],
+  "info": [
+   1.5,
+   null
+  ],
+  "message": "At stage {st} the attackers spawn only {v:.1f} times as far from the M-COMs as the defenders; DICE: 1.8-21x (median 5x).",
+  "records": 59,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   1.8,
+   21.5
+  ]
+ },
+ {
+  "id": "L1-RU-007s",
+  "metric": "sr.spawn_ratio",
+  "modes": [
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   0.75,
+   null
+  ],
+  "info": [
+   1.0,
+   null
+  ],
+  "message": "At stage {st} the attackers spawn only {v:.1f} times as far from the M-COM as the defenders; DICE Squad Rush: 1.0-4.4x.",
+  "records": 28,
+  "levels": 14,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   1.0,
+   4.4
+  ]
+ },
+ {
+  "id": "L1-RU-008",
+  "metric": "rush.defender_spawn_depth",
+  "modes": [
+   "Rush",
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   -30,
+   null
+  ],
+  "info": [
+   0,
+   null
+  ],
+  "message": "At stage {st} the defenders spawn {v:.0f} m behind the M-COMs (negative: in front of them, towards the attackers); DICE's spawn behind (median 39 m), with 2 exceptions down to -27 m.",
+  "records": 87,
+  "levels": 30,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "nam_mp_002r s3",
+    -16.0
+   ],
+   [
+    "mp_012sr s1",
+    -27.0
+   ]
+  ],
+  "range": [
+   -27.0,
+   73.9
+  ]
+ },
+ {
+  "id": "L1-RU-009",
+  "metric": "rush.attacker_spawn_depth",
+  "modes": [
+   "Rush",
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   0
+  ],
+  "info": [
+   null,
+   -60
+  ],
+  "message": "At stage {st} the attackers spawn only {v:.0f} m in front of the M-COMs; DICE's spawn 64-490 m in front.",
+  "records": 87,
+  "levels": 30,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   -490.5,
+   -63.9
+  ]
+ },
+ {
+  "id": "L1-RU-010",
+  "metric": "rush.attacker_spawns_in_enemy_area",
+  "modes": [
+   "Rush",
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   0
+  ],
+  "info": [
+   null,
+   -1
+  ],
+  "message": "A stage-1 attacker spawn point is {v:.0f} m inside the defenders' combat area; DICE keeps the attackers' first base outside it (by 2-141 m).",
+  "records": 30,
+  "levels": 30,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   -140.8,
+   -1.7
+  ]
+ },
+ {
+  "id": "L1-RU-011",
+  "metric": "rush.obj_margin_attacker_area",
+  "modes": [
+   "Rush",
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   0,
+   null
+  ],
+  "info": [
+   10,
+   null
+  ],
+  "message": "A stage {st} M-COM is {v:.0f} m inside the attackers' combat area edge; DICE's are 6 m or more inside (p10 18 m).",
+  "records": 146,
+  "levels": 30,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_009gr s3",
+    5.7
+   ],
+   [
+    "mp_sp_002gr s2",
+    9.3
+   ],
+   [
+    "mp_sp_002gr s3",
+    8.2
+   ],
+   [
+    "mp_sp_002gr s3",
+    9.8
+   ]
+  ],
+  "range": [
+   5.7,
+   96.1
+  ]
+ },
+ {
+  "id": "L1-RU-012",
+  "metric": "rush.obj_margin_defender_area",
+  "modes": [
+   "Rush",
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   0,
+   null
+  ],
+  "info": [
+   10,
+   null
+  ],
+  "message": "A stage {st} M-COM is {v:.0f} m inside the defenders' combat area edge; DICE's are 6 m or more inside.",
+  "records": 146,
+  "levels": 30,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_009gr s3",
+    5.7
+   ],
+   [
+    "mp_sp_002gr s3",
+    9.2
+   ]
+  ],
+  "range": [
+   5.7,
+   125.9
+  ]
+ },
+ {
+  "id": "L1-RU-013",
+  "metric": "rush.attacker_area_kept",
+  "modes": [
+   "Rush",
+   "SR"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   75,
+   null
+  ],
+  "message": "The attackers' combat area at stage {st} keeps only {v:.0f}% of the stage before; DICE grows it (99.9% median; Cold War is the exception at 38%).",
+  "records": 57,
+  "levels": 30,
+  "warn_flagged": [],
+  "info_flagged": [
+   [
+    "mp_sp_002gr s3",
+    38.3
+   ]
+  ],
+  "range": [
+   38.3,
+   100.0
+  ]
+ },
+ {
+  "id": "L1-RU-014",
+  "metric": "rush.mcom_pair_dist",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   null,
+   10
+  ],
+  "message": "The stage {st} M-COMs differ by {v:.0f} m in height; DICE's pairs are within 8.5 m.",
+  "records": 59,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   0.0,
+   8.5
+  ]
+ },
+ {
+  "id": "L1-RU-015",
+  "metric": "rush.lives",
+  "modes": [
+   "Rush"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   75,
+   100
+  ],
+  "message": "The attackers have {v:.0f} lives; DICE's Rush uses 75-100 (Squad Rush 20).",
+  "records": 16,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   75.0,
+   100.0
+  ]
+ },
+ {
+  "id": "L1-SD-001",
+  "metric": "sdm.squad_count",
+  "modes": [
+   "SDM"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   2,
+   null
+  ],
+  "info": [
+   4,
+   4
+  ],
+  "message": "Squad Deathmatch has {v:.0f} squads; DICE's has 4.",
+  "records": 15,
+  "levels": 15,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   4.0,
+   4.0
+  ]
+ },
+ {
+  "id": "L1-SD-002",
+  "metric": "sdm.spawn_points",
+  "modes": [
+   "SDM"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   8,
+   null
+  ],
+  "info": [
+   12,
+   40
+  ],
+  "message": "Squad Deathmatch has {v:.0f} spawn points; DICE's maps have 14-34.",
+  "records": 15,
+  "levels": 15,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   14.0,
+   34.0
+  ]
+ },
+ {
+  "id": "L1-SD-003",
+  "metric": "sdm.spawn_nn_median",
+  "modes": [
+   "SDM"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   10,
+   40
+  ],
+  "message": "Spawn points are {v:.0f} m apart (median nearest neighbour); DICE's: 13-38 m.",
+  "records": 15,
+  "levels": 15,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   12.8,
+   37.9
+  ]
+ },
+ {
+  "id": "L1-SD-004",
+  "metric": "sdm.combat_area_union",
+  "modes": [
+   "SDM"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   14000,
+   90000
+  ],
+  "message": "The Squad Deathmatch area is {v:.0f} m2; DICE's are 15,000-84,000 m2.",
+  "records": 15,
+  "levels": 15,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   15344.0,
+   83836.0
+  ]
+ },
+ {
+  "id": "L1-SD-005",
+  "metric": "sdm.spawn_margin_min",
+  "modes": [
+   "SDM"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   -5,
+   null
+  ],
+  "info": [
+   0,
+   null
+  ],
+  "message": "A spawn point is {v:.0f} m inside the combat area edge (negative: outside); DICE's are all 2 m or more inside.",
+  "records": 15,
+  "levels": 15,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   2.0,
+   15.5
+  ]
+ },
+ {
+  "id": "L1-SD-006",
+  "metric": "sdm.vehicles",
+  "modes": [
+   "SDM"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   1,
+   1
+  ],
+  "message": "Squad Deathmatch has {v:.0f} vehicles; DICE's maps have one (an IFV or tank for all squads).",
+  "records": 15,
+  "levels": 15,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "id": "L1-AL-001",
+  "metric": "all.spawn_enemy_radius",
+  "modes": null,
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   10,
+   20
+  ],
+  "message": "A spawner checks for enemies within {v:.0f} m; DICE uses 20 m (10 m on one map).",
+  "records": 410,
+  "levels": 64,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   10.0,
+   20.0
+  ]
+ },
+ {
+  "id": "L1-AL-002",
+  "metric": "cq.spawn_margin",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam",
+   "WW2"
+  ],
+  "warn": [
+   0,
+   null
+  ],
+  "info": [
+   1,
+   null
+  ],
+  "message": "A spawn point of {s} is {v:.0f} m inside its team's combat area (negative: outside); DICE: all 1.3 m or more inside.",
+  "records": 1005,
+  "levels": 19,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   1.3,
+   421.9
+  ]
+ },
+ {
+  "id": "L1-HT-001",
+  "metric": "cq.flag.prominence",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   -10,
+   10
+  ],
+  "message": "Flag {s} stands {v:.0f} m above (or below) the ground around it; DICE's flags are within 7.5 m of it.",
+  "records": 52,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   -6.5,
+   7.4
+  ]
+ },
+ {
+  "id": "L1-HT-002",
+  "metric": "cq.flag_pair_dist",
+  "modes": [
+   "CQ"
+  ],
+  "groups": [
+   "BFBC2",
+   "BFBC1",
+   "Vietnam"
+  ],
+  "warn": [
+   null,
+   null
+  ],
+  "info": [
+   null,
+   25
+  ],
+  "message": "Two flags differ by {v:.0f} m in height; DICE's differ by up to 24 m.",
+  "records": 60,
+  "levels": 16,
+  "warn_flagged": [],
+  "info_flagged": [],
+  "range": [
+   0.0,
+   24.1
+  ]
+ }
+]
