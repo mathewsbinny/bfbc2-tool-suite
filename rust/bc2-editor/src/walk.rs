@@ -281,7 +281,7 @@ mod tests {
         let s = Soldier::default();
         assert_eq!(s.fov(), 55.0);
         assert!(
-            (s.horizontal_fov(16.0 / 9.0) - 88.4).abs() < 0.1,
+            (s.horizontal_fov(16.0 / 9.0) - 85.57).abs() < 0.01,
             "{}",
             s.horizontal_fov(16.0 / 9.0)
         );
