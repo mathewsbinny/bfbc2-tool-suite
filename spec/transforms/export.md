@@ -94,7 +94,7 @@ the donor's `vo/<lang>` blocks are registered under the new name and its own voi
 byte. Each set's announcer resolves to the same bytes as on its donor (BFBC2 13 partitions from `mp_common`,
 Vietnam 13 from `nam_common`, WW2 12, BFBC1 13).
 
-[code: rust/bc2-levelwrite/src/export.rs:1770-1831] [code: rust/bc2-levelwrite/src/export.rs:2740-2760]
+[code: rust/bc2-levelwrite/src/export.rs:1770-1831] [code: rust/bc2-levelwrite/src/export.rs:2770-2790]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer] [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1119-1140]
 
@@ -132,7 +132,7 @@ map-list picture `Awards/images/Levels/<lv>`, made from the user's picture in th
 720; DXT5 512 x 256 with the picture in the alpha's box) and added to `ondemand_awards-00`. The patched overlay and
 awards bundles differ from their sources only in the level's keys and entries.
 
-[code: rust/bc2-levelwrite/src/export.rs:3130-3242] [test: rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches]
+[code: rust/bc2-levelwrite/src/export.rs:3160-3272] [test: rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches]
 [test: rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form] [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
 
 ### XEXP-RO-1: The game copy is read only
@@ -162,7 +162,7 @@ target era's; the cull tree check (XCULL-RES-2) passes; each re-slotted object s
 shape and no new object is at slot 0 that some level slots (XCULL-RES-3); every mesh the level reaches has entries
 in its shader databases (SHDB-LVL-2). Each failing line is stated in words.
 
-[code: rust/bc2-levelwrite/src/export.rs:2194-2569] [code: rust/bc2-levelwrite/src/export.rs:2588-2711]
+[code: rust/bc2-levelwrite/src/export.rs:2194-2599] [code: rust/bc2-levelwrite/src/export.rs:2618-2741]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level] [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 

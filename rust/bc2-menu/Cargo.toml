@@ -10,7 +10,6 @@ repository.workspace = true
 
 [dependencies]
 bc2-formats.workspace = true
-bc2-harness.workspace = true
 bc2-pyrt.workspace = true
 
 [lints]

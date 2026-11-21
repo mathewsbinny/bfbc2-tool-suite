@@ -1,6 +1,7 @@
 //! A 32-bit Windows executable as the crash reader and exeref see it: pefile's `PE(path, fast_load=True)` and its
 //! `get_memory_mapped_image()` (the headers and each section's raw data at its virtual address), the image base and
-//! the sections (name, virtual address, virtual size, characteristics).
+//! the sections (name, virtual address, virtual size, characteristics). Moved from `bc2-harness` (round QW2, audit AU2
+//! A5): a file format, which the menu tools read too.
 //!
 //! The mapping follows pefile 2024.8.26's rules for well-formed images and refuses ([`PeError::Refused`]) where
 //! pefile adjusts or warns (a section alignment under a page, raw data past the file, sections out of order ...):

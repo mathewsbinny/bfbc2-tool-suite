@@ -484,6 +484,7 @@ name = "bc2-harness"
 version = "0.1.0"
 dependencies = [
  "aho-corasick",
+ "bc2-formats",
  "iced-x86",
  "memchr",
  "rayon",
@@ -498,7 +499,6 @@ dependencies = [
  "bc2-formats",
  "bc2-pyrt",
  "bc2-scene",
- "bc2-stockmp",
  "embed-resource",
  "png",
  "rayon",
@@ -515,7 +515,6 @@ name = "bc2-menu"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
- "bc2-harness",
  "bc2-pyrt",
 ]
 

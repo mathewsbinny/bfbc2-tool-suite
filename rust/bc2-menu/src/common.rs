@@ -9,8 +9,8 @@
 use std::collections::{BTreeSet, HashMap};
 
 use bc2_formats::apt::{self, MovieRef};
+use bc2_formats::pe;
 use bc2_formats::{bigf, fbrb};
-use bc2_harness::pe;
 use bc2_pyrt::err::{self as pyproc, Fail, PyErr, PyResult};
 
 // ------------------------------------------------------------------------------------------------ Python's pieces

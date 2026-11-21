@@ -411,7 +411,7 @@ fn copy_renamed(
         let d = EditDbx::parse(data).map_err(|e| err(format!("{p}: {}", e.0)))?;
         for e in d.instances() {
             let g = guid_of(&d, e);
-            let n = bc2_stockmp::guid::new_guid(crate::NAMESPACE, &[seed, p, &g]);
+            let n = bc2_formats::guid::new_guid(crate::NAMESPACE, &[seed, p, &g]);
             guid_map.insert((p.clone(), g), n);
         }
         parsed.push((p.clone(), d));
