@@ -24,6 +24,22 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Faster test tiers** (round TS1). The quick tier's single cargo entry (fmt, clippy, the workspace's tests: about
+  53 minutes alone, every CPU) is four entries - the test build, the quick tests, clippy, fmt - and the tests run
+  beside clippy and the Python entries. The whole-level editor, levelwrite and renderer tests (35, marked
+  `#[ignore = "game tier: ..."]`) moved to the game tier's new entry; the quick tier keeps one real level per crate.
+  Dependencies are optimised in debug and test builds. Crates unchanged since their last green run on this PC are
+  left out of clippy and the quick tests, and said (never on CI, in the full tier or with `--no-skip`). Every Rust
+  test's own time is kept (`%LOCALAPPDATA%\bfbc2-tool-suite\rust_test_times.json`) and the slowest are printed.
+  `tests\test_rust.py list` names every test with its tier.
+- **The shared compile cache**: with sccache installed, every cargo the suite runs goes through it, so a new worktree
+  takes the dependencies from the cache (`BFBC2_COMPILE_CACHE=0` turns it off; README, "The Rust core").
+- **`run_tests.py --timeout S`** and a default time limit per test (4 times its kept duration, at least 30 min /
+  3 h / 8 h by tier): a hung test is ended with its processes and fails. The run's results and total go to the day
+  log, not only "started".
+- **Three test files in a tier at last**: `test_aimanim.py`, `test_column_sectors.py` and `test_trees.py` (quick, and
+  game with `--game`); `tests\test_repo.py` fails on a test file no tier runs, and on a new runner entry or
+  environment variable named by a round code.
 - **`xisolib` reads disc images held in memory** in the Rust core (round RT3: `find_partition_bytes`, `walk_bytes`;
   an `io.BytesIO` goes through them), so the Xbox disc reader has no Python-only path left.
 - **`run_tests.py --help`** (also `-h`, `/?`) prints the runner's text and runs nothing (round RT3); an argument the
@@ -262,6 +278,15 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Tests that passed by skipping** (round TS1, audit AU3 TS-7): the simplified-view, view-geometry and view-toggle
+  tests turned a level that did not open, a game view that did not start or render meshes not read into a "skipped"
+  that passed; with the level in the game copy each is now a failure. The Rust tests' "<level>: skipped, ..." lines
+  are counted and named per test.
+- **The test runner** (audit AU4 DF4): `--only` matching nothing is exit code 2 (it said "0 of 0 passed", exit 0);
+  every test's processes end with the runner however it ends - Ctrl+C, a crash, killed - (its job objects are
+  kill-on-close), and a passing test's leftover child process no longer outlives it.
+- **`build_native.py`'s install** retries a target held for a moment (a scanner), and when the new file cannot go in
+  puts the live one back instead of leaving it moved aside.
 - **Map editor: Wake Island's and Coral Sea's black ground in the Game-accurate view** (round R5d). Three causes in
   the renderer, none in the data: the terrain's height scale was read as the database's placeholder 500 (Wake's
   terrain spans 1,000 m, so BF1943's sea-floor layers drew the beach and shallows as deep water: black); the water did

@@ -2077,13 +2077,65 @@ impl EditorApp {
     }
 }
 
+/// A level's read, kept for the next open of the same files: (files read, with their sizes and write times; the read).
+type SharedRead = (
+    Vec<(PathBuf, u64, Option<std::time::SystemTime>)>,
+    (Scene, Vec<String>, f64, Vec<PathBuf>),
+);
+
+/// The level reads a process shares when [`share_level_reads`] has been called: off in the editor.
+static SHARED_READS: std::sync::OnceLock<std::sync::Mutex<Vec<SharedRead>>> = std::sync::OnceLock::new();
+
+/// At most this many levels' reads are kept (the newest).
+const SHARED_KEPT: usize = 3;
+
+/// Every later open of a level in this process reuses its read while the level's files are unchanged (their sizes
+/// and write times): a test binary reads each level once, not once per test (round TS1). The editor itself never
+/// calls it.
+pub fn share_level_reads() {
+    SHARED_READS.get_or_init(Default::default);
+}
+
 fn load(root: &Path, lv: &str) -> Loaded {
     let t = Instant::now();
     let found = levels::load_options(root, lv)?;
+    let shared = SHARED_READS.get();
+    let key: Vec<(PathBuf, u64, Option<std::time::SystemTime>)> = if shared.is_some() {
+        let o = &found.options;
+        std::iter::once(&o.partition)
+            .chain(&o.groups)
+            .chain(&o.heightfield)
+            .map(|p| {
+                let m = std::fs::metadata(p).ok();
+                (
+                    p.clone(),
+                    m.as_ref().map_or(0, std::fs::Metadata::len),
+                    m.and_then(|m| m.modified().ok()),
+                )
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if let Some(m) = shared {
+        let kept = m.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, read)) = kept.iter().find(|(k, _)| *k == key) {
+            return Ok(read.clone());
+        }
+    }
     let s = scene::load(&found.options).map_err(|e| format!("{lv} could not be read: {e}"))?;
     let mut notes = found.notes;
     notes.extend(s.notes.iter().cloned());
-    Ok((s, notes, t.elapsed().as_secs_f64(), found.options.bases))
+    let read = (s, notes, t.elapsed().as_secs_f64(), found.options.bases);
+    if let Some(m) = shared {
+        let mut kept = m.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        kept.retain(|(k, _)| *k != key);
+        kept.push((key, read.clone()));
+        if kept.len() > SHARED_KEPT {
+            kept.remove(0);
+        }
+    }
+    Ok(read)
 }
 
 /// The content profile of a level, for the badge.

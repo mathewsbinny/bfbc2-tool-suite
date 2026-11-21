@@ -1,6 +1,7 @@
 r"""The environment-variable registry (core\bfbc2core\envvars.py, round QW1): every quoted BFBC2_* / BC2_* / BF1943_* /
 OPFOR_* name in the suite's code (Python, Rust, workflows, batch, C#, C++) is a registered variable or a registered
-non-variable, and every registered variable is still read somewhere (the 'opfor' group: by Project OPFOR).
+non-variable, and every registered variable is still read somewhere (the 'opfor' group: by Project OPFOR). No new
+name carries a round code (round TS1, audit AU3 TS-13: BC2_GW1_OPFOR, BC2_R5C_PACKAGE_OPFOR ...).
 
   python tests\test_envvars.py
 """
@@ -16,6 +17,20 @@ NAME = re.compile(r'''["'](?:\$env:)?((?:BFBC2|BC2|BF1943|OPFOR)_[A-Z0-9_]+)["']
 SKIP_DIRS = {'.git', '__pycache__', 'target', '.mypy_cache', '.ruff_cache', 'build', 'bin', 'node_modules'}
 EXTS = ('.py', '.pyw', '.rs', '.yml', '.yaml', '.bat', '.cs', '.cpp', '.h')
 OWN = {os.path.join(SUITE, 'core', 'bfbc2core', 'envvars.py'), os.path.abspath(__file__)}
+# a round code as a part of a name (BC2_GW1_OPFOR, BFBC2_O5_REF): names say what a variable does (round TS1, audit AU3
+# TS-13); the 21 named so before it stay until PR1c renames them, a new one fails
+ROUND = re.compile(r'_[A-Z]{1,2}[0-9]+[A-Z]?(?=_)')
+ROUND_CODED = frozenset({
+    'BC2_EDITOR_G3', 'BC2_EDITOR_G3_ART', 'BC2_EDITOR_G3_KEEP', 'BC2_EDITOR_G3_OUT', 'BC2_EDITOR_G3_PROJECTS',
+    'BC2_EDITOR_G3_ROOT', 'BC2_EDITOR_G3_SHOTS', 'BC2_EDITOR_G4_REAL', 'BC2_EDITOR_G4_SHOTS', 'BC2_EX1_STAGE',
+    'BC2_GW1_LEVELS', 'BC2_GW1_OPFOR', 'BC2_GW1_PACKAGE_LEVELS', 'BC2_R5C_PACKAGE_LEVELS', 'BC2_R5C_PACKAGE_OPFOR',
+    'BFBC2_O2_REF', 'BFBC2_O3_REF', 'BFBC2_O5_LEVELS', 'BFBC2_O5_REF', 'BFBC2_O5_STANDIN', 'BFBC2_SD1_SIBLINGS_OF',
+})
+
+
+def round_coded(name: str) -> bool:
+    """name carries a round code after its prefix (BC2_GW1_OPFOR: GW1)."""
+    return bool(ROUND.search('_' + name.split('_', 1)[-1] + '_'))
 
 
 def used() -> dict[str, set[str]]:
@@ -45,6 +60,12 @@ def main() -> int:
         fails.append(f'{n} is registered but nothing in the suite reads it any more (remove its row)')
     if not groups <= {'cache', 'log', 'native', 'switch', 'paths', 'workers', 'build', 'opfor', 'test'}:
         fails.append(f'unknown groups: {sorted(groups)}')
+    for n in sorted(known | set(names)):
+        if round_coded(n) and n not in ROUND_CODED:
+            fails.append(f'{n} is named by a round code: name it by what it does (audit AU3 TS-13)')
+    if not (round_coded('BC2_GW1_OPFOR') and round_coded('BFBC2_O5_REF') and not round_coded('BF1943_XENON')
+            and not round_coded('BFBC2_RUST_NO_SKIP')):
+        fails.append('the round-code rule does not tell BC2_GW1_OPFOR from BF1943_XENON')
     for f in fails:
         print('FAIL', f)
     print(f'{len(envvars.VARIABLES)} variables registered, {len(names)} quoted names in the code; '

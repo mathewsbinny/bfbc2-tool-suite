@@ -9,7 +9,11 @@ And without running anything: the scheduler holds room for a heavy test held bac
 they end in time), every NEEDS entry names a test in tests(), the log reader takes a run's durations, and
 atomicio.locked keeps two processes out of the same block. Round QW1: a test whose summary line says "skipped" counts
 as skipped (not passed) and parts a passing test skipped are counted; the kept durations lose names no tier has once
-they are old; a test's last recorded peak raises its declared memory; matplotlib's folder is the suite's.
+they are old; a test's last recorded peak raises its declared memory; matplotlib's folder is the suite's. Round TS1
+(audit AU4 DF4): a test past its time limit is ended with its processes and fails; the runner killed mid-test leaves
+no test process running (the job objects are KILL_ON_JOB_CLOSE), nor does a passing test's leftover child; --only
+matching nothing is exit code 2; build_native.install waits out a moment's lock, moves a loaded file aside, and puts
+the live file back when the new one cannot go in.
 
   python tests\test_runner_parallel.py
 """
@@ -240,6 +244,166 @@ def qw1(tmp):
     check(r.stdout.strip() == run_tests.MPL_DIR, 'MPLCONFIGDIR is the suite\'s own folder for the tests', r.stdout + r.stderr)
 
 
+def alive(pid):
+    """The process pid is still running (Windows: its exit code is STILL_ACTIVE)."""
+    import ctypes
+    k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    k32.OpenProcess.restype = ctypes.c_void_p
+    k32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    k32.CloseHandle.argtypes = [ctypes.c_void_p]
+    h = k32.OpenProcess(0x1000, False, pid)         # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return False
+    code = ctypes.c_ulong()
+    ok = k32.GetExitCodeProcess(h, ctypes.byref(code))
+    k32.CloseHandle(h)
+    return bool(ok) and code.value == 259
+
+
+def wait_for(path, secs=30.0):
+    import time
+    end = time.time() + secs
+    while time.time() < end:
+        if os.path.isfile(path) and open(path).read().strip():
+            return open(path).read().strip()
+        time.sleep(0.1)
+    return ''
+
+
+def gone(pid, secs=10.0):
+    import time
+    end = time.time() + secs
+    while pid and alive(pid) and time.time() < end:
+        time.sleep(0.2)
+    return bool(pid) and not alive(pid)
+
+
+# a stand-in test that starts a grandchild (sleeping two minutes), writes its pid, then sleeps `secs`
+SPAWNER = ('import subprocess, sys, time; pidfile, secs = sys.argv[1], float(sys.argv[2]); '
+           'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"], '
+           'stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); '
+           'open(pidfile, "w").write(str(p.pid)); time.sleep(secs); print("all passed")')
+
+DF4_CHILD = ('import sys\nsys.path.insert(0, %r)\nimport run_tests\n'
+             'run_tests.TIMES_FILE = %r\nrun_tests.SEED_FILE = %r\n'
+             'run_tests.tests = lambda: [("spawner", "quick", [sys.executable, "-c", %r, %r, %r]), '
+             '("plain", "quick", [sys.executable, "-c", "print(1)"])]\n'
+             'run_tests.NEEDS = {n: run_tests.need() for n in ("spawner", "plain")}\n'
+             'sys.exit(run_tests.main(["run_tests.py", "quick", *%r]))\n')
+
+
+def df4(tmp):
+    """Round TS1 (audit AU4 DF4): a test's time limit, --only matching nothing, child processes ended with the
+    runner however it ends (KILL_ON_JOB_CLOSE), build_native's install retried and never leaving the live file aside."""
+    import time
+    if sys.platform != 'win32':
+        print('skipped: the job object checks are for Windows')
+        return
+    group = run_tests._ProcessGroup()
+    check(group.kills_on_close(), "a test's job object ends its processes when its handle closes (KILL_ON_JOB_CLOSE)")
+    group.close()
+    times = os.path.join(tmp, 'times_df4.json')
+
+    def runner(pidfile, secs, args):
+        code = DF4_CHILD % (SUITE, times, times + '.none', SPAWNER, pidfile, str(secs), args)
+        return subprocess.Popen([sys.executable, '-c', code], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, encoding='utf-8', errors='replace')
+
+    # a hung test: ended at its limit with its child, failed and said so; the rest of the tier runs
+    pidfile = os.path.join(tmp, 'pid_timeout.txt')
+    t0 = time.time()
+    p = runner(pidfile, 120, ['-j', '2', '--timeout', '3'])
+    out, err = p.communicate(timeout=100)
+    pid = int(wait_for(pidfile, 1) or 0)
+    check(p.returncode == 1 and 'timed out after 3 s' in out and '1 of 2 passed' in out and time.time() - t0 < 60,
+          'a test past --timeout is ended and fails ("timed out after 3 s"), the others run', out[-600:] + err[-300:])
+    check(gone(pid), "the timed-out test's own child process is ended with it", str(pid))
+    # the runner killed outright (no Ctrl+C handler runs): the test's processes end with it
+    pidfile = os.path.join(tmp, 'pid_killed.txt')
+    p = runner(pidfile, 120, ['-j', '1'])
+    pid = int(wait_for(pidfile) or 0)
+    p.kill()
+    p.communicate(timeout=60)
+    check(gone(pid), "the runner killed mid-test: the test's processes end with it (none left running)", str(pid))
+    # a passing test whose child outlives it does not leave it running
+    pidfile = os.path.join(tmp, 'pid_left.txt')
+    p = runner(pidfile, 0, ['-j', '1', '--only', 'spawner'])
+    out, _ = p.communicate(timeout=100)
+    pid = int(wait_for(pidfile, 1) or 0)
+    check(p.returncode == 0 and gone(pid), "a passing test's leftover child is ended with its job", out[-300:])
+    r = subprocess.run([sys.executable, os.path.join(SUITE, 'run_tests.py'), 'quick', '--only', 'no such test x'],
+                       capture_output=True, text=True, timeout=120)
+    check(r.returncode == 2 and 'matches no test' in r.stderr, '--only matching nothing: exit code 2, said',
+          f'{r.returncode} {r.stdout[-200:]} {r.stderr[-300:]}')
+    check(run_tests.time_limit('quick', 10.0) == 1800.0 and run_tests.time_limit('game', 4000.0) == 16000.0
+          and run_tests.time_limit('quick', 5.0, 0) is None and run_tests.time_limit('full', None, 7.0) == 7.0,
+          'the time limit: 4 x the kept duration, at least the tier floor; --timeout overrides, 0 is none')
+    install_checks(tmp)
+
+
+def install_checks(tmp):
+    """build_native.install: a moment's lock is waited out; a loaded file is moved aside and replaced; when the new
+    file cannot go in, the live file is put back, never left moved aside."""
+    import threading
+    sys.path.insert(0, os.path.join(SUITE, 'rust'))
+    import build_native
+    from bfbc2core import atomicio
+    folder = os.path.join(tmp, 'install')
+    os.makedirs(folder)
+    target = os.path.join(folder, 'held.dll')
+    dll = os.path.join(os.path.dirname(sys.executable), 'python3.dll')
+    shutil.copyfile(dll, target)
+
+    def new(data):
+        path = target + '.new'
+        with open(path, 'wb') as f:
+            f.write(data)
+        return path
+
+    # a moment's lock (a scanner reading the file): open without delete sharing for 0.3 s, then released
+    held = open(target, 'rb')
+    threading.Timer(0.3, held.close).start()
+    build_native.install(new(b'one'), target)
+    check(open(target, 'rb').read() == b'one' and not [f for f in os.listdir(folder) if '.old-' in f],
+          "install: a moment's lock is waited out (nothing moved aside)", str(os.listdir(folder)))
+    # loaded by a running process (a module or an exe): renamed aside, the new file in its place
+    shutil.copyfile(dll, target)
+    loader = subprocess.Popen([sys.executable, '-c', 'import ctypes, sys, time; ctypes.WinDLL(sys.argv[1]); '
+                               'print("loaded", flush=True); time.sleep(60)', target], stdout=subprocess.PIPE,
+                              text=True)
+    try:
+        if loader.stdout is not None:
+            loader.stdout.readline()                # the library is loaded
+        build_native.install(new(b'two'), target)
+        check(open(target, 'rb').read() == b'two' and len([f for f in os.listdir(folder) if '.old-' in f]) == 1,
+              'install: a loaded file is moved aside and the new one put in its place', str(os.listdir(folder)))
+        real = atomicio.replace
+        calls = []
+
+        def failing(a, b):
+            calls.append((a, b))
+            if len(calls) == 1:
+                raise PermissionError(5, 'held')        # the target is held
+            if len(calls) == 3:
+                raise OSError(28, 'no space')           # the new file cannot go into place
+            return real(a, b)
+
+        atomicio.replace = failing
+        try:
+            build_native.install(new(b'three'), target)
+            put_back = False
+        except OSError:
+            put_back = True
+        finally:
+            atomicio.replace = real
+        check(put_back and open(target, 'rb').read() == b'two',
+              'install: when the new file cannot go in, the live file is put back (never left moved aside)',
+              str(os.listdir(folder)))
+    finally:
+        loader.kill()
+        loader.wait()
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix='runner_parallel_')
     try:
@@ -249,6 +413,7 @@ def main():
         log_reader(tmp)
         lock(tmp)
         qw1(tmp)
+        df4(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print('all passed' if not failed else f'{failed} check(s) failed')
