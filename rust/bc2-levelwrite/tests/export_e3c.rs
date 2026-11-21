@@ -106,6 +106,7 @@ fn each_sets_announcer() {
 /// (the donor's voice-over registration and bundle, and every announcer partition the level names resolving as on
 /// the donor: WW2's voices).
 #[test]
+#[ignore = "game tier: a whole WW2 export; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn a_ww2_export_takes_its_donors_announcer() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {

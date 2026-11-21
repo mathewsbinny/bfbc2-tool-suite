@@ -91,6 +91,7 @@ fn spec_of(p: &MapProject, id: &str, browser: &str) -> ExportSpec {
 
 /// The rules, against the game copy (nothing is built).
 #[test]
+#[ignore = "game tier: every level's names; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn names_are_checked_against_the_game_copy() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {
@@ -154,6 +155,7 @@ fn names_are_checked_against_the_game_copy() {
 
 /// The canary exported under new names: every name lands where the game and OPFOR's install read it.
 #[test]
+#[ignore = "game tier: a whole staged export; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn every_name_lands_in_a_staged_canary() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {

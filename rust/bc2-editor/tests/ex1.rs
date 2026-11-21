@@ -119,6 +119,7 @@ fn atacama(game: &Game, dir: &Path) -> (PathBuf, ExportSpec) {
 }
 
 #[test]
+#[ignore = "game tier: a whole export of a real level; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn names_form_and_the_export_preview() {
     let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {
@@ -257,6 +258,7 @@ fn aurora_ww2(game: &Game, dir: &Path) -> (PathBuf, String) {
 }
 
 #[test]
+#[ignore = "game tier: two whole levels diffed; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn diff_panel_on_aurora_made_ww2_conquest() {
     let _gate = crate::gate();
     let Ok(root) = levels::find_opfor(None) else {

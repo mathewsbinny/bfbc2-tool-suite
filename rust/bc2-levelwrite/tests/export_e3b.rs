@@ -101,6 +101,7 @@ fn the_campaign_checklist() {
 /// commons, kits and fields, the names, the pictures); the overlay and awards patches built from the game copy's
 /// bundles hold the texts and pictures, and every other entry and text is as it was.
 #[test]
+#[ignore = "game tier: a whole Vietnam export; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn a_vietnam_export_with_its_own_name_and_picture() {
     let _gate = crate::gate();
     let Some(dir) = game_dir() else {

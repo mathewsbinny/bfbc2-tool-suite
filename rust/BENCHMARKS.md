@@ -6584,3 +6584,150 @@ kept minimal: OP1 later turns the side fields into explicit state enums. No proj
   beside a build or keeps a half-written output after a kill; temp + rename in `navkit.py` is NavKit's (NK1).
 - **Unsaved edits on close** (AU1 G-N20, named with DS-13): the autosave keeps them; a save prompt is OP1's.
 - Only a playtest or a driver reset can prove BUG-9's recovery and CON-11 end to end.
+
+## TS1: faster test tiers (2026-11-21, branch `ts1`)
+
+Audit AU3's testing findings TS-1 to TS-8, TS-12 to TS-14 and AU4's DF4. Measured on the development PC (16 threads,
+15 GB) while other rounds (XF1, VW2, then DF1, DF2, OR0's WW2 rebuilds) built and tested beside it; every time here
+is that shared machine's. `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4`, the build folder
+`rust-targets\bfbc2-tool-suite-ts1`.
+
+### TS-5: where the cargo entry's time went
+
+Main `f1921de`, its own layout (all opt-level 0): every test binary of `cargo test --workspace --no-run` run one
+after another as cargo runs them, with libtest's JSON events and `--report-time` (`RUSTC_BOOTSTRAP=1` for the test
+processes only), the gated binaries at `--test-threads 2` (= `GATE`), so each time is the test's own. Cold test
+build 158 s; the 31 binaries 3,032 s: `editor` 2,018 s, `levelwrite` 821 s, `render` 172 s, the other 28 together
+21 s; 594 tests (2 ignored: the corpus tests). The 30 slowest (seconds; they run two at a time, so they sum to more
+than the binaries' wall time):
+
+| # | crate | test | s |
+|---:|---|---|---:|
+| 1 | `bc2-editor` | `view_toggles::sp_01_lights_collision_states_walk_and_modes` | 1,342.1 |
+| 2 | `bc2-levelwrite` | `export_e3c::a_ww2_export_takes_its_donors_announcer` | 678.5 |
+| 3 | `bc2-editor` | `every_level::levelwrite_on_every_prepared_level` | 542.1 |
+| 4 | `bc2-levelwrite` | `export_e3b::a_vietnam_export_with_its_own_name_and_picture` | 413.1 |
+| 5 | `bc2-editor` | `view_toggles::mp_005_overlays_walk_and_modes` | 265.1 |
+| 6 | `bc2-editor` | `ex1::names_form_and_the_export_preview` | 175.1 |
+| 7 | `bc2-levelwrite` | `export_ex1::every_name_lands_in_a_staged_canary` | 164.6 |
+| 8 | `bc2-levelwrite` | `culltool_ct1::streamed_readers_answer_as_the_whole_document` | 141.9 |
+| 9 | `bc2-editor` | `game_view_ww2::ww2_levels_open_in_the_game_accurate_view` | 109.4 |
+| 10 | `bc2-levelwrite` | `export_sp01::sp_01_exports_as_a_new_conquest_level` | 101.4 |
+| 11 | `bc2-editor` | `nav_parity::navigation_as_the_studio_showed_it` | 73.4 |
+| 12 | `bc2-editor` | `ex1::diff_panel_on_aurora_made_ww2_conquest` | 69.6 |
+| 13 | `bc2-render` | `weather_refs::ww2_levels_find_their_weather_through_the_entity` | 66.3 |
+| 14 | `bc2-render` | `r5d::wake_island_draws_its_beach_and_lagoon` | 56.2 |
+| 15 | `bc2-editor` | `simplified_view::the_simplified_view_draws_render_meshes` | 41.5 |
+| 16 | `bc2-editor` | `inspect_parity::property_tree_and_links_as_the_map_inspector_showed_them` | 41.4 |
+| 17 | `bc2-editor` | `gr2::ai_workspace_on_ons_mp_004` | 40.9 |
+| 18 | `bc2-editor` | `real_level_editing::placement_on_real_terrain` | 39.7 |
+| 19 | `bc2-render` | `weather_refs::stock_levels_resolve_as_their_folder_did` | 37.2 |
+| 20 | `bc2-editor` | `view_geometry::both_views_show_the_same_objects` | 35.5 |
+| 21 | `bc2-editor` | `game_view_live::game_view_shares_picks_outlines_and_follows_edits` | 31.8 |
+| 22 | `bc2-levelwrite` | `export_e3d::rush_to_conquest_as_a_project_operation` | 31.7 |
+| 23 | `bc2-levelwrite` | `export_ex1::names_are_checked_against_the_game_copy` | 30.5 |
+| 24 | `bc2-render` | `r5d::mask_tiles_span_aligned_blocks_and_read_on_across_cells` | 29.8 |
+| 25 | `bc2-render` | `live::mp_005_live_list_is_the_frame_edits_and_picks` | 26.3 |
+| 26 | `bc2-render` | `whole_terrain::the_whole_terrain_is_drawn` | 24.1 |
+| 27 | `bc2-render` | `whole_terrain::the_whole_terrain_is_drawn_with_levels_of_detail` | 23.6 |
+| 28 | `bc2-render` | `weather_refs::other_package_levels_find_a_weather_state` | 20.8 |
+| 29 | `bc2-render` | `world::mp_005_world_draws_and_matches_the_harness` | 19.7 |
+| 30 | `bc2-editor` | `game_view::game_accurate_view_of_mp_005` | 17.9 |
+
+These 30 are 4,691 s of the 4,904 s the 594 tests' times add up to. `tests\test_rust.py` now keeps every test's
+time on each run (`%LOCALAPPDATA%\bfbc2-tool-suite\rust_test_times.json`) and prints the slowest.
+
+### TS-3: what moved to the game tier
+
+Every test in the table except the last two, plus `inspector_parity::each_level_draws_with_its_selection_outlined`,
+`gr2::edit_build_install_restore_on_a_scratch_copy`, `asset_browser::every_placeable_object_of_the_content_set`,
+`view_toggles::ons_mp_004_navmesh_and_cull_tree`, `game_view_r5d::...`, `r5d::levels_of_detail_draw_fewer_indices` /
+`the_sky_dome_is_drawn_behind_the_level`, and from the merges XF1's `export_xf1` pair (more than 900 s each with two
+threads, no result within 3,000 s alone) and `xf1::undo_on_a_mode_project` (43 s): 38 tests, each
+`#[ignore = "game tier: <why>"]`, run by the game tier's `Rust core: the game tests` entry (`test_rust.py run
+--game`). The quick tier keeps one real level per crate: the editor's MP_005 game view, MP_005 project and outliner
+parity (4 levels, 2 s), levelwrite's edits on three levels, the renderer's MP_005 world against the harness,
+leveldiff's real pairs.
+
+Coverage, before (main `f1921de`) against after (this branch with main merged), from `cargo test -- --list` and
+`test_rust.py list` and `run_tests.py <tier> --list`: no Rust test lost; 594 before (592 quick, 2 corpus); after,
+every test of before in a tier (quick, game or corpus), none in no tier (the quick run fails on an ignored test
+whose reason is not "game tier"), plus the tests merged from main since (XF1, VW2, DF1). Python: every entry of
+before in the same tier after; added: the four Rust entries (in place of the one), the game tier's Rust entry,
+`test_rust_skip.py`, and TS-8's `test_aimanim.py`, `test_column_sectors.py`, `test_trees.py` (quick, and `--game`
+in the game tier).
+
+### TS-2: optimised test builds
+
+| | before (all opt 0) | dependencies at 2 | + workspace at 1 |
+|---|---:|---:|---:|
+| cold `cargo test --workspace --no-run` | 158 s | 381 s | 536-626 s (in the tier, beside its other entries) |
+| the workspace's crates rebuilt alone | - | - | 265 s |
+| `every_level::levelwrite_on_every_prepared_level` | 542 s | 574 s | 98 s |
+| `export_e3c::a_ww2_export_takes_its_donors_announcer` | 679 s | 676 s | 558 s (its exports' Python and C# steps) |
+| `game_view::game_accurate_view_of_mp_005` | 18 s | 20 s | 4.7 s |
+| the game group (the 35 tests then), one binary at a time | - | 48.9 min | - |
+
+The dependencies alone gained nothing: the time is in our own crates (the scene, the views, levelwrite). The
+workspace at opt-level 1 is 1.2 to 5.8 times faster on the whole-level tests; debug assertions and overflow checks
+stay on. Both stay: the compile costs about 380-470 s more cold, once per build folder, and a warm build is 20 s.
+
+### Skip unchanged, the split, the compile cache
+
+- **Green crates.** A warm quick tier (nothing changed since a green run): clippy 0.7 s (113-137 s cold), the build
+  entry 20 s, the quick tests leave out every green crate.
+- **The split.** The build entry first (cpu 4), then the quick tests beside clippy (cpu 4 each), fmt and the Python
+  entries; the old entry held every CPU for 3,154 s.
+- **The compile cache.** sccache 0.19 (`cargo install sccache --locked --no-default-features`, 204 s): a second
+  build folder with an empty cache took 0 of 208 compiles from the cache; with `SCCACHE_BASEDIRS` set to the build
+  folders, 2 of 208 (a crate with no dependencies hits; anything with a build script keeps its folder's `OUT_DIR` in
+  the key, and every crate above it misses in turn). Cold builds A / B: 247 s / 308 s with the cache, against 265-381 s
+  without (the machine shared). So it is opt-in (`BFBC2_COMPILE_CACHE=1`) and serves rebuilds of one folder only. One
+  shared `CARGO_TARGET_DIR` was rejected: cargo's lock keeps it consistent, but the release binaries have one path per
+  folder, so one worktree's `bfbc2.exe` could be copied into another's `bin\`.
+- **Levels read once.** `bc2_editor::app::share_level_reads` (called by the editor tests' `gate()`): a level's read is
+  reused while its partition, static groups and height field are unchanged (size and write time), at most three
+  kept.
+
+### TS-7, TS-8, DF4, TS-12 to TS-14
+
+- simplified_view, view_geometry and view_toggles: a level in the game copy that does not open, a game view that
+  does not start, render meshes not read: a failure (`level_here`); a level not in the copy: "skipped". Every
+  "skipped" line of a test's output is counted and named per test.
+- `test_repo.py` fails on a `test_*.py` no tier runs (one allowed: `tests\test_editor.py`), on a new runner entry
+  named by a round code (60 kept by digest), `test_envvars.py` on a new round-coded variable (22 kept).
+- `run_tests.py`: a time limit per test (`--timeout`, default 4 x the kept duration, at least 30 min / 3 h / 8 h);
+  `--only` matching nothing is exit code 2; job objects `KILL_ON_JOB_CLOSE` (a runner killed mid-test leaves no
+  test process); results and the total in the day log. `build_native.install` retries and puts the live file back.
+  `test_rust.py` ends a binary still running after 900 s (quick) / 3 h (game) and names the tests that never ended.
+  `test_runner_parallel.py` checks each.
+
+### The hang found on the way
+
+With the editor's binary run on its own, `g3::sets_from_the_data` and `g4::create_and_open_projects` (once
+`g2::view_tokens_reach_the_frame` and `g3::mode_cards_fall_back_to_the_tile`) start together and never end: 2 runs in 5 at
+`--test-threads 2` (opt-level 0 and 1 alike), 1 in 6 with the dependencies at opt-level 0, 1 in 3 at libtest's
+default threads, and in 3 of the 4 quick tiers below. Before TS1 it went unseen: the old entry had no limit and nobody
+saw which test held it. Round HG1 has it (and the `export_xf1` slowness).
+
+### Proof
+
+| `python run_tests.py quick -j 2` | wall | result |
+|---|---:|---|
+| main before (the coordinator's last, 2026-11-21) | 3,593 s | 127 of 127 |
+| first cold run (ts1 + main `465ca1b`, quick group at `--test-threads 2`) | 1,647 s | 131 of 134: the editor binary ended at 900 s by the hang |
+| cold (debug folder and green record deleted; default threads) | 1,636 s | 131 of 134: the hang again, O2 (Defender), trace.py (OPFOR's DF2, fixed on main since) |
+| warm (straight after, nothing changed) | 1,278 s | the same three; build 20 s, clippy 0.7 s |
+| final (ts1 + main `abcbae2`; the module rebuilt, 273 s; warm debug folder) | **854 s** | **133 of 135**: O2 (Defender's Errno 22, environmental) and O4's texqa (74 of 80; fails the same on main `abcbae2`) |
+
+In the final run the Rust entries took: build 285 s (the merge's crates), clippy 23 s, fmt 3 s, quick tests 44 s
+(all passed; 8 parts skipped for want of data, named). Without the hang a cold tier is about 740 s (1,636 - 900 + the
+44 s the tests take): the critical path is now the cold build (536-626 s), then the Python entries. The game tier's
+new entry: the 35 whole-level tests of the time ran 48.9 min one binary at a time with the dependencies optimised and
+the workspace not; the workspace at opt-level 1 cuts the longest 1.2-5.8 times (table above); XF1's `export_xf1`
+pair, now in it, did not end within 3,000 s and is HG1's. Not rerun whole at opt-level 1 for that reason.
+
+Finish checks: cargo fmt, clippy `--all-targets -D warnings` on the workspace and the quick cargo tests (in the tier),
+ruff and mypy over every folder (the tier's entries), `spec/trace.py --check` clean on `abcbae2`;
+`test_runner_parallel.py`, `test_rust_skip.py`, `test_repo.py` and `test_envvars.py` pass. No WW2 path touched: no
+rebuild.

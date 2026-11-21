@@ -443,6 +443,7 @@ fn prove(lv: &str, base: &[u8]) -> Result<String, String> {
 }
 
 #[test]
+#[ignore = "game tier: every prepared level; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn levelwrite_on_every_prepared_level() {
     let _gate = crate::gate();
     let root = match levels::find_opfor(None) {

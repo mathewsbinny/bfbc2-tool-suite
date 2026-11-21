@@ -1,8 +1,13 @@
 r"""Runs the suite's tests: one line per test, the failures' output at the end, exit code 1 if any failed.
 
   python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] [--mem GB] [--plan] [--times F]
+                      [--timeout S]
   python run_tests.py quick --no-game [--ci-steps] [-j N]
   python run_tests.py --help   this text (an argument the runner does not know is an error, exit code 2)
+
+  --only NAME  the tests whose name contains NAME (any case); matching none is an error (exit code 2)
+  --timeout S  a test still running after S seconds is ended with its processes and fails; by default 4 times its
+               kept duration on this PC, at least 30 min (quick), 3 h (game) or 8 h (full); 0: no limit
 
   --no-game    only the quick entries that need nothing but the checkout (CI, .github/workflows/checks.yml): no game
                copy, OPFOR folder, BF1943 / Xbox copies or graphics card; the others (NOT_GAME_FREE) are named with
@@ -121,11 +126,26 @@ def pathdata_files(root):
     return sorted(out)
 
 
+TEST_RUST = os.path.join(SUITE, 'tests', 'test_rust.py')
+RUST_BUILD = 'Rust core: the tests built (cargo test --no-run) and the doc tests'
+RUST_QUICK = 'Rust core: the quick tests of every crate (no whole levels)'
+RUST_CLIPPY = 'Rust core: clippy, warnings as errors'
+RUST_FMT = 'Rust core: cargo fmt --check'
+RUST_GAME = 'Rust core: the game tests (whole levels: the editor, levelwrite and the renderer)'
+
+
 def tests():
     """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
     t = [
         ('Rust core build (when stale; skipped without Rust)', 'quick', [PY, os.path.join(SUITE, 'rust', 'build_native.py'), '--if-stale']),
-        ('Rust core: cargo fmt, clippy, tests (skipped without Rust)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_rust.py')]),
+        # the Rust core's checks as four entries (round TS1, audit AU3 TS-1): the build first, then the test run beside
+        # clippy and the Python entries; crates unchanged since their last green run on this PC are left out (said)
+        (RUST_BUILD, 'quick', [PY, TEST_RUST, 'build']),
+        (RUST_QUICK, 'quick', [PY, TEST_RUST, 'run']),
+        (RUST_CLIPPY, 'quick', [PY, TEST_RUST, 'clippy']),
+        (RUST_FMT, 'quick', [PY, TEST_RUST, 'fmt']),
+        ("the Rust checks' green crates: fingerprints per crate, the green record under concurrent runners, skip lines",
+         'quick', [PY, os.path.join(SUITE, 'tests', 'test_rust_skip.py')]),
         ("DBX reader (Rust) against the retired Python reader's recorded answers (built, damaged, 200 corpus files)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_native.py')]),
         ("FBRB reader (Rust) against the retired Python reader's recorded answers and FbrbTool.exe's recorded unpacks (built, damaged, 8 game bundles)", 'quick',
@@ -296,6 +316,13 @@ def tests():
         ('HLSL batches (pcbuild): every Wake pixel shader translated, compile_many against one at a time', 'game', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_pcbuild_batch.py'), '--game']),
         ('shader translator differential test: every Wake pixel shader served on threads against one process each, one at a time', 'game', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_xdiff.py'), '--game-all']),
         ('Granny Xbox 360 -> PC: DICE bone tables', 'quick', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_port.py')]),
+        # round TS1 (audit AU3 TS-8): three test files no tier ran, two of them cited by the specification
+        ('aim animations (aimanim): a made-up animation written, read in both byte orders and renumbered', 'quick',
+         [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_aimanim.py')]),
+        ('NavKit sample columns into sectors as DICE places them (navbuild.column_sectors)', 'quick',
+         [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_column_sectors.py')]),
+        ('triangle strips and tree mesh sets (strip_to_list, index_count)', 'quick',
+         [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_trees.py')]),
         ('BF1943 import pipeline, no data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_bf1943import.py')]),
         ('dbxport rules: the 19 edge cases, templates, references, schema, value passes', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_dbxport_rules.py')]),
@@ -327,7 +354,8 @@ def tests():
         ("DBX reader (Rust) against the retired Python reader's recorded answers, every corpus file", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_native.py'), '--game']),
         ('Rust DBX reader against DbxEdit, every fingerprinted file; every bundle extracted (cargo)', 'game',
-         [PY, os.path.join(SUITE, 'tests', 'test_rust.py'), '--corpus']),
+         [PY, TEST_RUST, '--corpus']),
+        (RUST_GAME, 'game', [PY, TEST_RUST, 'run', '--game']),
         ("FBRB reader (Rust) against the retired Python reader's recorded answers, every bundle", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_native.py'), '--game']),
         ('Rust FBRB bundle cache: every 3rd game bundle read in a random order, the stored bundles', 'game',
@@ -418,6 +446,10 @@ def tests():
         ('model tools: mesh decimation (seams closed, bones apart)', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_decimate.py')]),
         ('Granny skeletons and animations (read, shift)', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny.py')]),
         ('Granny Xbox 360 -> PC on your Xbox files and BF1943', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_port.py'), '--game']),
+        ("aim animations: every AimAnimation of the game copy read and written back, BF1943's converted onto BFBC2's soldier", 'game',
+         [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_aimanim.py'), '--game']),
+        ("tree mesh sets: every BFBC2 PC TreeMeshSet written back byte for byte, BF1943's read, its palm's strips as DICE's triangle list", 'game',
+         [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_trees.py'), '--game']),
         ('BF1943 import pipeline on your BF1943 copy', 'game', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_bf1943import.py'), '--game']),
         ('BF1943 model port (meshport)', 'game', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_meshport.py')]),
         ('DBX writer and BF1943 partition port (dbxport)', 'game', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_dbxport.py')]),
@@ -505,6 +537,8 @@ def need(cpu: int | str = 1, mem: float = 0.5, setup: bool = False, alone: bool 
 #   dbxtests    bfbc2-dbx-tools\tests\DbxTests.exe, compiled by every run of run_tests.bat
 #   cargo       the checkout's cargo build folder (native.target_dir, round D1: rust-targets\<checkout>; cargo's
 #               lock) and bin\ (build_native.py copies the binaries there)
+#   rusttests   the workspace's test binaries and their record (tests\test_rust.py build writes them, its runs read
+#               them; round TS1)
 # Tests that share a thing also keep their listed order between them, so each finds it as a run one at a time did.
 # Not resources, because the code takes care of them (2026-11-17): a level's terrain unpack and the meshview / dbx
 # catalogue caches in work\tools_out are built under a lock between processes (atomicio.locked); the collision cache
@@ -518,7 +552,13 @@ def need(cpu: int | str = 1, mem: float = 0.5, setup: bool = False, alone: bool 
 NEEDS = {
     # quick
     'Rust core build (when stale; skipped without Rust)': need(mem=2, setup=True),
-    'Rust core: cargo fmt, clippy, tests (skipped without Rust)': need(cpu='all', mem=12, cargo='w'),     # cargo's links: 28.7 GB committed before QW1
+    # round TS1: the cargo entry (cpu='all', 12 GB, 3,154 s, nothing beside it) split; CARGO_BUILD_JOBS=4 on this PC.
+    # The build writes the test binaries the runs read (rusttests): the runs wait for it, then overlap clippy.
+    RUST_BUILD: need(cpu=4, mem=6, cargo='w', rusttests='w'),
+    RUST_QUICK: need(cpu=4, mem=4, rusttests='r'),
+    RUST_CLIPPY: need(cpu=4, mem=3, cargo='w'),
+    RUST_FMT: need(mem=0.3),
+    "the Rust checks' green crates: fingerprints per crate, the green record under concurrent runners, skip lines": need(),
     "DBX reader (Rust) against the retired Python reader's recorded answers (built, damaged, 200 corpus files)": need(cpu=2, mem=1),
     "FBRB reader (Rust) against the retired Python reader's recorded answers and FbrbTool.exe's recorded unpacks (built, damaged, 8 game bundles)": need(cpu=3, mem=1),
     "Rust FBRB bundle cache against the reader without it and the Python reader's recorded answers (built, damaged, changed, 4 processes, 3 game bundles)": need(cpu=4, mem=1),
@@ -632,6 +672,9 @@ NEEDS = {
     'HLSL compile cache and batches (pcbuild): deterministic compiler, compile_many / prefetch, disk cache': need(cpu=2),
     'shaderview -serve against one process per job (built jobs, failures, state between jobs, threads, memory)': need(cpu=2, shaderview='w'),
     'Granny Xbox 360 -> PC: DICE bone tables': need(),
+    'aim animations (aimanim): a made-up animation written, read in both byte orders and renumbered': need(),
+    'NavKit sample columns into sectors as DICE places them (navbuild.column_sectors)': need(),
+    'triangle strips and tree mesh sets (strip_to_list, index_count)': need(),
     'BF1943 import pipeline, no data': need(),
     'dbxport rules: the 19 edge cases, templates, references, schema, value passes': need(),
     'dbxport ranking index against the reference scan (20,000 random rankings, Templates.choose)': need(),
@@ -660,6 +703,8 @@ NEEDS = {
     'shader translator differential test: every Wake pixel shader served on threads against one process each, one at a time': need(cpu=4, mem=1.5, shaderview='w'),
     "DBX reader (Rust) against the retired Python reader's recorded answers, every corpus file": need(cpu=6, mem=3),
     'Rust DBX reader against DbxEdit, every fingerprinted file; every bundle extracted (cargo)': need(cpu='all', mem=3, cargo='w'),
+    # whole levels two at a time (the binaries' gate()); builds the tests first only when the build entry's are stale
+    RUST_GAME: need(cpu=4, mem=8, rusttests='r'),
     "FBRB reader (Rust) against the retired Python reader's recorded answers, every bundle": need(cpu=3, mem=3),    # 3 processes, a bundle read in groups of 256 MB
     'Rust FBRB bundle cache: every 3rd game bundle read in a random order, the stored bundles': need(cpu=2, mem=1.5),
     "DBX writer (Rust) against the retired Python writer's recorded bytes, every corpus file written back and edited": need(cpu=6, mem=3),
@@ -708,6 +753,8 @@ NEEDS = {
     'model tools: mesh decimation (seams closed, bones apart)': need(),
     'Granny skeletons and animations (read, shift)': need(mem=1),
     'Granny Xbox 360 -> PC on your Xbox files and BF1943': need(mem=1.5),
+    "aim animations: every AimAnimation of the game copy read and written back, BF1943's converted onto BFBC2's soldier": need(),
+    "tree mesh sets: every BFBC2 PC TreeMeshSet written back byte for byte, BF1943's read, its palm's strips as DICE's triangle list": need(mem=1),
     'BF1943 import pipeline on your BF1943 copy': need(mem=1),      # E3r: the lazy Source (0.86 GB peak; was ~2)
     'BF1943 model port (meshport)': need(mem=1.5),
     'DBX writer and BF1943 partition port (dbxport)': need(mem=2),
@@ -770,8 +817,10 @@ NO_GAME_PARTS = ["DbxEditGUI's window test (DBX_TESTS_ARGS=--no-gui; its unit te
 # The entries CI runs as steps of its own (checks.yml: cargo fmt, clippy, the workspace's tests, ruff, mypy):
 # `--ci-steps` skips them, so they are not built and run twice.
 CI_STEPS: dict[str, str] = {
-    'Rust core: cargo fmt, clippy, tests (skipped without Rust)':
-        "cargo fmt, clippy and the workspace's tests are CI steps of their own",
+    RUST_FMT: 'cargo fmt is a CI step of its own',
+    RUST_CLIPPY: 'clippy is a CI step of its own',
+    RUST_BUILD: "the workspace's tests are a CI step of their own",
+    RUST_QUICK: "the workspace's tests are a CI step of their own",
     'lint (ruff check, every folder)': 'ruff is a CI step of its own',
     'types (mypy, every folder)': 'mypy is a CI step of its own',
 }
@@ -807,9 +856,32 @@ def safe_console():
 
 # --- running a test --------------------------------------------------------------------------------------------
 
+def _extended_limits():
+    """JOBOBJECT_EXTENDED_LIMIT_INFORMATION (class 9 of Query / SetInformationJobObject)."""
+    import ctypes
+    from ctypes import wintypes
+
+    class Basic(ctypes.Structure):
+        _fields_ = [('a', ctypes.c_int64), ('b', ctypes.c_int64), ('flags', wintypes.DWORD),
+                    ('wmin', ctypes.c_size_t), ('wmax', ctypes.c_size_t), ('procs', wintypes.DWORD),
+                    ('affinity', ctypes.c_size_t), ('prio', wintypes.DWORD), ('sched', wintypes.DWORD)]
+
+    class Extended(ctypes.Structure):
+        _fields_ = [('basic', Basic), ('io', ctypes.c_uint64 * 6), ('proc_limit', ctypes.c_size_t),
+                    ('job_limit', ctypes.c_size_t), ('peak_proc', ctypes.c_size_t), ('peak_job', ctypes.c_size_t)]
+
+    return Extended()
+
+
+KILL_ON_JOB_CLOSE = 0x2000          # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+
+
 class _ProcessGroup:
     """A Windows job object around a test's process: its peak memory, all its children included (process pools,
-    the C# tools, cargo), and a way to end them all. Does nothing elsewhere or when the job cannot be made."""
+    the C# tools, cargo), and a way to end them all. The job is made KILL_ON_JOB_CLOSE (audit AU4 DF4): when the
+    runner ends in any way - Ctrl+C, a crash, its console closed, killed - Windows closes the handle and ends every
+    process of every test with it, so none is left holding a build folder or a game file. Does nothing elsewhere or
+    when the job cannot be made."""
 
     def __init__(self):
         self.handle = None
@@ -821,30 +893,34 @@ class _ProcessGroup:
         self.k32.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         self.k32.QueryInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong,
                                                        ctypes.c_void_p]
+        self.k32.SetInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong]
         self.k32.TerminateJobObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
         self.k32.CloseHandle.argtypes = [ctypes.c_void_p]
         self.handle = self.k32.CreateJobObjectW(None, None)
+        if self.handle:
+            info = _extended_limits()
+            info.basic.flags = KILL_ON_JOB_CLOSE
+            self.k32.SetInformationJobObject(self.handle, 9, ctypes.byref(info), ctypes.sizeof(info))
 
     def add(self, proc):
         if self.handle and not self.k32.AssignProcessToJobObject(self.handle, int(proc._handle)):
             self.close()                    # a job the runner's own job forbids: no measure, the test runs as ever
 
+    def kills_on_close(self):
+        """The job's KILL_ON_JOB_CLOSE flag is set (test_runner_parallel checks it)."""
+        if not self.handle:
+            return False
+        import ctypes
+        info = _extended_limits()
+        if not self.k32.QueryInformationJobObject(self.handle, 9, ctypes.byref(info), ctypes.sizeof(info), None):
+            return False
+        return bool(info.basic.flags & KILL_ON_JOB_CLOSE)
+
     def peak_mb(self):
         if not self.handle:
             return None
         import ctypes
-        from ctypes import wintypes
-
-        class Basic(ctypes.Structure):
-            _fields_ = [('a', ctypes.c_int64), ('b', ctypes.c_int64), ('flags', wintypes.DWORD),
-                        ('wmin', ctypes.c_size_t), ('wmax', ctypes.c_size_t), ('procs', wintypes.DWORD),
-                        ('affinity', ctypes.c_size_t), ('prio', wintypes.DWORD), ('sched', wintypes.DWORD)]
-
-        class Extended(ctypes.Structure):
-            _fields_ = [('basic', Basic), ('io', ctypes.c_uint64 * 6), ('proc_limit', ctypes.c_size_t),
-                        ('job_limit', ctypes.c_size_t), ('peak_proc', ctypes.c_size_t), ('peak_job', ctypes.c_size_t)]
-
-        info = Extended()
+        info = _extended_limits()
         if not self.k32.QueryInformationJobObject(self.handle, 9, ctypes.byref(info), ctypes.sizeof(info), None):
             return None
         return round(info.peak_job / 2**20)
@@ -864,16 +940,24 @@ SKIPPED = 0                          # entries --no-game / --ci-steps left out (
 PART_SKIPS: dict = {}                # test name -> its output's "skipped ..." lines (parts it could not run here)
 
 
-def run_one(name, args):
-    """Runs one test: (ok, its whole output, its summary line, seconds, peak memory in MB or None)."""
+def run_one(name, args, timeout=None):
+    """Runs one test: (ok, its whole output, its summary line, seconds, peak memory in MB or None). A test still
+    running after `timeout` seconds is ended with all its processes and fails, saying so (audit AU4 DF4: a hung
+    test held the tier for ever)."""
     t0 = time.time()
     group = _ProcessGroup()
+    timed_out = False
     try:
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8',
                              errors='replace', cwd=SUITE)
         group.add(p)
         RUNNING[name] = group
         try:
+            stdout, stderr = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            group.kill()
+            p.kill()
             stdout, stderr = p.communicate()
         except BaseException:                       # Ctrl+C: the test ends with the runner (as subprocess.run did)
             group.kill()
@@ -883,11 +967,28 @@ def run_one(name, args):
     finally:
         RUNNING.pop(name, None)
         group.close()
+    if timed_out:
+        stderr += f'\nrun_tests: timed out after {timeout:.0f} s: the test and its processes were ended (--timeout)'
     out = (stdout + stderr).strip()
     PART_SKIPS[name] = sum(1 for line in stdout.splitlines() if line.strip().lower().startswith(SKIP_LINE))
     main_out = stdout.strip() or out            # the summary line is the test's own last line, not a warning it printed
     last = main_out.splitlines()[-1] if main_out else ''
-    return p.returncode == 0, out, last, time.time() - t0, peak
+    if timed_out:
+        last = f'timed out after {timeout:.0f} s'
+    return p.returncode == 0 and not timed_out, out, last, time.time() - t0, peak
+
+
+# A test's time limit (round TS1, audit AU4 DF4): --timeout S for every test, else TIMEOUT_FACTOR times its kept
+# duration on this PC, at least its tier's floor (a test no run has timed gets the floor).
+TIMEOUT_FLOOR = {'quick': 1800.0, 'game': 3 * 3600.0, 'full': 8 * 3600.0}
+TIMEOUT_FACTOR = 4.0
+
+
+def time_limit(tier, known_secs, given=None):
+    """The seconds a test of `tier` may run: `given` (--timeout), else max(floor, TIMEOUT_FACTOR x kept duration)."""
+    if given is not None:
+        return given if given > 0 else None
+    return max(TIMEOUT_FLOOR[tier], TIMEOUT_FACTOR * (known_secs or 0.0))
 
 
 SKIP_LINE = ('skipped', 'skip:')          # a test's summary line that says it ran nothing (no game copy, no Rust ...)
@@ -1178,7 +1279,7 @@ class UsageError(ValueError):
 
 
 FLAGS = ('--list', '--plan', '--no-game', '--ci-steps')
-VALUED = {'--only': str, '-j': int, '--jobs': int, '--cpus': int, '--mem': float, '--times': str}
+VALUED = {'--only': str, '-j': int, '--jobs': int, '--cpus': int, '--mem': float, '--times': str, '--timeout': float}
 HELP = ('-h', '--help', '/?')
 
 
@@ -1214,7 +1315,7 @@ def main(argv):
     wrong = bad_arguments(argv)
     if wrong:
         print('usage: python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] '
-              '[--mem GB] [--plan] [--times F] [--no-game] [--ci-steps]', file=sys.stderr)
+              '[--mem GB] [--plan] [--times F] [--timeout S] [--no-game] [--ci-steps]', file=sys.stderr)
         suite_paths.use('core')
         from bfbc2core import errors
         errors.report(UsageError(f'run_tests: {wrong}'), show=False)       # logged, the cause and what to do
@@ -1222,6 +1323,11 @@ def main(argv):
     tier = next((a for a in argv[1:] if a in TIERS), 'quick')
     only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
     chosen = [x for x in tests() if TIERS.index(x[1]) <= TIERS.index(tier) and (only is None or only in x[0].lower())]
+    if only is not None and not chosen:
+        # audit AU4 DF4: a mistyped --only ran nothing and said "0 of 0 passed", exit code 0
+        print(f'run_tests: --only {only!r} matches no test of the {tier} tier (python run_tests.py {tier} --list '
+              f'names them)', file=sys.stderr)
+        return 2
     no_game, ci_steps = '--no-game' in argv, '--ci-steps' in argv
     if no_game and tier != 'quick':
         print(f'run_tests: --no-game runs the quick tier\'s game-free entries; the {tier} tier needs the game copy')
@@ -1247,6 +1353,11 @@ def main(argv):
     if '--plan' in argv:
         print_plan(tier, make_jobs(chosen, times), slots, cpus, mem, source, len(times))
         return 0
+    given = option(argv, ('--timeout',), float, None)
+    limits = {name: time_limit(t, times.get(name, (None, None))[0], given) for name, t, _ in chosen}
+    if tier == 'full':
+        os.environ[RUST_NO_SKIP_ENV] = '1'      # the full tier runs every crate's checks, green or not (round TS1)
+    log(f'{tier}, {len(chosen)} test(s): {" ".join(argv[1:])}')
     root = opfor() if any(callable(a) or t != 'quick' for _, t, a in chosen) else None
     print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else '')
           + (f', {slots} at a time' if slots > 1 else '') + (', game-free entries only' if no_game else ''))
@@ -1258,14 +1369,29 @@ def main(argv):
             print(f'skip part: {part}')
     global SKIPPED
     SKIPPED = len(skipped)
+    if any(not callable(a) and len(a) > 1 and str(a[1]).endswith(('test_rust.py', 'build_native.py'))
+           for _, _, a in chosen):
+        suite_paths.use('core')
+        from bfbc2core import native
+        native.start_compile_cache()        # outside every test's job object (they end their processes)
     os.environ['DBX_SKIP_BUILD'] = '1'          # run_tests.bat: DbxEditGUI is the 'DbxEditGUI build (when stale)' step's
     # the tests read bundles without the bundle cache's disk files (round E3e): a sweep of the game copy would fill
     # the user's cache with every bundle; the cache's own tests give theirs a folder of their own
     os.environ.setdefault('BFBC2_FBRB_CACHE', '0')
     warm_matplotlib()
     if slots <= 1:
-        return run_in_turn(chosen, root)
-    return run_side_by_side(make_jobs(chosen, times), root, slots, cpus, mem)
+        return run_in_turn(chosen, root, limits)
+    return run_side_by_side(make_jobs(chosen, times), root, slots, cpus, mem, limits)
+
+
+RUST_NO_SKIP_ENV = 'BFBC2_RUST_NO_SKIP'     # tests\test_rust.py: every crate checked, green or not
+
+
+def log(message):
+    """A line in the run's day log (round TS1, audit AU3 TS-12: the log held only "started" lines, so a tier's
+    results could not be read back). Nothing when the runner was imported without errors.setup (the tests)."""
+    import logging
+    logging.getLogger('bfbc2').info(message)
 
 
 MPL_DIR = os.path.join(os.path.dirname(TIMES_FILE), 'matplotlib')
@@ -1302,21 +1428,24 @@ def report(chosen_names, failures, start, passed_times, no_data=()):
         for name in partly:
             print(f'  {name}: {PART_SKIPS[name]} part(s)')
     passed = len(chosen_names) - len(failures) - len(no_data)
-    print(f'\n{passed} of {len(chosen_names)} passed in {time.time() - start:.0f} s'
-          + (f'; {len(no_data)} skipped (ran nothing: listed above)' if no_data else '')
-          + (f'; {len(partly)} of them with parts skipped' if partly else '')
-          + (f'; {SKIPPED} left out (listed at the start)' if SKIPPED else ''))
+    total = (f'{passed} of {len(chosen_names)} passed in {time.time() - start:.0f} s'
+             + (f'; {len(no_data)} skipped (ran nothing: listed above)' if no_data else '')
+             + (f'; {len(partly)} of them with parts skipped' if partly else '')
+             + (f'; {SKIPPED} left out (listed at the start)' if SKIPPED else ''))
+    print('\n' + total)
+    log(total + (f'; failed: {"; ".join(n for n, _ in failures)}' if failures else ''))
     return 1 if failures else 0
 
 
-def run_in_turn(chosen, root):
+def run_in_turn(chosen, root, limits=None):
     """-j 1: one test after another in the listed order (the runner as it was before 2026-11-17)."""
     failures, passed, no_data, start = [], [], [], time.time()
     for name, _t, args in chosen:
         if callable(args):
             args = args(root)
-        ok, out, last, secs, peak = run_one(name, args)
+        ok, out, last, secs, peak = run_one(name, args, (limits or {}).get(name))
         print(result_line(ok, name, secs, last), flush=True)
+        log(result_line(ok, name, secs, last))
         if skipped(ok, last):
             no_data.append((name, last))
         elif ok:
@@ -1326,7 +1455,7 @@ def run_in_turn(chosen, root):
     return report([c[0] for c in chosen], failures, start, passed, no_data)
 
 
-def run_side_by_side(jobs, root, slots, cpus, mem):
+def run_side_by_side(jobs, root, slots, cpus, mem, limits=None):
     import queue
     import threading
     import traceback
@@ -1339,7 +1468,7 @@ def run_side_by_side(jobs, root, slots, cpus, mem):
     def work(j):
         try:
             args = j.args(root) if callable(j.args) else j.args
-            done.put((j, *run_one(j.name, args)))
+            done.put((j, *run_one(j.name, args, (limits or {}).get(j.name))))
         except BaseException:                       # noqa: BLE001 - said as this test's failure, not lost in a thread
             done.put((j, False, traceback.format_exc(), 'the runner could not start it', 0.0, None))
 
@@ -1351,6 +1480,7 @@ def run_side_by_side(jobs, root, slots, cpus, mem):
             j, ok, out, last, secs, peak = done.get()
             sched.finish(j)
             print(result_line(ok, j.name, secs, last), flush=True)
+            log(result_line(ok, j.name, secs, last))
             results[j.name] = (ok, out, last)
             if ok and not skipped(ok, last):
                 passed.append((j.name, secs, peak))

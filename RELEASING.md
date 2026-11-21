@@ -10,7 +10,9 @@ queue of rounds is `ROADMAP.md`.
    checkouts; after the worktree is removed, `python -m bfbc2core.caches --prune-targets --yes` (from `core\`) deletes
    that build folder (README.md, "Where Rust builds").
 2. Before each commit: `python run_tests.py quick`. Before pushing: `python run_tests.py game` on the development
-   PC (it needs the game copy, which CI does not have).
+   PC (it needs the game copy, which CI does not have). Since round TS1 the whole-level editor, levelwrite and
+   renderer tests run only in the game tier (`#[ignore = "game tier: ..."]`): a change to those crates is proven by
+   the game tier, not by the quick tier or CI's `cargo test` (which leaves ignored tests out).
 3. Push the branch. The **checks** workflow (`.github/workflows/checks.yml`) runs on every push and pull request:
    the Rust module's build, cargo fmt, clippy with warnings as errors, the workspace's cargo tests, ruff, mypy and
    the quick tier's game-free entries (`python run_tests.py quick --no-game --ci-steps`).
