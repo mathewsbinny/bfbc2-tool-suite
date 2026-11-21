@@ -1636,7 +1636,7 @@ Peak working set of a bench run: 1.6 - 1.9 GB, nearly all of it BF1943's source 
 
 `bfbc2-bf1943-import/tests/test_ports_native.py` (quick, 2 s of work: the built inputs above; `--game`, 124 s: the
 bulk ports both ways, the index rows, the Onslaught corpus), `rust/bc2-convert` unit tests (`mesh_tests.rs`,
-`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests	est_durations.json`.
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests\test_durations.json`.
 
 ## E3i: Granny skeletons and animations (2026-11-17, branch `rust-e3i`)
 
@@ -1772,14 +1772,14 @@ when there is ladder ground.
 **Not taken, measured.** `trace_edges`' side neighbours in parallel within a sector: a detailed sector of 281,000
 cells went 0.22 -> 0.20 s (its time is the rows' maps, which are sequential) - reverted.
 
-**Parity.** `tests	est_navbuild_native.py` (quick), section E3h, the Rust side strict and its calls counted: 10 whole
+**Parity.** `tests\test_navbuild_native.py` (quick), section E3h, the Rust side strict and its calls counted: 10 whole
 `stage()` runs on random levels over the corner of four sectors at pitch 0.8 and 0.2 (40 sectors, 3,903 areas, 3,017
 route nodes, 196 D lines / F cells; meshes, areas, `area_of`, border nodes, graphs, ids, the build's counters) - every
 E3h path ran each time; 12 sector graphs with ladder links; 16 `walkable` runs with unseeds (292 surfaces dropped);
 `navdiff.area_cells` on 61 random outlines; `round(v, 3)` on 180,000 values bit for bit: 40 calls, 0 differences. The
 E3c checks (456 calls) and the recorded grid walks unchanged. Rust: `e3h_tests.rs` (a property test of the union-find
 floods and islands against the breadth-first walks, 160 random multi-layer levels; the sector graph), `parity.rs`;
-40 tests in the crate, `tests	est_rust.py` passes. Whole levels against `navbuild_golden.json` (the build clock
+40 tests in the crate, `tests\test_rust.py` passes. Whole levels against `navbuild_golden.json` (the build clock
 fixed): **sp_009, sp_004_b, sp_008_b and ons_mp_004 byte for byte as recorded** on the Rust backend, sp_009 also on
 the Python backend (16 s). The measures: `navdiff.area_cells` on every area of every DICE file and two NavKit builds
 (170,422 areas, 23.6 million cells) the same items in order, heights bit for bit (Rust 11.9 s, NumPy 94.1 s);
