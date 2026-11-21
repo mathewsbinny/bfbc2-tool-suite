@@ -198,6 +198,7 @@ impl Drop for StandIn {
 }
 
 #[test]
+#[ignore = "game tier: prepares and draws WW2 levels; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn ww2_levels_open_in_the_game_accurate_view() {
     let _gate = crate::gate();
     let Ok(opfor) = levels::find_opfor(None) else {

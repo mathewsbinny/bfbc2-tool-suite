@@ -56,8 +56,8 @@ Folders are unpacked bundles (FbrbTool). Format notes and the checks: [FORMAT.md
 `tests\test_havok.py`, `tests\test_texture.py`, `tests\test_mesh_decode.py`, `tests\test_terrain.py`,
 `tests\test_soot.py`, `tests\test_audio.py` (game tier: your game copy and console files, and Battlefield 1943 in the
 Rising Sun workspace; skipped without them); the suite's `tests\test_converter_units.py` (quick: L8 untiling, padding
-and flags, the texture-coordinate rule). `tests\test_trees.py [--game]` (triangle strips, tree mesh sets) is run by
-hand: `run_tests.py` does not list it yet.
+and flags, the texture-coordinate rule). `tests\test_trees.py` (triangle strips, tree mesh sets) runs in the quick
+tier and, with `--game`, in the game tier (round TS1).
 The texture check needs `numpy`.
 
 Developed for Project OPFOR BFBC2. Havok is a trademark of Microsoft; Xbox is a trademark of Microsoft;

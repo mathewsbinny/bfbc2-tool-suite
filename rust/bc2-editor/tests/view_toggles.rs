@@ -60,15 +60,20 @@ fn open(h: &mut Headless, lv: &str) -> Option<EditorApp> {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     if let Err(e) = app.open_level_blocking(&gpu, lv) {
-        println!("{lv}: skipped, {e}");
+        assert!(
+            !crate::level_here(lv),
+            "{lv} is in this game copy but does not open: {e}"
+        );
+        println!("{lv}: skipped, not in this game copy ({e})");
         return None;
     }
     let v = app.view_mut().unwrap();
     v.labels = false;
-    if v.gpu_scene().visuals().is_none() {
-        println!("{lv}: skipped, the render meshes were not read: {:?}", v.notes.last());
-        return None;
-    }
+    assert!(
+        v.gpu_scene().visuals().is_some(),
+        "{lv}: the render meshes were not read: {:?}",
+        v.notes.last()
+    );
     h.settle(&mut app, 2);
     Some(app)
 }
@@ -541,6 +546,7 @@ fn look_from(at: [f64; 3], distance: f64, yaw: f64, pitch: f64) -> Camera {
 }
 
 #[test]
+#[ignore = "game tier: opens MP_005 and walks it; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn mp_005_overlays_walk_and_modes() {
     let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
@@ -664,6 +670,7 @@ fn mp_005_overlays_walk_and_modes() {
 }
 
 #[test]
+#[ignore = "game tier: opens SP_01 and walks it; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn sp_01_lights_collision_states_walk_and_modes() {
     let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
@@ -839,6 +846,7 @@ fn sp_01_lights_collision_states_walk_and_modes() {
 /// The navmesh and cull tree modes on a second level with path data (Onslaught's ONS_MP_004: NavKit's build and
 /// DICE's file).
 #[test]
+#[ignore = "game tier: opens ONS_MP_004; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn ons_mp_004_navmesh_and_cull_tree() {
     let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {

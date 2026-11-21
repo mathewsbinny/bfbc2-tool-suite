@@ -140,6 +140,7 @@ fn orbit(target: [f64; 3], yaw: f64, pitch: f64, dist: f64) -> Camera {
 }
 
 #[test]
+#[ignore = "game tier: whole terrains; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn the_whole_terrain_is_drawn() {
     let _gate = crate::gate();
     whole_terrain(Options::exact(true), 98);
@@ -149,6 +150,7 @@ fn the_whole_terrain_is_drawn() {
 /// edges in full: no cracks), the coarser far patches a little off the height field.
 // spec: RNDR-VIEW-2
 #[test]
+#[ignore = "game tier: whole terrains; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn the_whole_terrain_is_drawn_with_levels_of_detail() {
     let _gate = crate::gate();
     whole_terrain(Options::default(), 95);

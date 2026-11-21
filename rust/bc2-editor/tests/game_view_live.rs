@@ -88,6 +88,7 @@ fn print(what: &str, t: &Timings) {
 }
 
 #[test]
+#[ignore = "game tier: MP_005 in the game view; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn game_view_shares_picks_outlines_and_follows_edits() {
     let _gate = crate::gate();
     let Ok(opfor) = levels::find_opfor(None) else {

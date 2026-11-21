@@ -16,6 +16,7 @@ use bc2_editor::gameplay::{BrowserMode, Kind, tiles};
 use bc2_editor::levels::{self, ContentSet};
 
 #[test]
+#[ignore = "game tier: the game copy's every object; run_tests.py game runs it (tests/test_rust.py run --game)"]
 fn every_placeable_object_of_the_content_set() {
     let _gate = crate::gate();
     let root = match levels::find_opfor(None) {

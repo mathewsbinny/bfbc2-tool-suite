@@ -63,7 +63,7 @@ USER_AGENT = 'bfbc2-tool-suite-build-native'
 
 if os.path.join(SUITE, 'core') not in sys.path:
     sys.path.insert(0, os.path.join(SUITE, 'core'))
-from bfbc2core import native  # noqa: E402  (never imports the module itself: a loaded .pyd cannot be replaced)
+from bfbc2core import atomicio, native  # noqa: E402  (never imports the module itself: a loaded .pyd cannot be replaced)
 
 
 def sources() -> list[str]:
@@ -123,15 +123,24 @@ def install(new: str, target: str | None = None) -> None:
         with contextlib.suppress(OSError):
             os.remove(old)
     try:
-        os.replace(new, target)
+        atomicio.replace(new, target)       # tried again while a scanner or indexer holds it for a moment
         return
-    except PermissionError:
-        n = 0
-        while os.path.exists(f'{target}.old-{n}'):
-            n += 1
-        os.replace(target, f'{target}.old-{n}')
-        print(f'build_native: {os.path.basename(target)} is in use by a running tool; moved aside')
-    os.replace(new, target)
+    except OSError as e:
+        if not atomicio._transient(e) or not os.path.exists(target):
+            raise
+    # still held: a running tool has it loaded. It can be renamed, not replaced: moved aside, the new one put in its
+    # place, and put back if that fails, so the live file is never left moved aside (audit AU4 DF4)
+    n = 0
+    while os.path.exists(f'{target}.old-{n}'):
+        n += 1
+    aside = f'{target}.old-{n}'
+    atomicio.replace(target, aside)
+    try:
+        atomicio.replace(new, target)
+    except BaseException:
+        os.replace(aside, target)
+        raise
+    print(f'build_native: {os.path.basename(target)} is in use by a running tool; moved aside')
 
 
 def install_binary(name: str, profile: str = 'release') -> str:

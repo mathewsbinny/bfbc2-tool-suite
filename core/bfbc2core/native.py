@@ -36,6 +36,7 @@ bfbc2.exe is stale, with one RuntimeWarning per process on stderr naming the fix
 BFBC2_STRICT_NATIVE=1 makes a stale or missing bfbc2.exe an error (NativeStale) instead. BFBC2_CLI_PYTHON=1 still
 asks for the Python, with no warning.
 """
+import contextlib
 import hashlib
 import importlib
 import json
@@ -350,12 +351,73 @@ def target_dir(suite: str = SUITE) -> str:
     return os.path.join(targets_root(), os.path.basename(os.path.normpath(suite)))
 
 
+COMPILE_CACHE_ENV = 'BFBC2_COMPILE_CACHE'     # 0: no shared compile cache (sccache) for the suite's cargo runs
+COMPILE_CACHE_GB = 'BFBC2_COMPILE_CACHE_GB'   # its cap (default 6)
+
+
+def compile_cache() -> str | None:
+    """sccache's path when the suite's cargo runs go through it (round TS1): sccache is installed (on PATH or in
+    %USERPROFILE%\\.cargo\\bin), BFBC2_COMPILE_CACHE is not 0 and no RUSTC_WRAPPER of the user's is set. One cache
+    serves every worktree's build folder: the dependencies (crates.io, the same paths everywhere) are compiled once
+    per PC instead of once per build folder; the workspace's own crates (their paths differ per worktree) are not
+    shared, and cargo rebuilds them as ever."""
+    if os.environ.get(COMPILE_CACHE_ENV, '').strip() == '0' or os.environ.get('RUSTC_WRAPPER'):
+        return None
+    import shutil
+    found = shutil.which('sccache')
+    if found:
+        return found
+    home = os.path.join(os.path.expanduser('~'), '.cargo', 'bin', 'sccache' + EXE)
+    return home if os.path.isfile(home) else None
+
+
+def compile_cache_dir() -> str:
+    """The shared compile cache's folder: %LOCALAPPDATA%\\bfbc2-tool-suite\\sccache."""
+    base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
+    return os.path.join(base, 'bfbc2-tool-suite', 'sccache')
+
+
 def cargo_env(env: dict[str, str] | None = None) -> dict[str, str]:
     """env (default: this process's) with CARGO_TARGET_DIR set to target_dir(): every cargo the suite runs builds
-    there."""
+    there. With the compile cache (compile_cache()): RUSTC_WRAPPER is sccache, its folder and cap the suite's, and
+    CARGO_INCREMENTAL 0 (sccache caches no incremental build)."""
     out = dict(os.environ if env is None else env)
     out['CARGO_TARGET_DIR'] = target_dir()
+    wrapper = compile_cache()
+    if wrapper and not out.get('RUSTC_WRAPPER'):
+        out['RUSTC_WRAPPER'] = wrapper
+        out.setdefault('SCCACHE_DIR', compile_cache_dir())
+        out.setdefault('SCCACHE_CACHE_SIZE', f"{os.environ.get(COMPILE_CACHE_GB, '').strip() or '6'}G")
+        out.setdefault('SCCACHE_BASEDIRS', compile_cache_basedirs())
+        out['CARGO_INCREMENTAL'] = '0'
     return out
+
+
+def compile_cache_basedirs() -> str:
+    """SCCACHE_BASEDIRS: every build folder under targets_root() and this checkout's, ';'-separated. cargo gives each
+    compile its build folder's absolute paths (-L dependency=..., --extern ...), so without these a dependency
+    compiled for one worktree's folder never served another's (round TS1: 0 hits of 207 on a second folder); sccache
+    takes them relative to the build folder. Only build folders: a checkout's own path stays in the key, so a
+    workspace crate (whose env!("CARGO_MANIFEST_DIR") is baked in) is never taken from another worktree. The server
+    reads this when it starts: a build folder made while it runs shares from its next start (it stops after 10 idle
+    minutes)."""
+    folders = {os.path.normpath(target_dir())}
+    root = targets_root()
+    if os.path.isdir(root):
+        folders |= {os.path.join(root, d) for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))}
+    return ';'.join(sorted(folders))
+
+
+def start_compile_cache() -> None:
+    """Starts sccache's server now, from the caller (run_tests.py, before any test's job object exists): a server
+    started inside a test's job would end with that test (the jobs are KILL_ON_JOB_CLOSE) under another worktree's
+    build. Nothing without the compile cache; errors are ignored (the first compile starts it then)."""
+    env = cargo_env()
+    wrapper = env.get('RUSTC_WRAPPER')
+    if not wrapper or 'sccache' not in os.path.basename(wrapper).lower():
+        return
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        subprocess.run([wrapper, '--start-server'], env=env, capture_output=True, timeout=60)
 
 
 def built_path(name: str, profile: str = 'release') -> str:
