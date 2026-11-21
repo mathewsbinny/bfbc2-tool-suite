@@ -24,6 +24,19 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: the mode view layer** (round VW2): show every object, the game mode layer only or the level without
+  it, and a Rush level one stage at a time as it is played (L1's simulation of the stages' events: MP_005GR,
+  MP_005SR, NAM_MP_002R and BC1_OASIS_GR give L1's bases per stage), in both views, the outliner and the overlays.
+- **Map editor: weather in the views** (round VW2): every state of the level's weather system in a picker (night,
+  dawn, fog, rain and cutscene states marked; the spawn-time switch and ActiveState named); the game-accurate view
+  draws a state's light, exposure and sky and opens on the state players see (the spawn switch: MP_005's `day_1`,
+  not its dark `default`); the simplified view is tinted by the state's look.
+- **Map editor: weather in exports** (rounds VW2a-c; project format 4, `set-weather`): the Export window's Weather
+  section makes the level start in one of its own states (ActiveState and the spawn switch set together), in another
+  level's state (appended: this level's sky; or that level's whole system: its sky), or at night (DICE's
+  `ons_mp_002_night` as the template, the reflection cube and the sky panorama darkened). Every new partition lies
+  under `weather/<level>/` in the level's own bundle; `mapexport check` checks the weather. Night and rain are off
+  by default and marked "not yet seen in game".
 - **`xisolib` reads disc images held in memory** in the Rust core (round RT3: `find_partition_bytes`, `walk_bytes`;
   an `io.BytesIO` goes through them), so the Xbox disc reader has no Python-only path left.
 - **`run_tests.py --help`** (also `-h`, `/?`) prints the runner's text and runs nothing (round RT3); an argument the
@@ -262,6 +275,7 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **Map editor: the game-accurate view no longer draws the objects a project deleted or hid** (round VW2).
 - **Map editor: Wake Island's and Coral Sea's black ground in the Game-accurate view** (round R5d). Three causes in
   the renderer, none in the data: the terrain's height scale was read as the database's placeholder 500 (Wake's
   terrain spans 1,000 m, so BF1943's sea-floor layers drew the beach and shallows as deep water: black); the water did
