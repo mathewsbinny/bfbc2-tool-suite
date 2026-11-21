@@ -226,7 +226,7 @@ def stale_cli() -> None:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
             a = native.cli_command('hpdview')
-            b = native.cli_command('culltree')
+            b = native.cli_command('navkit')        # (culltree until round RT3 retired its Python command line)
         texts = [str(w.message) for w in caught if issubclass(w.category, RuntimeWarning)]
         check(a == [sys.executable, native.CLI_TOOLS['hpdview']] and b[0] == sys.executable,
               'stale bfbc2.exe: the tools fall back to their Python')
@@ -380,6 +380,17 @@ def retired_cli() -> None:
         os.environ.pop(native.CLI_PYTHON_ENV, None)
         check(native.cli_command('hpdview') == [sys.executable, native.CLI_TOOLS['hpdview']],
               'retired: a tool that keeps its Python falls back to it without bfbc2.exe')
+        # round RT3: bfbc2.exe's list of retired Python command lines (pyproc.rs RETIRED, with the round its
+        # retirement error names) is native's (leveldiff never had a Python command line: not in pyproc's)
+        import re
+        with open(os.path.join(SUITE, 'rust', 'bc2-cli', 'src', 'pyproc.rs'), encoding='utf-8') as f:
+            src = f.read()
+        block = src[src.index('pub const RETIRED'):]
+        block = block[:block.index('];')]
+        rust = dict(re.findall(r'\("(\w+)",\s*"(\w+)"\)', block))
+        want = {t: r for t, r in native.RETIRED_ROUND.items() if t != 'leveldiff'}
+        check(rust == want and set(native.RETIRED_ROUND) == native.RETIRED_CLI,
+              f'retired: bfbc2.exe\'s list (pyproc.rs) and native.RETIRED_ROUND agree, tool and round ({rust})')
     finally:
         if saved_env is None:
             os.environ.pop(native.CLI_PYTHON_ENV, None)

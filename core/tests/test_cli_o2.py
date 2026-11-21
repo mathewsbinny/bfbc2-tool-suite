@@ -129,8 +129,17 @@ class Place:
             if not ds and not fs and d != self.d:
                 snap[os.path.relpath(d, self.d) + os.sep] = '<dir>'
             for f in fs:
-                with open(os.path.join(d, f), 'rb') as fh:
-                    data = fh.read()
+                try:
+                    with open(os.path.join(d, f), 'rb') as fh:
+                        data = fh.read()
+                except OSError as e:
+                    if e.errno != 22:
+                        raise
+                    # round RT3: what O2's stand-in b.exe met - Windows refuses to open a file its antivirus flagged
+                    # (ERROR_VIRUS_INFECTED, which Python sees as EINVAL), however long one waits
+                    raise OSError(e.errno, f'{e.strerror}: {os.path.join(d, f)} cannot be read; Windows gives this '
+                                  'for a file its antivirus blocked (Microsoft Defender: Get-MpThreatDetection lists '
+                                  'it). A stand-in file the case builds needs other bytes') from e
                 text = self.norm(data)
                 data = text.encode('latin-1') if '<dir>' in text or '<cwd>' in text or '<lad>' in text else data
                 rel = os.path.relpath(os.path.join(d, f), self.d)
@@ -288,8 +297,8 @@ def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: 
         took, pl.who()
 
 
-RETIRED = native.RETIRED_CLI       # round RT1: their .py is gone; bfbc2.exe answers alone
-RETIRED_MARK = 'was retired in round RT1'
+RETIRED = native.RETIRED_CLI       # round RT1 (RT3 more): their .py is gone; bfbc2.exe answers alone
+RETIRED_MARK = re.compile(r'was retired in\s+round RT\d+')     # the round is the tool's (native.RETIRED_ROUND)
 
 
 def retired_check(tool: str, golden: dict[str, Any] | None, got: dict[str, Any], who: str) -> str:
@@ -299,7 +308,9 @@ def retired_check(tool: str, golden: dict[str, Any] | None, got: dict[str, Any],
     what the retired command line said there."""
     if who == 'retired':
         text = got.get('err', '') + got.get('out', '')
-        return '' if got.get('code') == 1 and RETIRED_MARK in text else \
+        round_ = native.RETIRED_ROUND.get(tool, '')
+        mark = RETIRED_MARK.search(text)
+        return '' if got.get('code') == 1 and mark and mark.group(0).endswith(f' {round_}') else \
             f'{tool}: expected the retirement error, got exit {got.get("code")}: {text[-200:]!r}'
     if golden is None:
         return 'not recorded'
@@ -363,6 +374,18 @@ def load_golden(group: str) -> dict[str, Any]:
     return out
 
 
+def load_now(group: str) -> dict[str, Any]:
+    """Round RT3: cli_<round>_<group>_now.json beside the goldens, {key: {field: the answer now}} for lines whose
+    answer changed on purpose (as a group module's NOW: a retired tool's usage text names `bfbc2 <tool>` now), each
+    entry with 'why'. Merged over the golden; the golden keeps what the retired Python said."""
+    p = os.path.join(HERE, f'cli_{ROUND}_{group}_now.json')
+    if not os.path.isfile(p):
+        return {}
+    with open(p, encoding='utf-8') as f:
+        doc = json.load(f)
+    return {k: {f: v for f, v in e.items() if f != 'why'} for k, e in doc.get('now', {}).items()}
+
+
 def save_golden(group: str, cases: dict[str, Any], meta: dict[str, Any]) -> list[str]:
     for old in golden_names(group):
         os.remove(cg.path(old))
@@ -413,14 +436,23 @@ def game(check: Callable[..., None], exe: str, group: str, mod: Any) -> dict[str
                 with open(src, 'rb') as f:
                     files[name] = (f.read(), os.path.getmtime(src))     # the copy keeps the time (crashreader)
             got: dict[str, Any] = {}
-            for side in ('python', 'rust'):
+            retired = tool in RETIRED
+            for side in ('rust',) if retired else ('python', 'rust'):
                 for merged in (False, True):
                     r, took, w = run(cmd[side](tool), pl, files, args, env, merged)
                     times[side] += took
                     runs += 1
                     got[f'{side} {merged}'] = r
                     if side == 'rust' and not merged:
-                        answered[w or 'python'] += 1
+                        answered['rust' if w == 'rust' else 'python'] += 1
+            if retired:
+                # round RT3 (as O4 since RT1): no Python command line any more - a working call must still work in
+                # Rust alone, answered by it, the same on one pipe
+                w_ok = got['rust False']['code'] == 0 or not must
+                if not w_ok or got['rust False']['code'] != got['rust True']['code']:
+                    bad.append(f'{label}: the retired tool\'s working call failed in Rust (exit '
+                               f'{got["rust False"]["code"]}: {(got["rust False"]["err"] or got["rust False"]["out"])[-160:]!r})')
+                continue
             if must and got['python False']['code'] != 0:
                 bad.append(f'{label}: the Python command line failed here (exit code {got["python False"]["code"]}: '
                            f'{(got["python False"]["err"] or got["python False"]["out"])[:160]!r}), not a replay of '
@@ -474,11 +506,25 @@ def main(argv: list[str]) -> int:
         if len(set(keys)) != len(keys):
             check(False, f'{group}: case keys are unique', str([k for k in keys if keys.count(k) > 1][:3]))
             continue
+        if '--only' in argv:                # round RT3: the lines whose key holds this text (recorded into the rest)
+            part = argv[argv.index('--only') + 1]
+            rows = [r for r in rows if part in r[0]]
+            keys = [r[0] for r in rows]
         if '--record' in argv:
+            # a retired tool has no Python to record from (round RT3): its lines keep their recording
+            retired_keys = [r[0] for r in rows if r[1] in RETIRED]
+            rows = [r for r in rows if r[1] not in RETIRED]
+            keys = [r[0] for r in rows]
             results, times, _who = run_all(rows, ['python'], exe)
-            names = save_golden(group, {k: results['python|' + k] for k in keys},
-                                {'recorded': datetime.date.today().isoformat(), 'by': 'the Python command lines',
-                                 'python': sys.version.split()[0], 'cases': len(rows)})
+            kept = {k: v for k, v in load_golden(group).items() if k not in keys} \
+                if '--only' in argv or retired_keys else {}
+            meta = cg.load(golden_names(group)[0]).get('meta', {}) if kept else {}
+            when = datetime.date.today().isoformat()
+            meta = {k: v for k, v in meta.items() if k not in ('shard', 'shards')} | (
+                {'cases': len(kept) + len(keys), 're-recorded': meta.get('re-recorded', []) + [f'{when}: {len(keys)}']}
+                if kept else {'recorded': when, 'by': 'the Python command lines', 'python': sys.version.split()[0],
+                              'cases': len(rows)})
+            names = save_golden(group, {**kept, **{k: results['python|' + k] for k in keys}}, meta)
             print(f'{group}: recorded {len(rows)} command lines from the Python ({times["python"]:.0f} s): '
                   f'{", ".join(names)}')
             continue
@@ -486,27 +532,38 @@ def main(argv: list[str]) -> int:
         results, times, who = run_all(rows, sides, exe)
         golden = load_golden(group)
         now = getattr(mod, 'NOW', {})    # round RT1: lines whose answer changed on purpose (a retired reference)
-        bad, live_bad, missing = [], [], []
+        now = {**now, **load_now(group)}  # round RT3: and cli_<round>_<group>_now.json (a retired tool's new usage)
+        bad: list[str] = []
+        live_bad: list[str] = []
+        missing: list[str] = []
+        tool_of = {r[0]: r[1] for r in rows}
         for key in keys:
             got = results['rust|' + key]
-            if key not in golden:
+            want = {**golden[key], **now[key]} if key in golden and key in now else golden.get(key)
+            if tool_of[key] in RETIRED:              # round RT3: as test_cli_o4 does since RT1
+                if why := retired_check(tool_of[key], want, got, who.get(key, '')):
+                    (missing if why == 'not recorded' else bad).append(key if why == 'not recorded' else
+                                                                       f'{key}: {why}')
+            elif want is None:
                 missing.append(key)
-            elif why := diff({**golden[key], **now[key]} if key in now else golden[key], got):
+            elif why := diff(want, got):
                 bad.append(f'{key}: {why}')
             if '--now' in argv and key in now:
                 print(f'     now: {key}: {json.dumps({k: got[k] for k in got if got[k] != golden[key].get(k)})}')
-            if 'python' in sides and (why := diff(results['python|' + key], got)):
+            if 'python' in sides and tool_of[key] not in RETIRED and (why := diff(results['python|' + key], got)):
                 live_bad.append(f'{key}: {why}')
         tools = sorted({r[1] for r in rows})
         per_tool = []
         for tool in tools:
             ks = [r[0] for r in rows if r[1] == tool]
             r_n = sum(who.get(k) == 'rust' for k in ks)
-            per_tool.append(f'{tool} {len(ks)} (Rust {r_n}, Python {len(ks) - r_n})')
-            if '--who' in argv:                          # the lines bfbc2.exe handed to the Python
+            gone = sum(who.get(k) == 'retired' for k in ks)
+            per_tool.append(f'{tool} {len(ks)} (Rust {r_n}, ' + (f'the retirement error {gone}, ' if gone else '')
+                            + f'Python {len(ks) - r_n - gone})')
+            if '--who' in argv:                          # the lines bfbc2.exe handed to the Python (or refused)
                 for k in ks:
                     if who.get(k) != 'rust':
-                        print(f'     handed to Python: {k}')
+                        print(f'     {"retired" if who.get(k) == "retired" else "handed to Python"}: {k}')
         check(not bad and not missing, f'{group}: {len(rows)} command lines through bfbc2.exe ({"; ".join(per_tool)}): '
               'exit codes, both streams\' bytes, files and log records as the Python command lines answered '
               f'({len(rows) - len(bad) - len(missing)} of {len(rows)} as recorded)',

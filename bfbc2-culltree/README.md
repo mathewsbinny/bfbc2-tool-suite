@@ -1,6 +1,6 @@
 # Static cull trees (culltree)
 
-`culltree.py` reads Battlefield: Bad Company 2's static cull trees (`World.StaticCullTreeData`), checks them
+`bfbc2 culltree` (`bin\bfbc2.exe`; the library is `culltreelib.py`, the command line `culltree.py` was retired in round RT3) reads Battlefield: Bad Company 2's static cull trees (`World.StaticCullTreeData`), checks them
 against a level's placed objects, and **adds placed objects that have no slot** - objects with `Enumeration` 0
 that the game draws see-through and treats as indestructible because they are not in the level's cull tree.
 It writes everything it does not change byte for byte. It needs Python 3.12+ and the suite's Rust core (its element
@@ -12,10 +12,10 @@ README, "bfbc2.exe"). Since round CT1 (2026-11-19) its `add` reads the reference
 80-110 MB and under a second with a warm cache, where the first port took 1.65 GB and 7 s.
 
 ```
-python culltree.py info <tree.dbx> [<level.dbx>]
-python culltree.py verify <tree.dbx> <level.dbx> [--client <client tree.dbx>] [--ref <level.dbx>]...
+bfbc2 culltree info <tree.dbx> [<level.dbx>]
+bfbc2 culltree verify <tree.dbx> <level.dbx> [--client <client tree.dbx>] [--ref <level.dbx>]...
                    [--ref-dir <folder>]... [--added <guid,...>] [--report <file>]
-python culltree.py add <tree.dbx> <level.dbx> (--objects <guid,... | @file> | --auto)
+bfbc2 culltree add <tree.dbx> <level.dbx> (--objects <guid,... | @file> | --auto)
                    --out-tree <tree.dbx> --out-level <level.dbx> [--ref ...] [--ref-dir ...] [--client ...] [--report <file>]
 ```
 
@@ -32,7 +32,7 @@ python culltree.py add <tree.dbx> <level.dbx> (--objects <guid,... | @file> | --
 
 What a reference level gives (its slotted instances' leaves, in the blueprint's own space) is kept in
 `%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`, one file per reference level, used while the level file, its
-tree and `culltree.py` are unchanged (size and modification time): a second `add` or `verify` against the same
+tree and `culltreelib.py` are unchanged (size and modification time): a second `add` or `verify` against the same
 `--ref-dir` folders reads no reference level again (round E3m, `rust/BENCHMARKS.md`). `BFBC2_CULLTREE_CACHE` names
 another folder (`0`: no cache); `BFBC2_CULLTREE_REFERENCE=1` reads every reference level each run, as before: the
 reference the cache is tested against (`tests\test_culltree_e3m.py`). `bfbc2.exe culltree` reads and writes the same
@@ -47,7 +47,7 @@ The Onslaught level uses the Linux-server Nelson Bay tree, its objects given the
 Linux layout. Fourteen objects that only the console layout has were left at slot 0:
 
 ```
-python culltree.py add <unpacked>\Levels\ONS_MP_008\staticculltree_exclusive.dbx <unpacked>\Levels\ONS_MP_008.dbx --auto
+bfbc2 culltree add <unpacked>\Levels\ONS_MP_008\staticculltree_exclusive.dbx <unpacked>\Levels\ONS_MP_008.dbx --auto
     --client <unpacked>\Levels\ONS_MP_008\staticculltree_client.dbx
     --ref <OPFOR>\work\onslaught\linux_mp_008\level\Levels\MP_008.dbx --ref-dir <OPFOR>\work\levels\mp_001 ...
     --out-tree <OPFOR>\work\culltree\ons_mp_008\staticculltree_exclusive.dbx --out-level <OPFOR>\work\culltree\ons_mp_008\ONS_MP_008.dbx

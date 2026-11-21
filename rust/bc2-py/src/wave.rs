@@ -1,9 +1,12 @@
 //! Round F0: Frostbite Wave resources and EA's stream framing (`bc2_formats::wave`) for
-//! `bfbc2-console-convert/audio.py`: `wave_read` / `wave_write_pc`, `sps_read` / `snr_read` / `sps_write`. Each
-//! answers `None` where the reference raises, or where a value is not one the port reads exactly as the reference does
-//! (a segment that is not a pair of `bytes`, a header word past `u32`); the Python then runs, so a result here is
-//! always the reference's and the errors stay its own.
+//! `bfbc2-console-convert/audio.py`: `wave_read` / `wave_write_pc`, `sps_read` / `snr_read` / `sps_write`. The
+//! readers answer every input since round RT3 (their references retired): where the reference raised, the pair
+//! `(its exception's name, its message)`, which `audio.py` raises. The writers answer `None` where the reference
+//! raises, or where a value is not one the port reads exactly as the reference does (a segment that is not a pair of
+//! `bytes`, a header word past `u32`); the Python writers (kept) then run, so a result here is always the
+//! reference's and the errors stay its own.
 
+use bc2_formats::hpdlayout::c_double;
 use bc2_formats::wave::{self, Source, Stream};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyTuple};
@@ -27,17 +30,24 @@ fn stream<'py>(py: Python<'py>, st: &Stream) -> PyResult<Bound<'py, PyTuple>> {
     (st.version, st.codec, st.channels, st.rate, st.type_, st.samples, blocks).into_pyobject(py)
 }
 
+/// Where a reader stops (round RT3): `(the reference's exception name, its message)`, which `audio.py` raises.
+fn error<'py>(py: Python<'py>, e: &wave::Error) -> PyResult<Bound<'py, PyTuple>> {
+    (e.kind(), e.to_string()).into_pyobject(py)
+}
+
 /// `audio.read_wave(b, source)`'s values: `(flags_id, total, intro, channels, outro, word14, segments, rate, word04,
-/// loop_end)` (the last three `None` for BFBC2), each segment `None` or `(data, info)`; `None` where the reference
-/// raises.
+/// loop_end)` (the last three `None` for BFBC2), each segment `None` or `(data, info)`, a NaN rate as CPython's
+/// `struct` reads it; where the reference raises, `(its exception's name, its message)` (round RT3). `None`: a source
+/// the reader does not know (audio.py raises before it asks).
 #[pyfunction]
 pub fn wave_read<'py>(py: Python<'py>, b: &Bound<'py, PyBytes>, source: &str) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let Some(src) = source_of(source) else {
         return Ok(None);
     };
     let bytes = b.as_bytes();
-    let Ok(w) = py.detach(|| wave::read_wave(bytes, src)) else {
-        return Ok(None);
+    let w = match py.detach(|| wave::read_wave(bytes, src)) {
+        Ok(w) => w,
+        Err(e) => return error(py, &e).map(Some),
     };
     let segs = PyList::empty(py);
     for s in &w.segments {
@@ -47,7 +57,7 @@ pub fn wave_read<'py>(py: Python<'py>, b: &Bound<'py, PyBytes>, source: &str) ->
         }
     }
     let (rate, w04, loop_end) = match w.bf1943 {
-        Some((r, a, b)) => (Some(f64::from(r)), Some(a), Some(b)),
+        Some((r, a, b)) => (Some(c_double(r)), Some(a), Some(b)),
         None => (None, None, None),
     };
     Ok(Some(
@@ -89,18 +99,18 @@ pub fn wave_write_pc<'py>(py: Python<'py>, w: &Bound<'py, PyAny>) -> Option<Boun
     out.ok().map(|b| PyBytes::new(py, &b))
 }
 
-/// `audio.read_sps(s)`'s values `(version, codec, channels, rate, type_, samples, blocks)`, or `None` where the
-/// reference raises.
+/// `audio.read_sps(s)`'s values `(version, codec, channels, rate, type_, samples, blocks)`; where the reference
+/// raises, `(its exception's name, its message)` (round RT3).
 #[pyfunction]
 pub fn sps_read<'py>(py: Python<'py>, s: &Bound<'py, PyBytes>) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let bytes = s.as_bytes();
     match py.detach(|| wave::read_sps(bytes)) {
         Ok(st) => Ok(Some(stream(py, &st)?)),
-        Err(_) => Ok(None),
+        Err(e) => error(py, &e).map(Some),
     }
 }
 
-/// `audio.read_snr(s, sns)`'s values, or `None` where the reference raises.
+/// `audio.read_snr(s, sns)`'s values; where the reference raises, `(its exception's name, its message)` (round RT3).
 #[pyfunction]
 #[pyo3(signature = (s, sns=None))]
 pub fn snr_read<'py>(
@@ -111,7 +121,7 @@ pub fn snr_read<'py>(
     let (bytes, sns) = (s.as_bytes(), sns.map(PyBytesMethods::as_bytes));
     match py.detach(|| wave::read_snr(bytes, sns)) {
         Ok(st) => Ok(Some(stream(py, &st)?)),
-        Err(_) => Ok(None),
+        Err(e) => error(py, &e).map(Some),
     }
 }
 

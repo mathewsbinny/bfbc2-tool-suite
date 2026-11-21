@@ -1,6 +1,8 @@
 r"""Round F0: path data (hpdtool.parse / write, bc2_native.hpd_parse / hpd_write) and the runtime-mesh writer
 (kymesh.write_mesh, bc2_native.kymesh_write) in the Rust core against their Python, the reference that stays until the
-port passes a full test tier (hpdtool.parse_reference / write_reference, kymesh.write_mesh_reference).
+port passes a full test tier (hpdtool.write_reference, kymesh.write_mesh_reference). hpdtool.parse_reference was
+retired in round RT3 (the port gives its errors and messages and reads NaNs): its recorded answers
+(f0_pathdata_replay*.json) are replayed; parse must give each one.
 
 Compared: the parsed objects (every type, attribute order, value, float bit), the written bytes, and for damaged or
 changed inputs the same result or the same error. The port answers None where it leaves a case to the reference;
@@ -41,6 +43,7 @@ CLASSES = (hpdtool.Node, hpdtool.Edge, hpdtool.Sector, hpdtool.HpdFile)
 # round RT2: the references' answers recorded (--record) and replayed once they are retired
 R = Replay('f0_pathdata', HERE, [(hpdtool, 'parse_reference'), (hpdtool, 'write_reference'),
                                  (kymesh, 'write_mesh_reference')])
+PARSE_REF: Any = vars(hpdtool)['parse_reference']        # its replay (round RT3 retired it)
 
 
 # ------------------------------------------------------------------------------------------------ built inputs
@@ -184,21 +187,14 @@ def has_nan(v: Any, depth: int = 0) -> bool:
 
 
 def parse_both(data: bytes, t: Tally, label: str) -> Any:
-    """hpd_parse against parse_reference; the file (or None): the Rust core's, or while the reference is there its
-    answer to a file the core refuses."""
-    nat = native.require('hpdtool', 'hpd_parse')
-    ref = outcome(hpdtool.parse_reference, data)
-    got = nat.hpd_parse(data, *CLASSES)
-    if got is None:
-        t.fallback += 1
-        kept = R.live(hpdtool, 'parse_reference')
-        if ref[0] == 'ok' and t.strict and kept and not has_nan(hpdtool.parse_reference(data)):
-            t.fallback_ok.append(label)
-        t.add(outcome(hpdtool.parse, data) == ref, label)
-        return hpdtool.parse_reference(data) if kept and ref[0] == 'ok' else None
+    """hpdtool.parse (the Rust core's hpd_parse: round RT3 made it the only reader) against parse_reference's
+    recorded answer (its stub once retired: the same objects, or the same error type and message); the file, or None
+    where it raises."""
+    ref = outcome(PARSE_REF, data)
+    got = outcome(hpdtool.parse, data)
     t.native += 1
-    t.add(ref == ('ok', canon(got)), label)
-    return got
+    t.add(got == ref, label)
+    return hpdtool.parse(data) if got[0] == 'ok' else None
 
 
 def write_both(f: Any, t: Tally, label: str, want: bytes | None = None) -> None:
@@ -406,13 +402,20 @@ def main(argv: list[str]) -> int:
 
     # the dispatching functions
     data = files[1]
-    c.check(outcome(hpdtool.parse, data) == outcome(hpdtool.parse_reference, data)
+    c.check(outcome(hpdtool.parse, data) == outcome(PARSE_REF, data)
             and hpdtool.write(hpdtool.parse(data)) == data, 'hpdtool.parse / write dispatch to the Rust core')
-    c.check(outcome(hpdtool.parse, b'nope') == outcome(hpdtool.parse_reference, b'nope')
-            and outcome(hpdtool.parse, b'nope')[0] == 'error', "a file that is not path data: the reference's error")
+    c.check(outcome(hpdtool.parse, b'nope') == ('error', 'ValueError', 'not a Kynogon HPD file'),
+            "a file that is not path data: the reference's error")
+    # round RT3: the reference's struct.error, in CPython's words, where it read past the end
+    cut = outcome(hpdtool.parse, data[:100])
+    c.check(cut == ('error', 'error', 'unpack_from requires a buffer of at least 156 bytes for unpacking 144 bytes at '
+                    'offset 12 (actual buffer size is 100)'), f'a file cut in its header: struct.error ({cut})')
+    c.check(outcome(hpdtool.parse, bytearray(data)) == outcome(hpdtool.parse, data)
+            and outcome(hpdtool.parse, 'text')[1] == 'Refused', 'a bytearray reads as its bytes; a str is refused')
     if hasattr(hpdtool, 'use_native'):
         hpdtool.use_native(False)
-        c.check(hpdtool._native() is None and hpdtool.write(hpdtool.parse(data)) == data, 'use_native(False): the Python')
+        c.check(hpdtool._native() is None and hpdtool.write(hpdtool.parse(data)) == data,
+                'use_native(False): the Python writer (parse is the Rust core\'s alone)')
         hpdtool.use_native(True)
 
     # the game's files

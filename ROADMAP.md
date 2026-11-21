@@ -70,7 +70,8 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| RT3 | `rust-rt3` | RT2's leftovers retired; one "Rust cannot answer" rule (A17); `run_tests.py --help`; a guard against test files missing from a crate's `tests/main.rs`; O2's Errno 22 on this PC |
+| XF1 | `rust-xf1` | the export fixes before E4 (shader entries and own cull shapes for objects from other levels, the undo checkpoint, deep-duplicate paste, typed gameplay operations) |
+| VW2 | `rust-vw2` | the mode view layer; weather and time of day in both views and in exports (VW2a-d) |
 
 ## Queued
 
@@ -165,6 +166,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 |---|---|---|
 | D1 | 2026-11-19 | the disk budget: cargo builds outside the checkout, binaries in `bin\`, one budget for every cache |
 | S1 | 2026-11-18 | streamed bundle packing, process-wide BF1943 restart points, the shader coverage index |
+| RT3 | 2026-11-21 | `hpdtool.parse` and the Wave readers retired after their errors were ported (replayed: path data 2,113 game answers, Waves 426,208, 0 wrong); the command lines `aptrefs`, `xiso` (bytes entry point in Rust), `culltree`, `stockmp`, `crashreader` split into `<tool>lib.py` and retired; argparse's option abbreviations in `bfbc2.exe` (193 of 193); one rule when Rust cannot answer (A17); `run_tests.py --help`; the test-file registration guard; viewer.py / pick.py retired; O2's Defender failure fixed; RT2's kept references decided; RT3-ROADMAP |
 | RT2 | 2026-11-20 | record then retire (tests/replay.py, `native.Refused`): the terrain, mesh, texture, Havok, havokport, mopp, navtune, xmlinst, menu and PE references, navsample.load v1 / v2, the hpd and audio references after their messages were ported; `--help` and usage at the console's width in `bfbc2.exe` (943 of 943); OPFOR 380 tests, WW2 rebuild 10,852 of 10,852 |
 | RT1 | 2026-11-20 | full tier 232 of 232 (5 h, -j 2); retired graphstats.py, the editor's prepare_level.py, aimanim's and navsample_offline.file_bytes's references; `--download` also fetches `bfbc2.exe`; the inventory of every command line and reference with its fate (BENCHMARKS RT1); OPFOR 380 tests, WW2 rebuild 10,852 of 10,852 |
 | SD1 | 2026-11-20 | the shader database reader's last Python (open / dispatch, pick_database, dx from name) in one Rust module shared by bc2_native and `bfbc2.exe shaderdb`; 745 databases, 10,068 picks, 89 levels' loads identical; the in-process Merger and path glue stay Python |

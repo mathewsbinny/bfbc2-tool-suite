@@ -1,0 +1,35 @@
+bfbc2 culltree - Battlefield: Bad Company 2's static cull trees (World.StaticCullTreeData): read them, check them
+against the level's placed objects, and add placed objects that have no slot (slot 0: see-through and
+indestructible in game) with correctly built subtrees.
+
+  bfbc2 culltree info <tree.dbx> [<level.dbx>]
+  bfbc2 culltree verify <tree.dbx> <level.dbx> [--client <client tree.dbx>] [--ref <level.dbx>]...
+                 [--ref-dir <folder>] [--added <guid,...>] [--report <file>]
+  bfbc2 culltree add <tree.dbx> <level.dbx> (--objects <guid,... | @file> | --auto)
+                 --out-tree <tree.dbx> --out-level <level.dbx> [--ref <level.dbx>]... [--ref-dir <folder>]
+                 [--misplaced <metres>] [--client <client tree.dbx>] [--report <file>]
+
+info    the tree's size, leaves, EnumOffset, depth and root sphere; with a level, its objects by slot and the
+        slot-0 objects whose blueprint is in a cull tree (candidates for add).
+verify  the structure (preorder layout, Right offsets, Max, leaf numbering, 256 spare nodes, EnumOffset = client
+        leaves, traversal stack depth), every object's slot (in range, not shared, its leaves) and its decoded
+        spheres against the same blueprint's other instances (leave-one-out prediction); with --added, that every
+        ancestor of those objects' leaves contains their spheres (the traversal reaches them).
+add     gives each object a new run of leaves (as many as the blueprint has in stock trees, with its spheres moved
+        and rotated to the object's transform), inserts them where the tree's spheres already contain them,
+        updates the ancestors' Right offsets and Max, keeps 256 spare nodes, sets the objects' Enumeration in the
+        level and writes both files (everything else byte for byte).
+--ref / --ref-dir  levels (their trees found through ExclusiveStaticCullTree, beside the level's folder) to take a
+        blueprint's shape from when the target tree has no instance of it; --ref-dir takes every level .dbx under
+        the folder that has its tree beside it. The target level's own slotted instances come first.
+--auto  every slot-0 object whose blueprint has slotted instances (in this level or a --ref level), except objects
+        beyond the +-2048 m a tree can hold (distant backdrops: they stay at slot 0, outside the tree).
+--misplaced  objects whose slot's leaves lie more than <metres> from where the blueprint's other instances put them
+        (verify's leave-one-out prediction) are given slot 0 first, so --auto gives them new leaves; only objects
+        whose blueprint has a shape. A port that keeps another object's slot (Nelson Bay Onslaught: console doors
+        on PC doors' slots at the other end of the house) draws that object only when the wrong sphere is in view -
+        it flickers. Their old leaves stay in the tree with no object of their own, as a stock object a port
+        leaves out does.
+
+The format is described in README.md ("Static cull trees"). The game reads the trees with the traversal at
+0x0056C4E0 in BFBC2Game.exe (build 795745); the notes there come from short targeted disassembly only.

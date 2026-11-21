@@ -1,7 +1,7 @@
 # Xbox 360 disc images (XDVDFS)
 
 The Xbox / Xbox 360 game disc file system. The suite lists and extracts BFBC2's Xbox 360 disc image
-(`bfbc2-console-readers/xiso/xiso.py`, `bc2_formats::xiso`) as an input for the Xbox 360 -> PC conversion. Read
+(`bfbc2-console-readers/xiso/xisolib.py`, `bc2_formats::xiso`) as an input for the Xbox 360 -> PC conversion. Read
 only. All numbers little-endian.
 
 ### XISO-PART-1: The game partition and its volume descriptor
@@ -14,7 +14,7 @@ first whose sector 32 starts with `MICROSOFT*XBOX*MEDIA`. That volume descriptor
 root directory's sector (u32) and size in bytes (u32). Sector numbers count from the partition's start.
 
 [test: rust/bc2-formats/src/xiso.rs::walks_a_disc] [test: bfbc2-console-readers/tests/test_console_readers.py::main] [code: rust/bc2-formats/src/xiso.rs:13-17] [code: rust/bc2-formats/src/xiso.rs:61-79]
-[doc: bfbc2-console-readers/xiso/xiso.py:6-10]
+[doc: bfbc2-console-readers/xiso/xisolib.py:4-8]
 
 ### XISO-DIR-1: Directory tables are binary trees
 
@@ -38,7 +38,7 @@ files in that order.
 
 [data: BFBC2's Xbox 360 disc image: 693 files listed in the reference's order (BENCHMARKS F0)]
 [test: rust/bc2-formats/src/xiso.rs::walks_a_disc] [test: rust/bc2-formats/src/xiso.rs::a_looping_folder_is_left_to_the_reference] [test: bfbc2-console-readers/tests/test_console_readers_native.py::main] [code: rust/bc2-formats/src/xiso.rs:125-160]
-[doc: bfbc2-console-readers/xiso/xiso.py:7-10]
+[doc: bfbc2-console-readers/xiso/xisolib.py:5-8]
 
 ## Open questions
 

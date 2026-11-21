@@ -15,8 +15,6 @@ use std::io::{self, Read, Write as _};
 use bc2_stockmp::install::{self, APPLIED, BACKUP, Fault, isfile, join};
 use bc2_stockmp::sha256;
 
-use crate::pyfmt::docstring;
-
 mod build;
 mod generate;
 mod level;
@@ -24,7 +22,9 @@ mod pyx;
 mod validate;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, Tool, os_error, suite_root};
 
-const SOURCE: &str = include_str!("../../../../bfbc2-stockmp-ai/stockmp.py");
+/// The usage `bfbc2 stockmp` prints: `stockmp.py`'s docstring, reworded when round RT3 retired that command
+/// line (the library is `stockmplib.py`).
+const USAGE: &str = include_str!("stockmp_usage.txt");
 const COMMANDS: [&str; 6] = ["summary", "generate", "build", "validate", "all", "install"];
 /// `stockmp.STAGED`, `stockmp.PREV`.
 const STAGED: &str = ".opfor-stockmp-new";
@@ -169,11 +169,11 @@ impl Paths {
 
 pub fn run(py: &mut Py, args: &[String]) -> PyResult<i32> {
     let (Some(cmd), Some(lv)) = (args.first(), args.get(1)) else {
-        py.print(&docstring(SOURCE))?;
+        py.print(&USAGE.replace("\r\n", "\n"))?;
         return Ok(1);
     };
     if !COMMANDS.contains(&cmd.as_str()) {
-        py.print(&docstring(SOURCE))?;
+        py.print(&USAGE.replace("\r\n", "\n"))?;
         return Ok(1);
     }
     // os.path.join(work, lv) of a level name with a drive or a root, str.lower of one not ASCII: the Python's

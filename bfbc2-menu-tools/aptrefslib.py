@@ -1,20 +1,10 @@
-r"""aptrefs.py - what the menu and HUD movies ask of the engine and what it sends them, cross-referenced with the
-engine's name / id table in BFBC2Game.exe.
+r"""aptrefslib.py - what the menu and HUD movies ask of the engine and what it sends them, cross-referenced with the
+engine's name / id table in BFBC2Game.exe: the library of `bfbc2 aptrefs` (movie / table / xref / find).
 
-  python aptrefs.py movie <movie>... [--json <out.json>]
-        per movie: the extern.<name> values it reads (name$param: with a parameter), the FSCommands it sends, and
-        the engine events it handles (_root.catchEvent(name, handler): HUD; gameEventListener.<name> = handler:
-        menus) with the handler's parameter count
-  python aptrefs.py table [--exe <BFBC2Game.exe>]
-        the exe's extern / FSCommand name -> id table (the main menu's; getter and FSCommand ids are one list, ids
-        repeat between the two kinds), and for build 795745 which getter switch has a case for each id
-  python aptrefs.py xref [--sets menu,mp_hud,...] [--movie <movie>]... [--exe <exe>] [--out <file>] [--json <file>]
-        every name across the movies: kind (extern / FSCommand / event), the movies using it, its engine id, the
-        getter case (build 795745), and whether the exe has the name as a string at all. Default: every movie set
-        of the game copy (menu, mp_hud, mp_loader, sp_hud, sp_loader, mp2_hud, nam_hud; Package over Dist);
-        --out defaults to <OPFOR>\work\tools_out\aptrefs.txt (and .json)
-  python aptrefs.py find <name> [same options as xref]
-        one name (a part of it, any case) across the movies and the exe's table
+Round RT3 retired the command line aptrefs.py: bfbc2.exe answers it alone (bfbc2core.native.RETIRED_CLI; its usage
+text is rust\bc2-cli\src\menu\aptrefs_usage.txt). This module keeps what the tests and benches import: extern_table,
+getter_cases, movie_refs, refs_many (refs_many_python, E4c's reference), scan_movies, cross_reference, print_rows,
+print_movie.
 
 <movie>: a menu .res, a .apt (its .const beside it), a name from the main menu bundle (main_nav), pristine:<name> or
 <bundle.fbrb>:<name> (see menucommon.py). Reads the exe's data only (its strings and tables; no code is decoded).
@@ -23,11 +13,9 @@ getter (main menu 0x76EC30, HUD 0x777B30, a third 0x76E780) and the name -> id t
 own switch, then the UI manager's generic getter 0x95A1B0. Only the main menu getter's and the generic getter's switch
 tables are read here (build 795745); a name only the HUD reads may be answered by the HUD getter, which is not.
 """
-import json
 import os
 import re
 import struct
-import sys
 from typing import Any
 
 import menucommon as mc
@@ -346,99 +334,3 @@ def print_movie(label, refs, f):
         for n, uses in sorted(refs['events'].items()):
             for at, params, how in uses:
                 print(f'    {n:32s} {("?" if params is None else params)} param(s)   {how} at {at:06X}', file=f)
-
-
-# ------------------------------------------------------------------------------------------------ commands
-
-def take(args, flag, many=False):
-    vals = []
-    while flag in args:
-        i = args.index(flag)
-        if i + 1 >= len(args):
-            raise mc.MenuToolError(f'{flag} needs a value')
-        vals.append(args[i + 1])
-        del args[i:i + 2]
-    return vals if many else (vals[-1] if vals else None)
-
-
-def main(argv):
-    args = list(argv[1:])
-    if not args or args[0] not in ('movie', 'table', 'xref', 'find'):
-        print(__doc__)
-        return 1 if args else 0
-    cmd = args.pop(0)
-    root_given = take(args, '--opfor')
-    exe = take(args, '--exe')
-    js = take(args, '--json')
-    if cmd == 'movie':
-        if not args:
-            raise mc.MenuToolError('movie needs one or more movies')
-        found = scan_movies(args, None, root_given)
-        for label, _, refs in found:
-            print_movie(label, refs, sys.stdout)
-        if js:
-            json.dump({label: refs for label, _, refs in found}, open(js, 'w', encoding='utf-8'), indent=1, default=list)
-        return 0
-    img = mc.PEImage(mc.find_exe(root_given, exe))
-    table = extern_table(img)
-    cases = getter_cases(img)
-    if cmd == 'table':
-        print(f'{img.path}: {len(table)} names, table at {table[0][2]:#x}'
-              + ('' if cases else ' (not build 795745: getter cases not read)'))
-        for name, i, _va in table:
-            c = [f'{k} {cases[k][i]:#x}' for k, *_ in GETTERS if i in cases.get(k, {})]
-            print(f'  {i:#6x}  {name:40s} {"  ".join(c)}')
-        return 0
-    sets = take(args, '--sets')
-    movies = take(args, '--movie', many=True)
-    out = take(args, '--out')
-    found = scan_movies(movies, set(sets.split(',')) if sets else None, root_given)
-    rows = cross_reference(found, table, cases, img.strings())
-    if cmd == 'find':
-        if not args:
-            raise mc.MenuToolError('find needs a name')
-        want = args[0].lower()
-        sel = [r for r in rows if want in r['name'].lower()]
-        print_rows(sel, sys.stdout)
-        tab = [(n, i) for n, i, _ in table if want in n.lower()]
-        if tab:
-            print('\n== in the exe\'s name table: ' + ', '.join(f'{n} {i:#x}' for n, i in tab))
-        if not sel and not tab:
-            print(f'"{args[0]}": not used by the {len(found)} movies read, not in the exe\'s name table')
-        return 0
-    if not out:
-        root = root_given or mc.find_opfor()
-        out = os.path.join(mc.out_dir(root), 'aptrefs.txt')
-        js = js or os.path.join(mc.out_dir(root), 'aptrefs.json')
-    with open(out, 'w', encoding='utf-8') as f:
-        print(f'aptrefs: {len(found)} movies, exe {img.path} ({len(table)} names'
-              + ('' if cases else '; not build 795745: getter cases not read') + ')', file=f)
-        print_rows(rows, f)
-        print('\n\n== per movie', file=f)
-        for label, _, refs in found:
-            print_movie(label, refs, f)
-    if js:
-        json.dump({'movies': {label: refs for label, _, refs in found}, 'names': rows,
-                   'table': [{'name': n, 'id': i} for n, i, _ in table]}, open(js, 'w', encoding='utf-8'), indent=1, default=list)
-    kinds: dict[str, int] = {}
-    for r in rows:
-        kinds[r['kind']] = kinds.get(r['kind'], 0) + 1
-    unanswered = [r['name'] for r in rows if r['kind'] == 'extern' and r['getter_case'] == 'none']
-    print(f'{len(found)} movies: ' + ', '.join(f'{v} {k}' for k, v in sorted(kinds.items())) + f' -> {out}'
-          + (f' and {js}' if js else ''))
-    if unanswered:
-        print(f'{len(unanswered)} extern name(s) main menu movies read with no case in the menu or generic getter: '
-              + ', '.join(unanswered[:15]) + (' ...' if len(unanswered) > 15 else ''))
-    return 0
-
-
-if __name__ == '__main__':
-    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if _ROOT not in sys.path:
-        sys.path.insert(0, _ROOT)
-    import suite_paths
-    suite_paths.use('core')
-    from bfbc2core import errors
-    errors.setup('aptrefs', gui=False)         # a log; an unexpected error explained in words (exit code 1)
-    with errors.guard():
-        sys.exit(main(sys.argv))

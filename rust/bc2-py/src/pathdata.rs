@@ -2,14 +2,18 @@
 //! for `bfbc2-auto-navkit/tools/hpdtool.py` and `kymesh.py`.
 //!
 //! `hpd_parse` builds `hpdtool`'s own dataclasses (the classes are passed in): each object made with `__new__` and
-//! its `__dict__` filled in field order, so it equals, prints and pickles as the reference's. `hpd_write` and
-//! `kymesh_write` read the reference's objects attribute by attribute. All three answer `None` where the reference
-//! would raise, a value is a NaN, or a value is not one the port reads exactly as `struct` does (a float that
-//! overflows a 32-bit float, a sequence of another length, a `bytes`-like that is not `bytes` / `bytearray`): the
-//! Python then runs, so a result here is always the reference's and the errors stay its own.
+//! its `__dict__` filled in field order, so it equals, prints and pickles as the reference's; since round RT3 it
+//! reads every file (NaNs as CPython's `struct` reads them) and raises the reference's `ValueError` / `struct.error`
+//! where it raised (`parse_reference` retired). `hpd_write` and `kymesh_write` read the reference's objects attribute
+//! by attribute and answer `None` where the reference would raise, a value is a NaN, or a value is not one the port
+//! reads exactly as `struct` does (a float that overflows a 32-bit float, a sequence of another length, a
+//! `bytes`-like that is not `bytes` / `bytearray`): the Python writers (kept) then run, so a result here is always
+//! the reference's and the errors stay its own.
 
 use bc2_formats::hpd::{self, Edge, HpdFile, Node, Sector};
+use bc2_formats::hpdlayout::c_double;
 use bc2_formats::kymesh::{self, Area, BorderPortal, Cell, LinkObject, Mesh, NeighbourLink, Portal, TileItem, Vec3};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyByteArray, PyBytes, PyDict, PyList, PyString, PyTuple};
@@ -104,11 +108,28 @@ impl<'py> Maker<'py> {
 }
 
 fn f64s<'py, const N: usize>(py: Python<'py>, v: &[f32; N]) -> PyResult<Bound<'py, PyAny>> {
-    Ok(PyTuple::new(py, v.iter().map(|&x| f64::from(x)))?.into_any())
+    Ok(PyTuple::new(py, v.iter().map(|&x| c_double(x)))?.into_any())
+}
+
+/// The reference's exception where `hpd::parse_exact` stops: its `ValueError`, or `struct.error` (round RT3).
+fn exact_err(py: Python<'_>, e: &hpd::ExactError) -> PyErr {
+    if e.is_struct() {
+        match py.import("struct").and_then(|m| m.getattr("error")) {
+            Ok(cls) => PyErr::from_type(
+                cls.cast_into().unwrap_or_else(|_| py.get_type::<PyValueError>()),
+                e.to_string(),
+            ),
+            Err(err) => err,
+        }
+    } else {
+        PyValueError::new_err(e.to_string())
+    }
 }
 
 /// `hpdtool.parse(data)` as the reference's objects (`node_cls`, `edge_cls`, `sector_cls`, `file_cls` are
-/// `hpdtool.Node`, `Edge`, `Sector`, `HpdFile`), or `None` where the reference raises or a value is a NaN.
+/// `hpdtool.Node`, `Edge`, `Sector`, `HpdFile`); where the reference raised, its `ValueError` or `struct.error` with
+/// its message, and a NaN read as CPython's `struct` reads it (round RT3: `parse_reference` was retired). Always
+/// `Some` (the `Option` is the F0 signature's).
 #[pyfunction]
 pub fn hpd_parse<'py>(
     py: Python<'py>,
@@ -119,9 +140,7 @@ pub fn hpd_parse<'py>(
     file_cls: &Bound<'py, PyAny>,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     let bytes = data.as_bytes();
-    let Ok(f) = py.detach(|| hpd::parse(bytes)) else {
-        return Ok(None);
-    };
+    let f = py.detach(|| hpd::parse_exact(bytes)).map_err(|e| exact_err(py, &e))?;
     let node = Maker::new(node_cls, &["id", "pos", "flags", "value", "a", "b", "c"])?;
     let edge = Maker::new(edge_cls, &["tag", "src", "dst"])?;
     let sector = Maker::new(
@@ -137,7 +156,7 @@ pub fn hpd_parse<'py>(
                 n.id.into_bound_py_any(py)?,
                 f64s(py, &n.pos)?,
                 n.flags.into_bound_py_any(py)?,
-                f64::from(n.value).into_bound_py_any(py)?,
+                c_double(n.value).into_bound_py_any(py)?,
                 n.a.into_bound_py_any(py)?,
                 n.b.into_bound_py_any(py)?,
                 n.c.into_bound_py_any(py)?,

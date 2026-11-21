@@ -11,12 +11,12 @@ Nothing EA-owned is in this folder. The tool reads the user's own game copy and 
 ## Use
 
 ```
-python stockmp.py summary  mp_005                 what the tool reads: mode, teams, flags, Rush stages
-python stockmp.py generate mp_005 [--bots 8]      a first configuration: work\stockmp\mp_005\config.json
-python stockmp.py build    mp_005                 author, pack, stage:   work\stockmp\mp_005\out\game\...
-python stockmp.py validate mp_005                 the offline checks:    work\stockmp\mp_005\validation.json
-python stockmp.py all      mp_005                 the three in a row (keeps an existing config.json)
-python stockmp.py install  mp_005 [--apply | --revert]     plan (default), copy into the game, or undo
+bfbc2 stockmp summary  mp_005                     what the tool reads: mode, teams, flags, Rush stages
+bfbc2 stockmp generate mp_005 [--bots 8]          a first configuration: work\stockmp\mp_005\config.json
+bfbc2 stockmp build    mp_005                     author, pack, stage:   work\stockmp\mp_005\out\game\...
+bfbc2 stockmp validate mp_005                     the offline checks:    work\stockmp\mp_005\validation.json
+bfbc2 stockmp all      mp_005                     the three in a row (keeps an existing config.json)
+bfbc2 stockmp install  mp_005 [--apply | --revert]         plan (default), copy into the game, or undo
 ```
 
 Options: `--pathdata <folder>` (a folder under the game's `Output\win32\ai\levels`; default the level's own, else the
@@ -71,7 +71,7 @@ start disabled and their switch sources exist.
 
 | file | what |
 |---|---|
-| `stockmp.py` | command line |
+| `stockmplib.py` | the library of `bfbc2 stockmp` (summary, install; the command line `stockmp.py` was retired in round RT3) |
 | `stockcore.py` | the Rust core's switch (round E4a): `native()`; `BFBC2_STOCKMP_PYTHON=1` runs the Python everywhere |
 | `dbxbin.py` | binary DBX as an editable typed tree, written back byte for byte (8,216 game files checked); `round_trips` on all cores |
 | `levelmodel.py` | the level as the tool sees it: capture points, spawners and ground points, M-COMs, Rush stages |
