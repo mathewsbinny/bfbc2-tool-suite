@@ -45,7 +45,7 @@ fn live(
     cull: bool,
 ) -> Rendered {
     live.set(world.sources(target));
-    live.build(cam, size, Options { cull });
+    live.build(cam, size, Options::exact(cull));
     let (depth, post) = world.passes(cam, size, true).unwrap();
     let raw = world.raw().clone();
     dev.render_live(live, size, world.clear(), depth.as_ref(), &post, &world.textures, &raw)

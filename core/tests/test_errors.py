@@ -4,8 +4,9 @@ r"""errors.py, the suite's error handling and logging (no game data; the logs go
   missing file, no memory, OpenGL), a generic text otherwise;
 - the log: errors with their traceback, warnings (Python's too), errors in other threads, the tool's start;
 - guard(): a crash is logged and the tool exits with code 1; Ctrl+C exits with 130;
-- old logs: the 20 newest per tool are kept;
-- the 3D view: an error in a panel is logged once and listed in its Problems window, the frame goes on.
+- old logs: the 20 newest per tool are kept.
+
+(The Python 3D view's panel check went with viewer.py, retired in round RT3.)
 
   python test_errors.py
 """
@@ -94,17 +95,6 @@ def main(argv):
         errors._prune('old-tool')
         kept = sorted(f for f in os.listdir(logs) if f.startswith('old-tool'))
         check(len(kept) == 20 and kept[0] == 'old-tool-2020-01-11.log', 'old logs: the 20 newest per tool are kept')
-
-        from bfbc2core import viewer
-        v = viewer.Viewer(viewer.Scene(), 'test')
-
-        def bad_panel(_):
-            raise ValueError('a panel broke')
-        for _ in range(3):                                 # three frames: logged once, listed once
-            v._guarded('the test panel', bad_panel, v)
-        n = open(path, encoding='utf-8').read().count('error in the test panel')
-        check(len(v._problems) == 1 and 'the test panel' in next(iter(v._problems.values())) and n == 1,
-              'the 3D view: a failing panel is logged once and listed in Problems (the frame goes on)')
     finally:
         import logging
         for h in list(logging.getLogger('bfbc2').handlers):

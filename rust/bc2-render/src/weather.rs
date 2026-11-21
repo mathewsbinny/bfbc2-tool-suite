@@ -35,6 +35,52 @@ pub struct Weather {
     pub fog: Fields,
     /// `Sky` (empty when the state has none).
     pub sky: Fields,
+    /// `Clouds` (empty when the state has none): its `PanoramicCloudLayer`'s ranges, tiling, threshold,
+    /// transparency and rotation (round R5d).
+    pub clouds: Fields,
+    /// The sky dome as the system's settings and setup name it (round R5d): `SkydomeEnable`, the panoramic cloud
+    /// blend mode and the static cloud layer's panoramic texture and its alpha.
+    pub dome: Dome,
+}
+
+/// The sky dome's settings (round R5d): `WeatherSystemSettings.SkydomeEnable` and `PanoramicCloudBlendMode`, and the
+/// `PanoramicCloudLayer` textures of the `StaticCloudLayerData` the system's `WeatherSystemSetup.Clouds` names.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Dome {
+    /// `SkydomeEnable` (`None`: the settings do not say).
+    pub enabled: Option<bool>,
+    /// `PanoramicCloudBlendMode` (`PcbmMultiplyAddAlpha` ...), or empty.
+    pub blend_mode: String,
+    /// `PanoramicTexture` (`terrains/mp_005/textures/mp05_skydome`), when set.
+    pub panoramic: Option<String>,
+    /// `PanoramicAlphaTexture`, when set.
+    pub panoramic_alpha: Option<String>,
+}
+
+/// A field's text (`<field name="X">text<`), the first of that name.
+fn text_field<'a>(xml: &'a str, name: &str) -> Option<&'a str> {
+    let tag = format!("<field name=\"{name}\">");
+    let at = xml.find(&tag)? + tag.len();
+    xml.get(at..)?.split('<').next()
+}
+
+/// The sky dome's settings: from the settings partition's XML and the system's setup (its `Setup`, then the setup's
+/// `Clouds`).
+fn dome(files: &Files, settings_xml: &str, system_xml: &str) -> Dome {
+    let by_name = |xml: &str| -> HashMap<String, String> { refs(xml).into_iter().map(|(r, n)| (n, r)).collect() };
+    let clouds = by_name(system_xml)
+        .get("Setup")
+        .and_then(|s| xml_of(files, s))
+        .and_then(|x| by_name(&x).get("Clouds").and_then(|c| xml_of(files, c)));
+    let tex = |name: &str| clouds.as_deref().and_then(|x| by_name(x).get(name).cloned());
+    Dome {
+        enabled: text_field(settings_xml, "SkydomeEnable").map(|t| t == "true"),
+        blend_mode: text_field(settings_xml, "PanoramicCloudBlendMode")
+            .unwrap_or_default()
+            .to_owned(),
+        panoramic: tex("PanoramicTexture"),
+        panoramic_alpha: tex("PanoramicAlphaTexture"),
+    }
 }
 
 /// The post-process settings the tonemap uses.
@@ -260,7 +306,143 @@ pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<us
         post_process: part("PostProcess")?,
         fog: part("Fog").unwrap_or_default(),
         sky: part("Sky").unwrap_or_default(),
+        clouds: part("Clouds").unwrap_or_default(),
+        dome: dome(files, &sx, &yx),
         state,
+    })
+}
+
+/// A weather system's states (partition paths, in `States` order: the index `ActiveState` and a state entity's
+/// `State` name), read through the level's files (round VW2).
+///
+/// # Errors
+/// The system partition is not found.
+pub fn system_states(files: &Files, system: &str) -> Result<Vec<String>, String> {
+    let yx = xml_of(files, system).ok_or_else(|| format!("{system}: not found"))?;
+    Ok(refs(&yx)
+        .into_iter()
+        .filter(|(_, n)| n.is_empty())
+        .map(|(r, _)| r)
+        .collect())
+}
+
+/// A level's weather as data (round VW2): where its weather entity is, the system and settings it names, the
+/// system's states, the settings' `ActiveState` and the level's spawn-time switch (RNDR-WTHR-6).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LevelWeather {
+    /// The partition holding the weather entity (the level partition, or a placed blueprint).
+    pub entity_at: String,
+    /// The `WeatherSystem` partition.
+    pub system: String,
+    /// The `WeatherSystemSettings` partition.
+    pub settings: String,
+    /// The system's states (partition paths).
+    pub states: Vec<String>,
+    /// The settings' `ActiveState`.
+    pub active: usize,
+    /// The state the level's first enabled `WeatherStateEntityData` with `StartTransitionOnSpawn` names.
+    pub spawn: Option<usize>,
+}
+
+impl LevelWeather {
+    /// The state players see as the level starts: the spawn-time switch when it names one of the system's states,
+    /// else `ActiveState` (WX0: in 45 of 70 levels with a switch it names another state than `ActiveState`; the
+    /// placeholder states some settings name are dark or unlit and never seen).
+    #[must_use]
+    pub fn starts_in(&self) -> usize {
+        self.spawn.filter(|&s| s < self.states.len()).unwrap_or(self.active)
+    }
+
+    /// A state's short name (`weather/r_mp02/states/ons_mp_002_night` -> `ons_mp_002_night`).
+    #[must_use]
+    pub fn name(&self, k: usize) -> String {
+        self.states
+            .get(k)
+            .map_or_else(String::new, |p| p.rsplit('/').next().unwrap_or(p).to_owned())
+    }
+
+    /// The level's weather read: its system's states and its settings' `ActiveState`.
+    ///
+    /// # Errors
+    /// The system or the settings partition is not found.
+    pub fn read(files: &Files, entity_at: &str, refs: &EntityRefs, spawn: Option<usize>) -> Result<Self, String> {
+        let sx = xml_of(files, &refs.settings).ok_or_else(|| format!("{}: not found", refs.settings))?;
+        let active = fields(&sx)
+            .get("ActiveState")
+            .and_then(|v| v.first().copied())
+            .unwrap_or(0.0) as usize;
+        Ok(Self {
+            entity_at: entity_at.to_owned(),
+            system: refs.system.clone(),
+            settings: refs.settings.clone(),
+            states: system_states(files, &refs.system)?,
+            active,
+            spawn,
+        })
+    }
+
+    /// State `k`'s partitions read.
+    ///
+    /// # Errors
+    /// [`read_system`]'s.
+    pub fn state(&self, files: &Files, k: usize) -> Result<Weather, String> {
+        read_system(files, &self.system, &self.settings, Some(k))
+    }
+}
+
+/// What a weather state looks like, worked out from its field values alone (round VW2): a grey ground (albedo 0.3)
+/// facing up under the state's key light at [`NOON_DIR`] and its sky (top) colour, exposed as the game's post-process
+/// exposes a frame of it (`MiddleGray` over its luminance, clamped to `MinExposure` .. `MaxExposure`) and tonemapped
+/// ([`crate::tonemap::map`]); the fog colour likewise. The simplified view tints by it; the game-accurate view's
+/// frames are measured against it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Look {
+    /// The lit ground in HDR (before exposure).
+    pub hdr: [f32; 3],
+    /// The exposure.
+    pub exposure: f32,
+    /// The ground on screen (0..1).
+    pub ground: [f32; 3],
+    /// The fog / haze colour on screen (0..1).
+    pub fog: [f32; 3],
+}
+
+/// The albedo [`look`] lights.
+pub const LOOK_ALBEDO: f32 = 0.3;
+
+/// A state's [`Look`].
+#[must_use]
+pub fn look(w: &Weather) -> Look {
+    let ol = &w.outdoor_light;
+    let len = NOON_DIR.iter().map(|v| v * v).sum::<f32>().sqrt();
+    let up = NOON_DIR.get(1).copied().unwrap_or(1.0) / len;
+    let key = rgb(ol, "KeyColor", 0.0).map(|c| c * first(ol, "KeyColorIntensity", 1.0));
+    let top = rgb(ol, "TopColor", 0.0).map(|c| c * first(ol, "TopColorIntensity", 1.0));
+    let hdr: [f32; 3] = std::array::from_fn(|k| {
+        LOOK_ALBEDO * (key.get(k).copied().unwrap_or(0.0) * up + top.get(k).copied().unwrap_or(0.0))
+    });
+    let (_, post) = light(w, NOON_DIR);
+    let lum = hdr.iter().zip([0.3, 0.59, 0.11]).map(|(c, w)| c * w).sum::<f32>();
+    let exposure =
+        (post.middle_gray / (lum + 0.001)).clamp(post.min_exposure, post.max_exposure.max(post.min_exposure));
+    let fog = rgb(&w.fog, "Color", 0.4);
+    Look {
+        hdr,
+        exposure,
+        ground: crate::tonemap::map(hdr, exposure, &post),
+        fog: crate::tonemap::map(fog, exposure, &post),
+    }
+}
+
+/// The simplified view's tint for a state: its [`Look`]'s ground over [`neutral`]'s (a plain day is about 1; a
+/// night about 0.3, blue), each channel within 0.05 .. 1.5.
+#[must_use]
+pub fn tint(w: &Weather) -> [f32; 3] {
+    let a = look(w).ground;
+    let b = look(&neutral()).ground;
+    std::array::from_fn(|k| {
+        let (x, y) = (a.get(k).copied().unwrap_or(0.0), b.get(k).copied().unwrap_or(1.0));
+        (x / y.max(1e-3)).clamp(0.05, 1.5)
     })
 }
 
@@ -293,6 +475,8 @@ pub fn neutral() -> Weather {
         ]),
         fog: f(&[("Color", &[0.58, 0.66, 0.74])]),
         sky: Fields::new(),
+        clouds: Fields::new(),
+        dome: Dome::default(),
     }
 }
 

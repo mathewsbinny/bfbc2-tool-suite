@@ -15,9 +15,11 @@ blocks, the bytes written; for damaged inputs and changed objects the same resul
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
 
-The audio's Wave / stream references are recorded for their retirement (round RT2; still compared live): their
-answers were recorded first (--record, and --game --record, while they were there: f0_wave_replay*.json beside this
-test) and are replayed by tests/replay.py where they are gone.
+The readers' references (read_wave_reference, read_sps_reference, read_snr_reference) were retired in round RT3:
+their answers were recorded first (--record, and --game --record, while they were there: f0_wave_replay*.json beside
+this test) and are replayed by tests/replay.py; the port must give every recorded answer, the same values or the same
+error and message (it answers every input now: "left to the reference" counts nothing). The writers' references
+(write_wave_pc_reference, write_sps_reference) stay and are compared live.
 """
 import collections
 import copy
@@ -47,6 +49,10 @@ N = native.require('audio.py containers', 'wave_read')
 R = Replay('f0_wave', HERE, [(audio, 'read_wave_reference'), (audio, 'write_wave_pc_reference'),
                              (audio, 'read_sps_reference'), (audio, 'read_snr_reference'),
                              (audio, 'write_sps_reference')])
+# the readers' replays (round RT3 retired them)
+READ_WAVE_REF: Any = vars(audio)['read_wave_reference']
+READ_SPS_REF: Any = vars(audio)['read_sps_reference']
+READ_SNR_REF: Any = vars(audio)['read_snr_reference']
 
 
 class Tally:
@@ -84,7 +90,7 @@ def both(t: Tally, label: str, fn: Any, ref: Any, nat: Any, *args: Any) -> Any:
 
 def wave_all(t: Tally, label: str, b: bytes, source: str, streams: dict[int, bytes] | None = None) -> None:
     """A Wave read both ways, written both ways, and each segment's stream read and written both ways."""
-    w = both(t, label, audio.read_wave, audio.read_wave_reference, lambda b, s: N.wave_read(b, s), b, source)
+    w = both(t, label, audio.read_wave, READ_WAVE_REF, lambda b, s: N.wave_read(b, s), b, source)
     if w is None:
         return
     both(t, label + ' write', audio.write_wave_pc, audio.write_wave_pc_reference, N.wave_write_pc, w)
@@ -94,10 +100,10 @@ def wave_all(t: Tally, label: str, b: bytes, source: str, streams: dict[int, byt
         data = s[0]
         sns = (streams or {}).get(i)
         if source == 'bf1943':
-            st = both(t, f'{label} snr {i}', audio.read_snr, audio.read_snr_reference,
+            st = both(t, f'{label} snr {i}', audio.read_snr, READ_SNR_REF,
                       lambda d, x: N.snr_read(d, x), data, sns)
         else:
-            st = both(t, f'{label} sps {i}', audio.read_sps, audio.read_sps_reference, N.sps_read, sns if sns is not None and len(data) == 4 else data)
+            st = both(t, f'{label} sps {i}', audio.read_sps, READ_SPS_REF, N.sps_read, sns if sns is not None and len(data) == 4 else data)
         if st is not None:
             both(t, f'{label} sps write {i}', audio.write_sps, audio.write_sps_reference, N.sps_write, st)
 
@@ -265,19 +271,19 @@ def main(argv: list[str]) -> int:
         w = audio.read_wave(b, source)
         r = rng.random()
         if r < 0.5:
-            both(td, f'damaged {i}', audio.read_wave, audio.read_wave_reference, lambda b, s: N.wave_read(b, s),
+            both(td, f'damaged {i}', audio.read_wave, READ_WAVE_REF, lambda b, s: N.wave_read(b, s),
                  damaged(b, rng), source)
         elif r < 0.6:
-            both(td, f'damaged {i} as another source', audio.read_wave, audio.read_wave_reference,
+            both(td, f'damaged {i} as another source', audio.read_wave, READ_WAVE_REF,
                  lambda b, s: N.wave_read(b, s), b, rng.choice(audio.SOURCES))
         else:
             seg = w.segments[1][0]
             sns = (streams or {}).get(1)
             if source == 'bf1943':
-                both(td, f'damaged snr {i}', audio.read_snr, audio.read_snr_reference, lambda d, x: N.snr_read(d, x),
+                both(td, f'damaged snr {i}', audio.read_snr, READ_SNR_REF, lambda d, x: N.snr_read(d, x),
                      damaged(seg, rng), None if sns is None else damaged(sns, rng))
             else:
-                both(td, f'damaged sps {i}', audio.read_sps, audio.read_sps_reference, N.sps_read,
+                both(td, f'damaged sps {i}', audio.read_sps, READ_SPS_REF, N.sps_read,
                      damaged(sns if sns is not None and len(seg) == 4 else seg, rng))
     c.check(not td.ndiff, f'damaged Waves and streams: {td.text()}', '; '.join(td.differ))
 
@@ -312,7 +318,7 @@ def main(argv: list[str]) -> int:
             t1 = time.perf_counter()
             if R.live(audio, 'read_wave_reference'):
                 try:
-                    w = audio.read_wave_reference(b, source)
+                    w = READ_WAVE_REF(b, source)
                     audio.write_wave_pc_reference(w)
                 except audio.AudioError:
                     pass
@@ -322,7 +328,7 @@ def main(argv: list[str]) -> int:
             wave_all(tg, name, b, source, streams)
             frng = random.Random(len(b))
             for k in range(3 if game else 1):
-                both(tgd, f'{name} damaged {k}', audio.read_wave, audio.read_wave_reference,
+                both(tgd, f'{name} damaged {k}', audio.read_wave, READ_WAVE_REF,
                      lambda b, s: N.wave_read(b, s), damaged(b, frng), source)
         what = ', '.join(f'{v:,} {k}' for k, v in sorted(kinds.items()))
         c.check(not tg.ndiff and not tg.fallback_ok, f'game Waves ({what}) and their streams read and written both ways: {tg.text()}',

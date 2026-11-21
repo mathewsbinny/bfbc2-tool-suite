@@ -6,13 +6,13 @@ what to draw and what a query touches. They are not a file format of their own: 
 `Enumeration` field (their **cull slot**). This file specifies the tree as data: the fields, the preorder layout, the
 sphere quantization, the slot numbering and what must stay consistent when objects are added.
 
-Readers and writers: `bfbc2-culltree/culltree.py` and its Rust model `bc2_levelwrite::culltool` (`bfbc2.exe
+Readers and writers: `bfbc2-culltree/culltreelib.py` and its Rust model `bc2_levelwrite::culltool` (`bfbc2.exe
 culltree`: `info`, `verify`, `add`), the map editor's export `bc2_levelwrite::culltree` (new leaves for moved and
 copied objects), and the element reader `bc2_formats::culltree::elements`. `DbxEdit check` warns about shared slots and
 `fixslots` copies slots from another layout.
 
 **Corpus.** "Stock trees" are the 37 tree pairs (client and exclusive) of DICE's levels in the game copy, multiplayer
-and campaign, counted by `culltree.py verify` and a corpus script (`bfbc2-culltree/README.md`); the test corpus is
+and campaign, counted by `bfbc2 culltree verify` and a corpus script (`bfbc2-culltree/README.md`); the test corpus is
 1,269 trees and level partitions of the game copy's level bundles and OPFOR's work folders
 (`bfbc2-culltree/tests/culltree_golden.json`).
 
@@ -119,7 +119,7 @@ step 6.25 cm), radius = `SphereKeyW` / 4 m (step 25 cm). The game decodes them w
 so the decoded sphere contains the sphere it encodes (and whatever it must contain); a centre outside +-2048 m or a
 radius over 8191.75 m cannot be stored.
 
-[code: rust/bc2-levelwrite/src/culltree.rs:63-103] [code: bfbc2-culltree/culltree.py:281-299]
+[code: rust/bc2-levelwrite/src/culltree.rs:63-103] [code: bfbc2-culltree/culltreelib.py:258-276]
 [test: rust/bc2-levelwrite/src/culltree.rs::keys_round_trip_and_contain] [test: bfbc2-culltree/tests/test_culltree.py::main]
 [exe: divisors 16.0 at 0x1416D28 and 4.0 at 0x14D943C in the traversal]
 
@@ -238,7 +238,7 @@ MP_008 tree with its objects' slots).
 
 Status: **verified**
 
-`culltree.py` and `bc2_formats::culltree::elements` read a partition's binary DBX element stream directly: each element a
+`culltreelib.py` and `bc2_formats::culltree::elements` read a partition's binary DBX element stream directly: each element a
 varint tag (0 closes the open container; at the top level it ends the stream), a head byte (kind in the high nibble,
 attribute count in the low), varint attribute pairs, then by kind a container's extra byte (children follow), a text
 varint, a numbers value (varint count, varint size, count x size bytes) or two bytes. The bytes after the stream are

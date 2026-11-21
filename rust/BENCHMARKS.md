@@ -5909,6 +5909,7 @@ planned tools, kept in `DESIGN.md` 4.7); the hub's Level diff tab runs `bfbc2.ex
 LevelDiff entries (the build, the built levels, MP_005) are bc2-cli's cargo tests; `tests\test_cli_errors.py` checks
 `bfbc2 leveldiff`'s error. OPFOR: `opforcore.paths.leveldiff()` is the command, `paths.exe('LevelDiff')` refuses with
 it (nothing else in OPFOR called LevelDiff). `RETIRED.md` has the row.
+
 ## GW1: the game-accurate view opens the WW2 levels (2026-11-20, branch `rust-gw1`)
 
 Round RV1 found the game-accurate view failing on Guadalcanal: "no WeatherSettings / WeatherSystem partition under
@@ -6079,7 +6080,7 @@ About 70 ms of each is the base scene's clone; at most 15 operations are replaye
 - `tests/gameplay_xf1.rs` (Valparaiso, `MP_001`): a capture point to team 2, a spawner unlinked and linked (and the
   refusals), the tickets 200 -> 300 at 6 a minute, a point inserted into the 47-point combat area and removed (the
   partition's content as before), the area's named point removed (the area names its next, 46 points, closed);
-  the same as five project operations applied from the log, saved and loaded at version 4.
+  the same as five project operations applied from the log, saved and loaded at version 5 (VW2 took 4).
 
 ### Install round trip
 
@@ -6099,3 +6100,369 @@ Not proven until a playtest (in-game tests paused): that the merged entries draw
 The shader-database merge moved from `bc2-cli` into `bc2_formats::shaderdb::merge`, so the WW2 rebuild (which merges
 shader databases) was run against the oracle: OPFOR main 86220cd, `OPFOR_TOOLKIT` at a toolkit folder holding this
 worktree, all 52 steps in 24 min, the QA checks clean, **10,852 of 10,852 files identical**.
+## R5d: the game-accurate view's visual gaps (2026-11-21, branch `rust-r5d`)
+
+`EDITOR_ARCHITECTURE.md` 3.11, "Phase 3b (R5d, done)"; spec RNDR-TERR-5, RNDR-WATER-2, RNDR-SKY-1 - 3, RNDR-LOD-1,
+RNDR-VIEW-1 - 2, TERR-VT-7. No Python replaced. Measured with `examples/render_probe.rs` (a level's live frame with
+sources left out, its near-black share, per-class HDR means, `--frames N` timings, `--dump` HDR for run-to-run
+comparisons), `examples/terrain_probe.rs` (a visual terrain's patch map, tiles and flags, cell heights against the
+water, each patch shader's programs and constants), `examples/entry_probe.rs` (any database entry's programs, key
+bytes, reflection, blocks; `PROBE_DUMP` writes the DXBC for `fxc /dumpbin`) and `examples/world_probe.rs` (a world's
+notes, weather fields, LOD settings). Development PC: GeForce RTX 4060 Laptop, Direct3D 11 hardware device.
+
+### Wake Island's black ground, the sea under the carriers, the ragged WW2 shores: three root causes
+
+Wake Island's lagoon view (`--view auto`, 1280 x 720) was 52.8 % near-black; dropping sources showed the black was the
+terrain under a water that drew almost nothing. Decoded:
+
+1. **The terrain's height scale** (RNDR-TERR-5). The patch pixel shaders take the world height as the height map's
+   sample times `heightmapWorldScaleY`; the view left the records' stored value, 500, in place. 500 is the range of
+   every stock height field read, but Wake's spans 0 - 1,000 m: BF1943's sea-floor layers (which darken by depth
+   below the water at 215 m) saw the island's beach and shallows about 100 m deep and drew them black. The engine
+   writes the range there (the vertex shader's `posScale.y` places the same height). Wake's `Wake_Grey` layer (12,803
+   cells, one constant black output) is DICE's / BF1943's own and lies 165.9 - 203.4 m: at least 11.6 m under the
+   water everywhere (`terrain_probe PROBE_HEIGHT=215`).
+2. **The water's height map** (RNDR-WATER-2). Wake's water (BF1943's ocean shader, OPFOR's `wake_water.py`) and DICE's
+   Vietnam water (`NAM_HaLongWaterShader`, `NAM_WaterGreen`) read the terrain's height map with
+   `heightmapWorldScaleXZ` / `OffsetXZ` / `ScaleY` (DICE's code: `(x + 0.5) * scale + offset`); the view bound no
+   height map and left the three at 0. Bound with the terrain's values, the lagoon draws as shallow green water over
+   sand.
+3. **The mask tiles span blocks of cells** (TERR-VT-7). A cell's mask flag is not "tiled" (8) but how many cells the
+   tile spans on a side: 8 or 4 (Wake holds both). The cells naming a tile form one aligned flag x flag block: on
+   DICE's MP_009 757 tiled masks name 51 tiles, MP_005 1,033 name 59, Wake 998 name 78, none outside its block. R5 to
+   GW1 stretched the whole tile over each cell, so each cell repeated the block's mask: the blocky sand and the ragged
+   cell-edged shores of the WW2 levels (GW1's leftover), and of DICE's own tiled layers. Each cell now reads its part
+   of the tile; DICE's MP_009 draws continuous roads and clearings.
+
+The open sea **is** in Wake's `VisualWater` (-4,236 .. 4,548 m at 215 m: the carriers stand on it; R5c's "no water"
+was a water that drew nothing). Past the reefs BF1943's water writes colour and alpha 0 over the black floor, so the
+deep sea stays dark until the haze over the scene (`EnvironmentHalfResMain`'s fog segments: the fog, item 7) is drawn.
+
+| level, view (1280 x 720) | near-black before | after |
+|---|---:|---:|
+| Wake Island, the lagoon (`auto`) | 52.8 % | 0.2 % |
+| Wake Island, 600 m out (deep sea in view) | 64.6 % | 53.3 % (the deep sea) |
+| Wake Island, the north beach | 49.0 % | 13.5 % (the deep sea) |
+| Coral Sea, `auto` / 900 m out | 10.2 % / 3.1 % | 0.6 % / 0.5 % |
+| Guadalcanal, Iwo Jima `auto` | 0.1 %, 0.5 % | 0.1 %, 0.4 % |
+| MP_005 west shore / `auto`, SP_01 `auto` | 0.1 % / 1.9 %, 42.3 % | the same (stock height fields span 500 m) |
+
+### The sky (RNDR-SKY-1 - 3)
+
+DICE's `Systems/Weather/Shaders/Surface/EnvironmentMain` drawn on a unit dome scaled to 0.9 x `g_viewDistance`
+(4,000 m, the views' far plane) around the camera, first of the blended draws (after the depth pass it reads), its
+main-pass variant by the panoramic textures present; the constants from the weather state's `Sky`, `Sun` and
+`Clouds` by name. MP_005 west shore: 52,098 background pixels (the fog colour) before, 0 after; the top row's mean HDR
+(0.266, 0.380, 0.588). The panoramic clouds are left out: with the data's values (`PcbmMultiplyAddAlpha`, threshold
+0.3, the texture sRGB at 0.17 on average) they draw a black band the game does not show (RNDR-SKY-3). Wake Island
+keeps BF1943's own skydome mesh (a placed object), now over a blue sky instead of the fog colour.
+
+### Levels of detail (RNDR-LOD-1, RNDR-VIEW-2)
+
+Every mesh set names a `MeshLodSettingsAsset` with `LodDistance0..4` (MP_005: 32 different settings over its meshes,
+2 - 4 levels each): level k is drawn from `LodDistance(k-1)` to `LodDistance(k)`, one live source per level with its
+distance band. Meshes with alpha-tested or blended parts keep level 0 (the vegetation's far levels are thin cards:
+`mebush_01` LOD 1 54 indices; with them switched, MP_005's alpha-tested pixels fell 13,271 to 1,523 in the `auto`
+view). Terrain patches: every sample within 200 m, then every 2nd / 4th / 8th sample at each doubling, each level's
+outer edges whole (one shared index buffer of every level; `Step::range`): no cracks.
+
+| view (1600 x 950, sky on) | draws, full -> LOD | build, ms | submit, ms | GPU, ms |
+|---|---:|---:|---:|---:|
+| MP_005 west shore | 12,629 -> 11,859 | 6.81 -> 6.60 | 3.94 -> 3.63 | 9.51 -> 9.33 |
+| MP_005 `auto` | 9,036 -> 8,387 | 5.27 -> 5.04 | 2.79 -> 2.51 | 1.56 -> 1.25 |
+| SP_01 `auto` | 11,632 -> 11,500 | 5.56 -> 5.78 | 3.68 -> 3.78 | 8.76 -> 8.70 |
+| SP_01 overview (1,700 m back) | 28,199 -> 27,684 | 12.70 -> 13.48 | 7.80 -> 8.00 | 2.12 -> 1.81 |
+| Wake Island `auto` | 6,709 -> 6,593 | 3.41 -> 3.57 | 2.39 -> 2.27 | 6.40 -> 6.28 |
+| Wake Island 600 m out | 17,618 -> 17,311 | 7.59 -> 8.50 | 4.93 -> 5.06 | 2.97 -> 2.71 |
+| NAM_MP_002CQ `auto` | 4,208 -> 4,197 | 2.27 -> 2.30 | 1.48 -> 1.44 | 4.07 -> 4.22 |
+
+Medians of 12 frames, the camera turning 0.05 degrees a frame, the GPU waited for (`Device::finish`). On MP_005's
+wide view (640 x 360, `tests/r5d.rs`) the terrain's indices fall 10.7 M to 1.7 M and the objects' 6.2 M to 2.9 M, but
+the frame barely changes: the views are bound by DICE's pixel shaders (the patch shaders' per-layer blends), not by
+vertices, and the draw count is unchanged by levels (the instanced programs, `StreamInstancingFloat`, would cut it;
+not done). `tests/whole_terrain.rs` with levels: every sampled terrain pixel still drawn (no crack), 95 % or more
+within 2 m of the height field (98 % in full).
+
+### Labels hidden behind the game frame (RNDR-VIEW-1)
+
+After each drawn frame the game view reads its depth back (`Device::read_depth`: 2.1 - 2.6 ms at 1600 x 950, the
+whole depth-stencil copied; only when the frame is drawn again) and `GameView::hidden` tests a label's point against
+the 3 x 3 pixels around it. MP_005's harbour view: 93 gameplay labels seen, 2 behind the buildings and hills.
+
+### Package loads
+
+Each round's bundles are read at once through the suite's bundle cache (`fbrb::read_many`: the in-process session,
+and a large bundle read twice written whole to the shared disk cache inside its one budget). Wake Island's 11 rounds
+read the 340 MB level bundle 11 times from its start before; the rounds' bundles now in parallel and from the cache:
+
+| level | before (R5c's read: one streamed pass a bundle, one after another) | cache off (parallel only) | cold cache | warm |
+|---|---:|---:|---:|---:|
+| Wake Island | 17.65 s | 11.9 s | 4.60 s (writes 1.7 GB of payloads) | 1.43 s |
+| Coral Sea | 13.84 s | | | 0.85 s |
+
+The same bytes as a plain read (`tests/r5d.rs::package_reads_through_the_bundle_cache_give_the_plain_bytes`);
+`BC2_RENDER_UNCACHED=1` reads as before.
+
+### The far-water pixels
+
+R5c's run-to-run differences at MP_005's west shore: 2 pixels (294 / 295, 411; 4.7e-4 in colour, the same depth and
+alpha) differed in 2 of 68 runs, then in none of 400 (200 one after another, 120 as two processes at once, 80 more);
+a hash of every CPU-side input of the frame (the steps, the constant arena, the draws' programs, textures, samplers,
+vertex and index data, the texture bytes) was the same in all 400, so the CPU side is deterministic. Not reproduced
+since, cause not settled. One latent hazard of the same family as R5c's fix closed: the device's material cache was
+keyed by a prepared mesh's address without keeping the mesh (a dropped mesh's address could hand a new mesh its
+material); it keeps it now.
+
+### Screenshots (not in the repository)
+
+`shots\before_*` / `shots\fix2_*` (`render_probe`, main against this branch, the same views on Wake Island, Coral
+Sea, Guadalcanal, Iwo Jima, MP_005, SP_01), `shots_editor\before` / `shots_editor\after` (the editor's game view in
+Dark and Light: MP_005's harbour and warehouses, the four WW2 levels; `r5d_game_view_dark` / `_light` with the sky
+and the labels), `probe\wake_top_v0` / `wake_top2_v0` (Wake's sand and shores from above, before and after the mask
+tiles), `probe\mp009_after_v0` (DICE's MP_009 terrain, continuous).
+
+### Tests
+
+`cargo test --release -p bc2-render`: 31 unit tests (new: `terrain::tests::patch_levels_cover_the_patch_and_keep_full_edges`,
+`sky::tests` x3, `frame::tests::a_point_behind_drawn_depth_is_occluded`) and 14 integration tests (new
+`tests/r5d.rs`: the mask blocks and continuous patches on MP_009 / MP_005 / Wake, Wake's and Coral Sea's ground, the
+sky, the levels of detail, the cached Package reads; `whole_terrain::the_whole_terrain_is_drawn_with_levels_of_detail`).
+`cargo test --release -p bc2-editor --test editor`: new `game_view_r5d` (the sky in the editor, labels behind the
+frame). `tests/live.rs` keeps every patch in full (`Options::exact`) and draws no sky: the live list against R5b's
+per-frame list, bit for bit as before; the editor's `game_view_live` compares like with like (shared against copied,
+an edit against a fresh load) with the sky and the levels on, still bit for bit.
+
+After merging main (2026-11-21): `cargo test --release -p bc2-render` 31 + 14 passed, `-p bc2-editor` 61 + 49 passed
+(GR2's scratch-copy test needs the module `build_native.py` builds), clippy `-D warnings` clean on both crates,
+`spec/trace.py --check` 674 rules, `run_tests.py quick -j 2` 124 of 125 (O2, Microsoft Defender holding a freshly
+written .exe: environmental). `BC2_RENDER_UNCACHED` registered in `bfbc2core.envvars`.
+## RT3: RT2's leftovers - the hpd / Wave readers and five command lines retired, abbreviations, one rule (2026-11-21, branch `rust-rt3`)
+
+### Item 1a: `hpdtool.parse` and the Wave readers, their messages ported, then retired
+
+- **`bc2_formats::hpd::parse_exact`** reads a path-data file read for read as `parse_reference` did and stops where it
+  raised: `ValueError` ("not a Kynogon HPD file", "sector N (0x..): runtime mesh not where expected", "sector blocks do
+  not cover the file") or `struct.error` in CPython 3.13's words at the first read that fails (the header's 144
+  bytes, a 48-byte table entry, a block's 8-byte counts, then - where the records do not fit - the first node or edge
+  that does not, at its offset in the sector's block, as the reference's record-at-a-time loop reached it). NaNs are
+  read (the binding converts them as `struct` does: `hpdlayout::c_double`). `hpd::parse` (the CLI tools', the
+  editor's) keeps its NaN refusal. `bc2_native.hpd_parse` raises the reference's errors; `hpdtool.parse` has no
+  Python left (a bytearray / memoryview reads as its bytes, another type `Refused`); `write_reference` stays.
+- **`bc2_formats::wave`**'s readers stop where the reference raised: its `AudioError` messages, and `struct.error`
+  where a size word lay past the end that its checks let through (the stream-information word after a padded blob,
+  an SPS header block shorter than its two words - one 8-byte read - or an audio block shorter than its sample word);
+  a NaN BF1943 rate is read. The bindings answer `(exception name, message)`, which `audio.py` raises; the readers'
+  references are deleted, the writers' (`write_wave_pc_reference`, `write_sps_reference`) stay.
+- **Proof (replay).** Path data against RT2's recording (`f0_pathdata_replay*.json`): quick 1,585 answers replayed
+  (1,026 inputs the old core refused, 4 of them answered by the reference - NaN files - and now by the port), game
+  2,113 replayed over 138 files (645 MB), 8,643 meshes, 414 damaged copies: 0 wrong, 0 not recorded. The Wave
+  readers' answers were recorded now from the references (a frozen checkout at `f826078` with its own module, the
+  sibling projects through junctions): quick 8,124 answers, game 936,831 (286,350 distinct; 2,750 BF1943, 45,834 PC
+  and 35,813 Xbox Waves, their streams, 3 damaged copies of each), `f0_wave_replay*.json` 4.8 MB; then, the readers
+  retired, quick 4,042 and game 426,208 replayed: 0 wrong, 0 not recorded, every input answered by the core (the old
+  core had left 121,450 to the reference). O2's `hpdtool` lines re-recorded from the Python (which now reads through
+  the core): only the 6 that print its usage changed; the 20 lines `bfbc2.exe hpdtool` hands to the Python kept their
+  answers.
+
+### Item 1b: five command lines split and retired (`aptrefs`, `xiso`, `culltree`, `stockmp`, `crashreader`)
+
+Each library moved with `git mv` to `<tool>lib.py` beside it (old public names kept; `exeref.py`, tests, benches and
+the hub import it); the usage `bfbc2.exe` prints lives in `rust\bc2-cli\src\<group>\<tool>_usage.txt`, reworded for
+`bfbc2 <tool>`. The goldens were re-recorded from the Python first and were unchanged (crash 258, cull 190, stockmp
+236 + 73, readers 212, aptrefs 82); exeref's two "symbols missing" lines re-recorded (its warning names
+`crashreaderlib.py:66`, which `bfbc2.exe exeref` emulates). The 38 lines that print the reworded usage are in
+`cli_<round>_<group>_now.json`, merged over the goldens (which keep the Python's text). `native.RETIRED_ROUND` names
+each tool's round; `test_native_required` checks it against `pyproc.rs`' `RETIRED` and that each is `CliMissing`
+without the binary (the `--download` test passes).
+
+| tool | lines (quick) | answered by Rust | handed to the Python before, the retirement error now |
+|---|---|---|---|
+| crashreader | 120 | 112 | 8 (not XML, UTF-16, `--exe` not a PE file, `BFBC2_CRASHREADER_REFERENCE`) |
+| aptrefs | 82 | 82 | 0 |
+| culltree | 190 | 184 | 6 (an extra field, a damaged reference tree) |
+| stockmp (O3, O5) | 236, 73 | 218, 71 | 18, 2 (odd synthetic inputs, some of which the Python answered with exit 0: a plan report that is not JSON, an infinite path-data position, a degenerate level's snapped generate) |
+| xiso | 44 | 42 | 2 (the root cut short) |
+
+Game tier (OPFOR's real calls in Rust alone): crash 15 s, menu 186 s, cull 42 s, O3 stockmp 52 s, readers 37 s, O5
+stockmp builds 194 s (mp_008cq 32,257 files), all as recorded. OPFOR: `testrun.py` runs `bin\bfbc2.exe` only (a clear
+message without it; OPFOR commit `2450330`); its tests 381 of 381 against this branch.
+
+### Item 1c: argparse's option abbreviations
+
+`argfmt::long_option` is `_parse_optional` / `_get_option_tuples` for a `--` argument over the parser's option
+strings in `_option_string_actions` order; in 3.13 the ambiguity is raised in `consume_optional`, in order with the
+other errors. The shader tools' parser (shaderdb, renderqa, xdiff), caches, convert, dbxparity / portparity and texqa
+resolve with it; audio's own matched already. `core/tests/test_abbrev.py` (quick): 193 command lines built from the
+Python parsers themselves (each long option's shortest unique prefix alone, `=v` and with its value, the `--help`
+prefix, every shared prefix; 26 ambiguous), each ending where argparse stops before the tool acts (checked in process
+first): 193 of 193 identical to the Python's recording, 170 answered in Rust, texqa's 23 argparse errors handed off by
+design. `test_argfmt` 943 of 943; O2 nav, O3 caches / audio / bf1943, O4 texqa, O5 shader / bf1943 as recorded. Still
+handed off: single-dash abbreviations and attached short values, `--`, a flag or `--help` given a value, an unknown
+`--...` with a space, texqa's argparse errors.
+
+### Item 1d: the kept references of RT2, decided
+
+| reference | decision |
+|---|---|
+| `hpdtool.parse_reference`; `audio.read_wave_reference` / `read_sps_reference` / `read_snr_reference` | **retired** (item 1a) |
+| xiso's file-object reader | **in Rust** (`xisolib.find_partition_bytes` / `walk_bytes`, item 1b) |
+| `hpdtool.write_reference`, `kymesh.write_mesh_reference`, `meshset.write_reference`, `audio.write_wave_pc_reference` / `write_sps_reference` | keep: the writers take objects NavKit's build, OPFOR and the converters assemble (RT2 counted 47, 37 and 102 changed objects the core refuses that the reference wrote); the A17 rule's first half (the reference answers while alive) |
+| bc2loc's own (`khash_reference`, `LocFile._parse_reference`, `decode` / `to_bytes`) | keep: khash from another start, lone surrogates, LocFile's edits are Python state |
+| stfs (`test_console_readers_native`) | keep: `stfs.py` is a live command line and OPFOR's library |
+| texwrite, skinmesh, Granny writing | keep: OPFOR's WW2 pipeline feeds them arrays and objects it builds; no per-call recording possible |
+| `dbxcatalogue.build`, emitteratlas | keep: an unreadable chunk is recorded by the Python (the Rust refuses the whole build); float near-ties by design |
+| shaderdb queries (E4b), SD1's reader references | keep: the coordinator's ruling |
+| hkpack's F4 references | keep: the coordinator's ruling. Found: `hkpack.py dump` through the F4 handle prints a simple array of variants one list deeper than the pure Python and the recorded answer (`m_odd: [[(?, 3)]]` / `[(?, 3)]`, O2 nav "hkpack: dump", on main too) - a bug of the handle, left for a later round |
+| `xenos.disasm`, `parse_shader_python`; crashreader / exeref `Image`; texture `tiled` / `packed` / `layout`; `meshview._build_reference` | keep (RT1's reasons: edited microcode, other executables with capstone, texqa's independent decoder, the skip-and-report) |
+
+### Item 2: one rule when the Rust port cannot answer (audit AU2 A17)
+
+While a tool's Python is alive it answers: `bfbc2.exe` hands the whole command line to it (`Fail::Python`), a binding
+answers `None` (or `Refuse` in bc2-stockmp / bc2-harness) and the Python reference runs. Once retired, a plain error,
+never a silent fallback: the retirement error (exit code 1, naming the round: `pyproc.rs` `RETIRED` is (tool, round),
+`native.RETIRED_ROUND` the same list), and `native.Refused` from a binding's function. Written in README "bfbc2.exe",
+`native.py` and `pyproc.rs`; `test_cli_o2.main` (O2 / O3 / O5) now applies `retired_check` to retired tools as O4 did.
+
+### Items 3-6
+
+- **`run_tests.py --help`** ran the quick tier (every unknown argument was ignored). `-h`, `--help`, `/?` print the text;
+  an unknown argument, a missing or wrong value, two tiers are a usage error (exit code 2, reported through
+  `errors.report`). `tests/test_runner_args.py` (quick): 16 command lines on a stand-in test list.
+- **Test-file registration:** `tests/test_repo.py` fails when a `tests/*.rs` of a crate with `autotests = false` is
+  not a `mod` of its `[[test]]` main.rs (a `#[path]` module counts), with a self-check on a stand-in crate (it must
+  name exactly the forgotten file and a commented-out one).
+- **navkit.py's usage** names the map editor's AI workspace: O4's navkit golden re-recorded, 6 of 202 rows changed,
+  each in that one line. **viewer.py and pick.py** retired (nothing but two tests imported them; RETIRED.md).
+  **f3_golden_hpd.json**: the 12 `work/import_backup` groups removed (OPFOR deleted the folder).
+- **O2's environmental failure** was Microsoft Defender: `Get-MpThreatDetection` lists every
+  `cli_o2_*\cccccccccccc\b.exe` as `Trojan:Win32/Bearfoos.A!ml`; the detection is by content (the same bytes named
+  `b.bin` fail, one changed byte passes) and the block is permanent (Windows refuses the open with
+  `ERROR_VIRUS_INFECTED`, which Python reports as `EINVAL`), so neither another name nor a retry helps. The stand-in
+  carries a text mark in the unused end of `.data2`; aptrefs' 82 lines re-recorded (34 changed, only their case-folder
+  digest). `test_cli_o2.py` (all three groups) passed 3 times in a row: 966 of 966 each.
+
+### Proof (the whole branch)
+
+After merging main (c6cf4a4: GW1, VW1, EX1's `BC2_EX1_STAGE` and GW1's `BC2_GW1_*` in `envvars.py`) and
+rebuilding the module and `bfbc2.exe` (sources `bb00c3ff5f9d`):
+
+- `run_tests.py quick -j 2`: 127 of 127 passed (3,530 s); 2 with parts skipped for want of data (the Rust core's
+  cargo checks, run separately below; the stale-module case).
+- `core/tests/test_cli_o2.py` 3 runs in a row: 966 of 966 each (menu 372, crash 258, nav 336).
+- `cargo fmt --check`; clippy `--all-targets -D warnings` on bc2-cli, bc2-formats and bc2-py; their tests (bc2-cli,
+  bc2-formats): 286 passed, 0 failed.
+- `spec/trace.py --check`: 665 rules in 45 files. ruff and mypy (every folder): nothing found.
+- Project OPFOR against this branch (a toolkit folder of junctions, `OPFOR_TOOLKIT`): `src\tools\tests\run_tests.py
+  quick` 374 passed, 0 failed, 7 skipped (the game-copy and staged-export tests that need `OPFOR_TEST_GAME` or a
+  staged export); `src\tools\opforcore\tests\run_tests.py` 75 of 75.
+- The WW2 rebuild (all 52 steps, 22 min) against the oracle: 10,852 of 10,852 files identical.
+
+## VW2: the mode view layer, weather in the views and in exports (2026-11-21, branch `rust-vw2`)
+
+`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.12, "Round VW2"; spec GAME-RUSH-9, RNDR-WTHR-6 (corrected), RNDR-WTHR-7 -
+9 (new). Research round WX0 (83 levels, 355 states) is the source of the weather facts. No Python replaced. Nothing
+written to `game\`; the game never launched (in-game tests paused): what only a playtest proves is listed at the end.
+
+### The mode view layer
+
+`modelayer::rush_play` ports L1's simulation (`l1_measure.simulate`) to Rust: every instance from its `Enabled`, a
+stage played while all its counters are enabled, its M-COMs' `onDestroyed` followed through the event glue
+(`Enable` / `Disable`, never another stage's counters). `modelayer::layer_view` gives the layer and, per stage, what
+is not in play (the other stages' M-COM clusters; the bases, combat areas and spawns disabled, with their clusters).
+One root cause found on the way: `Enabled` is a two-byte value, not a text (`modelayer::bool_field`); read as a text
+every base was "enabled" in every stage.
+
+| level | stages | bases in play per stage (Rust = L1, `l1_stages.py` on the same game copy) | layer | hidden per stage |
+|---|---:|---|---:|---|
+| MP_005GR | 4 | RUS Base + South Island; SI + Stranded Ship; SII + North Island; North Island + US Harbor | 821 | 319, 307, 303, 277 |
+| MP_005SR | 2 | US Base + Stranded ship; Stranded ship + RU Base | 279 | 46, 67 |
+| NAM_MP_002R | 3 | NVA Fish Market + US drop zone; US Fish Market + NVA Shrine; US Shrine + NVA Temple | 507 | 179, 132, 93 |
+| BC1_OASIS_GR | 5 | US Base + Farm; Plantation + Farm; Suburbs + Plantation; Streets + Suburbs; Plaza + Suburbs | 1,082 | 325, 331, 322, 312, 304 |
+
+Two combat areas in play in every stage, no ambiguous order (as L1). In the editor (MP_009GR, 10,005 entities, its
+layer 971): "Mode layer only" hides 9,034 (the outliner 10,005 -> 971 rows), "Without the mode layer" 971, each
+stage 481 - 509, exactly the layer data's hidden instances that are entities of the scene; the game-accurate view
+draws 7,422 objects with every stage and 7,406 with stage 1 (the other stages' M-COMs and props left out). The
+game-accurate view now leaves out what the project deletes or hides too (it drew them before).
+
+### Weather in both views
+
+`bc2_render::world::level_weather` / `weather::LevelWeather` (the entity chain of GW1, the system's states,
+`ActiveState`, the spawn switch); `World::set_state` (light, post-process, clear colour and sky dome again, the live
+list planned again); the game-accurate view opens on `LevelWeather::starts_in` (the switch when it names a state;
+MP_005: `day_1` instead of the dark `default`). `weather::look` predicts a state's look from its values (a grey
+ground lit by the key light at the view's sun and the sky colour, exposed and tonemapped as the post-process does);
+`weather::tint` (the look over a neutral day's) tints the simplified view's scene-lit colours and its sky
+(`view.wgsl`'s `weathered`, a fourth `Globals` vector).
+
+MP_002SR's 7 states in the game-accurate view (1600 x 950, the view's middle measured, sRGB 0..1):
+
+| state | frame mean | look's ground | blue / red: frame, light |
+|---|---|---|---|
+| 0 default | (0.288, 0.286, 0.213) | (0.638, 0.645, 0.656) | 0.74, 1.09 |
+| 1 nolighting | (0.283, 0.277, 0.199) | (0.625, 0.625, 0.625) | 0.70, 1.00 |
+| 2 midday (switch, ActiveState) | (0.373, 0.353, 0.264) | (0.633, 0.624, 0.611) | 0.71, 0.89 |
+| 3, 4 the win states | as midday | as midday | 0.71, 0.89 |
+| 5 ons_mp_002_night | (0.072, 0.132, 0.145) | (0.000, 0.058, 0.148) | 2.00, 8.55 |
+| 6 ons_mp_002_dawn | (0.326, 0.287, 0.196) | (0.741, 0.724, 0.689) | 0.60, 0.77 |
+
+Brightness: Pearson 0.86 between the frames and the looks; colour (blue over red): Spearman 0.79; the night a third
+of midday's brightness and the only blue frame. The model saturates for daytime states (the exposure adapts them all
+to middle grey), so it ranks day states only roughly: it is a tint, not a render. The simplified view: midday
+(0.213, 0.225, 0.202), the night (0.057, 0.058, 0.082). The picker reads the weather from a prepared level's folders,
+or a Package level's bundles in rounds (`world::weather_files`), or the loaded game view's files.
+
+Found: the prepared `work\levels\ons_mp_002` places SP_01's weather entity (`weather/r_sp01/weathersystementity_default`,
+an old preparation), while the game copy's ONS_MP_002 places MP_002's: the view of that prepared level lists SP_01's
+44 states. Not changed here (a stale preparation in the user's work folder; preparing the level again fixes it).
+
+### Weather in exports (VW2a - c)
+
+`bc2_levelwrite::weather` and `Op::SetWeather` (project format 4; a version-3 file loads as it is); the export's
+step after the mode layer, every new partition under `weather/<level>/` in the level's own bundle, the base's stock
+partitions never changed; `stage.json`'s `weather` record (each copy's source, which `mapexport check`'s dangling
+reference rule reads); the check's weather lines. Canaries (`cargo run --release -p bc2-levelwrite --example
+vw2_canaries -- <game> <projects> <stages>`): each built twice, with and without its weather (the baseline: the same
+id, another folder), the two stages compared entry by entry, each new partition against its source (XML with guids
+numbered and the renamed paths mapped back), then `mapexport check`:
+
+| canary | base | weather | level bundle: same / new | level partition differs in | each copy differs from its source in | check | time |
+|---|---|---|---|---|---|---|---:|
+| `state` | MP_002 | own state 6 `ons_mp_002_dawn` (ActiveState 2 -> 6, switch 2 -> 6) | 55 of 56 / 2 | `State`, `ReferencedObject` | settings: `Name`, `ActiveState`; entity: `Settings`, `Name` | 38 lines | 17 s |
+| `state_wake` | Wake Island (entity in the level partition, no switch) | own state 1 `iwo_jima` | 33 of 34 / 1 | `Settings` | `Name`, `ActiveState` | 40 | 23 s |
+| `borrow_append` | MP_005 | MP_008CQ's `mp_008_ons_fog` appended as state 25 | 21 of 22 / 12 | `State`, `ReferencedObject` | the 8 state partitions: `Name`; the system: `Name` and one `States` item | 39 | 20 s |
+| `borrow_swap` | MP_005 | MP_002's whole system (57 partitions), state 6 | 21 of 22 / 61 (+ the panorama texture the closure copied) | `State`, `ReferencedObject` | every copy `Name` only | 39 | 19 s |
+| `night` | MP_005 | `ons_mp_002_night` appended, `ReflectionEnvmapScale` 1 -> 0.1, panoramic `Trancparency` 0.02 -> 0.005 | 21 of 22 / 12 | `State`, `ReferencedObject` | `Name`; the two night values | 39 | 23 s |
+| `rain` | MP_005 | SP_03's `afterrain` appended (the state only) | 21 of 22 / 12 | `State`, `ReferencedObject` | `Name` | 39 | 22 s |
+
+The terrain, ingame and loader bundles byte for byte as the baseline's in all six; the only changed entry of the level
+bundle is the level partition. Each new system's `WeatherSystem` resource: 4 bytes, 72. Night and rain without
+"Build it anyway" are refused in words. OPFOR's `mapedit_install --apply` then `--revert` of the `state`, `night` and
+`borrow_swap` stages on a scratch copy of the six shared files, `--check-game` the real game copy (this branch's
+release `mapexport`): installed (11 `package.mft` blocks, the `maps.ini` section, the level folder), then every
+shared file and its last-writer record back byte for byte, the folder gone; the real game copy's shared files with
+the same sha256 before and after.
+
+### Left, with reasons
+
+- **VW2c's lamp tool**: point-light emitters (`ActAsPointLight`) from SP_01's effects, placed by the user. Placing an
+  effect blueprint of another level's bundle with its emitters needs E2b's "+bundle" placement to carry the emitter
+  system and atlas entries, and XF1's shader entries for objects from other levels (in progress); not started.
+- **VW2d's effects and sounds**: rain is exported as SP_03's `afterrain` state only; the grid of camera-proximity
+  area effects (SP_03's `fx_amb_sp3_rain_area20`, MP_007's snowflakes) and the sound areas need the effects' emitters
+  under the target level's emitter namespace (WX0 A.5): the same cross-level emitter copy as the lamps.
+- **VW1's leftovers**: the overlays follow the mode view layer and the project's hidden and deleted objects, not
+  moved ones (they are read once per level); damage and clear-area triggers, wall collision for the walk camera, the
+  FOV and box-evaluator readings: not started.
+- **Only a playtest can prove**: that the engine starts in the spawn switch's and ActiveState's state; a borrowed
+  state under the target's sky; the swapped system's sky; the night's exposure and readability; no checksum crash
+  from the new partitions (they are inside the level's own bundle, registered as before).
+
+### Tests
+
+`cargo test --release -p bc2-levelwrite --test levelwrite vw2::` (the stages as L1 plays them on 4 levels; the
+weather as the export reads it on MP_005, MP_002, ONS_MP_002, Wake Island, Coral Sea; the night template resolves
+through MP_002's bundles, in the Onslaught Package); `-p bc2-editor --test editor vw2::` (the mode view layer on
+MP_009GR in every view; the weather states on MP_002SR in both views, measured; the game view opens on MP_005's spawn
+switch); unit tests `modeview::tests`, `weatherview::tests`, `weather_ui::tests`, `weather::tests` (levelwrite).
+Screenshots (not in the repository): `vw2_mode_*` and `vw2_weather_*`, Dark and Light.

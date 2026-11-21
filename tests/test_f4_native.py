@@ -43,7 +43,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('core', 'navkit-tools', 'console-convert', 'shader-tools', 'bf1943-import', 'culltree',
                 'mesh-viewer')
 import audio  # noqa: E402
-import culltree  # noqa: E402
+import culltreelib as culltree  # noqa: E402
 import hkpack  # noqa: E402
 import navsample_offline  # noqa: E402
 import test_f3_native as f3  # noqa: E402

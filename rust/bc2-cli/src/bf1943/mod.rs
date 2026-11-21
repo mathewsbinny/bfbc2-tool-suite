@@ -6,14 +6,16 @@
 //!   once; the Python writes the cache) is handed to the Python.
 //! - `bfbc2 dbxparity|portparity`: their `argparse` command lines (help, usage errors; at the console's width or
 //!   `COLUMNS` [`crate::argfmt`]'s texts, round RT2); a run
-//!   (BF1943's source, dbxport's / meshport's ports, NumPy) is handed to the Python, as are option abbreviations,
-//!   `--`, attached values and positionals on both sides of an option.
+//!   (BF1943's source, dbxport's / meshport's ports, NumPy) is handed to the Python, as are `--`, attached values
+//!   and positionals on both sides of an option. Option abbreviations resolve as argparse resolves them, with its
+//!   ambiguity error (round RT3).
 
 use std::fmt::Write as _;
 
 use bc2_pyrt::pickle::{self, Value};
 use bc2_pyrt::py::join;
 
+use crate::argfmt::Long;
 use crate::gameindex;
 use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, Py, PyResult, Tool};
@@ -173,17 +175,27 @@ fn parse(py: &mut Py, p: &Parser, argv: &[String]) -> PyResult<i32> {
                 _ => return error(py, p, "argument -o: expected one argument"),
             },
             _ => {
-                // an unknown long option nothing starts with is unrecognized; anything else is argparse's
-                let long = a.starts_with("--") && a.len() > 2 && !a.contains('=');
-                let known: &[&str] = if p.predict {
-                    &["--help", "--predict"]
-                } else {
-                    &["--help"]
-                };
-                if !long || known.iter().any(|k| k.starts_with(a)) {
+                // round RT3: a long option resolved as argparse resolves it (an abbreviation, or its ambiguity
+                // error); single-dash forms (-oX) and `--` are argparse's own
+                if !a.starts_with("--") || a.len() == 2 {
                     return Err(Fail::Python);
                 }
-                extras.push(a);
+                let strings: &[&'static str] = if p.predict {
+                    &["-h", "--help", "-o", "--predict"]
+                } else {
+                    &["-h", "--help", "-o"]
+                };
+                let inline = a.contains('=');
+                match crate::argfmt::long_option(a, strings) {
+                    Long::Found("--help") if !inline => {
+                        py.write(&crate::argfmt::help_or(p.prog, p.help)?)?;
+                        return Ok(0);
+                    }
+                    Long::Found("--predict") if !inline => {}
+                    Long::Ambiguous(m) => return error(py, p, &m),
+                    Long::Unknown => extras.push(a),
+                    _ => return Err(Fail::Python), // a flag given a value, an argument with a space
+                }
             }
         }
         i += 1;

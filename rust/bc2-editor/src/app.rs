@@ -340,6 +340,11 @@ pub struct ViewState {
     pub walk: Option<crate::walk::Walk>,
     /// What differs from another level, the Diff panel's filters and choice (round EX1).
     pub diff: crate::compare::DiffState,
+    // ---- round VW2
+    /// The mode view layer: objects shown or hidden by the mode layer and by Rush stage.
+    pub mode_view: crate::modeview::ModeView,
+    /// The level's weather states and the one both views show, read when the picker is first used.
+    pub weather: Option<crate::weatherview::WeatherView>,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -652,6 +657,15 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             {
                 Some("Open a map first")
             }
+            Action::SetLayerFilter(_)
+            | Action::SetRushStage(_)
+            | Action::StepRushStage(_)
+            | Action::SetWeatherState(_)
+            | Action::LevelWeather
+                if !open =>
+            {
+                Some("Open a map first")
+            }
             Action::StepState(_)
                 if !v.is_some_and(|v| {
                     v.selection.iter().any(|&k| {
@@ -879,8 +893,14 @@ impl EditorApp {
                     v.game_accurate = !v.game_accurate;
                     if v.game_accurate && v.game.is_none() {
                         match crate::gameview::GameView::load(root, &v.lv, v.scene()) {
-                            Ok(g) => {
+                            Ok(mut g) => {
                                 v.message = g.status();
+                                // round VW2: the weather state chosen in the picker before the view was loaded
+                                if let Some(k) = v.weather.as_ref().and_then(|w| w.shown)
+                                    && let Err(e) = g.set_state(k)
+                                {
+                                    v.message = format!("{} (weather state {k}: {e})", v.message);
+                                }
                                 v.game = Some(g);
                             }
                             Err(e) => {
@@ -1367,6 +1387,8 @@ impl EditorApp {
             overlays: None,
             walk: None,
             diff: crate::compare::DiffState::default(),
+            mode_view: crate::modeview::ModeView::default(),
+            weather: None,
         };
         // the look (round VW1: the overlays the display's toggles turn on)
         v.apply_look(&palette);
@@ -2791,6 +2813,16 @@ impl Tabs<'_> {
         if let Some(g) = game {
             // the game frame follows the scene's edits and outlines the selection (round R5c)
             let scene = v.doc.as_ref().map_or(&v.base, |d| &d.scene);
+            // round VW2: what the project deletes or hides and what the mode view layer filters out is left out
+            g.skip = match &v.doc {
+                Some(d) => scene
+                    .entities
+                    .iter()
+                    .map(|e| e.index)
+                    .filter(|&k| !d.shown(k))
+                    .collect(),
+                None => v.mode_view.hidden.clone(),
+            };
             g.paint(ui, Some(self.gpu), rect, &vp.camera, px, scene, &v.selection);
         } else if let Some(tex) = vp.texture {
             ui.painter().image(
@@ -2866,10 +2898,21 @@ impl Tabs<'_> {
         let t = v.gpu_scene.display.overlays;
         let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
         let from = if view.ortho.is_some() { cam.target } else { view.eye };
+        // over the game frame, a label behind what it drew is left out (round R5d)
+        let game = v.game.as_ref().filter(|_| v.game_accurate && view.ortho.is_none());
         let mut items: Vec<(f64, &crate::overlays::Item, Pos2)> = o
             .items
             .iter()
             .filter(|i| t.on(i.overlay))
+            .filter(|i| !game.is_some_and(|g| g.hidden(i.at)))
+            // round VW2: not the labels of objects the project or the mode view layer hides
+            .filter(|i| {
+                !i.entity.is_some_and(|k| {
+                    v.doc
+                        .as_ref()
+                        .map_or_else(|| v.mode_view.hidden.contains(&k), |d| !d.shown(k))
+                })
+            })
             .filter_map(|i| {
                 let s = view.project(i.at)?;
                 let d =
@@ -2912,6 +2955,8 @@ impl Tabs<'_> {
         let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
         // the orthographic views have no near and far: distance from what they look at
         let from = if view.ortho.is_some() { cam.target } else { view.eye };
+        // over the game frame, a label behind what it drew is left out, the selection's never (round R5d)
+        let game = v.game.as_ref().filter(|_| v.game_accurate && view.ortho.is_none());
         let mut items: Vec<(f64, usize, Pos2)> = Vec::new();
         for e in &v.scene().entities {
             if v.doc.as_ref().is_some_and(|d| !d.shown(e.index)) {
@@ -2926,6 +2971,9 @@ impl Tabs<'_> {
             }
             let Some(p) = e.position() else { continue };
             let top = p[1] + v.marker_offset(e.index) * 2.0 + 0.5;
+            if v.selected != Some(e.index) && game.is_some_and(|g| g.hidden([p[0], top, p[2]])) {
+                continue;
+            }
             let Some(s) = view.project([p[0], top, p[2]]) else {
                 continue;
             };

@@ -159,6 +159,17 @@ pub enum Action {
     SwitchCompare,
     /// Closes the preview: the project again.
     ClosePreview,
+    // ---- round VW2: the mode view layer, the weather
+    /// Which objects the mode layer filter shows (every object, the layer only, the level without it).
+    SetLayerFilter(crate::modeview::LayerFilter),
+    /// One Rush stage shown as it is played (0-based, in play order), or every stage (`None`).
+    SetRushStage(Option<usize>),
+    /// The next (`true`) or previous Rush stage (after the last: every stage).
+    StepRushStage(bool),
+    /// The weather state both views show (an index into the level's weather system's states; a view setting).
+    SetWeatherState(usize),
+    /// The weather state the level starts in (its spawn-time switch, else its settings' active state).
+    LevelWeather,
 }
 
 /// The panels an action can show.
@@ -812,6 +823,48 @@ pub fn registry() -> Vec<Entry> {
             o.help(),
         ));
     }
+    // round VW2: the mode view layer and the weather
+    for f in crate::modeview::LayerFilter::ALL {
+        out.push(e(
+            Action::SetLayerFilter(f),
+            match f {
+                crate::modeview::LayerFilter::All => "Show every object",
+                crate::modeview::LayerFilter::LayerOnly => "Show the mode layer only",
+                crate::modeview::LayerFilter::WithoutLayer => "Hide the mode layer",
+            },
+            None,
+            "The mode view layer: the game mode's flags, bases, M-COMs, spawns, combat areas and their logic, or the \
+             level without them (a view setting)",
+        ));
+    }
+    out.extend([
+        e(
+            Action::SetRushStage(None),
+            "Show every Rush stage",
+            None,
+            "Every Rush stage's M-COMs, bases and combat areas at once",
+        ),
+        e(
+            Action::StepRushStage(true),
+            "Next Rush stage",
+            None,
+            "One Rush stage as it is played: the other stages' M-COMs and the bases, combat areas and spawns disabled \
+             then are hidden (after the last: every stage)",
+        ),
+        e(
+            Action::StepRushStage(false),
+            "Previous Rush stage",
+            None,
+            "The Rush stage before, as it is played",
+        ),
+        e(
+            Action::LevelWeather,
+            "Level's own weather",
+            None,
+            "Both views show the weather state the level starts in: its spawn-time switch (what players see), \
+             else its settings' active state",
+        ),
+    ]);
     out.extend([
         e(
             Action::ToggleOverlayLabels,

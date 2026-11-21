@@ -1,23 +1,11 @@
-r"""Stock multiplayer maps with an AI layer: generate a per-map configuration, author it into the level data, package it
-and check it offline (STOCK_MP_AI_PLAN.md, option c). Nothing is written outside <OPFOR>\work\stockmp\<lv>\ except
-by `install --apply`, which is for the user to run (never run by the build).
-
-  python stockmp.py summary  <lv>                       the level as the tool reads it: mode, teams, flags, stages
-  python stockmp.py generate <lv> [--bots N] [--pathdata <level folder>] [--minimal] [--keep-stock-spawners]
-                                                        write work\stockmp\<lv>\config.json (a first proposal)
-  python stockmp.py build    <lv> [--config <file>]     author, pack and stage: work\stockmp\<lv>\out\game\...
-  python stockmp.py validate <lv>                       the offline checks (validate.py); exit 1 if any fails
-  python stockmp.py all      <lv> [generate options]    generate (unless config.json exists), build, validate
-  python stockmp.py install  <lv> [--apply | --revert] [--game <game folder>]
-                                                        copy out\game into the game with backups (default: --plan)
-  common options: --variant <name> (a second build, e.g. exp0: work\stockmp\<lv>-<name>), --work <folder>
-
---pathdata names a folder under the game's Output\win32\ai\levels (default: the level's own, else the DICE folder of
-the same world known for it: mp_005 -> ons_mp_005gr). The output keeps the game's own paths, so an install is a plain
-copy of out\game over the game folder.
+r"""Stock multiplayer maps with an AI layer: the library half of `bfbc2 stockmp` (summary, the path data a level
+uses, installing a build into the game with backups). Round RT3 retired the command line stockmp.py: bfbc2.exe
+answers it alone (bfbc2core.native.RETIRED_CLI; its usage text is rust\bc2-cli\src\stockmp\stockmp_usage.txt).
+The tests import pathdata_for, summary, installed_files, apply_files, install, BACKUP, APPLIED; the pipeline is
+pipeline.py (STOCK_MP_AI_PLAN.md, option c). Nothing is written outside <OPFOR>\work\stockmp\<lv>\ except by
+install(paths, ['--apply']), which is for the user to run (never run by the build).
 """
 import contextlib
-import json
 import os
 import sys
 from typing import Any
@@ -30,7 +18,6 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'stockmp')
 
-import config as cfgmod  # noqa: E402
 import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
 from bfbc2core import atomicio  # noqa: E402
@@ -235,44 +222,3 @@ def install(paths: pipeline.Paths, argv: list[str]) -> None:
     if mode == '--plan':
         var = f' --variant {paths.variant}' if paths.variant else ''
         print(f'(plan only: `install {paths.lv}{var} --apply` copies these into {game}, keeping *{BACKUP} backups)')
-
-
-def main(argv: list[str]) -> int:
-    if len(argv) < 3 or argv[1] not in ('summary', 'generate', 'build', 'validate', 'all', 'install'):
-        print(__doc__)
-        return 1
-    cmd, lv = argv[1], argv[2].lower()
-    paths = pipeline.Paths(lv, opfor=opt(argv, '--opfor'), work=opt(argv, '--work'), variant=opt(argv, '--variant'))
-    if cmd == 'summary':
-        summary(paths)
-        return 0
-    if cmd == 'install':
-        install(paths, argv)
-        return 0
-    if cmd in ('generate', 'all') and (cmd == 'generate' or not os.path.isfile(paths.config())):
-        c = pipeline.generate(paths, pathdata=pathdata_for(paths, opt(argv, '--pathdata')),
-                              bots_per_team=int(opt(argv, '--bots', 8)),
-                              layer='minimal' if '--minimal' in argv else 'full',
-                              stock_spawners='keep' if '--keep-stock-spawners' in argv or '--minimal' in argv else 'human')
-        print(f'{paths.config()}: {len(c["spawners"])} AI spawners, {len(c["orders"])} orders, {len(c["stages"])} stage '
-              f'switches; {len(c["notes"])} note(s)')
-        for n in c['notes']:
-            print('  note: ' + n)
-        if cmd == 'generate':
-            return 0
-    if cmd in ('build', 'all'):
-        c = cfgmod.load(opt(argv, '--config', paths.config()))
-        rep = pipeline.build(paths, c)
-        print(json.dumps({v: r['authored'] for v, r in rep['variants'].items()}))
-    c = cfgmod.load(opt(argv, '--config', paths.config()))
-    import validate
-    res = validate.validate(paths, c)
-    print('all checks passed' if res['passed'] else 'SOME CHECKS FAILED')
-    return 0 if res['passed'] else 1
-
-
-if __name__ == '__main__':
-    from bfbc2core import errors
-    errors.setup('stockmp', gui=False)
-    with errors.guard():
-        sys.exit(main(sys.argv))

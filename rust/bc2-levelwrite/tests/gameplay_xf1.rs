@@ -1,6 +1,6 @@
 //! Round XF1's typed gameplay operations (`bc2_levelwrite::gameplay`) on a real Conquest level (`MP_001`, Valparaiso):
 //! a team set, a spawner unlinked and linked again, the tickets, an outline point inserted and removed; each as a
-//! project operation applied from the log, each refusal in words, the project file at version 4 (a version-3 file
+//! project operation applied from the log, each refusal in words, the project file at version 5 (a version-4 file
 //! loads as it is, a newer one is refused).
 //!
 //! Reads OPFOR's game copy (beside the suite, or `OPFOR_GAME`); skipped without it.
@@ -218,16 +218,16 @@ fn typed_gameplay_operations_on_valparaiso() {
     assert_eq!(gameplay::tickets_of(&w, &schema, &counter).unwrap().initial, 300);
     assert_eq!(closed(&w, &first), ring, "one point in, one out");
     assert!(w.find(&second).is_none());
-    // the file: version 4; a version-3 file loads as it is; a newer one is refused in words
-    assert_eq!(VERSION, 4);
+    // the file: version 5; a version-4 file loads as it is; a newer one is refused in words
+    assert_eq!(VERSION, 5);
     let text = p.to_json().unwrap();
     let back = MapProject::from_json(&text).unwrap();
     assert_eq!(back.operations, p.operations, "every typed operation kept by the file");
     let raw: serde_json::Value = serde_json::from_str(&text).unwrap();
-    let mut v3 = raw.clone();
-    v3["version"] = serde_json::Value::from(3);
-    v3["operations"] = serde_json::Value::Array(Vec::new());
-    let old = MapProject::from_json(&serde_json::to_string(&v3).unwrap()).unwrap();
+    let mut v4 = raw.clone();
+    v4["version"] = serde_json::Value::from(4);
+    v4["operations"] = serde_json::Value::Array(Vec::new());
+    let old = MapProject::from_json(&serde_json::to_string(&v4).unwrap()).unwrap();
     assert_eq!(old.version, VERSION);
     let mut newer = raw;
     newer["version"] = serde_json::Value::from(VERSION + 1);

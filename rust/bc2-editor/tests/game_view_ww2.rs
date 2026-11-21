@@ -124,7 +124,7 @@ fn coverage(dev: &mut Device, world: &mut World, cam: &frame::Camera, target: [f
         .filter(|s| matches!(s.key, Key::Patch(..)))
         .collect();
     live.set(patches);
-    live.build(cam, SIZE, Options { cull: true });
+    live.build(cam, SIZE, Options::exact(true));
     let (depth, post) = world.passes(cam, SIZE, false).unwrap();
     let raw = world.raw().clone();
     dev.render_live(&live, SIZE, world.clear(), depth.as_ref(), &post, &world.textures, &raw)

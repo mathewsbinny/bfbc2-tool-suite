@@ -14,6 +14,7 @@
 //! selection is outlined on the game frame with its depth (seen edges solid, hidden ones faint); the gizmo and the
 //! labels stay egui's overlays above it.
 
+use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
@@ -113,15 +114,29 @@ pub struct GameView {
     pub notes: Vec<String>,
     /// The last frame's error.
     pub error: Option<String>,
+    /// The last frame's camera, size and depth (round R5d): what [`GameView::hidden`] tests labels against.
+    depth: Option<(frame::Camera, [u32; 2], Vec<f32>)>,
+    /// The entities left out of the frame (round VW2): deleted or hidden by the project, or filtered out by the mode
+    /// view layer; [`GameView::sync`] follows it.
+    pub skip: HashSet<usize>,
 }
 
 /// The scene's placed things as the renderer takes them - the level partition's instances (by GUID) and the group
 /// members (by group file and item) - and each one's entity.
 #[must_use]
 pub fn placed_entities(scene: &Scene) -> (Vec<Placed>, Vec<usize>) {
+    placed_without(scene, &HashSet::new())
+}
+
+/// [`placed_entities`] leaving out the entities in `skip` (round VW2: those the project deletes, hides or the mode
+/// view layer filters out).
+#[must_use]
+#[allow(clippy::implicit_hasher, reason = "the view's own set")]
+pub fn placed_without(scene: &Scene, skip: &HashSet<usize>) -> (Vec<Placed>, Vec<usize>) {
     scene
         .entities
         .iter()
+        .filter(|e| !skip.contains(&e.index))
         .filter_map(|e| {
             Some((
                 Placed {
@@ -159,9 +174,9 @@ pub fn placed(scene: &Scene) -> Vec<Placed> {
 }
 
 /// What the placed things of a scene are, as a number: changes when one is moved, added or removed.
-fn fingerprint(scene: &Scene) -> u64 {
+fn fingerprint(scene: &Scene, skip: &HashSet<usize>) -> u64 {
     let mut h = DefaultHasher::new();
-    for e in &scene.entities {
+    for e in scene.entities.iter().filter(|e| !skip.contains(&e.index)) {
         if let (Some(b), Some(m)) = (&e.blueprint, &e.matrix) {
             e.index.hash(&mut h);
             e.guid.hash(&mut h);
@@ -254,11 +269,28 @@ impl GameView {
         let (placed, entity_of) = placed_entities(scene);
         // a level of game\Package only (Vietnam, the Pacific War ...): read from its bundles in place (round R5c)
         let package = is_package(opfor, lv);
-        let world = if package {
+        let mut world = if package {
             World::load_package(opfor, lv, &scene.name, &placed, weather)?
         } else {
             World::load(opfor, lv, &scene.name, &placed, weather)?
         };
+        // the weather's sky dome behind the level (round R5d)
+        world.sky_pass = true;
+        // round VW2: the level's own state, the one players see as it starts - its spawn-time switch when it names
+        // another state than the settings' ActiveState (spec RNDR-WTHR-6)
+        if let Some(lw) = world.level_weather.clone()
+            && lw.starts_in() != lw.active
+        {
+            match world.set_state(lw.starts_in()) {
+                Ok(()) => world.notes.push(format!(
+                    "weather: the level's spawn-time switch {} drawn (its settings' ActiveState is {} {})",
+                    lw.name(lw.starts_in()),
+                    lw.active,
+                    lw.name(lw.active)
+                )),
+                Err(e) => world.notes.push(format!("weather: the spawn-time switch's state: {e}")),
+            }
+        }
         Ok(Self {
             notes: world.notes.clone(),
             live: Live::new(&world.light),
@@ -268,7 +300,7 @@ impl GameView {
             opened: None,
             shown: None,
             drawn: None,
-            scene: Some(fingerprint(scene)),
+            scene: Some(fingerprint(scene, &HashSet::new())),
             window: None,
             sourced: false,
             entity_of,
@@ -277,7 +309,32 @@ impl GameView {
             timings: Timings::default(),
             load_seconds: t.elapsed().as_secs_f64(),
             error: None,
+            depth: None,
+            skip: HashSet::new(),
         })
+    }
+
+    /// Draws the level under state `index` of its weather system (round VW2): the light, post-process, clear colour
+    /// and sky of that state; every draw is planned again with the new light at the next frame.
+    ///
+    /// # Errors
+    /// The level's weather is not known or the state's partitions are not read.
+    pub fn set_state(&mut self, index: usize) -> Result<(), String> {
+        self.world.set_state(index)?;
+        self.live = Live::new(&self.world.light);
+        self.sourced = false;
+        self.drawn = None;
+        Ok(())
+    }
+
+    /// Whether a world point lies behind what the last game frame drew (round R5d): the labels drawn over the game
+    /// view leave such points out ([`bc2_render::frame::occluded`]). `false` before a frame, or off the frame.
+    #[must_use]
+    pub fn hidden(&self, p: [f64; 3]) -> bool {
+        self.depth
+            .as_ref()
+            .and_then(|(cam, size, d)| frame::occluded(cam, *size, d, p))
+            .unwrap_or(false)
     }
 
     /// What the status line says once the view has loaded: the load time, and when the level has no weather data the
@@ -311,12 +368,12 @@ impl GameView {
     /// Follows the scene: its placed things moved, added or removed since the last look are drawn so (only those
     /// planned again). Returns whether anything changed.
     pub fn sync(&mut self, scene: &Scene) -> bool {
-        let fp = fingerprint(scene);
+        let fp = fingerprint(scene, &self.skip);
         if self.scene == Some(fp) {
             return false;
         }
         self.scene = Some(fp);
-        let (placed, entity_of) = placed_entities(scene);
+        let (placed, entity_of) = placed_without(scene, &self.skip);
         self.notes.extend(self.world.set_placed(&placed));
         self.entity_of = entity_of;
         // the instances again (the unchanged ones kept as planned) at the next frame
@@ -393,7 +450,14 @@ impl GameView {
         let t = Instant::now();
         let cam = Self::camera(camera, size);
         self.update_sources(camera.target);
-        self.live.build(&cam, size, Options { cull: self.cull });
+        self.live.build(
+            &cam,
+            size,
+            Options {
+                cull: self.cull,
+                lod: true,
+            },
+        );
         let (depth, post) = self.world.passes(&cam, size, true)?;
         let build = t.elapsed().as_secs_f64();
         let raw = self.world.raw();
@@ -406,6 +470,10 @@ impl GameView {
             &self.world.textures,
             raw,
         )?;
+        // the frame's depth for the labels (round R5d), before the outline replays into the depth-stencil target
+        let td = Instant::now();
+        self.depth = self.device.read_depth().ok().map(|(s, d)| (cam, s, d));
+        let depth_read = td.elapsed().as_secs_f64();
         let out = post
             .last()
             .ok_or("the post-process shaders are missing (startup-00.fbrb): no picture to show")?;
@@ -459,7 +527,7 @@ impl GameView {
         self.timings = Timings {
             build,
             submit: st.making + st.upload + st.submit,
-            readback,
+            readback: readback + depth_read,
             tonemap: st.post,
             upload,
             draws: st.draws,
@@ -641,7 +709,14 @@ impl GameView {
     ) -> Result<frame::Rendered, String> {
         let cam = Self::camera(camera, size);
         self.update_sources(camera.target);
-        self.live.build(&cam, size, Options { cull: self.cull });
+        self.live.build(
+            &cam,
+            size,
+            Options {
+                cull: self.cull,
+                lod: true,
+            },
+        );
         let (depth, post) = self.world.passes(&cam, size, true)?;
         let raw = self.world.raw();
         self.device.render_live(

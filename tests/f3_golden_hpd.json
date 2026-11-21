@@ -434,66 +434,6 @@
 "addece407f9f70446ca5",
 56
 ],
-"work/import_backup/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
-4154480,
-"14ec47c1b5336453ab3e",
-112
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
-4154480,
-"11483c7e92ee488165f4",
-112
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
-344100,
-"e07a90ff80c5fc40e55b",
-38
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
-344100,
-"b77d5ba1761653ad7281",
-38
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
-3142584,
-"3251b785281e66875b50",
-54
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
-3142584,
-"d4a144d15d14fb4d599e",
-54
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd": [
-470192,
-"8d79f6683055693618a8",
-40
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd damaged": [
-470192,
-"3a6ca793dd26f10128b4",
-40
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd": [
-2791612,
-"eb5c82743d75cc5efcdd",
-130
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd damaged": [
-2791612,
-"9514635af14f2ff35e26",
-130
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd": [
-903284,
-"a2ec428367d312daf3fc",
-56
-],
-"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd damaged": [
-903284,
-"addece407f9f70446ca5",
-56
-],
 "work/navkit/ons_mp_002/pathdata.hpd": [
 3001764,
 "13bf7118492ef06c4aef",

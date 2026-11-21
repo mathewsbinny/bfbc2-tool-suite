@@ -395,7 +395,11 @@ impl ViewState {
         }
         if let Some(o) = &self.overlays {
             look.skip_shapes = o.covered.iter().copied().collect();
-            look.overlay.extend(o.lines(&self.gpu_scene.display.overlays, palette));
+            // round VW2: the items of objects the project or the mode view layer hides are left out
+            let (doc, hidden) = (self.doc.as_ref(), &self.mode_view.hidden);
+            let skip = |k: usize| doc.map_or_else(|| hidden.contains(&k), |d| !d.shown(k));
+            look.overlay
+                .extend(o.lines_without(&self.gpu_scene.display.overlays, palette, &skip));
         }
         match mode {
             ViewMode::Navmesh => {
@@ -611,6 +615,56 @@ impl ViewState {
                 } else {
                     self.start_walk();
                 }
+            }
+            // round VW2: the mode view layer
+            Action::SetLayerFilter(f) => {
+                self.mode_view.filter = f;
+                self.update_mode_view();
+                self.apply_look(palette);
+                self.refresh(gpu, palette);
+                self.message = self.mode_view_message();
+            }
+            Action::SetRushStage(s) => {
+                self.mode_view.stage = s;
+                self.update_mode_view();
+                self.apply_look(palette);
+                self.refresh(gpu, palette);
+                self.message = self.mode_view_message();
+            }
+            // round VW2: the weather state both views show
+            Action::SetWeatherState(k) => {
+                self.message = match self.show_weather(Some(k)) {
+                    Ok(m) => m,
+                    Err(e) => format!("Weather: {e}"),
+                };
+            }
+            Action::LevelWeather => {
+                self.message = match self.show_weather(None) {
+                    Ok(m) => m,
+                    Err(e) => format!("Weather: {e}"),
+                };
+            }
+            Action::StepRushStage(next) => {
+                // the stages are read first (the filter may be off until now)
+                let was = self.mode_view.stage;
+                self.mode_view.stage = Some(0);
+                self.update_mode_view();
+                let n = self.mode_view.stage_count();
+                self.mode_view.stage = match (was, next) {
+                    _ if n == 0 => None,
+                    (None, true) => Some(0),
+                    (None, false) => Some(n - 1),
+                    (Some(k), true) => (k + 1 < n).then_some(k + 1),
+                    (Some(k), false) => k.checked_sub(1),
+                };
+                self.update_mode_view();
+                self.apply_look(palette);
+                self.refresh(gpu, palette);
+                self.message = if n == 0 {
+                    "This level has no Rush stages".into()
+                } else {
+                    self.mode_view_message()
+                };
             }
             Action::SetViewMode(m) => {
                 self.view_mode = m;
@@ -1718,9 +1772,125 @@ impl Tabs<'_> {
                 painter.galley(r.min + Vec2::splat(4.0), g, p.ink);
             }
         }
+        self.layer_bar(ui, rect, projection);
         if projection == Projection::Perspective {
             self.sink_popup(ui);
             self.picker(ui);
+        }
+    }
+
+    /// Round VW2: the mode view layer's and the weather's switches over the view (both views; under the view mode's
+    /// switch when it is shown).
+    fn layer_bar(&mut self, ui: &mut egui::Ui, rect: Rect, projection: Projection) {
+        let p = self.palette;
+        let game = projection == Projection::Perspective && self.view.game_accurate;
+        let top = rect.top() + if self.view.doc.is_some() { 76.0 } else { 6.0 } + if game { 0.0 } else { 30.0 };
+        let at = Rect::from_min_size(Pos2::new(rect.right() - 300.0, top), Vec2::new(294.0, 24.0));
+        let mut ui3 = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(at)
+                .layout(Layout::right_to_left(Align::Center)),
+        );
+        let mut chosen = None;
+        let m = &self.view.mode_view;
+        egui::Frame::new()
+            .fill(p.surface_2.gamma_multiply(0.94))
+            .stroke(Stroke::new(1.0, p.line))
+            .corner_radius(CornerRadius::same(4))
+            .inner_margin(Margin::symmetric(4, 0))
+            .show(&mut ui3, |ui| {
+                let text = match m.stage {
+                    Some(k) => format!("Mode: Rush stage {}", k + 1),
+                    None => format!("Mode: {}", m.filter.name()),
+                };
+                egui::ComboBox::from_id_salt(("mode view layer", projection))
+                    .selected_text(text)
+                    .width(150.0)
+                    .show_ui(ui, |ui| {
+                        ui.label(RichText::new("Mode layer").color(p.ink_muted));
+                        for f in crate::modeview::LayerFilter::ALL {
+                            if ui.selectable_label(m.filter == f, f.name()).clicked() {
+                                chosen = Some(Action::SetLayerFilter(f));
+                            }
+                        }
+                        ui.separator();
+                        ui.label(RichText::new("Rush stage").color(p.ink_muted));
+                        if ui.selectable_label(m.stage.is_none(), "Every stage").clicked() {
+                            chosen = Some(Action::SetRushStage(None));
+                        }
+                        let n = m.stage_count();
+                        if n == 0 && m.view.is_some() {
+                            ui.label(RichText::new("No Rush stages in this level").color(p.ink_faint));
+                        } else if n == 0
+                            && ui
+                                .button("Read the stages")
+                                .on_hover_text("Reads the level's Rush stages and shows the first as it is played")
+                                .clicked()
+                        {
+                            chosen = Some(Action::StepRushStage(true));
+                        }
+                        for k in 0..n {
+                            if ui
+                                .selectable_label(m.stage == Some(k), format!("Stage {}", k + 1))
+                                .clicked()
+                            {
+                                chosen = Some(Action::SetRushStage(Some(k)));
+                            }
+                        }
+                    });
+                // the weather: the level's own states
+                let w = self.view.weather.as_ref();
+                let text = w.map_or_else(
+                    || "Weather".to_owned(),
+                    |w| format!("Weather: {}", w.rows.get(w.current()).map_or("", |r| r.name.as_str())),
+                );
+                let resp = egui::ComboBox::from_id_salt(("weather", projection))
+                    .selected_text(text)
+                    .width(130.0)
+                    .show_ui(ui, |ui| {
+                        let Some(w) = w else {
+                            ui.label(RichText::new("Reading the level's weather ...").color(p.ink_faint));
+                            return;
+                        };
+                        if ui
+                            .selectable_label(false, "The level's own (what players see)")
+                            .on_hover_text(
+                                "The spawn-time switch's state when the level has one, else its settings' ActiveState",
+                            )
+                            .clicked()
+                        {
+                            chosen = Some(Action::LevelWeather);
+                        }
+                        ui.separator();
+                        for (k, r) in w.rows.iter().enumerate() {
+                            let tip = format!(
+                                "{}\nkey light ({:.2}, {:.2}, {:.2}), middle grey {:.3}{}",
+                                r.partition,
+                                r.key[0],
+                                r.key[1],
+                                r.key[2],
+                                r.middle_gray,
+                                r.look.map_or_else(String::new, |l| format!(
+                                    "\nlook: ground ({:.2}, {:.2}, {:.2}) at exposure {:.2}",
+                                    l.ground[0], l.ground[1], l.ground[2], l.exposure
+                                ))
+                            );
+                            if ui
+                                .selectable_label(w.current() == k, w.label(k))
+                                .on_hover_text(tip)
+                                .clicked()
+                            {
+                                chosen = Some(Action::SetWeatherState(k));
+                            }
+                        }
+                    });
+                if resp.response.clicked() && w.is_none() {
+                    // the first look reads the level's weather
+                    chosen = Some(Action::LevelWeather);
+                }
+            });
+        if let Some(a) = chosen {
+            self.view.pending.push(a);
         }
     }
 
