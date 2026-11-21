@@ -351,17 +351,17 @@ def target_dir(suite: str = SUITE) -> str:
     return os.path.join(targets_root(), os.path.basename(os.path.normpath(suite)))
 
 
-COMPILE_CACHE_ENV = 'BFBC2_COMPILE_CACHE'     # 0: no shared compile cache (sccache) for the suite's cargo runs
+COMPILE_CACHE_ENV = 'BFBC2_COMPILE_CACHE'     # 1: the suite's cargo runs go through sccache (off by default)
 COMPILE_CACHE_GB = 'BFBC2_COMPILE_CACHE_GB'   # its cap (default 6)
 
 
 def compile_cache() -> str | None:
-    """sccache's path when the suite's cargo runs go through it (round TS1): sccache is installed (on PATH or in
-    %USERPROFILE%\\.cargo\\bin), BFBC2_COMPILE_CACHE is not 0 and no RUSTC_WRAPPER of the user's is set. One cache
-    serves every worktree's build folder: the dependencies (crates.io, the same paths everywhere) are compiled once
-    per PC instead of once per build folder; the workspace's own crates (their paths differ per worktree) are not
-    shared, and cargo rebuilds them as ever."""
-    if os.environ.get(COMPILE_CACHE_ENV, '').strip() == '0' or os.environ.get('RUSTC_WRAPPER'):
+    """sccache's path when the suite's cargo runs go through it (round TS1): BFBC2_COMPILE_CACHE=1, sccache installed
+    (on PATH or in %USERPROFILE%\\.cargo\\bin) and no RUSTC_WRAPPER of the user's. Off by default: measured in TS1
+    (rust/BENCHMARKS.md), a second build folder took 2 of 208 compiles from the cache even with SCCACHE_BASEDIRS -
+    cargo gives every crate with a build script an OUT_DIR inside the build folder, which sccache 0.19 keeps in the
+    key, and every crate above it misses in turn - so the cache serves only rebuilds of the same folder."""
+    if os.environ.get(COMPILE_CACHE_ENV, '').strip() != '1' or os.environ.get('RUSTC_WRAPPER'):
         return None
     import shutil
     found = shutil.which('sccache')
