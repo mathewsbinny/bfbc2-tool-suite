@@ -235,6 +235,16 @@ fn ww2_levels_open_in_the_game_accurate_view() {
         return;
     }
     let stand_in = StandIn::new(&game).expect("a stand-in OPFOR folder with a junction to the game copy");
+    // the editor falls back to OPFOR itself when the folder it is given has no `game`: the levels would then be
+    // prepared into OPFOR's own work\editor\levels (it happened once, with a stand-in that had gone)
+    let used = levels::find_opfor(Some(&stand_in.root)).unwrap();
+    assert_eq!(
+        used,
+        std::path::absolute(&stand_in.root).unwrap(),
+        "the stand-in {} has no game folder: refusing to prepare into {}",
+        stand_in.root.display(),
+        used.display()
+    );
     let shots = std::env::var_os("BC2_EDITOR_SHOTS").map(PathBuf::from);
     for lv in lvs {
         let mut app = EditorApp::new(Some(&stand_in.root), None).unwrap();
