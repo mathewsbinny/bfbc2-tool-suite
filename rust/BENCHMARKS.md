@@ -6863,4 +6863,4 @@ all passed (new `tests/r5e.rs`: `block_windows_are_the_material_registers` over 
 `the_ww2_open_sea_is_drawn` on Wake Island and Guadalcanal: the water plans `Dyn::DepthFactors`, under 1 % near-black
 and 5 % dark, the sea bluer than red). `cargo test --release -p bc2-editor --test editor` `game_view_ww2` (the four
 WW2 levels, both themes saved) and `game_view_r5d` passed. clippy `--all-targets -D warnings` on bc2-render,
-bc2-formats, bc2-editor and `cargo fmt --check` clean.
+bc2-formats, bc2-editor and `cargo fmt --check` clean. `spec/trace.py --check` 695 rules; release builds (`build_native.py`, `--editor`); `python run_tests.py quick -j 2` 135 of 135 passed in 769 s (2 with parts skipped for want of data).
