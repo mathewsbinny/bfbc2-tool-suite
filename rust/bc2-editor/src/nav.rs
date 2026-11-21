@@ -290,9 +290,39 @@ pub struct Job {
     pub done: Option<bool>,
     /// When it started.
     pub started: Instant,
+    /// The file it writes, removed when the job is dropped before it ended (round DF1, audit AU4-CON-2): a build
+    /// cut short leaves no half-written file for a later Install to copy.
+    pub partial: Option<PathBuf>,
+}
+
+impl Drop for Job {
+    /// A command still running when its job goes (the editor closed under it) is stopped, never left orphaned.
+    fn drop(&mut self) {
+        if self.done.is_none() && matches!(self.child.try_wait(), Ok(None)) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            if let Some(p) = &self.partial {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+    }
 }
 
 impl Job {
+    /// A job of a child already started (tests: a stand-in for a long navkit command).
+    #[doc(hidden)]
+    #[must_use]
+    pub fn from_child(child: Child, what: &str) -> Self {
+        Self {
+            child,
+            what: what.to_owned(),
+            lines: Arc::new(Mutex::new(Vec::new())),
+            done: None,
+            started: Instant::now(),
+            partial: None,
+        }
+    }
+
     /// Whether it has ended (and how), polled.
     pub fn poll(&mut self) -> Option<bool> {
         if self.done.is_none()
@@ -395,6 +425,7 @@ pub fn start_navkit(root: &Path, args: &[String], what: &str) -> Result<Job, Str
         lines,
         done: None,
         started: Instant::now(),
+        partial: None,
     })
 }
 

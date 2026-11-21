@@ -84,6 +84,17 @@ impl Timings {
 struct Opened {
     generation: u32,
     textures: Vec<(wgpu::Texture, egui::TextureId)>,
+    /// egui's renderer they are registered with (round DF1, audit AU4-CQ-2: freed when the view goes).
+    renderer: std::sync::Arc<eframe::epaint::mutex::RwLock<eframe::egui_wgpu::Renderer>>,
+}
+
+impl Drop for Opened {
+    fn drop(&mut self) {
+        let mut r = self.renderer.write();
+        for (_, id) in &self.textures {
+            r.free_texture(id);
+        }
+    }
 }
 
 /// The level, ready to draw the game's way.
@@ -119,6 +130,9 @@ pub struct GameView {
     /// The entities left out of the frame (round VW2): deleted or hidden by the project, or filtered out by the mode
     /// view layer; [`GameView::sync`] follows it.
     pub skip: HashSet<usize>,
+    /// The Direct3D device was removed (round DF1, audit AU4-BUG-9: a driver reset, update or GPU switch), why: the
+    /// view cannot draw again and is loaded anew ([`GameView::lost`]).
+    lost: Option<String>,
 }
 
 /// The scene's placed things as the renderer takes them - the level partition's instances (by GUID) and the group
@@ -237,7 +251,8 @@ fn open_shared(device: &wgpu::Device, handle: isize, size: [u32; 2]) -> Option<w
     // SAFETY: the handle is an NT handle of a live R8G8B8A8_UNORM texture of `size` (bc2_render's `share`), kept
     // open by the Direct3D device for as long as this view lives; the image is wrapped as uninitialised, so wgpu
     // moves it out of its undefined layout itself; the Direct3D device has finished writing (an event query waited
-    // for) before egui samples it, and writes the three textures in turn
+    // for) before egui samples it, and writes the three textures in turn, each only after the editor's device has
+    // finished every frame sent before (round DF1: `draw` waits for it)
     unsafe {
         let hal_tex = {
             let hal_dev = device.as_hal::<hal::api::Vulkan>()?;
@@ -311,6 +326,7 @@ impl GameView {
             error: None,
             depth: None,
             skip: HashSet::new(),
+            lost: None,
         })
     }
 
@@ -422,10 +438,31 @@ impl GameView {
             self.drawn = Some(key);
             match self.draw(ctx, gpu, camera, size, selection) {
                 Ok(()) => self.error = None,
-                Err(e) => self.error = Some(e),
+                Err(e) => {
+                    self.lost = self.removed();
+                    self.error = Some(e);
+                }
             }
         }
         self.shown
+    }
+
+    /// Why the view's Direct3D device was removed (`None`: it works): such a view is dropped and loaded again on a
+    /// new device (round DF1, audit AU4-BUG-9).
+    #[must_use]
+    pub fn lost(&self) -> Option<&str> {
+        self.lost.as_deref()
+    }
+
+    #[cfg(windows)]
+    fn removed(&self) -> Option<String> {
+        self.device.removed()
+    }
+
+    #[cfg(not(windows))]
+    #[allow(clippy::unused_self, reason = "the Windows view's signature")]
+    fn removed(&self) -> Option<String> {
+        None
     }
 
     /// The pick numbers (the placed list's places plus one) of entities.
@@ -492,6 +529,13 @@ impl GameView {
                 .features()
                 .contains(wgpu::Features::VULKAN_EXTERNAL_MEMORY_WIN32)
         {
+            // round DF1 (audit AU4-CON-11): every frame egui has sent so far has finished sampling before Direct3D
+            // writes the next shared texture (no frame of the editor's device still reads the slot written now;
+            // the Direct3D side's own writes are waited for by `share`'s event query)
+            let _ = g.gpu.device.poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(1)),
+            });
             let f = self.device.share(out)?;
             let t3 = Instant::now();
             if self.opened.as_ref().is_none_or(|o| o.generation != f.generation) {
@@ -558,21 +602,27 @@ impl GameView {
     #[cfg(windows)]
     fn open(&mut self, g: &crate::app::GpuCtx, generation: u32, size: [u32; 2]) -> Result<(), String> {
         let handles = self.device.shared_handles();
+        // the old frames freed first (their drop takes the renderer's lock itself)
+        drop(self.opened.take());
         let mut r = g.egui.write();
-        if let Some(old) = self.opened.take() {
-            for (_, id) in old.textures {
-                r.free_texture(&id);
-            }
-        }
         let mut textures = Vec::new();
         for h in handles {
-            let tex = open_shared(&g.gpu.device, h, size)
-                .ok_or("the shared frame could not be opened on the editor's device")?;
+            let Some(tex) = open_shared(&g.gpu.device, h, size) else {
+                for (_, id) in &textures {
+                    r.free_texture(id);
+                }
+                return Err("the shared frame could not be opened on the editor's device".into());
+            };
             let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
             let id = r.register_native_texture(&g.gpu.device, &view, wgpu::FilterMode::Linear);
             textures.push((tex, id));
         }
-        self.opened = Some(Opened { generation, textures });
+        drop(r);
+        self.opened = Some(Opened {
+            generation,
+            textures,
+            renderer: std::sync::Arc::clone(&g.egui),
+        });
         Ok(())
     }
 

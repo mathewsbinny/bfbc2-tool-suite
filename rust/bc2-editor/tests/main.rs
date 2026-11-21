@@ -15,6 +15,7 @@
 use std::sync::{Condvar, Mutex, PoisonError};
 
 mod asset_browser;
+mod df1;
 mod e2b;
 mod editing;
 mod every_level;

@@ -52,6 +52,9 @@ pub struct PreviewJob {
     pub since: Instant,
     /// The stage.
     pub stage: PathBuf,
+    /// The project generation it was asked in (round DF1, audit AU4-SM-4): an answer landing after the map was
+    /// closed or another project opened is dropped.
+    pub generation: u64,
 }
 
 /// What the preview's worker gives.
@@ -216,12 +219,13 @@ impl EditorApp {
         let (tx, rx) = std::sync::mpsc::channel();
         let st = stage.to_path_buf();
         std::thread::spawn(move || {
-            let _ = tx.send(load_preview(&root, &st));
+            let _ = tx.send(crate::export_ui::guarded("The preview", || load_preview(&root, &st)));
         });
         self.preview_job = Some(PreviewJob {
             rx,
             since: Instant::now(),
             stage: stage.to_path_buf(),
+            generation: self.generation,
         });
         if let Mode::View(v) = &mut self.mode {
             v.message = "Opening the export's preview: the stage read like a level, beside the original...".into();
@@ -240,7 +244,12 @@ impl EditorApp {
             Err(TryRecvError::Disconnected) => Err("the preview's worker stopped unexpectedly".into()),
         };
         let stage = job.stage.clone();
+        let current = job.generation == self.generation;
         self.preview_job = None;
+        if !current {
+            // asked for another project (round DF1): not shown over this one
+            return;
+        }
         match r {
             Ok(loaded) => self.show_preview(gpu, *loaded, stage),
             Err(e) => {
@@ -289,7 +298,7 @@ impl EditorApp {
         let diff = l.diff.map(Arc::new);
         let note = preview_note(&l.rec);
         let side = |app: &mut Self, lv: &str, loaded: LoadedOk, s: Side| -> Option<Box<ViewState>> {
-            app.show_scene(gpu, lv, loaded, Then::View);
+            app.show_scene_with(gpu, lv, loaded, Then::View, None);
             let Mode::View(mut v) = std::mem::replace(&mut app.mode, Mode::Start) else {
                 return None;
             };
@@ -352,10 +361,12 @@ impl EditorApp {
 
     /// Closes the preview: the project's view again.
     pub fn close_preview(&mut self) {
-        if let Some(p) = self.preview.take()
-            && let Some(project) = p.project
-        {
-            self.mode = Mode::View(project);
+        if let Some(p) = self.preview.take() {
+            // a preview opened with no project behind it goes back to the start screen (never stays read only)
+            self.mode = match p.project {
+                Some(project) => Mode::View(project),
+                None => Mode::Start,
+            };
         }
     }
 
