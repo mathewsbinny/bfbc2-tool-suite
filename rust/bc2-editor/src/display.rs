@@ -5,7 +5,8 @@
 //!   both (the collision's edges over the mesh), the mesh's edges, or its bounding box;
 //! - per object or per blueprint (the object menu's "Show as"): the same, or hidden;
 //! - per object, the variants its data holds (the Properties' Display section): the mesh's level of detail and, for a
-//!   destructible object, its parts' state (intact, destroyed, every part);
+//!   destructible object, its parts' state (intact, each damaged rank, destroyed, every part; round VW1: the
+//!   collision drawn follows it where the packfile splits it per part);
 //! - the objects the game does not show (invisible walls, blueprints without a mesh): hidden, outlined or solid.
 
 use std::collections::BTreeMap;
@@ -96,6 +97,9 @@ pub enum Destruction {
     Destroyed,
     /// Every mesh part.
     AllParts,
+    /// Round VW1: every part at its health state of this rank (1 the first damaged one), between intact and
+    /// destroyed ([`Destruction::steps`]).
+    Stage(u8),
 }
 
 impl Destruction {
@@ -104,11 +108,12 @@ impl Destruction {
 
     /// Its name in menus.
     #[must_use]
-    pub const fn name(self) -> &'static str {
+    pub fn name(self) -> String {
         match self {
-            Self::Intact => "Intact",
-            Self::Destroyed => "Destroyed",
-            Self::AllParts => "All parts",
+            Self::Intact => "Intact".into(),
+            Self::Destroyed => "Destroyed".into(),
+            Self::AllParts => "All parts".into(),
+            Self::Stage(k) => format!("Damaged {k}"),
         }
     }
 
@@ -119,7 +124,34 @@ impl Destruction {
             Self::Intact => State::Intact,
             Self::Destroyed => State::Destroyed,
             Self::AllParts => State::All,
+            Self::Stage(k) => State::Stage(k),
         }
+    }
+
+    /// The states an object with `count` health-state ranks steps through, in order (round VW1: the picker's list
+    /// and its up / down arrows): intact, each damaged rank, destroyed, then every part. `count` is
+    /// `bc2_render::simple::stage_count` of its parts (`SP_01`'s guard tower: 3 - intact, damaged 1, destroyed).
+    #[must_use]
+    pub fn steps(count: usize) -> Vec<Self> {
+        if count == 0 {
+            return Vec::new();
+        }
+        let mut out = vec![Self::Intact];
+        out.extend((1..count.saturating_sub(1)).map(|k| Self::Stage(k.min(usize::from(u8::MAX)) as u8)));
+        if count > 1 {
+            out.push(Self::Destroyed);
+        }
+        out.push(Self::AllParts);
+        out
+    }
+
+    /// The state `delta` steps from this one in `steps` (clamped at the ends; a state not in the list starts from
+    /// intact).
+    #[must_use]
+    pub fn step(self, steps: &[Self], delta: i32) -> Self {
+        let at = steps.iter().position(|s| *s == self).unwrap_or(0) as i64;
+        let to = (at + i64::from(delta)).clamp(0, steps.len().saturating_sub(1) as i64) as usize;
+        steps.get(to).copied().unwrap_or(self)
     }
 }
 
@@ -144,6 +176,9 @@ pub struct Display {
     /// A destructible object's state (its GUID; none: intact).
     #[serde(default)]
     pub states: BTreeMap<String, Destruction>,
+    /// Round VW1: which overlays the view draws (effects, lights, sounds, the gameplay areas) and their labels.
+    #[serde(default)]
+    pub overlays: crate::overlays::Toggles,
 }
 
 impl Display {
@@ -226,5 +261,23 @@ mod tests {
         assert!(!d.has_overrides());
         assert_eq!(d.show_of(&e), ShowAs::Wireframe);
         assert_eq!(ShowAs::Bounds.next(), ShowAs::Visual);
+    }
+
+    #[test]
+    fn destruction_steps_in_order() {
+        use Destruction::{AllParts, Destroyed, Intact, Stage};
+        assert_eq!(Destruction::steps(0), []);
+        assert_eq!(Destruction::steps(1), [Intact, AllParts]);
+        assert_eq!(Destruction::steps(2), [Intact, Destroyed, AllParts]);
+        let s = Destruction::steps(3);
+        assert_eq!(s, [Intact, Stage(1), Destroyed, AllParts]);
+        assert_eq!(Intact.step(&s, 1), Stage(1));
+        assert_eq!(Stage(1).step(&s, 1), Destroyed);
+        assert_eq!(AllParts.step(&s, 1), AllParts);
+        assert_eq!(Intact.step(&s, -1), Intact);
+        assert_eq!(Destroyed.step(&s, -2), Intact);
+        assert_eq!(Stage(1).name(), "Damaged 1");
+        let text = serde_json::to_string(&Stage(2)).unwrap();
+        assert_eq!(serde_json::from_str::<Destruction>(&text).unwrap(), Stage(2));
     }
 }

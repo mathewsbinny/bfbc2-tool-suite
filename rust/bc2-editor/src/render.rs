@@ -246,6 +246,9 @@ pub struct Look {
     pub overlay: Vec<([[f32; 3]; 2], Color32)>,
     /// Extra meshes in world space (the AI workspace's walkable ground, round GR2), each in its layer, lit evenly.
     pub meshes: Vec<crate::navview::OverlayMesh>,
+    /// Entities whose outlines the view's overlays draw instead (round VW1: combat areas, capture points, sound
+    /// areas): their scene outlines are left out.
+    pub skip_shapes: std::collections::HashSet<usize>,
 }
 
 /// A colour of its own for each blueprint (the collision mode): a hue from the name's hash, muted.
@@ -258,6 +261,50 @@ pub fn blueprint_colour(name: &str) -> Color32 {
     let hue = f32::from((h % 360) as u16) / 360.0;
     let c = eframe::egui::ecolor::Hsva::new(hue, 0.45, 0.78, 1.0);
     Color32::from(c)
+}
+
+/// The destruction state a blueprint's collision is drawn in (round VW1): `Some(state)` when its packfile splits
+/// the collision per part ([`bc2_formats::havok::Parts::split`]), its render meshes name its destructible parts and
+/// the state is not every part; `None`: every triangle.
+#[must_use]
+pub fn split_state(
+    visuals: Option<&Simple>,
+    col: &bc2_scene::scene::Collision,
+    bp: &str,
+    state: State,
+) -> Option<State> {
+    if state == State::All || !col.parts.get(bp).is_some_and(|p| p.split()) {
+        return None;
+    }
+    (!visuals?.components_of(bp).is_empty()).then_some(state)
+}
+
+/// A blueprint's collision triangles in a destruction state (round VW1): each part's triangles where the state
+/// shows that part ([`bc2_render::simple::collision_part_shown`]), the triangles of no part always; `None` where
+/// [`split_state`] says every triangle.
+#[must_use]
+pub fn state_triangles(
+    visuals: Option<&Simple>,
+    col: &bc2_scene::scene::Collision,
+    bp: &str,
+    state: State,
+) -> Option<Arc<Vec<bc2_formats::havok::Triangle>>> {
+    let state = split_state(visuals, col, bp, state)?;
+    let parts = col.parts.get(bp)?;
+    let components = visuals?.components_of(bp);
+    let all = col.blueprints.get(bp)?.as_ref()?;
+    let shown: Vec<bool> = parts
+        .hashes
+        .iter()
+        .map(|&h| bc2_render::simple::collision_part_shown(components, h, state))
+        .collect();
+    Some(Arc::new(
+        all.iter()
+            .zip(&parts.part_of)
+            .filter(|(_, p)| shown.get(usize::from(**p)).copied().unwrap_or(true))
+            .map(|(t, _)| *t)
+            .collect(),
+    ))
 }
 
 /// The edges of a triangle list (three vertices a triangle), as a line list.
@@ -529,8 +576,11 @@ fn visual_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 #[derive(Debug)]
 pub struct SceneGpu {
     meshes: Vec<Mesh>,
-    /// Each blueprint's mesh and radius.
+    /// Each blueprint's mesh and radius (round VW1: a blueprint whose packfile splits its collision per part has one
+    /// per destruction state drawn, keyed `<blueprint>#<state>`).
     blueprint_mesh: HashMap<String, (u32, f64, Box3)>,
+    /// The triangles of the per-state collision meshes (round VW1), by mesh: their edges are made from them.
+    state_collision: HashMap<u32, Arc<Vec<bc2_formats::havok::Triangle>>>,
     terrain_mesh: Option<u32>,
     water_mesh: Option<u32>,
     /// The selected entities (outlined).
@@ -622,6 +672,7 @@ impl SceneGpu {
             wire_batches: Vec::new(),
             mask_wire_batches: Vec::new(),
             blueprint_mesh: HashMap::new(),
+            state_collision: HashMap::new(),
             terrain_mesh: None,
             water_mesh: None,
             selection: Vec::new(),
@@ -754,16 +805,27 @@ impl SceneGpu {
         let mut sizes = vec![2.0f64; scene.entities.len()];
         let mut with_mesh = vec![false; scene.entities.len()];
         let by_blueprint = &mut self.blueprint_mesh;
+        let all_visuals = self.visuals.clone();
+        let state_collision = &mut self.state_collision;
         let mut collision: HashMap<usize, Vec<CollisionMesh<'_>>> = HashMap::new();
         if let Some(col) = &scene.collision {
             for (index, bp) in &col.meshes {
-                let Some(Some(tris)) = col.blueprints.get(bp) else {
+                let Some(Some(all)) = col.blueprints.get(bp) else {
                     continue;
                 };
-                if tris.is_empty() || skip(*index) {
+                if all.is_empty() || skip(*index) {
                     continue;
                 }
-                let (mesh, radius, b) = *by_blueprint.entry(bp.clone()).or_insert_with(|| {
+                // round VW1: the triangles of the object's destruction state, where its packfile splits them per part
+                let split = scene
+                    .entities
+                    .get(*index)
+                    .and_then(|e| split_state(all_visuals.as_deref(), col, bp, display.state_of(e).state()));
+                let key = split.map_or_else(|| bp.clone(), |state| format!("{bp}#{state:?}"));
+                let (mesh, radius, b) = *by_blueprint.entry(key).or_insert_with(|| {
+                    let tris = split
+                        .and_then(|st| state_triangles(all_visuals.as_deref(), col, bp, st))
+                        .unwrap_or_else(|| Arc::clone(all));
                     let flat: Vec<[f32; 3]> = tris.iter().flat_map(|t| t.iter().copied()).collect();
                     let r = flat
                         .iter()
@@ -776,12 +838,19 @@ impl SceneGpu {
                         count: flat.len() as u32,
                         visual: false,
                     });
+                    if split.is_some() {
+                        state_collision.insert((meshes.len() - 1) as u32, Arc::clone(&tris));
+                    }
                     ((meshes.len() - 1) as u32, r, b)
                 });
+                let count = meshes.get(mesh as usize).map_or(0, |m| m.count / 3);
+                if count == 0 {
+                    continue;
+                }
                 collision
                     .entry(*index)
                     .or_default()
-                    .push((mesh, radius, tris.len() as u64, b, bp.as_str()));
+                    .push((mesh, radius, u64::from(count), b, bp.as_str()));
             }
         }
         // each placed object as the display says (round SV1): its render mesh, its collision, both, edges, its box
@@ -950,7 +1019,7 @@ impl SceneGpu {
         }
         // outlines: areas (with their prism) and routes, in their owner's colour, a little above the ground
         for s in &scene.shapes {
-            if collision_only || skip(s.entity) {
+            if collision_only || skip(s.entity) || self.look.skip_shapes.contains(&s.entity) {
                 continue;
             }
             let Some(e) = scene.entities.get(s.entity) else {
@@ -1117,6 +1186,9 @@ impl SceneGpu {
                         .map(|t| [t[0], t[1], t[2]])
                         .collect();
                     edges_of_indexed(&m.positions, &tris)
+                } else if let Some(tris) = self.state_collision.get(&m) {
+                    let flat: Vec<[f32; 3]> = tris.iter().flat_map(|t| t.iter().copied()).collect();
+                    edges_of(&flat)
                 } else {
                     blueprint_of
                         .get(&m)

@@ -239,10 +239,13 @@ impl GameView {
     /// the post shaders.
     ///
     /// # Errors
-    /// No Direct3D 11 device, or the level's database or weather cannot be read.
+    /// No Direct3D 11 device, or the level's database cannot be read. A level without weather data opens under a
+    /// default sky ([`GameView::status`]).
     pub fn load(opfor: &Path, lv: &str, scene: &Scene) -> Result<Self, String> {
         let t = Instant::now();
         let device = Device::new(false)?;
+        // the weather comes from the placed weather entity's references (`World::load`'s `resolve_weather`); this
+        // folder is read by name only when the level places no entity that resolves
         let weather = scene
             .entities
             .iter()
@@ -275,6 +278,18 @@ impl GameView {
             load_seconds: t.elapsed().as_secs_f64(),
             error: None,
         })
+    }
+
+    /// What the status line says once the view has loaded: the load time, and when the level has no weather data the
+    /// view could read, that a default sky is shown (round GW1: such a level opens, it is no longer a failure).
+    #[must_use]
+    pub fn status(&self) -> String {
+        let loaded = format!("Game-accurate view: loaded in {:.1} s", self.load_seconds);
+        if self.world.default_weather {
+            format!("{loaded}. {}", bc2_render::weather::NO_WEATHER)
+        } else {
+            loaded
+        }
     }
 
     /// The game's camera for the view's camera.
@@ -598,6 +613,12 @@ impl GameView {
     #[must_use]
     pub fn world(&self) -> &World {
         &self.world
+    }
+
+    /// The world drawn, to draw parts of it on another device (tests and proofs: the terrain patches alone, round
+    /// GW1). The view's own live list is not changed.
+    pub fn world_mut(&mut self) -> &mut World {
+        &mut self.world
     }
 
     /// The live draw list.

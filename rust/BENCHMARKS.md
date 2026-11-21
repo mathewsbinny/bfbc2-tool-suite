@@ -5910,6 +5910,112 @@ LevelDiff entries (the build, the built levels, MP_005) are bc2-cli's cargo test
 `bfbc2 leveldiff`'s error. OPFOR: `opforcore.paths.leveldiff()` is the command, `paths.exe('LevelDiff')` refuses with
 it (nothing else in OPFOR called LevelDiff). `RETIRED.md` has the row.
 
+## GW1: the game-accurate view opens the WW2 levels (2026-11-20, branch `rust-gw1`)
+
+Round RV1 found the game-accurate view failing on Guadalcanal: "no WeatherSettings / WeatherSystem partition under
+weather/wake_island/ ... r_guadalcanal/". **Root cause:** the view found a level's weather by guessing folders (the
+weather entity's blueprint path up to `/weathersystementity`, the partition's weather folder, a folder a placed
+blueprint lies in, `weather/r_<lv without _>`) and in each looked for partitions *named* `weathersettings*` and
+`weathersystem*`. Guadalcanal's entity `weather/wake_island/guadal_canal_e` (in its own `level-00.fbrb`) names
+`weathersystem_wake` and a settings partition named after the level, `weather/wake_island/guadal_canal`
+(`ActiveState` 2); Iwo Jima's likewise (`.../iwo_jima`). So no settings were found. Wake Island and Coral Sea worked
+only because they use `weathersettings_wake`.
+
+**Fix (`bc2_render::world::resolve_weather`, `weather::entity` / `entities_in` / `read_system`):** the game's
+reference chain. The level's `WeatherSystemEntityData` - an instance of the level partition (SP_004_B, Coral Sea,
+Wake Island) or the object of a blueprint a `ReferenceObjectData` places (`ReferencedObject`: MP_005, Guadalcanal,
+Iwo Jima) - names its `WeatherSystem` and `Settings` partitions by path; each is read through the level's stack
+(first bundle wins, deleted markers hide). A caller's folder is read by name only when no entity resolves; with
+nothing, `weather::neutral` and the status line says "No weather data found for this level; showing a default
+sky" (`World::default_weather`, `GameView::status`) instead of failing. Spec: RNDR-WTHR-1 corrected, RNDR-WTHR-5 and
+-6 new.
+
+| level (read in place from OPFOR's game copy) | weather state drawn | load (release) | draws | terrain coverage, above / corner |
+|---|---|---:|---:|---|
+| Guadalcanal | `weather/wake_island/states/guadal_canal` | 16.6-25.7 s | 15,322 | 576/576, 477/477 |
+| Iwo Jima | `.../states/iwo_jima` | 17.0 s | 12,263 | 484/484, 453/453 |
+| Coral Sea | `.../states/sunny_day` (settings 0; see below) | 11.5 s | 12,618 | 900/900, 520/520 |
+| Wake Island | `.../states/sunny_day` | 19.4 s | 17,848 | 576/576, 481/481 |
+| NAM_MP_002CQ, NAM_MP_005R (Vietnam) | `weather/nam_mp_002/states/mp_002_default`, `weather/nam_mp_005r/states/default` | 7.4 s, 10.9 s | 8,398, 8,937 listed | - |
+| ONS_MP_002 (Onslaught) | `weather/default/states/default` (Package: `weather/r_mp02/states/midday`) | 0.4 s | 18,974 listed | - |
+
+Stock and Onslaught levels prepared under `work\levels` (37): the reference chain gives the state the old folder
+read gave on all 36 where it worked; SP_004_B (folder `weather/r_sp04`, not its name) now resolves through its
+partition's own entity. E3d's canary stages are projects, not installed levels: not openable as levels, not checked.
+
+**Open (RNDR-WTHR-6):** 34 of 43 levels read have an enabled `WeatherStateEntityData` with `StartTransitionOnSpawn`
+naming another state (Coral Sea's names 4, `coral_sea`; some name more states than the system has, so they belong
+to scripted logic). Whether the engine applies it as the level loads is not known (no capture); the view draws the
+settings' `ActiveState` and notes the transition. Unchanged from R5c: the sky is the fog colour (no sky pass), and
+the WW2 shores show ragged terrain patch edges.
+
+Tests: `bc2-render` `tests/weather_refs.rs` (the 4 WW2 levels' states from their bundles in place, other Package
+levels, the 37 prepared levels against the folder read, the default sky), `weather::tests::weather_entities_and_spawn_states_read_from_a_partition`;
+`bc2-editor` `tests/game_view_ww2.rs` (Guadalcanal and Iwo Jima by default, `BC2_GW1_LEVELS` for more, opened
+through a temporary stand-in OPFOR folder whose `game` is a junction: each level's own state, the key light, and
+whole_terrain.rs's coverage from above and from outside a corner, with a 5 m near plane for the 2 km maps).
+
+## VW1: the editor's view toggles (2026-11-20, branch `rust-vw1`)
+
+`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.10, "Done in round VW1". The user's requests of 2026-11-20: effects,
+lights and sounds with their reach; the gameplay areas as the game uses them; a player's-eye camera; the navmesh and
+cull tree modes checked; collision per destruction state with an up / down stepper. No Python replaced.
+
+**What the data holds** (MP_005 / SP_01, `overlays::load`; every size read from the partitions):
+
+| overlay | MP_005 | SP_01 | fields |
+|---|---:|---:|---|
+| effects (placed) | 270 | 484 | `GameEffectEntityData.Effect`; emitters' `SpawnPositionData.Pre` sphere (`Radius` x `Scale`) or box (`Dimensions`) |
+| lights | 0 | 15 | emitters with `ActAsPointLight`: `PointLightRadius` (5 - 10 m), `PointLightColor`, `PointLightPivot` |
+| sounds (emitters and areas) | 209 | 433 | template `MasterMinDistance` / emitters' `MinDistance`, `DistanceSlope`; `SoundAreaEntityData` `Geometry` / `OuterGeometry` |
+| combat areas | 1 | 6 | `Geometry` (22 points on MP_005, `Height` 0: drawn 20 m, labelled unbounded), `SurroundingGeometry`, `Team` + `UseTeamRestriction` |
+| capture areas | 5 | 0 | `Geometry` (area chain with `Height`, or `SphereGeometryEntityData` 36.8 / 26.3 m on MP_005's islands), `CaptureRadius` (RUS base 1 m), `UnableToChangeTeam` (2 HQs; the US base has no capture area) |
+| spawn protection | 8 | 190 | `SoldierSpawnEntityData.SpawnEnemyRadius` (20 m) at each `AlternativeSpawnPoints` |
+
+Not in BC2's data: light entities (lights are emitters), spot lights, a sound's maximum distance (the only
+`MaxDistance` is the BigWorld one-shot settings'), safe-zone volumes, a prone pose. MP_005 places no lights (its three
+light emitters belong to the repair tool and the detonation pack).
+
+Reading them (release, in the test, the level's partitions already in the OS cache): MP_005 0.05 - 0.09 s, SP_01
+0.15 - 0.25 s, once per level when its look is first applied.
+
+**Frame times** (`tests/view_toggles.rs`: the whole level from above at 1600 x 950, the GPU waited for, the camera
+turning 0.01 rad a frame, the median of 12 after 2, the best of three alternations; GeForce RTX 4060 Laptop, Vulkan):
+
+| level | overlay lines, all on | every overlay off, ms | every overlay on, ms |
+|---|---:|---:|---:|
+| MP_005 | 66,184 | 5.61 | 5.67 |
+| SP_01 | 149,411 | 6.28 | 6.44 |
+
+The overlays are lines in the line pass the view already draws: 0.1 - 0.2 ms a frame with all of them on (SP_01's 190
+spawn checks and 433 sound spheres are most of its lines).
+
+**Proof** (`cargo test --release -p bc2-editor --test editor view_toggles::`, MP_005, SP_01, ONS_MP_004 headless):
+
+| what | result |
+|---|---|
+| each toggle draws its colour's pixels, none when off (the app's look drawn alone, top view over its items) | MP_005: effects 7,193 px, sounds 9,033, combat areas 2,530, capture areas 1,384, spawn protection 12,458; SP_01: effects 8,253, lights 600, sounds 13,428, combat areas 2,539, spawn protection 61,131; 0 for each when off |
+| drawn radii against the data (the circle at 45 and 225 degrees, nothing 10 % inside or outside) | SP_01 light 10 m drawn 10.000 m; MP_005 sound minimum distance 30 m drawn 30.000 m; capture radius 1 m drawn 1.000 m; spawn check 20 m |
+| MP_005's combat area polygon | its 22 points (the scene loader's own outline of the same `Geometry`) each drawn; the scene's outline of it left out |
+| player's eye: the data's values | eye 1.6 m standing, 1.0 m crouching (`EyePosition`); field of view 55 on MP_005, 45.1 on SP_01 (55 x 0.82); step 0.3 m, 4 / 2.5 m/s, sprint x1.5 |
+| player's eye follows the ground | 4 s at 4 m/s: 16.00 m on both; on the terrain 105 / 116 of 120 steps the eye 1.6 m above the height field (worst 0.023 / 0.045 m, the mesh's stride against the field), the feet climbing 59.9 - 71.2 m (MP_005) and 84.9 - 86.7 m (SP_01); W held in the app walks; Esc restores the camera exactly |
+| collision per destruction state (SP_01's guard tower, 3,321 triangles; parts `part_1` 486, `part_1_dest` 196, `part_2` 545, `part_2_dest` 272, `ruin` 682, `ruin_downed` 1,140 - the header's hashes equal `PartInfoDatas`' names) | Intact 1,713, Damaged 1 1,608, Destroyed 1,140, All parts 3,321 triangles drawn, each the sum of the parts its state shows; Page Down walks Intact, Damaged 1, Destroyed, All parts; Page Up back to Intact |
+| navmesh mode | SP_01 and ONS_MP_004: NavKit's build and DICE's file read, the ground drawn (18,544 / 25,838 pixels changed); MP_005 has no path data (no NavKit build, DICE has none for multiplayer): the note says so |
+| cull tree mode | MP_005 3,683 leaves (2,071 own slots, 469 none), SP_01 4,612 (2,588 / 303), ONS_MP_004 2,560 (1,327 / 305); no shared slots; each draws |
+
+Unit tests: `havok::tests::part_hashes_and_alignment`, `simple::tests::destruction_states_pick_their_parts` (stages,
+collision parts), `display::tests::destruction_steps_in_order`, `overlays::tests`, `walk::tests`.
+
+**Collision per part in the scene.** `havok::parts` reads each packfile a second time for its part map (one `u16` a
+triangle beside the 36-byte triangle; the merged list NavKit, snapping and picking use is unchanged). The view keeps
+one collision mesh per (blueprint, state) drawn, uploaded when first drawn. `scene_bench` (release, best of 5, one
+thread, the packfiles in memory): MP_005's 136 packfiles 0.002 s for the triangles, 0.001 s for the parts (49 split
+per part); SP_01's 172: 0.002 / 0.001 s (40 split); the whole load 0.26 s on both, as before within noise.
+
+Screenshots (not in the repository): MP_005 flag B with capture areas, spawn checks, sounds and effects; the combat
+area; effects, sounds and lights; the player's eye; navmesh and cull tree; SP_01 lights and sounds, the guard tower's
+collision in each state, the player's eye; ONS_MP_004 navmesh and cull tree; Dark and Light.
+
 ## RT3: RT2's leftovers - the hpd / Wave readers and five command lines retired, abbreviations, one rule (2026-11-21, branch `rust-rt3`)
 
 ### Item 1a: `hpdtool.parse` and the Wave readers, their messages ported, then retired

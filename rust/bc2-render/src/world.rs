@@ -63,6 +63,9 @@ pub struct World {
     pub post: Post,
     /// The clear colour (the fog colour; the sky is not drawn yet).
     pub background: [f32; 3],
+    /// No weather was found: the level is drawn under [`weather::neutral`] (round GW1; the editor says
+    /// [`weather::NO_WEATHER`]).
+    pub default_weather: bool,
     /// The placed objects and group members.
     pub objects: Vec<Instance>,
     /// The terrain.
@@ -138,13 +141,99 @@ pub fn mesh_and_set(
     (mesh, set)
 }
 
+/// The level's weather as the game finds it (round GW1). The level has a weather entity, a
+/// `WeatherSystemEntityData`: an instance of the level partition itself (`SP_004_B`, OPFOR's Coral Sea and Wake
+/// Island) or the object of a placed blueprint (`ReferencedObject`: `MP_005`'s
+/// `weather/r_mp005/weathersystementity_mp005`, Guadalcanal's `weather/wake_island/guadal_canal_e`). The entity names
+/// its `WeatherSystem` and `Settings` partitions by path, each read wherever the level's stack holds it (the first
+/// bundle naming it, a deleted marker hiding it). The settings' `ActiveState` picks the state (RNDR-WTHR-1). A level
+/// partition's enabled `WeatherStateEntityData` with `StartTransitionOnSpawn` (another `State`: Coral Sea 4, `MP_003`
+/// 2, `ONS_MP_002` 5) is only noted: whether and when the engine applies it is not known yet (no capture). The first
+/// entity that resolves is used (the level partition's own, then the placed ones in order).
+/// Only a level whose entity does not resolve falls back to `folder` (the caller's) read by name; with nothing,
+/// [`weather::neutral`] and a note starting with [`weather::NO_WEATHER`].
+///
+/// Until GW1 a folder was the only way: the entity's blueprint path up to `/weathersystementity`, the partition's
+/// weather folder, a folder a placed blueprint lies in, then `weather/r_<lv without _>`, each searched for partitions
+/// named `weathersettings*` and `weathersystem*`. OPFOR's Guadalcanal and Iwo Jima name their settings after the
+/// level (`weather/wake_island/guadal_canal`), so the view found no weather and failed.
+#[must_use]
+pub fn resolve_weather(
+    files: &Files,
+    level: &str,
+    placed: &[Placed],
+    folder: Option<&str>,
+) -> (weather::Weather, Option<String>) {
+    let mut tried = Vec::new();
+    let partition = format!("levels/{level}");
+    let level_xml = files
+        .read(&format!("{partition}.dbx"))
+        .and_then(|d| bc2_formats::dbx::to_xml(&d).ok());
+    let spawn = level_xml.as_deref().and_then(weather::spawn_state_in);
+    let mut entities: Vec<(String, weather::EntityRefs)> = level_xml
+        .as_deref()
+        .map_or_else(Vec::new, weather::entities_in)
+        .into_iter()
+        .map(|e| (partition.clone(), e))
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    for p in placed.iter().filter(|p| p.group.is_none()) {
+        let b = p.blueprint.to_lowercase();
+        if seen.insert(b.clone())
+            && let Some(refs) = weather::entity(files, &b)
+        {
+            entities.push((b, refs));
+        }
+    }
+    for (k, (at, e)) in entities.iter().enumerate() {
+        match weather::read_system(files, &e.system, &e.settings, None) {
+            Ok(w) => {
+                let mut notes = Vec::new();
+                if entities.len() > 1 {
+                    notes.push(format!(
+                        "weather entity of {at} used ({} of {} weather entities)",
+                        k + 1,
+                        entities.len()
+                    ));
+                }
+                if let Some(s) = spawn {
+                    notes.push(format!(
+                        "the level's WeatherStateEntityData moves to state {s} on spawn (not applied: the settings' \
+                         ActiveState is drawn)"
+                    ));
+                }
+                return (w, (!notes.is_empty()).then(|| notes.join("; ")));
+            }
+            Err(e) => tried.push(format!("{at}: {e}")),
+        }
+    }
+    if entities.is_empty() {
+        tried.push("no weather entity (WeatherSystemEntityData)".to_owned());
+    }
+    if let Some(f) = folder {
+        match weather::read(files, f) {
+            Ok(w) => {
+                return (
+                    w,
+                    Some(format!("weather read by folder name ({f}): {}", tried.join("; "))),
+                );
+            }
+            Err(e) => tried.push(e),
+        }
+    }
+    (
+        weather::neutral(),
+        Some(format!("{} ({})", weather::NO_WEATHER, tried.join("; "))),
+    )
+}
+
 impl World {
     /// Loads a level (`lv`: its folder under `work\levels`; `level`: its partition's name, `MP_005`): database,
-    /// weather (`weather`: its folder, else `weather/r_<lv without _>`), the placed things, terrain, strips, water and
-    /// the post shaders.
+    /// weather (the placed weather entity's references; `weather`: a folder to read by name when the level places
+    /// none, [`resolve_weather`]), the placed things, terrain, strips, water and the post shaders.
     ///
     /// # Errors
-    /// The level's database or weather cannot be read.
+    /// The level's database cannot be read (a level without weather is drawn under a default one).
     pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], weather: Option<&str>) -> Result<Self, String> {
         Self::load_from(Files::new(&level_folders(opfor, lv)), opfor, lv, level, placed, weather)
     }
@@ -218,37 +307,19 @@ impl World {
                 .ok_or_else(|| format!("{lv}: no Dx11 shader database in its prepared files"))?,
         )?;
         let mut notes_early = Vec::new();
-        // the weather: the folder given (the WeatherSystemEntity's), else the one the partition's weather references
-        // name (`SP_004_B`'s `weather/r_sp04`), else a weather folder a placed blueprint lies in, else
-        // `weather/r_<lv without _>`
         let placements = placement::read(&files, level).unwrap_or_else(|e| {
             notes_early.push(format!("placements: {e}"));
             Placements::default()
         });
-        let mut folders: Vec<String> = weather
-            .map(str::to_owned)
-            .into_iter()
-            .chain(placements.weather.clone())
-            .collect();
-        for p in placed {
-            let mut parts = p.blueprint.split('/');
-            if let (Some("weather"), Some(f)) = (parts.next(), parts.next()) {
-                let f = format!("weather/{f}");
-                if !folders.contains(&f) {
-                    folders.push(f);
-                }
-            }
-        }
-        folders.push(format!("weather/r_{}", lv.replace('_', "")));
-        let mut tried = Vec::new();
-        let w = folders
-            .iter()
-            .find_map(|f| weather::read(&files, f).map_err(|e| tried.push(e)).ok())
-            .ok_or_else(|| tried.join("; "))?;
+        let (w, weather_note) = resolve_weather(&files, level, placed, weather);
         let (light, post) = weather::light(&w, weather::NOON_DIR);
         let fog = w.fog.get("Color").cloned().unwrap_or_else(|| vec![0.32, 0.36, 0.42]);
         let background = [0, 1, 2].map(|k| fog.get(k).copied().unwrap_or(0.4));
+        let default_weather = weather_note
+            .as_deref()
+            .is_some_and(|n| n.starts_with(weather::NO_WEATHER));
         let mut notes = vec![format!("weather: {}", w.state)];
+        notes.extend(weather_note);
         notes.append(&mut notes_early);
         let envmap = placements
             .envmap
@@ -319,6 +390,7 @@ impl World {
             light,
             post,
             background,
+            default_weather,
             objects: Vec::new(),
             terrain,
             water,
