@@ -464,6 +464,7 @@ impl ViewState {
             return Ok(());
         }
         let from_game = self
+            .game_view
             .game
             .as_ref()
             .and_then(|g| Some((g.files().clone(), g.world().level_weather.clone()?)));
@@ -501,7 +502,7 @@ impl ViewState {
         let label = w.label(k);
         self.gpu_scene.weather_tint = tint;
         let mut note = String::new();
-        if let Some(g) = self.game.as_mut()
+        if let Some(g) = self.game_view.game.as_mut()
             && let Err(e) = g.set_state(k)
         {
             note = format!(" (the game-accurate view: {e})");
@@ -551,7 +552,7 @@ impl ViewState {
         label: &str,
     ) {
         // a per-object sink being typed is now in the log (or was left unused)
-        self.prop_place = None;
+        self.props.prop_place = None;
         let Some(d) = self.doc.as_mut() else { return };
         let moved: Vec<Moved> = items
             .iter()
@@ -625,7 +626,7 @@ impl ViewState {
                     let verb = if action == Action::Undo { "Undid" } else { "Redid" };
                     self.message = format!("{verb}: {}", name.unwrap_or_default());
                 }
-                self.drag = None;
+                self.pointer.drag = None;
                 self.refresh(gpu, palette);
             }
             Action::CheckEdits => {
@@ -670,7 +671,7 @@ impl ViewState {
             Action::UseTool(t) => {
                 self.tool = t;
                 if t != Tool::Ruler {
-                    self.ruler.clear();
+                    self.measures.ruler.clear();
                 }
                 self.message = format!("{} tool", t.name());
             }
@@ -777,7 +778,7 @@ impl ViewState {
         if self.doc.as_ref()?.why_not(k).is_some() {
             return None;
         }
-        if let Some(d) = &self.drag {
+        if let Some(d) = &self.pointer.drag {
             // while dragging, the frame moves with the primary
             let now = d.now.iter().find(|(x, _)| *x == k).map(|(_, m)| *m)?;
             return Some(Frame {
@@ -794,7 +795,9 @@ impl ViewState {
 
     /// Updates a drag with the pointer at `px` (viewport points).
     fn drag_to(&mut self, view: &camera::View, px: [f64; 2], shift: bool) {
-        let Some(mut drag) = self.drag.take() else { return };
+        let Some(mut drag) = self.pointer.drag.take() else {
+            return;
+        };
         let grid = if self.snap.grid { self.snap.grid_size } else { 0.0 };
         let angle = if self.snap.angle {
             self.snap.angle_step.to_radians()
@@ -822,7 +825,7 @@ impl ViewState {
             delta = Some(gizmo::Delta::Move(math::sub(target, drag.frame.origin)));
         }
         let Some(delta) = delta else {
-            self.drag = Some(drag);
+            self.pointer.drag = Some(drag);
             return;
         };
         let mut now: Vec<(usize, M)> = drag
@@ -866,12 +869,12 @@ impl ViewState {
             gizmo::Delta::Turn { angle, .. } => format!("Turning {:.1} deg", angle.to_degrees()),
         };
         drag.now = now;
-        self.drag = Some(drag);
+        self.pointer.drag = Some(drag);
     }
 
     /// Ends a drag: one operation for every object moved.
     fn finish_drag(&mut self, gpu: &GpuCtx, palette: &Palette) {
-        let Some(drag) = self.drag.take() else { return };
+        let Some(drag) = self.pointer.drag.take() else { return };
         let rotate = matches!(drag.handle, Handle::Ring(_));
         let items: Vec<_> = drag
             .objects
@@ -911,8 +914,8 @@ impl Tabs<'_> {
         let local = |p: Pos2| [f64::from(p.x - rect.min.x), f64::from(p.y - rect.min.y)];
         let gizmo_tool = matches!(self.view.tool, Tool::Move | Tool::Rotate);
         let frame = self.view.gizmo_frame();
-        if self.view.drag.is_none() {
-            self.view.hover = match (frame, hover) {
+        if self.view.pointer.drag.is_none() {
+            self.view.pointer.hover = match (frame, hover) {
                 (Some(f), Some(h)) if gizmo_tool && rect.contains(h) => {
                     gizmo::pick(&view, &f, self.view.tool, local(h))
                 }
@@ -933,7 +936,7 @@ impl Tabs<'_> {
                     .into_iter()
                     .filter_map(|k| Some((k, self.view.matrix(k)?)))
                     .collect();
-                self.view.drag = Some(Drag {
+                self.view.pointer.drag = Some(Drag {
                     projection,
                     handle: h,
                     frame: f,
@@ -943,11 +946,16 @@ impl Tabs<'_> {
                     placed: false,
                 });
             } else if self.view.tool != Tool::Ruler {
-                self.view.box_from = Some((projection, at));
+                self.view.pointer.box_from = Some((projection, at));
             }
             return true;
         }
-        let mine = self.view.drag.as_ref().is_some_and(|d| d.projection == projection);
+        let mine = self
+            .view
+            .pointer
+            .drag
+            .as_ref()
+            .is_some_and(|d| d.projection == projection);
         if mine && resp.dragged_by(PointerButton::Primary) {
             if let Some(p) = resp.interact_pointer_pos() {
                 self.view.drag_to(&view, local(p), shift);
@@ -960,7 +968,7 @@ impl Tabs<'_> {
             }
             return true;
         }
-        let boxing = self.view.box_from.is_some_and(|(p, _)| p == projection);
+        let boxing = self.view.pointer.box_from.is_some_and(|(p, _)| p == projection);
         if boxing && resp.dragged_by(PointerButton::Primary) {
             return true;
         }
@@ -970,7 +978,9 @@ impl Tabs<'_> {
                 vp.dirty = true;
                 return true;
             }
-            if boxing && let (Some((_, from)), Some(to)) = (self.view.box_from.take(), resp.interact_pointer_pos()) {
+            if boxing
+                && let (Some((_, from)), Some(to)) = (self.view.pointer.box_from.take(), resp.interact_pointer_pos())
+            {
                 let add = ui.input(|i| i.modifiers.command || i.modifiers.shift);
                 self.box_select(Rect::from_two_pos(from, to), rect, &vp.camera, add);
                 vp.dirty = true;
@@ -1009,11 +1019,11 @@ impl Tabs<'_> {
                 } else {
                     h.point
                 };
-                if self.view.ruler.len() >= 2 {
-                    self.view.ruler.clear();
+                if self.view.measures.ruler.len() >= 2 {
+                    self.view.measures.ruler.clear();
                 }
-                self.view.ruler.push(p);
-                if let [a, b] = self.view.ruler.as_slice() {
+                self.view.measures.ruler.push(p);
+                if let [a, b] = self.view.measures.ruler.as_slice() {
                     self.view.message = ruler_text(*a, *b);
                 }
             }
@@ -1048,7 +1058,13 @@ impl Tabs<'_> {
         let to_screen = |s: [f64; 2]| rect.min + Vec2::new(s[0] as f32, s[1] as f32);
         // the gizmo
         if let Some(f) = self.view.gizmo_frame() {
-            let active = self.view.drag.as_ref().map(|d| d.handle).or(self.view.hover);
+            let active = self
+                .view
+                .pointer
+                .drag
+                .as_ref()
+                .map(|d| d.handle)
+                .or(self.view.pointer.hover);
             let axis = |k: usize| [p.axis_x, p.axis_y, p.axis_z].get(k).copied().unwrap_or(p.ink);
             for (h, pts) in gizmo::handles(&view, &f, self.view.tool) {
                 let hot = active == Some(h);
@@ -1088,7 +1104,7 @@ impl Tabs<'_> {
             }
         }
         // the selection box
-        if let (Some((pr, from)), Some(to)) = (self.view.box_from, ui.input(|i| i.pointer.hover_pos()))
+        if let (Some((pr, from)), Some(to)) = (self.view.pointer.box_from, ui.input(|i| i.pointer.hover_pos()))
             && pr == projection
         {
             let r = Rect::from_two_pos(from, to);
@@ -1103,6 +1119,7 @@ impl Tabs<'_> {
         // the ruler
         let pts: Vec<Pos2> = self
             .view
+            .measures
             .ruler
             .iter()
             .filter_map(|w| view.project(*w))
@@ -1111,7 +1128,7 @@ impl Tabs<'_> {
         for q in &pts {
             painter.circle_filled(*q, 4.0, p.view_selection);
         }
-        if let ([a, b], [wa, wb]) = (pts.as_slice(), self.view.ruler.as_slice()) {
+        if let ([a, b], [wa, wb]) = (pts.as_slice(), self.view.measures.ruler.as_slice()) {
             painter.line_segment([*a, *b], Stroke::new(2.0, p.view_selection));
             let label = ruler_text(*wa, *wb);
             let g = painter.layout_no_wrap(label, FontId::monospace(12.0), p.ink);
@@ -1156,7 +1173,7 @@ impl Tabs<'_> {
             {
                 v.tool = t;
                 if t != Tool::Ruler {
-                    v.ruler.clear();
+                    v.measures.ruler.clear();
                 }
             }
         }
@@ -1258,15 +1275,15 @@ impl Tabs<'_> {
                 ui.end_row();
             });
         if let Some(now) = changed {
-            if self.view.prop_from.is_none_or(|(x, _)| x != k) {
-                self.view.prop_from = Some((k, mat));
+            if self.view.props.prop_from.is_none_or(|(x, _)| x != k) {
+                self.view.props.prop_from = Some((k, mat));
             }
             if let Some(d) = self.view.doc.as_mut() {
                 d.preview(&[(k, now)]);
             }
             self.view.refresh(gpu, &p);
         }
-        if done && let Some((x, from)) = self.view.prop_from.take() {
+        if done && let Some((x, from)) = self.view.props.prop_from.take() {
             let to = self.view.matrix(x).unwrap_or(from);
             // the position as it was: a turn
             let rotate = {
@@ -1289,7 +1306,7 @@ impl Tabs<'_> {
             })
             .color(p.ink_muted),
         );
-        let mut place = match self.view.prop_place {
+        let mut place = match self.view.props.prop_place {
             Some((x, pl)) if x == k => pl,
             _ => stored.unwrap_or(self.view.snap.placement),
         };
@@ -1300,7 +1317,7 @@ impl Tabs<'_> {
         });
         // kept only while the user changes it (else it follows the object's stored placement)
         if place != shown {
-            self.view.prop_place = Some((k, place));
+            self.view.props.prop_place = Some((k, place));
         }
         let place_btn = ui.button("Place on surface").on_hover_text(
             "Puts this object on the terrain or mesh below it with this sink depth; it keeps the depth when moved",
@@ -1339,16 +1356,16 @@ impl Tabs<'_> {
                 ui.end_row();
                 ui.label(RichText::new("Folder").color(p.ink_muted));
                 ui.horizontal(|ui| {
-                    if self.view.folder_input.is_empty() && !folder_now.is_empty() {
-                        self.view.folder_input.clone_from(&folder_now);
+                    if self.view.props.folder_input.is_empty() && !folder_now.is_empty() {
+                        self.view.props.folder_input.clone_from(&folder_now);
                     }
                     let r = ui.add(
-                        egui::TextEdit::singleline(&mut self.view.folder_input)
+                        egui::TextEdit::singleline(&mut self.view.props.folder_input)
                             .hint_text(RichText::new("Buildings/North").color(p.ink_faint))
                             .desired_width(140.0),
                     );
                     if (r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) || ui.button("Set").clicked() {
-                        folder_set = Some(self.view.folder_input.trim().to_owned());
+                        folder_set = Some(self.view.props.folder_input.trim().to_owned());
                     }
                 });
                 ui.end_row();
@@ -1412,6 +1429,7 @@ impl Tabs<'_> {
                         .on_hover_text(format!("{} ({})", row.path, row.ty.name()));
                     let editing = self
                         .view
+                        .props
                         .field_edit
                         .as_ref()
                         .filter(|(x, f, _)| *x == k && *f == row.path)
@@ -1446,7 +1464,7 @@ impl Tabs<'_> {
                                         .font(TextStyle::Monospace),
                                 );
                                 if r.changed() {
-                                    self.view.field_edit = Some((k, row.path.clone(), text.clone()));
+                                    self.view.props.field_edit = Some((k, row.path.clone(), text.clone()));
                                 }
                                 if r.lost_focus() && text != *t {
                                     let v = if row.ty == FieldType::Ref {
@@ -1455,7 +1473,7 @@ impl Tabs<'_> {
                                         FieldValue::Text(text.clone())
                                     };
                                     set = Some((row.path.clone(), v, row.value.clone()));
-                                    self.view.field_edit = None;
+                                    self.view.props.field_edit = None;
                                 }
                                 if !row.choices.is_empty() {
                                     egui::ComboBox::from_id_salt(("choices", &row.path))
@@ -1591,7 +1609,7 @@ impl Tabs<'_> {
                 d.go_to(i);
                 self.view.message = format!("History: {i} operation(s) applied");
             }
-            self.view.drag = None;
+            self.view.pointer.drag = None;
             self.view.refresh(self.gpu, &palette);
         }
     }

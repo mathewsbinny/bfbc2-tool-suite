@@ -157,7 +157,7 @@ fn asset_browser_screenshots() {
         &ctx,
         bc2_editor::actions::Action::ShowPanel(bc2_editor::actions::PanelKind::Content),
     );
-    if let Some(c) = app.view_mut().unwrap().content.as_mut() {
+    if let Some(c) = app.view_mut().unwrap().browser.content.as_mut() {
         c.wait(std::time::Duration::from_mins(5));
     }
     for (mode, name) in [
@@ -165,7 +165,7 @@ fn asset_browser_screenshots() {
         (BrowserMode::Spawners, "spawners"),
         (BrowserMode::Objectives, "objectives"),
     ] {
-        app.view_mut().unwrap().browser_mode = mode;
+        app.view_mut().unwrap().browser.browser_mode = mode;
         for (theme, tag) in [
             (bc2_editor::theme::ThemeId::Dark, "dark"),
             (bc2_editor::theme::ThemeId::Light, "light"),

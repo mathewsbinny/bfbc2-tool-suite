@@ -32,21 +32,22 @@ impl ViewState {
     /// Reads the links again when the project changed since they were read.
     pub(super) fn refresh_inspection(&mut self) {
         let rev = self.inspection_rev();
-        if self.inspection.as_ref().is_some_and(|(r, _)| *r == rev) {
+        if self.inspect.inspection.as_ref().is_some_and(|(r, _)| *r == rev) {
             return;
         }
         let ins = match &self.doc {
             Some(d) => Inspection::new(&d.scene, d.partition(), &d.deleted),
             None => Inspection::new(&self.base, None, &BTreeSet::new()),
         };
-        self.inspection = Some((rev, ins));
+        self.inspect.inspection = Some((rev, ins));
     }
 
     /// The links (read when they are first asked for, and again after an edit).
     pub fn links(&mut self) -> &Links {
         static EMPTY: std::sync::OnceLock<Links> = std::sync::OnceLock::new();
         self.refresh_inspection();
-        self.inspection
+        self.inspect
+            .inspection
             .as_ref()
             .map_or_else(|| EMPTY.get_or_init(Links::default), |(_, i)| &i.links)
     }
@@ -58,14 +59,19 @@ impl ViewState {
     pub fn property_tree(&mut self, k: usize) -> Result<&[PropNode], EditorError> {
         self.refresh_inspection();
         let rev = self.inspection_rev();
-        if !self.fields_tree.as_ref().is_some_and(|(e, r, _)| *e == k && *r == rev) {
-            let tree = match &self.inspection {
+        if !self
+            .inspect
+            .fields_tree
+            .as_ref()
+            .is_some_and(|(e, r, _)| *e == k && *r == rev)
+        {
+            let tree = match &self.inspect.inspection {
                 Some((_, ins)) => ins.tree(self.scene(), k),
                 None => Err(EditorError::Level("not read".to_owned())),
             };
-            self.fields_tree = Some((k, rev, tree));
+            self.inspect.fields_tree = Some((k, rev, tree));
         }
-        match &self.fields_tree {
+        match &self.inspect.fields_tree {
             Some((_, _, Ok(t))) => Ok(t.as_slice()),
             Some((_, _, Err(e))) => Err(e.clone()),
             None => Err(EditorError::Level("not read".to_owned())),
@@ -77,9 +83,9 @@ impl ViewState {
         if let Some(cur) = self.selected
             && cur != target
         {
-            self.link_back.push(cur);
-            if self.link_back.len() > 100 {
-                self.link_back.remove(0);
+            self.inspect.link_back.push(cur);
+            if self.inspect.link_back.len() > 100 {
+                self.inspect.link_back.remove(0);
             }
         }
         self.select(gpu, Some(target), true);
@@ -88,7 +94,7 @@ impl ViewState {
 
     /// Back to the object the last link was followed from.
     pub fn go_back(&mut self, gpu: &GpuCtx) {
-        if let Some(k) = self.link_back.pop() {
+        if let Some(k) = self.inspect.link_back.pop() {
             self.select(gpu, Some(k), true);
             self.focus_selected();
         }
@@ -269,7 +275,7 @@ impl Tabs<'_> {
         // read (or kept) once per selection and revision; drawn from the cache below
         let _ = self.view.property_tree(k);
         let v = &*self.view;
-        let tree: Result<&[PropNode], EditorError> = match &v.fields_tree {
+        let tree: Result<&[PropNode], EditorError> = match &v.inspect.fields_tree {
             Some((_, _, Ok(t))) => Ok(t.as_slice()),
             Some((_, _, Err(e))) => Err(e.clone()),
             None => Err(EditorError::Level("not read".into())),
@@ -298,7 +304,7 @@ impl Tabs<'_> {
                 }
                 Ok(t) => {
                     let shown = |t: usize| v.doc.as_ref().is_none_or(|d| !d.deleted.contains(&t));
-                    let links = v.inspection.as_ref().map(|(_, i)| &i.links);
+                    let links = v.inspect.inspection.as_ref().map(|(_, i)| &i.links);
                     let empty = Links::default();
                     let c = TreeCtx {
                         p: &p,
@@ -313,7 +319,7 @@ impl Tabs<'_> {
                     ui.label(RichText::new(format!("The fields could not be read: {e}")).color(p.ink_muted));
                 }
             });
-        self.view.field_rects = out.headers;
+        self.view.inspect.field_rects = out.headers;
         if let Some(t) = out.follow {
             self.view.follow(self.gpu, t);
         }
@@ -323,7 +329,7 @@ impl Tabs<'_> {
     pub(super) fn links(&mut self, ui: &mut egui::Ui) {
         let p = self.palette;
         let m = self.metrics;
-        self.view.link_rects.clear();
+        self.view.inspect.link_rects.clear();
         let Some(k) = self
             .view
             .selected
@@ -349,7 +355,7 @@ impl Tabs<'_> {
         self.view.refresh_inspection();
         let v = &*self.view;
         let empty = Links::default();
-        let links = v.inspection.as_ref().map_or(&empty, |(_, i)| &i.links);
+        let links = v.inspect.inspection.as_ref().map_or(&empty, |(_, i)| &i.links);
         let scene = v.scene();
         let sections: [(&str, &str, Vec<LinkRow>); 4] = [
             (
@@ -409,7 +415,7 @@ impl Tabs<'_> {
         let mut go: Option<usize> = None;
         let mut back = false;
         let mut rects: Vec<(usize, Rect)> = Vec::new();
-        let can_back = !self.view.link_back.is_empty();
+        let can_back = !self.view.inspect.link_back.is_empty();
         let v = &*self.view;
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             egui::Frame::new()
@@ -462,7 +468,7 @@ impl Tabs<'_> {
                     }
                 });
         });
-        self.view.link_rects = rects;
+        self.view.inspect.link_rects = rects;
         if back {
             self.view.go_back(self.gpu);
         } else if let Some(t) = go {
@@ -476,7 +482,7 @@ impl Tabs<'_> {
         let Some(k) = self.view.selected else { return };
         self.view.refresh_inspection();
         let v = &*self.view;
-        let Some((_, ins)) = &v.inspection else { return };
+        let Some((_, ins)) = &v.inspect.inspection else { return };
         let l = &ins.links;
         let shown = |t: usize| v.doc.as_ref().is_none_or(|d| d.shown(t));
         if !shown(k) {
@@ -546,7 +552,7 @@ impl Tabs<'_> {
     /// last point (the Map Inspector's Measure panel).
     pub(super) fn measure_overlay(&self, ui: &egui::Ui, rect: Rect, cam: &Camera) {
         let v = &*self.view;
-        if !v.measuring && v.measure.is_empty() {
+        if !v.measures.measuring && v.measures.measure.is_empty() {
             return;
         }
         let p = &self.palette;
@@ -554,22 +560,22 @@ impl Tabs<'_> {
         let to_screen = |w: V3| view.project(w).map(|s| rect.min + Vec2::new(s[0] as f32, s[1] as f32));
         let painter = ui.painter().with_clip_rect(rect);
         let stroke = Stroke::new(2.0, p.view_selection);
-        for w in v.measure.windows(2) {
+        for w in v.measures.measure.windows(2) {
             if let [a, b] = w
                 && let (Some(a), Some(b)) = (to_screen(*a), to_screen(*b))
             {
                 painter.line_segment([a, b], stroke);
             }
         }
-        for w in &v.measure {
+        for w in &v.measures.measure {
             if let Some(q) = to_screen(*w) {
                 painter.circle_filled(q, 4.0, p.view_selection);
             }
         }
-        let Some(&last) = v.measure.last() else { return };
+        let Some(&last) = v.measures.measure.last() else { return };
         let mut lines = vec![format!(
             "{} points; last at {:.2}, {:.2}, {:.2}",
-            v.measure.len(),
+            v.measures.measure.len(),
             last[0],
             last[1],
             last[2]
@@ -588,7 +594,7 @@ impl Tabs<'_> {
         {
             lines.push(format!("water surface above it: {d:+.2} m"));
         }
-        if let Some(f) = crate::inspect::measure(&v.measure) {
+        if let Some(f) = crate::inspect::measure(&v.measures.measure) {
             lines.push(format!("last segment: {:.2} m", f.segment));
             lines.push(format!(
                 "  horizontal {:.2} m, height {:+.2} m, slope {:+.1} deg",
