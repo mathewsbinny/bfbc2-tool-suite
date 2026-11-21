@@ -100,11 +100,12 @@ fn click_menu(h: &mut Headless, app: &mut EditorApp, label: &str) {
     let (_, r, enabled) = app
         .view()
         .unwrap()
+        .menus
         .menu_rects
         .iter()
         .find(|(n, _, _)| n == label)
         .cloned()
-        .unwrap_or_else(|| panic!("{label} not in {:?}", app.view().unwrap().menu_rects));
+        .unwrap_or_else(|| panic!("{label} not in {:?}", app.view().unwrap().menus.menu_rects));
     assert!(enabled, "{label} is disabled");
     h.click(app, r.center());
 }
@@ -126,7 +127,7 @@ fn e2b_through_the_interface() {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     let ctx = h.ctx.clone();
-    app.open_scene_then(&gpu, "demo", scene, Then::Create("E2b demo".into(), dir.clone()));
+    app.open_scene_then(&gpu, "demo", scene, Then::Create("E2b demo".into(), dir.clone(), None));
     h.settle(&mut app, 6);
     assert!(app.view().unwrap().doc.as_ref().unwrap().has_partition());
     let (house, crate_a, crate_b, flag) = (index(&app, 1), index(&app, 2), index(&app, 3), index(&app, 5));
@@ -225,7 +226,7 @@ fn e2b_through_the_interface() {
     h.right_click(&mut app, at);
     h.settle(&mut app, 2);
     assert_eq!(app.view().unwrap().selected, Some(crate_a), "a right-click selects");
-    assert_eq!(app.view().unwrap().menu_kind, Some(MenuKind::Object));
+    assert_eq!(app.view().unwrap().menus.menu_kind, Some(MenuKind::Object));
     shots(&mut h, &mut app, "e2b_context_menu_object");
     click_menu(&mut h, &mut app, "Hide");
     assert!(matches!(ops(&app).last(), Some(Op::Hide { hidden: true, .. })));
@@ -236,7 +237,7 @@ fn e2b_through_the_interface() {
     let g = ground(&app, -35.0, 30.0);
     h.right_click(&mut app, g);
     h.settle(&mut app, 2);
-    assert_eq!(app.view().unwrap().menu_kind, Some(MenuKind::Ground));
+    assert_eq!(app.view().unwrap().menus.menu_kind, Some(MenuKind::Ground));
     shots(&mut h, &mut app, "e2b_context_menu_ground");
     // ---------------------------------------------------------------- placing from the picker
     click_menu(&mut h, &mut app, "Place object here\u{2026}");
@@ -245,7 +246,10 @@ fn e2b_through_the_interface() {
     h.settle(&mut app, 3);
     shots(&mut h, &mut app, "e2b_place_picker");
     h.key(&mut app, Key::Enter, Modifiers::NONE);
-    assert!(app.view().unwrap().placing.is_some(), "Enter takes the first match");
+    assert!(
+        app.view().unwrap().browser.placing.is_some(),
+        "Enter takes the first match"
+    );
     // the object follows the pointer; Shift+wheel turns it 15 degrees a notch, Alt+wheel sinks it
     let g = ground(&app, -30.0, 25.0);
     h.hover(&mut app, g);
@@ -255,7 +259,7 @@ fn e2b_through_the_interface() {
     h.wheel(&mut app, g, -3);
     h.modifiers = Modifiers::NONE;
     {
-        let p = app.view().unwrap().placing.as_ref().unwrap();
+        let p = app.view().unwrap().browser.placing.as_ref().unwrap();
         assert_eq!(p.yaw, 30.0);
         assert!((p.placement.sink - 0.3).abs() < 1e-9, "{}", p.placement.sink);
         assert!(p.at.is_some(), "it is on the ground under the pointer");
@@ -290,6 +294,7 @@ fn e2b_through_the_interface() {
     let row = app
         .view()
         .unwrap()
+        .browser
         .content_rects
         .iter()
         .find(|(p, _)| p == demo::LEVEL_BLUEPRINTS[0].0)
@@ -305,20 +310,21 @@ fn e2b_through_the_interface() {
         panic!("{log:?}")
     };
     assert_eq!(items[0].template, demo::level_guid(1));
-    assert!(app.view().unwrap().placing.is_none());
+    assert!(app.view().unwrap().browser.placing.is_none());
     // ---------------------------------------------------------------- Objectives: a flag with its capture area
-    app.view_mut().unwrap().browser_mode = BrowserMode::Objectives;
-    app.view_mut().unwrap().place_team = 2;
+    app.view_mut().unwrap().browser.browser_mode = BrowserMode::Objectives;
+    app.view_mut().unwrap().browser.place_team = 2;
     h.settle(&mut app, 4);
     shots(&mut h, &mut app, "e2b_browser_objectives");
     let tile_at = |app: &EditorApp, key: &str| {
         app.view()
             .unwrap()
+            .browser
             .content_rects
             .iter()
             .find(|(k, _)| k == key)
             .map(|(_, r)| r.center())
-            .unwrap_or_else(|| panic!("{key} in {:?}", app.view().unwrap().content_rects))
+            .unwrap_or_else(|| panic!("{key} in {:?}", app.view().unwrap().browser.content_rects))
     };
     let n = ops(&app).len();
     let flags_before = app.view().unwrap().scene().shapes.len();
@@ -368,8 +374,8 @@ fn e2b_through_the_interface() {
     assert!(menu.iter().any(|n| n == "Set team 1"), "{menu:?}");
     app.run_action(&gpu, &ctx, Action::SetWorkspace(Workspace::Objects));
     // ---------------------------------------------------------------- Spawners: a player spawn point
-    app.view_mut().unwrap().browser_mode = BrowserMode::Spawners;
-    app.view_mut().unwrap().place_team = 1;
+    app.view_mut().unwrap().browser.browser_mode = BrowserMode::Spawners;
+    app.view_mut().unwrap().browser.place_team = 1;
     h.settle(&mut app, 4);
     shots(&mut h, &mut app, "e2b_browser_spawners");
     let n = ops(&app).len();
@@ -383,7 +389,7 @@ fn e2b_through_the_interface() {
     };
     assert_eq!(items[0].template, demo::level_guid(4));
     assert_eq!(items[0].fields[0].value, FieldValue::Text("Team1".into()));
-    app.view_mut().unwrap().browser_mode = BrowserMode::PlaceObjects;
+    app.view_mut().unwrap().browser.browser_mode = BrowserMode::PlaceObjects;
     h.settle(&mut app, 3);
     // ---------------------------------------------------------------- the sink popup: Alt+wheel, one entry per burst
     app.select(&gpu, Some(crate_b));
@@ -404,7 +410,7 @@ fn e2b_through_the_interface() {
         panic!("{log:?}")
     };
     assert!((items[0].placement.unwrap().sink - 0.3).abs() < 1e-9);
-    assert!(app.view().unwrap().sink.is_some(), "the popup is open");
+    assert!(app.view().unwrap().browser.sink.is_some(), "the popup is open");
     shots(&mut h, &mut app, "e2b_sink_popup");
     // a pause, then Shift+Alt: 0.01 m a notch, a second operation
     h.settle(&mut app, 50);
@@ -420,7 +426,7 @@ fn e2b_through_the_interface() {
     app.run_action(&gpu, &ctx, Action::Undo);
     assert_eq!(ops(&app).len(), n + 1, "one undo takes back the whole burst");
     h.key(&mut app, Key::Escape, Modifiers::NONE);
-    assert!(app.view().unwrap().sink.is_none(), "Esc closes the popup");
+    assert!(app.view().unwrap().browser.sink.is_none(), "Esc closes the popup");
     // ---------------------------------------------------------------- deep duplicate: the flag with its capture area
     app.select(&gpu, Some(flag));
     h.settle(&mut app, 2);

@@ -29,6 +29,7 @@ use std::sync::mpsc::channel;
 use bc2_editor::actions::Action;
 use bc2_editor::app::{EditorApp, Then, game_pick, same_file};
 use bc2_editor::demo;
+use bc2_editor::error::EditorError;
 use bc2_editor::export_ui::{self, NO_PROJECT, WAIT_INSTALL};
 use bc2_editor::headless::Headless;
 use bc2_editor::render;
@@ -54,7 +55,7 @@ fn with_project(name: &str, dir: &Path) -> Option<(Headless, EditorApp, PathBuf)
     h.settle(&mut app, 2);
     let scene = demo::level(&dir.join("level")).unwrap();
     let gpu = h.gpu.clone();
-    app.open_scene_then(&gpu, "demo", scene, Then::Create(name.into(), dir.to_path_buf()));
+    app.open_scene_then(&gpu, "demo", scene, Then::Create(name.into(), dir.to_path_buf(), None));
     h.settle(&mut app, 3);
     let path = app.view().unwrap().doc.as_ref().unwrap().path.clone();
     Some((h, app, path))
@@ -75,10 +76,14 @@ fn a_failed_create_leaves_no_target_for_the_next_project() {
     let saved = std::fs::read(&x).unwrap();
     let before = ops(&app);
     app.run_action(&gpu, &ctx, Action::CloseMap);
-    // the new-project form's target, then a Create that fails (no name)
-    app.set_pending_target(Profile::Ww2, "conquest");
+    // the new-project form's target with a Create that fails (no name); round OP1: the target travels in the Create
     let scene = demo::level(&dir.join("level")).unwrap();
-    app.open_scene_then(&gpu, "demo", scene.clone(), Then::Create("  ".into(), dir.clone()));
+    app.open_scene_then(
+        &gpu,
+        "demo",
+        scene.clone(),
+        Then::Create("  ".into(), dir.clone(), Some((Profile::Ww2, "conquest".into()))),
+    );
     assert!(app.view().is_none(), "the Create failed");
     assert!(app.error().is_some_and(|e| e.contains("name")), "{:?}", app.error());
     // the next project opened keeps its era and mode: no operation, nothing written
@@ -107,8 +112,8 @@ fn the_export_window_lets_go_of_a_closed_project() {
     app.run_action(&gpu, &ctx, Action::Export);
     h.settle(&mut app, 2);
     assert!(app.export.open);
-    assert_eq!(app.export.project.as_deref(), Some(a.as_path()));
-    assert_eq!(app.export.bound, Some(app.generation()));
+    assert_eq!(app.export.project(), Some(a.as_path()));
+    assert_eq!(app.export.bound(), Some(app.generation()));
     // AU4-DS-4: the project's own saved state decides (no autosave file is written by this flag)
     app.view_mut().unwrap().doc.as_mut().unwrap().saved = false;
     h.settle(&mut app, 1);
@@ -126,10 +131,10 @@ fn the_export_window_lets_go_of_a_closed_project() {
     app.run_action(&gpu, &ctx, Action::CloseMap);
     assert!(app.generation() > generation);
     assert!(!app.export.open);
-    assert!(app.export.project.is_none() && app.export.spec.is_none() && app.export.target.is_none());
+    assert!(app.export.project().is_none() && app.export.spec.is_none() && app.export.target.is_none());
     // project B: nothing of A's reaches it
     let scene = demo::level(&dir.join("level")).unwrap();
-    app.open_scene_then(&gpu, "demo", scene, Then::Create("DF1 B".into(), dir.clone()));
+    app.open_scene_then(&gpu, "demo", scene, Then::Create("DF1 B".into(), dir.clone(), None));
     h.settle(&mut app, 3);
     let b_ops = ops(&app);
     assert!(!app.export.open);
@@ -137,7 +142,7 @@ fn the_export_window_lets_go_of_a_closed_project() {
     app.export.open_for(&a, None);
     h.settle(&mut app, 3);
     assert_eq!(app.export.why_not.as_deref(), Some(NO_PROJECT));
-    assert_eq!(app.export.bound, None, "never bound to B");
+    assert_eq!(app.export.bound(), None, "never bound to B");
     assert_eq!(ops(&app), b_ops, "no operation of A's form committed into B");
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -162,12 +167,12 @@ fn export_and_install_wait_for_each_other_and_a_dead_worker_is_reported() {
     assert_eq!(app.export.why_not.as_deref(), Some(WAIT_INSTALL));
     assert!(app.busy_work().is_some_and(|w| w.contains("install")));
     assert!(!app.close_requested());
-    assert!(app.close_asked.is_some());
+    assert!(app.close_asked().is_some());
     // the install's worker ends without an answer (it panicked): a failed run, said, never polled forever
     drop(tx);
     h.settle(&mut app, 2);
     assert!(!app.export.install.busy());
-    assert!(!app.export.install.ok);
+    assert!(!app.export.install.ok());
     assert!(
         app.export
             .install
@@ -179,11 +184,11 @@ fn export_and_install_wait_for_each_other_and_a_dead_worker_is_reported() {
     );
     assert_ne!(app.export.why_not.as_deref(), Some(WAIT_INSTALL));
     assert!(
-        app.close_asked.is_none(),
+        app.close_asked().is_none(),
         "the close question goes once the work has ended"
     );
     // an export runs: closing asks; its worker ending without an answer ends 'Exporting...'
-    let (tx, rx) = channel::<Result<Vec<String>, String>>();
+    let (tx, rx) = channel::<Result<Vec<String>, EditorError>>();
     app.export.running_from(rx);
     h.settle(&mut app, 1);
     assert_eq!(app.export.why_not.as_deref(), Some("Exporting..."));
@@ -200,7 +205,7 @@ fn export_and_install_wait_for_each_other_and_a_dead_worker_is_reported() {
         app.export.log
     );
     // a worker's panic is an error line with its text
-    let r: Result<(), String> = export_ui::guarded("The export", || panic!("a damaged bundle"));
+    let r: Result<(), EditorError> = export_ui::guarded("The export", || panic!("a damaged bundle"));
     assert!(r.unwrap_err().contains("a damaged bundle"));
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -336,7 +341,7 @@ fn paths_settings_and_picks() {
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1, "no temporary file left");
     let _ = std::fs::remove_dir_all(&dir);
     // AU4-BUG-15: a failed game pick picks nothing and says why
-    let (id, why) = game_pick(Err("no game-accurate frame drawn yet".into()));
+    let (id, why) = game_pick(Err(EditorError::Gpu("no game-accurate frame drawn yet".into())));
     assert_eq!(id, render::ID_NONE);
     assert!(why.is_some_and(|w| w.contains("no game-accurate frame")));
     assert_eq!(game_pick(Ok(Some(3))), (render::entity_id(3), None));

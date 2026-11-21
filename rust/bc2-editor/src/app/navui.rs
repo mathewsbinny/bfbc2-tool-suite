@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use bc2_levelwrite::navedit::{NavBase, NavEdit};
 
+use crate::error::EditorError;
 use crate::nav::{self, NavTool, Plan};
 use crate::navdata::{self, Y_OFFSET};
 use crate::navview::{self, ColourMode, FileLayer, Lines, OverlayMesh};
@@ -225,7 +226,9 @@ impl ViewState {
             return;
         }
         let Some(root) = self.nav_root() else {
-            self.navs.loaded = Some(Err("No game copy: no navigation data can be read".into()));
+            self.navs.loaded = Some(Err(EditorError::Io(
+                "No game copy: no navigation data can be read".into(),
+            )));
             return;
         };
         let shown = |k: usize| self.doc.as_ref().is_none_or(|d| d.shown(k));
@@ -266,7 +269,7 @@ impl ViewState {
     pub(super) fn nav_poll(&mut self, gpu: &GpuCtx, palette: &Palette) {
         // a running command's end, whichever workspace is shown (round DF1: Install and Restore wait for it)
         if let Some(j) = self.navs.job.as_mut()
-            && j.done.is_none()
+            && j.running()
             && let Some(ok) = j.poll()
         {
             self.navs.message = job_message(j, ok);
@@ -742,8 +745,8 @@ impl ViewState {
     ///
     /// # Errors
     /// No game copy, or the file cannot be written.
-    pub fn nav_save_side(&mut self) -> Result<PathBuf, String> {
-        let root = self.nav_root().ok_or("No game copy")?;
+    pub fn nav_save_side(&mut self) -> Result<PathBuf, EditorError> {
+        let root = self.nav_root().ok_or(EditorError::Io("No game copy".into()))?;
         let path = nav::side_file(&root, &self.lv);
         let text = nav::side_text(&self.nav_level_name(), &self.nav_base(), &self.nav_edits());
         nav::write_side(&path, &text)?;
@@ -849,7 +852,7 @@ impl ViewState {
         let Some(root) = self.nav_root() else { return };
         // round DF1 (audit AU4-CON-2): never beside a running build (it writes the file the install copies), and
         // its Job is never dropped
-        if self.navs.job.as_ref().is_some_and(|j| j.done.is_none()) {
+        if self.navs.job.as_ref().is_some_and(nav::Job::running) {
             self.navs.message = format!("{} not started: {NAV_RUNNING}", plan.what);
             return;
         }
@@ -871,8 +874,8 @@ impl ViewState {
                 if self.navs.path.active {
                     self.navs.tool = None;
                     self.navs.clicks.clear();
-                    self.measuring = false;
-                    if let Some(p) = self.menu_point.take() {
+                    self.measures.measuring = false;
+                    if let Some(p) = self.menus.menu_point.take() {
                         self.navs.path.points.clear();
                         self.navs.path_click(p);
                     }
@@ -887,9 +890,9 @@ impl ViewState {
                 self.navs.tool = if self.navs.tool == Some(t) { None } else { Some(t) };
                 self.navs.clicks.clear();
                 self.navs.path.active = false;
-                self.measuring = false;
+                self.measures.measuring = false;
                 // from the context menu: the point there is the first click
-                if let (Some(t), Some(p)) = (self.navs.tool, self.menu_point.take()) {
+                if let (Some(t), Some(p)) = (self.navs.tool, self.menus.menu_point.take()) {
                     self.navs.clicks.push(p);
                     self.nav_try_commit(gpu, palette, t, false);
                 }
@@ -944,7 +947,7 @@ impl ViewState {
                 Some("Region edits need a NavKit base (DICE's data takes only links, route edges, traversals, notes)")
             }
             Action::NavBuild | Action::NavInstall | Action::NavRestore
-                if self.navs.job.as_ref().is_some_and(|j| j.done.is_none()) =>
+                if self.navs.job.as_ref().is_some_and(nav::Job::running) =>
             {
                 Some(NAV_RUNNING)
             }
@@ -1083,7 +1086,7 @@ impl Tabs<'_> {
                             return;
                         }
                         Some(Err(e)) => {
-                            status_line(ui, &p, "Information", p.status_info, e);
+                            status_line(ui, &p, "Information", p.status_info, &e.to_string());
                         }
                         Some(Ok(_)) => {}
                     }
@@ -1427,7 +1430,7 @@ impl Tabs<'_> {
         {
             match nav::save_export(&root, &format!("{}_anomalies.json", self.view.lv), &report) {
                 Ok(path) => self.view.navs.anomaly_saved = Some(path),
-                Err(e) => self.view.navs.message = e,
+                Err(e) => self.view.navs.message = e.to_string(),
             }
         }
         if let Some(s) = &self.view.navs.anomaly_saved {
@@ -1469,7 +1472,7 @@ impl Tabs<'_> {
                     self.view.navs.compare_error = None;
                     self.view.navs.dirty = true;
                 }
-                Err(e) => self.view.navs.compare_error = Some(e),
+                Err(e) => self.view.navs.compare_error = Some(e.to_string()),
             }
         }
         if let Some(e) = &self.view.navs.compare_error {
@@ -1605,7 +1608,7 @@ impl Tabs<'_> {
                         c.saved = Some(path);
                     }
                 }
-                Err(e) => self.view.navs.compare_error = Some(e),
+                Err(e) => self.view.navs.compare_error = Some(e.to_string()),
             }
         }
         if let Some(s) = self.view.navs.compare.as_ref().and_then(|c| c.saved.as_ref()) {
@@ -1835,7 +1838,7 @@ impl Tabs<'_> {
                 if let Some(out) = self.view.nav_out() {
                     muted(ui, &p, &format!("\u{2192} {}", out.display()));
                 }
-                let job_state = self.view.navs.job.as_ref().map(|j| (j.what.clone(), j.done, j.output()));
+                let job_state = self.view.navs.job.as_ref().map(|j| (j.what.clone(), j.outcome(), j.output()));
                 if let Some((what, done, out)) = job_state {
                     let (word, colour, text) = match done {
                         None => ("Running", p.status_info, format!("navkit {what} ..."),),
@@ -1912,7 +1915,7 @@ impl Tabs<'_> {
             return;
         };
         let moved = ui.input(|i| i.pointer.delta() != Vec2::ZERO);
-        if moved && let Some((o, d)) = self.view.pointer_ray {
+        if moved && let Some((o, d)) = self.view.menus.pointer_ray {
             let at = self.view.nav_ray_point(o, d);
             self.view.navs.hover = at
                 .and_then(|p| self.view.navs.area_at(p))

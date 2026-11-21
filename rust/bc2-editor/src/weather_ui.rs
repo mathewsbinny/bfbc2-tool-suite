@@ -12,6 +12,7 @@
 //! Night and rain are off by default and marked "not yet seen in game": the export builds them only once "Build it
 //! anyway" is ticked (in-game tests are paused).
 
+use crate::error::EditorError;
 use bc2_levelwrite::export::Game;
 use bc2_levelwrite::weather::{self as wx, Borrow, Night, WeatherChoice};
 use eframe::egui;
@@ -50,7 +51,7 @@ impl Kind {
 }
 
 /// A level's states for the form: (state partitions, `ActiveState`, the spawn switch's state).
-pub type States = Result<(Vec<String>, usize, Option<usize>), String>;
+pub type States = Result<(Vec<String>, usize, Option<usize>), EditorError>;
 
 /// A level's weather states, as the export reads them (`w`: its partition as the project leaves it, else the
 /// level's own).
@@ -63,15 +64,15 @@ pub fn states_of(game: &Game, lv: &str, w: Option<&bc2_levelwrite::LevelWriter>)
         w
     } else {
         parsed = bc2_levelwrite::LevelWriter::parse(
-            &bc2_levelwrite::export::level_partition(game, lv).map_err(|e| e.to_string())?,
+            &bc2_levelwrite::export::level_partition(game, lv).map_err(|e| EditorError::Level(e.to_string()))?,
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| EditorError::Level(e.to_string()))?;
         &parsed
     };
     let mut b = game.loaded(lv, "level");
     b.extend(game.startup());
-    let live = game.live(&b).map_err(|e| e.to_string())?;
-    let lw = wx::level_weather(w, &live).map_err(|e| e.0)?;
+    let live = game.live(&b).map_err(|e| EditorError::Level(e.to_string()))?;
+    let lw = wx::level_weather(w, &live).map_err(|e| EditorError::Level(e.0))?;
     Ok((lw.states, lw.active, lw.spawn.map(|x| x.1)))
 }
 
@@ -122,15 +123,15 @@ impl WeatherForm {
     ///
     /// # Errors
     /// The states are not read, or no state is chosen.
-    pub fn choice(&self) -> Result<Option<WeatherChoice>, String> {
-        let path = |list: &Option<(String, States)>| -> Result<String, String> {
+    pub fn choice(&self) -> Result<Option<WeatherChoice>, EditorError> {
+        let path = |list: &Option<(String, States)>| -> Result<String, EditorError> {
             match list {
                 Some((_, Ok((p, _, _)))) => p
                     .get(self.state)
                     .cloned()
-                    .ok_or_else(|| format!("the system has no state {}", self.state)),
+                    .ok_or_else(|| EditorError::Level(format!("the system has no state {}", self.state))),
                 Some((_, Err(e))) => Err(e.clone()),
-                None => Err("the states are not read yet".into()),
+                None => Err(EditorError::Level("the states are not read yet".into())),
             }
         };
         let base = |name: &str| WeatherChoice {
@@ -282,7 +283,7 @@ pub fn section(
         }
         match (&choice, project_choice) {
             (Err(e), _) => {
-                ui.weak(e.as_str());
+                ui.weak(e.to_string());
             }
             (_, Some(c)) => {
                 ui.weak(format!("The project's: {}", c.describe()));

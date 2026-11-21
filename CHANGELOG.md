@@ -28,7 +28,55 @@ landed on `main`.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- **Map editor projects can edit any file of a level** (round OP1, audit AU1 R18). An operation names the files it
+  changes - the level partition, a static group file, a height field, a paint layer, the navigation side file, or
+  the project itself - and the new `files` operation edits several of them as one undo step: the partition and the
+  static group members' transforms (Wake keeps 2,999 of its objects in group files). It applies whole or not at all;
+  the editor keeps a writer per file in its checkpoints, so undo, redo and History bring every file back together.
+  The export writes the edited group files in place of the base's. Editing members in the views is round SG1's.
+- **Brush strokes stored as tiles beside the project** (round OP1, audit AU1 R24, for E5's terrain and paint
+  brushes). A `stroke` operation names only the 64 x 64 tiles it changed, by sha1; the tiles live once each in
+  `<project>.mapedit.json.tiles`. Undo and redo touch only those tiles. On a 2048 x 2048 height field a stroke's
+  commit takes about 2 ms and an undo about 3 ms (`rust/BENCHMARKS.md` "OP1"). The export refuses projects with
+  strokes until E5 writes terrain.
+- **A journalled autosave** (round OP1, audit AU1 R17 / P3). The autosave is now an append-only journal, one
+  checksummed line per change instead of the whole project after every edit; a crash (tested by killing the writer
+  mid-line) recovers every whole line, and the journal is compacted when it grows. Older whole-project autosaves still
+  read.
+- **Closing with unsaved edits asks first** (round OP1, audit AU1 R7 / G-N20). Close map and closing the window
+  ask "Save your changes?" - Save, Don't save (the edits and their autosave let go), Cancel - after the question about
+  running work. A failed save keeps the map open and says why.
+- **The game-accurate view loads on a worker** (round OP1, DF1's left item, audit AU4 CQ-6): the editor keeps drawing
+  while a large level's shaders, textures and terrain are read; only the Direct3D device is made on the window's
+  thread.
+
+### Changed
+- **Typed errors in the map editor and the renderer** (round OP1, audit AU1 D13 / AU2 Q3): `bc2_render::RenderError`
+  (device, device removed, data, shader, unsupported) and `bc2_editor::error::EditorError` (project, level, render,
+  GPU, input, file, tool, worker) replace the 155 `Result<_, String>` of the two crates; the words shown are the same.
+  The Problems panel's entries are typed (`Problem`: severity, code, operation, objects): a changed base is a warning,
+  an operation that did not apply an error.
+- **The editor's side state as explicit states** (round OP1, replacing round DF1's side fields): the close question
+  (`Closing`), the Export window's project (`ExportFor`), the preview (`PreviewState`: none, opening, shown), the
+  level being prepared with what follows (`Mode::Preparing { job, then }`), the new project's era and mode carried by
+  its Create (`Then::Create(name, folder, target)`), the install script's run (`InstallRun`), a navkit job's end, and
+  the game-accurate view (`GameSlot`: off, loading, ready).
+- **The editor's two god objects split** (round OP1, audit AU1 D9 / AU4 CQ-7): `ViewState` went from 74 fields to 45
+  (eight focused parts: `browser`, `menus`, `outline`, `measures`, `inspect`, `props`, `pointer`, `game_view`) and
+  `EditorApp` from 37 to 22 (`command`, `new_project`, `start_ui`, `catalog_state`). Behaviour unchanged: the editor's
+  tests pass and seven screenshots of the main views (start screen dark, light, WW2; the demo level dark, light, with
+  a selection, the navigation view) are byte for byte the same before and after.
+- **Project format 6** (round OP1). A project records the sha1 of each level file it edits besides the partition
+  (`base.files`) and `min_reader`, the lowest editor version that reads it (the newest operation kind in its log);
+  a newer file is read when its `min_reader` allows. Projects of versions 1 - 5 load and are migrated as they load;
+  their logs replay to the same partition bytes. A missing or damaged `version` is refused in words instead of being
+  read as 0 or cut to 32 bits (audit AU4 BUG-13).
+
+### Fixed
+- **Project saves are durable** (round OP1, audit AU4 DS-20 / BUG-12): the temporary file is synced before it is
+  moved over the project, the move is retried while another process holds the file for a moment, and the temporary
+  file is removed when anything fails.
 
 ## [0.11.0] - 2026-11-21
 

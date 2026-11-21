@@ -66,7 +66,7 @@ fn game_view_draws_the_sky_and_hides_labels_behind_the_frame() {
     h.settle(&mut app, 4);
     let ctx = h.ctx.clone();
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
-    if app.view().unwrap().game.is_none() {
+    if app.view().unwrap().game_view.game.is_none() {
         println!("skipped: {}", app.view().unwrap().message);
         return;
     }
@@ -76,7 +76,7 @@ fn game_view_draws_the_sky_and_hides_labels_behind_the_frame() {
         h.save(&d.join("r5d_game_view_dark.png")).unwrap();
     }
     let v = app.view().unwrap();
-    let g = v.game.as_ref().unwrap();
+    let g = v.game_view.game.as_ref().unwrap();
     assert!(g.error.is_none(), "{:?}", g.error);
     assert!(
         g.world().sky_pass && g.world().sky.is_some(),

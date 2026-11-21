@@ -198,7 +198,7 @@ fn palette_opens_a_top_view_with_its_own_camera() {
         .expect("the flag is in the top view");
     h.click(&mut app, at);
     assert_eq!(app.view().unwrap().selected, Some(2));
-    assert!(app.view().unwrap().last_hit.is_some());
+    assert!(app.view().unwrap().pointer.last_hit.is_some());
     // F focuses every view on it
     h.frame(&mut app, vec![key(Key::F, Modifiers::NONE)]);
     h.settle(&mut app, 2);
