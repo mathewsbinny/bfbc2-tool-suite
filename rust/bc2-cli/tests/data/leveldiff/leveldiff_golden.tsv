@@ -1,0 +1,38 @@
+# LevelDiff.exe's answers (recorded 2026-11-20 before its retirement, round EX1): sha1 of stdout, of stderr
+# (the log path as <LOG>, the pairs folder as <PAIRS>) and of the --json file, and the exit code.
+# file<TAB>name<TAB>where<TAB>bundle<TAB>entry
+# case<TAB>name<TAB>code<TAB>stdout<TAB>stderr<TAB>json<TAB>args (<json> for the JSON file)
+file	sp_01_dist.dbx	game	game:levels/sp_01/level-00.fbrb	Levels/SP_01.dbx
+file	mapedit_e3d_aurora_ww2_cq_stage.dbx	stage	mapedit_e3d_aurora_ww2_cq	Levels/MAPEDIT_E3D_AURORA_WW2_CQ.dbx
+file	mp_005_dist.dbx	game	game:levels/mp_005/level-00.fbrb	Levels/MP_005.dbx
+file	mp_005_package.dbx	game	package:levels/mp_005/level-00.fbrb	Levels/MP_005.dbx
+file	mp_005gr_package.dbx	game	package:levels/mp_005gr/level-00.fbrb	Levels/MP_005GR.dbx
+file	mapedit_e3d_atacama_rush_cq_stage.dbx	stage	mapedit_e3d_atacama_rush_cq	Levels/MAPEDIT_E3D_ATACAMA_RUSH_CQ.dbx
+file	guadal_canal_package.dbx	game	package:levels/guadal_canal/level-00.fbrb	Levels/GUADAL_CANAL.dbx
+file	mapedit_e3d_guadal_bc2_rush_stage.dbx	stage	mapedit_e3d_guadal_bc2_rush	Levels/MAPEDIT_E3D_GUADAL_BC2_RUSH.dbx
+file	nam_mp_002cq_package.dbx	game	package:levels/nam_mp_002cq/level-00.fbrb	Levels/NAM_MP_002CQ.dbx
+file	nam_mp_002r_package.dbx	game	package:levels/nam_mp_002r/level-00.fbrb	Levels/NAM_MP_002R.dbx
+file	mp_005_description.dbx	game	package:async/startup-00.fbrb	Levels/MP_005_description.dbx
+file	mp_005gr_description.dbx	game	package:async/startup-00.fbrb	Levels/MP_005GR_description.dbx
+file	guadal_canal_rebuild.dbx	work	ww2/install_guadal_canal/level-00.fbrb	Levels/GUADAL_CANAL.dbx
+case	sp01_aurora_ww2	1	e879591c2cae7c46a535ae9221ce3816b4bd0c59	da39a3ee5e6b4b0d3255bfef95601890afd80709	-	sp_01_dist.dbx	mapedit_e3d_aurora_ww2_cq_stage.dbx
+case	sp01_aurora_ww2_all_json	1	df84e98024c7bdaf38b5a41341e42e53969beeee	da39a3ee5e6b4b0d3255bfef95601890afd80709	19c13ef71610c4282d1f591ab96ccaf1a10a0ab7	sp_01_dist.dbx	mapedit_e3d_aurora_ww2_cq_stage.dbx	--all	--json	<json>
+case	sp01_aurora_ww2_match_type	1	fa223fd13df6b442ff714edbd74a44784d8d21ef	da39a3ee5e6b4b0d3255bfef95601890afd80709	-	sp_01_dist.dbx	mapedit_e3d_aurora_ww2_cq_stage.dbx	--match-objects	--type	ReferenceObjectData	--ignore	Enumeration
+case	mp005_mp005gr	1	0394b10310076057d57fd5111ca33a3e016f451f	da39a3ee5e6b4b0d3255bfef95601890afd80709	5d65379eb36c19362dd5ed17332a276f41e07c8f	mp_005_package.dbx	mp_005gr_package.dbx	--json	<json>
+case	mp005_mp005gr_match_all	1	d2e46d1b4c9cf3f6c2fc27ef119eff72e64d3230	da39a3ee5e6b4b0d3255bfef95601890afd80709	93648e6076d9efdf3a70d8044937975af4a43336	mp_005_package.dbx	mp_005gr_package.dbx	--match-objects	--all	--json	<json>
+case	mp005_mp005gr_summary	1	6e9c8bcc164c8fe10f85ea51619dd14f7f54c833	da39a3ee5e6b4b0d3255bfef95601890afd80709	-	mp_005_package.dbx	mp_005gr_package.dbx	--summary
+case	mp005_dist_package	1	7596e8c98d46e4b812c0ec5aac87d1f103ff00fa	da39a3ee5e6b4b0d3255bfef95601890afd80709	4e43e92316491fa6794ea4f6e6a7f3ba210b5ead	mp_005_dist.dbx	mp_005_package.dbx	--match-objects	--json	<json>
+case	mp005_atacama_rush	1	d3093b542b07e67ae755515ed50d72919af83908	da39a3ee5e6b4b0d3255bfef95601890afd80709	5c55f5144c576104acb77a5f5f53d223aaebd1cb	mp_005_package.dbx	mapedit_e3d_atacama_rush_cq_stage.dbx	--json	<json>
+case	mp005_atacama_rush_spawn	1	166fab228af36a30780c24e908acce5d0fe18624	da39a3ee5e6b4b0d3255bfef95601890afd80709	-	mp_005_package.dbx	mapedit_e3d_atacama_rush_cq_stage.dbx	--type	Spawn	--all
+case	guadal_rebuild	0	249fad2be573043f46f19a013b19d4d90a111be3	da39a3ee5e6b4b0d3255bfef95601890afd80709	02c70347fecfb29c4fd1c4d7cc24ea0eccb55f72	guadal_canal_package.dbx	guadal_canal_rebuild.dbx	--all	--json	<json>
+case	guadal_bc2_rush	1	6a2a7795a3bb8d8c6a3956945590a608f554c3df	da39a3ee5e6b4b0d3255bfef95601890afd80709	801584da8b83fcb47f2a200560227001c3659361	guadal_canal_package.dbx	mapedit_e3d_guadal_bc2_rush_stage.dbx	--all	--json	<json>
+case	guadal_bc2_rush_ignore	1	2dfb8b2b52d2d454c1ef01be15765be0c54ac496	da39a3ee5e6b4b0d3255bfef95601890afd80709	-	guadal_canal_package.dbx	mapedit_e3d_guadal_bc2_rush_stage.dbx	--ignore	Transform	--ignore	Enumeration	--match-objects
+case	nam2cq_nam2r	1	8997c61aa539de654f1ae01d48c81df3b6fbc19d	da39a3ee5e6b4b0d3255bfef95601890afd80709	a80a75fe8e26a029c73e5e69902d109cbd5e9c90	nam_mp_002cq_package.dbx	nam_mp_002r_package.dbx	--json	<json>
+case	desc005_desc005gr	1	2876f663b99b1d102d6b01e33deb104d6d86a607	da39a3ee5e6b4b0d3255bfef95601890afd80709	eba9ebbc085698e495da710993e5c66841390503	mp_005_description.dbx	mp_005gr_description.dbx	--all	--json	<json>
+case	mp005_self	0	21cae94da5d0a3e9140478bb7802936c1a062e92	da39a3ee5e6b4b0d3255bfef95601890afd80709	63f52395910a95512ad878b52c56c79b62d87377	mp_005_package.dbx	mp_005_package.dbx	--json	<json>
+case	bad_one_file	2	da39a3ee5e6b4b0d3255bfef95601890afd80709	c3b051b7597e147f7870b190251035b0271d63c1	-	mp_005_package.dbx
+case	bad_not_binary	2	da39a3ee5e6b4b0d3255bfef95601890afd80709	29ff1f73ad501c14564917cc133c106c9decdb1b	-	mp_005_package.dbx	not_binary.xml
+case	bad_missing	2	da39a3ee5e6b4b0d3255bfef95601890afd80709	f91aa4935fb2d5e64b0628377fae3a5fea4aa750	-	mp_005_package.dbx	no_such_file.dbx
+case	bad_type_no_value	2	da39a3ee5e6b4b0d3255bfef95601890afd80709	c3b051b7597e147f7870b190251035b0271d63c1	-	mp_005_package.dbx	mp_005gr_package.dbx	--type
+case	bad_three_files	2	da39a3ee5e6b4b0d3255bfef95601890afd80709	c3b051b7597e147f7870b190251035b0271d63c1	-	mp_005_package.dbx	mp_005gr_package.dbx	mp_005_package.dbx
+case	bad_json_folder	3	2876f663b99b1d102d6b01e33deb104d6d86a607	e0509c5a39748cee8c1961dd359a3d397af030df	-	mp_005_description.dbx	mp_005gr_description.dbx	--json	no_such_folder\x.json

@@ -179,6 +179,49 @@ pub fn decode(raw: &[u8], table: Option<&[u16]>) -> Option<String> {
     Some(out)
 }
 
+/// A text as a language's file stores it (round EX1: a level's own name in every language): ASCII as itself, any other
+/// character through the histogram's table - its one-byte code where it has one, else a two-byte code (a lead byte
+/// whose entry is below 0x80, then `0x80 | low`, as every two-byte character of the Japanese file is stored) - each
+/// checked by [`decode`]. `Err(c)`: the first character the table has no code for (or a NUL).
+///
+/// # Errors
+/// The first character that cannot be stored.
+pub fn encode(text: &str, table: Option<&[u16]>) -> Result<Vec<u8>, char> {
+    let mut out = Vec::with_capacity(text.len());
+    for c in text.chars() {
+        let u = c as u32;
+        if c == '\0' {
+            return Err(c);
+        }
+        if u < 0x80 {
+            out.push(u as u8);
+            continue;
+        }
+        let t = table.ok_or(c)?;
+        let at = |k: usize| t.get(k).copied().unwrap_or(0);
+        let single = (0x80..=0xFFu8).find(|&b| at(usize::from(b)) >= 0x80 && u32::from(at(usize::from(b))) == u);
+        if let Some(b) = single {
+            out.push(b);
+            continue;
+        }
+        let two = (0x80..=0xFFu8).find_map(|lead| {
+            let v = at(usize::from(lead));
+            if v >= 0x80 {
+                return None;
+            }
+            (0..128u8)
+                .find(|&j| u32::from(at(usize::from(v) * 128 + usize::from(j))) == u)
+                .map(|j| [lead, 0x80 | j])
+        });
+        let bytes = two.ok_or(c)?;
+        if decode(&bytes, Some(t)).as_deref() != Some(c.encode_utf8(&mut [0; 4])) {
+            return Err(c);
+        }
+        out.extend_from_slice(&bytes);
+    }
+    Ok(out)
+}
+
 /// `LocFile.to_bytes()`: `name16` (the file's bytes 20..36), its strings with each changed text appended (in
 /// `changed`'s order), and the entry table sorted by hash from `offsets` (each hash once) with the changed texts'
 /// new offsets.
@@ -260,5 +303,22 @@ mod tests {
         assert_eq!(decode(b"\x83", Some(&t)), None);
         assert_eq!(decode(b"\xff", None).as_deref(), Some("\\xff"));
         assert_eq!(decode(b"\xff", Some(&t[..10])).as_deref(), Some(""));
+    }
+
+    #[test]
+    fn encodes_through_the_table() {
+        let mut t = vec![0u16; 256 + 128 * 2];
+        t[0x81] = 0xE9; // a one-byte character
+        t[0x82] = 2; // a lead byte: t[2 * 128 + low]
+        t[256 + 5] = 0x3042;
+        assert_eq!(encode("a\u{e9}\u{3042}", Some(&t)), Ok(vec![b'a', 0x81, 0x82, 0x85]));
+        assert_eq!(
+            decode(&encode("x\u{3042}\u{e9}", Some(&t)).unwrap(), Some(&t)).as_deref(),
+            Some("x\u{3042}\u{e9}")
+        );
+        assert_eq!(encode("\u{416}", Some(&t)), Err('\u{416}'));
+        assert_eq!(encode("\u{e9}", None), Err('\u{e9}'));
+        assert_eq!(encode("a\0", Some(&t)), Err('\0'));
+        assert_eq!(encode("plain", None), Ok(b"plain".to_vec()));
     }
 }

@@ -337,6 +337,8 @@ CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line
     'stfs': os.path.join(SUITE, 'bfbc2-console-readers', 'stfs', 'stfs.py'),
     'xiso': os.path.join(SUITE, 'bfbc2-console-readers', 'xiso', 'xiso.py'),
     'bf1943import': os.path.join(SUITE, 'bfbc2-bf1943-import', 'bf1943import.py'),
+    # round EX1: LevelDiff's command line (LevelDiff.exe, C#, retired; the path is the record of the source it ported)
+    'leveldiff': os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.cs'),
 }
 _cli: dict[str, str | None] = {}
 
@@ -367,7 +369,8 @@ def cli_exe() -> str | None:
 # Round RT1 (2026-11-20): the command lines whose Python was retired - bfbc2.exe answers them alone, and the
 # lines its port does not read (damaged or unusual input) end with an error instead of the hand-off to the Python.
 # Their CLI_TOOLS paths stay as the record of the file each one ported (it no longer exists).
-RETIRED_CLI = frozenset({'graphstats', 'prepare_level'})
+# Round EX1: leveldiff, whose C# LevelDiff.exe was retired (it never had a Python): only the binary as well.
+RETIRED_CLI = frozenset({'graphstats', 'prepare_level', 'leveldiff'})
 
 
 class Refused(ValueError):

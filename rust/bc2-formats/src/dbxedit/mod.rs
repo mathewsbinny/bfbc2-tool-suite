@@ -10,6 +10,7 @@
 //! | `Editor` | [`editor`] |
 //! | `LevelCheck`, `SlotFixer`, `PlacedObject` | [`level_check`], [`fix_slots`] |
 //! | exceptions and `ToolLog.Explain` | [`Fault`] |
+//! | `LevelDiff.cs` (`bfbc2-diff-workbench`, retired in round EX1) | [`leveldiff`] (`bfbc2.exe leveldiff`, the editor's Diff panel) |
 //!
 //! Why a model of its own, not [`crate::dbx::DbxFile`]: DbxEdit writes back what an edit does not touch exactly as
 //! it was - the string table as stored (offsets, padding, duplicates) until a string is added or changed, the
@@ -32,6 +33,7 @@ mod export;
 mod fault;
 mod file;
 mod import;
+pub mod leveldiff;
 pub mod net;
 
 pub use check::{Finding, PlacedObject, SlotResult, fix_slots, level_check};

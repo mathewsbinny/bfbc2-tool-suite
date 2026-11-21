@@ -473,6 +473,10 @@ pub struct Palette {
     pub view_ref_patrol: Color32,
     pub view_ref_objective: Color32,
     pub view_ref_outline: Color32,
+    pub view_diff_added: Color32,
+    pub view_diff_removed: Color32,
+    pub view_diff_moved: Color32,
+    pub view_diff_changed: Color32,
     pub scene_sky: Color32,
     pub scene_terrain: Color32,
     pub scene_water: Color32,
@@ -556,6 +560,10 @@ impl Palette {
             view_ref_patrol: c("view-ref-patrol"),
             view_ref_objective: c("view-ref-objective"),
             view_ref_outline: c("view-ref-outline"),
+            view_diff_added: c("view-diff-added"),
+            view_diff_removed: c("view-diff-removed"),
+            view_diff_moved: c("view-diff-moved"),
+            view_diff_changed: c("view-diff-changed"),
             scene_sky: c("scene-sky"),
             scene_terrain: c("scene-terrain"),
             scene_water: c("scene-water"),
@@ -589,6 +597,7 @@ impl Palette {
         ]
         .into_iter()
         .chain(self.nav_entries())
+        .chain(self.diff_entries())
         .chain([
             ("scene-sky", self.scene_sky),
             ("scene-terrain", self.scene_terrain),
@@ -636,6 +645,18 @@ impl Palette {
             ("view-ref-patrol", self.view_ref_patrol),
             ("view-ref-objective", self.view_ref_objective),
             ("view-ref-outline", self.view_ref_outline),
+        ]
+    }
+
+    /// The Diff panel's 3D colours (round EX1: the `view-diff-*` tokens) with their names: added, removed, moved,
+    /// changed.
+    #[must_use]
+    pub fn diff_entries(&self) -> Vec<(&'static str, Color32)> {
+        vec![
+            ("view-diff-added", self.view_diff_added),
+            ("view-diff-removed", self.view_diff_removed),
+            ("view-diff-moved", self.view_diff_moved),
+            ("view-diff-changed", self.view_diff_changed),
         ]
     }
 
@@ -920,7 +941,7 @@ mod tests {
         let t = tokens();
         let raw: Value = serde_json::from_str(TOKENS_JSON).unwrap();
         assert_eq!(t.colors.len(), raw["color"]["tokens"].as_array().unwrap().len());
-        assert_eq!(t.colors.len(), 76);
+        assert_eq!(t.colors.len(), 80);
         let styles: usize = raw["type"]["groups"]
             .as_array()
             .unwrap()
@@ -1158,6 +1179,27 @@ mod tests {
         }
     }
 
+    /// The Diff panel's colours (round EX1): never orange (the selection), each kind its own hue, in both themes.
+    #[test]
+    fn diff_colours_are_distinct() {
+        let t = tokens();
+        for theme in ThemeId::ALL {
+            let p = Palette::new(t, theme);
+            let d = p.diff_entries();
+            for (k, (n, c)) in d.iter().enumerate() {
+                let to_sel = hue_distance(*c, p.view_selection);
+                assert!(
+                    to_sel >= 45.0,
+                    "{theme:?}: {n} is {to_sel:.0} degrees from the selection"
+                );
+                for (m, o) in d.iter().skip(k + 1) {
+                    let h = hue_distance(*c, *o);
+                    assert!(h >= 45.0, "{theme:?}: {n} and {m} are {h:.0} degrees apart");
+                }
+            }
+        }
+    }
+
     /// The view variants read on the terrain as the view lights it: the overlay colours at their darkest shade
     /// (0.88, `view.wgsl`'s overlay shading) against the terrain at its brightest (0.93, flat ground) and on
     /// slopes, at least 3.5:1; and the selection outline on the sky too. (`tests/render.rs` measures the same in
@@ -1181,6 +1223,7 @@ mod tests {
             ]
             .into_iter()
             .chain(p.nav_entries())
+            .chain(p.diff_entries())
             {
                 for k_mark in [1.0, 0.88] {
                     for k_ground in [0.93, 0.75, 0.6] {
