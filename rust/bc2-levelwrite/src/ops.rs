@@ -399,12 +399,60 @@ pub enum Op {
         /// Its edits.
         edits: Vec<crate::navedit::NavEdit>,
     },
+    /// Edits of several files of the level made as one operation (round OP1, [`crate::files`]): the partition and
+    /// the static group files, applied whole or not at all, undone as one step.
+    Files {
+        /// The edits, in order.
+        edits: Vec<crate::files::FileEdit>,
+    },
 }
 
 impl Op {
-    /// Whether the operation changes the level partition (the others are the editor's organisation).
+    /// The files of the level it changes (round OP1, audit AU1 R18): each kind of the rounds before has one; a
+    /// multi-file operation names its edits' files, each once, in order.
+    #[must_use]
+    pub fn files(&self) -> Vec<crate::files::Target> {
+        use crate::files::Target;
+        match self {
+            Self::Files { edits } => {
+                let mut out: Vec<Target> = Vec::new();
+                for t in edits.iter().map(crate::files::FileEdit::target) {
+                    if !out.contains(&t) {
+                        out.push(t);
+                    }
+                }
+                out
+            }
+            Self::NavAdd { .. } | Self::NavRemove { .. } | Self::NavLoad { .. } => vec![Target::Navigation],
+            o if o.edits_partition() => vec![Target::Partition],
+            _ => vec![Target::Project],
+        }
+    }
+
+    /// The partition operations it is made of: itself, or a multi-file operation's partition edits.
+    #[must_use]
+    pub fn parts(&self) -> Vec<&Self> {
+        match self {
+            Self::Files { edits } => edits
+                .iter()
+                .filter_map(|e| match e {
+                    crate::files::FileEdit::Partition { op } => Some(&**op),
+                    crate::files::FileEdit::MemberTransform { .. } => None,
+                })
+                .collect(),
+            o => vec![o],
+        }
+    }
+
+    /// Whether the operation changes the level partition (the others are the editor's organisation, the
+    /// navigation side file, or other files of the level).
     #[must_use]
     pub fn edits_partition(&self) -> bool {
+        if let Self::Files { edits } = self {
+            return edits
+                .iter()
+                .any(|e| matches!(e, crate::files::FileEdit::Partition { .. }));
+        }
         matches!(
             self,
             Self::Move { .. }
@@ -422,10 +470,11 @@ impl Op {
         )
     }
 
-    /// The existing objects it names (each must be in the base or made by an earlier operation).
+    /// The existing objects of the partition it names (each must be in the base or made by an earlier operation).
     #[must_use]
     pub fn targets(&self) -> Vec<&str> {
         match self {
+            Self::Files { .. } => self.parts().into_iter().flat_map(Self::targets).collect(),
             Self::Move { items } | Self::Rotate { items } => items.iter().map(|m| m.guid.as_str()).collect(),
             Self::Delete { guids }
             | Self::AssignLayer { guids, .. }
@@ -465,6 +514,7 @@ impl Op {
     #[must_use]
     pub fn creates(&self) -> Vec<&str> {
         match self {
+            Self::Files { .. } => self.parts().into_iter().flat_map(Self::creates).collect(),
             Self::Duplicate { items } => items
                 .iter()
                 .flat_map(|d| std::iter::once(d.guid.as_str()).chain(d.owned.iter().map(|o| o.guid.as_str())))
@@ -584,6 +634,19 @@ impl Op {
             ),
             Self::InsertPoint { after, .. } => format!("Insert an outline point after {after}"),
             Self::RemovePoint { guid } => format!("Remove outline point {guid}"),
+            Self::Files { edits } => {
+                let files = self.files().len();
+                let what = edits
+                    .iter()
+                    .map(crate::files::FileEdit::describe)
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                if files == 1 {
+                    what
+                } else {
+                    format!("{what} ({files} files)")
+                }
+            }
         }
     }
 }
@@ -710,6 +773,11 @@ impl Organisation {
                 }
             }
             Op::Delete { guids } => self.delete(guids),
+            Op::Files { .. } => {
+                for p in op.parts() {
+                    self.apply(p);
+                }
+            }
             // the old layer taken out: as a delete
             Op::SetMode { to } => self.delete(&to.removed),
             Op::Duplicate { items } => {

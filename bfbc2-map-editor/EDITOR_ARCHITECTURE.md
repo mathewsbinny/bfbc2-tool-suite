@@ -64,6 +64,18 @@ The log follows `navtune.json`'s proven pattern:
 - **Base changed** (a new game patch or a rebuilt WW2 level): operations whose target guid is gone are reported,
   never dropped silently.
 - **New maps (stage 2)** use the same file, with a generated base in place of a stock level.
+- **Operations on any file of the level** (round OP1, audit AU1 R18): each operation names its *targets*
+  (`bc2_levelwrite::files::Target`): the level partition, a static group file (`<Name>_HavokAsset.dbx`), a height
+  field, a paint layer, the navigation side file, or the project itself (layers, folders, the export's choices). The
+  editor's document holds one writer per file (`LevelFiles`), each read from the level as loaded the first time an
+  operation names it; its sha1 then goes into the project's `base.files` for the base-changed check. The `files`
+  operation holds edits of several files (partition operations, group members' transforms; round SG1 adds the
+  member edits the views need) and applies them on copies: all or nothing, one undo step, the scene following only
+  a whole apply. The export applies the log to all files at once and writes the edited group files in place of the
+  base's; a target it does not write yet (terrain before E5) refuses the export in words.
+- **Versions** (project format 6): `version` is the writer's, `min_reader` the lowest version that reads the file
+  (its newest operation kind); each version step has a migration (`project::migrate`), and the recorded projects of
+  versions 1 - 5 (`rust/bc2-levelwrite/tests/data/projects`) must load and replay to the same partition.
 
 ### 3.2 The core additions
 

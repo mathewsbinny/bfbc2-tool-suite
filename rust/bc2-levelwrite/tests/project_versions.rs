@@ -35,6 +35,7 @@ fn canary_projects_load_as_version_1() {
         assert_eq!(now.operations, old.operations, "{}", p.display());
         let mut newer = raw.clone();
         newer["version"] = serde_json::Value::from(VERSION + 1);
+        newer["min_reader"] = serde_json::Value::from(VERSION + 1);
         let e = MapProject::from_json(&serde_json::to_string(&newer).unwrap()).unwrap_err();
         assert!(matches!(e, ProjectError::Version(_)), "{e}");
         if ops > 0 {

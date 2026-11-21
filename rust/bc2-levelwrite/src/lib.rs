@@ -33,6 +33,7 @@ pub mod culltool;
 pub mod culltree;
 pub mod diff;
 pub mod export;
+pub mod files;
 pub mod gameplay;
 pub mod modelayer;
 pub mod mpconvert;

@@ -28,6 +28,21 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **Map editor projects can edit any file of a level** (round OP1, audit AU1 R18). An operation names the files it
+  changes - the level partition, a static group file, a height field, a paint layer, the navigation side file, or
+  the project itself - and the new `files` operation edits several of them as one undo step: the partition and the
+  static group members' transforms (Wake keeps 2,999 of its objects in group files). It applies whole or not at all;
+  the editor keeps a writer per file in its checkpoints, so undo, redo and History bring every file back together.
+  The export writes the edited group files in place of the base's. Editing members in the views is round SG1's.
+
+### Changed
+- **Project format 6** (round OP1). A project records the sha1 of each level file it edits besides the partition
+  (`base.files`) and `min_reader`, the lowest editor version that reads it (the newest operation kind in its log);
+  a newer file is read when its `min_reader` allows. Projects of versions 1 - 5 load and are migrated as they load;
+  their logs replay to the same partition bytes. A missing or damaged `version` is refused in words instead of being
+  read as 0 or cut to 32 bits (audit AU4 BUG-13).
+
 ### Fixed
 - **The editor tests' hang** (round HG1): two tests making GPU devices at once could deadlock for good on NVIDIA's
   driver (a Vulkan device made while another thread exited through the driver's `DllMain` holding Windows' loader

@@ -584,6 +584,15 @@ fn read_one(game: &Game, bundles: &[PathBuf], name: &str) -> Result<Vec<u8>> {
     read_found(&[f])?.pop().ok_or_else(|| err("nothing read"))
 }
 
+/// A file of the base level besides its partition, by its target (round OP1): a static group file
+/// (`levels/<base>/<file>`) from the base's level bundles; `None` when they do not have it.
+fn base_level_file(game: &Game, bundles: &[PathBuf], base: &str, target: &crate::files::Target) -> Option<Vec<u8>> {
+    let crate::files::Target::Group { file } = target else {
+        return None;
+    };
+    read_one(game, bundles, &format!("levels/{base}/{file}")).ok()
+}
+
 fn show(bundles: &[PathBuf]) -> String {
     bundles
         .iter()
@@ -1008,14 +1017,47 @@ pub fn build(
     }
     let base_w = LevelWriter::parse(&base_bytes)?;
     let schema = Schema::scan([&base_w.d]);
-    let applied = crate::write::apply_with(&base_bytes, &project.operations, &schema, &|lv| {
-        level_partition(game, lv).ok()
-    })
-    .map_err(|e| err(e.to_string()))?;
+    // round OP1: the log's other files (static group files) read from the base's bundles when it names them
+    let (edited_files, applied) = {
+        let sources = |t: &crate::files::Target| base_level_file(game, &base_bundles, &base, t);
+        let all = crate::files::apply_files(
+            &base_bytes,
+            &project.operations,
+            &schema,
+            &|lv| level_partition(game, lv).ok(),
+            &sources,
+        )
+        .map_err(|e| err(e.to_string()))?;
+        (all.files, all.partition)
+    };
     report.push(format!(
         "project: {} operations applied ({} transforms, {} deleted, {} duplicated, {} placed, {} fields)",
         applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.placed, applied.fields
     ));
+    let mut edited_groups: HashMap<String, Vec<u8>> = HashMap::new();
+    for (t, data) in edited_files {
+        match &t {
+            crate::files::Target::Group { file } => {
+                let note = match project.base.files.get(&t.base_key().unwrap_or_default()) {
+                    Some(b)
+                        if base_level_file(game, &base_bundles, &base, &t).is_some_and(|x| sha1_hex(&x) == b.sha1) =>
+                    {
+                        "as the project was made on"
+                    }
+                    Some(_) => "differs from the project's base (its edits' members are all there)",
+                    None => "not recorded in the project",
+                };
+                report.push(format!("project: the static group file {file} edited ({note})"));
+                edited_groups.insert(format!("levels/{base}/{file}"), data);
+            }
+            other => {
+                return Err(err(format!(
+                    "{} is edited by the project, and the export does not write it yet",
+                    other.describe()
+                )));
+            }
+        }
+    }
     let mut w = LevelWriter::parse(&applied.bytes)?;
     // 2. multiplayer: the campaign out, the donor's layer in, placed, the level's fields
     let donor_bytes = level_partition(game, &donor_lv)?;
@@ -1149,6 +1191,8 @@ pub fn build(
     let mut unslotted_record: Vec<(String, String)> = Vec::new();
     let mut exclusive: Option<(String, EditDbx)> = None;
     for ((_, (_, e)), data) in roots.iter().zip(datas) {
+        // a static group file the log edited (round OP1): its edited bytes, renamed as the base's are
+        let data = edited_groups.remove(&e.name.to_ascii_lowercase()).unwrap_or(data);
         let new_name = renamed_entry(&e.name, &base, &low);
         if e.name.to_ascii_lowercase().ends_with(".dbx") {
             let mut d = EditDbx::parse(&data).map_err(|x| err(format!("{}: {x}", e.name)))?;
@@ -1170,6 +1214,11 @@ pub fn build(
                 data,
             });
         }
+    }
+    if let Some(f) = edited_groups.keys().next() {
+        return Err(err(format!(
+            "{f} is edited by the project but is not one of the level's root files the export copies"
+        )));
     }
     report.push(format!(
         "root files: {} copied under Levels/{lv}/ (shader databases, emitter system and textures, model groups, cull \

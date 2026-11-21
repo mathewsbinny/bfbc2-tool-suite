@@ -14,9 +14,10 @@ use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
+use bc2_levelwrite::files::{FileEdit, LevelFiles, Target};
 use bc2_levelwrite::ops::Organisation;
 use bc2_levelwrite::project::BaseReport;
-use bc2_levelwrite::write::{Applied, LevelWriter, apply_one_with};
+use bc2_levelwrite::write::{Applied, LevelWriter};
 use bc2_levelwrite::{FieldType, FieldValue, MapProject, Op, Operation, Profile, Schema};
 use bc2_scene::scene::{Entity, Scene, Shape, Source};
 
@@ -53,7 +54,8 @@ struct Checkpoint {
     meshes: Option<Vec<(usize, String)>>,
     deleted: BTreeSet<usize>,
     by_guid: HashMap<String, usize>,
-    writer: Option<LevelWriter>,
+    /// Every file's writer (round OP1): a multi-file operation is undone as one step.
+    files: LevelFiles,
     problems: Vec<String>,
 }
 
@@ -72,7 +74,9 @@ pub struct Doc {
     /// Layers, folders, groups and placements by the log.
     pub org: Organisation,
     base_bytes: Option<Vec<u8>>,
-    writer: Option<LevelWriter>,
+    /// The level's files as the log leaves them, a writer per file (round OP1, audit AU1 R18): the partition, the
+    /// static group files the log edits.
+    files: LevelFiles,
     /// The field types (the level partition's data, `dbxcatalogue`'s rules).
     pub schema: Schema,
     /// What did not apply, and the base-changed report, in words.
@@ -116,6 +120,19 @@ pub fn blueprint_path(reference: &str) -> String {
         Some((head, last)) if looks_guid(last) => head.to_lowercase(),
         _ => r.to_lowercase(),
     }
+}
+
+/// A level file's bytes as the scene loaded it (round OP1): a static group file by its name; `None` for the other
+/// targets.
+fn base_file(scene: &Scene, target: &Target) -> Option<Vec<u8>> {
+    let Target::Group { file } = target else { return None };
+    (1..)
+        .map_while(|k| scene.file(k))
+        .find(|(p, _)| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(file))
+        })
+        .map(|(_, b)| b.to_vec())
 }
 
 fn index_of(scene: &Scene) -> HashMap<String, usize> {
@@ -199,7 +216,7 @@ impl Doc {
             deleted: BTreeSet::new(),
             org: Organisation::default(),
             base_bytes,
-            writer,
+            files: LevelFiles::new(writer),
             schema,
             problems: Vec::new(),
             saved: true,
@@ -257,7 +274,7 @@ impl Doc {
         }
         self.deleted = c.deleted;
         self.by_guid = c.by_guid;
-        self.writer = c.writer;
+        self.files = c.files;
         self.problems = c.problems;
         let rest: Vec<Operation> = self.project.operations.get(c.applied..).unwrap_or_default().to_vec();
         self.last_replayed = rest.len();
@@ -292,7 +309,7 @@ impl Doc {
             meshes: self.scene.collision.as_ref().map(|c| c.meshes.clone()),
             deleted: self.deleted.clone(),
             by_guid: self.by_guid.clone(),
-            writer: self.writer.clone(),
+            files: self.files.clone(),
             problems: self.problems.clone(),
         });
         while self.checkpoints.len() > CHECKPOINTS {
@@ -307,7 +324,7 @@ impl Doc {
         self.scene = self.base.clone();
         self.deleted.clear();
         self.by_guid = index_of(&self.base);
-        self.writer = self.base_bytes.as_deref().and_then(|b| LevelWriter::parse(b).ok());
+        self.files = LevelFiles::new(self.base_bytes.as_deref().and_then(|b| LevelWriter::parse(b).ok()));
         self.problems.clear();
         let r = &self.base_report;
         if r.changed {
@@ -360,12 +377,37 @@ impl Doc {
             cache.borrow_mut().insert(key, b.clone());
             b
         };
-        if let Some(w) = self.writer.as_mut()
-            && let Err(e) = apply_one_with(w, o, &self.schema, &mut Applied::default(), &donors)
-        {
+        // the level's other files are read from the scene as loaded (round OP1)
+        let base = &self.base;
+        let sources = |t: &Target| base_file(base, t);
+        let applied = self
+            .files
+            .apply(o, &self.schema, &mut Applied::default(), &donors, &sources);
+        if let Err(e) = &applied {
             self.problems.push(e.to_string());
         }
         match &o.op {
+            // a multi-file operation: the scene follows only when every edit applied (round OP1)
+            Op::Files { edits } if applied.is_ok() => {
+                for e in edits {
+                    match e {
+                        FileEdit::Partition { op } => self.apply_scene(op),
+                        FileEdit::MemberTransform { instance, item, to, .. } => {
+                            let member = bc2_levelwrite::files::member_guid(instance, *item);
+                            if let Some(k) = self.index(&member) {
+                                self.scene.set_transform(k, bc2_levelwrite::matrix_of(to));
+                            }
+                        }
+                    }
+                }
+            }
+            op => self.apply_scene(op),
+        }
+    }
+
+    /// What an operation of the partition changes in the scene.
+    fn apply_scene(&mut self, op: &Op) {
+        match op {
             Op::Move { items } | Op::Rotate { items } => {
                 for m in items {
                     if let Some(k) = self.index(&m.guid) {
@@ -480,7 +522,7 @@ impl Doc {
     /// An entity for an instance a mode choice brought in (round E3d), from the edited partition: its type, name,
     /// transform, blueprint and team, as the scene loader reads them.
     fn add_layer_entity(&mut self, guid: &str) -> Option<usize> {
-        let w = self.writer.as_ref()?;
+        let w = self.files.partition.as_ref()?;
         let e = w.find(guid)?;
         let type_name = w.type_of(e);
         let short = type_name.rsplit('.').next().unwrap_or(&type_name).to_owned();
@@ -586,7 +628,20 @@ impl Doc {
     /// The level partition being edited (levelwrite's writer), when the scene has one.
     #[must_use]
     pub fn writer(&self) -> Option<&LevelWriter> {
-        self.writer.as_ref()
+        self.files.partition.as_ref()
+    }
+
+    /// The level's files as the log leaves them (round OP1): the partition and the static group files it edits.
+    #[must_use]
+    pub fn files(&self) -> &LevelFiles {
+        &self.files
+    }
+
+    /// A file of the level as it was loaded (round OP1): a static group file's bytes from the scene; `None` for the
+    /// partition (see [`Doc::base_bytes`]) and the files the scene did not read.
+    #[must_use]
+    pub fn base_file(&self, target: &Target) -> Option<Vec<u8>> {
+        base_file(&self.base, target)
     }
 
     /// What a blueprint is (category, the type of its object, destructible): from a placement of it in the scene,
@@ -611,7 +666,7 @@ impl Doc {
     /// partition.
     #[must_use]
     pub fn owned(&self, k: usize) -> Vec<String> {
-        match (self.writer.as_ref(), self.guid(k)) {
+        match (self.files.partition.as_ref(), self.guid(k)) {
             (Some(w), Some(g)) => w.owned(g),
             _ => Vec::new(),
         }
@@ -621,7 +676,7 @@ impl Doc {
     /// level's data; `None` without a partition or a placed object to make it from.
     #[must_use]
     pub fn template_for(&self, blueprint: &str) -> Option<(String, Vec<bc2_levelwrite::ops::FieldIs>)> {
-        let w = self.writer.as_ref()?;
+        let w = self.files.partition.as_ref()?;
         let t = w.template_for(blueprint)?;
         let f = w.place_defaults(&self.schema, &t, blueprint);
         Some((t, f))
@@ -653,6 +708,12 @@ impl Doc {
 
     /// Adds an operation (applied to the scene and the partition at once, autosaved); its number.
     pub fn commit(&mut self, op: Op, label: &str) -> u64 {
+        // a base file edited for the first time is recorded with its sha1 (round OP1: its base-changed check)
+        for t in op.files() {
+            if let Some(b) = base_file(&self.base, &t) {
+                self.project.note_file(&t, &b);
+            }
+        }
         let n = self.project.push(op, label);
         if let Some(o) = self.project.operations.last().cloned() {
             self.apply(&o);
@@ -784,7 +845,7 @@ impl Doc {
     /// The entity's fields, typed from the schema (empty for entities outside the level partition).
     #[must_use]
     pub fn fields(&self, k: usize) -> Vec<FieldRow> {
-        let (Some(w), Some(e)) = (self.writer.as_ref(), self.scene.entities.get(k)) else {
+        let (Some(w), Some(e)) = (self.files.partition.as_ref(), self.scene.entities.get(k)) else {
             return Vec::new();
         };
         w.fields(&self.schema, &e.guid)
@@ -808,7 +869,7 @@ impl Doc {
     /// Whether the doc has the level partition (the demo scene has none: its edits change the scene only).
     #[must_use]
     pub fn has_partition(&self) -> bool {
-        self.writer.is_some()
+        self.files.partition.is_some()
     }
 
     /// The base level's partition as it was loaded (round EX1: Compare with base).
@@ -820,7 +881,7 @@ impl Doc {
     /// The edited partition's bytes.
     #[must_use]
     pub fn partition(&self) -> Option<Vec<u8>> {
-        self.writer.as_ref().and_then(|w| w.write().ok())
+        self.files.partition.as_ref().and_then(|w| w.write().ok())
     }
 
     /// Checks the edits: the whole log applied to the base afresh gives what the editor holds; a summary in words.
@@ -829,9 +890,13 @@ impl Doc {
         let Some(base) = self.base_bytes.as_deref() else {
             return "This scene has no level partition (the demo): its edits change the view only.".into();
         };
-        match bc2_levelwrite::apply(base, &self.project.operations, &self.schema) {
-            Ok(a) => {
-                let same = self.partition().is_some_and(|p| p == a.bytes);
+        let sources = |t: &Target| base_file(&self.base, t);
+        let donors = |lv: &str| self.donors.borrow().get(&lv.to_ascii_lowercase()).cloned().flatten();
+        match bc2_levelwrite::files::apply_files(base, &self.project.operations, &self.schema, &donors, &sources) {
+            Ok(all) => {
+                let a = all.partition;
+                let same =
+                    self.partition().is_some_and(|p| p == a.bytes) && self.files.edited().is_ok_and(|f| f == all.files);
                 let changes = match (
                     bc2_formats::dbx::edit::EditDbx::parse(base),
                     bc2_formats::dbx::edit::EditDbx::parse(&a.bytes),
