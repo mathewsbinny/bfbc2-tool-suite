@@ -538,6 +538,7 @@ fn terrain_draw(
             .map(|c| (c.register, c.values))
             .collect(),
         named: Vec::new(),
+        ps_window: query::block_registers(block),
         vs_extra: extra(query::block_constants(vblock, false)),
         ps_extra: extra(ps_named),
         textures,

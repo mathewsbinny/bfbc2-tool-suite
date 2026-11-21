@@ -313,6 +313,7 @@ pub fn load(
         vs_extra,
         ps_extra: Vec::new(),
         named: material::engine_named(&constants),
+        ps_window: query::block_registers(block),
         textures,
         vs_textures: Vec::new(),
         samplers: sampler_states(db.param(ps.param)),
