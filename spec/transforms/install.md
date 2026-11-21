@@ -4,7 +4,8 @@ Every tool that writes Project OPFOR's game copy (`game\`) is an **install**: in
 shared files) and the game copy; output the game copy with the result in it and what is needed to take it out
 again. Its inverse, **revert**, must give the game copy back byte for byte. Three mechanisms are in use:
 
-- the **stage protocol** (`src\tools\onslaught\console_common.py`): whole-file backups `<file>.opfor-<stage>-orig`,
+- the **stage protocol** (`src\tools\onslaught\console_common.py`; since round DF2 on the install ledger, section 0 -
+  before it:) whole-file backups `<file>.opfor-<stage>-orig`,
   the last-writer record `<file>.opfor-last` (`<stage> <sha1>`), `-applied` records; used by the console stages,
   the WW2 install (`ww2\wake_install.py`) and the map export's install (`mapedit\mapedit_install.py`);
 - the **ledger** (`opforcore\ledger.py`), per-slot contributions to shared files, which replaces whole-file backups
@@ -67,7 +68,67 @@ in plain words before anything is written (OPFOR's migration moves the rest).
 [code: rust/bc2-formats/src/gameledger.rs:1504-1617] [code: core/bfbc2core/gameledger.py:856-918]
 [test: rust/bc2-formats/src/gameledger_tests.rs::legacy_markers_are_adopted] [test: core/tests/test_gameledger.py::legacy]
 
-<!-- DF2: Project OPFOR's half (its stages on the ledger, the migration of their markers) goes here. -->
+### XINST-OPF-1: OPFOR's stages are layers of the ledger, built on the file below
+
+Status: **verified**
+
+Every whole-file write of Project OPFOR's installers - the Onslaught `console_*` stages and Napisal-level `apply_*`
+fixes (owner `<stage>:<level>`), the Pacific War install (`wake`) and menu mode (`pacificmenu`), the map export's
+install (`mapedit`) and the import scripts (`import`) - is one journalled commit of `opforcore.stages` on the ledger
+of XINST-GL-1, with `derived` set: the bytes were built from the file as the stage found it. A redo (the stage on
+top, the file its write) builds on the ledger's copy from before it; re-applying a stage under a later layer, or
+reverting it while a later layer sits on it, is refused in words naming the stage to revert first
+(`console_port.py --from N` reverts N..14 first). A file changed outside the ledger since its top owner wrote it is
+refused before anything is written.
+
+[code: opfor:src/tools/opforcore/stages.py:240-312] [code: opfor:src/tools/onslaught/console_common.py:191-300]
+[test: opfor:src/tools/opforcore/tests/test_stages.py::test_derived_stages_revert_in_order_only]
+[test: opfor:src/tools/opforcore/tests/test_stages.py::test_ds1_sequence_keeps_dices_file]
+[test: opfor:src/tools/opforcore/tests/test_stages.py::test_every_order_of_two_independent_tools]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_an_earlier_tools_revert_never_goes_under_a_later_stage]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_loading_startup_layers_per_level_revert_in_order]
+
+### XINST-OPF-2: No interruption leaves a broken file, and the next run resumes
+
+Status: **verified**
+
+An error at any write of a stage's commit (a file the game holds, a full disk) rolls the commit back from the
+journal; a killed process leaves the lock and the journal, and the next run of any OPFOR install rolls it back
+before it starts. After each, every file is the start or the expected stage, never truncated. No OPFOR tool writes a
+game file in place (a lint test).
+
+[test: opfor:src/tools/opforcore/tests/test_stages.py::test_exception_at_every_write_step_rolls_back]
+[test: opfor:src/tools/opforcore/tests/test_stages.py::test_kill_at_every_write_step_is_resumed]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_a_stage_revert_interrupted_at_every_write_leaves_the_bundle_whole]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_no_tool_writes_the_game_copy_outside_the_ledger]
+
+### XINST-OPF-3: The old markers migrate into the ledger without losing an original
+
+Status: **verified**
+
+`opforcore\migrate.py` reads every file's old markers (`.opfor-<stage>-orig`, `.opfor-last`, `-applied`, NavKit's and
+stock-MP's), orders the backups by their write time into a stack (each backup the prior of its stage, the next one
+its write), checks the stack against `.opfor-last` and stock-MP's record, and with `--apply` hard-links each backup
+into a blob, writes the records and moves the markers to `game\opfor\legacy-markers`. It is idempotent, resumes an
+interrupted run, and refuses an inconsistent file in words, leaving it as it was. On a scratch copy of the 23 marked
+files of the author's game copy (2026-11-21), every one migrated and the 45 owners reverted top-down each gave back
+its old backup byte for byte.
+
+[code: opfor:src/tools/opforcore/migrate.py:1-40]
+[test: opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_then_revert_gives_every_backup_back]
+[test: opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_is_idempotent_and_resumes]
+[test: opfor:src/tools/opforcore/tests/test_migrate.py::test_inconsistent_markers_are_refused_and_left]
+
+### XINST-OPF-4: OPFOR and the suite read and stack on each other's records
+
+Status: **verified**
+
+OPFOR's `opforcore.ledger` and the suite's store (`bc2_formats::gameledger`, `bfbc2core.gameledger`) read each
+other's records and blobs: a NavKit layer under an OPFOR stage is refused a splice (the stage is derived), and
+audit AU4's DS-1 sequence across the three implementations ends with DICE's file.
+
+[test: opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_opfor_and_the_suites_python_twin_share_one_store]
+[test: opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_ds1_sequence_across_python_and_rust]
 
 
 ## 1. The stage protocol
@@ -88,28 +149,27 @@ is installed.
 
 Status: **verified**
 
-Before a stage writes a file, its backup `<file>.opfor-<stage>-orig` becomes the file as it is, except when the
-stage redoes its own last write (it is the last writer and the file is as it left it): then the backup from before
-that write stays. A backup is refused, and nothing installed, when the stage has one and the file matches no
-recorded state (not the last-writer record, not the backup, no tool's `-applied` record): the file was truncated or
-changed by a tool that keeps no record, and the backup may be the only good copy.
+**Superseded by XINST-GL-1 / XINST-OPF-1 (round DF2).** Before DF2 a stage kept `<file>.opfor-<stage>-orig`; now the
+file before each stage is the ledger's prior, kept once by sha, and a redo keeps it. A file that matches no recorded
+state (truncated, or changed by a tool that keeps no record) is refused before anything is written.
 
-[code: opfor:src/tools/onslaught/console_common.py:235-279]
-[test: opfor:src/tools/tests/test_console_common.py::test_take_backup_first_install_copies] [test: opfor:src/tools/tests/test_console_common.py::test_take_backup_redo_keeps_the_backup]
-[test: opfor:src/tools/tests/test_console_common.py::test_take_backup_after_a_recorded_stage_refreshes] [test: opfor:src/tools/tests/test_console_common.py::test_take_backup_refuses_a_truncated_file]
-[test: opfor:src/tools/tests/test_console_common.py::test_take_backup_accepts_an_applied_record]
+[code: opfor:src/tools/opforcore/stages.py:240-312]
+[test: opfor:src/tools/opforcore/tests/test_stages.py::test_outside_change_is_refused_and_files_created_are_removed]
+[test: opfor:src/tools/opforcore/tests/test_stages.py::test_derived_stages_revert_in_order_only]
 
 ### XINST-STG-3: The last writer builds from its backup; others build on the current file
 
 Status: **verified**
 
-Every install records itself as the file's last writer (`<file>.opfor-last`: the stage and the file's sha1). A stage
-rebuilds from its own backup only when it is the last writer; otherwise it builds on the file as it is, so a re-run
-of an early stage keeps every later stage's work. A tool's `-applied` records that named the file before a rewrite
-are moved to the new sha1 (its changes are still in it).
+A stage rebuilds from the file before its own last write only when it is the file's top layer and the file is its
+write; otherwise it builds on the file as it is, so a re-run of an early stage keeps every later stage's work - and
+since DF2 that re-run is refused while a later layer sits on it (revert that one first). The `.opfor-last` and
+forwarded `-applied` records of before DF2 are retired (audit AU4, DS-10: a forwarded record let an earlier tool's revert
+put its old backup over a later stage).
 
-[code: opfor:src/tools/onslaught/console_common.py:191-233]
-[test: opfor:src/tools/tests/test_onslaught.py::test_linux_base_ignores_a_stale_backup] [test: opfor:src/tools/tests/test_onslaught.py::test_hud_source_is_the_current_bundle_unless_a_redo]
+[code: opfor:src/tools/opforcore/stages.py:220-238] [code: opfor:src/tools/onslaught/console_linux_base.py:134-143]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_linux_base_redo_builds_on_the_first_stage_and_a_later_stage_refuses]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_hud_source_is_the_current_bundle_unless_a_redo]
 [test: opfor:src/tools/tests/test_onslaught.py::test_hud_builds_on_the_current_movie_and_never_patches_twice]
 [data: 2026-10-30, Valparaiso: two stages re-applied from old backups dropped the soldier pass and the Mark V; the rule followed]
 
@@ -117,14 +177,14 @@ are moved to the new sha1 (its changes are still in it).
 
 Status: **verified**
 
-`--revert` of a stage puts its backup back only when the stage is the file's last writer (its record names the file
-as it is now); a tool keeping `-applied` records reverts only when the record exists and matches (`--force` for an
-install from before the record was kept, still refused when a record differs). Otherwise it is refused before
-anything changes: reverting would undo another stage's work.
+`--revert` of a stage gives its files back as they were before it, and is refused before anything changes while
+another stage's layer sits on it (naming that stage) or a file changed outside the ledger since the stage wrote it.
+`--force` of the Napisal-level tools is no longer needed (every install they make is recorded).
 
-[code: opfor:src/tools/onslaught/console_common.py:281-301]
-[test: opfor:src/tools/tests/test_console_common.py::test_check_revert_needs_the_record] [test: opfor:src/tools/tests/test_console_common.py::test_check_applied]
-[test: opfor:src/tools/tests/test_onslaught.py::test_reverts_are_refused_without_a_record] [test: opfor:src/tools/tests/test_onslaught.py::test_sector_offsets_and_ai_template_revert_need_a_record]
+[code: opfor:src/tools/opforcore/stages.py:240-312]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_combat_squads_revert_refused_after_an_outside_change]
+[test: opfor:src/tools/tests/test_df2_installs.py::test_an_earlier_tools_revert_never_goes_under_a_later_stage]
+[test: opfor:src/tools/tests/test_console_common.py::test_install_and_revert_wrappers_refuse_in_words]
 
 ### XINST-STG-5: Scratch is deleted on success, never a backup
 
@@ -146,7 +206,7 @@ Status: **verified**
 shared files' patch, and refuses before writing anything: while the game runs, when another tool wrote a shared file
 after this tool's last install (revert that tool first), or when a backup would be refused (XINST-STG-2).
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:341-345] [code: opfor:src/tools/mapedit/mapedit_install.py:378-385]
+[code: opfor:src/tools/mapedit/mapedit_install.py:274-290] [code: opfor:src/tools/mapedit/mapedit_install.py:356-366]
 [test: opfor:src/tools/tests/test_mapedit_install.py::test_needed_shared_files]
 
 ### XINST-MAP-2: The order: bundles, record, startup and menus, registration last
@@ -158,7 +218,7 @@ An install copies the level's bundles into `Package\levels\<lv>\` with a record 
 last (REG-NEW-4). The shared patch is always built from this tool's backup while it wrote the file last, so every
 installed export is in one patch, and a shared file no installed export needs any more goes back from its backup.
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:386-403] [code: opfor:src/tools/mapedit/mapedit_install.py:234-275]
+[code: opfor:src/tools/mapedit/mapedit_install.py:346-378] [code: opfor:src/tools/mapedit/mapedit_install.py:234-275]
 [test: opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy] [test: opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last]
 
 ### XINST-MAP-3: Revert gives every file back byte for byte
@@ -171,7 +231,7 @@ exports stay) or, for the last level out, restores each shared file from its bac
 had before** (`.opfor-mapedit-prevlast`), and removes the level's folder last. Installing every staged export one
 after another on a scratch copy and reverting them gives every shared file back byte for byte, with its record.
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:361-376] [code: opfor:src/tools/mapedit/mapedit_install.py:405-436]
+[code: opfor:src/tools/mapedit/mapedit_install.py:346-354] [code: opfor:src/tools/mapedit/mapedit_install.py:380-403]
 [test: opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:924-936]
 
@@ -205,7 +265,8 @@ a foreign edit changed) is reported and nothing is written.
 
 ## Open questions
 
-- The stage protocol and the ledger coexist; which tools still use whole-file backups, and the ledger's adoption of
-  them (`adopt`), are OPFOR's migration, not yet complete.
+- Since round DF2 every whole-file install is on the ledger; the game copies with old markers are migrated by
+  `opforcore\migrate.py` (XINST-OPF-3). The slot contributions (XINST-LED-1) are used by OPFOR's add-ons only; moving
+  the registration writes (package.mft blocks, bundleManifest lines, ini keys) onto slots is IN1's.
 - The installer is planned to move into the suite (EDITOR_ARCHITECTURE 6, ruling 3); until then these rules cite
   OPFOR's code.

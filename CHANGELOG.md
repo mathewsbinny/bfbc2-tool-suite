@@ -30,6 +30,9 @@ landed on `main`.
   revert cut short (a locked file, a full disk, a kill) is rolled back by the next command. `bfbc2 gameledger
   status|holders|original|recover <game>` shows it and finishes an interrupted one. The suite's half:
   `bc2_formats::gameledger` and its Python twin `bfbc2core.gameledger`.
+  Project OPFOR's half (its own DF2 branch): every Onslaught stage, the Pacific War install and menu mode, the map
+  export's install and the import scripts write through `opforcore.stages` on the same ledger, and
+  `opforcore\migrate.py` moves a game copy's old `.opfor-*` backup markers into it without losing an original.
 - **Map editor: the mode view layer** (round VW2): show every object, the game mode layer only or the level without
   it, and a Rush level one stage at a time as it is played (L1's simulation of the stages' events: MP_005GR,
   MP_005SR, NAM_MP_002R and BC1_OASIS_GR give L1's bases per stage), in both views, the outliner and the overlays.

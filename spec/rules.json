@@ -13882,6 +13882,106 @@
    ]
   },
   {
+   "id": "XINST-OPF-1",
+   "title": "OPFOR's stages are layers of the ledger, built on the file below",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/stages.py:240-312"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:191-300"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_derived_stages_revert_in_order_only"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_ds1_sequence_keeps_dices_file"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_every_order_of_two_independent_tools"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_an_earlier_tools_revert_never_goes_under_a_later_stage"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_loading_startup_layers_per_level_revert_in_order"
+    }
+   ]
+  },
+  {
+   "id": "XINST-OPF-2",
+   "title": "No interruption leaves a broken file, and the next run resumes",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_exception_at_every_write_step_rolls_back"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_kill_at_every_write_step_is_resumed"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_a_stage_revert_interrupted_at_every_write_leaves_the_bundle_whole"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_no_tool_writes_the_game_copy_outside_the_ledger"
+    }
+   ]
+  },
+  {
+   "id": "XINST-OPF-3",
+   "title": "The old markers migrate into the ledger without losing an original",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/migrate.py:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_then_revert_gives_every_backup_back"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_migrate.py::test_migrate_is_idempotent_and_resumes"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_migrate.py::test_inconsistent_markers_are_refused_and_left"
+    }
+   ]
+  },
+  {
+   "id": "XINST-OPF-4",
+   "title": "OPFOR and the suite read and stack on each other's records",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_opfor_and_the_suites_python_twin_share_one_store"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_suite_ledger_compat.py::test_ds1_sequence_across_python_and_rust"
+    }
+   ]
+  },
+  {
    "id": "XINST-STG-1",
    "title": "Writes are atomic",
    "file": "spec/transforms/install.md",
@@ -13913,27 +14013,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_common.py:235-279"
+     "ref": "opfor:src/tools/opforcore/stages.py:240-312"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_first_install_copies"
+     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_outside_change_is_refused_and_files_created_are_removed"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_redo_keeps_the_backup"
-    },
-    {
-     "kind": "test",
-     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_after_a_recorded_stage_refreshes"
-    },
-    {
-     "kind": "test",
-     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_refuses_a_truncated_file"
-    },
-    {
-     "kind": "test",
-     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_accepts_an_applied_record"
+     "ref": "opfor:src/tools/opforcore/tests/test_stages.py::test_derived_stages_revert_in_order_only"
     }
    ]
   },
@@ -13945,15 +14033,19 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_common.py:191-233"
+     "ref": "opfor:src/tools/opforcore/stages.py:220-238"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_linux_base.py:134-143"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_onslaught.py::test_linux_base_ignores_a_stale_backup"
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_linux_base_redo_builds_on_the_first_stage_and_a_later_stage_refuses"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_onslaught.py::test_hud_source_is_the_current_bundle_unless_a_redo"
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_hud_source_is_the_current_bundle_unless_a_redo"
     },
     {
      "kind": "test",
@@ -13973,23 +14065,19 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_common.py:281-301"
+     "ref": "opfor:src/tools/opforcore/stages.py:240-312"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_console_common.py::test_check_revert_needs_the_record"
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_combat_squads_revert_refused_after_an_outside_change"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_console_common.py::test_check_applied"
+     "ref": "opfor:src/tools/tests/test_df2_installs.py::test_an_earlier_tools_revert_never_goes_under_a_later_stage"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_onslaught.py::test_reverts_are_refused_without_a_record"
-    },
-    {
-     "kind": "test",
-     "ref": "opfor:src/tools/tests/test_onslaught.py::test_sector_offsets_and_ai_template_revert_need_a_record"
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_install_and_revert_wrappers_refuse_in_words"
     }
    ]
   },
@@ -14021,11 +14109,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:341-345"
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:274-290"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:378-385"
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:356-366"
     },
     {
      "kind": "test",
@@ -14041,7 +14129,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:386-403"
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:346-378"
     },
     {
      "kind": "code",
@@ -14065,11 +14153,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:361-376"
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:346-354"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/mapedit/mapedit_install.py:405-436"
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:380-403"
     },
     {
      "kind": "test",
