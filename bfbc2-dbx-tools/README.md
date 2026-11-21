@@ -1,8 +1,8 @@
 # DBX tools
 
 **DbxEdit** reads, converts, checks and edits Battlefield: Bad Company 2's binary `.dbx` files (Frostbite 1
-data as a tokenised XML tree), from the command line or in a window (**DbxEditGUI**). The format is the
-same on PC and Xbox 360.
+data as a tokenised XML tree), from the command line or in a window (the map editor's **DBX inspector**). The
+format is the same on PC and Xbox 360.
 
 | Command | What it does |
 |---|---|
@@ -12,7 +12,7 @@ same on PC and Xbox 360.
 | `DbxEdit check` | find what crashes or breaks a level, without starting the game |
 | `DbxEdit fixslots` | repair cull slots (houses and vehicles turning see-through) |
 | `DbxEdit roundtrip` | read and rewrite files, report any that would change |
-| `DbxEditGUI` | all of this in a window |
+| `bfbc2-editor --dbx <file>` | all of this in a window: the map editor's DBX inspector |
 
 Anything DbxEdit doesn't change is written back byte for byte. [FORMAT.md](FORMAT.md) describes the format
 and everything DbxEdit does; the code is written from it.
@@ -28,32 +28,40 @@ tools call `bfbc2core.dbxedit.run([...])`, or
 
 **DbxEdit.exe was retired** (round R4, 2026-11-18): the C# command line was the reference its port was proven
 against (the same files, messages and exit codes); its answers are recorded in `core/tests/dbxedit_golden*.json` and
-`tests/fingerprints_795745.txt`, and the tests check the port against them. `DbxEdit.cs` stays as the DBX classes the
-window is built on (LevelDiff's too, until round EX1 made it `bfbc2.exe leveldiff`).
+`tests/fingerprints_795745.txt`, and the tests check the port against them.
 
-**The window:** run `build.bat`. It compiles `DbxEditGUI.exe` (DbxEditGUI.cs and DbxEdit.cs) into this folder with
-the C# compiler that ships with Windows (.NET Framework 4) and needs no install. It stays until the map editor
-replaces it with a generic DBX inspector panel (round GR4, `ROADMAP.md`; the plan:
-`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` section 9.4). The map editor's Properties > All fields already shows
-every field of a level's objects (round GR1).
+**DbxEditGUI was retired** (round GR4, 2026-11-21; `RETIRED.md`), and with it `DbxEdit.cs`, the C# DBX classes it
+was built on, its `build.bat` and its tests (`DbxTests.cs`, `run_tests.bat`): the suite has no C# left. Its window is
+the map editor's **DBX inspector** (`bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.4), proven to give DbxEditGUI's own
+answers on 19 real files (`rust/BENCHMARKS.md`, "GR4").
 
-## The window
+## The window: the map editor's DBX inspector
 
-Start `DbxEditGUI.exe` and open a `.dbx` file (File > Open, or drop it on the window).
+`bfbc2-editor --dbx <file.dbx>` (the hub's More tools > DBX inspector), the start screen's "Inspect a DBX file", or
+the command palette's "DBX inspector" inside a level. Open a `.dbx` file (Open, or drop it on the window), an entry
+of a bundle (From bundle: the `.fbrb`, List entries, choose one), one of the open level's files, or the open
+project's level partition.
 
-- **The tree** shows the file: instances (bold) with their fields, lists and values. Lists open when you
-  expand them.
-- **Select a value** to edit it on the right. Numbers in a list are separated by `/`. Attributes, for
-  example a reference, are edited in the table above it. **Apply** stores the change, and
-  **Go to reference** jumps to the instance a reference points to.
-- **Instance menu** (also on right-click): remove an instance, graft one from another file, copy a field
-  from another file, add a list entry.
-- **Edit menu:** undo (Ctrl+Z), find (Ctrl+F, then F3), replace strings, remove a field everywhere, set a
-  bool everywhere, change the file's own GUID.
-- **Level menu:** check the level (F5), check its cull slots against another level, fix cull slots. The
-  results appear in the bottom pane; double-click a line to go to its instance.
-- **File menu:** save (the first save keeps the original as `<name>.dbx.bak`), export or import XML, and
-  **Save edit script**, which writes your edits as DbxEdit commands to replay on another file.
+- **The tree** shows the file: instances (bold) with their fields, lists and values; references in the accent
+  colour. Lists open when you expand them.
+- **Select an element** to edit it on the right. Numbers in a list are separated by `/`. Attributes, for example a
+  reference, are edited in the table above it. **Apply** stores the change (a decimal rounded to the nearest
+  4-byte value is said in the output), **Go to reference** jumps to the instance a reference points to. A 4-byte
+  number the XML prints as a whole number though it is stored as a tiny decimal (7.3e-40 shows as 524288, its bits)
+  says so under the value; editing keeps its bits.
+- **Instance menu:** remove an instance, graft one from another file, copy a field from another file, add a list
+  entry, copy the GUID.
+- **Edit menu:** replace strings, replace a prefix, remove a field everywhere, set a bool everywhere, change the
+  file's own GUID. **Undo** takes back the last edit; **Find** (then Next or F3) searches tags, attributes and values.
+- **Level menu:** check the level, check its cull slots against another level, fix cull slots. The results appear
+  in the bottom pane; double-click a line to go to its instance.
+- **Files:** Save (the first save keeps the original as `<name>.dbx.bak`), Save as, Save into bundle (a copy of
+  the bundle the entry came from, every other entry as it was: FbrbTool's unpack and pack), Export XML, Import XML,
+  and **Save edit script**, which writes your edits as DbxEdit commands to replay on another file with
+  `bfbc2.exe dbxedit edit <in.dbx> <out.dbx> @<script>`.
+- **The project's partition:** a field edit goes into the project as an operation (History, Ctrl+Z, saved with the
+  project), the field's bits exactly as the file would take them; the other menus are left out (they would bypass
+  the project), Save as makes a file of it.
 
 ## Convert to XML and back
 
@@ -152,24 +160,28 @@ now-unused strings stay in the file.
 
 ## Errors and logs
 
-DbxEdit (in process: `dbxedit-<date>.log`) and DbxEditGUI (which builds on `DbxEdit.cs`: `ToolLog`)
-keep a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\`, as all the suite's tools do. An unexpected
-error is explained - the likely cause (a file in use, read-only, missing, not a binary .dbx or damaged, out of
-memory) and what to do - with the log's path: on the command line with exit code 1, in DbxEditGUI in a window
-(the window keeps running). Files skipped in a folder conversion are logged as warnings.
+DbxEdit (in process: `dbxedit-<date>.log`) keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\`, as all the
+suite's tools do. An unexpected error is explained - the likely cause (a file in use, read-only, missing, not a
+binary .dbx or damaged, out of memory) and what to do - with the log's path, with exit code 1. The DBX inspector
+shows an error in its window (a value not accepted leaves the file as it was). Files skipped in a folder conversion
+are logged as warnings.
 
 ## Tests
 
 ```
-tests\run_tests.bat                          DbxEditGUI and its DBX classes: small files built in memory
-tests\run_tests.bat <unpacked folder> [...]  + every binary .dbx in the folders
-python ..\core\tests\test_dbxedit.py [--game] the commands (Rust core) against DbxEdit.exe's recorded answers
+python ..\core\tests\test_dbxedit.py [--game]   the commands (Rust core) against DbxEdit.exe's recorded answers
+cargo test -p bc2-editor --test editor gr4::      the DBX inspector's window (rust\ folder)
+cargo test -p bc2-editor --test editor dbxedit_parity:: -- --ignored   against DbxEditGUI's recorded answers
 ```
 
-- **Unit tests** (DbxTests.cs, of the C# classes the window uses) cover the format, the XML export and import
-  (including the XML reader's handling of duplicate attributes, entities, CDATA and line breaks), every edit
-  command, the level check, the slot fixer and the window. The command line's cases (messages and exit codes) are
-  `core\tests\test_dbxedit.py`'s, against the retired exe's recorded answers.
+- **The command line's cases** (DbxTests.cs' unit cases as command lines: the format, XML export and import, every
+  edit command, the level check, the slot fixer - messages and exit codes) are `core\tests\test_dbxedit.py`'s,
+  against the retired exe's recorded answers.
+- **The window** (`rust/bc2-editor/tests/dbxedit_parity.rs`): DbxEditGUI's own answers recorded on 19 real files
+  before it went (`tests/data/dbxeditgui_gr4.json.gz`, digests) - the tree, 618 Applies, Undo, Save and `.bak`,
+  Find, every menu command, graft, copy field, the level check, fix slots, XML export and import, the edit script -
+  replayed on the inspector, every step identical; and every unique `.dbx` of the prepared levels (31,037) written
+  back and through XML and import byte for byte.
 - **With game folders** (FbrbTool-unpacked bundles), every binary file must:
   - round-trip byte for byte;
   - come back exactly through `xml`, then `import`;
@@ -199,8 +211,9 @@ On 43,290 unique `.dbx` files (PC, Xbox 360 and Linux server data, plus edited l
   problems it had (an empty object-list entry, model groups without physics, missing world objects, wrong
   cull slots), with no false alarms on stock levels. `fixslots` reproduced a hand-made slot repair byte
   for byte.
-- **The window:** opening, editing, saving, undo and the level check were driven from a test program;
-  saving gives the same bytes as the command line.
+- **The window** (DbxEditGUI until round GR4, the map editor's DBX inspector since): opening, editing, saving,
+  undo and the level check give the same bytes as the command line; the inspector gives DbxEditGUI's answers on
+  1,232 recorded steps.
 
 ## Credits
 

@@ -21,8 +21,6 @@
  "paths: OPFOR, game copy, tools and sibling projects on a stand-in tree": 0.2,
  "converter edges (dbx numbers, dbxport references, texture check)": 0.2,
  "converter units (havok w lanes, MOPP byte code, L8 textures and flags, mesh rename, texcoords, mesh relayout)": 0.2,
- "DbxEditGUI build (when stale)": 0.0,
- "DbxEditGUI and the DBX classes it is built on (DbxEdit.cs): unit tests and the window": 1.1,
  "FbrbTool round trip, built bundle": 0.4,
  "DBX writer (Rust) against the retired Python writer's recorded bytes (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)": 3.4,
  "DbxEdit's commands in process against DbxEdit.exe's recorded answers (the unit tests' 82 cases, the drop-in runner, the batch, the log)": 5.5,
