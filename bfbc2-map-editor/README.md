@@ -68,6 +68,7 @@ writes the game copy.
 
     bin\mapexport.exe build   <project.mapedit.json> <export.json> --game <game folder> --out <stage folder>
     bin\mapexport.exe check   <stage folder> --game <game folder>
+    bin\mapexport.exe names   <export.json> --game <game folder> [--project <project.mapedit.json>]
     bin\mapexport.exe startup <startup-00.fbrb> --out <file> --work <temp folder> [--add <LEVEL> <description.dbx>]... [--remove <LEVEL>]...
     bin\mapexport.exe overlay <overlay-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]... [--remove <LEVEL>]...
     bin\mapexport.exe awards  <ondemand_awards-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]... [--remove <LEVEL>]...
@@ -82,7 +83,8 @@ game-accurate view; G4 (2026-11-19) the start flow; E3 - E3d (2026-11-18 / 20) e
 any era and mode, with Install and Uninstall through Project OPFOR; GR1 (2026-11-20) the Map Inspector folded in and
 retired: Properties' *All fields* (every field of an object, nested, with its type), the *Links* panel (references,
 referenced by and event connections, both ways; K draws them in the views) and Measure (M); GR2 (2026-11-20) the
-Navigation Studio folded into the AI workspace and retired. The editor's exports are built and checked offline; none
+Navigation Studio folded into the AI workspace and retired; EX1 (2026-11-20) every name of an export, its preview
+beside the original, and the Diff panel (LevelDiff folded in and retired). The editor's exports are built and checked offline; none
 has been tested in the game yet (the user paused in-game tests on 2026-11-20).
 
 **The start screen (round G4).** Three paths: **Open project** (a `.mapedit.json`; the recent projects are listed),
@@ -158,6 +160,24 @@ Island's black terrain cells, the sky pass, game LODs ...) are round R5d (`ROADM
 - **Install and Uninstall:** "Install..." runs Project OPFOR's `src\tools\mapedit\mapedit_install.py --plan` and shows
   what an install changes; "Install now" (the game closed) runs `--apply`; "Uninstall..." runs `--revert <LV>`. The
   editor itself never writes the game copy.
+
+- **The names (round EX1):** the Export window's Names section edits every name of the level - the **level id**
+  (what the game loads, `Levels/<ID>`), its **folder** (`Package\levels\<id>\`: the id in lower case, as on every
+  level of the game; renaming the folder renames the id), the **server-browser name** (`maps.ini`: the launcher's row
+  and the browser's `OPFOR - <name> (<mode>)`) and the **on-screen name and description per language** (the menus,
+  the loading screen, the browser's map column; each language's own letters). They are checked together, with the
+  reason in words: no stock level's id or another project's export, no `_NAME` inside the id (a black loading
+  screen), no text or loading picture the game already has, characters and lengths the files hold. **Keep in
+  project** (and Export) puts them in the project's log. `bin\mapexport.exe names <export.json> --game <game>` checks
+  them from a command prompt.
+- **Preview export (round EX1):** after an export, "Preview export" opens the stage read only beside the original
+  base level, with the same camera; **T** switches between them; Close preview gives the project back.
+- **The Diff panel (round EX1, LevelDiff folded in):** **Compare with base** (the project against its base) and
+  **Compare with level** (against any other level): every object added, removed, moved or changed, filtered by kind,
+  group (mode layer, from other sets, campaign content, world) and text; a click selects it and flies there, its
+  fields are listed, Inspect opens All fields. The 3D view tints the differing objects and marks with a box where an
+  object of the other level stands. From a command prompt: `bin\bfbc2.exe leveldiff <a.dbx> <b.dbx>` (LevelDiff's
+  arguments and output).
 
 Six canary exports (Aurora as WW2 Conquest with WW2 objects, Atacama Rush as Conquest, Wake Island as BFBC2,
 a Vietnam map as WW2, Valparaiso as Vietnam Squad Deathmatch, Guadalcanal as BFBC2 Rush) pass the check and install
@@ -266,5 +286,7 @@ headless (`tests/editing.rs`: click, a 5 m drag on the grid, undo, redo, a 15-de
 delete, snap to ground sunk 0.5 m and kept on the next move, a layer, save and reopen).
 The later rounds' tests sit beside them: `tests\e2b.rs` and `tests\asset_browser.rs` (E2b), `tests\g3.rs` and
 `tests\g4.rs` (the start screens), `tests\game_view*.rs` (R5 - R5c), and in `rust\bc2-levelwrite\tests` the exports
-(`export_sp01.rs`, `export_e3b.rs`, `export_e3c.rs`, `export_e3d.rs`); each round's figures are in its
+(`export_sp01.rs`, `export_e3b.rs`, `export_e3c.rs`, `export_e3d.rs`, `export_ex1.rs` - the names), `tests\ex1.rs`
+(the Names section, the preview, the Diff panel) and `rust\bc2-cli\tests\leveldiff.rs` (`bfbc2 leveldiff` against
+the retired LevelDiff.exe's recorded answers); each round's figures are in its
 `rust/BENCHMARKS.md` section.

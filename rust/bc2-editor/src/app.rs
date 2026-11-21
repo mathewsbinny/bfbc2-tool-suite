@@ -43,6 +43,7 @@ use crate::render::{self, Gpu, SceneGpu, Target};
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
 mod create;
+mod diffui;
 mod displayui;
 mod editui;
 mod inspectui;
@@ -91,6 +92,9 @@ pub enum Tab {
     NavIslands,
     /// The navigation edits: tools, the project's edits, build, install, restore (round GR2).
     NavEdits,
+    /// What differs between two levels: the project and its base, two levels, an export and its original (round
+    /// EX1: LevelDiff folded in).
+    Diff,
 }
 
 impl Tab {
@@ -107,6 +111,7 @@ impl Tab {
             Self::Navigation => "Navigation",
             Self::NavIslands => "Islands and spawns",
             Self::NavEdits => "Navigation edits",
+            Self::Diff => "Diff",
         }
     }
 }
@@ -118,7 +123,7 @@ pub fn default_layout() -> DockState<Tab> {
     let mut d = DockState::new(vec![Tab::Viewport(Projection::Perspective)]);
     let s = d.main_surface_mut();
     let [centre, _] = s.split_left(NodeIndex::root(), 0.2, vec![Tab::Outliner, Tab::Layers, Tab::Content]);
-    let [centre, right] = s.split_right(centre, 0.72, vec![Tab::Properties, Tab::Navigation]);
+    let [centre, right] = s.split_right(centre, 0.72, vec![Tab::Properties, Tab::Navigation, Tab::Diff]);
     let [_, _] = s.split_below(right, 0.6, vec![Tab::Links, Tab::NavEdits, Tab::NavIslands]);
     let [_, _] = s.split_below(centre, 0.78, vec![Tab::Problems, Tab::History]);
     d
@@ -328,6 +333,8 @@ pub struct ViewState {
     pub measuring: bool,
     /// The measured path's points.
     pub measure: Vec<V3>,
+    /// What differs from another level, the Diff panel's filters and choice (round EX1).
+    pub diff: crate::compare::DiffState,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -451,6 +458,10 @@ pub struct EditorApp {
     pictures: HashMap<String, egui::TextureHandle>,
     /// The Export window (round E3: `export_ui`).
     pub export: crate::export_ui::ExportWindow,
+    /// The export's preview (round EX1): the side not shown, the project kept aside.
+    preview: Option<Box<diffui::Preview>>,
+    /// A preview being opened.
+    preview_job: Option<diffui::PreviewJob>,
 }
 
 /// The folder new projects go to when none was chosen before: `Documents\BFBC2 Map Projects`.
@@ -531,6 +542,8 @@ impl EditorApp {
             catalog_rx,
             pictures: HashMap::new(),
             export: crate::export_ui::ExportWindow::default(),
+            preview: None,
+            preview_job: None,
         })
     }
 
@@ -567,6 +580,9 @@ impl EditorApp {
     /// Why an action cannot run now (for its disabled control's tooltip), or `None` when it can.
     #[must_use]
     pub fn why_not(&self, action: Action) -> Option<&'static str> {
+        if let Some(w) = self.compare_why_not(action) {
+            return Some(w);
+        }
         why_not_in(self.view(), action)
     }
 }
@@ -587,6 +603,13 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
         let objects = v.is_some_and(|v| v.doc.is_some() && v.workspace == Workspace::Objects);
         match action {
             Action::Brush(b) => b.workspace().coming(),
+            Action::CompareWithBase if doc.is_none() => {
+                Some("Open a project first (New map from an existing map, or Open a project)")
+            }
+            Action::ToggleDiffMarks | Action::ShowPanel(PanelKind::Diff) if !open => Some("Open a map first"),
+            Action::ToggleDiffMarks if v.is_none_or(|v| v.diff.current().is_none()) => {
+                Some("Compare first (the Diff panel)")
+            }
             Action::PathTest
             | Action::NavTool(_)
             | Action::NavColour(_)
@@ -748,6 +771,9 @@ impl EditorApp {
         {
             return;
         }
+        if self.compare_action(gpu, action) {
+            return;
+        }
         match action {
             Action::ShowPanel(p) => {
                 let tab = match p {
@@ -760,6 +786,7 @@ impl EditorApp {
                     PanelKind::Navigation => Tab::Navigation,
                     PanelKind::NavIslands => Tab::NavIslands,
                     PanelKind::NavEdits => Tab::NavEdits,
+                    PanelKind::Diff => Tab::Diff,
                 };
                 if let Some(path) = self.dock.find_tab(&tab) {
                     let _ = self.dock.set_active_tab(path);
@@ -1315,6 +1342,7 @@ impl EditorApp {
             field_rects: Vec::new(),
             measuring: false,
             measure: Vec::new(),
+            diff: crate::compare::DiffState::default(),
         };
         if editing {
             v.refresh(gpu, &palette);
@@ -1436,6 +1464,14 @@ impl EditorApp {
             }
         }
         self.nav_confirm_modal(&ctx, &palette);
+        // round EX1: the export's preview opening, a comparison's answer
+        self.poll_preview(gpu, &ctx);
+        if let Mode::View(v) = &mut self.mode {
+            v.diff_poll(gpu, &palette);
+            if v.diff.job.is_some() {
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            }
+        }
         let metrics = Metrics::new(self.tokens);
         for asked in self.top_bar(ui, &palette, &metrics) {
             match asked {
@@ -1466,6 +1502,9 @@ impl EditorApp {
         {
             // the target or a placement changed the project (round E3d): the views follow
             v.refresh(gpu, &palette);
+        }
+        if let Some(stage) = self.export.want_preview.take() {
+            self.start_preview(&stage);
         }
         let mut cancel = false;
         let Self {
@@ -2430,6 +2469,7 @@ impl TabViewer for Tabs<'_> {
             Tab::Navigation => self.navigation(ui),
             Tab::NavIslands => self.nav_islands(ui),
             Tab::NavEdits => self.nav_edits(ui),
+            Tab::Diff => self.diff(ui),
         }
     }
 
@@ -2445,6 +2485,7 @@ impl TabViewer for Tabs<'_> {
                     | Tab::Navigation
                     | Tab::NavIslands
                     | Tab::NavEdits
+                    | Tab::Diff
             )
     }
 

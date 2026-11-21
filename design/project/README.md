@@ -132,6 +132,12 @@ channel):
 - a reference level's AI layer: `view-ref-ai` (`#ff9e9e`), `view-ref-human` (`#7ab0ff`), `view-ref-order` (`#ffe066`),
   `view-ref-patrol` (`#e0b0ff`), `view-ref-objective` (`#d9d9d9`), `view-ref-outline` (`#a8f0a8`).
 
+**The differences** (round EX1, the Diff panel and the export's preview; each also 3.5:1 on the lit terrain and the
+water, at least 45 degrees of hue from the selection and from each other, the editor's tests check every one):
+`view-diff-added` (`#5cf0a8`: an object only in B, and on A a box where it stands), `view-diff-removed` (`#ff8fb6`: an
+object only in A, and on B a box where it stood), `view-diff-moved` (`#7cc8ff`: its transform differs; the line from its
+old place) and `view-diff-changed` (`#e2a8ff`: other fields differ).
+
 None is orange: orange stays the viewport selection's.
 
 ## Type

@@ -647,6 +647,12 @@ impl Doc {
         self.writer.is_some()
     }
 
+    /// The base level's partition as it was loaded (round EX1: Compare with base).
+    #[must_use]
+    pub fn base_bytes(&self) -> Option<&[u8]> {
+        self.base_bytes.as_deref()
+    }
+
     /// The edited partition's bytes.
     #[must_use]
     pub fn partition(&self) -> Option<Vec<u8>> {

@@ -32,8 +32,9 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
        `overlay.py` kept).
      - GR3: the mesh viewer into the asset browser's preview (its PNG command line stays).
      - GR4: DbxEditGUI into a generic DBX inspector panel (the last C#).
-     - LevelDiff as an editor panel (the visual diff) and a `bfbc2.exe leveldiff` command for scripts (proven on
-       real level pairs), then LevelDiff.exe retired (round EX1).
+     - ~~LevelDiff as an editor panel (the visual diff) and a `bfbc2.exe leveldiff` command for scripts~~ (EX1: the
+       Diff panel and the export's preview; `bfbc2.exe leveldiff` identical to LevelDiff.exe on recorded real level
+       pairs; LevelDiff.exe retired).
      - The planned AI behaviour simulator, bot AI debugger and tactical map authoring tool become editor workspaces.
      - The hub stays a launcher for now.
    - **OPFOR's pipeline in Rust, in 5 stages:** the WW2 install; the level build; the shader glue; the material grid
@@ -80,9 +81,8 @@ In priority order (above); the next rounds:
 | OP1 | before E5 (the user, 2026-11-20; audit AU1 R14 / R17 / R18 / R24): project operations that can target any file (group files, terrain, navigation side files), delta storage for brush-scale edits, a journalled autosave, typed errors in the editor and renderer, the UI state split out of the two god objects (ViewState, EditorApp) |
 | IN1 | before the public release (the user, 2026-11-20; audit AU1 R42-R49): the level installer in the suite (no Python, no OPFOR needed), a game-folder setting, portable and anonymised project sharing (no PC name, no absolute paths), a small "install this project" tool for players, old export stages pruned |
 | VW2 | the mode view layer (show / hide by game mode and Rush stage, on the project's mode layer data); time-of-day and weather switches (the weather states each level holds) in both views; Guadalcanal's game view (weather partition not found); Vietnam levels in the game view |
-| EX1 | export: a preview mode comparing the export with the original (side by side or toggled), every name of the level editable (file / folder name, in-game level id, on-screen name per language, server browser name), and a visual diff of a project against its base; LevelDiff folded in as an editor panel (a `bfbc2.exe leveldiff` command kept for OPFOR's scripts), LevelDiff.exe retired |
 | RT3 | RT2's leftovers: hpdtool.parse's and the Wave readers' messages ported, then retired; the library parts split out of the command-line `.py` files that are still imported (aptrefs, xiso with a bytes entry point, culltree, stockmp, crashreader), then their command lines retired; argparse's option abbreviations; the kept references in BENCHMARKS RT2 |
-| GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (LevelDiff in EX1): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
+| GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (~~LevelDiff~~: EX1, done): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
 | PR1 | the post-Rust improvements, re-scoped (PR0, 2026-11-20; audit AU2 A1-A5, A8, A9, P4, P8, S2, S14), after RT3 and OPFOR in Rust, in three parts: **PR1a** stable test IDs (durations, memory and CI keyed by ID), determinism as a rule (two hash seeds checked, Rust hash order linted), one native-backend registry (the 24 `use_native` copies, the per-tool switches); **PR1b** one cache layer (one budget implementation, content keys, the caches outside the budget), restart points instead of the 16 GB of decompressed payloads and one BF1943 bundle reader in `bc2-formats` (the S1 restart points' Rust half), CT1-style memory fixes (the batch readers, NavKit regression's 15 GB, the terrain readers), one cull-tree model, one DBX document, `bc2-cli`'s tool logic in library crates with typed errors and the Python emulation kept to the edge, one worker pool, sounds decoded without an ffmpeg per sound; **PR1c** (before the release) round codes out of names, an installable package, one naming scheme, OPFOR's `wake_*` as `ww2_*`. Done earlier: stream packing and the per-level shader index (S1), the cache budget (E3p, D1), strict mode and superseded payloads (QW1); rebuild_all's step graph is OPFOR in Rust's |
@@ -129,6 +129,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Merged | Result |
 |---|---|---|
+| EX1 | 2026-11-20 | every name of an export editable and checked together (level id, its folder, the server-browser name, the on-screen name and description per language; the black-screen and checksum rules in `mapexport check`; names in the project's log), Preview export (the stage read only beside the original, the same camera, T switches), the Diff panel (Compare with base / with level, filters, click-to-fly, tints and markers in the 3D view); LevelDiff folded in: `bfbc2.exe leveldiff` identical to LevelDiff.exe on 30 recorded cases, LevelDiff.exe retired |
 | E3d | 2026-11-20 | any map exported to any era and any of its multiplayer modes: era and mode as project data (the donor's mode layer as editable objects), cross-set closure copied into the level's bundle, the target era's kits / teams / announcer, Era / Mode pickers, Install / Uninstall in the editor, 15 compatibility rules; six canaries pass check and install / revert on a scratch copy (BFBC2 to WW2 Air Superiority pending that mode). Not yet tested in game |
 | E3c | 2026-11-19 | the exported level's announcer voice-over follows its profile (the donor's banks, trigger sets, vo blocks and voice-over bundles); Aurora passes the check on all four profiles |
 | I1 | 2026-11-19 | the suite's application icon (the user's M67 render) in `bfbc2.exe`, `bfbc2-editor.exe`, `mapexport.exe`, the editor's window and the hub's |

@@ -4,6 +4,7 @@
 //! ```text
 //! mapexport build   <project.mapedit.json> <export.json> --game <game folder> --out <stage folder>
 //! mapexport check   <stage folder> --game <game folder>
+//! mapexport names   <export.json> --game <game folder> [--project <project.mapedit.json>]
 //! mapexport startup <startup-00.fbrb> --out <file> --work <temp folder> [--add <LEVEL> <description.dbx>]...
 //!                   [--remove <LEVEL>]...
 //! mapexport overlay <overlay-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]... [--remove <LEVEL>]...
@@ -14,7 +15,12 @@
 //!
 //! `overlay` puts each added stage's texts (its own name and description: `stage.json`'s `strings`) in every
 //! language's localization and takes the removed levels' keys out; `awards` does the same with the stages' pictures
-//! (`awards`) in the on-demand awards bundle (round E3b).
+//! (`awards`) in the on-demand awards bundle (round E3b); a language with its own texts (`strings_by_language`, round
+//! EX1) gets those, in its own encoding.
+//!
+//! `names` checks an export file's names (round EX1, `bc2_levelwrite::names`): the id, its folder, the server-browser
+//! name and the on-screen names per language, against the game copy (stock levels, other projects' exports, the
+//! localisation's keys and letters); `build` refuses names that fail and `check` repeats the rules on the stage.
 //!
 //! Exit code 0, or 1 with the reason on standard error (a failed check: 1, the checks printed).
 
@@ -64,6 +70,38 @@ fn run(args: &[String]) -> Result<bool, String> {
             ));
             Ok(true)
         }
+        Some("names") => {
+            // round EX1: the export file's names checked before a build (the same rules as build and check)
+            let s = args
+                .get(1)
+                .ok_or("names <export.json> --game <folder> [--project <project>]")?;
+            let text = std::fs::read_to_string(s).map_err(|e| format!("{s}: {e}"))?;
+            let spec = ExportSpec::from_json(&text).map_err(|e| e.to_string())?;
+            let g = game()?;
+            let project = match value(args, "--project") {
+                Some(p) => Some(MapProject::load(&p).map_err(|e| format!("{}: {e}", p.display()))?.id),
+                None => None,
+            };
+            let mode = export::mode_title(&bc2_levelwrite::modelayer::mode_key(&spec.mode));
+            let problems = bc2_levelwrite::names::check(
+                &spec.names(),
+                project.as_deref(),
+                &mode,
+                Some(&bc2_levelwrite::names::Taken::read(&g)),
+                Some(&bc2_levelwrite::names::Languages::read(&g)),
+            );
+            for p in &problems {
+                say(&format!("FAILED names: {}", p.message));
+            }
+            if problems.is_empty() {
+                say(&format!(
+                    "ok     names: {} ({:?}) follow the rules",
+                    spec.names().id(),
+                    spec.title
+                ));
+            }
+            Ok(problems.is_empty())
+        }
         Some("check") => {
             let stage = PathBuf::from(args.get(1).ok_or("check <stage folder> --game <folder>")?);
             let r = export::check(&game()?, &stage).map_err(|e| e.to_string())?;
@@ -112,6 +150,8 @@ fn run(args: &[String]) -> Result<bool, String> {
             let work = value(args, "--work").ok_or("--work <folder> is needed")?;
             let (mut strings, mut pictures, mut remove_keys, mut remove_pics) =
                 (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            let mut by_language: std::collections::BTreeMap<String, Vec<(String, String)>> =
+                std::collections::BTreeMap::new();
             let mut i = 0;
             while let Some(a) = args.get(i) {
                 match a.as_str() {
@@ -119,6 +159,9 @@ fn run(args: &[String]) -> Result<bool, String> {
                         let stage = PathBuf::from(args.get(i + 1).ok_or("--add <stage folder>")?);
                         let rec = export::read_record(&stage).map_err(|e| format!("{}: {e}", stage.display()))?;
                         strings.extend(rec.strings.iter().cloned());
+                        for (lang, l) in &rec.strings_by_language {
+                            by_language.entry(lang.clone()).or_default().extend(l.iter().cloned());
+                        }
                         for f in &rec.awards {
                             let bytes = std::fs::read(stage.join(&f.path)).map_err(|e| format!("{}: {e}", f.path))?;
                             pictures.push((f.install.clone(), bytes));
@@ -136,8 +179,8 @@ fn run(args: &[String]) -> Result<bool, String> {
                 }
             }
             if cmd == "overlay" {
-                let langs =
-                    export::patch_overlay(&src, &strings, &remove_keys, &work, &out_p).map_err(|e| e.to_string())?;
+                let langs = export::patch_overlay_langs(&src, &strings, &by_language, &remove_keys, &work, &out_p)
+                    .map_err(|e| e.to_string())?;
                 say(&format!(
                     "{}: {} texts in {} languages ({})",
                     out_p.display(),
@@ -156,7 +199,9 @@ fn run(args: &[String]) -> Result<bool, String> {
             }
             Ok(true)
         }
-        _ => Err("mapexport build | check | startup | overlay | awards (see the source's documentation)".into()),
+        _ => {
+            Err("mapexport build | check | names | startup | overlay | awards (see the source's documentation)".into())
+        }
     }
 }
 

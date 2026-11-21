@@ -49,7 +49,7 @@ tools an error in one panel does not close the window: it is listed in a Problem
 suite window checks the libraries when it opens, and when a tool it runs fails it shows that tool's last lines.
 The command-line tools - `bfbc2.exe` and the Python command lines it ports (FbrbTool `fbrbtool.py`, DbxEdit
 `dbxedit.py`, NavKit's `navkit.py` and `tools\*.py`, the crash reader, the console readers, the menu tools, the test
-harness ...), LevelDiff, the test runner - log the same way and, on an error, print the cause, what to do and the
+harness, `leveldiff` ...), the test runner - log the same way and, on an error, print the cause, what to do and the
 log's path (exit code 1); DbxEditGUI and NavKit's window show it in a window. If you report a problem, send the
 log file.
 
@@ -63,7 +63,6 @@ log file.
 | `bfbc2-dbx-tools/` | **DbxEdit** (`bfbc2.exe dbxedit`, or `dbxedit.py`; the Rust core) and **DbxEditGUI** (the window, C#): view, edit, check and repair binary `.dbx` files; XML export and import |
 | `bfbc2-fbrb-tool/` | **FbrbTool** (`bfbc2.exe fbrbtool`, or `fbrbtool.py`; the Rust core): unpack and repack `.fbrb` bundles |
 | `bfbc2-console-readers/` | read-only readers for Xbox 360 disc images and content packages |
-| `bfbc2-diff-workbench/level-diff/` | **LevelDiff**: what differs between two `.dbx` files, instance by instance |
 | `bfbc2-automated-map-and-bot-test-harness/` | **test harness** (offline, M5): per level and path-data file (DICE's, NavKit's) structure, spawn-to-objective reachability, path-test batteries, orders near the route network, sector offsets, NavKit's DICE parity, and AI readiness from the game copy's bundles; saved runs compared between builds (`harness.py`); in-game tests on hold |
 | `bfbc2-automated-map-and-bot-test-harness/crash-reader/` | **crash reader**: the game's `crashreport.xml` turned into names, code, null pointers and hints; `exeref.py`: where `BFBC2Game.exe` uses a string or an address, with a short code window |
 | `bfbc2-menu-tools/` | **menu tools**: `aptcheck.py` checks menu patches against the rules that crash the menu loader (OPFOR's `src\menus\*.patch` too); `aptrefs.py` cross-references the externs, FSCommands and engine events of every menu and HUD movie with the exe's name / id table; `bc2loc.py` looks up, searches and writes (`set`) the localized texts; `aptgraft.py` writes APT movies and grafts characters, mode cases and the Onslaught HUD timer from one movie into another |
@@ -90,7 +89,7 @@ own until they are built (`RETIRED.md`).
 | `bfbc2-automated-map-and-bot-test-harness/` | in-game tests: `testrun.bat` per level (on hold: the user paused in-game tests on 2026-11-20), bot traversal, stuck detection, squads and vehicles from OPFOR's telemetry | M6, then growing |
 | `rust/bc2-editor` (bot AI debugger workspace) | live view of the AI while the game runs (through Project OPFOR BFBC2): `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.2 | M6 |
 | `rust/bc2-editor` (tactical authoring workspace) | tactical annotations above the navigation data for bots: `EDITOR_ARCHITECTURE.md` 10.1 | M7 |
-| `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs (LevelDiff, in `level-diff/`, is ready) | alongside |
+| `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs (`DESIGN.md` 4.7; LevelDiff became `bfbc2.exe leveldiff` and the map editor's Diff panel in round EX1) | alongside |
 | `rust/bc2-editor` (AI behaviour simulator workspace) | runs OPFOR's bot decision code on simplified maps, without the game: `EDITOR_ARCHITECTURE.md` 10.3 | with Goal 3 |
 
 The asset builder & validator, `bfbc2-asset-builder`, is part of the Project OPFOR BFBC2 repository (DESIGN.md
@@ -457,7 +456,7 @@ Each run is logged in DbxEdit's own log (`dbxedit-<date>.log`, "started (in proc
 `BFBC2_DBXEDIT_EXE` is gone; `core/tests/test_dbxedit.py` checks the commands against the exe's recorded answers
 (`core/tests/dbxedit_golden.json`: DbxEdit's unit-test cases; `dbxedit_golden_game_0.json / _1.json`: a 1,592-file corpus
 sample through every command, 12,464 runs) and DbxEdit's edit fingerprints. DbxEdit.cs stays as the DBX classes
-of DbxEditGUI (the window, until the map editor replaces it) and LevelDiff. The suite's NavKit unpack and
+of DbxEditGUI (the window, until the map editor replaces it). The suite's NavKit unpack and
 `bfbc2-stockmp-ai`'s validation use it.
 **FbrbTool in process** (round E3k, 2026-11-17). `bfbc2core.fbrbtool` does the same for `FbrbTool.exe`'s `unpack`,
 `pack`, `list` and `big` (`rust/bc2-formats/src/fbrb/tool.rs`): `fbrbtool.run(args)`, `run_many`, `unpack`, `pack`,
@@ -694,8 +693,8 @@ own files, never (for the caps) a log written in the last 10 minutes (a running 
 folder (`logs-<date>_<time>.zip`, written whole before anything is deleted - if it cannot be written, nothing is
 deleted); the archives have their own cap, `BFBC2_LOG_ARCHIVE_MB` (default 1024), the oldest archive deleted first.
 Before
-E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). DbxEditGUI and
-LevelDiff (C#, `ToolLog`) still write one file per day; their logs are pruned with the rest. Also under
+E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). DbxEditGUI (C#,
+`ToolLog`) still writes one file per day; their logs are pruned with the rest. Also under
 `%LOCALAPPDATA%\bfbc2-tool-suite`, not a cache: `test_times.json` (`run_tests.py`'s durations). In-memory caches
 (`BFBC2_FBRB_MEMORY_MB`, `pcbuild.MEMORY_LIMIT`, `functools.lru_cache`s) end with the process.
 
@@ -757,7 +756,7 @@ data cache, `work\navkit\sp_004_b`, the suite's `build\` folder (shaderview.exe,
 the desktop, `DbxTests.exe` and the checkout's cargo build folder with `bin\` (`cargo`; `rust-targets\<checkout>`
 since round D1). A writer never runs beside a reader or another writer of the same
 thing, and tests that share a thing keep their listed order, so each sees it as a one-at-a-time run did. The build
-steps (Rust core, DbxEditGUI, LevelDiff) run first, alone, before any test, since nearly every test loads
+steps (Rust core, DbxEditGUI) run first, alone, before any test, since nearly every test loads
 what they build. The runner starts a test while a slot, the CPU threads (`--cpus`, default all) and the memory
 (`--mem`, default three quarters of the PC's) it declares are free; the longest chains go first, and a test held
 back for room keeps its place (shorter tests fill in only while they end in time). A test missing from `NEEDS` runs

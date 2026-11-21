@@ -1,0 +1,7 @@
+A: a.dbx  (7 instances)
+B: b.dbx  (7 instances)
+same instance in both: 5; changed: 3; only in A: 2; only in B: 2
+
+== only in A (removed in B): 2  (ReferenceObjectData 1, AlternateSpawnEntityData 1)
+
+== only in B (added in B): 2  (ReferenceObjectData 1, AlternateSpawnEntityData 1)
