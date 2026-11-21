@@ -148,6 +148,8 @@ pub enum Action {
     ShowPanel(PanelKind),
     /// Opens the Help window (controls and shortcuts, getting started, the workspaces).
     Help,
+    /// Opens the DBX inspector (round GR4: any binary `.dbx`, `DbxEditGUI`'s successor).
+    DbxInspector,
     // ---- round EX1: the differences and the export preview
     /// Compares the project with its base level (the Diff panel and the 3D view).
     CompareWithBase,
@@ -688,6 +690,13 @@ pub fn registry() -> Vec<Entry> {
             "Help",
             key(none, Key::F1),
             "Controls and shortcuts, a getting-started guide, and what each workspace is for",
+        ),
+        e(
+            Action::DbxInspector,
+            "DBX inspector",
+            None,
+            "Any binary .dbx - a file, a bundle's entry, the level's files or the project's partition: its tree, \
+             edits, find, level checks, XML export and import",
         ),
     ]);
     for w in Workspace::ALL {
