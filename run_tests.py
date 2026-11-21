@@ -1168,6 +1168,10 @@ def print_plan(tier, jobs, slots, cpus, mem, source, known):
     print('(from durations measured one at a time: tests side by side run somewhat slower than this)')
 
 
+class UsageError(ValueError):
+    what_to_do = 'python run_tests.py --help lists the tiers and options'
+
+
 FLAGS = ('--list', '--plan', '--no-game', '--ci-steps')
 VALUED = {'--only': str, '-j': int, '--jobs': int, '--cpus': int, '--mem': float, '--times': str}
 HELP = ('-h', '--help', '/?')
@@ -1204,9 +1208,11 @@ def main(argv):
         return 0
     wrong = bad_arguments(argv)
     if wrong:
-        print(f'run_tests: {wrong}\nusage: python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] '
-              f'[--cpus N] [--mem GB] [--plan] [--times F] [--no-game] [--ci-steps]   (--help: the whole text)',
-              file=sys.stderr)
+        print('usage: python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] '
+              '[--mem GB] [--plan] [--times F] [--no-game] [--ci-steps]', file=sys.stderr)
+        suite_paths.use('core')
+        from bfbc2core import errors
+        errors.report(UsageError(f'run_tests: {wrong}'), show=False)       # logged, the cause and what to do
         return 2
     tier = next((a for a in argv[1:] if a in TIERS), 'quick')
     only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
