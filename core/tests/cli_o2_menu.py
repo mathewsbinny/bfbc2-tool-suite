@@ -102,14 +102,16 @@ def exe_795745() -> bytes:
         put(a, 0x76F000, jumps, struct.pack('<3I', default, 0x770000 + count, 0x770100 + count))
     put(b, 0x95D000, 0x95DB68, bytes((k * 7) % 3 for k in range(0x15F)))
     put(b, 0x95D000, 0x95D98C, struct.pack('<3I', 0x95D934, 0x95E000, 0x95E004))
-    # round RT3: without this text in the unused end of .data2, Microsoft Defender's machine-learning scan took the
-    # file for a trojan (Trojan:Win32/Bearfoos.A!ml, whatever its name or extension) and blocked every read of it, so
-    # the cases failed with OSError 22 on any PC running Defender; no tool reads these bytes
+    # round RT3 put this text in the unused end of .data2 because Microsoft Defender's machine-learning scan took the
+    # file for a trojan (Trojan:Win32/Bearfoos.A!ml, whatever its name or extension) and blocked every read of it
+    # (OSError 22). The text alone did not stop that on every PC; round QW2's `loadable` layout (sections without
+    # holes between them, an import table) did: written and read back 4 of 4 times where this layout was blocked
+    # 4 of 4 times
     put(b, 0x95D000, 0x95E000 - len(STAND_IN_MARK), STAND_IN_MARK)
     return bytes(tmt.pe32([('.text', 0x1000, b'\xc3' + b'\xcc' * 15, 0x60000020),
                            ('.rdata', 0x2000, bytes(rdata), 0x40000040),
                            ('.data1', 0x36F000, bytes(a), 0xC0000040), ('.data2', 0x55D000, bytes(b), 0xC0000040)],
-                          base, stamp=0x4E55445D))
+                          base, stamp=0x4E55445D, loadable=True))
 
 
 def khash(key: str) -> int:

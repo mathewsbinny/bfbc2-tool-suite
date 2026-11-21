@@ -756,7 +756,7 @@ fn new_guids(d: &mut EditDbx, seed: &str) -> crate::write::Result<()> {
     let mut map = HashMap::new();
     for e in d.instances() {
         let g = String::from_utf8_lossy(d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase();
-        let n = bc2_stockmp::guid::new_guid(crate::NAMESPACE, &[seed, &g]);
+        let n = bc2_formats::guid::new_guid(crate::NAMESPACE, &[seed, &g]);
         d.set_attr(e, b"guid", n.as_bytes())?;
         map.insert(g, n);
     }
@@ -777,7 +777,7 @@ fn new_guids(d: &mut EditDbx, seed: &str) -> crate::write::Result<()> {
             }
         }
     }
-    mpconvert::set_partition_guid(d, &bc2_stockmp::guid::new_guid(crate::NAMESPACE, &[seed, "partition"]))
+    mpconvert::set_partition_guid(d, &bc2_formats::guid::new_guid(crate::NAMESPACE, &[seed, "partition"]))
 }
 
 /// The main height field of a level (its `TerrainEntityData`'s terrain), from the bundles its terrain and level
@@ -2487,6 +2487,13 @@ fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>>
     Ok(out)
 }
 
+/// A bundle entry that holds streamed wave data (`<sound>_waveDataSns_<n>`, typed `<non-resource>`): never in a level
+/// bundle (spec SND-STRM-1: the loader reads it as a partition and the load crashes at 0x49EDF4).
+#[must_use]
+pub fn is_streamed_wave(entry: &str) -> bool {
+    entry.to_ascii_lowercase().contains("_wavedatasns_")
+}
+
 /// Proves a stage offline against the game's rules (nothing is written).
 ///
 /// # Errors
@@ -2499,6 +2506,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     // the bundles parse, each entry reads, every partition parses; the files are the ones recorded
     let mut ours: Vec<(String, EditDbx)> = Vec::new();
     let mut own_entries: Vec<StagedEntry> = Vec::new();
+    let mut streamed: Vec<String> = Vec::new();
     for f in &rec.files {
         let p = stage.join(&f.path);
         let bytes = std::fs::read(&p)?;
@@ -2508,6 +2516,14 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         );
         let (h, data) = fbrb::extract_path_uncached(&p).map_err(|e| err(format!("{}: {e}", p.display())))?;
         let mut bad = Vec::new();
+        // round QW2 (audit AU1 RISK-4, spec SND-STRM-1): streamed wave data in a level bundle is read as a partition
+        // and the load crashes at 0x49EDF4
+        streamed.extend(
+            h.entries
+                .iter()
+                .filter(|e| !e.is_deleted() && is_streamed_wave(&e.name))
+                .map(|e| format!("{}: {}", f.path, e.name)),
+        );
         if f.path == "level-00.fbrb" {
             own_entries = h
                 .entries
@@ -2547,6 +2563,20 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             ),
         );
     }
+    r.add(
+        streamed.is_empty(),
+        format!(
+            "no streamed wave data (_waveDataSns_ entries) in the staged bundles (0x49EDF4){}",
+            if streamed.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " (not: {})",
+                    streamed.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                )
+            }
+        ),
+    );
     // the registration: one block and one manifest line per bundle, each block's targets present
     // (the voice-over blocks, lines and bundles after them: the announcer's check, `check_announcer`)
     let is_vo = |l: &str| {
@@ -3948,6 +3978,15 @@ pub fn patch_awards(
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+
+    /// Round QW2 (audit AU1 RISK-4): the entries `check` refuses in a staged bundle (spec SND-STRM-1).
+    #[test]
+    fn streamed_waves_named() {
+        assert!(is_streamed_wave("sound/weapons/m1_garand_fire_waveDataSns_0"));
+        assert!(is_streamed_wave("Sound/VO/x_WAVEDATASNS_12"));
+        assert!(!is_streamed_wave("sound/weapons/m1_garand_fire"));
+        assert!(!is_streamed_wave("sound/weapons/m1_garand_fire_wave"));
+    }
 
     #[test]
     fn root_files_and_names() {

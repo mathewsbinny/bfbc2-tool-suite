@@ -6731,3 +6731,44 @@ Finish checks: cargo fmt, clippy `--all-targets -D warnings` on the workspace an
 ruff and mypy over every folder (the tier's entries), `spec/trace.py --check` clean on `abcbae2`;
 `test_runner_parallel.py`, `test_rust_skip.py`, `test_repo.py` and `test_envvars.py` pass. No WW2 path touched: no
 rebuild.
+
+## QW2: the audits' leftovers (2026-11-21, branch `qw2`)
+
+Small items from audits AU1-AU4, and three test-health items. No WW2 path touched: no rebuild.
+
+**O4's texqa (the quick tier's red entry since DF2).** Not noise and not a race. texqa's rows-cache key is
+`sha1([VERSION, CODE, texture sha1, source, DICE copy, .orig sha1, name])` with `CODE` the first 12 hex digits of the
+sha1 of `texqa.py`'s own source (the Rust reads it through `include_bytes`). DF2 edited `texqa.py` twice and kept the
+golden. Measured: one `bfbc2.exe` gave `694b2c3a35369c07` on two runs; the Python at three revisions gave one digest
+each ("a cache written"): 55d5f0a `ea9e1100b7cf74c1` (the golden), 40d0890 `f631b04e3938f794`, 62d5001
+`694b2c3a35369c07` - DF2's "f631 then 694b" were builds of two of its commits. Under parallel load O4 failed for the
+same reason. Fix: a group's `REKEY` in `test_cli_o2`'s file snapshot; texqa's rewrites each key the case's own
+textures rebuild under the current hash to the same ident with `'<texqa.py>'` in its place. After re-recording (6
+lines changed), the Python at 55d5f0a gives the recorded `de73bea880c180fe`; a `bfbc2.exe` built from another
+`texqa.py` still fails (its keys do not rebuild). O4 texqa 80 of 80.
+
+**O2's stand-in exe and Defender.** `exe_795745()` wrote a PE whose sections sat at 0x1000, 0x2000, 0x36F000 and
+0x55D000 with virtual sizes equal to their few KB of data (holes of megabytes in the image) and no import table.
+Written and read back from a scratch folder: blocked (Errno 22, Trojan:Win32/Bearfoos.A!ml) 4 of 4 times. With each
+virtual size reaching the next section and an import table (KERNEL32!ExitProcess) at the end of `.text`: readable
+7 of 7 times (variants: contiguous alone 4 of 4, imports alone 1 of 1). The menu tools map min(virtual, raw) bytes
+and scan only data sections, so no answer moves; aptrefs' Python is retired, so the golden was re-proved: with the
+new bytes swapped for the old in memory before the digest, 372 of 372 menu lines as recorded; plainly, 34 differ in
+their files digest only, which were written. O2: all passed.
+
+**Feature subsets.** `cargo clippy -p bc2-cli --no-default-features --features <group> -- -D warnings`, each of the
+17 groups: 10 passed, 7 (nav, caches, audio, bf1943, cull, texqa, shader) failed on dead code in `argfmt.rs` (each
+uses part of it); after the module's `allow(dead_code)` only when not every user group is on: 17 of 17. Cargo's own
+"unused dependency" warnings remain for subsets (bc2-convert, bc2-harness, bc2-menu, bc2-navbuild are not optional
+per group); they do not fail the build.
+
+**Crate moves.** `guid` and `pe` into `bc2-formats`: `bc2-levelwrite` (and the editor) no longer compile
+`bc2-stockmp`, `bc2-menu` no longer compiles `bc2-harness` (iced-x86 among it). Left: culltree's command-line model
+(`culltool`, `cullcache`, 3,042 lines with `bc2-pyrt`) in `bc2-levelwrite` - the binary is the wrong home under
+PR1b's tool-logic-in-libraries; and `bc2-convert` in levelwrite for the award pictures (acceptable per the audit).
+
+**Not done: the Python shader Merger (AR-5).** `bc2_formats::shaderdb::merge::Merger` has `new`, `add_donor` and
+`finish`; OPFOR's 21 in-process uses also call `clone_entry` (wake_install, the weapon ports) and `add_part`, which
+have no Rust yet, and OPFOR is not this round's to change. Moved to OPFOR in Rust stage 3 (ROADMAP).
+
+Proof: `python run_tests.py quick -j 2` in the worktree, 135 of 135 passed in 837 s (O2 and O4 among them; the editor's tests did not hang this run; 8 parts skipped for want of data, named). cargo fmt, clippy `--workspace --all-targets -D warnings`, each bc2-cli group alone, the changed crates' cargo tests (bc2-formats, bc2-stockmp, bc2-harness, bc2-menu, bc2-levelwrite, bc2-cli: all passed), ruff and mypy (every folder), `spec/trace.py --check` (693 rules) clean. Release builds: `build_native.py` and `--editor`; `bfbc2 --version` prints 0.10.0.

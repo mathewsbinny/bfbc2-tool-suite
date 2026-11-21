@@ -397,6 +397,14 @@
     {
      "kind": "doc",
      "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2491-2495"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::streamed_waves_named"
     }
    ]
   },
@@ -551,7 +559,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2740-2750"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2770-2780"
     },
     {
      "kind": "test",
@@ -1750,7 +1758,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2992-3096"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3022-3126"
     },
     {
      "kind": "doc",
@@ -9581,7 +9589,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3016-3073"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3046-3103"
     },
     {
      "kind": "test",
@@ -11980,7 +11988,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-stockmp/src/guid.rs:16-40"
+     "ref": "rust/bc2-formats/src/guid.rs:17-41"
     },
     {
      "kind": "code",
@@ -11988,7 +11996,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-stockmp/src/guid.rs::python_uuid5"
+     "ref": "rust/bc2-formats/src/guid.rs::python_uuid5"
     }
    ]
   },
@@ -13359,7 +13367,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2885-3013"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2915-3043"
     },
     {
      "kind": "test",
@@ -13375,7 +13383,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2532-2564"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2548-2594"
     },
     {
      "kind": "test",
@@ -13731,7 +13739,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2740-2760"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2770-2790"
     },
     {
      "kind": "test",
@@ -13795,7 +13803,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3130-3242"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3160-3272"
     },
     {
      "kind": "test",
@@ -13835,11 +13843,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2194-2569"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2194-2599"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2588-2711"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2618-2741"
     },
     {
      "kind": "test",
@@ -14719,7 +14727,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:413-461"
+     "ref": "rust/bc2-levelwrite/src/project.rs:541-589"
     },
     {
      "kind": "test",
@@ -14735,7 +14743,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-editor/src/edit.rs:211-322"
+     "ref": "rust/bc2-editor/src/edit.rs:222-333"
     },
     {
      "kind": "test",
@@ -14755,7 +14763,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:557-631"
+     "ref": "rust/bc2-levelwrite/src/project.rs:685-773"
     },
     {
      "kind": "test",
@@ -14772,6 +14780,26 @@
    ]
   },
   {
+   "id": "XLOG-LOG-4",
+   "title": "One editor per project; a save never overwrites another writer's file",
+   "file": "spec/transforms/projectlog.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:272-382"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:755-768"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::lock_and_stamp"
+    }
+   ]
+  },
+  {
    "id": "XLOG-GUID-1",
    "title": "New guids are UUID v5 of the project, the operation and the source",
    "file": "spec/transforms/projectlog.md",
@@ -14783,7 +14811,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:402-411"
+     "ref": "rust/bc2-levelwrite/src/project.rs:530-539"
     },
     {
      "kind": "test",
@@ -14799,7 +14827,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:513-544"
+     "ref": "rust/bc2-levelwrite/src/project.rs:641-672"
     },
     {
      "kind": "test",
@@ -14995,11 +15023,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-stockmp/src/guid.rs:1-30"
+     "ref": "rust/bc2-formats/src/guid.rs:1-31"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-stockmp/src/guid.rs::python_uuid5"
+     "ref": "rust/bc2-formats/src/guid.rs::python_uuid5"
     },
     {
      "kind": "test",

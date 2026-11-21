@@ -372,16 +372,43 @@ def build_exe():
     return pe32([('.text', text_rva, b'\xc3' + b'\xcc' * 15, 0x60000020), ('.rdata', data_rva, bytes(rdata), 0x40000040)], base)
 
 
-def pe32(sections, base=0x400000, stamp=0x12345678):
-    """A minimal valid PE32 image: [(name, rva, data, characteristics)]."""
+def pe32(sections, base=0x400000, stamp=0x12345678, loadable=False):
+    """A minimal valid PE32 image: [(name, rva, data, characteristics)].
+
+    loadable (round QW2): the layout Windows' loader accepts - each section's virtual size reaching the next
+    section's address (the gap is zero-filled memory, as a large .bss is) and an import table (KERNEL32!ExitProcess)
+    at the end of the first, executable section, where the menu tools' data-section scans never look. Without it a
+    stand-in whose sections sit megabytes apart (O2's build-795745 b.exe) has holes in its image and no imports, which
+    Microsoft Defender's machine-learning scan took for a packed trojan (Trojan:Win32/Bearfoos.A!ml) and blocked
+    every read of. The virtual sizes move no raw data, and the tools map min(virtual, raw) bytes of a section."""
     falign, salign = 0x200, 0x1000
     head = 0x400
+    sections = list(sections)
+    imports = None
+    if loadable:
+        name, rva, data, ch = sections[0]
+        d = bytearray(data)
+        while len(d) % 16:
+            d.append(0xCC)
+        idt = rva + len(d)                        # two descriptors (the second the null one), then the two tables
+        ilt, iat = idt + 40, idt + 48
+        hint, dll = iat + 8, iat + 8 + 2 + len(b'ExitProcess\0') + 1
+        d += struct.pack('<5I', ilt, 0, 0, dll, iat) + bytes(20)
+        d += struct.pack('<II', hint, 0) + struct.pack('<II', hint, 0)
+        d += b'\0\0ExitProcess\0\0KERNEL32.dll\0'
+        sections[0] = (name, rva, bytes(d), ch)
+        imports = (idt, iat)
     raw, pos = [], head
     for name, rva, data, ch in sections:
         size = (len(data) + falign - 1) // falign * falign
         raw.append((name, rva, data, ch, pos, size))
         pos += size
-    image = max(rva + ((len(d) + salign - 1) // salign) * salign for _, rva, d, _ in sections)
+    if loadable:
+        vsizes = [nxt[1] - r[1] for r, nxt in zip(raw, raw[1:])]
+        vsizes.append((len(raw[-1][2]) + salign - 1) // salign * salign)
+    else:
+        vsizes = [len(r[2]) for r in raw]
+    image = max(r[1] + ((v + salign - 1) // salign) * salign for r, v in zip(raw, vsizes))
     out = bytearray(pos)
     out[0:2] = b'MZ'
     struct.pack_into('<I', out, 0x3C, 0x80)
@@ -391,9 +418,12 @@ def pe32(sections, base=0x400000, stamp=0x12345678):
     struct.pack_into('<HBBIIIIIIIIIHHHHHHIIIIHHIIIIII', out, 0x98, 0x10B, 9, 0, code, 0, 0, sections[0][1], sections[0][1],
                      sections[-1][1], base, salign, falign, 5, 1, 0, 0, 5, 1, 0, image, head, 0, 3, 0,
                      0x100000, 0x1000, 0x100000, 0x1000, 0, 16)
+    if imports:
+        struct.pack_into('<II', out, 0x98 + 96 + 8 * 1, imports[0], 40)     # the import directory
+        struct.pack_into('<II', out, 0x98 + 96 + 8 * 12, imports[1], 8)     # the import address table
     sh = 0x98 + 0xE0
     for k, (name, rva, data, ch, ptr, size) in enumerate(raw):
-        struct.pack_into('<8sIIIIIIHHI', out, sh + 40 * k, name.encode(), len(data), rva, size, ptr, 0, 0, 0, 0, ch)
+        struct.pack_into('<8sIIIIIIHHI', out, sh + 40 * k, name.encode(), vsizes[k], rva, size, ptr, 0, 0, 0, 0, ch)
         out[ptr:ptr + len(data)] = data
     return bytes(out)
 

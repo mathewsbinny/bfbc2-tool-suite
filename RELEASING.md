@@ -24,6 +24,21 @@ queue of rounds is `ROADMAP.md`.
 6. Move the round to **Done** in `ROADMAP.md` with its one-line result, and add its user-visible changes to the
    **Unreleased** section of `CHANGELOG.md` (create it at the top when there is none).
 
+### A merge that removes something (round QW2, audit AU3 AR-9)
+
+A round whose CHANGELOG entries include a **Removed** item - a command line, a subcommand or option, a Python
+function or module another project imports, a Rust public API, a file format or folder a tool reads or writes -
+releases a version with its merge, so Project OPFOR's pin of the suite (`opforcore.paths.SUITE_REQUIRES`: at least
+one version, below the next minor) can tell the suite it was written against from one that broke it:
+
+1. On the branch, before the merge: the next minor in `VERSION` (`0.10.0` -> `0.11.0`), and **Unreleased** renamed
+   to `[0.11.0] - <the merge's date>` with a new, empty **Unreleased** above it (as "Releasing a version" steps 2-3).
+2. If Project OPFOR uses what was removed, OPFOR's change that follows it moves `SUITE_REQUIRES` to the new range
+   (`('0.11.0', '0.12.0')`) in the same sitting, and OPFOR's tests run against the merged suite.
+3. After the merge, tag it (`git tag -a v0.11.0 ...`, "Releasing a version" step 6).
+
+A round that only adds or fixes leaves `VERSION` alone; its entries wait in **Unreleased** for the next release.
+
 A round that retires a tool or folder follows `RETIRED.md`'s checklist (proven equal on recorded data, nothing
 pointing at it, the hub and OPFOR updated, then deleted) and adds its row there.
 

@@ -56,8 +56,8 @@ The suite gives new instances and partitions name-based UUID version 5 GUIDs (SH
 GUIDs. A level export renames every instance GUID this way and re-points its local references (lower case) and
 `primaryInstance` (upper case).
 
-[code: rust/bc2-stockmp/src/guid.rs:16-40] [code: rust/bc2-levelwrite/src/export.rs:499-525]
-[test: rust/bc2-stockmp/src/guid.rs::python_uuid5]
+[code: rust/bc2-formats/src/guid.rs:17-41] [code: rust/bc2-levelwrite/src/export.rs:499-525]
+[test: rust/bc2-formats/src/guid.rs::python_uuid5]
 
 ## 2. The primary instance
 
