@@ -10,6 +10,7 @@ use bc2_formats::meshdata::{self, Kind};
 use bc2_formats::shaderdb::{self, query};
 
 use crate::dxbc::{self, Reflection};
+use crate::error::RenderError;
 use crate::files::Files;
 use crate::{f32_at, half, u32_at};
 
@@ -92,8 +93,8 @@ impl Db {
     ///
     /// # Errors
     /// The file does not read as a Dx10 / Dx11 database.
-    pub fn parse(data: &[u8]) -> Result<Self, String> {
-        let db = shaderdb::parse(data, 11, false).map_err(|e| e.to_string())?;
+    pub fn parse(data: &[u8]) -> Result<Self, RenderError> {
+        let db = shaderdb::parse(data, 11, false).map_err(|e| RenderError::Data(e.to_string()))?;
         let shader = |s: &shaderdb::Shader<'_>| Shader {
             code: Arc::new(s.code.to_vec()),
             param: s.param as usize,

@@ -97,23 +97,23 @@ fn game_accurate_view_of_mp_005() {
     let ctx = h.ctx.clone();
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
     let loaded = app.view().unwrap();
-    if loaded.game.is_none() {
+    if loaded.game_view.game.is_none() {
         println!("skipped: {}", loaded.message);
         return;
     }
-    let g = loaded.game.as_ref().unwrap();
+    let g = loaded.game_view.game.as_ref().unwrap();
     println!("loaded in {:.2} s: {}", g.load_seconds, g.notes.last().unwrap());
     assert!(
         g.object_count() > 100,
         "MP_005's placed objects are drawn: {}",
         g.object_count()
     );
-    assert!(loaded.game_accurate);
+    assert!(loaded.game_view.game_accurate);
     // round RV1: the whole terrain, not a window of patches around the target (bc2-render's tests/whole_terrain.rs)
     assert_eq!(g.world().terrain_radius, None, "the game view draws the whole terrain");
     h.settle(&mut app, 4);
     {
-        let g = app.view().unwrap().game.as_ref().unwrap();
+        let g = app.view().unwrap().game_view.game.as_ref().unwrap();
         assert!(g.error.is_none(), "{:?}", g.error);
         assert!(
             g.timings.draws > 1000,
@@ -144,7 +144,7 @@ fn game_accurate_view_of_mp_005() {
             .camera
             .yaw += 0.002 * f64::from(k + 1);
         h.settle(&mut app, 1);
-        costs.push(app.view().unwrap().game.as_ref().unwrap().timings);
+        costs.push(app.view().unwrap().game_view.game.as_ref().unwrap().timings);
     }
     let n = costs.len() as f64;
     let avg = |f: fn(&bc2_editor::gameview::Timings) -> f64| costs.iter().skip(2).map(f).sum::<f64>() / (n - 2.0) * 1e3;
@@ -174,7 +174,7 @@ fn game_accurate_view_of_mp_005() {
     let harbour = h.image().unwrap();
     assert!(spread(&harbour) > 10.0, "the harbour frame is not one colour");
     {
-        let g = app.view().unwrap().game.as_ref().unwrap();
+        let g = app.view().unwrap().game_view.game.as_ref().unwrap();
         assert!(g.error.is_none(), "{:?}", g.error);
         let c = g.world().counts;
         assert_eq!(c.water, 2, "the harbour's water and wakes: {c:?}");
@@ -189,7 +189,7 @@ fn game_accurate_view_of_mp_005() {
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
     h.settle(&mut app, 4);
     save(&mut h, "r5_editor_view_light.png");
-    assert!(!app.view().unwrap().game_accurate);
+    assert!(!app.view().unwrap().game_view.game_accurate);
     app.theme = ThemeId::Dark;
     h.settle(&mut app, 4);
     let back = h.image().unwrap();

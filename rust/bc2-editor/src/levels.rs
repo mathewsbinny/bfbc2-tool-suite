@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use bc2_scene::scene::{self, LoadOptions};
 use bc2_scene::walk;
 
+use crate::error::EditorError;
 use crate::factions::{self, Profile};
 use crate::package;
 
@@ -62,7 +63,7 @@ pub fn opfor_candidates(given: Option<&Path>) -> Vec<PathBuf> {
 /// # Errors
 ///
 /// None has one: the message names every folder tried, as `paths.GameCopyNotFound`'s does.
-pub fn find_opfor(given: Option<&Path>) -> Result<PathBuf, String> {
+pub fn find_opfor(given: Option<&Path>) -> Result<PathBuf, EditorError> {
     let looked = opfor_candidates(given);
     for c in &looked {
         if c.join("game").is_dir() {
@@ -70,10 +71,10 @@ pub fn find_opfor(given: Option<&Path>) -> Result<PathBuf, String> {
         }
     }
     let list: Vec<String> = looked.iter().map(|p| p.display().to_string()).collect();
-    Err(format!(
+    Err(EditorError::Level(format!(
         "Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT (looked for a game\\ folder in: {})",
         list.join(", ")
-    ))
+    )))
 }
 
 /// A level of the game copy, as the start screen lists it.
@@ -230,10 +231,10 @@ pub fn terrain_bundle(opfor: &Path, lv: &str) -> Option<PathBuf> {
 /// # Errors
 ///
 /// Why it cannot be used, in words.
-pub fn terrain_unpack(opfor: &Path, lv: &str) -> Result<PathBuf, String> {
+pub fn terrain_unpack(opfor: &Path, lv: &str) -> Result<PathBuf, EditorError> {
     let dest = opfor.join("work").join("levels").join(lv).join("terrain");
     if !dest.is_dir() {
-        return Err("its terrain is not unpacked yet".into());
+        return Err(EditorError::Level("its terrain is not unpacked yet".into()));
     }
     let Some(bundle) = terrain_bundle(opfor, lv) else {
         return Ok(dest);
@@ -242,7 +243,9 @@ pub fn terrain_unpack(opfor: &Path, lv: &str) -> Result<PathBuf, String> {
     if stamp_of(&bundle).is_some_and(|want| want == have.trim()) {
         Ok(dest)
     } else {
-        Err("its terrain unpack is older than the terrain bundle".into())
+        Err(EditorError::Level(
+            "its terrain unpack is older than the terrain bundle".into(),
+        ))
     }
 }
 
@@ -296,7 +299,7 @@ pub struct Found {
 /// # Errors
 ///
 /// The level is not prepared, or has no partition.
-pub fn load_options(opfor: &Path, lv: &str) -> Result<Found, String> {
+pub fn load_options(opfor: &Path, lv: &str) -> Result<Found, EditorError> {
     let lv = lv.to_lowercase();
     if let Some(p) = package::find(opfor, &lv) {
         // a level of game\Package only: the editor's own copy (work\editor\levels\<lv>), not NavKit's
@@ -304,9 +307,9 @@ pub fn load_options(opfor: &Path, lv: &str) -> Result<Found, String> {
     }
     let base = opfor.join("work").join("levels").join(&lv);
     if !base.join("dist").is_dir() {
-        return Err(format!(
+        return Err(EditorError::Level(format!(
             "{lv} is not prepared yet: open it from the start screen, which prepares it first"
-        ));
+        )));
     }
     let mut bases = vec![base.join("pkg"), base.join("dist")];
     bases.extend(
@@ -323,7 +326,7 @@ pub fn load_options(opfor: &Path, lv: &str) -> Result<Found, String> {
             p.extension().is_some_and(|e| e.eq_ignore_ascii_case("dbx"))
                 && p.file_stem().is_some_and(|s| s.to_string_lossy().to_lowercase() == lv)
         })
-        .ok_or_else(|| format!("{lv}: level partition not found under {}", base.display()))?;
+        .ok_or_else(|| EditorError::Level(format!("{lv}: level partition not found under {}", base.display())))?;
     let name = partition
         .file_stem()
         .map_or_else(|| lv.to_uppercase(), |s| s.to_string_lossy().into_owned());

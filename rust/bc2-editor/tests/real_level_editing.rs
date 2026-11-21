@@ -123,7 +123,8 @@ fn an_mp_005_project_through_the_interface() {
     let mut app = EditorApp::new(None, None).unwrap();
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
-    if let Err(e) = app.open_level_blocking_then(&gpu, "mp_005", Then::Create("MP_005 north".into(), dir.clone())) {
+    if let Err(e) = app.open_level_blocking_then(&gpu, "mp_005", Then::Create("MP_005 north".into(), dir.clone(), None))
+    {
         println!("skipped: {e}");
         return;
     }

@@ -76,7 +76,7 @@ fn views(h: &mut Headless, lv: &str) -> Option<Views> {
     h.settle(&mut app, 2);
     let v = app.view().unwrap();
     // the level opened: the game view not starting is a failure, not a skip (audit AU3 TS-7)
-    let Some(g) = v.game.as_ref() else {
+    let Some(g) = v.game_view.game.as_ref() else {
         panic!("{lv}: the game-accurate view did not start: {}", v.message);
     };
     let scene = v.scene();

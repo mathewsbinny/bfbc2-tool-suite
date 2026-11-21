@@ -69,7 +69,7 @@ fn package_levels_in_the_game_accurate_view() {
         h.settle(&mut app, 2);
         let ctx = h.ctx.clone();
         app.run_action(&gpu, &ctx, Action::ToggleGameView);
-        let Some(g) = app.view().unwrap().game.as_ref() else {
+        let Some(g) = app.view().unwrap().game_view.game.as_ref() else {
             panic!(
                 "{lv}: the game-accurate view did not load: {}",
                 app.view().unwrap().message
@@ -90,9 +90,9 @@ fn package_levels_in_the_game_accurate_view() {
                 .camera
                 .yaw += 0.002 * f64::from(k + 1);
             h.settle(&mut app, 1);
-            all.push(app.view().unwrap().game.as_ref().unwrap().timings);
+            all.push(app.view().unwrap().game_view.game.as_ref().unwrap().timings);
         }
-        let g = app.view().unwrap().game.as_ref().unwrap();
+        let g = app.view().unwrap().game_view.game.as_ref().unwrap();
         assert!(g.error.is_none(), "{lv}: {:?}", g.error);
         let n = (all.len() - 2) as f64;
         let avg = |f: fn(&bc2_editor::gameview::Timings) -> f64| all.iter().skip(2).map(f).sum::<f64>() / n * 1e3;

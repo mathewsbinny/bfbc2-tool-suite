@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use bc2_formats::dbx;
 use bc2_scene::scene::Scene;
 
+use crate::error::EditorError;
 use crate::levels::ContentSet;
 use crate::workspace::Category;
 
@@ -340,21 +341,21 @@ pub(crate) fn bundle_entries(bundles: &[(PathBuf, String, bool)], seen: &mut Has
 ///
 /// # Errors
 /// The bundle does not read, or the partition is not a blueprint.
-pub fn resolve(e: &mut Entry) -> Result<(), String> {
+pub fn resolve(e: &mut Entry) -> Result<(), EditorError> {
     if !e.reference.is_empty() {
         return Ok(());
     }
     let Some((file, name)) = e.bundle.clone() else {
-        return Err(format!("{}: no bundle to read it from", e.path));
+        return Err(EditorError::Level(format!("{}: no bundle to read it from", e.path)));
     };
-    let f = std::fs::File::open(&file).map_err(|x| format!("{}: {x}", file.display()))?;
+    let f = std::fs::File::open(&file).map_err(|x| EditorError::Level(format!("{}: {x}", file.display())))?;
     let data = bc2_formats::fbrb::read(&mut std::io::BufReader::new(f), &[name.as_str()])
-        .map_err(|x| format!("{}: {name}: {x}", file.display()))?
+        .map_err(|x| EditorError::Level(format!("{}: {name}: {x}", file.display())))?
         .into_iter()
         .next()
-        .ok_or_else(|| format!("{}: {name} is not in it", file.display()))?;
-    let (reference, object_type, destructible, why_not) =
-        blueprint_facts(&data, &e.path).ok_or_else(|| format!("{} is not a blueprint partition", e.path))?;
+        .ok_or_else(|| EditorError::Level(format!("{}: {name} is not in it", file.display())))?;
+    let (reference, object_type, destructible, why_not) = blueprint_facts(&data, &e.path)
+        .ok_or_else(|| EditorError::Level(format!("{} is not a blueprint partition", e.path)))?;
     e.reference = reference;
     e.category = Category::of_blueprint(&e.path, object_type.as_deref(), destructible);
     e.object_type = object_type;
@@ -479,12 +480,12 @@ impl Catalogue {
     ///
     /// # Errors
     /// As [`resolve`]; no such entry.
-    pub fn resolved(&mut self, path: &str) -> Result<Entry, String> {
+    pub fn resolved(&mut self, path: &str) -> Result<Entry, EditorError> {
         let e = self
             .entries
             .iter_mut()
             .find(|e| e.path == path)
-            .ok_or_else(|| format!("{path} is not in the catalogue"))?;
+            .ok_or_else(|| EditorError::Level(format!("{path} is not in the catalogue")))?;
         resolve(e)?;
         Ok(e.clone())
     }

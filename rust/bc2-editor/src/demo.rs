@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::error::EditorError;
 use bc2_scene::scene::{Collision, Entity, Scene, Shape, Source};
 
 fn matrix(at: [f64; 3]) -> [f64; 16] {
@@ -333,12 +334,12 @@ pub fn level_partition() -> Vec<u8> {
 ///
 /// # Errors
 /// The folder cannot be written, or the partition does not load.
-pub fn level(dir: &std::path::Path) -> Result<Scene, String> {
-    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+pub fn level(dir: &std::path::Path) -> Result<Scene, EditorError> {
+    std::fs::create_dir_all(dir).map_err(|e| EditorError::Level(e.to_string()))?;
     let file = dir.join("DEMO.dbx");
-    std::fs::write(&file, level_partition()).map_err(|e| e.to_string())?;
+    std::fs::write(&file, level_partition()).map_err(|e| EditorError::Level(e.to_string()))?;
     let mut s = bc2_scene::scene::load(&bc2_scene::scene::LoadOptions::new("DEMO", &file, Vec::new()))
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| EditorError::Level(e.to_string()))?;
     s.terrain = scene().terrain;
     let boxed = |x: f32, y: f32, z: f32| {
         let c = |i: usize| -> [f32; 3] {

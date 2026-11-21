@@ -7021,3 +7021,112 @@ quick tier), ruff and mypy on the changed Python, `spec/trace.py --check` (693 r
 `build_native.py` and `--editor`; `bfbc2 --version` and `bfbc2-editor --version` print 0.11.0. Screenshots (Dark and
 Light: the guard tower with its edges and bounds, destroyed, the rifles from the Meshes mode, the normal-map channel,
 the demo panel) went to the session's scratch folder, not the repository.
+
+## OP1: the map editor's core before E5 (2026-11-21, branch `op1`)
+
+Audit AU1 R14 / R17 / R18 / R24 (ROADMAP's OP1 row), the later audits' OP1 items (AU3 AR-6 / D4 / D7 / D9 / D12 /
+D13, AU4 DS-20, BUG-12, BUG-13, CQ-7) and DF1's three left items. Measured on the development PC (16 threads, 15 GB)
+while GR3 and R5e built and tested beside it; `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4`, the build folder
+`rust-targets\bfbc2-tool-suite-op1` (the dev profile is optimised with debug info).
+
+### Part A: operations on any file of a level
+
+| What | Where | Proof |
+|---|---|---|
+| Every operation names its targets: partition, static group file, height field, paint layer, navigation side file, project | `bc2_levelwrite::files::Target`, `Op::files` | `files::tests`, spec XLOG-FILE-1 |
+| `files`: edits of several files in one operation (partition operations, group members' transforms, each row's fourth word kept), applied on copies, all or nothing | `files::LevelFiles::apply`, `write::apply_partition_edits` | a failing second edit leaves the partition's delete unmade and no group file taken |
+| The editor keeps a writer per file in its checkpoints: one undo step for a multi-file operation, History jumps across checkpoints | `edit::Doc` (`files: LevelFiles`) | `op1::a_multi_file_operation_is_one_step_whole_or_not_at_all`: 40 member moves, `go_to(20)` replays 4 from the checkpoint at 16, files and scene back at every jump |
+| A base file's sha1 recorded on its first edit; the export applies the log to all files and writes edited group files in place of the base's (renamed with the level); a target it cannot write yet refuses in words | `project::MapProject::note_file`, `export::build` | spec XLOG-FILE-2 (implemented: no game export of a group edit was run: SG1 makes the first) |
+| Project format 6: `base.files`, `min_reader`, a 5 -> 6 migration, versions read whole (BUG-13) | `project.rs` | `versions_and_min_reader`; the synthetic corpus of versions 1, 2, 4, 5 (`tests/data/projects`) |
+
+**Old logs replay the same.** The corpus's four files replay to the partition sha1
+`9eb95861781c3387b0aab68b318af4faa4b46888` on this branch and on main at 082f2d2 (a throw-away worktree of main ran
+the same four files through the version-5 `apply`); `apply_files` on a log of the kinds of versions 1 - 5 equals
+`apply_with` and gives no other file (`files::tests`). The export's code path for such a project is the old one plus
+an empty map of edited group files.
+
+### Part B: delta tiles and the journalled autosave
+
+**Strokes.** 64 x 64 tiles, each file `BC2TILE1` + width + height + little-endian samples, kept once by sha1 in
+`<project>.mapedit.json.tiles`; the log's `stroke` names the tiles' places and sha1s before and after. Rasters keep
+tiles behind `Arc`s shared with the checkpoints. Commit time on a 2048 x 2048 height field (dabs of radius 24, 1 - 4
+tiles each), 400 strokes, as it was tuned:
+
+| Step | Commit median | p95 | Undo |
+|---|---:|---:|---:|
+| First version (each tile file synced, read back from disk to apply) | 14.64 ms | 19.60 ms | 8.2 ms |
+| Tiles not synced one by one (a short tile fails its sha1 and the stroke is refused, never applied wrong) | 11.38 ms | 15.05 ms | 7.1 ms |
+| Written in place | 10.78 ms | 14.31 ms | 7.1 ms |
+| The tile folder keeps the tiles last written or read in memory (4,096, about 32 MB) | 2.18 ms | 3.54 ms | 3.1 ms |
+
+The profile of the first version: applying 7.4 ms (reading back the tiles just written: Windows file opens with the
+scanner), the tile diff 2.2 ms, the checkpoint 0.0, the journal line 0.03.
+
+10,000 strokes (`op1::stroke_budgets_on_10000_strokes`, ignored by default): 26.7 s in all; commit median 2.57 ms,
+p95 4.13 ms, max 70.5 ms (a journal compaction); undo 3.4 ms, a History jump of 40 2.2 ms, redo 2.4 ms - within
+AU1 P16's budgets (16 ms a stroke, 100 ms an undo on a 10,000-operation log). The project file is then 8.1 MB (about
+800 bytes a stroke: 4 tiles' sha1s, number, author, time), the journal 5.0 MB, the tiles 233 MB: tiles of undone
+strokes are never collected (left for E5, with grouping a drag's dabs into one stroke).
+
+**The journal.** One CRC-32-checked line per change after a first line holding the project; flushed at once, synced
+at most once a second, compacted after 4,096 lines or 8 MB. A session's journal cut at every byte gives the project
+after its last whole line (`journal::tests`); a writer killed six times (`op1_journal`: three times through the
+editor's writer, three times writing each line in flushed 1 KB pieces) left a cut-short line twice (1,024 and 7,168
+bytes); every time operations 1 ... k were recovered with nothing guessed, resumed, and three more appended after the
+last good line. The organisation now follows each new operation (`Organisation::apply`) instead of replaying the log
+per commit (AU1 D7).
+
+### Part C: typed errors, explicit states, the save prompt, the game view on a worker
+
+- 155 `Result<_, String>` in `bc2-editor` (89) and `bc2-render` (66) became `EditorError` / `RenderError` (0 left);
+  the words shown are the same (`Display` is the old text). Converted by a rewrite script over the signatures and
+  the string-made errors, then by hand where the compiler said (47 places in the editor, 10 in the renderer).
+- `Doc::problems` are `Problem`s (severity, code, operation, objects).
+- DF1's side fields as states: `Closing`, `ExportFor`, `PreviewState`, `Mode::Preparing { job, then }`,
+  `Then::Create(.., target)`, `InstallRun`, the navkit job's `running` / `outcome`, `GameSlot`.
+- Close map and the window ask about unsaved edits after the busy question (`op1::closing_with_unsaved_edits_asks_first`).
+- The game-accurate view's world (`gameview::read_world`) is read on a worker; the device is made on the window's
+  thread (`GameView::finish`); headless runs wait for it in `run_action`, so the game-tier tests read it as before.
+
+### Part D: the god objects split
+
+`ViewState` 74 fields -> 45 (eight parts: `browser` 11 fields, `menus` 5, `outline` 3, `measures` 3, `inspect` 6,
+`props` 4, `pointer` 4, `game_view` 2); `EditorApp` 37 -> 22 (`command` 3, `new_project` 5, `start_ui` 9,
+`catalog_state` 3). Done by a script (the fields and the two literals moved) and a compile-driven rewrite: every
+access rustc reported as a missing field (E0609 / E0615) rewritten at its span to `<part>.<field>`, 382 places in
+`src` and `tests` over three passes; nothing else changed. Proof of identical behaviour: the editor's tests (lib 67,
+`editor` 51 run, 20 ignored as before) and seven screenshots of the main views through `bfbc2-editor --screenshot`
+(the start screen dark, light and WW2; the demo level dark, light, with a selection, the navigation view; 1600 x 950)
+byte for byte the same before and after - and between two runs before, so the comparison means something. The
+screenshots stayed in the session's scratch folder.
+
+### Left, with reasons
+
+- **SG1**: member edits in the views (selecting, the gizmo, delete / add a member: removing an `Assets` item renumbers
+  the `#k` guids, so SG1 decides how a member is named across edits) and the first export of a group edit on a real
+  level (XLOG-FILE-2 is implemented, not yet verified on game data).
+- **E5**: the terrain and paint brushes (`Doc::stroke` is their entry point), the terrain view following a raster,
+  writing rasters in the export (the height field's tail sections must be recomputed: refused in words until then),
+  grouping a drag's dabs into one stroke, and collecting tiles no operation names any more (233 MB after 10,000
+  strokes).
+- **The export window's workers** (`running`, `scanning`, `previewing`) stay `Option<Receiver>`: each is already a
+  two-state (idle / running) value with its result kept in the form; no DF1 generation travels with them.
+- **Part D went as far as a mechanical split goes**: `ViewState` still has 45 fields (the viewports, the doc, the
+  selection, the workspaces' own states such as `navs`, `diff`, `mode_view`); the workspace / tool trait of AU1 R21
+  is the post-Rust improvements' round.
+- No in-game test (paused): nothing here changes what an export writes for a project without group edits.
+
+### Proof
+
+- `cargo fmt --check`, `clippy --all-targets -D warnings` (bc2-levelwrite, bc2-editor, bc2-render) and their cargo
+  tests: levelwrite lib 40, `levelwrite` 13 run; editor lib 67, `editor` 51 run (the game-tier ones skip or are
+  ignored as before); render lib 64.
+- Release builds: `python rust\build_native.py` (bc2_native.pyd, bfbc2.exe; 3 min 27 s) and `--editor`
+  (bfbc2-editor.exe, mapexport.exe; 5 min 20 s) on a machine shared with two other rounds.
+- `spec\trace.py --check`: 699 rules (four new: XLOG-FILE-1, XLOG-FILE-2, XLOG-AUTO-1, XLOG-DELTA-1; XLOG-LOG-2
+  updated).
+- `python run_tests.py quick -j 2`: 132 of 135 in 631 s at first; the two OP1 failures fixed (the journal test's
+  child variable renamed `BC2_JOURNAL_KILL_CHILD` for what it does, AU3 TS-13; the 10,000-stroke measurement marked
+  `game tier:`) and those entries passed again (the Rust core's eight entries in 122 s). O2 fails on this PC as noted
+  in the rules (Microsoft Defender holds its stand-in `b.exe`: environmental).
+- ruff and mypy on the changed Python (`core\bfbc2core\envvars.py`).

@@ -53,10 +53,11 @@ fn count(h: &mut Headless, rect: Rect, colour: Color32) -> usize {
 fn rect_of(app: &EditorApp, target: usize) -> Rect {
     app.view()
         .unwrap()
+        .inspect
         .link_rects
         .iter()
         .find(|(t, _)| *t == target)
-        .unwrap_or_else(|| panic!("no Links row to {target}: {:?}", app.view().unwrap().link_rects))
+        .unwrap_or_else(|| panic!("no Links row to {target}: {:?}", app.view().unwrap().inspect.link_rects))
         .1
 }
 
@@ -69,7 +70,7 @@ fn demo_level(h: &mut Headless, project: bool) {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     if project {
-        let then = bc2_editor::app::Then::Create("GR1 links".into(), dir.join("projects"));
+        let then = bc2_editor::app::Then::Create("GR1 links".into(), dir.join("projects"), None);
         app.open_scene_then(&gpu, "demo", scene, then);
     } else {
         app.open_scene(&gpu, "demo", scene);
@@ -81,7 +82,7 @@ fn demo_level(h: &mut Headless, project: bool) {
     app.select(&gpu, Some(5));
     app.focus_selected();
     h.settle(&mut app, 6);
-    let rows: Vec<usize> = app.view().unwrap().link_rects.iter().map(|(t, _)| *t).collect();
+    let rows: Vec<usize> = app.view().unwrap().inspect.link_rects.iter().map(|(t, _)| *t).collect();
     assert_eq!(rows, [6, 10, 10], "references 6 and 10, the event to 10");
     // the links drawn in the 3D view, in view-link
     let p = app.palette();
@@ -89,9 +90,16 @@ fn demo_level(h: &mut Headless, project: bool) {
     let drawn = count(h, view, p.view_link);
     assert!(drawn > 40, "{drawn} view-link pixels");
     // All fields: the flag's fields with their types; Geometry opens to its item
-    let headers: Vec<String> = app.view().unwrap().field_rects.iter().map(|(n, _)| n.clone()).collect();
+    let headers: Vec<String> = app
+        .view()
+        .unwrap()
+        .inspect
+        .field_rects
+        .iter()
+        .map(|(n, _)| n.clone())
+        .collect();
     assert_eq!(headers, ["Geometry"], "the flag's one container");
-    let at = app.view().unwrap().field_rects[0].1.center();
+    let at = app.view().unwrap().inspect.field_rects[0].1.center();
     h.click(&mut app, at);
     h.settle(&mut app, 2);
     let tree = app.view_mut().unwrap().property_tree(5).unwrap().to_vec();
@@ -111,14 +119,14 @@ fn demo_level(h: &mut Headless, project: bool) {
     h.click(&mut app, at);
     h.settle(&mut app, 3);
     assert_eq!(app.view().unwrap().selected, Some(10));
-    assert_eq!(app.view().unwrap().link_back, [5]);
-    let rows: Vec<usize> = app.view().unwrap().link_rects.iter().map(|(t, _)| *t).collect();
+    assert_eq!(app.view().unwrap().inspect.link_back, [5]);
+    let rows: Vec<usize> = app.view().unwrap().inspect.link_rects.iter().map(|(t, _)| *t).collect();
     assert_eq!(rows, [5, 5], "referenced by the flag, the event from it");
     // Back returns to the flag
     app.view_mut().unwrap().go_back(&gpu);
     h.settle(&mut app, 3);
     assert_eq!(app.view().unwrap().selected, Some(5));
-    assert_eq!(app.view().unwrap().link_back, Vec::<usize>::new());
+    assert_eq!(app.view().unwrap().inspect.link_back, Vec::<usize>::new());
     // K hides the drawn links
     let ctx = h.ctx.clone();
     app.run(&gpu, &ctx, Action::ToggleLinks);
@@ -132,14 +140,14 @@ fn demo_level(h: &mut Headless, project: bool) {
     for dx in [-150.0, 150.0] {
         h.click(&mut app, centre + eframe::egui::Vec2::new(dx, 80.0));
     }
-    let pts = app.view().unwrap().measure.clone();
+    let pts = app.view().unwrap().measures.measure.clone();
     assert_eq!(pts.len(), 2, "{pts:?}");
     assert_eq!(app.view().unwrap().selected, Some(5), "measuring does not select");
     let f = bc2_editor::inspect::measure(&pts).unwrap();
     assert!(f.segment > 1.0 && (f.total - f.segment).abs() < 1e-9, "{f:?}");
     app.run(&gpu, &ctx, Action::ToggleMeasure);
     h.settle(&mut app, 2);
-    assert!(app.view().unwrap().measure.is_empty() && !app.view().unwrap().measuring);
+    assert!(app.view().unwrap().measures.measure.is_empty() && !app.view().unwrap().measures.measuring);
     println!(
         "gr1 demo ({}): links listed, followed and back, fields typed, {drawn} link pixels, hidden by K; measured {:.2} m",
         if project { "project" } else { "viewed" },
@@ -196,7 +204,7 @@ fn links_and_fields_on_mp_005() {
         app.focus_selected();
         h.settle(&mut app, 10);
         let v = app.view().unwrap();
-        let n_rows = v.link_rects.len();
+        let n_rows = v.inspect.link_rects.len();
         assert!(n_rows >= 3, "{n_rows} link rows");
         let p = app.palette();
         let drawn = count(&mut h, v.view_rect().unwrap(), p.view_link);
@@ -205,7 +213,7 @@ fn links_and_fields_on_mp_005() {
         let props = v.view_rect().unwrap().right_top() + eframe::egui::Vec2::new(150.0, 200.0);
         h.wheel(&mut app, props, -5);
         h.settle(&mut app, 3);
-        let first = app.view().unwrap().field_rects.first().cloned();
+        let first = app.view().unwrap().inspect.field_rects.first().cloned();
         if let Some((name, r)) = first {
             h.click(&mut app, r.center());
             h.settle(&mut app, 3);
@@ -213,7 +221,7 @@ fn links_and_fields_on_mp_005() {
         }
         shot(&format!("gr1_links_fields_mp_005_{}.png", theme.key()), &mut h);
         // follow the first link and come back
-        let (target, r) = app.view().unwrap().link_rects[0];
+        let (target, r) = app.view().unwrap().inspect.link_rects[0];
         h.click(&mut app, r.center());
         h.settle(&mut app, 6);
         assert_eq!(app.view().unwrap().selected, Some(target));

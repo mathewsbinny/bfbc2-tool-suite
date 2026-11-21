@@ -38,6 +38,7 @@ use std::sync::Arc;
 use bc2_formats::fbrb;
 
 use crate::dxbc::{self, Reflection};
+use crate::error::RenderError;
 use crate::frame::{Camera, cbuffer};
 use crate::weather::{Post, Values};
 
@@ -115,17 +116,18 @@ impl Shaders {
     ///
     /// # Errors
     /// The bundle cannot be read or a shader is missing.
-    pub fn load(bundle: &Path) -> Result<Self, String> {
+    pub fn load(bundle: &Path) -> Result<Self, RenderError> {
         let names: Vec<&str> = USED.iter().copied().chain(["psFilmicTonemap"]).collect();
         let files: Vec<String> = names
             .iter()
             .map(|n| format!("Systems/PostProcess/ShaderContainer/{n}_d3d11.res"))
             .collect();
-        let got = fbrb::read_path_uncached(bundle, &files).map_err(|e| format!("{}: {e}", bundle.display()))?;
+        let got = fbrb::read_path_uncached(bundle, &files)
+            .map_err(|e| RenderError::Data(format!("{}: {e}", bundle.display())))?;
         let mut by_name = HashMap::new();
         for (n, code) in names.iter().zip(got) {
             if code.get(0..4) != Some(b"DXBC") {
-                return Err(format!("{n}_d3d11: not a compiled shader"));
+                return Err(RenderError::Data(format!("{n}_d3d11: not a compiled shader")));
             }
             let reflect = Arc::new(dxbc::reflect(&code));
             by_name.insert(
@@ -254,12 +256,14 @@ fn half(s: [u32; 2]) -> [u32; 2] {
 ///
 /// # Errors
 /// A shader of the chain is missing.
-pub fn chain(shaders: &Shaders, post: &Post, size: [u32; 2]) -> Result<Vec<Pass>, String> {
+pub fn chain(shaders: &Shaders, post: &Post, size: [u32; 2]) -> Result<Vec<Pass>, RenderError> {
     let base = values(post);
-    let vs = shaders.get("vs2D").ok_or("vs2D missing")?;
+    let vs = shaders.get("vs2D").ok_or(RenderError::Shader("vs2D missing".into()))?;
     let mut out = Vec::new();
     let mut pass = |name: &str, inputs: Vec<(u32, String)>, src: [u32; 2], output: &str, dst: [u32; 2], format: u32| {
-        let ps = shaders.get(name).ok_or_else(|| format!("{name} missing"))?;
+        let ps = shaders
+            .get(name)
+            .ok_or_else(|| RenderError::Shader(format!("{name} missing")))?;
         let mut v = base.clone();
         let inv = |s: [u32; 2]| vec![1.0 / s[0] as f32, 1.0 / s[1] as f32];
         v.insert("invPixelSize".into(), inv(dst));
@@ -277,7 +281,7 @@ pub fn chain(shaders: &Shaders, post: &Post, size: [u32; 2]) -> Result<Vec<Pass>
             size: dst,
             format,
         });
-        Ok::<(), String>(())
+        Ok::<(), RenderError>(())
     };
     let mut s = half(size);
     pass(
@@ -355,11 +359,11 @@ pub fn chain(shaders: &Shaders, post: &Post, size: [u32; 2]) -> Result<Vec<Pass>
 ///
 /// # Errors
 /// A shader is missing.
-pub fn unproject(shaders: &Shaders, cam: &Camera, size: [u32; 2]) -> Result<Pass, String> {
-    let vs = shaders.get("vs2D").ok_or("vs2D missing")?;
+pub fn unproject(shaders: &Shaders, cam: &Camera, size: [u32; 2]) -> Result<Pass, RenderError> {
+    let vs = shaders.get("vs2D").ok_or(RenderError::Shader("vs2D missing".into()))?;
     let ps = shaders
         .get("psUnprojectDepthBuffer")
-        .ok_or("psUnprojectDepthBuffer missing")?;
+        .ok_or(RenderError::Shader("psUnprojectDepthBuffer missing".into()))?;
     let mut v = Values::new();
     v.insert("invPixelSize".into(), vec![1.0 / size[0] as f32, 1.0 / size[1] as f32]);
     let q = cam.far / (cam.far - cam.near).max(1e-9);

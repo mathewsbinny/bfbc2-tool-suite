@@ -27,6 +27,7 @@ use super::{EditorApp, GpuCtx, Mode, Tabs, Then, ViewState};
 use crate::actions::{Action, PanelKind};
 use crate::camera;
 use crate::compare::{self, Against, DiffView, Group, Kind, Side, SideOf};
+use crate::error::EditorError;
 use crate::render::Look;
 use crate::theme::Palette;
 
@@ -45,16 +46,65 @@ pub struct Preview {
     pub rec: StageRecord,
 }
 
+/// The export's preview (round OP1: one state for DF1's `preview` and `preview_job`; a preview being opened is
+/// dropped with its project generation, so no generation travels with it).
+#[derive(Default)]
+pub enum PreviewState {
+    /// No preview.
+    #[default]
+    None,
+    /// Being opened on a worker.
+    Opening(PreviewJob),
+    /// Shown: the export's side and the original's, the project kept aside.
+    Shown(Box<Preview>),
+}
+
+impl PreviewState {
+    /// The preview shown.
+    #[must_use]
+    pub fn shown(&self) -> Option<&Preview> {
+        match self {
+            Self::Shown(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// The preview shown, to change.
+    pub fn shown_mut(&mut self) -> Option<&mut Preview> {
+        match self {
+            Self::Shown(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// The preview shown, taken out (nothing left).
+    pub fn take_shown(&mut self) -> Option<Box<Preview>> {
+        match std::mem::take(self) {
+            Self::Shown(p) => Some(p),
+            other => {
+                *self = other;
+                None
+            }
+        }
+    }
+
+    /// The preview being opened.
+    #[must_use]
+    pub fn opening(&self) -> Option<&PreviewJob> {
+        match self {
+            Self::Opening(j) => Some(j),
+            _ => None,
+        }
+    }
+}
+
 /// A preview being opened: the stage prepared and loaded, the base loaded, the two compared, on a worker.
 pub struct PreviewJob {
-    rx: Receiver<Result<Box<PreviewLoaded>, String>>,
+    rx: Receiver<Result<Box<PreviewLoaded>, EditorError>>,
     /// Since when.
     pub since: Instant,
     /// The stage.
     pub stage: PathBuf,
-    /// The project generation it was asked in (round DF1, audit AU4-SM-4): an answer landing after the map was
-    /// closed or another project opened is dropped.
-    pub generation: u64,
 }
 
 /// What the preview's worker gives.
@@ -64,7 +114,7 @@ pub struct PreviewLoaded {
     stage_lv: String,
     stage: LoadedOk,
     rec: StageRecord,
-    diff: Result<DiffView, String>,
+    diff: Result<DiffView, EditorError>,
 }
 
 /// The colour of a kind of difference (the design's `view-diff-*` tokens).
@@ -114,14 +164,15 @@ fn preview_note(rec: &StageRecord) -> String {
 }
 
 /// Loads the stage (prepared like a Package level, into the editor's cache) and the base, and compares them.
-fn load_preview(root: &Path, stage: &Path) -> Result<Box<PreviewLoaded>, String> {
+fn load_preview(root: &Path, stage: &Path) -> Result<Box<PreviewLoaded>, EditorError> {
     let game = root.join("game");
     let (level, rec) = compare::stage_level(&game, stage)?;
     let cancel = std::sync::atomic::AtomicBool::new(false);
     crate::package::prepare(root, &level, &mut |_| {}, &cancel)?;
     let t = Instant::now();
     let found = crate::package::load_options(root, &level)?;
-    let s = scene::load(&found.options).map_err(|e| format!("the export could not be read: {e}"))?;
+    let s =
+        scene::load(&found.options).map_err(|e| EditorError::Level(format!("the export could not be read: {e}")))?;
     let mut notes = found.notes;
     notes.extend(s.notes.iter().cloned());
     let stage_loaded = (s, notes, t.elapsed().as_secs_f64(), found.options.bases);
@@ -151,11 +202,11 @@ impl EditorApp {
     pub(super) fn compare_why_not(&self, action: Action) -> Option<&'static str> {
         match action {
             Action::PreviewExport if self.opfor.is_err() => Some("No game copy found"),
-            Action::PreviewExport if self.last_stage().is_none() && self.preview.is_none() => {
+            Action::PreviewExport if self.last_stage().is_none() && self.preview.shown().is_none() => {
                 Some("Export the level first: the preview opens its stage")
             }
-            Action::PreviewExport if self.preview_job.is_some() => Some("The preview is being opened"),
-            Action::SwitchCompare | Action::ClosePreview if self.preview.is_none() => {
+            Action::PreviewExport if self.preview.opening().is_some() => Some("The preview is being opened"),
+            Action::SwitchCompare | Action::ClosePreview if self.preview.shown().is_none() => {
                 Some("Open the export's preview first (Preview export)")
             }
             _ => None,
@@ -216,16 +267,17 @@ impl EditorApp {
     /// Opens an export's preview (its stage beside the original base level) on a worker.
     pub fn start_preview(&mut self, stage: &Path) {
         let Ok(root) = self.opfor.clone() else { return };
+        // a preview shown is closed first (the project's view back while the new one opens)
+        self.close_preview();
         let (tx, rx) = std::sync::mpsc::channel();
         let st = stage.to_path_buf();
         std::thread::spawn(move || {
             let _ = tx.send(crate::export_ui::guarded("The preview", || load_preview(&root, &st)));
         });
-        self.preview_job = Some(PreviewJob {
+        self.preview = PreviewState::Opening(PreviewJob {
             rx,
             since: Instant::now(),
             stage: stage.to_path_buf(),
-            generation: self.generation,
         });
         if let Mode::View(v) = &mut self.mode {
             v.message = "Opening the export's preview: the stage read like a level, beside the original...".into();
@@ -234,22 +286,23 @@ impl EditorApp {
 
     /// The preview's worker, when it is done: the views shown (the export first), the project kept aside.
     pub(super) fn poll_preview(&mut self, gpu: &GpuCtx, ctx: &egui::Context) {
-        let Some(job) = &self.preview_job else { return };
+        let PreviewState::Opening(job) = &self.preview else {
+            return;
+        };
         let r = match job.rx.try_recv() {
             Ok(r) => r,
             Err(TryRecvError::Empty) => {
                 ctx.request_repaint_after(std::time::Duration::from_millis(200));
                 return;
             }
-            Err(TryRecvError::Disconnected) => Err("the preview's worker stopped unexpectedly".into()),
+            Err(TryRecvError::Disconnected) => {
+                Err(EditorError::Level("the preview's worker stopped unexpectedly".into()))
+            }
         };
         let stage = job.stage.clone();
-        let current = job.generation == self.generation;
-        self.preview_job = None;
-        if !current {
-            // asked for another project (round DF1): not shown over this one
-            return;
-        }
+        // a preview asked for another project was dropped with its generation (round DF1): this one is the open
+        // project's
+        self.preview = PreviewState::None;
         match r {
             Ok(loaded) => self.show_preview(gpu, *loaded, stage),
             Err(e) => {
@@ -265,7 +318,7 @@ impl EditorApp {
     ///
     /// # Errors
     /// No game copy, or the stage or the base does not load.
-    pub fn open_preview_blocking(&mut self, gpu: &GpuCtx, stage: &Path) -> Result<(), String> {
+    pub fn open_preview_blocking(&mut self, gpu: &GpuCtx, stage: &Path) -> Result<(), EditorError> {
         let root = self.opfor.clone()?;
         let loaded = load_preview(&root, stage)?;
         self.show_preview(gpu, *loaded, stage.to_path_buf());
@@ -273,7 +326,7 @@ impl EditorApp {
         if let Mode::View(v) = &mut self.mode {
             v.take_visuals(gpu, &palette, true);
         }
-        if let Some(p) = self.preview.as_mut() {
+        if let Some(p) = self.preview.shown_mut() {
             p.other.take_visuals(gpu, &palette, true);
         }
         Ok(())
@@ -282,7 +335,7 @@ impl EditorApp {
     fn show_preview(&mut self, gpu: &GpuCtx, l: PreviewLoaded, stage: PathBuf) {
         let palette = self.palette();
         // the project's view kept aside (an earlier preview's sides dropped)
-        let project = match self.preview.take() {
+        let project = match self.preview.take_shown() {
             Some(p) => p.project,
             None => match std::mem::replace(&mut self.mode, Mode::Start) {
                 Mode::View(v) => Some(v),
@@ -329,7 +382,7 @@ impl EditorApp {
             l.base_lv.to_ascii_uppercase()
         );
         self.mode = Mode::View(shown);
-        self.preview = Some(Box::new(Preview {
+        self.preview = PreviewState::Shown(Box::new(Preview {
             other: base,
             project,
             stage,
@@ -340,7 +393,7 @@ impl EditorApp {
 
     /// Shows the preview's other side, with this side's camera and filters.
     pub fn switch_preview(&mut self) {
-        let Some(p) = self.preview.as_mut() else { return };
+        let Some(p) = self.preview.shown_mut() else { return };
         let Mode::View(v) = &mut self.mode else { return };
         for (proj, vp) in &v.viewports {
             if let Some(o) = p.other.viewports.get_mut(proj) {
@@ -361,7 +414,7 @@ impl EditorApp {
 
     /// Closes the preview: the project's view again.
     pub fn close_preview(&mut self) {
-        if let Some(p) = self.preview.take() {
+        if let Some(p) = self.preview.take_shown() {
             // a preview opened with no project behind it goes back to the start screen (never stays read only)
             self.mode = match p.project {
                 Some(project) => Mode::View(project),
@@ -374,21 +427,21 @@ impl EditorApp {
     #[must_use]
     pub fn preview_stage(&self) -> Option<&Path> {
         self.preview
-            .as_ref()
+            .shown()
             .map(|p| p.stage.as_path())
-            .or_else(|| self.preview_job.as_ref().map(|j| j.stage.as_path()))
+            .or_else(|| self.preview.opening().map(|j| j.stage.as_path()))
     }
 
     /// How long the preview has been opening, seconds (`None`: it is not).
     #[must_use]
     pub fn preview_opening(&self) -> Option<f64> {
-        self.preview_job.as_ref().map(|j| j.since.elapsed().as_secs_f64())
+        self.preview.opening().map(|j| j.since.elapsed().as_secs_f64())
     }
 
     /// Which side the preview shows (`None`: no preview).
     #[must_use]
     pub fn preview_side(&self) -> Option<Side> {
-        self.preview.as_ref()?;
+        self.preview.shown()?;
         self.view().map(|v| v.diff.side.0)
     }
 }
@@ -398,7 +451,9 @@ impl ViewState {
     pub fn compare_with_base(&mut self) {
         let Some(d) = &self.doc else { return };
         let (Some(a), Some(b)) = (d.base_bytes().map(<[u8]>::to_vec), d.partition()) else {
-            self.diff.view = Some(Err("This scene has no level partition to compare".into()));
+            self.diff.view = Some(Err(EditorError::Level(
+                "This scene has no level partition to compare".into(),
+            )));
             return;
         };
         let labels = [
@@ -415,12 +470,12 @@ impl ViewState {
     pub fn compare_with_level(&mut self, other: &str) {
         let other = other.trim().to_ascii_lowercase();
         let Some(root) = self.root.clone() else {
-            self.diff.view = Some(Err("No game copy found".into()));
+            self.diff.view = Some(Err(EditorError::Level("No game copy found".into())));
             return;
         };
         let a = export::Game::open(&root.join("game"))
             .and_then(|g| export::level_partition(&g, &other))
-            .map_err(|e| format!("{}: {e}", other.to_ascii_uppercase()));
+            .map_err(|e| EditorError::Level(format!("{}: {e}", other.to_ascii_uppercase())));
         let b = match &self.doc {
             Some(d) => d.partition(),
             None => self.base.file(0).map(|(_, b)| b.to_vec()),
@@ -434,7 +489,11 @@ impl ViewState {
                 self.diff.start(a, b, labels, std::collections::HashSet::new());
             }
             (Err(e), _) => self.diff.view = Some(Err(e)),
-            (_, None) => self.diff.view = Some(Err("This scene has no level partition to compare".into())),
+            (_, None) => {
+                self.diff.view = Some(Err(EditorError::Level(
+                    "This scene has no level partition to compare".into(),
+                )));
+            }
         }
     }
 
@@ -598,7 +657,7 @@ impl Tabs<'_> {
                         return;
                     }
                     Some(Err(e)) => {
-                        super::status_line(ui, &p, "Error", p.status_error, e);
+                        super::status_line(ui, &p, "Error", p.status_error, &e.to_string());
                         return;
                     }
                     Some(Ok(view)) => Arc::clone(view),

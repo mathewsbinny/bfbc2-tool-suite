@@ -285,7 +285,7 @@ fn ww2_levels_open_in_the_game_accurate_view() {
         let ctx = h.ctx.clone();
         app.run_action(&gpu, &ctx, Action::ToggleGameView);
         let message = app.view().unwrap().message.clone();
-        let Some(g) = app.view().unwrap().game.as_ref() else {
+        let Some(g) = app.view().unwrap().game_view.game.as_ref() else {
             panic!("{lv}: the game-accurate view did not load: {message}");
         };
         println!("{lv}: {message}");
@@ -312,7 +312,7 @@ fn ww2_levels_open_in_the_game_accurate_view() {
         assert!(w.terrain.is_some(), "{lv}: terrain loaded: {:?}", g.notes);
         h.settle(&mut app, 4);
         {
-            let g = app.view().unwrap().game.as_ref().unwrap();
+            let g = app.view().unwrap().game_view.game.as_ref().unwrap();
             assert!(g.error.is_none(), "{lv}: {:?}", g.error);
             assert!(g.timings.draws > 0, "{lv}: nothing drawn");
             println!("{lv}: {} draws, {:?}", g.timings.draws, g.world().counts);
@@ -329,7 +329,7 @@ fn ww2_levels_open_in_the_game_accurate_view() {
         // the whole terrain drawn, from above its middle and from its south-west corner (whole_terrain.rs; a device
         // of its own: a device keeps the engine textures it was given by name, the height map among them)
         let mut dev = Device::new(false).unwrap();
-        let world = app.view_mut().unwrap().game.as_mut().unwrap().world_mut();
+        let world = app.view_mut().unwrap().game_view.game.as_mut().unwrap().world_mut();
         let (lo, hi) = bounds(&world.terrain.as_ref().unwrap().hf);
         let mid = [0, 1, 2].map(|k| f64::midpoint(lo[k], hi[k]));
         let span = (hi[0] - lo[0]).max(hi[2] - lo[2]);

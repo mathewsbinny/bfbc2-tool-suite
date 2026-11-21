@@ -26,6 +26,7 @@ use bc2_levelwrite::ops::{FieldIs, Placed};
 use crate::actions::Brush;
 use crate::content::Entry;
 use crate::display::{InvisibleAs, ShowAs};
+use crate::error::EditorError;
 use crate::viewmodes;
 use crate::workspace::{Category, ViewMode};
 
@@ -330,10 +331,10 @@ pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<O
 impl ViewState {
     /// The surface point under the pointer, or where the context menu was opened (taken once).
     pub(super) fn point_here(&mut self) -> Option<V3> {
-        if let Some(p) = self.menu_point.take() {
+        if let Some(p) = self.menus.menu_point.take() {
             return Some(p);
         }
-        let (o, d) = self.pointer_ray?;
+        let (o, d) = self.menus.pointer_ray?;
         let skip = |k: usize| self.doc.as_ref().is_some_and(|d| !d.shown(k));
         query::ray_hit_except(self.scene(), o, d, &skip).map(|h| h.point)
     }
@@ -341,16 +342,16 @@ impl ViewState {
     /// Whether a transient tool is open (placing, the polygon, the sink popup, the picker): Esc cancels it first.
     #[must_use]
     pub fn has_transient(&self) -> bool {
-        self.placing.is_some()
-            || !self.polygon.is_empty()
-            || self.sink.is_some()
+        self.browser.placing.is_some()
+            || !self.outline.polygon.is_empty()
+            || self.browser.sink.is_some()
             || self.picker.is_some()
             || !self.navs.clicks.is_empty()
     }
 
     /// Cancels the transient tools.
     pub fn cancel_transient(&mut self) {
-        if self.placing.take().is_some() {
+        if self.browser.placing.take().is_some() {
             self.message = "Placing cancelled".into();
         }
         if !self.navs.clicks.is_empty() {
@@ -358,8 +359,8 @@ impl ViewState {
             self.navs.message = "Drawing cancelled".into();
             self.navs.dirty = true;
         }
-        self.polygon.clear();
-        self.sink = None;
+        self.outline.polygon.clear();
+        self.browser.sink = None;
         self.picker = None;
     }
 
@@ -499,8 +500,8 @@ impl ViewState {
         match action {
             Action::SetWorkspace(w) => {
                 self.workspace = w;
-                self.drag = None;
-                self.box_from = None;
+                self.pointer.drag = None;
+                self.pointer.box_from = None;
                 self.cancel_transient();
                 let keep: Vec<usize> = self.selection.iter().copied().filter(|&k| self.selectable(k)).collect();
                 self.set_selection(gpu, keep, false);
@@ -751,7 +752,7 @@ impl ViewState {
                 }
             }
             Action::SelectAllOfType => {
-                let want_bp = self.content_pick.clone().or_else(|| {
+                let want_bp = self.browser.content_pick.clone().or_else(|| {
                     self.selected
                         .and_then(|k| self.scene().entities.get(k))
                         .and_then(|e| e.blueprint.clone())
@@ -806,6 +807,7 @@ impl ViewState {
             }
             Action::SinkPopup => {
                 let at = self
+                    .menus
                     .context
                     .map(|c| c.at)
                     .or_else(|| self.view_rect().map(|r| r.center()))
@@ -815,6 +817,7 @@ impl ViewState {
             Action::PlaceObject => {
                 let point = self.point_here();
                 let at = self
+                    .menus
                     .context
                     .map(|c| c.at)
                     .or_else(|| self.view_rect().map(|r| r.center()))
@@ -845,7 +848,7 @@ impl ViewState {
             placement.sink *= height;
             placement.unit = SinkUnit::Metres;
         }
-        self.sink = Some(SinkPopup {
+        self.browser.sink = Some(SinkPopup {
             at,
             objects,
             placement,
@@ -857,7 +860,7 @@ impl ViewState {
     /// Applies the sink popup's placement to its objects: one operation per gesture (a wheel burst, a slider drag,
     /// a mode click), amended while the gesture goes on.
     fn sink_to(&mut self, gpu: &GpuCtx, palette: &Palette, kind: Gesture, now: f64) {
-        let Some(popup) = self.sink.clone() else { return };
+        let Some(popup) = self.browser.sink.clone() else { return };
         let ks: Vec<usize> = popup.objects.iter().map(|(k, _)| *k).collect();
         let placed = self.placed_on_surface(&ks, Some(popup.placement));
         let Some(d) = self.doc.as_mut() else { return };
@@ -886,7 +889,7 @@ impl ViewState {
             _ => d.commit(op, "Sink below surface"),
         };
         self.message = d.project.operations.last().map_or_else(String::new, Operation::name);
-        if let Some(s) = self.sink.as_mut() {
+        if let Some(s) = self.browser.sink.as_mut() {
             s.gesture = Some((kind, n, now));
         }
         self.refresh(gpu, palette);
@@ -941,18 +944,26 @@ impl ViewState {
     ///
     /// # Errors
     /// The text is not a value of the field's type, or nothing is selected.
-    pub fn set_common_field(&mut self, gpu: &GpuCtx, palette: &Palette, path: &str, text: &str) -> Result<(), String> {
+    pub fn set_common_field(
+        &mut self,
+        gpu: &GpuCtx,
+        palette: &Palette,
+        path: &str,
+        text: &str,
+    ) -> Result<(), EditorError> {
         let ks = self.editable_selection();
         if ks.is_empty() {
-            return Err("Select objects that can be edited first".into());
+            return Err(EditorError::Input("Select objects that can be edited first".into()));
         }
         let text = text.trim();
         if let Some(axis) = path.strip_prefix("Position.") {
             let c = ["X", "Y", "Z"]
                 .iter()
                 .position(|a| *a == axis)
-                .ok_or("no such coordinate")?;
-            let v: f64 = text.parse().map_err(|_| format!("{text} is not a number"))?;
+                .ok_or(EditorError::Input("no such coordinate".into()))?;
+            let v: f64 = text
+                .parse()
+                .map_err(|_| EditorError::Input(format!("{text} is not a number")))?;
             let items: Vec<_> = ks
                 .iter()
                 .filter_map(|&k| {
@@ -973,17 +984,26 @@ impl ViewState {
             .find(|(p, _, _)| p == path)
             .map(|(_, t, _)| t)
         else {
-            return Err(format!("not every selected object has {path}"));
+            return Err(EditorError::Input(format!("not every selected object has {path}")));
         };
         let value = match ty {
-            FieldType::Int => FieldValue::Int(text.parse().map_err(|_| format!("{text} is not a whole number"))?),
-            FieldType::Float => FieldValue::Float(text.parse().map_err(|_| format!("{text} is not a number"))?),
+            FieldType::Int => FieldValue::Int(
+                text.parse()
+                    .map_err(|_| EditorError::Input(format!("{text} is not a whole number")))?,
+            ),
+            FieldType::Float => FieldValue::Float(
+                text.parse()
+                    .map_err(|_| EditorError::Input(format!("{text} is not a number")))?,
+            ),
             FieldType::Bool => FieldValue::Bool(match text {
                 "true" | "1" => true,
                 "false" | "0" => false,
-                _ => return Err(format!("{text} is not true or false")),
+                _ => return Err(EditorError::Input(format!("{text} is not true or false"))),
             }),
-            FieldType::Byte => FieldValue::Byte(text.parse().map_err(|_| format!("{text} is not a byte"))?),
+            FieldType::Byte => FieldValue::Byte(
+                text.parse()
+                    .map_err(|_| EditorError::Input(format!("{text} is not a byte")))?,
+            ),
             _ => FieldValue::Text(text.to_owned()),
         };
         let Some(d) = &self.doc else { return Ok(()) };
@@ -1014,7 +1034,7 @@ impl ViewState {
         source: &crate::content::GameSource,
         path: &str,
     ) -> Option<egui::TextureHandle> {
-        if let Some(t) = self.thumbs.get(path) {
+        if let Some(t) = self.browser.thumbs.get(path) {
             return t.clone();
         }
         let file = crate::content::thumbnail_file(&source.opfor, source.set, path);
@@ -1022,7 +1042,7 @@ impl ViewState {
             let img = egui::ColorImage::from_rgba_unmultiplied(pic.size, &pic.rgba);
             ctx.load_texture(format!("thumb:{path}"), img, egui::TextureOptions::LINEAR)
         });
-        self.thumbs.insert(path.to_owned(), t.clone());
+        self.browser.thumbs.insert(path.to_owned(), t.clone());
         t
     }
 
@@ -1030,11 +1050,11 @@ impl ViewState {
     /// read from its bundle first.
     pub fn start_placing(&mut self, entry: Entry) {
         let entry = if entry.reference.is_empty() {
-            match self.content.as_mut().map(|c| c.resolved(&entry.path)) {
+            match self.browser.content.as_mut().map(|c| c.resolved(&entry.path)) {
                 Some(Ok(e)) => e,
                 Some(Err(x)) => {
                     self.message = format!("Not placed: {x}");
-                    self.place_failed = Some(entry.path);
+                    self.browser.place_failed = Some(entry.path);
                     return;
                 }
                 None => return,
@@ -1044,7 +1064,7 @@ impl ViewState {
         };
         if let Some(w) = entry.why_not {
             self.message = format!("{} cannot be placed as an object: {w}", entry.name);
-            self.place_failed = Some(entry.path);
+            self.browser.place_failed = Some(entry.path);
             return;
         }
         let path = entry.path.clone();
@@ -1079,7 +1099,7 @@ impl ViewState {
             "Placing {}: click to place, Alt+wheel sinks, Shift+wheel turns, Esc cancels",
             entry.name
         );
-        self.placing = Some(Placing {
+        self.browser.placing = Some(Placing {
             entry,
             yaw: 0.0,
             placement,
@@ -1096,16 +1116,16 @@ impl ViewState {
             self.doc
                 .as_ref()
                 .map_or(0, |d| d.project.operations.len() + d.project.redo.len() * 1000),
-            self.content.as_ref().map_or(0, |c| c.entries.len()),
+            self.browser.content.as_ref().map_or(0, |c| c.entries.len()),
         );
-        if let Some((k, t)) = &self.tiles
+        if let Some((k, t)) = &self.browser.tiles
             && *k == key
         {
             return t.clone();
         }
         let Some(d) = &self.doc else { return Vec::new() };
-        let t = crate::gameplay::tiles(d, self.content.as_ref());
-        self.tiles = Some((key, t.clone()));
+        let t = crate::gameplay::tiles(d, self.browser.content.as_ref());
+        self.browser.tiles = Some((key, t.clone()));
         t
     }
 
@@ -1113,7 +1133,7 @@ impl ViewState {
     pub fn start_placing_gameplay(&mut self, tile: crate::gameplay::Tile) {
         if let Some(w) = tile.why_not {
             self.message = format!("{} cannot be placed: {w}", tile.label);
-            self.place_failed = Some(tile.key());
+            self.browser.place_failed = Some(tile.key());
             return;
         }
         let size = self
@@ -1140,7 +1160,7 @@ impl ViewState {
             "Placing {}: click to place, Alt+wheel sinks, Shift+wheel turns, Esc cancels",
             tile.label
         );
-        self.placing = Some(Placing {
+        self.browser.placing = Some(Placing {
             entry,
             yaw: 0.0,
             placement: Placement::default(),
@@ -1165,7 +1185,7 @@ impl ViewState {
         if vehicle.is_empty()
             && let Some(path) = &tile.vehicle_path
         {
-            match self.content.as_mut().map(|c| c.resolved(path)) {
+            match self.browser.content.as_mut().map(|c| c.resolved(path)) {
                 Some(Ok(e)) => vehicle = e.reference,
                 Some(Err(x)) => {
                     self.message = format!("Not placed: {x}");
@@ -1174,7 +1194,7 @@ impl ViewState {
                 None => return,
             }
         }
-        let team = self.place_team;
+        let team = self.browser.place_team;
         let Some(d) = self.doc.as_ref() else { return };
         let Some(old) = d
             .index(&tile.template)
@@ -1240,14 +1260,14 @@ impl ViewState {
             let skip = |k: usize| self.doc.as_ref().is_some_and(|d| !d.shown(k));
             query::ray_hit_except(self.scene(), o, dir, &skip)
         };
-        if let Some(p) = self.placing.as_mut() {
+        if let Some(p) = self.browser.placing.as_mut() {
             p.at = hit.map(|h| query::place(&math::upright(h.point, p.yaw), p.extent, &h, &p.placement));
         }
     }
 
     /// Places the object being placed where it is: one `place` operation; it is selected.
     pub fn finish_placing(&mut self, gpu: &GpuCtx, palette: &Palette) {
-        let Some(p) = self.placing.take() else { return };
+        let Some(p) = self.browser.placing.take() else { return };
         let Some(m) = p.at else {
             self.message = "Nothing under the pointer to place on".into();
             return;
@@ -1288,7 +1308,7 @@ impl ViewState {
 
     /// Selects the selectable entities whose position is inside a polygon drawn on a view.
     pub(super) fn polygon_select(&mut self, gpu: &GpuCtx, rect: Rect, cam: &Camera) {
-        let poly = std::mem::take(&mut self.polygon);
+        let poly = std::mem::take(&mut self.outline.polygon);
         if poly.len() < 3 {
             return;
         }
@@ -1386,25 +1406,37 @@ impl Tabs<'_> {
         let hover = ui.input(|i| i.pointer.hover_pos()).filter(|p| rect.contains(*p));
         let now = ui.input(|i| i.time);
         if let Some(h) = hover {
-            self.view.pointer_ray = Some(view.ray(local(h)));
+            self.view.menus.pointer_ray = Some(view.ray(local(h)));
         }
         let mut wheel = false;
         let mut left = false;
         // a content browser entry dragged over the view: placing follows the pointer; released: placed
         if let Some(payload) = resp.dnd_hover_payload::<ContentDrag>()
-            && self.view.placing.as_ref().is_none_or(|p| p.entry.path != payload.0)
-            && self.view.place_failed.as_deref() != Some(payload.0.as_str())
-            && let Some(e) = self.view.content.as_ref().and_then(|c| c.by_path(&payload.0)).cloned()
+            && self
+                .view
+                .browser
+                .placing
+                .as_ref()
+                .is_none_or(|p| p.entry.path != payload.0)
+            && self.view.browser.place_failed.as_deref() != Some(payload.0.as_str())
+            && let Some(e) = self
+                .view
+                .browser
+                .content
+                .as_ref()
+                .and_then(|c| c.by_path(&payload.0))
+                .cloned()
         {
             self.view.start_placing(e);
         }
         if let Some(payload) = resp.dnd_hover_payload::<GameplayDrag>()
             && self
                 .view
+                .browser
                 .placing
                 .as_ref()
                 .is_none_or(|p| p.entry.path != format!("gameplay:{}", payload.0))
-            && self.view.place_failed.as_deref() != Some(payload.0.as_str())
+            && self.view.browser.place_failed.as_deref() != Some(payload.0.as_str())
             && let Some(t) = self.view.gameplay_tiles().into_iter().find(|t| t.key() == payload.0)
         {
             self.view.start_placing_gameplay(t);
@@ -1422,20 +1454,20 @@ impl Tabs<'_> {
                 let shift = m.shift || ui.input(|i| i.modifiers.shift);
                 let ctrl = m.ctrl || m.command || ui.input(|i| i.modifiers.command);
                 let step = if shift { 0.01 } else { 0.1 };
-                if alt && let Some(p) = self.view.placing.as_mut() {
+                if alt && let Some(p) = self.view.browser.placing.as_mut() {
                     p.placement.sink = ((p.placement.sink - n * step) * 1000.0).round() / 1000.0;
                     wheel = true;
                 } else if !alt
                     && shift
-                    && let Some(p) = self.view.placing.as_mut()
+                    && let Some(p) = self.view.browser.placing.as_mut()
                 {
                     p.yaw += n * if ctrl { 1.0 } else { 15.0 };
                     wheel = true;
                 } else if alt && self.view.doc.is_some() && !self.view.editable_selection().is_empty() {
-                    if self.view.sink.is_none() {
+                    if self.view.browser.sink.is_none() {
                         self.view.open_sink(hover.unwrap_or(rect.center()));
                     }
-                    if let Some(s) = self.view.sink.as_mut() {
+                    if let Some(s) = self.view.browser.sink.as_mut() {
                         s.placement.sink = ((s.placement.sink - n * step) * 1000.0).round() / 1000.0;
                     }
                     self.view.sink_to(gpu, &palette, Gesture::Wheel, now);
@@ -1443,7 +1475,7 @@ impl Tabs<'_> {
                 }
             }
         }
-        if self.view.placing.is_some() {
+        if self.view.browser.placing.is_some() {
             if let Some(h) = hover {
                 let (o, d) = view.ray(local(h));
                 self.view.placing_to(o, d);
@@ -1456,17 +1488,17 @@ impl Tabs<'_> {
         }
         // polygon corners: clicks add, a double click or Enter closes
         if self.view.tool == Tool::Polygon && self.view.doc.is_some() && self.view.workspace.moves_objects() {
-            if resp.double_clicked() || (self.view.polygon_close && !self.view.polygon.is_empty()) {
-                self.view.polygon_close = false;
+            if resp.double_clicked() || (self.view.outline.polygon_close && !self.view.outline.polygon.is_empty()) {
+                self.view.outline.polygon_close = false;
                 self.view.polygon_select(gpu, rect, &vp.camera);
             } else if resp.clicked()
                 && let Some(p) = resp.interact_pointer_pos()
             {
-                if self.view.polygon_view != Some(projection) {
-                    self.view.polygon.clear();
-                    self.view.polygon_view = Some(projection);
+                if self.view.outline.polygon_view != Some(projection) {
+                    self.view.outline.polygon.clear();
+                    self.view.outline.polygon_view = Some(projection);
                 }
-                self.view.polygon.push(p);
+                self.view.outline.polygon.push(p);
             }
             left = true;
         }
@@ -1486,7 +1518,7 @@ impl Tabs<'_> {
             {
                 self.view.select(gpu, Some(k), true);
             }
-            self.view.context = Some(ContextTarget {
+            self.view.menus.context = Some(ContextTarget {
                 entity,
                 point: hit.map(|h| h.point),
                 at,
@@ -1519,7 +1551,7 @@ impl Tabs<'_> {
 
     /// The context menu of a view (when it is open): the object's or the ground's.
     pub(super) fn view_menu(&mut self, resp: &egui::Response) {
-        let target = self.view.context;
+        let target = self.view.menus.context;
         let kind = if target.is_some_and(|t| t.entity.is_some()) {
             MenuKind::Object
         } else {
@@ -1535,11 +1567,11 @@ impl Tabs<'_> {
             }
         });
         if !rects.is_empty() {
-            self.view.menu_rects = rects;
-            self.view.menu_kind = Some(kind);
+            self.view.menus.menu_rects = rects;
+            self.view.menus.menu_kind = Some(kind);
         }
         if let Some(a) = chosen {
-            self.view.menu_point = target.and_then(|t| t.point);
+            self.view.menus.menu_point = target.and_then(|t| t.point);
             self.view.pending.push(a);
         }
     }
@@ -1557,8 +1589,8 @@ impl Tabs<'_> {
             chosen = show_as_menu(ui).or(chosen);
         });
         if !rects.is_empty() {
-            self.view.menu_rects = rects;
-            self.view.menu_kind = Some(MenuKind::Object);
+            self.view.menus.menu_rects = rects;
+            self.view.menus.menu_kind = Some(MenuKind::Object);
         }
         if let Some(a) = chosen {
             self.view.pending.push(a);
@@ -1573,7 +1605,7 @@ impl Tabs<'_> {
         let view = Tabs::view_of(rect, cam);
         let to_screen = |w: V3| view.project(w).map(|s| rect.min + Vec2::new(s[0] as f32, s[1] as f32));
         // the object being placed: its box, in the selection colour
-        if let Some(pl) = &self.view.placing
+        if let Some(pl) = &self.view.browser.placing
             && let Some(m) = pl.at
         {
             let (hx, hz) = pl.half;
@@ -1621,8 +1653,8 @@ impl Tabs<'_> {
             }
         }
         // the polygon being drawn
-        if self.view.polygon_view == Some(projection) && !self.view.polygon.is_empty() {
-            let mut pts = self.view.polygon.clone();
+        if self.view.outline.polygon_view == Some(projection) && !self.view.outline.polygon.is_empty() {
+            let mut pts = self.view.outline.polygon.clone();
             if let Some(h) = ui.input(|i| i.pointer.hover_pos()) {
                 pts.push(h);
             }
@@ -1630,7 +1662,7 @@ impl Tabs<'_> {
                 pts.clone(),
                 Stroke::new(1.5, p.view_selection),
             ));
-            for q in &self.view.polygon {
+            for q in &self.view.outline.polygon {
                 painter.circle_filled(*q, 3.5, p.view_selection);
             }
         }
@@ -1663,7 +1695,7 @@ impl Tabs<'_> {
                 });
         }
         // the view mode: its switch (top right) and its note
-        if !(projection == Projection::Perspective && self.view.game_accurate) {
+        if !(projection == Projection::Perspective && self.view.game_view.game_accurate) {
             let at = Rect::from_min_size(
                 Pos2::new(
                     rect.right() - 150.0,
@@ -1783,7 +1815,7 @@ impl Tabs<'_> {
     /// switch when it is shown).
     fn layer_bar(&mut self, ui: &mut egui::Ui, rect: Rect, projection: Projection) {
         let p = self.palette;
-        let game = projection == Projection::Perspective && self.view.game_accurate;
+        let game = projection == Projection::Perspective && self.view.game_view.game_accurate;
         let top = rect.top() + if self.view.doc.is_some() { 76.0 } else { 6.0 } + if game { 0.0 } else { 30.0 };
         let at = Rect::from_min_size(Pos2::new(rect.right() - 300.0, top), Vec2::new(294.0, 24.0));
         let mut ui3 = ui.new_child(
@@ -1896,7 +1928,9 @@ impl Tabs<'_> {
 
     /// The sink popup: a card beside the pointer.
     fn sink_popup(&mut self, ui: &egui::Ui) {
-        let Some(mut s) = self.view.sink.clone() else { return };
+        let Some(mut s) = self.view.browser.sink.clone() else {
+            return;
+        };
         let p = self.palette;
         let now = ui.input(|i| i.time);
         let mut slider_drag = false;
@@ -1967,11 +2001,16 @@ impl Tabs<'_> {
                     });
             });
         if close {
-            self.view.sink = None;
+            self.view.browser.sink = None;
             return;
         }
-        let placement_changed = self.view.sink.as_ref().is_some_and(|o| o.placement != s.placement);
-        if let Some(cur) = self.view.sink.as_mut() {
+        let placement_changed = self
+            .view
+            .browser
+            .sink
+            .as_ref()
+            .is_some_and(|o| o.placement != s.placement);
+        if let Some(cur) = self.view.browser.sink.as_mut() {
             cur.placement = s.placement;
         }
         let palette = self.palette;
@@ -1980,7 +2019,7 @@ impl Tabs<'_> {
         } else if mode_click {
             self.view.sink_to(self.gpu, &palette, Gesture::Mode, now);
         }
-        if slider_end && let Some(cur) = self.view.sink.as_mut() {
+        if slider_end && let Some(cur) = self.view.browser.sink.as_mut() {
             // the drag is over: the next one is another operation
             cur.gesture = None;
         }
@@ -1993,7 +2032,7 @@ impl Tabs<'_> {
         let p = self.palette;
         let mut chosen = None;
         let mut close = false;
-        let entries: Vec<Entry> = self.view.content.as_ref().map_or_else(Vec::new, |c| {
+        let entries: Vec<Entry> = self.view.browser.content.as_ref().map_or_else(Vec::new, |c| {
             c.shown(&pk.query, self.view.filter)
                 .into_iter()
                 .take(14)
@@ -2053,7 +2092,7 @@ impl Tabs<'_> {
             // it starts where the menu was opened
             if let Some(pt) = pk.point {
                 let hit = query::surface_below(self.view.scene(), pt[0], pt[2]);
-                if let (Some(h), Some(pl)) = (hit, self.view.placing.as_mut()) {
+                if let (Some(h), Some(pl)) = (hit, self.view.browser.placing.as_mut()) {
                     pl.at = Some(query::place(
                         &math::upright(h.point, pl.yaw),
                         pl.extent,
@@ -2074,14 +2113,14 @@ impl Tabs<'_> {
     pub(super) fn content(&mut self, ui: &mut egui::Ui) {
         let p = self.palette;
         let m = self.metrics;
-        if let Some(c) = self.view.content.as_mut() {
+        if let Some(c) = self.view.browser.content.as_mut() {
             c.poll();
             if c.reading {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
             }
         }
         // the browser's modes
-        let mut mode = self.view.browser_mode;
+        let mut mode = self.view.browser.browser_mode;
         egui::Frame::new()
             .inner_margin(Margin::symmetric(m.space_2 as i8, m.space_1 as i8))
             .show(ui, |ui| {
@@ -2093,13 +2132,13 @@ impl Tabs<'_> {
                     }
                 });
             });
-        self.view.browser_mode = mode;
+        self.view.browser.browser_mode = mode;
         // round GR3: every mesh of the game copy, for the asset preview (no project needed)
         if mode == crate::gameplay::BrowserMode::Meshes {
             self.mesh_browser(ui);
             return;
         }
-        if self.view.content.is_none() {
+        if self.view.browser.content.is_none() {
             self.header(ui, "Place objects", "");
             ui.label(
                 RichText::new("Open a project to place objects (the Meshes mode previews any mesh without one).")
@@ -2111,11 +2150,13 @@ impl Tabs<'_> {
             self.gameplay_browser(ui, mode);
             return;
         }
-        let Some(cat) = self.view.content.as_ref() else { return };
+        let Some(cat) = self.view.browser.content.as_ref() else {
+            return;
+        };
         let reading = cat.reading;
         let source = cat.source.clone();
         let shown: Vec<Entry> = cat
-            .shown(&self.view.content_query, self.view.filter)
+            .shown(&self.view.browser.content_query, self.view.filter)
             .into_iter()
             .cloned()
             .collect();
@@ -2127,7 +2168,7 @@ impl Tabs<'_> {
             .inner_margin(Margin::same(m.space_2 as i8))
             .show(ui, |ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.view.content_query)
+                    egui::TextEdit::singleline(&mut self.view.browser.content_query)
                         .hint_text(RichText::new("Search objects").color(p.ink_faint))
                         .desired_width(f32::INFINITY),
                 );
@@ -2168,7 +2209,7 @@ impl Tabs<'_> {
             self.view.set_selection(self.gpu, keep, false);
         }
         let mut start = None;
-        let pick = self.view.content_pick.clone();
+        let pick = self.view.browser.content_pick.clone();
         let mut picked = None;
         let mut rects = Vec::new();
         let (tile_w, tile_h, gap) = (118.0f32, 112.0f32, 6.0f32);
@@ -2220,12 +2261,12 @@ impl Tabs<'_> {
                     ui.add_space(gap);
                 }
             });
-        self.view.content_rects = rects;
+        self.view.browser.content_rects = rects;
         if let Some(path) = picked {
             // round GR3: the picked blueprint in the asset preview (Shift+click adds it to the comparison)
             let add = ui.input(|i| i.modifiers.shift);
             self.preview_show(crate::preview::Subject::Blueprint(path.clone()), add);
-            self.view.content_pick = Some(path);
+            self.view.browser.content_pick = Some(path);
         }
         if let Some(e) = start {
             self.view.start_placing(e);
@@ -2249,17 +2290,17 @@ impl Tabs<'_> {
             .into_iter()
             .filter(|t| t.mode == mode)
             .filter(|t| {
-                let q = self.view.content_query.to_lowercase();
+                let q = self.view.browser.content_query.to_lowercase();
                 q.split_whitespace().all(|w| t.label.to_lowercase().contains(w))
             })
             .collect();
         self.header(ui, mode.name(), &format!("{} kinds", tiles.len()));
-        let mut team = self.view.place_team;
+        let mut team = self.view.browser.place_team;
         egui::Frame::new()
             .inner_margin(Margin::same(m.space_2 as i8))
             .show(ui, |ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.view.content_query)
+                    egui::TextEdit::singleline(&mut self.view.browser.content_query)
                         .hint_text(RichText::new("Search").color(p.ink_faint))
                         .desired_width(f32::INFINITY),
                 );
@@ -2281,7 +2322,7 @@ impl Tabs<'_> {
                     }
                 });
             });
-        self.view.place_team = team;
+        self.view.browser.place_team = team;
         let (tile_w, tile_h, gap) = (118.0f32, 112.0f32, 6.0f32);
         let width = ui.available_width() - m.space_2 * 2.0;
         let cols = ((width + gap) / (tile_w + gap)).floor().max(1.0) as usize;
@@ -2345,7 +2386,7 @@ impl Tabs<'_> {
                     ui.add_space(gap);
                 }
             });
-        self.view.content_rects = rects;
+        self.view.browser.content_rects = rects;
         if let Some(t) = start {
             self.view.start_placing_gameplay(t);
             if let Some(r) = self.view.view_rect()
