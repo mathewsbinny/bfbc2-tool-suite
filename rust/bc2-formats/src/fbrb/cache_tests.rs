@@ -231,8 +231,8 @@ fn a_changed_bundle_is_never_answered_from_the_cache() {
 }
 
 /// Round QW1 (audit AU2 S1): a rewritten bundle's old payload is deleted when its new one is written; one left behind
-/// is listed by `superseded`, as is every payload but the most recently used of a bundle that is gone; a file that is
-/// not a payload of this format never is.
+/// is listed by `superseded`, as is every payload of a bundle that is gone; a file that is not a payload of this
+/// format never is.
 #[test]
 fn superseded_payloads() {
     let dir = TempDir::new("superseded");
@@ -286,11 +286,9 @@ fn superseded_payloads() {
         "an old payload left behind is listed, the current one and junk not"
     );
     fs::remove_file(&p).unwrap();
-    assert_eq!(
-        superseded(&folder),
-        first,
-        "the bundle gone: all but the most recently used"
-    );
+    let mut both = [first, second].concat();
+    both.sort();
+    assert_eq!(superseded(&folder), both, "the bundle gone: every payload of it");
 }
 
 #[test]

@@ -21,10 +21,12 @@
 //! repeats the identity in its own header, checked before use. Cache files are written beside their final name and
 //! moved over it ([`crate::atomic::replace`]), so a reader in another process sees a whole file or none.
 //!
-//! **Superseded payloads** (round QW1, audit AU2 S1: 3.8 GB of 16 were): a bundle rewritten at the same path (an
-//! install, a scratch copy) is a new identity, and its old payload can never be read again. Writing a bundle's
-//! payload deletes the other payloads of the same canonical path ([`drop_superseded`]); [`superseded`] lists every
-//! such file of a folder for the caches tool's `--prune` (`bfbc2core.caches`, `bfbc2 caches`).
+//! **Superseded payloads** (round QW1, audit AU2 S1): a bundle rewritten at the same path (an install, a scratch
+//! copy) is a new identity, and its old payload can never be read again; nor can a deleted bundle's (a temporary
+//! folder's). Writing a bundle's payload deletes the other payloads of the same canonical path
+//! ([`drop_superseded`]); [`superseded`] lists every payload of a folder whose bundle was rewritten or deleted, for
+//! the caches tool's `--prune` (`bfbc2core.caches`, `bfbc2 caches`). (The audit's "28 bundle names with 2-3
+//! payloads" were mostly two bundles each - a level's `Dist` and `Package` copies -, both current.)
 //!
 //! **The same results.** The reference reads the payload 1 MiB of compressed bytes at a time, from the start, until
 //! the decompressed bytes reach the end of the last entry asked for; an error in any chunk it reads is raised, and
@@ -479,29 +481,24 @@ fn payload_identity(file: &Path) -> Option<Identity> {
     })
 }
 
-/// The payload files of `folder` no read can use again (round QW1): for each bundle path the cache holds more than
-/// one payload of, every one but the bundle's current identity's (the file at that path now), or, when that file is
-/// gone, every one but the most recently used. A path with one payload is left to the least-recently-used cap, and a
-/// file that is not a readable payload of this format is never listed.
+/// The payload files of `folder` no read can use again (round QW1): those whose bundle was rewritten (the file at
+/// their header's path has another identity now) or deleted (nothing is at that path). A bundle that is there but
+/// cannot be opened (held by another program) keeps its payloads, and a file that is not a readable payload of this
+/// format is never listed.
 #[must_use]
 pub fn superseded(folder: &Path) -> Vec<PathBuf> {
-    let mut by_path: HashMap<PathBuf, Vec<(PathBuf, Identity, SystemTime)>> = HashMap::new();
-    for (file, _, used) in payload_files(folder) {
+    let mut by_path: HashMap<PathBuf, Vec<(PathBuf, Identity)>> = HashMap::new();
+    for (file, _, _) in payload_files(folder) {
         if let Some(id) = payload_identity(&file) {
-            by_path.entry(id.path.clone()).or_default().push((file, id, used));
+            by_path.entry(id.path.clone()).or_default().push((file, id));
         }
     }
     let mut out = Vec::new();
-    for (bundle, mut files) in by_path {
-        if files.len() < 2 {
-            continue;
-        }
-        let current = File::open(&bundle).ok().and_then(|f| Identity::of(&bundle, &f).ok());
-        if let Some(now) = current {
-            out.extend(files.into_iter().filter(|f| f.1 != now).map(|f| f.0));
-        } else {
-            files.sort_by_key(|f| std::cmp::Reverse(f.2));
-            out.extend(files.into_iter().skip(1).map(|f| f.0));
+    for (bundle, files) in by_path {
+        match File::open(&bundle).and_then(|f| Identity::of(&bundle, &f)) {
+            Ok(now) => out.extend(files.into_iter().filter(|f| f.1 != now).map(|f| f.0)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => out.extend(files.into_iter().map(|f| f.0)),
+            Err(_) => {}
         }
     }
     out.sort();

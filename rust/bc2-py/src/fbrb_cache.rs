@@ -105,8 +105,8 @@ pub fn fbrb_cache_clear() {
     cache::clear_memory();
 }
 
-/// The payload files of the disk cache's `folder` that no read can use again (a bundle rewritten at the same path:
-/// every payload of it but the current one's; round QW1): `bfbc2core.caches`' `--prune` deletes them first.
+/// The payload files of the disk cache's `folder` that no read can use again (their bundle rewritten or deleted;
+/// round QW1): `bfbc2core.caches`' `--prune` deletes them first.
 #[pyfunction]
 pub fn fbrb_cache_superseded(folder: &str) -> Vec<String> {
     cache::superseded(std::path::Path::new(folder))

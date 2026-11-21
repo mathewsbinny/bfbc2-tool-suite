@@ -318,8 +318,8 @@ def _drop_stale(scan: _Scan, now: float, marker_age: float, r: Result) -> None:
 
 def superseded_payloads(top: str) -> set[str]:
     """The file names of the bundle cache's payloads in top that no read can use again (round QW1, audit AU2 S1: a
-    bundle rewritten at the same path leaves its old payload; bc2_formats' fbrb::cache::superseded through the Rust
-    core, which writes them). Empty without the module or when it is older than this function."""
+    bundle rewritten or deleted leaves its payload; bc2_formats' fbrb::cache::superseded through the Rust core, which
+    writes them). Empty without the module or when it is older than this function."""
     m = native.load()
     find = getattr(m, 'fbrb_cache_superseded', None) if m is not None else None
     if find is None:
