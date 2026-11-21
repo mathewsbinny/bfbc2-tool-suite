@@ -6,7 +6,7 @@
 //! the tools that read bundles).
 //!
 //! `argparse` is ported; its texts at the console's width or `COLUMNS` are [`crate::argfmt`]'s (round RT2: before it
-//! only the pipe's 80 columns). Handed to the Python: option abbreviations, `--`, single-dash options other than `-h`, a flag given a value
+//! only the pipe's 80 columns); option abbreviations as argparse resolves them, and its ambiguity error (round RT3). Handed to the Python: `--`, single-dash options other than `-h`, a flag given a value
 //! (`--yes=1`); and a folder lock or log archive that cannot be written (nothing is deleted then).
 
 #![allow(
@@ -19,6 +19,7 @@
 use std::collections::HashSet;
 use std::fmt::Write as _;
 
+use crate::argfmt::Long;
 use crate::budget::{self, MARKER_AGE, MB, SPECS, Spec};
 use crate::logs::{self, Done, Seen};
 use crate::pylog;
@@ -711,6 +712,20 @@ const FLAGS: [&str; 7] = [
     "--no-work",
 ];
 
+/// The parser's option strings in argparse's `_option_string_actions` order (abbreviations resolve over them).
+const STRINGS: [&str; 10] = [
+    "-h",
+    "--help",
+    "--list",
+    "--prune",
+    "--clear",
+    "--report",
+    "--prune-targets",
+    "--yes",
+    "--no-work",
+    "--opfor",
+];
+
 #[derive(Default)]
 struct Args {
     mode: Option<&'static str>,
@@ -772,9 +787,24 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<Args>> {
         if arg == "--" || !arg.starts_with("--") {
             return Err(Fail::Python);
         }
-        let (name, inline) = match arg.split_once('=') {
-            Some((n, v)) => (n, Some(v)),
-            None => (arg, None),
+        let inline = arg.split_once('=').map(|(_, v)| v);
+        // round RT3: an abbreviation resolved as argparse resolves it (or its ambiguity error)
+        let name = match crate::argfmt::long_option(arg, &STRINGS) {
+            Long::Found("--help") => {
+                if inline.is_some() {
+                    return Err(Fail::Python); // help's "ignored explicit argument"
+                }
+                py.write(&crate::argfmt::help_or(PROG, &format!("{USAGE}{HELP}"))?)?;
+                return Ok(None);
+            }
+            Long::Found(s) => s,
+            Long::Ambiguous(m) => return error(py, &m),
+            Long::Spaced => return Err(Fail::Python),
+            Long::Unknown => {
+                extras.push(arg.to_owned());
+                i += 1;
+                continue;
+            }
         };
         if name == "--opfor" {
             match inline {
@@ -809,16 +839,7 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<Args>> {
             i += 1;
             continue;
         }
-        // an abbreviation argparse would take (or call ambiguous) is left to it
-        if FLAGS
-            .iter()
-            .chain(["--opfor", "--help"].iter())
-            .any(|o| o.starts_with(name))
-        {
-            return Err(Fail::Python);
-        }
-        extras.push(arg.to_owned());
-        i += 1;
+        return Err(Fail::Python); // no option string here is not in FLAGS or --opfor
     }
     if !extras.is_empty() {
         return error(py, &format!("unrecognized arguments: {}", extras.join(" ")));

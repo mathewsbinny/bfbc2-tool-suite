@@ -243,6 +243,179 @@ pub fn parse(data: &[u8]) -> Result<HpdFile<'_>> {
     Ok(HpdFile { header, sectors })
 }
 
+/// Where [`parse_exact`] stops: the reference's own error at the same read (round RT3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExactError {
+    /// `ValueError('not a Kynogon HPD file')`.
+    Magic,
+    /// `ValueError`: sector `.0` (id `.1`), its runtime mesh not where expected.
+    Mesh(usize, u32),
+    /// `ValueError('sector blocks do not cover the file')`.
+    Cover,
+    /// `struct.error`: `size` bytes at `offset` of a buffer of `len` (the file, or a sector's block).
+    Struct {
+        /// The bytes the read takes (144 the header, 48 a table entry, 8 the counts, 36 a node, 12 an edge).
+        size: u64,
+        /// Where the read starts.
+        offset: u64,
+        /// The buffer's length.
+        len: u64,
+    },
+}
+
+impl ExactError {
+    /// Whether this is the reference's `struct.error` (else its `ValueError`).
+    #[must_use]
+    pub fn is_struct(&self) -> bool {
+        matches!(self, Self::Struct { .. })
+    }
+}
+
+impl std::fmt::Display for ExactError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Magic => Error::Magic.fmt(f),
+            Self::Mesh(i, sid) => Error::Mesh(*i, *sid).fmt(f),
+            Self::Cover => Error::Cover.fmt(f),
+            // CPython 3.13's words (Modules/_struct.c, unpack_from)
+            Self::Struct { size, offset, len } => write!(
+                f,
+                "unpack_from requires a buffer of at least {} bytes for unpacking {size} bytes at offset {offset} \
+                 (actual buffer size is {len})",
+                size + offset
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ExactError {}
+
+/// `struct.unpack_from` of `size` bytes at `at` (never negative here): the bytes, or the reference's `struct.error`.
+fn unpack(d: &[u8], at: u64, size: u64) -> std::result::Result<&[u8], ExactError> {
+    let len = d.len() as u64;
+    if len < at || len - at < size {
+        return Err(ExactError::Struct { size, offset: at, len });
+    }
+    // within the buffer: both ends are at most its length
+    Ok(d.get(at as usize..(at + size) as usize).unwrap_or(&[]))
+}
+
+fn word(b: &[u8], k: usize) -> u32 {
+    array::<4>(b, 4 * k).map_or(0, u32::from_le_bytes)
+}
+
+fn float(b: &[u8], k: usize) -> f32 {
+    f32::from_bits(word(b, k))
+}
+
+/// `hpdtool.parse(data)` as the reference reads it, read for read (round RT3, so `parse_reference` could be retired):
+/// every float as the file holds it (a NaN too: the caller converts it as CPython's `struct` does,
+/// [`crate::hpdlayout::c_double`]), and where the reference raises, its error at the same read
+/// ([`ExactError`]: `ValueError` or `struct.error` in CPython's words).
+///
+/// # Errors
+/// Where the reference raises.
+pub fn parse_exact(data: &[u8]) -> std::result::Result<HpdFile<'_>, ExactError> {
+    if data.get(..12) != Some(MAGIC.as_slice()) {
+        return Err(ExactError::Magic);
+    }
+    let h = unpack(data, 12, (HEADER_WORDS * 4) as u64)?;
+    let mut header = [0u32; HEADER_WORDS];
+    for (k, w) in header.iter_mut().enumerate() {
+        *w = word(h, k);
+    }
+    let count = u64::from(header[2]);
+    let blocks = HEADER_SIZE as u64 + count * TABLE_ENTRY as u64;
+    let len = data.len() as u64;
+    let mut sectors = Vec::with_capacity((count as usize).min(data.len() / TABLE_ENTRY));
+    let mut covered = 0u64;
+    for i in 0..count {
+        let e = unpack(data, HEADER_SIZE as u64 + i * TABLE_ENTRY as u64, TABLE_ENTRY as u64)?;
+        let id = word(e, 0);
+        let mut bounds = [0f32; 6];
+        for (k, b) in bounds.iter_mut().enumerate() {
+            *b = float(e, 1 + k);
+        }
+        let (reserved, size, offset, built_on, built_at) = (
+            word(e, 7),
+            u64::from(word(e, 8)),
+            u64::from(word(e, 9)),
+            word(e, 10),
+            word(e, 11),
+        );
+        // data[start:start + size], cut at the file's end as a slice is
+        let start = (blocks + offset).min(len) as usize;
+        let end = (blocks + offset + size).min(len) as usize;
+        let block = data.get(start..end).unwrap_or(&[]);
+        let counts = unpack(block, 0, 8)?;
+        let (n_nodes, n_edges) = (u64::from(word(counts, 0)), u64::from(word(counts, 1)));
+        let blen = block.len() as u64;
+        let node_end = 8 + n_nodes * NODE as u64;
+        let pos = node_end + n_edges * EDGE as u64;
+        if pos > blen {
+            // the reference reads one record at a time here: the first that does not fit raises
+            if node_end > blen {
+                let k = (blen.saturating_sub(8) / NODE as u64).min(n_nodes);
+                return Err(ExactError::Struct {
+                    size: NODE as u64,
+                    offset: 8 + k * NODE as u64,
+                    len: blen,
+                });
+            }
+            let k = (blen - node_end) / EDGE as u64;
+            return Err(ExactError::Struct {
+                size: EDGE as u64,
+                offset: node_end + k * EDGE as u64,
+                len: blen,
+            });
+        }
+        let nodes = (0..n_nodes as usize)
+            .map(|k| {
+                let r = block.get(8 + k * NODE..8 + (k + 1) * NODE).unwrap_or(&[]);
+                Node {
+                    id: word(r, 0),
+                    pos: [float(r, 1), float(r, 2), float(r, 3)],
+                    flags: word(r, 4),
+                    value: float(r, 5),
+                    a: word(r, 6),
+                    b: word(r, 7),
+                    c: word(r, 8),
+                }
+            })
+            .collect();
+        let edges = (0..n_edges as usize)
+            .map(|k| {
+                let at = node_end as usize + k * EDGE;
+                let r = block.get(at..at + EDGE).unwrap_or(&[]);
+                Edge {
+                    tag: word(r, 0),
+                    src: word(r, 1),
+                    dst: word(r, 2),
+                }
+            })
+            .collect();
+        let mesh = block.get(pos as usize..).unwrap_or(&[]);
+        if !mesh.starts_with(MESH_MARKER) {
+            return Err(ExactError::Mesh(i as usize, id));
+        }
+        covered += blen;
+        sectors.push(Sector {
+            id,
+            bounds,
+            reserved,
+            date: built_on,
+            time: built_at,
+            nodes,
+            edges,
+            mesh,
+        });
+    }
+    if blocks + covered != len {
+        return Err(ExactError::Cover);
+    }
+    Ok(HpdFile { header, sectors })
+}
+
 fn put(out: &mut Vec<u8>, v: u32) {
     out.extend_from_slice(&v.to_le_bytes());
 }
@@ -407,6 +580,28 @@ mod tests {
         let mut nan = bytes;
         nan[HEADER_SIZE + 4..HEADER_SIZE + 8].copy_from_slice(&f32::NAN.to_le_bytes());
         assert_eq!(parse(&nan), Err(Error::Nan));
+    }
+
+    #[test]
+    fn exact_errors_and_nans() {
+        let bytes = write(&sample()).unwrap();
+        assert_eq!(parse_exact(&bytes).unwrap(), parse(&bytes).unwrap());
+        assert_eq!(
+            parse_exact(&bytes[..100]).unwrap_err().to_string(),
+            "unpack_from requires a buffer of at least 156 bytes for unpacking 144 bytes at offset 12 (actual buffer \
+             size is 100)"
+        );
+        // a node record cut short: the first node that does not fit, at its offset in the sector's block
+        let first_block = HEADER_SIZE + 2 * TABLE_ENTRY;
+        let mut cut = bytes.clone();
+        cut[first_block..first_block + 4].copy_from_slice(&5u32.to_le_bytes());
+        let e = parse_exact(&cut).unwrap_err();
+        assert!(e.is_struct(), "{e}");
+        assert!(e.to_string().contains("for unpacking 36 bytes at offset"), "{e}");
+        let mut nan = bytes.clone();
+        nan[HEADER_SIZE + 4..HEADER_SIZE + 8].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert!(parse_exact(&nan).unwrap().sectors[0].bounds[0].is_nan());
+        assert_eq!(parse_exact(b"nope").unwrap_err(), ExactError::Magic);
     }
 
     #[test]

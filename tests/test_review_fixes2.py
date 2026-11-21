@@ -178,7 +178,7 @@ def write_build_report(pipeline, paths):
 def stockmp_case(c, work):
     suite_paths.use('stockmp')
     import pipeline
-    import stockmp
+    import stockmplib as stockmp
     game = os.path.join(work, 'game')
     paths = pipeline.Paths('mp_test', opfor=work, work=os.path.join(work, 'stockmp'), game=game)
     out = os.path.join(paths.root, 'out', 'game')

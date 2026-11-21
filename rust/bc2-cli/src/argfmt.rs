@@ -478,9 +478,59 @@ pub fn help_or<'a>(prog: &str, at80: &'a str) -> PyResult<Cow<'a, str>> {
     })
 }
 
+/// What `argparse` (Python 3.13, `allow_abbrev=True`) makes of an argument that starts with `--` and is not `--`
+/// alone (round RT3: option abbreviations answered here instead of in the Python).
+#[derive(Debug, PartialEq, Eq)]
+pub enum Long {
+    /// the option string it names: exact, the part before `=` exact, or the one option string the part before `=`
+    /// starts
+    Found(&'static str),
+    /// two or more option strings start with it: `consume_optional`'s error, `ambiguous option: <arg> could match
+    /// <them>` (the whole argument as typed)
+    Ambiguous(String),
+    /// no option of the parser: an extra argument (`unrecognized arguments`)
+    Unknown,
+    /// no option, and it holds a space: argparse takes it for a positional value (the ports leave that to it)
+    Spaced,
+}
+
+/// `_parse_optional` / `_get_option_tuples` of a `--` argument against the parser's option strings in its
+/// `_option_string_actions` order (`-h`, `--help` first, then each `add_argument`'s strings in order). The
+/// ambiguity is argparse's when the option is consumed (`consume_optional`), so in order with the other errors.
+pub fn long_option(arg: &str, strings: &[&'static str]) -> Long {
+    if let Some(s) = strings.iter().find(|s| **s == arg) {
+        return Long::Found(s);
+    }
+    let prefix = arg.split_once('=').map_or(arg, |(p, _)| p);
+    if let Some(s) = strings.iter().find(|s| **s == prefix) {
+        return Long::Found(s);
+    }
+    let hits: Vec<&'static str> = strings.iter().copied().filter(|s| s.starts_with(prefix)).collect();
+    match hits.as_slice() {
+        [] if arg.contains(' ') => Long::Spaced,
+        [] => Long::Unknown,
+        [one] => Long::Found(one),
+        many => Long::Ambiguous(format!("ambiguous option: {arg} could match {}", many.join(", "))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn abbreviations_as_argparse() {
+        let s = ["-h", "--help", "--prune", "--prune-targets", "--opfor"];
+        assert_eq!(long_option("--prune", &s), Long::Found("--prune"));
+        assert_eq!(long_option("--prune-t", &s), Long::Found("--prune-targets"));
+        assert_eq!(long_option("--op=x", &s), Long::Found("--opfor"));
+        assert_eq!(long_option("--he", &s), Long::Found("--help"));
+        assert_eq!(long_option("--zz", &s), Long::Unknown);
+        assert_eq!(
+            long_option("--pr=1", &s),
+            Long::Ambiguous("ambiguous option: --pr=1 could match --prune, --prune-targets".into())
+        );
+    }
 
     #[test]
     fn python_int() {

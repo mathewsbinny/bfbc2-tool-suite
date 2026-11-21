@@ -1,5 +1,5 @@
-"""BFBC2 Tool Suite - one window for every tool (double-click to start; needs Python 3 with numpy, and for the 3D
-tools moderngl, glfw and imgui-bundle).
+"""BFBC2 Tool Suite - one window for every tool (double-click to start; needs Python 3 with numpy; the 3D tools are
+the Rust map editor, bin\\bfbc2-editor.exe).
 
 Tabs: Levels (open a level in the map editor, or its navigation there), Bundles (FbrbTool), Level diff
 (bfbc2.exe leveldiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
@@ -26,9 +26,8 @@ import bfbc2core  # noqa: E402
 from bfbc2core import appicon, errors, native  # noqa: E402
 
 # library -> what needs it (checked when the window opens)
-LIBRARIES = [('numpy', 'every tool'), ('matplotlib', 'NavKit, screenshots'), ('moderngl', 'the 3D tools'),
-             ('glfw', 'the 3D tools'), ('imgui_bundle', 'the 3D tools'), ('pefile', 'the crash reader\'s code view'),
-             ('capstone', 'the crash reader\'s code view')]
+LIBRARIES = [('numpy', 'every tool'), ('matplotlib', 'NavKit, screenshots'),
+             ('pefile', 'the crash reader\'s code view'), ('capstone', 'the crash reader\'s code view')]
 PYTHON = os.path.join(os.path.dirname(sys.executable), 'python.exe')        # console python for the tools
 if not os.path.isfile(PYTHON):
     PYTHON = sys.executable
@@ -37,7 +36,9 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 def cli(tool):
     """A ported tool's command line: the Rust binary bfbc2.exe when it is built from this checkout (rounds O1 / O2),
-    else the Python one (BFBC2_CLI_PYTHON=1: always the Python one) - the same output either way."""
+    else the Python one (BFBC2_CLI_PYTHON=1: always the Python one) - the same output either way. A retired one
+    (native.RETIRED_CLI: the crash reader and xiso among them, round RT3) has only the binary: without it CliMissing
+    says how to get it (the window reports it)."""
     cmd = native.cli_command(tool)
     return [PYTHON, cmd[1]] if cmd[0] == sys.executable else cmd
 
@@ -53,7 +54,6 @@ SCRIPTS = {
     'fbrb': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),           # FbrbTool's commands (the Rust core)
     'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
     'navkitgui': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkitGUI.pyw'),
-    'crash': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'),
     'tests': os.path.join(SUITE, 'run_tests.py'),
 }
 
@@ -473,7 +473,7 @@ class Hub:
         ttk.Button(f, text='Read the crash report', command=self.crash).grid(row=4, column=1, sticky='w', pady=6)
 
     def crash(self):
-        args = cli('crashreader')                            # bfbc2.exe crashreader, else crashreader.py
+        args = cli('crashreader')                            # bfbc2.exe crashreader (crashreader.py retired, RT3)
         if self.cr_file.get().strip():
             args.append(self.cr_file.get().strip())
         if self.cr_log.get().strip():

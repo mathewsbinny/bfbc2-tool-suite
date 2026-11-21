@@ -164,6 +164,8 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<Args>> {
                         }
                     }
                 }
+                // no option, with a space: argparse takes it for a positional value (round RT3: left to it)
+                None if a.contains(' ') => return Err(Fail::Python),
                 None => extras.push(a.to_owned()),
             }
             i += 1;
