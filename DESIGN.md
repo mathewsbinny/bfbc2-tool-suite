@@ -86,7 +86,7 @@ Added with the Rust core (2026-11-16 on; README.md, "The Rust core"):
 |---|---|---|
 | FbrbTool | `bfbc2-fbrb-tool` | unpacking bundles |
 | DbxEdit, DbxEditGUI, `FORMAT.md`, test suite and fingerprints | `bfbc2-dbx-tools` | DBX reading and editing, level checks, cull-slot repair; the spec the Python reader is written from |
-| LevelDiff | `bfbc2-diff-workbench/level-diff` | field-level diffs of `.dbx` files |
+| `bfbc2.exe leveldiff` (LevelDiff, round EX1) | `rust/bc2-formats` (`dbxedit::leveldiff`), the map editor's Diff panel | field-level diffs of `.dbx` files |
 | crash reader | `bfbc2-automated-map-and-bot-test-harness/crash-reader` | in-game test failures |
 | console readers | `bfbc2-console-readers` | Xbox 360 sources |
 | NavKit: `navkit.py`, `navkitGUI.pyw`, generator, `navdiff`, `navparity`, `navcompare`, `ordercheck` | `bfbc2-auto-navkit` | navigation data, and the parity numbers (baseline A) the studio's difference view shows |
@@ -312,7 +312,7 @@ the live view over the level - is `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 10.2
   terrain heightfields, Havok packfiles, then others as they are researched.
 - **`bfbc2-coverage <file>`:** which byte ranges of a file our readers understand, and which are still
   unknown. It tracks research progress per format.
-- **`bfbc2-bindiff <a> <b>`:** for known formats, changed fields by structure, using LevelDiff, `navdiff`
+- **`bfbc2-bindiff <a> <b>`:** for known formats, changed fields by structure, using `bfbc2.exe leveldiff`, `navdiff`
   and DbxEdit's parser; for unknown ones, changed byte ranges with their offsets.
 - **Extraction logs and hashes**, so any finding can be reproduced from the same inputs.
 

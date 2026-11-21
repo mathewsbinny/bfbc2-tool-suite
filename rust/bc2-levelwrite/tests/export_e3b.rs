@@ -49,6 +49,7 @@ fn types(w: &LevelWriter) -> BTreeMap<String, usize> {
 /// nothing else; the choice is an undoable entry of the project's log.
 #[test]
 fn the_campaign_checklist() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
@@ -101,6 +102,7 @@ fn the_campaign_checklist() {
 /// bundles hold the texts and pictures, and every other entry and text is as it was.
 #[test]
 fn a_vietnam_export_with_its_own_name_and_picture() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
@@ -129,6 +131,7 @@ fn a_vietnam_export_with_its_own_name_and_picture() {
         format: export::FORMAT.into(),
         version: export::VERSION,
         level: "MAPEDIT_E3BTEST_NAM".into(),
+        folder: String::new(),
         title: "E3b test (Vietnam)".into(),
         mode: "conquest".into(),
         layer: LayerSpec {
@@ -141,6 +144,7 @@ fn a_vietnam_export_with_its_own_name_and_picture() {
         identity: Some(Identity {
             description: "A test of the export's own name.".into(),
             picture: picture.display().to_string(),
+            ..Identity::default()
         }),
     };
     let stage = tmp.join("stage");

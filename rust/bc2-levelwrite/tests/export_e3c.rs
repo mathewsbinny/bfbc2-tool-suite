@@ -30,6 +30,7 @@ fn game_dir() -> Option<PathBuf> {
 /// WW2 levels carry their own banks and trigger sets and an English voice-over bundle of their own.
 #[test]
 fn each_sets_announcer() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
@@ -106,6 +107,7 @@ fn each_sets_announcer() {
 /// the donor: WW2's voices).
 #[test]
 fn a_ww2_export_takes_its_donors_announcer() {
+    let _gate = crate::gate();
     let Some(dir) = game_dir() else {
         eprintln!("skipped: no game copy");
         return;
@@ -125,6 +127,7 @@ fn a_ww2_export_takes_its_donors_announcer() {
         format: export::FORMAT.into(),
         version: export::VERSION,
         level: "MAPEDIT_E3CTEST_WW2".into(),
+        folder: String::new(),
         title: "E3c test (WW2)".into(),
         mode: "conquest".into(),
         layer: LayerSpec {

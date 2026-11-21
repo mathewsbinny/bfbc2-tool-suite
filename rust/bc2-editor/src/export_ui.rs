@@ -26,6 +26,7 @@ use bc2_levelwrite::awards::Rgb;
 use bc2_levelwrite::export::{self, ExportSpec, Game, Identity};
 use bc2_levelwrite::modelayer;
 use bc2_levelwrite::mpconvert::{Anchor, LayerSpec};
+use bc2_levelwrite::names::{self, Languages, Taken};
 use bc2_levelwrite::profile::{ContentProfile, Donor, Profiles};
 use bc2_levelwrite::{MapProject, Profile};
 use eframe::egui;
@@ -86,6 +87,10 @@ pub struct ExportWindow {
     donor_sig: Option<(String, Result<modelayer::LayerSig, String>)>,
     /// The Install dialog (round E3d).
     pub install: Install,
+    /// The game copy's names in use and its languages (round EX1: the names' checks), read once.
+    pub taken: Option<(Taken, Languages)>,
+    /// Preview export asked for: the stage to open beside the original (the app opens it).
+    pub want_preview: Option<PathBuf>,
     /// The project's layer counted, what it lacks, its anchors (kept until the log changes).
     #[allow(clippy::type_complexity, reason = "the four things the form shows of the layer")]
     layer: Option<(u64, modelayer::LayerSig, Vec<String>, Vec<(String, String, [f32; 3])>)>,
@@ -248,6 +253,7 @@ pub fn default_spec(project: &MapProject, profiles: Option<&Profiles>) -> Export
         format: export::FORMAT.into(),
         version: export::VERSION,
         level: format!("MAPEDIT_{}_CQ", id.trim_matches('_')),
+        folder: String::new(),
         title: format!("{} (Conquest)", project.name),
         mode: "conquest".into(),
         layer,
@@ -301,30 +307,21 @@ pub fn checks_for(
     if !saved {
         out.push("Save the project first (the export builds the saved project)".into());
     }
-    match spec.level_id() {
-        Err(e) => out.push(e.to_string()),
-        Ok(id) => {
-            if let Some(g) = game {
-                let low = id.to_ascii_lowercase();
-                let exists = !g.level_bundles(&low, "level").is_empty();
-                if exists && !export::is_custom(g, &low) {
-                    out.push(format!("{id} is a level of the game copy: choose another name"));
-                }
-            }
+    // round EX1: every name checked together (the game copy's names in use: `name_checks`)
+    let mode = modelayer::mode_name(&modelayer::mode_key(&spec.mode));
+    out.extend(
+        names::check(&spec.names(), None, &mode, None, None)
+            .into_iter()
+            .map(|p| p.message),
+    );
+    if let (Some(g), Ok(id)) = (game, spec.level_id()) {
+        let low = id.to_ascii_lowercase();
+        let exists = !g.level_bundles(&low, "level").is_empty();
+        if exists && !export::is_custom(g, &low) {
+            out.push(format!("{id} is a level of the game copy: choose another name"));
         }
-    }
-    if spec.title.trim().is_empty() {
-        out.push("Give the map a name".into());
     }
     if let Some(id) = &spec.identity {
-        if let Err(e) = export::loc_text("The map name", spec.title.trim(), 64) {
-            out.push(e.to_string());
-        }
-        if !id.description.trim().is_empty()
-            && let Err(e) = export::loc_text("The description", id.description.trim(), 400)
-        {
-            out.push(e.to_string());
-        }
         let pic = id.picture.trim();
         if !pic.is_empty() {
             let ext = Path::new(pic)
@@ -458,6 +455,15 @@ impl ExportWindow {
         };
         if let (Some(c), Some(s)) = (&target, self.spec.as_mut()) {
             sync_spec(s, c);
+        }
+        // round EX1: the names the project's log keeps
+        if let (Some(n), Some(s)) = (loaded.as_ref().and_then(MapProject::names), self.spec.as_mut()) {
+            s.set_names(n);
+        }
+        if self.taken.is_none()
+            && let Some(g) = self.game()
+        {
+            self.taken = Some((Taken::read(&g), Languages::read(&g)));
         }
         if self.era_modes.is_none() {
             self.era_modes = Some(
@@ -749,6 +755,17 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
     let mut move_anchor: Option<(String, [f32; 2])> = None;
     let mut install_ask: Option<(&'static str, Vec<String>)> = None;
     let previewing = w.previewing.is_some();
+    // round EX1: the names - the game copy's languages, the project's names, the rules against the game copy
+    let languages: Vec<String> = w.taken.as_ref().map_or_default(|t| t.1.names());
+    let project_names = doc.as_deref().and_then(|d| d.project.names().cloned());
+    let project_id = doc.as_deref().map(|d| d.project.id.clone());
+    let names_differ = w
+        .spec
+        .as_ref()
+        .is_some_and(|s| project_names.as_ref() != Some(&s.names()));
+    let mut keep_names = false;
+    let stage_ready = staged && !busy;
+    let mut preview_stage = false;
     egui::Window::new("Export as a multiplayer level")
         .id(egui::Id::new("export-window"))
         .open(&mut open)
@@ -764,18 +781,52 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                 .auto_shrink([false, true])
                 .max_height((ctx.content_rect().height() - 120.0).max(300.0))
                 .show(ui, |ui| {
-                    ui.heading("Name and picture");
+                    ui.heading("Names");
+                    ui.weak(
+                        "Every name of the level, checked together: the id the game loads it by, its folder, the \
+                         server browser's name and what the menus and the loading screen show in each language.",
+                    );
                     egui::Grid::new("export-name").num_columns(2).show(ui, |ui| {
-                        ui.label("Map name");
-                        ui.text_edit_singleline(&mut spec.title)
-                            .on_hover_text("The launcher, the server browser, the menus and the loading screen");
+                        ui.label("Level id");
+                        let before = spec.level.clone();
+                        ui.text_edit_singleline(&mut spec.level).on_hover_text(
+                            "What the game loads (Levels/<id>): maps.ini, package.mft, bundleManifest and the menus' level \
+                             list name it; the localisation keys <ID>_NAME and <ID>_DESC come from it",
+                        );
+                        if spec.level != before {
+                            spec.folder.clear();
+                        }
+                        ui.end_row();
+                        ui.label("Folder");
+                        let mut folder = if spec.folder.is_empty() {
+                            spec.level.trim().to_ascii_lowercase()
+                        } else {
+                            spec.folder.clone()
+                        };
+                        if ui
+                            .add(egui::TextEdit::singleline(&mut folder).desired_width(260.0))
+                            .on_hover_text(
+                                "Package\\levels\\<folder>\\: the level id in lower case (the game finds a level's \
+                                 bundles there); a new folder name renames the id",
+                            )
+                            .changed()
+                        {
+                            spec.level = folder.trim().to_ascii_uppercase();
+                            spec.folder.clear();
+                        }
+                        ui.end_row();
+                        ui.label("Server browser");
+                        ui.text_edit_singleline(&mut spec.title).on_hover_text(
+                            "maps.ini's name: the launcher's row, and the server browser's \"OPFOR - <name> (<mode>)\"",
+                        );
                         ui.end_row();
                         let mut own = spec.identity.is_some();
                         ui.label("");
                         if ui
-                            .checkbox(&mut own, "Its own name and picture in the game")
+                            .checkbox(&mut own, "Its own on-screen name and picture")
                             .on_hover_text(
-                                "Off: the menus and the loading screen show the base level's name and picture",
+                                "Off: the menus, the loading screen and the browser's map column show the base level's \
+                                 name and picture",
                             )
                             .changed()
                         {
@@ -783,6 +834,14 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                         }
                         ui.end_row();
                         if let Some(id) = spec.identity.as_mut() {
+                            ui.label("On-screen name");
+                            ui.add(
+                                egui::TextEdit::singleline(&mut id.name)
+                                    .hint_text("empty: the server browser's name")
+                                    .desired_width(360.0),
+                            )
+                            .on_hover_text("The menus' map list, the loading screen and the server browser's map column");
+                            ui.end_row();
                             ui.label("Description");
                             ui.add(egui::TextEdit::multiline(&mut id.description).desired_rows(2));
                             ui.end_row();
@@ -804,6 +863,66 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                                 }
                             });
                             ui.end_row();
+                        }
+                    });
+                    if let Some(id) = spec.identity.as_mut() {
+                        egui::CollapsingHeader::new("Per language")
+                            .id_salt("export-languages")
+                            .default_open(!id.languages.is_empty())
+                            .show(ui, |ui| {
+                                ui.weak(
+                                    "Each language's own name and description; empty: the ones above. The letters must \
+                                     be ones that language's texts have.",
+                                );
+                                egui::Grid::new("export-langs").num_columns(3).show(ui, |ui| {
+                                    for lang in &languages {
+                                        let e = id.languages.entry(lang.clone()).or_default();
+                                        ui.label(names::language_title(lang));
+                                        ui.add_sized(
+                                            [200.0, 20.0],
+                                            egui::TextEdit::singleline(&mut e.name).hint_text("name"),
+                                        );
+                                        ui.add_sized(
+                                            [260.0, 20.0],
+                                            egui::TextEdit::singleline(&mut e.description).hint_text("description"),
+                                        );
+                                        ui.end_row();
+                                    }
+                                });
+                                id.languages
+                                    .retain(|_, l| !l.name.trim().is_empty() || !l.description.trim().is_empty());
+                            });
+                    }
+                    {
+                        let n = spec.names();
+                        let (name, _) = n.texts("english");
+                        ui.weak(format!(
+                            "Shown as: launcher and server browser \"OPFOR - {} ({})\"; menus and loading screen {:?} \
+                             ({}_NAME, picture loadingScreens/{}); files Package\\levels\\{}\\",
+                            spec.title.trim(),
+                            modelayer::mode_name(&modelayer::mode_key(&spec.mode)),
+                            if n.own { name } else { "the base level's name".to_owned() },
+                            n.id(),
+                            n.folder(),
+                            n.folder()
+                        ));
+                    }
+                    // the names' rules, at once under them (Export lists them too)
+                    {
+                        let mode = modelayer::mode_name(&modelayer::mode_key(&spec.mode));
+                        let (t, l) = w.taken.as_ref().map_or((None, None), |(t, l)| (Some(t), Some(l)));
+                        for p in names::check(&spec.names(), project_id.as_deref(), &mode, t, l) {
+                            ui.colored_label(ui.visuals().warn_fg_color, p.message);
+                        }
+                    }
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(has_doc && names_differ, egui::Button::new("Keep in project"))
+                            .on_hover_text("Puts the names into the project's log (undoable; Export does it too)")
+                            .on_disabled_hover_text("The project has these names")
+                            .clicked()
+                        {
+                            keep_names = true;
                         }
                     });
                     if spec.identity.is_some() {
@@ -839,9 +958,6 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                     ui.separator();
                     ui.heading("Level");
                     egui::Grid::new("export-form").num_columns(2).show(ui, |ui| {
-                        ui.label("Level id");
-                        ui.text_edit_singleline(&mut spec.level);
-                        ui.end_row();
                         let tgt = form_target.get_or_insert_with(|| {
                             (spec.profile, modelayer::mode_key(&spec.mode), spec.layer.donor.clone())
                         });
@@ -1065,6 +1181,14 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                     ui.separator();
                     let mut problems =
                         checks_for(spec, game.as_ref(), saved, profiles.as_ref(), project_target.is_some());
+                    if let Some((t, l)) = &w.taken {
+                        let mode = modelayer::mode_name(&modelayer::mode_key(&spec.mode));
+                        for p in names::check(&spec.names(), project_id.as_deref(), &mode, Some(t), Some(l)) {
+                            if !problems.contains(&p.message) {
+                                problems.push(p.message);
+                            }
+                        }
+                    }
                     if let Some((_, _, miss, _)) = &layer_state {
                         problems.extend(miss.iter().map(|m| format!("The mode layer is incomplete: {m}")));
                     }
@@ -1082,6 +1206,17 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                         .clicked()
                     {
                         go = true;
+                    }
+                    if ui
+                        .add_enabled(stage_ready, egui::Button::new("Preview export"))
+                        .on_hover_text(
+                            "Opens the staged export read only beside the original base level, with the same camera \
+                             (T switches; the Diff panel lists what the export changed)",
+                        )
+                        .on_disabled_hover_text("Export the level first: the preview opens its stage")
+                        .clicked()
+                    {
+                        preview_stage = true;
                     }
                     egui::ScrollArea::vertical()
                         .id_salt("export-log")
@@ -1174,6 +1309,29 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
     if want_preview && let Some((_, _, base)) = &strip_text {
         let base = base.clone();
         w.start_preview(&base);
+    }
+    // round EX1: the names into the project's log (on Export too), the preview asked for
+    if (keep_names || go)
+        && names_differ
+        && let (Some(d), Some(s)) = (doc.as_mut(), w.spec.as_ref())
+    {
+        d.commit(
+            bc2_levelwrite::Op::SetNames {
+                to: Box::new(s.names()),
+            },
+            "Export: the level's names",
+        );
+        if go {
+            // the export builds the saved project
+            if let Err(e) = d.save() {
+                w.log = vec![format!("Not exported: the project could not be saved ({e})")];
+                go = false;
+            }
+        }
+        changed = true;
+    }
+    if preview_stage {
+        w.want_preview.clone_from(&stage_dir);
     }
     if go {
         w.start();
@@ -1331,10 +1489,11 @@ mod tests {
         s.identity = Some(Identity {
             description: String::new(),
             picture: "x.gif".into(),
+            ..Identity::default()
         });
         let c = checks(&s, None, false, None);
         assert!(c.iter().any(|x| x.starts_with("Save the project")));
-        assert!(c.iter().any(|x| x.contains("3 to 40")));
+        assert!(c.iter().any(|x| x.contains("may hold only the letters A-Z")));
         assert!(c.iter().any(|x| x.contains("needs the project's target")));
         assert!(c.iter().any(|x| x.contains("plain ASCII")));
         assert!(c.iter().any(|x| x.contains("PNG or JPEG")));

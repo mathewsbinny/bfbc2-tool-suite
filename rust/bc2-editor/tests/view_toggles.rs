@@ -542,6 +542,7 @@ fn look_from(at: [f64; 3], distance: f64, yaw: f64, pitch: f64) -> Camera {
 
 #[test]
 fn mp_005_overlays_walk_and_modes() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;
@@ -664,6 +665,7 @@ fn mp_005_overlays_walk_and_modes() {
 
 #[test]
 fn sp_01_lights_collision_states_walk_and_modes() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;
@@ -838,6 +840,7 @@ fn sp_01_lights_collision_states_walk_and_modes() {
 /// DICE's file).
 #[test]
 fn ons_mp_004_navmesh_and_cull_tree() {
+    let _gate = crate::gate();
     if levels::find_opfor(None).is_err() {
         println!("skipped: no game copy");
         return;

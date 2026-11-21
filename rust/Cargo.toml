@@ -1,7 +1,10 @@
 # The suite's Rust core (bfbc2-map-editor/EDITOR_ARCHITECTURE.md 3.8): pure-Rust format libraries, their Python
 # bindings, the command-line binary and the map editor.
 #
-#   cargo test                                   every crate's unit, integration and doc tests
+#   cargo test                                   every crate's unit, integration and doc tests (bc2-editor's,
+#                                                bc2-levelwrite's and bc2-render's integration tests are one test
+#                                                binary each: --test editor / levelwrite / render, a file's tests by
+#                                                its module, e.g. cargo test -p bc2-editor --test editor g2::)
 #   cargo clippy --all-targets -- -D warnings
 #   cargo fmt --check
 #   python build_native.py                       the Python module (bc2_native) into core\ (README.md)
@@ -107,6 +110,12 @@ print_stdout = "warn"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Debug and test builds keep line tables only (round QW1, audit AU2 S4: full debug info made each editor test binary
+# a ~370 MB PDB, and the debug folder of a worktree 24 GB): a panic's backtrace still names every function, file and
+# line; a debugger shows no local variables (set debug = "full" here for a session that needs them).
+[profile.dev]
+debug = "line-tables-only"
 
 [profile.bench]
 inherits = "release"

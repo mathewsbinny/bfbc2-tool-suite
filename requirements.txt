@@ -1,0 +1,20 @@
+# The suite's Python packages, pinned to the development PC's versions (round QW1, audit AU2 F10). CI installs this
+# file (.github/workflows/checks.yml and native.yml); so does a new PC:
+#
+#   python -m pip install -r requirements.txt
+#
+# The tools: numpy (every reader), pillow (pictures), matplotlib (NavKit's and the harness's plots), moderngl, glfw and
+# imgui-bundle (the 3D viewers), pefile and capstone (the crash reader's code view). Building the Rust core: maturin.
+# The checks: ruff and mypy (tests\test_lint.py, tests\test_types.py). A version change here is a change of the
+# development PC's: install it there first and run `python run_tests.py quick`.
+numpy==2.5.4
+pillow==12.3.0
+matplotlib==3.11.2
+moderngl==5.13.0
+glfw==2.11.0
+imgui-bundle==1.92.900
+pefile==2024.8.26
+capstone==5.0.9
+maturin==1.16.0
+ruff==0.17.3
+mypy==2.4.1

@@ -2,7 +2,8 @@
 // tokenised XML tree). Written from FORMAT.md, which describes the format. Anything an edit does not change is
 // written back byte for byte.
 //
-// Since 2026-11-18 (round R4) these are the classes DbxEditGUI.cs, LevelDiff.cs and tests\DbxTests.cs build on:
+// Since 2026-11-18 (round R4) these are the classes DbxEditGUI.cs and tests\DbxTests.cs build on (LevelDiff.cs
+// too until round EX1 retired it for bfbc2.exe leveldiff):
 // DbxEdit.exe, the command line this file was (xml, roundtrip, edit, import, check, fixslots), was retired - its
 // commands run in the suite's Rust core (bfbc2-dbx-tools\dbxedit.py, bfbc2core.dbxedit), checked against the
 // exe's recorded answers (core\tests\dbxedit_golden*.json). The edit commands the Editor class applies are in

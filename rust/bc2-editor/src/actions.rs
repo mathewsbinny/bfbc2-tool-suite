@@ -148,6 +148,17 @@ pub enum Action {
     ShowPanel(PanelKind),
     /// Opens the Help window (controls and shortcuts, getting started, the workspaces).
     Help,
+    // ---- round EX1: the differences and the export preview
+    /// Compares the project with its base level (the Diff panel and the 3D view).
+    CompareWithBase,
+    /// Shows or hides the differences in the 3D view.
+    ToggleDiffMarks,
+    /// Opens the last export's stage read only beside the original base level.
+    PreviewExport,
+    /// Shows the preview's other side (the original or the export), with the same camera.
+    SwitchCompare,
+    /// Closes the preview: the project again.
+    ClosePreview,
 }
 
 /// The panels an action can show.
@@ -171,6 +182,8 @@ pub enum PanelKind {
     NavIslands,
     /// The navigation edits.
     NavEdits,
+    /// The differences (round EX1).
+    Diff,
 }
 
 /// The Terrain and Vegetation workspaces' brushes (registered; their tools come in later rounds).
@@ -895,6 +908,45 @@ pub fn registry() -> Vec<Entry> {
             },
         ));
     }
+    // round EX1: the differences (LevelDiff folded in) and the export preview
+    out.extend([
+        e(
+            Action::ShowPanel(PanelKind::Diff),
+            "Show differences",
+            None,
+            "The Diff panel: what differs between two levels, with filters; click one to fly there",
+        ),
+        e(
+            Action::CompareWithBase,
+            "Compare with base",
+            None,
+            "The project against its base level: what the edits added, removed, moved and changed",
+        ),
+        e(
+            Action::ToggleDiffMarks,
+            "Show or hide differences",
+            None,
+            "The differences tinted in the 3D view, with a box where an object of the other level stands",
+        ),
+        e(
+            Action::PreviewExport,
+            "Preview export",
+            None,
+            "Shows the last export read only beside the original base level, with the same camera",
+        ),
+        e(
+            Action::SwitchCompare,
+            "Switch preview side",
+            key(Modifiers::NONE, Key::T),
+            "Shows the original or the export (the preview), with the same camera",
+        ),
+        e(
+            Action::ClosePreview,
+            "Close preview",
+            None,
+            "Back to the project from the export's preview",
+        ),
+    ]);
     out
 }
 

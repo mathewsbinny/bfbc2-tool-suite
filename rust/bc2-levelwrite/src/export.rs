@@ -94,6 +94,10 @@ pub struct ExportSpec {
     pub version: u32,
     /// The new level's id (`Levels/<level>`; letters, digits and `_`; never a stock level's).
     pub level: String,
+    /// The folder under `Package\levels\` (round EX1; empty: the id in lower case, the only folder the game takes:
+    /// [`crate::names`]).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub folder: String,
     /// The name the launcher and the server browser show (OPFOR's `maps.ini`).
     pub title: String,
     /// The game mode (`conquest`).
@@ -116,12 +120,18 @@ pub struct ExportSpec {
 /// show the picture.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Identity {
+    /// The on-screen name (round EX1; empty: the export's `title`), every language without its own.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
     /// The description under the name (the loading screen, the map list).
     #[serde(default)]
     pub description: String,
     /// The picture: a PNG or JPEG file. Empty: the base level's own loading picture.
     #[serde(default)]
     pub picture: String,
+    /// Per language (`french` ...): its own name and description (round EX1).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub languages: BTreeMap<String, crate::names::LangText>,
 }
 
 /// The export file beside a project (`<project>.export.json`; the editor keeps the Export form there).
@@ -181,6 +191,36 @@ impl ExportSpec {
             )));
         }
         Ok(id)
+    }
+
+    /// Every name of the level (round EX1): the id, the folder, the server-browser name, the on-screen names.
+    #[must_use]
+    pub fn names(&self) -> crate::names::LevelNames {
+        let id = self.identity.clone().unwrap_or_default();
+        crate::names::LevelNames {
+            level: self.level.clone(),
+            folder: self.folder.clone(),
+            browser: self.title.clone(),
+            own: self.identity.is_some(),
+            name: id.name,
+            description: id.description,
+            languages: id.languages,
+        }
+    }
+
+    /// The names set (the picture kept; the base's names: no identity).
+    pub fn set_names(&mut self, n: &crate::names::LevelNames) {
+        self.level.clone_from(&n.level);
+        self.folder.clone_from(&n.folder);
+        self.title.clone_from(&n.browser);
+        if n.own {
+            let id = self.identity.get_or_insert_with(Identity::default);
+            id.name.clone_from(&n.name);
+            id.description.clone_from(&n.description);
+            id.languages.clone_from(&n.languages);
+        } else {
+            self.identity = None;
+        }
     }
 
     /// The spec from its file's text.
@@ -605,6 +645,10 @@ pub struct StageRecord {
     /// description (round E3b); empty: the base level's.
     #[serde(default)]
     pub strings: Vec<(String, String)>,
+    /// The texts of languages that have their own (round EX1): language -> (loc key, text), each in place of
+    /// `strings`' text of that key in that language.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub strings_by_language: BTreeMap<String, Vec<(String, String)>>,
     /// The pictures an install adds to the on-demand awards bundle (`install`: the entry's name).
     #[serde(default)]
     pub awards: Vec<StagedFile>,
@@ -882,11 +926,20 @@ pub fn build(
         donor_info.kits.len(),
         prof.fields.iter().map(|f| f.0.as_str()).collect::<Vec<_>>()
     ));
-    if let Some(id) = &spec.identity {
-        loc_text("The map name", &spec.title, 64)?;
-        if !id.description.is_empty() {
-            loc_text("The description", &id.description, 400)?;
-        }
+    // the names together (round EX1): the id, its folder, the server-browser name, the on-screen names per language
+    let problems = crate::names::check(
+        &spec.names(),
+        Some(&project.id),
+        &mode_title(&mode_k),
+        Some(&crate::names::Taken::read(game)),
+        Some(&crate::names::Languages::read(game)),
+    );
+    if !problems.is_empty() {
+        return Err(err(problems
+            .iter()
+            .map(|p| p.message.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")));
     }
     // 1. the base partition with the project's operations
     let base_bundles = game.loaded(&base, "level");
@@ -1314,7 +1367,7 @@ pub fn build(
     let ingame = pick(ingame_bundles, &|n| n.starts_with("levels/") && n.contains("/ui/"))?;
     let loader = pick(game.level_bundles(&base, "loader"), &|n| n.starts_with("sound/"))?;
     // 8. the level's own name and pictures (round E3b)
-    let (strings, pictures, previews) = match &spec.identity {
+    let (strings, strings_by_language, pictures, previews) = match &spec.identity {
         Some(id) => identity(game, spec, id, &lv, &donor_lv, &base_picture, &dd, &mut report)?,
         None => Default::default(),
     };
@@ -1418,6 +1471,7 @@ pub fn build(
         converted: conv,
         profile: profile_sel,
         strings,
+        strings_by_language,
         awards,
         announcer,
         closure: closure_record,
@@ -1869,14 +1923,50 @@ fn identity(
     report: &mut Vec<String>,
 ) -> Result<(
     Vec<(String, String)>,
+    BTreeMap<String, Vec<(String, String)>>,
     Vec<(String, String, Vec<u8>)>,
     Vec<(String, Vec<u8>)>,
 )> {
     let (nk, dk) = loc_keys(lv);
+    let names = spec.names();
+    let default_name = if id.name.trim().is_empty() {
+        spec.title.trim()
+    } else {
+        id.name.trim()
+    };
     let strings = vec![
-        (nk, spec.title.trim().to_owned()),
-        (dk, id.description.trim().to_owned()),
+        (nk.clone(), default_name.to_owned()),
+        (dk.clone(), id.description.trim().to_owned()),
     ];
+    // the languages with their own texts (round EX1): only the keys they change
+    let mut by_language: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    for (lang, own) in &id.languages {
+        let (name, desc) = names.texts(lang);
+        let mut v = Vec::new();
+        if !own.name.trim().is_empty() {
+            v.push((nk.clone(), name));
+        }
+        if !own.description.trim().is_empty() {
+            v.push((dk.clone(), desc));
+        }
+        if !v.is_empty() {
+            by_language.insert(lang.clone(), v);
+        }
+    }
+    report.push(format!(
+        "names: id {lv}, folder Package\\levels\\{}\\, server browser {:?}; on screen {:?}{}",
+        lv.to_ascii_lowercase(),
+        spec.title.trim(),
+        default_name,
+        if by_language.is_empty() {
+            String::new()
+        } else {
+            format!(
+                ", own texts in {}",
+                by_language.keys().cloned().collect::<Vec<_>>().join(", ")
+            )
+        }
+    ));
     let donor_key = description_name(donor_desc)?;
     let made = pictures(game, donor_lv, &donor_key, base_picture, &id.picture)?;
     let mut pictures = Vec::new();
@@ -1908,13 +1998,7 @@ fn identity(
         ));
         pictures.push((entry, path, m.wrapped));
     }
-    let (nk, dk) = loc_keys(lv);
-    report.push(format!(
-        "names: {nk} {:?} and {dk} in every language (the menus, the loading screen); maps.ini {:?}",
-        spec.title.trim(),
-        spec.title
-    ));
-    Ok((strings, pictures, previews))
+    Ok((strings, by_language, pictures, previews))
 }
 
 /// The name of a base level's loading picture (`awards/images/loadingscreens/<name>.res`): its name key cut at
@@ -2298,6 +2382,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         game.targets(&format!("levels/{low}/level-00.fbrb")).is_empty() || is_custom(game, &low),
         format!("the name {} is not a level of the game copy", rec.level),
     );
+    check_names(game, &rec, &mut r);
     // every reference of the new level's partitions resolves in the bundles the level loads
     let level_block = rec.mft_blocks.first().cloned().unwrap_or_default();
     let mut loaded = vec![stage.join("level-00.fbrb")];
@@ -2899,6 +2984,112 @@ fn check_announcer(
     Ok(())
 }
 
+/// The stage's names as the Export form had them.
+fn stage_names(rec: &StageRecord) -> crate::names::LevelNames {
+    let (nk, dk) = loc_keys(&rec.level);
+    let text = |l: &[(String, String)], k: &str| l.iter().find(|x| x.0 == k).map_or_default(|x| x.1.clone());
+    crate::names::LevelNames {
+        level: rec.level.clone(),
+        folder: String::new(),
+        browser: rec.title.clone(),
+        own: !rec.strings.is_empty(),
+        name: text(&rec.strings, &nk),
+        description: text(&rec.strings, &dk),
+        languages: rec
+            .strings_by_language
+            .iter()
+            .map(|(lang, l)| {
+                (
+                    lang.clone(),
+                    crate::names::LangText {
+                        name: text(l, &nk),
+                        description: text(l, &dk),
+                    },
+                )
+            })
+            .collect(),
+    }
+}
+
+/// The names (round EX1): the rules of [`crate::names::check`] (no clash with a stock level, another project's
+/// export, a text or picture the game has; characters and lengths the files hold; no `_NAME` in the id), and every
+/// place the level is named agreeing - the start-up checksum crash of a level registered with missing bundles or a
+/// new name not registered, and the black loading screen of a `_NAME` prefix that names no picture.
+fn check_names(game: &Game, rec: &StageRecord, r: &mut CheckReport) {
+    let names = stage_names(rec);
+    let project = rec.project.split(" (").next().unwrap_or(&rec.project);
+    let problems = crate::names::check(
+        &names,
+        Some(project),
+        &rec.mode,
+        Some(&crate::names::Taken::read(game)),
+        Some(&crate::names::Languages::read(game)),
+    );
+    if problems.is_empty() {
+        r.add(
+            true,
+            format!(
+                "names: the id {}, its folder, the server-browser name {:?} and the on-screen names follow the rules \
+                 (no clash with the game copy or another project's export; characters and lengths the files hold)",
+                rec.level, rec.title
+            ),
+        );
+    }
+    for p in problems {
+        r.add(false, format!("names: {}", p.message));
+    }
+    let low = rec.level.to_ascii_lowercase();
+    let mut wrong: Vec<String> = Vec::new();
+    if !rec
+        .description
+        .1
+        .eq_ignore_ascii_case(&format!("Levels/{}_description.dbx", rec.level))
+    {
+        wrong.push(format!("the description is {}", rec.description.1));
+    }
+    if rec.level_list != [format!("{low}.dbx"), format!("{low}_description.dbx")] {
+        wrong.push(format!("the menus' level list items are {:?}", rec.level_list));
+    }
+    for b in &rec.mft_blocks {
+        for l in b {
+            let t = l.to_ascii_lowercase();
+            if t.starts_with("bundlesource ") && !t.starts_with(&format!("bundlesource game:levels/{low}/")) {
+                wrong.push(format!("package.mft block {l}"));
+            }
+        }
+    }
+    for l in &rec.bundle_manifest {
+        let own = l.to_ascii_lowercase().starts_with(&format!("levels/{low}/"));
+        if !own {
+            wrong.push(format!("bundleManifest line {}", l.split('\t').next().unwrap_or(l)));
+        }
+    }
+    if !rec.strings.is_empty() {
+        let (nk, _) = loc_keys(&rec.level);
+        let key_prefix = nk.find("_NAME").map_or("", |at| nk.get(..at).unwrap_or(""));
+        let picture = format!("Awards/images/loadingScreens/{}.res", key_prefix.to_ascii_lowercase());
+        if !key_prefix.eq_ignore_ascii_case(&rec.level) {
+            wrong.push(format!("the name key {nk} is cut at {key_prefix:?}, not the level id"));
+        }
+        if !rec.awards.iter().any(|a| a.install.eq_ignore_ascii_case(&picture)) {
+            wrong.push(format!("no loading picture {picture} for the name key {nk}"));
+        }
+    }
+    r.add(
+        wrong.is_empty(),
+        format!(
+            "names agree: Levels/{} is named by its description, the menus' list ({low}.dbx, {low}_description.dbx), \
+             every package.mft block and bundleManifest line (levels/{low}/), and its name key's loading picture{}",
+            rec.level,
+            if wrong.is_empty() {
+                String::new()
+            } else {
+                format!(" - not: {}", wrong.join("; "))
+            }
+        ),
+    );
+}
+
 /// The level's own name and pictures (round E3b): the description's and the level's loc keys are the staged texts',
 /// each text plain ASCII, each picture the one recorded, in its template's form (format, size, levels and entry
 /// size: the donor's own picture), and decoding.
@@ -2915,10 +3106,31 @@ fn check_identity(
     }
     let (nk, dk) = loc_keys(&rec.level);
     let keys: Vec<&str> = rec.strings.iter().map(|x| x.0.as_str()).collect();
-    let texts_ok = rec
-        .strings
-        .iter()
-        .all(|(_, t)| t.is_empty() || loc_text("text", t, 400).is_ok());
+    // each text in each language's encoding (round EX1: names per language)
+    let langs = crate::names::Languages::read(game);
+    let all_langs: Vec<String> = if langs.tables.is_empty() {
+        vec!["english".into()]
+    } else {
+        langs.names()
+    };
+    let texts_ok = all_langs.iter().all(|lang| {
+        let own = rec.strings_by_language.get(lang);
+        rec.strings.iter().all(|(k, t)| {
+            let t = own
+                .and_then(|o| o.iter().find(|x| x.0 == *k))
+                .map_or(t.as_str(), |x| x.1.as_str());
+            t.chars().count() <= 400
+                && if langs.tables.is_empty() {
+                    loc_text("text", t, 400).is_ok() || t.is_empty()
+                } else {
+                    langs.encode(lang, t).is_ok()
+                }
+        })
+    }) && rec
+        .strings_by_language
+        .values()
+        .flatten()
+        .all(|(k, _)| *k == nk || *k == dk);
     let desc = ours.iter().find(|(n, _)| n.eq_ignore_ascii_case(&rec.description.1));
     let lvl = ours
         .iter()
@@ -2937,7 +3149,17 @@ fn check_identity(
     let want = Some((Some(nk.clone()), Some(dk.clone())));
     r.add(
         keys == [nk.as_str(), dk.as_str()] && texts_ok && in_desc == want && in_level == want,
-        format!("names: {nk} and {dk} in the description and the level, their texts plain ASCII"),
+        format!(
+            "names: {nk} and {dk} in the description and the level, their texts stored in every language's encoding{}",
+            if rec.strings_by_language.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " ({} with own texts)",
+                    rec.strings_by_language.keys().cloned().collect::<Vec<_>>().join(", ")
+                )
+            }
+        ),
     );
     // the templates: the donor's own pictures
     let st = game.startup();
@@ -3134,18 +3356,32 @@ pub fn patch_overlay(
     work: &Path,
     out: &Path,
 ) -> Result<Vec<String>> {
-    for (k, t) in add {
-        if !t.is_empty() {
-            loc_text(k, t, 400)?;
+    patch_overlay_langs(source, add, &BTreeMap::new(), remove, work, out)
+}
+
+/// [`patch_overlay`] with texts per language (round EX1): `by_language`'s texts replace `add`'s of the same key in
+/// their language. Each text is stored in its language's encoding (its histogram's codes: [`bc2_formats::loc::encode`]),
+/// so a name may hold the letters that language's texts have.
+///
+/// # Errors
+/// As [`patch_overlay`], or a text a language cannot store.
+pub fn patch_overlay_langs(
+    source: &Path,
+    add: &[(String, String)],
+    by_language: &BTreeMap<String, Vec<(String, String)>>,
+    remove: &[String],
+    work: &Path,
+    out: &Path,
+) -> Result<Vec<String>> {
+    for (k, t) in add.iter().chain(by_language.values().flatten()) {
+        if t.chars().count() > 400 || t.contains('\0') {
+            return Err(err(format!("{k} must be at most 400 characters, without NUL")));
         }
     }
     let gone: HashSet<u32> = remove.iter().map(|k| bc2_formats::loc::khash_str(k)).collect();
-    let changed: Vec<(u32, Vec<u8>)> = add
-        .iter()
-        .map(|(k, t)| (bc2_formats::loc::khash_str(k), t.as_bytes().to_vec()))
-        .collect();
     let mut langs = Vec::new();
     repack(source, work, out, |dir, lines| {
+        let names: Vec<String> = lines.iter().map(|l| line_name(l).to_owned()).collect();
         for l in lines.iter_mut() {
             let name = line_name(l).to_owned();
             let low = name.to_ascii_lowercase();
@@ -3158,6 +3394,28 @@ pub fn patch_overlay(
             let path = fbrb::entry_path(dir, &name)?;
             let data = std::fs::read(&path)?;
             let loc = bc2_formats::loc::parse(&data).map_err(|e| err(format!("{name}: {e}")))?;
+            // the language's table: its texts' codes for what is not ASCII
+            let hist_name = format!("localization/bin/language_{lang}_histogram.bin");
+            let table = match names.iter().find(|n| n.eq_ignore_ascii_case(&hist_name)) {
+                Some(h) => bc2_formats::loc::histogram(&std::fs::read(fbrb::entry_path(dir, h)?)?).ok(),
+                None => None,
+            };
+            let mut texts: Vec<(String, String)> = add.to_vec();
+            for (k, t) in by_language.get(lang).into_iter().flatten() {
+                match texts.iter_mut().find(|x| x.0 == *k) {
+                    Some(x) => x.1.clone_from(t),
+                    None => texts.push((k.clone(), t.clone())),
+                }
+            }
+            let mut changed: Vec<(u32, Vec<u8>)> = Vec::with_capacity(texts.len());
+            for (k, t) in &texts {
+                let bytes = bc2_formats::loc::encode(t, table.as_deref()).map_err(|c| {
+                    err(format!(
+                        "{k}: the {lang} text {t:?} holds {c:?}, which that language's texts have no code for"
+                    ))
+                })?;
+                changed.push((bc2_formats::loc::khash_str(k), bytes));
+            }
             let name16: [u8; 16] = data
                 .get(20..36)
                 .and_then(|b| b.try_into().ok())
@@ -3269,6 +3527,7 @@ mod tests {
             format: FORMAT.into(),
             version: 1,
             level: "bad name".into(),
+            folder: String::new(),
             title: String::new(),
             mode: "conquest".into(),
             layer: LayerSpec {

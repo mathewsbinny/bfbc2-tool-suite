@@ -2,7 +2,7 @@
 tools moderngl, glfw and imgui-bundle).
 
 Tabs: Levels (open a level in the map editor, or its navigation there), Bundles (FbrbTool), Level diff
-(LevelDiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
+(bfbc2.exe leveldiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
 (the Map Editor, DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane
 at the bottom. The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
 """
@@ -47,8 +47,6 @@ def fbrbtool():
     return cli('fbrbtool')
 
 TOOLS = {
-    'leveldiff': (os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe'),
-                  os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')),
     'dbxgui': (os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEditGUI.exe'), os.path.join(SUITE, 'bfbc2-dbx-tools', 'build.bat')),
 }
 SCRIPTS = {
@@ -65,10 +63,13 @@ EDITOR_BUILD = ['python', os.path.join('rust', 'build_native.py'), '--editor']  
 
 def editor_exe():
     """The map editor (rust\\bc2-editor, round G1): bin\\bfbc2-editor.exe (build_native.py --editor puts it there),
-    else this checkout's build folder (release, debug; native.find_binary)."""
-    exe = native.find_binary('bfbc2-editor')
+    else this checkout's build folder (release, debug), and a note when it is older than this checkout's Rust sources
+    (native.binary_status, round QW1: it still opens, the note says how to build it again): (exe, note)."""
+    status, exe, _ = native.binary_status('bfbc2-editor')
     if exe:
-        return exe
+        note = '' if status == 'ok' else (' - built from older Rust sources than this checkout has; build it again: '
+                                          + subprocess.list2cmdline(EDITOR_BUILD))
+        return exe, note
     raise RuntimeError('The map editor is not built yet. Build it once with Rust: in the suite\'s folder, run '
                        f'"{subprocess.list2cmdline(EDITOR_BUILD)}" (a few minutes the first time; README.md, '
                        '"The map editor").')
@@ -156,7 +157,7 @@ class Hub:
     # --- running tools ------------------------------------------------------------------------------
     def run(self, args, label, cwd=None, ok=(0,)):
         """One tool in the background (the tab's), its output streamed to the pane. ok: the exit codes that are
-        not failures (LevelDiff: 1 = the files differ, a result)."""
+        not failures (leveldiff: 1 = the files differ, a result)."""
         if self.proc is not None and self.proc.poll() is None:
             messagebox.showinfo('BFBC2 Tool Suite', 'A tool is still running - wait for it or press Stop.')
             return
@@ -366,12 +367,12 @@ class Hub:
         if not lv:
             return
         try:
-            exe = editor_exe()
+            exe, note = editor_exe()
         except RuntimeError as e:
             messagebox.showinfo('BFBC2 Tool Suite', str(e))
             return
         self.launch([exe, lv, '--navmesh'], f'Map editor: {lv}, its navigation (the window opens at once, the level '
-                                             'loads in it)')
+                                             f'loads in it){note}')
 
     def open_editor(self, lv=None):
         """The Rust map editor on the chosen level (read-only; a project edits a copy), or on its start screen without
@@ -379,11 +380,11 @@ class Hub:
         if lv is None and self.tree.selection():
             lv = self.tree.selection()[0]
         try:
-            exe = editor_exe()
+            exe, note = editor_exe()
         except RuntimeError as e:
             messagebox.showinfo('BFBC2 Tool Suite', str(e))
             return
-        self.launch([exe] + ([lv] if lv else []), f'Map Editor{": " + lv if lv else ""}')
+        self.launch([exe] + ([lv] if lv else []), f'Map Editor{": " + lv if lv else ""}{note}')
 
     def prepare(self):
         lv = self.chosen_level()
@@ -420,7 +421,8 @@ class Hub:
     # --- Level diff ---------------------------------------------------------------------------------
     def tab_diff(self):
         f = self.form('Level diff', 'Compare two binary .dbx files (two builds of a level, or any partition) instance by '
-                                    'instance: what was added, removed or changed, field by field (LevelDiff).')
+                                    'instance: what was added, removed or changed, field by field (bfbc2.exe leveldiff; '
+                                    'the map editor\'s Diff panel shows the same in 3D).')
         self.ld_a, self.ld_b, self.ld_type, self.ld_ignore, self.ld_json = (tk.StringVar() for _ in range(5))
         types = (('DBX', '*.dbx'), ('All files', '*.*'))
         self.file_row(f, 1, 'File A:', self.ld_a, types=types)
@@ -441,7 +443,7 @@ class Hub:
     def diff(self):
         if not self.need(('file A', self.ld_a), ('file B', self.ld_b)):
             return
-        args = [tool('leveldiff'), self.ld_a.get(), self.ld_b.get()]
+        args = [*cli('leveldiff'), self.ld_a.get(), self.ld_b.get()]     # LevelDiff.exe's port (round EX1)
         if self.ld_match.get():
             args.append('--match-objects')
         if self.ld_summary.get():
@@ -455,7 +457,7 @@ class Hub:
                 args += ['--ignore', field]
         if self.ld_json.get().strip():
             args += ['--json', self.ld_json.get().strip()]
-        self.run(args, 'LevelDiff', ok=(0, 1))          # 1: the files differ (LevelDiff's result)
+        self.run(args, 'leveldiff', ok=(0, 1))          # 1: the files differ (a result, not a failure)
 
     # --- Crash reader -------------------------------------------------------------------------------
     def tab_crash(self):

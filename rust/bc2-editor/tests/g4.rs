@@ -244,6 +244,7 @@ fn app_on(root: &Path, saved: Option<bc2_editor::app::Saved>) -> EditorApp {
 
 #[test]
 fn edit_existing_level() {
+    let _gate = crate::gate();
     let root = temp("edit");
     stand_in(&root);
     let mut app = app_on(&root, None);
@@ -289,6 +290,7 @@ fn edit_existing_level() {
 
 #[test]
 fn create_and_open_projects() {
+    let _gate = crate::gate();
     let root = temp("create");
     stand_in(&root);
     let folder = root.join("projects");
@@ -346,6 +348,7 @@ fn create_and_open_projects() {
 
 #[test]
 fn create_from_a_height_map() {
+    let _gate = crate::gate();
     let root = temp("heightmap");
     stand_in(&root);
     let good = root.join("atoll.png");
@@ -428,6 +431,7 @@ fn create_from_a_height_map() {
 
 #[test]
 fn top_bar_fits() {
+    let _gate = crate::gate();
     let Some(mut h) = headless([1500, 900]) else { return };
     let dir = temp("topbar");
     let scene = bc2_editor::demo::level(&dir.join("level")).unwrap();
@@ -454,6 +458,7 @@ fn top_bar_fits() {
 
 #[test]
 fn real_counts() {
+    let _gate = crate::gate();
     if std::env::var_os("BC2_EDITOR_G4_REAL").is_none() {
         println!("skipped: set BC2_EDITOR_G4_REAL=1 to count the real game copy's levels");
         return;
@@ -495,6 +500,7 @@ fn real_counts() {
 
 #[test]
 fn screenshots() {
+    let _gate = crate::gate();
     let Some(out) = std::env::var_os("BC2_EDITOR_G4_SHOTS").map(PathBuf::from) else {
         println!("skipped: set BC2_EDITOR_G4_SHOTS=<folder> for the screenshots");
         return;
