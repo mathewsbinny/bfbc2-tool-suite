@@ -307,6 +307,20 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **The editor tests' hang** (round HG1): two tests making GPU devices at once could deadlock for good on NVIDIA's
+  driver (a Vulkan device made while another thread exited through the driver's `DllMain` holding Windows' loader
+  lock; 4 hangs in 9 loaded runs). The headless device is made once per process and shared, on Vulkan / Direct3D 12
+  only (0 hangs in 30). A test held past `BC2_TEST_HANG_S` seconds now ends the editor test binary with the running
+  tests' names and, with `BC2_TEST_HANG_STACKS=1`, each thread's stack (`rust\hang_stacks.py`, from a minidump); the
+  quick tier sets both.
+- **Exports without the bundle cache** (round HG1): the shader reach and the closure's copies read one partition at a
+  time, each a decompression of a bundle payload of hundreds of MB; they now read a step's partitions together. A WW2
+  canary export with `BFBC2_FBRB_CACHE=0`: 1,887 -> 96 s, the stage byte for byte the same.
+- **The walk camera and surface placement on large levels** (round HG1): a ray tested every one of the terrain's two
+  million triangles; the scene now keeps a plan grid of them and each blueprint's radius (about 0.5 ms a ray instead
+  of 35 on SP_01, the same hits bit for bit).
+- **EX1's preview test** (round HG1) prepares its canary under an id of its own per run, so two runs at once no longer
+  share OPFOR's `work\editor\levels` folder.
 - **Tests that passed by skipping** (round TS1, audit AU3 TS-7): the simplified-view, view-geometry and view-toggle
   tests turned a level that did not open, a game view that did not start or render meshes not read into a "skipped"
   that passed; with the level in the game copy each is now a failure. The Rust tests' "<level>: skipped, ..." lines
