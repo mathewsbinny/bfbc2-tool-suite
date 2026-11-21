@@ -15,10 +15,10 @@ data the suite's tests build.
 
 | Layer | What | Where | State |
 |---|---|---|---|
-| 1 | Container and file formats: byte layouts, encodings, platform variants | `formats/` | round SP1 (this round) |
+| 1 | Container and file formats: byte layouts, encodings, platform variants | `formats/` | round SP1 |
 | 2 | The data model: DBX types and values, instances, GUIDs and references, partitions and bundles, the level structure, registration, precedence | `model/` | round SP1 |
-| 3 | Engine subsystems: what the game does with the data (level loading and the checksum, streaming, physics, rendering, AI / Kynapse, the menus' movies, sound) | `engine/` | later rounds (plan below) |
-| 4 | The suite's transformations: each conversion and port as a function from input to output with its invariants (Xbox 360 -> PC, BF1943 -> BFBC2, level export, NavKit) | `transforms/` | grown by each porting round (plan below) |
+| 3 | Engine subsystems: what the game does with the data (loading and the checksum, levels, gameplay and modes, AI / Kynapse, rendering, sound, networking and hosting, the menus) and the crashes it gives on bad data | `engine/` | round SP2; physics and streaming later (plan below) |
+| 4 | The suite's transformations: each conversion and port as a function from input to output with its pre- and postconditions and the tests that prove them | `transforms/` | round SP2 started it; grown by each porting round (plan below) |
 
 The platforms and games covered:
 
@@ -94,7 +94,9 @@ Each file ends with **Open questions**: what is not known yet, so nobody mistake
   evidence;
 - every status is backed by its evidence (table above);
 - every cited test exists (the file and the `def` / `fn`), every cited code or doc file exists and has the line;
-- every `spec: ID` comment in a test names an existing rule.
+- every `spec: ID` comment in a test names an existing rule;
+- every rule ID the prose names is defined, except IDs of the map editor's placement study (`L1-CQ-001`, `L1-RU-004s`
+  ...), which must be in `bfbc2-map-editor/placement/l1_rules.json` (`EXTERNAL` in `trace.py`).
 
 `python spec/trace.py --coverage` reports rules per status and area, the rules without a test, and the suite's
 tests that cite no rule. A test cites a rule when a rule names it as evidence, or with a comment on or directly above
@@ -152,6 +154,27 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [model/bundles.md](model/bundles.md) | partitions and bundles, `*deleted*` markers, bundle precedence |
 | [model/level.md](model/level.md) | the level: LevelData, its description, layers, Objects, event connections, model groups |
 | [model/registration.md](model/registration.md) | `package.mft`, `bundleManifest`, the level checksum |
+| **Engine subsystems (layer 3)** | |
+| [engine/loading.md](engine/loading.md) | the load's session states, the startup bundle, the level checksum (Md5Buffer), partitions and references at load, model groups |
+| [engine/levels.md](engine/levels.md) | level ids, mode levels, the level data at run time, what a description declares |
+| [engine/gameplay.md](engine/gameplay.md) | modes and mode layers, Conquest, tickets, Rush stages, Squad Deathmatch, spawns, combat areas, DICE's measured conventions (the L1 study) |
+| [engine/ai.md](engine/ai.md) | the AI's start, the Kynapse runtime, what a level needs for bots, AI crashes |
+| [engine/rendering.md](engine/rendering.md) | the Direct3D 11 renderer: shader databases, draws, order, terrain, water, weather, post-process, shadows |
+| [engine/audio.md](engine/audio.md) | waves, streaming and on-demand audio, the announcer per content set, voice-over events |
+| [engine/network.md](engine/network.md) | the in-process host (`hostMultiplayerLocal`), the transport, the join, the server browser |
+| [engine/menus.md](engine/menus.md) | the level catalogue, engine-movie events, movie loading and unloading |
+| [engine/crashes.md](engine/crashes.md) | index: every recorded fault address and its rule |
+| **The suite's transformations (layer 4)** | |
+| [transforms/pack.md](transforms/pack.md) | FBRB unpack and pack |
+| [transforms/dbx.md](transforms/dbx.md) | DBX read / write round trips, import, DbxEdit's commands |
+| [transforms/culltree.md](transforms/culltree.md) | cull-tree additions and the export's reslot |
+| [transforms/console.md](transforms/console.md) | Xbox 360 -> PC conversion and the Onslaught port's stages |
+| [transforms/ww2.md](transforms/ww2.md) | BF1943 -> BFBC2 ports and the WW2 rebuild (the oracle) |
+| [transforms/navkit.md](transforms/navkit.md) | NavKit build, apply, install, restore |
+| [transforms/stockmp.md](transforms/stockmp.md) | the stock-map AI layer: build, checks, install, revert |
+| [transforms/export.md](transforms/export.md) | map export: preconditions, closure, registration, names, the stage's check |
+| [transforms/install.md](transforms/install.md) | install and revert: the stage protocol, byte-for-byte restore, the ledger |
+| [transforms/projectlog.md](transforms/projectlog.md) | the editor's project log: undo / redo, GUIDs, apply |
 
 [rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it.
 
@@ -164,31 +187,34 @@ references, XML); the data model and registration; terrain, water, collision / H
 360); shader databases; path data; APT; audio; loc / BIGF / STFS / XISO; cull trees; the rest. What this round left
 for later is listed under **Remaining** at the end of this file.
 
-### Layer 3: engine subsystems (later rounds)
+### Layer 3: engine subsystems (round SP2, then later rounds)
 
-One file per subsystem under `engine/`, each rule tied to `BFBC2Game.exe` evidence (`[exe: ...]`) or a playtest:
+One file per subsystem under `engine/`, each rule tied to `BFBC2Game.exe` evidence (`[exe: ...]`), a play test, or
+the suite's reproduction and its tests. Every recorded crash address is a rule in its subsystem's file and a row of
+`engine/crashes.md`. Written in round SP2:
 
-1. **Level loading and the checksum**: the order bundles are mounted, how a partition is resolved, what the
-   checksum covers and what crashes it (0x6EFBC0 / 0x6EFCA4 / 0x6EFF8A); the server and client halves.
-2. **Streaming**: `async` / `streaming_*` bundles, `ondemand_*`, what loads when.
-3. **Physics**: the hit material and part material rules (OPFOR's MATERIAL_SLOTS_RE), destruction, vehicles.
-4. **Rendering**: shader database lookup, the Dx9 / Dx10 / Dx11 paths, terrain and water rendering, the post chain
-   (EDITOR_ARCHITECTURE 3.11 as the suite's reproduction).
-5. **AI / Kynapse**: what the bots read from the path data and the level (KYNAPSE_SPEC.md).
-6. **Menus**: the APT runtime, the movies' action script, the menu data.
-7. **Sound**: banks, Wave graphs, voice-over.
-8. **Gameplay data**: kits, weapons, vehicles, game modes as DBX classes (OPFOR's research notes).
+1. **Loading** (`loading.md`): the session states of a load, the startup bundle, the level checksum (Md5Buffer,
+   0x6EFBC0, its faults 0x6EFCA4 / 0x6EFF8A), partitions and references at load, model groups.
+2. **Levels** (`levels.md`): ids, mode levels, the level data at run time, the description's declarations.
+3. **Gameplay / modes** (`gameplay.md`): mode layers, Conquest, tickets, Rush stages, Squad Deathmatch, spawns, combat
+   areas; DICE's measured conventions from the map editor's placement study, each rule naming its L1 warning rules.
+4. **AI / navigation** (`ai.md`): the AI's start, the Kynapse runtime, what bots need.
+5. **Rendering** (`rendering.md`): the Direct3D 11 pipeline as round R5 reproduced it.
+6. **Audio / voice-over** (`audio.md`): waves, streaming and on-demand rules, the announcer per content set.
+7. **Networking / hosting** (`network.md`): the in-process host, the transport, the server browser.
+8. **Menus** (`menus.md`): the level catalogue, engine-movie events, movie unload.
+
+Still to write: **physics** (the hit and part material rules of OPFOR's MATERIAL_SLOTS_RE beyond GAME-DMG-1 and the
+Havok rules, destruction, vehicles); **streaming** (`async` / `streaming_*` / `ondemand_*` mount order and
+precedence); **gameplay data** (kits, weapons, vehicles as DBX classes).
 
 ### Layer 4: the suite's transformations (grown by each porting round)
 
-One file per transformation under `transforms/`, written with the round that changes it; each rule states an
-invariant between input and output and cites the test that proves it:
-
-1. **Xbox 360 -> PC** resources (`bc2-convert`: Havok, textures, meshes, mesh sets, Granny, terrain, soot).
-2. **BF1943 -> BFBC2** (the importer: DBX ports, Havok 4.6 -> 5.5, shader translation, emitter atlases).
-3. **Level export** (`bc2-levelwrite`: the closure, cull trees, registration, the stage protocol).
-4. **NavKit** (`bc2-navbuild`: the path data built from a level).
-5. **Menus** (`aptgraft`, the HUD patches).
+One file per transformation under `transforms/`; each rule states a precondition (what the transformation refuses) or
+a postcondition (an invariant between input and output) and cites the test that proves it. Started in round SP2 with
+pack / unpack, DBX round trips, cull-tree additions, the console conversion, the WW2 rebuild, NavKit, the stock-map AI
+layer, map export, install / revert and the editor's project log; each porting round updates the file of the
+transformation it changes, or adds one.
 
 ## Remaining
 
@@ -215,3 +241,34 @@ Filled in at the end of each round.
   5. the height field's main-block tail, needed for terrain of a new size (`formats/terrain.md`);
   6. the path data's unexplained header words, A records and the runtime's tile-size choice (`formats/hpd.md`).
 - **Layers 3 and 4** as planned above, layer 3 starting with level loading and the checksum (it closes question 1).
+
+**After round SP2** (2026-11-20: 663 rules in 45 files - 359 verified, 55 implemented, 241 observed, 8 inferred;
+224 new: layer 3 138 rules in 8 files - 26 verified, 6 implemented, 105 observed, 1 inferred; layer 4 86 rules in 10
+files - 82 verified, 2 implemented, 2 observed; REG-NEW-3 corrected to E3c's behaviour; 272 rules without a test, 115
+of them new; 335 of the suite's 556 test functions cite no rule):
+
+- **Question 1, narrowed.** The level checksum that faults on bad `Objects` is Md5Buffer (FUN_006EFBC0), run when a
+  level loads (LOAD-CSUM-1). Whether the start-up crash of a wrongly registered level (CSUM-CHK-1, CSUM-CHK-2) is the
+  same function run over every registered level, and what it reads of `package.mft` / `bundleManifest`, is still
+  open.
+- **Layer 3 not written:** physics, streaming, gameplay data (plan above). Menus has four rules; the APT runtime's
+  action script is not covered.
+- **Layer 3 evidence to strengthen.**
+  - Most layer 3 rules are **observed**: the 35 placement conventions of `gameplay.md` (they become tests when round V1
+    turns `l1_rules.json` into the editor's checks: each rule already names its L1 IDs); the crash rules (a game-tier
+    check per data requirement, as `DbxEdit check` does for LEVEL-OBJ-2, would make them verified).
+  - Two crash sites (0x6F2310, a hang; 0x5AC3F0) are known only from the crash reader's symbol table, their data not
+    recorded; 0x61084D has no recorded cause and no rule (`engine/crashes.md`).
+  - Rendering's per-frame engine values wait for the in-game capture R5 asked for (`engine/rendering.md` Open
+    questions); audio's untested points (in-memory voice-over, a streaming flag on in-memory audio, the bank that wins
+    for Japanese line names in both banks, server-raised voice-over on the in-process host).
+  - Gameplay's open points: capture-zone `Extents` half or full size, `SurroundingGeometry`, whether a spawner's own
+    transform is a spawn place, ticket bleed on BF1943's data, aircraft capturing, how PC reads `OnlyTakeableByTeam`
+    1 and 2, Onslaught's rules.
+- **Layer 4 TODO** (each with the round that next changes it): the shader translation (Xenos -> HLSL, BF1943's
+  shaders; the Wake carrier as its oracle); emitter atlases (emitteratlas / effectport); Granny skeleton and animation
+  conversion; the menus (`aptgraft`, the HUD patches); the XAS audio encoder as its own transformation (only inside
+  `console.md` now); the ledger's adoption of stage-protocol files; NavKit's offline sampling; project versions beyond
+  2 (round V1). In-game proofs still open: an exported level loaded in game, the stock-map AI layer played.
+- **C++ tests.** OPFOR's DLL rule tests (`src/dll/tests/*_test.cpp`) are `int main()` programs, which `trace.py`
+  cannot cite as `[test: ...]`; the network and menu rules cite the DLL code instead.
