@@ -5909,3 +5909,112 @@ planned tools, kept in `DESIGN.md` 4.7); the hub's Level diff tab runs `bfbc2.ex
 LevelDiff entries (the build, the built levels, MP_005) are bc2-cli's cargo tests; `tests\test_cli_errors.py` checks
 `bfbc2 leveldiff`'s error. OPFOR: `opforcore.paths.leveldiff()` is the command, `paths.exe('LevelDiff')` refuses with
 it (nothing else in OPFOR called LevelDiff). `RETIRED.md` has the row.
+
+## RT3: RT2's leftovers - the hpd / Wave readers and five command lines retired, abbreviations, one rule (2026-11-21, branch `rust-rt3`)
+
+### Item 1a: `hpdtool.parse` and the Wave readers, their messages ported, then retired
+
+- **`bc2_formats::hpd::parse_exact`** reads a path-data file read for read as `parse_reference` did and stops where it
+  raised: `ValueError` ("not a Kynogon HPD file", "sector N (0x..): runtime mesh not where expected", "sector blocks do
+  not cover the file") or `struct.error` in CPython 3.13's words at the first read that fails (the header's 144
+  bytes, a 48-byte table entry, a block's 8-byte counts, then - where the records do not fit - the first node or edge
+  that does not, at its offset in the sector's block, as the reference's record-at-a-time loop reached it). NaNs are
+  read (the binding converts them as `struct` does: `hpdlayout::c_double`). `hpd::parse` (the CLI tools', the
+  editor's) keeps its NaN refusal. `bc2_native.hpd_parse` raises the reference's errors; `hpdtool.parse` has no
+  Python left (a bytearray / memoryview reads as its bytes, another type `Refused`); `write_reference` stays.
+- **`bc2_formats::wave`**'s readers stop where the reference raised: its `AudioError` messages, and `struct.error`
+  where a size word lay past the end that its checks let through (the stream-information word after a padded blob,
+  an SPS header block shorter than its two words - one 8-byte read - or an audio block shorter than its sample word);
+  a NaN BF1943 rate is read. The bindings answer `(exception name, message)`, which `audio.py` raises; the readers'
+  references are deleted, the writers' (`write_wave_pc_reference`, `write_sps_reference`) stay.
+- **Proof (replay).** Path data against RT2's recording (`f0_pathdata_replay*.json`): quick 1,585 answers replayed
+  (1,026 inputs the old core refused, 4 of them answered by the reference - NaN files - and now by the port), game
+  2,113 replayed over 138 files (645 MB), 8,643 meshes, 414 damaged copies: 0 wrong, 0 not recorded. The Wave
+  readers' answers were recorded now from the references (a frozen checkout at `f826078` with its own module, the
+  sibling projects through junctions): quick 8,124 answers, game 936,831 (286,350 distinct; 2,750 BF1943, 45,834 PC
+  and 35,813 Xbox Waves, their streams, 3 damaged copies of each), `f0_wave_replay*.json` 4.8 MB; then, the readers
+  retired, quick 4,042 and game 426,208 replayed: 0 wrong, 0 not recorded, every input answered by the core (the old
+  core had left 121,450 to the reference). O2's `hpdtool` lines re-recorded from the Python (which now reads through
+  the core): only the 6 that print its usage changed; the 20 lines `bfbc2.exe hpdtool` hands to the Python kept their
+  answers.
+
+### Item 1b: five command lines split and retired (`aptrefs`, `xiso`, `culltree`, `stockmp`, `crashreader`)
+
+Each library moved with `git mv` to `<tool>lib.py` beside it (old public names kept; `exeref.py`, tests, benches and
+the hub import it); the usage `bfbc2.exe` prints lives in `rust\bc2-cli\src\<group>\<tool>_usage.txt`, reworded for
+`bfbc2 <tool>`. The goldens were re-recorded from the Python first and were unchanged (crash 258, cull 190, stockmp
+236 + 73, readers 212, aptrefs 82); exeref's two "symbols missing" lines re-recorded (its warning names
+`crashreaderlib.py:66`, which `bfbc2.exe exeref` emulates). The 38 lines that print the reworded usage are in
+`cli_<round>_<group>_now.json`, merged over the goldens (which keep the Python's text). `native.RETIRED_ROUND` names
+each tool's round; `test_native_required` checks it against `pyproc.rs`' `RETIRED` and that each is `CliMissing`
+without the binary (the `--download` test passes).
+
+| tool | lines (quick) | answered by Rust | handed to the Python before, the retirement error now |
+|---|---|---|---|
+| crashreader | 120 | 112 | 8 (not XML, UTF-16, `--exe` not a PE file, `BFBC2_CRASHREADER_REFERENCE`) |
+| aptrefs | 82 | 82 | 0 |
+| culltree | 190 | 184 | 6 (an extra field, a damaged reference tree) |
+| stockmp (O3, O5) | 236, 73 | 218, 71 | 18, 2 (odd synthetic inputs, some of which the Python answered with exit 0: a plan report that is not JSON, an infinite path-data position, a degenerate level's snapped generate) |
+| xiso | 44 | 42 | 2 (the root cut short) |
+
+Game tier (OPFOR's real calls in Rust alone): crash 15 s, menu 186 s, cull 42 s, O3 stockmp 52 s, readers 37 s, O5
+stockmp builds 194 s (mp_008cq 32,257 files), all as recorded. OPFOR: `testrun.py` runs `bin\bfbc2.exe` only (a clear
+message without it; OPFOR commit `2450330`); its tests 381 of 381 against this branch.
+
+### Item 1c: argparse's option abbreviations
+
+`argfmt::long_option` is `_parse_optional` / `_get_option_tuples` for a `--` argument over the parser's option
+strings in `_option_string_actions` order; in 3.13 the ambiguity is raised in `consume_optional`, in order with the
+other errors. The shader tools' parser (shaderdb, renderqa, xdiff), caches, convert, dbxparity / portparity and texqa
+resolve with it; audio's own matched already. `core/tests/test_abbrev.py` (quick): 193 command lines built from the
+Python parsers themselves (each long option's shortest unique prefix alone, `=v` and with its value, the `--help`
+prefix, every shared prefix; 26 ambiguous), each ending where argparse stops before the tool acts (checked in process
+first): 193 of 193 identical to the Python's recording, 170 answered in Rust, texqa's 23 argparse errors handed off by
+design. `test_argfmt` 943 of 943; O2 nav, O3 caches / audio / bf1943, O4 texqa, O5 shader / bf1943 as recorded. Still
+handed off: single-dash abbreviations and attached short values, `--`, a flag or `--help` given a value, an unknown
+`--...` with a space, texqa's argparse errors.
+
+### Item 1d: the kept references of RT2, decided
+
+| reference | decision |
+|---|---|
+| `hpdtool.parse_reference`; `audio.read_wave_reference` / `read_sps_reference` / `read_snr_reference` | **retired** (item 1a) |
+| xiso's file-object reader | **in Rust** (`xisolib.find_partition_bytes` / `walk_bytes`, item 1b) |
+| `hpdtool.write_reference`, `kymesh.write_mesh_reference`, `meshset.write_reference`, `audio.write_wave_pc_reference` / `write_sps_reference` | keep: the writers take objects NavKit's build, OPFOR and the converters assemble (RT2 counted 47, 37 and 102 changed objects the core refuses that the reference wrote); the A17 rule's first half (the reference answers while alive) |
+| bc2loc's own (`khash_reference`, `LocFile._parse_reference`, `decode` / `to_bytes`) | keep: khash from another start, lone surrogates, LocFile's edits are Python state |
+| stfs (`test_console_readers_native`) | keep: `stfs.py` is a live command line and OPFOR's library |
+| texwrite, skinmesh, Granny writing | keep: OPFOR's WW2 pipeline feeds them arrays and objects it builds; no per-call recording possible |
+| `dbxcatalogue.build`, emitteratlas | keep: an unreadable chunk is recorded by the Python (the Rust refuses the whole build); float near-ties by design |
+| shaderdb queries (E4b), SD1's reader references | keep: the coordinator's ruling |
+| hkpack's F4 references | keep: the coordinator's ruling. Found: `hkpack.py dump` through the F4 handle prints a simple array of variants one list deeper than the pure Python and the recorded answer (`m_odd: [[(?, 3)]]` / `[(?, 3)]`, O2 nav "hkpack: dump", on main too) - a bug of the handle, left for a later round |
+| `xenos.disasm`, `parse_shader_python`; crashreader / exeref `Image`; texture `tiled` / `packed` / `layout`; `meshview._build_reference` | keep (RT1's reasons: edited microcode, other executables with capstone, texqa's independent decoder, the skip-and-report) |
+
+### Item 2: one rule when the Rust port cannot answer (audit AU2 A17)
+
+While a tool's Python is alive it answers: `bfbc2.exe` hands the whole command line to it (`Fail::Python`), a binding
+answers `None` (or `Refuse` in bc2-stockmp / bc2-harness) and the Python reference runs. Once retired, a plain error,
+never a silent fallback: the retirement error (exit code 1, naming the round: `pyproc.rs` `RETIRED` is (tool, round),
+`native.RETIRED_ROUND` the same list), and `native.Refused` from a binding's function. Written in README "bfbc2.exe",
+`native.py` and `pyproc.rs`; `test_cli_o2.main` (O2 / O3 / O5) now applies `retired_check` to retired tools as O4 did.
+
+### Items 3-6
+
+- **`run_tests.py --help`** ran the quick tier (every unknown argument was ignored). `-h`, `--help`, `/?` print the text;
+  an unknown argument, a missing or wrong value, two tiers are a usage error (exit code 2, reported through
+  `errors.report`). `tests/test_runner_args.py` (quick): 16 command lines on a stand-in test list.
+- **Test-file registration:** `tests/test_repo.py` fails when a `tests/*.rs` of a crate with `autotests = false` is
+  not a `mod` of its `[[test]]` main.rs (a `#[path]` module counts), with a self-check on a stand-in crate (it must
+  name exactly the forgotten file and a commented-out one).
+- **navkit.py's usage** names the map editor's AI workspace: O4's navkit golden re-recorded, 6 of 202 rows changed,
+  each in that one line. **viewer.py and pick.py** retired (nothing but two tests imported them; RETIRED.md).
+  **f3_golden_hpd.json**: the 12 `work/import_backup` groups removed (OPFOR deleted the folder).
+- **O2's environmental failure** was Microsoft Defender: `Get-MpThreatDetection` lists every
+  `cli_o2_*\cccccccccccc\b.exe` as `Trojan:Win32/Bearfoos.A!ml`; the detection is by content (the same bytes named
+  `b.bin` fail, one changed byte passes) and the block is permanent (Windows refuses the open with
+  `ERROR_VIRUS_INFECTED`, which Python reports as `EINVAL`), so neither another name nor a retry helps. The stand-in
+  carries a text mark in the unused end of `.data2`; aptrefs' 82 lines re-recorded (34 changed, only their case-folder
+  digest). `test_cli_o2.py` (all three groups) passed 3 times in a row: 966 of 966 each.
+
+### Proof (the whole branch)
+
+RT3-PROOF

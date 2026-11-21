@@ -24,6 +24,12 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **`xisolib` reads disc images held in memory** in the Rust core (round RT3: `find_partition_bytes`, `walk_bytes`;
+  an `io.BytesIO` goes through them), so the Xbox disc reader has no Python-only path left.
+- **`run_tests.py --help`** (also `-h`, `/?`) prints the runner's text and runs nothing (round RT3); an argument the
+  runner does not know is a usage error (exit code 2) instead of being ignored.
+- **A repository rule** (round RT3, `tests\test_repo.py`): every `tests\*.rs` of a Rust crate with `autotests = false`
+  must be a `mod` of its test binary, so a test file can no longer silently never run.
 - **Map editor: every name of an exported level** (round EX1). The Export window's **Names**: the level id (what the
   game loads, `Levels/<ID>`, and where its `<ID>_NAME` / `<ID>_DESC` texts come from), its folder under
   `Package\levels\` (the id in lower case, as on every level of the game: renaming the folder renames the id), the
@@ -105,6 +111,19 @@ landed on `main`.
   mapexport]`; `bfbc2-editor --source-hash` and `mapexport --source-hash`.
 
 ### Changed
+- **`bfbc2.exe` answers argparse's option abbreviations** as Python 3.13 does (`--fo` for `--format`, `--fo=v`, `--he`
+  for `--help`) and its `ambiguous option: ... could match ...` error, in caches, convert, audio, shaderdb, renderqa,
+  xdiff, dbxparity, portparity and texqa, instead of handing those command lines to the Python (round RT3). A
+  `nargs='*'` option takes `--x=v`; texqa answers its help when it is the first argument. Single-dash abbreviations,
+  `--` and texqa's argparse errors still go to the Python.
+- **One rule when the Rust port cannot answer** (round RT3, audit AU2 A17; README "bfbc2.exe"): while a tool's Python
+  is alive it answers (the command line handed to it, or a binding's Python reference); once it is retired, a plain
+  error, never a silent fallback. The retirement error of `bfbc2.exe` names the round that retired the tool.
+- **`hpdtool.parse` and `audio.read_wave` / `read_sps` / `read_snr` run in the Rust core only** (round RT3): a damaged
+  file raises the error and message the Python raised (`ValueError` or `struct.error` for path data, `AudioError` or
+  `struct.error` for sounds); a NaN in a file is read as Python's `struct` reads it instead of going to the Python.
+- **`navkit.py`'s usage** says a level's navigation side file is made in the map editor's AI workspace (the
+  Navigation Studio was retired in GR2).
 - **Map editor: the simplified view draws the objects' render meshes** (round SV1). Trees, bushes and palms now look
   like trees, bushes and palms instead of "spike balls": the view draws each object's render mesh (the one the
   Game-accurate view draws) with its leaves cut out by their texture and a muted tint from its texture (vegetation
@@ -189,6 +208,15 @@ landed on `main`.
   `%LOCALAPPDATA%\bfbc2-tool-suite\matplotlib`, and forgets durations of tests that no longer exist.
 
 ### Removed
+- **The Python command lines `aptrefs.py`, `xiso.py`, `culltree.py`, `stockmp.py` and `crashreader.py`** (round
+  RT3). `bfbc2.exe` runs them alone (`python rust\build_native.py --download` fetches it; the hub and Project OPFOR's
+  testrun use it); their libraries are `aptrefslib.py`, `xisolib.py`, `culltreelib.py`, `stockmplib.py` and
+  `crashreaderlib.py` (`exeref.py` imports the last). A damaged or unusual input that used to go to the Python now
+  ends with an error naming the retirement (exit code 1). `RETIRED.md` has the last commit with each.
+- **The Python references `hpdtool.parse_reference`, `audio.read_wave_reference`, `read_sps_reference` and
+  `read_snr_reference`** (round RT3), after their errors were ported; their recorded answers are the tests' reference.
+- **`core\bfbc2core\viewer.py` and `pick.py`** (round RT3), the Python 3D view and its level picker that no tool has
+  used since GR1 / GR2; with them `moderngl`, `glfw` and `imgui-bundle` leave `requirements.txt`.
 - **LevelDiff.exe** (round EX1): `bfbc2-diff-workbench\` (`level-diff\LevelDiff.cs`, `build.bat`, its tests, and the
   folder's README of planned tools, which `DESIGN.md` 4.7 keeps). Run `bfbc2.exe leveldiff` (above) with the same
   arguments; its answers on recorded real level pairs are LevelDiff.exe's, byte for byte. `RETIRED.md` has the last
@@ -212,6 +240,10 @@ landed on `main`.
   `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
+- **O2's command-line test on a PC running Microsoft Defender** (round RT3): Defender's machine-learning scan took
+  the menu group's stand-in executable for a trojan and blocked every read of it (`OSError 22`); the stand-in now
+  carries a text mark no tool reads, and a blocked file is reported as an antivirus block.
+- **`run_tests.py --help`** ran the quick tier (round RT3).
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /
   `OverflowError` from the Rust core instead of reading the file as the Python does (round SD1).
 
