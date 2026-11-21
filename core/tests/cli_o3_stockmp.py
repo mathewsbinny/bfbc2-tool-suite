@@ -25,6 +25,8 @@ APPLIED = '.opfor-stockmp-applied'
 BACKUP = '.opfor-stockmp-orig'
 DIST = 'Dist\\win32\\levels\\{lv}\\level-00.fbrb'
 PKG = 'Package\\levels\\{lv}\\level-00.fbrb'
+# round DF2: the install ledger's records name their transaction and time (by size only); its blobs are compared
+LOOSE = [r'(^|/)opfor/ledger/[^/]+\.json$']
 PD = 'Output\\win32\\ai\\levels\\{lv}\\{kind}\\pathdata.hpd'
 
 

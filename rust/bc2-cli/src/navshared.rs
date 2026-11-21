@@ -63,8 +63,22 @@ pub fn find_opfor(given: Option<&str>, kind: &str) -> PyResult<String> {
     find_opfor_text(given, true)?.map_err(|m| Fail::Err(PyErr::new(kind, m)))
 }
 
-/// `navkit.original_file(p)`: DICE's original of a game file (the earliest OPFOR backup), or None.
+/// `navkit.original_file(p)`: DICE's original of a game file, or None. From the game copy's install ledger when an
+/// owner holds the file there (round DF2: the bottom layer's prior, kept once by its sha256; None where an install
+/// put the file where there was none); else by the markers of before the ledger (the earliest OPFOR backup).
 pub fn original_file(p: &str) -> PyResult<Option<String>> {
+    let path = std::path::Path::new(p);
+    if let Some(game) = bc2_formats::gameledger::find_game(path) {
+        let led = bc2_formats::gameledger::Ledger::new(&game);
+        let rel = pyos::relpath(p, &game.to_string_lossy())?;
+        let fail = |e: bc2_formats::gameledger::Error| Fail::Err(PyErr::new("LedgerError", e.to_string()));
+        if !led.holders(&rel).map_err(fail)?.is_empty() {
+            return Ok(led
+                .original(&rel)
+                .map_err(fail)?
+                .map(|b| b.to_string_lossy().into_owned()));
+        }
+    }
     let (d, base) = pyos::split(p)?;
     let Ok(listing) = pyos::listdir(if d.is_empty() { "." } else { &d }) else {
         return Ok(None);

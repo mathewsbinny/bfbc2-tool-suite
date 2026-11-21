@@ -24,6 +24,8 @@ Case = tuple[str, str, dict[str, Any], list[str], dict[str, str], bool]
 Call = tuple[str, str, list[str], dict[str, Any], dict[str, str], bool]
 
 T = '1/0/0/0/0/1/0/0/0/0/1/0/{x}/{y}/{z}/1'
+# round DF2: the install ledger's records name their transaction and time (by size only); its blobs are compared
+LOOSE = [r'(^|/)opfor/ledger/[^/]+\.json$']
 
 
 def _nodes(data: bytes) -> list[tuple[float, float, float]]:
