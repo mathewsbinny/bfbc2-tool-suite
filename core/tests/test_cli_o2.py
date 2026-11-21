@@ -129,8 +129,17 @@ class Place:
             if not ds and not fs and d != self.d:
                 snap[os.path.relpath(d, self.d) + os.sep] = '<dir>'
             for f in fs:
-                with open(os.path.join(d, f), 'rb') as fh:
-                    data = fh.read()
+                try:
+                    with open(os.path.join(d, f), 'rb') as fh:
+                        data = fh.read()
+                except OSError as e:
+                    if e.errno != 22:
+                        raise
+                    # round RT3: what O2's stand-in b.exe met - Windows refuses to open a file its antivirus flagged
+                    # (ERROR_VIRUS_INFECTED, which Python sees as EINVAL), however long one waits
+                    raise OSError(e.errno, f'{e.strerror}: {os.path.join(d, f)} cannot be read; Windows gives this '
+                                  'for a file its antivirus blocked (Microsoft Defender: Get-MpThreatDetection lists '
+                                  'it). A stand-in file the case builds needs other bytes') from e
                 text = self.norm(data)
                 data = text.encode('latin-1') if '<dir>' in text or '<cwd>' in text or '<lad>' in text else data
                 rel = os.path.relpath(os.path.join(d, f), self.d)
@@ -474,11 +483,20 @@ def main(argv: list[str]) -> int:
         if len(set(keys)) != len(keys):
             check(False, f'{group}: case keys are unique', str([k for k in keys if keys.count(k) > 1][:3]))
             continue
+        if '--only' in argv:                # round RT3: the lines whose key holds this text (recorded into the rest)
+            part = argv[argv.index('--only') + 1]
+            rows = [r for r in rows if part in r[0]]
+            keys = [r[0] for r in rows]
         if '--record' in argv:
             results, times, _who = run_all(rows, ['python'], exe)
-            names = save_golden(group, {k: results['python|' + k] for k in keys},
-                                {'recorded': datetime.date.today().isoformat(), 'by': 'the Python command lines',
-                                 'python': sys.version.split()[0], 'cases': len(rows)})
+            kept = {k: v for k, v in load_golden(group).items() if k not in keys} if '--only' in argv else {}
+            meta = cg.load(golden_names(group)[0]).get('meta', {}) if kept else {}
+            when = datetime.date.today().isoformat()
+            meta = {k: v for k, v in meta.items() if k not in ('shard', 'shards')} | (
+                {'cases': len(kept) + len(keys), 're-recorded': meta.get('re-recorded', []) + [f'{when}: {len(keys)}']}
+                if kept else {'recorded': when, 'by': 'the Python command lines', 'python': sys.version.split()[0],
+                              'cases': len(rows)})
+            names = save_golden(group, {**kept, **{k: results['python|' + k] for k in keys}}, meta)
             print(f'{group}: recorded {len(rows)} command lines from the Python ({times["python"]:.0f} s): '
                   f'{", ".join(names)}')
             continue
