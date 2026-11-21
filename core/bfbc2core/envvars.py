@@ -108,6 +108,9 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_SD1_SIBLINGS_OF': ('test', "the folder whose siblings hold BF1943's copy for the SD1 test"),
     'BFBC2_SUITE_REFERENCE': ('test', 'the reference checkout of the path locator test'),
     'BFBC2_TEST_SCRATCH': ('test', 'where the replay and argfmt tests write their scratch files'),
+    'BFBC2_TEST_STAND_IN_EXE': ('test', "1: bfbc2.exe's menu tools read an exe stand-in kept without its MZ / PE "
+                                'signatures (SI) as the program (round AV1: O2 writes no synthetic program '
+                                'Microsoft Defender could block)'),
     'BC2_LEDGER_CRASH_AT': ('test', "the install ledger stops the process (exit 9) before its n-th write step, as a "
                             'kill would (round DF2)'),
     'BC2_EDITOR_SHOTS': ('test', "the editor tests save their screenshots there"),

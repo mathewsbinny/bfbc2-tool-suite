@@ -687,9 +687,53 @@ pub struct PeImage {
     pub h: pe::raw::Header,
 }
 
+/// The variable that lets [`PeImage::open`] read a test's exe stand-in kept on disk without its signatures (round AV1).
+pub const STAND_IN_VAR: &str = "BFBC2_TEST_STAND_IN_EXE";
+
+/// What a stand-in has in place of `MZ` and of `PE\0\0` (round AV1).
+const STAND_IN_MZ: &[u8; 2] = b"SI";
+const STAND_IN_PE: &[u8; 4] = b"SI\0\0";
+
+/// Round AV1: a test's exe stand-in made into the program it stands for, else the bytes as read. O2's build-795745
+/// stand-in is a synthetic 32-bit PE, and Microsoft Defender's machine-learning scan blocked every read of each layout
+/// tried (Trojan:Win32/Bearfoos.A!ml; round QW2's passed for hours, then was flagged too). The test keeps it on disk
+/// with `SI` for `MZ` and `SI\0\0` for `PE\0\0`, which no scanner takes for a program, and sets
+/// `BFBC2_TEST_STAND_IN_EXE=1`; only then, and only for a file with both marks, are the signatures put back here.
+fn stand_in(b: Vec<u8>) -> Vec<u8> {
+    if std::env::var_os(STAND_IN_VAR).is_some_and(|v| v == "1") {
+        restore_stand_in(b)
+    } else {
+        b
+    }
+}
+
+/// A stand-in's signatures put back; any other bytes as they are.
+fn restore_stand_in(mut b: Vec<u8>) -> Vec<u8> {
+    if b.get(..2) != Some(&STAND_IN_MZ[..]) {
+        return b;
+    }
+    let Some(pe) = b
+        .get(0x3C..0x40)
+        .and_then(|w| <[u8; 4]>::try_from(w).ok())
+        .and_then(|w| usize::try_from(u32::from_le_bytes(w)).ok())
+    else {
+        return b;
+    };
+    if b.get(pe..pe.saturating_add(4)) != Some(&STAND_IN_PE[..]) {
+        return b;
+    }
+    if let Some(s) = b.get_mut(..2) {
+        s.copy_from_slice(b"MZ");
+    }
+    if let Some(s) = b.get_mut(pe..pe + 4) {
+        s.copy_from_slice(b"PE\0\0");
+    }
+    b
+}
+
 impl PeImage {
     pub fn open(path: &str) -> PyResult<Self> {
-        let b = pyproc::read_file(path)?;
+        let b = stand_in(pyproc::read_file(path)?);
         let h = match pe::raw::parse(&b) {
             Ok(h) => h,
             Err(pe::raw::RawError::NotExe) => {
@@ -785,6 +829,23 @@ pub fn find_exe(root: Option<&str>, given: Option<&str>) -> PyResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stand_in_signatures_restored() {
+        let mut pe = vec![0u8; 0x90];
+        pe[..2].copy_from_slice(b"MZ");
+        pe[0x3C] = 0x80;
+        pe[0x80..0x84].copy_from_slice(b"PE\0\0");
+        let mut kept = pe.clone();
+        kept[..2].copy_from_slice(b"SI");
+        kept[0x80..0x84].copy_from_slice(b"SI\0\0");
+        assert_eq!(restore_stand_in(kept.clone()), pe);
+        assert_eq!(restore_stand_in(pe.clone()), pe, "a program is read as it is");
+        let mut half = kept.clone();
+        half[0x80..0x84].copy_from_slice(b"XX\0\0");
+        assert_eq!(restore_stand_in(half.clone()), half, "both marks or nothing");
+        assert_eq!(restore_stand_in(b"SI".to_vec()), b"SI".to_vec(), "too short: as it is");
+    }
 
     #[test]
     fn python_strings_and_paths() {

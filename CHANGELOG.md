@@ -28,7 +28,13 @@ landed on `main`.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
+  synthetic build-795745 exe that O2's aptrefs cases write (Trojan:Win32/Bearfoos.A!ml). Round QW2's layout passed
+  for a few hours, then was flagged too. The cases now write that stand-in with `SI` in place of its `MZ` and
+  `PE\0\0` signatures, so no scanner sees a program. Under `BFBC2_TEST_STAND_IN_EXE=1` (tests only), `bfbc2.exe`'s
+  menu tools put the signatures back as they read it, so aptrefs reads the same bytes as before and gives the same
+  answers.
 
 ## [0.11.0] - 2026-11-21
 
