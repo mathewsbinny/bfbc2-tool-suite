@@ -12,5 +12,6 @@
 
 mod alias_cache;
 pub mod collision;
+pub mod raygrid;
 pub mod scene;
 pub mod walk;
