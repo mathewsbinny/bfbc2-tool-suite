@@ -35,6 +35,52 @@ pub struct Weather {
     pub fog: Fields,
     /// `Sky` (empty when the state has none).
     pub sky: Fields,
+    /// `Clouds` (empty when the state has none): its `PanoramicCloudLayer`'s ranges, tiling, threshold,
+    /// transparency and rotation (round R5d).
+    pub clouds: Fields,
+    /// The sky dome as the system's settings and setup name it (round R5d): `SkydomeEnable`, the panoramic cloud
+    /// blend mode and the static cloud layer's panoramic texture and its alpha.
+    pub dome: Dome,
+}
+
+/// The sky dome's settings (round R5d): `WeatherSystemSettings.SkydomeEnable` and `PanoramicCloudBlendMode`, and the
+/// `PanoramicCloudLayer` textures of the `StaticCloudLayerData` the system's `WeatherSystemSetup.Clouds` names.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Dome {
+    /// `SkydomeEnable` (`None`: the settings do not say).
+    pub enabled: Option<bool>,
+    /// `PanoramicCloudBlendMode` (`PcbmMultiplyAddAlpha` ...), or empty.
+    pub blend_mode: String,
+    /// `PanoramicTexture` (`terrains/mp_005/textures/mp05_skydome`), when set.
+    pub panoramic: Option<String>,
+    /// `PanoramicAlphaTexture`, when set.
+    pub panoramic_alpha: Option<String>,
+}
+
+/// A field's text (`<field name="X">text<`), the first of that name.
+fn text_field<'a>(xml: &'a str, name: &str) -> Option<&'a str> {
+    let tag = format!("<field name=\"{name}\">");
+    let at = xml.find(&tag)? + tag.len();
+    xml.get(at..)?.split('<').next()
+}
+
+/// The sky dome's settings: from the settings partition's XML and the system's setup (its `Setup`, then the setup's
+/// `Clouds`).
+fn dome(files: &Files, settings_xml: &str, system_xml: &str) -> Dome {
+    let by_name = |xml: &str| -> HashMap<String, String> { refs(xml).into_iter().map(|(r, n)| (n, r)).collect() };
+    let clouds = by_name(system_xml)
+        .get("Setup")
+        .and_then(|s| xml_of(files, s))
+        .and_then(|x| by_name(&x).get("Clouds").and_then(|c| xml_of(files, c)));
+    let tex = |name: &str| clouds.as_deref().and_then(|x| by_name(x).get(name).cloned());
+    Dome {
+        enabled: text_field(settings_xml, "SkydomeEnable").map(|t| t == "true"),
+        blend_mode: text_field(settings_xml, "PanoramicCloudBlendMode")
+            .unwrap_or_default()
+            .to_owned(),
+        panoramic: tex("PanoramicTexture"),
+        panoramic_alpha: tex("PanoramicAlphaTexture"),
+    }
 }
 
 /// The post-process settings the tonemap uses.
@@ -260,6 +306,8 @@ pub fn read_system(files: &Files, system: &str, settings: &str, state: Option<us
         post_process: part("PostProcess")?,
         fog: part("Fog").unwrap_or_default(),
         sky: part("Sky").unwrap_or_default(),
+        clouds: part("Clouds").unwrap_or_default(),
+        dome: dome(files, &sx, &yx),
         state,
     })
 }
@@ -293,6 +341,8 @@ pub fn neutral() -> Weather {
         ]),
         fog: f(&[("Color", &[0.58, 0.66, 0.74])]),
         sky: Fields::new(),
+        clouds: Fields::new(),
+        dome: Dome::default(),
     }
 }
 

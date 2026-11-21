@@ -41,8 +41,12 @@ pub enum Dyn {
     ScreenInv,
     /// `g_depthScaleFactors`.
     DepthFactors,
+    /// `g_depthFactors` (the sky's, round R5d): `.zw` the same factors the other way round, z = w / d + z.
+    SkyDepth,
     /// `worldViewProjMatrix` (per instance).
     WorldViewProj,
+    /// `worldMatrix` of an instance that follows the camera (the sky dome, round R5d): the camera's position.
+    World,
 }
 
 impl Dyn {
@@ -57,6 +61,7 @@ impl Dyn {
             "g_screenSizeInv" => Self::ScreenInv,
             "g_depthScaleFactors" => Self::DepthFactors,
             "worldViewProjMatrix" => Self::WorldViewProj,
+            "g_depthFactors" => Self::SkyDepth,
             _ => return None,
         })
     }
@@ -65,7 +70,7 @@ impl Dyn {
     #[must_use]
     pub fn floats(self) -> usize {
         match self {
-            Self::ViewProj | Self::View | Self::WorldViewProj => 16,
+            Self::ViewProj | Self::View | Self::WorldViewProj | Self::World => 16,
             _ => 4,
         }
     }
@@ -116,6 +121,18 @@ enum Src {
 /// register inside the shader's `constants`, then `extra`), the per-frame values as holes.
 #[must_use]
 pub fn plan(r: &Reflection, values: &Values, material: &[(u8, Item)], extra: &[(u8, [f32; 4])]) -> Plan {
+    plan_with(r, values, material, extra, false)
+}
+
+/// [`plan`], with `worldMatrix` a per-frame value when the instance follows the camera ([`Dyn::World`]).
+#[must_use]
+pub fn plan_with(
+    r: &Reflection,
+    values: &Values,
+    material: &[(u8, Item)],
+    extra: &[(u8, [f32; 4])],
+    follow: bool,
+) -> Plan {
     let mut buf = vec![Src::Const(0.0); r.globals_size() / 4];
     let constants = r
         .var("constants")
@@ -123,7 +140,12 @@ pub fn plan(r: &Reflection, values: &Values, material: &[(u8, Item)], extra: &[(
     for v in &r.globals {
         let at = v.offset as usize / 4;
         let n = v.size as usize / 4;
-        if let Some(k) = Dyn::of(&v.name) {
+        let k = if follow && v.name == "worldMatrix" {
+            Some(Dyn::World)
+        } else {
+            Dyn::of(&v.name)
+        };
+        if let Some(k) = k {
             for (i, d) in buf.iter_mut().skip(at).take(n.min(k.floats())).enumerate() {
                 *d = Src::Dyn(k, i as u8);
             }
@@ -188,6 +210,8 @@ pub enum Key {
     Strip(usize),
     /// The visual water.
     Water,
+    /// The sky dome (`EnvironmentMain`, round R5d): it follows the camera.
+    Sky,
 }
 
 /// A prepared mesh placed in the world, as the live list takes it.
@@ -201,6 +225,21 @@ pub struct Source {
     pub key: Key,
     /// What picking it answers (0: not pickable).
     pub pick: u32,
+    /// The distance band `[near, far)` from the camera in which it is drawn: one level of detail of a mesh
+    /// ([`crate::material::LodSettings`], round R5d; with [`Options::lod`] off a level other than 0 is never drawn and
+    /// level 0 always). `None`: drawn at any distance.
+    pub lod: Option<LodBand>,
+}
+
+/// A level of detail's distance band (round R5d).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LodBand {
+    /// The level (0: the mesh in full).
+    pub level: usize,
+    /// Drawn from this distance ...
+    pub near: f64,
+    /// ... up to this one.
+    pub far: f64,
 }
 
 /// An axis-aligned box in the world.
@@ -232,6 +271,9 @@ pub struct Inst {
     pub draws: Vec<InstDraw>,
     /// All its draws' bounds (`None`: one has none).
     pub bounds: Option<Aabb>,
+    /// It follows the camera (the sky dome): placed at the camera's position each frame, drawn first of the
+    /// blended draws.
+    pub follow: bool,
 }
 
 /// The margin added to a part's bounds: a tenth of its size, at least a metre (vertex animation, wind).
@@ -307,6 +349,7 @@ fn floats(m: &Mat) -> Vec<f32> {
 /// Plans an instance's draws with the static values (`base`: the light and `sunDir`).
 #[must_use]
 pub fn instance(source: Source, base: &Values) -> Inst {
+    let follow = source.key == Key::Sky;
     let mut vals = base.clone();
     vals.insert("worldMatrix".into(), floats(&source.world));
     let p = Arc::clone(&source.prepared);
@@ -355,8 +398,8 @@ pub fn instance(source: Source, base: &Values) -> Inst {
                 _ => None,
             };
             InstDraw {
-                vs: plan(&d.vs_reflect, &vals, &material, &d.vs_extra),
-                ps: plan(&d.ps_reflect, &vals, &material, &d.ps_extra),
+                vs: plan_with(&d.vs_reflect, &vals, &material, &d.vs_extra, follow),
+                ps: plan_with(&d.ps_reflect, &vals, &material, &d.ps_extra, follow),
                 bounds,
                 centre,
                 class: d.class,
@@ -368,6 +411,7 @@ pub fn instance(source: Source, base: &Values) -> Inst {
         source,
         draws,
         bounds: if unbounded { None } else { all },
+        follow,
     }
 }
 
@@ -392,11 +436,22 @@ pub const CELL: f64 = 64.0;
 pub struct Options {
     /// Leave out the draws outside the view (exact: the picture is the same).
     pub cull: bool,
+    /// Draw far terrain patches coarser (round R5d, [`crate::terrain::lod_for`]; not exact: off for the proofs against
+    /// R5b's list and the C++ harness).
+    pub lod: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { cull: true }
+        Self { cull: true, lod: true }
+    }
+}
+
+impl Options {
+    /// Culling as given, every patch in full (the proofs' frames).
+    #[must_use]
+    pub fn exact(cull: bool) -> Self {
+        Self { cull, lod: false }
     }
 }
 
@@ -411,6 +466,8 @@ pub struct Step {
     pub vs: (u32, u32),
     /// The pixel shader's.
     pub ps: (u32, u32),
+    /// The index range drawn instead of the draw's own (a terrain patch's coarser level: [`Options::lod`]).
+    pub range: Option<(u32, u32)>,
 }
 
 /// A frame's draws, built.
@@ -569,14 +626,21 @@ impl Live {
         self.camera = Some(*cam);
         let vp = cam.view_proj();
         let inv = [1.0 / size[0].max(1) as f32, 1.0 / size[1].max(1) as f32, 0.0, 0.0];
-        let frame: [Vec<f32>; 6] = [
+        let depth = crate::water::depth_factors(cam.near, cam.far);
+        let frame: [Vec<f32>; 7] = [
             floats(&vp),
             floats(&cam.view()),
             vec![cam.eye[0] as f32, cam.eye[1] as f32, cam.eye[2] as f32, 0.0],
             inv.to_vec(),
             inv.to_vec(),
-            crate::water::depth_factors(cam.near, cam.far).to_vec(),
+            depth.to_vec(),
+            vec![depth[0], depth[1], depth[0], depth[1]],
         ];
+        // an instance that follows the camera stands at the camera's position
+        let at_eye: Mat = [
+            1.0, 0.0, 0.0, cam.eye[0], 0.0, 1.0, 0.0, cam.eye[1], 0.0, 0.0, 1.0, cam.eye[2], 0.0, 0.0, 0.0, 1.0,
+        ];
+        let eye_world = floats(&at_eye);
         // what is seen
         let n = self.instances.len();
         self.visible.clear();
@@ -615,6 +679,9 @@ impl Live {
         if let Some(seg) = self.order.get_mut(b0..b1) {
             let inst = &self.instances;
             let far = |o: &(u32, u16)| -> f64 {
+                if inst.get(o.0 as usize).is_some_and(|i| i.follow) {
+                    return f64::INFINITY;
+                }
                 inst.get(o.0 as usize)
                     .and_then(|i| i.draws.get(usize::from(o.1)))
                     .and_then(|d| d.centre)
@@ -653,13 +720,30 @@ impl Live {
             {
                 continue;
             }
+            // one level of detail of a mesh: drawn in its band of distances (the instance's position to the eye)
+            if let Some(b) = inst.source.lod {
+                let drawn = if opts.lod {
+                    let w = &inst.source.world;
+                    let p = [w[3], w[7], w[11]];
+                    let dist =
+                        ((p[0] - cam.eye[0]).powi(2) + (p[1] - cam.eye[1]).powi(2) + (p[2] - cam.eye[2]).powi(2))
+                            .sqrt();
+                    dist >= b.near && dist < b.far
+                } else {
+                    b.level == 0
+                };
+                if !drawn {
+                    continue;
+                }
+            }
             let needs_wvp =
                 d.vs.holes
                     .iter()
                     .chain(&d.ps.holes)
                     .any(|h| h.key == Dyn::WorldViewProj);
             if needs_wvp && !wvp.contains_key(&i) {
-                wvp.insert(i, floats(&mul(&vp, &inst.source.world)));
+                let w = if inst.follow { &at_eye } else { &inst.source.world };
+                wvp.insert(i, floats(&mul(&vp, w)));
             }
             let mut put = |p: &Plan| -> (u32, u32) {
                 let at = built.arena.len();
@@ -667,6 +751,8 @@ impl Live {
                 for h in &p.holes {
                     let src: &[f32] = if h.key == Dyn::WorldViewProj {
                         wvp.get(&i).map_or(&[], Vec::as_slice)
+                    } else if h.key == Dyn::World {
+                        &eye_world
                     } else {
                         frame.get(h.key.index()).map_or(&[], Vec::as_slice)
                     };
@@ -684,11 +770,28 @@ impl Live {
             };
             let vs = put(&d.vs);
             let ps = put(&d.ps);
+            // a terrain patch's level: by the distance from the camera to its bounds
+            let lods = &inst.source.prepared.lods;
+            let range = if opts.lod && !lods.is_empty() && matches!(inst.source.key, Key::Patch(..)) {
+                inst.bounds.and_then(|(lo, hi)| {
+                    let d2: f64 = cam
+                        .eye
+                        .iter()
+                        .zip(lo.iter().zip(&hi))
+                        .map(|(e, (l, h))| (e - e.clamp(*l, *h)).powi(2))
+                        .sum();
+                    let k = crate::terrain::lod_for(d2.sqrt(), lods.len());
+                    k.checked_sub(1).and_then(|k| lods.get(k).copied())
+                })
+            } else {
+                None
+            };
             built.steps.push(Step {
                 inst: i,
                 draw: k,
                 vs,
                 ps,
+                range,
             });
         }
         &self.built

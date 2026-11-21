@@ -76,7 +76,13 @@ fn meets(hf: &Heightfield, eye: [f64; 3], dir: [f64; 3], near: f64, far: f64) ->
 
 /// Of the sampled pixels whose ray meets the terrain: how many, how many the terrain patches drew, and how many of
 /// those lie within 2 m of the height field's surface (the frame's depth taken back to a point).
-fn coverage(dev: &mut Device, world: &mut World, cam: &Camera, target: [f64; 3]) -> (usize, usize, usize) {
+fn coverage(
+    dev: &mut Device,
+    world: &mut World,
+    cam: &Camera,
+    target: [f64; 3],
+    opts: Options,
+) -> (usize, usize, usize) {
     let mut live = Live::new(&world.light);
     let patches: Vec<_> = world
         .sources(target)
@@ -84,7 +90,7 @@ fn coverage(dev: &mut Device, world: &mut World, cam: &Camera, target: [f64; 3])
         .filter(|s| matches!(s.key, Key::Patch(..)))
         .collect();
     live.set(patches);
-    live.build(cam, SIZE, Options { cull: true });
+    live.build(cam, SIZE, opts);
     let (depth, post) = world.passes(cam, SIZE, false).unwrap();
     let raw = world.raw().clone();
     dev.render_live(&live, SIZE, world.clear(), depth.as_ref(), &post, &world.textures, &raw)
@@ -136,6 +142,21 @@ fn orbit(target: [f64; 3], yaw: f64, pitch: f64, dist: f64) -> Camera {
 #[test]
 fn the_whole_terrain_is_drawn() {
     let _gate = crate::gate();
+    whole_terrain(Options::exact(true), 98);
+}
+
+/// The same with the patches' levels of detail (round R5d, RNDR-VIEW-2): every pixel still drawn (each level keeps its
+/// edges in full: no cracks), the coarser far patches a little off the height field.
+// spec: RNDR-VIEW-2
+#[test]
+fn the_whole_terrain_is_drawn_with_levels_of_detail() {
+    let _gate = crate::gate();
+    whole_terrain(Options::default(), 95);
+}
+
+/// [`coverage`] from the three views on SP_01 and MP_005: every sampled pixel on the terrain drawn, and `on_percent`
+/// of them within 2 m of the height field.
+fn whole_terrain(opts: Options, on_percent: usize) {
     let opfor = common::opfor();
     let mut checked = 0;
     // the map editor's opening targets (about 1,700 m back, 34 degrees up), from above, and low across the map
@@ -164,7 +185,7 @@ fn the_whole_terrain_is_drawn() {
             ("above", above, [0.0; 3]),
             ("across", orbit(low, 200.0, 12.0, 700.0), low),
         ] {
-            let (hits, drawn, on) = coverage(&mut dev, &mut world, &cam, at);
+            let (hits, drawn, on) = coverage(&mut dev, &mut world, &cam, at, opts);
             println!(
                 "{lv} {view}: of {hits} sampled pixels on the terrain, {drawn} drawn ({:.1}%), {on} of them on the \
                  height field",
@@ -179,7 +200,7 @@ fn the_whole_terrain_is_drawn() {
                 "{lv} {view}: the terrain is drawn wherever the view meets it: {drawn} of {hits} sampled pixels"
             );
             assert!(
-                on * 100 >= drawn * 98,
+                on * 100 >= drawn * on_percent,
                 "{lv} {view}: the terrain is drawn at the height field's height: {on} of {drawn} sampled pixels"
             );
         }

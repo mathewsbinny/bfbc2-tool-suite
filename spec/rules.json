@@ -2647,6 +2647,31 @@
    ]
   },
   {
+   "id": "RNDR-TERR-5",
+   "title": "The height map's world scale is the height field's range",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:359-364"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's lagoon view: 52.8 % near-black pixels before round R5d, 0.0 % after; Coral Sea's 10.2 % -> 0.3 %"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's `Wake_Grey` cells (12,803, one constant black layer) lie 165.9 - 203.4 m: 11.6 m or more under the water"
+    }
+   ]
+  },
+  {
    "id": "RNDR-WATER-1",
    "title": "Visual water, range by range, in world positions",
    "file": "spec/engine/rendering.md",
@@ -2668,6 +2693,27 @@
     {
      "kind": "doc",
      "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:629-631"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WATER-2",
+   "title": "Water that reads the height map takes the terrain's world scale and offset",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:168-190"
+    },
+    {
+     "kind": "data",
+     "ref": "NAM_MP_005R's two water entries and Wake Island's `Wake_Water` bind `heightmap`; MP_005's water reads none"
     }
    ]
   },
@@ -2831,6 +2877,61 @@
    ]
   },
   {
+   "id": "RNDR-SKY-1",
+   "title": "The sky is EnvironmentMain on a dome at 0.9 of the view distance",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::the_sky_dome_is_drawn_behind_the_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/sky.rs:220-345"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005's and Wake Island's databases: 8 programs each, the four main-pass variants, state 0x481, the 44-byte layout"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-SKY-2",
+   "title": "The sky's constants are the state's Sky, Sun and Clouds values by name",
+   "file": "spec/engine/rendering.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the constants' names pair with the fields' names, and the shader's use fits each (a cubic horizon gradient in the elevation, a Gaussian halo with a power, a Henyey-Greenstein sun disc of g = 1 - Size)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/sky.rs::values_follow_the_sky_state_by_name"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/sky.rs:122-200"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-SKY-3",
+   "title": "The panoramic cloud layer's composite is open",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's Sunny state: AdditiveThreshhold 0.3, Trancparency 1, UV range 0 .. 0.3; the texture's rows 111 - 130 of 255 on average; the alpha texture white"
+    }
+   ]
+  },
+  {
    "id": "RNDR-POST-1",
    "title": "The post shaders are in the startup bundle",
    "file": "spec/engine/rendering.md",
@@ -2923,6 +3024,31 @@
    ]
   },
   {
+   "id": "RNDR-LOD-1",
+   "title": "A mesh's levels of detail switch at its LOD settings' distances",
+   "file": "spec/engine/rendering.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the field names; the distances rise with the level (40 / 70 / 100 / 150 / 200 m on ObjectsLodSettings_1); the per-object assets with ShortCull / LongCull variants differ only in MinScreenArea"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: every placed mesh set names settings, 2 - 4 levels"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::levels_of_detail_draw_fewer_indices"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:615-700"
+    }
+   ]
+  },
+  {
    "id": "RNDR-CRASH-1",
    "title": "A jump to 0x00F30005 after a plane death (Coral Sea)",
    "file": "spec/engine/rendering.md",
@@ -2957,6 +3083,48 @@
     {
      "kind": "doc",
      "ref": "opfor:src/dll/levelfix.cpp:619-626"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-VIEW-1",
+   "title": "Labels behind the game frame are hidden",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::a_point_behind_drawn_depth_is_occluded"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/game_view_r5d.rs::game_view_draws_the_sky_and_hides_labels_behind_the_frame"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:405-445"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-VIEW-2",
+   "title": "The view's terrain levels keep their edges in full",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::patch_levels_cover_the_patch_and_keep_full_edges"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/whole_terrain.rs::the_whole_terrain_is_drawn_with_levels_of_detail"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:560-649"
     }
    ]
   },
@@ -9953,6 +10121,27 @@
     {
      "kind": "inferred",
      "ref": "the tile index in each cell is resolved against the atlas's tiles per row and rows, so another layout addresses other tiles"
+    }
+   ]
+  },
+  {
+   "id": "TERR-VT-7",
+   "title": "A mask tile spans flag x flag cells",
+   "file": "spec/formats/terrain.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::mask_tiles_span_aligned_blocks_and_read_on_across_cells"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:776-793"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's MP_009: 757 tiled masks in 51 tiles' blocks, MP_005: 1,033 in 59; OPFOR's Wake Island: 998 in 78 (flags 8 and 4); no tile named outside its block"
     }
    ]
   },

@@ -232,9 +232,11 @@ Status: **observed** · Variants: PC
 
 A patch's tiled layers read their masks from the level's mask-tile atlas (`<lv>.MaskTileAtlas.res`; MP_005: L8,
 1024 x 512, 66-pixel tiles with a one-pixel border) at the tiles the cell names; the other layers (base, slope,
-height, noise, sea floor) are computed in the shader. A tiled cell drawn against an atlas of another layout draws
-black (TERR-VT-5); a converted terrain whose patch stream differs draws its tiled cells black in the suite's view too
-(Wake Island, R5c).
+height, noise, sea floor) are computed in the shader. A tile spans a block of 8 x 8 or 4 x 4 cells and each cell reads
+its part of it (TERR-VT-7). A tiled cell drawn against an atlas of another layout draws black (TERR-VT-5). Round R5c's
+black Wake Island ground in the suite's view was not this rule: the sea-floor layers shade by height and read a
+placeholder height scale (RNDR-TERR-5), the lagoon's water did not read the height map (RNDR-WATER-2), and the deep
+floor's `Wake_Grey` layer is black by design under at least 11.6 m of water.
 
 [data: MP_005 patch map header (66, 1, 15, 7, 128); Wake Island in R5c: tiled-mask cells black, everything else drawn]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:614-619] [doc: rust/BENCHMARKS.md:3672-3680]
@@ -250,6 +252,21 @@ patches; undergrowth is drawn from the `UgMaskShaders` entries a patch shader na
 [code: rust/bc2-render/src/world.rs:286-289] [test: rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:626-627]
 
+### RNDR-TERR-5: The height map's world scale is the height field's range
+
+Status: **verified** · Variants: PC
+
+A patch's pixel shader takes the world height back as the height map's sample (0 .. 1) times `heightmapWorldScaleY`,
+the same height its vertex shader places with `posScale.y`: the engine writes the height field's range there. The
+records store a placeholder 500 in every database read (64 records on MP_005, 19 on MP_009, all of Wake Island's
+patch shaders), which is the range of the stock and Vietnam height fields (0 .. 500 m) but half of Wake Island's
+(0 .. 1,000 m): read as stored, BF1943's sea-floor layers (which darken by depth below the water at 215 m) put the
+island's beach and shallows 100 m deep and drew them black.
+
+[test: rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon] [code: rust/bc2-render/src/terrain.rs:359-364]
+[data: Wake Island's lagoon view: 52.8 % near-black pixels before round R5d, 0.0 % after; Coral Sea's 10.2 % -> 0.3 %]
+[data: Wake Island's `Wake_Grey` cells (12,803, one constant black layer) lie 165.9 - 203.4 m: 11.6 m or more under the water]
+
 ## 5. Water
 
 ### RNDR-WATER-1: Visual water, range by range, in world positions
@@ -264,6 +281,21 @@ waves.
 
 [code: rust/bc2-render/src/water.rs:50-116] [test: rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness]
 [doc: rust/bc2-render/src/water.rs:1-22] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:629-631]
+
+### RNDR-WATER-2: Water that reads the height map takes the terrain's world scale and offset
+
+Status: **verified** · Variants: PC
+
+A water shader may read the terrain's height map (the engine texture `heightmap`) for the water's depth over the
+ground (the shore's foam and absorption): DICE's Vietnam `NAM_HaLongWaterShader` and `NAM_WaterGreen`, OPFOR's Wake
+Island water (BF1943's ocean shader, its `waterMaterial[0..3]` recorded under the same names). Its block names
+`heightmapWorldScaleXZ`, `heightmapWorldOffsetXZ` and `heightmapWorldScaleY` (stored 0): the height map's coordinate
+is `(x + 0.5) * scale + offset` (DICE's code), so the engine's values are `1 / (cell size x samples)` and the offset
+putting texel centres at the samples' world positions; the height scale is RNDR-TERR-5's. Unbound and left at 0 (the
+suite's view until round R5d) the lagoon's water reads one corner sample and lets the floor show through.
+
+[test: rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon] [code: rust/bc2-render/src/water.rs:168-190]
+[data: NAM_MP_005R's two water entries and Wake Island's `Wake_Water` bind `heightmap`; MP_005's water reads none]
 
 ## 6. Weather, light and sky
 
@@ -298,8 +330,9 @@ Status: **observed** · Variants: PC
 No object shader reads a fog constant. The sky and the atmosphere are drawn by
 `Systems/Weather/Shaders/Surface/EnvironmentMain` (and its half-resolution and cube variants), a pass that reads the
 depth buffer and the level's panoramic sky texture with twelve `g_*` constants (horizon coefficients, halo, haze, sun
-direction, Mie mu / sigma): haze and fog are laid over the drawn scene by depth. Without this pass the sky is the
-fog colour (the suite's view today).
+direction, Mie mu / sigma): haze and fog are laid over the drawn scene by depth. The suite's view draws the sky dome
+since round R5d (RNDR-SKY-1); the haze over the scene (`EnvironmentHalfResMain` with its fog segments) is not drawn
+yet.
 
 [data: MP_005's Dx11 database: no main-pass program's reflection names a fog variable; EnvironmentMain's reflection: the twelve g_* constants, the depth buffer and mp05_Skydome]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:636-640] [doc: rust/BENCHMARKS.md:3678-3679]
@@ -364,6 +397,52 @@ Enlighten's entries (`Systems/Enlighten/DirectIllumination`, `DiffuseDuster`). T
 [data: MP_005's 587 textures by DICE's suffixes; 19 IrradianceVolume resources in mp_common; MP_005's EnlightenSkyColorIntensity 0]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:601-609] [doc: rust/bc2-render/src/placement.rs:14-15]
 
+### RNDR-SKY-1: The sky is EnvironmentMain on a dome at 0.9 of the view distance
+
+Status: **verified** · Variants: PC
+
+`Systems/Weather/Shaders/Surface/EnvironmentMain`'s main-pass programs (key byte 0x30 = 0) come in four variants (key
+byte 0x37): 3 reads the scene's linear depth, the panoramic cloud texture and its alpha, 0 the depth and the texture,
+1 the depth alone, 2 nothing. All have the state `0x481` (blended, depth tested and not written, back faces culled)
+and one vertex layout (`TEXCOORD0` half4 position, 44 bytes). The vertex shader scales a unit dome by
+`0.9 x g_viewDistance.x` around the camera (`worldViewProjMatrix`, `worldMatrix`); the pixel shader takes the view
+direction from `cameraPos` and gives the horizon gradient, the sun's halo and disc and the panoramic clouds where the
+scene drew nothing (the depth taken back with `g_depthFactors.zw` at 0.999999 or more), else the haze and horizon
+colour alone; alpha 1. The engine's dome mesh is not in the data (the suite draws a UV sphere); it is drawn after the
+opaque and tested draws, first of the blended ones.
+
+[test: rust/bc2-render/tests/r5d.rs::the_sky_dome_is_drawn_behind_the_level] [code: rust/bc2-render/src/sky.rs:220-345]
+[data: MP_005's and Wake Island's databases: 8 programs each, the four main-pass variants, state 0x481, the 44-byte layout]
+
+### RNDR-SKY-2: The sky's constants are the state's Sky, Sun and Clouds values by name
+
+Status: **inferred** · Variants: PC
+
+The entry's block names its constants (`g_horizontalGainAndMore`, `g_haloBleedPowerAndMore`,
+`g_haloColorAndHaloBleedGain`, `g_sunDirectionAndHazeFadeMax`, `g_hazeColorAndHazeFadeMin`, `g_muAndSigma`,
+`g_horizontalCoefficientsR/G/B`, `g_mainPassAndMore`, `g_sunColorAndGain`, `g_panoramicRotation`,
+`g_panoramicUVRanges`, `g_tileFactor`, `g_additiveThreshhold`, `g_panoramicTransparency`), stored 0 but for the
+panoramic layer's defaults. The suite fills them from the weather state's `Sky` (`HorizontalGain`, `HaloAlphaGain`,
+`HaloAlphaPower`, `HaloGain`, `HaloBleedPower`, `HaloBackReflectionGain`, `HaloColor`, `HaloBleedGain`, `HazeColor`,
+`HazeFadeMin` / `Max`, `Mu`, `Sigma`, `HorizontalCoefficients*`), `Sun` (`Color`, `Gain`, `Size`), `Clouds`
+(`PanoramicCloudLayer`) and the light's direction (RNDR-WTHR-4's placeholder).
+
+[inferred: the constants' names pair with the fields' names, and the shader's use fits each (a cubic horizon gradient in the elevation, a Gaussian halo with a power, a Henyey-Greenstein sun disc of g = 1 - Size)]
+[test: rust/bc2-render/src/sky.rs::values_follow_the_sky_state_by_name] [code: rust/bc2-render/src/sky.rs:122-200]
+
+### RNDR-SKY-3: The panoramic cloud layer's composite is open
+
+Status: **observed** · Variants: PC
+
+The weather setup's static cloud layer names the panoramic texture and its alpha (MP_005: `mp05_Skydome` 2048 x 512
+and `mp05_Skydome_A`, both sRGB, DXT1), and the settings' `PanoramicCloudBlendMode` (`PcbmMultiplyAddAlpha`) picks
+variant 3, whose pixel shader gives `sky + alpha x ((texture - AdditiveThreshhold) x (sky + 1) - sky)`. With the
+state's threshold 0.3 and the texture read as sRGB (0.17 on average) most of the panorama goes below zero and draws a
+black band the game does not show: a value is read differently by the engine. The suite's view leaves the clouds out
+until a capture settles it.
+
+[data: MP_005's Sunny state: AdditiveThreshhold 0.3, Trancparency 1, UV range 0 .. 0.3; the texture's rows 111 - 130 of 255 on average; the alpha texture white]
+
 ## 7. Post-process and shadows
 
 ### RNDR-POST-1: The post shaders are in the startup bundle
@@ -417,6 +496,23 @@ comparison).
 [data: MP_005's binding tables: outdoorLightShadowTransform0..2; entries' depth-only programs; Dx9 objects: four texldp taps averaged]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:646-648] [doc: opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:39]
 
+### RNDR-LOD-1: A mesh's levels of detail switch at its LOD settings' distances
+
+Status: **inferred** · Variants: PC
+
+Every mesh set names a `Render.MeshLodSettingsAsset` (MP_005: 32 different, from `Systems/Mesh/DefaultMeshLodSettings`
+to per-object ones) with `LodDistance0..4`, `Lod0Enabled..Lod4Enabled`, `Enable` and `MinScreenArea`. The suite draws
+level `k` from `LodDistance(k-1)` to `LodDistance(k)` (the instance's position to the camera), a level switched off
+or drawing nothing keeping the one before it, the last level to any distance. `MinScreenArea` (0.01 - 0.035 on
+`ObjectsLodSettings_*`, -1 elsewhere) is read but not applied: as a share of the screen it would cull a 10 m object
+at 100 m, which the game does not, so its unit is open. Meshes with alpha-tested or blended parts (the vegetation)
+keep level 0 in the suite's view: their far levels are thin cards (MP_005's `mebush_01` LOD 1: 54 indices) whose
+look may need engine values.
+
+[inferred: the field names; the distances rise with the level (40 / 70 / 100 / 150 / 200 m on ObjectsLodSettings_1); the per-object assets with ShortCull / LongCull variants differ only in MinScreenArea]
+[data: MP_005: every placed mesh set names settings, 2 - 4 levels]
+[test: rust/bc2-render/tests/r5d.rs::levels_of_detail_draw_fewer_indices] [code: rust/bc2-render/src/material.rs:615-700]
+
 ## 8. Faults not yet explained
 
 ### RNDR-CRASH-1: A jump to 0x00F30005 after a plane death (Coral Sea)
@@ -444,19 +540,52 @@ name there, and the slot emptied).
 [exe: BFBC2Game.exe state flush 0x9BC230: PSSetShaderResources at 0x9BC68E, VSSetShaderResources at 0x9BC661; Wake Island's first spawn, 2026-11-06]
 [doc: opfor:src/dll/levelfix.cpp:619-626]
 
+## 9. The editor's view (the suite's own rules)
+
+### RNDR-VIEW-1: Labels behind the game frame are hidden
+
+Status: **verified** · Variants: PC
+
+The editor's labels over the game-accurate view (gameplay entities, the overlays' items) leave out a point the frame
+drew something in front of: the point projected with the frame's camera onto its depth, every pixel of the 3 x 3
+around it nearer by more than half a metre or 2 % of the distance. The selection's label is always drawn.
+
+[test: rust/bc2-render/src/frame.rs::a_point_behind_drawn_depth_is_occluded]
+[test: rust/bc2-editor/tests/game_view_r5d.rs::game_view_draws_the_sky_and_hides_labels_behind_the_frame]
+[code: rust/bc2-render/src/frame.rs:405-445]
+
+### RNDR-VIEW-2: The view's terrain levels keep their edges in full
+
+Status: **verified** · Variants: PC
+
+The game's terrain LOD is not in the data. The view draws a patch every sample within 200 m of the camera, then every
+2nd, 4th ... sample at each doubling of the distance up to half the patch, inside a ring whose outer edges keep every
+sample: a patch of any level meets a neighbour of any other without a crack. The proofs against R5b's list and the
+C++ harness draw every patch in full (`Options::exact`).
+
+[test: rust/bc2-render/src/terrain.rs::patch_levels_cover_the_patch_and_keep_full_edges]
+[test: rust/bc2-render/tests/whole_terrain.rs::the_whole_terrain_is_drawn_with_levels_of_detail]
+[code: rust/bc2-render/src/terrain.rs:560-649]
+
 ## Open questions
 
 - **The engine's per-frame values** (the capture R5 asked for): `outdoorLightDir` from the sun's theta / phi
   (RNDR-WTHR-4), the shadow cascades' transforms, `EnvironmentMain`'s twelve `g_*` values from the Sky and Fog
-  states, the exposure's history (`exposureFactor`) and the tonemap's other constants (`post::PLACEHOLDERS`), tree and
-  wind vertex constants, the terrain's per-patch stream (the suite's reading of the atlas tiles is a prototype's).
-- **LODs and instancing**: the distances at which the game switches a mesh set's LODs, the terrain's LOD, and when it
-  draws a group member with the instanced program (`StreamInstancingFloat`) rather than one draw per instance.
+  states (read by name since round R5d: RNDR-SKY-2), the panoramic clouds' composite (RNDR-SKY-3), the haze over the
+  scene (`EnvironmentHalfResMain`'s fog segments), the exposure's history (`exposureFactor`) and the tonemap's other
+  constants (`post::PLACEHOLDERS`), tree and wind vertex constants.
+- **LODs and instancing**: the mesh sets' LOD distances are read (RNDR-LOD-1) but how `MinScreenArea` culls, the
+  terrain's own LOD (the view's is RNDR-VIEW-2), and when the game draws a group member with the instanced program
+  (`StreamInstancingFloat`) rather than one draw per instance are open.
 - **Enlighten and the irradiance volumes**: `IrradianceVolume` is not decoded; how Enlighten's entries contribute.
-- **The open sea**: Wake Island's carriers stand on no water in the suite's view (the open sea is not in its
-  `VisualWater`); `WaterOcean` is a slot no MP_005 range draws. What draws the ocean.
+- **The open sea**: Wake Island's `VisualWater` does cover the sea (-4,236 .. 4,548 m at 215 m: the carriers stand
+  on it), but BF1943's water there writes alpha 0 over the black `Wake_Grey` floor (RNDR-TERR-5), so the deep sea
+  draws black until the haze over the scene is drawn; whether BF1943's own blend for its water differs from the PC
+  state `0x585` OPFOR's conversion keeps is not checked. `WaterOcean` is a slot no MP_005 range draws.
 - **0x98BD6E's console case**: why Isla Inocentes' road and stop signs crash when drawn (RNDR-DRAW-6), and whether
   the address is one check (no program for the layout) or several.
-- **Depth ties**: 0-16 far water pixels at MP_005's west shore change between runs in every path (the water reading
-  the depth through its mip chain is the first suspect).
+- **Depth ties**: 0-16 far water pixels at MP_005's west shore changed between runs in every path (R5c). Round R5d
+  saw 2 pixels differ (4.7e-4) in 2 of 68 runs, then none in 400 (120 of them two processes at once), with every
+  CPU-side input of the frame the same by hash in all 400 (the draws, constants, textures, samplers, buffers): not
+  reproduced since, cause not settled.
 - **Dx9 fog**: whether fog and the transparency fade reach Dx9 shaders through the same constants as Dx10 / 11.

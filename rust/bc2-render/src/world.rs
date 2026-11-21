@@ -28,6 +28,15 @@ pub struct Placed {
     pub group: Option<(String, usize)>,
 }
 
+/// A mesh's levels of detail past the first and where the game switches between them (round R5d).
+#[derive(Debug, Clone)]
+pub struct Lods {
+    /// The mesh set's LOD settings.
+    pub settings: material::LodSettings,
+    /// Levels 1, 2 ... prepared (`None`: that level draws nothing).
+    pub levels: Vec<Option<Arc<Prepared>>>,
+}
+
 /// What was drawn, counted.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Counts {
@@ -74,6 +83,11 @@ pub struct World {
     pub water: Option<Arc<Prepared>>,
     /// The strips, one per road block.
     pub strips: Vec<Arc<Prepared>>,
+    /// The weather's sky dome (`EnvironmentMain`, round R5d), when the database and the weather have one.
+    pub sky: Option<Arc<Prepared>>,
+    /// Draw the sky dome ([`World::sky`]) in [`World::sources`]: off by default - the C++ harness (`shaderview`) and
+    /// R5b's per-frame list, which the live list is proven against, draw no sky; the editor turns it on.
+    pub sky_pass: bool,
     /// DICE's post shaders (`None`: the startup bundle could not be read; the harness tonemap is used).
     pub post_shaders: Option<post::Shaders>,
     /// The level partition's facts.
@@ -86,6 +100,8 @@ pub struct World {
     pub object_of: Vec<usize>,
     /// Each object's identity (its GUID, or its group file and item).
     pub object_keys: Vec<String>,
+    /// Each object's further levels of detail (round R5d; `None`: level 0 only).
+    pub object_lods: Vec<Option<Arc<Lods>>>,
     /// `None` (the default): every patch of the terrain is a source, the frame's culling keeps those in view.
     /// `Some(r)`: only the window of patches `r` on each side of the patch under the camera's target, as rounds R5 to
     /// R5c drew it (their recorded pictures; [`TERRAIN_RADIUS`]).
@@ -93,6 +109,7 @@ pub struct World {
     patches: HashMap<(usize, usize), Arc<Prepared>>,
     no_raw: HashMap<String, crate::terrain::RawTexture>,
     meshes: HashMap<(String, Option<String>), Option<Arc<Prepared>>>,
+    lods: HashMap<(String, Option<String>), Option<Arc<Lods>>>,
     blueprints: HashMap<String, Option<String>>,
     envmap: String,
 }
@@ -313,6 +330,7 @@ impl World {
         });
         let (w, weather_note) = resolve_weather(&files, level, placed, weather);
         let (light, post) = weather::light(&w, weather::NOON_DIR);
+        let mut sky_notes = Vec::new();
         let fog = w.fog.get("Color").cloned().unwrap_or_else(|| vec![0.32, 0.36, 0.42]);
         let background = [0, 1, 2].map(|k| fog.get(k).copied().unwrap_or(0.4));
         let default_weather = weather_note
@@ -361,9 +379,13 @@ impl World {
             notes.extend(s.notes.iter().cloned());
             counts.strips += s.draws.len();
         }
+        // the water reads the terrain's height map with the terrain renderer's values (round R5d)
+        let water_values = terrain
+            .as_ref()
+            .map_or_else(HashMap::new, |t| crate::terrain::engine_values(&t.hf));
         let water = match terrain_name
             .as_deref()
-            .map(|n| crate::water::load(&files, &db, n, &envmap, &mut textures))
+            .map(|n| crate::water::load(&files, &db, n, &envmap, &water_values, &mut textures))
         {
             Some(Ok(p)) => {
                 notes.extend(p.notes.iter().cloned());
@@ -376,6 +398,17 @@ impl World {
             }
             None => None,
         };
+        let sky = match crate::sky::load(&files, &db, &w, weather::NOON_DIR, crate::sky::CLOUDS, &mut textures) {
+            Ok(p) => {
+                sky_notes.extend(p.notes.iter().cloned());
+                Some(Arc::new(p))
+            }
+            Err(e) => {
+                sky_notes.push(format!("sky: {e}"));
+                None
+            }
+        };
+        notes.append(&mut sky_notes);
         let post_shaders = match post::Shaders::load(&post::startup_bundle(opfor)) {
             Ok(s) => Some(s),
             Err(e) => {
@@ -395,12 +428,16 @@ impl World {
             terrain,
             water,
             strips,
+            sky,
+            sky_pass: false,
             post_shaders,
             placements,
             notes: Vec::new(),
             counts,
             object_of: Vec::new(),
             object_keys: Vec::new(),
+            object_lods: Vec::new(),
+            lods: HashMap::new(),
             terrain_radius: None,
             patches: HashMap::new(),
             no_raw: HashMap::new(),
@@ -435,6 +472,7 @@ impl World {
         let mut objects = Vec::new();
         let mut object_of = Vec::new();
         let mut keys = Vec::new();
+        let mut object_lods = Vec::new();
         let mut counts = Counts {
             strips: self.counts.strips,
             water: self.counts.water,
@@ -457,6 +495,40 @@ impl World {
                 })
                 .clone();
             if let Some(prepared) = prepared {
+                let lods = self
+                    .lods
+                    .entry((mesh.to_lowercase(), set.clone()))
+                    .or_insert_with(|| {
+                        // meshes with alpha-tested or blended parts keep level 0 (round R5d): the vegetation's far
+                        // levels are cards that draw much thinner here (MP_005's mebush: 54 indices), whether the
+                        // engine draws them with values of its own (a billboard) is the capture's
+                        if prepared.draws.iter().any(|d| d.class != material::OPAQUE) {
+                            return None;
+                        }
+                        let mut settings = material::lod_settings(files, &mesh)?;
+                        if settings.levels < 2 {
+                            return None;
+                        }
+                        let levels: Vec<Option<Arc<Prepared>>> = (1..settings.levels)
+                            .map(|k| {
+                                let pr =
+                                    material::prepare_set_lod(files, db, &mesh, set.as_deref(), envmap, textures, k);
+                                (!pr.draws.is_empty()).then(|| Arc::new(pr))
+                            })
+                            .collect();
+                        // a level that draws nothing here (a tree's billboard level, drawn by the engine's tree
+                        // renderer) keeps the level before it, as a level switched off does
+                        for (k, l) in levels.iter().enumerate() {
+                            if l.is_none()
+                                && let Some(e) = settings.level_enabled.get_mut(k + 1)
+                            {
+                                *e = false;
+                            }
+                        }
+                        Some(Arc::new(Lods { settings, levels }))
+                    })
+                    .clone();
+                object_lods.push(lods);
                 if p.group.is_some() {
                     counts.members += 1;
                 } else {
@@ -477,6 +549,7 @@ impl World {
         self.objects = objects;
         self.object_of = object_of;
         self.object_keys = keys;
+        self.object_lods = object_lods;
         self.counts = counts;
         notes
     }
@@ -523,18 +596,42 @@ impl World {
     /// water.
     pub fn sources(&mut self, target: [f64; 3]) -> Vec<crate::live::Source> {
         use crate::live::{Key, Source};
-        let mut out: Vec<Source> = self
+        let mut out: Vec<Source> = Vec::with_capacity(self.objects.len());
+        for (((o, k), n), lods) in self
             .objects
             .iter()
             .zip(&self.object_keys)
             .zip(&self.object_of)
-            .map(|((o, k), n)| Source {
+            .zip(&self.object_lods)
+        {
+            // level 0 in its band, then each further level of detail as its own source (round R5d)
+            let band = |level: usize| {
+                lods.as_ref().map(|l| {
+                    let (near, far) = l.settings.band(level);
+                    crate::live::LodBand { level, near, far }
+                })
+            };
+            out.push(Source {
                 prepared: Arc::clone(&o.prepared),
                 world: o.world,
                 key: Key::Object(k.clone()),
                 pick: *n as u32 + 1,
-            })
-            .collect();
+                lod: band(0),
+            });
+            for (level, p) in lods
+                .iter()
+                .flat_map(|l| l.levels.iter().enumerate().map(|(i, p)| (i + 1, p)))
+            {
+                let Some(p) = p else { continue };
+                out.push(Source {
+                    prepared: Arc::clone(p),
+                    world: o.world,
+                    key: Key::Object(format!("{k}#lod{level}")),
+                    pick: *n as u32 + 1,
+                    lod: band(level),
+                });
+            }
+        }
         for (i, j) in self.terrain_patches(target) {
             if let Some(prepared) = self.terrain_patch((i, j)) {
                 out.push(Source {
@@ -542,6 +639,7 @@ impl World {
                     world: frame::IDENTITY,
                     key: Key::Patch(i, j),
                     pick: 0,
+                    lod: None,
                 });
             }
         }
@@ -551,6 +649,7 @@ impl World {
                 world: frame::IDENTITY,
                 key: Key::Strip(k),
                 pick: 0,
+                lod: None,
             });
         }
         if let Some(w) = &self.water {
@@ -559,6 +658,16 @@ impl World {
                 world: frame::IDENTITY,
                 key: Key::Water,
                 pick: 0,
+                lod: None,
+            });
+        }
+        if let Some(s) = self.sky.as_ref().filter(|_| self.sky_pass) {
+            out.push(Source {
+                prepared: Arc::clone(s),
+                world: frame::IDENTITY,
+                key: Key::Sky,
+                pick: 0,
+                lod: None,
             });
         }
         out
