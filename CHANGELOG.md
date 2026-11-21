@@ -44,8 +44,24 @@ landed on `main`.
   checksummed line per change instead of the whole project after every edit; a crash (tested by killing the writer
   mid-line) recovers every whole line, and the journal is compacted when it grows. Older whole-project autosaves still
   read.
+- **Closing with unsaved edits asks first** (round OP1, audit AU1 R7 / G-N20). Close map and closing the window
+  ask "Save your changes?" - Save, Don't save (the edits and their autosave let go), Cancel - after the question about
+  running work. A failed save keeps the map open and says why.
+- **The game-accurate view loads on a worker** (round OP1, DF1's left item, audit AU4 CQ-6): the editor keeps drawing
+  while a large level's shaders, textures and terrain are read; only the Direct3D device is made on the window's
+  thread.
 
 ### Changed
+- **Typed errors in the map editor and the renderer** (round OP1, audit AU1 D13 / AU2 Q3): `bc2_render::RenderError`
+  (device, device removed, data, shader, unsupported) and `bc2_editor::error::EditorError` (project, level, render,
+  GPU, input, file, tool, worker) replace the 155 `Result<_, String>` of the two crates; the words shown are the same.
+  The Problems panel's entries are typed (`Problem`: severity, code, operation, objects): a changed base is a warning,
+  an operation that did not apply an error.
+- **The editor's side state as explicit states** (round OP1, replacing round DF1's side fields): the close question
+  (`Closing`), the Export window's project (`ExportFor`), the preview (`PreviewState`: none, opening, shown), the
+  level being prepared with what follows (`Mode::Preparing { job, then }`), the new project's era and mode carried by
+  its Create (`Then::Create(name, folder, target)`), the install script's run (`InstallRun`), a navkit job's end, and
+  the game-accurate view (`GameSlot`: off, loading, ready).
 - **Project format 6** (round OP1). A project records the sha1 of each level file it edits besides the partition
   (`base.files`) and `min_reader`, the lowest editor version that reads it (the newest operation kind in its log);
   a newer file is read when its `min_reader` allows. Projects of versions 1 - 5 load and are migrated as they load;

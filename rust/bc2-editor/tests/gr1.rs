@@ -69,7 +69,7 @@ fn demo_level(h: &mut Headless, project: bool) {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     if project {
-        let then = bc2_editor::app::Then::Create("GR1 links".into(), dir.join("projects"));
+        let then = bc2_editor::app::Then::Create("GR1 links".into(), dir.join("projects"), None);
         app.open_scene_then(&gpu, "demo", scene, then);
     } else {
         app.open_scene(&gpu, "demo", scene);

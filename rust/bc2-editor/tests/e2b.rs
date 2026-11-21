@@ -126,7 +126,7 @@ fn e2b_through_the_interface() {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     let ctx = h.ctx.clone();
-    app.open_scene_then(&gpu, "demo", scene, Then::Create("E2b demo".into(), dir.clone()));
+    app.open_scene_then(&gpu, "demo", scene, Then::Create("E2b demo".into(), dir.clone(), None));
     h.settle(&mut app, 6);
     assert!(app.view().unwrap().doc.as_ref().unwrap().has_partition());
     let (house, crate_a, crate_b, flag) = (index(&app, 1), index(&app, 2), index(&app, 3), index(&app, 5));

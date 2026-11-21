@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 use bc2_levelwrite::project::{HeightFormat, KeptFile, TerrainImport, sha1_hex};
 use bc2_levelwrite::{MapProject, Profile};
 
+use crate::error::EditorError;
 use crate::levels::ContentSet;
 
 /// The samples a side the import takes: BFBC2's two main terrain sizes, and each plus one.
@@ -90,18 +91,18 @@ impl Checked {
 ///
 /// # Errors
 /// The size in words, with the sizes it could be.
-pub fn side_ok(w: u32, h: u32) -> Result<(), String> {
+pub fn side_ok(w: u32, h: u32) -> Result<(), EditorError> {
     if w != h {
-        return Err(format!(
+        return Err(EditorError::Input(format!(
             "The height map is {w} x {h}: BFBC2's terrain is square - 1024 or 2048 samples a side (1025 or 2049 also \
              do: the last row and column are dropped)."
-        ));
+        )));
     }
     if !SIDES.contains(&w) {
-        return Err(format!(
+        return Err(EditorError::Input(format!(
             "The height map is {w} x {h}: BFBC2's terrain is 1024 or 2048 samples a side (1025 or 2049 also do: the \
              last row and column are dropped). Resize it in your terrain tool."
-        ));
+        )));
     }
     Ok(())
 }
@@ -115,15 +116,15 @@ fn range_of(samples: impl Iterator<Item = u16>) -> [u16; 2] {
 ///
 /// # Errors
 /// Why it cannot be used, in words (it does not read; not a PNG; not 16-bit greyscale; the wrong size).
-pub fn check(path: &Path, source: Source) -> Result<Checked, String> {
+pub fn check(path: &Path, source: Source) -> Result<Checked, EditorError> {
     let shown = path.display();
     if path.as_os_str().is_empty() {
-        return Err("Choose a height map file.".into());
+        return Err(EditorError::Input("Choose a height map file.".into()));
     }
-    let data = fs::read(path).map_err(|e| format!("{shown} does not read: {e}"))?;
+    let data = fs::read(path).map_err(|e| EditorError::Input(format!("{shown} does not read: {e}")))?;
     let bytes = data.len() as u64;
     let (samples, range) = match source {
-        Source::Png => png16(&data).map_err(|e| format!("{shown}: {e}"))?,
+        Source::Png => png16(&data).map_err(|e| EditorError::Input(format!("{shown}: {e}")))?,
         Source::Raw { side, little_endian } => {
             let want = 2 * u64::from(side) * u64::from(side);
             if bytes != want {
@@ -133,9 +134,9 @@ pub fn check(path: &Path, source: Source) -> Result<Checked, String> {
                     .map_or_else(String::new, |s| {
                         format!(" It has the length of a {s} x {s} RAW: choose {s}.")
                     });
-                return Err(format!(
+                return Err(EditorError::Input(format!(
                     "{shown} is {bytes} bytes; a {side} x {side} RAW of 16-bit samples is {want} bytes.{guess}"
-                ));
+                )));
             }
             side_ok(side, side)?;
             let range = range_of(data.as_chunks::<2>().0.iter().map(|&b| {
@@ -157,10 +158,12 @@ pub fn check(path: &Path, source: Source) -> Result<Checked, String> {
 }
 
 /// A 16-bit greyscale PNG's side and sample range.
-fn png16(data: &[u8]) -> Result<(u32, [u16; 2]), String> {
+fn png16(data: &[u8]) -> Result<(u32, [u16; 2]), EditorError> {
     let mut d = png::Decoder::new(Cursor::new(data));
     d.set_transformations(png::Transformations::IDENTITY);
-    let mut r = d.read_info().map_err(|e| format!("not a PNG that reads ({e})"))?;
+    let mut r = d
+        .read_info()
+        .map_err(|e| EditorError::Input(format!("not a PNG that reads ({e})")))?;
     let (w, h, colour, depth) = {
         let i = r.info();
         (i.width, i.height, i.color_type, i.bit_depth)
@@ -170,16 +173,20 @@ fn png16(data: &[u8]) -> Result<(u32, [u16; 2]), String> {
             (png::ColorType::Grayscale, d) => format!("{}-bit greyscale", d as u8),
             (c, d) => format!("{c:?} at {} bits", d as u8),
         };
-        return Err(format!(
+        return Err(EditorError::Input(format!(
             "the PNG is {what}; a height map must be 16-bit greyscale (8 bits give only 256 heights). Export it as \
              16-bit greyscale."
-        ));
+        )));
     }
     side_ok(w, h)?;
-    let mut buf = vec![0; r.output_buffer_size().ok_or("the PNG is too large")?];
+    let mut buf = vec![
+        0;
+        r.output_buffer_size()
+            .ok_or(EditorError::Input("the PNG is too large".into()))?
+    ];
     let info = r
         .next_frame(&mut buf)
-        .map_err(|e| format!("the PNG's pixels do not read ({e})"))?;
+        .map_err(|e| EditorError::Input(format!("the PNG's pixels do not read ({e})")))?;
     buf.truncate(info.buffer_size());
     // PNG stores 16-bit samples big-endian
     let range = range_of(buf.as_chunks::<2>().0.iter().map(|&b| u16::from_be_bytes(b)));
@@ -190,11 +197,11 @@ fn png16(data: &[u8]) -> Result<(u32, [u16; 2]), String> {
 ///
 /// # Errors
 /// It does not read, or is not a PNG.
-pub fn check_colour(path: &Path) -> Result<[u32; 2], String> {
-    let f = fs::File::open(path).map_err(|e| format!("{} does not read: {e}", path.display()))?;
+pub fn check_colour(path: &Path) -> Result<[u32; 2], EditorError> {
+    let f = fs::File::open(path).map_err(|e| EditorError::Input(format!("{} does not read: {e}", path.display())))?;
     let r = png::Decoder::new(std::io::BufReader::new(f))
         .read_info()
-        .map_err(|e| format!("{}: not a PNG that reads ({e})", path.display()))?;
+        .map_err(|e| EditorError::Input(format!("{}: not a PNG that reads ({e})", path.display())))?;
     let i = r.info();
     Ok([i.width, i.height])
 }
@@ -234,7 +241,7 @@ impl Settings {
     ///
     /// # Errors
     /// The first number that does not, in words.
-    pub fn check(&self) -> Result<(), String> {
+    pub fn check(&self) -> Result<(), EditorError> {
         let all = [
             self.map_size_m,
             self.height_min_m,
@@ -242,16 +249,22 @@ impl Settings {
             self.water_level_m,
         ];
         if all.iter().any(|v| !v.is_finite()) {
-            return Err("Every number must be a number.".into());
+            return Err(EditorError::Input("Every number must be a number.".into()));
         }
         if !(64.0..=MAX_MAP_M).contains(&self.map_size_m) {
-            return Err(format!("The map size must be 64 to {MAX_MAP_M} metres."));
+            return Err(EditorError::Input(format!(
+                "The map size must be 64 to {MAX_MAP_M} metres."
+            )));
         }
         if self.height_max_m <= self.height_min_m {
-            return Err("The highest height must be above the lowest.".into());
+            return Err(EditorError::Input(
+                "The highest height must be above the lowest.".into(),
+            ));
         }
         if self.height_max_m - self.height_min_m > 4096.0 {
-            return Err("The height range must be at most 4096 metres.".into());
+            return Err(EditorError::Input(
+                "The height range must be at most 4096 metres.".into(),
+            ));
         }
         Ok(())
     }
@@ -280,14 +293,14 @@ pub fn profile_of(set: ContentSet) -> Profile {
 }
 
 /// A file copied beside the project as `<stem>.<what>.<its extension>`.
-fn keep(src: &Path, folder: &Path, stem: &str, what: &str) -> Result<KeptFile, String> {
+fn keep(src: &Path, folder: &Path, stem: &str, what: &str) -> Result<KeptFile, EditorError> {
     let ext = src
         .extension()
         .map_or_else(|| "bin".to_owned(), |e| e.to_string_lossy().to_lowercase());
     let file = format!("{stem}.{what}.{ext}");
-    let data = fs::read(src).map_err(|e| format!("{} does not read: {e}", src.display()))?;
+    let data = fs::read(src).map_err(|e| EditorError::Input(format!("{} does not read: {e}", src.display())))?;
     let dest = folder.join(&file);
-    fs::write(&dest, &data).map_err(|e| format!("{} could not be written: {e}", dest.display()))?;
+    fs::write(&dest, &data).map_err(|e| EditorError::Input(format!("{} could not be written: {e}", dest.display())))?;
     Ok(KeptFile {
         file,
         source: src.display().to_string(),
@@ -318,13 +331,13 @@ pub struct Request<'a> {
 ///
 /// # Errors
 /// A check fails, a project of that name is already there, or a file cannot be written.
-pub fn save(r: &Request<'_>) -> Result<PathBuf, String> {
+pub fn save(r: &Request<'_>) -> Result<PathBuf, EditorError> {
     let name = r.name.trim();
     if name.is_empty() {
-        return Err("Give the new level a name.".into());
+        return Err(EditorError::Input("Give the new level a name.".into()));
     }
     if r.folder.as_os_str().is_empty() {
-        return Err("Choose a folder for the project.".into());
+        return Err(EditorError::Input("Choose a folder for the project.".into()));
     }
     let checked = check(r.heightmap, r.source)?;
     r.settings.check()?;
@@ -355,19 +368,20 @@ pub fn save(r: &Request<'_>) -> Result<PathBuf, String> {
     let file = project.file_name();
     let path = r.folder.join(&file);
     if path.exists() {
-        return Err(format!(
+        return Err(EditorError::Input(format!(
             "{} is already in this folder. Open it with \"Open project\", or choose another name.",
             path.display()
-        ));
+        )));
     }
-    fs::create_dir_all(r.folder).map_err(|e| format!("{} could not be made: {e}", r.folder.display()))?;
+    fs::create_dir_all(r.folder)
+        .map_err(|e| EditorError::Input(format!("{} could not be made: {e}", r.folder.display())))?;
     let stem = file.strip_suffix(bc2_levelwrite::project::EXTENSION).unwrap_or(&file);
     let hm = keep(r.heightmap, r.folder, stem, "heightmap")?;
     if hm.sha1 != checked.sha1 {
-        return Err(format!(
+        return Err(EditorError::Input(format!(
             "{} changed while it was copied: try again.",
             r.heightmap.display()
-        ));
+        )));
     }
     let colour = r.colour_map.map(|c| keep(c, r.folder, stem, "colour")).transpose()?;
     if let Some(t) = project.terrain_import.as_mut() {
@@ -376,7 +390,7 @@ pub fn save(r: &Request<'_>) -> Result<PathBuf, String> {
     }
     project
         .save(&path)
-        .map_err(|e| format!("The project could not be written to {}: {e}", path.display()))?;
+        .map_err(|e| EditorError::Input(format!("The project could not be written to {}: {e}", path.display())))?;
     Ok(path)
 }
 
@@ -395,19 +409,19 @@ pub fn set_word(set: ContentSet) -> &'static str {
 ///
 /// # Errors
 /// The file cannot be written.
-pub fn write_png16(path: &Path, side: u32, sample: &dyn Fn(u32, u32) -> u16) -> Result<(), String> {
-    let f = std::io::BufWriter::new(fs::File::create(path).map_err(|e| e.to_string())?);
+pub fn write_png16(path: &Path, side: u32, sample: &dyn Fn(u32, u32) -> u16) -> Result<(), EditorError> {
+    let f = std::io::BufWriter::new(fs::File::create(path).map_err(|e| EditorError::Input(e.to_string()))?);
     let mut e = png::Encoder::new(f, side, side);
     e.set_color(png::ColorType::Grayscale);
     e.set_depth(png::BitDepth::Sixteen);
-    let mut w = e.write_header().map_err(|e| e.to_string())?;
+    let mut w = e.write_header().map_err(|e| EditorError::Input(e.to_string()))?;
     let mut data = Vec::with_capacity((side * side * 2) as usize);
     for y in 0..side {
         for x in 0..side {
             data.extend_from_slice(&sample(x, y).to_be_bytes());
         }
     }
-    w.write_image_data(&data).map_err(|e| e.to_string())
+    w.write_image_data(&data).map_err(|e| EditorError::Input(e.to_string()))
 }
 
 #[cfg(test)]

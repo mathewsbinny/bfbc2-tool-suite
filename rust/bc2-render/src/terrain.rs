@@ -32,6 +32,7 @@ use bc2_formats::shaderdb::query;
 use bc2_formats::terrain::Heightfield;
 
 use crate::dxbc;
+use crate::error::RenderError;
 use crate::files::Files;
 use crate::material::{self, Db, Draw, Element, Prepared, RenderState, TextureFiles, sampler_states};
 use crate::{cstr_at, f32_at, u32_at};
@@ -145,19 +146,22 @@ struct Walk<'a> {
 }
 
 impl Walk<'_> {
-    fn u32(&mut self) -> Result<u32, String> {
+    fn u32(&mut self) -> Result<u32, RenderError> {
         let v = u32_at(self.b, self.o);
         self.skip(4)?;
         Ok(v)
     }
-    fn skip(&mut self, n: usize) -> Result<(), String> {
+    fn skip(&mut self, n: usize) -> Result<(), RenderError> {
         if self.o + n > self.b.len() {
-            return Err(format!("visual terrain: runs past the end at {:#x}", self.o));
+            return Err(RenderError::Data(format!(
+                "visual terrain: runs past the end at {:#x}",
+                self.o
+            )));
         }
         self.o += n;
         Ok(())
     }
-    fn string(&mut self) -> Result<String, String> {
+    fn string(&mut self) -> Result<String, RenderError> {
         let s = cstr_at(self.b, self.o);
         self.skip(s.len() + 1)?;
         Ok(s)
@@ -168,11 +172,11 @@ impl Walk<'_> {
 ///
 /// # Errors
 /// The file does not follow the grammar.
-pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, String> {
+pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, RenderError> {
     let mut w = Walk { b: data, o: 0 };
     let n = w.u32()?;
     if !(1..=256).contains(&n) {
-        return Err(format!("visual terrain: {n} terrain blocks"));
+        return Err(RenderError::Data(format!("visual terrain: {n} terrain blocks")));
     }
     let mut out = VisualTerrain::default();
     for _ in 0..2 * n {
@@ -198,9 +202,9 @@ pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, String> {
         }
         let (v, b, i) = (w.u32()?, w.u32()?, w.u32()?);
         if b != ROAD_STRIDE * v {
-            return Err(format!(
+            return Err(RenderError::Data(format!(
                 "visual terrain: road vertices of {b} bytes for {v} (not 28 each)"
-            ));
+            )));
         }
         let at = w.o;
         w.skip(28 * v as usize)?;
@@ -229,7 +233,9 @@ pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, String> {
         });
     }
     if w.u32()? != n {
-        return Err("visual terrain: the patch maps do not match the road blocks in number".into());
+        return Err(RenderError::Data(
+            "visual terrain: the patch maps do not match the road blocks in number".into(),
+        ));
     }
     for _ in 0..n {
         let mut bounds = [0f32; 6];
@@ -275,11 +281,11 @@ pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, String> {
         });
     }
     if w.o != data.len() {
-        return Err(format!(
+        return Err(RenderError::Data(format!(
             "visual terrain: the data ends at {:#x}, the file at {:#x}",
             w.o,
             data.len()
-        ));
+        )));
     }
     Ok(out)
 }
@@ -421,10 +427,10 @@ fn terrain_draw(
     atlas: &str,
     envmap: &str,
     cache: &mut TextureFiles,
-) -> Result<Draw, String> {
+) -> Result<Draw, RenderError> {
     let progs = db
         .entry_programs(entry)
-        .ok_or_else(|| format!("{entry}: not in the database"))?;
+        .ok_or_else(|| RenderError::Data(format!("{entry}: not in the database")))?;
     let main = |layout: &[u8; 16]| {
         let all: Vec<usize> = progs
             .iter()
@@ -445,13 +451,15 @@ fn terrain_draw(
     let k = match on {
         On::Patch(tiled) => (if tiled == 0 { main(&PATCH_LAYOUT_NO_TILES) } else { None })
             .or_else(|| main(&PATCH_LAYOUT))
-            .ok_or_else(|| format!("{entry}: no main-pass program for the patch layout"))?,
-        On::Strip => {
-            main(&STRIP_LAYOUT).ok_or_else(|| format!("{entry}: no main-pass program for the strip layout"))?
-        }
+            .ok_or_else(|| RenderError::Data(format!("{entry}: no main-pass program for the patch layout")))?,
+        On::Strip => main(&STRIP_LAYOUT)
+            .ok_or_else(|| RenderError::Data(format!("{entry}: no main-pass program for the strip layout")))?,
     };
-    let prog = db.programs.get(k).ok_or("program")?;
-    let (vs, ps) = (db.vs.get(prog.vs).ok_or("vs")?, db.ps.get(prog.ps).ok_or("ps")?);
+    let prog = db.programs.get(k).ok_or(RenderError::Data("program".into()))?;
+    let (vs, ps) = (
+        db.vs.get(prog.vs).ok_or(RenderError::Data("vs".into()))?,
+        db.ps.get(prog.ps).ok_or(RenderError::Data("ps".into()))?,
+    );
     let (vblock, block) = (db.param(vs.param), db.param(prog.block2));
     let extra = |records: Vec<query::Constant<'_>>| -> Vec<(u8, [f32; 4])> {
         records
@@ -660,7 +668,7 @@ pub struct Terrain {
     /// The atlas's width and height.
     pub atlas_size: [u32; 2],
     /// Each patch shader's draw (by index), or why it has none.
-    pub draws: Vec<Result<Draw, String>>,
+    pub draws: Vec<Result<Draw, RenderError>>,
     /// The engine's textures: the height map and the empty mask.
     pub raw: HashMap<String, RawTexture>,
     /// The shared index list of a patch: the full grid, then its coarser levels ([`patch_lods`]).
@@ -679,17 +687,26 @@ impl Terrain {
     ///
     /// # Errors
     /// A file is missing or unreadable.
-    pub fn load(files: &Files, db: &Db, name: &str, envmap: &str, cache: &mut TextureFiles) -> Result<Self, String> {
+    pub fn load(
+        files: &Files,
+        db: &Db,
+        name: &str,
+        envmap: &str,
+        cache: &mut TextureFiles,
+    ) -> Result<Self, RenderError> {
         let base = format!("Terrains/{name}/{name}");
         let vt = files
             .read(&format!("{base}.Visual.res"))
-            .ok_or_else(|| format!("{base}.Visual.res: not found"))?;
+            .ok_or_else(|| RenderError::Data(format!("{base}.Visual.res: not found")))?;
         let visual = parse_visual(&vt)?;
-        let map = visual.maps.first().ok_or("visual terrain: no patch map")?;
+        let map = visual
+            .maps
+            .first()
+            .ok_or(RenderError::Data("visual terrain: no patch map".into()))?;
         let hfb = files
             .read(&format!("{}.res", map.heightfield))
-            .ok_or_else(|| format!("{}.res: not found", map.heightfield))?;
-        let hf = bc2_formats::terrain::parse(&hfb).map_err(|e| e.to_string())?;
+            .ok_or_else(|| RenderError::Data(format!("{}.res: not found", map.heightfield)))?;
+        let hf = bc2_formats::terrain::parse(&hfb).map_err(|e| RenderError::Data(e.to_string()))?;
         let atlas = map.atlas.clone();
         let atlas_size =
             material::texture(files, cache, &atlas).map_or([1, 1], |b| [u32_at(b, 16).max(1), u32_at(b, 20).max(1)]);
@@ -699,7 +716,7 @@ impl Terrain {
             .iter()
             .map(|s| terrain_draw(files, db, &s.name, On::Patch(s.tiled), &values, &atlas, envmap, cache))
             .collect();
-        let mut strip_draws: HashMap<String, Result<Draw, String>> = HashMap::new();
+        let mut strip_draws: HashMap<String, Result<Draw, RenderError>> = HashMap::new();
         let mut strips = Vec::new();
         for block in visual.roads.iter().take(visual.maps.len()) {
             let mut p = Prepared {

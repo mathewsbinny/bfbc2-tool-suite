@@ -12,6 +12,7 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
+use crate::error::EditorError;
 use bc2_render::files::Files;
 use bc2_render::weather::{self, LevelWeather, Look, Weather};
 use bc2_render::world::{self, Placed};
@@ -85,7 +86,7 @@ impl WeatherView {
     ///
     /// # Errors
     /// The level's files or its weather cannot be read.
-    pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], package: bool) -> Result<Self, String> {
+    pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], package: bool) -> Result<Self, EditorError> {
         let (files, level) = world::weather_files(opfor, lv, level, placed, package)?;
         Ok(Self::with(files, level))
     }
@@ -111,8 +112,8 @@ impl WeatherView {
     ///
     /// # Errors
     /// They are not found.
-    pub fn state(&self, k: usize) -> Result<Weather, String> {
-        self.level.state(&self.files, k)
+    pub fn state(&self, k: usize) -> Result<Weather, EditorError> {
+        Ok(self.level.state(&self.files, k)?)
     }
 
     /// The state both views show: the chosen one, else the level's own.

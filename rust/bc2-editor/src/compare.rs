@@ -23,6 +23,7 @@ use bc2_levelwrite::export::{self, StageRecord};
 use bc2_levelwrite::{LevelWriter, modelayer, mpconvert};
 use bc2_scene::scene::Scene;
 
+use crate::error::EditorError;
 use crate::package::{self, Bundle, PackageLevel};
 
 /// What kind of difference.
@@ -272,14 +273,14 @@ impl DiffView {
         label_a: &str,
         label_b: &str,
         closure: &HashSet<String>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, EditorError> {
         let t = Instant::now();
-        let fa = EditFile::parse(a.to_vec()).map_err(|e| e.to_string())?;
-        let fb = EditFile::parse(b.to_vec()).map_err(|e| e.to_string())?;
+        let fa = EditFile::parse(a.to_vec()).map_err(|e| EditorError::Level(e.to_string()))?;
+        let fb = EditFile::parse(b.to_vec()).map_err(|e| EditorError::Level(e.to_string()))?;
         if !fa.is_binary || !fb.is_binary {
-            return Err("both partitions must be binary .dbx".into());
+            return Err(EditorError::Level("both partitions must be binary .dbx".into()));
         }
-        let d = leveldiff::diff(&fa, &fb, &Options::default()).map_err(|e| e.to_string())?;
+        let d = leveldiff::diff(&fa, &fb, &Options::default()).map_err(|e| EditorError::Level(e.to_string()))?;
         let layer = |bytes: &[u8]| LevelWriter::parse(bytes).map_or_else(|_| HashSet::new(), |w| modelayer::layer(&w));
         let (la, lb) = (layer(a), layer(b));
         let in_layer = |g: Option<&String>| {
@@ -484,7 +485,7 @@ pub enum Against {
 #[derive(Debug, Default)]
 pub struct DiffState {
     /// The comparison (or why it failed).
-    pub view: Option<Result<std::sync::Arc<DiffView>, String>>,
+    pub view: Option<Result<std::sync::Arc<DiffView>, EditorError>>,
     /// The side the view shows.
     pub side: SideOf,
     /// The panel's filters (also what the 3D view draws).
@@ -494,7 +495,7 @@ pub struct DiffState {
     /// The row chosen in the panel.
     pub picked: Option<usize>,
     /// A comparison under way.
-    pub job: Option<std::sync::mpsc::Receiver<Result<DiffView, String>>>,
+    pub job: Option<std::sync::mpsc::Receiver<Result<DiffView, EditorError>>>,
     /// What B is compared with.
     pub against: Against,
     /// The project's revision the comparison was made at.
@@ -547,7 +548,7 @@ impl DiffState {
             Err(std::sync::mpsc::TryRecvError::Empty) => false,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 self.job = None;
-                self.view = Some(Err("the comparison stopped unexpectedly".into()));
+                self.view = Some(Err(EditorError::Level("the comparison stopped unexpectedly".into())));
                 true
             }
         }
@@ -556,7 +557,7 @@ impl DiffState {
     /// Waits for the worker (headless runs).
     pub fn settle(&mut self) {
         if let Some(rx) = self.job.take() {
-            let r = rx.recv().unwrap_or_else(|e| Err(e.to_string()));
+            let r = rx.recv().unwrap_or_else(|e| Err(EditorError::Level(e.to_string())));
             self.view = Some(r.map(std::sync::Arc::new));
             self.show = true;
             self.picked = None;
@@ -572,8 +573,8 @@ impl DiffState {
 ///
 /// # Errors
 /// The stage's record does not read, or names no level block.
-pub fn stage_level(game: &Path, stage: &Path) -> Result<(PackageLevel, StageRecord), String> {
-    let rec = export::read_record(stage).map_err(|e| format!("{}: {e}", stage.display()))?;
+pub fn stage_level(game: &Path, stage: &Path) -> Result<(PackageLevel, StageRecord), EditorError> {
+    let rec = export::read_record(stage).map_err(|e| EditorError::Level(format!("{}: {e}", stage.display())))?;
     let low = rec.level.to_ascii_lowercase();
     let own = format!("levels/{low}/");
     let stack = |kind: &str| -> Vec<Bundle> {
@@ -603,7 +604,10 @@ pub fn stage_level(game: &Path, stage: &Path) -> Result<(PackageLevel, StageReco
     };
     let level = stack("level");
     if level.is_empty() {
-        return Err(format!("{}: its stage names no level bundle", rec.level));
+        return Err(EditorError::Level(format!(
+            "{}: its stage names no level bundle",
+            rec.level
+        )));
     }
     let terrain = stack("terrain");
     Ok((

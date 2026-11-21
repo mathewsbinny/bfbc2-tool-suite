@@ -91,7 +91,7 @@ fn editing_through_the_interface() {
         &gpu,
         "demo",
         demo::scene(),
-        Then::Create("Demo edits".into(), dir.clone()),
+        Then::Create("Demo edits".into(), dir.clone(), None),
     );
     h.settle(&mut app, 6);
     let path = app.view().unwrap().doc.as_ref().unwrap().path.clone();

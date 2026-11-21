@@ -207,7 +207,18 @@ navigation Install, Restore, Build and Close map while a navkit command runs. In
 its plan was shown for and refuses it when `stage.json` changed since. A worker that ends without an answer is
 reported, never polled forever. Closing the window while any of this runs asks first (Wait / Close anyway); a navkit
 command still running then is stopped and its half-written output removed, and the install script's output goes to
-a log file rather than the editor's pipes. OP1 replaces these side fields with explicit state enums.
+a log file rather than the editor's pipes.
+
+**The states (round OP1).** DF1's side fields are explicit states now: the close question (`app::Closing`: none,
+busy - Wait / Close anyway -, unsaved - Save / Don't save / Cancel - or closing now, for the window or the map), the
+Export window's project (`export_ui::ExportFor`: none, opened for a project file, bound to its generation), the
+preview (`diffui::PreviewState`: none, opening, shown; an opening preview is dropped with its generation, so no
+generation travels with it), preparing a level with what follows (`Mode::Preparing { job, then }`), the new
+project's era and mode inside the Create that asked for it (`Then::Create(name, folder, target)`: a Create that fails
+leaves none behind), the install script's run (`InstallRun`), a navkit job's end (`nav::Job::running` /
+`outcome`) and the game-accurate view (`gameview::GameSlot`: off, loading on a worker, ready). Errors are typed
+(`error::EditorError`, `bc2_render::RenderError`) and the Problems panel's entries are `error::Problem`s (severity,
+code, operation, objects).
 
 ### 3.7 Live validation in the GUI
 

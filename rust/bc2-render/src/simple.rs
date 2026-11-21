@@ -16,6 +16,7 @@ use std::time::Instant;
 use bc2_formats::shaderdb::query;
 use rayon::prelude::*;
 
+use crate::error::RenderError;
 use crate::files::{Files, level_folders, package_stack};
 use crate::material::{self, BLENDED, Db, Prepared, TESTED};
 use crate::placement::{self, Placements};
@@ -157,11 +158,11 @@ impl Simple {
     ///
     /// # Errors
     /// The level's shader database cannot be read, or a Package level's bundles cannot.
-    pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], package: bool) -> Result<Self, String> {
+    pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], package: bool) -> Result<Self, RenderError> {
         let t = Instant::now();
         let mut out = if package {
             let stack = package_stack(&opfor.join("game"), lv)
-                .ok_or_else(|| format!("{lv}: not in the game's bundle registry (package.mft)"))?;
+                .ok_or_else(|| RenderError::Data(format!("{lv}: not in the game's bundle registry (package.mft)")))?;
             let files = Files::bundles(&stack)?;
             let mut rounds = 0;
             loop {
@@ -184,12 +185,12 @@ impl Simple {
     ///
     /// # Errors
     /// The level's shader database cannot be read.
-    pub fn load_from(files: &Files, lv: &str, level: &str, placed: &[Placed]) -> Result<Self, String> {
+    pub fn load_from(files: &Files, lv: &str, level: &str, placed: &[Placed]) -> Result<Self, RenderError> {
         let lv = lv.to_lowercase();
         let db = Db::parse(
             &files
                 .read(&format!("levels/{lv}/shaders/dx11_single.res"))
-                .ok_or_else(|| format!("{lv}: no Dx11 shader database in its files"))?,
+                .ok_or_else(|| RenderError::Data(format!("{lv}: no Dx11 shader database in its files")))?,
         )?;
         let mut notes = Vec::new();
         let placements = placement::read(files, level).unwrap_or_else(|e| {

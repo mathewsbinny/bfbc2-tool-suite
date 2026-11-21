@@ -10,6 +10,7 @@ use eframe::egui::{self, RichText, Vec2};
 
 use super::modes::{CARD_ORDER, StartPage};
 use super::{EditorApp, status_line, style};
+use crate::error::EditorError;
 use crate::heightmap::{self, Checked, Settings, Source};
 use crate::levels::ContentSet;
 use crate::theme::{Metrics, Palette};
@@ -36,8 +37,8 @@ pub struct HeightmapForm {
     /// The new level's name.
     pub name: String,
     /// The last check: what it was of (path, source, the file's size and time) and what it found.
-    checked: Option<(Key, Result<Checked, String>)>,
-    colour_checked: Option<(Key, Result<[u32; 2], String>)>,
+    checked: Option<(Key, Result<Checked, EditorError>)>,
+    colour_checked: Option<(Key, Result<[u32; 2], EditorError>)>,
 }
 
 /// What a check was made of: the path, how it is read, the file's size and time (a changed file is checked again).
@@ -86,12 +87,12 @@ impl HeightmapForm {
     ///
     /// # Errors
     /// Why the height map cannot be used, in words.
-    pub fn refresh(&mut self) -> Result<Checked, String> {
+    pub fn refresh(&mut self) -> Result<Checked, EditorError> {
         let path = unquoted(&self.path);
         let key = (self.path.clone(), Some(self.source()), stamp(&path));
         if self.checked.as_ref().is_none_or(|(k, _)| *k != key) {
             let r = if self.path.trim().is_empty() {
-                Err("Choose a height map file.".to_owned())
+                Err(EditorError::Input("Choose a height map file.".to_owned()))
             } else {
                 heightmap::check(&path, self.source())
             };
@@ -99,11 +100,11 @@ impl HeightmapForm {
         }
         self.checked
             .as_ref()
-            .map_or_else(|| Err(String::new()), |(_, r)| r.clone())
+            .map_or_else(|| Err(EditorError::Input(String::new())), |(_, r)| r.clone())
     }
 
     /// The colour map checked again when it changed (`None`: none given).
-    pub fn refresh_colour(&mut self) -> Option<Result<[u32; 2], String>> {
+    pub fn refresh_colour(&mut self) -> Option<Result<[u32; 2], EditorError>> {
         if self.colour.trim().is_empty() {
             return None;
         }
@@ -118,10 +119,10 @@ impl HeightmapForm {
     /// Why Create cannot run yet (`None`: it can), with `folder` the project's folder.
     pub fn why_not(&mut self, folder: &str) -> Option<String> {
         if let Err(e) = self.refresh() {
-            return Some(e);
+            return Some(e.to_string());
         }
         if let Err(e) = self.settings.check() {
-            return Some(e);
+            return Some(e.to_string());
         }
         if let Some(Err(e)) = self.refresh_colour() {
             return Some(format!("Colour map: {e}"));
@@ -208,9 +209,13 @@ impl EditorApp {
             match &checked {
                 Ok(c) => status_line(ui, p, "Ready", p.status_ok, &c.summary()),
                 Err(e) if f.path.trim().is_empty() => {
-                    ui.label(RichText::new(e).text_style(style("small")).color(p.ink_faint));
+                    ui.label(
+                        RichText::new(e.to_string())
+                            .text_style(style("small"))
+                            .color(p.ink_faint),
+                    );
                 }
-                Err(e) => status_line(ui, p, "Error", p.status_error, e),
+                Err(e) => status_line(ui, p, "Error", p.status_error, &e.to_string()),
             }
             ui.label(
                 RichText::new(
@@ -244,7 +249,7 @@ impl EditorApp {
                 ui.end_row();
             });
             if let Err(e) = f.settings.check() {
-                status_line(ui, p, "Error", p.status_error, &e);
+                status_line(ui, p, "Error", p.status_error, &e.to_string());
             } else if let Some(n) = f.settings.water_note() {
                 status_line(ui, p, "Warning", p.status_warn, n);
             }
@@ -335,7 +340,7 @@ impl EditorApp {
                 self.heightmap = HeightmapForm::default();
                 self.open_project(&path);
             }
-            Err(e) => self.error = Some(e),
+            Err(e) => self.error = Some(e.to_string()),
         }
     }
 
