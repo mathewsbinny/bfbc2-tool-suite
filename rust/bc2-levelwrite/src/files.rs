@@ -17,6 +17,8 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+pub use crate::members::Member;
+use crate::members::{Order, Orders};
 use crate::ops::{Op, Operation, Rows};
 use crate::schema::Schema;
 use crate::write::{Applied, ApplyError, Donors, LevelWriteError, LevelWriter, apply_one_with, apply_partition_edits};
@@ -97,29 +99,67 @@ pub enum FileEdit {
         /// The operation.
         op: Box<Op>,
     },
-    /// A static group member's transform: item `item` of the group instance `instance`'s `Assets`, its 16 numbers in
-    /// the instance's `Transforms` (each row's fourth word kept).
+    /// A static group member's transform: member `item` of the group instance `instance` (its place in the base's
+    /// `Assets`, or a member the project added: [`Member`]), its 16 numbers in the instance's `Transforms` (each
+    /// row's fourth word kept).
     MemberTransform {
         /// The group file ([`Target::group`]'s name).
         file: String,
         /// The group instance's guid.
         instance: String,
-        /// The item's place in the instance's `Assets`.
-        item: usize,
+        /// The member.
+        item: Member,
         /// Its transform before.
         from: Rows,
         /// Its transform after.
         to: Rows,
     },
+    /// A static group member deleted (round SG1, [`crate::members::delete`]): its item out of the group file, its
+    /// record out of its member type in the partition, the group's counts made again.
+    MemberDelete {
+        /// The group file.
+        file: String,
+        /// The group instance's guid.
+        instance: String,
+        /// The member.
+        item: Member,
+        /// Its `Assets` reference (what was deleted, for the History and the base-changed report).
+        asset: String,
+        /// Its transform.
+        rows: Rows,
+    },
+    /// A static group member added (round SG1, [`crate::members::add`]): a copy of member `like` (its member type:
+    /// blueprint, shader set, collision) at `rows`, named `item` (always [`Member::Added`]).
+    MemberAdd {
+        /// The group file.
+        file: String,
+        /// The group instance's guid.
+        instance: String,
+        /// The new member.
+        item: Member,
+        /// The member it copies.
+        like: Member,
+        /// Its transform.
+        rows: Rows,
+    },
 }
 
 impl FileEdit {
-    /// The file it changes.
+    /// The first file it changes.
     #[must_use]
     pub fn target(&self) -> Target {
+        self.targets().into_iter().next().unwrap_or(Target::Partition)
+    }
+
+    /// The files it changes: a member's delete and add change its group file and the partition (its member type).
+    #[must_use]
+    pub fn targets(&self) -> Vec<Target> {
         match self {
-            Self::Partition { .. } => Target::Partition,
-            Self::MemberTransform { file, .. } => Target::group(file),
+            Self::Partition { .. } => vec![Target::Partition],
+            Self::MemberTransform { file, .. } => vec![Target::group(file)],
+            Self::MemberDelete { file, .. } | Self::MemberAdd { file, .. } => {
+                vec![Target::group(file), Target::Partition]
+            }
         }
     }
 
@@ -129,16 +169,33 @@ impl FileEdit {
         match self {
             Self::Partition { op } => op.describe(),
             Self::MemberTransform { instance, item, .. } => {
-                format!("Move group member {}", member_guid(instance, *item))
+                format!("Move group member {}", crate::members::member_guid(instance, *item))
             }
+            Self::MemberDelete { instance, item, asset, .. } => format!(
+                "Delete group member {} ({})",
+                crate::members::member_guid(instance, *item),
+                crate::members::asset_name(asset)
+            ),
+            Self::MemberAdd { instance, item, like, .. } => format!(
+                "Add group member {} (a copy of {})",
+                crate::members::member_guid(instance, *item),
+                crate::members::member_guid(instance, *like)
+            ),
         }
+    }
+
+    /// Whether it changes the level partition.
+    #[must_use]
+    pub fn edits_partition(&self) -> bool {
+        !matches!(self, Self::MemberTransform { .. })
     }
 }
 
-/// A static group member's guid as the scene names it: `<group instance guid>#<item>` (upper case).
+/// A base static group member's guid as the scene names it: `<group instance guid>#<item>` (upper case; a member
+/// the project added: [`crate::members::member_guid`]).
 #[must_use]
 pub fn member_guid(instance: &str, item: usize) -> String {
-    format!("{}#{item}", instance.to_ascii_uppercase())
+    crate::members::member_guid(instance, Member::Base(item))
 }
 
 /// The base bytes of the level's files besides its partition, read the first time an operation names one (the
@@ -185,6 +242,12 @@ pub struct LevelFiles {
     /// The rasters strokes changed (height fields, paint layers), by target: their tiles shared with the
     /// checkpoints that hold them ([`crate::delta::Raster`]).
     pub rasters: BTreeMap<Target, crate::delta::Raster>,
+    /// The members of each group instance a member's edit touched, in their current order (round SG1: an edit
+    /// finds a member's place through it; an instance not here has its base's order).
+    pub orders: Orders,
+    /// Each member the project added (its guid, [`crate::members::member_guid`]) and the base member whose leaf
+    /// shape it takes at export (the member it copies, or the one that one copies ...).
+    pub added: BTreeMap<String, Member>,
 }
 
 impl LevelFiles {
@@ -195,6 +258,8 @@ impl LevelFiles {
             partition,
             groups: BTreeMap::new(),
             rasters: BTreeMap::new(),
+            orders: Orders::new(),
+            added: BTreeMap::new(),
         }
     }
 
@@ -206,6 +271,7 @@ impl LevelFiles {
     ///
     /// # Errors
     /// The operation cannot be applied (named, with why); for [`Op::Files`] nothing was changed.
+    #[allow(clippy::too_many_lines, reason = "one arm per kind of edit, applied on the staged copies in order")]
     pub fn apply(
         &mut self,
         o: &Operation,
@@ -231,7 +297,7 @@ impl LevelFiles {
         // the copies the edits are made on: the partition only when an edit names it, each group file once
         let mut stage = Self::default();
         let mut counts = Applied::default();
-        if edits.iter().any(|e| matches!(e, FileEdit::Partition { .. })) {
+        if edits.iter().any(FileEdit::edits_partition) {
             stage.partition.clone_from(&self.partition);
         }
         if let Some(w) = stage.partition.as_mut() {
@@ -241,16 +307,14 @@ impl LevelFiles {
                 "a multi-file operation holds another one".into(),
             )));
         }
+        let mut orders = Orders::new();
+        let mut added = self.added.clone();
         for e in edits {
-            let FileEdit::MemberTransform {
-                file,
-                instance,
-                item,
-                to,
-                ..
-            } = e
-            else {
-                continue;
+            let (file, instance) = match e {
+                FileEdit::Partition { .. } => continue,
+                FileEdit::MemberTransform { file, instance, .. }
+                | FileEdit::MemberDelete { file, instance, .. }
+                | FileEdit::MemberAdd { file, instance, .. } => (file, instance),
             };
             let Target::Group { file } = Target::group(file) else {
                 continue;
@@ -267,11 +331,59 @@ impl LevelFiles {
                 };
                 stage.groups.insert(file.clone(), w);
             }
-            let w = stage
+            let f = stage
                 .groups
                 .get_mut(&file)
                 .ok_or_else(|| fail(LevelWriteError::NoFile(file.clone())))?;
-            set_member_transform(w, instance, *item, to).map_err(fail)?;
+            let key = (file.clone(), instance.to_ascii_uppercase());
+            let order: &mut Order = match orders.entry(key) {
+                std::collections::btree_map::Entry::Occupied(x) => x.into_mut(),
+                std::collections::btree_map::Entry::Vacant(x) => {
+                    let o = match self.orders.get(x.key()) {
+                        Some(o) => o.clone(),
+                        None => crate::members::base_order(f, instance).map_err(fail)?,
+                    };
+                    x.insert(o)
+                }
+            };
+            let name = |m: Member| crate::members::member_guid(instance, m);
+            match e {
+                FileEdit::MemberTransform { item, to, .. } => {
+                    let place = crate::members::place_of(order, *item)
+                        .ok_or_else(|| fail(LevelWriteError::NotFound(name(*item))))?;
+                    set_member_transform(f, instance, place, to).map_err(fail)?;
+                    counts.transforms += 1;
+                }
+                FileEdit::MemberDelete { item, .. } => {
+                    let w = stage
+                        .partition
+                        .as_mut()
+                        .ok_or_else(|| fail(LevelWriteError::NoFile(Target::Partition.describe())))?;
+                    crate::members::delete(f, w, &file, instance, order, *item).map_err(fail)?;
+                    counts.deleted += 1;
+                }
+                FileEdit::MemberAdd { item, like, rows, .. } => {
+                    if !matches!(item, Member::Added { .. }) {
+                        return Err(fail(LevelWriteError::Refused(format!(
+                            "{}: an added member is numbered as one (#+n)",
+                            name(*item)
+                        ))));
+                    }
+                    let w = stage
+                        .partition
+                        .as_mut()
+                        .ok_or_else(|| fail(LevelWriteError::NoFile(Target::Partition.describe())))?;
+                    crate::members::add(f, w, &file, instance, order, *like, *item, rows).map_err(fail)?;
+                    // the base member whose leaf shape it takes at export
+                    let root = match like {
+                        Member::Base(_) => *like,
+                        Member::Added { .. } => added.get(&name(*like)).copied().unwrap_or(*like),
+                    };
+                    added.insert(name(*item), root);
+                    counts.duplicated += 1;
+                }
+                FileEdit::Partition { .. } => {}
+            }
             counts.files += 1;
         }
         // every edit applied: the copies replace the files
@@ -279,6 +391,8 @@ impl LevelFiles {
             self.partition = Some(p);
         }
         self.groups.extend(stage.groups);
+        self.orders.extend(orders);
+        self.added = added;
         counts.operations = 1;
         out.add(&counts);
         Ok(())
@@ -345,7 +459,7 @@ impl LevelFiles {
     }
 }
 
-/// A static group member's transform in its group file ([`FileEdit::MemberTransform`]).
+/// A static group member's transform in its group file, by its place there ([`FileEdit::MemberTransform`]).
 ///
 /// # Errors
 /// No such group instance, no 16 numbers per item in its `Transforms`, or no such item.
@@ -410,6 +524,10 @@ pub struct AppliedFiles {
     pub partition: Applied,
     /// The other files changed, by target.
     pub files: BTreeMap<Target, Vec<u8>>,
+    /// The group instances whose members the log edited, their members in order (round SG1).
+    pub orders: Orders,
+    /// The members the log added and the base member whose leaf shape each takes (round SG1).
+    pub added: BTreeMap<String, Member>,
 }
 
 /// The base partition and the level's other files with `ops` applied in order ([`LevelFiles::apply`]): what an
@@ -449,6 +567,8 @@ pub fn apply_files<'a>(
     Ok(AppliedFiles {
         partition: out,
         files: edited,
+        orders: files.orders,
+        added: files.added,
     })
 }
 
@@ -517,7 +637,7 @@ pub(crate) mod tests {
         let mv = |x: f32| FileEdit::MemberTransform {
             file: FILE.into(),
             instance: G.into(),
-            item: 1,
+            item: Member::Base(1),
             from: crate::rows_at([7.0, 1.0, 2.0]),
             to: crate::rows_at([x, 1.0, 2.0]),
         };
@@ -570,7 +690,7 @@ pub(crate) mod tests {
                     FileEdit::MemberTransform {
                         file: FILE.into(),
                         instance: G.into(),
-                        item: 5,
+                        item: Member::Base(5),
                         from: crate::rows_at([0.0; 3]),
                         to: crate::rows_at([1.0; 3]),
                     },
@@ -593,7 +713,7 @@ pub(crate) mod tests {
                 edits: vec![FileEdit::MemberTransform {
                     file: "other_havokasset.dbx".into(),
                     instance: G.into(),
-                    item: 0,
+                    item: Member::Base(0),
                     from: crate::rows_at([0.0; 3]),
                     to: crate::rows_at([1.0; 3]),
                 }],
