@@ -8,6 +8,7 @@ use eframe::egui_wgpu::{self, wgpu};
 use eframe::epaint::mutex::RwLock;
 
 use crate::app::{EditorApp, GpuCtx};
+use crate::error::EditorError;
 use crate::render::{self, Gpu};
 
 /// A headless window.
@@ -31,7 +32,7 @@ impl Headless {
     /// # Errors
     ///
     /// No graphics device.
-    pub fn new(size: [u32; 2]) -> Result<Self, String> {
+    pub fn new(size: [u32; 2]) -> Result<Self, EditorError> {
         let (gpu, adapter) = Gpu::headless()?;
         let egui = egui_wgpu::Renderer::new(&gpu.device, render::COLOR_FORMAT, egui_wgpu::RendererOptions::default());
         let ctx = egui::Context::default();
@@ -238,8 +239,8 @@ impl Headless {
     /// # Errors
     ///
     /// Nothing drawn yet, or the file cannot be written.
-    pub fn save(&mut self, path: &std::path::Path) -> Result<(), String> {
-        let rgba = self.image().ok_or("nothing drawn")?;
+    pub fn save(&mut self, path: &std::path::Path) -> Result<(), EditorError> {
+        let rgba = self.image().ok_or(EditorError::Gpu("nothing drawn".into()))?;
         render::write_png(path, self.size, &rgba)
     }
 }

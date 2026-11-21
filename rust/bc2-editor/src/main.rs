@@ -28,6 +28,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use bc2_editor::app::{EditorApp, GpuCtx, Saved};
+use bc2_editor::error::EditorError;
 use bc2_editor::headless::Headless;
 use bc2_editor::levels::ContentSet;
 use bc2_editor::theme::ThemeId;
@@ -59,7 +60,7 @@ struct Args {
     dbx: Option<PathBuf>,
 }
 
-fn parse() -> Result<Args, String> {
+fn parse() -> Result<Args, EditorError> {
     let mut a = Args {
         level: None,
         opfor: None,
@@ -81,7 +82,10 @@ fn parse() -> Result<Args, String> {
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
-        let mut value = |what: &str| it.next().ok_or_else(|| format!("{arg} needs {what}"));
+        let mut value = |what: &str| {
+            it.next()
+                .ok_or_else(|| EditorError::Input(format!("{arg} needs {what}")))
+        };
         match arg.as_str() {
             "--opfor" => a.opfor = Some(PathBuf::from(value("a folder")?)),
             "--screenshot" => a.screenshot = Some(PathBuf::from(value("a file")?)),
@@ -119,20 +123,24 @@ fn parse() -> Result<Args, String> {
             }
             "--size" => {
                 let v = value("WIDTHxHEIGHT")?;
-                let (w, h) = v.split_once('x').ok_or("--size takes WIDTHxHEIGHT")?;
+                let (w, h) = v
+                    .split_once('x')
+                    .ok_or(EditorError::Input("--size takes WIDTHxHEIGHT".into()))?;
                 a.size = [
-                    w.parse().map_err(|_| "--size takes WIDTHxHEIGHT")?,
-                    h.parse().map_err(|_| "--size takes WIDTHxHEIGHT")?,
+                    w.parse()
+                        .map_err(|_| EditorError::Input("--size takes WIDTHxHEIGHT".into()))?,
+                    h.parse()
+                        .map_err(|_| EditorError::Input("--size takes WIDTHxHEIGHT".into()))?,
                 ];
             }
             "-h" | "--help" => {
                 return Err(
-                    "bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] [--navmesh] [--dbx <file>] \
+                    EditorError::Input("bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] [--navmesh] [--dbx <file>] \
                      [--screenshot out.png [--size 1600x950] [--select <guid>] [--demo] [--mode bfbc1|bfbc2|vietnam|ww2]]"
-                        .into(),
+                        .into(),)
                 );
             }
-            _ if arg.starts_with("--") => return Err(format!("unknown option {arg}")),
+            _ if arg.starts_with("--") => return Err(EditorError::Input(format!("unknown option {arg}"))),
             _ => a.level = Some(arg),
         }
     }
@@ -151,9 +159,9 @@ fn select_guid(app: &mut EditorApp, gpu: &GpuCtx, guid: &str) {
     app.select(gpu, hit);
 }
 
-fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
+fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), EditorError> {
     let mut h = Headless::new(a.size)?;
-    let mut app = EditorApp::new(a.opfor.as_deref(), None).map_err(|e| e.to_string())?;
+    let mut app = EditorApp::new(a.opfor.as_deref(), None).map_err(|e| EditorError::Input(e.to_string()))?;
     if let Some(t) = a.theme {
         app.theme = t;
     }
@@ -166,7 +174,8 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
     if a.demo {
         app.open_scene(&h.gpu, "demo", bc2_editor::demo::scene());
     } else if let Some(p) = &a.project {
-        let project = bc2_levelwrite::MapProject::load(p).map_err(|e| format!("{}: {e}", p.display()))?;
+        let project =
+            bc2_levelwrite::MapProject::load(p).map_err(|e| EditorError::Input(format!("{}: {e}", p.display())))?;
         if project.is_import() {
             // a height-map project: its page of the start screen
             app.open_project(p);

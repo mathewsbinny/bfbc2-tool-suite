@@ -64,6 +64,26 @@ The log follows `navtune.json`'s proven pattern:
 - **Base changed** (a new game patch or a rebuilt WW2 level): operations whose target guid is gone are reported,
   never dropped silently.
 - **New maps (stage 2)** use the same file, with a generated base in place of a stock level.
+- **Operations on any file of the level** (round OP1, audit AU1 R18): each operation names its *targets*
+  (`bc2_levelwrite::files::Target`): the level partition, a static group file (`<Name>_HavokAsset.dbx`), a height
+  field, a paint layer, the navigation side file, or the project itself (layers, folders, the export's choices). The
+  editor's document holds one writer per file (`LevelFiles`), each read from the level as loaded the first time an
+  operation names it; its sha1 then goes into the project's `base.files` for the base-changed check. The `files`
+  operation holds edits of several files (partition operations, group members' transforms; round SG1 adds the
+  member edits the views need) and applies them on copies: all or nothing, one undo step, the scene following only
+  a whole apply. The export applies the log to all files at once and writes the edited group files in place of the
+  base's; a target it does not write yet (terrain before E5) refuses the export in words.
+- **Brush strokes** (round OP1, audit AU1 R24 / D19): a `stroke` operation names the 64 x 64 tiles of a raster
+  (height field, paint layer) it changed, by the sha1s of their files before and after; the tiles are kept once each
+  in `<project>.mapedit.json.tiles` (`bc2_levelwrite::delta`). Rasters share unchanged tiles with the checkpoints,
+  so a stroke and its undo cost the tiles touched. E5's brushes call `Doc::stroke(target, after, label)` with a copy
+  of `Doc::raster(target)`; the terrain view and the export of rasters are E5's.
+- **Autosave** (round OP1, audit AU1 R17): an append-only journal (`bc2_levelwrite::journal`), one checksummed line
+  per change after a first line holding the project; crash-safe (a torn last line is left out), resumable and
+  compacted. The organisation follows each new operation instead of replaying the log.
+- **Versions** (project format 6): `version` is the writer's, `min_reader` the lowest version that reads the file
+  (its newest operation kind); each version step has a migration (`project::migrate`), and the recorded projects of
+  versions 1 - 5 (`rust/bc2-levelwrite/tests/data/projects`) must load and replay to the same partition.
 
 ### 3.2 The core additions
 
@@ -187,7 +207,20 @@ navigation Install, Restore, Build and Close map while a navkit command runs. In
 its plan was shown for and refuses it when `stage.json` changed since. A worker that ends without an answer is
 reported, never polled forever. Closing the window while any of this runs asks first (Wait / Close anyway); a navkit
 command still running then is stopped and its half-written output removed, and the install script's output goes to
-a log file rather than the editor's pipes. OP1 replaces these side fields with explicit state enums.
+a log file rather than the editor's pipes.
+
+**The states (round OP1).** DF1's side fields are explicit states now: the close question (`app::Closing`: none,
+busy - Wait / Close anyway -, unsaved - Save / Don't save / Cancel - or closing now, for the window or the map), the
+Export window's project (`export_ui::ExportFor`: none, opened for a project file, bound to its generation), the
+preview (`diffui::PreviewState`: none, opening, shown; an opening preview is dropped with its generation, so no
+generation travels with it), preparing a level with what follows (`Mode::Preparing { job, then }`), the new
+project's era and mode inside the Create that asked for it (`Then::Create(name, folder, target)`: a Create that fails
+leaves none behind), the install script's run (`InstallRun`), a navkit job's end (`nav::Job::running` /
+`outcome`) and the game-accurate view (`gameview::GameSlot`: off, loading on a worker, ready). Errors are typed
+(`error::EditorError`, `bc2_render::RenderError`) and the Problems panel's entries are `error::Problem`s (severity,
+code, operation, objects). The two state structs are split into focused parts (`ViewState`: `browser`, `menus`,
+`outline`, `measures`, `inspect`, `props`, `pointer`, `game_view`; `EditorApp`: `command`, `new_project`,
+`start_ui`, `catalog_state`); a new workspace or tool adds its own part rather than fields of `ViewState`.
 
 ### 3.7 Live validation in the GUI
 

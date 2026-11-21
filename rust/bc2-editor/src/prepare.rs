@@ -17,6 +17,7 @@ use std::time::Instant;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::error::EditorError;
 use crate::{levels, package};
 
 /// The environment variable naming the Python to run (default `python`, then `py -3`).
@@ -224,21 +225,22 @@ impl Job {
     /// # Errors
     ///
     /// The binary is not built (or too old to prepare), or could not be started, in plain words.
-    pub fn start(opfor: &Path, lv: &str, plan: Plan) -> Result<Self, String> {
+    pub fn start(opfor: &Path, lv: &str, plan: Plan) -> Result<Self, EditorError> {
         if plan == Plan::Package {
             return Self::start_package(opfor, lv);
         }
         let Some(exe) = binary() else {
-            return Err(format!(
+            return Err(EditorError::Tool(format!(
                 "Preparing a level needs the suite's command-line binary {} (its Python twin, prepare_level.py, was \
                  retired in round RT1), and it is not built or cannot prepare. In the suite's folder run \"python \
                  rust\\build_native.py\" (needs Rust and maturin) or \"python rust\\build_native.py --download\".",
                 bin_exe().display()
-            ));
+            )));
         };
         let mut cmd = Command::new(&exe);
         cmd.arg("prepare_level");
-        Self::spawn(cmd, opfor, lv, plan).map_err(|e| format!("{} could not be started: {e}", exe.display()))
+        Self::spawn(cmd, opfor, lv, plan)
+            .map_err(|e| EditorError::Tool(format!("{} could not be started: {e}", exe.display())))
     }
 
     /// Starts preparing a Package level in the editor ([`package::prepare`] on a thread), its steps and log reported
@@ -247,12 +249,12 @@ impl Job {
     /// # Errors
     ///
     /// It is not an installed Package level.
-    pub fn start_package(opfor: &Path, lv: &str) -> Result<Self, String> {
+    pub fn start_package(opfor: &Path, lv: &str) -> Result<Self, EditorError> {
         let level = package::find(opfor, lv).ok_or_else(|| {
-            format!(
+            EditorError::Tool(format!(
                 "{} is not an installed level of game\\Package (package.mft names it with every bundle it loads).",
                 lv.to_uppercase()
-            )
+            ))
         })?;
         let (tx, rx) = std::sync::mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
@@ -273,7 +275,7 @@ impl Job {
             );
             match r {
                 Ok(_) => send("@done".into()),
-                Err(e) => send(format!("@error {}", e.replace(['\r', '\n'], " "))),
+                Err(e) => send(format!("@error {}", e.to_string().replace(['\r', '\n'], " "))),
             }
             // the end, as a child's two readers report it
             let _ = tx.send(Msg::Exit);
@@ -300,7 +302,7 @@ impl Job {
     /// # Errors
     ///
     /// No Python could be started, in plain words.
-    pub fn start_with(script: &Path, opfor: &Path, lv: &str, plan: Plan) -> Result<Self, String> {
+    pub fn start_with(script: &Path, opfor: &Path, lv: &str, plan: Plan) -> Result<Self, EditorError> {
         let mut last_err = String::new();
         for py in pythons() {
             let Some((exe, pre)) = py.split_first() else { continue };
@@ -311,10 +313,10 @@ impl Job {
                 Err(e) => last_err = format!("{exe}: {e}"),
             }
         }
-        Err(format!(
+        Err(EditorError::Tool(format!(
             "Preparing a level needs Python 3.12 or later with the suite's tools, and none could be started \
              ({last_err}). Install Python, or set {PYTHON_ENV} to the python.exe to use."
-        ))
+        )))
     }
 
     /// The preparing command (the script under a Python, or the binary's `prepare_level`) started for `lv`, its two

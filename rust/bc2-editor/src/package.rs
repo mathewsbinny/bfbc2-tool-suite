@@ -41,6 +41,7 @@ use bc2_formats::fbrb::{self, Header};
 use bc2_scene::scene::{self, LoadOptions};
 use serde::{Deserialize, Serialize};
 
+use crate::error::EditorError;
 use crate::factions::Profile;
 use crate::levels::{self, Found};
 
@@ -350,11 +351,14 @@ fn stamps(level: &PackageLevel) -> Vec<Stamp> {
     level.level.iter().chain(&level.terrain).filter_map(Stamp::of).collect()
 }
 
-fn read_record(dir: &Path) -> Result<Prepared, String> {
-    let data = fs::read(dir.join(MANIFEST)).map_err(|_| "it is not prepared yet".to_owned())?;
-    let p: Prepared = serde_json::from_slice(&data).map_err(|_| "its prepared copy's record is damaged".to_owned())?;
+fn read_record(dir: &Path) -> Result<Prepared, EditorError> {
+    let data = fs::read(dir.join(MANIFEST)).map_err(|_| EditorError::Level("it is not prepared yet".to_owned()))?;
+    let p: Prepared = serde_json::from_slice(&data)
+        .map_err(|_| EditorError::Level("its prepared copy's record is damaged".to_owned()))?;
     if p.format != FORMAT {
-        return Err("its prepared copy is from another version of the editor".into());
+        return Err(EditorError::Level(
+            "its prepared copy is from another version of the editor".into(),
+        ));
     }
     Ok(p)
 }
@@ -365,13 +369,13 @@ fn read_record(dir: &Path) -> Result<Prepared, String> {
 /// # Errors
 ///
 /// Why it is not ready, in words.
-pub fn recorded(opfor: &Path, level: &PackageLevel) -> Result<Prepared, String> {
+pub fn recorded(opfor: &Path, level: &PackageLevel) -> Result<Prepared, EditorError> {
     let p = read_record(&cache_dir(opfor, &level.lv))?;
     if p.level != level.lv {
-        return Err("its prepared copy is another level's".into());
+        return Err(EditorError::Level("its prepared copy is another level's".into()));
     }
     if p.bundles != stamps(level) {
-        return Err("its bundles changed since it was prepared".into());
+        return Err(EditorError::Level("its bundles changed since it was prepared".into()));
     }
     Ok(p)
 }
@@ -382,13 +386,13 @@ pub fn recorded(opfor: &Path, level: &PackageLevel) -> Result<Prepared, String> 
 /// # Errors
 ///
 /// Why it has to be prepared (again), in words.
-pub fn ready(opfor: &Path, level: &PackageLevel) -> Result<Prepared, String> {
+pub fn ready(opfor: &Path, level: &PackageLevel) -> Result<Prepared, EditorError> {
     let p = recorded(opfor, level)?;
     let dir = cache_dir(opfor, &level.lv);
     for f in &p.files {
         let ok = fs::metadata(dir.join(&f.path)).is_ok_and(|m| m.is_file() && m.len() == f.size);
         if !ok {
-            return Err(format!("its prepared copy lost {}", f.path));
+            return Err(EditorError::Level(format!("its prepared copy lost {}", f.path)));
         }
     }
     Ok(p)
@@ -445,15 +449,15 @@ struct Layer {
 }
 
 impl Layer {
-    fn open(bundle: &Bundle) -> Result<Self, String> {
+    fn open(bundle: &Bundle) -> Result<Self, EditorError> {
         let header = File::open(&bundle.path)
-            .map_err(|e| e.to_string())
-            .and_then(|mut f| fbrb::read_header(&mut f).map_err(|e| e.to_string()))
+            .map_err(|e| EditorError::Level(e.to_string()))
+            .and_then(|mut f| fbrb::read_header(&mut f).map_err(|e| EditorError::Level(e.to_string())))
             .map_err(|e| {
-                format!(
+                EditorError::Level(format!(
                     "Could not read {} ({e}). The game copy may be damaged.",
                     bundle.path.display()
-                )
+                ))
             })?;
         let mut live = HashMap::new();
         let mut deleted = HashSet::new();
@@ -495,7 +499,7 @@ fn resolve(layers: &[Layer], name: &str) -> Result<(usize, usize), bool> {
 }
 
 /// One bundle's read: its index, the entries asked for, their data or the error, the seconds it took.
-type ReadOne = (usize, Vec<usize>, Result<Vec<Vec<u8>>, String>, f64);
+type ReadOne = (usize, Vec<usize>, Result<Vec<Vec<u8>>, EditorError>, f64);
 
 /// The data of the entries `wanted` (bundle, entry), each bundle's payload streamed once, the bundles at once.
 fn read_entries(
@@ -504,7 +508,7 @@ fn read_entries(
     cancel: &AtomicBool,
     log: &mut dyn FnMut(Event),
     stats: &mut Stats,
-) -> Result<HashMap<(usize, usize), Vec<u8>>, String> {
+) -> Result<HashMap<(usize, usize), Vec<u8>>, EditorError> {
     let mut by_layer: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for &(l, e) in wanted {
         by_layer.entry(l).or_default().push(e);
@@ -516,15 +520,16 @@ fn read_entries(
             .map(|(l, idx, layer)| {
                 s.spawn(move || {
                     let t = Instant::now();
-                    let r = (|| -> Result<Vec<Vec<u8>>, String> {
-                        let file = File::open(&layer.bundle.path).map_err(|e| e.to_string())?;
+                    let r = (|| -> Result<Vec<Vec<u8>>, EditorError> {
+                        let file = File::open(&layer.bundle.path).map_err(|e| EditorError::Level(e.to_string()))?;
                         let mut r = Cancellable {
                             inner: io::BufReader::with_capacity(1 << 20, file),
                             cancel,
                         };
                         let entries: Vec<&fbrb::Entry> =
                             idx.iter().filter_map(|&e| layer.header.entries.get(e)).collect();
-                        fbrb::read_payload(&mut r, &layer.header, &entries).map_err(|e| e.to_string())
+                        fbrb::read_payload(&mut r, &layer.header, &entries)
+                            .map_err(|e| EditorError::Level(e.to_string()))
                     })();
                     (l, idx.clone(), r, t.elapsed().as_secs_f64())
                 })
@@ -533,16 +538,16 @@ fn read_entries(
         handles.into_iter().filter_map(|h| h.join().ok()).collect()
     });
     if cancel.load(Ordering::Relaxed) {
-        return Err(CANCELLED.into());
+        return Err(EditorError::Level(CANCELLED.into()));
     }
     let mut out = HashMap::new();
     for (l, idx, r, secs) in results {
         let Some(layer) = layers.get(l) else { continue };
         let data = r.map_err(|e| {
-            format!(
+            EditorError::Level(format!(
                 "Could not read {} ({e}). The game copy may be damaged.",
                 layer.bundle.path.display()
-            )
+            ))
         })?;
         let bytes: u64 = data.iter().map(|d| d.len() as u64).sum();
         stats.entries += data.len();
@@ -597,9 +602,9 @@ struct Writer {
 }
 
 impl Writer {
-    fn write(&mut self, folder: &str, name: &str, data: &[u8]) -> Result<String, String> {
+    fn write(&mut self, folder: &str, name: &str, data: &[u8]) -> Result<String, EditorError> {
         let base = self.root.join(folder);
-        let path = fbrb::entry_path(&base, name).map_err(|e| format!("{name}: {e}"))?;
+        let path = fbrb::entry_path(&base, name).map_err(|e| EditorError::Level(format!("{name}: {e}")))?;
         let rel = path
             .strip_prefix(&self.root)
             .map_or_else(|_| name.to_owned(), |r| r.to_string_lossy().replace('\\', "/"));
@@ -617,12 +622,12 @@ impl Writer {
         Ok(rel)
     }
 
-    fn io(&self, path: &Path, e: &io::Error) -> String {
-        format!(
+    fn io(&self, path: &Path, e: &io::Error) -> EditorError {
+        EditorError::Io(format!(
             "Could not write the editor's copy ({}: {e}). Is the disk full? The copy goes in {}.",
             path.display(),
             self.root.parent().map_or_else(String::new, |p| p.display().to_string())
-        )
+        ))
     }
 }
 
@@ -635,13 +640,14 @@ struct Needs {
     entities: usize,
 }
 
-fn needs_of(name: &str, partition: &Path, groups: &[PathBuf]) -> Result<Needs, String> {
+fn needs_of(name: &str, partition: &Path, groups: &[PathBuf]) -> Result<Needs, EditorError> {
     let options = LoadOptions {
         groups: groups.to_vec(),
         geometry: true,
         ..LoadOptions::new(name, partition, Vec::new())
     };
-    let s = scene::load(&options).map_err(|e| format!("The level partition could not be read: {e}"))?;
+    let s =
+        scene::load(&options).map_err(|e| EditorError::Level(format!("The level partition could not be read: {e}")))?;
     let mut placed = BTreeSet::new();
     let mut referenced = BTreeSet::new();
     for e in &s.entities {
@@ -725,7 +731,7 @@ pub fn prepare(
     level: &PackageLevel,
     report: &mut dyn FnMut(Event),
     cancel: &AtomicBool,
-) -> Result<Prepared, String> {
+) -> Result<Prepared, EditorError> {
     let t0 = Instant::now();
     let lv = level.lv.clone();
     let final_dir = cache_dir(opfor, &lv);
@@ -736,13 +742,13 @@ pub fn prepare(
         files: Vec::new(),
         written: HashSet::new(),
     };
-    let result = (|| -> Result<Prepared, String> {
+    let result = (|| -> Result<Prepared, EditorError> {
         const STEPS: usize = 4;
         let mut stats = Stats::default();
         let mut notes = Vec::new();
-        let stop = || -> Result<(), String> {
+        let stop = || -> Result<(), EditorError> {
             if cancel.load(Ordering::Relaxed) {
-                Err(CANCELLED.into())
+                Err(EditorError::Level(CANCELLED.into()))
             } else {
                 Ok(())
             }
@@ -762,11 +768,11 @@ pub fn prepare(
         let folder = |l: usize| folders.get(l).cloned().unwrap_or_default();
         let part_name = format!("levels/{lv}.dbx");
         let Ok(part) = resolve(&layers, &part_name) else {
-            return Err(format!(
+            return Err(EditorError::Level(format!(
                 "{} has no level partition ({part_name}) in the bundles it loads - the level's install looks \
                  incomplete.",
                 lv.to_uppercase()
-            ));
+            )));
         };
         // the static groups: levels/<lv>/<name>_HavokAsset.dbx in any bundle, the first that has the name
         let prefix = format!("levels/{lv}/");
@@ -925,7 +931,7 @@ pub fn prepare(
             let visual = find_file(&tlayers, &format!("{tname}.water.res"), true);
             let wanted: BTreeSet<(usize, usize)> = [hf, mesh, visual].into_iter().flatten().collect();
             let data = read_entries(&tlayers, &wanted, cancel, report, &mut stats)?;
-            let mut put = |at: Option<(usize, usize)>| -> Result<Option<String>, String> {
+            let mut put = |at: Option<(usize, usize)>| -> Result<Option<String>, EditorError> {
                 let Some((l, e)) = at else { return Ok(None) };
                 let (Some(layer), Some(d)) = (tlayers.get(l), data.get(&(l, e))) else {
                     return Ok(None);
@@ -970,7 +976,7 @@ pub fn prepare(
             stats,
             seconds: t0.elapsed().as_secs_f64(),
         };
-        let json = serde_json::to_vec_pretty(&record).map_err(|e| e.to_string())?;
+        let json = serde_json::to_vec_pretty(&record).map_err(|e| EditorError::Level(e.to_string()))?;
         let path = temp.join(MANIFEST);
         fs::write(&path, json).map_err(|e| w.io(&path, &e))?;
         stop()?;
@@ -991,9 +997,10 @@ pub fn prepare(
         let _ = fs::remove_dir_all(&temp);
     }
     match result {
-        Err(e) if e == CANCELLED || cancel.load(Ordering::Relaxed) => {
-            Err(format!("Preparing {} was cancelled.", lv.to_uppercase()))
-        }
+        Err(e) if e.to_string() == CANCELLED || cancel.load(Ordering::Relaxed) => Err(EditorError::Level(format!(
+            "Preparing {} was cancelled.",
+            lv.to_uppercase()
+        ))),
         Ok(p) => {
             prune(opfor, &lv);
             Ok(p)
@@ -1011,12 +1018,12 @@ pub fn prepare(
 /// # Errors
 ///
 /// It is not prepared, or its copy is not current.
-pub fn load_options(opfor: &Path, level: &PackageLevel) -> Result<Found, String> {
+pub fn load_options(opfor: &Path, level: &PackageLevel) -> Result<Found, EditorError> {
     let p = ready(opfor, level).map_err(|why| {
-        format!(
+        EditorError::Level(format!(
             "{} cannot be opened yet ({why}): open it from the start screen, which prepares it first",
             level.lv
-        )
+        ))
     })?;
     let dir = cache_dir(opfor, &level.lv);
     if let Ok(f) = File::options().write(true).open(dir.join(MANIFEST)) {

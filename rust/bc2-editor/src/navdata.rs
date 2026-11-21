@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::error::EditorError;
 use bc2_formats::dbx::{self, Node};
 use bc2_formats::terrain::Heightfield;
 use bc2_formats::{hpd, kymesh};
@@ -249,15 +250,16 @@ pub fn union_roots(n: usize, edges: &[[usize; 2]], skip: Option<&[bool]>) -> Vec
 ///
 /// # Errors
 /// The file does not read, is not path data, or a sector mesh does not read.
-pub fn load(path: &Path, heightfield: Option<&Heightfield>) -> Result<NavData, String> {
-    let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let f = hpd::parse(&data).map_err(|e| format!("{}: not Kynapse path data ({e})", path.display()))?;
+pub fn load(path: &Path, heightfield: Option<&Heightfield>) -> Result<NavData, EditorError> {
+    let data = std::fs::read(path).map_err(|e| EditorError::Level(format!("{}: {e}", path.display())))?;
+    let f = hpd::parse(&data)
+        .map_err(|e| EditorError::Level(format!("{}: not Kynapse path data ({e})", path.display())))?;
     let meshes: Vec<kymesh::Mesh> = f
         .sectors
         .iter()
         .map(|s| kymesh::parse(s.mesh))
         .collect::<Result<_, _>>()
-        .map_err(|e| format!("{}: a sector mesh does not read ({e:?})", path.display()))?;
+        .map_err(|e| EditorError::Level(format!("{}: a sector mesh does not read ({e:?})", path.display())))?;
     // the areas, numbered across the file
     let mut areas = Vec::new();
     let mut segs = Vec::new();
@@ -285,10 +287,10 @@ pub fn load(path: &Path, heightfield: Option<&Heightfield>) -> Result<NavData, S
     }
     let finite = |p: &P3| p.0.is_finite() && p.1.is_finite() && p.2.is_finite();
     if !segs.iter().flatten().all(|(a, b)| finite(a) && finite(b)) {
-        return Err(format!(
+        return Err(EditorError::Level(format!(
             "{}: a boundary value that is not a finite number",
             path.display()
-        ));
+        )));
     }
     // the cells: every area's boundary sampled on the 0.8 m grid (as navdata._cells, in the Rust core)
     let mut cell_ij = Vec::new();
@@ -340,7 +342,10 @@ pub fn load(path: &Path, heightfield: Option<&Heightfield>) -> Result<NavData, S
         }
         for e in &s.edges {
             let (Some(&a), Some(&b)) = (local.get(e.src as usize), local.get(e.dst as usize)) else {
-                return Err(format!("{}: a route edge to no node", path.display()));
+                return Err(EditorError::Level(format!(
+                    "{}: a route edge to no node",
+                    path.display()
+                )));
             };
             edges.push([a, b]);
             edge_cost.push(f64::from(e.tag & 0x7FFF_FFFF) / 16.0);
@@ -1021,8 +1026,9 @@ fn has_squad(n: &Node<'_, '_>) -> bool {
 ///
 /// # Errors
 /// The partition does not read.
-pub fn read_ai_layer(partition: &[u8]) -> Result<AiLayer, String> {
-    let tree = dbx::parse_tree(partition).map_err(|e| format!("the level partition does not read: {e}"))?;
+pub fn read_ai_layer(partition: &[u8]) -> Result<AiLayer, EditorError> {
+    let tree = dbx::parse_tree(partition)
+        .map_err(|e| EditorError::Level(format!("the level partition does not read: {e}")))?;
     let mut by_guid: HashMap<String, usize> = HashMap::new();
     let mut inst: Vec<Node<'_, '_>> = Vec::new();
     for n in tree.instances() {

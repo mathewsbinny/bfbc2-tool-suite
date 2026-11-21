@@ -14,6 +14,8 @@ autotests = false
 bc2-formats.workspace = true
 # the tonemap over a frame's pixels
 rayon.workspace = true
+# the renderer's errors by kind (round OP1)
+thiserror.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true

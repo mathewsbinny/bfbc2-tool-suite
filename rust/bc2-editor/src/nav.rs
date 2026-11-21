@@ -26,6 +26,7 @@ use bc2_levelwrite::navedit::{NavBase, NavEdit, NavRegion};
 use bc2_navbuild::astar::Graph;
 use bc2_navbuild::navtune::{self, Value};
 
+use crate::error::EditorError;
 use crate::navdata::{self, AiLayer, Anomalies, Difference, NavData, NavIndex, Route};
 use crate::navview::ColourMode;
 
@@ -130,7 +131,7 @@ pub struct Inputs {
 ///
 /// # Errors
 /// A file does not read.
-pub fn read(inputs: &Inputs) -> Result<Loaded, String> {
+pub fn read(inputs: &Inputs) -> Result<Loaded, EditorError> {
     let t0 = Instant::now();
     let hf = inputs.heightfield.as_ref();
     let mut files = Vec::new();
@@ -287,8 +288,9 @@ pub struct Job {
     pub what: String,
     /// Its output so far.
     pub lines: Arc<Mutex<Vec<String>>>,
-    /// How it ended (`Some(true)`: exit code 0).
-    pub done: Option<bool>,
+    /// How it ended (`Some(true)`: exit code 0; `None`: running). Round OP1: read through [`Job::running`] and
+    /// [`Job::outcome`].
+    done: Option<bool>,
     /// When it started.
     pub started: Instant,
     /// The file it writes, removed when the job is dropped before it ended (round DF1, audit AU4-CON-2): a build
@@ -310,6 +312,18 @@ impl Drop for Job {
 }
 
 impl Job {
+    /// Whether the command still runs.
+    #[must_use]
+    pub fn running(&self) -> bool {
+        self.done.is_none()
+    }
+
+    /// How it ended (`Some(true)`: exit code 0), `None` while it runs.
+    #[must_use]
+    pub fn outcome(&self) -> Option<bool> {
+        self.done
+    }
+
     /// A job of a child already started (tests: a stand-in for a long navkit command).
     #[doc(hidden)]
     #[must_use]
@@ -379,9 +393,9 @@ pub fn navkit_command() -> Vec<String> {
 ///
 /// # Errors
 /// It does not start.
-pub fn start_navkit(root: &Path, args: &[String], what: &str) -> Result<Job, String> {
+pub fn start_navkit(root: &Path, args: &[String], what: &str) -> Result<Job, EditorError> {
     let cmd = navkit_command();
-    let (prog, first) = cmd.split_first().ok_or("no NavKit command")?;
+    let (prog, first) = cmd.split_first().ok_or(EditorError::Tool("no NavKit command".into()))?;
     let mut c = Command::new(prog);
     c.args(first)
         .args(args)
@@ -396,7 +410,7 @@ pub fn start_navkit(root: &Path, args: &[String], what: &str) -> Result<Job, Str
         use std::os::windows::process::CommandExt;
         c.creation_flags(0x0800_0000);
     }
-    let mut child = c.spawn().map_err(|e| format!("{prog}: {e}"))?;
+    let mut child = c.spawn().map_err(|e| EditorError::Tool(format!("{prog}: {e}")))?;
     let lines = Arc::new(Mutex::new(Vec::new()));
     for out in [
         child
@@ -545,41 +559,48 @@ pub fn side_text(level: &str, base: &NavBase, edits: &[NavEdit]) -> String {
 ///
 /// # Errors
 /// It cannot be written.
-pub fn write_side(path: &Path, text: &str) -> Result<(), String> {
+pub fn write_side(path: &Path, text: &str) -> Result<(), EditorError> {
     if let Some(d) = path.parent() {
-        std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
+        std::fs::create_dir_all(d).map_err(|e| EditorError::Tool(format!("{}: {e}", d.display())))?;
     }
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, path).map_err(|e| format!("{}: {e}", path.display()))
+    std::fs::write(&tmp, text).map_err(|e| EditorError::Tool(format!("{}: {e}", tmp.display())))?;
+    std::fs::rename(&tmp, path).map_err(|e| EditorError::Tool(format!("{}: {e}", path.display())))
 }
 
 /// Reads a side file: its base and edits (`navtune.load`: the format, the version, each edit's problems).
 ///
 /// # Errors
 /// It does not read, is not a side file, or an edit is not valid.
-pub fn read_side(path: &Path) -> Result<(NavBase, Vec<NavEdit>), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+pub fn read_side(path: &Path) -> Result<(NavBase, Vec<NavEdit>), EditorError> {
+    let text = std::fs::read_to_string(path).map_err(|e| EditorError::Tool(format!("{}: {e}", path.display())))?;
+    let v: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| EditorError::Tool(format!("{}: {e}", path.display())))?;
     if v.get("format").and_then(serde_json::Value::as_str) != Some("bfbc2-navtune") {
-        return Err(format!("{}: not a navtune side file", path.display()));
+        return Err(EditorError::Tool(format!(
+            "{}: not a navtune side file",
+            path.display()
+        )));
     }
     if v.get("version").and_then(serde_json::Value::as_u64).unwrap_or(0) > 1 {
-        return Err(format!("{}: a newer version than this editor reads", path.display()));
+        return Err(EditorError::Tool(format!(
+            "{}: a newer version than this editor reads",
+            path.display()
+        )));
     }
     let base: NavBase = v
         .get("base")
         .cloned()
         .map(serde_json::from_value)
         .transpose()
-        .map_err(|e| format!("{}: base: {e}", path.display()))?
+        .map_err(|e| EditorError::Tool(format!("{}: base: {e}", path.display())))?
         .unwrap_or_default();
     let edits: Vec<NavEdit> = v
         .get("operations")
         .cloned()
         .map(serde_json::from_value)
         .transpose()
-        .map_err(|e| format!("{}: operations: {e}", path.display()))?
+        .map_err(|e| EditorError::Tool(format!("{}: operations: {e}", path.display())))?
         .unwrap_or_default();
     let kind = if base.kind.is_empty() {
         "navkit"
@@ -597,7 +618,7 @@ pub fn read_side(path: &Path) -> Result<(NavBase, Vec<NavEdit>), String> {
         .take(10)
         .collect();
     if !bad.is_empty() {
-        return Err(format!("{}: {}", path.display(), bad.join("; ")));
+        return Err(EditorError::Tool(format!("{}: {}", path.display(), bad.join("; "))));
     }
     Ok((base, edits))
 }
@@ -966,7 +987,7 @@ pub type Source = (String, PathBuf, Option<PathBuf>, Option<(i64, i64)>);
 ///
 /// # Errors
 /// An unknown source, or no partition found.
-pub fn reference_source(spec: &str, root: &Path) -> Result<Source, String> {
+pub fn reference_source(spec: &str, root: &Path) -> Result<Source, EditorError> {
     let spec = spec.trim();
     let as_path = Path::new(spec);
     if as_path.is_file() {
@@ -979,7 +1000,9 @@ pub fn reference_source(spec: &str, root: &Path) -> Result<Source, String> {
         return Ok((spec.to_owned(), part, None, off));
     }
     let (kind, lv) = spec.split_once(':').ok_or_else(|| {
-        format!("{spec}: an unknown source (level:<level>, xbox:<level> or a level partition's path)")
+        EditorError::Tool(format!(
+            "{spec}: an unknown source (level:<level>, xbox:<level> or a level partition's path)"
+        ))
     })?;
     let lv = lv.trim().to_lowercase();
     match kind.trim() {
@@ -995,7 +1018,9 @@ pub fn reference_source(spec: &str, root: &Path) -> Result<Source, String> {
             let part = find_ci(&d, &format!("{lv}.dbx"))
                 .or_else(|| find_ci(&pkg, &format!("{lv}.dbx")))
                 .ok_or_else(|| {
-                    format!("{lv}: not prepared (no level partition in work\\levels or the editor's copy)")
+                    EditorError::Level(format!(
+                        "{lv}: not prepared (no level partition in work\\levels or the editor's copy)"
+                    ))
                 })?;
             let hpd = navdata::original_file(&navdata::installed_pathdata(root, &lv));
             let off = part.parent().and_then(|d| navdata::sector_offsets(&d.join(&lv)));
@@ -1011,7 +1036,7 @@ pub fn reference_source(spec: &str, root: &Path) -> Result<Source, String> {
             let part = dirs
                 .iter()
                 .find_map(|d| find_ci(d, &format!("{lv}.dbx")))
-                .ok_or_else(|| format!("{lv}: no Xbox 360 level partition in work\\xbox_dlc"))?;
+                .ok_or_else(|| EditorError::Tool(format!("{lv}: no Xbox 360 level partition in work\\xbox_dlc")))?;
             let hpd = base
                 .join("454108A800000002")
                 .join("ai")
@@ -1027,9 +1052,9 @@ pub fn reference_source(spec: &str, root: &Path) -> Result<Source, String> {
                 off,
             ))
         }
-        other => Err(format!(
+        other => Err(EditorError::Tool(format!(
             "{other}: an unknown source (level:<level>, xbox:<level> or a level partition's path)"
-        )),
+        ))),
     }
 }
 
@@ -1037,9 +1062,9 @@ pub fn reference_source(spec: &str, root: &Path) -> Result<Source, String> {
 ///
 /// # Errors
 /// As [`reference_source`], or the partition does not read.
-pub fn open_compare(spec: &str, root: &Path) -> Result<Compare, String> {
+pub fn open_compare(spec: &str, root: &Path) -> Result<Compare, EditorError> {
     let (label, partition, hpd, offsets) = reference_source(spec, root)?;
-    let data = std::fs::read(&partition).map_err(|e| format!("{}: {e}", partition.display()))?;
+    let data = std::fs::read(&partition).map_err(|e| EditorError::Tool(format!("{}: {e}", partition.display())))?;
     let layer = navdata::read_ai_layer(&data)?;
     let pathdata = hpd.and_then(|p| navdata::load(&p, None).ok());
     Ok(Compare {
@@ -1215,11 +1240,11 @@ pub fn anomaly_report(target: &str, navkit: &NavFile, an: &Anomalies) -> serde_j
 ///
 /// # Errors
 /// It cannot be written.
-pub fn save_export(root: &Path, name: &str, v: &serde_json::Value) -> Result<PathBuf, String> {
+pub fn save_export(root: &Path, name: &str, v: &serde_json::Value) -> Result<PathBuf, EditorError> {
     let d = root.join("work").join("navstudio");
-    std::fs::create_dir_all(&d).map_err(|e| format!("{}: {e}", d.display()))?;
+    std::fs::create_dir_all(&d).map_err(|e| EditorError::Tool(format!("{}: {e}", d.display())))?;
     let p = d.join(name);
-    let text = serde_json::to_string_pretty(v).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(v).map_err(|e| EditorError::Tool(e.to_string()))?;
     write_side(&p, &text)?;
     Ok(p)
 }
@@ -1231,8 +1256,8 @@ pub struct NavState {
     /// The files found (NavKit's build, DICE's file), before they are read.
     pub found: (Option<PathBuf>, Option<PathBuf>),
     /// What was read, or why not; `None` while reading (or before).
-    pub loaded: Option<Result<Loaded, String>>,
-    rx: Option<Receiver<Result<Loaded, String>>>,
+    pub loaded: Option<Result<Loaded, EditorError>>,
+    rx: Option<Receiver<Result<Loaded, EditorError>>>,
     /// The ground's colouring.
     pub colour: ColourMode,
     /// The layers hidden (by name).
@@ -1335,10 +1360,10 @@ impl NavState {
         }
         self.found = (cand.clone(), dice.clone());
         if cand.is_none() && dice.is_none() {
-            self.loaded = Some(Err(format!(
+            self.loaded = Some(Err(EditorError::Tool(format!(
                 "{} has no navigation data (no pathdata.hpd installed or built by NavKit)",
                 lv.to_uppercase()
-            )));
+            ))));
             return;
         }
         if cand.is_none() {
@@ -1365,7 +1390,7 @@ impl NavState {
                 true
             }
             Err(TryRecvError::Disconnected) => {
-                self.loaded = Some(Err("reading the navigation data failed".into()));
+                self.loaded = Some(Err(EditorError::Tool("reading the navigation data failed".into())));
                 self.rx = None;
                 true
             }

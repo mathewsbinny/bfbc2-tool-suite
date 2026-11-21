@@ -256,7 +256,7 @@ fn project_partition_edits_are_project_operations() {
     let mut app = EditorApp::new(None, None).unwrap();
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
-    app.open_level_blocking_then(&gpu, "mp_005", Then::Create("GR4 inspector".into(), dir.clone()))
+    app.open_level_blocking_then(&gpu, "mp_005", Then::Create("GR4 inspector".into(), dir.clone(), None))
         .unwrap();
     // a decimal field, a whole-number field of the level's objects
     let (float, int) = {

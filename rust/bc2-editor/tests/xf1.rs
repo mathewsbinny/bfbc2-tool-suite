@@ -210,7 +210,7 @@ fn paste_is_a_deep_duplicate() {
     h.settle(&mut app, 2);
     let gpu = h.gpu.clone();
     let ctx = h.ctx.clone();
-    app.open_scene_then(&gpu, "demo", scene, Then::Create("XF1 paste".into(), dir.clone()));
+    app.open_scene_then(&gpu, "demo", scene, Then::Create("XF1 paste".into(), dir.clone(), None));
     h.settle(&mut app, 6);
     let flag = app
         .view()

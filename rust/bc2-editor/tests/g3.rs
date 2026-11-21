@@ -565,7 +565,7 @@ fn real_package_levels() {
             let mut app = EditorApp::new(Some(&root), None).unwrap();
             h.settle(&mut app, 2);
             let gpu = h.gpu.clone();
-            app.open_level_blocking_then(&gpu, lv, Then::Create(format!("{lv} edit"), dir.clone()))
+            app.open_level_blocking_then(&gpu, lv, Then::Create(format!("{lv} edit"), dir.clone(), None))
                 .unwrap();
             h.settle(&mut app, 3);
             let v = app.view_mut().unwrap();

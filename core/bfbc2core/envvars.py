@@ -130,6 +130,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BC2_EDITOR_G4_REAL': ('test', "1: G4's start flow on the real game copy"),
     'BC2_EDITOR_G4_SHOTS': ('test', "G4's screenshots folder"),
     'BC2_PROJECTS': ('test', "a folder of canary map projects levelwrite's version test loads"),
+    'BC2_JOURNAL_KILL_CHILD': ('test', "the autosave journal test's child process: writes the journal until it is killed"),
     'BC2_R5C_PACKAGE_LEVELS': ('test', "R5c's Package levels drawn in the game-accurate view"),
     'BC2_R5C_PACKAGE_OPFOR': ('test', "R5c's OPFOR folder for the Package levels test"),
 }

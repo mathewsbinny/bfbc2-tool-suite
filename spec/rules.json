@@ -14817,11 +14817,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:25-40"
+     "ref": "rust/bc2-levelwrite/src/project.rs:25-80"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:685-773"
+     "ref": "rust/bc2-levelwrite/src/project.rs:750-906"
     },
     {
      "kind": "test",
@@ -14834,6 +14834,90 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/ops.rs::json_shape_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::versions_and_min_reader"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-AUTO-1",
+   "title": "The autosave is a journal: crash-safe, resumable, compacted",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/journal.rs:1-290"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:880-960"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:775-800"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/journal.rs::a_journal_cut_anywhere_gives_its_last_whole_line"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/journal.rs::written_resumed_and_compacted"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-DELTA-1",
+   "title": "Brush strokes are tiles beside the project, named by sha1",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/delta.rs:1-430"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/files.rs:270-330"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:800-870"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/delta.rs::rasters_tiles_and_strokes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/delta.rs::tiles_in_a_folder"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/files.rs::strokes_apply_from_their_tiles"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::stroke_budgets"
     }
    ]
   },
@@ -14890,6 +14974,62 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-FILE-1",
+   "title": "An operation names the files it changes; a multi-file operation is all or nothing",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/files.rs:20-360"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/ops.rs:410-460"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:1180-1220"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:360-410"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/files.rs::multi_file_operations_apply_whole_or_not_at_all"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/op1.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-FILE-2",
+   "title": "A base file is recorded when first edited; the export writes the edited group files",
+   "file": "spec/transforms/projectlog.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:766-785"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:585-595"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1015-1060"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1185-1225"
     }
    ]
   },
