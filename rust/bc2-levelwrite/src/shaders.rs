@@ -391,7 +391,9 @@ pub fn stock_reach(game: &Game, lv: &str) -> crate::export::Result<Reached> {
     let live = game.live(&loaded)?;
     let own = game.live(&game.level_bundles(lv, "level"))?;
     let start: Vec<String> = own.keys().filter(|k| is_dbx(k)).cloned().collect();
-    reach(start, &mut |names: &[String]| read_live(&live, &names.iter().collect::<Vec<_>>()))
+    reach(start, &mut |names: &[String]| {
+        read_live(&live, &names.iter().collect::<Vec<_>>())
+    })
 }
 
 /// The meshes of a stock level's reach ([`stock_reach`]) its own database of `file` has no entry for (DICE's own:

@@ -11,6 +11,8 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
+    clippy::indexing_slicing,
+    clippy::many_single_char_names,
     missing_docs
 )]
 
@@ -79,7 +81,7 @@ fn main() {
         }
     }
     let down = t.elapsed().as_secs_f64();
-    println!("{lv}: the first ray (the scene's ray structures built) {:.3} s", first);
+    println!("{lv}: the first ray (the scene's ray structures built) {first:.3} s");
     println!(
         "{lv}: {rays} vertical rays (ground_below) in {down:.3} s, {:.3} ms each, {hits} hits",
         down * 1000.0 / rays as f64
