@@ -760,7 +760,7 @@ impl MapProject {
     #[must_use]
     pub fn reader_needed(&self) -> u32 {
         let of = |o: &Operation| {
-            if let crate::Op::Files { edits } = &o.op
+            if let Op::Files { edits } = &o.op
                 && edits.iter().any(|e| {
                     matches!(
                         e,

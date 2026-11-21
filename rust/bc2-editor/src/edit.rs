@@ -448,9 +448,28 @@ impl Doc {
                     match e {
                         FileEdit::Partition { op } => self.apply_scene(op),
                         FileEdit::MemberTransform { instance, item, to, .. } => {
-                            let member = bc2_levelwrite::files::member_guid(instance, *item);
+                            let member = bc2_levelwrite::members::member_guid(instance, *item);
                             if let Some(k) = self.index(&member) {
                                 self.scene.set_transform(k, bc2_levelwrite::matrix_of(to));
+                            }
+                        }
+                        // round SG1: a member deleted is left out like a deleted object; an added one is a copy
+                        // of the member it copies, named by its own number
+                        FileEdit::MemberDelete { instance, item, .. } => {
+                            let member = bc2_levelwrite::members::member_guid(instance, *item);
+                            self.apply_scene(&Op::Delete { guids: vec![member] });
+                        }
+                        FileEdit::MemberAdd {
+                            instance,
+                            item,
+                            like,
+                            rows,
+                            ..
+                        } => {
+                            let source = bc2_levelwrite::members::member_guid(instance, *like);
+                            let guid = bc2_levelwrite::members::member_guid(instance, *item);
+                            if let Some(k) = self.index(&source) {
+                                self.copy_entity(k, &guid, Some(bc2_levelwrite::matrix_of(rows)));
                             }
                         }
                     }
@@ -741,6 +760,7 @@ impl Doc {
     /// drag): still one operation in History. Applied on top (a move sets transforms: the same as a replay).
     /// `false` when the last operation is not `n`.
     pub fn amend(&mut self, n: u64, op: Op) -> bool {
+        let op = crate::memberedit::lower(self, op);
         if !self.project.amend_last(n, op) {
             return false;
         }
@@ -763,8 +783,54 @@ impl Doc {
         self.project.operations.last().map(|o| o.n)
     }
 
-    /// Adds an operation (applied to the scene and the partition at once, autosaved); its number.
+    /// Why an operation would not apply now (round SG1: a member's delete or add is checked on copies of the files
+    /// before it is added, so a refused one never enters the log): `None` when it applies.
+    #[must_use]
+    pub fn refusal(&self, op: &Op) -> Option<String> {
+        let op = crate::memberedit::lower(self, op.clone());
+        if !matches!(op, Op::Files { .. }) {
+            return None;
+        }
+        let mut files = self.files.clone();
+        let terrain = self.terrain_target();
+        let sources = DocSources {
+            base: &self.base,
+            terrain: terrain.as_ref(),
+            tiles: &self.tiles,
+        };
+        let (game, cache) = (&self.game, &self.donors);
+        let donors = |lv: &str| {
+            cache.borrow().get(&lv.to_ascii_lowercase()).cloned().flatten().or_else(|| {
+                game.as_ref()
+                    .and_then(|g| bc2_levelwrite::export::level_partition(g, lv).ok())
+            })
+        };
+        let o = Operation {
+            n: self.project.next_n(),
+            by: String::new(),
+            when: String::new(),
+            label: String::new(),
+            op,
+        };
+        files
+            .apply(&o, &self.schema, &mut Applied::default(), &donors, &sources)
+            .err()
+            .map(|e| e.error.to_string())
+    }
+
+    /// The guids of the entities the last operation made (copies, placed objects, added group members).
+    #[must_use]
+    pub fn created_by_last(&self) -> Vec<String> {
+        self.project
+            .operations
+            .last()
+            .map_or_else(Vec::new, |o| crate::memberedit::created(&o.op))
+    }
+
+    /// Adds an operation (applied to the scene and the partition at once, autosaved); its number. An operation that
+    /// names static group members is made their group files' edits first ([`crate::memberedit::lower`]).
     pub fn commit(&mut self, op: Op, label: &str) -> u64 {
+        let op = crate::memberedit::lower(self, op);
         // a base file edited for the first time is recorded with its sha1 (round OP1: its base-changed check)
         let mut entries = Vec::new();
         for t in op.files() {
@@ -988,9 +1054,6 @@ impl Doc {
         let e = self.scene.entities.get(k)?;
         if self.deleted.contains(&k) {
             return Some("It is deleted");
-        }
-        if matches!(e.source, Source::GroupMember { .. }) {
-            return Some("A static group member: it is edited with its group's file (a later round)");
         }
         if e.type_name.ends_with(".LevelData") {
             return Some("The level itself");
