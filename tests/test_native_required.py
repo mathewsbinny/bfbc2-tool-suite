@@ -258,8 +258,8 @@ def stale_cli() -> None:
         os.environ.pop(native.STRICT_ENV, None)
         for name in ('bfbc2', 'bfbc2-editor', 'mapexport'):
             status, path, _ = native.binary_status(name)
-            if status == 'missing':
-                print(f'skipped the {name} binary check: it is not built here')
+            if status != 'ok':
+                print(f'skipped the {name} binary check: no copy here was built by build_native.py ({status})')
                 continue
             check(status == 'ok' and native.binary(name) == path,
                   f'binary({name}): the built one is this checkout\'s ({native.binary_status(name)[2][:80]})')
@@ -361,7 +361,7 @@ def retired_cli() -> None:
     Python falls back to it."""
     saved_env = os.environ.get(native.CLI_PYTHON_ENV)
     try:
-        native._cli['exe'] = None                       # as if bin\bfbc2.exe were missing
+        native._binaries['bfbc2'] = ('missing', None, 'bin\\bfbc2.exe is not built or downloaded')  # as if it were missing
         for tool in sorted(native.RETIRED_CLI):
             check(not os.path.exists(native.CLI_TOOLS[tool]), f'retired: {tool}\'s Python command line is gone')
             for env in (None, '1'):
