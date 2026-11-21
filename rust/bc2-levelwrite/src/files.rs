@@ -171,12 +171,16 @@ impl FileEdit {
             Self::MemberTransform { instance, item, .. } => {
                 format!("Move group member {}", crate::members::member_guid(instance, *item))
             }
-            Self::MemberDelete { instance, item, asset, .. } => format!(
+            Self::MemberDelete {
+                instance, item, asset, ..
+            } => format!(
                 "Delete group member {} ({})",
                 crate::members::member_guid(instance, *item),
                 crate::members::asset_name(asset)
             ),
-            Self::MemberAdd { instance, item, like, .. } => format!(
+            Self::MemberAdd {
+                instance, item, like, ..
+            } => format!(
                 "Add group member {} (a copy of {})",
                 crate::members::member_guid(instance, *item),
                 crate::members::member_guid(instance, *like)
@@ -271,7 +275,10 @@ impl LevelFiles {
     ///
     /// # Errors
     /// The operation cannot be applied (named, with why); for [`Op::Files`] nothing was changed.
-    #[allow(clippy::too_many_lines, reason = "one arm per kind of edit, applied on the staged copies in order")]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per kind of edit, applied on the staged copies in order"
+    )]
     pub fn apply(
         &mut self,
         o: &Operation,

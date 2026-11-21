@@ -454,10 +454,7 @@ impl CullTree {
     /// # Errors
     /// No such leaf, the leaf is the root, or a sphere the tree's keys cannot hold.
     pub fn reseat(&mut self, leaf: u32, sphere: &Sphere) -> Result<()> {
-        let id = *self
-            .leaves
-            .get(&leaf)
-            .ok_or_else(|| bad(format!("no leaf {leaf}")))?;
+        let id = *self.leaves.get(&leaf).ok_or_else(|| bad(format!("no leaf {leaf}")))?;
         if id == self.root {
             return Err(bad("the tree is a single leaf"));
         }
