@@ -6,6 +6,7 @@
 //! bfbc2 fbrbtool unpack|pack|list|big ...     python bfbc2-fbrb-tool\fbrbtool.py ...
 //! bfbc2 dbxedit xml|edit|import|check|roundtrip|fixslots ...
 //!                                             python bfbc2-dbx-tools\dbxedit.py ...
+//! bfbc2 leveldiff <a.dbx> <b.dbx> [options]  round EX1: LevelDiff.exe's command line (retired), in process
 //! bfbc2 aptcheck|aptrefs|bc2loc|exeref|crashreader|hpdtool|hkpack|convert|aimanim ...
 //!                                             round O2: python <the tool's .py> ... (src/pyproc.rs)
 //! bfbc2 caches|stockmp|aptgraft|audio|dbxcatalogue|dbxparity|portparity|meshview|culltree ...
@@ -74,6 +75,8 @@ mod graft;
 mod harness;
 #[cfg(feature = "import")]
 mod import;
+// round EX1: LevelDiff's command line (LevelDiff.exe retired)
+mod leveldiff;
 #[cfg_attr(
     not(all(
         feature = "menu",
@@ -188,6 +191,7 @@ const VERSION: &str = include_str!("../../../VERSION");
 const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      fbrbtool unpack|pack|list|big ...   FbrbTool's commands (bfbc2-fbrb-tool\\fbrbtool.py)\n  \
      dbxedit xml|edit|import|check|roundtrip|fixslots ...   DbxEdit's commands (bfbc2-dbx-tools\\dbxedit.py)\n  \
+     leveldiff <a.dbx> <b.dbx> [options]   two .dbx files compared instance by instance (LevelDiff's)\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
      exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
      hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
@@ -302,6 +306,9 @@ fn main() -> ExitCode {
     if first == "--version" && rest.is_empty() {
         pystdio::emit(&format!("bfbc2 {}\n", VERSION.trim()), "");
         return exit(0);
+    }
+    if first == "leveldiff" {
+        return leveldiff::main(rest);
     }
     if let Some(t) = py_tool(first) {
         return pyproc::run(t, rest);

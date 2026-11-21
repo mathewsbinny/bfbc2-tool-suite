@@ -12,13 +12,13 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
   quick   no game data, about a minute: the Rust core (built when stale, its cargo checks, its DBX reader against
           the retired Python reader's recorded answers), repository rules, DbxEditGUI's unit tests, and on files
           built by the tests: DbxEdit's and FbrbTool's commands against the retired exes' recorded answers,
-          LevelDiff, the crash reader and exeref, the console readers, the menu tools, the test harness (needs
-          Windows for the C# tools: DbxEditGUI, LevelDiff)
+          the crash reader and exeref, the console readers, the menu tools, the test harness (needs Windows for
+          the C# tool: DbxEditGUI); leveldiff's parity with the retired LevelDiff.exe is bc2-cli's cargo tests
   game    + Project OPFOR BFBC2's game copy, about 13 minutes: the DBX reader against the retired Python reader's
           recorded answers and DbxEdit's fingerprints on every unpacked .dbx, FbrbTool's commands on 12 game
           bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
-          round trips, LevelDiff on MP_005, the crash reader's code view and exeref on BFBC2Game.exe, the menu
+          round trips, the crash reader's code view and exeref on BFBC2Game.exe, the menu
           tools on the game's movies and OPFOR's menu patches, the console
           readers on your own Xbox 360 files (skipped when they are not on the PC), the 3D tools opening a
           level (needs a display), the structure of DICE's path data (hpdcheck), the test harness on two small
@@ -47,6 +47,14 @@ finishes, the failures' output at the end (in list order), the total, exit code 
   --plan       prints the schedule and the expected wall-clock without running anything, from the durations kept
                after each run (%LOCALAPPDATA%\bfbc2-tool-suite\test_times.json), else tests\test_durations.json
   --times F    durations from F instead: a run_tests.py log or a JSON of name -> seconds
+
+Round QW1 (audit AU2). Skips: a test whose summary line (its last) starts with "skipped" ran nothing on this PC (no
+game copy, no Rust, no graphics adapter): its line says skip, the total counts it as skipped, not passed, and its time
+is not kept; a passing test's other "skipped" lines (parts it could not run) are counted and named after the
+results. Memory: a test is scheduled with the larger of its NEEDS declaration and its last recorded peak on this PC.
+Kept durations of names no tier has any more go after STALE_DAYS. matplotlib's config and font cache are the suite's
+own (MPLCONFIGDIR: %LOCALAPPDATA%\bfbc2-tool-suite\matplotlib), built before the first test, so no test's stderr
+carries its "building the font cache" message.
 """
 import contextlib
 import json
@@ -143,8 +151,6 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navbuild_native.py')]),
         ("E4e: NavKit's tools in the Rust core against their Python (vehicle obstacle distance, domain searches, level scan, parity measures; built inputs)", 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navtools_native.py')]),
-        ("map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views", 'quick',
-         [PY, os.path.join(SUITE, 'tests', 'test_editor.py')]),
         ("application icon: the lookup, the hub's window icon, the icon in bin\\'s .exe files", 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_appicon.py')]),
         ('Rust core required: no module, a stale one, the source fingerprint', 'quick',
@@ -154,6 +160,8 @@ def tests():
         ('BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_asset_accuracy.py')]),
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
+        ('environment variables: every BFBC2_ / BC2_ / BF1943_ / OPFOR_ name the code reads is registered (bfbc2core.envvars)', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_envvars.py')]),
         ('specification: rule index and citations (spec/trace.py --check)', 'quick', [PY, os.path.join(SUITE, 'spec', 'trace.py'), '--check']),
         ('test runner: a failure printed on any console encoding', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_runner_output.py')]),
         ('test runner: tests side by side (resources, failures, exit code, output per test)', 'quick',
@@ -224,10 +232,6 @@ def tests():
         ('overlay exports, no game (AI layer, anomalies, usage)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_overlay_offline.py')]),
         ('NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navkit_offline.py')]),
         ('mesh viewer index and cache, stand-in bundles', 'quick', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview_index.py')]),
-        ('LevelDiff build (when stale)', 'quick', stale_build(os.path.join('bfbc2-diff-workbench', 'level-diff'), ['LevelDiff.exe'],
-                                                              [os.path.join('bfbc2-diff-workbench', 'level-diff', 'LevelDiff.cs'),
-                                                               os.path.join('bfbc2-dbx-tools', 'DbxEdit.cs')])),
-        ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
         ('crash reader, built reports', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py')]),
         ('console readers, built images', 'quick', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py')]),
         ('menu tools (aptcheck, aptrefs, bc2loc), built data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'tests', 'test_menu_tools.py')]),
@@ -390,7 +394,6 @@ def tests():
         ("NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core against the retired Python path's recorded results (SP_009, SP_004_B)", 'game',
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_collision_backends.py')]),
         ('path locators: the same answers as a reference checkout (main)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_locators.py')]),
-        ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),
         ('console resource converter: physics (havok)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_havok.py')]),
         ('console resource converter: textures', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_texture.py')]),
@@ -500,11 +503,15 @@ def need(cpu: int | str = 1, mem: float = 0.5, setup: bool = False, alone: bool 
 # catalogue caches in work\tools_out are built under a lock between processes (atomicio.locked); the collision cache
 # in %LOCALAPPDATA% is written atomically under a per-process name. Every other test writes only its own temp folder.
 # mem is an estimate in GB from what the test loads (pools x bundles, whole BF1943 bundles ~0.6 GB); a run records
-# each test's measured peak beside its duration.
+# each test's measured peak beside its duration. Round QW1 (audit AU2 P3): the declarations below were raised to the
+# peaks recorded on the development PC (25 were far below them: the cargo checks 2 GB declared / 28.7 measured, the
+# NavKit regression 3 / 15.0, O4 1 / 6.1, ...), and the scheduler takes the larger of a test's declaration and its
+# last recorded peak on this PC (peak_gb): a declaration that falls behind its test is corrected by the next run. A
+# test needing more than --mem runs with nothing else beside it (Scheduler.mem_of).
 NEEDS = {
     # quick
-    'Rust core build (when stale; skipped without Rust)': need(setup=True),
-    'Rust core: cargo fmt, clippy, tests (skipped without Rust)': need(cpu='all', mem=2, cargo='w'),
+    'Rust core build (when stale; skipped without Rust)': need(mem=2, setup=True),
+    'Rust core: cargo fmt, clippy, tests (skipped without Rust)': need(cpu='all', mem=12, cargo='w'),     # cargo's links: 28.7 GB committed before QW1
     "DBX reader (Rust) against the retired Python reader's recorded answers (built, damaged, 200 corpus files)": need(cpu=2, mem=1),
     "FBRB reader (Rust) against the retired Python reader's recorded answers and FbrbTool.exe's recorded unpacks (built, damaged, 8 game bundles)": need(cpu=3, mem=1),
     "Rust FBRB bundle cache against the reader without it and the Python reader's recorded answers (built, damaged, changed, 4 processes, 3 game bundles)": need(cpu=4, mem=1),
@@ -513,17 +520,20 @@ NEEDS = {
     'Rust shader database handle and queries against shaderdb.py (never made, made, changed lists; blocks, checks, writer, mp_008cq)': need(mem=0.6),
     'Rust shader translator: decoder against xenos.py, translations against the recorded Python (built programs, damaged blobs, random microcode, dispatch, hand-built trees)': need(mem=0.3),
     "cull tree element reader (Rust) against the retired Python reader's recorded answers, level search against glob (built, damaged, listing, 2 work trees)": need(cpu=2),
-    'Rust Granny reader against granny.py, Xbox 360 -> PC conversion against its recorded results (built, damaged, batch, writes)': need(),
+    'Rust Granny reader against granny.py, Xbox 360 -> PC conversion against its recorded results (built, damaged, batch, writes)': need(mem=1.2),
     'Rust texture converter against its recorded results (built, damaged, batch)': need(cpu=2),
     "Rust EA-XAS audio encoder / decoder against its recorded results (shift rule, seeded PCM of every shape, random frames, DICE's blocks)": need(cpu=2, mem=1),
     'Rust NavKit grid walks against their recorded results, E2a / E3c / E3h pieces against their Python (random levels, whole stages)': need(),
+    "application icon: the lookup, the hub's window icon, the icon in bin\\'s .exe files": need(),
+    "O3: the caches, stock-MP, aptgraft, audio, BF1943 parity / catalogue, meshview and culltree command lines in Rust (bfbc2.exe caches ... culltree) and the log folder's start-up pruning against the Python command lines' recorded answers (alone and on one pipe, stdio switches, local app data; who answered counted)": need(cpu=4, mem=3),
+    "O5: the console readers, the shader tools (shaderdb with its merge, renderqa, xdiff), the BF1943 importer, NavKit's detailed choice and status, and stockmp's generate / build / validate / all in Rust (bfbc2.exe apt ... stockmp) against the Python command lines' recorded answers (alone and on one pipe, stdio switches, local app data; who answered counted)": need(cpu=4, mem=3),
+    "Rust SD1 against shaderdb.py's ShaderDb.parse dispatch / pick_database / dx_from_name / load (built databases and bundles, damaged, every kind of argument)": need(),
     "E4e: NavKit's tools in the Rust core against their Python (vehicle obstacle distance, domain searches, level scan, parity measures; built inputs)": need(cpu=2),
-    # cargo test of bc2-editor: builds into rust\target (cargo's lock) and draws offscreen on the GPU (no window)
-    "map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views": need(cpu=2, mem=1, cargo='w'),
     'Rust core required: no module, a stale one, the source fingerprint': need(),
     'review regressions: HPD selection, launcher completion, mypy failures': need(),
     'BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches': need(cpu=2, shaderview='w'),
     'repository rules': need(cpu=2),
+    'environment variables: every BFBC2_ / BC2_ / BF1943_ / OPFOR_ name the code reads is registered (bfbc2core.envvars)': need(),
     'specification: rule index and citations (spec/trace.py --check)': need(),
     'test runner: a failure printed on any console encoding': need(),
     'test runner: tests side by side (resources, failures, exit code, output per test)': need(cpu=2),
@@ -542,10 +552,10 @@ NEEDS = {
     "The command lines in Rust (bfbc2.exe fbrbtool / dbxedit) against the Python command lines' recorded answers (every recorded line, alone and on one pipe, code pages, stdio switches)": need(cpu=4, mem=0.5),
     "Rust FBRB packer against FbrbTool.exe's recorded bundles, zlib against Python's (built folders in every layout, 8 game bundles)": need(cpu=4, mem=1),
     "Rust FBRB unpack against FbrbTool.exe's recorded unpacks (built, odd and damaged bundles, 8 game bundles)": need(cpu=2, mem=1),
-    "O2: the menu, crash-reader and NavKit / converter command lines in Rust (bfbc2.exe aptcheck ... aimanim) against the Python command lines' recorded answers (968 lines, alone and on one pipe, stdio switches; who answered counted)": need(cpu=4, mem=0.5),
+    "O2: the menu, crash-reader and NavKit / converter command lines in Rust (bfbc2.exe aptcheck ... aimanim) against the Python command lines' recorded answers (968 lines, alone and on one pipe, stdio switches; who answered counted)": need(cpu=4, mem=1),
     "O2: the menu, crash-reader and NavKit / converter command lines in Rust against the Python command lines, both ways live, and Project OPFOR's real calls replayed read-only": need(cpu=4, mem=1),
-    "O4: NavKit's driver and tools, the editor's prepare, the test harness and texqa in Rust (bfbc2.exe navkit ... texqa) against the Python command lines' recorded answers (alone and on one pipe, stdio switches; who answered counted)": need(cpu=4, mem=0.5),
-    "O4: NavKit's driver and tools, the harness and texqa in Rust against the Python command lines, both ways live, and Project OPFOR's real calls replayed read-only": need(cpu=4, mem=1),
+    "O4: NavKit's driver and tools, the editor's prepare, the test harness and texqa in Rust (bfbc2.exe navkit ... texqa) against the Python command lines' recorded answers (alone and on one pipe, stdio switches; who answered counted)": need(cpu=4, mem=3),
+    "O4: NavKit's driver and tools, the harness and texqa in Rust against the Python command lines, both ways live, and Project OPFOR's real calls replayed read-only": need(cpu=4, mem=6.5),
     "O4: the editor's level prepare in Rust (bfbc2.exe prepare_level) against the retired prepare_level.py's recorded answers on 3 stock levels in a stand-in OPFOR folder: every file under work\\ (sha256), the output and the day logs": need(cpu=4, mem=1),
     'error handling and logs': need(),
     'cache caps and pruning (bfbc2core.caches): least recently used first, writers and readers beside it, the command': need(),
@@ -580,8 +590,6 @@ NEEDS = {
     'overlay exports, no game (AI layer, anomalies, usage)': need(),
     'NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)': need(),
     'mesh viewer index and cache, stand-in bundles': need(),
-    'LevelDiff build (when stale)': need(setup=True),
-    'LevelDiff, built levels': need(),
     'crash reader, built reports': need(),
     'console readers, built images': need(),
     'menu tools (aptcheck, aptrefs, bc2loc), built data': need(),
@@ -590,13 +598,13 @@ NEEDS = {
     'APT model, aptcheck and aptrefs in Rust against the Python (E4c; built movies, object rules, 300 damaged, grafts, edits, crosshair-add)': need(),
     'static cull trees (culltree), built data': need(),
     'cull tree reference rows cache and shape memo against the reference (E3m; built levels: no cache, cold, warm, changed)': need(),
-    'Rust E3o: mesh reader, navdata cells and union-find, route search, texqa workers against their references, havok verify record against its recorded results (built inputs)': need(cpu=3, mem=1),
+    'Rust E3o: mesh reader, navdata cells and union-find, route search, texqa workers against their references, havok verify record against its recorded results (built inputs)': need(cpu=3, mem=2.2),
     'Rust F0 path data and runtime-mesh writer against hpdtool / kymesh (built files and meshes, 1,500 damaged, 600 changed, 4 game files)': need(mem=0.5),
     'Rust F0 localization files and BIGF archives against bc2loc / menucommon (built, damaged, 3,000 keys, the English file, the menu movies)': need(),
-    'Rust F0 console containers against stfs.py / xiso.py (built packages and discs, 60 damaged packages, 30 damaged discs)': need(),
-    'Rust F0 Wave resources and EA streams against audio.py (built, 3,000 damaged, 600 changed, 40 BF1943 Waves)': need(mem=0.5),
+    'Rust F0 console containers against stfs.py / xiso.py (built packages and discs, 60 damaged packages, 30 damaged discs)': need(mem=2.8),
+    'Rust F0 Wave resources and EA streams against audio.py (built, 3,000 damaged, 600 changed, 40 BF1943 Waves)': need(mem=1),
     'Rust F0 mesh headers and mesh sets against the recorded answers of the retired mesh.py reference and the meshset.write Python (built, 3,000 damaged, 800 changed, 60 BF1943 resources)': need(mem=0.5),
-    'Rust F2a console converter against the recorded answers of the retired terrain.py / soot.py / mesh.py / havok.py / texture.py references (built, damaged, edited relayouts, 40 BF1943 resources)': need(mem=0.5),
+    'Rust F2a console converter against the recorded answers of the retired terrain.py / soot.py / mesh.py / havok.py / texture.py references (built, damaged, edited relayouts, 40 BF1943 resources)': need(mem=1),
     'Rust F2a model tools against texwrite.py / skinmesh.py (built pictures and skinned LODs, damaged, the Garand and Type 5 LODs)': need(mem=0.5),
     "Rust F2a Granny writing against granny.py (CRC, shift, orientations, add_tracks on the WW2 rifles' animations, damaged)": need(mem=0.5),
     "bfbc2.exe argparse help and usage errors at the console width (COLUMNS) against the recorded answers of the Python (41 command lines x 23 values; the generated parser pieces)": need(),
@@ -605,7 +613,7 @@ NEEDS = {
     'Rust F0 texture.py helpers and PC texture reader against their Python (tiled, packed, layout) and the recorded answers of the retired levels / decode (built, damaged)': need(),
     'Rust F0 havok.classes against the recorded answers of its retired Python (built and damaged executables, BFBC2Game.exe)': need(),
     'exe string / address references (exeref), built exe': need(),
-    'test harness, built data': need(),
+    'test harness, built data': need(mem=1),
     'crash reader, exeref and test harness: the Rust core against the reference (seeded x86, built exes, logs, graphs)': need(cpu=2),
     'stock-MP AI layer, synthetic levels': need(),
     'stock-MP AI validation checks, synthetic builds (validate.py)': need(cpu=2),
@@ -627,8 +635,8 @@ NEEDS = {
     'F2b: menucommon.PEImage in Rust against the recorded answers of its retired Python (400 built executables)': need(),
     'F2b: xmlinst in Rust against the recorded answers of its retired patterns (3,000 seeded texts)': need(),
     'F2b: navtune validate, side-file text and summary in Rust against the recorded answers of its retired Python (seeded operations and files)': need(),
-    'F2b: mopp and havokport in Rust on every BF1943 physics file, every BFBC2 physics resource and their MOPP codes, both ways': need(cpu=2, mem=1.5),
-    'F2b: dbxcatalogue.build in Rust against its Python on the game copy (84,739 partitions)': need(cpu=4, mem=1.5),
+    'F2b: mopp and havokport in Rust on every BF1943 physics file, every BFBC2 physics resource and their MOPP codes, both ways': need(cpu=2, mem=2.8),
+    'F2b: dbxcatalogue.build in Rust against its Python on the game copy (84,739 partitions)': need(cpu=4, mem=2.5),
     'F2b: emitteratlas in Rust against its Python on the inputs of the four OPFOR emitter_atlas runs': need(cpu=2, mem=2),
     'F2b: menucommon.PEImage in Rust against the recorded answers of its retired Python on every executable of the game copy': need(),
     'F2b: xmlinst in Rust against the recorded answers of its retired patterns on every converted level XML of OPFOR work levels': need(mem=1),
@@ -660,24 +668,23 @@ NEEDS = {
     'cull tree add and verify on Onslaught MP_005 against every work\\levels folder: reference, no cache, cold, warm (E3m)': need(cpu=2, mem=3),
     'APT decoder (Rust) and aptgraft writer against their references on every movie of the game copy, the pristine menus and the Xbox HUD copies; aptrefs / aptcheck / bc2loc both ways (E3n)': need(cpu=2, mem=1.5),
     'APT model, aptcheck and aptrefs in Rust against the Python on the 133 movies of E3n: every write, roundtrip --pack, grafts, aliases, crosshair-add (E4c)': need(cpu=2, mem=1.5),
-    "Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles": need(cpu='all', mem=2),
+    "Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles": need(cpu='all', mem=5.5),
     'Rust F0 path data on every pathdata.hpd and kept original of the game copy and work: parsed, written and every runtime mesh written both ways': need(mem=1, work_hpd='r'),
     'Rust F0 localization on every language file of the overlay bundles and the pristine copy, BIGF on every menu / HUD movie, both ways': need(),
-    'Rust F0 console containers on your Xbox disc image and Update packages, 1,500 damaged packages, both ways': need(mem=0.5),
+    'Rust F0 console containers on your Xbox disc image and Update packages, 1,500 damaged packages, both ways': need(mem=2.2),
     'Rust F0 Wave resources and streams on every BF1943, BFBC2 Xbox and game-copy Wave, both ways': need(mem=1.5),
     'Rust F0 mesh headers and mesh sets on every MeshData and mesh set of BF1943, the Xbox bundles and the game copy, both ways': need(mem=1.5),
-    'Rust F2a console converter on every BF1943 / Xbox terrain, soot, physics, shader database and mesh resource and the game copy (readers, decode, relayout, texture.check), both ways': need(mem=1),
-    'Rust F2a model tools on every game-copy DXT texture encoded again and every skinned LOD, both ways': need(mem=1),
+    'Rust F2a console converter on every BF1943 / Xbox terrain, soot, physics, shader database and mesh resource and the game copy (readers, decode, relayout, texture.check), both ways': need(mem=3),
+    'Rust F2a model tools on every game-copy DXT texture encoded again and every skinned LOD, both ways': need(mem=5.7),
     'Rust F2a Granny writing on every game-copy animation (shift, orientations, add_tracks), both ways': need(mem=1),
     'Rust F3 formats on every aim animation, path-data sector, Xbox / BF1943 / PC Wave stream, sample run, packfile and Xbox shader program, both ways and against the recorded answers': need(mem=2, alone=True),
     'Rust F4 on every cull tree, Xbox shader program, packfile, collision asset, texture, mesh and BF1943 / Xbox / PC Wave, both ways and against the recorded answers': need(mem=2, alone=True),
-    'Rust F0 texture levels and decoding on every PC texture of the game copy, both ways': need(mem=1.5),
+    'Rust F0 texture levels and decoding on every PC texture of the game copy, both ways': need(mem=5.4),
     'Rust F0 havok.classes on damaged copies of BFBC2Game.exe, against the recorded answers': need(),
     "level loader (Rust scene) against the retired Python loader's recorded Levels, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)": need(cpu=8, mem=3),
     "NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core against the retired Python path's recorded results (SP_009, SP_004_B)": need(cpu=4, mem=2),
     'path locators: the same answers as a reference checkout (main)': need(),
-    'LevelDiff on MP_005': need(),
-    'crash reader code view (BFBC2Game.exe)': need(),
+    'crash reader code view (BFBC2Game.exe)': need(mem=1.8),
     'console resource converter: physics (havok)': need(mem=1),
     'console resource converter: textures': need(mem=2),
     'Rust texture converter: every BF1943 and Onslaught console texture as recorded': need(cpu='all', mem=2),
@@ -716,22 +723,22 @@ NEEDS = {
     "path data structure, DICE's files (hpdcheck)": need(),
     'NavKit boat mesh and routes on ONS_MP_004': need(mem=1),
     'NavKit vehicle path data on ONS_MP_002': need(mem=1.5, work_hpd='w'),
-    'NavKit links and route edges': need(regress='r'),
+    'NavKit links and route edges': need(mem=1, regress='r'),
     'traversals, the apply report, installing': need(),
     'navkit apply with walkability edits': need(mem=3, regress='r', sp_004_b='w'),
     'the suite window (hub) and the level picker': need(display='w'),
-    'test harness on sp_009 and sp_004_b': need(mem=1.5, regress='r'),
+    'test harness on sp_009 and sp_004_b': need(mem=2.6, regress='r'),
     'stock-MP AI layer, Atacama Conquest built': need(cpu=2, mem=1.5),
     'stock-MP AI: the Rust core against the Python on every MP level partition': need(cpu=2, mem=1),
     'Rust NavKit builds: sp_009 and sp_004_b path data as recorded': need(mem=3),
     # writes only temporary folders, and navwater's navdata cache as 'NavKit boat mesh and routes on ONS_MP_004' does
-    "E4e: NavKit's tools on the game copy as recorded from their Python (ONS_MP_002 vehicle data, ONS_MP_004 boat mesh and domains, sp_009 / sp_004_b parity measures, sp_009 offline samples)": need(cpu='all', mem=2.5),
+    "E4e: NavKit's tools on the game copy as recorded from their Python (ONS_MP_002 vehicle data, ONS_MP_004 boat mesh and domains, sp_009 / sp_004_b parity measures, sp_009 offline samples)": need(cpu='all', mem=4),
     'NavKit regression, 2 small levels': need(mem=3, regress='w'),
     # full
-    'NavKit regression, all levels with DICE path data': need(mem=3, regress='w'),
+    'NavKit regression, all levels with DICE path data': need(mem=15, regress='w'),     # 15.0 GB measured: runs alone
     "DbxEditGUI's DBX classes (DbxEdit.cs) on the corpus: round trip, XML import identity, edited imports": need(mem=1, display='w', dbxtests='w'),
     'DBX reader against DbxEdit, every unpacked .dbx': need(mem=1),
-    'FbrbTool round trip, every game bundle': need(mem=2),
+    'FbrbTool round trip, every game bundle': need(mem=3.2),
     'Rust EA-XAS audio encoder: every BF1943 Wave and in-memory BFBC2 Xbox Wave converted as recorded, byte for byte': need(cpu=4, mem=2.5),
 }
 
@@ -756,8 +763,6 @@ NO_GAME_PARTS = ["DbxEditGUI's window test (DBX_TESTS_ARGS=--no-gui; its unit te
 CI_STEPS: dict[str, str] = {
     'Rust core: cargo fmt, clippy, tests (skipped without Rust)':
         "cargo fmt, clippy and the workspace's tests are CI steps of their own",
-    "map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views":
-        "its cargo tests (bc2-editor, bc2-levelwrite, bc2-render) are in the workspace's tests, a CI step of its own",
     'lint (ruff check, every folder)': 'ruff is a CI step of its own',
     'types (mypy, every folder)': 'mypy is a CI step of its own',
 }
@@ -847,6 +852,7 @@ class _ProcessGroup:
 
 RUNNING: dict = {}                   # test name -> its _ProcessGroup, so that Ctrl+C ends every test's processes
 SKIPPED = 0                          # entries --no-game / --ci-steps left out (said at the start and in the total)
+PART_SKIPS: dict = {}                # test name -> its output's "skipped ..." lines (parts it could not run here)
 
 
 def run_one(name, args):
@@ -869,13 +875,24 @@ def run_one(name, args):
         RUNNING.pop(name, None)
         group.close()
     out = (stdout + stderr).strip()
+    PART_SKIPS[name] = sum(1 for line in stdout.splitlines() if line.strip().lower().startswith(SKIP_LINE))
     main_out = stdout.strip() or out            # the summary line is the test's own last line, not a warning it printed
     last = main_out.splitlines()[-1] if main_out else ''
     return p.returncode == 0, out, last, time.time() - t0, peak
 
 
+SKIP_LINE = ('skipped', 'skip:')          # a test's summary line that says it ran nothing (no game copy, no Rust ...)
+
+
+def skipped(ok, last):
+    """A passing test whose summary line (its last line) says it was skipped: data, a program or a graphics adapter
+    it needs is not on this PC. Counted as skipped, not passed (round QW1, audit AU2 Q9)."""
+    return ok and last.strip().lower().startswith(SKIP_LINE)
+
+
 def result_line(ok, name, secs, last):
-    return f'{"ok  " if ok else "FAIL"} {name:42s} {secs:6.1f} s   {last[:90]}'
+    tag = 'skip' if skipped(ok, last) else 'ok  ' if ok else 'FAIL'
+    return f'{tag} {name:42s} {secs:6.1f} s   {last[:90]}'
 
 
 # --- durations ---------------------------------------------------------------------------------------------------
@@ -927,11 +944,29 @@ def known_times(names, times_file=None):
     return out, f'{TIMES_FILE} (else {SEED_FILE})'
 
 
+STALE_DAYS = 14             # a kept duration whose test is in no tier of this checkout goes after this many days
+
+
+def prune_times(kept, names, today=None):
+    """kept without the names no tier of this checkout has (a renamed or removed test) that no run has kept for
+    STALE_DAYS (round QW1, audit AU2 S9: 60 such names were kept). A name only a sibling worktree has (a new test on
+    a branch) stays while that worktree runs it."""
+    import datetime
+    day = datetime.date.fromisoformat(today or time.strftime('%Y-%m-%d'))
+
+    def old(v):
+        try:
+            return (day - datetime.date.fromisoformat(str(v.get('when')))).days > STALE_DAYS
+        except (AttributeError, ValueError):
+            return True
+    return {n: v for n, v in kept.items() if n in names or not old(v)}
+
+
 def keep_times(results):
     """Keeps each passed test's duration and peak memory for the next run's order and --plan."""
     if not results:
         return
-    kept = load_json(TIMES_FILE)
+    kept = prune_times(load_json(TIMES_FILE), {name for name, _, _ in tests()})
     day = time.strftime('%Y-%m-%d')
     for name, secs, peak in results:
         kept[name] = {'s': round(secs, 1), 'peak_mb': peak, 'when': day}
@@ -1091,10 +1126,22 @@ def option(argv, names, convert, default):
     return default
 
 
+def peak_gb(peak_mb):
+    """A recorded peak (MB, the job object's PeakJobMemoryUsed) as GB, rounded up to a tenth; None stays None."""
+    return None if not peak_mb else -(-int(peak_mb) * 10 // 1024) / 10
+
+
 def make_jobs(chosen, times):
     tier_of = {name: t for name, t, _ in chosen}
-    return [Job(i, name, t, args, NEEDS.get(name), times.get(name, (GUESS[tier_of[name]], None))[0])
-            for i, (name, t, args) in enumerate(chosen)]
+    jobs = []
+    for i, (name, t, args) in enumerate(chosen):
+        secs, peak = times.get(name, (GUESS[tier_of[name]], None))
+        job = Job(i, name, t, args, NEEDS.get(name), secs)
+        recorded = peak_gb(peak)
+        if recorded is not None and job.declared and not job.setup and recorded > job.mem:
+            job.mem = recorded                  # round QW1: never less than this PC measured last time
+        jobs.append(job)
+    return jobs
 
 
 def print_plan(tier, jobs, slots, cpus, mem, source, known):
@@ -1162,34 +1209,68 @@ def main(argv):
     # the tests read bundles without the bundle cache's disk files (round E3e): a sweep of the game copy would fill
     # the user's cache with every bundle; the cache's own tests give theirs a folder of their own
     os.environ.setdefault('BFBC2_FBRB_CACHE', '0')
+    warm_matplotlib()
     if slots <= 1:
         return run_in_turn(chosen, root)
     return run_side_by_side(make_jobs(chosen, times), root, slots, cpus, mem)
 
 
-def report(chosen_names, failures, start, passed_times):
+MPL_DIR = os.path.join(os.path.dirname(TIMES_FILE), 'matplotlib')
+
+
+def warm_matplotlib():
+    """matplotlib's config and font cache in a stable folder of the suite's (MPLCONFIGDIR, unless set), built once
+    here before any test: a test's first import of matplotlib otherwise printed "Matplotlib is building the font
+    cache; this may take a moment." on its stderr, which failed a test comparing stderr (round QW1, audit AU2 Q10;
+    RT1's O4 navtools). Nothing happens without matplotlib."""
+    os.environ.setdefault('MPLCONFIGDIR', MPL_DIR)
+    folder = os.environ['MPLCONFIGDIR']
+    with contextlib.suppress(OSError):
+        os.makedirs(folder, exist_ok=True)
+        if any(f.startswith('fontlist') for f in os.listdir(folder)):
+            return
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        subprocess.run([PY, '-c', 'import matplotlib.font_manager'], capture_output=True, timeout=300)
+
+
+def report(chosen_names, failures, start, passed_times, no_data=()):
     keep_times(passed_times)
     for name, out in failures:
         print(f'\n--- {name} (last 25 lines) ---')
         print('\n'.join(out.splitlines()[-25:]))
-    print(f'\n{len(chosen_names) - len(failures)} of {len(chosen_names)} passed in {time.time() - start:.0f} s'
-          + (f'; {SKIPPED} skipped (listed at the start)' if SKIPPED else ''))
+    if no_data:
+        print(f'\nskipped for want of data, a program or a graphics adapter ({len(no_data)}):')
+        for name, last in no_data:
+            print(f'  {name}: {last[:110]}')
+    out_of = {n for n, _ in failures} | {n for n, _ in no_data}
+    partly = [n for n in chosen_names if PART_SKIPS.get(n) and n not in out_of]
+    if partly:
+        print(f'\npassed, with parts skipped for want of data (their "skipped" lines; {len(partly)}):')
+        for name in partly:
+            print(f'  {name}: {PART_SKIPS[name]} part(s)')
+    passed = len(chosen_names) - len(failures) - len(no_data)
+    print(f'\n{passed} of {len(chosen_names)} passed in {time.time() - start:.0f} s'
+          + (f'; {len(no_data)} skipped (ran nothing: listed above)' if no_data else '')
+          + (f'; {len(partly)} of them with parts skipped' if partly else '')
+          + (f'; {SKIPPED} left out (listed at the start)' if SKIPPED else ''))
     return 1 if failures else 0
 
 
 def run_in_turn(chosen, root):
     """-j 1: one test after another in the listed order (the runner as it was before 2026-11-17)."""
-    failures, passed, start = [], [], time.time()
+    failures, passed, no_data, start = [], [], [], time.time()
     for name, _t, args in chosen:
         if callable(args):
             args = args(root)
         ok, out, last, secs, peak = run_one(name, args)
         print(result_line(ok, name, secs, last), flush=True)
-        if ok:
+        if skipped(ok, last):
+            no_data.append((name, last))
+        elif ok:
             passed.append((name, secs, peak))
         else:
             failures.append((name, out))
-    return report([c[0] for c in chosen], failures, start, passed)
+    return report([c[0] for c in chosen], failures, start, passed, no_data)
 
 
 def run_side_by_side(jobs, root, slots, cpus, mem):
@@ -1217,8 +1298,8 @@ def run_side_by_side(jobs, root, slots, cpus, mem):
             j, ok, out, last, secs, peak = done.get()
             sched.finish(j)
             print(result_line(ok, j.name, secs, last), flush=True)
-            results[j.name] = (ok, out)
-            if ok:
+            results[j.name] = (ok, out, last)
+            if ok and not skipped(ok, last):
                 passed.append((j.name, secs, peak))
     except KeyboardInterrupt:
         for group in list(RUNNING.values()):
@@ -1226,7 +1307,8 @@ def run_side_by_side(jobs, root, slots, cpus, mem):
         raise
     ordered = sorted(jobs, key=lambda j: j.idx)
     failures = [(j.name, results[j.name][1]) for j in ordered if not results[j.name][0]]
-    return report([j.name for j in ordered], failures, start, passed)
+    no_data = [(j.name, results[j.name][2]) for j in ordered if skipped(results[j.name][0], results[j.name][2])]
+    return report([j.name for j in ordered], failures, start, passed, no_data)
 
 
 if __name__ == '__main__':

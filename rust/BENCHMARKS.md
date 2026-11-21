@@ -1636,7 +1636,7 @@ Peak working set of a bench run: 1.6 - 1.9 GB, nearly all of it BF1943's source 
 
 `bfbc2-bf1943-import/tests/test_ports_native.py` (quick, 2 s of work: the built inputs above; `--game`, 124 s: the
 bulk ports both ways, the index rows, the Onslaught corpus), `rust/bc2-convert` unit tests (`mesh_tests.rs`,
-`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests	est_durations.json`.
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests\test_durations.json`.
 
 ## E3i: Granny skeletons and animations (2026-11-17, branch `rust-e3i`)
 
@@ -1772,14 +1772,14 @@ when there is ladder ground.
 **Not taken, measured.** `trace_edges`' side neighbours in parallel within a sector: a detailed sector of 281,000
 cells went 0.22 -> 0.20 s (its time is the rows' maps, which are sequential) - reverted.
 
-**Parity.** `tests	est_navbuild_native.py` (quick), section E3h, the Rust side strict and its calls counted: 10 whole
+**Parity.** `tests\test_navbuild_native.py` (quick), section E3h, the Rust side strict and its calls counted: 10 whole
 `stage()` runs on random levels over the corner of four sectors at pitch 0.8 and 0.2 (40 sectors, 3,903 areas, 3,017
 route nodes, 196 D lines / F cells; meshes, areas, `area_of`, border nodes, graphs, ids, the build's counters) - every
 E3h path ran each time; 12 sector graphs with ladder links; 16 `walkable` runs with unseeds (292 surfaces dropped);
 `navdiff.area_cells` on 61 random outlines; `round(v, 3)` on 180,000 values bit for bit: 40 calls, 0 differences. The
 E3c checks (456 calls) and the recorded grid walks unchanged. Rust: `e3h_tests.rs` (a property test of the union-find
 floods and islands against the breadth-first walks, 160 random multi-layer levels; the sector graph), `parity.rs`;
-40 tests in the crate, `tests	est_rust.py` passes. Whole levels against `navbuild_golden.json` (the build clock
+40 tests in the crate, `tests\test_rust.py` passes. Whole levels against `navbuild_golden.json` (the build clock
 fixed): **sp_009, sp_004_b, sp_008_b and ons_mp_004 byte for byte as recorded** on the Rust backend, sp_009 also on
 the Python backend (16 s). The measures: `navdiff.area_cells` on every area of every DICE file and two NavKit builds
 (170,422 areas, 23.6 million cells) the same items in order, heights bit for bit (Rust 11.9 s, NumPy 94.1 s);
@@ -5727,6 +5727,189 @@ with the same log, a version-9 file and a `warp` operation give their messages);
 mode choices with their donor layers) written as version 1: all 7 load with every operation, as version 1 and 2,
 and the newer-version and unknown-operation cases on each. The full versioning work is round V1's.
 
+## QW1: the audit's quick wins (2026-11-20, branch `qw1`)
+
+Audit AU2's "best value for effort" list (`P2`, `S4` + `P5`, `P3`, `A6` + `A7`, `A10` + `F14`, `S1`, `F5` + `F10`,
+`A19`, `A21`, `Q9`, `Q10`, `S9`). Measured on the development PC (16 threads, 15 GB) while two other rounds built and
+tested beside it: the times are a shared machine's. Both quick tiers ran with `CARGO_INCREMENTAL=0` and
+`CARGO_BUILD_JOBS=4` in this worktree's own build folder (`rust-targets\bfbc2-tool-suite-qw1`), the "before" on `main`
+`fac36d0` with its debug folder deleted first, the "after" on this branch with its debug folder deleted first.
+
+| | before | after |
+|---|---:|---:|
+| `python run_tests.py quick -j 2` | 4,677 s (126 of 127) | 2,276 s (125 of 127; see below) |
+| the cargo entry (fmt, clippy, workspace tests) | 2,275 s | 1,642 s |
+| the editor entry (`tests\test_editor.py`) | 2,073 s | - (its tests run in the cargo entry) |
+| debug folder after the tier | 25 GB | 3.5 GB |
+| of it `debug\build\bc2-editor` | 16 GB, 74 hash folders | 0.55 GB, 15 |
+| test binaries in the workspace | 57 | 30 |
+| editor relink (`bc2-editor\src\lib.rs` touched, `cargo test --workspace --no-run`) | 76 s | 18 s |
+| a full `cargo test --workspace --no-run` from an empty debug folder (after clippy) | - | 143 s |
+| bundle cache (`bfbc2 caches --report`, fbrb) | 16.0 GB, 129 files | 15.6 GB, 125 files |
+| kept test durations (`test_times.json`) | 288 names, 60 of no tier | 228 |
+| `--plan` on 15 GB (`--mem 11.5`, quick) | 6,579 s expected | 2,285 s expected |
+
+The two failures after: O2's command lines (`OSError: [Errno 22] Invalid argument` opening a stand-in `b.exe` the
+test wrote into its temp folder) fails the same way on `main` (the "before" run) and alone: this PC's, not QW1's;
+`test_native_required` failed on its own new checks (a cargo debug build of the editor has no fingerprint; the
+retired-tool check set the old cache) and passes after the test's fix (the commit after the tier).
+
+**P2: the editor's tests once.** The quick tier ran the editor's, levelwrite's and the renderer's cargo tests twice:
+in `test_rust.py`'s `cargo test --workspace` and again in `test_editor.py`'s `cargo test -p bc2-editor -p
+bc2-levelwrite -p bc2-render`, which unified other features and so built a second copy of everything (the 74 hash
+folders). Only the workspace run is left; it runs with `--nocapture` and prints the editor's evidence lines and the
+parts skipped. The same test functions run: `cargo test --workspace -- --list` before and after, the three crates'
+tests by file and function (`file::function` after, the binary's file name before): bc2-editor 41 integration and 55
+unit, bc2-levelwrite 10 and 24, bc2-render 4 and 21 - identical sets; the workspace 592 tests before, 593 after (the
+new `fbrb::cache::tests::superseded_payloads`).
+
+**S4 + P5: debug info and test binaries.** `[profile.dev] debug = "line-tables-only"` and one `[[test]]` per crate
+(`tests/main.rs` with each file as a module, `autotests = false`): bc2-editor's 19 test executables (each ~430 MB
+with its PDB), levelwrite's 7 and render's 4 became 3. The files' tests used to run in separate processes one file
+after another; in one process each test takes `gate()` first (two at a time), so the real-level tests never all hold
+whole levels at once.
+
+**P3: memory.** 25 declarations raised to their recorded peaks (the job object's `PeakJobMemoryUsed`, children
+included): the cargo entry 2 -> 12 GB, NavKit's full regression 3 -> 15, O4 live 1 -> 6.5, F2a model tools 1 -> 5.7,
+F0 textures 1.5 -> 5.4, E3o game 2 -> 5.5, F0 console containers 0.5 -> 2.8, ...; the four undeclared quick entries
+declared. `make_jobs` takes the larger of a declaration and the last recorded peak, so a declaration that falls behind
+is corrected by the next run; a test above `--mem` runs with nothing beside it (as before).
+
+**A6 + A7 + A19: fingerprints per artefact.** On this checkout: the module's sources are 9 crates / 205 files,
+`bfbc2.exe`'s 11 / 296 (with the 26 Python files whose docstrings it includes and `VERSION`), the editor's 10 / 237 (with its
+three fonts), `mapexport`'s 5 / 138. `bin\*.exe --source-hash` equals `build_native.py --fingerprint <artefact>` for all
+three binaries after `build_native.py` and `--editor` (359 s for the editor's release build). A stale `bfbc2.exe`
+warns once per process; `BFBC2_STRICT_NATIVE=1` makes it an error.
+
+**S1: superseded bundle-cache payloads.** The audit's "28 bundle names with 2-3 payloads, 3.8 GB superseded" were
+not superseded: each name was two bundles, a level's `game\Dist` and `game\Package` copies (the cache file's name
+keeps only the last two path parts; its header names the whole path), both current. Reading every payload's header:
+129 payloads of 129 bundle paths; 4 payloads (0.43 GiB) named bundles rewritten or gone (EX1's temporary stage
+folders, `work\mapedit\...\stage`). `bfbc2 caches --prune fbrb` deleted those 4 (436.7 MB): 16.0 GB -> 15.6 GB.
+From now on writing a bundle's payload deletes its older payloads at once.
+
+**A10 + F14 + A21 (Project OPFOR).** One suite locator (`opforcore.paths.suite_dir`; 12 copies replaced, one of which,
+`ww2\menu_art.py`, ignored `OPFOR_TOOLKIT`) and `SUITE_REQUIRES = ('0.9.0', '0.10.0')` checked at import (a warning
+once, `OPFOR_SUITE_STRICT=1` an error). One GUID helper (`opforcore.guid`, 10 named scopes) for the 24 inline
+`uuid5(NAMESPACE_URL, ...)` sites: `test_guid.py` holds each site's old formula against the helper on real names and
+300 random inputs (a number part too), every GUID equal. Against this branch (a toolkit folder of junctions -
+`bfbc2-tool-suite` to this worktree, `bf1943-tool-suite`, `operation-rising-sun`, `project-opfor-bfbc2` - with
+`OPFOR_TOOLKIT` / `OPFOR_ROOT`): OPFOR's tests 381 of 381 and opforcore's 75 of 75. The WW2 rebuild (`rebuild_all.py
+--no-qa`): the first run stopped at step 30 - `type95_icon.py` gives the helper its image index as an int, which the
+inline f-string had formatted and `str.join` refused - so a part is now formatted as an f-string formats it
+(`format(part, '')`); the second run: all 52 steps in 30 min, **10,852 of 10,852 files identical** to the oracle
+(`round0\hashes_qw1.json`); `game\` unchanged (1,582 files, every size and write time).
+
+## EX1: every name of an export, its preview, the Diff panel; LevelDiff folded in and retired (2026-11-20, branch `rust-ex1`)
+
+The user's requests (2026-11-20): every name of an exported level editable and checked together; the staged export
+opened beside the original; a visual diff of a project against its base (and of any two levels); LevelDiff become
+the editor's Diff panel and a `bfbc2.exe leveldiff` command, proven identical, then retired.
+
+### `bfbc2.exe leveldiff` against LevelDiff.exe
+
+`bc2_formats::dbxedit::leveldiff` is `LevelDiff.cs` ported on DbxEdit's own model (`EditFile`, `value_text`,
+`PlacedObject`), its quirks kept (a list reorder reported only while the instance has no list entry added or removed
+so far; a field path seen twice keeps its first place; texts cut at 120 UTF-16 units; .NET's `Math.Round(x, 1)` and
+`G15` for positions). `bfbc2 leveldiff` prints as .NET's `Console` does (`\r\n`, the console's code page off a
+console, Unicode on one) and logs to `leveldiff-<date>.log`.
+
+LevelDiff.exe's answers were recorded **before** the port ran, on 21 cases over 13 partitions of OPFOR's game copy
+and the E3d stages (stock against export: SP_01 / Aurora as WW2 Conquest, MP_005 / Atacama Rush as Conquest,
+Guadalcanal / as BFBC2 Rush; mode variants MP_005 / MP_005GR, NAM_MP_002CQ / R and their descriptions; a WW2 level
+against its rebuild, Guadalcanal against `work\ww2\install_guadal_canal`; MP_005's Dist copy against its Package
+copy; a level against itself; and the bad input: one file, three files, a switch without its value, a file that is
+not binary, a missing file, a `--json` folder that is not there) with every switch (`--match-objects`, `--type`,
+`--ignore` twice, `--summary`, `--all`, `--json`), and on LevelDiff's own 7-instance test levels (9 cases). All 30
+are identical: stdout and stderr byte for byte (the log's path and the pairs' folder normalised), the `--json` file
+byte for byte, the exit codes (0, 1, 2, 3). `tests/leveldiff.rs` (bc2-cli) repeats them: the test levels against
+LevelDiff.exe's full texts (`tests/data/leveldiff/synth`), the real pairs against their digests
+(`tests/data/leveldiff/leveldiff_golden.tsv`; no game content in the repository).
+
+| Case (best of 3, release, whole process) | LevelDiff.exe | `bfbc2 leveldiff` |
+|---|---:|---:|
+| SP_01 against Aurora as WW2 Conquest (9,616 / 8,109 instances) | 0.97 s | 0.46 s |
+| the same, `--all --json` (2.7 MB text, 3.6 MB JSON) | 18.15 s | 0.46 s |
+| MP_005 against MP_005GR, `--match-objects --all --json` | 8.13 s | 0.17 s |
+| Guadalcanal against it as BFBC2 Rush, `--all --json` | 3.30 s | 0.15 s |
+| NAM_MP_002CQ against NAM_MP_002R, `--json` | 0.33 s | 0.12 s |
+| MP_005 against itself, `--json` | 0.25 s | 0.20 s |
+
+LevelDiff.exe looked each listed object's placement up by scanning every placed object (`--all` on big levels); the
+port indexes them once.
+
+### Every name of the level (`bc2_levelwrite::names`)
+
+From the data (OPFOR's game copy: 83 level descriptions in the startup bundles, every level folder, `maps.ini`,
+OPFOR's `server_browser.cpp`, the loader movie's `initLoadingScreen`):
+
+- the folder under `Package\levels\` (or `Dist\win32\levels\`) is the id in lower case on all 83 (8 ids mix cases:
+  `BC1_Harvest_Day_CQ` ...): the id and the folder are one name; the form shows both and a new folder renames the id;
+- the on-screen name is the description's `Name` key's text in each of the 8 languages; DICE gives every mode of a map
+  the map's keys (82 keys end in `_NAME`, 14 are `<ID>_NAME`; `MP_005GR` reads `MP_005_NAME`; Napisal's
+  `ONS_MP_005GR` has a literal, no key); the loading screen cuts the key at its first `_NAME` for its picture;
+- the launcher and OPFOR's Server Browser show `maps.ini`'s `name=` (the browser's row is `OPFOR - <name> (<mode>)`,
+  cut at 159 characters, its section found by the level id's last part); the browser's map column is the
+  description's name key, localised;
+- the menus' level list holds `<id>.dbx` and `<id>_description.dbx` for 78 of the 83 (Napisal's 5 Onslaught levels
+  are in none: OPFOR starts them from its own menus).
+
+`names::check` refuses in words: an id that is a stock level or another project's installed export (an earlier
+install of the same project may be replaced), an id holding `_NAME` (the picture looked for would be another: the
+black loading screen), an id whose `<ID>_NAME` / `<ID>_DESC` the localisation already has or whose loading picture
+the awards bundles hold (`SP_05_A` would rename Heavy Metal), characters or lengths the files cannot hold (A-Z, digits,
+`_`, 3 - 40, a letter first; the browser name plain ASCII without `"` or outer spaces and its row within 159; names
+up to 64, descriptions up to 400), a folder that is not the id, a browser name another map has, a letter a language's
+text table has no code for. `loc::encode` stores a text through its language's histogram (one-byte codes, else a
+lead byte and `0x80 | low` as every two-byte character of the Japanese file is), checked by `decode`.
+
+Proof:
+
+- `tests/export_ex1.rs`: the rules against the game copy (each refusal's words; the build refuses what the check
+  refuses, nothing staged); E3d's Atacama canary built as `MAPEDIT_EX1_RENAMED` with its own server-browser name and
+  on-screen names (French and Russian of their own): in 12 - 16 s, the id in `LevelData.Name`, the description, the
+  menus' list items, all 11 `package.mft` blocks and 11 `bundleManifest` lines, the name keys and their picture;
+  `mapexport check` passing its 33 lines (two new: the names' rules, every place naming the same level); the overlay an
+  install builds holding each language's text (French with its accents, Russian in Cyrillic,
+  decoded through their histograms).
+- OPFOR's `mapedit_install --apply` then `--revert` of that stage on a scratch copy of the six shared files,
+  `--check-game` the real game copy: the plan's check passes with the names lines; while installed the level's folder,
+  `maps.ini`'s `[MAPEDIT_EX1_RENAMED] name=Atacama renamed (EX1) Conquest=Levels/MAPEDIT_EX1_RENAMED`, the browser row
+  `OPFOR - Atacama renamed (EX1) (Conquest)`, a `package.mft` block per bundle, 11 manifest lines, the description in
+  `startup-00`, both texts in all 8 languages (French and Russian their own), the loading picture under the name key;
+  after the revert every shared file byte for byte with its last-writer record, the folder gone; `game\`: its 1,582
+  files kept their size and time and the shared files their sha256.
+
+### The Diff panel and Preview export (`bc2-editor`)
+
+`compare.rs` turns LevelDiff's answer into rows (added, removed, moved - the `Transform` changed -, changed), grouped
+(the mode layer of either side, `modelayer::layer`; placed objects whose blueprint the export's closure copied;
+the campaign content the export strips; the world), and the marks a view draws on either side. `app/diffui.rs`: the
+Diff panel (filters, rows, a row's fields as LevelDiff prints them, Inspect), Compare with base (again by itself after
+each edit), Compare with level, Preview export (the stage opened as a Package level, `compare::stage_level`, beside the
+base, the project kept aside; T switches, the same camera; Close preview), and the 3D marks (tints, boxes, the moves'
+lines). 4 new tokens: `view-diff-added` `#5cf0a8`, `-removed` `#ff8fb6`, `-moved` `#7cc8ff`, `-changed` `#e2a8ff`
+(Light 6 per channel lighter), each at least 45 degrees of hue from the selection's orange and from each other, each
+3.5:1 on the lit terrain and the water (`theme::tests`).
+
+`tests/ex1.rs`, headless, Dark and Light:
+
+| | rows | compared in | what it shows |
+|---|---:|---:|---|
+| Aurora made WW2 Conquest with Guadalcanal's radar bunker, against SP_01 | 1,662 (278 added, 395 removed, 989 changed) | 0.62 - 0.68 s | the WW2 layer added (277), the campaign's spawns, player and menus removed (215 campaign, the rest its old layer), the bunker added; a click on its row selects it |
+| Atacama Rush as Conquest, the stage against MP_005GR (Preview export) | 1,268 | 0.25 s | the Conquest layer added (317), the Rush layer removed (821); T to the original and back; Close preview gives the project back |
+
+The Export window's Names section with the canary's names (the per-language rows open), and an id holding `_NAME`
+refused in words.
+
+### Retired
+
+`bfbc2-diff-workbench\` (`level-diff\LevelDiff.cs`, `build.bat`, `tests\test_leveldiff.py`, the folder's README of
+planned tools, kept in `DESIGN.md` 4.7); the hub's Level diff tab runs `bfbc2.exe leveldiff`; `run_tests.py`'s three
+LevelDiff entries (the build, the built levels, MP_005) are bc2-cli's cargo tests; `tests\test_cli_errors.py` checks
+`bfbc2 leveldiff`'s error. OPFOR: `opforcore.paths.leveldiff()` is the command, `paths.exe('LevelDiff')` refuses with
+it (nothing else in OPFOR called LevelDiff). `RETIRED.md` has the row.
+
 ## VW1: the editor's view toggles (2026-11-20, branch `rust-vw1`)
 
 `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 3.10, "Done in round VW1". The user's requests of 2026-11-20: effects,
@@ -5762,7 +5945,7 @@ turning 0.01 rad a frame, the median of 12 after 2, the best of three alternatio
 The overlays are lines in the line pass the view already draws: 0.1 - 0.2 ms a frame with all of them on (SP_01's 190
 spawn checks and 433 sound spheres are most of its lines).
 
-**Proof** (`cargo test --release -p bc2-editor --test view_toggles`, MP_005, SP_01, ONS_MP_004 headless):
+**Proof** (`cargo test --release -p bc2-editor --test editor view_toggles::`, MP_005, SP_01, ONS_MP_004 headless):
 
 | what | result |
 |---|---|

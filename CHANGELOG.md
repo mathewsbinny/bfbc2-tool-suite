@@ -24,6 +24,32 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: every name of an exported level** (round EX1). The Export window's **Names**: the level id (what the
+  game loads, `Levels/<ID>`, and where its `<ID>_NAME` / `<ID>_DESC` texts come from), its folder under
+  `Package\levels\` (the id in lower case, as on every level of the game: renaming the folder renames the id), the
+  **server-browser name** (`maps.ini`: the launcher's row and the browser's `OPFOR - <name> (<mode>)`), and the
+  **on-screen name and description per language** (the menus, the loading screen, the browser's map column), with
+  each language's own letters (French, Russian, Japanese ... stored through that language's text table). The names
+  are checked together and refused in words: a stock level's id or another project's installed export, an id
+  holding `_NAME` (the loading screen would look for another picture: a black screen), a text or loading picture the
+  game already has (`SP_05_A` would rename Heavy Metal), a folder that is not the id, a browser name another map has
+  or too long for the row, a letter a language cannot show. They are kept in the project's log (`Op::SetNames`,
+  "Keep in project", and on Export). `mapexport names <export.json>` checks them; `mapexport build` refuses names
+  that fail; `mapexport check` repeats the rules on a stage and proves every place names the same level (the
+  description, the menus' list items, every `package.mft` block and `bundleManifest` line, the name key's picture).
+- **Map editor: Preview export** (round EX1). After an export, the stage opens read only beside the original base
+  level, with the same camera: T switches between them, Close preview gives the project back. The Diff panel lists
+  what the export changed (the mode layer in and out, the campaign content stripped, objects from other sets).
+- **Map editor: the Diff panel** (round EX1, LevelDiff folded in). **Compare with base** (a project against its base
+  level, again by itself after each edit) and **Compare with level** (the open level against any other): every
+  object added, removed, moved or changed, with filters (kind, group - mode layer, from other sets, campaign
+  content, world -, text, placed objects only); a click selects it and flies there; its fields as LevelDiff prints
+  them (Inspect opens All fields). In the 3D view the differing objects are tinted and a box marks where an object
+  of the other level stands, with a line from a moved object's old place: 4 new colour tokens (`view-diff-added`,
+  `-removed`, `-moved`, `-changed`; never orange, the selection's).
+- **`bfbc2.exe leveldiff`** (round EX1): LevelDiff's command line in Rust - the same arguments, text, `--json` file
+  and exit codes, proven byte for byte on LevelDiff.exe's recorded answers on real level pairs - and 4 to 40 times
+  faster. The hub's Level diff tab and Project OPFOR's `opforcore.paths.leveldiff()` run it.
 - **Map editor: the AI workspace's navigation** (round GR2, the Navigation Studio folded in). The navmesh view mode
   and the AI workspace draw a level's path data: NavKit's newest build and DICE's file side by side (read on a worker
   thread), the walkable ground coloured by island, sector, pitch, difference (NavKit's extra ground, DICE's ground
@@ -83,6 +109,14 @@ landed on `main`.
   (`bc2_formats::havok::parts`, `Collision::parts`); the Display section's State picker also chooses the collision
   drawn (Collision, Visual + collision), gains the states between intact and destroyed, up / down arrows and Page Up
   / Page Down, and says when a blueprint's collision is one piece in its files.
+- **`requirements.txt`** (round QW1): the Python packages pinned to the versions CI uses; CI installs it, and so
+  does README's first step (`python -m pip install -r requirements.txt`).
+- **One registry of environment variables** (round QW1): `bfbc2core.envvars` lists every `BFBC2_*`, `BC2_*`,
+  `BF1943_*` and `OPFOR_*` variable the suite reads, with what it does (`python -m bfbc2core.envvars [--set]`); a
+  quick-tier test fails on a variable read but not registered.
+- **`BFBC2_STRICT_NATIVE=1`** (round QW1): a stale or missing `bfbc2.exe` is an error for the ported command lines
+  instead of a fall-back to their Python. `build_native.py --fingerprint [module | bfbc2 | bfbc2-editor |
+  mapexport]`; `bfbc2-editor --source-hash` and `mapexport --source-hash`.
 
 ### Changed
 - **Map editor: the simplified view draws the objects' render meshes** (round SV1). Trees, bushes and palms now look
@@ -149,8 +183,30 @@ landed on `main`.
 - **Error messages kept:** the path-data mesh walk raises the Python's own `ValueError` / `struct.error` messages
   ("mesh trailer not found", "tile table at ...", reads past the end) from the Rust core, so `hpdtool coverage`
   prints them as before (now without the Python); the EA framing raises `AudioError`'s messages.
+- **Each built artefact has its own source fingerprint** (round QW1): the module, `bfbc2.exe`, `bfbc2-editor.exe`
+  and `mapexport.exe` are stale only when a crate they link (or a file they include) changes, so an edit to the
+  editor or the renderer no longer makes the module and `bfbc2.exe` stale. `build_native.py --if-stale` rebuilds
+  only `bfbc2.exe` when only its crates changed. The release tag stays the module's fingerprint.
+- **A stale `bfbc2.exe` is said** (round QW1): the tools still fall back to their Python command lines, now with one
+  warning per process naming the fix (`python rust\build_native.py`). `BFBC2_CLI_PYTHON=1` asks for the Python
+  with no warning.
+- **`mapexport.exe` and the map editor are found with a staleness check** (round QW1): Project OPFOR's
+  `mapedit_install.py` refuses a stale `mapexport.exe` with the fix; the hub opens a stale editor with a note.
+- **`caches --prune` deletes the bundle cache's superseded payloads** (round QW1), and the Rust core deletes a
+  bundle's old payload when it writes the new one (a bundle rewritten at the same path left its old payload behind
+  until the size cap reached it).
+- **Tests** (round QW1): the map editor's, levelwrite's and the renderer's tests run once per quick tier (in the
+  workspace's cargo test; `tests\test_editor.py` stays for a run by hand); each of those crates' integration tests
+  is one test binary (`cargo test -p bc2-editor --test editor g2::` runs a file's tests); debug and test builds keep
+  line tables only; the test runner counts a test that ran nothing as skipped, not passed (and names the tests that
+  skipped parts), schedules each test with at least its last recorded memory peak, keeps matplotlib's font cache in
+  `%LOCALAPPDATA%\bfbc2-tool-suite\matplotlib`, and forgets durations of tests that no longer exist.
 
 ### Removed
+- **LevelDiff.exe** (round EX1): `bfbc2-diff-workbench\` (`level-diff\LevelDiff.cs`, `build.bat`, its tests, and the
+  folder's README of planned tools, which `DESIGN.md` 4.7 keeps). Run `bfbc2.exe leveldiff` (above) with the same
+  arguments; its answers on recorded real level pairs are LevelDiff.exe's, byte for byte. `RETIRED.md` has the last
+  commit with it.
 - **Navigation Studio** (round GR2): `bfbc2-navigation-studio\studio.py` and `editing.py`, their tests, the hub's
   "Open in Navigation Studio" and its NavKit-file field, `tests\test_viewers.py` and `bench_sweep.py`'s
   `studio_load`. Everything it did is in the map editor's AI workspace (above; `EDITOR_ARCHITECTURE.md` 9.2), proven

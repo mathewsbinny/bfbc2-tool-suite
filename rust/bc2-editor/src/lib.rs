@@ -59,6 +59,7 @@ pub mod app;
 pub mod appicon;
 pub mod camera;
 pub mod catalog;
+pub mod compare;
 pub mod content;
 pub mod demo;
 pub mod display;

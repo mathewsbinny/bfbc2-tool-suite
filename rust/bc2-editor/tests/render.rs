@@ -58,6 +58,7 @@ fn pixel(img: &[u8], x: u32, y: u32) -> [u8; 3] {
 
 #[test]
 fn renders_the_scene_and_outlines_the_selection() {
+    let _gate = crate::gate();
     let Some(gpu) = gpu() else { return };
     let tokens = Tokens::embedded().unwrap();
     for theme in ThemeId::ALL {
@@ -123,6 +124,7 @@ fn renders_the_scene_and_outlines_the_selection() {
 
 #[test]
 fn picking_returns_what_is_drawn() {
+    let _gate = crate::gate();
     let Some(gpu) = gpu() else { return };
     let palette = Palette::new(Tokens::embedded().unwrap(), ThemeId::Dark);
     let scene = demo::scene();
@@ -155,6 +157,7 @@ fn palette_opens_a_top_view_with_its_own_camera() {
     use bc2_editor::app::Tab;
     use bc2_editor::camera::Projection;
     use eframe::egui::{Event, Key, Modifiers};
+    let _gate = crate::gate();
     let Ok(mut h) = Headless::new([1280, 800]) else {
         println!("skipped: no graphics adapter");
         return;
@@ -208,12 +211,13 @@ fn palette_opens_a_top_view_with_its_own_camera() {
     app.run(&gpu, &ctx, bc2_editor::actions::Action::ResetLayout);
     assert!(!app.tabs().contains(&Tab::Viewport(Projection::Top)));
     // the 3D view, Outliner, Layers, Place objects (round E2b), Properties, Links (round GR1), Navigation, Navigation
-    // edits, Islands and spawns (round GR2), Problems, History
-    assert_eq!(app.tabs().len(), 11);
+    // edits, Islands and spawns (round GR2), Problems, History, Diff (round EX1)
+    assert_eq!(app.tabs().len(), 12);
 }
 
 #[test]
 fn a_click_in_the_editor_selects_the_entity_there() {
+    let _gate = crate::gate();
     let Ok(mut h) = Headless::new([1280, 800]) else {
         println!("skipped: no graphics adapter");
         return;

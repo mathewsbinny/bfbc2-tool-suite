@@ -242,6 +242,7 @@ fn run(game: &Game, c: &Case, projects: &Path, stages: &Path) -> bool {
         format: export::FORMAT.into(),
         version: export::VERSION,
         level: c.level.into(),
+        folder: String::new(),
         title: c.title.into(),
         mode: bc2_levelwrite::modelayer::mode_name(c.mode),
         layer: LayerSpec {
@@ -258,6 +259,7 @@ fn run(game: &Game, c: &Case, projects: &Path, stages: &Path) -> bool {
                 c.profile.word()
             ),
             picture: String::new(),
+            ..Identity::default()
         }),
     };
     std::fs::write(

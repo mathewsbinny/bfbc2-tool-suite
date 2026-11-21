@@ -1321,6 +1321,58 @@ collision and the layer's spawns and combat areas are NavKit's input (`Output\wi
 `PathfindingTypes` and the `SectorOffsets` partitions under the new name; Onslaught needs it, and the start-up
 checksum test comes with the in-game round.
 
+#### Round EX1: every name, the preview, the Diff panel (the user, 2026-11-20)
+
+The user's requests: every name of the level editable in the Export window and the project, validated together; the
+staged export opened beside the original; a visual diff of a project against its base and of any two levels;
+LevelDiff folded in (section 9.5).
+
+**The level's names, from the data** (`bc2_levelwrite::names`; 83 level descriptions of OPFOR's game copy, its level
+folders, `maps.ini`, OPFOR's `src\dll\server_browser.cpp`, the loader movie):
+
+| Name | Where it is read | Rule |
+|---|---|---|
+| Level id `Levels/<ID>` | `maps.ini`'s `<Mode>=Levels/<ID>`, the description's `LevelName`, `Levels/<ID>.dbx` and `LevelData.Name`, the menus' list items `<id>.dbx` / `<id>_description.dbx`, the keys `<ID>_NAME` / `<ID>_DESC` | A-Z, digits, `_`, 3 - 40, a letter first; no stock level, no other project's install; no `_NAME` inside (the loading screen cuts the key at its first `_NAME`: a black screen); keys and loading picture the game does not have yet |
+| Folder `Package\levels\<folder>\` | `package.mft`'s `BundleSource game:levels/<folder>/...`, `bundleManifest`'s `levels/<folder>/...` | the id in lower case (all 83: the game finds the bundles by the id); editing it renames the id |
+| Server-browser name | `maps.ini`'s `name=` of the section `[<ID>]`: the launcher's row and the browser's `OPFOR - <name> (<mode>)` | plain ASCII, no `"`, no outer spaces, the row within 159 characters, no other map's name |
+| On-screen name and description | the localisation's `<ID>_NAME` / `<ID>_DESC` in each of the 8 languages: the menus' map list, the loading screen's panel, the browser's map column | up to 64 / 400 characters; each language's text in that language's letters (its histogram's codes) |
+
+DICE gives every mode of a map the map's keys (`MP_005GR` reads `MP_005_NAME`); an export has keys of its own, so its
+picture is `loadingScreens/<id>` and nothing of a stock level is renamed.
+
+- The Export window's **Names** section edits them (a per-language table under it), shows where each one is seen,
+  and lists the broken rules at once; **Keep in project** (and Export) puts them in the project's log
+  (`Op::SetNames`, project format 3: undoable, shared with the project); opening the window takes the log's last
+  names.
+- `ExportSpec` gains `folder`, `Identity.name` (the on-screen name; empty: the browser's) and
+  `Identity.languages`; `stage.json` gains `strings_by_language`; `mapexport overlay` writes each language's own
+  texts in its encoding (`export::patch_overlay_langs`, `bc2_formats::loc::encode`).
+- `mapexport names <export.json>` checks the names; `mapexport build` refuses names that fail; `mapexport check` has
+  two new lines: the names' rules on the stage, and *names agree* (the description, the menus' list items, every
+  `package.mft` block and `bundleManifest` line name the same level, and the name key names the picture staged) -
+  section 8's checksum crash and black loading screen.
+- OPFOR's `mapedit_install.py` describes the per-language texts and the browser row; its install was already
+  name-driven (`[<ID>]`, `Levels/<ID>`, `levels/<id>/`).
+
+**Preview export.** After a build, the stage opens read only as a level (`compare::stage_level`: the stage's bundles in
+front of the targets its registration names, prepared like a Package level into the editor's cache), beside the
+original base level, with the project's camera; T switches between them (the same camera), Close preview gives the
+project back. Both views draw the differences, and the Diff panel lists them: the mode layer in and out, the campaign
+content stripped, the placed objects whose blueprint the closure copied from another set, the rest.
+
+**The Diff panel** (`compare.rs`, `app/diffui.rs`): **Compare with base** (the project against its base, compared
+again by itself after each edit), **Compare with level** (the open level against any other), and the preview's. Rows
+added, removed, moved or changed, grouped (mode layer, from other sets, campaign content, world) and filtered (kind,
+group, text, placed objects only); a click selects the object and flies to it (or to where it stands on the other
+side); its fields as LevelDiff prints them, Inspect opens Properties > All fields. In the 3D view the side's
+differing objects are tinted, a box marks where an object of the other side stands, a line joins a moved object's
+places (`view-diff-*`, never orange).
+
+**Proof** (`rust/BENCHMARKS.md`, "EX1"): `bfbc2 leveldiff` identical to LevelDiff.exe on 30 recorded cases;
+`tests/export_ex1.rs` (the rules, every name in a staged canary, each language's text in the overlay); OPFOR's install
+and revert of the renamed canary on a scratch copy of the shared files, back byte for byte; `tests/ex1.rs` (the Names
+section, the preview of Atacama Rush as Conquest, the Diff panel on Aurora made WW2 Conquest).
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
@@ -1406,7 +1458,7 @@ The validation gate checks each of these, or the design avoids it.
 | Streaming wave data placed in a level bundle (0x49EDF4); waves hidden by deleted markers (0xFF2AC2) | `wake_install.py` |
 | A description whose GameMode does not resolve (0x74EAB3, Coral Sea) | `wake_install.py` |
 | A mesh part with no shader vertex layout; console-only shader entries (0x98BD6E) | `wake_install.py`, memory note console-resource-formats |
-| A level missing from LevelListQuery: in no menu; a `_NAME` prefix mismatch: a black loading screen; a key shared by two modes: blank browser rows (2026-11-16) | OPFOR research notes; commit 6f809e1 |
+| A level missing from LevelListQuery: in no menu; a `_NAME` prefix mismatch: a black loading screen; a key shared by two modes: blank browser rows (2026-11-16) - the names' rules and *names agree* of `mapexport check` (round EX1, 3.12) | OPFOR research notes; commit 6f809e1 |
 | An object at cull slot 0: draws see-through and cannot be destroyed | `bfbc2-culltree` |
 | A terrain mask atlas that differs from the donor's: black terrain cells | memory note terrain-patch-donor-rules |
 
@@ -1418,8 +1470,7 @@ repository and from the hub's launcher, its docs pointing at the editor. The hub
 the launcher. The planned AI behaviour simulator, bot AI debugger and tactical map tools become editor workspaces
 later, not tools of their own (section 10; their placeholder folders were deleted in round FM1). This replaces 3.8's "each Python GUI stays until its replacement works" with an
 order: the Map Inspector (GR1), the Navigation Studio (GR2), the mesh viewer (GR3), DbxEditGUI (GR4, the last C#);
-LevelDiff, which has no window, becomes a `bfbc2.exe` command when its round comes (GR1 if time allowed; it did not:
-GR2 or a round of its own).
+LevelDiff, which has no window, became the editor's Diff panel and a `bfbc2.exe leveldiff` command in round EX1 (9.5).
 
 What each does, whether the editor has it (round GR1's read of their code and READMEs), and the plan. "Partly"
 says which part.
@@ -1499,13 +1550,13 @@ only that); OPFOR's code never called the Studio.
 | Level menu: check (F5), cull slots against another level, fix cull slots; results with go-to | No (the export's checks run `mapexport check`) | GR4 |
 | File: save keeping `.bak`, export / import XML, save the edits as a DbxEdit script | No | GR4 |
 
-### 9.5 LevelDiff (`bfbc2-diff-workbench/level-diff/LevelDiff.cs`): a command line, no window
+### 9.5 LevelDiff (`bfbc2-diff-workbench/level-diff/LevelDiff.cs`, a folder deleted in EX1): retired in EX1
 
 | Feature | In the editor? | Plan |
 |---|---|---|
-| Two `.dbx` files compared instance by instance: added, removed, changed fields (`path: old -> new`), reference lists as sets, reorderings | Partly: `bc2_levelwrite::diff` (field level, behind Check edits) | `bfbc2.exe leveldiff`, proven identical to LevelDiff.exe's output (text, JSON, exit codes) on real level pairs, then LevelDiff.exe, its hub tab's tool and OPFOR's `paths.exe('LevelDiff')` move to it |
-| `--match-objects` (placed objects paired by blueprint and position), `--type`, `--ignore`, `--summary`, `--all`, `--json`; exit codes 0 / 1 / 2 / 3 | No | The same command |
-| (no window) | - | Later: "Compare with base" in the editor's History, on the same diff |
+| Two `.dbx` files compared instance by instance: added, removed, changed fields (`path: old -> new`), reference lists as sets, reorderings | **Added in EX1**: `bc2_formats::dbxedit::leveldiff`, the editor's Diff panel (3.12, "Round EX1") and `bfbc2.exe leveldiff`, proven identical to LevelDiff.exe's text, JSON and exit codes on 30 recorded cases (21 on real level pairs) | - |
+| `--match-objects` (placed objects paired by blueprint and position), `--type`, `--ignore`, `--summary`, `--all`, `--json`; exit codes 0 / 1 / 2 / 3 | **Added in EX1**: `bfbc2.exe leveldiff` (the hub's Level diff tab, OPFOR's `opforcore.paths.leveldiff()`) | - |
+| (no window) | **Added in EX1**: the Diff panel (Compare with base, Compare with level, the export's preview), the differences drawn in the 3D view | - |
 
 ## 10. Planned workspaces: tactical authoring, the bot AI debugger, the AI behaviour simulator (round FM1, 2026-11-20)
 

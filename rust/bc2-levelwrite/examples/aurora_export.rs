@@ -83,6 +83,7 @@ fn main() {
         format: export::FORMAT.into(),
         version: export::VERSION,
         level: "MAPEDIT_AURORA_CQ".into(),
+        folder: String::new(),
         title: "Operation Aurora (Conquest)".into(),
         mode: "conquest".into(),
         layer: LayerSpec {

@@ -15,8 +15,7 @@
     missing_docs
 )]
 
-#[path = "../examples/common/mod.rs"]
-mod common;
+use crate::common;
 
 use std::collections::HashMap;
 
@@ -27,6 +26,7 @@ use bc2_render::{job, water};
 
 #[test]
 fn mp_005_world_draws_and_matches_the_harness() {
+    let _gate = crate::gate();
     let opfor = common::opfor();
     if !opfor.join("work").join("levels").join("mp_005").join("dist").is_dir() {
         println!("skipped: MP_005 not prepared");

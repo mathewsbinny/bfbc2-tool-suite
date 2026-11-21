@@ -21,8 +21,7 @@
     missing_docs
 )]
 
-#[path = "../examples/common/mod.rs"]
-mod common;
+use crate::common;
 
 use bc2_formats::terrain::Heightfield;
 use bc2_render::d3d::Device;
@@ -136,6 +135,7 @@ fn orbit(target: [f64; 3], yaw: f64, pitch: f64, dist: f64) -> Camera {
 
 #[test]
 fn the_whole_terrain_is_drawn() {
+    let _gate = crate::gate();
     let opfor = common::opfor();
     let mut checked = 0;
     // the map editor's opening targets (about 1,700 m back, 34 degrees up), from above, and low across the map

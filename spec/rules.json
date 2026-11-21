@@ -2,6 +2,2911 @@
  "about": "The BFBC2 tool suite specification's rule index, written by spec/trace.py --emit from spec/**/*.md; checked by spec/trace.py --check.",
  "rules": [
   {
+   "id": "AI-START-1",
+   "title": "The AI starts only for a level with HasAI, on the server",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe server level load 0x574FB0: cmp byte [level+0x3AE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:208-221"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:472-475"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:344-347"
+    }
+   ]
+  },
+  {
+   "id": "AI-START-2",
+   "title": "The AI's settings come from seven shared partitions",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe AI init 0x5B4B20 -> 0x5B33C0(difficulty); singletons at *(0x018903EC) +0x498 settings, +0x4A0 orders, +0x4A4 difficulty"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:211-214"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:242-245"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:125"
+    }
+   ]
+  },
+  {
+   "id": "AI-START-3",
+   "title": "One Kynapse world per pathfinding type the level lists",
+   "file": "spec/engine/ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "every working AI level read lists mp_common's two PathfindingSettings in LevelData and every stock MP level has the array empty (STOCK_MP_AI_PLAN 12.1); the generator settings are found at LevelData+0x36C as an array of PathfindingSettings pointers; the set-up's per-type load was not traced instruction by instruction"
+    },
+    {
+     "kind": "data",
+     "ref": "PathfindingTypes infantry + vehicles on Napisal's ONS_MP_005GR, ONS_MP_002, ONS_MP_004, DICE's Xbox ONS_MP_002 and SP_004_B; empty on every stock MP level read"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:292-296"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347"
+    }
+   ]
+  },
+  {
+   "id": "AI-KY-1",
+   "title": "The path-data world is configured from the level's own assets at load",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe path-data set-up 0x00F209F1..0x00F20C8E (strings at 0x014A93D0 / 0x014A93E0, offsets passed from +0x1C / +0x18); probes at 0x00F20AD2, 0x00F20B48, 0x00F20BB0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471"
+    }
+   ]
+  },
+  {
+   "id": "AI-KY-2",
+   "title": "One runtime world, and no usable generator",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe world capacity at 0x00F025EC (C7 46 08 01), registry refusal 0x0109E930; generator driver 0x00F299A0 with no caller in .text; Kaim::CMapBuilder licence request for feature CMapBuilder (error -1,359), 2026-10-14"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:284-292"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:348-351"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:363-370"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:378-379"
+    }
+   ]
+  },
+  {
+   "id": "AI-KY-3",
+   "title": "A go-to is computed at once; \"true\" means the request was taken",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe go-to 0x0107FE80, Flat compute 0x0107F620 (false exits 0x0107F8E1, 0x0107F9B0, 0x0107FABE, 0x0107FB0D, 0x0107FC33, 0x0107FCB2, 0x0107FD6B), caller 0x010B1AB0, reader 0x010B2400; DataMode default 1 in the constructor 0x01080CC0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:413-449"
+    }
+   ]
+  },
+  {
+   "id": "AI-KY-4",
+   "title": "The engine's physics queries",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe ray / sphere cast 0xB145C0 (-> 0xB12F60, world vtable +0x34), capsule 0xB14640, point query 0xB145A0 (world vtable +0x3C); ray collector add-hit 0xB0D370, root collidables at +0x50 / +0x54; shape vtables 0x01454D14 terrain, 0x01483B38 objects, 0x01483378 soldiers"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:381-396"
+    }
+   ]
+  },
+  {
+   "id": "AI-NEED-1",
+   "title": "Stock multiplayer levels carry no AI",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "stock MP levels compared (all launch MP levels, identical on Xbox 360): HasAI false, no PathfindingTypes, no SpawnPointManager; path data only for the 13 campaign levels; MP_002: 1 AI spawner, disabled, 0 AreaOrder, 0 PatrolOrder"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:590-596"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:53-69"
+    }
+   ]
+  },
+  {
+   "id": "AI-NEED-2",
+   "title": "What a working AI level has",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "SSAiPlayer spawners enabled / named by an order: Napisal ONS_MP_005GR 24 / 17, ONS_MP_002 28 / 28, Xbox ONS_MP_002 78 / 78 (54 via squads), SP_004_B 91 / 91; orders 7, 41, 47, 182; SquadEntityData 0, 0, 17, 16"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:279-291"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:328-336"
+    }
+   ]
+  },
+  {
+   "id": "AI-NEED-3",
+   "title": "Bots need a real AI template",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Onslaught play tests: DefaultSoldier bots aim and do not fire, DICE's grunt template fires; mp_005's package.mft block loads its own bundles and mp_common only"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:39-41"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:310-312"
+    }
+   ]
+  },
+  {
+   "id": "AI-NEED-4",
+   "title": "The stock SSAiPlayer spawners are the human spawn points",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "SSAiPlayer with SpawnDelay 15: Arica Harbor CQ 8 of 8, White Pass CQ 7 of 7, Nelson Bay Rush 11 of 13, Atacama CQ 7 of 8 (all enabled, Template null)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:597-600"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:320-327"
+    }
+   ]
+  },
+  {
+   "id": "AI-NEED-5",
+   "title": "Kills of bots score nothing offline",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for no victim player) -> kill scoring 0x86C070 -> award 0x86BE20"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:579-581"
+    }
+   ]
+  },
+  {
+   "id": "AI-CRASH-1",
+   "title": "The AI's sphere query walks the static cull tree (0x56C4E0)",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe AI sphere query 0x577390 -> cull-tree walk 0x56C4E0, fault at level load (console Nelson Bay, 2026-10-29)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:86-90"
+    }
+   ]
+  },
+  {
+   "id": "AI-CRASH-2",
+   "title": "The AI start can wait for a resource that never loads",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe Kynapse wait-ready 0x010074E0 (probe \"AI: Kynapse wait-ready\"; the crash reader's symbol table)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/probes.cpp:113"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:47"
+    }
+   ]
+  },
+  {
+   "id": "AI-CRASH-3",
+   "title": "An AI level needs the server's static-group physics",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe static-model-group part set-up 0x8F4720 (physics-part lookup 0xA9E6A0)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:269-273"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:30"
+    }
+   ]
+  },
+  {
+   "id": "AI-CRASH-4",
+   "title": "Unsorted path data crashes the game on exit (0x401090)",
+   "file": "spec/engine/ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe purecall handler 0x401090 from 0x01046AB3 (Kynapse release 0x01046AA0, from 0x010A248A in the container destructor 0x010A2450), at exit after a NavKit play test, 2026-10-19"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:450-461"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/probes.cpp:118-119"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:48"
+    }
+   ]
+  },
+  {
+   "id": "SND-WAVE-1",
+   "title": "IsStreaming says where the audio is",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's data: all 75 stock waves in Wake Island's bundle and all 793 waves BFBC2 and BF1943 both ship: IsStreaming true exactly when the audio is streamed; five OPFOR-converted ambiences broke it (in-memory audio, flag true)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:148-156"
+    }
+   ]
+  },
+  {
+   "id": "SND-WAVE-2",
+   "title": "Streamed audio is the global streaming bundles' alone",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "PC loop segments: 34,038 streamed stubs, all voice-over among them (WAVE-SEG-2); SP_01's Japanese chatter: stubs in mp_common's vo/<lang> bundles, data in streaming_sounds-00"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:170"
+    }
+   ]
+  },
+  {
+   "id": "SND-STRM-1",
+   "title": "Streaming wave data in a level bundle crashes the load (0x49EDF4)",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x49EDF4, the loader reading streamed wave data as a partition"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:177-181"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1356"
+    }
+   ]
+  },
+  {
+   "id": "SND-OD-1",
+   "title": "On-demand waves play only from their own bundle's partitions",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island install: copied on-demand waves of mp_common resolved to a null wave on the client; the unwrapped copies play"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:3083-3088"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:177-190"
+    }
+   ]
+  },
+  {
+   "id": "SND-LOAD-1",
+   "title": "The client sets up the sounds of every bundle a level loads",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island: with sp_common in its targets (as the Onslaught ports had) the client set up sp_common's AI XM8 burst, whose waves nam_common's deleted markers hide, and crashed (SND-NULL-1); without sp_common it loads"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:103-106"
+    }
+   ]
+  },
+  {
+   "id": "SND-NULL-1",
+   "title": "A null wave in a sampler crashes the client (0xFF2AC2)",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xFF2AC2, client sound set-up"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:103-106"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:145-147"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:3083-3088"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1356"
+    }
+   ]
+  },
+  {
+   "id": "SND-VO-1",
+   "title": "Lines, banks and trigger sets",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BF1943's single trigger set ported to Wake Island: 74 events over 22 event types; Vietnam kits list a class person and a nation person; SP_01's Japanese chatter set has 15 event types"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/profile.rs:57-67"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:137-142"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:179-186"
+    }
+   ]
+  },
+  {
+   "id": "SND-VO-2",
+   "title": "Each content set's announcer",
+   "file": "spec/engine/audio.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/profile.rs:68-81"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1066-1074"
+    }
+   ]
+  },
+  {
+   "id": "SND-VO-3",
+   "title": "Voice-over blocks: absent sources, present targets",
+   "file": "spec/engine/audio.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:245-257"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1083-1094"
+    }
+   ]
+  },
+  {
+   "id": "SND-VO-4",
+   "title": "A level's own banks shadow the commons'",
+   "file": "spec/engine/audio.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1764-1775"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2740-2750"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1218-1222"
+    }
+   ]
+  },
+  {
+   "id": "SND-VO-5",
+   "title": "Level bundles hide other modes' trigger sets",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the stock multiplayer levels' own bundles: deleted markers over other modes' trigger sets among their markers; OPFOR's mp_001 holds two Squad Deathmatch trigger sets in its Package bundle"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1076-1081"
+    }
+   ]
+  },
+  {
+   "id": "SND-EVT-1",
+   "title": "The event enum",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe enum table 0x01C33688 (125 entries, ETNone 124); VOEventType TypeInfo 0x01C047BC; VOEvent TypeInfo 0x01C04C54, EventType +0x1C, PauseTime +0x18, Rows +0x20"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:9-28"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:150-155"
+    }
+   ]
+  },
+  {
+   "id": "SND-EVT-2",
+   "title": "Two voice-over systems, one raise",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe raise 0x637770 (ret 0x14), constructor 0x633330 (0x60 bytes), server system [0x01566B6C"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:30-66"
+    }
+   ]
+  },
+  {
+   "id": "SND-EVT-3",
+   "title": "Matching by type, throttled by PauseTime",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe matcher 0x636010 (ret 0x10, returns the matched row count), play path 0x637380, sink 0x636C80"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:43-48"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:126"
+    }
+   ]
+  },
+  {
+   "id": "SND-EVT-4",
+   "title": "Which side raises which event",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe client: capture point 0x8C7190, ticket counter 0x8E9AF0, message handler 0x800CF0, focus points 0x76E430; server: round end 0x67E3F0, kill scoring 0x86C070, message handler 0x5756A0, 0x5ACA80"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:61-89"
+    }
+   ]
+  },
+  {
+   "id": "SND-VEH-1",
+   "title": "Where a vehicle's sounds are named",
+   "file": "spec/engine/audio.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's stock vehicles (the M151, the Mi-24) and BF1943's: the same fields in both games; DICE's sp_01 Type 97: three null engine fields"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:149-155"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-1",
+   "title": "A mode is a GameModeData partition and the level's entities",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "stock gamemodes/conquest and gamemodes/namconquest partitions; the WW2 levels' descriptions (GameMode gamemodes/namconquest, MatchmakingModID PACIFIC)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:192-217"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-2",
+   "title": "Each era's modes",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/profile.rs:385-397"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "data",
+     "ref": "stock levels per mode: BFBC2 Conquest 9, Rush 10, Squad Rush 7, Squad Deathmatch 8, Onslaught 4; BFBC1 2 each; Vietnam 5 each; WW2 Conquest 3, Air Superiority 1"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1139-1152"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-3",
+   "title": "Mode keys and names",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:69-92"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-4",
+   "title": "The stats category comes from MatchmakingQueryID",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5680C0 maps MatchmakingQueryID to the stats category"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Onslaught with the console's ONSLAUGHT query id kept no score or stats (play test 2026-10-29)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:57-61"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:242-244"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-5",
+   "title": "The UI tests ModeID against \"conquest\"",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe literal at 0x0142ABD8, compared at 7 sites through 0x92AB10"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:245-248"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-6",
+   "title": "The game mod is BC2 or VIETNAM",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe parser 0x8FF330; setter 0x75FCB0; start-up writer 0x775D0A; HUD icon set 0x775D02 -> 0xF9C9E0; icon lookup 0xF88510"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island before OPFOR's parser hook: every icon id looked up as 0 and the flag pass drew no diamonds; stock Atacama unchanged"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:15-56"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/QA_SWEEP_2026-11-14.md:52"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-7",
+   "title": "The offline level list is filtered by MatchmakingModID",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe multiplayerMaps builder 0x9421F0 (compare at 0x942247 via 0x508440); server 0x865087 in 0x864E50"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:84-90"
+    }
+   ]
+  },
+  {
+   "id": "GAME-MODE-8",
+   "title": "Modes the suite does not offer for export",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:94-103"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1149-1152"
+    }
+   ]
+  },
+  {
+   "id": "GAME-LAYER-1",
+   "title": "Without a mode layer the session waits in state 14",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's offline-MP host of stock SP_005: the whole AI chain ran, the session stalled in state 14 (2026-10-19 on); sp_004_b once reached state 3"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AUDIT.md:26"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:145-156"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1677-1680"
+    }
+   ]
+  },
+  {
+   "id": "GAME-LAYER-2",
+   "title": "What a layer is",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:46-67"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs:333-362"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:253-288"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1169-1177"
+    }
+   ]
+  },
+  {
+   "id": "GAME-LAYER-3",
+   "title": "Every stock Conquest layer has the same types",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the Conquest layer compared on every stock Conquest level and DICE's MP_SP_005CQ conversion (round E3)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:805-816"
+    }
+   ]
+  },
+  {
+   "id": "GAME-LAYER-4",
+   "title": "A layer complete for its mode",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:545-576"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:587-680"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ]
+  },
+  {
+   "id": "GAME-LAYER-5",
+   "title": "A new mode replaces the old layer",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:289-306"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-1",
+   "title": "Bases and flags are capture points",
+   "file": "spec/engine/gameplay.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs:541-560"
+    },
+    {
+     "kind": "data",
+     "ref": "L1: every Conquest level's capture points; flag counts match the maps (Panama Canal 4: A-D)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:132-144"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-2",
+   "title": "Three or four flags (WW2 five)",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 DICE Conquest levels 3-4 flags; 3 WW2 levels 5 each"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:46-48"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-3",
+   "title": "Flags and HQs keep their distance",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags, 32 HQs on 16 levels; min nearest-flag distance 58 m mp_006cq, max HQ-HQ 1,358 m mp_sp_005cq; WW2 15 flags, 6 HQs"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:211-234"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:331-341"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-4",
+   "title": "Every flag lies between the HQs",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 67 of 67 flags (DICE and WW2) at 0.1-0.9; 52 of 52 DICE flags within 0.4 sideways"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:52-53"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:266-270"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-5",
+   "title": "Capture zones of 7.5-37 m",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags by zone kind 30 / 2 / 4 / 16; 39 zones measured without the boxes"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:236-245"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:177-185"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-6",
+   "title": "Capture takes 20 seconds (WW2 ten)",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: TimeToGetControl read as an integer from its raw bits: DICE 51 x 20, 1 x 25; WW2 15 x 10"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:55-56"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-7",
+   "title": "Flag and HQ spawns",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags, 67 flags with WW2, 38 HQs"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:57-59"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:226-229"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-8",
+   "title": "Any team takes a PC flag only with OnlyTakeableByTeam 0",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Onslaught play tests 2026-10-29 on PC: a flag with 1 was lowered but not raised by the attackers; with A 0 and B 2, A was captured and B not; every PC Conquest flag 0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:43-48"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:240-241"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-9",
+   "title": "Objectives are not on hill tops",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags prominence -6.5 to +7.4 m; 60 flag pairs up to 24 m; 118 M-COMs; 15 WW2 flags"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:79-83"
+    }
+   ]
+  },
+  {
+   "id": "GAME-TKT-1",
+   "title": "Conquest tickets",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 32 DICE Conquest ticket counters; WW2 3 levels; Coral Sea's two counters"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:60-61"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:84-97"
+    }
+   ]
+  },
+  {
+   "id": "GAME-TKT-2",
+   "title": "The ticket counter's bleed fields",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Atacama Conquest, Wake Island (BF1943) and Coral Sea counters compared field by field"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe: TicketCountPercentage {VOEvent +0, TicketLossPerMin +4, MaxPercentOfTicketsLeft +8}, TicketCounterEntityData.TicketPercentages at +0x84"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:84-103"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28"
+    }
+   ]
+  },
+  {
+   "id": "GAME-TKT-3",
+   "title": "A counter at zero ends the round on the server",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x67E3F0 (calls 0x67E53A, 0x67E5AC), reached from 0x6805B0 and 0x548324"
+    },
+    {
+     "kind": "data",
+     "ref": "Coral Sea's and BF1943's Conquest event graphs: the same end chain"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:104-113"
+    }
+   ]
+  },
+  {
+   "id": "GAME-TKT-4",
+   "title": "Ticket percentages raise their own voice-over",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8E9AF0 (calls 0x8E9B7C, 0x8E9B9C), index change 0x8F0610"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake (BF1943) puts ETTicketsLow at 20 % and ETReachTicketPercentage at 80 %; Atacama's entry is 15 % with no event"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:69-71"
+    }
+   ]
+  },
+  {
+   "id": "GAME-TKT-5",
+   "title": "Capture voice-over is the client's",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8C7190 (calls 0x8C71DD, 0x8C71FF), from 0x8ECD94"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:65-66"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-1",
+   "title": "M-COMs and stages from the event graph",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:219-232"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:499-520"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1179-1181"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-2",
+   "title": "Stage order follows the counters' enable chain",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1 stage simulation: 30 of 30 Rush and Squad Rush levels resolved without ambiguity, stage count = BaseCount on 30 of 30, base names in the game's order"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-159"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-3",
+   "title": "Three to five stages of two M-COMs",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 Rush levels, 59 of 59 stages with 2 M-COMs; 14 Squad Rush levels, 28 of 28 stages with 1"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:22-29"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-4",
+   "title": "A stage's M-COMs and the step between stages",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 59 M-COM pairs (min 11.7 m mp_007gr s1, max 91 m nam_mp_006r s1); 43 Rush steps (93 m mp_sp_002gr s3 to 316 m bc1_oasis_gr s2); 14 Squad Rush steps"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:272-293"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-5",
+   "title": "Defenders spawn close behind, attackers far in front",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 59 Rush and 28 Squad Rush stages"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:30-37"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-6",
+   "title": "The attackers' first base is outside the defenders' area",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 30 of 30 Rush and Squad Rush levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:38-41"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-7",
+   "title": "Combat areas grow stage by stage",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 41 of 43 stage steps keep 99 % or more; 146 M-COM margins"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:42-44"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:295-298"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-8",
+   "title": "Attacker lives",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 of 16 Rush and 14 of 14 Squad Rush levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:292"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:470"
+    }
+   ]
+  },
+  {
+   "id": "GAME-SDM-1",
+   "title": "Four squads, one pool of spawns, one vehicle",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "data",
+     "ref": "L1: 15 of 15 DICE levels 4 squads, one vehicle, MaxKillCount 50; on 13 of 15 the squads' capture points stand at one spot"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:70-74"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:303-316"
+    }
+   ]
+  },
+  {
+   "id": "GAME-SDM-2",
+   "title": "A small area around the spawns",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 15 levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:74"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:189-194"
+    }
+   ]
+  },
+  {
+   "id": "GAME-SPAWN-1",
+   "title": "Spawners and their alternative points",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 441 spawners; Squad Deathmatch spawners stacked 2.5 m apart while their alternatives spread over the map"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:189-194"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:231-234"
+    }
+   ]
+  },
+  {
+   "id": "GAME-SPAWN-2",
+   "title": "Spawners check for enemies within 20 m",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 410 spawners on the stock levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:78"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:202-205"
+    }
+   ]
+  },
+  {
+   "id": "GAME-AREA-1",
+   "title": "A combat area is a union of outlines, per team or shared",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: every combat area of the 70 levels read and rasterised; SurroundingGeometry on mp_005 410,000 m2 against 356,000"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:143"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:235-239"
+    }
+   ]
+  },
+  {
+   "id": "GAME-AREA-2",
+   "title": "Conquest areas and spawn protection",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 DICE Conquest levels, 67 flags, 38 HQs, 1,146 spawn points inside their team's area, 16 of 16 per-team HQs outside the enemy's area"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:62-66"
+    }
+   ]
+  },
+  {
+   "id": "GAME-DMG-1",
+   "title": "Damage area triggers are collapse kill zones",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: every DamageAreaTrigger of the stock levels (l1_dmg.py)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:202-205"
+    }
+   ]
+  },
+  {
+   "id": "GAME-AWARD-1",
+   "title": "weaponProficiency$ crashes without the EA stats copy",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x943B20 weaponProficiency$; stats download handler 0x9644A0; extern getter 0x76EC30"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1099-1107"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1128-1129"
+    }
+   ]
+  },
+  {
+   "id": "GAME-AS-1",
+   "title": "BF1943 mode classes BFBC2 lacks",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe CapturePointEntityData field table 0x01C25870 (40 fields); ServerCapturePointEntity type info 0x1BF2E88"
+    },
+    {
+     "kind": "data",
+     "ref": "Coral Sea's partition against BFBC2's class catalogue"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:209-230"
+    }
+   ]
+  },
+  {
+   "id": "LVL-ID-1",
+   "title": "A level is `Levels/<LV>` everywhere",
+   "file": "spec/engine/levels.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe host handler 0x77BEC3 builds \"Levels/\" + argument"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's logged level catalogue: every level id Levels/<LV>; 74 stock levels each with a description in the startup bundles and bundles under levels/<lv>/"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:93"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:602-620"
+    }
+   ]
+  },
+  {
+   "id": "LVL-MODE-1",
+   "title": "Each mode of a map is a level of its own",
+   "file": "spec/engine/levels.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's logged level catalogue of the stock levels: 10 BFBC2 maps with 2-4 mode levels each (MP_009 all four), Harvest Day and Oasis four each, Cold War three, Heavy Metal two, five Vietnam maps four each"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:604-620"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1243-1245"
+    }
+   ]
+  },
+  {
+   "id": "LVL-MODE-2",
+   "title": "A mode level loads its map's bundles after its own",
+   "file": "spec/engine/levels.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "stock package.mft: mode levels' level blocks target the base map's bundles after their own (MP_005GR -> MP_005); MP_005GR holds the shader databases, emitter system, model groups and cull trees under its own name"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:828-832"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1207-1215"
+    }
+   ]
+  },
+  {
+   "id": "LVL-RT-1",
+   "title": "The level data object at run time",
+   "file": "spec/engine/levels.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe LevelData constructor 0x13A6DA0; HasAI tested at 0x575046 as byte [level+0x3AE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:222-223"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347"
+    }
+   ]
+  },
+  {
+   "id": "LVL-DESC-1",
+   "title": "The description declares the level's content set",
+   "file": "spec/engine/levels.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "descriptions measured: Vietnam's levels MatchmakingModID VIETNAM, Licenses nam, KickIfLicenseMissing true, KIT_*_NAM; BFBC2's levels MatchmakingModID BC2 and no licence"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:98-103"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1002-1008"
+    }
+   ]
+  },
+  {
+   "id": "LVL-DESC-2",
+   "title": "The loading picture is found by the name key",
+   "file": "spec/engine/levels.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's records: a _NAME prefix mismatch gave a black loading screen; stock keys such as MP_009_NAME name mp_009's picture"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:135-150"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1920-1930"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1021-1027"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1359"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PH-1",
+   "title": "A level loads in session states, and a crash's state places it",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe Session::updateState 0x56A6D0, Session::setState 0x557150; state sequences logged at run time, 2026-10-12 to 10-19"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:102-106"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:272-275"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PH-2",
+   "title": "The server's level load: AI, entities, save game",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe server level load 0x85F8A0 -> 0x574FB0 (strings \"Init AI\", \"Spawn entities\", \"Load save game\")"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:99"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:14"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-START-1",
+   "title": "The startup bundle describes every level before any loads",
+   "file": "spec/engine/loading.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:351-358"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2992-3096"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:835-839"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:642-646"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-START-2",
+   "title": "A game mode the description names must be in the startup bundle",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x74EAB3, Coral Sea's load, play test 2026-11-14"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:3899-3903"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:418-420"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-CSUM-1",
+   "title": "Md5Buffer: an MD5 pass over the level's Objects",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe FUN_006EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:513-521"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:275-277"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_ambience.py:209-212"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:21-22"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-CSUM-2",
+   "title": "The suite's checks catch both checksum defects before a launch",
+   "file": "spec/engine/loading.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:317-343"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::cases"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/tests/test_crashreader.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PART-1",
+   "title": "A partition that does not parse is a null the loader passes on (0x49EDF4)",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe partition load 0x4AAB60 -> stream parse 0x4A3390 -> 0x49EDF0, fault at 0x49EDF4 (state 4)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:272-275"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:181"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PART-2",
+   "title": "A reference element must carry its target (0x4EB538)",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reference reader 0x4EB4B0, fault at 0x4EB538 (crash reports of the Valparaiso / Nelson Bay Onslaught ports, 2026-10-30)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:184-189"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:575-576"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1270"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PART-3",
+   "title": "An object's asset is read without a check (0x5A5A61)",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5A5A00, fault at 0x5A5A61 on a null asset pointer (Valparaiso Onslaught load test, 2026-10-30)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:249-251"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:186-191"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/onslaught/console_vehicles.py:8"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/onslaught/console_loadset.py:155"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PART-4",
+   "title": "The voice-over set-up walks each kit's objects (0x6EA3F0)",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe voice-over walk 0x6EA340 (ReferenceObjectData type 0x1C11E64), fault at 0x6EA3F0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:378-381"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:577-578"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:336-338"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PART-5",
+   "title": "A level's sub-files must be its own",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x6F2310 material grid set-up (a hang, recorded in the crash reader's symbol table)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:23"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-PART-6",
+   "title": "The server needs the level's server-side terrain",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe ServerTerrainEntity query 0x5AC3F0 (recorded in the crash reader's symbol table)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:17"
+    }
+   ]
+  },
+  {
+   "id": "LOAD-MG-1",
+   "title": "Model groups are constructed with their members' physics",
+   "file": "spec/engine/loading.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe model-group construction 0x8FC260, part data 0xAF7140 / fault 0xAF7144; part bitset fault 0xAB4E58 (0x62E740's loop); static group part set-up 0x8F4720"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:524"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:278-280"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:30-31"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1535-1537"
+    }
+   ]
+  },
+  {
+   "id": "MENU-CAT-1",
+   "title": "The level catalogue is built from the description partitions",
+   "file": "spec/engine/menus.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe catalogue builder 0x951480 into UiManager+0xC3F34; mode keys CONQUEST, RUSH, SQRUSH, SQDM"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:131-133"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:836-838"
+    }
+   ]
+  },
+  {
+   "id": "MENU-EVT-1",
+   "title": "The engine talks to the movies by events and extern getters",
+   "file": "spec/engine/menus.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe event acquire 0x920360, add string 0x588910, add value 0x588940, queue 0x9299B0, simple event 0x929A70; extern switch case 0x95B316; command entry 0x753540 -> 0x95E680"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:110-125"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:584-585"
+    }
+   ]
+  },
+  {
+   "id": "MENU-DLG-1",
+   "title": "A class defined in several movies is the first-loaded movie's",
+   "file": "spec/engine/menus.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "dice.Dialog's definition found in main_root, main_nav and main_popups; OPFOR's dialog patches"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:146-147"
+    }
+   ]
+  },
+  {
+   "id": "MENU-UNL-1",
+   "title": "A sprite's frames pointer must be 0 when it has no frames (0x13046DA)",
+   "file": "spec/engine/menus.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe movie unload 0x1304690, fault at 0x13046DA (the first Pacific War menu install, 2026-11-06)"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:1094-1104"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_MENU.md:5-8"
+    }
+   ]
+  },
+  {
+   "id": "NET-SES-1",
+   "title": "The menu's host command becomes a host-game message",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe command table .rdata 0x143C898 (574 entries); dispatcher 0x77BC10, switch 0x77BC8C, shared handler 0x77BEC3; queue 0x956E10 (UiManager+0x82CD0); consumer 0x951E00; HostGameMessage constructor 0x918D70"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:90-95"
+    }
+   ]
+  },
+  {
+   "id": "NET-SES-2",
+   "title": "The session hosts the level in process",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe session onMessage 0x56A890 (jump table 0x56AA48; 0x13 -> 0x56A959); updateState 0x56A6D0 (state 5 -> 0x565450); server object vtable 0x01418140, create 0x54B0B0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:95-98"
+    }
+   ]
+  },
+  {
+   "id": "NET-SES-3",
+   "title": "A local multiplayer session needs the in-memory transport",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe createClient 0x54AEE0, selection at 0x54AF2C (22 bytes, continuing at 0x54AF42); setTransportMode 0x650E60: 0 in-memory 0x4F1E00, 1 sockets 0x4F1E60, 2 remote 0x5F0F40; play test 2026-10-12"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:3-17"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:98"
+    }
+   ]
+  },
+  {
+   "id": "NET-SES-4",
+   "title": "Offline matches open no sockets",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe game-server join 0xDBC440, drops at 0xDBA466 / 0xDBA4DE; imports of WS2_32, WinHTTP, ICMP, NETAPI32"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:625-630"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:100"
+    }
+   ]
+  },
+  {
+   "id": "NET-SES-5",
+   "title": "One game process at a time",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe named objects: mutex BFBC2-6A8D82A8-2C27-46db-A39C-96E64C8286B5 (client), BFBC2Server-124DD424-A478-4d95-A026-DA20E544D4E2 (server), SingleMgrMutex<pid>"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:64-66"
+    }
+   ]
+  },
+  {
+   "id": "NET-JOIN-1",
+   "title": "The join carries the local profile; offline the player is \"Human player\"",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe Client::sendJoin 0x55DFB0, clan tag check 0x743A70, default name at 0x841930 (string 0x1433338); server join 0x865D70, stats request 0x85AED0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:154-160"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:171-173"
+    }
+   ]
+  },
+  {
+   "id": "NET-SB-1",
+   "title": "A browser row is a server record; its mode is a key",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe server list at UiManager+0xC8958 (record constructor 0x5ECF60), row writer 0x956A80, rows rebuilt by 0x958BF0; level catalogue UiManager+0xC3F34 built by 0x951480"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:127-133"
+    }
+   ]
+  },
+  {
+   "id": "NET-SB-2",
+   "title": "A key shared by two modes blanks the rows of one of them",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe row writer 0x956A80; key -> name walk 0x9293C0 (thiscall(UiManager+0xC3F34), ret 8) called at 0x956C2F; level lookup 0x918990; blank Conquest rows, 2026-11-16"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:421-431"
+    }
+   ]
+  },
+  {
+   "id": "NET-SB-3",
+   "title": "Which levels a menu offers is the level's declaration",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe multiplayerMaps builder 0x9421F0 (tag compare at 0x942247 against record+0x30)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:86"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:288"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DB-1",
+   "title": "A level draws with its own database, found by its name",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:217"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:583-586"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:828-832"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DB-2",
+   "title": "The databases hold compiled code only",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005 Dx11_Single.res: 1,714 entries, 12,850 programs, 1,527 vertex and 2,166 pixel shaders, all vs_5_0 / ps_5_0 from that compiler, 2,112 parameter blocks, 114 vertex layouts, 31 render-state words"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's built Dx9_Single.res: 1,723 vertex and 4,668 pixel shaders, all vs_3_0 / ps_3_0"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:583-599"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:26-32"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DB-3",
+   "title": "Dx9 limits what a program may use",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Wake Island, Iwo Jima and Guadalcanal: 33 BF1943 terrain patch entries declare 17-22 pixel samplers; DICE's Dx9 programs: s0 the shadow map in 4,360 pixel shaders; patches with stream 0 SHORT2 grid and stream 1 SHORT2N height"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:33-40"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:60"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-1",
+   "title": "One draw per part: the entry `<mesh>/<shader>`, the main-pass program for the part's layout",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:503-528"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:674-695"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/warehouse.rs::warehouse_as_the_harness_draws_it"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:597-603"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-2",
+   "title": "A placement may choose another shader set",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/placement.rs:84-155"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: 554 of 3,915 drawn objects and members with an override (31 concrete blocks, 193 fences among the group members)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:706-710"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-3",
+   "title": "Constants by name, material values by register",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:185-216"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::cbuffer_places_values_by_name_and_material_by_register"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:588-596"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-4",
+   "title": "Engine values written over block placeholders",
+   "file": "spec/engine/rendering.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:307-320"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/water.rs:14-19"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-5",
+   "title": "Bone-placed programs carry the world in their bones",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:286-305"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::bones_are_placed_by_the_world_matrix"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:711-712"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-6",
+   "title": "A part with no program for its layout crashes the renderer (0x98BD6E)",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x98BD6E, renderer"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR: the WallWooden port (fixed by giving its parts a same-stride layout and its instanced variant); ONS_MP_004's road / stop signs (open)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2119-2132"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1350"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:586"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1358"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-DRAW-7",
+   "title": "A mesh set's LOD settings must resolve (0x8D59FB)",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8D59FB, null read in the client's mesh set-up"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:1244-1245"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_SUBSTITUTION_AUDIT.md:48"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-ORD-1",
+   "title": "Three draw classes",
+   "file": "spec/engine/rendering.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:322-337"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/dxbc.rs:121"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/dxbc.rs::discard_found_in_the_instruction_stream"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-ORD-2",
+   "title": "Opaque, then tested, then blended farthest first",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:400-401"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/live.rs:613"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/live.rs::mp_005_live_list_is_the_frame_edits_and_picks"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:738-750"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-ORD-3",
+   "title": "The depth buffer holds view distances, made before its first reader",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/live.rs:648-649"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:36-48"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/water.rs::depth_factors_invert_the_projection"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/post.rs:10-12"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:713-724"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-ORD-4",
+   "title": "Frustum culling changes nothing drawn",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/live.rs:436-461"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/live.rs::boxes_outside_the_frustum"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/live.rs::mp_005_live_list_is_the_frame_edits_and_picks"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-TERR-1",
+   "title": "Patches of 16 m, each cell's shader from the patch map",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:164-299"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/whole_terrain.rs::the_whole_terrain_is_drawn"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:611-627"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-TERR-2",
+   "title": "Height from the height map in the vertex shader",
+   "file": "spec/engine/rendering.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:334-360"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/terrain.rs:4-20"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005's patch shaders' disassembly: the inputs, constants and per-layer weights (0.7025 / 0.6755 / 0.648 on one patch)"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-TERR-3",
+   "title": "Tiled layers read the mask atlas; rule layers are computed",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005 patch map header (66, 1, 15, 7, 128); Wake Island in R5c: tiled-mask cells black, everything else drawn"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:614-619"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md:3672-3680"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1285"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-TERR-4",
+   "title": "Roads and decals are baked strips; undergrowth has its own entries",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:286-289"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:626-627"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WATER-1",
+   "title": "Visual water, range by range, in world positions",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:50-116"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/water.rs:1-22"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:629-631"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-1",
+   "title": "The active weather state names the light, fog, sky and post-process",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:125-177"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/weather.rs::fields_and_refs_read_as_renderqa_does"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/warehouse.rs::warehouse_as_the_harness_draws_it"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:633-636"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-2",
+   "title": "Light colours are colour times intensity",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:192-277"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/weather.rs::light_multiplies_colours_by_their_intensities"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-3",
+   "title": "No object reads fog; the sky and haze are one pass over the depth",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's Dx11 database: no main-pass program's reflection names a fog variable; EnvironmentMain's reflection: the twelve g_* constants, the depth buffer and mp05_Skydome"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:636-640"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md:3678-3679"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-WTHR-4",
+   "title": "The sun's direction is the engine's",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's states: no stored light direction; the Wake formula gives a direction below the horizon"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/weather.rs:6-9"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:658-664"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-LIGHT-1",
+   "title": "Baked occlusion, irradiance volumes and Enlighten instead of lightmaps",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's 587 textures by DICE's suffixes; 19 IrradianceVolume resources in mp_common; MP_005's EnlightenSkyColorIntensity 0"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:601-609"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/placement.rs:14-15"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-POST-1",
+   "title": "The post shaders are in the startup bundle",
+   "file": "spec/engine/rendering.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/post.rs:104-143"
+    },
+    {
+     "kind": "data",
+     "ref": "Dist startup-00: 112 Dx11PixelShader and 14 Dx11VertexShader resources, among them psFilmicTonemap and its variants, HorizonBasedAO / HorizonBasedAOBlur, psDrawParticleVertexShadows*, psDrawEnlightenShadows"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:642-648"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-POST-2",
+   "title": "The chain: luminance, exposure, bloom, filmic tonemap",
+   "file": "spec/engine/rendering.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/post.rs:257-357"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/post.rs::neutral_settings_give_the_identity_matrix"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/post.rs::the_chain_goes_down_to_one_pixel"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/post.rs:1-32"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-POST-3",
+   "title": "Ambient occlusion is HBAO with settings in the executable",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe: the Hsao* setting names and defaults"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/post.rs:30-32"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:645-646"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-SHAD-1",
+   "title": "Three shadow cascades drawn with the depth-only programs",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's binding tables: outdoorLightShadowTransform0..2; entries' depth-only programs; Dx9 objects: four texldp taps averaged"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:646-648"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:39"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-CRASH-1",
+   "title": "A jump to 0x00F30005 after a plane death (Coral Sea)",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe: execution at 0x00F30005, outside the image's code, render path"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:349-351"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/QA_SWEEP_2026-11-14.md:76"
+    }
+   ]
+  },
+  {
+   "id": "RNDR-CRASH-2",
+   "title": "A released texture view left in a slot crashes the state flush (0x9BC68E)",
+   "file": "spec/engine/rendering.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe state flush 0x9BC230: PSSetShaderResources at 0x9BC68E, VSSetShaderResources at 0x9BC661; Wake Island's first spawn, 2026-11-06"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:619-626"
+    }
+   ]
+  },
+  {
    "id": "AIM-HDR-1",
    "title": "Header",
    "file": "spec/formats/aimanim.md",
@@ -9161,9 +12066,9 @@
   },
   {
    "id": "REG-NEW-3",
-   "title": "No voice-over bundle",
+   "title": "Voice-over: the donor's blocks, no bundle of its own",
    "file": "spec/model/registration.md",
-   "status": "implemented",
+   "status": "verified",
    "evidence": [
     {
      "kind": "code",
@@ -9171,7 +12076,11 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:817-818"
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:842-845"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
     }
    ]
   },
@@ -9704,6 +12613,1998 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/schema.rs::types_from_the_data"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-HK-1",
+   "title": "Havok: wrapper identical, packfile equivalent to the PC twin",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:577-645"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:745"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_havok.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havok_tests.rs::a_byte_converted_as_two_widths_is_refused"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havok_tests.rs::refusals_and_the_reference"
+    },
+    {
+     "kind": "data",
+     "ref": "400 HavokPhysicsData shared by the four Onslaught builds and the PC: all equivalent; all 594 of the four console levels convert"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:58-73"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-TEX-1",
+   "title": "Textures: the layout's length, the twin's picture, the console's flags",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:272-310"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::conversions_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::refusals_carry_the_reference_messages"
+    },
+    {
+     "kind": "data",
+     "ref": "420 console textures of the Onslaught builds convert; of their PC twins of the same size and format 4 byte-identical, 188 the same picture re-encoded, 1 different art"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:118-134"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-MESH-1",
+   "title": "Meshes and mesh sets: values swapped, strips unrolled",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "variants": "Xbox 360, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mesh.rs:236"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::swaps_by_value_width"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::refuses_what_the_reference_does_not_convert"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::vertices_in_order_with_zeroed_gaps"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::meshes"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-TERR-1",
+   "title": "Terrain, water and soot: the twin's bytes",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "variants": "Xbox 360, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:146-245"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:645"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_soot.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::quadtree"
+    },
+    {
+     "kind": "data",
+     "ref": "soot: 30 of 30 BFBC2 twins byte for byte; BF1943 404 of 406 (16-byte vertices refused)"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-SND-1",
+   "title": "Sounds: EA-XMA in, EA-XAS out, the PC wrapper",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "variants": "Xbox 360, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/wavport.rs:205-254"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:85-97"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_audio.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::groups_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::layout_of_frames"
+    },
+    {
+     "kind": "data",
+     "ref": "35,811 BFBC2 twins' wrappers compared"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-PAR-1",
+   "title": "The Rust converters give the retired Python's bytes",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::textures_game"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture_native.py::game"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-STG-1",
+   "title": "Fourteen stages in a fixed order",
+   "file": "spec/transforms/console.md",
+   "status": "implemented",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_port.py:1-29"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_port.py:74-92"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1256-1279"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-STG-2",
+   "title": "What the stages guard against",
+   "file": "spec/transforms/console.md",
+   "status": "observed",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5A5A61 (console-only vehicle mesh and physics), 0x4EB538 (null string of a value-less reference), 0x98BD6E (renderer)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1266-1270"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1350"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-ADD-1",
+   "title": "Only slot-0 objects, only with a known shape",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2226-2287"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-ADD-2",
+   "title": "Result: the tree keeps its invariants, the level changes only in slots",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2108-2224"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::built_add"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-ADD-3",
+   "title": "The Rust core gives the retired Python tool's files",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::run_add"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_e3m.py::three_ways"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_e3m.py::quick"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-RD-1",
+   "title": "Reading trees and levels: whole or streamed, the same answer",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/culltool_ct1.rs::streamed_readers_answer_as_the_whole_document"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::run_corpus"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-KEY-1",
+   "title": "Encoding always contains, or refuses",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:78-104"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::keys_round_trip_and_contain"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-RES-1",
+   "title": "Who gets new leaves",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:543-593"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ]
+  },
+  {
+   "id": "XCULL-RES-2",
+   "title": "The stage's cull check",
+   "file": "spec/transforms/culltree.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2532-2564"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:969"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-RD-1",
+   "title": "Refusals, never a panic",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::any_bytes_never_panic"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::damaged_copies_never_panic"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::every_truncation_of_a_file_is_an_error_or_a_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::huge_counts_are_errors"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/dbxedit_robustness.rs::deep_nesting_is_refused"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-RD-2",
+   "title": "The XML is the reference reader's",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/xml.rs:54"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/batch.rs:31"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_native.py::run_corpus"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_native.py::built_files"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-WR-1",
+   "title": "parse(write(t)) = t, with the reference writer's bytes",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:276"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::refuses_unwritable_elements"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::write_then_read_keeps_the_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::edge_trees"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::random_trees"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md:331-333"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-WR-2",
+   "title": "The byte-keeping writers return an unchanged file exactly",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs:708"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs::unchanged_files_come_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs::edits_and_clones"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::check_dbxedit"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-IMP-1",
+   "title": "import(xml(f), like f) = f",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/dbxedit_robustness.rs::built_files_round_trip_and_import_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/dbxedit_robustness.rs::any_text_imports_or_fails"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::game"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::quick"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-CMD-1",
+   "title": "In process, DbxEdit.exe's answers",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:109-127"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::golden_edits"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::game"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-CMD-2",
+   "title": "What each edit does",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:85-94"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:113-145"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:222-240"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:395-410"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::battery"
+    }
+   ]
+  },
+  {
+   "id": "XDBX-CMD-3",
+   "title": "Output files are written atomically",
+   "file": "spec/transforms/dbx.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:62-84"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/atomic.rs::a_lasting_lock_is_returned"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/atomic.rs::other_errors_are_not_retried"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-PRE-1",
+   "title": "The name is new and well-formed",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:155-183"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:826-841"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-PRE-2",
+   "title": "Only modes an era has; only a donor of that mode",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:854-870"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:97"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-BLD-1",
+   "title": "Campaign scripting out, the mode layer in",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::the_campaign_checklist"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs::groups_cover_the_lists"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-BLD-2",
+   "title": "Files found by the level's name are copied under the new name",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:627-668"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs::names_follow_the_level_and_case"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-CLO-1",
+   "title": "The closure: what does not resolve is copied, never registered",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1561-1692"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1193-1216"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-VO-1",
+   "title": "The announcer is the target era's",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1770-1831"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2740-2760"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1106-1127"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-REG-1",
+   "title": "The registration: one block and one line per bundle, written for the install",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:741-795"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::root_files_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-ID-1",
+   "title": "The level's own name and pictures",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3130-3242"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-RO-1",
+   "title": "The game copy is read only",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:970-972"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-CHK-1",
+   "title": "What a stage must pass",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2194-2569"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2588-2711"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    }
+   ]
+  },
+  {
+   "id": "XEXP-CHK-2",
+   "title": "A mode layer must be complete for its mode",
+   "file": "spec/transforms/export.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:590"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ]
+  },
+  {
+   "id": "XINST-STG-1",
+   "title": "Writes are atomic",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:162-188"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_write_atomic_replaces_and_leaves_no_temp"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_write_atomic_failure_keeps_the_old_file"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_pack_many_failure_stops_the_run"
+    }
+   ]
+  },
+  {
+   "id": "XINST-STG-2",
+   "title": "The backup is the file before the stage, taken once",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:235-279"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_first_install_copies"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_redo_keeps_the_backup"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_after_a_recorded_stage_refreshes"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_refuses_a_truncated_file"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_take_backup_accepts_an_applied_record"
+    }
+   ]
+  },
+  {
+   "id": "XINST-STG-3",
+   "title": "The last writer builds from its backup; others build on the current file",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:191-233"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught.py::test_linux_base_ignores_a_stale_backup"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught.py::test_hud_source_is_the_current_bundle_unless_a_redo"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught.py::test_hud_builds_on_the_current_movie_and_never_patches_twice"
+    },
+    {
+     "kind": "data",
+     "ref": "2026-10-30, Valparaiso: two stages re-applied from old backups dropped the soldier pass and the Mark V; the rule followed"
+    }
+   ]
+  },
+  {
+   "id": "XINST-STG-4",
+   "title": "A revert is refused unless the stage wrote last",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:281-301"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_check_revert_needs_the_record"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_console_common.py::test_check_applied"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught.py::test_reverts_are_refused_without_a_record"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught.py::test_sector_offsets_and_ai_template_revert_need_a_record"
+    }
+   ]
+  },
+  {
+   "id": "XINST-STG-5",
+   "title": "Scratch is deleted on success, never a backup",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:351-400"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_scratch.py::test_drop_scratch_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_scratch.py::test_take_keep"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-1",
+   "title": "Every check before the first write",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:341-345"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:378-385"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_needed_shared_files"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-2",
+   "title": "The order: bundles, record, startup and menus, registration last",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:386-403"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:234-275"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-3",
+   "title": "Revert gives every file back byte for byte",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:361-376"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:405-436"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:924-936"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MAP-4",
+   "title": "Text patches add and take out exactly",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/mapedit/mapedit_install.py:162-224"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_text_patches_add_and_take_out"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_mapedit_install.py::test_any_mode_gets_its_maps_line"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_slots.py::test_mft_add_remove_any_order"
+    }
+   ]
+  },
+  {
+   "id": "XINST-LED-1",
+   "title": "Any order of installs and uninstalls gives the files back",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/ledger.py:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_six_orders_and_foreign_write"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_stacking_and_splice_records"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_foreign_edit_of_owned_slot_refused"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_dry_run_and_read_only"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-BLD-1",
+   "title": "Deterministic, and the retired generator's bytes",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navbuild_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navbuild_native.py::game"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navbuild_native.py::e3h"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-BLD-2",
+   "title": "The output reads back exactly and is structurally DICE's",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:886-888"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_pathdata_native.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_apply.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-BLD-3",
+   "title": "Builds may only get closer to DICE's",
+   "file": "spec/transforms/navkit.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navregress.py:191-206"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navregress.py:268-270"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/README.md:76-77"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-APP-1",
+   "title": "Region edits need a NavKit base; DICE's base takes graph edits only",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:836-897"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navedits.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-APP-2",
+   "title": "What the edits guarantee",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:884-888"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_apply.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-INS-1",
+   "title": "Install keeps DICE's original once, writes whole",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:751-785"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-INS-2",
+   "title": "Restore gives the level its original path data back",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:788-807"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-INS-3",
+   "title": "DICE's original is found through every OPFOR backup",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/navkit.py:77-100"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navkit_offline.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-UNP-1",
+   "title": "Input and refusals",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:277-297"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:602-649"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs::round_trip_and_damage"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/unpack.rs::unusual_bundles_as_fbrbtool_unpacks_them"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrbtool.py::damaged"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_unpack_native.py::check_built"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-UNP-2",
+   "title": "Output: FbrbTool's files and manifest",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:817-933"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_unpack_native.py::run_bundles"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_unpack_native.py::check_built"
+    },
+    {
+     "kind": "data",
+     "ref": "every bundle of the game copy whose payload is at most 300 MB, against fbrbtool_golden_game.json by SHA-1 (test_fbrb_unpack_native.py --game)"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-PCK-1",
+   "title": "Input and refusals",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:770-786"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:807-838"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::safe_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::files_that_change_size"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::too_large"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-PCK-2",
+   "title": "size2 of an edited entry",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:559-583"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::size2_rules"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-PCK-3",
+   "title": "Output: FbrbTool's bytes",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:878-902"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/zlib.rs:924-932"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_zlib"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/zlib.rs::known_outputs"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/zlib.rs::round_trips"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::padded_layouts"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-PCK-4",
+   "title": "The write is atomic",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:923-944"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/atomic.rs:29-31"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/atomic.rs::a_moments_lock_is_waited_out"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/atomic.rs::a_real_file_is_replaced"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::streamed_files_as_from_memory"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-PCK-5",
+   "title": "Packing many keeps order and isolates failures",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:946-949"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::check_built"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-RT-1",
+   "title": "pack(unpack(b)) = b for the suite's bundles",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/unpack.rs::unpacks_and_packs_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/writers.rs::packed_entries_come_back"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::run_bundles"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb.py::roundtrip"
+    }
+   ]
+  },
+  {
+   "id": "XPACK-RT-2",
+   "title": "DICE's zipped bundles come back but for the gzip headers",
+   "file": "spec/transforms/pack.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::run_bundles"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_fbrb_pack_native.py::same_but_gzip_headers"
+    },
+    {
+     "kind": "data",
+     "ref": "all 1,086 bundles of the game copy (2026-11-16): 62 identical, 919 identical but for the gzip headers, 105 also but for the marker-only empty payload member"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md:333-336"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-LOG-1",
+   "title": "Undo, redo and amend",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:413-461"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-LOG-2",
+   "title": "The file: whole writes, an autosave, versions",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:25-40"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:557-631"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/project_versions.rs::canary_projects_load_as_version_1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/ops.rs::json_shape_and_names"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-GUID-1",
+   "title": "New guids are UUID v5 of the project, the operation and the source",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/lib.rs:50-62"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:402-411"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/lib.rs::guids_are_deterministic"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-BASE-1",
+   "title": "The base-changed report names, never drops",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:513-544"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-APP-1",
+   "title": "Operations in order; a failure names the operation",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:1011-1060"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:219-226"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-APP-2",
+   "title": "The result differs from the base exactly where the operations say",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/real_levels.rs::edits_on_real_levels"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/diff.rs::finds_what_changed"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-APP-3",
+   "title": "Edits agree with the reference tools byte for byte",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/real_levels.rs::python_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/real_levels.rs::edits_on_real_levels"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-APP-4",
+   "title": "A duplicate is wired in; a delete takes its wiring out",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:219-345"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:346-415"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:635-798"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::deep_duplicate_and_place"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-APP-5",
+   "title": "Field values are typed from the data, never guessed",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:475-500"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/schema.rs::types_from_the_data"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    }
+   ]
+  },
+  {
+   "id": "XSMP-CFG-1",
+   "title": "The configuration is checked before a build",
+   "file": "spec/transforms/stockmp.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/config.py:83"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/config.py:225"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    }
+   ]
+  },
+  {
+   "id": "XSMP-AUT-1",
+   "title": "What the layer adds to the level partition",
+   "file": "spec/transforms/stockmp.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/author.py:207-260"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_validate.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XSMP-AUT-2",
+   "title": "Deterministic guids; a second layer is refused",
+   "file": "spec/transforms/stockmp.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-stockmp/src/guid.rs:1-30"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-stockmp/src/guid.rs::python_uuid5"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::game"
+    }
+   ]
+  },
+  {
+   "id": "XSMP-PAR-1",
+   "title": "The Rust core answers as the Python",
+   "file": "spec/transforms/stockmp.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::native_parity"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_native_levels.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XSMP-VAL-1",
+   "title": "The offline checks",
+   "file": "spec/transforms/stockmp.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/validate.py:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_validate.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::game"
+    }
+   ]
+  },
+  {
+   "id": "XSMP-INS-1",
+   "title": "Install only a complete build, every file checked first",
+   "file": "spec/transforms/stockmp.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/stockmp.py:181-210"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    }
+   ]
+  },
+  {
+   "id": "XSMP-INS-2",
+   "title": "Revert restores or removes",
+   "file": "spec/transforms/stockmp.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/stockmp.py:211-232"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-HK-1",
+   "title": "Physics: BF1943's Kurogane converts to BFBC2's own Kurogane",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::mopp_check"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havokport.rs::refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mopp.rs::ray_hits"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-MESH-1",
+   "title": "Meshes: BF1943 weapons BFBC2 shipped port to BFBC2's files",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshport.rs:27-45"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_meshport.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_meshport.py::renamed_port"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_meshport.py::rigid_sets"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PAR-1",
+   "title": "The Rust ports give the reference's bytes",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::game"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::quick_havok"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::quick_mesh"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md:1598-1606"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-DBX-1",
+   "title": "DBX ports take BFBC2's schema of the same class",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_ranking.py::quick"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-RB-1",
+   "title": "A fixed order; the first failing step stops the run",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:175-200"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_rebuild_step_order"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_every_install_root_has_a_producer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_from_selects_exactly"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_failed_fidelity_gate_stops_rebuild_before_hashes_and_qa"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-RB-2",
+   "title": "The oracle: the rebuild is deterministic",
+   "file": "spec/transforms/ww2.md",
+   "status": "observed",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:141-168"
+    },
+    {
+     "kind": "data",
+     "ref": "rebuild_all on 2026-11-19 (main and the suite's RT1 branch): 10,852 of 10,852 outputs' sha1 identical to the recorded oracle"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:442-447"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1477-1481"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-RB-3",
+   "title": "Incremental rebuilds run what changed, and only that",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_first_run_runs_all_then_nothing"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_code_change_reruns_the_step_and_cuts_off_when_its_output_is_the_same"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_failed_step_has_no_record_and_reruns"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-RB-4",
+   "title": "The fidelity gate rejects lost source content",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_runs_last_after_all_its_producers"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_missing_flag_skeleton_without_reading_staging"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_opaque_wave_and_bunker_programs"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-INS-1",
+   "title": "The WW2 install refuses before writing",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_before_writing_when_a_backup_is_refused"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_when_the_model_groups_do_not_fit"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_revert_refuses_before_changing_anything"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_patch_bundle_raising_changes_nothing"
     }
    ]
   }

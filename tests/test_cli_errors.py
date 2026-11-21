@@ -1,8 +1,8 @@
 r"""Every command-line tool's error handling (no game data): each is run with input that must fail - a file that is
 missing, or not the kind the tool reads - and must exit with an error code, tell the cause and what to do in
 words, name its log, and record the error in that log (%LOCALAPPDATA%\bfbc2-tool-suite\logs; a temporary folder
-here). The C# tool (LevelDiff), FbrbTool's and DbxEdit's command lines (fbrbtool.py / dbxedit.py: the Rust core) and
-the Python ones (NavKit's, the crash reader, the console readers, the test harness) alike.
+here). bfbc2.exe leveldiff (LevelDiff.exe's port, round EX1; when the binary is built), FbrbTool's and DbxEdit's command
+lines (fbrbtool.py / dbxedit.py: the Rust core) and the Python ones (NavKit's, the crash reader, the console readers, the test harness) alike.
 
   python tests\test_cli_errors.py
 """
@@ -25,10 +25,9 @@ def main(argv: list[str]) -> int:
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}', flush=True)
 
-    for bat in (os.path.join('bfbc2-diff-workbench', 'level-diff'),):
-        exe = glob.glob(os.path.join(SUITE, bat, '*.exe'))
-        if not exe:
-            subprocess.run(['cmd', '/c', os.path.join(SUITE, bat, 'build.bat')], capture_output=True)
+    sys.path.insert(0, os.path.join(SUITE, 'core'))
+    from bfbc2core import native
+    bfbc2 = native.find_binary('bfbc2')
     tmp = tempfile.mkdtemp(prefix='cli_errors_')
     env = {**os.environ, 'LOCALAPPDATA': tmp}
     logs = os.path.join(tmp, 'bfbc2-tool-suite', 'logs')
@@ -40,7 +39,6 @@ def main(argv: list[str]) -> int:
     cases = [
         ('FbrbTool, a file that is not a bundle', [PY, os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'), 'list', junk], 'fbrbtool', 'not the kind the tool reads'),
         ('FbrbTool, a missing bundle', [PY, os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'), 'list', missing], 'fbrbtool', 'missing'),
-        ('LevelDiff, a missing file', [os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe'), missing, junk], 'leveldiff', 'what to do'),
         ('DbxEdit, a missing file', [PY, os.path.join(SUITE, 'bfbc2-dbx-tools', 'dbxedit.py'), 'edit', missing, junk + '.out', 'drop=x'], 'dbxedit', 'missing'),
         ('hpdtool, a file that is not path data', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'), 'info', junk], 'hpdtool', 'what to do'),
         ('crash reader, a report that is not XML', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'), junk, '--no-code'], 'crashreader', 'what to do'),
@@ -57,6 +55,10 @@ def main(argv: list[str]) -> int:
         ('BF1943 import, a missing source folder', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'bf1943import.py'), 'list', '--source', missing], 'bf1943import', 'what to do'),
         ('texture QA, a missing build folder', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'texqa.py'), missing, '--no-dice', '--no-bf1943'], 'texqa', 'what to do'),
     ]
+    if bfbc2:                                   # LevelDiff.exe's port (round EX1): the binary only
+        cases.insert(2, ('leveldiff, a missing file', [bfbc2, 'leveldiff', missing, junk], 'leveldiff', 'what to do'))
+    else:
+        print('skip leveldiff: bin\\bfbc2.exe is not built (python rust\\build_native.py)')
     try:
         for label, args, log_name, says in cases:
             r = subprocess.run(args, capture_output=True, text=True, errors='replace', env=env, timeout=300)
