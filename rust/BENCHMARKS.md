@@ -6772,3 +6772,53 @@ PR1b's tool-logic-in-libraries; and `bc2-convert` in levelwrite for the award pi
 have no Rust yet, and OPFOR is not this round's to change. Moved to OPFOR in Rust stage 3 (ROADMAP).
 
 Proof: `python run_tests.py quick -j 2` in the worktree, 135 of 135 passed in 837 s (O2 and O4 among them; the editor's tests did not hang this run; 8 parts skipped for want of data, named). cargo fmt, clippy `--workspace --all-targets -D warnings`, each bc2-cli group alone, the changed crates' cargo tests (bc2-formats, bc2-stockmp, bc2-harness, bc2-menu, bc2-levelwrite, bc2-cli: all passed), ruff and mypy (every folder), `spec/trace.py --check` (693 rules) clean. Release builds: `build_native.py` and `--editor`; `bfbc2 --version` prints 0.10.0.
+
+## GR3: the mesh viewer folded into the asset browser's preview (2026-11-21, branch `gr3`)
+
+**The inventory.** The mesh viewer's GUI was its page for a browser (`meshview.py <mesh>`: three.js from a CDN, the
+models and textures embedded): orbit / pan / zoom, a switch per part with its triangles and colour texture,
+wireframe, several meshes stacked, a level of detail; behind it the index of the game copy (bundles and every
+level's Dx9 shader database, cached), `find`, `load_mesh` and the picture (`--png`: side, top, front, size). Each
+feature's outcome is in `bfbc2-map-editor/EDITOR_ARCHITECTURE.md` 9.3: all carried into the editor's Asset preview
+and Meshes mode; the page file itself is not (nothing to share or fetch); the picture command line stays. Added
+beyond it: destruction states, textures by channel, normals, bounds and measurements, part picking in the picture,
+Save picture. Not added: a skeleton (the mesh viewer has none; skinned meshes in their rest pose, as there) and
+collision (not the mesh viewer's; the level views' Collision mode has it).
+
+**How it is drawn.** `bc2_convert::meshview` is a port, not a re-implementation: `Index` reads the Python's cache
+(`meshview_index.pkl`, `bc2_pyrt::pickle`; built by `bc2_formats::meshindex` and written byte for byte when stale -
+the cache code moved there from `bc2-cli`'s `gameindex`, which calls it), `load_mesh` the same parts in the same
+order (surfaces by the blueprint's XML and the same pattern, the colour texture by the same name rules,
+`texcheck::levels` / `decode` as `texture.py`), `stack_models` and `render` with NumPy's arithmetic: float32 screen
+positions (Python numbers weak under NumPy 2: `scale` rounded to float32 before the multiply, `h` an int cast in),
+float64 barycentric weights and depths, the facing's shade in float32 after a float64 dot product, `np.mod`'s sign,
+truncating casts. The editor draws on the CPU with that loop (`Canvas::fill`); the orbit camera only projects
+differently. A GPU path was not needed: the preview redraws only when something changes, and a 29,000-triangle
+soldier reads and draws three 400 px pictures in 0.34 s (debug test build, opt-level 1).
+
+**Parity** (`rust/bc2-editor/tests/gr3.rs`, the answers recorded by `bfbc2-mesh-viewer/tests/record_preview_parity.py`:
+SHA-1 digests and counts only, `tests/data/meshview_parity.json.gz`, 15 KB):
+
+| Mesh | LODs | Parts | Triangles (LOD 0) | Pictures |
+|---|---|---|---|---|
+| M1Garand_Mesh (weapon, async bundle) | 1 | 5 | 5,841 | 3 of 3 |
+| GuardTower_Mesh (destructible building) | 3 | 21 | 4,371 | 9 of 9 |
+| Barrack_Mesh (building, 4 LODs) | 4 | 21 | 6,110 | 12 of 12 |
+| PalmTree_01_Banger_Mesh (alpha-tested vegetation) | 1 | 4 | 2,053 | 3 of 3 |
+| M1A2_Mesh (vehicle) | 4 | 17 | 15,298 | 12 of 12 |
+| Us_Infantry_mesh_Mesh (skinned soldier, half2 UVs) | 2 | 20 | 29,048 | 6 of 6 |
+| AmmoCrate_Mesh | 2 | 5 | 5,588 | 6 of 6 |
+| Parrot_01_Mesh | 1 | 1 | 1,136 | 3 of 3 |
+| M1Garand + Jap_Type5 stacked (`stack_models`) | - | - | - | 1 of 1 (and the offsets) |
+
+94 parts (name, surface, colour texture, vertex and triangle counts, positions, normals, texture coordinates,
+indices, the decoded texture) and 55 pictures identical, byte for byte, on the first run of the port. The index
+loads from its cache in 0.4 s (166,054 entries); the whole parity test takes about 3 s, so it is in the quick tier
+(skipped without the game copy). Save picture of the stacked rifles at 1200 px is identical to
+`meshview.py ... --png --size 1200`'s file (checked by hand against the command line's output, and in the screenshot
+test against `render`).
+
+**The page kept.** Project OPFOR's WW2 rebuild calls `meshview.page()` twice (`attachments.py`, `scopes.py`: their
+preview pages in `work\ww2\preview`), so `page()` and `PAGE` stay unchanged (deprecated in their docstring only);
+`meshview.py`'s library path the rebuild uses (`Index`, `load_mesh`, `stack_models`, `render`, `page`) is byte for
+byte the same code: the round changed only the module docstring, `page()`'s docstring and `main()`.
