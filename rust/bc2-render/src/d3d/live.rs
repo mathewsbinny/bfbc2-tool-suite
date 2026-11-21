@@ -86,7 +86,9 @@ struct Shared {
 #[derive(Default)]
 pub(super) struct Gpu {
     mats: Vec<Material>,
-    ids: HashMap<(usize, u16), u32>,
+    /// Materials by (the prepared mesh's address, draw), the mesh kept so that no other mesh can take its address
+    /// while its material is cached (round R5d: the hazard R5c's fix closed for buffers).
+    ids: HashMap<(usize, u16), (u32, Arc<Prepared>)>,
     /// Probed for constant-buffer offsets.
     probed: bool,
     /// Direct3D 11.1's context, when constant buffers can be bound by offset.
@@ -329,8 +331,8 @@ impl Device {
         raw: &HashMap<String, RawTexture>,
     ) -> Result<u32, String> {
         let key = (Arc::as_ptr(p) as usize, k);
-        if let Some(&id) = self.gpu.ids.get(&key) {
-            return Ok(id);
+        if let Some((id, _)) = self.gpu.ids.get(&key) {
+            return Ok(*id);
         }
         let d = some(p.draws.get(usize::from(k)), "draw")?;
         let (vs, ps, layout) = self.shaders_of(&d.vs, &d.ps, &d.elements)?;
@@ -404,7 +406,7 @@ impl Device {
             states,
             class: d.class,
         });
-        self.gpu.ids.insert(key, id);
+        self.gpu.ids.insert(key, (id, Arc::clone(p)));
         Ok(id)
     }
 
@@ -652,7 +654,8 @@ impl Device {
                     ctx.RSSetState(raster);
                     last.raster = a;
                 }
-                ctx.DrawIndexed(mat.index_count, mat.first_index, 0);
+                let (first, count) = s.range.unwrap_or((mat.first_index, mat.index_count));
+                ctx.DrawIndexed(count, first, 0);
             }
             drawn += 1;
         }
@@ -823,6 +826,38 @@ impl Device {
         }
         out.draws = 0;
         Ok(out)
+    }
+
+    /// The scene's depth (Direct3D depth: 0 at near, 1 at far or where nothing was drawn), read back alone: what the
+    /// editor hides labels behind (round R5d). Call it after [`Device::render_live`], before picking or outlining.
+    ///
+    /// # Errors
+    /// A Direct3D call failed, or nothing was drawn yet.
+    pub fn read_depth(&mut self) -> Result<([u32; 2], Vec<f32>), String> {
+        let t = some(self.target.as_ref(), "target")?;
+        let [w, h] = t.size;
+        let (wu, hu) = (w as usize, h as usize);
+        let mut depth = Vec::with_capacity(wu * hu);
+        // SAFETY: a staging copy of this device's depth-stencil target, mapped for reading; rows read within RowPitch
+        unsafe {
+            self.ctx.CopyResource(&t.ds_read, &t.ds);
+            let mut m = D3D11_MAPPED_SUBRESOURCE::default();
+            self.ctx
+                .Map(&t.ds_read, 0, D3D11_MAP_READ, 0, Some(&raw mut m))
+                .map_err(err("Map (depth)"))?;
+            let base: *const u8 = m.pData.cast();
+            for y in 0..hu {
+                let row = std::slice::from_raw_parts(base.add(y * m.RowPitch as usize), wu * 8);
+                depth.extend(
+                    row.as_chunks::<8>()
+                        .0
+                        .iter()
+                        .map(|px| f32::from_le_bytes([px[0], px[1], px[2], px[3]])),
+                );
+            }
+            self.ctx.Unmap(&t.ds_read, 0);
+        }
+        Ok(([w, h], depth))
     }
 
     /// A pass's RGBA8 output read back (the copy fallback of the shared texture).

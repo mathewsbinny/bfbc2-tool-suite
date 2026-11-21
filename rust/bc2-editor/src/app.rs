@@ -2866,10 +2866,13 @@ impl Tabs<'_> {
         let t = v.gpu_scene.display.overlays;
         let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
         let from = if view.ortho.is_some() { cam.target } else { view.eye };
+        // over the game frame, a label behind what it drew is left out (round R5d)
+        let game = v.game.as_ref().filter(|_| v.game_accurate && view.ortho.is_none());
         let mut items: Vec<(f64, &crate::overlays::Item, Pos2)> = o
             .items
             .iter()
             .filter(|i| t.on(i.overlay))
+            .filter(|i| !game.is_some_and(|g| g.hidden(i.at)))
             .filter_map(|i| {
                 let s = view.project(i.at)?;
                 let d =
@@ -2912,6 +2915,8 @@ impl Tabs<'_> {
         let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
         // the orthographic views have no near and far: distance from what they look at
         let from = if view.ortho.is_some() { cam.target } else { view.eye };
+        // over the game frame, a label behind what it drew is left out, the selection's never (round R5d)
+        let game = v.game.as_ref().filter(|_| v.game_accurate && view.ortho.is_none());
         let mut items: Vec<(f64, usize, Pos2)> = Vec::new();
         for e in &v.scene().entities {
             if v.doc.as_ref().is_some_and(|d| !d.shown(e.index)) {
@@ -2926,6 +2931,9 @@ impl Tabs<'_> {
             }
             let Some(p) = e.position() else { continue };
             let top = p[1] + v.marker_offset(e.index) * 2.0 + 0.5;
+            if v.selected != Some(e.index) && game.is_some_and(|g| g.hidden([p[0], top, p[2]])) {
+                continue;
+            }
             let Some(s) = view.project([p[0], top, p[2]]) else {
                 continue;
             };

@@ -14,10 +14,16 @@
 //!   neighbouring samples `heightmapPixelSizeAndAspect.x` apart scaled by `.y`, the colour map over the whole level,
 //!   and each tiled layer's mask from `maskTileMap` at the interpolated atlas coordinate.
 //!
-//! **The prototype's reading, not yet the engine's** (`EDITOR_ARCHITECTURE.md` 3.11, the capture asked for): the
-//! atlas coordinate of tiled mask k is tile `tiles[k]` (column `t % per row`, row `t / per row`) inside its border,
-//! running 0..1 across the cell along x and z; the grid is one vertex per height sample; the dynamic (destruction)
-//! mask is empty.
+//! - the mask atlas (round R5d, TERR-VT-7): a cell's tiled mask k is tile `tiles[k]` (column `t % per row`, row
+//!   `t / per row`, inside its one-pixel border), and the tile spans `flags[k]` x `flags[k]` cells (8 or 4) of the
+//!   patch map, aligned to multiples of the flag: a cell reads the part of the tile its place in that block gives.
+//!   Neighbouring cells of one tile name the same tile (DICE's `MP_009`: tile 31 over cells 24 - 31), so the masks run
+//!   on across cells. Rounds R5 to GW1 stretched the whole tile over every cell: each cell repeated the block's
+//!   mask, and WW2 shores drew ragged at every cell's edge.
+//!
+//! **Not yet the engine's** (`EDITOR_ARCHITECTURE.md` 3.11, the capture asked for): the grid is one vertex per height
+//! sample (the game's terrain LOD is not known; the view's own: [`patch_lods`]); the dynamic (destruction) mask is
+//! empty.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,7 +69,8 @@ pub struct PatchMap {
     pub header: [u32; 5],
     /// Per cell (rows along z), the tiled masks' atlas tiles.
     pub tiles: Vec<[u16; 4]>,
-    /// Per cell, each mask's flag (8 where the mask is tiled).
+    /// Per cell, each mask's flag: 0 for no mask, else how many cells its atlas tile spans on a side (8 or 4; round
+    /// R5d, TERR-VT-7).
     pub flags: Vec<[u8; 4]>,
     /// The patch shader of each cell of the shader grid (`shader_side` per side).
     pub shader: Vec<u8>,
@@ -350,7 +357,24 @@ pub fn engine_values(hf: &Heightfield) -> HashMap<&'static str, [f32; 4]> {
         ],
     );
     v.insert("heightmapPixelSizeAndAspect", [1.0 / n, range / cx, 0.0, 0.0]);
-    v.insert("heightmapWorldOffsetXZ", [hf.min[0], hf.min[2], 0.0, 0.0]);
+    // round R5d (spec RNDR-TERR-5): the height map's sample (0..1) times heightmapWorldScaleY is the world height, as
+    // posScale.y places the vertex - the records store a placeholder 500 (every database read), which is the range of
+    // Vietnam's and Isla Inocentes' height fields but half of Wake Island's 1,000 m: read as 500, Wake's beach and sea
+    // floor (BF1943's sea-floor layers shade by height against the water at 215 m) drew black
+    v.insert("heightmapWorldScaleY", [range, 0.0, 0.0, 0.0]);
+    // the water's height-map look-up (DICE's NAM_HaLongWaterShader, OPFOR's Wake water): uv = (x + 0.5) * scale +
+    // offset, the texel centres at the samples' world positions
+    let (sx, sz) = (1.0 / (cx * n), 1.0 / (cz * n));
+    v.insert("heightmapWorldScaleXZ", [sx, sz, 0.0, 0.0]);
+    v.insert(
+        "heightmapWorldOffsetXZ",
+        [
+            0.5 / n - (hf.min[0] + 0.5) * sx,
+            0.5 / n - (hf.min[2] + 0.5) * sz,
+            0.0,
+            0.0,
+        ],
+    );
     v.insert("dynamicMaskAtlasOffset", [0.0; 4]);
     v.insert("dynamicMaskAtlasParams", [1.0; 4]);
     v.insert("dynamicMaskTileBorderParams", [1.0, 0.0, 0.0, 0.0]);
@@ -527,6 +551,104 @@ fn terrain_draw(
     })
 }
 
+/// A patch's index lists (round R5d, spec RNDR-VIEW-2): the full grid of `q` x `q` cells (counter-clockwise seen
+/// from above, the renderer's front faces; patch programs cull the back), then for each coarser step `s` = 2, 4, ...
+/// up to `q / 2` the grid taken every `s`th sample inside a ring whose outer edges keep every sample - so a patch of
+/// any level meets a neighbour of any other without a crack (the shared edge is the full-detail one on both sides).
+/// Returns the indices and each coarser level's (first index, index count).
+#[must_use]
+pub fn patch_lods(q: usize) -> (Vec<u32>, Vec<(u32, u32)>) {
+    let row = q as u32 + 1;
+    let v = |i: usize, j: usize| (j as u32) * row + i as u32;
+    let mut idx = Vec::with_capacity(q * q * 6 * 2);
+    for z in 0..q as u32 {
+        for x in 0..q as u32 {
+            let i = z * row + x;
+            idx.extend([i, i + row, i + 1, i + 1, i + row, i + row + 1]);
+        }
+    }
+    // a triangle wound as the full grid's (the cross product of its edges in x, z negative)
+    let tri = |out: &mut Vec<u32>, a: (usize, usize), b: (usize, usize), c: (usize, usize)| {
+        let cross = (b.0 as f64 - a.0 as f64) * (c.1 as f64 - a.1 as f64)
+            - (b.1 as f64 - a.1 as f64) * (c.0 as f64 - a.0 as f64);
+        if cross.abs() < 1e-9 {
+            return;
+        }
+        if cross < 0.0 {
+            out.extend([v(a.0, a.1), v(b.0, b.1), v(c.0, c.1)]);
+        } else {
+            out.extend([v(a.0, a.1), v(c.0, c.1), v(b.0, b.1)]);
+        }
+    };
+    let mut lods = Vec::new();
+    let mut s = 2;
+    while s <= q / 2 && q >= 4 {
+        let first = idx.len() as u32;
+        // the inside, every s-th sample
+        let mut x = s;
+        while x + s <= q - s {
+            let mut z = s;
+            while z + s <= q - s {
+                tri(&mut idx, (x, z), (x, z + s), (x + s, z));
+                tri(&mut idx, (x + s, z), (x, z + s), (x + s, z + s));
+                z += s;
+            }
+            x += s;
+        }
+        // the ring: each side zipped between its full-detail edge and the inside's border (one point when s = q / 2)
+        let inner: Vec<usize> = (0..=((q - 2 * s) / s)).map(|k| s + k * s).collect();
+        for side in 0..4 {
+            // a point on the side at `t` along it, `d` in from it
+            let at = |t: usize, d: usize| -> (usize, usize) {
+                match side {
+                    0 => (t, d),         // z = 0
+                    1 => (q - d, t),     // x = q
+                    2 => (q - t, q - d), // z = q
+                    _ => (d, q - t),     // x = 0
+                }
+            };
+            let (mut a, mut b) = (0usize, 0usize);
+            while a < q || b + 1 < inner.len() {
+                let next_outer = if a < q { Some(a + 1) } else { None };
+                let next_inner = inner.get(b + 1).copied();
+                let take_outer = match (next_outer, next_inner) {
+                    (Some(o), Some(i)) => o <= i,
+                    (Some(_), None) => true,
+                    _ => false,
+                };
+                let here = inner.get(b).copied().unwrap_or(s);
+                if take_outer {
+                    tri(&mut idx, at(a, 0), at(a + 1, 0), at(here, s));
+                    a += 1;
+                } else {
+                    tri(&mut idx, at(a, 0), at(next_inner.unwrap_or(here), s), at(here, s));
+                    b += 1;
+                }
+            }
+        }
+        lods.push((first, idx.len() as u32 - first));
+        s *= 2;
+    }
+    (idx, lods)
+}
+
+/// The step a patch is drawn with (round R5d): every sample within [`LOD_DISTANCE`] of the camera, then every 2nd,
+/// 4th ... sample at each doubling of the distance, up to `q / 2`; the index into [`Prepared::lods`] plus one (0: the
+/// full grid). The editor's rule, not DICE's: the game's terrain LOD (its distances and morphing) is the capture's.
+#[must_use]
+pub fn lod_for(distance: f64, levels: usize) -> usize {
+    let mut k = 0;
+    let mut d = LOD_DISTANCE;
+    while k < levels && distance >= d {
+        k += 1;
+        d *= 2.0;
+    }
+    k
+}
+
+/// The distance, metres, out to which a patch is drawn in full ([`lod_for`]).
+pub const LOD_DISTANCE: f64 = 200.0;
+
 /// The terrain of a level, ready to draw patch by patch.
 #[derive(Debug, Clone)]
 pub struct Terrain {
@@ -540,8 +662,10 @@ pub struct Terrain {
     pub draws: Vec<Result<Draw, String>>,
     /// The engine's textures: the height map and the empty mask.
     pub raw: HashMap<String, RawTexture>,
-    /// The shared index list of a patch.
+    /// The shared index list of a patch: the full grid, then its coarser levels ([`patch_lods`]).
     pub indices: Arc<Vec<u8>>,
+    /// The coarser levels' index ranges in [`Terrain::indices`].
+    pub lods: Vec<(u32, u32)>,
     /// The baked road and decal strips of each terrain block's full-detail road block, one prepared mesh per block
     /// (its strips in layer order; a strip has no centre, so blended strips keep that order, after the other blended
     /// draws).
@@ -605,15 +729,7 @@ impl Terrain {
             strips.push(p);
         }
         let q = (hf.size as usize / map.side().max(1)).max(1);
-        let mut idx = Vec::with_capacity(q * q * 6);
-        let row = q as u32 + 1;
-        for z in 0..q as u32 {
-            for x in 0..q as u32 {
-                let i = z * row + x;
-                // counter-clockwise seen from above (the renderer's front faces; patch programs cull the back)
-                idx.extend([i, i + row, i + 1, i + 1, i + row, i + row + 1]);
-            }
-        }
+        let (idx, lods) = patch_lods(q);
         let mut raw = HashMap::new();
         raw.insert(HEIGHTMAP.to_owned(), heightmap(&hf));
         raw.insert(ZERO.to_owned(), zero());
@@ -624,6 +740,7 @@ impl Terrain {
             draws,
             raw,
             indices: Arc::new(idx.iter().flat_map(|v| v.to_le_bytes()).collect()),
+            lods,
             strips,
         })
     }
@@ -649,6 +766,7 @@ impl Terrain {
         let mut draw = self.draws.get(usize::from(shader))?.as_ref().ok()?.clone();
         let q = self.samples_per_patch();
         let tiles = map.tiles.get(pz * side + px).copied().unwrap_or_default();
+        let flags = map.flags.get(pz * side + px).copied().unwrap_or_default();
         let [tile, border, per_row, ..] = map.header;
         let (aw, ah) = (self.atlas_size[0] as f32, self.atlas_size[1] as f32);
         let span = tile.saturating_sub(2 * border) as f32;
@@ -661,11 +779,16 @@ impl Terrain {
                 vb.extend(gx.to_le_bytes());
                 vb.extend(gz.to_le_bytes());
                 let (fx, fz) = (i as f32 / q as f32, j as f32 / q as f32);
-                for t in tiles {
+                for (t, f) in tiles.into_iter().zip(flags) {
                     let t = u32::from(t);
                     let (col, row) = (t % per_row.max(1), t / per_row.max(1));
-                    let u = ((col * tile + border) as f32 + fx * span) / aw;
-                    let v = ((row * tile + border) as f32 + fz * span) / ah;
+                    // round R5d (spec TERR-VT-7): a mask tile spans `flag` x `flag` cells (8 or 4), aligned to
+                    // multiples of the flag in the patch map; this cell reads its part of the tile
+                    let f = usize::from(f.max(1));
+                    let (ox, oz) = ((px % f) as f32, (pz % f) as f32);
+                    let k = f as f32;
+                    let u = ((col * tile + border) as f32 + (ox + fx) / k * span) / aw;
+                    let v = ((row * tile + border) as f32 + (oz + fz) / k * span) / ah;
                     vb.extend(snorm(u));
                     vb.extend(snorm(v));
                 }
@@ -696,6 +819,7 @@ impl Terrain {
             wide: true,
             bounds: Some(([x0 as f32, ylo, z0 as f32], [x1 as f32, yhi, z1 as f32])),
             shader_set: String::new(),
+            lods: self.lods.clone(),
         })
     }
 
@@ -721,6 +845,54 @@ impl Terrain {
 )]
 mod tests {
     use super::*;
+
+    // spec: RNDR-VIEW-2
+    #[test]
+    fn patch_levels_cover_the_patch_and_keep_full_edges() {
+        for q in [8usize, 16, 32] {
+            let (idx, lods) = patch_lods(q);
+            assert_eq!(lods.len(), (q / 2).trailing_zeros() as usize, "q {q}");
+            let row = q + 1;
+            let xz = |v: u32| ((v as usize % row) as f64, (v as usize / row) as f64);
+            let mut ranges = vec![(0u32, (q * q * 6) as u32)];
+            ranges.extend(lods.iter().copied());
+            for (k, (first, count)) in ranges.into_iter().enumerate() {
+                let tris = &idx[first as usize..(first + count) as usize];
+                let mut area = 0.0;
+                let mut edges = std::collections::HashSet::new();
+                for t in tris.chunks(3) {
+                    let (a, b, c) = (xz(t[0]), xz(t[1]), xz(t[2]));
+                    let cross = (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0);
+                    assert!(cross < 0.0, "q {q} level {k}: a triangle wound the other way");
+                    area += -cross / 2.0;
+                    for (u, v) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+                        edges.insert((u.min(v), u.max(v)));
+                    }
+                }
+                assert!((area - (q * q) as f64).abs() < 1e-6, "q {q} level {k}: area {area}");
+                // every unit segment of the patch's border is an edge: no crack against any neighbour
+                for t in 0..q as u32 {
+                    let r = row as u32;
+                    let q32 = q as u32;
+                    for (u, v) in [
+                        (t, t + 1),
+                        (q32 * r + t, q32 * r + t + 1),
+                        (t * r, (t + 1) * r),
+                        (t * r + q32, (t + 1) * r + q32),
+                    ] {
+                        assert!(edges.contains(&(u.min(v), u.max(v))), "q {q} level {k}: border {u}-{v}");
+                    }
+                }
+                if k > 0 {
+                    assert!(count < (q * q * 6) as u32 / 2, "q {q} level {k}: {count} indices");
+                }
+            }
+        }
+        assert_eq!(lod_for(10.0, 3), 0);
+        assert_eq!(lod_for(LOD_DISTANCE, 3), 1);
+        assert_eq!(lod_for(LOD_DISTANCE * 4.0, 3), 3);
+        assert_eq!(lod_for(1e6, 3), 3);
+    }
 
     #[test]
     fn a_minimal_visual_terrain_reads() {

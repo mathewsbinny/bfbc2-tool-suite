@@ -113,6 +113,8 @@ pub struct GameView {
     pub notes: Vec<String>,
     /// The last frame's error.
     pub error: Option<String>,
+    /// The last frame's camera, size and depth (round R5d): what [`GameView::hidden`] tests labels against.
+    depth: Option<(frame::Camera, [u32; 2], Vec<f32>)>,
 }
 
 /// The scene's placed things as the renderer takes them - the level partition's instances (by GUID) and the group
@@ -254,11 +256,13 @@ impl GameView {
         let (placed, entity_of) = placed_entities(scene);
         // a level of game\Package only (Vietnam, the Pacific War ...): read from its bundles in place (round R5c)
         let package = is_package(opfor, lv);
-        let world = if package {
+        let mut world = if package {
             World::load_package(opfor, lv, &scene.name, &placed, weather)?
         } else {
             World::load(opfor, lv, &scene.name, &placed, weather)?
         };
+        // the weather's sky dome behind the level (round R5d)
+        world.sky_pass = true;
         Ok(Self {
             notes: world.notes.clone(),
             live: Live::new(&world.light),
@@ -277,7 +281,18 @@ impl GameView {
             timings: Timings::default(),
             load_seconds: t.elapsed().as_secs_f64(),
             error: None,
+            depth: None,
         })
+    }
+
+    /// Whether a world point lies behind what the last game frame drew (round R5d): the labels drawn over the game
+    /// view leave such points out ([`bc2_render::frame::occluded`]). `false` before a frame, or off the frame.
+    #[must_use]
+    pub fn hidden(&self, p: [f64; 3]) -> bool {
+        self.depth
+            .as_ref()
+            .and_then(|(cam, size, d)| frame::occluded(cam, *size, d, p))
+            .unwrap_or(false)
     }
 
     /// What the status line says once the view has loaded: the load time, and when the level has no weather data the
@@ -393,7 +408,14 @@ impl GameView {
         let t = Instant::now();
         let cam = Self::camera(camera, size);
         self.update_sources(camera.target);
-        self.live.build(&cam, size, Options { cull: self.cull });
+        self.live.build(
+            &cam,
+            size,
+            Options {
+                cull: self.cull,
+                lod: true,
+            },
+        );
         let (depth, post) = self.world.passes(&cam, size, true)?;
         let build = t.elapsed().as_secs_f64();
         let raw = self.world.raw();
@@ -406,6 +428,10 @@ impl GameView {
             &self.world.textures,
             raw,
         )?;
+        // the frame's depth for the labels (round R5d), before the outline replays into the depth-stencil target
+        let td = Instant::now();
+        self.depth = self.device.read_depth().ok().map(|(s, d)| (cam, s, d));
+        let depth_read = td.elapsed().as_secs_f64();
         let out = post
             .last()
             .ok_or("the post-process shaders are missing (startup-00.fbrb): no picture to show")?;
@@ -459,7 +485,7 @@ impl GameView {
         self.timings = Timings {
             build,
             submit: st.making + st.upload + st.submit,
-            readback,
+            readback: readback + depth_read,
             tonemap: st.post,
             upload,
             draws: st.draws,
@@ -641,7 +667,14 @@ impl GameView {
     ) -> Result<frame::Rendered, String> {
         let cam = Self::camera(camera, size);
         self.update_sources(camera.target);
-        self.live.build(&cam, size, Options { cull: self.cull });
+        self.live.build(
+            &cam,
+            size,
+            Options {
+                cull: self.cull,
+                lod: true,
+            },
+        );
         let (depth, post) = self.world.passes(&cam, size, true)?;
         let raw = self.world.raw();
         self.device.render_live(

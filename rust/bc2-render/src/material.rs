@@ -303,8 +303,9 @@ impl RenderState {
 /// Named material constants whose stored value is a placeholder the engine writes over at draw time (FORMAT.md
 /// section 1's constant records name them; DICE stores 0 or 1 there): the water's screen and depth factors
 /// (`g_screenSizeInv`, `g_depthScaleFactors`: [`crate::water`]) and the trees' `sunDir` (the Overgrowth leaves and
-/// bark, stored (1, 1, 1): the engine's sun direction, `outdoorLightDir`).
-pub const ENGINE_NAMED: [&str; 3] = ["g_screenSizeInv", "g_depthScaleFactors", "sunDir"];
+/// bark, stored (1, 1, 1): the engine's sun direction, `outdoorLightDir`); the sky's depth factors (`g_depthFactors`,
+/// round R5d: [`crate::sky`]).
+pub const ENGINE_NAMED: [&str; 4] = ["g_screenSizeInv", "g_depthScaleFactors", "sunDir", "g_depthFactors"];
 
 /// The constant records of a block the engine writes by name ([`ENGINE_NAMED`]).
 #[must_use]
@@ -416,6 +417,10 @@ pub struct Prepared {
     pub bounds: Option<([f32; 3], [f32; 3])>,
     /// The shader set drawn (its name in the mesh set, `path/GUID`).
     pub shader_set: String,
+    /// Coarser levels of detail of every draw, as index ranges into [`Prepared::indices`] (round R5d: a terrain
+    /// patch's, [`crate::terrain::patch_lods`]): `lods[k]` is (first index, index count) of the grid taken every
+    /// `2^(k + 1)`th sample, its edges at full detail. Empty: one level only.
+    pub lods: Vec<(u32, u32)>,
 }
 
 /// Texture resources by name, read once (`None`: missing or not drawable as stored).
@@ -584,6 +589,109 @@ pub fn prepare_set(
     cache: &mut TextureFiles,
 ) -> Prepared {
     prepare_with(files, db, mesh, shader_set, envmap, Some(cache), 0)
+}
+
+/// [`prepare_set`] of a level of detail other than 0 (round R5d: the game view's LODs; the mesh set lists them, each
+/// with its own `<mesh>_lod<k>_data` resource).
+#[must_use]
+pub fn prepare_set_lod(
+    files: &Files,
+    db: &Db,
+    mesh: &str,
+    shader_set: Option<&str>,
+    envmap: &str,
+    cache: &mut TextureFiles,
+    lod: usize,
+) -> Prepared {
+    prepare_with(files, db, mesh, shader_set, envmap, Some(cache), lod)
+}
+
+/// A mesh set's levels of detail and where the game switches between them (round R5d, spec RNDR-LOD-1): the mesh
+/// set names a `Render.MeshLodSettingsAsset` (`Systems/Mesh/ObjectsLodSettings_1` ...) whose `LodDistance0..4` give
+/// the distance at which level `k` gives way to level `k + 1` (`Lod<k>Enabled`: a level switched off keeps the one
+/// before it; `Enable` false: level 0 everywhere). `MinScreenArea` is read but not applied (its unit is the
+/// capture's).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LodSettings {
+    /// The levels the mesh set holds.
+    pub levels: usize,
+    /// The settings' name (as the mesh set gives it).
+    pub name: String,
+    /// `Enable`.
+    pub enabled: bool,
+    /// `LodDistance0..4`.
+    pub distances: [f64; 5],
+    /// `Lod0Enabled..Lod4Enabled`.
+    pub level_enabled: [bool; 5],
+    /// `MinScreenArea` (-1: none).
+    pub min_screen_area: f64,
+}
+
+impl LodSettings {
+    /// The level drawn at a distance: how many of the switch distances before the last level it has passed, then
+    /// back to the nearest level switched on.
+    #[must_use]
+    pub fn level_at(&self, distance: f64) -> usize {
+        if !self.enabled || self.levels < 2 {
+            return 0;
+        }
+        let mut k = 0;
+        while k + 1 < self.levels && k < 5 && distance >= self.distances.get(k).copied().unwrap_or(f64::MAX) {
+            k += 1;
+        }
+        while k > 0 && !self.level_enabled.get(k).copied().unwrap_or(true) {
+            k -= 1;
+        }
+        k
+    }
+
+    /// The distance band `[near, far)` level `k` is drawn in (empty when it never is).
+    #[must_use]
+    pub fn band(&self, k: usize) -> (f64, f64) {
+        // the band is where level_at answers k: walk its switch points
+        let points: Vec<f64> = std::iter::once(0.0)
+            .chain(self.distances.iter().copied().take(self.levels.saturating_sub(1)))
+            .collect();
+        let (mut near, mut far) = (f64::MAX, 0.0f64);
+        for (i, &p) in points.iter().enumerate() {
+            let end = points.get(i + 1).copied().unwrap_or(f64::MAX);
+            if end > p && self.level_at(p) == k {
+                near = near.min(p);
+                far = far.max(end);
+            }
+        }
+        if near >= far { (0.0, 0.0) } else { (near, far) }
+    }
+}
+
+/// A mesh set's LOD settings ([`LodSettings`]); `None` when the set or its settings partition cannot be read.
+#[must_use]
+pub fn lod_settings(files: &Files, mesh: &str) -> Option<LodSettings> {
+    let low = mesh.to_lowercase();
+    let set = meshdata::parse_set(
+        &files.read(&format!("{low}.res"))?,
+        files.kind(&format!("{low}.res")).and_then(Kind::of)?,
+        false,
+        None,
+    )
+    .ok()?;
+    let name = String::from_utf8_lossy(&set.lod_settings).into_owned();
+    let xml = bc2_formats::dbx::to_xml(&files.read(&format!("{}.dbx", name.to_lowercase()))?).ok()?;
+    let f = crate::weather::fields(&xml);
+    let text = |k: &str| -> Option<&str> {
+        let tag = format!("<field name=\"{k}\">");
+        let at = xml.find(&tag)? + tag.len();
+        xml.get(at..)?.split('<').next()
+    };
+    let num = |k: &str, d: f64| f.get(k).and_then(|v| v.first().copied()).map_or(d, f64::from);
+    Some(LodSettings {
+        levels: set.lods.len(),
+        enabled: text("Enable") != Some("false"),
+        distances: [0, 1, 2, 3, 4].map(|k| num(&format!("LodDistance{k}"), f64::MAX)),
+        level_enabled: [0, 1, 2, 3, 4].map(|k| text(&format!("Lod{k}Enabled")) != Some("false")),
+        min_screen_area: num("MinScreenArea", -1.0),
+        name,
+    })
 }
 
 /// [`prepare_set`] without reading any texture (the editor's simplified view, round SV1: it reads only the diffuse
