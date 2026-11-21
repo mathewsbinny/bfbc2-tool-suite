@@ -432,6 +432,7 @@ name = "bc2-convert"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-pyrt",
  "memchr",
  "proptest",
  "rayon",
@@ -448,6 +449,7 @@ dependencies = [
  "bc2-formats",
  "bc2-levelwrite",
  "bc2-navbuild",
+ "bc2-pyrt",
  "bc2-render",
  "bc2-scene",
  "bytemuck",

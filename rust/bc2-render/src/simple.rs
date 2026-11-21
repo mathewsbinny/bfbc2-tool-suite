@@ -342,10 +342,16 @@ pub fn collision_part_shown(components: &[Component], hash: u32, state: State) -
 /// A blueprint's destructible parts, from its partition (`<blueprint>.dbx`).
 #[must_use]
 pub fn components(files: &Files, blueprint: &str) -> Vec<Component> {
-    let Some(data) = files.read(&format!("{blueprint}.dbx")) else {
-        return Vec::new();
-    };
-    let Ok(tree) = bc2_formats::dbx::parse_tree(&data) else {
+    files
+        .read(&format!("{blueprint}.dbx"))
+        .map_or_else(Vec::new, |data| components_in(&data))
+}
+
+/// A blueprint's destructible parts from its partition's bytes ([`components`]; the asset preview reads the partition
+/// from the game copy's bundles, round GR3).
+#[must_use]
+pub fn components_in(data: &[u8]) -> Vec<Component> {
+    let Ok(tree) = bc2_formats::dbx::parse_tree(data) else {
         return Vec::new();
     };
     let by_guid: HashMap<String, bc2_formats::dbx::Node<'_, '_>> = tree
