@@ -7473,3 +7473,99 @@ partitions), `root_files`, the closure, the emitter atlas's re-pointing, `mesh_f
 shader `Merger` (stage 3, the shader glue). The map export's install (`mapedit_install.py`, its own copies of the
 registration rules) moves onto `bc2-install` with IN1. The Python twin `bfbc2core.gameledger` has no `install_keep`
 / `restate` (the suite's Python installers do not need them).
+
+## NK1: NavKit's apply in Rust, first stage (2026-11-21, branch `nk1`)
+
+Audit AU3 AR-4 named NavKit's build and apply the largest Python left (12.5k lines) with no round owning it. The
+build is too big for one round to port and prove byte for byte: its Python glue alone is about 4,400 lines around
+the Rust core (`navbuild.stage` / `merge_detailed` / `write_file`, `navwalk.walkable`, `navdetail`, `navislands`,
+`navsample.load`, `navedits`, `detailed.choose` and navregress's level inputs), with NumPy float order and, in
+`navdetail`, Python set iteration order reaching the output. So NK1 took the clean, self-contained stage: **the
+apply's edits**, which every apply runs (on a DICE base they are the whole apply), and leaves a precise plan for the
+build (below).
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navlinks.apply` (links, route edges added / removed, the closest node pair per sector, costs, first-edge indices) | `bc2_navbuild::graphedit::graph_edits` | `bfbc2.exe navkit apply` (DICE base); `bc2_native.navkit_graph_edits` through `navkit.graph_edits` (the NavKit base's apply, after its build) |
+| `navtraversal.write` (`<level>.traversal.json`: each end's route node and island, `Counter.most_common`'s ranking) | `graphedit::traversal` | the same; `navkit.write_traversal` |
+| `navkit._apply`'s DICE branch (the side file loaded and checked, the copy, the read-back, the report, `--install`) | `rust/bc2-cli/src/navkit/apply.rs` (`navtune.load`'s checks through `bc2_navbuild::navtune::validate`) | `bfbc2.exe navkit apply` |
+
+`bfbc2.exe navkit apply` answers a DICE base. It hands the line to `navkit.py`, before printing anything, for a
+NavKit base (a rebuild with the walkability edits: `navbuild.build`), for `--no-detail`, for a side file it does not
+read (not JSON: json's error text is Python's; a value the checks refuse) and for a path-data file the stage refuses
+(a NaN or an infinity in a node or a bound, a position past 2**53, a cost past 32 bits). Where the reference raised,
+its exception is kept: `ValueError` / `struct.error` from the reader, `IndexError` for an edge whose node is past its
+sector's nodes, `SameFileError` for an `--out` naming DICE's file.
+
+### Parity
+
+- **Recorded from the Python before the retirement** (`core/tests/cli_o4_navkit.py`, `apply_cases`; the golden
+  re-recorded: its 202 earlier lines unchanged, 50 new): 19 apply command lines, with their merged and stdio
+  variants, on a path-data file shaped as a real one (4 sectors, border nodes shared, one sector's edges unsorted,
+  islands) with 15 operations of every kind (links, one-way and two-way route edges added, one from int positions,
+  edges removed inside a sector and between border nodes in every sector holding both, traversals of every kind, one
+  with no node near, notes, a link no sector can hold) and the error paths (no side file, not JSON, another format, a
+  newer version, a bad operation, region edits on a DICE base, another base kind, no DICE data, DICE's file not path
+  data or cut short, a changed base, `--out` / `--navtune`, `--install`, names outside ASCII, stale annotations
+  removed). **252 of 252 as recorded** through `bfbc2.exe` (Rust answers 150 of the group's 160 navkit lines; the 10
+  handed: build, `--no-detail`, not JSON, a NavKit base), and `--live` with the new Python: the same 252 both ways.
+- **Every level, against the old Python** (`rust/parity_nk1_apply.py`: the main checkout's
+  `navkit.py` with `navlinks.py` / `navtraversal.py` against this branch's `bfbc2.exe navkit apply`, a stand-in OPFOR
+  folder per run, 36 generated operations per level, 26 of them graph edits): the 18 DICE path-data files of OPFOR's
+  game copy and the 15 NavKit regression builds (`work\navkit\regress\<level>.hpd`, as the stand-in's DICE file):
+  **33 of 33 identical**: the edited `.hpd`, `<level>.traversal.json`, the report and stdout (the timing line's
+  seconds aside); 23-25 of 26 graph edits applied per level, every file changed.
+- **The NavKit base** (the Python build, then the Rust edits): `test_apply.py` (sp_004_b, two builds with
+  walkability edits), `test_links.py`, `test_traversal.py` (sp_004_b), `test_navkit_offline.py`,
+  `test_tool_edges.py`: all pass. `test_traversal.py` failed on main before this round (its install section predated
+  DF2's install ledger: "not a path inside the game copy"); its stand-in game copy now holds the ledger.
+- **DICE parity cannot move**: the generator (`navbuild.build`) is untouched, and the edit stage is byte-identical to
+  the Python it replaces, so no content argument (navparity / hpdcheck) is needed for this stage.
+
+### Time and memory (whole `navkit apply` processes, a job object's peak; other agents' builds beside it)
+
+| | old Python | Rust | |
+|---|---:|---:|---:|
+| 18 DICE files (0.17-24.7 MB), all | 12.4 s | **1.5 s** | 8.2x |
+| 15 NavKit builds (0.4-41 MB), all | 13.0 s | **1.8 s** | 7.1x |
+| sp_005_b NavKit build (41 MB) | 1.19 s, 870 MB | **0.20 s, 124 MB** | |
+| sp_009 DICE file (0.17 MB) | 0.36 s, 511 MB | **0.04 s, 2 MB** | |
+| the largest peak | 920 MB | **124 MB** | |
+
+(The Python's floor is about 500 MB: the interpreter with NumPy and the core module loaded.)
+
+### Retired
+
+`bfbc2-auto-navkit/tools/navlinks.py` (120 lines) and `navtraversal.py` (105): Python twins inside a living tool
+(RETIRED.md rule 4: recorded here and in CHANGELOG, not as a RETIRED.md row); the last commit with them is `4a515a4`.
+No command line went (`navkit.py apply` stays and answers the NavKit base) and nothing outside NavKit imported them
+(Project OPFOR has no caller of navkit build / apply, navlinks or navtraversal), so `VERSION` stays (RELEASING.md).
+
+### What is left: the build (NK2-NK5)
+
+The build's Python, in an order that keeps each stage self-contained and provable byte for byte against
+`tests/navbuild_golden.json` (sp_009, sp_004_b, sp_008_b, ons_mp_004, the build clock fixed) and navregress:
+
+1. **NK2, graphs to file.** `navislands.prune` / `note_nodes`, `prune_order_nodes`, `finalize_graph` (nodes by
+   unsigned id, the border owner bits, the sorted-list indices `b` / `c`), `write_file`, and the per-sector mesh
+   assembly with `sector_links` and both resolvers (`kymesh.write_mesh` and `hpdtool.write` are Rust already). Input:
+   the stage's graphs; one binding; the build clock passed in (`time.localtime` today).
+2. **NK3, `navdetail` (D lines, F cells).** Its sets' iteration order reaches the output (E4e): port it with
+   CPython's tuple hash and set probing reproduced, or prove on every golden level that an order-free rule gives the
+   same bytes before switching. Proof: `test_detail_features.py` and the goldens.
+3. **NK4, walkability end to end.** `navsample.load`, `navwalk.coarse`, `walkable`'s NumPy glue (seeds, anchors,
+   the ladders' re-floods, objective floors), `navedits.edits_for`, `water_tops` / `deep_water`, `outside_bounds`:
+   the `keep, gx, gz, stair` arrays and the stats lines from the files. Proof: the arrays bit for bit on the golden
+   levels, and `test_water_rule`, `test_navedits`, `test_reference_clip`, `test_headroom`, `test_lips`,
+   `test_roof_prune`, `test_objective_floor`.
+4. **NK5, the stage and the driver.** `stage` (sector discovery, specs, border-node runs, carried seam nodes, the
+   one-way drop, the detail loop, graph jobs and ids), `merge_detailed`, `build`'s log lines; `navkit.build_inputs`
+   (`detailed_sectors` with its cache key, `stale_detailed_samples`, navregress's `level_water` / `reference_bounds`
+   / `order_points_of` / `area_orders_of`). Then `bfbc2.exe navkit build`, `all` (after the sampling hand-off) and
+   `apply` on a NavKit base answer in Rust, the editor's AI workspace can call `bc2_navbuild` in process (AR-4's
+   three layers), and `navbuild.py` retires once its other callers have moved: `navregress` (the regression builds),
+   `navvehicle.stage_on_grid` (vehicle path data runs `stage`), `navwater_mesh`, `navsample_offline`, `hpdcheck`,
+   `bfbc2-navigation-studio/overlay.py`, `rust/bench_navkit.py`. Retiring `navkit.py build` / `apply` removes
+   command-line paths: a VERSION bump then (RELEASING.md).
