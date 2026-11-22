@@ -124,8 +124,10 @@ def kept_on_disk(exe: bytes) -> bytes:
     """Round AV1: a synthetic exe as a case writes it - 'SI' for 'MZ' and 'SI\\0\\0' for 'PE\\0\\0', every other byte
     as it is. Microsoft Defender's machine-learning scan blocked reads of every synthetic build-795745 layout tried
     (Trojan:Win32/Bearfoos.A!ml; round QW2's passed for hours, then was flagged too); a file without the signatures
-    is no program to any scanner. Under STAND_IN (BFBC2_TEST_STAND_IN_EXE=1) bc2_menu::common::PeImage::open puts
-    both back, so the tools read exactly exe's bytes; a file without both marks is read as it is."""
+    is no program to any scanner. Under STAND_IN (BFBC2_TEST_STAND_IN_EXE=1) bfbc2.exe's menu tools put both back
+    as they open the exe (bc2-cli's menu::open_exe, read once per process; since round PR1a the library's
+    PeImage::open has no test switch), so the tools read exactly exe's bytes; a file without both marks is read as it
+    is."""
     pe = struct.unpack_from('<I', exe, 0x3C)[0]
     assert exe[:2] == b'MZ' and exe[pe:pe + 4] == b'PE\0\0'
     return b'SI' + exe[2:pe] + b'SI\0\0' + exe[pe + 4:]

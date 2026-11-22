@@ -10,6 +10,25 @@ mod bc2loc;
 use bc2_menu::common;
 mod json;
 
+/// The test switch under which the menu tools read an exe stand-in kept on disk without its `MZ` / `PE` signatures
+/// as the program it stands for (round AV1; O2's build-795745 stand-in, which Microsoft Defender's machine-learning
+/// scan blocked as a program). Read once per process, here at the command line's edge: the library's
+/// `PeImage::open` has no test switch (audit AU5 ARC-10).
+const STAND_IN_VAR: &str = "BFBC2_TEST_STAND_IN_EXE";
+
+/// `PEImage(path)` as the menu tools open the game's exe: [`common::PeImage::open`], or under [`STAND_IN_VAR`]`=1`
+/// the bytes with a stand-in's signatures put back ([`common::restore_stand_in`]) first.
+fn open_exe(path: &str) -> crate::pyproc::PyResult<common::PeImage> {
+    static STAND_IN: std::sync::LazyLock<bool> =
+        std::sync::LazyLock::new(|| std::env::var_os(STAND_IN_VAR).is_some_and(|v| v == "1"));
+    if *STAND_IN {
+        let b = bc2_pyrt::err::read_file(path)?;
+        common::PeImage::from_bytes(path, common::restore_stand_in(b))
+    } else {
+        common::PeImage::open(path)
+    }
+}
+
 /// The group's tools.
 pub const TOOLS: &[Tool] = &[
     Tool {
