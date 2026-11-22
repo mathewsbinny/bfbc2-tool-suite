@@ -26,7 +26,7 @@ Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: overrid
          --pitch 0.8 / 0.2 (sample: that pass only; 0.2 = a detailed-zone run over the level's detailed sectors;
          writes <level>_navkit_p02.bin / _hi_p02.bin, the level's settings and its 0.8 m samples untouched),
          --opfor <Project OPFOR BFBC2 folder> (default: OPFOR_ROOT, else "project-opfor-bfbc2" next to the suite),
-         --no-detail (build / apply / all: no D lines or F cells - navbuild.BuildSettings detail_features off).
+         --no-detail (build / apply / all: no D lines or F cells - the build setting detail_features off).
 
 NavKit works on Project OPFOR BFBC2's game copy and uses its in-game sampler. FbrbTool's and DbxEdit's commands run
 in process (bfbc2core.fbrbtool / dbxedit: the suite's Rust core, which NavKit needs).
@@ -46,10 +46,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    import navbuild
+from typing import Any
 
 type Log = Callable[[str], object]
 
@@ -714,7 +711,7 @@ def stale_detailed_samples(pr: Project, lv: str, p02: str, hi02: str | None, sec
 
 
 def build_inputs(pr: Project, lv: str, log: Log = print) -> tuple[str, str, int, int, dict[str, Any]]:
-    """(samples, forbid, xoff, zoff, keyword arguments) of navbuild.build for a level: one place, so that build and
+    """(samples, forbid, xoff, zoff, keyword arguments) of navwalk.build for a level: one place, so that build and
     apply (a build with walkability edits) always pass the same inputs - detailed zones and ladders included."""
     import navregress
     s = pr.settings(lv)
@@ -742,9 +739,10 @@ def build_inputs(pr: Project, lv: str, log: Log = print) -> tuple[str, str, int,
     return s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], kw
 
 
-def build(pr: Project, lv: str, log: Log = print, cfg: 'navbuild.BuildSettings | None' = None) -> None:
-    """cfg: navbuild.BuildSettings for the build (None: navbuild's defaults)."""
-    import navbuild
+def build(pr: Project, lv: str, log: Log = print, cfg: dict[str, Any] | None = None) -> None:
+    """The level's build in the Rust core (navwalk.build). cfg: build settings over the Rust defaults (e.g.
+    {'detail_features': False}; None: the defaults)."""
+    import navwalk
     out = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
     t0 = time.time()
@@ -752,7 +750,7 @@ def build(pr: Project, lv: str, log: Log = print, cfg: 'navbuild.BuildSettings |
     trav = traversal_path(os.path.dirname(out), lv)
     if os.path.isfile(trav):
         os.remove(trav)                          # annotations of the previous file: its node ids no longer hold
-    navbuild.build(samples, forbid, xoff, zoff, out, **kw, cfg=cfg or navbuild.DEFAULTS)
+    navwalk.build(samples, forbid, xoff, zoff, out, **kw, settings=cfg)
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
 
 
@@ -801,7 +799,7 @@ def traversal_path(folder: str, lv: str) -> str:
 # The apply's edit stage runs in the Rust core (round NK1: rust/bc2-navbuild/src/graphedit.rs through bc2_native;
 # navlinks.py and navtraversal.py were retired against their recorded answers - core/tests/cli_o4_navkit.py's apply
 # cases and rust/BENCHMARKS.md "NK1"). bfbc2.exe answers navkit apply on a DICE base itself; a NavKit base rebuilds
-# the level here (navbuild.build) and then calls the same core. The side file's operations go to it as JSON.
+# the level here (navwalk.build: the Rust build) and then calls the same core. The side file's operations go to it as JSON.
 GRAPH_OPS = ('link-areas', 'route-edge')
 
 
@@ -981,13 +979,13 @@ def restore(pr: Project, lv: str, log: Log = print) -> None:
 
 
 def apply(pr: Project, lv: str, navtune_path: str | None = None, out: str | None = None, log: Log = print,
-          install_after: bool = False, cfg: 'navbuild.BuildSettings | None' = None) -> str:
+          install_after: bool = False, cfg: dict[str, Any] | None = None) -> str:
     """Builds the level with the edits of its navigation side file (DESIGN.md sections 5.1-5.2): walkability
     edits (regions, seeds, unseeds) go into the build, then links and route edges into its route graph
     (graph_edits); on a DICE base only the graph edits, on a copy of DICE's file. Traversal annotations go to
     <level>.traversal.json next to it (write_traversal). The result is read back to check it, the whole log is
-    kept as <output>.report.txt, and with install_after the result is installed. cfg: navbuild.BuildSettings for a
-    NavKit-base build (None: navbuild's defaults). Returns the output path."""
+    kept as <output>.report.txt, and with install_after the result is installed. cfg: build settings over the Rust
+    defaults for a NavKit-base build (None: the defaults). Returns the output path."""
     lines: list[str] = []
     target: dict[str, str | None] = {'out': out}               # the output path, as soon as _apply knows it (its default depends on the base)
 
@@ -1007,10 +1005,10 @@ def apply(pr: Project, lv: str, navtune_path: str | None = None, out: str | None
 
 
 def _apply(pr: Project, lv: str, navtune_path: str | None, out: str | None, log: Log,
-           target: dict[str, str | None] | None = None, cfg: 'navbuild.BuildSettings | None' = None) -> str:
+           target: dict[str, str | None] | None = None, cfg: dict[str, Any] | None = None) -> str:
     target = target if target is not None else {}
     import hpdtool
-    import navbuild
+    import navwalk
     from bfbc2core import navtune
     navtune_path = navtune_path or navtune.default_path(pr.root, lv)
     if not os.path.isfile(navtune_path):
@@ -1029,7 +1027,7 @@ def _apply(pr: Project, lv: str, navtune_path: str | None, out: str | None, log:
             f'-> {os.path.relpath(out, pr.root)}')
         # the same inputs as build (detailed zones, ladders ...), plus the edits
         samples, forbid, xoff, zoff, kw = build_inputs(pr, lv, log)
-        navbuild.build(samples, forbid, xoff, zoff, out, edits=walk, **kw, cfg=cfg or navbuild.DEFAULTS)
+        navwalk.build(samples, forbid, xoff, zoff, out, edits=walk, **kw, settings=cfg)
         log(f'  built in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
     else:
         # a DICE base: no rebuild - the graph edits go into a copy of DICE's file, for this PC only (never
@@ -1102,12 +1100,9 @@ def main(argv: list[str]) -> int:
             del args[i:i + 2]
     yes = '--yes' in args
     install_flag = '--install' in args
-    cfg: 'navbuild.BuildSettings | None' = None   # noqa: UP037 - navbuild is imported below, only when needed
+    cfg: dict[str, Any] | None = None    # build settings over the Rust defaults
     if '--no-detail' in args:              # build / apply / all: no D lines or F cells (the output before 2026-10-26)
-        import dataclasses
-
-        import navbuild
-        cfg = dataclasses.replace(navbuild.DEFAULTS, detail_features=False)
+        cfg = {'detail_features': False}
     args = [a for a in args if a not in ('--yes', '--install', '--no-detail')]
     if not args or args[0] in ('-h', '--help', 'help'):
         print(__doc__)
@@ -1125,8 +1120,8 @@ def main(argv: list[str]) -> int:
             raise NavKitError(f'{cmd}: which level? (e.g. navkit.py {cmd} SP_01)')
         lv = pr.level(args[1])
         if cmd in ('build', 'apply', 'all'):
-            import navbuild
-            navbuild.require_native()      # its grid walks run in the Rust core: say so before preparing or sampling
+            import navwalk
+            navwalk.require_native()       # the build runs in the Rust core: say so before preparing or sampling
         if cmd == 'prepare':
             prepare(pr, lv, box=box, y=y)
         elif cmd == 'sample':

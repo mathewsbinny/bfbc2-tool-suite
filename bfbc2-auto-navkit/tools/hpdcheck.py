@@ -7,10 +7,10 @@ Checks, per file:
                       open area; an open one misleads point-in-area tests - trace_emit's exact union of the bridges)
   edges               every edge's two node indices exist in its sector
   node order          each sector's nodes sorted by unsigned id, border nodes (id flag 80000000h) after the others
-                      (the game binary-searches these arrays - navbuild.SORT_NODES_BY_ID)
+                      (the game binary-searches these arrays - the build's sort_nodes_by_id)
   zero-length edges   no edge between two different nodes at one position (build_graph: one route node per surface)
   detail features     every D line has 2+ points; every F polygon is closed (first point repeated) with a horizontal
-                      unit direction (infantry files: +-x / +-z; vehicle files also diagonals) - navbuild.DETAIL_FEATURES
+                      unit direction (infantry files: +-x / +-z; vehicle files also diagonals) - the build's detail_features
 Every check holds on DICE's 15 files (13 campaign levels, ONS_MP_002 / 004; 2026-10-23). Not checked: the owner bit
 of border nodes (field c bit 16) - DICE's files have border nodes with no owner copy and with two or more.
 """

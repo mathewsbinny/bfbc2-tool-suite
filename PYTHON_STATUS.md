@@ -25,19 +25,19 @@ rounds NK4 and NK5.
 | Status | Files | Lines |
 |---|---:|---:|
 | live | 21 | 6,067 |
-| partly | 20 | 17,298 |
-| twin | 56 | 20,767 |
-| ported | 21 | 2,571 |
+| partly | 20 | 17,395 |
+| twin | 55 | 19,428 |
+| ported | 21 | 2,572 |
 | retired-pending | 3 | 310 |
-| stays | 58 | 10,566 |
-| test | 188 | 50,288 |
-| **all** | **367** | **107,867** |
+| stays | 58 | 10,599 |
+| test | 184 | 50,008 |
+| **all** | **362** | **106,379** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,420 | 56 |  |  |  |  |  | 1,364 |
+| `(root)` | 2 | 1,411 | 56 |  |  |  |  |  | 1,355 |
 | `bfbc2-anim-tools` | 7 | 2,462 |  | 1,108 |  | 106 |  |  | 1,248 |
-| `bfbc2-auto-navkit` | 61 | 16,560 | 1,815 | 4,651 | 4,088 | 272 |  |  | 5,734 |
+| `bfbc2-auto-navkit` | 56 | 15,048 | 1,815 | 4,748 | 2,749 | 273 |  |  | 5,463 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
 | `bfbc2-bf1943-import` | 26 | 10,915 | 1,017 | 1,558 | 3,273 | 56 |  |  | 5,011 |
 | `bfbc2-console-convert` | 24 | 6,531 |  | 1,812 | 1,254 | 36 |  |  | 3,429 |
@@ -54,7 +54,7 @@ rounds NK4 and NK5.
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 19,830 | 749 |  | 2,414 | 1,897 |  |  | 14,770 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 5,933 |  |  |  |  |  | 5,666 | 267 |
+| `rust` | 33 | 5,966 |  |  |  |  |  | 5,699 | 267 |
 | `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
 | `tests` | 29 | 7,681 |  |  |  |  |  |  | 7,681 |
 
@@ -62,12 +62,12 @@ Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,420 lines.
+2 files, 1,411 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1364 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1355 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -85,71 +85,66 @@ Lines by status in the folder table.
 
 ## `bfbc2-auto-navkit`
 
-61 files, 16,560 lines.
+56 files, 15,048 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `bfbc2-auto-navkit/tools/hpdview.py` | 95 | tool entry point | live |  | none (bfbc2 hpdview checks arguments, then hands off) | proposed: PR1c (delete) | matplotlib drawing of one sector; the editor's navmesh view shows the same; nothing calls it |
 | `bfbc2-auto-navkit/tools/navboundary.py` | 317 | tool entry point | live |  | tests 3 | proposed: NKG1 | a cell-by-cell boundary diagnostic against DICE's path data; no Rust measure does it |
-| `bfbc2-auto-navkit/tools/navregress.py` | 265 | tool entry point | live | bfbc2 navregress (arguments only) | navkit.py, navboundary, navdf, navsample_offline, navvehicle, harness; tests 9 | NK5 | the regression builds call navbuild.build (Rust since NK5); left: the run, its inputs and measures in Python |
-| `bfbc2-auto-navkit/tools/navwater.py` | 193 | tool entry point | live |  | navbuild, navwater_mesh; tests 1 | proposed: NKG1 | water depth against DICE's coverage (a measure); navbuild.water_tops is Rust since NK4 (bc2_navbuild::walk) |
-| `bfbc2-auto-navkit/tools/navwater_mesh.py` | 884 | tool entry point | live |  | navdomains; tests 4 | proposed: NK5 (or A3) | boats' navigation side file (prototype); a navbuild caller ROADMAP's NK5 must move |
+| `bfbc2-auto-navkit/tools/navregress.py` | 265 | tool entry point | live | bfbc2 navregress (arguments only) | navkit.py, navboundary, navdf, navsample_offline, navvehicle, harness; tests 9 | NK5 | the regression builds call navwalk.build (Rust since NK5); left: the run, its inputs and measures in Python |
+| `bfbc2-auto-navkit/tools/navwater.py` | 193 | tool entry point | live |  | navwater_mesh; tests 1 | proposed: NKG1 | water depth against DICE's coverage (a measure); navwalk.water_tops is Rust since NK4 (bc2_navbuild::walk) |
+| `bfbc2-auto-navkit/tools/navwater_mesh.py` | 884 | tool entry point | live |  | navdomains; tests 4 | proposed: NK5 (or A3) | boats' navigation side file (prototype); its water heights through navwalk.water_tops (Rust, NK4) |
 | `bfbc2-auto-navkit/tools/sample_all.py` | 61 | tool entry point | live | bfbc2 sample_all (arguments only) | navkit.py; tests 0 | proposed: after NK5 | starts the game per level (Python by rule while sampling is navkit.py's) |
-| `bfbc2-auto-navkit/navkit.py` | 1035 | tool entry point | partly | bfbc2 navkit (bc2-cli navkit: driver, prepare, apply); embedded | hub, navkitGUI.pyw, navparity, navregress, harness; tests 23 | NK5 | Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions |
+| `bfbc2-auto-navkit/navkit.py` | 1032 | tool entry point | partly | bfbc2 navkit (bc2-cli navkit: driver, prepare, apply); embedded | hub, navkitGUI.pyw, navparity, navregress, harness; tests 23 | NK5 | Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions |
 | `bfbc2-auto-navkit/tools/detailed.py` | 105 | tool entry point | partly | bfbc2 detailed (bc2-cli navtools::detailed); embedded | navkit.py, navregress, navsample_offline, sample_all; tests 4 | NK5 | the choice is Rust (O5); left: --score (evaluation only) and the library calls of build_inputs |
 | `bfbc2-auto-navkit/tools/navparity.py` | 415 | tool entry point | partly | bfbc2 navparity (bc2-cli navtools::navparity); embedded | 17 suite modules (navregress, harness, NavKit tools); tests 5 | NK5 | Rust answers argument errors and "no reference run"; left: run (the measures over many levels) |
-| `bfbc2-auto-navkit/tools/navsample.py` | 278 | tool entry point | partly | bc2_navbuild navsample (navkit_navsample_parse, _v3) | navkit.py, navbuild, detailed, navparity, navsample_offline, navvehicle; tests 8 | NK4 | load is Rust (versions 1-3; version 3 streamed, NK4); left: flood / compare and the info / compare command line |
+| `bfbc2-auto-navkit/tools/navsample.py` | 278 | tool entry point | partly | bc2_navbuild navsample (navkit_navsample_parse, _v3) | navkit.py, navwalk, detailed, navparity, navsample_offline, navvehicle; tests 8 | NK4 | load is Rust (versions 1-3; version 3 streamed, NK4); left: flood / compare and the info / compare command line |
 | `bfbc2-auto-navkit/tools/navsample_offline.py` | 1547 | tool entry point | partly | bc2_navbuild offline / hulls | tests 6; the export's path-data step (bc2_levelwrite::pathdata::sample_stage: `stage`) | A2-rest | file_bytes and the raster in Rust; left: asset_bodies (NumPy hulls), the level geometry, the command line |
-| `bfbc2-auto-navkit/tools/navvehicle.py` | 787 | tool entry point | partly | bc2_navbuild vehicle (navkit_obstacle_distance) | navdomains; tests 5 | NK5-rest | obstacle distance (E4e) and stage_on_grid / write (NK5: navkit_stage_grid) in Rust; left: the flood, the seeds and the command line |
-| `bfbc2-auto-navkit/tools/navwalk.py` | 484 | library | partly | bc2_navbuild::walk, ::rules (navkit_walkable, navkit_walk_stage) | navbuild, navislands, navvehicle, navwater_mesh, level; tests 10 | NK5 | walkable, coarse and the rules are Rust (NK4); left: score's command line, step_fits for navbuild.Level |
+| `bfbc2-auto-navkit/tools/navvehicle.py` | 789 | tool entry point | partly | bc2_navbuild vehicle (navkit_obstacle_distance) | navdomains; tests 5 | proposed: A3 | obstacle distance (E4e) and stage_on_grid / write (NK5: navkit_stage_grid; NK5-rest: its settings as overrides of the Rust defaults) in Rust; left: the flood, the seeds and the command line |
+| `bfbc2-auto-navkit/tools/navwalk.py` | 582 | library | partly | bc2_navbuild::walk, ::rules (navkit_walkable, navkit_walk_stage) | navkit.py, navregress, navsample_offline, navislands, navvehicle, navwater_mesh, level; tests 12 | NK5 | walkable, coarse and the rules are Rust (NK4); build / water_tops / outside_bounds / deep_water are thin calls of the Rust build (NK5-rest: navbuild.py's); left: score's command line |
 | `bfbc2-auto-navkit/tools/hkpack.py` | 319 | tool entry point | twin | bc2_formats::havok packfile (hkpack_open); bfbc2 hkpack; embedded | levelobjects, navsample_offline, collision; tests 4; OPFOR research 2 | proposed: PR1b-2 | F4's read_value_reference / read_object_reference kept by ruling; Packfile keeps Python dicts |
 | `bfbc2-auto-navkit/tools/hpdcheck.py` | 83 | tool entry point | twin | bfbc2 hpdcheck (bc2-cli navtools::hpdcheck); embedded | navregress, navsample_offline, harness; tests 2 | NK5 | the command line is Rust; the library check() stays for the regression builds |
 | `bfbc2-auto-navkit/tools/hpdtool.py` | 290 | tool entry point | twin | bc2_formats::hpd; bfbc2 hpdtool; embedded | 22 suite modules (navkit, NavKit tools, navdata); tests 16; OPFOR 1 | NK5 | parse has no Python left (RT3); write_reference stays while the build hands it objects the core refuses |
-| `bfbc2-auto-navkit/tools/kymesh.py` | 320 | library | twin | bc2_navbuild / bc2_formats kymesh (kymesh_parse, write) | navkit.py, navbuild, navdetail, hpdtool, detailed, hpdcheck; tests 10 | NK5 | parse_mesh_reference kept "for good" as the format reference (E3o); write_mesh_reference for refused objects |
+| `bfbc2-auto-navkit/tools/kymesh.py` | 320 | library | twin | bc2_navbuild / bc2_formats kymesh (kymesh_parse, write) | navkit.py, navdetail, hpdtool, detailed, hpdcheck; tests 10 | NK5 | parse_mesh_reference kept "for good" as the format reference (E3o); write_mesh_reference for refused objects |
 | `bfbc2-auto-navkit/tools/ladders.py` | 51 | tool entry point | twin | bfbc2 ladders (bc2-cli navkit::ladders); embedded | navkit.py, navregress, navwalk; tests 3 | NK5 | the command line is Rust; extract() feeds navwalk's ladder re-floods |
-| `bfbc2-auto-navkit/tools/levelobjects.py` | 221 | tool entry point | twin | bfbc2 levelobjects; bc2_scene::collision (navkit_level_scan); embedded | navkit.py, navbuild, navregress, navsample_offline, navwalk, ladders; tests 5 | NK5 | the command line and the scan are Rust; the Python walk stays as fallback where the core refuses |
-| `bfbc2-auto-navkit/tools/navbuild.py` | 1339 | library | twin | bc2_navbuild::build / ::stage (navkit_build, navkit_stage_grid) | navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh; tests 12 | NK5-rest | build is a thin call (NK5: the whole build in Rust); left: the stage / merge_detailed / detail_pass twins the tests read, BuildSettings and the switches the bindings read (rust/BENCHMARKS.md "NK5", "What is left") |
+| `bfbc2-auto-navkit/tools/levelobjects.py` | 221 | tool entry point | twin | bfbc2 levelobjects; bc2_scene::collision (navkit_level_scan); embedded | navkit.py, navregress, navsample_offline, navwalk, ladders; tests 5 | NK5 | the command line and the scan are Rust; the Python walk stays as fallback where the core refuses |
 | `bfbc2-auto-navkit/tools/navcompare.py` | 86 | tool entry point | twin | bfbc2 navcompare (bc2-cli navkit::navcompare); embedded | navkit.py, navparity; tests 3 | NK5 | the command line is Rust; compare() is a library of navparity |
 | `bfbc2-auto-navkit/tools/navdf.py` | 240 | tool entry point | twin | bc2_navbuild::parity (compare_sectors) | navparity, navregress; tests 1 | proposed: NKG1 | D / F parity measure; the comparison runs in Rust when built, the Python as reference |
 | `bfbc2-auto-navkit/tools/navdiff.py` | 385 | tool entry point | twin | bc2_navbuild::parity (navkit_area_cells) | navdf, navparity, navsample_offline, navvehicle, navwater, navdata; tests 7 | proposed: NKG1 | area cells in Rust (E3h); the layers' comparison and the PNGs are Python |
 | `bfbc2-auto-navkit/tools/navdomains.py` | 507 | tool entry point | twin | bc2_navbuild domains (DomainGraph) | tests 4 | proposed: A3 | cross-domain route prototype; dijkstra in Rust (E4e) with the Python as fallback; no tool calls it |
 | `bfbc2-auto-navkit/tools/ordercheck.py` | 247 | tool entry point | twin | bfbc2 ordercheck (bc2-cli navkit::ordercheck); embedded | navkit.py, navcompare, navparity, harness, levelinfo, stockmp config; tests 2 | NK5 | the command line is Rust; its order_points / PathData are libraries of NavKit and the harness |
-| `bfbc2-auto-navkit/tools/navdetail.py` | 86 | library | ported | bc2_navbuild::detail (navkit_detail_features) | navbuild; tests 1; rust/parity_nk3_detail.py | NK5 | NK3 retired the Python rule; left: the stage's detail_pass glue in navbuild (NK5) |
-| `bfbc2-auto-navkit/tools/navedits.py` | 68 | shim | ported | bc2_navbuild::walk (edit_masks, region_mask_at) | navbuild, navwalk; tests 2 | NK5 | NK4: the masks are Rust (matplotlib's crossing test ported); left: regions_of parses a side file's operations |
-| `bfbc2-auto-navkit/tools/navislands.py` | 80 | library | ported | bc2_navbuild::graphfile::shadow_islands | navbuild; tests 1; rust/parity_nk2_file.py | NK5 | NK2 moved the rule; note_nodes / rule glue are the stage's |
+| `bfbc2-auto-navkit/tools/navdetail.py` | 86 | library | ported | bc2_navbuild::detail (navkit_detail_features) | tests 1; rust/parity_nk3_detail.py (a pinned checkout) | NK5 | NK3 retired the Python rule; the build's detail pass is the Rust stage's (NK5); features() for the tests |
+| `bfbc2-auto-navkit/tools/navedits.py` | 68 | shim | ported | bc2_navbuild::walk (edit_masks, region_mask_at) | navwalk; tests 2 | NK5 | NK4: the masks are Rust (matplotlib's crossing test ported); left: regions_of parses a side file's operations |
+| `bfbc2-auto-navkit/tools/navislands.py` | 81 | library | ported | bc2_navbuild::graphfile::shadow_islands | tests 1; rust/parity_nk2_file.py (a pinned checkout) | NK5 | NK2 moved the rule; prune / note_nodes for callers outside the build (the build's are the Rust defaults) |
 | `bfbc2-auto-navkit/tools/navnative.py` | 38 | shim | ported | bc2_native (the E4e functions) | levelobjects, navdf, navdiff, navdomains, navsample_offline, navvehicle, ordercheck; tests 2 | PR1b-2 | the switch between E4e's Rust and their Python references; goes with them (one backend registry) |
 | `bfbc2-auto-navkit/tests/test_apply.py` | 128 | test | test |  | run_tests.py | Tests in Rust | navkit apply with walkability edits, on a level's NavKit build (sp_004_b by default; about 3 minutes): - no... |
-| `bfbc2-auto-navkit/tests/test_area_link.py` | 66 | test | test |  | run_tests.py | Tests in Rust | NavKit's area link rule (navbuild.Level.connected with rule 'terrain' / 'raw', navbuild.components) on a sa... |
-| `bfbc2-auto-navkit/tests/test_bridge_union.py` | 104 | test | test |  | run_tests.py | Tests in Rust | NavKit's 45-degree bridge outlines (navbuild.trace_emit, the Rust core's union of an area's bridges) on ran... |
 | `bfbc2-auto-navkit/tests/test_characters.py` | 76 | test | test |  | run_tests.py | Tests in Rust | NavKit's rule that soldiers standing in the level while it is sampled are not in the path data (navwalk.CHA... |
 | `bfbc2-auto-navkit/tests/test_collision_backends.py` | 111 | test | test |  | run_tests.py | Tests in Rust | NavKit's tools that read collision through bfbc2core.collision (detailed.flagged_sectors / choose, ladders.... |
-| `bfbc2-auto-navkit/tests/test_column_sectors.py` | 61 | test | test |  | run_tests.py | Tests in Rust | navbuild.column_sectors: the sector of every sample column is floor(x / 100) of its position from the store... |
-| `bfbc2-auto-navkit/tests/test_detail_features.py` | 234 | test | test |  | run_tests.py | Tests in Rust | NavKit's D lines and F cells (navdetail.py - the Rust core's bc2_navbuild::detail since round NK3 - and nav... |
+| `bfbc2-auto-navkit/tests/test_detail_features.py` | 197 | test | test |  | run_tests.py | Tests in Rust | NavKit's D lines and F cells (navdetail.py - the Rust core's bc2_navbuild::detail since round NK3) on synth... |
 | `bfbc2-auto-navkit/tests/test_dynamic_props.py` | 75 | test | test |  | run_tests.py | Tests in Rust | NavKit's dynamic props (navwalk.DYNAMIC_FLOOR, DYNAMIC_ABSENT_HEADROOM and the grazing hits on a door leaf)... |
 | `bfbc2-auto-navkit/tests/test_havok_index.py` | 37 | test | test |  | run_tests.py | Tests in Rust | NavKit's collision index (levelobjects.havok_index) on a folder built here (no game data): a blueprint's pa... |
 | `bfbc2-auto-navkit/tests/test_headroom.py` | 62 | test | test |  | run_tests.py | Tests in Rust | NavKit's headroom band (navwalk.HEADROOM_BAND, headroom, low_headroom) on a sample grid built here (no game... |
 | `bfbc2-auto-navkit/tests/test_links.py` | 139 | test | test |  | run_tests.py | Tests in Rust | navkit apply's graph edits (navkit.graph_edits: the Rust core's since round NK1, navlinks.py retired), on a... |
 | `bfbc2-auto-navkit/tests/test_lips.py` | 65 | test | test |  | run_tests.py | Tests in Rust | NavKit's narrow lips and door sills (navwalk.LIP_WIDTH, LIP_OBJECT_RISE, LIP_OBJECT_FLAT) on sample rows bu... |
 | `bfbc2-auto-navkit/tests/test_navboundary.py` | 74 | test | test |  | run_tests.py | Tests in Rust | navboundary.py's classification and measures on path data built here (no game data): a 4 x 2 cell block tha... |
-| `bfbc2-auto-navkit/tests/test_navbuild_native.py` | 909 | test | test |  | run_tests.py | Tests in Rust | NavKit in the Rust core (rust/bc2-navbuild through bc2_native). |
+| `bfbc2-auto-navkit/tests/test_navbuild_native.py` | 1045 | test | test |  | run_tests.py | Tests in Rust | NavKit in the Rust core (rust/bc2-navbuild through bc2_native). |
 | `bfbc2-auto-navkit/tests/test_navdomains.py` | 133 | test | test |  | run_tests.py | Tests in Rust | NavKit's routes across domains (tools\navdomains.py) on graphs built here (no game data): a bay with a beac... |
 | `bfbc2-auto-navkit/tests/test_navedits.py` | 95 | test | test |  | run_tests.py | Tests in Rust | navedits.py, the walkability edits as generator inputs, on a small sample grid built here (no game data): s... |
-| `bfbc2-auto-navkit/tests/test_navislands.py` | 112 | test | test |  | run_tests.py | Tests in Rust | NavKit's shadow-island rule (navislands.py, SHADOW_ISLANDS; in the Rust core since round NK2) on route grap... |
+| `bfbc2-auto-navkit/tests/test_navislands.py` | 121 | test | test |  | run_tests.py | Tests in Rust | NavKit's shadow-island rule (navislands.py, SHADOW_ISLANDS; in the Rust core since round NK2) on route grap... |
 | `bfbc2-auto-navkit/tests/test_navkit_offline.py` | 796 | test | test |  | run_tests.py | Tests in Rust | navkit.py's orchestration without the game: a stand-in Project OPFOR BFBC2 folder built in a temp folder (a... |
 | `bfbc2-auto-navkit/tests/test_navsample_offline.py` | 243 | test | test |  | run_tests.py | Tests in Rust | NavKit's offline sampler (tools\navsample_offline.py) on geometry built here (no game data): the cast loop... |
 | `bfbc2-auto-navkit/tests/test_navtools_native.py` | 580 | test | test |  | run_tests.py | Tests in Rust | NavKit's tools around the build in the Rust core (round E4e, rust/BENCHMARKS.md "E4e"): each ported piece a... |
 | `bfbc2-auto-navkit/tests/test_navwater_mesh.py` | 165 | test | test |  | run_tests.py | Tests in Rust | NavKit's boat mesh (tools\navwater_mesh.py) on water built here (no game data): deep water free, a shallow... |
 | `bfbc2-auto-navkit/tests/test_objective_floor.py` | 145 | test | test |  | run_tests.py | Tests in Rust | NavKit's objective floor rule (navwalk.OBJECTIVE_FLOOR, objective_floor) on a sample grid built here (no ga... |
 | `bfbc2-auto-navkit/tests/test_pathdata_native.py` | 426 | test | test |  | run_tests.py | Tests in Rust | Round F0: path data (hpdtool.parse / write, bc2_native.hpd_parse / hpd_write) and the runtime-mesh writer (... |
-| `bfbc2-auto-navkit/tests/test_portal_symmetry.py` | 105 | test | test |  | run_tests.py | Tests in Rust | NavKit's portal symmetry (navbuild.trace, SYMMETRIC_PORTALS / ONE_WAY_PORTALS) on sample grids built here (... |
-| `bfbc2-auto-navkit/tests/test_reference_clip.py` | 70 | test | test |  | run_tests.py | Tests in Rust | NavKit's bound to the reference extent (navbuild.outside_bounds, CLIP_TO_REFERENCE; navregress.reference_bo... |
+| `bfbc2-auto-navkit/tests/test_reference_clip.py` | 71 | test | test |  | run_tests.py | Tests in Rust | NavKit's bound to the reference extent (navwalk.outside_bounds, the build setting clip_to_reference; navreg... |
 | `bfbc2-auto-navkit/tests/test_regress_progress.py` | 50 | test | test |  | run_tests.py | Tests in Rust | navregress's progress estimates (no game data): durations in words, each level's expected time from an earl... |
 | `bfbc2-auto-navkit/tests/test_roof_prune.py` | 74 | test | test |  | run_tests.py | Tests in Rust | NavKit's roof pruning (navwalk.ROOF_PRUNE, roof_islands) on a sample grid built here (no game data): terrai... |
-| `bfbc2-auto-navkit/tests/test_tool_edges.py` | 197 | test | test |  | run_tests.py | Tests in Rust | Edge cases of NavKit's smaller tools, on data built here (no game data): - ordercheck / navcompare on path... |
+| `bfbc2-auto-navkit/tests/test_tool_edges.py` | 153 | test | test |  | run_tests.py | Tests in Rust | Edge cases of NavKit's smaller tools, on data built here (no game data): - ordercheck / navcompare on path... |
 | `bfbc2-auto-navkit/tests/test_traversal.py` | 102 | test | test |  | run_tests.py | Tests in Rust | Traversal annotations, the apply report and installing (M4 steps 5-6), on a DICE base (no rebuild, so quick... |
 | `bfbc2-auto-navkit/tests/test_vehicle.py` | 183 | test | test |  | run_tests.py | Tests in Rust | NavKit's vehicle path data (tools/navvehicle.py) on a level built here (no game data): two 100 m sectors of... |
 | `bfbc2-auto-navkit/tests/test_vehicle_level.py` | 58 | test | test |  | run_tests.py | Tests in Rust | NavKit's vehicle path data on one real level (game tier; needs an OPFOR install with the level prepared and... |
-| `bfbc2-auto-navkit/tests/test_water_rule.py` | 59 | test | test |  | run_tests.py | Tests in Rust | NavKit's water rule (navbuild.water_tops / deep_water) on a sample grid built here (no game data): ground m... |
+| `bfbc2-auto-navkit/tests/test_water_rule.py` | 59 | test | test |  | run_tests.py | Tests in Rust | NavKit's water rule (navwalk.water_tops / deep_water) on a sample grid built here (no game data): ground mo... |
 
 ## `bfbc2-automated-map-and-bot-test-harness`
 
@@ -354,7 +349,7 @@ Lines by status in the folder table.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-navigation-studio/overlay.py` | 270 | tool entry point | retired-pending | bc2-editor nav (the Navigation panel's overlays) | tests 2 | PR1c (or NK5: it imports navbuild) | headless JSON exports the editor's AI workspace also makes (GR2) |
+| `bfbc2-navigation-studio/overlay.py` | 270 | tool entry point | retired-pending | bc2-editor nav (the Navigation panel's overlays) | tests 2 | PR1c | headless JSON exports the editor's AI workspace also makes (GR2) |
 | `bfbc2-navigation-studio/tests/test_overlay_offline.py` | 88 | test | test |  | run_tests.py | Tests in Rust | overlay.py's headless exports without the game (the command lines kept when the Navigation Studio's window... |
 
 ## `bfbc2-shader-tools`
@@ -422,7 +417,7 @@ Lines by status in the folder table.
 | `core/bfbc2core/navdata.py` | 346 | library | ported | bc2_navbuild parity / bc2-editor navdata | navboundary, navparity, navwater_mesh, harness, overlay; tests 11 | NK5 | its Python twins retired (E3o); cells and areas from the core |
 | `core/bfbc2core/navpath.py` | 140 | library | ported | bc2_navbuild astar / navpath | harness checks; tests 6 | PR1b-2 | the path test over the route graph, in Rust |
 | `core/bfbc2core/terrain.py` | 101 | library | ported | bc2_convert::terrain (heightfield) | navparity, navsample_offline, renderqa, level; tests 10; OPFOR 1 | PR1b-1c | height fields from the core |
-| `core/bfbc2core/water.py` | 103 | library | ported | bc2_formats::water | navbuild, navregress, navwater, level; tests 5 | NK4 | water meshes from the core |
+| `core/bfbc2core/water.py` | 103 | library | ported | bc2_formats::water | navregress, navwater, level; tests 5 | NK4 | water meshes from the core |
 | `core/bfbc2core/xmlinst.py` | 40 | library | ported | bc2_formats xmlinst | NavKit tools, overlay; tests 1; OPFOR 2 | NK5 | DbxEdit XML's instances in Rust (F2b) |
 | `core/tests/cli_o2_crash.py` | 397 | test helper or golden recorder | test |  | test_cli_o2 | Tests in Rust | Round O2's crash group: the command lines test_cli_o2.py replays for exeref.py and crashreader.py (bfbc2-au... |
 | `core/tests/cli_o2_menu.py` | 491 | test helper or golden recorder | test |  | test_cli_o2 | Tests in Rust | Round O2's menu group: the command lines test_cli_o2.py replays for aptcheck, aptrefs and bc2loc. |
@@ -490,7 +485,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 5,933 lines.
+33 files, 5,966 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -508,7 +503,7 @@ Lines by status in the folder table.
 | `rust/bench_harness.py` | 79 | benchmark or parity script | stays |  | by hand | stays | E4f timings against the references |
 | `rust/bench_level.py` | 78 | benchmark or parity script | stays |  | by hand | stays | level loader timings |
 | `rust/bench_memory.py` | 198 | benchmark or parity script | stays |  | by hand | stays | the batch readers' peak memory; any command's process-tree peak (--command) |
-| `rust/bench_navkit.py` | 59 | benchmark or parity script | stays |  | by hand | NK5 | one NavKit build (navregress.build_level) |
+| `rust/bench_navkit.py` | 58 | benchmark or parity script | stays |  | by hand | NK5 | one NavKit build (navregress.build_level) |
 | `rust/bench_ports.py` | 189 | benchmark or parity script | stays |  | by hand; tests 2 | stays | E3g timings |
 | `rust/bench_sd1.py` | 78 | benchmark or parity script | stays |  | by hand | stays | SD1 timings |
 | `rust/bench_shaderdb.py` | 175 | benchmark or parity script | stays |  | by hand | stays | E4b timings |
@@ -520,11 +515,11 @@ Lines by status in the folder table.
 | `rust/parity_e3o_nav.py` | 106 | benchmark or parity script | stays |  | by hand; tests 2 | stays | kymesh Rust reader against parse_mesh_reference |
 | `rust/parity_navkit_paths.py` | 336 | benchmark or parity script | stays |  | by hand | stays | NavKit's level driver through the command line, the editor in process and the export step (files, lines) |
 | `rust/parity_nk1_apply.py` | 114 | benchmark or parity script | stays |  | by hand | stays | NK1 parity against a pre-NK1 checkout |
-| `rust/parity_nk2_file.py` | 292 | benchmark or parity script | stays |  | by hand | stays | NK2 parity against a pre-NK2 checkout |
-| `rust/parity_nk3_detail.py` | 500 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout |
-| `rust/parity_nk4_walk.py` | 169 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes) |
+| `rust/parity_nk2_file.py` | 305 | benchmark or parity script | stays |  | by hand | stays | NK2 parity against a pre-NK2 checkout (both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
+| `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
+| `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 837 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 834 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 

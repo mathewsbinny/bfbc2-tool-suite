@@ -377,3 +377,30 @@ pub fn navkit_navsample_parse<'py>(
         r.read,
     ))
 }
+
+/// `drop_one_way(per_area, one_way, keep)` on the Python's rows: the one-way candidates `(src, target, key, along)`
+/// not in `keep` become outline on their source area; the rows come back as `trace_edges` gives them.
+pub fn drop_one_way_py<'py>(
+    py: Python<'py>,
+    per_area: &Bound<'py, PyList>,
+    one_way: &Bound<'py, PyList>,
+    keep: &[usize],
+) -> PyResult<Bound<'py, PyList>> {
+    let mut rows = edges_from_py(per_area)?;
+    let ow = one_way
+        .iter()
+        .map(|o| {
+            let (src, target, key, along) = o.extract::<(usize, usize, Bound<'_, PyAny>, i64)>()?;
+            let key = key_of(&key).ok_or_else(|| value_error("a one-way key the port does not take"))?;
+            Ok(OneWay {
+                src,
+                target,
+                key,
+                along,
+            })
+        })
+        .collect::<PyResult<Vec<OneWay>>>()?;
+    let keep: std::collections::BTreeSet<usize> = keep.iter().copied().collect();
+    bc2_navbuild::stage::drop_one_way(&mut rows, &ow, &keep).map_err(value_error)?;
+    Ok(edges_to_py(py, &rows, &[])?.0)
+}

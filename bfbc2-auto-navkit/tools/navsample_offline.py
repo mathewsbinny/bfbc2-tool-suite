@@ -1425,9 +1425,9 @@ def detailed_choice(root, lv, s08):
 def build_level(root, lv, out=None, log=print, samples_dir=None):
     """navkit.py build with the offline samples: the same inputs (level objects, spawns, water, orders, ladders), the
     0.8 m pair and, when present, the 0.2 m pair over the detailed sectors chosen from the offline 0.8 m samples."""
-    import navbuild
     import navkit
     import navregress
+    import navwalk
     pr = navkit.Project(root)
     s = navkit.ensure_settings(pr, lv)
     L = pr.level_work(lv)
@@ -1446,7 +1446,7 @@ def build_level(root, lv, out=None, log=print, samples_dir=None):
         log(f'  detailed zones: {len(ids)} sectors at pitch 0.2')
     t0 = time.time()
     lad = os.path.join(L, 'ladders.json')
-    navbuild.build(s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], out, detailed=detailed,
+    navwalk.build(s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], out, detailed=detailed,
                    dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=s08[:-4] + '_hi.bin',
                    stairs_path=os.path.join(L, 'stair_tris.npy'),
                    seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),

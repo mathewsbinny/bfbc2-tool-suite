@@ -15,6 +15,12 @@ sector_links calls timed, the files' SHA-1 compared: old build, new build and th
 
   python rust\parity_nk2_file.py <old suite> <new suite> <opfor> <out.json> [level ...]
 
+Since round NK5-rest (navbuild.py retired) this script runs against pinned checkouts only: both suites must be
+checkouts that still have bfbc2-auto-navkit\tools\navbuild.py - the old one as above, the new one from that round's
+own commit up to bda5b8d (the last with navbuild.py: `git worktree add <folder> bda5b8d`). Its hooks reach into
+navbuild.py's Python stage, which the build no longer has; the current build's bytes are held to the same results by
+tests\navbuild_golden.json and NavKit's regression (rust/BENCHMARKS.md "NK5-rest").
+
 Levels: the 15 regression builds of work\navkit\regress (navregress's levels) when none are named.
 """
 import ctypes
@@ -33,6 +39,16 @@ from typing import Any
 
 LEVELS = ['ons_mp_002', 'ons_mp_004', 'sp_003_b', 'sp_004_b', 'sp_005', 'sp_005_b', 'sp_006', 'sp_007', 'sp_008',
           'sp_008_b', 'sp_009', 'sp_01', 'sp_02', 'sp_03', 'sp_04']
+
+
+LAST_WITH_NAVBUILD = 'bda5b8d'      # the suite's last commit with navbuild.py (round NK5-rest retired it)
+
+
+def need_navbuild(suite: str) -> None:
+    """Refuses a suite checkout without navbuild.py: this script's hooks need its Python stage (a pinned checkout)."""
+    if not os.path.isfile(os.path.join(suite, 'bfbc2-auto-navkit', 'tools', 'navbuild.py')):
+        raise SystemExit(f'{suite} has no bfbc2-auto-navkit\\tools\\navbuild.py (retired in round NK5-rest): run '
+                         f'this parity against a checkout at {LAST_WITH_NAVBUILD} or earlier')
 
 
 class _Counters(ctypes.Structure):
@@ -294,6 +310,8 @@ def main():
         build_child(*sys.argv[2:6])
         return 0
     old, new, opfor, out_json = sys.argv[1:5]
+    need_navbuild(old)
+    need_navbuild(new)
     levels = sys.argv[5:] or LEVELS
     scratch = tempfile.mkdtemp(prefix='nk2_parity_')
     me = os.path.abspath(__file__)

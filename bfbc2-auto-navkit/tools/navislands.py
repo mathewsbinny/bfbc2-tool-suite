@@ -14,14 +14,14 @@ Rule: a route island (border ids join sectors) with fewer than SHADOW_MIN_NODES 
 (SHADOW_OBJECTS_ONLY, below), holding no anchor (a soldier
 spawn or an AI order / objective position standing on one of its nodes' floors, ANCHOR_XZ / ANCHOR_DY), whose nodes
 come within SHADOW_XZ horizontally and SHADOW_DY in height of a node of an island of SHADOW_MIN_NODES or more,
-loses its edges; navbuild.write_file then drops its nodes (they have no edge). Its ground (areas, portals) stays: only
+loses its edges; the build's writer then drops its nodes (they have no edge). Its ground (areas, portals) stays: only
 the route graph changes, so the DICE-parity ground measures do not move.
 
 SHADOW_OBJECTS_ONLY: only islands whose nodes stand mostly on objects (not terrain) - DICE seeds its ground from
 terrain alone (objects have AllowPathdataSeeds false; spec section 3.7), so a small terrain island is one DICE has as
 well: on ONS_MP_004 all 12 small islands DICE also has are terrain, 64 of the 79 small NavKit-only ones objects, and
 every pocket that captured a failed route is on objects. Without it the 12 go too (DICE nodes near NavKit nodes
-61.15 -> 60.27 %, over-connection 8.32 -> 8.40). navbuild.stage records the terrain nodes (note_nodes); a node with
+61.15 -> 60.27 %, over-connection 8.32 -> 8.40). the build records the terrain nodes (note_nodes, for prune's callers); a node with
 no record counts as an object node.
 
 The rule runs in the suite's Rust core (round NK2: bc2_navbuild::graphfile::shadow_islands, in navbuild.write_file
@@ -32,9 +32,9 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 SHADOW_ISLANDS = True
-SHADOW_MIN_NODES = 25           # islands under this many nodes are candidates (as navbuild.ORDER_MIN_ISLAND)
+SHADOW_MIN_NODES = 25           # islands under this many nodes are candidates (as the build's order_min_island)
 SHADOW_XZ = 8.0                 # ... when a node of a large island is this close across: twice the detailed zones'
-                                # node cover (navbuild.NODE_COVER 4 m), so a pocket node can be the nearest node of
+                                # node cover (the build's node_cover 4 m), so a pocket node can be the nearest node of
                                 # ground the large island covers (ONS_MP_004: the same islands at 6 / 8 m, 3 more at 15)
 SHADOW_DY = 4.0                 # ... and this close in height (the harness's join, navpath.JOIN_Y)
 ANCHOR_XZ = 2.0                 # an anchor point keeps the island of a node this close across ...
@@ -42,11 +42,11 @@ ANCHOR_DY = 1.0                 # ... whose ground (node height - Y_OFFSET) is t
 SHADOW_OBJECTS_ONLY = True
 Y_OFFSET = 0.95
 STATS: dict[str, int] = {}
-TERRAIN_IDS: set[int] = set()             # ids of route nodes standing on terrain (note_nodes; navbuild.build clears it)
+TERRAIN_IDS: set[int] = set()             # ids of route nodes standing on terrain (note_nodes)
 
 
 def note_nodes(level, pts):
-    """Record which of a sector's route nodes (navbuild.build_graph's pts: (id, pos, surface, i, j)) stand on terrain
+    """Record which of a sector's route nodes (a sector graph's pts: (id, pos, surface, i, j)) stand on terrain
     (level.terrain: the sampled hit is the terrain's shape)."""
     terrain = getattr(level, 'terrain', None)
     if terrain is None:
@@ -78,7 +78,8 @@ def report(island: tuple[list[int], int, int], log: Callable[..., object] | None
 def prune(graphs: list[Any], anchors: Sequence[Sequence[float]] = (), log: Callable[..., object] | None = None) -> list[Any]:
     """graphs [(sid, bounds, mesh, pts, pairs, origin)] with the shadowing islands' edges removed (SHADOW_ISLANDS),
     in the Rust core. anchors: (x, y, z) points (soldier spawns, AI order and objective positions) whose islands
-    stay. (A build runs the rule in navbuild.write_file.)"""
+    stay. (A build runs the rule in its Rust writer, with the Rust defaults of these settings:
+    bc2_navbuild::graphfile::Shadow.)"""
     STATS.clear()
     if not SHADOW_ISLANDS:
         return graphs

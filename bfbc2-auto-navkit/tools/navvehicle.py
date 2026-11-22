@@ -4,7 +4,8 @@ BC2 ships two Kynapse data sets per level: `ai\levels\<level>\infantry\pathdata.
 The vehicle file has the infantry file's format exactly (header, sector table, route graph, runtime mesh - spec 4);
 only the build settings differ (DICE's `AI/Pathfinding/Vehicles`): pitch 1 m, resolution 0.02, entity radius 2.5 m,
 entity height 4 m, DistEdgeMax 50 m. This module builds it as its own file, reusing NavKit's infantry pipeline
-(navbuild.stage: sectors, tiles, areas, portals, border portals, neighbour links, route graph, D / F detail) on a
+(the Rust stage, bc2_navbuild::stage: sectors, tiles, areas, portals, border portals, neighbour links, route
+graph, D / F detail) on a
 vehicle walkability grid:
 
   1. the in-game samples (0.8 m, navkit.py sample) are measured for vehicles: the slope of each surface, the
@@ -19,8 +20,8 @@ vehicle walkability grid:
      only ground reached from a seed is kept (DICE's `VehicleSeeds`);
   5. optionally limited to a sector set (DICE builds vehicle data only in chosen sectors - spec 2.1; for parity the
      reference file's own sectors, `--sectors reference`);
-  6. navbuild.stage with the vehicle settings (pitch 1, 50-sample tiles, radius 2.5, nodes 2 m over the ground,
-     area height range ground .. ground + 3.2 m, route edges up to 50 m), written with navbuild.write_file.
+  6. the stage with the vehicle settings (pitch 1, 50-sample tiles, radius 2.5, nodes 2 m over the ground,
+     area height range ground .. ground + 3.2 m, route edges up to 50 m), written as the infantry build writes it.
 
 Usage:
   navvehicle.py info <pathdata.hpd> ...                 vehicle-file summary (sectors, areas, nodes, settings)
@@ -31,8 +32,9 @@ Usage:
                                                        build + compare on every level with DICE vehicle data and samples
 
 Output goes to OPFOR's work\navvehicle\<level>\pathdata.hpd (never into the game folder).
-Integration into navkit.py (planned, see README "Vehicle path data"). navbuild.stage takes the ready walkability grid
-(surfaces, keep, gradients) and the vehicle settings (vehicle_settings: a navbuild.BuildSettings) - stage_on_grid.
+Integration into navkit.py (planned, see README "Vehicle path data"). The Rust stage takes the ready walkability
+grid (surfaces, keep, gradients) and the vehicle settings (vehicle_settings: overrides of the build's Rust defaults) -
+stage_on_grid.
 """
 import contextlib
 import json
@@ -42,7 +44,6 @@ import re
 import sys
 import time
 from collections import Counter, deque
-from dataclasses import replace
 
 import numpy as np
 
@@ -86,7 +87,7 @@ AREA_Y_MAX = 3.2             # ... to highest ground + 0.8 x EntityHeight (DICE:
 DIST_EDGE_MAX = 50.0         # VehicleData DistEdgeMax (the value on each sector's first node)
 TILE = 50                    # samples per tile: DICE's vehicle tile lines at 48.5 / 98.5 m into the sector (sample
 TILES = 3                    # -1 to 48, 49 to 98, 99 to 101), as infantry's 50 samples (38.8 / 78.8 m at 0.8)
-LINK_STEP = 0.6              # area link rule (navbuild.AREA_LINK 'terrain'): raw step between terrain cells of one area
+LINK_STEP = 0.6              # area link rule (the build's area_link 'terrain'): raw step between terrain cells of one area
 BORDER_NODE_SPACING = 10.0
 SEED_KINDS = ('land',)       # which spawn kinds seed the vehicle ground (vehicle_kind)
 SEED_ROADS = True            # the level's terrain splines (roads) seed it too (road_points; DICE's BuildRoads)
@@ -95,7 +96,7 @@ FLOOD = 'sector'             # 'sector': each sector flooded inside its own wind
                              # as DICE's files show); 'level': one flood over the whole level
 SEED_REACH = 3.0             # a seed takes the walkable surface nearest its point within this (m, horizontally)
 SEED_DY = (-3.0, 3.0)        # ... from this far below to this far above the point
-DETAIL = False               # D lines / F cells as navbuild builds them (BuildSettings.detail_features) - off:
+DETAIL = False               # D lines / F cells as the infantry build makes them (detail_features) - off:
                              # DICE's vehicle files do not follow the infantry rule (D lines mostly single, 27 % of their
                              # segments diagonal, facing pairs 163 of 7,949 lines; F directions include diagonals, no
                              # -axis / +axis twins) and their route edges cross D lines on 0.58 % (245 of 42,307), so
@@ -312,8 +313,8 @@ def water_depth(s, water):
     """Per surface: depth under the level's water (0 where dry or no water)."""
     if water is None:
         return np.zeros(len(s.y), np.float32)
-    import navbuild
-    top = navbuild.water_tops(s, water[0], water[1])
+    import navwalk
+    top = navwalk.water_tops(s, water[0], water[1])
     col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
     d = top[col] - s.y
     return np.where(np.isfinite(d) & (d > 0), d, 0).astype(np.float32)
@@ -529,28 +530,29 @@ def in_sectors(s, sectors, xoff, zoff):
 
 # ---------------------------------------------------------------------------------------------- the mesh / graph build
 def vehicle_settings(detail=None):
-    """navbuild's settings for a vehicle build (a navbuild.BuildSettings): pitch 1 with 50-sample tiles, the vehicle
-    radius, node height, area height range and DistEdgeMax; no node cover, order nodes, reference clip or 20 m tiles;
-    D lines / F cells per detail (DETAIL if None) at the vehicle link step, not keeping route edges off them."""
-    import navbuild
-    base = navbuild.DEFAULTS.at_pitch(PITCH)
-    return replace(base, tile=TILE, tiles=TILES, resolution=RESOLUTION, link_step=LINK_STEP, radius=RADIUS,
-                   dist_edge_max=DIST_EDGE_MAX, y_offset=Y_OFFSET, area_y_min=AREA_Y_MIN, area_y_max=AREA_Y_MAX,
-                   border_node_spacing=BORDER_NODE_SPACING, node_cover={'detailed': None, 'normal': None},
-                   order_nodes=False, clip_to_reference=False, tile_20m_sectors=None,
-                   detail_features=DETAIL if detail is None else detail,
-                   detail_step=dict(base.detail_step, normal=LINK_STEP),
-                   detail_blocks_edges=False)     # DICE's vehicle edges cross D lines (0.58 %; infantry 0.004 %)
+    """The build's settings for a vehicle build, as overrides of its Rust defaults (bc2_native.navkit_settings()):
+    pitch 1 with 50-sample tiles, the vehicle radius, node height, area height range and DistEdgeMax; no node cover,
+    order nodes, reference clip or 20 m tiles; D lines / F cells per detail (DETAIL if None) at the vehicle link step,
+    not keeping route edges off them."""
+    import navwalk
+    base, _switches = navwalk.require_native().navkit_settings()
+    return dict(pitch=float(PITCH), tile=int(TILE), tiles=int(TILES), resolution=float(RESOLUTION),
+                link_step=float(LINK_STEP), radius=float(RADIUS), dist_edge_max=float(DIST_EDGE_MAX),
+                y_offset=float(Y_OFFSET), area_y_min=float(AREA_Y_MIN), area_y_max=float(AREA_Y_MAX),
+                border_node_spacing=float(BORDER_NODE_SPACING), node_cover=(None, None), order_nodes=False,
+                clip_to_reference=False, tile_20m_sectors=None,
+                detail_features=bool(DETAIL if detail is None else detail),
+                detail_step=(float(LINK_STEP), float(base['detail_step'][1])),
+                detail_blocks_edges=False)     # DICE's vehicle edges cross D lines (0.58 %; infantry 0.004 %)
 
 
 def stage_on_grid(s, keep, xoff, zoff, log=print, detail=None):
-    """navbuild's stage on a ready walkability grid: the surfaces `s` (Samples at PITCH) and the kept ones, with the
+    """The build's stage on a ready walkability grid: the surfaces `s` (Samples at PITCH) and the kept ones, with the
     vehicle settings - no sample loading or infantry walkability. In the Rust core (round NK5:
     bc2_navbuild::stage through bc2_native.navkit_stage_grid); the graphs stay there.
     Returns {'graphs': the stage's graphs} for write."""
-    import navbuild
     import navwalk
-    nat = navbuild.require_native()
+    nat = navwalk.require_native()
     gx, gz = gradients(s)
     walk, gxa, gza, stair = navwalk.grid_arrays(keep, gx, gz, np.zeros(len(s.y), bool))
     terrain = (s.hit[:, 0] == navwalk.TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(s.y), bool)
@@ -559,17 +561,17 @@ def stage_on_grid(s, keep, xoff, zoff, log=print, detail=None):
             (gxa.tobytes(), gxa.dtype == np.float32), (gza.tobytes(), gza.dtype == np.float32), stair.tobytes(),
             np.ascontiguousarray(terrain, bool).tobytes())
     graphs = nat.navkit_stage_grid(grid, int(xoff), int(zoff), float(STEP_MAX),
-                                   navbuild._cfg_dict(vehicle_settings(detail)), navbuild._switches(), log, time.time())
+                                   vehicle_settings(detail), None, log, time.time())
     return {'graphs': graphs}
 
 
 def write(result, out_path, log=print, t0=None):
-    """The stage's path data to out_path (navbuild's write_file without anchors or order nodes: no shadow islands),
-    in the Rust core."""
-    import navbuild
-    nat = navbuild.require_native()
-    nat.navkit_write_stage(result['graphs'], out_path, navbuild._cfg_dict(vehicle_settings()), navbuild._switches(),
-                           navbuild._clock(time.localtime()), False, log, t0 or time.time())
+    """The stage's path data to out_path (the infantry build's file without anchors or order nodes: no shadow
+    islands), in the Rust core."""
+    import navwalk
+    nat = navwalk.require_native()
+    nat.navkit_write_stage(result['graphs'], out_path, vehicle_settings(), None,
+                           navwalk.clock_words(time.localtime()), False, log, t0 or time.time())
 
 
 # ---------------------------------------------------------------------------------------------- level inputs

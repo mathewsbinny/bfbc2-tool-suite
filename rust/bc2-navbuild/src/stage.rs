@@ -469,6 +469,9 @@ pub struct Stage {
     /// The sector square's samples across when its border runs are cut at the square's lines and their pieces beyond
     /// link to the diagonal neighbours (`Switches::diagonal_links`).
     pub diagonal_square: Option<i64>,
+    /// Per sector (the same order) its D sides as surface pairs, the route edges' blocked steps
+    /// (`DETAIL_BLOCKS_EDGES`; the tests read them).
+    pub blocked: Vec<HashSet<(usize, usize)>>,
 }
 
 impl Stage {
@@ -696,13 +699,20 @@ fn restore_one_way(sectors: &[SectorInfo], edges: &[(Vec<EdgeRows>, Vec<OneWay>)
 
 /// One sector's detail pass (`detail_pass`): per area (D lines, F records), its D sides as surface pairs, the
 /// counts; the edge rows' broken outline sides taken out.
-struct Detailed {
-    features: Vec<(Vec<Vec<detail::Point>>, Vec<detail::FCell>)>,
-    blocked: HashSet<(usize, usize)>,
-    d: usize,
-    f: usize,
-    moved: usize,
-    one_sided: usize,
+#[derive(Debug, Clone)]
+pub struct Detailed {
+    /// Per area its D lines and F records.
+    pub features: Vec<(Vec<Vec<detail::Point>>, Vec<detail::FCell>)>,
+    /// The D sides as surface pairs (`level.blocked`).
+    pub blocked: HashSet<(usize, usize)>,
+    /// D lines.
+    pub d: usize,
+    /// F records.
+    pub f: usize,
+    /// Outline sides moved to D / F (in pairs).
+    pub moved: usize,
+    /// Broken sides that were outline on one cell only.
+    pub one_sided: usize,
 }
 
 /// A side's key in the edge rows: (x axis, doubled line, dir, along).
@@ -758,8 +768,10 @@ fn half_cells(level: &Level, cells: &[Cell], gi0: i64, gj0: i64) -> (Vec<(Side, 
     )
 }
 
-/// `detail_pass` for one sector's areas (`rows` its edge rows; the broken sides taken out of them).
-fn detail_pass(
+/// `detail_pass` for one sector's areas (`rows` its edge rows; the broken sides taken out of them; `origin` the
+/// sector's (gi0, gj0, ox, oz)).
+#[must_use]
+pub fn detail_pass(
     level: &Level,
     cells_of: &[Vec<Cell>],
     rows: &mut [EdgeRows],
@@ -1359,6 +1371,7 @@ pub fn stage(
         dropped,
         pitch: cfg.pitch,
         diagonal_square: sw.diagonal_links.then_some(cfg.sector_samples),
+        blocked: Vec::new(),
     };
     let scope: Scope = st.sectors.iter().enumerate().map(|(n, s)| (s.xy, n)).collect();
     let mut meshes = Vec::with_capacity(st.sectors.len());
@@ -1569,6 +1582,7 @@ pub fn stage(
     }
     st.next_id = next_id;
     st.graphs = graphs;
+    st.blocked = jobs.into_iter().map(|j| j.blocked).collect();
     Ok(st)
 }
 

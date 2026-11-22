@@ -4,7 +4,7 @@ terrain, water, the collision index, the level loader (2026-11-18, round F1a) -,
 is never used silently (core/bfbc2core/native.py; README.md, "The Rust core").
 
 A copy of the suite's Python and Rust sources in a temporary folder (no game data, no cargo), three ways:
-  - no module: texture.convert, navbuild.build, navwalk.walkable, audio's encoder, mesh.convert,
+  - no module: texture.convert, navwalk.build, navwalk.walkable, audio's encoder, mesh.convert,
     havok.convert_packfile, granny.to_pc, dbx.parse / to_xml / write, fbrb.entries, terrain.parse, water.parse_mesh and
     collision.havok_index raise NativeMissing at once (before reading any input), saying how to get it
     (build_native.py --download, or build);
@@ -42,7 +42,7 @@ warnings.simplefilter('always')
 caught = []
 warnings.showwarning = lambda m, *a, **k: caught.append(str(m))
 from bfbc2core import collision, dbx, fbrb, native, terrain, water
-import audio, granny, havok, mesh, navbuild, navwalk, texture
+import audio, granny, havok, mesh, navwalk, texture
 import numpy as np
 print('warnings:', len(caught), caught[0][:80] if caught else '')
 def attempt(name, fn):
@@ -56,7 +56,7 @@ def attempt(name, fn):
 import struct
 tex = struct.pack('>8I', 3, 0, 10, 0, 8, 8, 0, 1) + bytes(60) + bytes(4096)
 attempt('texture', lambda: len(texture.convert(tex)))
-attempt('navbuild', lambda: navbuild.build('no such samples.bin', None, 0, 0, 'out.hpd', log=lambda *a: None))
+attempt('navkit build', lambda: navwalk.build('no such samples.bin', None, 0, 0, 'out.hpd', log=lambda *a: None))
 attempt('walkable', lambda: navwalk.walkable(None))
 attempt('audio', lambda: audio.xas_encode_frames(np.zeros((128, 1), np.int16)).shape)
 attempt('mesh', lambda: mesh.convert(b'', []))
@@ -69,7 +69,7 @@ attempt('terrain', lambda: terrain.parse(b''))
 attempt('water', lambda: water.parse_mesh(b''))
 attempt('collision', lambda: collision.havok_index([]))
 '''
-RETIRED = ('texture', 'navbuild', 'walkable', 'audio', 'mesh', 'havok', 'granny', 'dbx', 'dbx write', 'fbrb', 'terrain',
+RETIRED = ('texture', 'navkit build', 'walkable', 'audio', 'mesh', 'havok', 'granny', 'dbx', 'dbx write', 'fbrb', 'terrain',
            'water', 'collision')
 
 
@@ -422,8 +422,8 @@ def main() -> int:
         r = probe(root, BFBC2_PURE_PYTHON='1')
         check(r.get('texture') == 'ok 156', f'matching module: texture converts under BFBC2_PURE_PYTHON=1 '
                                             f'({r.get("texture")})')
-        check(r.get('navbuild', '').startswith(('FileNotFoundError', 'OSError')),
-              f'matching module: navbuild.build gets past the check to its input ({r.get("navbuild", "")[:80]})')
+        check(r.get('navkit build', '').startswith(('FileNotFoundError', 'OSError')),
+              f'matching module: navwalk.build gets past the check to its input ({r.get("navkit build", "")[:80]})')
         check(r.get('audio') == 'ok (1, 1, 76)', f'matching module: audio encodes under BFBC2_PURE_PYTHON=1 ({r.get("audio")})')
         check(r.get('dbx write') == 'ok 29' and r.get('collision') == 'ok {}' and r.get('fbrb', '').startswith(
             ('FileNotFoundError', 'OSError')), f'matching module: the DBX writer, the collision index and the bundle reader '
