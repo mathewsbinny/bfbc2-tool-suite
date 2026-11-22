@@ -2643,7 +2643,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 14,
+   "lines": 16,
    "note": "the package; __version__ from VERSION",
    "path": "core/bfbc2core/__init__.py",
    "retiring": "the last Python",
@@ -2679,7 +2679,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "tool entry point",
-   "lines": 898,
+   "lines": 902,
    "note": "the cache budget's twin; the command line is Rust (O3)",
    "path": "core/bfbc2core/caches.py",
    "retiring": "PR1b-1",
@@ -2727,7 +2727,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 155,
+   "lines": 156,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -3759,6 +3759,18 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
+   "lines": 197,
+   "note": "the batch readers' peak memory; any command's process-tree peak (--command)",
+   "path": "rust/bench_memory.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
    "lines": 59,
    "note": "one NavKit build (navregress.build_level)",
    "path": "rust/bench_navkit.py",
@@ -3927,7 +3939,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 821,
+   "lines": 823,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4035,7 +4047,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "library",
-   "lines": 52,
+   "lines": 56,
    "note": "the one sys.path bootstrap",
    "path": "suite_paths.py",
    "retiring": "the last Python",
@@ -4412,14 +4424,14 @@
  ],
  "totals": {
   "all": {
-   "files": 362,
-   "lines": 105252
+   "files": 363,
+   "lines": 105462
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1413,
-    "live": 52,
+    "lines": 1417,
+    "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
@@ -4605,14 +4617,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 19603,
-    "live": 734,
+    "lines": 19610,
+    "live": 737,
     "partly": 0,
     "ported": 1897,
     "retired-pending": 0,
     "stays": 0,
     "test": 14591,
-    "twin": 2381
+    "twin": 2385
    },
    "design": {
     "files": 1,
@@ -4626,13 +4638,13 @@
     "twin": 0
    },
    "rust": {
-    "files": 30,
-    "lines": 5230,
+    "files": 31,
+    "lines": 5429,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 4963,
+    "stays": 5162,
     "test": 267,
     "twin": 0
    },
@@ -4662,7 +4674,7 @@
   "by_status": {
    "live": {
     "files": 21,
-    "lines": 6048
+    "lines": 6055
    },
    "partly": {
     "files": 21,
@@ -4677,8 +4689,8 @@
     "lines": 310
    },
    "stays": {
-    "files": 53,
-    "lines": 8681
+    "files": 54,
+    "lines": 8880
    },
    "test": {
     "files": 188,
@@ -4686,7 +4698,7 @@
    },
    "twin": {
     "files": 55,
-    "lines": 19395
+    "lines": 19399
    }
   }
  }
