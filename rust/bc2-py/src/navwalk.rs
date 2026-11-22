@@ -24,7 +24,7 @@ use bc2_navbuild::walk::{
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyDict, PyList, PyTuple};
+use pyo3::types::{PyAny, PyByteArray, PyBytes, PyDict, PyList, PyTuple};
 
 use crate::navbuild::NavLevel;
 
@@ -158,7 +158,8 @@ fn samples(d: &Bound<'_, PyDict>) -> PyResult<Samples> {
     Ok(s)
 }
 
-/// A run as a dict for `navsample.Samples` (`y` / `normal` in their dtypes, `hit` None when the run has none).
+/// A run as a dict for `navsample.Samples` (`y` / `normal` in their dtypes, `hit` None when the run has none),
+/// the arrays as bytearrays: NumPy's views over them are writable, as `navsample.load`'s arrays always were.
 fn samples_dict<'py>(py: Python<'py>, s: &Samples) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
     d.set_item("nx", s.nx)?;
@@ -168,25 +169,25 @@ fn samples_dict<'py>(py: Python<'py>, s: &Samples) -> PyResult<Bound<'py, PyDict
     d.set_item("min_z", s.min_z)?;
     d.set_item("header", s.header.to_vec())?;
     let start: Vec<u8> = s.start.iter().flat_map(|&v| (v as i64).to_le_bytes()).collect();
-    d.set_item("start", PyBytes::new(py, &start))?;
+    d.set_item("start", PyByteArray::new(py, &start))?;
     let y: Vec<u8> = if s.y_f32 {
         s.y.iter().flat_map(|&v| walk::narrow(v).to_le_bytes()).collect()
     } else {
         s.y.iter().flat_map(|v| v.to_le_bytes()).collect()
     };
-    d.set_item("y", PyBytes::new(py, &y))?;
+    d.set_item("y", PyByteArray::new(py, &y))?;
     d.set_item("y_f32", s.y_f32)?;
     let (normal, nf32): (Vec<u8>, bool) = match &s.normal {
         Normals::F32(v) => (v.iter().flatten().flat_map(|x| x.to_le_bytes()).collect(), true),
         Normals::F64(v) => (v.iter().flatten().flat_map(|x| x.to_le_bytes()).collect(), false),
     };
-    d.set_item("normal", PyBytes::new(py, &normal))?;
+    d.set_item("normal", PyByteArray::new(py, &normal))?;
     d.set_item("normal_f32", nf32)?;
-    d.set_item("flags", PyBytes::new(py, &s.flags))?;
+    d.set_item("flags", PyByteArray::new(py, &s.flags))?;
     match &s.hit {
         Some(h) => d.set_item(
             "hit",
-            PyBytes::new(
+            PyByteArray::new(
                 py,
                 &h.iter().flatten().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>(),
             ),
