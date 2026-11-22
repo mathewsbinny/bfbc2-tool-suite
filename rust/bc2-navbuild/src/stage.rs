@@ -477,6 +477,10 @@ pub trait Log {
     fn line(&mut self, text: &str);
     /// Seconds since the build started (`time.time() - t0`).
     fn seconds(&self) -> f64;
+    /// Whether the build should stop (round NK6: the editor's Cancel), checked between its steps.
+    fn cancelled(&self) -> bool {
+        false
+    }
 }
 
 /// Python's `repr(float)`.

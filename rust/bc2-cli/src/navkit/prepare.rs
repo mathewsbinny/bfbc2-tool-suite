@@ -3,7 +3,6 @@
 //! prepare adds (`bfbc2core.level.heightfield_of`: the level's `terrain-00.fbrb` unpacked into
 //! `work\levels\<lv>\terrain` once, stamped).
 
-use bc2_formats::{dbx, hpd, kymesh, terrain};
 use regex::Regex;
 
 use super::project::{Log, Project};
@@ -88,50 +87,12 @@ pub fn sector_offsets_of(xml_path: &str) -> PyResult<(i64, i64)> {
 
 /// The area outlines' points of every sector of a path-data file (and, `portals`, the portals' ends).
 fn outline_points(path: &str, portals: bool) -> PyResult<Vec<[f64; 3]>> {
-    let data = pyos::read(path)?;
-    let f = hpd::parse(&data).map_err(|_| Fail::Python)?;
-    let mut pts = Vec::new();
-    for s in &f.sectors {
-        let m = kymesh::parse(s.mesh).map_err(|_| Fail::Python)?;
-        for a in &m.areas {
-            for line in &a.outline {
-                pts.extend(line.iter().map(|p| [f64::from(p[0]), f64::from(p[1]), f64::from(p[2])]));
-            }
-            if portals {
-                for pt in &a.portals {
-                    for p in [pt.p0, pt.p1] {
-                        pts.push([f64::from(p[0]), f64::from(p[1]), f64::from(p[2])]);
-                    }
-                }
-            }
-        }
-    }
-    Ok(pts)
+    bc2_navbuild::inputs::outline_points(path, portals).map_err(super::build::fail)
 }
 
 /// `navregress.reference_bounds(root, lv)`.
 pub fn reference_bounds(pr: &Project, lv: &str) -> PyResult<Option<[f64; 4]>> {
-    let Some(p) = pr.dice_pathdata(lv)? else {
-        return Ok(None);
-    };
-    if !pyos::isfile(&p) {
-        return Ok(None);
-    }
-    let pts = outline_points(&p, true)?;
-    if pts.is_empty() {
-        return Ok(None);
-    }
-    let mut b = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
-    for q in &pts {
-        if q[0].is_nan() || q[2].is_nan() {
-            return Err(Fail::Python);
-        }
-        b[0] = b[0].min(q[0]);
-        b[1] = b[1].min(q[2]);
-        b[2] = b[2].max(q[0]);
-        b[3] = b[3].max(q[2]);
-    }
-    Ok(Some(b))
+    bc2_navbuild::inputs::reference_bounds(&super::build::root(pr), lv).map_err(super::build::fail)
 }
 
 fn floor10(v: f64) -> PyResult<i64> {
@@ -350,130 +311,24 @@ fn is_os_error(e: &PyErr) -> bool {
     matches!(e.kind.as_str(), "OSError" | "FileNotFoundError" | "PermissionError")
 }
 
-/// `level.terrain_name(entities)` of the level's binary partition.
-fn terrain_name(part: &str) -> PyResult<Option<String>> {
-    let f = dbx::read(part).map_err(|_| Fail::Python)?;
-    for el in f.instances() {
-        if f.attr(el, "type").unwrap_or("").ends_with(".TerrainEntityData") {
-            let r = f.child(el, "TerrainAsset").and_then(|a| f.attr(a, "ref")).unwrap_or("");
-            let parts: Vec<&str> = r.split('/').collect();
-            return Ok((parts.len() >= 3).then(|| parts[1].to_lowercase()));
-        }
-    }
-    Ok(None)
-}
-
-/// `terrain.find(folder, name)`.
-fn terrain_find(folder: &str, name: &str) -> PyResult<Option<String>> {
-    let want = format!("{name}.heightfield-000.res").to_lowercase();
-    for (root, _, files) in pyos::walk(folder)? {
-        for f in files {
-            if f.to_lowercase() == want {
-                return Ok(Some(join2(&root, &f)?));
-            }
-        }
-    }
-    Ok(None)
-}
-
 /// `level.heightfield_of(root, lv, log)` (its terrain name returned, for `water_of`): the terrain unpacked when its
-/// unpack is missing or from another bundle,
-/// then read (its error raised).
+/// unpack is missing or from another bundle, then read (its error raised) - `bc2_navbuild::inputs::heightfield_of`.
 pub fn heightfield_of(py: &mut Py, root: &str, lv: &str, log: &mut dyn Log) -> PyResult<String> {
-    let mut part = None;
-    for b in ["pkg", "dist"] {
-        for f in pyos::glob(&join(root, &["work", "levels", lv, b, "levels", "*.dbx"])?)? {
-            if pyos::splitext(&pyos::basename(&f)?).0.to_lowercase() == lv && part.is_none() {
-                part = Some(f);
-            }
-        }
+    let mut kept: Option<Fail> = None;
+    let r = bc2_navbuild::inputs::heightfield_of(
+        root,
+        lv,
+        &mut |line| {
+            log.log(py, line).map_err(|e| {
+                kept.get_or_insert(e);
+                bc2_navbuild::ntpath::Fail::Sink
+            })
+        },
+        &super::build::tool,
+    );
+    match r {
+        Ok(v) => Ok(v),
+        Err(bc2_navbuild::ntpath::Fail::Sink) => Err(kept.unwrap_or(Fail::Python)),
+        Err(e) => Err(super::build::fail(e)),
     }
-    let name = match &part {
-        Some(p) => terrain_name(p)?,
-        None => None,
-    }
-    .filter(|n| !n.is_empty())
-    .unwrap_or_else(|| lv.to_owned());
-    let dest = join(root, &["work", "levels", lv, "terrain"])?;
-    let mut bundle = None;
-    for top in [
-        join(root, &["game", "Dist", "win32", "levels"])?,
-        join(root, &["game", "Package", "levels"])?,
-    ] {
-        for d in pyos::glob(&join2(&top, "*")?)? {
-            if bundle.is_none()
-                && pyos::basename(&d)?.to_lowercase() == lv
-                && pyos::isfile(&join2(&d, "terrain-00.fbrb")?)
-            {
-                bundle = Some(join2(&d, "terrain-00.fbrb")?);
-            }
-        }
-    }
-    let mut path = if pyos::isdir(&dest) {
-        terrain_find(&dest, &name)?
-    } else {
-        None
-    };
-    if let Some(bundle) = bundle {
-        let stamp = join2(&dest, ".source.stamp")?;
-        let want = format!("{} {}", pyos::getsize(&bundle)?, pyos::mtime_ns(&bundle)?);
-        let current = |path: &Option<String>| -> bool {
-            path.is_some()
-                && std::fs::read(&stamp)
-                    .is_ok_and(|d| d.is_ascii() && super::strip(&String::from_utf8_lossy(&d)) == want)
-        };
-        if !current(&path) {
-            let lock = join(root, &["work", "levels", lv, ".terrain.lock"])?;
-            pyos::makedirs(&pyos::dirname(&lock)?)?;
-            let f = std::fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .open(&lock)
-                .map_err(|e| crate::pyproc::os_error(&lock, &e))?;
-            while f.try_lock().is_err() {
-                std::thread::sleep(std::time::Duration::from_millis(200));
-            }
-            let r = (|| -> PyResult<()> {
-                path = if pyos::isdir(&dest) {
-                    terrain_find(&dest, &name)?
-                } else {
-                    None
-                };
-                if !current(&path) {
-                    log.log(py, &format!("{lv}: unpacking {}", pyos::relpath(&bundle, root)?))?;
-                    if pyos::isdir(&dest) {
-                        std::fs::remove_dir_all(&dest).map_err(|e| crate::pyproc::os_error(&dest, &e))?;
-                    }
-                    let args = vec!["unpack".to_owned(), bundle.clone(), dest.clone()];
-                    let logp = crate::pylog::log_path("fbrbtool");
-                    let o = bc2_formats::fbrb::tool::run(&args, logp.as_deref());
-                    crate::pylog::append(logp.as_deref(), "fbrbtool", &args, &o.log);
-                    if o.code != 0 {
-                        return Err(Fail::Err(PyErr::new(
-                            "CalledProcessError",
-                            format!(
-                                "Command '{}' returned non-zero exit status {}.",
-                                super::str_list_repr(&args),
-                                o.code
-                            ),
-                        )));
-                    }
-                    pyos::atomic_write_text(&stamp, &want)?;
-                    path = terrain_find(&dest, &name)?;
-                }
-                Ok(())
-            })();
-            let _ = f.unlock();
-            r?;
-        }
-    }
-    if let Some(p) = path {
-        let data = pyos::read(&p)?;
-        if let Err(e) = terrain::parse(&data) {
-            return Err(Fail::Err(PyErr::new("ValueError", format!("{p}: {e}"))));
-        }
-    }
-    Ok(name)
 }

@@ -10,7 +10,7 @@
 //! **The same answers.** A point joins the route node nearest to it (NumPy's `hypot` and `argmin`: the first
 //! minimum, or the first NaN), within 15 m horizontally and 4 m in height; costs are `0x80000000 | floor(dist * 16)`
 //! with CPython's `math.dist` ([`crate::pymath::dist3`]); Python's `round` and its float formatting
-//! (`bc2_pyrt::fmt`); the annotations file is `json.dump(doc, indent=1)` and a newline (`bc2_pyrt::json`). The side
+//! ([`crate::pymath::round_to`]); the annotations file is `json.dump(doc, indent=1)` and a newline ([`crate::pyjson`]). The side
 //! file's operations arrive as JSON values (`json.loads` of the side file, or of `json.dumps` of its operations).
 //!
 //! **Errors.** Where the reference raised, its exception: the path-data reader's `ValueError` / `struct.error`
@@ -20,9 +20,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::pyjson::{self as json, Value};
+use crate::pymath::round_to;
 use bc2_formats::hpd::{self, Edge, HpdFile};
-use bc2_pyrt::fmt::round_to;
-use bc2_pyrt::json::{self, Value};
 
 use crate::pymath::{dist3, round3};
 

@@ -1,6 +1,6 @@
 //! NavKit's whole build in Rust (round NK5: `navbuild.build`): walkability ([`crate::walk::stage`]), the stage
 //! ([`crate::stage`]), the detailed pass merged in, the file ([`crate::graphfile::write_file`]) - from a level's
-//! inputs ([`Inputs`]; `navkit.build_inputs` / `navregress.build_level` gather them, [`crate::inputs`] in Rust) to
+//! inputs ([`Inputs`]; `navkit.build_inputs` / `navregress.build_level` gather them, [`crate::inputs`]) to
 //! the path data and the build's log lines, the same lines and bytes the Python build gave.
 
 #![allow(
@@ -306,7 +306,16 @@ pub fn build_graphs(
     report: &mut Report,
     log: &mut dyn Log,
 ) -> Result<Vec<StageGraph>, NavError> {
+    let stop = |log: &dyn Log| {
+        if log.cancelled() {
+            Err(NavError::Cancelled)
+        } else {
+            Ok(())
+        }
+    };
+    stop(log)?;
     let ground = walk_ground(inp, &inp.samples, inp.high.as_deref(), &[], cfg, ws, report, log)?;
+    stop(log)?;
     let args = StageArgs {
         xoff: inp.xoff,
         zoff: inp.zoff,
@@ -315,6 +324,7 @@ pub fn build_graphs(
         ..StageArgs::default()
     };
     let a = stage::stage(ground, &args, cfg, sw, &mut report.stats, log)?;
+    stop(log)?;
     let graphs = match &inp.detailed {
         None => a.graphs,
         Some(det) => {
@@ -337,6 +347,7 @@ pub fn build_graphs(
             let dcfg = cfg.detailed();
             let ground = walk_ground(inp, &det.samples, det.high.as_deref(), &pts, &dcfg, ws, report, log)?;
             drop(pts);
+            stop(log)?;
             let bargs = StageArgs {
                 xoff: inp.xoff,
                 zoff: inp.zoff,
@@ -347,6 +358,7 @@ pub fn build_graphs(
                 carried,
             };
             let b = stage::stage(ground, &bargs, &dcfg, sw, &mut report.stats, log)?;
+            stop(log)?;
             stage::merge(a, b, &dset, &owners, sw, log)
         }
     };
@@ -453,6 +465,9 @@ pub fn build(
 ) -> Result<Report, NavError> {
     let mut report = Report::default();
     let graphs = build_graphs(inp, cfg, sw, ws, &mut report, log)?;
+    if log.cancelled() {
+        return Err(NavError::Cancelled);
+    }
     let data = file_bytes(&graphs, Some(anchors(inp)), cfg, sw, clock, &mut report, log)?;
     drop(graphs);
     write_out(out, &data, &report, log)?;
