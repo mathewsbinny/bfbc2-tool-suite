@@ -90,6 +90,27 @@ before their deletion (`f0_*_replay*.json`, `f2a_console_replay*.json`).
 [test: bfbc2-console-convert/tests/test_console_f2a_native.py::quick] [test: bfbc2-console-convert/tests/test_console_f2a_native.py::textures_game]
 [test: bfbc2-console-convert/tests/test_texture_native.py::game]
 
+### XCONS-PAR-2: Recorded measures are the same bits on every machine
+
+Status: **verified**
+
+A value the tests record (a golden or a replayed reference answer) is computed with integer arithmetic and IEEE's
+correctly rounded operations only (+, -, *, /, sqrt, and in Rust a correctly rounded fma: `libm::fma`), never with a
+NumPy operation BLAS computes (`np.dot`, `np.corrcoef`, `np.linalg.norm` of a vector) or the C runtime's `fma`:
+their last bits follow the CPU (OpenBLAS picks its kernel per CPU: `SkylakeX` on the development PC, `Haswell` /
+`Zen` on GitHub's runner, and the bits differ) or the installed Windows (`f64::mul_add` without the `fma` target
+feature calls the C runtime's `fma`). Round CI1 found two: `texture.check`'s correlation, now exact in the core
+(`texcheck::correlation`: the five sums in integers, each rounded once; the retired reference's NumPy answers
+re-recorded where only the correlation differed), and `navpath.route`'s straight distance, now the estimate's own
+formula (`navpath.distance`: np.linalg.norm's bits on the recording PC, so the recorded routes stand). The quick
+tier passes with `OPENBLAS_CORETYPE=Haswell` (the runner's kernel) as without.
+
+[code: rust/bc2-convert/src/texcheck.rs:162-196] [code: core/bfbc2core/navpath.py:89-93]
+[code: rust/bc2-navbuild/src/astar.rs:26-33]
+[test: rust/bc2-convert/src/texcheck.rs::correlation_exact]
+[test: bfbc2-console-convert/tests/test_console_f2a_native.py::quick]
+[test: tests/test_e3o_native.py::quick_navpath]
+
 ## 2. Levels: the Onslaught port's stages
 
 ### XCONS-STG-1: Fourteen stages in a fixed order
