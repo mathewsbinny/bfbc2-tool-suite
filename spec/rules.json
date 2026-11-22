@@ -3690,6 +3690,137 @@
    ]
   },
   {
+   "id": "PERS-JOIN-1",
+   "title": "The join makes a stats object and asks EA for its values",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "FUN_00865D70 join; FUN_0085F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:1-13"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:47-64"
+    }
+   ]
+  },
+  {
+   "id": "PERS-UNLK-1",
+   "title": "Unlocks come from kit score buckets and the rank table",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "FUN_0086BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:60-64"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:248-265"
+    }
+   ]
+  },
+  {
+   "id": "PERS-LIC-1",
+   "title": "Licence items are added after the computation",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x8527D0 Unlocks::applyLicenses"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:345-356"
+    }
+   ]
+  },
+  {
+   "id": "PERS-SAVE-1",
+   "title": "The round's stats are committed through the stats listener",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "FUN_0084CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:120-130"
+    }
+   ]
+  },
+  {
+   "id": "PERS-OPF-1",
+   "title": "Local stats in game\\stats.txt drive the game's own computation",
+   "file": "spec/engine/persistence.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:104-119"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:210-215"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:15-20"
+    }
+   ]
+  },
+  {
+   "id": "PERS-OPF-2",
+   "title": "Licence items: none on stock levels, Vietnam's on Vietnam, all on WW2 levels",
+   "file": "spec/engine/persistence.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:348-357"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:401-410"
+    }
+   ]
+  },
+  {
+   "id": "PERS-OPF-3",
+   "title": "Kills of bots score nothing offline",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x53F430 client count; the five tests as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:115-123"
+    }
+   ]
+  },
+  {
    "id": "RNDR-DB-1",
    "title": "A level draws with its own database, found by its name",
    "file": "spec/engine/rendering.md",
