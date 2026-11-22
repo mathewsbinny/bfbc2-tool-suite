@@ -8177,6 +8177,55 @@ A specification round: no tool's behaviour changed. Two spec files (`spec/engine
 probes on the AI input object, the behaviours' writes, bots as scored and named players, the mode state's run-time
 objects, the bot object's class and senses, the order and squad runtime, the session's AI difficulty.
 
+## NKS-rest: the Kynapse generator's rules fitted, and the runtime RE left (2026-11-22, branch `nksr`)
+
+A specification round: no tool's behaviour changed. New rules KYG-EDGE-3 / KYG-EDGE-4 (verified, two game-tier tests
+in `kynapse_corpus.rs`), KYRT-NODE-2 / KYRT-PATH-3 (observed), KYRT-DYN-2 (inferred); KYRT-CFG-1, KYRT-PATH-1,
+KYRT-NODE-1, KYG-AREA-2, KYG-NODE-1 / 3, KYG-DET-1, KYG-RECT-1, KYN-EDGE-3, HPD-NODE-5 / 6 and the open-question
+tables updated.
+
+**Method.**
+- **Data.** `rust/bc2-formats/examples/kynapse_fit.rs` reads DICE's 35 files read-only and prints counts and
+  histograms only: 19 s in release (the pair fits dominate: every ordinary pair within DistEdgeMax, a 2-D sight test
+  against the outline and D lines, the graph's route between them, an on-mesh test of the line).
+- **The executable.** Read statically with capstone and pefile (scratch scripts, deleted): the RTTI's
+  complete-object locators gave the `Kaim::` vtables, and the reflected field table of `PathfindingType` gave
+  `SectorOverlap`'s field. No Ghidra project was copied; the game was not run.
+- **Tests.** `edges_have_a_reverse_by_node_id` and `edges_are_not_redundant_at_1_2`: 1.4 s together in the dev
+  profile (the whole `kynapse_corpus` binary 2.2 s).
+
+**The generator (DICE's 35 files):**
+
+| Rule | Fit | Coverage | Status |
+|---|---|---|---|
+| which pairs get edges (KYG-EDGE-3) | a greedy 1.2-spanner: no edge where the graph already has a route at most 1.2 x as long | edges kept: all but 946 of 487,308 infantry and 427 of 11,814 vehicle ordinary pairs; pairs in sight without an edge explained: coarse 63 %, detailed 68 %, vehicle 81 % (+ 3,283 vehicle lines that leave the mesh); the cut-off is sharp (coarse edges with a route within 1.20 x: 186, within 1.22 x: 1,206) | verified (the edge half), observed (the missing pairs) |
+| one-way edges (KYG-EDGE-4) | the border convention: by node id the graph is symmetric | 99.1 % infantry, 95.1 % vehicle edges have a reverse by id; 96.9 % of infantry one-way edges in their sector end at a non-owner copy | verified |
+| the midline cut (KYG-AREA-2) | open | 1,064 / 106 / 400 cut groups; "across the longer side" holds for 67 % of coarse cuts (not 325 of 326); not the cells, record size, outline points, tile or a hole crossing the midline; 87 % of coarse cuts join ground that meets across the midline in two stretches | observed |
+| node placement (KYG-NODE-1) | open | not a lattice (0.05-1 m), not outline corners + radius (0.3 %), not the medial axis, not area centroids; vehicle lone nodes within 0.7 m of their area's cell centroid (90 %) | observed |
+| detailed sectors (KYG-DET-1) | open | 42 blocks, only 14 rectangles (30 sectors) | observed |
+| the rectangle (KYG-RECT-1) | open | the vehicle ground shares a side with the infantry ground's box on 13 of 68 sides | observed |
+| vehicle D / F (KYG-DF-2) | not fitted | needs a vehicle sample run | open |
+
+**The runtime (`BFBC2Game.exe`, all observed):**
+
+| Finding | Addresses | Rule |
+|---|---|---|
+| `SectorOverlap` is `PathfindingType.DistEdgeMax` (+0x20): 15 m infantry, 50 m vehicle; `SectorSize` its `SubgraphBoxSize` (+0x40) | set-up 0x00F20C0E-0x00F20CD9; field table 0x01C39DB8-0x01C39EBF | KYRT-CFG-1 |
+| the A*'s cost object `Kaim::IConstraint` (default `CConstraintShortestPath`: f32 3-D distance of the node positions; the AI's `CSphereConstraint`), heuristic `Kaim::IHeuristic` (none or `CHeuristicEuclidianDistance`: 3-D distance to the goal); 100 expansions per call, then state saved | 0x01059480, 0x01059970, 0x01059210, 0x01079320, 0x010803D1, 0x00F0F122-0x00F0F192, 0x0107A5CE | KYRT-PATH-1 |
+| the owner bit is the byte at node +0x22: edges into a node with no loaded owner copy dropped; edges on every copy gathered; non-owner copies never a lookup candidate; random picks skip them | 0x0105C8C0 (from 0x0105CB5B, 0x0105CD36, 0x0105D43D), 0x0105E786, 0x0105C303 | KYRT-PATH-3 |
+| the node lookup is a box query that binary-searches the three lookup lists, walks the one with the fewest candidates in its order, and the resolver takes the first candidate that passes (no distance sort): the lists' tie order is read | 0x0105E270, 0x0105ED80, 0x0105EF5A / 0x0105F278 | KYRT-NODE-2, KYRT-NODE-1 |
+| LPF and gaps are an obstacle layer and dynamic avoidance beside the path data (names only) | 0x00F1F584, 0x014A9360-0x014A9A48 | KYRT-DYN-2 (inferred) |
+
+**What changes for NavKit.** NKG1: edges on owner copies only (the runtime uses non-owner copies' edges, so NavKit's
+112,296 add connections), and no directed graph is needed: DICE's is symmetric by id. NKG2: the edge pairs as a
+1.2-spanner; the border band as wide as `SectorOverlap`; DICE's detailed sectors on DICE levels. The lookup lists'
+ties matter in game only between nodes at the same coordinate, so they wait for node placement. NKG3: unchanged (the
+vehicle D / F rule needs a vehicle sample run).
+
+**Left (NKS-rest2 in the ROADMAP):** the midline trigger, node placement, the 37 % of coarse pairs the spanner does
+not explain, the vehicle D / F rule, detailed sectors beyond the flag, the rectangle; the LPF's methods and the load
+write of node +0x14.
+
 ## NKS: the Kynapse specification (2026-11-22, branch `nks`)
 
 A specification round: no tool's behaviour changed. Three spec files (`spec/formats/kynapse.md`,
