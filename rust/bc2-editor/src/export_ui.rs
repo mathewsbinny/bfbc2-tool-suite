@@ -823,9 +823,8 @@ impl ExportWindow {
                 let r = export::check(&game, &stage).map_err(|e| EditorError::Tool(e.to_string()))?;
                 let mut out = rec.report;
                 out.extend(
-                    r.checks
-                        .iter()
-                        .map(|(ok, w)| format!("{} {w}", if *ok { "ok" } else { "FAILED" })),
+                    r.lines()
+                        .map(|(code, ok, w)| format!("{} {code} {w}", if ok { "ok" } else { "FAILED" })),
                 );
                 out.push(if r.ok() {
                     format!(
