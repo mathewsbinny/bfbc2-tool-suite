@@ -129,8 +129,10 @@ GABRIEL_EDGES = 'detailed'      # prune the route graph's walkable pairs to the 
                                 # there (174,024 edges against DICE's 24,710; ONS_MP_002, 2026-10-21)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (write_file)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (write_file)
-OWNER_EDGES = True              # a border copy the sector does not own carries no edges, so edges into it are one-way
-                                # (HPD-NODE-5, KYN-EDGE-3: DICE's one-way edges are 97 % edges into such copies)
+OWNER_EDGES = False             # a border copy the sector does not own carries no edges (HPD-NODE-5, KYG-EDGE-4): off
+                                # while NavKit's one border row lies in the higher sector - the runtime walks every
+                                # copy's edges (KYRT-PATH-3), and the non-owner copies' are the only ones into the
+                                # lower sector (as on: strongly connected share sp_004_b 100 -> 6.5 %)
 NODE_BOUNDS = True              # the sector table's bounds are the box of the sector's nodes (KYN-SEC-2)
 DIAGONAL_LINKS = True           # border portal runs cut at the square's lines, the pieces beyond linked to the diagonal
                                 # neighbour (KYN-LINK-1)

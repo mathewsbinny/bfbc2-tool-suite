@@ -84,7 +84,7 @@ fn switches_of(d: &Bound<'_, PyDict>) -> PyResult<Switches> {
         },
         sort_nodes_by_id: get(d, "sort_nodes_by_id")?,
         border_owner: get(d, "border_owner")?,
-        owner_edges: opt(d, "owner_edges")?.unwrap_or(true),
+        owner_edges: opt(d, "owner_edges")?.unwrap_or(false),
         node_bounds: opt(d, "node_bounds")?.unwrap_or(true),
         diagonal_links: opt(d, "diagonal_links")?.unwrap_or(true),
         order_node_min: get(d, "order_node_min")?,

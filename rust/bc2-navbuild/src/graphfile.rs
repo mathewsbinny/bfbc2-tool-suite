@@ -401,6 +401,7 @@ pub fn prune_order_nodes<S: BuildHasher>(
 /// How [`finalize`] lays a sector's nodes out (`SORT_NODES_BY_ID`, `BORDER_OWNER`, the build's `dist_edge_max`) and
 /// which edges and bounds [`write_file`] writes.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[expect(clippy::struct_excessive_bools, reason = "each is one of the build's switches")]
 pub struct Layout {
     /// A sector's nodes sorted by unsigned id (ordinary nodes, then border nodes).
     pub sort_by_id: bool,
@@ -409,7 +410,9 @@ pub struct Layout {
     /// The first node's value.
     pub dist_edge_max: f64,
     /// A border copy the sector does not own carries no edges (HPD-NODE-5: the owner's copy holds the node's edges),
-    /// so an edge into it has none back in this sector (KYN-EDGE-3). Only with `border_owner` and a sector origin.
+    /// so an edge into it has none back in this sector (KYN-EDGE-3, KYG-EDGE-4). Only with `border_owner` and a sector
+    /// origin. Off by default: the runtime walks every copy's edges (KYRT-PATH-3), and with NavKit's single border
+    /// row, all in the higher sector, the non-owner copies' edges are the only ones into the lower sector.
     pub owner_edges: bool,
     /// The sector table's bounds are the box of the sector's written nodes (KYN-SEC-2), not the build's bounds.
     pub node_bounds: bool,
@@ -421,7 +424,7 @@ impl Default for Layout {
             sort_by_id: true,
             border_owner: true,
             dist_edge_max: 15.0,
-            owner_edges: true,
+            owner_edges: false,
             node_bounds: true,
         }
     }
@@ -976,7 +979,11 @@ mod tests {
             origin: Some((0.0, 0.0)),
         };
         let linked = linked_ids(std::slice::from_ref(&g));
-        let (n, edges) = finalize(&g, &linked, &Layout::default()).unwrap();
+        let owner_only = Layout {
+            owner_edges: true,
+            ..Layout::default()
+        };
+        let (n, edges) = finalize(&g, &linked, &owner_only).unwrap();
         assert_eq!(n.iter().map(|x| x.id).collect::<Vec<_>>(), vec![2, 7, B | 3, B | 9]);
         assert_eq!(n[0].value, 15.0);
         assert!(n[1..].iter().all(|x| x.value == 0.0));
@@ -985,12 +992,8 @@ mod tests {
         let pairs: Vec<(u32, u32)> = edges.iter().map(|x| (x.src, x.dst)).collect();
         assert_eq!(pairs, vec![(0, 1), (0, 2), (1, 0), (1, 3), (3, 1)]);
         assert_eq!(n.iter().map(|x| x.a).collect::<Vec<_>>(), vec![1, 3, 0, 5]);
-        // without OWNER_EDGES every pair both ways, still once
-        let both = Layout {
-            owner_edges: false,
-            ..Layout::default()
-        };
-        let (_, e2) = finalize(&g, &linked, &both).unwrap();
+        // without OWNER_EDGES (the default) every pair both ways, still once
+        let (_, e2) = finalize(&g, &linked, &Layout::default()).unwrap();
         let pairs: Vec<(u32, u32)> = e2.iter().map(|x| (x.src, x.dst)).collect();
         assert_eq!(pairs, vec![(0, 1), (0, 2), (1, 0), (1, 3), (2, 0), (3, 1)]);
         // the cost from the float32 positions: 2.5 m across, 1 m up
@@ -1014,9 +1017,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::many_single_char_names)] // sectors a, b, c as in the comments
     fn bounds_are_the_node_box_and_foreign_only_pairs_keep_no_node() {
         let node = |id, pos| RouteNode { id, pos };
-        let mesh = b"KynogonRuntimeMesh  rest".to_vec();
+        let mesh = b"KynogonRuntimeMesh\0\0rest".to_vec();
         // sector 0x0101 (square 0..100): two ordinary nodes, a border node it owns, and a pair between two border
         // copies it does not own (both in the next square): that pair has no edge, its nodes no other one
         let a = SectorGraph {
@@ -1051,7 +1055,10 @@ mod tests {
         let s = FileSettings {
             shadow: None,
             orders: None,
-            layout: Layout::default(),
+            layout: Layout {
+                owner_edges: true,
+                ..Layout::default()
+            },
             header: [0; hpd::HEADER_WORDS],
             date: 0,
             clock: 0,
@@ -1062,7 +1069,7 @@ mod tests {
         let ids = |k: usize| f.sectors[k].nodes.iter().map(|n| n.id).collect::<Vec<_>>();
         assert_eq!(ids(0), vec![1, 2, B | 5]);
         assert_eq!(ids(1), vec![3, B | 5]);
-        assert!(ids(2).is_empty());
+        assert_eq!(ids(2), Vec::<u32>::new());
         assert_eq!(f.sectors[0].bounds, [10.0, 99.2, 1.0, 3.0, 20.0, 50.0]);
         assert_eq!(f.sectors[1].bounds, [99.2, 150.0, 2.0, 4.0, 50.0, 50.0]);
         assert_eq!(f.sectors[2].bounds, [199.2, 300.88, 0.0, 9.0, -0.8, 100.88]);

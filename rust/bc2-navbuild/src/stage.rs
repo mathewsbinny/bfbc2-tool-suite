@@ -255,7 +255,8 @@ pub struct Switches {
     pub sort_nodes_by_id: bool,
     /// `BORDER_OWNER`.
     pub border_owner: bool,
-    /// Edges only out of the border copies a sector owns (`graphfile::Layout::owner_edges`; HPD-NODE-5, KYN-EDGE-3).
+    /// Edges only out of the border copies a sector owns (`graphfile::Layout::owner_edges`; HPD-NODE-5, KYG-EDGE-4):
+    /// off, until each sector line has owned border nodes on both sides (KYG-NODE-2).
     pub owner_edges: bool,
     /// The sector table's bounds as the box of the sector's nodes (`graphfile::Layout::node_bounds`; KYN-SEC-2).
     pub node_bounds: bool,
@@ -315,7 +316,7 @@ impl Default for Switches {
             gabriel: Gabriel::Detailed,
             sort_nodes_by_id: true,
             border_owner: true,
-            owner_edges: true,
+            owner_edges: false,
             node_bounds: true,
             diagonal_links: true,
             order_node_min: 3.0,
@@ -937,15 +938,9 @@ pub fn sector_links(
                 index: ci,
                 di: b.dir.0,
                 dj: b.dir.1,
-                along: here.diagonal_square.map_or(0, |sq| {
-                    if b.last < 0 {
-                        -1
-                    } else if b.first >= sq {
-                        1
-                    } else {
-                        0
-                    }
-                }),
+                along: here
+                    .diagonal_square
+                    .map_or(0, |sq| i64::from(b.first >= sq) - i64::from(b.last < 0)),
                 t0: b.first,
                 t1: b.last,
                 line: b.line,
