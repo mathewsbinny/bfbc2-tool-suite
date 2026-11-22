@@ -8,21 +8,8 @@ use bc2_navbuild::inputs::{self, Out, Root, Run};
 use bc2_navbuild::ntpath;
 
 use super::project::Project;
-use crate::pyproc::{Fail, Py, PyErr, PyResult};
-
-/// The library's answer as the command line's: the exception, or a hand-off.
-pub fn fail(f: ntpath::Fail) -> Fail {
-    match f {
-        ntpath::Fail::Raised(r) => Fail::Err(PyErr {
-            kind: r.kind,
-            msg: r.msg,
-            filename: r.filename,
-            what_to_do: None,
-        }),
-        ntpath::Fail::Handoff | ntpath::Fail::Sink => Fail::Python,
-        ntpath::Fail::Cancelled => Fail::Err(PyErr::new("KeyboardInterrupt", "")),
-    }
-}
+pub use crate::navshared::fail;
+use crate::pyproc::{Fail, Py, PyResult};
 
 /// The project's folders as the library takes them.
 pub fn root(pr: &Project) -> Root {

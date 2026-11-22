@@ -4,8 +4,25 @@
 
 #![allow(clippy::float_cmp, reason = "the backups' times compared as Python compares floats")]
 
+use bc2_navbuild::ntpath;
+
 use crate::pyos;
 use crate::pyproc::{Fail, PyErr, PyResult};
+
+/// NavKit's level-driver library's answer (`bc2_navbuild`) as the command line's: the exception, or a hand-off. Here,
+/// not in the navkit group, so navtools and harness build alone (CI's per-group clippy).
+pub fn fail(f: ntpath::Fail) -> Fail {
+    match f {
+        ntpath::Fail::Raised(r) => Fail::Err(PyErr {
+            kind: r.kind,
+            msg: r.msg,
+            filename: r.filename,
+            what_to_do: None,
+        }),
+        ntpath::Fail::Handoff | ntpath::Fail::Sink => Fail::Python,
+        ntpath::Fail::Cancelled => Fail::Err(PyErr::new("KeyboardInterrupt", "")),
+    }
+}
 
 /// `bfbc2core.paths.walk_up(start)`: `<start>\project-opfor-bfbc2`, then the same in each folder above.
 fn walk_up(start: &str) -> PyResult<Vec<String>> {
@@ -68,5 +85,5 @@ pub fn find_opfor(given: Option<&str>, kind: &str) -> PyResult<String> {
 /// put the file where there was none); else by the markers of before the ledger (the earliest OPFOR backup).
 /// Round NK6: `bc2_navbuild::inputs::original_file`, the level driver's.
 pub fn original_file(p: &str) -> PyResult<Option<String>> {
-    bc2_navbuild::inputs::original_file(p).map_err(crate::navkit::build::fail)
+    bc2_navbuild::inputs::original_file(p).map_err(fail)
 }

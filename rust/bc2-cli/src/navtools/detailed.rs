@@ -34,12 +34,12 @@ const SOURCE: &str = include_str!("../../../../bfbc2-auto-navkit/tools/detailed.
 
 /// `flagged_sectors(level_dir, common, xoff, zoff)` (round NK6: `bc2_navbuild::inputs`, the level driver's).
 fn flagged_sectors(level_dir: &str, common: &[String], xoff: i64, zoff: i64) -> PyResult<BTreeSet<(i64, i64)>> {
-    inputs::flagged_sectors(level_dir, common, xoff, zoff).map_err(crate::navkit::build::fail)
+    inputs::flagged_sectors(level_dir, common, xoff, zoff).map_err(crate::navshared::fail)
 }
 
 /// `stacked_columns(samples_path, xoff, zoff)`.
 fn stacked_columns(path: &str, xoff: i64, zoff: i64) -> PyResult<std::collections::BTreeMap<(i64, i64), u64>> {
-    inputs::stacked_columns(path, xoff, zoff).map_err(crate::navkit::build::fail)
+    inputs::stacked_columns(path, xoff, zoff).map_err(crate::navshared::fail)
 }
 
 pub fn run(py: &mut Py, args: &[String]) -> PyResult<i32> {

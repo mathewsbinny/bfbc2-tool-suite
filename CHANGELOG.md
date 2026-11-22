@@ -69,6 +69,8 @@ landed on `main`.
   terrain tails and material maps: 172 checks; 74 rules move to verified.
 
 ### Fixed
+- **CI's per-group clippy:** `bfbc2.exe`'s navtools and harness groups did not build alone since round NK6 (they
+  called the navkit group's error mapping); the mapping now sits in `navshared`, which all three groups build.
 - **The bot-kill scoring contradiction** (AI-NEED-5 against PERS-SCORE-1): the player-killed handler returns only for
   a null victim, so with OPFOR's offline-scoring patch a human's kill of a bot scores; what blocked it offline was the
   4-client scoring flag. AI-NEED-5, PERS-SCORE-1 and the open-question lists now say so (BOT-SCO-3); a playtest still
