@@ -189,6 +189,13 @@ on the side its direction points to. That is half a pitch outside the minimum si
 The runtime fills a C record's +0x18 / +0x1C with the neighbouring area's address and size when the neighbour sector
 loads (KYRT-LINK-1). It does not read the direction in any test traced.
 
+The "diagonal" and "up" directions are not kinds of geometry. Consecutive C records along one straight run on one
+corner line carry up, (0.924, 0.383, -0.383), (0.707, 0.707, -0.707) and (1, 1, -0) in turn. The y component is often
+not 0, and 41 % of the coarse "diagonal" records lie on an axis line. Coarse C records are axis-line segments (63,366 axis, 21,737
+"diagonal", 36,932 "up") or slanted 45-degree corner cuts (104 / 30,743 / 21,387). What the vector holds is not decoded.
+A C record whose middle lies in a diagonal neighbour's square: coarse 23,510 of 174,830, detailed 5,892 of 76,247; one
+that crosses a square line along it: coarse 30,036, detailed 11,566.
+
 [data: axis C portals on that line: coarse 63,272 of 63,974, detailed 28,781 of 31,767, vehicle 5,667 of 5,677; of the rest, 76 lie on that line of the opposite side and 3,622 elsewhere]
 
 ### KYN-LINK-1: A link object names a tile item of an adjacent sector
@@ -291,9 +298,22 @@ rounding.
 Status: **observed**
 
 Edges are sorted by source node (HPD-EDGE-1). Within one source they follow neither target order (656,207 steps up,
-563,604 down) nor length order. 13.0 % of edges have no edge back: the graph is directed.
+563,604 down) nor length order. 13.0 % of edges have no edge back: the graph is directed. 96.1 % of the one-way edges
+lead into a border copy the sector does not own (HPD-NODE-5): such a copy holds none of the node's edges (the owner's
+copy does), so the edge back is not in this sector. From an owner border copy 205,190, from an ordinary node 5,683.
+The other 8,627 (ordinary to ordinary 2,858, between owned border copies 3,819, into an owned border copy 1,581, owned
+to ordinary 369) follow no rule found yet (KYG-EDGE-1).
 
-[data: 219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604]
+[data: 219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604; one-way edges by their ends (probe `e.one_way_*`)]
+
+### KYN-EDGE-4: One edge per source and target
+
+Status: **verified**
+
+No sector holds two edges with the same source and target.
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::one_edge_per_source_and_target]
+[data: 0 repeated (source, target) pairs in 3,120 of 3,120 sectors]
 
 ## 5. Units and coordinate frames
 

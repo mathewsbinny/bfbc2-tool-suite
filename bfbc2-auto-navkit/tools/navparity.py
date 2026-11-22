@@ -13,6 +13,10 @@ Each level is compared with its original (DICE) path data in OPFOR's game copy, 
                  DICE's route nodes (each paired with a NavKit node within 2 m): of the pairs DICE connects,
                  the share NavKit connects (connectivity), and of the pairs NavKit connects, the share DICE does
                  not (over-connection)
+  directed       the route graph read as the runtime's owner bit says (a border node's edges are its owner copies';
+                 HPD-NODE-5): each file's strongly connected share of its weakly connected node pairs (strong_share,
+                 strong_share_reference; DICE's files 96-98 %), and of the DICE node pairs joined both ways, the share
+                 NavKit joins both ways (proxy_connectivity)
   ai positions   the earlier figures on the level's AI order positions: coverage, pairwise route check,
                  main route network
   D and F        D lines and F cells (navdf.py): precision / recall of D sides and F cells, all and per pitch
@@ -202,6 +206,131 @@ def islands(reference, candidate, clip=None, drop=None):
     return res
 
 
+def proxy_components(path, clip=None, drop=None):
+    """The route graph's strongly connected components under the proxy reading of the owner bit (HPD-NODE-5,
+    KYRT-PATH-2): a border node is one node over its copies (ids compared with bit 31 masked); its out-edges are those
+    of its owner copies (bit 16 of field c clear) only, as a non-owner copy holds none of the node's edges and the
+    search goes on from the owner's. Ordinary nodes keep their own edges. Returns ({masked id: component}, positions
+    [(masked id, pos)], strong pairs, weak pairs): the pairs count node pairs in one strong / one weak component.
+    clip and drop leave nodes out as PathData does."""
+    import hpdtool
+    f = hpdtool.read(path)
+    dropped = {d & 0x7FFFFFFF for d in (drop or ())}
+
+    def inside(n):
+        p = n.pos
+        return (n.id & 0x7FFFFFFF) not in dropped and (not clip or (clip[0] <= p[0] <= clip[2] and clip[1] <= p[2] <= clip[3]))
+    index: dict[int, int] = {}
+    nodes = []
+    for s in f.sectors:
+        for n in s.nodes:
+            if inside(n) and (n.id & 0x7FFFFFFF) not in index:
+                index[n.id & 0x7FFFFFFF] = len(index)
+                nodes.append((n.id & 0x7FFFFFFF, n.pos))
+    adj: list[list[int]] = [[] for _ in index]
+    for s in f.sectors:
+        for e in s.edges:
+            a, b = s.nodes[e.src], s.nodes[e.dst]
+            if a.id & 0x80000000 and a.c & 0x10000:
+                continue                      # a non-owner copy's edges: not the node's (the proxy reading)
+            ia, ib = index.get(a.id & 0x7FFFFFFF), index.get(b.id & 0x7FFFFFFF)
+            if ia is not None and ib is not None and inside(a) and inside(b):
+                adj[ia].append(ib)
+    comp = _tarjan(adj)
+    parent = list(range(len(adj)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for a, out in enumerate(adj):
+        for b in out:
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
+    strong = sum(pairs(n) for n in Counter(comp).values())
+    weak = sum(pairs(n) for n in Counter(find(x) for x in range(len(adj))).values())
+    return {nid: comp[k] for k, (nid, _) in enumerate(nodes)}, nodes, strong, weak
+
+
+def _tarjan(adj):
+    """Strongly connected components (Tarjan's, iterative): a component number per node."""
+    n = len(adj)
+    index, low, comp = [-1] * n, [0] * n, [-1] * n
+    on = [False] * n
+    stack: list[int] = []
+    nxt = ncomp = 0
+    for root in range(n):
+        if index[root] >= 0:
+            continue
+        index[root] = low[root] = nxt
+        nxt += 1
+        stack.append(root)
+        on[root] = True
+        call = [(root, 0)]
+        while call:
+            v, i = call[-1]
+            if i < len(adj[v]):
+                call[-1] = (v, i + 1)
+                w = adj[v][i]
+                if index[w] < 0:
+                    index[w] = low[w] = nxt
+                    nxt += 1
+                    stack.append(w)
+                    on[w] = True
+                    call.append((w, 0))
+                elif on[w]:
+                    low[v] = min(low[v], index[w])
+                continue
+            call.pop()
+            if call:
+                u = call[-1][0]
+                low[u] = min(low[u], low[v])
+            if low[v] == index[v]:
+                while True:
+                    w = stack.pop()
+                    on[w] = False
+                    comp[w] = ncomp
+                    if w == v:
+                        break
+                ncomp += 1
+    return comp
+
+
+def proxy_islands(reference, candidate, clip=None, drop=None):
+    """The directed measures under the proxy reading (proxy_components): each file's strong share (node pairs in one
+    strongly connected component over those in one weakly connected one: DICE's 35 files 96-98 %), and over DICE's
+    route nodes paired with a candidate node as islands() pairs them, of the pairs DICE's graph joins both ways, the
+    share the candidate's joins both ways (proxy_connectivity)."""
+    rc, rnodes, rs, rw = proxy_components(reference, clip, drop)
+    cc, cnodes, cs, cw = proxy_components(candidate)
+    grid = defaultdict(list)
+    for nid, p in cnodes:
+        grid[(math.floor(p[0] / NEAR), math.floor(p[2] / NEAR))].append((nid, p))
+    table: Counter[tuple[int, int]] = Counter()
+    for nid, p in rnodes:
+        gx, gz = math.floor(p[0] / NEAR), math.floor(p[2] / NEAR)
+        best, best_d = None, math.inf
+        for dx in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                for cid, q in grid.get((gx + dx, gz + dz), ()):
+                    if abs(q[1] - p[1]) > NEAR_DY:
+                        continue
+                    d = (q[0] - p[0]) ** 2 + (q[2] - p[2]) ** 2
+                    if d <= NEAR * NEAR and (best is None or d < best_d):
+                        best, best_d = cid, d
+        if best is not None:
+            table[(rc[nid], cc[best])] += 1
+    by_ref: Counter[int] = Counter()
+    for (gr, _gc), n in table.items():
+        by_ref[gr] += n
+    both = sum(pairs(n) for n in table.values())
+    return {'proxy_connectivity': round(100.0 * both / max(sum(pairs(n) for n in by_ref.values()), 1), 2),
+            'strong_share': round(100.0 * cs / max(cw, 1), 2),
+            'strong_share_reference': round(100.0 * rs / max(rw, 1), 2)}
+
+
 def run_level(root, lv, candidate, log):
     import hpdtool
     with hpdtool.shared_reads():         # each file parsed once for all the measures (round E4e)
@@ -219,6 +348,7 @@ def _run_level(root, lv, candidate, log):
     stale = stale_nodes(root, lv, ref, clip)
     isl = islands(ref, candidate, clip, stale)
     lad = ladder_ground(ref, candidate, d['cells']['reference'])
+    prox = proxy_islands(ref, candidate, clip, stale)
     row = {
         'level': lv, 'candidate': candidate, 'candidate_sha1': _sha1(candidate), 'reference_clip': clip, 'stale_reference_nodes': len(stale),
         'sectors_reference': d['sectors']['reference'], 'sectors_candidate': d['sectors']['candidate'],
@@ -238,6 +368,7 @@ def _run_level(root, lv, candidate, log):
         'ai_coverage': a['coverage_percent'], 'ai_pairwise': a['pairwise']['percent'],
         'ai_main_reference': a['main_network']['reference'], 'ai_main_candidate': a['main_network']['candidate'],
     }
+    row.update(prox)        # the directed measures under the proxy reading of the owner bit
     row.update({k: v for k, v in df.items() if k in DF_KEYS})     # D lines and F cells (navdf.py)
     log(f"  {lv:9s} ground {row['ground']:6.2f} % (+{row['extra_ground']:.1f} % extra)  areas {row['areas_same']:6.2f} %  nodes {row['nodes_same']:6.2f} %  "
         f"connectivity {row['connectivity']:6.2f} %  AI positions {row['ai_coverage']:5.1f} %  ({time.time() - t:.0f} s)")
@@ -253,13 +384,13 @@ COLUMNS = [
     ('detailed_reference', 'det.ref', '{}'), ('detailed_candidate', 'det.ours', '{}'),
     ('portals', 'portals %', '{:.1f}'), ('nodes_same', 'nodes %', '{:.1f}'), ('edges_same', 'edges %', '{:.1f}'),
     ('islands_reference', 'isl.ref', '{}'), ('islands_candidate', 'isl.ours', '{}'), ('connectivity', 'connect %', '{:.1f}'),
-    ('over_connection', 'over %', '{:.1f}'), ('ai_coverage', 'AI pos %', '{:.1f}'), ('ai_pairwise', 'pairwise %', '{:.1f}'),
+    ('over_connection', 'over %', '{:.1f}'), ('proxy_connectivity', 'proxy %', '{:.1f}'), ('ai_coverage', 'AI pos %', '{:.1f}'), ('ai_pairwise', 'pairwise %', '{:.1f}'),
     ('ladder_ground', 'ladder %', '{:.1f}'),
     ('df_d_precision', 'D prec %', '{:.1f}'), ('df_d_recall', 'D rec %', '{:.1f}'), ('df_f_precision', 'F prec %', '{:.1f}'),
     ('df_f_recall', 'F rec %', '{:.1f}'),
 ]
-TOTALS = ['ground', 'extra_ground', 'areas_same', 'portals', 'nodes_same', 'edges_same', 'connectivity', 'over_connection', 'ai_coverage', 'ai_pairwise',
-          'ladder_ground', 'df_d_precision', 'df_d_recall', 'df_f_precision', 'df_f_recall']
+TOTALS = ['ground', 'extra_ground', 'areas_same', 'portals', 'nodes_same', 'edges_same', 'connectivity', 'over_connection', 'proxy_connectivity', 'ai_coverage',
+          'ai_pairwise', 'ladder_ground', 'df_d_precision', 'df_d_recall', 'df_f_precision', 'df_f_recall']
 
 
 def table(run, other=None, log=print):
