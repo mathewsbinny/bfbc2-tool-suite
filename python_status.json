@@ -977,7 +977,7 @@
    "status": "test"
   },
   {
-   "callers": "dbxparity, meshport, portparity, texqa, renderqa, xdiff; tests 28; OPFOR 28",
+   "callers": "meshport, texqa, renderqa, xdiff; tests 28; OPFOR 28",
    "embedded_by": [
     "rust/bc2-cli/src/import/mod.rs"
    ],
@@ -991,7 +991,7 @@
    "status": "partly"
   },
   {
-   "callers": "dbxparity, dbxport; tests 8; OPFOR 8",
+   "callers": "dbxport; tests 8; OPFOR 8",
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "tool entry point",
@@ -1003,19 +1003,19 @@
    "status": "partly"
   },
   {
-   "callers": "dbxport, effectport; tests 3; OPFOR 1 (qa_checks)",
+   "callers": "tests 1 (test_dbxport_fair); rust/bench_bf1943; OPFOR 1 (qa_checks)",
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
-   "kind": "tool entry point",
-   "lines": 336,
-   "note": "BF1943's partitions against DICE's, field by field: the parity runs are Python",
-   "path": "bfbc2-bf1943-import/dbxparity.py",
-   "retiring": "PR1b-1c",
-   "rust": "bfbc2 dbxparity (help and errors only)",
+   "kind": "library",
+   "lines": 99,
+   "note": "the library half of the retired dbxparity.py (PR1b-1d: bfbc2 dbxparity answers alone): instances flattened field by field, the fair pools and catalogue",
+   "path": "bfbc2-bf1943-import/dbxparitylib.py",
+   "retiring": "proposed: OPFOR in Rust stage 2",
+   "rust": "bc2-cli bf1943 dbxparity (instances, the fair pools: the same rules)",
    "status": "live"
   },
   {
-   "callers": "dbxparity, effectport; tests 9; OPFOR 10",
+   "callers": "effectport; tests 9; OPFOR 10",
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "library",
@@ -1075,15 +1075,15 @@
    "status": "ported"
   },
   {
-   "callers": "portparity; tests 4; OPFOR 6",
+   "callers": "tests 4; OPFOR 6",
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "library",
    "lines": 375,
-   "note": "searches in Rust; left: the Porter, the writers, the shader plan",
+   "note": "searches in Rust; the Porter in Rust too (PR1b-1d, without renames, donors, poses or the shader plan); left: OPFOR's ports through the Python Porter",
    "path": "bfbc2-bf1943-import/meshport.py",
-   "retiring": "PR1b-1c",
-   "rust": "bc2_convert::meshport (the searches)",
+   "retiring": "proposed: OPFOR in Rust stage 2",
+   "rust": "bc2_convert::meshport (the searches; Porter for bfbc2 portparity)",
    "status": "partly"
   },
   {
@@ -1097,18 +1097,6 @@
    "retiring": "PR1b-1c",
    "rust": "bc2_convert::mopp",
    "status": "twin"
-  },
-  {
-   "callers": "tests 2; OPFOR 1 (bf1943_vehicles)",
-   "embedded_by": [],
-   "folder": "bfbc2-bf1943-import",
-   "kind": "tool entry point",
-   "lines": 234,
-   "note": "our BF1943 conversions against DICE's own PC versions: the runs are Python",
-   "path": "bfbc2-bf1943-import/portparity.py",
-   "retiring": "PR1b-1c",
-   "rust": "bfbc2 portparity (help and errors only)",
-   "status": "live"
   },
   {
    "callers": "run_tests.py",
@@ -1283,6 +1271,18 @@
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "test",
+   "lines": 76,
+   "note": "The parity tools' reports on the user's files (game tier; skipped without the Rising Sun workspace, the gam...",
+   "path": "bfbc2-bf1943-import/tests/test_parity_reports.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-bf1943-import",
+   "kind": "test",
    "lines": 607,
    "note": "Round E3g (rust/BENCHMARKS.md, \"E3g\"): the BF1943 model / physics / effect ports' faster paths.",
    "path": "bfbc2-bf1943-import/tests/test_ports_native.py",
@@ -1339,7 +1339,7 @@
    "status": "twin"
   },
   {
-   "callers": "meshport, portparity, mesh, renderqa; tests 5; OPFOR 15",
+   "callers": "meshport, mesh, renderqa; tests 5; OPFOR 15",
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "library",
@@ -2763,7 +2763,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 565,
+   "lines": 566,
    "note": "finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI",
    "path": "core/bfbc2core/native.py",
    "retiring": "PR1b-2 (one registry), then the last Python",
@@ -2907,7 +2907,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test helper or golden recorder",
-   "lines": 139,
+   "lines": 141,
    "note": "Round O3's bf1943 group: the command lines test_cli_o3.py replays for bfbc2-bf1943-import's dbxcatalogue.py...",
    "path": "core/tests/cli_o3_bf1943.py",
    "retiring": "Tests in Rust",
@@ -3111,7 +3111,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 181,
+   "lines": 188,
    "note": "argparse's option abbreviations in bfbc2.exe (quick tier, round RT3): the ports of the argparse tools (cach...",
    "path": "core/tests/test_abbrev.py",
    "retiring": "Tests in Rust",
@@ -3123,7 +3123,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 136,
+   "lines": 145,
    "note": "Round RT2: argparse's help and usage at the console's width in bfbc2.exe (rust\\bc2-cli\\src\\argfmt.rs) again...",
    "path": "core/tests/test_argfmt.py",
    "retiring": "Tests in Rust",
@@ -3531,7 +3531,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1365,
+   "lines": 1367,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3543,7 +3543,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 194,
+   "lines": 215,
    "note": "writes argspecs.rs from the Python tools' argparse parsers (needs them alive)",
    "path": "rust/bc2-cli/gen_argspecs.py",
    "retiring": "with the last argparse tool",
@@ -3603,7 +3603,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 295,
+   "lines": 297,
    "note": "E3r timings",
    "path": "rust/bench_bf1943.py",
    "retiring": "stays",
@@ -3927,7 +3927,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 842,
+   "lines": 843,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4287,7 +4287,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 347,
+   "lines": 346,
    "note": "The repository's own rules, checked before anything is pushed (no game data needed): - no game file types a...",
    "path": "tests/test_repo.py",
    "retiring": "Tests in Rust",
@@ -4437,18 +4437,18 @@
  "totals": {
   "all": {
    "files": 364,
-   "lines": 106664
+   "lines": 106313
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1421,
+    "lines": 1423,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1365,
+    "test": 1367,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4486,13 +4486,13 @@
    },
    "bfbc2-bf1943-import": {
     "files": 26,
-    "lines": 10919,
-    "live": 1017,
+    "lines": 10524,
+    "live": 546,
     "partly": 1562,
     "ported": 56,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5011,
+    "test": 5087,
     "twin": 3273
    },
    "bfbc2-console-convert": {
@@ -4629,13 +4629,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19918,
-    "live": 756,
+    "lines": 19937,
+    "live": 757,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14830,
+    "test": 14848,
     "twin": 2427
    },
    "design": {
@@ -4651,12 +4651,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5974,
+    "lines": 5998,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5707,
+    "stays": 5731,
     "test": 267,
     "twin": 0
    },
@@ -4673,20 +4673,20 @@
    },
    "tests": {
     "files": 29,
-    "lines": 7620,
+    "lines": 7619,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7620,
+    "test": 7619,
     "twin": 0
    }
   },
   "by_status": {
    "live": {
-    "files": 21,
-    "lines": 6074
+    "files": 20,
+    "lines": 5604
    },
    "partly": {
     "files": 20,
@@ -4702,11 +4702,11 @@
    },
    "stays": {
     "files": 58,
-    "lines": 10622
+    "lines": 10646
    },
    "test": {
-    "files": 186,
-    "lines": 50691
+    "files": 187,
+    "lines": 50786
    },
    "twin": {
     "files": 55,

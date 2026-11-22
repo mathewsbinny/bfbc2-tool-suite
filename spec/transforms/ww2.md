@@ -54,6 +54,35 @@ and seeded built inputs (console meshes, random packfiles cut short or changed, 
 [test: bfbc2-bf1943-import/tests/test_ports_native.py::game] [test: bfbc2-bf1943-import/tests/test_ports_native.py::quick_havok] [test: bfbc2-bf1943-import/tests/test_ports_native.py::quick_mesh]
 [doc: rust/BENCHMARKS.md:1598-1606]
 
+### XWW2-PAR-2: The parity tools measure the importer against DICE's own ports, in Rust
+
+Status: **verified** · Variants: BF1943
+
+`bfbc2 dbxparity` compares every instance of the partitions both games ship (same GUID and type) field by field,
+each value as the DBX text shows it, and classifies each difference (same, enum, kind, nested, renamed, value,
+BF1943-only, DICE-only); `--predict` ports each weapon and vehicle partition three times with dbxport (on a fair pool
+with the catalogue's class defaults never the partition's own, without the conventions, and with DICE's version in
+the pool) and counts the DICE values each run gives. `bfbc2 portparity` converts every model both games ship (the
+Porter's layouts, mesh data, mesh set and textures) and compares it with DICE's element by element (positions within
+1e-4 m, normal frames within 0.25 degrees, the rest within 1e-3; pictures by PSNR at the smaller size). Their reports
+and JSON are the retired Python tools' byte for byte (round PR1b-1d).
+
+[data: the user's BF1943 and game copy, 2026-11-22: 2,353 partitions and 16,249 instances compared, 173 partitions predicted, 148 models (147 ported) - every report, JSON and console line the same SHA-256 as dbxparity.py / portparity.py at 0434c22; the 147 ports' LODs, mesh sets and textures identical to meshport.Porter's]
+[test: bfbc2-bf1943-import/tests/test_parity_reports.py::main] [test: rust/bc2-cli/src/bf1943/argp.rs::every_recorded_answer] [test: rust/bc2-convert/src/meshconv.rs::converts_as_mesh_convert]
+[code: rust/bc2-cli/src/bf1943/dbxparity.rs:151-260] [code: rust/bc2-cli/src/bf1943/portparity.rs:252-360] [code: rust/bc2-convert/src/meshport.rs:450-560]
+
+### XWW2-PAR-3: A float2 vertex element is compared as two singles
+
+Status: **verified** · Variants: PC
+
+Format 0x02 is `float2`, 8 bytes (MESH-VTX-1). `portparity` reads it as two singles. The retired `portparity.py`
+read it as three (its `DTYPE` table: 12 bytes, the next element's first four with it), an accident of the Python
+decided against the game's format; no part the tool compares on the user's files has a float2 element at stream 0,
+so the reports did not change.
+
+[data: portparity over the 148 shared models with the Python's table changed to two singles: the same report, and its element reader was called 0 times for a float2]
+[test: rust/bc2-cli/src/bf1943/portparity.rs::float2_is_two_singles] [code: rust/bc2-cli/src/bf1943/portparity.rs:44-64]
+
 ### XWW2-DBX-1: DBX ports take BFBC2's schema of the same class
 
 Status: **verified** · Variants: BF1943

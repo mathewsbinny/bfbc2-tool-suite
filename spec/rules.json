@@ -26281,6 +26281,64 @@
    ]
   },
   {
+   "id": "XWW2-PAR-2",
+   "title": "The parity tools measure the importer against DICE's own ports, in Rust",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the user's BF1943 and game copy, 2026-11-22: 2,353 partitions and 16,249 instances compared, 173 partitions predicted, 148 models (147 ported) - every report, JSON and console line the same SHA-256 as dbxparity.py / portparity.py at 0434c22; the 147 ports' LODs, mesh sets and textures identical to meshport.Porter's"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_parity_reports.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/src/bf1943/argp.rs::every_recorded_answer"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/meshconv.rs::converts_as_mesh_convert"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/dbxparity.rs:151-260"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs:252-360"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshport.rs:450-560"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PAR-3",
+   "title": "A float2 vertex element is compared as two singles",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "portparity over the 148 shared models with the Python's table changed to two singles: the same report, and its element reader was called 0 times for a float2"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs::float2_is_two_singles"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs:44-64"
+    }
+   ]
+  },
+  {
    "id": "XWW2-DBX-1",
    "title": "DBX ports take BFBC2's schema of the same class",
    "file": "spec/transforms/ww2.md",

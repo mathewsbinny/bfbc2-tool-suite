@@ -234,6 +234,337 @@ impl Index {
     }
 }
 
+// ------------------------------------------------------------------------------------------------ the Porter
+
+/// What [`Porter`] reads of BF1943's source (`bf1943import.Source`: its entries by lower-case name).
+pub trait Source {
+    /// The entry's (type, name as the bundle holds it), or `None`.
+    fn entry(&self, key: &str) -> Option<(&str, &str)>;
+    /// The entry's bytes (`Source.data(key)`), or `None` where it cannot be read.
+    fn data(&self, key: &str) -> Option<Vec<u8>>;
+    /// Every entry name (lower case), in any order.
+    fn keys(&self) -> Vec<&str>;
+}
+
+/// A port's failure: the reference's exception (its type's name and `str()`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortError {
+    /// The exception type's name (`PortError`, `ConvertError`, `Refused`, `KeyError`, ...).
+    pub kind: String,
+    /// Its message.
+    pub msg: String,
+}
+
+impl std::fmt::Display for PortError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.kind, self.msg)
+    }
+}
+
+impl std::error::Error for PortError {}
+
+fn perr<T>(kind: &str, msg: impl Into<String>) -> Result<T, PortError> {
+    Err(PortError {
+        kind: kind.to_owned(),
+        msg: msg.into(),
+    })
+}
+
+/// `Porter.port`'s result, as far as the parity tools read it: the mesh set's kind, each LOD's PC `MeshData`, the
+/// PC mesh set, the converted textures (by name, in the source's name order) and each LOD's PC layouts per part.
+#[derive(Debug, Clone, Default)]
+pub struct Ported {
+    /// The mesh set's type (`RigidMeshSet`, ...).
+    pub kind: String,
+    /// Each LOD's PC `MeshData`.
+    pub lods: Vec<Vec<u8>>,
+    /// The PC mesh set.
+    pub meshset: Vec<u8>,
+    /// The converted textures: (the source's entry name, PC bytes), in the source's name order.
+    pub textures: Vec<(String, Vec<u8>)>,
+    /// Per LOD, each part's PC layout record body.
+    pub pc_layouts: Vec<Vec<Vec<u8>>>,
+    /// What was not converted.
+    pub notes: Vec<String>,
+}
+
+/// The soldier skeleton.
+pub const SOLDIER: &str = "characters/skeletons/ske01";
+
+/// `meshport.Porter` (round PR1b-1d: `bfbc2 portparity`): a BF1943 model in BFBC2's PC formats - every LOD's
+/// `MeshData` (each part's vertices in the PC layout the search picks: BFBC2's own part, a donor's, any with the same
+/// elements), the mesh set, the textures of its folder. A soldier's palettes and mesh-set bones are renumbered onto
+/// BFBC2's skeleton. The skeleton poses and the shader-database plan are not made here (no caller reads them).
+pub struct Porter<'a> {
+    src: &'a dyn Source,
+    ix: &'a crate::meshview::Index,
+    layouts: Option<HashMap<String, Vec<u8>>>,
+    bones: Option<HashMap<u32, u32>>,
+    entry_keys: Option<Vec<String>>,
+    search: Option<Index>,
+}
+
+/// Python's `repr` of a signature (a tuple of 3-tuples).
+fn sig_repr(s: &Sig) -> String {
+    let items: Vec<String> = s.iter().map(|(a, b, c)| format!("({a}, {b}, {c})")).collect();
+    match items.as_slice() {
+        [one] => format!("({one},)"),
+        _ => format!("({})", items.join(", ")),
+    }
+}
+
+impl<'a> Porter<'a> {
+    /// `Porter(source, ix)`.
+    #[must_use]
+    pub fn new(src: &'a dyn Source, ix: &'a crate::meshview::Index) -> Self {
+        Self {
+            src,
+            ix,
+            layouts: None,
+            bones: None,
+            entry_keys: None,
+            search: None,
+        }
+    }
+
+    fn data(&self, key: &str) -> Result<Vec<u8>, PortError> {
+        match self.src.data(key) {
+            Some(d) => Ok(d),
+            None if self.src.entry(key).is_none() => perr("KeyError", format!("'{key}'")),
+            None => perr(
+                "Bf1943ImportError",
+                format!("{key}: the BF1943 bundle does not read as when opened"),
+            ),
+        }
+    }
+
+    /// `layouts()`: BF1943's part layouts, from every level's shader database (the first one's wins).
+    fn layouts(&mut self) -> Result<&HashMap<String, Vec<u8>>, PortError> {
+        if self.layouts.is_none() {
+            let mut keys: Vec<&str> = self.src.keys();
+            keys.sort_unstable();
+            let mut out: HashMap<String, Vec<u8>> = HashMap::new();
+            for k in keys {
+                if k.starts_with("levels/") && self.src.entry(k).is_some_and(|(t, _)| t == "Dx9ShaderDatabase") {
+                    for (n, rec) in crate::meshconv::console_layouts(&self.data(k)?) {
+                        let n: String = n.iter().map(|&c| char::from(c)).collect();
+                        out.entry(n).or_insert(rec);
+                    }
+                }
+            }
+            self.layouts = Some(out);
+        }
+        Ok(self.layouts.get_or_insert_with(HashMap::new))
+    }
+
+    fn bones(&mut self) -> Result<HashMap<u32, u32>, PortError> {
+        if let Some(b) = &self.bones {
+            return Ok(b.clone());
+        }
+        let key = format!("{SOLDIER}.res");
+        let src = self.data(&key)?;
+        let Some(dst) = self.ix.read(&key) else {
+            return perr("granny.GrannyError", "target skeleton: no data");
+        };
+        let b = crate::granny::bone_map(&src, &dst).map_err(|e| PortError {
+            kind: "GrannyError".into(),
+            msg: e.0,
+        })?;
+        self.bones = Some(b.clone());
+        Ok(b)
+    }
+
+    fn search(&mut self) -> Result<&mut Index, PortError> {
+        if self.search.is_none() {
+            let parts: Vec<(String, Vec<u8>)> = self
+                .ix
+                .part_names()
+                .into_iter()
+                .map(|k| (k.to_owned(), self.ix.layout(k).unwrap_or_default().to_vec()))
+                .collect();
+            let Some(ix) = Index::new(parts) else {
+                return perr("IndexError", "a BFBC2 part layout shorter than its element count");
+            };
+            self.search = Some(ix);
+        }
+        Ok(self.search.get_or_insert_with(Index::default))
+    }
+
+    /// `pc_layout(name, lod, part, bf_layout, donors)`: the PC layout body.
+    fn pc_layout(
+        &mut self,
+        name: &str,
+        lod: i64,
+        part: &str,
+        bf: &[u8],
+        donors: &[String],
+    ) -> Result<Vec<u8>, PortError> {
+        let ix = self.ix;
+        let s = self.search()?;
+        let found = s.search(name, lod, part, bf, donors).map_err(|_| PortError {
+            kind: "IndexError".into(),
+            msg: "tuple index out of range".into(),
+        })?;
+        let k = match found {
+            Found::Own(k) | Found::Donor(k, ..) | Found::Layout(k) | Found::Fallback(k, ..) => k,
+            Found::Nothing => {
+                let sig = signature(bf).unwrap_or_default();
+                return perr(
+                    "PortError",
+                    format!(
+                        "{name} LOD {lod} {part}: no BFBC2 layout holds a part of its elements {}",
+                        sig_repr(&sig)
+                    ),
+                );
+            }
+        };
+        let n = s.names().get(k).cloned().unwrap_or_default();
+        Ok(ix.layout(&n).unwrap_or_default().to_vec())
+    }
+
+    /// The source's entry names starting with `folder`, in name order.
+    fn entries_under(&mut self, folder: &str) -> Vec<String> {
+        let keys = self.entry_keys.get_or_insert_with(|| {
+            let mut k: Vec<String> = self.src.keys().into_iter().map(str::to_owned).collect();
+            k.sort_unstable();
+            k
+        });
+        let i = keys.partition_point(|k| k.as_str() < folder);
+        keys.get(i..)
+            .unwrap_or_default()
+            .iter()
+            .take_while(|k| k.starts_with(folder))
+            .cloned()
+            .collect()
+    }
+
+    /// `port(name)` (no donors, no renaming).
+    ///
+    /// # Errors
+    /// The reference's exception where it raises.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::many_single_char_names,
+        reason = "Porter.port, step for step (its names)"
+    )]
+    pub fn port(&mut self, name: &str) -> Result<Ported, PortError> {
+        use bc2_formats::meshdata::{self, Kind};
+        let low = name.to_lowercase();
+        let Some((kind, _)) = self.src.entry(&format!("{low}.res")) else {
+            return perr("PortError", format!("{name}: no mesh set in the BF1943 source"));
+        };
+        let kind = kind.to_owned();
+        let xml = bc2_formats::dbx::to_xml(&self.data(&format!("{low}.dbx"))?).map_err(|e| PortError {
+            kind: "ValueError".into(),
+            msg: e.to_string(),
+        })?;
+        let soldier = xml.to_lowercase().contains(&format!("{SOLDIER}/"));
+        let bones = if soldier { Some(self.bones()?) } else { None };
+        let mut out = Ported {
+            kind: kind.clone(),
+            ..Ported::default()
+        };
+        for lod in 0..16i64 {
+            let key = format!("{low}_lod{lod}_data.res");
+            if self.src.entry(&key).is_none() {
+                break;
+            }
+            let b = self.data(&key)?;
+            let Ok(m) = meshdata::parse_mesh(&b, true) else {
+                return perr(
+                    "Refused",
+                    format!(
+                        "mesh data: {} bytes the header reader does not read (cut short or damaged)",
+                        b.len()
+                    ),
+                );
+            };
+            let mut pairs: Vec<(Vec<u8>, Vec<u8>)> = Vec::with_capacity(m.parts.len());
+            for p in &m.parts {
+                let pn: String = p.name.iter().map(|&c| char::from(c)).collect();
+                let lkey = format!("{name}_lod{lod}/{pn}/standard").to_lowercase();
+                let Some(bf) = self.layouts()?.get(&lkey).cloned() else {
+                    return perr(
+                        "PortError",
+                        format!("{name} LOD {lod} {pn}: no layout in BF1943's shader databases"),
+                    );
+                };
+                let pc = self.pc_layout(name, lod, &pn, &bf, &[])?;
+                pairs.push((bf, pc));
+            }
+            let refs: Vec<(&[u8], &[u8])> = pairs.iter().map(|(a, c)| (a.as_slice(), c.as_slice())).collect();
+            let pc = crate::meshconv::convert(&b, &refs, bones.as_ref()).map_err(|e| match e {
+                crate::meshconv::Refusal::Error(m) => PortError {
+                    kind: "ConvertError".into(),
+                    msg: m,
+                },
+                crate::meshconv::Refusal::Reference => PortError {
+                    kind: "Refused".into(),
+                    msg: "mesh data: a file or layouts the converter does not read (cut short or damaged)".into(),
+                },
+            })?;
+            out.lods.push(pc);
+            out.pc_layouts.push(pairs.into_iter().map(|(_, c)| c).collect());
+        }
+        if out.lods.is_empty() {
+            return perr("PortError", format!("{name}: no LODs in the BF1943 source"));
+        }
+        let Some(k) = Kind::of(&kind) else {
+            return perr(
+                "ConvertError",
+                format!("{kind}: only RigidMeshSet, CompositeMeshSet, SkinnedMeshSet, TreeMeshSet are converted"),
+            );
+        };
+        let raw = self.data(&format!("{low}.res"))?;
+        let flag = (k == Kind::Rigid).then_some(false);
+        let Ok(mut s) = meshdata::parse_set(&raw, k, true, flag) else {
+            return perr(
+                "Refused",
+                format!("{kind}: a mesh set the reader does not read (cut short or damaged)"),
+            );
+        };
+        for (l, pc) in s.lods.iter_mut().zip(&out.lods) {
+            let Ok(h) = meshdata::parse_mesh(pc, false) else {
+                return perr("Refused", "mesh data: a converted LOD the header reader does not read");
+            };
+            l.size = h.sizes[0].wrapping_add(h.sizes[1]).wrapping_add(12);
+            if k == Kind::Skinned
+                && let (Some(map), Some((ids, _))) = (&bones, l.bones.as_mut())
+            {
+                for x in ids.iter_mut() {
+                    *x = *map.get(x).ok_or_else(|| PortError {
+                        kind: "KeyError".into(),
+                        msg: x.to_string(),
+                    })?;
+                }
+            }
+        }
+        let folder = format!("{}/", low.rsplit_once('/').map_or(low.as_str(), |(f, _)| f));
+        let mut textures: Vec<(String, Vec<u8>)> = Vec::new();
+        for key in self.entries_under(&folder) {
+            let Some((t, n)) = self.src.entry(&key).map(|(t, n)| (t.to_owned(), n.to_owned())) else {
+                continue;
+            };
+            if t != "XenonTexture" {
+                continue;
+            }
+            match crate::texture::convert(&self.data(&key)?) {
+                Ok(pc) => match textures.iter_mut().find(|(x, _)| *x == n) {
+                    Some(slot) => slot.1 = pc,
+                    None => textures.push((n, pc)),
+                },
+                Err(e) => out.notes.push(format!("{n}: not converted ({e})")),
+            }
+        }
+        out.textures = textures;
+        out.meshset = meshdata::write_set(&s, k).map_err(|_| PortError {
+            kind: "Refused".into(),
+            msg: format!("{kind}: a mesh set the writer does not write"),
+        })?;
+        Ok(out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

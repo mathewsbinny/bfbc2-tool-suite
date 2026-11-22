@@ -1,0 +1,29 @@
+{
+ "meta": {
+  "by": "dbxparity.py / portparity.py at 0434c22 (Python 3.13.15), run in an empty folder as test_parity_reports.RUNS runs bfbc2.exe",
+  "note": "SHA-256 of what they wrote and printed on the user's BF1943 copy and game copy; no EA content",
+  "recorded": "2026-11-22"
+ },
+ "runs": {
+  "dbxparity": {
+   "dbxparity.txt": "b377454248d435e16c7481fa8253a8f6e7cf7d6f71333dca1cfce8a5320f6cd5",
+   "dbxparity_enums.json": "4de172e6fd3f6dc3e570f9a67987615b2eddb9768411d288a7ae827b5312b59c",
+   "exit": 0,
+   "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdout": "0f17ea20e5219787c9f5b3e6196fab1c8e253545105b34ac0ed025d46970a6f9"
+  },
+  "portparity": {
+   "exit": 0,
+   "portparity.json": "9396aef9ed006c09a42e5465b79d5ed71bee5f60626fb45f4d9c021d99943845",
+   "portparity.txt": "28d52afe2a54619a6eb8f89d344dcca19c9dce55ed628bfd33b45d868bdf39a1",
+   "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdout": "51e9d6f42858dd41d4f23a6cddca4aa0afab7360403430ec9776037288f7eef0"
+  },
+  "predict": {
+   "exit": 0,
+   "predict.txt": "3e95e75bd123f60e7cf9afb164695f208256e236efcc119c5b483a516b1a70c5",
+   "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdout": "1c5ef39fc7c4c92b5c9caf67265914942a49affe5caa24c84f33d8ef088111a6"
+  }
+ }
+}

@@ -107,6 +107,27 @@ impl Index {
         self.order.is_empty()
     }
 
+    /// `where.items()` in the dict's order: (entry name lower case, bundle, entry name as the bundle holds it).
+    pub fn rows(&self) -> impl Iterator<Item = (&str, &str, &str)> {
+        self.order
+            .iter()
+            .filter_map(|k| self.where_.get(k).map(|(b, n)| (k.as_str(), b.as_str(), n.as_str())))
+    }
+
+    /// `key in where` (the key as the index holds it: lower case).
+    #[must_use]
+    pub fn contains(&self, key: &str) -> bool {
+        self.where_.contains_key(key)
+    }
+
+    /// `sorted(parts)`: the mesh part names (lower case), sorted.
+    #[must_use]
+    pub fn part_names(&self) -> Vec<&str> {
+        let mut v: Vec<&str> = self.parts.keys().map(String::as_str).collect();
+        v.sort_unstable();
+        v
+    }
+
     /// The bundle and entry name of an entry (any case).
     #[must_use]
     pub fn locate(&self, name: &str) -> Option<(&str, &str)> {

@@ -11,8 +11,8 @@ recorded: run it in two checkouts (before / after) with --record, then --compare
   fair     dbxport.port of every partition both games ship, as tests\test_dbxport_fair.py ports it (the fair pool and
            catalogue, BFBC2's soldier skeleton) and with DICE's version in the pool (the counterpart): each output's
            SHA-256 and its report's
-  parity   dbxparity.compare over the same partitions and dbxparity.predict over the weapons and vehicles (their
-           reports' SHA-256)
+  parity   bfbc2.exe dbxparity (the comparison, then --predict) and portparity (round PR1b-1d retired their Python):
+           their reports' SHA-256
   atlas    emitteratlas.build, prove and same_but_uv on the inputs of Project OPFOR's last emitter_atlas run (a
            pickle made by `capture <inputs.pkl>`: its 615 emitter partitions, 14 authoring atlases and mp_005's,
            rebuilt from its manifest - the build must give the atlases that run recorded): the atlases', partitions',
@@ -105,7 +105,7 @@ def run_import(src, out, times):
 
 def run_fair(src, ix, out, times):
     import dbxcatalogue
-    import dbxparity
+    import dbxparitylib as dbxparity
     import dbxport
     cat = dbxcatalogue.load(ix)
     bones = dbxport.BoneTables.ske01(src, ix)
@@ -155,22 +155,25 @@ def run_fair(src, ix, out, times):
 
 
 def run_parity(src, ix, out, times):
-    import dbxcatalogue
-    import dbxparity
-    import dbxport
-    both = sorted(k for k in src.entries if k.endswith('.dbx') and k in ix.where)
-    t = time.perf_counter()
-    partitions, matched, stats, examples, enums = dbxparity.compare(src, ix, both, log=lambda s: None)
-    times['parity: compare'] = time.perf_counter() - t
-    out['parity:compare'] = sha(repr((partitions, matched, sorted((k, sorted(v.items())) for k, v in stats.items()),
-                                      sorted(examples.items()), sorted((k, sorted(v.items())) for k, v in enums.items()))))
-    cat = dbxcatalogue.load(ix)
-    bones = dbxport.BoneTables.ske01(src, ix)
-    names = sorted(k for k in both if dbxparity.family(k) not in ('objects', 'effects', 'sounds', 'other'))
-    t = time.perf_counter()
-    got, ex = dbxparity.predict(src, ix, names, cat, bones, log=lambda s: None)
-    times['parity: predict'] = time.perf_counter() - t
-    out['parity:predict'] = sha(repr((sorted((k, sorted(v.items())) for k, v in got.items()), sorted(ex.items()))))
+    """bfbc2.exe dbxparity (the comparison and --predict) and portparity over every partition and model both games
+    have (round PR1b-1d retired their Python): their reports' SHA-256 and their run times."""
+    import subprocess
+    import tempfile
+
+    from bfbc2core import native
+    exe = native.cli_exe()
+    if exe is None:
+        raise SystemExit('parity: bfbc2.exe is not built from this checkout (python rust\\build_native.py)')
+    with tempfile.TemporaryDirectory(prefix='bench_parity_') as tmp:
+        for what, args, files in (('compare', ['dbxparity'], ['dbxparity.txt', 'dbxparity_enums.json']),
+                                  ('predict', ['dbxparity', '--predict'], ['dbxparity.txt']),
+                                  ('portparity', ['portparity'], ['portparity.txt', 'portparity.json'])):
+            t = time.perf_counter()
+            subprocess.run([exe, *args], cwd=tmp, check=True, capture_output=True)
+            times[f'parity: {what}'] = time.perf_counter() - t
+            for f in files:
+                with open(os.path.join(tmp, f), 'rb') as fh:
+                    out[f'parity:{what}:{f}'] = sha(fh.read())
 
 
 def capture_atlas(path, folder='emitter_atlas'):

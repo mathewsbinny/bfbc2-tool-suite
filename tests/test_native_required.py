@@ -387,7 +387,7 @@ def retired_cli() -> None:
             src = f.read()
         block = src[src.index('pub const RETIRED'):]
         block = block[:block.index('];')]
-        rust = dict(re.findall(r'\("(\w+)",\s*"(\w+)"\)', block))
+        rust = dict(re.findall(r'\("(\w+)",\s*"([\w-]+)"\)', block))
         want = {t: r for t, r in native.RETIRED_ROUND.items() if t != 'leveldiff'}
         check(rust == want and set(native.RETIRED_ROUND) == native.RETIRED_CLI,
               f'retired: bfbc2.exe\'s list (pyproc.rs) and native.RETIRED_ROUND agree, tool and round ({rust})')

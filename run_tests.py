@@ -449,6 +449,8 @@ def tests():
         ('dbxport:game', 'DBX writer and BF1943 partition port (dbxport)', 'game', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_dbxport.py')]),
         ('dbxport-fair:game', 'dbxport fair ports: every partition both games ship, against DICE', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_dbxport_fair.py')]),
+        ('parityreports:game', "bfbc2 dbxparity / portparity's reports on your BF1943 and game copy: the retired Python's, byte for byte", 'game',
+         [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_parity_reports.py')]),
         ('dbxport-ranking:game', "dbxport ranking: the four WW2 level ports against a third of BFBC2's 157 levels, every choice and the bytes", 'game',
          [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_dbxport_ranking.py'), '--game']),
         ('dbxport-opfor:game', 'dbxport in Rust against its Python reference: the Project OPFOR BF1943 vehicle, weapon and object builds replayed both ways (outputs to temp)', 'game',

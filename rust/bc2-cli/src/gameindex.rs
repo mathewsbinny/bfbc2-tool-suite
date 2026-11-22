@@ -73,6 +73,11 @@ impl Index {
 /// "indexing the game copy (once; cached) ..." on stderr, what was left out said and the index then not cached).
 /// Err: a bundle cannot be stat'ed or the lock cannot be taken (`OSError`).
 pub fn load(py: &mut Py, root: &str) -> PyResult<Index> {
+    let (bundles, ix) = load_mesh_index(py, root)?;
+    Ok(Index::new(bundles, ix))
+}
+
+fn load_mesh_index(py: &mut Py, root: &str) -> PyResult<(Vec<String>, meshindex::MeshIndex)> {
     let bundles: Vec<String> = bundles(root).into_iter().map(|(_, b)| b).collect();
     let path = cache::cache_path(root);
     let got = meshindex::load(&bundles, Path::new(&path), &mut |s| py.eprint(s))
@@ -80,5 +85,13 @@ pub fn load(py: &mut Py, root: &str) -> PyResult<Index> {
     if got.built && got.index.databases > 0 {
         crate::budget::after_bundle_read();
     }
-    Ok(Index::new(bundles, got.index))
+    Ok((bundles, got.index))
+}
+
+/// `meshview.Index(root)` whole (round PR1b-1d, the parity tools): `where`, `parts` and `entries`, and reads of the
+/// stock bundles ([`bc2_convert::meshview::Index`]), loaded as [`load`] loads it.
+#[cfg(feature = "bf1943")]
+pub fn load_full(py: &mut Py, root: &str) -> PyResult<bc2_convert::meshview::Index> {
+    let (bundles, ix) = load_mesh_index(py, root)?;
+    Ok(bc2_convert::meshview::Index::from_tables(cache::tables(&ix, &bundles)))
 }

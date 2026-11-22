@@ -10772,3 +10772,69 @@ The undergrowth entry's parser (start from the `VisualTerrain` vtable 0x144FCF0'
 loading roots and the menus' event queue / FSCommand callback, who drains the mount table, the award listener
 classes, which entities run the dirt build-up; and every playtest: the terrain plan, ONS-CAP-3's patch, a RenderDoc
 capture for MAT-TEX-20, bots on a flag (BOT-GS-5).
+## PR1b-1d: the parity tools in Rust (2026-11-22, branch `pr1b1d`, with Project OPFOR's `pr1b1d`)
+
+What PR1b-1c left (above, "What is left"), item 2: `dbxparity.py` and `portparity.py` ported behind
+`bfbc2 dbxparity|portparity`, then retired. Version **0.21.0** (a removal: `RELEASING.md`; not tagged here).
+
+### What runs where
+
+| Python (retired) | Rust | Reused |
+|---|---|---|
+| the command lines (`argparse`) | `rust/bc2-cli/src/bf1943/argp.rs`: Python 3.13's `_parse_known_args` for the three options and `names` in full (abbreviations and their ambiguity, `--x=v`, `-oX`, `-ho`, `--`, negative numbers, positionals around options) | `argfmt` (the texts) |
+| `bf1943import.Source`, `meshview.Index` | `bf1943src::Source::open_reading` (a stale source index is read, not written: its pickle is the Python's), `gameindex::load_full` | `bc2_formats::bf1943`, `bc2_convert::meshview::Index` (`rows`, `contains`, `part_names` added) |
+| `compare`, `flatten`, `instances` | `bf1943/dbxparity.rs` (Python's dicts and Counters as `OrderedMap`s, `str.strip`'s whitespace) | `bc2_formats::dbx::{parse, value}` |
+| `predict`, `fair_catalogue`, `BoneTables.ske01`, `Templates.from_index`, `guids_of` | `bf1943/dbxparity.rs` (the catalogue built in process and copied as `bc2_native.DbxCatalogue` copies it; the class defaults swapped per partition) | `bc2_convert::dbxport::port` and `rules::Rules::default()`, `dbxcatalogue::build`, `granny::bone_names` (new) |
+| `meshport.Porter.port` (no renames, donors, poses or shader plan: the tool reads none) | `bc2_convert::meshport::Porter` (new, over a `Source` trait) | `meshport::Index::search`, `meshconv::console_layouts`, `granny::bone_map` (new), `texture::convert` |
+| `mesh.convert(b, pairs, reorder='drop', bones=...)` | `bc2_convert::meshconv::convert` (new; the Python glue keeps calling `mesh_vertices`) | `mesh::convert_vertices`, `meshdata::{parse_mesh, write_mesh}`, `strip_to_list` |
+| `meshset.parse` / `write` / `lod_size`, `texture.levels` / `decode` | - | `meshdata::{parse_set, write_set}`, `texcheck::{levels, decode}` |
+| NumPy in `compare_part` / `compare_texture` | `bf1943/portparity.rs`: float64 from halves and singles, row sums in order, the picture's MSE by NumPy's pairwise summation, `np.round` (multiply, round half even, divide), `.4g` / `.3f` / `repr` as Python formats them | `pyfmt::fixed`, `float_repr`, `json::dumps` |
+
+### Proof
+
+On the user's BF1943 copy (Project Rising Sun's `dist\xenon`) and game copy, each tool run by the Python (0434c22)
+and by `bin\bfbc2.exe` with the same arguments:
+
+| run | what was compared | result |
+|---|---|---|
+| `dbxparity` | 2,353 partitions, 16,249 instances: the report (229,707 bytes), `dbxparity_enums.json`, stdout | byte for byte |
+| `dbxparity --predict` | 173 weapon and vehicle partitions ported three ways: the report, stdout | byte for byte |
+| `portparity` | 148 models (147 ported, 1 PortError row, 1 not compared): the report, `portparity.json`, the 148 progress lines | byte for byte |
+| the 147 ports themselves | every LOD's MeshData, the mesh set, every texture (SHA-256, against `meshport.Porter.port`) | identical |
+| 8 filtered runs (`zero`, `corsair kurogane --predict`, names that match nothing, `uibackground parachute`, an upper-case filter, default `-o`) | files and both streams in an empty folder | the same |
+
+`bfbc2-bf1943-import\tests\test_parity_reports.py` (game tier, `parityreports:game`) keeps the digests
+(`parity_reports_golden.json`, the Python's) and checks every run is answered in Rust. The library moved to
+`dbxparitylib.py` gives `instances` the same answers on 2,730 stock partitions (every `weather/` one and the beach
+vehicles': one SHA-256 over the reprs, old module against new).
+
+**O3's bf1943 group** (`core\tests\test_cli_o3.py --group bf1943 --who`): 102 of 102 as recorded; dbxparity 36 of 36
+and portparity 36 of 36 answered in Rust (Python 0; 24 of their 72 were handed over before: runs, `--`, attached values and
+positionals around options were handed over). Left with the Python: dbxcatalogue's 8 lines that build the catalogue's
+cache (a stale, damaged or old cache, a stale index) - that tool's pickle build, not this round's. `test_argfmt` 943 of
+943, `test_abbrev` 193 of 193 (all `dbxparity` / `portparity` lines Rust). `argp.rs`'s 1,200 random command lines
+(`argp_cases.json`) give argparse's answers.
+
+### Decided against DICE (PY1's rule)
+
+- **A float2 element** (format 0x02, 8 bytes) is compared as two singles (spec XWW2-PAR-3). The Python's `DTYPE` read
+  it as three (12 bytes, the next element's first four with it). No compared part has one at stream 0: run with the
+  Python's table changed, its reader saw 0 float2 elements and the report was the same.
+
+### Speed (release `bfbc2.exe`, the same PC, other rounds building)
+
+| run | Python | Rust |
+|---|---:|---:|
+| `dbxparity` | 14 s | 4.9 s |
+| `dbxparity --predict` | 12 s (the catalogue from its pickle cache) | 26.7 s (the catalogue built in process: about 20 s) |
+| `portparity` | 7 s | 6.7 s |
+
+`--predict` is slower: the Python unpickles the catalogue cache (`work\tools_out\dbx_catalogue.pkl`), the Rust builds
+the catalogue from the game copy each run (the pickle holds Python `dbx.Element` objects; reading it in Rust is left).
+
+### What is left
+
+- **dbxcatalogue's cache build** in Rust (the 8 O3 lines above): the pickle of `Catalogue` with `dbx.Element` trees,
+  which Project OPFOR's modules unpickle; with it `--predict` could read the cache instead of building.
+- **`meshport.py`'s Porter** stays the WW2 builds' (renames, donors, poses, the shader plan); the Rust `Porter` covers
+  what the parity tool reads. Moving OPFOR's ports onto it is OPFOR in Rust stage 2.

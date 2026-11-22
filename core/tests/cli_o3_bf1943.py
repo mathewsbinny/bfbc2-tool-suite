@@ -3,7 +3,8 @@ dbxparity.py and portparity.py.
 
 cases(): the quick tier's, on cli_o3_meshview's fake game copy (dummy bundles, the index's cache) with a catalogue cache
 work\tools_out\dbx_catalogue.pkl written as dbxcatalogue.load writes it (a Catalogue of made-up tables; no game data);
-the parity tools' help and usage errors, and a run handed to the Python (no BF1943 source there).
+the parity tools' help and usage errors, and a run without a BF1943 source (round PR1b-1d retired their Python:
+bfbc2.exe answers every line, the recordings stay the Python's answers).
 opfor_calls(opfor): dbxcatalogue on Project OPFOR's caches, read in place (only when both are current: a stale one
 would be rebuilt into OPFOR's work\, so then the call is left out).
 """
@@ -127,7 +128,8 @@ def cases() -> list[Case]:
         add(f'{tool} unknown options with names', tool, ['--bogus', 'zero', '--other=1'], env=nosrc)
         add(f'{tool} -o then -h', tool, ['-o', 'r.txt', '-h'], env=nosrc)
         add(f'{tool} --predict', tool, ['--predict', '--nope'], env=nosrc)
-        # handed to the Python: a run (here without BF1943's source), argparse's own corners
+        # recorded as the Python answered them, answered in Rust since round PR1b-1d: a run (here without BF1943's
+        # source), argparse's own corners
         add(f'{tool} run without a source', tool, ['zero', '-o', '{d}\\r.txt'], env=nosrc)
         add(f'{tool} abbreviation', tool, ['--hel'], env=nosrc)
         add(f'{tool} attached -o', tool, ['-o{d}\\r.txt', '-h'], env=nosrc)
