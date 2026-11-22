@@ -731,6 +731,47 @@ const XVAL: &[Row] = &[
         &[Edit],
         "V1",
     ),
+    (
+        "XVAL-PLACE-2",
+        Warning,
+        "Spawn points stand on ground",
+        "A spawn point over water, inside a rock or a wall, under the ground or outside the terrain: a soldier \
+         spawning there drowns or is stuck. Move it onto open ground (DICE's spawn points all stand on it).",
+        &["GAME-SPAWN-1", "GAME-SPAWN-3"],
+        &[Edit],
+        "A1",
+    ),
+    (
+        "XVAL-PLACE-3",
+        Warning,
+        "A vehicle spawner has its vehicle's room and domain",
+        "A vehicle spawner needs room for its vehicle (static collision too close at a vehicle's height) and its \
+         domain: land vehicles on land, boats on water, none inside collision. Otherwise the vehicle spawns into the \
+         world or cannot move.",
+        &["GAME-SPAWN-1", "GAME-VEH-1"],
+        &[Edit],
+        "A1",
+    ),
+    (
+        "XVAL-PLACE-4",
+        Warning,
+        "Gameplay objects stand inside a combat area",
+        "An M-COM, a spawn point or a land or sea vehicle spawner outside every combat area (a vehicle more than \
+         150 m out, farther than DICE's own): a player there is told to return to the area and dies as a deserter. \
+         Move it in, or the area out.",
+        &["GAME-AREA-1", "GAME-AREA-2"],
+        &[Edit],
+        "A1",
+    ),
+    (
+        "XVAL-PLACE-5",
+        Warning,
+        "Spawns and objectives have a path for the AI",
+        "A spawn point, flag or M-COM with no route node of the level's path data near it, or only one on an island          cut off from the main network: a bot spawned there cannot leave, and bots cannot attack or defend an          objective there. Move it onto the main network, or build the path data again (the AI workspace).",
+        &["AI-NEED-2", "AI-NAV-1"],
+        &[Edit],
+        "A1",
+    ),
 ];
 
 /// L1's index as `l1_rules.json` holds it (round L1).

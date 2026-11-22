@@ -457,9 +457,11 @@ hits, and the trees are as tight as DICE's.
 
 ## Open questions
 
-- The hash function of the wrapper's material hashes (the suite copies and compares them, never computes one):
-  needed to add a material that has no hash yet. (Closed for the part words: blueprints hash the part names with
-  `bc2_formats::havok::part_hash`, model groups hold the owners' leaves: HAVOK-WRAP-1, HAVOK-RUN-3.)
+- ~~The hash function of the wrapper's material hashes~~: closed by round SPG (MAT-SLOT-1): the 33-xor hash of the
+  lower-case material name, `bc2_formats::havok::part_hash`, on 1,183 of 1,183 DICE physics assets and 5,746 of 5,746
+  grid materials. The suite still copies the hashes rather than computing them; a writer that adds a material can now
+  compute its hash. (The part words: blueprints hash the part names with the same function, model groups hold the
+  owners' leaves: HAVOK-WRAP-1, HAVOK-RUN-3.)
 - The wrapper's vectors (a x 3 f32) and boxes (c x 6 f32): presumably per-part pivots and bounds; not decoded.
 - MATERIAL_SLOTS_RE's one LIKELY row: the hit material on plain placed objects (part or face), to be settled by the
   playtest probe.

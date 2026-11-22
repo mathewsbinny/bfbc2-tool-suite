@@ -1673,7 +1673,12 @@ impl<'a> P<'a> {
                 if let Some(a) = a {
                     let at = self.ar.text(a).to_owned();
                     let mut new = None;
-                    if at == "wabsShg" {
+                    // DICE's shotgun body set stays on a shotgun (spec WPN-WW2-8); BF1943's knife takes wabsRif
+                    let shotgun = self
+                        .ar
+                        .field(inst, "WeaponClass")
+                        .is_some_and(|c| self.ar.text(c) == "wcShotgun");
+                    if at == "wabsShg" && !shotgun {
                         new = Some("wabsRif".to_owned());
                     } else if matches!(step, Step::Counterpart | Step::Donor)
                         && let Some(ta) = ta
