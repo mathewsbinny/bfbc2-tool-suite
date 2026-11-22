@@ -1540,11 +1540,11 @@ def stage_level(root, stage, log=print, bodies=None, level=None, base=None):
     if levelobjects.main(['levelobjects', L, part] + extra):
         raise navkit.NavKitError(f'{lv}: levelobjects failed on the stage')
     lad = ladders.extract(L, extra)
-    open(os.path.join(L, 'ladders.json'), 'w', encoding='utf-8').write(json.dumps(lad, indent=1))
+    open(os.path.join(L, 'ladders.json'), 'w', encoding='utf-8').write(json.dumps(lad, indent=1, sort_keys=True))
     st = dict(sb, level=part, box_source=f'the base level {base}', offsets_source=f'the base level {base}')
     d = os.path.join(W, 'navkit', lv)
     os.makedirs(d, exist_ok=True)
-    json.dump(st, open(os.path.join(d, 'navkit.json'), 'w'), indent=1)
+    json.dump(st, open(os.path.join(d, 'navkit.json'), 'w'), indent=1, sort_keys=True)
     # the base's terrain (an export does not sculpt it yet): its unpack copied, so the height field and water read
     tb = os.path.join(Lb, 'terrain')
     tt = os.path.join(L, 'terrain')
