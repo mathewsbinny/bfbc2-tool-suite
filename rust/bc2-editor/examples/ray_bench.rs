@@ -117,5 +117,22 @@ fn main() {
         "{lv}: {rays} surface_below in {below:.3} s, {:.3} ms each",
         below * 1000.0 / rays as f64
     );
+    // the terrain's part of it: picking rays with every object passed through (not in the digest)
+    let mut rng = Lcg(0x4847_3101);
+    let t = Instant::now();
+    for _ in 0..rays {
+        let x = x0 + (x1 - x0) * rng.next();
+        let z = z0 + (z1 - z0) * rng.next();
+        let y = hf.height(x, z) + 30.0 + 200.0 * rng.next();
+        let yaw = std::f64::consts::TAU * rng.next();
+        let pitch = -0.05 - 1.4 * rng.next();
+        let d = [pitch.cos() * yaw.cos(), pitch.sin(), pitch.cos() * yaw.sin()];
+        let _ = query::ray_hit_except(&s, [x, y, z], d, &|_| true);
+    }
+    let terrain = t.elapsed().as_secs_f64();
+    println!(
+        "{lv}: {rays} picking rays, terrain only, in {terrain:.3} s, {:.3} ms each",
+        terrain * 1000.0 / rays as f64
+    );
     println!("{lv}: digest {}", sha.digest());
 }

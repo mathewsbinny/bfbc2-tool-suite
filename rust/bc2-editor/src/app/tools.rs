@@ -151,21 +151,6 @@ fn scene_category(e: &Entry) -> &'static str {
     }
 }
 
-/// Whether a screen point is inside a polygon (even-odd).
-fn inside(poly: &[Pos2], p: Pos2) -> bool {
-    let mut odd = false;
-    let n = poly.len();
-    for i in 0..n {
-        let (Some(a), Some(b)) = (poly.get(i), poly.get((i + n - 1) % n)) else {
-            continue;
-        };
-        if (a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x {
-            odd = !odd;
-        }
-    }
-    odd
-}
-
 /// The context menu's entries for a workspace (separators as `None`), with why each cannot run.
 #[must_use]
 pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<Option<MenuItem>> {
@@ -343,7 +328,7 @@ impl ViewState {
     #[must_use]
     pub fn has_transient(&self) -> bool {
         self.browser.placing.is_some()
-            || !self.outline.polygon.is_empty()
+            || self.tools.transient()
             || self.browser.sink.is_some()
             || self.picker.is_some()
             || !self.navs.clicks.is_empty()
@@ -359,7 +344,7 @@ impl ViewState {
             self.navs.message = "Drawing cancelled".into();
             self.navs.dirty = true;
         }
-        self.outline.polygon.clear();
+        self.tools.cancel();
         self.browser.sink = None;
         self.picker = None;
     }
@@ -1343,25 +1328,18 @@ impl ViewState {
         }
     }
 
-    /// Selects the selectable entities whose position is inside a polygon drawn on a view.
-    pub(super) fn polygon_select(&mut self, gpu: &GpuCtx, rect: Rect, cam: &Camera) {
-        let poly = std::mem::take(&mut self.outline.polygon);
-        if poly.len() < 3 {
-            return;
+    /// What a tool asked for (round PR1b-0, [`crate::tool::Outcome`]): a message, a selection, an operation.
+    pub(super) fn tool_outcome(&mut self, gpu: &GpuCtx, palette: &Palette, outcome: crate::tool::Outcome) {
+        use crate::tool::Outcome;
+        match outcome {
+            Outcome::Done => {}
+            Outcome::Message(m) => self.message = m,
+            Outcome::Select(list, said) => {
+                self.message = said;
+                self.set_selection(gpu, list, true);
+            }
+            Outcome::Commit(op, label) => self.commit(gpu, palette, *op, &label),
         }
-        let view = cam.view([f64::from(rect.width()), f64::from(rect.height())]);
-        let list: Vec<usize> = self
-            .scene()
-            .entities
-            .iter()
-            .filter(|e| self.selectable(e.index) && self.doc.as_ref().is_none_or(|d| d.why_not(e.index).is_none()))
-            .filter_map(|e| {
-                let s = view.project(e.position()?)?;
-                inside(&poly, rect.min + Vec2::new(s[0] as f32, s[1] as f32)).then_some(e.index)
-            })
-            .collect();
-        self.message = format!("{} selected", list.len());
-        self.set_selection(gpu, list, true);
     }
 
     /// Deep duplicates of entities (Duplicate and Paste, round XF1): each copy moved by its shift, with copies of the
@@ -1523,20 +1501,21 @@ impl Tabs<'_> {
             }
             left = true;
         }
-        // polygon corners: clicks add, a double click or Enter closes
-        if self.view.tool == Tool::Polygon && self.view.doc.is_some() && self.view.workspace.moves_objects() {
-            if resp.double_clicked() || (self.view.outline.polygon_close && !self.view.outline.polygon.is_empty()) {
-                self.view.outline.polygon_close = false;
-                self.view.polygon_select(gpu, rect, &vp.camera);
-            } else if resp.clicked()
-                && let Some(p) = resp.interact_pointer_pos()
-            {
-                if self.view.outline.polygon_view != Some(projection) {
-                    self.view.outline.polygon.clear();
-                    self.view.outline.polygon_view = Some(projection);
-                }
-                self.view.outline.polygon.push(p);
-            }
+        // the chosen tool's input (round PR1b-0: the polygon's corners - clicks add, a double click or Enter closes)
+        let pointer = crate::tool::Pointer {
+            projection,
+            rect,
+            view,
+            clicked: resp.clicked(),
+            double_clicked: resp.double_clicked(),
+            at: resp.interact_pointer_pos(),
+            editing: self.view.doc.is_some() && self.view.workspace.moves_objects(),
+        };
+        let mut tools = std::mem::take(&mut self.view.tools);
+        let taken = tools.get_mut(self.view.tool).input(&pointer, self.view);
+        self.view.tools = tools;
+        if let Some(outcome) = taken {
+            self.view.tool_outcome(gpu, &palette, outcome);
             left = true;
         }
         // a right-click: what is under the pointer; an object outside the selection is selected
@@ -1689,20 +1668,18 @@ impl Tabs<'_> {
                 painter.galley(r.min + Vec2::splat(4.0), g, p.ink);
             }
         }
-        // the polygon being drawn
-        if self.view.outline.polygon_view == Some(projection) && !self.view.outline.polygon.is_empty() {
-            let mut pts = self.view.outline.polygon.clone();
-            if let Some(h) = ui.input(|i| i.pointer.hover_pos()) {
-                pts.push(h);
-            }
-            painter.add(egui::Shape::closed_line(
-                pts.clone(),
-                Stroke::new(1.5, p.view_selection),
-            ));
-            for q in &self.view.outline.polygon {
-                painter.circle_filled(*q, 3.5, p.view_selection);
-            }
-        }
+        // what the tools hold (the polygon being drawn)
+        self.view.tools.draw(
+            &crate::tool::Draw {
+                painter: &painter,
+                projection,
+                rect,
+                view,
+                hover: ui.input(|i| i.pointer.hover_pos()),
+                palette: &p,
+            },
+            crate::tool::Layer::Tools,
+        );
         // the Terrain and Vegetation workspaces: their brushes, greyed until their rounds
         if let Some(why) = self.view.workspace.coming() {
             let bar = Rect::from_min_size(rect.min + Vec2::splat(6.0), Vec2::new(rect.width() - 12.0, 40.0));
@@ -2758,8 +2735,8 @@ mod tests {
             Pos2::new(10.0, 10.0),
             Pos2::new(0.0, 10.0),
         ];
-        assert!(inside(&sq, Pos2::new(5.0, 5.0)));
-        assert!(!inside(&sq, Pos2::new(15.0, 5.0)));
-        assert!(!inside(&sq[..2], Pos2::new(5.0, 0.0)));
+        assert!(crate::tool::inside(&sq, Pos2::new(5.0, 5.0)));
+        assert!(!crate::tool::inside(&sq, Pos2::new(15.0, 5.0)));
+        assert!(!crate::tool::inside(&sq[..2], Pos2::new(5.0, 0.0)));
     }
 }

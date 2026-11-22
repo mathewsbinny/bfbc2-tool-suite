@@ -13,12 +13,14 @@
 //!   caller tests them in mesh order exactly as before, so the hit is the same, bit for bit.
 //! - Each blueprint's radius (the farthest triangle corner from its origin), computed once per triangle list.
 //!
-//! Both live in the scene's [`RayCache`]. The terrain grid is built on the first ray and kept while the scene's
-//! terrain mesh is the same one (its vertex and triangle buffers, by address and length; the terrain is not edited in
-//! place); a radius is kept per blueprint triangle list (its `Arc`, held so its address is never reused).
+//! Both live in the scene's [`RayCache`], which the scene's clones share (an undo's scene is a clone of the base's:
+//! its first ray no longer builds the grid again). The terrain grid is built on the first ray and kept while the
+//! scene's terrain mesh is the same `Arc` (the mesh is never edited in place: an edit replaces the `Arc`; the one the
+//! grid was built from is held, so its address is never reused); a radius is kept per blueprint triangle list (its
+//! `Arc`, held likewise).
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 use bc2_formats::havok::Triangle;
 
@@ -237,24 +239,87 @@ pub fn radius_of(tris: &[Triangle]) -> f64 {
         .fold(0.0, f64::max)
 }
 
-/// The terrain grid of the mesh it was built from (that mesh's buffers' addresses and lengths).
-type Keyed = ((usize, usize, usize, usize), Arc<TerrainGrid>);
+/// The terrain grid of the mesh it was built from (a weak reference: a mesh no scene holds is freed, and its `Arc`'s
+/// block, kept by the weak reference, is never another mesh's).
+type Keyed = (Weak<TerrainMesh>, Arc<TerrainGrid>);
 
-/// A blueprint's radius, by its triangle list's address (the list held, so the address is not reused).
-type Radii = HashMap<usize, (Arc<Vec<Triangle>>, f64)>;
+/// What an object ray needs of a blueprint, by its triangle list's address (the list held, so the address is not
+/// reused).
+type ShapeMap = HashMap<usize, Shape>;
 
-/// A scene's ray structures, built when first asked for (see the module). Cloning a scene starts its clone's cache
-/// empty.
-#[derive(Default)]
-pub struct RayCache {
-    terrain: Mutex<Option<Keyed>>,
-    radii: Mutex<Radii>,
+/// What an object ray needs of a blueprint's triangles: their bounding radius and their runs' bounds.
+#[derive(Debug)]
+pub struct Shape {
+    /// The triangle list (held: its address is the key).
+    _held: Arc<Vec<Triangle>>,
+    /// [`radius_of`] the triangles.
+    pub radius: f64,
+    /// [`runs_of`] the triangles.
+    pub runs: Vec<Bounds>,
 }
 
-impl Clone for RayCache {
-    fn clone(&self) -> Self {
-        Self::default()
+/// The blueprints' [`Shape`]s, locked for a ray's walk over the placed objects (one lock a ray, not one an
+/// object: round PR1b-0, audit AU5 ALG-2).
+pub struct Shapes<'a>(MutexGuard<'a, ShapeMap>);
+
+impl Shapes<'_> {
+    /// The shape of a blueprint's triangles, measured the first time.
+    pub fn get(&mut self, tris: &Arc<Vec<Triangle>>) -> &Shape {
+        self.0.entry(Arc::as_ptr(tris) as usize).or_insert_with(|| Shape {
+            _held: Arc::clone(tris),
+            radius: radius_of(tris),
+            runs: runs_of(tris),
+        })
     }
+}
+
+impl std::fmt::Debug for Shapes<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Shapes")
+    }
+}
+
+/// The triangles of a blueprint a [`Bounds`] covers (consecutive, in the blueprint's order).
+pub const RUN: usize = 16;
+
+/// The least and greatest corner of a run of [`RUN`] triangles, in the blueprint's own space.
+pub type Bounds = ([f32; 3], [f32; 3]);
+
+/// The bounds of each run of [`RUN`] triangles of a blueprint (the last run may be shorter). An object ray (round
+/// PR1b-0, audit AU5 ALG-2) places and tests only the runs whose bounds, padded, its path in the object's space
+/// meets: every triangle it could meet is still tested, in the same order, so the hit is the same.
+#[must_use]
+pub fn runs_of(tris: &[Triangle]) -> Vec<Bounds> {
+    tris.chunks(RUN)
+        .map(|run| {
+            let mut lo = [f32::INFINITY; 3];
+            let mut hi = [f32::NEG_INFINITY; 3];
+            for p in run.iter().flatten() {
+                for ((l, h), v) in lo.iter_mut().zip(hi.iter_mut()).zip(p) {
+                    *l = l.min(*v);
+                    *h = h.max(*v);
+                }
+            }
+            (lo, hi)
+        })
+        .collect()
+}
+
+/// The most terrain grids kept at once (a scene and its clones may hold different meshes once the terrain is edited).
+const GRIDS: usize = 4;
+
+/// The structures themselves, shared by every clone of a [`RayCache`].
+#[derive(Default)]
+struct Shared {
+    terrain: Mutex<Vec<Keyed>>,
+    shapes: Mutex<ShapeMap>,
+}
+
+/// A scene's ray structures, built when first asked for (see the module). A clone shares them: each is kept with
+/// what it was built from, so a scene and its clones (the base and an undo's scene) build each grid once.
+#[derive(Default, Clone)]
+pub struct RayCache {
+    shared: Arc<Shared>,
 }
 
 impl std::fmt::Debug for RayCache {
@@ -264,35 +329,30 @@ impl std::fmt::Debug for RayCache {
 }
 
 impl RayCache {
-    /// The grid of `mesh`, built on the first call and again when the mesh is another one.
-    pub fn terrain(&self, mesh: &TerrainMesh) -> Arc<TerrainGrid> {
-        let key = (
-            mesh.0.as_ptr() as usize,
-            mesh.0.len(),
-            mesh.1.as_ptr() as usize,
-            mesh.1.len(),
-        );
-        let mut slot = self.terrain.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some((k, g)) = slot.as_ref()
-            && *k == key
-        {
+    /// The grid of `mesh`, built on the first call for that mesh (that `Arc`).
+    pub fn terrain(&self, mesh: &Arc<TerrainMesh>) -> Arc<TerrainGrid> {
+        let mut grids = self.shared.terrain.lock().unwrap_or_else(PoisonError::into_inner);
+        grids.retain(|(m, _)| m.strong_count() > 0);
+        if let Some((_, g)) = grids.iter().find(|(m, _)| std::ptr::eq(m.as_ptr(), Arc::as_ptr(mesh))) {
             return Arc::clone(g);
         }
         let g = Arc::new(TerrainGrid::new(mesh));
-        *slot = Some((key, Arc::clone(&g)));
+        if grids.len() >= GRIDS {
+            grids.remove(0);
+        }
+        grids.push((Arc::downgrade(mesh), Arc::clone(&g)));
         g
     }
 
     /// [`radius_of`] a blueprint's triangles, computed once per triangle list.
+    #[must_use]
     pub fn radius(&self, tris: &Arc<Vec<Triangle>>) -> f64 {
-        let key = Arc::as_ptr(tris) as usize;
-        let mut m = self.radii.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some((_, r)) = m.get(&key) {
-            return *r;
-        }
-        let r = radius_of(tris);
-        m.insert(key, (Arc::clone(tris), r));
-        r
+        self.shapes().get(tris).radius
+    }
+
+    /// The blueprints' shapes, locked until the answer is dropped.
+    pub fn shapes(&self) -> Shapes<'_> {
+        Shapes(self.shared.shapes.lock().unwrap_or_else(PoisonError::into_inner))
     }
 }
 
@@ -384,11 +444,23 @@ mod tests {
     #[test]
     fn the_cache_follows_the_mesh() {
         let c = RayCache::default();
-        let a = mesh(6);
+        let a = Arc::new(mesh(6));
         let g1 = c.terrain(&a);
         assert!(Arc::ptr_eq(&g1, &c.terrain(&a)));
-        let b = mesh(8);
-        assert!(!Arc::ptr_eq(&g1, &c.terrain(&b)));
+        let b = Arc::new(mesh(8));
+        let g2 = c.terrain(&b);
+        assert!(!Arc::ptr_eq(&g1, &g2));
+        // a clone shares the grids: the first mesh's is still there (two meshes kept at once)
+        let c2 = c.clone();
+        assert!(Arc::ptr_eq(&g1, &c2.terrain(&a)));
+        assert!(Arc::ptr_eq(&g2, &c2.terrain(&b)));
+        // the same vertices in another Arc: another mesh (an edit makes a new Arc)
+        let a2 = Arc::new(mesh(6));
+        assert!(!Arc::ptr_eq(&g1, &c.terrain(&a2)));
+        // a mesh no longer held: its grid goes at the next look-up
+        drop(a);
+        let _ = c.terrain(&b);
+        assert_eq!(c.shared.terrain.lock().unwrap().len(), 2);
         let tris = Arc::new(vec![[[3.0f32, 4.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]]]);
         assert!((c.radius(&tris) - 5.0).abs() < 1e-12);
         assert!((c.radius(&tris) - 5.0).abs() < 1e-12);

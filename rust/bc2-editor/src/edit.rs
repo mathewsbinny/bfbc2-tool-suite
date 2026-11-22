@@ -83,6 +83,9 @@ pub struct Doc {
     /// The level's files as the log leaves them, a writer per file (round OP1, audit AU1 R18): the partition, the
     /// static group files the log edits.
     files: LevelFiles,
+    /// The base partition's writer, parsed once (round PR1b-0): a replay from the base shares it until its first
+    /// edit copies it.
+    base_writer: Option<std::sync::Arc<LevelWriter>>,
     /// The field types (the level partition's data, `dbxcatalogue`'s rules).
     pub schema: Schema,
     /// What did not apply, and the base-changed report, in words.
@@ -119,6 +122,17 @@ pub struct Doc {
     journal: Option<Journal>,
     /// The project's tile folder (round OP1: brush strokes), its recent tiles in memory.
     tiles: DirStore,
+    /// The last operation [`Doc::refusal`] found would apply, with the files it made (round PR1b-0).
+    trial: RefCell<Option<Trial>>,
+}
+
+/// A multi-file operation tried by [`Doc::refusal`]: the files it made from the document's at `revision`; a commit
+/// of the same operation at the same revision takes them (the files are those the apply would make: the same
+/// operation on the same files, sources and schema).
+struct Trial {
+    revision: u64,
+    op: Op,
+    files: LevelFiles,
 }
 
 /// Where the document's level files come from (round OP1): the scene as loaded (static group files, the height field)
@@ -239,7 +253,10 @@ impl Doc {
     #[must_use]
     pub fn with(project: MapProject, path: PathBuf, scene: Scene) -> Self {
         let base_bytes = scene.file(0).map(|(_, b)| b.to_vec());
-        let writer = base_bytes.as_deref().and_then(|b| LevelWriter::parse(b).ok());
+        let writer = base_bytes
+            .as_deref()
+            .and_then(|b| LevelWriter::parse(b).ok())
+            .map(std::sync::Arc::new);
         let schema = Schema::scan(writer.as_ref().map(|w| &w.d));
         let base_report = base_bytes
             .as_deref()
@@ -253,7 +270,8 @@ impl Doc {
             deleted: BTreeSet::new(),
             org: Organisation::default(),
             base_bytes,
-            files: LevelFiles::new(writer),
+            files: LevelFiles::default(),
+            base_writer: writer,
             schema,
             problems: Vec::new(),
             saved: true,
@@ -270,6 +288,7 @@ impl Doc {
             lock: None,
             journal: None,
             tiles: DirStore::of(Path::new("")),
+            trial: RefCell::new(None),
         };
         d.tiles = DirStore::of(&d.path);
         d.disk = bc2_levelwrite::project::disk_stamp(&d.path);
@@ -300,15 +319,9 @@ impl Doc {
             return;
         };
         self.revision += 1;
-        self.scene = self.base.clone();
-        for (k, e) in c.entities.iter().enumerate() {
-            let moved = self.scene.entities.get(k).is_some_and(|b| b.matrix != e.matrix);
-            if moved && let Some(m) = e.matrix {
-                self.scene.set_transform(k, m);
-            }
-        }
-        self.scene.entities = c.entities;
-        self.scene.shapes = c.shapes;
+        // the base's scene with the checkpoint's entities and outlines (the base's are not copied first); the
+        // terrain, the files and the ray structures are shared with the base (round PR1b-0, audit AU5 ALG-1)
+        self.scene = self.base.with_entities(c.entities, c.shapes);
         if let (Some(col), Some(m)) = (self.scene.collision.as_mut(), c.meshes) {
             col.meshes = m;
         }
@@ -364,7 +377,11 @@ impl Doc {
         self.scene = self.base.clone();
         self.deleted.clear();
         self.by_guid = index_of(&self.base);
-        self.files = LevelFiles::new(self.base_bytes.as_deref().and_then(|b| LevelWriter::parse(b).ok()));
+        // the base partition parsed once, shared until the first edit copies it (round PR1b-0)
+        self.files = LevelFiles {
+            partition: self.base_writer.clone(),
+            ..LevelFiles::default()
+        };
         self.problems.clear();
         let r = &self.base_report;
         if r.changed {
@@ -413,6 +430,13 @@ impl Doc {
     }
 
     fn apply(&mut self, o: &Operation) {
+        // the files a refusal check made for this very operation on the files as they are now (round PR1b-0, audit
+        // AU5 ALG-3): taken instead of applying it a second time
+        let trial = self
+            .trial
+            .get_mut()
+            .take()
+            .filter(|t| t.revision == self.revision && t.op == o.op);
         self.revision += 1;
         // a donor level's partition is read from the game copy once (round XF1, audit AU1 D2)
         let (game, cache) = (&self.game, &self.donors);
@@ -434,9 +458,15 @@ impl Doc {
             terrain: terrain.as_ref(),
             tiles: &self.tiles,
         };
-        let applied = self
-            .files
-            .apply(o, &self.schema, &mut Applied::default(), &donors, &sources);
+        let applied = match trial {
+            Some(t) => {
+                self.files = t.files;
+                Ok(())
+            }
+            None => self
+                .files
+                .apply(o, &self.schema, &mut Applied::default(), &donors, &sources),
+        };
         if let Err(e) = &applied {
             self.problems
                 .push(Problem::new(Severity::Error, ProblemCode::NotApplied, e.to_string()).at(e.n));
@@ -704,7 +734,7 @@ impl Doc {
     /// The level partition being edited (levelwrite's writer), when the scene has one.
     #[must_use]
     pub fn writer(&self) -> Option<&LevelWriter> {
-        self.files.partition.as_ref()
+        self.files.partition.as_deref()
     }
 
     /// The level's files as the log leaves them (round OP1): the partition and the static group files it edits.
@@ -819,10 +849,18 @@ impl Doc {
             label: String::new(),
             op,
         };
-        files
-            .apply(&o, &self.schema, &mut Applied::default(), &donors, &sources)
-            .err()
-            .map(|e| e.error.to_string())
+        match files.apply(&o, &self.schema, &mut Applied::default(), &donors, &sources) {
+            // kept: committing this operation next takes these files instead of applying it again (round PR1b-0)
+            Ok(()) => {
+                *self.trial.borrow_mut() = Some(Trial {
+                    revision: self.revision,
+                    op: o.op,
+                    files,
+                });
+                None
+            }
+            Err(e) => Some(e.error.to_string()),
+        }
     }
 
     /// The guids of the entities the last operation made (copies, placed objects, added group members).
@@ -905,7 +943,7 @@ impl Doc {
         let file = self
             .files
             .partition
-            .as_ref()
+            .as_deref()
             .and_then(bc2_levelwrite::export::heightfield_name)
             .unwrap_or_else(|| "heightfield".into());
         Some(Target::Terrain { file })
