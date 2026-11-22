@@ -38,7 +38,8 @@ def isolated_copy() -> str:
     """A copy of this checkout's tracked files, its Rust core module and bin\\ in a temporary folder, as the reference
     the cases run from. The O3 tools find Project OPFOR by walking up from their suite: from a checkout beside it the
     caches' and the budget's cases would list and prune the real project caches in its work\\ (the quick tier did, on
-    2026-11-19), and the goldens (recorded from a reference in a temporary folder) would not match."""
+    2026-11-19), and the goldens (recorded from a reference in a temporary folder) would not match. Untracked state
+    (a rust\\target build folder) stays behind too."""
     import shutil
     import subprocess
     import tempfile
@@ -68,11 +69,13 @@ def main(argv: list[str]) -> int:
         print('skipped: no O3 case modules yet')
         return 0
     copy = None
-    if under_opfor(base.REF):
-        if base.REF != base.SUITE:
-            print(f'refused: the reference {base.REF} sits where the tools find Project OPFOR by walking up; its '
-                  'cases would read and prune the real project caches. Pass a --ref outside it.')
-            return 1
+    if under_opfor(base.REF) and base.REF != base.SUITE:
+        print(f'refused: the reference {base.REF} sits where the tools find Project OPFOR by walking up; its '
+              'cases would read and prune the real project caches. Pass a --ref outside it.')
+        return 1
+    # this checkout is always copied: beside Project OPFOR for the reason above, and anywhere for its own state - a
+    # build folder at rust\target (CI builds there) adds a line to caches --report that the goldens do not have
+    if base.REF == base.SUITE:
         copy = base.REF = isolated_copy()
         print(f'     (the reference: an isolated copy of this checkout in {copy})')
     try:

@@ -163,6 +163,9 @@ impl EditorApp {
                             // without a game copy, only projects (a height-map project needs none to be shown)
                             self.start_ui.start = StartPage::OpenProject;
                         }
+                        // the DBX inspector needs no game copy either (the home page that offers it is not shown)
+                        ui.add_space(m.space_2);
+                        self.dbx_link(ui, p);
                         ui.add_space(m.space_2);
                     }
                     if self.start_ui.start != StartPage::Home {
@@ -285,6 +288,11 @@ impl EditorApp {
         }
         // round GR4: the DBX inspector (DbxEditGUI folded in) needs no level
         ui.add_space(m.space_2);
+        self.dbx_link(ui, p);
+    }
+
+    /// The link that opens the DBX inspector (on the home page, or under the error when there is no game copy).
+    fn dbx_link(&mut self, ui: &mut egui::Ui, p: &Palette) {
         let b = ui
             .add(egui::Button::new(RichText::new("Inspect a DBX file\u{2026}").color(p.accent_text)).frame(false))
             .on_hover_text("Any binary .dbx - a file or a bundle's entry: its tree, edits, checks, XML");

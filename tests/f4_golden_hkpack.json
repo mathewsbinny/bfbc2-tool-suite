@@ -631,18 +631,27 @@
 ],
 "quick:built": [
 0,
-"9be41448cac303f1cd9a",
-120
+"06643a88683b41bb5b67",
+120,
+"03c3b43784cc595f85ba",
+1,
+0
 ],
 "quick:damaged": [
 0,
 "43654ff41583cfa6b158",
-400
+400,
+"aaa0c6d9c559b2f317e7",
+28,
+0
 ],
 "quick:seed": [
 0,
 "c4676e1f90b94f6ee8f0",
-8
+8,
+"c4676e1f90b94f6ee8f0",
+0,
+0
 ],
 "work/ww2/install/level-00.fbrb": [
 339911529,

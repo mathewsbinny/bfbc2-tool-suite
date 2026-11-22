@@ -415,7 +415,9 @@ def area_hkpack(c: Checks) -> None:
         t.both(f'seed {i}', 'quick:seed', 0, pf_probe, ref, nat, b, real=True)
     for i in range(400 if seeds else 0):
         t.both(f'damaged {i}', 'quick:damaged', 0, pf_probe, ref, nat, damaged(rng.choice(seeds), rng))
-    for i, b in enumerate(built_packfiles(rng)):
+    # their own generator: the damaged copies above draw from rng only when there are game seeds, so the built ones
+    # must not follow it (CI has no game copy; they were other files there and their golden never matched)
+    for i, b in enumerate(built_packfiles(random.Random(0xF4D5))):
         t.both(f'built {i}', 'quick:built', 0, pf_probe, ref, nat, b)
     # O2's sample packfile: its m_odd, a simple array of variants with data (no element size: [('?', 3)]), came back
     # from the handle as [[('?', 3)]] (round F4 to QW3; the built ones above never hold such an array with data)

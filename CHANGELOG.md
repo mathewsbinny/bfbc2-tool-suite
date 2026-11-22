@@ -71,6 +71,13 @@ landed on `main`.
 ### Fixed
 - **CI's per-group clippy:** `bfbc2.exe`'s navtools and harness groups did not build alone since round NK6 (they
   called the navkit group's error mapping); the mapping now sits in `navshared`, which all three groups build.
+- **CI without a game copy** (red since 2026-11-21; the development PC never saw it):
+  - the editor's start screen offers the DBX inspector without a game copy too (it showed only "Open project" and the
+    inspector, which needs no game, could not be opened);
+  - the F4 hkpack test's built packfiles have their own random generator: they followed the damaged copies of the
+    game's packfiles, so without a game copy they were other files and never matched their golden (re-recorded);
+  - test_cli_o3 always runs from an isolated copy of the checkout: a `rust\target` build folder (CI's) added a line
+    to `caches --report` that the goldens do not have.
 - **The bot-kill scoring contradiction** (AI-NEED-5 against PERS-SCORE-1): the player-killed handler returns only for
   a null victim, so with OPFOR's offline-scoring patch a human's kill of a bot scores; what blocked it offline was the
   4-client scoring flag. AI-NEED-5, PERS-SCORE-1 and the open-question lists now say so (BOT-SCO-3); a playtest still
