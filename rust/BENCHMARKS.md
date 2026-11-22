@@ -8700,3 +8700,55 @@ scripts 1,282, anim-tools 1,214, culltree 1,042, model-tools 1,022, console-read
 Proof: two runs (one with `PYTHONHASHSEED=7`) wrote the same bytes; `tests/test_repo.py` passes, fails naming the file
 with a stray `core/stray_pyi_check.py`, and fails naming both with a `.py` renamed (the row's file gone, the new one
 unclassified); ruff and mypy clean on the generator.
+## SPG2: the rest of the specification's gap pass (2026-11-22, branch `spg2`)
+
+A spec-writing round: no tool behaviour changed. Items 1 - 11 of `spec/COVERAGE.md` section 2 (as SPG left it)
+written, and the probes' first game-tier check. Nothing written to `game\`; the game never launched. The worktree
+built its own `bc2_native` (`python rust\build_native.py`, the shared build folder); the probes and the check ran
+against it.
+
+### Coverage, before and after
+
+| | rules | files | covered | thin | none |
+|---|---:|---:|---:|---:|---:|
+| before (SPG + AIS) | 1,051 | 59 | 24 | 12 | 0 |
+| after | 1,169 | 68 | 34 | 2 | 0 |
+
+New rules (verified / implemented / observed / inferred): `transforms/terrain_edit.md` 15 (7 / 2 / 0 / 6),
+`engine/vegetation.md` 8 (3 / 1 / 4 / 0), `transforms/shaders.md` 14 (3 / 9 / 2 / 0), `engine/module.md` 15
+(0 / 14 / 1 / 0), `engine/animation.md` 17 (3 / 5 / 8 / 1), `engine/decals.md` 6 (1 / 1 / 3 / 1), `engine/onslaught.md`
+14 (0 / 7 / 7 / 0), `engine/streaming.md` 7 (0 / 1 / 6 / 0), `formats/bf1943.md` 7 (0 / 1 / 6 / 0),
+`engine/persistence.md` +12 (3 / 1 / 8 / 0), `engine/effects.md` +3 (2 / 0 / 1 / 0); DSTR-TERR-4 observed -> verified.
+
+### The probes and the check (read-only, on the game copy's 444 DICE level bundles)
+
+| | reads | time |
+|---|---|---:|
+| `spec/probes/terrain.py` | 30 terrains: height fields, visual terrains, mask atlases, terrain partitions; 74 level partitions' vegetation and splines | 23 s |
+| `spec/probes/effects_chain.py` | 50,141 per-level emitter partitions: chains, classes, evaluators | 35 s |
+| `core/tests/test_spec_probes.py` (`run_tests.py game`, `spec-probes:game`) | both, asserting the stable counts of 14 rules | 59 s |
+
+### Findings that change planned work
+
+- **E5 / E7 (terrain)**: DICE's mask-tile flags run 2 - 64 (not only 4 and 8: TERR-VT-7 corrected), one tile is shared
+  by several blocks on 8 terrains, and 9,590 rule-only cells keep a leftover flag (TEDIT-VT-1): a painter must handle
+  all of these. The height range is per level (500 m on 16 of 30, up to 1,700 m): RNDR-TERR-5's "every stock range is
+  500 m" was wrong; the engine writes the scale, so a sculpt may widen the range without touching shaders. The terrain
+  partition is DICE's editor source (1,186 decal references, none in any bundle): an edit writes the resources.
+  E7 still cannot write a main block (its tail is undecoded).
+- **E6 (vegetation)**: forests and middlegrowth are ordinary model groups (SG1's member edits apply); undergrowth has
+  no placement data at all - it is the patch shaders' mesh entries, one undergrowth mask shader exactly when meshes.
+  **The suite's visual-terrain reader misreads NAM_MP_003** (its undergrowth entries carry a second string the reader
+  takes as one byte): a reader fix is queued in SPG2-rest.
+- **Pacific War**: BF1943's award table, ranks and stings are specified (PERS-WW2-1 - 4); PERS-SCORE-1 (RE of
+  2026-11-15) says bots' deaths are scored in the round with the scoring patch, contradicting AI-NEED-5: a kill-probe
+  playtest decides before the award engine's scoring work.
+- **Onslaught**: the game copy's ONS_MP_002 is OPFOR's console port, not Napisal's (WX1's attribution corrected); its
+  first stage dropped DICE's 53 night lamps, the moon, the lighthouse swap and the night ambience - a faithful re-port
+  must convert those resources instead (ONS-PORT-3). Matchmaking CONQUEST is deliberate (stats), not ONSLAUGHT.
+- **The game module** uses 221 addresses (not about 170) on build 795745 with no version check beyond 21 signatures
+  and per-site bytes; two kinds of slot write are unchecked (MOD-HOOK-3).
+
+### Left
+
+`spec/COVERAGE.md` section 2 (queued as SPG2-rest).

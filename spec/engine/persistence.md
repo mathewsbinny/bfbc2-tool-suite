@@ -106,9 +106,193 @@ career file (not `stats.txt`); BF1943's 50 ranks and point scale there; BF1943's
 as trophies; a stars system of OPFOR's own in BFBC2's style for the WW2 weapons and vehicles; awards that need content
 not yet in shown and earnable once it lands; all gated on the WW2 install.
 
+## 4. The persistence data (DICE's classes)
+
+Counted on 2026-11-22 (round SPG2) in DICE's own start-up bundle: Package `async/startup-00.fbrb.opfor-orig` (the
+patched set, as DICE shipped it; OPFOR's rewrite of the live file changed none of these classes) and Dist
+`async/startup-00.fbrb` (before Vietnam).
+
+### PERS-DATA-1: The persistence and award partitions
+
+Status: **observed** · Variants: PC
+
+| Partition | Classes (patched Package set) |
+|---|---|
+| `Persistence/MP_Awards` | AwardDataTree 1, AwardData 451, CriteriaData 440, AwardStarData 20, CriteriaStarData 20, AwardStarNameData 5, CriteriaStarCategoryData 5 |
+| `Persistence/MP_Template` | PersistenceData 1, PersistentValueTemplateData 2,066, UnlockToken 245, UnlockTokenData 1, PersistentDerivedValueTemplateData 2, PersistentPartition 2, EntitlementQuery 5, EntitlementAsset 1 |
+| `Persistence/Weapons` | PersistenceWeaponData 1, PersistentWeapon 84 |
+| `Persistence/Specializations` | PersistenceWeaponData 1, PersistentSpecialization 41 |
+| `Persistence/SP_Weapons`, `SP_Template` | PersistentWeapon 30; PersistentValueTemplateData 324 |
+| `Persistence/Ons_Awards`, `Ons_Template` | AwardData 9, CriteriaData 8; PersistentValueTemplateData 170 |
+| `Persistence/RichPresence`, `MP_Achievements` | 54 instances; AchievementsDataAsset 1 |
+| `Awards/PointSystemParams` | PointSystemParamsAsset 1, DogTagData 3 |
+| `Awards/WeaponCategories`, `VehicleCategories`, `LevelCategories` ... | StatsCategoryData 107, 47, 25 ... (the award criteria's categories) |
+
+Dist (before Vietnam) has 384 AwardData, 1,756 value templates, 70 weapons, 40 specializations, plus `SP_Awards`,
+`SP_Achievements`, `SP_Specializations` and 15 `Awards/*` category trees.
+
+[data: round SPG2's reads of DICE's two start-up bundles, 2026-11-22: class counts per partition as listed]
+[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:170-179]
+
+### PERS-DATA-2: PersistenceData roots the career; value templates say how a stat is written
+
+Status: **observed** · Variants: PC
+
+`MP_Template`'s `PersistenceData` lists `Partitions`, `Defined`, `Derived`, `Final` (all 2,066 value templates),
+`Awards` (`persistence/mp_awards`), `Unlocks` (Weapons and Specializations), `UnlockTokens`, `Entitlements`;
+`Consumables` and `Collectibles` false. A `PersistentValueTemplateData` (`Name`, `DefaultValue`, `ValueType`,
+`WritePolicy`, flags) is High (1,400), Increment (651) or Set (15), written at a Checkpoint (1,426), at Disconnect (638)
+or at Finalize (2). `UnlockToken` scores run 30 - 62,100.
+
+[data: round SPG2's read of the patched MP_Template, 2026-11-22: the fields and counts listed]
+
+### PERS-DATA-3: Unlock items take their bit by order
+
+Status: **observed** · Variants: PC
+
+A `PersistentWeapon` (`Name`, `WeaponType`, `Cost`, `Id`, `BitIndex`, `Dependency`, `Licenses`, `AdditionalLicenses`,
+`Slot` ...) has `BitIndex` -1 on all 84 of the patched set and no `Dependency`: the unlock bit is the entry's order
+(PERS-UNLK-1). 59 are `Unlock`, 25 `Normal`; `Slot` 0 on 57; `Licenses` `nam` on 14 (Vietnam's additions) and
+`ka` / `ke` / `km` / `kr` on 4; `AdditionalLicenses` hold the tokens `sa`, `se`, `sr`, `sm`, `le`, `vet`, `gst`, matched
+as whole words by the module. `PersistentSpecialization` (41) adds `SpecializationType`, `Modifier`, `KitCategory`.
+
+[data: round SPG2's read of the patched and Dist Weapons / Specializations, 2026-11-22: the values listed]
+[code: opfor:src/dll/persistence_rules.h:10-21]
+
+### PERS-RANK-1: BFBC2's 50 ranks are inline in PointSystemParams
+
+Status: **observed** · Variants: PC
+
+`PointSystemParamsAsset` holds `Ranks` inline: 50 entries (`RankName`, `PointsNeeded`, `Unlock`, image, sound and
+voice-over fields), strictly ascending from 6,500 to 5,400,000 points; ranks 1 - 22 carry an unlock, 23 - 50 none.
+Three `DogTagData` at ranks 0, 21 and 41. Score fields are structs (`UIString`, `Score`, `Bucket`): `KillScore` 50 in
+`ScoringBucket_General`. In the executable the rank table (0x92CF70) has 0x3C-byte entries with the points at +0x24;
+entry 0 is the start (rank -1), the points for rank r are entry r + 1; a fresh offline profile is rank -1. The same
+values in Dist and Package.
+
+[data: round SPG2's read of PointSystemParams in both start-up bundles, 2026-11-22]
+[code: opfor:src/dll/stats_model.h:120-136]
+[code: opfor:src/dll/stats_screens.cpp:172-179]
+
+### PERS-AWD-1: BFBC2's awards: stars, insignias, pins and achievements
+
+Status: **observed** · Variants: PC
+
+The patched `MP_Awards` has 451 `AwardData`: stars 225 (once) and 75 platinum stars (`Limited`, `MaxRepetitions` 9),
+insignias 54 (once), pins 48 (unlimited), achievements 49 (42 hidden). 402 score into the Award bucket, 49 the Bonus
+bucket (scores 5,000 x 120, 10,000 x 84, 1,000 x 75, 500 x 75, 100 x 32, 200 x 16, 0 x 49); 417 have criteria, 238
+dependencies (meta awards); licences `nam` on 9, each SPECACT kit's on 4. Dist (before Vietnam): 244 stars, 54
+insignias, 48 pins, 38 achievements. `Ons_Awards`: 9 achievements (8 hidden, licence `ons`, one criterion each:
+complete a level at a difficulty).
+
+[data: round SPG2's read of MP_Awards / Ons_Awards in both start-up bundles, 2026-11-22: the splits listed]
+[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:189-211]
+
+### PERS-AWD-2: Criteria count stat events over a scope
+
+Status: **observed** · Variants: PC
+
+A `CriteriaData` (`Value`, `Measuring`, `ParamX`, `ParamY`, `CriteriaType`, scale and visibility flags) counts a stat
+event over a scope: all time (`GLOBAL_AllTimeTotal`, 384 of 440), in a round (`IAR_InARound`, 50) or in a life
+(`IAS_InASpawn`, 6); 48 distinct `Measuring` events, led by `KillWith_X_As_Y` (326) and `KillOf_X_In_Y` (32); `ParamX` /
+`ParamY` name `StatsCategoryData` of the `Awards/*` trees. `ReadableByServer` is false on all 440. The stat keys the
+executable builds are `c_` + parts + `_g` (0x843310: `kw` kills with, `ki` kills in, `si` seconds in, `col`
+collected); a star's proficiency (0x924070) comes from the `br` / `si` / `go` / `pl` award counters (1 none, 2 bronze,
+3 silver, 3 + n gold, 12 + n platinum).
+
+[data: round SPG2's read of the patched MP_Awards, 2026-11-22: 440 criteria as listed]
+[exe: 0x843310 the stat-name builder; 0x924070 the proficiency level]
+[code: opfor:src/dll/stats_model.h:55-81]
+
+### PERS-AWD-3: BFBC2's award data descends from BF1943's
+
+Status: **observed** · Variants: PC, BF1943
+
+Both games use `AwardDataTree`, `AwardData`, `CriteriaData`, `StatsCategoryData`, `DogTagData`, and
+`Awards/PointSystemParams` has the same partition and instance GUIDs in both (the three dog tags too). BFBC2 adds
+`AwardData.License`, `UIArgument`, `MaxRepetitions`, the star classes, the criteria's readability flags and the score
+structs (BF1943 has flat `StringFor*` / `PointsFor*`); BF1943's ranks are separate `RankLevelData` instances (60 in the
+file, 50 referenced). BFBC2's executable has no `AwardGroup_PatchShield`, no `AwardGroup_Trophy`, no
+`StatEvent_CaptureCapturePoint` (BFBC2's is `FlagCaptured`) and no `StatEvent_VehicleKillAssist_X`.
+
+[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:270-290]
+[data: round SPG2's read: BFBC2's PointSystemParams has 4 instances, no rank instances; BF1943's table (awards.json) 92 flat PointsFor* / StringFor* keys]
+
+### PERS-SCORE-1: With the scoring patch, bots' deaths are scored in the round
+
+Status: **observed** · Variants: PC
+
+Since the offline-scoring patch (MOD-PATCH-1), the player-killed handler 0x86DC90 tests the server's scoring flag
+(`cmp byte [ebp+0x2A], 0` at 0x86DD97) and with it set runs the kill scoring (0x86C070, through the stats add
+0x7D27A0) and its award (0x86BE20, `KillScore`): bots' deaths are scored in the round. The career save still writes
+score 0 (no kills or score in `stats.txt` over 180 saves). This contradicts AI-NEED-5 (the handler returns for a
+victim that is not a player) and PERS-OPF-3's title; which holds on the patched executable needs the kill probe run in
+a playtest.
+
+[exe: 0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add]
+[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:371-377]
+
+## 5. BF1943's awards for the Pacific War career
+
+### PERS-WW2-1: BF1943's award set as OPFOR's table holds it
+
+Status: **verified** · Variants: BF1943
+
+OPFOR's award table (`ww2_awards.py`, from BF1943's `persistence/mp_awards`) sorts BF1943's 60 awards by what the
+player sees: 24 postcards (visible, once), 24 stamps (visible, unlimited), 12 trophies (hidden: `ac2` - `ac8`,
+`ac10` - `ac12`, `p6`, `pq3`; there is no `ac9`; 2 are patch shields). Their 79 criteria are all-time (49) or in a
+round (30), over 15 stat events, two of which BFBC2 lacks (`CaptureCapturePoint` 5, `VehicleKillAssist_X` 1). Stamps
+score 10 - 50 points (20 on 17), postcards and trophies 0. The awards grid is 8 x 6: rows 0 - 2 postcards, 3 - 5
+stamps.
+
+[test: opfor:src/tools/tests/test_ww2_awards.py::test_the_table_is_bf1943s_set]
+[code: opfor:src/tools/ww2/ww2_awards.py:154-211]
+
+### PERS-WW2-2: BF1943's ranks, point scale and dog tags
+
+Status: **verified** · Variants: BF1943
+
+BF1943 has 50 ranks from 50 to 160,000 points, strictly ascending (BFBC2: 6,500 - 5,400,000); a kill is 10 points
+(headshot +5, melee 3), a capture 30 (assist 10), an objective destroyed 30, a kill assist 3 (squad 5), repairs 10 /
+15, a team kill -15, a suicide -10 (BFBC2's kill: 50). Its dog tags come at ranks 0, 10 and 20 (BFBC2's 0, 21, 41).
+These are the Pacific War career's scale (the user's decision of 2026-11-15).
+
+[test: opfor:src/tools/tests/test_ww2_awards.py::test_the_table_is_bf1943s_set]
+[code: opfor:src/tools/ww2/ww2_awards.py:212-225]
+[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:129-148]
+
+### PERS-WW2-3: BF1943's categories map onto OPFOR's weapons and kits
+
+Status: **verified** · Variants: BF1943
+
+Every BF1943 category member an award criterion uses must map onto a name OPFOR's career reports, or the table's build
+refuses; OPFOR weapons with no BF1943 role (the M1897, the flamethrowers) count only for generic awards; BF1943's three
+kits map onto four (Assault -> Assault, Support -> Demolition and Support, Specialist -> Recon); the tutorial level is
+left out (the ruling of 2026-11-15).
+
+[test: opfor:src/tools/tests/test_ww2_awards.py::test_members_map_onto_opfor_names_and_leave_the_tutorial_out]
+[code: opfor:src/tools/ww2/ww2_awards.py:50-97]
+
+### PERS-WW2-4: The award stings on Pacific levels
+
+Status: **implemented** · Variants: PC, BF1943
+
+BF1943 plays a sting per award kind (rank-up `USSting02A`, dog tag `USSting02B`, postcard `JPSting02A`, stamp
+`JPSting02B`; the eleven `op*` postcards name `USSting02A`). On a Pacific level the module maps the award sound BFBC2
+plays (by name, 0xF909C0) to BF1943's and tells a rank-up apart at the HUD's rank call (MOD-MODE-1). Never heard in
+game yet.
+
+[code: opfor:src/dll/gamemode_rules.h:134-139]
+[doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:62-63]
+
 ## Open questions
 
-- **The rank table's sources** (PERS-UNLK-1): which stats the award and vehicle scores sum, from the executable or the
-  `Persistence/*.dbx` partitions; a spec of `Persistence/Weapons.dbx` and the award partitions as DBX classes.
-- **The award engine** (section 3): BF1943's award rules decoded from its data and executable.
+- **The rank table's sources** (PERS-UNLK-1): which stats the award and vehicle scores sum.
+- **BFBC2's award evaluator**: its entry point and whether it runs offline; why the career save drops the round's
+  kills (PERS-SCORE-1).
+- **Bots' deaths scored or not** (PERS-SCORE-1 against AI-NEED-5 and PERS-OPF-3): a kill-probe playtest.
+- The unlock bit space: whether the specializations continue the weapons' bits (PERS-DATA-3).
+- The 49 achievement-group awards against `MP_Achievements`; whether BFBC2's awards grid can show BF1943's 8 x 6.
+- **The award engine** (section 3): not built; the table (PERS-WW2-1 - PERS-WW2-3) is its input. BF1943 semantics the
+  data does not hold (squad-wide awards, vehicle kill assists, best squad offline with AI squads) are open.
 - In game since this round: nothing; the module's behaviour was last played before 2026-11-20.
