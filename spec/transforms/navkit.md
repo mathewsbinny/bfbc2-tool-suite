@@ -114,10 +114,30 @@ NavKit driver, its Rust twin, the map editor) answer alike.
 [code: rust/bc2-editor/src/navdata.rs:1479-1494]
 [test: core/tests/test_gameledger.py::python_twin] [test: rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file]
 
+## Parity target
+
+Set by the user, 2026-11-22. "100 % parity" with DICE's path data means a full content match, not byte identity
+(XNAV-BLD-3 says builds only get closer; this says how close is done). Every NavKit round reports against it, on all
+35 DICE files (`rust/bc2-formats/examples/kynapse_probe.rs`) and the regression levels (`navparity`, `navregress`):
+
+1. **What bots experience,** on every level: `ground`, `connectivity`, `ai_coverage` and `ai_pairwise` at 99.5 % or
+   more; `extra_ground` and `over_connection` under 1 %; `sectors_extra` 0.
+2. **DICE's structure, rule by rule:** each generator rule of `kynapse_generation.md` that is decoded is reproduced
+   exactly on DICE's files (the rule's own probe count), so `areas_same`, `portals`, `nodes_same` / `nodes_near`,
+   `edges_same` and the D / F recall rise round by round (NKG1-NKG3) towards 100 %.
+3. **Listed exceptions only:** DICE data that describes a level as it no longer is (SP_03's 93 nodes under the PC
+   ground, `navparity.stale_nodes`), where the current level wins; and any rule shown to be unrecoverable from
+   DICE's output, named with its evidence. Nothing else may stay short of the target unexplained.
+
+Measured 2026-11-20 (15 regression levels, means): `ground` 98.22 %, `connectivity` 98.79 %, `ai_coverage`
+99.16 %, `ai_pairwise` 92.67 %, `extra_ground` 8.31 %, `over_connection` 15.31 %, `sectors_extra` 1.33;
+`areas_same` 5.18 %, `portals` 6.47 %, `nodes_same` 0.64 %, `nodes_near` 47.63 %, `edges_same` 0.02 %, D / F recall
+18.8 / 33.5 %.
+
 ## Open questions
 
 - The levels where NavKit's coverage still falls short of DICE's (KYNAPSE_SPEC.md and the parity runs); the goal is
-  a full content match, not byte identity.
+  a full content match, not byte identity, as the parity target above sets it.
 - Offline sampling (`navsample_offline.py`) is not yet a `navkit.py` step.
 - The game's own check that a level's path data matches its level (the runtime loads data built for another state of
   the level without an error: HPD-RT-2).
