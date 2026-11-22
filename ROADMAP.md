@@ -114,7 +114,10 @@ In priority order (above); the next rounds:
 
 ## Python left
 
-Every command line `bfbc2.exe` answers is Rust; what remains is Python libraries and pipeline code. Each folder has the
+Every `bfbc2.exe` command parses its arguments in Rust, but some still hand their main job to Python (round PYI:
+`navkit` build / all / apply on a NavKit base / sample, `navparity run`, `navregress`, `hpdview`, `sample_all`,
+`harness run`, texqa's sheets, renderqa's draws, `xdiff`, `bf1943import` import / check, `dbxparity`, `portparity`);
+the rest is Python libraries and pipeline code. Per file: `PYTHON_STATUS.md` (generated, checked). Each folder has the
 round that retires it (the user, 2026-11-22; audit AU5 ARC-13; line counts of non-test Python on 2026-11-21, before
 NK1-NK3). A round that retires a folder's code deletes it (RETIRED.md for a tool, BENCHMARKS / CHANGELOG for a twin).
 
