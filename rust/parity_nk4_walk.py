@@ -119,7 +119,7 @@ def run_child(suite: str, opfor: str, lv: str) -> dict[str, Any]:
                            'stair': sha(stair), 'steep_stats': dict(navwalk.STEEP_STATS), 'walk_s': round(took, 2),
                            'walk_peak_mb': round(peak), 'walk_start_mb': round(window['start_mb'])})
         real_init(self, s, keep, step, gx, gz, stair, cfg)
-    navbuild.Level.__init__ = init  # type: ignore[method-assign]
+    navbuild.Level.__init__ = init
     lines: list[str] = []
     out = os.path.join(os.environ.get('TEMP', '.'), f'nk4_{lv}_{os.getpid()}.hpd')
 
@@ -157,7 +157,7 @@ def main() -> int:
     me = os.path.abspath(__file__)
     if len(sys.argv) > 1 and sys.argv[1] == '--child':
         suite, opfor, lv = sys.argv[2:5]
-        print('RESULT ' + json.dumps(run_child(suite, opfor, lv)), flush=True)
+        print('RESULT ' + json.dumps(run_child(suite, opfor, lv), sort_keys=True), flush=True)
         return 0
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
     if cmd == 'capture':
@@ -167,8 +167,8 @@ def main() -> int:
             got = [ln[7:] for ln in p.stdout.splitlines() if ln.startswith('RESULT ')]
             r = json.loads(got[-1]) if got else {'level': lv, 'error': (p.stderr or p.stdout)[-3000:]}
             with open(out, 'a', encoding='utf-8', newline='\n') as f:
-                f.write(json.dumps(r) + '\n')
-            print(json.dumps({k: v for k, v in r.items() if k not in ('log', 'stages')}), flush=True)
+                f.write(json.dumps(r, sort_keys=True) + '\n')
+            print(json.dumps({k: v for k, v in r.items() if k not in ('log', 'stages')}, sort_keys=True), flush=True)
         return 0
     if cmd == 'compare':
         def read(p: str) -> dict[str, dict[str, Any]]:
