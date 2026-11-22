@@ -995,7 +995,7 @@
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "tool entry point",
-   "lines": 306,
+   "lines": 310,
    "note": "the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle",
    "path": "bfbc2-bf1943-import/dbxcatalogue.py",
    "retiring": "PR1b-1c",
@@ -1295,7 +1295,7 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "tool entry point",
-   "lines": 550,
+   "lines": 555,
    "note": "Wave / SPS reading and XAS encoding in Rust; left: one ffmpeg process per sound (XMA decode), the writers' references",
    "path": "bfbc2-console-convert/audio.py",
    "retiring": "PR1b-1c",
@@ -1391,7 +1391,7 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "test",
-   "lines": 385,
+   "lines": 366,
    "note": "audio.py's EA-XAS encoder and decoder (the Rust core: rust/bc2-convert audio, through bc2_native) against r...",
    "path": "bfbc2-console-convert/tests/test_audio_native.py",
    "retiring": "Tests in Rust",
@@ -1649,7 +1649,7 @@
    ],
    "folder": "bfbc2-culltree",
    "kind": "library",
-   "lines": 1042,
+   "lines": 1051,
    "note": "command line retired (RT3); F4's string-table reference kept by ruling",
    "path": "bfbc2-culltree/culltreelib.py",
    "retiring": "PR1b-2",
@@ -2307,7 +2307,7 @@
    ],
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
-   "lines": 1529,
+   "lines": 1543,
    "note": "reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue",
    "path": "bfbc2-shader-tools/shaderdb.py",
    "retiring": "OPFOR in Rust stage 3",
@@ -2643,7 +2643,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "tool entry point",
-   "lines": 932,
+   "lines": 944,
    "note": "the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate",
    "path": "core/bfbc2core/caches.py",
    "retiring": "PR1b-2",
@@ -2691,7 +2691,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 163,
+   "lines": 166,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -2895,7 +2895,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test helper or golden recorder",
-   "lines": 245,
+   "lines": 247,
    "note": "Round O3's audio group: the command lines test_cli_o3.py replays for audio.py (bfbc2-console-convert: an Xb...",
    "path": "core/tests/cli_o3_audio.py",
    "retiring": "Tests in Rust",
@@ -4227,7 +4227,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 641,
+   "lines": 636,
    "note": "Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or...",
    "path": "tests/test_f4_native.py",
    "retiring": "Tests in Rust",
@@ -4437,7 +4437,7 @@
  "totals": {
   "all": {
    "files": 364,
-   "lines": 106597
+   "lines": 106622
   },
   "by_folder": {
    "(root)": {
@@ -4486,9 +4486,9 @@
    },
    "bfbc2-bf1943-import": {
     "files": 26,
-    "lines": 10915,
+    "lines": 10919,
     "live": 1017,
-    "partly": 1558,
+    "partly": 1562,
     "ported": 56,
     "retired-pending": 0,
     "stays": 0,
@@ -4497,13 +4497,13 @@
    },
    "bfbc2-console-convert": {
     "files": 24,
-    "lines": 6523,
+    "lines": 6509,
     "live": 0,
-    "partly": 1812,
+    "partly": 1817,
     "ported": 36,
     "retired-pending": 0,
     "stays": 0,
-    "test": 3429,
+    "test": 3410,
     "twin": 1246
    },
    "bfbc2-console-readers": {
@@ -4519,14 +4519,14 @@
    },
    "bfbc2-culltree": {
     "files": 4,
-    "lines": 1889,
+    "lines": 1898,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
     "test": 847,
-    "twin": 1042
+    "twin": 1051
    },
    "bfbc2-dbx-tools": {
     "files": 1,
@@ -4607,9 +4607,9 @@
    },
    "bfbc2-shader-tools": {
     "files": 16,
-    "lines": 10366,
+    "lines": 10380,
     "live": 1430,
-    "partly": 3670,
+    "partly": 3684,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
@@ -4629,14 +4629,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 19901,
-    "live": 753,
+    "lines": 19918,
+    "live": 756,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14828,
-    "twin": 2415
+    "test": 14830,
+    "twin": 2427
    },
    "design": {
     "files": 1,
@@ -4673,24 +4673,24 @@
    },
    "tests": {
     "files": 29,
-    "lines": 7625,
+    "lines": 7620,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7625,
+    "test": 7620,
     "twin": 0
    }
   },
   "by_status": {
    "live": {
     "files": 21,
-    "lines": 6071
+    "lines": 6074
    },
    "partly": {
     "files": 20,
-    "lines": 16913
+    "lines": 16936
    },
    "ported": {
     "files": 21,
@@ -4706,11 +4706,11 @@
    },
    "test": {
     "files": 186,
-    "lines": 50687
+    "lines": 50665
    },
    "twin": {
     "files": 55,
-    "lines": 19429
+    "lines": 19450
    }
   }
  }

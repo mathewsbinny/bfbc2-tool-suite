@@ -24,14 +24,14 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 21 | 6,071 |
-| partly | 20 | 16,913 |
-| twin | 55 | 19,429 |
+| live | 21 | 6,074 |
+| partly | 20 | 16,936 |
+| twin | 55 | 19,450 |
 | ported | 21 | 2,580 |
 | retired-pending | 3 | 310 |
 | stays | 58 | 10,607 |
-| test | 186 | 50,687 |
-| **all** | **364** | **106,597** |
+| test | 186 | 50,665 |
+| **all** | **364** | **106,622** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -39,10 +39,10 @@ rounds NK4 and NK5.
 | `bfbc2-anim-tools` | 8 | 2,620 |  | 1,055 |  | 106 |  |  | 1,459 |
 | `bfbc2-auto-navkit` | 56 | 15,048 | 1,815 | 4,748 | 2,749 | 273 |  |  | 5,463 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
-| `bfbc2-bf1943-import` | 26 | 10,915 | 1,017 | 1,558 | 3,273 | 56 |  |  | 5,011 |
-| `bfbc2-console-convert` | 24 | 6,523 |  | 1,812 | 1,246 | 36 |  |  | 3,429 |
+| `bfbc2-bf1943-import` | 26 | 10,919 | 1,017 | 1,562 | 3,273 | 56 |  |  | 5,011 |
+| `bfbc2-console-convert` | 24 | 6,509 |  | 1,817 | 1,246 | 36 |  |  | 3,410 |
 | `bfbc2-console-readers` | 5 | 1,449 |  |  | 835 |  |  |  | 614 |
-| `bfbc2-culltree` | 4 | 1,889 |  |  | 1,042 |  |  |  | 847 |
+| `bfbc2-culltree` | 4 | 1,898 |  |  | 1,051 |  |  |  | 847 |
 | `bfbc2-dbx-tools` | 1 | 22 |  |  |  |  | 22 |  |  |
 | `bfbc2-fbrb-tool` | 1 | 18 |  |  |  |  | 18 |  |  |
 | `bfbc2-map-editor` | 20 | 2,141 |  |  | 1,282 |  |  | 859 |  |
@@ -50,13 +50,13 @@ rounds NK4 and NK5.
 | `bfbc2-mesh-viewer` | 4 | 697 |  | 386 |  |  |  | 78 | 233 |
 | `bfbc2-model-tools` | 8 | 1,694 | 364 |  | 666 |  |  |  | 664 |
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
-| `bfbc2-shader-tools` | 16 | 10,366 | 1,430 | 3,670 | 984 | 126 |  |  | 4,156 |
+| `bfbc2-shader-tools` | 16 | 10,380 | 1,430 | 3,684 | 984 | 126 |  |  | 4,156 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 19,901 | 753 |  | 2,415 | 1,905 |  |  | 14,828 |
+| `core` | 76 | 19,918 | 756 |  | 2,427 | 1,905 |  |  | 14,830 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 33 | 5,974 |  |  |  |  |  | 5,707 | 267 |
 | `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
-| `tests` | 29 | 7,625 |  |  |  |  |  |  | 7,625 |
+| `tests` | 29 | 7,620 |  |  |  |  |  |  | 7,620 |
 
 Lines by status in the folder table.
 
@@ -171,7 +171,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-bf1943-import`
 
-26 files, 10,915 lines.
+26 files, 10,919 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -179,7 +179,7 @@ Lines by status in the folder table.
 | `bfbc2-bf1943-import/effectport.py` | 447 | library | live |  | tests 3; rust/bench_ports; OPFOR 5 | proposed: OPFOR in Rust stage 2 (its only users are OPFOR's WW2 steps) | BF1943 effects with their emitters and textures; no Rust port (its *_reference is a faster Python algorithm) |
 | `bfbc2-bf1943-import/portparity.py` | 234 | tool entry point | live | bfbc2 portparity (help and errors only) | tests 2; OPFOR 1 (bf1943_vehicles) | PR1b-1c | our BF1943 conversions against DICE's own PC versions: the runs are Python |
 | `bfbc2-bf1943-import/bf1943import.py` | 877 | tool entry point | partly | bc2_formats::bf1943 (Source: the bundle check, payload reads, RESTARTS); bc2-cli bf1943src / import; bfbc2 bf1943import; embedded | dbxparity, meshport, portparity, texqa, renderqa, xdiff; tests 28; OPFOR 28 | PR1b-1c | Source reads through the Rust reader (PR1b-1-rest: restart points on disk); left: import / check (the Importer), the source index pickle, the Python reader kept as the reference |
-| `bfbc2-bf1943-import/dbxcatalogue.py` | 306 | tool entry point | partly | bc2_convert::dbxcatalogue (catalogue_build); bfbc2 dbxcatalogue | dbxparity, dbxport; tests 8; OPFOR 8 | PR1b-1c | the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle |
+| `bfbc2-bf1943-import/dbxcatalogue.py` | 310 | tool entry point | partly | bc2_convert::dbxcatalogue (catalogue_build); bfbc2 dbxcatalogue | dbxparity, dbxport; tests 8; OPFOR 8 | PR1b-1c | the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle |
 | `bfbc2-bf1943-import/meshport.py` | 375 | library | partly | bc2_convert::meshport (the searches) | portparity; tests 4; OPFOR 6 | PR1b-1c | searches in Rust; left: the Porter, the writers, the shader plan |
 | `bfbc2-bf1943-import/dbxport.py` | 2058 | library | twin | bc2_convert::dbxport (port, rules) | dbxparity, effectport; tests 9; OPFOR 10 | PR1b-1c | the partition port is Rust (E4d); port_python kept as reference and fallback |
 | `bfbc2-bf1943-import/emitteratlas.py` | 807 | library | twin | bc2_convert::emitteratlas | texqa, texwrite; tests 3; OPFOR 3 | PR1b-1c | Rust since F2b; the Python kept (an unreadable chunk is recorded, float near-ties by design) |
@@ -204,11 +204,11 @@ Lines by status in the folder table.
 
 ## `bfbc2-console-convert`
 
-24 files, 6,523 lines.
+24 files, 6,509 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-console-convert/audio.py` | 550 | tool entry point | partly | bc2_formats::wave, bc2_convert XAS encoder; bfbc2 audio | tests 7; OPFOR 2 (wake_level, wake_vo) | PR1b-1c | Wave / SPS reading and XAS encoding in Rust; left: one ffmpeg process per sound (XMA decode), the writers' references |
+| `bfbc2-console-convert/audio.py` | 555 | tool entry point | partly | bc2_formats::wave, bc2_convert XAS encoder; bfbc2 audio | tests 7; OPFOR 2 (wake_level, wake_vo) | PR1b-1c | Wave / SPS reading and XAS encoding in Rust; left: one ffmpeg process per sound (XMA decode), the writers' references |
 | `bfbc2-console-convert/texqa.py` | 1262 | tool entry point | partly | bfbc2 texqa (bc2-cli texqa: the measures) | tests 9; OPFOR 1 (qa_checks) | PR1b-1c | the measures are Rust; left: DICE's copies, BF1943 sources, the PIL contact sheets, argparse errors |
 | `bfbc2-console-convert/convert.py` | 181 | tool entry point | twin | bfbc2 convert (bc2-cli nav::convert) | tests 4; rust/bench_sweep | PR1b-1c | the command line is Rust; the Python answers damaged input; manifest() used by tests |
 | `bfbc2-console-convert/havok.py` | 177 | library | twin | bc2_convert havok / hkclasses (convert_wrapper) | havokport, convert; tests 7; OPFOR 7 | PR1b-1c | F2a's references kept until recorded goldens retire them |
@@ -218,7 +218,7 @@ Lines by status in the folder table.
 | `bfbc2-console-convert/texture.py` | 231 | library | twin | bc2_formats texture (tiled, packed, layout) | 16 suite modules; tests 13; OPFOR 29 | PR1b-1c | tiled / packed / layout references kept by ruling: texqa's independent decoder |
 | `bfbc2-console-convert/soot.py` | 36 | library | ported | bc2_convert terrain / converters (soot) | tests 2; OPFOR 2 | PR1b-1c | a thin call into the Rust core (F2a) |
 | `bfbc2-console-convert/tests/test_audio.py` | 256 | test | test |  | run_tests.py | Tests in Rust | Sound conversion (audio.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's sounds. |
-| `bfbc2-console-convert/tests/test_audio_native.py` | 385 | test | test |  | run_tests.py | Tests in Rust | audio.py's EA-XAS encoder and decoder (the Rust core: rust/bc2-convert audio, through bc2_native) against r... |
+| `bfbc2-console-convert/tests/test_audio_native.py` | 366 | test | test |  | run_tests.py | Tests in Rust | audio.py's EA-XAS encoder and decoder (the Rust core: rust/bc2-convert audio, through bc2_native) against r... |
 | `bfbc2-console-convert/tests/test_console_f2a_native.py` | 469 | test | test |  | run_tests.py | Tests in Rust | Round F2a: the rest of the console converter in the Rust core against its Python reference - terrain.py (he... |
 | `bfbc2-console-convert/tests/test_havok.py` | 81 | test | test |  | run_tests.py | Tests in Rust | havok.py on the game's files (game tier; skipped without them): - the class layouts read from BFBC2Game.exe... |
 | `bfbc2-console-convert/tests/test_havok_classes_native.py` | 176 | test | test |  | run_tests.py | Tests in Rust | Round F0: havok.classes (the Havok class layouts of BFBC2Game.exe's hkClass initializers) in the Rust core... |
@@ -247,11 +247,11 @@ Lines by status in the folder table.
 
 ## `bfbc2-culltree`
 
-4 files, 1,889 lines.
+4 files, 1,898 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-culltree/culltreelib.py` | 1042 | library | twin | bc2_levelwrite cull tree; bfbc2 culltree; embedded | tests 4; bc2-cli cull (its hash keys the row cache) | PR1b-2 | command line retired (RT3); F4's string-table reference kept by ruling |
+| `bfbc2-culltree/culltreelib.py` | 1051 | library | twin | bc2_levelwrite cull tree; bfbc2 culltree; embedded | tests 4; bc2-cli cull (its hash keys the row cache) | PR1b-2 | command line retired (RT3); F4's string-table reference kept by ruling |
 | `bfbc2-culltree/tests/test_culltree.py` | 297 | test | test |  | run_tests.py | Tests in Rust | culltreelib.py and `bfbc2 culltree` (round RT3 retired culltree.py) on cull trees and levels built here (no... |
 | `bfbc2-culltree/tests/test_culltree_e3m.py` | 152 | test | test |  | run_tests.py | Tests in Rust | Round E3m's culltree changes against their reference (rust/BENCHMARKS.md "E3m"): ref_rows (reference levels... |
 | `bfbc2-culltree/tests/test_culltree_native.py` | 398 | test | test |  | run_tests.py | Tests in Rust | culltree.py's element reader (rust/bc2-formats culltree, through the bc2_native module) against what its re... |
@@ -355,7 +355,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-shader-tools`
 
-16 files, 10,366 lines.
+16 files, 10,380 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -363,7 +363,7 @@ Lines by status in the folder table.
 | `bfbc2-shader-tools/xdiff.py` | 394 | tool entry point | live | bfbc2 xdiff (argparse, errors only) | tests 5; OPFOR 4 (xdiff.main in process) | OPFOR in Rust stage 3 | the translator's differential test (xenos_exec, WARP draws) |
 | `bfbc2-shader-tools/xenos_exec.py` | 492 | library | live |  | xdiff; tests 2 | OPFOR in Rust stage 3 | the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement) |
 | `bfbc2-shader-tools/renderqa.py` | 2141 | tool entry point | partly | bfbc2 renderqa (argparse, errors); bc2-render (the draw) | meshview, xdiff; tests 7; OPFOR 6 | OPFOR in Rust stage 3 | left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets |
-| `bfbc2-shader-tools/shaderdb.py` | 1529 | tool entry point | partly | bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | OPFOR in Rust stage 3 | reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue |
+| `bfbc2-shader-tools/shaderdb.py` | 1543 | tool entry point | partly | bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | OPFOR in Rust stage 3 | reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue |
 | `bfbc2-shader-tools/xenos.py` | 984 | library | twin | bc2_shader::xenos (decoder, disasm) | xdiff, xenos_exec, xenos_hlsl; tests 5; OPFOR 4 | OPFOR in Rust stage 3 | parse_shader_python for damaged blobs and disasm for edited trees kept by ruling |
 | `bfbc2-shader-tools/xenos_hlsl.py` | 126 | library | ported | bc2_shader::hlsl (translate) | xdiff, xenos_exec; tests 3; OPFOR 3 | OPFOR in Rust stage 3 | translate_python retired (R3); a thin call into the Rust translator |
 | `bfbc2-shader-tools/tests/test_pcbuild_batch.py` | 203 | test | test |  | run_tests.py | Tests in Rust | pcbuild's compile cache and batches (round E3d): compile_hlsl remembers compiles (memory, disk), compile_ma... |
@@ -396,16 +396,16 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 19,901 lines.
+76 files, 19,918 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `core/bfbc2core/__init__.py` | 25 | library | live |  | every Python tool; OPFOR | the last Python | the package; __version__ from VERSION |
-| `core/bfbc2core/envvars.py` | 163 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
+| `core/bfbc2core/envvars.py` | 166 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
 | `core/bfbc2core/native.py` | 565 | library | live | bc2-cli pyproc (RETIRED list mirrored) | 63 suite modules, CI workflows; tests 53; OPFOR 11 | PR1b-2 (one registry), then the last Python | finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI |
 | `core/bfbc2core/appicon.py` | 35 | library | twin | rust/app_icon.rs, bc2-editor appicon | hub (.pyw); tests 1 | proposed: with the hub | the icon lookup the Rust builds also make |
 | `core/bfbc2core/atomicio.py` | 150 | library | twin | bc2_formats' one whole-file writer (PR1a) | 17 suite modules; tests 5 | PR1b-2 | atomic whole-file writes for the Python tools |
-| `core/bfbc2core/caches.py` | 932 | tool entry point | twin | bc2-cli caches / budget; bfbc2 caches | 25 suite modules; tests 3 | PR1b-2 | the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate |
+| `core/bfbc2core/caches.py` | 944 | tool entry point | twin | bc2-cli caches / budget; bfbc2 caches | 25 suite modules; tests 3 | PR1b-2 | the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate |
 | `core/bfbc2core/errors.py` | 184 | library | twin | bc2-cli pyproc / pylog (errors.setup / guard emulated) | 36 suite modules; tests 5; OPFOR 2 | the last Python | the Python tools' day logs and error reports |
 | `core/bfbc2core/gameledger.py` | 806 | library | twin | bc2_formats::gameledger; bfbc2 gameledger | navkit.py, texqa, stockmp pipeline / lib; tests 8; OPFOR 1 (test) | IN1 | the Python twin of the install ledger (no install_keep / restate) |
 | `core/bfbc2core/navtune.py` | 169 | library | twin | bc2-cli navkit apply, bc2-editor navtune | navkit.py; tests 9 | NK5 | the navtune side files; the editor and bfbc2 navkit apply have their own |
@@ -424,7 +424,7 @@ Lines by status in the folder table.
 | `core/tests/cli_o2_crash.py` | 397 | test helper or golden recorder | test |  | test_cli_o2 | Tests in Rust | Round O2's crash group: the command lines test_cli_o2.py replays for exeref.py and crashreader.py (bfbc2-au... |
 | `core/tests/cli_o2_menu.py` | 491 | test helper or golden recorder | test |  | test_cli_o2 | Tests in Rust | Round O2's menu group: the command lines test_cli_o2.py replays for aptcheck, aptrefs and bc2loc. |
 | `core/tests/cli_o2_nav.py` | 748 | test helper or golden recorder | test |  | test_cli_o2 | Tests in Rust | Round O2's nav group: the command lines test_cli_o2.py replays for hpdtool, hkpack, convert.py and aimanim. |
-| `core/tests/cli_o3_audio.py` | 245 | test helper or golden recorder | test |  | test_cli_o3 | Tests in Rust | Round O3's audio group: the command lines test_cli_o3.py replays for audio.py (bfbc2-console-convert: an Xb... |
+| `core/tests/cli_o3_audio.py` | 247 | test helper or golden recorder | test |  | test_cli_o3 | Tests in Rust | Round O3's audio group: the command lines test_cli_o3.py replays for audio.py (bfbc2-console-convert: an Xb... |
 | `core/tests/cli_o3_bf1943.py` | 139 | test helper or golden recorder | test |  | test_cli_o3 | Tests in Rust | Round O3's bf1943 group: the command lines test_cli_o3.py replays for bfbc2-bf1943-import's dbxcatalogue.py... |
 | `core/tests/cli_o3_caches.py` | 253 | test helper or golden recorder | test |  | test_cli_o3 | Tests in Rust | Round O3's caches group: the command lines test_cli_o3.py replays for `python -m bfbc2core.caches` (core\bf... |
 | `core/tests/cli_o3_cull.py` | 433 | test helper or golden recorder | test |  | test_cli_o3 | Tests in Rust | Round O3's cull group: the command lines test_cli_o3.py replays for culltree.py (bfbc2-culltree: static cul... |
@@ -544,7 +544,7 @@ Lines by status in the folder table.
 
 ## `tests`
 
-29 files, 7,625 lines.
+29 files, 7,620 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -561,7 +561,7 @@ Lines by status in the folder table.
 | `tests/test_editor.py` | 89 | test | test |  | run_tests.py | Tests in Rust | The map editor's headless proof (rust\bc2-editor, rounds G1 and E2; rust\bc2-levelwrite): their tests, with... |
 | `tests/test_envvars.py` | 68 | test | test |  | run_tests.py | Tests in Rust | The environment-variable registry (core\bfbc2core\envvars.py, round QW1): every quoted BFBC2_* / BC2_* / BF... |
 | `tests/test_f3_native.py` | 900 | test | test |  | run_tests.py | Tests in Rust | Round F3: the rest of the suite's Python format code in the Rust core, each port against its Python referen... |
-| `tests/test_f4_native.py` | 641 | test | test |  | run_tests.py | Tests in Rust | Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or... |
+| `tests/test_f4_native.py` | 636 | test | test |  | run_tests.py | Tests in Rust | Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or... |
 | `tests/test_hub.py` | 121 | test | test |  | run_tests.py | Tests in Rust | The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 8 tabs and the... |
 | `tests/test_lint.py` | 33 | test | test |  | run_tests.py | Tests in Rust | Lint (quick tier): ruff's checks from pyproject.toml find nothing in any of the suite's Python folders. |
 | `tests/test_locators.py` | 141 | test | test |  | run_tests.py | Tests in Rust | Every path locator gives the same answer as in a reference checkout of the suite (game tier: needs this mac... |
