@@ -692,6 +692,90 @@ impl NavLevel {
         navgraph::graph_many(py, &self.level, store, jobs, cfg)
     }
 
+    /// `navbuild.sector_links` for sector `here` = `(x, y, its index in store, (gi0, gj0, ox, oz), border portals
+    /// [(area, index, di, dj, t0, t1, line)], each area's same-sector portal count)` with the stage's resolvers (round
+    /// NK2; see `navgraph::sector_links`): `same` the sectors on this grid (a `NavLinkScope`), `across` `(level,
+    /// store, its sectors, this pitch, that pitch, that grid's min x, min z)` the other grid of a mixed seam. The
+    /// links as `[(sector id, [((tile x, tile z, layer), [(area, offset)])])]`.
+    #[pyo3(signature = (store, here, rule_name, same, across=None))]
+    #[expect(clippy::type_complexity, reason = "the sector and its resolvers' inputs as tuples")]
+    fn sector_links<'py>(
+        &self,
+        py: Python<'py>,
+        store: &NavAreas,
+        here: (
+            i64,
+            i64,
+            usize,
+            (i64, i64, f64, f64),
+            Vec<(usize, usize, i64, i64, i64, i64, f64)>,
+            Vec<usize>,
+        ),
+        rule_name: &str,
+        same: &navgraph::NavLinkScope,
+        across: Option<(
+            Bound<'py, NavLevel>,
+            Bound<'py, NavAreas>,
+            Bound<'py, navgraph::NavLinkScope>,
+            f64,
+            f64,
+            f64,
+            f64,
+        )>,
+    ) -> PyResult<Vec<(u32, Vec<((u32, u32, u32), Vec<(usize, u64)>)>)>> {
+        let (x, y, n, origin, borders, portals) = here;
+        let here = navgraph::Here {
+            x,
+            y,
+            n,
+            origin,
+            borders: borders
+                .into_iter()
+                .map(|(area, index, di, dj, t0, t1, line)| bc2_navbuild::graphfile::Border {
+                    area,
+                    index,
+                    di,
+                    dj,
+                    t0,
+                    t1,
+                    line,
+                })
+                .collect(),
+            portals,
+        };
+        let across = across
+            .as_ref()
+            .map(|(lv, st, scope, p_here, p_there, min_x, min_z)| navgraph::Across {
+                level: &lv.get().level,
+                store: st.get(),
+                scope: &scope.get().scope,
+                p_here: *p_here,
+                p_there: *p_there,
+                min_x: *min_x,
+                min_z: *min_z,
+            });
+        let links = navgraph::sector_links(
+            py,
+            &self.level,
+            store,
+            &here,
+            rule(rule_name)?,
+            &same.scope,
+            across.as_ref(),
+        )?;
+        Ok(links
+            .into_iter()
+            .map(|l| {
+                let objects = l
+                    .objects
+                    .into_iter()
+                    .map(|o| ((o.header[0], o.header[1], o.header[2]), o.refs))
+                    .collect();
+                (l.sector_id, objects)
+            })
+            .collect())
+    }
+
     /// `navbuild.build_areas(level, gi0, gj0, start, tile, tiles)` over the sector window `window` (start, stop;
     /// step 1), bisected at `max_area` (`MAX_AREA` when `BISECT_AREAS`, else `None`): the areas as `(tile, cells)`.
     #[expect(clippy::too_many_arguments, reason = "the reference's arguments")]
