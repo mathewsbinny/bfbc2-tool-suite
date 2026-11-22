@@ -178,11 +178,9 @@ fn value_py<'py>(py: Python<'py>, v: &reflect::Value) -> PyResult<Bound<'py, PyA
             }
             d.into_any()
         }
-        V::Unknown(n) => {
-            let l = PyList::empty(py);
-            l.append(("?", *n))?;
-            l.into_any()
-        }
+        // the reader already holds it in its list (`[('?', n)]`, as the Python answers): the tuple alone here (round
+        // F4 put it in a second list, `[[('?', n)]]`, which O2's live hkpack dump showed against the recording)
+        V::Unknown(n) => ("?", *n).into_bound_py_any(py)?,
     })
 }
 

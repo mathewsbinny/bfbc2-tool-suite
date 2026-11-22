@@ -6,7 +6,7 @@ in round RT1), recorded in prepare_o4_golden.json, on real stock levels.
                                        [--keep]
   python core\tests\test_prepare_o4.py --game --record --ref <a suite checkout that still has prepare_level.py>
 
-A stand-in Project OPFOR folder is made under --root (default: %TEMP%\o4prep): its game\ a junction to the real game
+A stand-in Project OPFOR folder is made under --root (default: a new %TEMP%\o4prep_* of the run's own): its game\ a junction to the real game
 copy (read only: nothing is written there), its own empty work\, and its own LOCALAPPDATA (the day logs, the
 collision cache). The levels are prepared one after another with prepare_level (the common bundles unpacked by the
 first), then each again (everything already unpacked), then each with --terrain-only. Compared with the recording:
@@ -19,6 +19,7 @@ Without the game copy (or with no --game) it is skipped: the quick tier's prepar
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -26,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -141,7 +143,7 @@ def main(argv: list[str]) -> int:
     game = os.path.join(opfor_real, 'game')
     exe = arg(argv, '--exe') or native.find_binary('bfbc2')
     ref = os.path.abspath(arg(argv, '--ref') or os.environ.get('BFBC2_O2_REF') or SUITE)
-    root = os.path.abspath(arg(argv, '--root') or os.path.join(os.environ.get('TEMP', '.'), 'o4prep'))
+    given = arg(argv, '--root')
     levels = (arg(argv, '--levels') or 'sp_009,sp_004_b,mp_005').split(',')
     record = '--record' in argv
     script = os.path.join(ref, 'rust', 'bc2-editor', 'prepare_level.py')
@@ -162,6 +164,9 @@ def main(argv: list[str]) -> int:
         return 1
     side = 'python' if record else 'rust'
     took: list[float] = []
+    # a folder of this run's own unless --root names one (was %TEMP%\o4prep: two worktrees' runs at once emptied
+    # each other's stand-in)
+    root = os.path.abspath(given or tempfile.mkdtemp(prefix='o4prep_'))
     try:
         remove(root)
         opfor, lad = stand_in(root, game)
@@ -205,6 +210,9 @@ def main(argv: list[str]) -> int:
     finally:
         if '--keep' not in argv:
             remove(root)
+            if not given:
+                with contextlib.suppress(OSError):
+                    os.rmdir(root)
 
 
 if __name__ == '__main__':

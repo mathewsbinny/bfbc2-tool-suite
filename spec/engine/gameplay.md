@@ -516,6 +516,36 @@ it is the only spawn protection; no dedicated spawn-protection entity exists. L1
 [data: L1: 410 spawners on the stock levels]
 [doc: bfbc2-map-editor/placement/L1_placement_report.md:78] [doc: bfbc2-map-editor/placement/L1_placement_report.md:202-205]
 
+### GAME-SPAWN-3: DICE's spawn points stand on open ground
+
+Status: **observed**
+
+On the stock levels DICE's soldier spawn points stand on the ground or on an object's walkable top: none over water
+deeper than a soldier wades (1.2 m from the surface to the ground or pier under it), none outside the terrain, none
+more than 4.6 m under the height field (one, under a cliff overhang on `mp_008`). Measured as a vertical line's
+crossings of each static object's collision (a closed solid is crossed an odd number of times above and below a
+point inside it; a point standing on a surface of the object up to 0.6 m below it is in an interior - a hangar, a
+container - not in a solid), 13 of 1,475 stand a little inside an object's collision, up to 4.2 m below its surface
+(boulders, a Vietnam rock: the soldier is put on top); vegetation left out. The export's XVAL-PLACE-2 reports a spawn
+point past those bounds.
+
+[data: A1: 1,475 spawn points of 27 levels (mp_001 to mp_012sr of game Dist; mp_005gr, nam_mp_002cq, nam_mp_005r, and OPFOR's WW2 ports wake_island_s, guadal_canal, iwo_jima_s) against their height field, water mesh and static collision: 0 over water deeper than 1.2 m, 0 outside the terrain, deepest under the ground 4.6 m, 13 buried 0.01 to 4.24 m]
+[doc: rust/BENCHMARKS.md:8167-8186]
+
+### GAME-VEH-1: Vehicle spawners have their vehicle's room and domain
+
+Status: **observed**
+
+DICE's vehicle spawners stand clear of static collision at a vehicle's height (0.5 to 3 m above the spawner) by at
+least 2.5 m for tanks, 1 m for cars and boats, 4 m for helicopters and 0.5 m for IFVs and quads; land vehicles stand
+on land, boats in 0.4 to 28 m of water (by the shore on the BFBC2 maps, at sea on the WW2 ports; Vietnam's river boats
+stand on rivers the level's water mesh does not hold, the mesh far below them), helicopters and the ambient aircraft
+may stand outside the terrain; land and sea vehicles stand up to 142 m outside every combat area (an HQ's vehicles
+that drive in). The export's XVAL-PLACE-3 and XVAL-PLACE-4 report a spawner past those bounds.
+
+[data: A1: 707 vehicle spawners of the same 27 levels by L1's vehicle class (247 emplacements, 111 ambient, 64 tanks, 54 helicopters, 52 quads, 48 boats, 42 IFVs, 37 cars, 36 UAV stations, 15 planes): the tightest room per class as above]
+[doc: rust/BENCHMARKS.md:8167-8186]
+
 ### GAME-AREA-1: A combat area is a union of outlines, per team or shared
 
 Status: **observed**
