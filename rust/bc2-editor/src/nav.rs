@@ -7,15 +7,16 @@
 //! the project. The side file (`work\navkit\<level>\<level>.navtune.json`, `navtune.py`'s format, written by the
 //! Rust core's [`bc2_navbuild::navtune::dumps`]) is written from the log when the edits are saved or built.
 //!
-//! **Build, install, restore** run `bfbc2.exe navkit apply / install / restore` ([`navkit_command`]: the suite's
-//! binary: `apply` on a DICE base in Rust since round NK1, on a NavKit base - a rebuild - NavKit's Python; `python
-//! navkit.py` without it). Install and restore write only the level's AI path data in the game copy
+//! **Build** runs NavKit's driver in process ([`start_apply`], round NK6: `bc2_navbuild::apply`, the code
+//! `bfbc2.exe navkit apply` runs, on a worker thread with its lines streamed and a cancel flag). **Install, restore**
+//! run `bfbc2.exe navkit install / restore` ([`navkit_command`]; `python navkit.py` without the binary). Install and restore write only the level's AI path data in the game copy
 //! (`game\Output\win32\ai\levels\<lv>\infantry`): the editor shows what they will write first ([`install_plan`], [`restore_plan`]) and runs them only when that is confirmed.
 
 use std::collections::{BTreeSet, HashMap};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
@@ -29,6 +30,7 @@ use bc2_navbuild::navtune::{self, Value};
 use crate::error::EditorError;
 use crate::navdata::{self, AiLayer, Anomalies, Difference, NavData, NavIndex, Route};
 use crate::navview::ColourMode;
+use crate::task::Task;
 
 /// The two files, by their names in the panels.
 pub const FILES: [&str; 2] = ["NavKit", "DICE"];
@@ -280,16 +282,24 @@ impl NavTool {
     }
 }
 
-/// A running `navkit` command: its output lines as they come.
+/// How a job runs: a `navkit` child (install, restore), or NavKit's driver in process on a [`Task`] (Build with these
+/// edits, round NK6) with its cancel flag.
+#[derive(Debug)]
+enum Runner {
+    Child(Child),
+    InProcess { task: Task<()>, cancel: Arc<AtomicBool> },
+}
+
+/// A running `navkit` command or in-process build: its output lines as they come.
 #[derive(Debug)]
 pub struct Job {
-    child: Child,
+    runner: Runner,
     /// What it does (`apply`, `install`, `restore`).
     pub what: String,
     /// Its output so far.
     pub lines: Arc<Mutex<Vec<String>>>,
-    /// How it ended (`Some(true)`: exit code 0; `None`: running). Round OP1: read through [`Job::running`] and
-    /// [`Job::outcome`].
+    /// How it ended (`Some(true)`: exit code 0 / the build done; `None`: running). Round OP1: read through
+    /// [`Job::running`] and [`Job::outcome`].
     done: Option<bool>,
     /// When it started.
     pub started: Instant,
@@ -299,14 +309,23 @@ pub struct Job {
 }
 
 impl Drop for Job {
-    /// A command still running when its job goes (the editor closed under it) is stopped, never left orphaned.
+    /// A command still running when its job goes (the editor closed under it) is stopped, never left orphaned; an
+    /// in-process build is cancelled (it stops at its next step and removes its partial output itself).
     fn drop(&mut self) {
-        if self.done.is_none() && matches!(self.child.try_wait(), Ok(None)) {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-            if let Some(p) = &self.partial {
-                let _ = std::fs::remove_file(p);
+        if self.done.is_some() {
+            return;
+        }
+        match &mut self.runner {
+            Runner::Child(child) => {
+                if matches!(child.try_wait(), Ok(None)) {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    if let Some(p) = &self.partial {
+                        let _ = std::fs::remove_file(p);
+                    }
+                }
             }
+            Runner::InProcess { cancel, .. } => cancel.store(true, Ordering::SeqCst),
         }
     }
 }
@@ -324,12 +343,18 @@ impl Job {
         self.done
     }
 
+    /// Whether it runs in the editor's process (NavKit's driver on a worker thread).
+    #[must_use]
+    pub fn in_process(&self) -> bool {
+        matches!(self.runner, Runner::InProcess { .. })
+    }
+
     /// A job of a child already started (tests: a stand-in for a long navkit command).
     #[doc(hidden)]
     #[must_use]
     pub fn from_child(child: Child, what: &str) -> Self {
         Self {
-            child,
+            runner: Runner::Child(child),
             what: what.to_owned(),
             lines: Arc::new(Mutex::new(Vec::new())),
             done: None,
@@ -338,22 +363,44 @@ impl Job {
         }
     }
 
+    /// Asks an in-process build to stop at its next step (a child is not asked: install and restore are quick).
+    pub fn cancel(&self) {
+        if let Runner::InProcess { cancel, .. } = &self.runner {
+            cancel.store(true, Ordering::SeqCst);
+        }
+    }
+
     /// Whether it has ended (and how), polled.
     pub fn poll(&mut self) -> Option<bool> {
-        if self.done.is_none()
-            && let Ok(Some(status)) = self.child.try_wait()
-        {
-            // the reader threads finish once the pipes close; give them a moment
-            std::thread::sleep(std::time::Duration::from_millis(30));
-            self.done = Some(status.success());
+        if self.done.is_none() {
+            match &mut self.runner {
+                Runner::Child(child) => {
+                    if let Ok(Some(status)) = child.try_wait() {
+                        // the reader threads finish once the pipes close; give them a moment
+                        std::thread::sleep(std::time::Duration::from_millis(30));
+                        self.done = Some(status.success());
+                    }
+                }
+                Runner::InProcess { task, .. } => {
+                    if let Some(r) = task.poll() {
+                        self.done = Some(r.is_ok());
+                    }
+                }
+            }
         }
         self.done
     }
 
     /// Waits for the end (tests, and the quick install / restore).
     pub fn wait(&mut self) -> bool {
-        let ok = self.child.wait().is_ok_and(|s| s.success());
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        let ok = match &mut self.runner {
+            Runner::Child(child) => {
+                let ok = child.wait().is_ok_and(|s| s.success());
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                ok
+            }
+            Runner::InProcess { task, .. } => task.wait().is_ok(),
+        };
         self.done = Some(ok);
         ok
     }
@@ -362,6 +409,79 @@ impl Job {
     #[must_use]
     pub fn output(&self) -> Vec<String> {
         self.lines.lock().map_or_else(|_| Vec::new(), |l| l.clone())
+    }
+}
+
+/// The in-process build's lines (each as `bfbc2.exe navkit` prints it) and its cancel flag.
+struct Lines {
+    lines: Arc<Mutex<Vec<String>>>,
+    cancel: Arc<AtomicBool>,
+}
+
+impl bc2_navbuild::inputs::Out for Lines {
+    fn line(&mut self, text: &str) -> bc2_navbuild::ntpath::Res<()> {
+        if let Ok(mut l) = self.lines.lock() {
+            l.push(text.to_owned());
+        }
+        Ok(())
+    }
+
+    fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::SeqCst)
+    }
+}
+
+/// Build with these edits in process (round NK6): `navkit apply <lv> --navtune <side> --out <out>` as
+/// `bc2_navbuild::apply` runs it - the same lines (an error as the command line's `error:` line) and the same files
+/// as the `bfbc2.exe navkit apply` child - on a [`Task`], its lines streamed, cancelled through [`Job::cancel`] (or
+/// by dropping the job: the build stops at its next step and removes its partial output).
+#[must_use]
+pub fn start_apply(root: &Path, lv: &str, side: &Path, out: &Path) -> Job {
+    let lines = Arc::new(Mutex::new(Vec::new()));
+    let cancel = Arc::new(AtomicBool::new(false));
+    let (root, lv) = (root.display().to_string(), lv.to_lowercase());
+    let (side, out_s) = (side.display().to_string(), out.display().to_string());
+    let mut sink = Lines {
+        lines: Arc::clone(&lines),
+        cancel: Arc::clone(&cancel),
+    };
+    let task = Task::spawn("NavKit's build", move || {
+        let ran = bc2_navbuild::inputs::Root::new(&root).and_then(|r| {
+            let run = bc2_navbuild::inputs::Run {
+                clock: bc2_navbuild::inputs::local_clock(),
+                no_detail: false,
+            };
+            bc2_navbuild::apply::apply(
+                &r,
+                &lv,
+                (Some(&side), Some(&out_s)),
+                run,
+                &mut sink,
+                &bc2_navbuild::inputs::quiet_tool,
+            )
+        });
+        match ran {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                if e == bc2_navbuild::ntpath::Fail::Cancelled {
+                    let _ = std::fs::remove_file(&out_s);
+                }
+                let msg = match &e {
+                    bc2_navbuild::ntpath::Fail::Raised(r) => r.msg.clone(),
+                    e => e.to_string(),
+                };
+                let _ = bc2_navbuild::inputs::Out::line(&mut sink, &format!("error: {msg}"));
+                Err(EditorError::Tool(format!("NavKit's build: {msg}")))
+            }
+        }
+    });
+    Job {
+        runner: Runner::InProcess { task, cancel },
+        what: "apply".to_owned(),
+        lines,
+        done: None,
+        started: Instant::now(),
+        partial: Some(out.to_path_buf()),
     }
 }
 
@@ -436,7 +556,7 @@ pub fn start_navkit(root: &Path, args: &[String], what: &str) -> Result<Job, Edi
         });
     }
     Ok(Job {
-        child,
+        runner: Runner::Child(child),
         what: what.to_owned(),
         lines,
         done: None,

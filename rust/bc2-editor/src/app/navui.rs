@@ -800,7 +800,7 @@ impl ViewState {
         Some(nav::build_out(&self.nav_root()?, &self.lv, &self.nav_kind()))
     }
 
-    /// Build with these edits: the side file saved, then `navkit apply` in the background.
+    /// Build with these edits: the side file saved, then NavKit's apply in process, in the background.
     pub fn nav_build(&mut self) {
         let (Some(root), Some(out)) = (self.nav_root(), self.nav_out()) else {
             return;
@@ -812,26 +812,21 @@ impl ViewState {
                 return;
             }
         };
-        let args = vec![
-            "apply".to_owned(),
-            self.lv.to_uppercase(),
-            "--navtune".to_owned(),
-            side.display().to_string(),
-            "--out".to_owned(),
-            out.display().to_string(),
-        ];
-        match nav::start_navkit(&root, &args, "apply") {
-            Ok(mut j) => {
-                // a build cut short (the editor closed) leaves no half-written file behind (round DF1)
-                j.partial = Some(out.clone());
-                self.navs.job = Some(j);
-                self.navs.message = if self.nav_kind() == "dice" {
-                    "Applying the edits to a copy of DICE's file ...".into()
-                } else {
-                    "Building with the edits (a full rebuild: about 1-8 minutes) ...".into()
-                };
-            }
-            Err(e) => self.navs.message = format!("navkit did not start: {e}"),
+        // round NK6: NavKit's driver in process (bc2_navbuild::apply, the code `bfbc2.exe navkit apply` runs)
+        let j = nav::start_apply(&root, &self.lv, &side, &out);
+        self.navs.job = Some(j);
+        self.navs.message = if self.nav_kind() == "dice" {
+            "Applying the edits to a copy of DICE's file ...".into()
+        } else {
+            "Building with the edits (a full rebuild: about 1-8 minutes) ...".into()
+        };
+    }
+
+    /// Cancels a running Build with these edits (it stops at its next step, its partial output removed).
+    pub fn nav_cancel_build(&mut self) {
+        if let Some(j) = self.navs.job.as_ref().filter(|j| j.running() && j.in_process()) {
+            j.cancel();
+            self.navs.message = "Cancelling the build (it stops at its next step) ...".into();
         }
     }
 
@@ -1866,6 +1861,17 @@ impl Tabs<'_> {
                     status_line(ui, &p, word, colour, &text);
                     for l in out.iter().rev().take(6).rev() {
                         ui.label(RichText::new(l).text_style(style("small")).monospace().color(p.ink_muted));
+                    }
+                    if done.is_none() && what == "apply" {
+                        ui.horizontal_wrapped(|ui| {
+                            if ui
+                                .button("Cancel the build")
+                                .on_hover_text("Stops NavKit's build at its next step; nothing half-written is left")
+                                .clicked()
+                            {
+                                self.view.nav_cancel_build();
+                            }
+                        });
                     }
                     if done == Some(true) && what == "apply" {
                         ui.horizontal_wrapped(|ui| {

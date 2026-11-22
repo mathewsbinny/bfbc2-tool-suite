@@ -39,6 +39,8 @@ use rayon::prelude::*;
 
 use thiserror::Error;
 
+#[cfg(feature = "graphedit")]
+pub mod apply;
 pub mod astar;
 pub mod build;
 pub mod detail;
@@ -48,13 +50,16 @@ pub mod graph;
 pub mod graphedit;
 pub mod graphfile;
 pub mod hulls;
+pub mod inputs;
 pub mod levelscan;
 pub mod measures;
 pub mod navsample;
 pub mod navtune;
+pub mod ntpath;
 pub mod offline;
 pub mod parity;
 pub mod pick;
+pub mod pyjson;
 pub mod pymath;
 pub mod route;
 pub mod rules;
@@ -135,6 +140,9 @@ pub enum NavError {
     /// A build stopped, in the reference's words (no ground kept, a sector off the grid, a file not written).
     #[error("{0}")]
     Build(String),
+    /// The build was cancelled between its steps ([`stage::Log::cancelled`]).
+    #[error("cancelled")]
+    Cancelled,
 }
 
 /// A NumPy scalar of the dtype the reference computes in: `float32` or `float64`. The arithmetic follows NumPy 2:
