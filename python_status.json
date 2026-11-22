@@ -609,7 +609,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 1328,
+   "lines": 1331,
    "note": "build is a thin call (NK5: the whole build in Rust); left: the stage / merge_detailed / detail_pass twins the tests read, BuildSettings and the switches the bindings read (rust/BENCHMARKS.md \"NK5\", \"What is left\")",
    "path": "bfbc2-auto-navkit/tools/navbuild.py",
    "retiring": "NK5-rest",
@@ -4425,7 +4425,7 @@
  "totals": {
   "all": {
    "files": 363,
-   "lines": 105446
+   "lines": 105449
   },
   "by_folder": {
    "(root)": {
@@ -4452,14 +4452,14 @@
    },
    "bfbc2-auto-navkit": {
     "files": 61,
-    "lines": 16322,
+    "lines": 16325,
     "live": 1815,
     "partly": 4424,
     "ported": 272,
     "retired-pending": 0,
     "stays": 0,
     "test": 5734,
-    "twin": 4077
+    "twin": 4080
    },
    "bfbc2-automated-map-and-bot-test-harness": {
     "files": 15,
@@ -4698,7 +4698,7 @@
    },
    "twin": {
     "files": 56,
-    "lines": 20723
+    "lines": 20726
    }
   }
  }

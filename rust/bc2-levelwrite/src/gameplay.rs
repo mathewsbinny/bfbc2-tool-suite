@@ -82,6 +82,7 @@ pub struct Tickets {
 /// The type names the operations check (the suffix after the module: `Entity.CapturePointEntityData`).
 const CAPTURE_POINT: &str = ".CapturePointEntityData";
 const SOLDIER_SPAWN: &str = ".SoldierSpawnEntityData";
+const VEHICLE_SPAWN: &str = ".VehicleSpawnEntityData";
 const TICKET_COUNTER: &str = ".TicketCounterEntityData";
 const AREA_POINT: &str = ".AreaGeometryEntityData";
 
@@ -147,15 +148,17 @@ pub fn spawners(w: &LevelWriter, point: &str) -> Vec<String> {
         .collect()
 }
 
-/// Links a soldier spawner to a capture point (an item of its `Spawners` added at the end) or unlinks it (its item
-/// removed).
+/// Links a soldier or vehicle spawner to a capture point (an item of its `Spawners` added at the end; DICE's
+/// capture points list both: the vehicles of a base or flag, round A2) or unlinks it (its item removed).
 ///
 /// # Errors
 /// Either is not there or not of its type, the link is already there (or, unlinking, not there), or the level has
 /// no reference item to copy the new item's form from.
 pub fn link_spawner(w: &mut LevelWriter, point: &str, spawner: &str, linked: bool) -> Result<()> {
     let p = of_type(w, point, CAPTURE_POINT, "a capture point")?;
-    of_type(w, spawner, SOLDIER_SPAWN, "a soldier spawner")?;
+    if of_type(w, spawner, VEHICLE_SPAWN, "a vehicle spawner").is_err() {
+        of_type(w, spawner, SOLDIER_SPAWN, "a soldier or vehicle spawner")?;
+    }
     let a = w.d.child(p, b"Spawners").ok_or_else(|| LevelWriteError::NoField {
         guid: point.to_owned(),
         field: "Spawners".into(),

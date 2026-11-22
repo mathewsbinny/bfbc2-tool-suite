@@ -147,6 +147,7 @@ fn a_vietnam_export_with_its_own_name_and_picture() {
             picture: picture.display().to_string(),
             ..Identity::default()
         }),
+        path_data: false,
     };
     let stage = tmp.join("stage");
     let rec = export::build(&game, &p, "test", &spec, &stage).unwrap();

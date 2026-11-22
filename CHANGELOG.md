@@ -28,7 +28,24 @@ landed on `main`.
 
 ## [Unreleased]
 
-### Changed
+### Added
+- **The auto layout's vehicles** (round A2, `bc2_levelwrite::vehicles`): a proposal places the mode layer's vehicles
+  by team and class from the level's own vehicle spawners (moved, then copies), in DICE's per-mode counts (a Conquest
+  base 4, 8 on WW2; a flag 2; Rush's first attackers' and defenders' bases 3 and 2; Squad Deathmatch's one IFV), each
+  with its room, a drivable way out, water access for a boat or an open launch area for an aircraft, joined to its
+  capture point's `Spawners`; committed with the layout as one operation. On 16 held-out stock levels: 0 errors,
+  0 warnings, 446 of 446 statistics inside DICE's ranges (A1: 379 of 382; Squad Deathmatch's vehicle now placed).
+- **Three new placement rules** (XVAL-PLACE-6 to 8): a land vehicle shut in (no 20 m way out), a boat without 24 m of
+  open water, a helicopter under collision or a plane without a 30 m take-off run; 0 findings on DICE's 707 vehicle
+  spawners of 27 stock levels.
+- **Several proposals side by side** and **pins**: the Auto layout panel proposes 1 to 4 layouts at once, each in a
+  column with its warnings, statistics and vehicles, one drawn in the views; "Pin selection" keeps objects where they
+  stand and the rest is laid out around them (`Op::Pin`).
+- **The export's path-data step** (opt-in: the Export window's "Stage the level's path data for bots",
+  `ExportSpec.path_data`, `bc2_levelwrite::pathdata`): the base level's NavKit build (or DICE's file) staged with the
+  level as `ai/infantry/pathdata.hpd` when the project changes nothing a bot walks on, refused in words otherwise;
+  `mapexport check` holds it to XVAL-AI-1 (recorded, Kynapse, sorted nodes) and XVAL-PLACE-5; the AI workspace reads a
+  stage's path data. Sampling and building an edited level waits for NavKit's port (NK5).
 - **NavKit's build runs in Rust end to end** (round NK5): `bc2_navbuild::stage` (sector discovery, the areas, the
   border-node runs, the seam nodes carried between pitches, the one-way portal pieces, the detail pass's glue, the
   meshes' assembly, the route graphs and their ids, `merge_detailed`) and `bc2_navbuild::build` (walkability to the

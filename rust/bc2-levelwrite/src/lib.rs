@@ -45,6 +45,7 @@ pub mod mpconvert;
 pub mod names;
 pub mod navedit;
 pub mod ops;
+pub mod pathdata;
 pub mod placement;
 pub mod profile;
 pub mod project;
@@ -53,6 +54,7 @@ pub mod schema;
 pub mod shaders;
 pub mod site;
 pub mod validate;
+pub mod vehicles;
 pub mod weather;
 pub mod write;
 

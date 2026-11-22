@@ -871,147 +871,13 @@ pub fn load(scene: &Scene, bases: &[PathBuf]) -> Overlays {
                     lines,
                 });
             }
-            "CombatAreaTriggerEntityData" => {
-                let restricted = text(&i, "UseTeamRestriction") == "true";
-                let t = team(&text(&i, "Team"));
-                let paint = if restricted { Paint::Team(t) } else { Paint::Unowned };
-                let name = text(&i, "Name");
-                let mut lines = Vec::new();
-                let mut anchor = here.unwrap_or_default();
-                let mut unbounded = false;
-                for r in references(&i, "Geometry") {
-                    let (pts, height) = chain(&guids, r);
-                    if pts.len() < 3 {
-                        continue;
+            "CombatAreaTriggerEntityData" | "CapturePointEntityData" => {
+                if let Some((item, cover)) = area_item(&i, k, here, &guids, &ground) {
+                    if let Some(c) = cover {
+                        out.covered.push(c);
                     }
-                    let bottom: Vec<V3> = pts.iter().map(|p| [p[0], ground(p[0], p[2], p[1]), p[2]]).collect();
-                    let top: Vec<V3> = if height > 0.0 {
-                        pts.iter().map(|p| [p[0], p[1] + height, p[2]]).collect()
-                    } else {
-                        unbounded = true;
-                        bottom.iter().map(|p| [p[0], p[1] + RIBBON, p[2]]).collect()
-                    };
-                    anchor = centre(&top);
-                    lines.extend(wall(&bottom, &top));
+                    out.items.push(item);
                 }
-                for r in references(&i, "SurroundingGeometry") {
-                    let (pts, _) = chain(&guids, r);
-                    if pts.len() >= 3 {
-                        let flat: Vec<V3> = pts
-                            .iter()
-                            .map(|p| [p[0], ground(p[0], p[2], p[1]) + 0.3, p[2]])
-                            .collect();
-                        lines.extend(ring(&flat));
-                    }
-                }
-                if lines.is_empty() {
-                    continue;
-                }
-                if let Some(k) = k {
-                    out.covered.push(k);
-                }
-                let whose = if restricted {
-                    format!("team {t}")
-                } else {
-                    "every team".to_owned()
-                };
-                out.items.push(Item {
-                    overlay: Overlay::CombatAreas,
-                    entity: k,
-                    at: anchor,
-                    label: format!(
-                        "Combat area {} ({whose}{})",
-                        if name.is_empty() { "" } else { name.as_str() },
-                        if unbounded {
-                            ", no height in the data: unbounded"
-                        } else {
-                            ""
-                        }
-                    ),
-                    radius: None,
-                    swatch: None,
-                    paint,
-                    lines,
-                });
-            }
-            "CapturePointEntityData" => {
-                let Some(p) = here else { continue };
-                let t = team(&text(&i, "InitialOwnerTeam"));
-                let hq = text(&i, "UnableToChangeTeam") == "true";
-                let radius = num(&i, "CaptureRadius").unwrap_or(0.0);
-                let upper = text(&i, "IsCapturedInUpperSphere") == "true";
-                let mut lines = Vec::new();
-                let mut volume = String::new();
-                for r in references(&i, "Geometry") {
-                    // a sphere or a box (MP_005's islands: SphereGeometryEntityData) instead of an area chain
-                    if let Some(g) = guids.get(&r.to_lowercase())
-                        && let Some(m) = transform(g)
-                    {
-                        let c = [m[12], m[13], m[14]];
-                        match short_type(g) {
-                            "SphereGeometryEntityData" => {
-                                let rad = num(g, "Radius").unwrap_or(0.0);
-                                if rad > 0.0 {
-                                    lines.extend(sphere(c, rad));
-                                    volume = format!(" (sphere {rad:.1} m)");
-                                }
-                                continue;
-                            }
-                            "AabbGeometryEntityData" => {
-                                if let Some(e) = vec3(g, "Extents") {
-                                    lines.extend(box_edges(&m, [0.0; 3], e));
-                                    volume = " (box)".into();
-                                }
-                                continue;
-                            }
-                            _ => {}
-                        }
-                    }
-                    let (pts, height) = chain(&guids, r);
-                    if pts.len() < 3 {
-                        continue;
-                    }
-                    if height > 0.0 {
-                        let top: Vec<V3> = pts.iter().map(|q| [q[0], q[1] + height, q[2]]).collect();
-                        lines.extend(wall(&pts, &top));
-                    } else {
-                        lines.extend(ring(&pts));
-                    }
-                }
-                if radius > 0.0 {
-                    lines.extend(if upper { sphere(p, radius) } else { circle(p, radius) });
-                }
-                if lines.is_empty() {
-                    if !hq {
-                        continue;
-                    }
-                    // an HQ the data gives no capture area (it cannot be taken): its marker only
-                    lines.extend(cross(p, 2.0));
-                    volume = " (no capture area: it cannot be taken)".into();
-                }
-                if let Some(k) = k {
-                    out.covered.push(k);
-                }
-                let name = text(&i, "ControlPointName");
-                out.items.push(Item {
-                    overlay: Overlay::CaptureAreas,
-                    entity: k,
-                    at: p,
-                    label: format!(
-                        "{} {}{}{volume}",
-                        if hq { "HQ" } else { "Capture area" },
-                        if name.is_empty() { text(&i, "Name") } else { name },
-                        if radius > 0.0 {
-                            format!(" (radius {radius:.0} m)")
-                        } else {
-                            String::new()
-                        }
-                    ),
-                    radius: (radius > 0.0).then_some(radius),
-                    swatch: None,
-                    paint: Paint::Team(t),
-                    lines,
-                });
             }
             "SoldierSpawnEntityData" => {
                 let radius = num(&i, "SpawnEnemyRadius").unwrap_or(0.0);
@@ -1052,6 +918,227 @@ pub fn load(scene: &Scene, bases: &[PathBuf]) -> Overlays {
     out.notes.dedup();
     out.seconds = t0.elapsed().as_secs_f64();
     out
+}
+
+/// The overlays with a project's gameplay areas (round A2, VW1's leftover): the base level's effects, lights, sounds
+/// and spawn checks as [`load`] read them, and the combat and capture areas read again from the project's partition
+/// (`partition`: its bytes as the log leaves them), so the areas a project adds (a mode layer's) or moves (an accepted
+/// auto layout) show where they stand now. An area of an object the scene has keeps its entity (hidden or deleted
+/// with it); a new one has none. `None`: the partition does not read.
+#[must_use]
+pub fn with_project(base: &Overlays, scene: &Scene, partition: &[u8]) -> Option<Overlays> {
+    let t0 = std::time::Instant::now();
+    let tree = dbx::parse_tree(partition).ok()?;
+    let guids = by_guid(&tree);
+    let entity_of: HashMap<String, usize> = scene
+        .entities
+        .iter()
+        .map(|e| (e.guid.to_lowercase(), e.index))
+        .collect();
+    let ground = |x: f64, z: f64, y: f64| -> f64 {
+        scene
+            .heightfield
+            .as_ref()
+            .map(|h| h.height(x, z))
+            .filter(|h| h.is_finite())
+            .unwrap_or(y)
+    };
+    let area = |o: Overlay| matches!(o, Overlay::CombatAreas | Overlay::CaptureAreas);
+    let mut out = Overlays {
+        items: base.items.iter().filter(|i| !area(i.overlay)).cloned().collect(),
+        covered: Vec::new(),
+        notes: base.notes.clone(),
+        seconds: 0.0,
+    };
+    // the outlines the base's areas covered stay covered (their entities are the base's area objects)
+    let base_area: std::collections::BTreeSet<usize> = base
+        .items
+        .iter()
+        .filter(|i| area(i.overlay))
+        .filter_map(|i| i.entity)
+        .collect();
+    out.covered = base
+        .covered
+        .iter()
+        .copied()
+        .filter(|k| !base_area.contains(k))
+        .collect();
+    for i in tree.instances() {
+        if !matches!(short_type(&i), "CombatAreaTriggerEntityData" | "CapturePointEntityData") {
+            continue;
+        }
+        let k = i.attr("guid").and_then(|g| entity_of.get(&g.to_lowercase())).copied();
+        let here = transform(&i).map(|m| [m[12], m[13], m[14]]);
+        if let Some((item, cover)) = area_item(&i, k, here, &guids, &ground) {
+            out.covered.extend(cover);
+            out.items.push(item);
+        }
+    }
+    out.covered.extend(base_area.iter().copied());
+    out.covered.sort_unstable();
+    out.covered.dedup();
+    out.seconds = base.seconds + t0.elapsed().as_secs_f64();
+    Some(out)
+}
+
+/// The item of a combat area or a capture point (round VW1; round A2: also read from a project's partition, at its
+/// own transforms), with the scene entity whose outline it covers.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the two kinds of gameplay area, as the data holds them"
+)]
+fn area_item(
+    i: &Node<'_, '_>,
+    k: Option<usize>,
+    here: Option<V3>,
+    guids: &HashMap<String, Node<'_, '_>>,
+    ground: &dyn Fn(f64, f64, f64) -> f64,
+) -> Option<(Item, Option<usize>)> {
+    match short_type(i) {
+        "CombatAreaTriggerEntityData" => {
+            let restricted = text(i, "UseTeamRestriction") == "true";
+            let t = team(&text(i, "Team"));
+            let paint = if restricted { Paint::Team(t) } else { Paint::Unowned };
+            let name = text(i, "Name");
+            let mut lines = Vec::new();
+            let mut anchor = here.unwrap_or_default();
+            let mut unbounded = false;
+            for r in references(i, "Geometry") {
+                let (pts, height) = chain(guids, r);
+                if pts.len() < 3 {
+                    continue;
+                }
+                let bottom: Vec<V3> = pts.iter().map(|p| [p[0], ground(p[0], p[2], p[1]), p[2]]).collect();
+                let top: Vec<V3> = if height > 0.0 {
+                    pts.iter().map(|p| [p[0], p[1] + height, p[2]]).collect()
+                } else {
+                    unbounded = true;
+                    bottom.iter().map(|p| [p[0], p[1] + RIBBON, p[2]]).collect()
+                };
+                anchor = centre(&top);
+                lines.extend(wall(&bottom, &top));
+            }
+            for r in references(i, "SurroundingGeometry") {
+                let (pts, _) = chain(guids, r);
+                if pts.len() >= 3 {
+                    let flat: Vec<V3> = pts
+                        .iter()
+                        .map(|p| [p[0], ground(p[0], p[2], p[1]) + 0.3, p[2]])
+                        .collect();
+                    lines.extend(ring(&flat));
+                }
+            }
+            if lines.is_empty() {
+                return None;
+            }
+            let whose = if restricted {
+                format!("team {t}")
+            } else {
+                "every team".to_owned()
+            };
+            Some((
+                Item {
+                    overlay: Overlay::CombatAreas,
+                    entity: k,
+                    at: anchor,
+                    label: format!(
+                        "Combat area {} ({whose}{})",
+                        if name.is_empty() { "" } else { name.as_str() },
+                        if unbounded {
+                            ", no height in the data: unbounded"
+                        } else {
+                            ""
+                        }
+                    ),
+                    radius: None,
+                    swatch: None,
+                    paint,
+                    lines,
+                },
+                k,
+            ))
+        }
+        "CapturePointEntityData" => {
+            let p = here?;
+            let t = team(&text(i, "InitialOwnerTeam"));
+            let hq = text(i, "UnableToChangeTeam") == "true";
+            let radius = num(i, "CaptureRadius").unwrap_or(0.0);
+            let upper = text(i, "IsCapturedInUpperSphere") == "true";
+            let mut lines = Vec::new();
+            let mut volume = String::new();
+            for r in references(i, "Geometry") {
+                // a sphere or a box (MP_005's islands: SphereGeometryEntityData) instead of an area chain
+                if let Some(g) = guids.get(&r.to_lowercase())
+                    && let Some(m) = transform(g)
+                {
+                    let c = [m[12], m[13], m[14]];
+                    match short_type(g) {
+                        "SphereGeometryEntityData" => {
+                            let rad = num(g, "Radius").unwrap_or(0.0);
+                            if rad > 0.0 {
+                                lines.extend(sphere(c, rad));
+                                volume = format!(" (sphere {rad:.1} m)");
+                            }
+                            continue;
+                        }
+                        "AabbGeometryEntityData" => {
+                            if let Some(e) = vec3(g, "Extents") {
+                                lines.extend(box_edges(&m, [0.0; 3], e));
+                                volume = " (box)".into();
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+                let (pts, height) = chain(guids, r);
+                if pts.len() < 3 {
+                    continue;
+                }
+                if height > 0.0 {
+                    let top: Vec<V3> = pts.iter().map(|q| [q[0], q[1] + height, q[2]]).collect();
+                    lines.extend(wall(&pts, &top));
+                } else {
+                    lines.extend(ring(&pts));
+                }
+            }
+            if radius > 0.0 {
+                lines.extend(if upper { sphere(p, radius) } else { circle(p, radius) });
+            }
+            if lines.is_empty() {
+                if !hq {
+                    return None;
+                }
+                // an HQ the data gives no capture area (it cannot be taken): its marker only
+                lines.extend(cross(p, 2.0));
+                volume = " (no capture area: it cannot be taken)".into();
+            }
+            let name = text(i, "ControlPointName");
+            Some((
+                Item {
+                    overlay: Overlay::CaptureAreas,
+                    entity: k,
+                    at: p,
+                    label: format!(
+                        "{} {}{}{volume}",
+                        if hq { "HQ" } else { "Capture area" },
+                        if name.is_empty() { text(i, "Name") } else { name },
+                        if radius > 0.0 {
+                            format!(" (radius {radius:.0} m)")
+                        } else {
+                            String::new()
+                        }
+                    ),
+                    radius: (radius > 0.0).then_some(radius),
+                    swatch: None,
+                    paint: Paint::Team(t),
+                    lines,
+                },
+                k,
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// A sound emitter's item: its minimum distance as a sphere (a marker when it has none).

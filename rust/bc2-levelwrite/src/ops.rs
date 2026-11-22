@@ -299,6 +299,14 @@ pub enum Op {
         /// Locked or unlocked.
         locked: bool,
     },
+    /// Objects pinned for the auto layout (round A2): a proposal keeps them where they stand and lays the rest out
+    /// around them (`pinned: false`: unpinned). The partition is not changed.
+    Pin {
+        /// The objects.
+        guids: Vec<String>,
+        /// Pinned or unpinned.
+        pinned: bool,
+    },
     /// Objects grouped: selecting one selects them all.
     Group {
         /// The group's name.
@@ -493,7 +501,8 @@ impl Op {
             | Self::SetFolder { guids, .. }
             | Self::Group { guids, .. }
             | Self::Hide { guids, .. }
-            | Self::Lock { guids, .. } => guids.iter().map(String::as_str).collect(),
+            | Self::Lock { guids, .. }
+            | Self::Pin { guids, .. } => guids.iter().map(String::as_str).collect(),
             Self::Duplicate { items } => items
                 .iter()
                 .flat_map(|d| std::iter::once(d.source.as_str()).chain(d.owned.iter().map(|o| o.source.as_str())))
@@ -593,6 +602,11 @@ impl Op {
             Self::Lock { guids, locked } => {
                 format!("{} {}", if *locked { "Lock" } else { "Unlock" }, objects(guids.len()))
             }
+            Self::Pin { guids, pinned } => format!(
+                "{} {} for the auto layout",
+                if *pinned { "Pin" } else { "Unpin" },
+                objects(guids.len())
+            ),
             Self::SetField { items } => match items.as_slice() {
                 [one] => format!("Set {} to {}", one.field, one.to.text()),
                 many => format!("Set fields of {}", objects(many.len())),
@@ -740,6 +754,8 @@ pub struct Organisation {
     pub hidden: BTreeSet<String>,
     /// Objects locked one by one.
     pub locked: BTreeSet<String>,
+    /// Objects pinned for the auto layout (round A2).
+    pub pinned: BTreeSet<String>,
 }
 
 /// The layer colours offered to a new layer, in turn (muted, apart from the team, axis and selection colours).
@@ -772,6 +788,7 @@ impl Organisation {
             self.folder_of.remove(&g);
             self.hidden.remove(&g);
             self.locked.remove(&g);
+            self.pinned.remove(&g);
             for members in self.groups.values_mut() {
                 members.retain(|m| *m != g);
             }
@@ -855,6 +872,15 @@ impl Organisation {
                         self.locked.insert(up(g));
                     } else {
                         self.locked.remove(&up(g));
+                    }
+                }
+            }
+            Op::Pin { guids, pinned } => {
+                for g in guids {
+                    if *pinned {
+                        self.pinned.insert(up(g));
+                    } else {
+                        self.pinned.remove(&up(g));
                     }
                 }
             }

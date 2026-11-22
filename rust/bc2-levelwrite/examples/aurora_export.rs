@@ -113,6 +113,7 @@ fn main() {
         // E3's export: the BFBC2 profile, the base's names and loading picture
         profile: Profile::Bfbc2,
         identity: None,
+        path_data: false,
     };
     std::fs::write(
         out.join("export.json"),

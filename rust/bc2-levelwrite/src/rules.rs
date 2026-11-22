@@ -721,6 +721,17 @@ const XVAL: &[Row] = &[
         &[Inspector],
         "GR4",
     ),
+    (
+        "XVAL-AI-1",
+        Error,
+        "The staged path data is the level's and loads",
+        "The export's path-data step stages the level's path data only where it is the level's (the project edited \
+         no collision and has no navigation edits) and only Kynapse path data whose sectors' nodes are sorted by id \
+         (unsorted ones crash the game when it leaves the level). Build or sample the level's path data again.",
+        &["HPD-NODE-2", "AI-CRASH-4", "AI-NEED-2"],
+        &[Build, Stage],
+        "A2",
+    ),
     // ---- placement checks of the export's own (not L1's tendencies)
     (
         "XVAL-PLACE-1",
@@ -767,10 +778,44 @@ const XVAL: &[Row] = &[
         "XVAL-PLACE-5",
         Warning,
         "Spawns and objectives have a path for the AI",
-        "A spawn point, flag or M-COM with no route node of the level's path data near it, or only one on an island          cut off from the main network: a bot spawned there cannot leave, and bots cannot attack or defend an          objective there. Move it onto the main network, or build the path data again (the AI workspace).",
+        "A spawn point, flag or M-COM with no route node of the level's path data near it, or only one on an island \
+         cut off from the main network: a bot spawned there cannot leave, and bots cannot attack or defend an \
+         objective there. Move it onto the main network, or build the path data again (the AI workspace).",
         &["AI-NEED-2", "AI-NAV-1"],
-        &[Edit],
+        &[Edit, Stage],
         "A1",
+    ),
+    (
+        "XVAL-PLACE-6",
+        Warning,
+        "A land vehicle has a drivable way out",
+        "A tank, IFV, car or quad bike whose spawner it cannot drive 20 m away from (walls, steps, steep ground or \
+         deep water all round it; DICE's land vehicles all drive 40 m or more): it spawns and stays. Move the \
+         spawner to open ground.",
+        &["GAME-VEH-1", "GAME-VEH-2"],
+        &[Edit],
+        "A2",
+    ),
+    (
+        "XVAL-PLACE-7",
+        Warning,
+        "A boat has water access",
+        "A boat whose spawner's water reaches less than 24 m of open water (a pond, a pier's piles; DICE's boats all \
+         reach 30 m or more): it cannot sail out. Move the spawner to the shore of open water.",
+        &["GAME-VEH-1", "GAME-VEH-2"],
+        &[Edit],
+        "A2",
+    ),
+    (
+        "XVAL-PLACE-8",
+        Warning,
+        "An aircraft has an open launch area",
+        "A helicopter with static collision less than 12 m over its spawner, or a plane without a straight take-off \
+         run of 30 m (DICE's helipads are open to 60 m, its planes have runs of 34 m or more): it cannot take off. \
+         Move the spawner to open ground.",
+        &["GAME-VEH-1", "GAME-VEH-2"],
+        &[Edit],
+        "A2",
     ),
 ];
 

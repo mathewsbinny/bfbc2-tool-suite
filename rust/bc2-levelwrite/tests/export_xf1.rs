@@ -170,6 +170,7 @@ fn a_cross_set_object_gets_its_entries_and_shape() {
         },
         profile: Profile::Ww2,
         identity: None,
+        path_data: false,
     };
     let keep = std::env::var_os("BC2_XF1_STAGE").map(PathBuf::from);
     let tmp = std::env::temp_dir().join(format!("bc2_levelwrite_xf1_{}", std::process::id()));
