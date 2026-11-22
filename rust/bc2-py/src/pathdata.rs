@@ -511,9 +511,8 @@ impl<'py> MeshReader<'py> {
     }
 }
 
-/// `kymesh.write_mesh(mesh)` of the reference's `Mesh`, or `None` where the port leaves it to the reference.
-#[pyfunction]
-pub fn kymesh_write<'py>(py: Python<'py>, mesh: &Bound<'py, PyAny>) -> Option<Bound<'py, PyBytes>> {
+/// The reference's `kymesh.Mesh` read into the port's, or `None` where the port leaves it to the reference.
+pub(crate) fn mesh_of<'py>(py: Python<'py>, mesh: &Bound<'py, PyAny>) -> Option<Mesh> {
     let n = MESH_NAMES.get_or_init(py, || MeshNames {
         names: MESH_FIELDS.iter().map(|f| PyString::intern(py, f).unbind()).collect(),
         runtime: PyString::intern(py, "runtime").unbind(),
@@ -522,7 +521,13 @@ pub fn kymesh_write<'py>(py: Python<'py>, mesh: &Bound<'py, PyAny>) -> Option<Bo
         refs: PyString::intern(py, "refs").unbind(),
         objects: PyString::intern(py, "objects").unbind(),
     });
-    let m = (MeshReader { py, n }).mesh(mesh)?;
+    (MeshReader { py, n }).mesh(mesh)
+}
+
+/// `kymesh.write_mesh(mesh)` of the reference's `Mesh`, or `None` where the port leaves it to the reference.
+#[pyfunction]
+pub fn kymesh_write<'py>(py: Python<'py>, mesh: &Bound<'py, PyAny>) -> Option<Bound<'py, PyBytes>> {
+    let m = mesh_of(py, mesh)?;
     py.detach(|| kymesh::write(&m)).ok().map(|b| PyBytes::new(py, &b))
 }
 
