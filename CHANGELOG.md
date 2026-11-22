@@ -28,6 +28,19 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Fixed
+- **Console conversion of a visual terrain with a set undergrowth string** (round SPG2-rest2): `bc2-convert`'s
+  visual-terrain walk (`terrain.visual_terrain` / `visual_terrain_parts` in console-convert) read the undergrowth
+  entry's second string as one byte; it reads it as the string it is (spec VEG-UG-2). DICE's PC NAM_MP_003 now walks
+  (30 of 30 PC visual terrains); the Xbox and Battlefield 1943 conversions are unchanged (their strings are empty).
+
+### Added
+- Specification (round SPG2-rest2): nine rules from the executable - how `OnlyTakeableByTeam` freezes a capture point
+  (ONS-CAP-3) and the capture rules frame by frame (GAME-CQ-10), bots counting in a capture area (BOT-GS-5), vehicles'
+  dirt build-up (MAT-TEX-20), the bundle mount (STRM-MNT-3), the award tree's loading (PERS-AWD-4), a level's loading
+  video (MENU-LOAD-1, with a probe check), the particle processor and evaluator types (FX-PROC-4), the undergrowth
+  type's fields (VEG-UG-6); the terrain playtest plan for E5 / E7 (`spec/transforms/terrain_edit.md` section 5).
+
 ## [0.20.0] - 2026-11-22
 
 ### Added

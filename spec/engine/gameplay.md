@@ -278,7 +278,7 @@ Status: **observed**
 
 On PC a flag with `OnlyTakeableByTeam` 1 or 2 cannot be taken by the other team (it can be lowered to neutral, not
 raised); every PC Conquest flag has 0. The console's Onslaught rule "the defenders cannot retake" (value 1) does not
-carry over as data.
+carry over as data. Why: the update skips a point whose progress belongs to the named team (ONS-CAP-3).
 
 [data: Onslaught play tests 2026-10-29 on PC: a flag with 1 was lowered but not raised by the attackers; with A 0 and B 2, A was captured and B not; every PC Conquest flag 0]
 [doc: opfor:src/tools/onslaught/console_mode.py:43-48] [doc: opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:240-241]
@@ -293,6 +293,28 @@ flags favour hill tops (8 of 15 at 5 m or more, median +6.7 m). L1 warning rules
 
 [data: L1: 52 DICE flags prominence -6.5 to +7.4 m; 60 flag pairs up to 24 m; 118 M-COMs; 15 WW2 flags]
 [doc: bfbc2-map-editor/placement/L1_placement_report.md:79-83]
+
+### GAME-CQ-10: How a capture point moves, frame by frame
+
+Status: **observed** · Variants: PC
+
+The server capture point's update (0x726B60) runs while the point is enabled, `UnableToChangeTeam` is clear and
+`OnlyTakeableByTeam` allows it (ONS-CAP-3). It counts the living players in the area per team (BOT-GS-5: bots too):
+`own`, those of the team the progress belongs to, and `enemy`, the largest other team. The step's factor (0x7066B0):
+
+- nobody in the area: the progress drifts back at `ReturnMultiplier` (0 stops it);
+- `SeesawCapturing` clear: only enemies (at least `MinNrToTakeControl`): n = -enemy; only the own team (at least
+  `MinNrToTakeControl`): n = own; both present: 0, the point stands still;
+- `SeesawCapturing` set: n = own - enemy when the larger side has at least `MinNrToTakeControl`;
+- n is clamped to +-`MaxCaptureMultiplier` and the factor is +-(1 + `AddedMultiplierPerPlayer` x (|n| - 1)).
+
+A positive factor raises the progress (0 - 100) by factor x 100 / `TimeToGetControl` per second (0x725630), a negative
+one lowers it by factor x 100 / `TimeToLoseControl` (0x711AA0). At 100 the point is captured (+0xAC set, the owner
+copied from +0x7C, `OnCaptured`); at 0 it is lost (`OnLost`) and +0x7C becomes the lowering team, which raises it from
+there. `StartAtBottom` starts the progress at 0 instead of 100 (0x7118E0); `DisableIfEnemyInside` and the radius /
+upper-sphere fields are read in the same update. DICE's PC values: GAME-CQ-5 (radius), GAME-CQ-6 (times).
+
+[exe: BFBC2Game.exe 0x726B60 (update: +0xAD, data +0x13A, data +0x84, 0x724060, 0x725D40, data +0x136); 0x725D40 (factor > 0 -> 0x725630, < 0 -> 0x711AA0, 0 -> +0x98 = 0); 0x7066B0 (data +0x80 ReturnMultiplier, +0x88 MinNrToTakeControl, +0x134 SeesawCapturing, +0xB8 MaxCaptureMultiplier, +0xBC AddedMultiplierPerPlayer; constants 1.0 at 0x14D94F0, -1.0 at 0x14D9420); 0x725630 (100.0 at 0x14D9638 over data +0x9C); 0x711AA0 (data +0xA0); 0x7118E0 (+0x9C = 0 when data +0x132 StartAtBottom, else 100); field descriptors 0x1C25750 - 0x1C25A68]
 
 ## 4. Tickets and the end of the round
 
@@ -644,6 +666,7 @@ inside the zone is not settled.
   (GAME-AS-1).
 - **Server voice-over on the in-process host**: whether ETRoundWon / ETRoundLost raised on the server system are heard
   on hostMultiplayerLocal.
-- **`OnlyTakeableByTeam`**: how PC reads 1 and 2 (GAME-CQ-8); the console's "defenders cannot retake" needs the DLL.
+- **`OnlyTakeableByTeam`**: read by the capture update (ONS-CAP-3, round SPG2-rest2); the console's "defenders cannot
+  retake" needs a module patch of that test.
 - **Onslaught's stages** could be simulated the same way (flag k's `OnCaptured` as the transition); not measured.
 - **Rush vehicles from standalone spawners** started by events, and ambient vehicles told apart.

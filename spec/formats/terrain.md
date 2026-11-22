@@ -332,7 +332,8 @@ A patch shader: its patch mask shader entry name, its undergrowth mask shader na
 count (1-8), u32 tiled-mask count (0-4), u32 g groups, each u32 k undergrowth meshes of (mesh name, a second string,
 a shader name, 12 x f32, u8 1, u8 0): the fields of the engine's `TerrainUndergrowthType` (VEG-UG-3). The second
 string is empty on every DICE terrain but NAM_MP_003, whose 30 entries name `<mesh>/<guid>` there; the suite's reader
-took it as one byte until round SPG2-rest and so refused NAM_MP_003's visual terrain (VEG-UG-2). The shader name is
+took it as one byte until round SPG2-rest and so refused NAM_MP_003's visual terrain (VEG-UG-2); `bc2-convert`'s walk
+until round SPG2-rest2. The shader name is
 empty on 1,978 of 3,069 entries.
 
 A layer is either **tiled** (it reads a mask-atlas tile; the tiled count says how many) or a **rule** layer (base,
@@ -341,6 +342,7 @@ slope, destruction, sea floor: computed, no tile).
 [code: rust/bc2-render/src/terrain.rs:245-280]
 [test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
 [test: rust/bc2-render/src/terrain.rs::undergrowth_entries_read_their_asset_string]
+[test: rust/bc2-convert/src/terrain.rs::undergrowth_second_string_is_a_string]
 [test: rust/bc2-render/tests/visual_terrains.rs::every_dice_visual_terrain_reads_with_its_undergrowth]
 [doc: rust/bc2-render/src/terrain.rs:1-15]
 [data: spec/probes/terrain.py, 2026-11-22: 30 DICE visual terrains, 1,515 patch shaders, 3,069 undergrowth entries, every one ending 01 00; second string set on 30 (NAM_MP_003), shader name on 1,091]

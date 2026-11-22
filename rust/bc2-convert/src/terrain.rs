@@ -426,8 +426,10 @@ fn walk_visual_terrain(x: &[u8], big: bool) -> Res<Walk<'_>> {
         w.u32s(2)?;
         for _ in 0..w.u32()? {
             for _ in 0..w.u32()? {
+                // mesh, a second string (`<mesh>/<guid>` on NAM_MP_003, else empty), shader (VEG-UG-2, TERR-VT-3):
+                // the second is a string, not one byte, so a set one walks (round SPG2-rest2)
                 w.string()?;
-                w.arr(&[(1, 1)], 1)?;
+                w.string()?;
                 w.string()?;
                 w.arr(&[(4, 1)], 12)?;
                 w.arr(&[(1, 1)], 2)?;
@@ -711,6 +713,65 @@ mod tests {
         let x = [0, 0, 0, 18, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0];
         let pc = soot_mesh(&x).unwrap_or_default();
         assert_eq!(pc.get(..8), Some(&[18, 0, 0, 0, 12, 0, 0, 0][..]));
+    }
+
+    /// A one-block visual terrain (Xbox byte order when `big`) whose one undergrowth entry has `second` as its second
+    /// string.
+    fn one_block_visual_terrain(second: &[u8], big: bool) -> Vec<u8> {
+        let mut x = Vec::new();
+        let u = |x: &mut Vec<u8>, v: u32| x.extend(if big { v.to_be_bytes() } else { v.to_le_bytes() });
+        let s = |x: &mut Vec<u8>, t: &[u8]| {
+            x.extend(t);
+            x.push(0);
+        };
+        u(&mut x, 1);
+        for _ in 0..2 {
+            for _ in 0..4 {
+                u(&mut x, 0); // no strips; V, V * 28, I all 0
+            }
+        }
+        u(&mut x, 1);
+        s(&mut x, b"Terrains/T/PatchMaskShaders/a");
+        s(&mut x, b"Terrains/T/UgMaskShaders/a");
+        u(&mut x, 2);
+        u(&mut x, 0);
+        u(&mut x, 1);
+        u(&mut x, 1);
+        s(&mut x, b"Levels/L/undergrowth/grass_Mesh");
+        s(&mut x, second);
+        s(&mut x, b"");
+        for k in 0..12u32 {
+            u(&mut x, (k as f32).to_bits());
+        }
+        x.extend([1, 0]);
+        u(&mut x, 1);
+        for _ in 0..6 {
+            u(&mut x, 0);
+        }
+        for v in [66, 1, 15, 7, 1] {
+            u(&mut x, v);
+        }
+        for _ in 0..4 {
+            x.extend(if big { 3u16.to_be_bytes() } else { 3u16.to_le_bytes() });
+        }
+        x.extend([8, 0, 0, 0]);
+        u(&mut x, 1);
+        x.push(0);
+        s(&mut x, b"hf");
+        s(&mut x, b"atlas");
+        x
+    }
+
+    // spec: VEG-UG-2, TERR-VT-3
+    #[test]
+    fn undergrowth_second_string_is_a_string() {
+        for second in [&b""[..], b"Levels/L/undergrowth/grass_Mesh/0123456789abcdef"] {
+            let xbox = one_block_visual_terrain(second, true);
+            let pc = visual_terrain(&xbox).unwrap_or_default();
+            assert_eq!(pc, one_block_visual_terrain(second, false), "second string {second:?}");
+            let parts = visual_terrain_parts(&pc).unwrap_or_default();
+            assert!(parts.iter().any(|p| p.0 == "patch shaders"), "second string {second:?}");
+        }
     }
 
     #[test]

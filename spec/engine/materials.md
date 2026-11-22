@@ -408,7 +408,7 @@ entry). How an instance's dirt grows is MAT-TEX-7.
 
 [test: core/tests/test_spec_probes.py::grime]
 [data: spec/probes/grime.py, 2026-11-22: DirtColor and DirtFactor in 16 distinct entries (objects 8, vehicles 7, terrain 1), DirtColor2 4, DirtFactor2 2, Destruction_factor 23 (vehicles 11, objects 9, weapons 2, terrain 1); block values DirtFactor / DirtFactor2 0 in all, DirtColor (0, 0, 0) 15 and (0.334, 0.334, 0.334) 1, DirtColor2 (0, 0, 0) 4, Destruction_factor 0 in all]
-[exe: BFBC2Game.exe string table, file offsets 0x101AF78 - 0x101B1A2: destruction_factor, PickupSpec, LightMap, edgeModelSize, edgeModelPos, edgeModelDir, statModPrimDraw, statModPrimBuil, weaponSpecialization, cameraRoll, cameraPitch, compassRotation, turretRotation, lockWarning, healthWarning, reloadPercentage, weaponHeat, isReloading, lightPower, trackOffset, dirtColor, dirtFactor (each once in the file); the code reading the run was not traced]
+[exe: BFBC2Game.exe string table, file offsets 0x101AF78 - 0x101B1A2: destruction_factor, PickupSpec, LightMap, edgeModelSize, edgeModelPos, edgeModelDir, statModPrimDraw, statModPrimBuil, weaponSpecialization, cameraRoll, cameraPitch, compassRotation, turretRotation, lockWarning, healthWarning, reloadPercentage, weaponHeat, isReloading, lightPower, trackOffset, dirtColor, dirtFactor (each once in the file); the run is looked up by 0x5BF470 and set per drawn instance (MAT-TEX-20)]
 [inferred: the run's other names are values only the game knows per object (a turret's angle, a weapon's heat, a track's scroll), so the run is the per-instance constants the renderer fills; the zero block values are then placeholders]
 
 ### MAT-TEX-7: Terrain materials carry the dirt trigger
@@ -420,8 +420,8 @@ material (the relation's other side null): `DirtTriggerFactor` 0.1 (grass 0.001)
 brown-grey (red 0 - 0.275, green 0 - 0.269, blue 0 - 0.235; most often 0.255 / 0.228 / 0.148). The materials are
 Gravel, Rock, Dirt, Grass, Tarmac, SeaBed, Sand, Mud, Snow and Field. The colour is a Vec3 whose fourth value is
 padding: read the binary values (the XML prints it as a large integer). That a vehicle driving on such a material
-takes on the colour at the factor's rate (`dirtColor` / `dirtFactor`, MAT-TEX-6) is the likely reading; no code was
-traced.
+takes on the colour at the factor's rate (`dirtColor` / `dirtFactor`, MAT-TEX-6) is the code's (round SPG2-rest2,
+MAT-TEX-20).
 
 [test: core/tests/test_spec_probes.py::grime]
 [data: spec/probes/grime.py, 2026-11-22: 363 MaterialPropertyTerrainData in all 74 DICE materials_win32 grids, every one on a relation with one side null; per material Gravel 58, Rock 54, Dirt 44, Grass 42, Tarmac 40, SeaBed 40, Sand 37, Mud 24, Snow 15, Field 9; DirtTriggerFactor 0.1 x 321, 0.001 x 42 (Grass, every one); DirtTriggerColor 7 - 9 distinct values per channel]
@@ -635,6 +635,29 @@ ports do not have (MAT-TEX-3).
 [doc: opfor:src/tools/ww2/detail_layers.py:1-25]
 [doc: opfor:research/WW2_VISUAL_PARITY.md:37-53]
 
+### MAT-TEX-20: Dirt builds up while a vehicle moves over a dirt-trigger material
+
+Status: **observed** · Variants: PC
+
+The client entity keeps a dirt factor (+0x1D0, 0 - 1) and a dirt colour (+0x180, three floats). Each update
+(0x884C20, with the frame time) it measures its speed; under 5 m/s nothing happens. Otherwise it takes the material
+under it and that material's `MaterialPropertyTerrainData` (MAT-TEX-7; none: nothing happens), and with a =
+`DirtTriggerFactor` x dt:
+
+- a clean entity (factor 0) takes `DirtTriggerColor` as its colour at once;
+- factor = clamp(factor + a, 0, 1);
+- colour = colour x (1 - a) + `DirtTriggerColor` x a.
+
+So DICE's 0.1 dirties a vehicle fully in 10 s of driving at 5 m/s or more, grass (0.001) in about 17 minutes, and the
+colour fades towards the last ground driven on (which entity classes run it was not traced past the caller
+0x893E50). Nothing in that code lowers the factor: no washing in water or
+decay was found (the factor's only other writer is the entity's set-up). The drawing reads the two through getters
+(0x877520 the factor, 0x877530 the colour), copies them into the drawn instance (+0xEC or +0xDC the factor, +0xB0 the
+colour) and sets the shader constants `dirtFactor` / `dirtColor` (MAT-TEX-6) through the handles the instance's table
+looked up by name. A RenderDoc capture before and after driving over Mud confirms the values.
+
+[exe: BFBC2Game.exe 0x884C20 (speed `sqrt(v.v)` against 5.0 at 0x14D9450; material 0x7BF160 -> 0x6C94E0 -> 0x6F0250, the terrain property at +0x10 with DirtTriggerColor +0x10 and DirtTriggerFactor +0x20 as MaterialPropertyTerrainData's field descriptors 0x1C35A88 / 0x1C35AB8 give; clamp with 0 and 1.0 at 0x14D94F0; the colour blend 0x884D28 - 0x884DB5), called from 0x893E9C; getters 0x877520 (+0x1D0) / 0x877530 (+0x180); copies 0x5EA24E - 0x5EA27B and 0x5EFB81 - 0x5EFBA9; constants set 0x5CB733 / 0x5CB7A7 (handles +0x6D0 / +0x6D4 of the table 0x5BF470 fills: dirtFactor, dirtColor, trackOffset ...; built by 0x5DD9D0)]
+
 ## 6. OPFOR's WW2 materials
 
 ### MAT-WW2-1: The merged grid: DICE's relation first, then BF1943's, then a stand-in
@@ -715,10 +738,9 @@ take BF1943's `SoldierBody` / `SoldierHead` relations; every other weapon keeps 
   entity data class's field table in the executable would show it.
 - **OcRGB channels** (MAT-TEX-3): a disassembly of one OcRGB prop's pixel shader (which channel scales which
   sampler) would make the rule observed.
-- **How dirt accumulates** (MAT-TEX-6, MAT-TEX-7): the code that reads the executable's run of per-instance constant
-  names, and what feeds `dirtColor` / `dirtFactor` (the terrain material under a vehicle's wheels, its rate, whether
-  dirt fades or washes off in water), were not traced; a RenderDoc capture of a vehicle before and after driving
-  over Mud would show the constants change. Which DirtMaskRGB channel a dirt shader reads is likewise unread.
+- **Dirt in game** (MAT-TEX-20 is read statically): which entity classes run the build-up (its caller 0x893E50 was
+  not followed to a class), and a RenderDoc capture of a vehicle before and after driving over Mud to confirm the
+  constants. Which DirtMaskRGB channel a dirt shader reads is unread.
 - **Who makes the per-level camo** (MAT-TEX-10, MAT-TEX-11): no shipped DBX names the soldier camo textures, so the
   level's choice was made by DICE's content build; a level added by a modder needs its database compiled (or merged)
   with the camo of its theme. Whether the game can switch camo at run time (it seems not) is open; the four campaign

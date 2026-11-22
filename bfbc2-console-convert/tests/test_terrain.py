@@ -82,6 +82,7 @@ def main():
     visuals = list(twins('.visual.res'))
     if visuals:
         visual_terrain(visuals, check)
+    pc_visual_terrains(check)
     waters = list(twins('.water.res'))
     if waters:
         visual_water(waters, check)
@@ -159,6 +160,33 @@ def visual_terrain(pairs, check):
     check(not unexplained, f'visual terrain: every other part byte for byte but DICE\'s PC edits - roads {roads_ok} of '
           f'{roads} (rebuilt on {", ".join(ROADS_REBUILT)}), {coarser} sub-terrain patch maps PC-built coarser '
           '(4 x 4 cells: its sub-heightfields 64 samples, the Xbox\'s 128 and 8 x 8)', f'unexplained {unexplained[:8]}')
+
+
+# spec: VEG-UG-2, TERR-VT-3
+def pc_visual_terrains(check):
+    """Every DICE PC visual terrain (the game copy's bundles dated before 2013, each name once) walks to its end:
+    the undergrowth entry's second string is a string (set on NAM_MP_003's 30 entries), not one byte."""
+    import time
+    seen, ok, bad, nam = set(), 0, [], 0
+    for p in sorted(glob.glob(os.path.join(OPFOR, 'game', '**', '*.fbrb'), recursive=True)):
+        if time.gmtime(os.path.getmtime(p)).tm_year >= 2013:
+            continue
+        want = [n for n in fbrb.names(p) if n.lower().endswith('.visual.res') and n.lower() not in seen]
+        if not want:
+            continue
+        for n, d in fbrb.read(p, want).items():
+            seen.add(n.lower())
+            try:
+                terrain.visual_terrain_parts(d)
+                ok += 1
+                nam += 'nam_mp_003' in n.lower()
+            except terrain.TerrainError as e:
+                bad.append(f'{n}: {e}')
+    if not seen:
+        print('SKIP: no DICE PC visual terrains')
+        return
+    check(not bad and nam == 1, f'PC visual terrains: {ok} of {len(seen)} walk to their end, NAM_MP_003 among them',
+          f'refused {bad[:4]}')
 
 
 def visual_water(pairs, check):

@@ -47,8 +47,9 @@ VisualTerrain (the same size on both; strings NUL-terminated):
                      u32 triangles, 6 x f32 bounds, u32 layer (0 - 7) }
         u32 V, u32 V * 28, u32 I; V x { 5 x f32, 4 x f16 }; I x u32 indices
     u32 m; m x patch shader { patch mask shader, undergrowth mask shader (may be empty), u32 layers (2 - 6), u32,
-        u32 g; g x { u32 k; k x mesh { mesh name, u8 0, shader (may be empty), 12 x f32 (density, scale ... 55.0),
-                                     u8 1, u8 0 } } }
+        u32 g; g x { u32 k; k x mesh { mesh name, a second string (empty but on the PC's NAM_MP_003: <mesh>/<guid>;
+                                     read as a string since round SPG2-rest2, not as one byte), shader (may be
+                                     empty), 12 x f32 (density, scale ... 55.0), u8 1, u8 0 } } }
     u32 N; N x patch map { 6 x f32 bounds, u32 66, u32 1, u32 (15 / 31), u32 (7 / 15), u32 W (cells per side: 128 or 64
         for the main block, 8 for a sub-terrain), W*W x 4 x u16, W*W x 4 x u8, u32 W, W*W x u8, the block's heightfield
         name, the mask tile atlas name }
