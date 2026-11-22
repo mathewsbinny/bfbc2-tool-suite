@@ -29,9 +29,9 @@ rounds NK4 and NK5.
 | twin | 56 | 20,730 |
 | ported | 21 | 2,571 |
 | retired-pending | 3 | 310 |
-| stays | 55 | 8,993 |
+| stays | 55 | 8,994 |
 | test | 188 | 49,976 |
-| **all** | **364** | **105,659** |
+| **all** | **364** | **105,660** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -54,7 +54,7 @@ rounds NK4 and NK5.
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 19,610 | 737 |  | 2,385 | 1,897 |  |  | 14,591 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 32 | 5,542 |  |  |  |  |  | 5,275 | 267 |
+| `rust` | 32 | 5,543 |  |  |  |  |  | 5,276 | 267 |
 | `spec` | 8 | 2,728 |  |  |  |  |  | 2,728 |  |
 | `tests` | 29 | 7,679 |  |  |  |  |  |  | 7,679 |
 
@@ -179,16 +179,16 @@ Lines by status in the folder table.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-bf1943-import/dbxparity.py` | 336 | tool entry point | live | bfbc2 dbxparity (help and errors only) | dbxport, effectport; tests 3; OPFOR 1 (qa_checks) | PR1b-1 | BF1943's partitions against DICE's, field by field: the parity runs are Python |
+| `bfbc2-bf1943-import/dbxparity.py` | 336 | tool entry point | live | bfbc2 dbxparity (help and errors only) | dbxport, effectport; tests 3; OPFOR 1 (qa_checks) | PR1b-1-rest | BF1943's partitions against DICE's, field by field: the parity runs are Python |
 | `bfbc2-bf1943-import/effectport.py` | 447 | library | live |  | tests 3; rust/bench_ports; OPFOR 5 | proposed: OPFOR in Rust stage 2 (its only users are OPFOR's WW2 steps) | BF1943 effects with their emitters and textures; no Rust port (its *_reference is a faster Python algorithm) |
-| `bfbc2-bf1943-import/portparity.py` | 234 | tool entry point | live | bfbc2 portparity (help and errors only) | tests 2; OPFOR 1 (bf1943_vehicles) | PR1b-1 | our BF1943 conversions against DICE's own PC versions: the runs are Python |
-| `bfbc2-bf1943-import/bf1943import.py` | 838 | tool entry point | partly | bc2-cli bf1943src / import; bfbc2 bf1943import; embedded | dbxparity, meshport, portparity, texqa, renderqa, xdiff; tests 28; OPFOR 28 | PR1b-1 | Rust answers help, list, find and a current cache; left: import / check (the Importer), the source index pickle |
-| `bfbc2-bf1943-import/dbxcatalogue.py` | 306 | tool entry point | partly | bc2_convert::dbxcatalogue (catalogue_build); bfbc2 dbxcatalogue | dbxparity, dbxport; tests 8; OPFOR 8 | PR1b-1 | the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle |
-| `bfbc2-bf1943-import/meshport.py` | 375 | library | partly | bc2_convert::meshport (the searches) | portparity; tests 4; OPFOR 6 | PR1b-1 | searches in Rust; left: the Porter, the writers, the shader plan |
-| `bfbc2-bf1943-import/dbxport.py` | 2058 | library | twin | bc2_convert::dbxport (port, rules) | dbxparity, effectport; tests 9; OPFOR 10 | PR1b-1 | the partition port is Rust (E4d); port_python kept as reference and fallback |
-| `bfbc2-bf1943-import/emitteratlas.py` | 807 | library | twin | bc2_convert::emitteratlas | texqa, texwrite; tests 3; OPFOR 3 | PR1b-1 | Rust since F2b; the Python kept (an unreadable chunk is recorded, float near-ties by design) |
-| `bfbc2-bf1943-import/havokport.py` | 306 | library | twin | bc2_convert::havokport | tests 3; rust/bench_ports; OPFOR 5 | PR1b-1 | Rust since F2b; its Python reference waits for recorded goldens (RT1) |
-| `bfbc2-bf1943-import/mopp.py` | 102 | library | twin | bc2_convert::mopp | havokport; tests 3 | PR1b-1 | Rust since F2b; its Python reference waits for recorded goldens (RT1) |
+| `bfbc2-bf1943-import/portparity.py` | 234 | tool entry point | live | bfbc2 portparity (help and errors only) | tests 2; OPFOR 1 (bf1943_vehicles) | PR1b-1-rest | our BF1943 conversions against DICE's own PC versions: the runs are Python |
+| `bfbc2-bf1943-import/bf1943import.py` | 838 | tool entry point | partly | bc2-cli bf1943src / import; bfbc2 bf1943import; embedded | dbxparity, meshport, portparity, texqa, renderqa, xdiff; tests 28; OPFOR 28 | PR1b-1-rest | Rust answers help, list, find and a current cache; left: import / check (the Importer), the source index pickle |
+| `bfbc2-bf1943-import/dbxcatalogue.py` | 306 | tool entry point | partly | bc2_convert::dbxcatalogue (catalogue_build); bfbc2 dbxcatalogue | dbxparity, dbxport; tests 8; OPFOR 8 | PR1b-1-rest | the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle |
+| `bfbc2-bf1943-import/meshport.py` | 375 | library | partly | bc2_convert::meshport (the searches) | portparity; tests 4; OPFOR 6 | PR1b-1-rest | searches in Rust; left: the Porter, the writers, the shader plan |
+| `bfbc2-bf1943-import/dbxport.py` | 2058 | library | twin | bc2_convert::dbxport (port, rules) | dbxparity, effectport; tests 9; OPFOR 10 | PR1b-1-rest | the partition port is Rust (E4d); port_python kept as reference and fallback |
+| `bfbc2-bf1943-import/emitteratlas.py` | 807 | library | twin | bc2_convert::emitteratlas | texqa, texwrite; tests 3; OPFOR 3 | PR1b-1-rest | Rust since F2b; the Python kept (an unreadable chunk is recorded, float near-ties by design) |
+| `bfbc2-bf1943-import/havokport.py` | 306 | library | twin | bc2_convert::havokport | tests 3; rust/bench_ports; OPFOR 5 | PR1b-1-rest | Rust since F2b; its Python reference waits for recorded goldens (RT1) |
+| `bfbc2-bf1943-import/mopp.py` | 102 | library | twin | bc2_convert::mopp | havokport; tests 3 | PR1b-1-rest | Rust since F2b; its Python reference waits for recorded goldens (RT1) |
 | `bfbc2-bf1943-import/importcore.py` | 56 | shim | ported | bc2_native (the importer's functions) | dbxcatalogue, emitteratlas, havokport, meshport, mopp; tests 3 | PR1b-2 | the importer's native loader |
 | `bfbc2-bf1943-import/tests/test_bf1943import.py` | 435 | test | test |  | run_tests.py | Tests in Rust | bf1943import.py, the Battlefield 1943 import pipeline. |
 | `bfbc2-bf1943-import/tests/test_dbxcatalogue_native.py` | 179 | test | test |  | run_tests.py | Tests in Rust | Round F2b (rust/BENCHMARKS.md, "F2b"): dbxcatalogue.build in the Rust core against build_reference - every... |
@@ -212,15 +212,15 @@ Lines by status in the folder table.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-console-convert/audio.py` | 550 | tool entry point | partly | bc2_formats::wave, bc2_convert XAS encoder; bfbc2 audio | tests 7; OPFOR 2 (wake_level, wake_vo) | PR1b-1 | Wave / SPS reading and XAS encoding in Rust; left: one ffmpeg process per sound (XMA decode), the writers' references |
-| `bfbc2-console-convert/texqa.py` | 1262 | tool entry point | partly | bfbc2 texqa (bc2-cli texqa: the measures) | tests 9; OPFOR 1 (qa_checks) | PR1b-1 | the measures are Rust; left: DICE's copies, BF1943 sources, the PIL contact sheets, argparse errors |
-| `bfbc2-console-convert/convert.py` | 181 | tool entry point | twin | bfbc2 convert (bc2-cli nav::convert) | tests 4; rust/bench_sweep | PR1b-1 | the command line is Rust; the Python answers damaged input; manifest() used by tests |
-| `bfbc2-console-convert/havok.py` | 177 | library | twin | bc2_convert havok / hkclasses (convert_wrapper) | havokport, convert; tests 7; OPFOR 7 | PR1b-1 | F2a's references kept until recorded goldens retire them |
-| `bfbc2-console-convert/mesh.py` | 368 | library | twin | bc2_formats::meshdata, bc2_convert mesh | 17 suite modules (meshport, meshview, renderqa ...); tests 9; OPFOR 18 | PR1b-1 | Rust for parse / write / relayout; element, pair_by_kind, strip_to_list still Python for callers |
-| `bfbc2-console-convert/meshset.py` | 85 | library | twin | bc2_formats meshset | meshport, portparity, mesh, renderqa; tests 5; OPFOR 15 | PR1b-1 | write_reference kept for objects the core refuses |
-| `bfbc2-console-convert/terrain.py` | 204 | library | twin | bc2_convert::terrain | navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2 | PR1b-1 | Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens |
-| `bfbc2-console-convert/texture.py` | 239 | library | twin | bc2_formats texture (tiled, packed, layout) | 16 suite modules; tests 13; OPFOR 29 | PR1b-1 | tiled / packed / layout references kept by ruling: texqa's independent decoder |
-| `bfbc2-console-convert/soot.py` | 36 | library | ported | bc2_convert terrain / converters (soot) | tests 2; OPFOR 2 | PR1b-1 | a thin call into the Rust core (F2a) |
+| `bfbc2-console-convert/audio.py` | 550 | tool entry point | partly | bc2_formats::wave, bc2_convert XAS encoder; bfbc2 audio | tests 7; OPFOR 2 (wake_level, wake_vo) | PR1b-1-rest | Wave / SPS reading and XAS encoding in Rust; left: one ffmpeg process per sound (XMA decode), the writers' references |
+| `bfbc2-console-convert/texqa.py` | 1262 | tool entry point | partly | bfbc2 texqa (bc2-cli texqa: the measures) | tests 9; OPFOR 1 (qa_checks) | PR1b-1-rest | the measures are Rust; left: DICE's copies, BF1943 sources, the PIL contact sheets, argparse errors |
+| `bfbc2-console-convert/convert.py` | 181 | tool entry point | twin | bfbc2 convert (bc2-cli nav::convert) | tests 4; rust/bench_sweep | PR1b-1-rest | the command line is Rust; the Python answers damaged input; manifest() used by tests |
+| `bfbc2-console-convert/havok.py` | 177 | library | twin | bc2_convert havok / hkclasses (convert_wrapper) | havokport, convert; tests 7; OPFOR 7 | PR1b-1-rest | F2a's references kept until recorded goldens retire them |
+| `bfbc2-console-convert/mesh.py` | 368 | library | twin | bc2_formats::meshdata, bc2_convert mesh | 17 suite modules (meshport, meshview, renderqa ...); tests 9; OPFOR 18 | PR1b-1-rest | Rust for parse / write / relayout; element, pair_by_kind, strip_to_list still Python for callers |
+| `bfbc2-console-convert/meshset.py` | 85 | library | twin | bc2_formats meshset | meshport, portparity, mesh, renderqa; tests 5; OPFOR 15 | PR1b-1-rest | write_reference kept for objects the core refuses |
+| `bfbc2-console-convert/terrain.py` | 204 | library | twin | bc2_convert::terrain | navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2 | PR1b-1-rest | Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens |
+| `bfbc2-console-convert/texture.py` | 239 | library | twin | bc2_formats texture (tiled, packed, layout) | 16 suite modules; tests 13; OPFOR 29 | PR1b-1-rest | tiled / packed / layout references kept by ruling: texqa's independent decoder |
+| `bfbc2-console-convert/soot.py` | 36 | library | ported | bc2_convert terrain / converters (soot) | tests 2; OPFOR 2 | PR1b-1-rest | a thin call into the Rust core (F2a) |
 | `bfbc2-console-convert/tests/test_audio.py` | 256 | test | test |  | run_tests.py | Tests in Rust | Sound conversion (audio.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's sounds. |
 | `bfbc2-console-convert/tests/test_audio_native.py` | 385 | test | test |  | run_tests.py | Tests in Rust | audio.py's EA-XAS encoder and decoder (the Rust core: rust/bc2-convert audio, through bc2_native) against r... |
 | `bfbc2-console-convert/tests/test_console_f2a_native.py` | 469 | test | test |  | run_tests.py | Tests in Rust | Round F2a: the rest of the console converter in the Rust core against its Python reference - terrain.py (he... |
@@ -408,20 +408,20 @@ Lines by status in the folder table.
 | `core/bfbc2core/native.py` | 565 | library | live | bc2-cli pyproc (RETIRED list mirrored) | 63 suite modules, CI workflows; tests 53; OPFOR 11 | PR1b-2 (one registry), then the last Python | finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI |
 | `core/bfbc2core/appicon.py` | 35 | library | twin | rust/app_icon.rs, bc2-editor appicon | hub (.pyw); tests 1 | proposed: with the hub | the icon lookup the Rust builds also make |
 | `core/bfbc2core/atomicio.py` | 150 | library | twin | bc2_formats' one whole-file writer (PR1a) | 17 suite modules; tests 5 | PR1b-2 | atomic whole-file writes for the Python tools |
-| `core/bfbc2core/caches.py` | 902 | tool entry point | twin | bc2-cli caches / budget; bfbc2 caches | 25 suite modules; tests 3 | PR1b-1 | the cache budget's twin; the command line is Rust (O3) |
+| `core/bfbc2core/caches.py` | 902 | tool entry point | twin | bc2-cli caches / budget; bfbc2 caches | 25 suite modules; tests 3 | PR1b-1-rest | the cache budget's twin; the command line is Rust (O3) |
 | `core/bfbc2core/errors.py` | 184 | library | twin | bc2-cli pyproc / pylog (errors.setup / guard emulated) | 36 suite modules; tests 5; OPFOR 2 | the last Python | the Python tools' day logs and error reports |
 | `core/bfbc2core/gameledger.py` | 806 | library | twin | bc2_formats::gameledger; bfbc2 gameledger | navkit.py, texqa, stockmp pipeline / lib; tests 8; OPFOR 1 (test) | IN1 | the Python twin of the install ledger (no install_keep / restate) |
 | `core/bfbc2core/navtune.py` | 169 | library | twin | bc2-cli navkit apply, bc2-editor navtune | navkit.py; tests 9 | NK5 | the navtune side files; the editor and bfbc2 navkit apply have their own |
 | `core/bfbc2core/paths.py` | 139 | library | twin | bc2-cli / bc2-editor find_opfor, pyos | 23 suite modules; tests 39; OPFOR 2 (opforcore.paths) | the last Python | the Python tools' path discovery; the Rust tools each have their own (PR1b-2's bc2-gamefs) |
 | `core/bfbc2core/collision.py` | 96 | library | ported | bc2_scene::collision (havok_index, triangles) | detailed, ladders, levelobjects, navsample_offline, navwater_mesh, level; tests 3 | NK5 | the Python walk retired (F1a); a thin module over the core |
-| `core/bfbc2core/dbx.py` | 245 | library | ported | bc2_formats::dbx | 47 suite modules; tests 24; OPFOR 33 | PR1b-1 | read and written in Rust; Element trees for Python callers (PR1b-1 decides the one DBX document) |
+| `core/bfbc2core/dbx.py` | 245 | library | ported | bc2_formats::dbx | 47 suite modules; tests 24; OPFOR 33 | PR1b-1-rest | read and written in Rust; Element trees for Python callers (PR1b-1 decided the one DBX document: an arena with the DbxEdit rules, merged in PR1b-2) |
 | `core/bfbc2core/dbxedit.py` | 162 | library | ported | bc2_formats::dbxedit; bfbc2 dbxedit | navkit.py, validate, dbxedit.py; tests 9; OPFOR 3 | PR1b-2 | DbxEdit's commands in process |
-| `core/bfbc2core/fbrb.py` | 172 | library | ported | bc2_formats::fbrb | 32 suite modules; tests 39; OPFOR 26 | PR1b-1 | a thin module over the core (the bundle cache in Rust) |
+| `core/bfbc2core/fbrb.py` | 172 | library | ported | bc2_formats::fbrb | 32 suite modules; tests 39; OPFOR 26 | PR1b-1-rest | a thin module over the core (the bundle cache in Rust) |
 | `core/bfbc2core/fbrbtool.py` | 156 | library | ported | bc2_formats::fbrb::tool; bfbc2 fbrbtool | fbrbtool.py, navkit.py, hub; tests 11 | PR1b-2 | FbrbTool's commands in process |
-| `core/bfbc2core/level.py` | 336 | library | ported | bc2_scene (scene_load) | 13 suite modules; tests 9 | PR1b-1 | the level loader in Rust (E1a); the Python builds the tools' Entity / Level objects |
+| `core/bfbc2core/level.py` | 336 | library | ported | bc2_scene (scene_load) | 13 suite modules; tests 9 | PR1b-1-rest | the level loader in Rust (E1a); the Python builds the tools' Entity / Level objects |
 | `core/bfbc2core/navdata.py` | 346 | library | ported | bc2_navbuild parity / bc2-editor navdata | navboundary, navparity, navwater_mesh, harness, overlay; tests 11 | NK5 | its Python twins retired (E3o); cells and areas from the core |
 | `core/bfbc2core/navpath.py` | 140 | library | ported | bc2_navbuild astar / navpath | harness checks; tests 6 | PR1b-2 | the path test over the route graph, in Rust |
-| `core/bfbc2core/terrain.py` | 101 | library | ported | bc2_convert::terrain (heightfield) | navparity, navsample_offline, renderqa, level; tests 10; OPFOR 1 | PR1b-1 | height fields from the core |
+| `core/bfbc2core/terrain.py` | 101 | library | ported | bc2_convert::terrain (heightfield) | navparity, navsample_offline, renderqa, level; tests 10; OPFOR 1 | PR1b-1-rest | height fields from the core |
 | `core/bfbc2core/water.py` | 103 | library | ported | bc2_formats::water | navbuild, navregress, navwater, level; tests 5 | NK4 | water meshes from the core |
 | `core/bfbc2core/xmlinst.py` | 40 | library | ported | bc2_formats xmlinst | NavKit tools, overlay; tests 1; OPFOR 2 | NK5 | DbxEdit XML's instances in Rust (F2b) |
 | `core/tests/cli_o2_crash.py` | 397 | test helper or golden recorder | test |  | test_cli_o2 | Tests in Rust | Round O2's crash group: the command lines test_cli_o2.py replays for exeref.py and crashreader.py (bfbc2-au... |
@@ -490,7 +490,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-32 files, 5,542 lines.
+32 files, 5,543 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -507,7 +507,7 @@ Lines by status in the folder table.
 | `rust/bench_granny.py` | 92 | benchmark or parity script | stays |  | by hand | stays | E3i timings |
 | `rust/bench_harness.py` | 79 | benchmark or parity script | stays |  | by hand | stays | E4f timings against the references |
 | `rust/bench_level.py` | 78 | benchmark or parity script | stays |  | by hand | stays | level loader timings |
-| `rust/bench_memory.py` | 197 | benchmark or parity script | stays |  | by hand | stays | the batch readers' peak memory; any command's process-tree peak (--command) |
+| `rust/bench_memory.py` | 198 | benchmark or parity script | stays |  | by hand | stays | the batch readers' peak memory; any command's process-tree peak (--command) |
 | `rust/bench_navkit.py` | 59 | benchmark or parity script | stays |  | by hand | NK5 | one NavKit build (navregress.build_level) |
 | `rust/bench_ports.py` | 189 | benchmark or parity script | stays |  | by hand; tests 2 | stays | E3g timings |
 | `rust/bench_sd1.py` | 78 | benchmark or parity script | stays |  | by hand | stays | SD1 timings |

@@ -1034,7 +1034,7 @@
    "lines": 838,
    "note": "Rust answers help, list, find and a current cache; left: import / check (the Importer), the source index pickle",
    "path": "bfbc2-bf1943-import/bf1943import.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2-cli bf1943src / import; bfbc2 bf1943import",
    "status": "partly"
   },
@@ -1046,7 +1046,7 @@
    "lines": 306,
    "note": "the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle",
    "path": "bfbc2-bf1943-import/dbxcatalogue.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::dbxcatalogue (catalogue_build); bfbc2 dbxcatalogue",
    "status": "partly"
   },
@@ -1058,7 +1058,7 @@
    "lines": 336,
    "note": "BF1943's partitions against DICE's, field by field: the parity runs are Python",
    "path": "bfbc2-bf1943-import/dbxparity.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bfbc2 dbxparity (help and errors only)",
    "status": "live"
   },
@@ -1070,7 +1070,7 @@
    "lines": 2058,
    "note": "the partition port is Rust (E4d); port_python kept as reference and fallback",
    "path": "bfbc2-bf1943-import/dbxport.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::dbxport (port, rules)",
    "status": "twin"
   },
@@ -1094,7 +1094,7 @@
    "lines": 807,
    "note": "Rust since F2b; the Python kept (an unreadable chunk is recorded, float near-ties by design)",
    "path": "bfbc2-bf1943-import/emitteratlas.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::emitteratlas",
    "status": "twin"
   },
@@ -1106,7 +1106,7 @@
    "lines": 306,
    "note": "Rust since F2b; its Python reference waits for recorded goldens (RT1)",
    "path": "bfbc2-bf1943-import/havokport.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::havokport",
    "status": "twin"
   },
@@ -1130,7 +1130,7 @@
    "lines": 375,
    "note": "searches in Rust; left: the Porter, the writers, the shader plan",
    "path": "bfbc2-bf1943-import/meshport.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::meshport (the searches)",
    "status": "partly"
   },
@@ -1142,7 +1142,7 @@
    "lines": 102,
    "note": "Rust since F2b; its Python reference waits for recorded goldens (RT1)",
    "path": "bfbc2-bf1943-import/mopp.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::mopp",
    "status": "twin"
   },
@@ -1154,7 +1154,7 @@
    "lines": 234,
    "note": "our BF1943 conversions against DICE's own PC versions: the runs are Python",
    "path": "bfbc2-bf1943-import/portparity.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bfbc2 portparity (help and errors only)",
    "status": "live"
   },
@@ -1346,7 +1346,7 @@
    "lines": 550,
    "note": "Wave / SPS reading and XAS encoding in Rust; left: one ffmpeg process per sound (XMA decode), the writers' references",
    "path": "bfbc2-console-convert/audio.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_formats::wave, bc2_convert XAS encoder; bfbc2 audio",
    "status": "partly"
   },
@@ -1358,7 +1358,7 @@
    "lines": 181,
    "note": "the command line is Rust; the Python answers damaged input; manifest() used by tests",
    "path": "bfbc2-console-convert/convert.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bfbc2 convert (bc2-cli nav::convert)",
    "status": "twin"
   },
@@ -1370,7 +1370,7 @@
    "lines": 177,
    "note": "F2a's references kept until recorded goldens retire them",
    "path": "bfbc2-console-convert/havok.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert havok / hkclasses (convert_wrapper)",
    "status": "twin"
   },
@@ -1382,7 +1382,7 @@
    "lines": 368,
    "note": "Rust for parse / write / relayout; element, pair_by_kind, strip_to_list still Python for callers",
    "path": "bfbc2-console-convert/mesh.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_formats::meshdata, bc2_convert mesh",
    "status": "twin"
   },
@@ -1394,7 +1394,7 @@
    "lines": 85,
    "note": "write_reference kept for objects the core refuses",
    "path": "bfbc2-console-convert/meshset.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_formats meshset",
    "status": "twin"
   },
@@ -1406,7 +1406,7 @@
    "lines": 36,
    "note": "a thin call into the Rust core (F2a)",
    "path": "bfbc2-console-convert/soot.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert terrain / converters (soot)",
    "status": "ported"
   },
@@ -1418,7 +1418,7 @@
    "lines": 204,
    "note": "Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens",
    "path": "bfbc2-console-convert/terrain.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::terrain",
    "status": "twin"
   },
@@ -1610,7 +1610,7 @@
    "lines": 1262,
    "note": "the measures are Rust; left: DICE's copies, BF1943 sources, the PIL contact sheets, argparse errors",
    "path": "bfbc2-console-convert/texqa.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bfbc2 texqa (bc2-cli texqa: the measures)",
    "status": "partly"
   },
@@ -1622,7 +1622,7 @@
    "lines": 239,
    "note": "tiled / packed / layout references kept by ruling: texqa's independent decoder",
    "path": "bfbc2-console-convert/texture.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_formats texture (tiled, packed, layout)",
    "status": "twin"
   },
@@ -2682,7 +2682,7 @@
    "lines": 902,
    "note": "the cache budget's twin; the command line is Rust (O3)",
    "path": "core/bfbc2core/caches.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2-cli caches / budget; bfbc2 caches",
    "status": "twin"
   },
@@ -2704,9 +2704,9 @@
    "folder": "core",
    "kind": "library",
    "lines": 245,
-   "note": "read and written in Rust; Element trees for Python callers (PR1b-1 decides the one DBX document)",
+   "note": "read and written in Rust; Element trees for Python callers (PR1b-1 decided the one DBX document: an arena with the DbxEdit rules, merged in PR1b-2)",
    "path": "core/bfbc2core/dbx.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_formats::dbx",
    "status": "ported"
   },
@@ -2754,7 +2754,7 @@
    "lines": 172,
    "note": "a thin module over the core (the bundle cache in Rust)",
    "path": "core/bfbc2core/fbrb.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_formats::fbrb",
    "status": "ported"
   },
@@ -2790,7 +2790,7 @@
    "lines": 336,
    "note": "the level loader in Rust (E1a); the Python builds the tools' Entity / Level objects",
    "path": "core/bfbc2core/level.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_scene (scene_load)",
    "status": "ported"
   },
@@ -2862,7 +2862,7 @@
    "lines": 101,
    "note": "height fields from the core",
    "path": "core/bfbc2core/terrain.py",
-   "retiring": "PR1b-1",
+   "retiring": "PR1b-1-rest",
    "rust": "bc2_convert::terrain (heightfield)",
    "status": "ported"
   },
@@ -3759,7 +3759,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 197,
+   "lines": 198,
    "note": "the batch readers' peak memory; any command's process-tree peak (--command)",
    "path": "rust/bench_memory.py",
    "retiring": "stays",
@@ -4437,7 +4437,7 @@
  "totals": {
   "all": {
    "files": 364,
-   "lines": 105659
+   "lines": 105660
   },
   "by_folder": {
    "(root)": {
@@ -4651,12 +4651,12 @@
    },
    "rust": {
     "files": 32,
-    "lines": 5542,
+    "lines": 5543,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5275,
+    "stays": 5276,
     "test": 267,
     "twin": 0
    },
@@ -4702,7 +4702,7 @@
    },
    "stays": {
     "files": 55,
-    "lines": 8993
+    "lines": 8994
    },
    "test": {
     "files": 188,

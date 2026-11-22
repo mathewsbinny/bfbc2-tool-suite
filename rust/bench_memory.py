@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 from ctypes import wintypes
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
@@ -69,7 +70,7 @@ def child(suite: str, game: str, what: str) -> None:
         return [got[k] for k in names]
 
     if what in ('dbx', 'xml'):
-        items = [d for b in _bundles(game, 'levels/mp_common/level-00.fbrb', 'levels/sp_009/level-00.fbrb')
+        items: list[Any] = [d for b in _bundles(game, 'levels/mp_common/level-00.fbrb', 'levels/sp_009/level-00.fbrb')
                  for d in dbx_of(b)]
 
         def call() -> object:
@@ -184,7 +185,7 @@ def command(argv: list[str]) -> None:
     t0 = time.time()
     p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
     assert p.stdout
-    state = {'peak': 0.0, 'at': 0.0, 'line': '', 'peak_line': ''}
+    state: dict[str, Any] = {'peak': 0.0, 'at': 0.0, 'line': '', 'peak_line': ''}
     stop = threading.Event()
 
     def sample() -> None:

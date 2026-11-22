@@ -54,6 +54,18 @@ landed on `main`.
   `navbuild.build` and `navvehicle.stage_on_grid` / `write` are thin calls of the module. Every regression level's
   file and log lines are the same bytes as before (15 of 15; the 4 golden builds as recorded); whole builds 234 ->
   151 s over the 15 levels, the largest build's peak memory 11.8 -> 6.9 GB.
+- **The mesh viewer's index under the cache budget** (round PR1b-1, audit AU5 ARC-4): `work\tools_out\meshview_index.pkl`
+  is the project cache `meshview` (cap `BFBC2_MESHVIEW_CACHE_MB`, default 256): listed, pruned and cleared by
+  `bfbc2 caches` / `python -m bfbc2core.caches` and counted in the overall budget.
+
+### Changed
+- **Less memory** (round PR1b-1): NumPy's OpenBLAS runs one thread unless `OPENBLAS_NUM_THREADS` says otherwise
+  (`suite_paths`, `bfbc2core`): each Python process importing NumPy committed about 490 MB for its 16 threads' buffers.
+  Test peaks: geometry readers 2.9 -> 1.0 GB, NavKit cells and routes 5.4 -> 1.6 GB, texture helpers 5.2 -> 4.6 GB.
+  The batch readers of `bc2_native` (`dbx_parse_many`, `dbx_to_xml_many`, `fbrb_read_many`, `xenos_parse_many`,
+  `granny_roots_many`, `granny_to_pc_many`, `texture_convert_many`) decode in a bounded window on all cores while
+  the results are built in order, instead of decoding everything first: the Granny trees' peak 1.5 -> 0.9 GB, the
+  Xbox shaders' 33 -> 16 s; every result the same.
 
 ## [0.15.0] - 2026-11-22
 
