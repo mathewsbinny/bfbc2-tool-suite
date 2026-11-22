@@ -3507,6 +3507,18 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
+   "lines": 223,
+   "note": "The specification's probe counts as checks (round SPG2): the stable facts `spec/probes/terrain.py` and `spe...",
+   "path": "core/tests/test_spec_probes.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "core",
+   "kind": "test",
    "lines": 61,
    "note": "Checks terrain.py against the in-game terrain samples NavKit took (work\\navsample\\<level>_navkit.bin or _fu...",
    "path": "core/tests/test_terrain.py",
@@ -3555,7 +3567,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1358,
+   "lines": 1361,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3903,7 +3915,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 813,
+   "lines": 818,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -3919,6 +3931,18 @@
    "note": "read-only probe for spec/engine/destruction.md",
    "path": "spec/probes/destruction.py",
    "retiring": "proposed: SPG2 (game-tier checks)",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 143,
+   "note": "read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier",
+   "path": "spec/probes/effects_chain.py",
+   "retiring": "stays",
    "rust": "",
    "status": "stays"
   },
@@ -3943,6 +3967,18 @@
    "note": "read-only probe for spec/engine/materials.md",
    "path": "spec/probes/materials.py",
    "retiring": "proposed: SPG2 (game-tier checks)",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 385,
+   "note": "read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier",
+   "path": "spec/probes/terrain.py",
+   "retiring": "stays",
    "rust": "",
    "status": "stays"
   },
@@ -4364,19 +4400,19 @@
  ],
  "totals": {
   "all": {
-   "files": 358,
-   "lines": 104487
+   "files": 361,
+   "lines": 105246
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1410,
+    "lines": 1413,
     "live": 52,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1358,
+    "test": 1361,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4556,14 +4592,14 @@
     "twin": 2365
    },
    "core": {
-    "files": 75,
-    "lines": 19380,
+    "files": 76,
+    "lines": 19603,
     "live": 734,
     "partly": 0,
     "ported": 1897,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14368,
+    "test": 14591,
     "twin": 2381
    },
    "design": {
@@ -4579,23 +4615,23 @@
    },
    "rust": {
     "files": 29,
-    "lines": 5053,
+    "lines": 5058,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 4786,
+    "stays": 4791,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 6,
-    "lines": 2200,
+    "files": 8,
+    "lines": 2728,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 2200,
+    "stays": 2728,
     "test": 0,
     "twin": 0
    },
@@ -4629,12 +4665,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 50,
-    "lines": 7976
+    "files": 52,
+    "lines": 8509
    },
    "test": {
-    "files": 187,
-    "lines": 49719
+    "files": 188,
+    "lines": 49945
    },
    "twin": {
     "files": 55,
