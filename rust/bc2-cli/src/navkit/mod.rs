@@ -2,9 +2,9 @@
 //! (`rust\bc2-editor\prepare_level.py`) and the tools prepare runs (`levelobjects`, `ladders`) or `check` / `compare`
 //! report with (`ordercheck`, `navcompare`).
 //!
-//! What stays the Python's (handed off before anything is printed): the steps whose core is still Python - `build`,
-//! `all` and `apply` on a NavKit base (NavKit's generator, `navbuild.build`), `sample` (it starts the game) - and any
-//! line with `--no-detail`. `apply` on a DICE base is answered here since round NK1 (`apply.rs`).
+//! What stays the Python's: `sample` (it starts the game; `all` runs it as a child between its Rust steps). `apply` on a
+//! DICE base is answered here since round NK1 (`apply.rs`); `build`, `all` and `apply` on a NavKit base since round
+//! NK5 (`build.rs`: NavKit's whole build in `bc2_navbuild::build`, `--no-detail` included).
 
 // Python's lists indexed as the reference indexes them (a bad index is its IndexError, checked where it can be);
 // counts as Python's floats (far below 2^52); the reference's single-letter names (x, y, z, m, t ...) and its long
@@ -22,6 +22,7 @@ use crate::pyfmt;
 use crate::pyproc::{Fail, PyErr, PyResult, Tool};
 
 mod apply;
+pub(crate) mod build;
 mod driver;
 mod ladders;
 mod levelobjects;

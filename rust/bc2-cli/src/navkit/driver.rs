@@ -498,11 +498,11 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         }
     }
     let opt = |k: &str| opts.iter().find(|(x, _)| *x == k).map(|(_, v)| v.as_str());
-    if args.iter().any(|a| a == "--no-detail") {
-        return Err(Fail::Python); // navbuild's settings: the build's Python
-    }
+    let yes = args.iter().any(|a| a == "--yes");
     let install_flag = args.iter().any(|a| a == "--install");
-    args.retain(|a| a != "--yes" && a != "--install");
+    // build / apply / all: no D lines or F cells (navbuild.BuildSettings detail_features off; round NK5: in Rust)
+    let no_detail = args.iter().any(|a| a == "--no-detail");
+    args.retain(|a| a != "--yes" && a != "--install" && a != "--no-detail");
     if args.is_empty() || matches!(args[0].as_str(), "-h" | "--help" | "help") {
         py.print(&pyfmt::docstring(include_str!(
             "../../../../bfbc2-auto-navkit/navkit.py"
@@ -526,10 +526,15 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         }
         let lv = pr.level(&args[1])?;
         match cmd {
-            // NavKit's generator (navbuild), the game (sample): the Python's
-            "build" | "all" | "sample" => Err(Fail::Python),
-            // round NK1: a DICE base here, a NavKit base (a rebuild) the Python's
-            "apply" => super::apply::apply(py, &pr, &lv, opt("--navtune"), opt("--out"), install_flag).map(|()| 0),
+            // the game (sample): the Python's
+            "sample" => Err(Fail::Python),
+            // round NK5: NavKit's build in Rust (bc2_navbuild::build)
+            "build" => super::build::build_level(py, &pr, &lv, no_detail).map(|()| 0),
+            "all" => all(py, &pr, &lv, (bx.as_deref(), y.as_deref()), yes, no_detail),
+            // round NK1: a DICE base; round NK5: a NavKit base (a rebuild with the walkability edits)
+            "apply" => {
+                super::apply::apply(py, &pr, &lv, (opt("--navtune"), opt("--out")), install_flag, no_detail).map(|()| 0)
+            }
             "status" => status(py, &pr, &lv).map(|()| 0),
             // unbuffered (navkitGUI: python -u, or PYTHONUNBUFFERED for this binary): each line out as it comes
             "prepare" if std::env::var("PYTHONUNBUFFERED").is_ok_and(|v| !v.is_empty()) => {
@@ -551,6 +556,42 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         }
         other => other,
     }
+}
+
+/// `all`: prepare, the sampling (it starts the game: `navkit.py sample`, the one step left to the Python, run as a
+/// child with this console), then build and check when the sampling ran (`sample_level` returned True: the samples
+/// were written again; a cancelled or refused sampling writes none).
+fn all(
+    py: &mut Py,
+    pr: &Project,
+    lv: &str,
+    (bx, y): (Option<&[f64]>, Option<&[f64]>),
+    yes: bool,
+    no_detail: bool,
+) -> PyResult<i32> {
+    prepare(py, pr, lv, &mut Print, bx, y)?;
+    py.flush_now();
+    let before = super::build::samples08(pr, lv)?.and_then(|p| pyos::mtime_ns(&p).ok());
+    let python = crate::pyproc::python().map_err(|e| navkit_error(format!("the sampling needs Python: {e}")))?;
+    let script = join(&suite()?, &["bfbc2-auto-navkit", "navkit.py"])?;
+    let mut c = std::process::Command::new(python);
+    c.arg(&script).args(["sample", lv, "--opfor", &pr.root]);
+    if yes {
+        c.arg("--yes");
+    }
+    let status = c
+        .status()
+        .map_err(|e| navkit_error(format!("the sampling did not start: {e}")))?;
+    if !status.success() {
+        return Ok(status.code().unwrap_or(1)); // its error said by the sampling itself
+    }
+    let after = super::build::samples08(pr, lv)?.and_then(|p| pyos::mtime_ns(&p).ok());
+    if after.is_none() || after == before {
+        return Ok(0); // cancelled: sample_level returned False
+    }
+    super::build::build_level(py, pr, lv, no_detail)?;
+    check(py, pr, lv)?;
+    Ok(0)
 }
 
 /// `log=print` with the line written out at once (an unbuffered prepare: the reader follows it).
@@ -641,7 +682,7 @@ pub fn prepare_level(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         }
         let steps = p.steps;
         p.start(py, steps, "Unpacking the terrain")?;
-        heightfield_of(py, &pr.root, &lv, &mut p)
+        heightfield_of(py, &pr.root, &lv, &mut p).map(drop)
     })();
     match r {
         Ok(()) => {

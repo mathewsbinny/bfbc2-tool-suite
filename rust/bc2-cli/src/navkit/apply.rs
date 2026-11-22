@@ -1,8 +1,8 @@
 //! `navkit.py apply` on a DICE base (round NK1): the side file's links, route edges and traversal annotations on a
 //! copy of DICE's path data (`navkit.apply` / `_apply` with `navlinks.apply` and `navtraversal.write`, whose Python
-//! was retired: `bc2_navbuild::graphedit`). A NavKit base rebuilds the level, which is still the Python's
-//! (`navbuild.build`): that line is handed off before anything is printed, as is a side file the port does not read
-//! (not JSON, a value of a type the checks refuse) and a path-data file `graphedit` refuses.
+//! was retired: `bc2_navbuild::graphedit`). A NavKit base rebuilds the level with the walkability edits (round NK5:
+//! `bc2_navbuild::build`, [`super::build`]). A side file the port does not read (not JSON, a value of a type the
+//! checks refuse) and a path-data file `graphedit` refuses are handed off before anything is printed.
 
 use bc2_navbuild::graphedit::{self, EditError};
 use bc2_navbuild::navtune;
@@ -152,9 +152,9 @@ pub(super) fn apply(
     py: &mut Py,
     pr: &Project,
     lv: &str,
-    navtune_path: Option<&str>,
-    out: Option<&str>,
+    (navtune_path, out): (Option<&str>, Option<&str>),
     install_after: bool,
+    no_detail: bool,
 ) -> PyResult<()> {
     let path = match navtune_path.filter(|p| !p.is_empty()) {
         Some(p) => p.to_owned(),
@@ -168,7 +168,7 @@ pub(super) fn apply(
     let tune = load(&path)?;
     let t0 = Instant::now();
     if tune.kind == "navkit" {
-        return Err(Fail::Python); // the build with the edits: navbuild.build, still the Python's
+        return navkit_base(py, pr, lv, &tune, (&path, out), install_after, no_detail, t0);
     }
     let walk = tune
         .ops
@@ -293,6 +293,24 @@ fn run(
         Some(Err(e)) => return Err(raised(e)),
         None => return Err(Fail::Python),
     };
+    finish(py, pr, lv, out, plan, lines, (later, notes, t0))
+}
+
+/// `_apply` after the base is in `out`: the graph edits written, the read-back, the annotations, the last lines.
+fn finish(
+    py: &mut Py,
+    pr: &Project,
+    lv: &str,
+    out: &str,
+    plan: Plan,
+    lines: &mut Vec<String>,
+    (later, notes, t0): (usize, usize, Instant),
+) -> PyResult<()> {
+    let mut say = |py: &mut Py, msg: String| -> PyResult<()> {
+        py.print(&msg)?;
+        lines.push(msg);
+        Ok(())
+    };
     if let Some(g) = &plan.graph {
         for l in &g.lines {
             say(py, l.clone())?;
@@ -335,6 +353,113 @@ fn run(
             pyfixed0(t0.elapsed().as_secs_f64())
         ),
     )
+}
+
+/// `_apply`'s NavKit branch (round NK5, in Rust): the level built again with the side file's walkability edits
+/// (`build_inputs`, `navbuild.build(..., edits=walk)`), then the graph edits, read-back and annotations as on a DICE
+/// base; the report kept as `<output>.report.txt`.
+#[allow(clippy::too_many_arguments)]
+fn navkit_base(
+    py: &mut Py,
+    pr: &Project,
+    lv: &str,
+    tune: &Tune,
+    (path, out): (&str, Option<&str>),
+    install_after: bool,
+    no_detail: bool,
+    t0: Instant,
+) -> PyResult<()> {
+    let out = match out.filter(|o| !o.is_empty()) {
+        Some(o) => o.to_owned(),
+        None => join2(&pr.out_dir(lv)?, "pathdata.hpd")?,
+    };
+    let walk: Vec<Value> = tune
+        .ops
+        .iter()
+        .filter(|o| op_is(o, &["walkable", "unwalkable", "seed", "unseed"]))
+        .cloned()
+        .collect();
+    let graph = tune.ops.iter().any(|o| op_is(o, &graphedit::GRAPH_OPS));
+    let later = tune.ops.iter().filter(|o| op_is(o, &["traversal"])).count();
+    let notes = tune.ops.iter().filter(|o| op_is(o, &["note"])).count();
+    // the inputs and the edits read first: what the port does not read hands the line over before anything is printed
+    let gathered = super::build::build_inputs(py, pr, lv);
+    if matches!(gathered, Err(Fail::Python)) {
+        return Err(Fail::Python);
+    }
+    let edits = super::build::edits_of(&walk)?;
+    let mut lines: Vec<String> = Vec::new();
+    let r = (|| -> PyResult<()> {
+        let head = format!(
+            "== apply {lv}: {} edit(s) from {} -> {}",
+            tune.ops.len(),
+            pyos::relpath(path, &pr.root)?,
+            pyos::relpath(&out, &pr.root)?
+        );
+        py.print(&head)?;
+        lines.push(head);
+        let mut g = gathered?;
+        for l in &g.lines {
+            py.print(l)?;
+            lines.push(l.clone());
+        }
+        g.inputs.edits = (!walk.is_empty()).then_some(edits);
+        super::build::run_build(py, &g.inputs, &out, no_detail, Some(&mut lines))?;
+        let built = format!(
+            "  built in {} s; {} walkability edit(s) applied",
+            pyfixed0(t0.elapsed().as_secs_f64()),
+            walk.len()
+        );
+        py.print(&built)?;
+        lines.push(built);
+        let data = std::fs::read(&out).map_err(|e| crate::pyproc::os_error(&out, &e))?;
+        let planned = match plan(&data, tune, &pyos::basename(&out)?, graph, later > 0) {
+            Ok(Ok(p)) => p,
+            Ok(Err(e)) => return Err(raised(e)),
+            Err(_) => {
+                return Err(Fail::Err(PyErr::new(
+                    "NavKitError",
+                    "the Rust port of navkit apply refused an input the Python would read (bfbc2.exe)",
+                )));
+            }
+        };
+        finish(py, pr, lv, &out, planned, &mut lines, (later, notes, t0))
+    })();
+    match r {
+        Ok(()) => {
+            pyos::write_text_utf8(
+                &format!("{out}.report.txt"),
+                &format!(
+                    "{}
+",
+                    lines.join(
+                        "
+"
+                    )
+                ),
+            )?;
+            if install_after {
+                super::driver::install(py, pr, lv, Some(&out))?;
+            }
+            Ok(())
+        }
+        Err(Fail::Err(e)) => {
+            lines.push(format!("error: {}", e.msg));
+            pyos::write_text_utf8(
+                &format!("{out}.report.txt"),
+                &format!(
+                    "{}
+",
+                    lines.join(
+                        "
+"
+                    )
+                ),
+            )?;
+            Err(Fail::Err(e))
+        }
+        Err(Fail::Python) => Err(Fail::Python),
+    }
 }
 
 /// `f'{x:.0f}'`.
