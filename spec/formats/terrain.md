@@ -52,7 +52,7 @@ Status: **verified** · Variants: PC
 | 0x26 | u16 | n / 256 on a main block (0 on a sub-terrain) |
 | 0x28 | u32 | 0 |
 | 0x2C | u8 | 0 |
-| 0x2D | u32 | A: length in bytes of the tail's first section (0 on a sub-terrain) |
+| 0x2D | u32 | A: length in bytes of the tail's row offsets, depth runs and padding (TERR-HF-4; 0 on a sub-terrain) |
 | 0x31 | n x n u16 | the heights (TERR-HF-2) |
 
 The header is 49 bytes (0x31); a file shorter than that, or whose n is 0, not a power of two or larger than the
@@ -91,24 +91,33 @@ samples per level only with this split.
 [test: core/tests/test_terrain.py::check]
 [doc: DESIGN.md:503]
 
-### TERR-HF-4: Main block tail: offsets, first section, fixed part
+### TERR-HF-4: Main block tail: the depth map, a min / max tree, a lower envelope
 
 Status: **verified** · Variants: PC, Xbox 360, BF1943
 
-On a main block (n = 1024 or 2048) the heights are followed by:
+On a main block (n = 1024 or 2048) the heights are followed by four parts, decoded in round SPG2-rest:
 
 | Part | Size | Content |
 |---|---|---|
-| offsets | n x u32 | offsets, in u16 units, into the first section |
-| first section | A bytes (header 0x2D) | u16 values (not decoded) |
-| fixed part | 62,474 bytes at n = 1024; 256,012 at n = 2048 | u16 values (not decoded) |
+| row offsets | n x u32 | per row of the depth map, where its runs start, in u16 units after the offsets (TERR-HF-9) |
+| depth runs | 4 bytes a run | the depth map, run-length coded row by row (TERR-HF-9) |
+| padding | 0 - 15 zero bytes | to a multiple of 16 bytes from the start of the heights (0x31) |
+| min / max tree | 10,922 u16 at n = 1024; 43,690 at 2048 | TERR-HF-10 |
+| lower envelope | 22,363 u16 at n = 1024; 88,412 at 2048 | TERR-HF-11 |
 
-The file ends exactly there. A tail of another length is kept as unknown bytes.
+Header word A (0x2D) is the length of the first three parts together (the offsets included). The file ends exactly
+after the envelope. Until SPG2-rest the suite split the tail as "n offsets, then A bytes, then a fixed part of 62,474 /
+256,012 bytes" (the reader's `Tail::Sections`, unchanged): the same bytes, but that split puts the offsets twice and
+cuts the min / max tree 2n values in (A minus 4n bytes is where the tree starts; 62,474 = 2 x (10,922 + 22,363) -
+4 x 1024 and 256,012 = 2 x (43,690 + 88,412) - 4 x 2048). On DICE's 30 terrains the depth runs, the padding and the
+tree re-encode from the depth map and the heights byte for byte; the envelope is checked as TERR-HF-11 says.
 
 [code: rust/bc2-formats/src/terrain.rs:198-216]
 [code: rust/bc2-formats/src/terrain.rs:61]
 [test: rust/bc2-formats/src/terrain.rs::tails]
-[data: game copy: 71 of 71 main blocks (26 at 1024, 45 at 2048) have exactly this tail]
+[test: core/tests/test_spec_probes.py::height_field_tails]
+[data: game copy: 71 of 71 main blocks (26 at 1024, 45 at 2048) have exactly this tail's length]
+[data: spec/probes/terrain.py, 2026-11-22: DICE's 30 main blocks: offsets, runs, padding and tree re-encoded byte for byte on 30 of 30; A = 4n + runs + padding on 30]
 
 ### TERR-HF-5: Sub-terrain tail: a min / max quadtree
 
@@ -160,6 +169,57 @@ games).
 [test: bfbc2-console-convert/tests/test_console_f2a_native.py::heightfield_x]
 [doc: bfbc2-console-convert/terrain.py:24-26]
 
+### TERR-HF-9: The depth map: one byte per sample, run-length coded by rows
+
+Status: **verified** · Variants: PC
+
+The tail's first part is an n x n map of bytes over the main block's samples (rows along z, as the heights), stored
+row by row as runs: each run is two u16, (count, value), with count 1 - n and value 0 - 255; a row's runs add up to n
+samples exactly and are maximal (two neighbouring runs never have the same value); row r's runs start at the u16 index
+`offsets[r]` (the first 0, each row right after the one before). It is the editor's depth map: the main block's
+`TerrainHeightfieldData.DepthFiles` names `Terrains/<T>/<T>-DepthMap.png` on all 30 DICE terrains (the editor source,
+not shipped, like TEDIT-SRC-1's). DICE's maps are mostly 255 (26 terrains) or mostly 0 (MP_001 96 %, MP_004 98 %,
+SP_01 100 %, NAM_MP_006 66 %), with soft edges; on MP_005 the 0 cells are the town's building footprints. What the
+value limits (presumably how deep a crater may cut, `DefaultFullDepthEnable` being TerrainData's default for it,
+DSTR-TERR-4) is not traced in the executable.
+
+[test: core/tests/test_spec_probes.py::height_field_tails]
+[data: spec/probes/terrain.py, 2026-11-22: 30 main blocks: every row's runs sum to n, maximal on 30 of 30; share of 255 / 0 per terrain as printed; DepthFiles one DepthMap.png per main TerrainHeightfieldData on 30 terrains]
+[inferred: the meaning, from the editor field's name, MP_005's footprints and DSTR-TERR-4; nothing read in the executable]
+
+### TERR-HF-10: The main block's min / max tree
+
+Status: **verified** · Variants: PC
+
+After the padding comes a min / max tree of the heights, as a sub-terrain's (TERR-HF-5) but over the main block:
+(min u16, max u16) per node, the root first, then each level's nodes row by row (rows along z), down to cells of 16
+samples (64 x 64 cells at n = 1024: 5,461 nodes; 128 x 128 at 2048: 21,845). A node of side s covers its s x s samples
+and the row and column after them (the next cell's first, where the block has one), so neighbouring nodes overlap by
+one sample and bound the triangles between them. A writer computes it from the heights: on 30 of 30 DICE terrains the
+computed tree equals the file's.
+
+[test: core/tests/test_spec_probes.py::height_field_tails]
+[data: spec/probes/terrain.py, 2026-11-22: computed trees equal the stored ones on 30 of 30 main blocks]
+
+### TERR-HF-11: The lower envelope: grids of 2 to n / 8 + 1 vertices a side
+
+Status: **verified** · Variants: PC
+
+The tail ends with grids of u16 heights (the same scale as TERR-HF-2), the coarsest first: sides 2, 3, 5, 9, ...,
+n / 8 + 1 (2 - 129 at n = 1024, 22,363 values; 2 - 257 at 2048, 88,412), vertex (i, j) at sample (i, j) times
+n / (side minus 1), rows along z. Each grid is a surface under the terrain: drawn as triangles split like TERR-HF-3, the finest grid
+lies at or under every height sample on 15 of DICE's 30 terrains and on at least 99.48 % of samples on the other 15
+(where it pokes through, presumably DICE edited the heights after the envelope was built); coarser grids lie lower
+still (the 2 x 2 grid of MP_001 starts 7,600 units, 58 m, under its lowest sample). How DICE computes it is not
+reproduced: a vertex is at or under the sample it stands on everywhere but on SP_02, and greedy lowering of the
+samples (each square's overshoot taken off its corners) matches only 17 - 24 % of the vertices. Its use is not
+traced either; a lower bound of this kind is what a terrain occluder or a coarse collision test needs. A writer of a
+new main block (E7) writes any surface that stays under the heights (TEDIT-HF-3).
+
+[test: core/tests/test_spec_probes.py::height_field_tails]
+[data: spec/probes/terrain.py, 2026-11-22: sizes 22,363 / 88,412 values on 30 of 30; share of samples at or under each grid per terrain as printed; the finest grid under all samples on 15]
+[inferred: stale envelopes from edited heights; the use from the shape of the data (a conservative lower surface per level of detail)]
+
 ## 3. TerrainMaterialMap
 
 ### TERR-MM-1: Layout
@@ -170,17 +230,64 @@ Status: **verified** · Variants: PC, Xbox 360, BF1943
 |---|---|---|
 | width | u32 | 2048 or 4096 |
 | block count b | u16 | 32 or 128 |
-| b blocks | u32 length, length bytes, 256 x u16 | the material data (bytes as they are) and a 256-entry u16 table |
-| names | u32 length, length bytes, to the end of the file | the material names, NUL-separated |
+| b blocks | u32 length, length bytes, 256 x u16 | a block's 256 coded rows (TERR-MM-2), then each row's length in bytes |
+| names | u32 length, length bytes, to the end of the file | the material names, each ending in a NUL (TERR-MM-4) |
 
 The names section ends exactly at the end of the file. The Xbox 360 file swaps the u32 / u16 fields and the
-256-entry tables; the data bytes and names are the same on both.
+256-entry tables; the data bytes and names are the same on both. A block's 256 lengths add up to its byte length.
 
 [code: rust/bc2-convert/src/terrain.rs:208-240]
 [code: rust/bc2-convert/src/terrain.rs:246]
 [test: bfbc2-console-convert/tests/test_console_f2a_native.py::material_map_x]
 [test: bfbc2-console-convert/tests/test_terrain.py::main]
 [data: game copy: (width, blocks) = (4096, 128) x 41, (2048, 32) x 12; all 20 BFBC2 Xbox / PC twin levels convert byte for byte; BF1943's Wake Island, Iwo Jima, Guadalcanal read the same way]
+[data: spec/probes/terrain.py, 2026-11-22: DICE's 30 material maps: the row lengths add up to each block's length on 30 of 30]
+
+### TERR-MM-2: A row: pairs of 4-bit cells, a repeated byte starts a run
+
+Status: **verified** · Variants: PC
+
+A block is 512 x 256 cells: 256 rows of 512 cells, each row coded on its own. Each byte holds two neighbouring cells'
+material indices, the first (lower x) in the low four bits. A byte equal to the byte just before it is not a cell
+pair: it is followed by a count byte c, and the pair is repeated c times more, so `X X c` stands for c + 1 pairs (at
+most 256, a whole row); after a run the next byte starts afresh. DICE writes every maximal run of two or more equal
+pairs as `X X c` (longer than 256 pairs split into such runs) and a single pair as its byte, which re-encodes all 30
+DICE maps byte for byte.
+
+[test: core/tests/test_spec_probes.py::material_maps]
+[data: spec/probes/terrain.py, 2026-11-22: 30 of 30 DICE material maps decode to 256 pairs on every row and re-encode byte for byte]
+
+### TERR-MM-3: The cells cover the main block, rows along z
+
+Status: **verified** · Variants: PC
+
+The blocks tile a width x width map row by row (width / 512 blocks a row: 8 x 16 blocks at 4,096, 4 x 8 at 2,048);
+cell rows run along z and columns along x like the heights (TERR-HF-2), and the map covers the main block's bounds
+exactly, so a cell is n / width metres: 0.5 m on 27 of DICE's 30 terrains (4,096 cells on a 2,048 m terrain, 2,048 on a
+1,024 m one) and 0.25 m on MP_001, MP_002 and MP_008 (4,096 on 1,024 m). The orientation is the one under which the
+sea-bed material lies where the ground is low: on six terrains the correlation of SeaBed cells with height is -0.55 to
+-0.89 so, against -0.21 to +0.60 transposed or spread over twice the area.
+
+[test: core/tests/test_spec_probes.py::material_maps]
+[data: spec/probes/terrain.py, 2026-11-22: (width, rows) (4096, 4096) x 22, (2048, 2048) x 8; cells per metre 2 x 27, 4 x 3]
+[data: SPG2-rest scratch measurement, 2026-11-22: SeaBed against height on mp_001, MP_002, MP_004, MP_005, MP_008, MP_009, for the four placements]
+
+### TERR-MM-4: Indices name materials of the level's grid by name
+
+Status: **verified** · Variants: PC
+
+A cell's index is a position in the map's own names list (the resource's names, the same list as the editor partition
+`Terrains/<T>/<T>-MaterialMap`'s `TerrainMaterialMapAsset.MaterialNames`, whose `MaterialMapFileName` names the
+editor's `<T>-terrainmaterials.png`). Index 0 is `defaultmaterial` on 30 of 30; maps name 1 - 10 materials (4 bits
+allow 16). Every name is a `MaterialData` name of the level's material grid (MAT-GRID-1), matched without case: the
+grids of the 31 levels whose bundle holds one terrain hold every name of that terrain's map, never at the same
+indices (MAT-GRID-2), so the engine resolves the names to the grid when the level loads. Over DICE's maps the 201
+names are 146 of the Terrain category (grass, dirt, sand, tarmac, gravel, seabed, snow, ...), 30 Default
+(`defaultmaterial`), 25 Construction (stone 22, concrete 3). Painting a material (TEDIT-MM-1) writes its index; a material the map lacks is
+added to the names, and must be in the grid of every level that uses the terrain.
+
+[test: core/tests/test_spec_probes.py::material_maps]
+[data: spec/probes/terrain.py and SPG2-rest's scratch scan, 2026-11-22: 30 maps, 1 - 10 names, defaultmaterial first on 30; 31 paired grids hold all names, same indices on 0; the 201 names' categories in DICE's grids as given]
 
 ## 4. VisualTerrain
 
@@ -223,15 +330,18 @@ Status: **verified** · Variants: PC, Xbox 360
 
 A patch shader: its patch mask shader entry name, its undergrowth mask shader name (may be empty), u32 layer
 count (1-8), u32 tiled-mask count (0-4), u32 g groups, each u32 k undergrowth meshes of (mesh name, a second string,
-a shader name, 12 x f32, u8 1, u8 0). The second string is empty on every DICE terrain but NAM_MP_003, whose 30
-entries name `<mesh>/<guid>` there: the suite's reader skips one byte for it (the empty string) and so refuses
-NAM_MP_003's visual terrain (VEG-UG-2). The shader name is empty on 1,978 of 3,069 entries.
+a shader name, 12 x f32, u8 1, u8 0): the fields of the engine's `TerrainUndergrowthType` (VEG-UG-3). The second
+string is empty on every DICE terrain but NAM_MP_003, whose 30 entries name `<mesh>/<guid>` there; the suite's reader
+took it as one byte until round SPG2-rest and so refused NAM_MP_003's visual terrain (VEG-UG-2). The shader name is
+empty on 1,978 of 3,069 entries.
 
 A layer is either **tiled** (it reads a mask-atlas tile; the tiled count says how many) or a **rule** layer (base,
 slope, destruction, sea floor: computed, no tile).
 
-[code: rust/bc2-render/src/terrain.rs:206-224]
+[code: rust/bc2-render/src/terrain.rs:245-280]
 [test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
+[test: rust/bc2-render/src/terrain.rs::undergrowth_entries_read_their_asset_string]
+[test: rust/bc2-render/tests/visual_terrains.rs::every_dice_visual_terrain_reads_with_its_undergrowth]
 [doc: rust/bc2-render/src/terrain.rs:1-15]
 [data: spec/probes/terrain.py, 2026-11-22: 30 DICE visual terrains, 1,515 patch shaders, 3,069 undergrowth entries, every one ending 01 00; second string set on 30 (NAM_MP_003), shader name on 1,091]
 
@@ -316,15 +426,17 @@ soot mesh is the 16-byte header alone. Its full grammar is not part of this file
 
 ## Open questions
 
-- What the main block's tail sections hold (the n offsets, the first section, the fixed part): presumably the
-  height field's compressed LOD / error data; the suite keeps them as they are and never writes a new one from
-  scratch. A new terrain of another size would need them decoded.
+- The main block's tail (TERR-HF-4) is decoded; left: what the engine does with the depth map's values
+  (TERR-HF-9) and the lower envelope (TERR-HF-11), and how DICE built the envelope (the suite's readers still
+  split the tail the old way, `Tail::Sections`; a reader of the four parts is for the round that writes main
+  blocks, E7).
 - Header words 0x24 (= 1 on three blocks) and 0x26 (= 16 on one 2048 block): what the game reads them as.
 - Whether the game accepts main block sizes other than 1024 / 2048 (the converter refuses them; 256-sample blocks
   exist only as sub-terrains in the game copy).
-- The material map's per-block data and 256-entry tables: their encoding (cell -> material index, presumably) is not
-  decoded; the names list's order is the index space.
-- The VisualTerrain mesh entries' 12 floats (density, scale ... 55.0) and the trailing u32 in TERR-VT-3's grammar.
+- The material map is decoded (TERR-MM-2 - TERR-MM-4); left: whether the engine reads the cell under a contact
+  or interpolates, and what `MaterialMaskStepSize` (1 on all 30) changes.
+- The undergrowth entries' fields are named from the executable's type information (VEG-UG-3); which of the
+  three flags the two closing bytes are is inferred.
 - The engine's rule for a tiled mask's atlas coordinate is the renderer's reading, not confirmed by a capture
   (EDITOR_ARCHITECTURE 3.11).
 - The `Terrain` entry: whether the game needs it to exist (it has no data).
