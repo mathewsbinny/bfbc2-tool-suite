@@ -28,6 +28,29 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **The export's rule registry** (round V1): every way an exported level can fail in the game, or be refused by the
+  export, is a named rule with a code (`XVAL-REG-1`), a severity (error, warning or note), a plain-language message
+  and the specification rules it rests on (`spec/transforms/validation.md`). `mapexport rules` lists them;
+  `mapexport validate <project> --game <game>` checks a project as the editor does (exit code 1 on an error).
+- **Live validation in the editor's Problems panel**: after every change the project is checked against the
+  export's rules and DICE's placement tendencies, errors first, each row with its rule's code (its message and
+  spec citations on hover) and a "Go to" link that selects the object and moves the views to it. Notes can be
+  hidden.
+- **Placement warnings from DICE's stock maps** (round L1's study): flag spacing, HQ distances, capture zones,
+  spawn counts and distances, combat-area margins, Rush stage spacing and spawn distances, Squad Deathmatch spawns
+  and vehicles - 49 rules, each finding quoting DICE's range ("Stage 3 is 40 m from stage 2; DICE's Rush stages are
+  93-316 m apart"). Warnings and notes only, never errors; no stock level raises a warning.
+- New export checks: a deleted marker hiding a sound (0xFF2AC2), the terrain bundle the base's own (black tiled
+  cells), Xbox 360 textures or Havok physics in a stage, an edited static group losing members (0xAB4E58), the
+  40 km/h road sign drawn with another level's entries (0x98BD6E), a note that the server and every client need
+  the install; the build refuses an object moved or placed beyond +-2048 m in words.
+
+### Changed
+- Every `mapexport check` line names its rule (`ok     XVAL-REG-1  registration: ...`), and every refusal of
+  `mapexport build` starts with its rule's code. `CheckReport` has the codes beside its lines (`codes`, `lines()`,
+  `findings()`).
+
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
   synthetic build-795745 exe that O2's aptrefs cases write (Trojan:Win32/Bearfoos.A!ml). Round QW2's layout passed

@@ -233,6 +233,23 @@ These warnings show while editing, before an apply:
 - a flag with no spawn;
 - the WW2 profile's kit and asset rules.
 
+**Round V1 (2026-11-21): the rule registry and live validation.** Every way an export can fail in the game, or be
+refused, is a rule of `bc2_levelwrite::rules` with a code, a severity, a plain-language message and its spec
+citations (`spec/transforms/validation.md`; `mapexport rules` lists them). `bc2_levelwrite::validate` checks a
+project as it is edited - the log's files the export cannot write, the mode (offered, complete against its donor, the
+donor changed), the names of the log's `SetNames`, objects the edits moved or made beyond +-2048 m or placing the
+40 km/h sign on a level that does not draw it, vehicle spawners of one team on one spot, the partition's own
+consistency (DbxEditGUI's Level > Check: empty object-list entries, world objects without physics, objects not
+listed, dangling local references; what the base already has is DICE's and left out) - and L1's placement
+tendencies (`bc2_levelwrite::placement`: a Rust port of `l1_measure.py`, 49 rules, warnings and notes quoting the
+stock range; a flag with no spawn is L1-CQ-010). The editor's `validation::Live` runs it after each change (keyed by
+the document's revision; the base's own check and the donor read once) and the Problems panel (`app/problemsui.rs`)
+lists the document's own problems and the findings, errors first, with the rule's code, its message and citations on
+hover and a "Go to" link that selects the object and frames it. `mapexport build` refuses the errors with the code
+first; `mapexport check` names each line's rule. Not yet: objects outside the combat area in general (L1's margins
+cover flags, bases, spawns and M-COMs), spawns with no path (needs NavKit's data), assets not safe to place, the WW2
+kit rule on placements.
+
 ### 3.8 Performance: a hybrid Rust core (the user, 2026-11-16)
 
 The editor must be very fast and use parallelism. The user chose a **hybrid Rust core**:

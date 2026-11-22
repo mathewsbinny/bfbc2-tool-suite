@@ -9,6 +9,9 @@ level.
 - `l1_rules.json` and `l1_rules_check.md`: the 49 proposed rules (IDs `L1-CQ-*`, `L1-RU-*`, `L1-SD-*`, `L1-AL-*`,
   `L1-HT-*`) with thresholds and messages, each run against the stock levels (no stock level raises a warning).
 - `l1_a1_params.json`: a typical layout per mode, the input for the auto-layout round.
+- Round V1 checks the rules live in the map editor (`rust/bc2-levelwrite/src/placement.rs`, a Rust port of
+  `l1_measure.py`'s measurements for them, equal on every stock level; `l1_rules.json` is built into it): warnings
+  and notes in the Problems panel, each quoting the stock range (`spec/transforms/validation.md`, section 3).
 - `scripts/`: the measurement and analysis scripts. They read the game copy's bundles in memory through the suite's
   readers (`OPFOR_ROOT` names the folder holding `game\`): run `l1_measure.py`, then `l1_analyze.py`, `l1_rules.py`
   and `l1_a1.py` (about 35 s).
