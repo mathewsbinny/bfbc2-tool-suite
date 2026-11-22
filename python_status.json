@@ -94,7 +94,7 @@
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
    "lines": 1035,
-   "note": "Rust answers levels, prepare, check, compare, status, install, restore and apply on a DICE base; left: build, all and apply on a NavKit base (navbuild), sample (starts the game)",
+   "note": "Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions",
    "path": "bfbc2-auto-navkit/navkit.py",
    "retiring": "NK5",
    "rust": "bfbc2 navkit (bc2-cli navkit: driver, prepare, apply)",
@@ -605,16 +605,16 @@
    "status": "live"
   },
   {
-   "callers": "navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh, overlay; tests 12",
+   "callers": "navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh; tests 12",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 1258,
-   "note": "graphs to file (NK2), D / F (NK3) and walkability (NK4) are Rust; left: stage, merge_detailed, build_inputs",
+   "lines": 1328,
+   "note": "build is a thin call (NK5: the whole build in Rust); left: the stage / merge_detailed / detail_pass twins the tests read, BuildSettings and the switches the bindings read (rust/BENCHMARKS.md \"NK5\", \"What is left\")",
    "path": "bfbc2-auto-navkit/tools/navbuild.py",
-   "retiring": "NK5",
-   "rust": "bc2_navbuild (graphfile, detail, rules, parity)",
-   "status": "partly"
+   "retiring": "NK5-rest",
+   "rust": "bc2_navbuild::build / ::stage (navkit_build, navkit_stage_grid)",
+   "status": "twin"
   },
   {
    "callers": "navkit.py, navparity; tests 3",
@@ -734,7 +734,7 @@
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
    "lines": 265,
-   "note": "the regression builds run navbuild; level_water / reference_bounds / order_points_of move with NK5",
+   "note": "the regression builds call navbuild.build (Rust since NK5); left: the run, its inputs and measures in Python",
    "path": "bfbc2-auto-navkit/tools/navregress.py",
    "retiring": "NK5",
    "rust": "bfbc2 navregress (arguments only)",
@@ -769,10 +769,10 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 776,
-   "note": "obstacle distance in Rust (E4e); left: stage_on_grid runs navbuild.stage",
+   "lines": 787,
+   "note": "obstacle distance (E4e) and stage_on_grid / write (NK5: navkit_stage_grid) in Rust; left: the flood, the seeds and the command line",
    "path": "bfbc2-auto-navkit/tools/navvehicle.py",
-   "retiring": "NK5",
+   "retiring": "NK5-rest",
    "rust": "bc2_navbuild vehicle (navkit_obstacle_distance)",
    "status": "partly"
   },
@@ -3923,11 +3923,23 @@
    "status": "stays"
   },
   {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
+   "lines": 109,
+   "note": "round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory)",
+   "path": "rust/parity_nk5_build.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
    "callers": "by hand; tests/test_repo.py",
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 821,
+   "lines": 825,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4412,8 +4424,8 @@
  ],
  "totals": {
   "all": {
-   "files": 362,
-   "lines": 105252
+   "files": 363,
+   "lines": 105446
   },
   "by_folder": {
    "(root)": {
@@ -4440,14 +4452,14 @@
    },
    "bfbc2-auto-navkit": {
     "files": 61,
-    "lines": 16241,
+    "lines": 16322,
     "live": 1815,
-    "partly": 5671,
+    "partly": 4424,
     "ported": 272,
     "retired-pending": 0,
     "stays": 0,
     "test": 5734,
-    "twin": 2749
+    "twin": 4077
    },
    "bfbc2-automated-map-and-bot-test-harness": {
     "files": 15,
@@ -4626,13 +4638,13 @@
     "twin": 0
    },
    "rust": {
-    "files": 30,
-    "lines": 5230,
+    "files": 31,
+    "lines": 5343,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 4963,
+    "stays": 5076,
     "test": 267,
     "twin": 0
    },
@@ -4665,8 +4677,8 @@
     "lines": 6048
    },
    "partly": {
-    "files": 21,
-    "lines": 18271
+    "files": 20,
+    "lines": 17024
    },
    "ported": {
     "files": 21,
@@ -4677,16 +4689,16 @@
     "lines": 310
    },
    "stays": {
-    "files": 53,
-    "lines": 8681
+    "files": 54,
+    "lines": 8794
    },
    "test": {
     "files": 188,
     "lines": 49976
    },
    "twin": {
-    "files": 55,
-    "lines": 19395
+    "files": 56,
+    "lines": 20723
    }
   }
  }

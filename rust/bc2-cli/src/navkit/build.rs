@@ -157,7 +157,10 @@ fn stale_detailed_samples(
     sectors: &[(i64, i64)],
     (xoff, zoff): (i64, i64),
 ) -> PyResult<()> {
-    let redo = format!(" - sample them again (navkit.py sample {} --pitch 0.2)", lv.to_uppercase());
+    let redo = format!(
+        " - sample them again (navkit.py sample {} --pitch 0.2)",
+        lv.to_uppercase()
+    );
     let g = sample_grid(p02)?;
     if (g.0 - 0.2).abs() > 1e-4 {
         return Err(navkit_error(format!(
@@ -202,7 +205,11 @@ fn points(v: &Value) -> PyResult<Vec<(f64, f64, f64)>> {
     let l = v.as_list().ok_or(Fail::Python)?;
     l.iter()
         .map(|p| match p.as_list() {
-            Some([x, y, z]) => Ok((x.as_f64().ok_or(Fail::Python)?, y.as_f64().ok_or(Fail::Python)?, z.as_f64().ok_or(Fail::Python)?)),
+            Some([x, y, z]) => Ok((
+                x.as_f64().ok_or(Fail::Python)?,
+                y.as_f64().ok_or(Fail::Python)?,
+                z.as_f64().ok_or(Fail::Python)?,
+            )),
             _ => Err(Fail::Python),
         })
         .collect()
@@ -416,7 +423,8 @@ pub fn run_build(
     if let Some(e) = lg.err {
         return Err(e);
     }
-    got.map(drop).map_err(|e| Fail::Err(PyErr::new("RuntimeError", e.to_string())))
+    got.map(drop)
+        .map_err(|e| Fail::Err(PyErr::new("RuntimeError", e.to_string())))
 }
 
 /// `navkit.build(pr, lv, cfg=cfg)`.
@@ -448,7 +456,9 @@ pub fn build_level(py: &mut Py, pr: &Project, lv: &str, no_detail: bool) -> PyRe
 pub fn edits_of(ops: &[Value]) -> PyResult<Edits> {
     let mut e = Edits::default();
     for o in ops {
-        let Some(name) = o.get("op").and_then(Value::as_str) else { continue };
+        let Some(name) = o.get("op").and_then(Value::as_str) else {
+            continue;
+        };
         if !matches!(name, "walkable" | "unwalkable" | "seed" | "unseed") {
             continue;
         }
@@ -480,7 +490,9 @@ fn region_of(r: Option<&Value>) -> PyResult<Region> {
     let r = r.ok_or(Fail::Python)?;
     let f = |v: &Value| v.as_f64().ok_or(Fail::Python);
     if let Some(b) = r.get("box") {
-        let Some([a, b2, c, d, e, g]) = b.as_list() else { return Err(Fail::Python) };
+        let Some([a, b2, c, d, e, g]) = b.as_list() else {
+            return Err(Fail::Python);
+        };
         return Ok(Region::Box([f(a)?, f(b2)?, f(c)?, f(d)?, f(e)?, f(g)?]));
     }
     let Some([lo, hi]) = r.get("y").and_then(Value::as_list) else {

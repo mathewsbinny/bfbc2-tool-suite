@@ -3,11 +3,27 @@
 //! inputs ([`Inputs`]; `navkit.build_inputs` / `navregress.build_level` gather them, [`crate::inputs`] in Rust) to
 //! the path data and the build's log lines, the same lines and bytes the Python build gave.
 
+#![allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::struct_excessive_bools,
+    clippy::indexing_slicing,
+    clippy::float_cmp,
+    clippy::items_after_statements,
+    clippy::manual_midpoint,
+    clippy::format_push_string,
+    clippy::type_complexity,
+    reason = "the reference's single-letter names (x, y, i, j, k, g ...) and its long step-by-step functions kept for               side-by-side reading; the settings are the module's switches; indexes into lists made beside them;               == and (a + b) / 2.0 as the Python computes them"
+)]
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use crate::graphfile::{self, FileSettings, Layout};
-use crate::stage::{self, BuildSettings, BuildStats, Ground, GridInfo, Log, StageArgs, StageGraph, Switches, py_g, py_repr};
+use crate::stage::{
+    self, BuildSettings, BuildStats, GridInfo, Ground, Log, StageArgs, StageGraph, Switches, py_g, py_repr,
+};
 use crate::trace::P3;
 use crate::walk::{self, Ladder, Region, StageInputs, Tris, WalkInputs, WalkSettings, WaterMesh};
 use crate::{Floats, Level, LevelData, NavError};
@@ -484,9 +500,18 @@ pub fn read_tris_npy(path: &Path) -> Result<Option<Tris>, NavError> {
     }
     let major = data.get(6).copied().unwrap_or(0);
     let (hlen, start) = match major {
-        1 => (usize::from(u16::from_le_bytes([data.get(8).copied().unwrap_or(0), data.get(9).copied().unwrap_or(0)])), 10),
+        1 => (
+            usize::from(u16::from_le_bytes([
+                data.get(8).copied().unwrap_or(0),
+                data.get(9).copied().unwrap_or(0),
+            ])),
+            10,
+        ),
         2 | 3 => {
-            let b: [u8; 4] = data.get(8..12).and_then(|s| s.try_into().ok()).ok_or_else(|| bad("cut short"))?;
+            let b: [u8; 4] = data
+                .get(8..12)
+                .and_then(|s| s.try_into().ok())
+                .ok_or_else(|| bad("cut short"))?;
             (u32::from_le_bytes(b) as usize, 12)
         }
         _ => return Err(bad("an unknown .npy version")),

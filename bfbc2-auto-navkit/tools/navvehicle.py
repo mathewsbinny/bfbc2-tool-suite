@@ -544,21 +544,32 @@ def vehicle_settings(detail=None):
 
 
 def stage_on_grid(s, keep, xoff, zoff, log=print, detail=None):
-    """navbuild.stage on a ready walkability grid: the surfaces `s` (Samples at PITCH) and the kept ones, with the
-    vehicle settings - no sample loading or infantry walkability (navsample.load, navwalk.walkable).
-    Returns navbuild.stage's result ('graphs' ready for navbuild.write_file)."""
+    """navbuild's stage on a ready walkability grid: the surfaces `s` (Samples at PITCH) and the kept ones, with the
+    vehicle settings - no sample loading or infantry walkability. In the Rust core (round NK5:
+    bc2_navbuild::stage through bc2_native.navkit_stage_grid); the graphs stay there.
+    Returns {'graphs': the stage's graphs} for write."""
     import navbuild
+    import navwalk
+    nat = navbuild.require_native()
     gx, gz = gradients(s)
-    navbuild.ORDER_IDS.clear()
-    navbuild.LADDER_STATS.clear()
-    return navbuild.stage(None, None, xoff, zoff, step=STEP_MAX, log=log, cfg=vehicle_settings(detail),
-                          grid=(s, keep, gx, gz, np.zeros(len(s.y), bool)))
+    walk, gxa, gza, stair = navwalk.grid_arrays(keep, gx, gz, np.zeros(len(s.y), bool))
+    terrain = (s.hit[:, 0] == navwalk.TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(s.y), bool)
+    grid = (int(s.nx), int(s.nz), float(s.min_x), float(s.min_z), float(s.pitch),
+            np.ascontiguousarray(s.start, '<i8').tobytes(), np.ascontiguousarray(s.y, '<f8').tobytes(), walk.tobytes(),
+            (gxa.tobytes(), gxa.dtype == np.float32), (gza.tobytes(), gza.dtype == np.float32), stair.tobytes(),
+            np.ascontiguousarray(terrain, bool).tobytes())
+    graphs = nat.navkit_stage_grid(grid, int(xoff), int(zoff), float(STEP_MAX),
+                                   navbuild._cfg_dict(vehicle_settings(detail)), navbuild._switches(), log, time.time())
+    return {'graphs': graphs}
 
 
 def write(result, out_path, log=print, t0=None):
+    """The stage's path data to out_path (navbuild's write_file without anchors or order nodes: no shadow islands),
+    in the Rust core."""
     import navbuild
-    navbuild.ORDER_IDS.clear()
-    navbuild.write_file(result['graphs'], out_path, log, t0 or time.time(), vehicle_settings())
+    nat = navbuild.require_native()
+    nat.navkit_write_stage(result['graphs'], out_path, navbuild._cfg_dict(vehicle_settings()), navbuild._switches(),
+                           navbuild._clock(time.localtime()), False, log, t0 or time.time())
 
 
 # ---------------------------------------------------------------------------------------------- level inputs

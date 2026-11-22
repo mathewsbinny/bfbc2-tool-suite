@@ -13,6 +13,23 @@
 //! The floats are the Python's: the same `f64` operations in the same order (`int * float` as `float(int) * float`,
 //! `math.hypot` as [`crate::pymath::hypot`], `round()` half to even).
 
+#![allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::struct_excessive_bools,
+    clippy::indexing_slicing,
+    clippy::float_cmp,
+    clippy::items_after_statements,
+    clippy::manual_midpoint,
+    clippy::format_push_string,
+    clippy::type_complexity,
+    clippy::single_match_else,
+    clippy::option_if_let_else,
+    clippy::map_unwrap_or,
+    reason = "the reference's single-letter names (x, y, i, j, k, g ...) and its long step-by-step functions kept for               side-by-side reading; the settings are the module's switches; indexes into lists made beside them;               == and (a + b) / 2.0 as the Python computes them"
+)]
+
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use bc2_formats::kymesh;
@@ -573,10 +590,7 @@ pub fn drop_one_way(per_area: &mut [EdgeRows], one_way: &[OneWay], keep: &BTreeS
 }
 
 /// `restore_one_way`: which one-way candidates to keep (`ONE_WAY_PORTALS` `'restore'`), per sector.
-fn restore_one_way(
-    sectors: &[SectorInfo],
-    edges: &[(Vec<EdgeRows>, Vec<OneWay>)],
-) -> Vec<BTreeSet<usize>> {
+fn restore_one_way(sectors: &[SectorInfo], edges: &[(Vec<EdgeRows>, Vec<OneWay>)]) -> Vec<BTreeSet<usize>> {
     let mut ids: FastMap<(usize, usize), usize> = FastMap::default();
     let mut parent: Vec<usize> = Vec::new();
     let mut id = |x: (usize, usize), parent: &mut Vec<usize>| -> usize {
@@ -700,10 +714,7 @@ fn half_cells(level: &Level, cells: &[Cell], gi0: i64, gj0: i64) -> (Vec<(Side, 
                 continue;
             }
             let y0 = (level.y(k) + level.y(kb)) / 2.0;
-            for ((xi, xj), legs) in [
-                ((i, j + dj), [(0, -dj), (di, 0)]),
-                ((i + di, j), [(-di, 0), (0, dj)]),
-            ] {
+            for ((xi, xj), legs) in [((i, j + dj), [(0, -dj), (di, 0)]), ((i + di, j), [(-di, 0), (0, dj)])] {
                 let col = level.column_surfaces(gi0 + xi, gj0 + xj);
                 let mut best: Option<(f64, usize)> = None;
                 for q in col {
@@ -811,7 +822,9 @@ fn detail_pass(
             Ok(match *c {
                 Candidate::Side(((i, j), (di, dj))) => {
                     let (x, l, d, al) = side_key(i, j, di, dj);
-                    !linked.contains(&(x, l, d, al)) && !linked.contains(&(x, l, -d, al)) && breaks((i, j), (i + di, j + dj))
+                    !linked.contains(&(x, l, d, al))
+                        && !linked.contains(&(x, l, -d, al))
+                        && breaks((i, j), (i + di, j + dj))
                 }
                 Candidate::Leg(((i, j), (di, dj))) => breaks((i, j), (i + di, j + dj)),
             })
@@ -984,11 +997,19 @@ pub fn stage(
     let g = ground.grid;
     let (xoff, zoff) = (args.xoff, args.zoff);
     let kept = level.keep().iter().filter(|&&b| b).count();
-    let mut line = format!("{} surfaces, {kept} walkable kept ({:.0} s)", level.len(), log.seconds());
-    if sw.roof_prune && let Some((d, n)) = ground.roof {
+    let mut line = format!(
+        "{} surfaces, {kept} walkable kept ({:.0} s)",
+        level.len(),
+        log.seconds()
+    );
+    if sw.roof_prune
+        && let Some((d, n)) = ground.roof
+    {
         line.push_str(&format!("; roof islands dropped {d} ({n} surfaces)"));
     }
-    if sw.objective_floor && let Some((p, n)) = ground.objective {
+    if sw.objective_floor
+        && let Some((p, n)) = ground.objective
+    {
         line.push_str(&format!("; objective floors {p} ({n} surfaces)"));
     }
     log.line(&line);
@@ -1013,8 +1034,7 @@ pub fn stage(
     let sectors: Vec<(i64, i64)> = found.into_iter().collect();
     if sectors.is_empty() && args.sector_filter.is_none() {
         return Err(NavError::Build(
-            "no walkable ground was kept (the samples hold none inside the box): check the box and the samples"
-                .into(),
+            "no walkable ground was kept (the samples hold none inside the box): check the box and the samples".into(),
         ));
     }
     let bad: Vec<&(i64, i64)> = sectors
@@ -1153,7 +1173,11 @@ pub fn stage(
                     let at = ((q as f64 + 0.5) * len / n as f64) as usize;
                     let Some(&(t, k)) = run.get(at) else { continue };
                     let (i, j) = if dx != 0 { (line_at, t) } else { (t, line_at) };
-                    let pos = (ox + i as f64 * cfg.pitch, level.y(k) + cfg.y_offset, oz + j as f64 * cfg.pitch);
+                    let pos = (
+                        ox + i as f64 * cfg.pitch,
+                        level.y(k) + cfg.y_offset,
+                        oz + j as f64 * cfg.pitch,
+                    );
                     if let Some(&(nid, p)) = border_at.get(&k) {
                         for sec in [(x, y), other] {
                             let list = border_nodes.entry(sec).or_default();
@@ -1200,7 +1224,9 @@ pub fn stage(
                             let size = inf.cells.get(ai).map_or(0, Vec::len);
                             let c = (size < 25, dxz, k);
                             let better = best.is_none_or(|b| {
-                                (c.0, c.1).partial_cmp(&(b.0, b.1)).is_some_and(|o| o.is_lt())
+                                (c.0, c.1)
+                                    .partial_cmp(&(b.0, b.1))
+                                    .is_some_and(std::cmp::Ordering::is_lt)
                                     || ((c.0, c.1) == (b.0, b.1) && c.2 < b.2)
                             });
                             if better {
@@ -1553,7 +1579,10 @@ pub fn detailed_seeds(a: &Stage, dset: &BTreeSet<(i64, i64)>, xoff: i64, zoff: i
 pub fn carried_nodes(
     a: &Stage,
     dset: &BTreeSet<(i64, i64)>,
-) -> (BTreeMap<(i64, i64), Vec<(u32, P3)>>, BTreeMap<u32, BTreeSet<(i64, i64)>>) {
+) -> (
+    BTreeMap<(i64, i64), Vec<(u32, P3)>>,
+    BTreeMap<u32, BTreeSet<(i64, i64)>>,
+) {
     let mut owners: BTreeMap<u32, BTreeSet<(i64, i64)>> = BTreeMap::new();
     for (sec, nodes) in &a.border_nodes {
         for n in nodes {
@@ -1585,7 +1614,10 @@ pub fn merge(
     let built = b.sector_set();
     let missing: Vec<&(i64, i64)> = dset.iter().filter(|s| !built.contains(s)).collect();
     if !missing.is_empty() {
-        let ids: Vec<String> = missing.iter().map(|&&(x, y)| format!("{:04x}", sector_id(x, y))).collect();
+        let ids: Vec<String> = missing
+            .iter()
+            .map(|&&(x, y)| format!("{:04x}", sector_id(x, y)))
+            .collect();
         log.line(&format!(
             "detailed pass: {} sectors without ground at pitch {} kept at the normal pitch: {}",
             missing.len(),
@@ -1617,9 +1649,10 @@ pub fn merge(
     let b_links: Vec<Vec<kymesh::NeighbourLink>> = (0..b.sectors.len())
         .into_par_iter()
         .map(|n| {
-            let portals: Vec<usize> = b.graphs.get(n).map_or_else(Vec::new, |g| {
-                g.mesh.areas.iter().map(|ar| ar.portals.len()).collect()
-            });
+            let portals: Vec<usize> = b
+                .graphs
+                .get(n)
+                .map_or_else(Vec::new, |g| g.mesh.areas.iter().map(|ar| ar.portals.len()).collect());
             let across = (!a_scope.is_empty()).then_some(Across {
                 stage: &a,
                 scope: &a_scope,
@@ -1634,15 +1667,19 @@ pub fn merge(
         .collect::<Vec<_>>()
         .into_par_iter()
         .map(|n| {
-            let portals: Vec<usize> = a.graphs.get(n).map_or_else(Vec::new, |g| {
-                g.mesh.areas.iter().map(|ar| ar.portals.len()).collect()
-            });
+            let portals: Vec<usize> = a
+                .graphs
+                .get(n)
+                .map_or_else(Vec::new, |g| g.mesh.areas.iter().map(|ar| ar.portals.len()).collect());
             let across = (!b_scope.is_empty()).then_some(Across {
                 stage: &b,
                 scope: &b_scope,
                 p_here: a.pitch,
             });
-            (n, sector_links(&a, n, &portals, sw.link_rule, &a_scope, across.as_ref()))
+            (
+                n,
+                sector_links(&a, n, &portals, sw.link_rule, &a_scope, across.as_ref()),
+            )
         })
         .collect();
     for (g, l) in b.graphs.iter_mut().zip(b_links) {
@@ -1707,3 +1744,7 @@ pub fn file_inputs(graphs: &[StageGraph]) -> Result<(Vec<SectorGraph>, Vec<Vec<u
         .collect();
     Ok((sg, meshes))
 }
+
+#[cfg(test)]
+#[path = "stage_tests.rs"]
+mod tests;
