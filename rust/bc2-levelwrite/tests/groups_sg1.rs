@@ -12,7 +12,7 @@
 //!   files the same bytes as an export of the same project without the member edits.
 //!
 //! Reads OPFOR's game copy (beside the suite, or `OPFOR_GAME`); writes only into a temporary folder (or
-//! `BC2_SG1_STAGE\<level>`, kept for the install round trip); skipped without a game copy.
+//! `BC2_MEMBER_EDIT_STAGE\<level>`, kept for the install round trip); skipped without a game copy.
 #![allow(
     clippy::unwrap_used,
     clippy::print_stdout,
@@ -209,7 +209,7 @@ fn an_export_deletes_moves_and_adds_members() {
         return;
     };
     let game = Game::open(&dir).unwrap();
-    let keep = std::env::var_os("BC2_SG1_STAGE").map(PathBuf::from);
+    let keep = std::env::var_os("BC2_MEMBER_EDIT_STAGE").map(PathBuf::from);
     let tmp = std::env::temp_dir().join(format!("bc2_levelwrite_sg1_{}", std::process::id()));
     for (lv, profile, name) in [
         ("wake_island_s", Profile::Ww2, "MAPEDIT_SG1_WAKE"),
