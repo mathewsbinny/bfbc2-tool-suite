@@ -1000,6 +1000,193 @@
    ]
   },
   {
+   "id": "FX-CLS-1",
+   "title": "An effect is an EffectAsset; an emitter is an EmitterDocument",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters on the game copy, 2026-11-22: 4,285 partitions; primary classes EmitterDocument 2,882, EffectAsset 998, WaveAsset 322, SoundTemplate 69, RigidMeshAsset 5, ObjectBlueprint 5, MeshShaderSetAsset 3; 2,882 EmitterTemplateData"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/overlays.rs:568-600"
+    }
+   ]
+  },
+  {
+   "id": "FX-CLS-2",
+   "title": "An emitter's spawn volume is its SpawnPositionData's evaluator",
+   "file": "spec/engine/effects.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/overlays.rs:582-600"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/overlays.rs::shapes_have_their_sizes"
+    }
+   ]
+  },
+  {
+   "id": "FX-CLS-3",
+   "title": "Effect instance and culling settings",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters: MaxInstanceCount and CullDistance over 998 EffectEntityData"
+    }
+   ]
+  },
+  {
+   "id": "FX-NS-1",
+   "title": "Each level keeps its own copy of every emitter it uses",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the bundle entry index of the game copy (research round WX0's entries.json): 28,932 entries with emitters/, 72,550 with fx/; spec/probes/lighting.py emitters: 4,285 distinct names after the level prefix"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: em_amb_sp3_rain_streaks, 11,417 bytes in both levels"
+    }
+   ]
+  },
+  {
+   "id": "FX-ATL-1",
+   "title": "Two atlases per level: L8 alpha and BC5 normals",
+   "file": "spec/engine/effects.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters on the game copy, 2026-11-22: 83 alpha and 83 normals atlases, (format, width, height) as given"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/emitteratlas.py:16-30"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_emitteratlas.py::main"
+    }
+   ]
+  },
+  {
+   "id": "FX-ATL-2",
+   "title": "An emitter's TextureInfo places its image in the atlases",
+   "file": "spec/engine/effects.md",
+   "status": "verified",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/emitteratlas.py:16-30"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/emitteratlas.py:185-232"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_emitteratlas.py::main"
+    }
+   ]
+  },
+  {
+   "id": "FX-ATL-3",
+   "title": "An emitter moved to another level must be re-pointed into that level's atlas",
+   "file": "spec/engine/effects.md",
+   "status": "verified",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_emitteratlas.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_emitter_atlas.py::test_install_swaps_the_atlases_and_emitters"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/emitter_atlas.py:136-195"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/EMITTER_ATLAS.md:23-45"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/EMITTER_ATLAS.md:132-150"
+    }
+   ]
+  },
+  {
+   "id": "FX-ATL-4",
+   "title": "The same rule binds every cross-level copy",
+   "file": "spec/engine/effects.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "FX-NS-1 and FX-ATL-3 hold for every emitter, not only the WW2 ports; the map export's cross-level copy (E3d) moves emitters but no export yet merges atlases"
+    }
+   ]
+  },
+  {
+   "id": "FX-PLACE-1",
+   "title": "Effects are placed with GameEffectEntityData",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: 13,083 placed GameEffectEntityData in 82 level partitions; 3,024 camera-proximity in 62"
+    }
+   ]
+  },
+  {
+   "id": "FX-PLACE-2",
+   "title": "A weather grid is many camera-proximity area effects",
+   "file": "spec/engine/effects.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "DICE's grids measured by WX0; the cost of a denser grid is unknown"
+    }
+   ]
+  },
+  {
+   "id": "FX-PLACE-3",
+   "title": "Emitters can act as point lights",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters on the game copy, 2026-11-22: 35 point-light templates by folder; Emissive true x 8; MaxCount 1 .. 201"
+    }
+   ]
+  },
+  {
    "id": "GAME-MODE-1",
    "title": "A mode is a GameModeData partition and the level's entities",
    "file": "spec/engine/gameplay.md",
@@ -2019,6 +2206,424 @@
     {
      "kind": "doc",
      "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1372"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-BAKE-1",
+   "title": "Nothing DICE baked depends on the sun",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0 (2026-11-21): MP_005's terrain map R against computed cast-shadow visibility for every azimuth (6 degree steps) and elevation: a flat azimuth profile, best correlation 0.36; the 51 Dx11 terrain shaders tallied sample R and B only; `_SkyOc` channel difference 0.01"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a per-asset bake shared by every level that places the asset rotated cannot encode one level's sun"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-BAKE-2",
+   "title": "The terrain's colour / occlusion map multiplies the albedo",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: 12 or more levels' maps, 1-4 MB each; 39 patch shaders on MP_005 sample R and B; MP_008's albedo scaled 0.556 .. 0.983 by R; the fit in WX0's ao_model.py"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-BAKE-3",
+   "title": "Objects carry occlusion textures by DICE's suffixes",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked on the game copy, 2026-11-22: distinct ITexture names by suffix as listed"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: 267 `_Oc` shader-parameter uses (70 MB of texture), 44 `_SkyOc` uses, 256-512 texels, DXT1; MP_005's 587 textures by suffix"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-BAKE-4",
+   "title": "There are no classic lightmaps and no Enlighten data",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: no Enlighten resource in any bundle; MP_005's EnlightenSkyColorIntensity 0; the fields vary over the 355 states (21 colours) without anything that reads them"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-BAKE-5",
+   "title": "Interior lightmaps are multipliers, not added light",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the Sub_Pen pixel shaders disassembled"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked: one `_Lightmap` and one `_LightmapColor` texture name in the game copy"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-BAKE-6",
+   "title": "A re-bake keeps DICE's painting (the suite's rule)",
+   "file": "spec/engine/lighting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "WX0's re-bake design (B.4, B.5); nothing implements it yet; the ROADMAP's E5 row folds it into terrain paint"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-IRR-1",
+   "title": "An IrradianceVolume is a 36-byte header and one byte per voxel",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked on the game copy, 2026-11-22: 25 distinct IrradianceVolume resources, 25 of 25 exactly 36 + nx x ny x nz bytes; 8 .. 612,256 voxels a volume; cell size 0.506 .. 1.489 m"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-IRR-2",
+   "title": "The voxels are scalar sky visibility, 51 .. 255",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked: 1,703,118 voxels, minimum 51 (152,495 voxels), maximum 255 (979,692 voxels)"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: the 25 volumes' owners"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-IRR-3",
+   "title": "Objects inside a volume read it as the hemisphere visibility",
+   "file": "spec/engine/lighting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "no shader samples a volume texture; the only per-draw scalar visibility input is the .w of parameter 33, which the object pixel shaders multiply into the ambient and envmap terms (WX0's disassembly)"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:29-35"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-ENV-1",
+   "title": "One StaticEnvmapEntityData per level names its reflection cube",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: 79 StaticEnvmapEntityData in 73 of 83 level partitions; InfluenceRadiusInner 5,000 x 62, 20 x 6, 20,000 x 4, 10,000 x 3; InfluenceRadiusOuter 10,000 x 66, 25 x 6, 30,000 x 4, 20,000 x 2; StaticEnvmap null x 7"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/placement.rs:117-118"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-ENV-2",
+   "title": "The cube is sampled at level 5, faded by the key light and the state's scale",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the Dx11 object shaders' envmap sample disassembled; WX1: the Xbox ONS_MP_002 places a StaticEnvmapEntityData with the same `mp02_envmap`"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: ReflectionEnvmapScale over DICE's 348 outdoor-light partitions"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:856-890"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-OUT-1",
+   "title": "The outdoor light reaches the shaders as engine parameters 30 - 37",
+   "file": "spec/engine/lighting.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:29-35"
+    },
+    {
+     "kind": "data",
+     "ref": "BFBC2's Dx11 databases: the binding tables' engine parameter ids, decoded in OPFOR's Xenos translation (2026-11-07)"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-OUT-2",
+   "title": "Hemisphere ambient by the normal, key light by N.L and the shadow",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the Dx11 object and terrain pixel shaders disassembled"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: ShadowScale 0.01 .. 1 over DICE's 348 outdoor-light partitions"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:315-357"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-1",
+   "title": "One point light per draw",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: MP_005's Dx11 database, 1,648 of 1,714 entries with the pointLight0 permutation, none with a second light; WX1: the permutation on 40 of MP_002's 68 terrain patches and on the WW2 entries"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:29-35"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-2",
+   "title": "An emitter acts as a point light through its template",
+   "file": "spec/engine/lighting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters on the game copy, 2026-11-22: 2,882 EmitterTemplateData, 35 with ActAsPointLight, the field ranges as given"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/overlays.rs:568-581"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/view_toggles.rs::sp_01_lights_collision_states_walk_and_modes"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-3",
+   "title": "DICE's night lamp: radius 10 m, intensity 26, cut at 100 m",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1 (2026-11-21): the Xbox ONS_MP_002 partition under OPFOR's work\\xbox_dlc\\ons_all\\x_002, its 53 GameEffectEntityData named Lightpost<n>; the Package port's level partition: none"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters: one template of colour (0.996, 0.354, 0.004) among the 35 point-light templates"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-4",
+   "title": "DICE places a lamp's light 2.4 m below and 1.6 m in front of its bulb",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: lamp_offsets.py and bulbpos.py over the Xbox ONS_MP_002 placements and the lamppost mesh's LOD0"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-5",
+   "title": "WorldRender.PointLightEntityData exists, on the Vietnam levels only",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: 68 PointLightEntityData in 12 of 83 level partitions, the field values as given"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-6",
+   "title": "Lamp glass is self-lit and glows in every state",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: shaderclass.py over 15 levels' Dx11 databases; the lamppost's three MeshShaderSetAssets"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-7",
+   "title": "The effect's instance cap against 53 lamps is open",
+   "file": "spec/engine/lighting.md",
+   "status": "inferred",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the data contradicts a hard per-effect cap only if all 53 lights are seen; no capture or RE yet"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters: MaxInstanceCount over 998 EffectEntityData"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-8",
+   "title": "Which light wins on a draw is open",
+   "file": "spec/engine/lighting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the single permutation forces a choice; to be settled by RE of the light assignment (RE-a in WX1's plan) or a capture"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-PT-9",
+   "title": "The suite's views draw no point light",
+   "file": "spec/engine/lighting.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:523-525"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/renderqa.py:121-122"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-SKY-1",
+   "title": "The moon is a mesh prop, MP_008's",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: moon placements in mp_008 and mp_008sdm only"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: DynamicSunData Gain 0 x 35 of 348"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX1: the Xbox ONS_MP_002 placement"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-SKY-2",
+   "title": "God rays are props, removed for a night",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights: 40 god-ray placements in 7 levels"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX1: the Xbox ONS_MP_002 partition lacks MP_002's 4 sp11_godrays"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-SKY-3",
+   "title": "DICE's night recipe is data only",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: diff_pair.py over the Xbox MP_002 and ONS_MP_002 partitions (1,460 matched, 82 swapped, 1,439 removed, 645 added; the night's share as listed)"
+    }
+   ]
+  },
+  {
+   "id": "LIGHT-SKY-4",
+   "title": "BF1943 shipped no night and no light",
+   "file": "spec/engine/lighting.md",
+   "status": "observed",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: inventory.py over the four WW2 levels; spec/probes/lighting.py lights: no PointLightEntityData and no camera-proximity or light effect beyond Wake's 21 placed effects"
     }
    ]
   },
@@ -4943,6 +5548,198 @@
     {
      "kind": "doc",
      "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:14-19"
+    }
+   ]
+  },
+  {
+   "id": "WTH-CLS-1",
+   "title": "System, setup, settings, states",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather on the game copy, 2026-11-22: primary classes of the weather/ partitions - WeatherSystemState 355, DynamicOutdoorLightData / DynamicSkyData / DynamicPostProcessData / DynamicSunData / DynamicFogData 353 each, DynamicCloudLayerData 352, DynamicLensFlareData 35, WeatherSystemSettings 30, StaticCloudLayerData / WeatherSystemSetup / WeatherSystemData 28, StaticOutdoorLightData / StaticFogData 27, WeatherSystemEntityData 24, ObjectBlueprint 3, TextureAsset 2, StaticLensFlareData 1"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:231-265"
+    }
+   ]
+  },
+  {
+   "id": "WTH-CLS-2",
+   "title": "A state is values and six component partitions, no textures",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: 355 WeatherSystemState, 353 of each component class, 352 cloud layers"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: the closure of ons_mp_002_night, 8 partitions under weather/, no resources"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::the_night_template_resolves"
+    }
+   ]
+  },
+  {
+   "id": "WTH-RES-1",
+   "title": "Each system has a 4-byte WeatherSystem resource holding 72",
+   "file": "spec/engine/weather.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: resources (bytes, first u32) (4, 72) x 28, (524,380, 3) x 1, (8,284, 3) x 1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:969-1060"
+    }
+   ]
+  },
+  {
+   "id": "WTH-STATE-1",
+   "title": "28 systems, 355 states, 457 slots",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: 28 systems, 457 states listed, 2 .. 53 per system"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: every system used by at least one of 83 levels; the shared systems as listed"
+    }
+   ]
+  },
+  {
+   "id": "WTH-STATE-2",
+   "title": "Most states are scripted; one night, two rain, four snow",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: classify.py over the 355 states (names and values), the counts as listed"
+    }
+   ]
+  },
+  {
+   "id": "WTH-STATE-3",
+   "title": "The value ranges of DICE's states",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather on the game copy, 2026-11-22: the ranges as given, over DICE's state and component partitions"
+    }
+   ]
+  },
+  {
+   "id": "WTH-STATE-4",
+   "title": "Placeholder ActiveStates are dark by value",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: per level ActiveState and spawn switches (inventory_tables), the exposure reach of the placeholder states"
+    }
+   ]
+  },
+  {
+   "id": "WTH-STATE-5",
+   "title": "Campaign levels switch states by script",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the other state entities per level (inventory_tables \"other state entities\")"
+    }
+   ]
+  },
+  {
+   "id": "WTH-FX-1",
+   "title": "Rain and snow are camera-proximity area effects",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the weather effects per level (A.5)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: 13,083 placed GameEffectEntityData in 82 level partitions, 3,024 with IsCameraProximityTriggered in 62"
+    }
+   ]
+  },
+  {
+   "id": "WTH-FX-2",
+   "title": "Weather sounds are sound areas",
+   "file": "spec/engine/weather.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: sound areas per level; the closure sp03_rain_sound"
+    }
+   ]
+  },
+  {
+   "id": "WTH-SUITE-1",
+   "title": "The export sets a state; borrowing appends or swaps",
+   "file": "spec/engine/weather.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:546-815"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md:6419-6450"
+    }
+   ]
+  },
+  {
+   "id": "WTH-SUITE-2",
+   "title": "A borrowed state keeps the target's sky",
+   "file": "spec/engine/weather.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the state holds no texture (WTH-CLS-2) and the static cloud layer is the setup's (WTH-CLS-1); not seen in game"
     }
    ]
   },
