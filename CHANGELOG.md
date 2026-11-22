@@ -28,6 +28,25 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **The bot AI specification's static RE, finished as far as it goes without the game** (round AIS-rest;
+  specification only, no tool changed): the AI body - the proxy's three interfaces and its seat requests
+  (BOT-CTL-6); who writes which slot of the AI input object (BOT-CTL-7: reload and fire as digital actions, the
+  infantry's move target, sprint, weapon slot and aim, the vehicle controls' analog throttle, brake, yaw, pitch and
+  roll); stance, aim state, weapon slot, vehicle weapons and seats set directly (BOT-CTL-8); the creators of goals,
+  behaviours, plans and controls (BOT-RT-9); the vehicle controls (BOT-VEH-5); bots as scored and named players
+  (BOT-SCO-1 to BOT-SCO-4: the name at ServerPlayer +0xC2C, the three tests that keep bots from scoring); a capture
+  point's owner and progress (BOT-GS-3) and the counters' and objectives' classes (BOT-GS-4); where a session's AI
+  difficulty comes from (BOT-DIF-4); one server class for every order and the `IssueOrder` event hash (AIO-RT-1).
+  The bot module's implementation interface is updated and the in-game test of the AI input object is written as a
+  checklist. 12 new rules (69 in the two files).
+
+### Fixed
+- **The bot-kill scoring contradiction** (AI-NEED-5 against PERS-SCORE-1): the player-killed handler returns only for
+  a null victim, so with OPFOR's offline-scoring patch a human's kill of a bot scores; what blocked it offline was the
+  4-client scoring flag. AI-NEED-5, PERS-SCORE-1 and the open-question lists now say so (BOT-SCO-3); a playtest still
+  has to confirm it.
+
 ## [0.16.0] - 2026-11-22
 
 ### Added

@@ -350,6 +350,6 @@ to 1,051 in 59 files before it):
   rule-only cells' leftover flag), TERR-VT-7 (flags 2 - 64, a shared tile on 8 terrains), RNDR-TERR-5 (14 of 30 height
   ranges are not 500 m), LIGHT-PT-3 (the game copy's ONS_MP_002 is OPFOR's console port, not Napisal's), SND-STRM-1's
   moved citation.
-- **Open, recorded as such**: PERS-SCORE-1 contradicts AI-NEED-5 (whether bots' deaths score with the scoring patch);
-  the main height-field tail (E7); the material map; the undergrowth numbers; the processor semantics; the mount
+- **Open, recorded as such**: PERS-SCORE-1 against AI-NEED-5 (settled statically by round AIS-rest, BOT-SCO-3; a
+  playtest confirms); the main height-field tail (E7); the material map; the undergrowth numbers; the processor semantics; the mount
   functions.
