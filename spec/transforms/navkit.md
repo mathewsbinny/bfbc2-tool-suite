@@ -47,6 +47,28 @@ routes, structure); it exits 1 when a measure got worse beyond its tolerance or 
 [code: bfbc2-auto-navkit/tools/navregress.py:191-206] [code: bfbc2-auto-navkit/tools/navregress.py:268-270]
 [doc: bfbc2-auto-navkit/README.md:76-77]
 
+### XNAV-BLD-4: Walkability decides in the sample run's own precision, with no iteration order
+
+Status: **verified**
+
+Walkability (`bc2_navbuild::walk`: the run, the hand edits, the water and extent rules, the slope, clearance and
+structure rules, the seeds, floods, ladders, unseeds and roof islands) computes heights and distances in `float64`
+and compares a value the run stores as `float32` - a normal, a height in a ladder end's band, a `float32` object
+triangle's bounds - against its limit rounded to `float32` (NumPy 2's rule for a Python number meeting a `float32`
+array). For a sample file's normals (k / 127) the `float32` limits decide as `float64` ones would at every slope limit
+the build uses (40, 55 and 15 degrees: 0 of 255 normal values differ), so only NavKit's own ladder bands can see the
+rounding. Column indices round half to even; a surface lies on a sector's seed line when its x or z modulo 100 m,
+rounded to 0.1 m, is 1.6 or 98.4. No answer depends on an iteration order: the anchors, seed lines and ladders done
+are only tested for membership. A polygon region contains a point on its outline exactly when matplotlib's
+`Path.contains_points` does (the crossing test with half-open edges, closed back to its first vertex; fewer than three
+vertices contain nothing).
+
+[code: rust/bc2-navbuild/src/walk.rs:105] [code: rust/bc2-navbuild/src/walk.rs:674]
+[test: rust/bc2-navbuild/src/walk_tests.rs::polygon_crossings_as_matplotlib]
+[test: rust/bc2-navbuild/src/walk_tests.rs::python_modulo_and_rounding]
+[test: bfbc2-auto-navkit/tests/test_navedits.py::matplotlib_agreement]
+[data: the 15 regression levels' 30 walkability stages give the retired Python's run, kept flags, gradients and stair flags bit for bit, and the same path data (rust/parity_nk4_walk.py, round NK4)]
+
 ## 2. Apply
 
 ### XNAV-APP-1: Region edits need a NavKit base; DICE's base takes graph edits only

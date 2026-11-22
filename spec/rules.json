@@ -20950,6 +20950,38 @@
    ]
   },
   {
+   "id": "XNAV-BLD-4",
+   "title": "Walkability decides in the sample run's own precision, with no iteration order",
+   "file": "spec/transforms/navkit.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/walk.rs:105"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/walk.rs:674"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/walk_tests.rs::polygon_crossings_as_matplotlib"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/walk_tests.rs::python_modulo_and_rounding"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navedits.py::matplotlib_agreement"
+    },
+    {
+     "kind": "data",
+     "ref": "the 15 regression levels' 30 walkability stages give the retired Python's run, kept flags, gradients and stair flags bit for bit, and the same path data (rust/parity_nk4_walk.py, round NK4)"
+    }
+   ]
+  },
+  {
    "id": "XNAV-APP-1",
    "title": "Region edits need a NavKit base; DICE's base takes graph edits only",
    "file": "spec/transforms/navkit.md",

@@ -142,7 +142,7 @@ fn main() {
         let t_site = t0.elapsed().as_secs_f64();
         // the level's path data, when given: its route graph, nodes on the ground
         let routes = value("--routes").map(|f| {
-            let nav = bc2_editor::navdata::load(std::path::Path::new(&f), scene.heightfield.as_ref()).unwrap();
+            let nav = bc2_editor::navdata::load(std::path::Path::new(&f), scene.heightfield.as_deref()).unwrap();
             let nodes = nav
                 .node_pos
                 .iter()

@@ -254,14 +254,14 @@ fn a_multi_file_operation_is_one_step_whole_or_not_at_all() {
 pub(crate) fn doc_with_terrain(name: &str, side: u32) -> Doc {
     let d = doc(name);
     let mut scene = d.scene.clone();
-    scene.heightfield = Some(bc2_formats::terrain::Heightfield {
+    scene.heightfield = Some(std::sync::Arc::new(bc2_formats::terrain::Heightfield {
         min: [0.0, 0.0, 0.0],
         max: [1024.0, 300.0, 1024.0],
         size: side,
         header: bc2_formats::terrain::HeaderWords::default(),
         raw: vec![1000; (side * side) as usize],
         tail: bc2_formats::terrain::Tail::Unknown(Vec::new()),
-    });
+    }));
     let (project, path) = (d.project.clone(), d.path.clone());
     drop(d);
     Doc::with(project, path, scene)

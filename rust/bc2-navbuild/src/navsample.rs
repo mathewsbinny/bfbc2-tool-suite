@@ -47,7 +47,7 @@ pub fn parse_v3(data: &[u8], nx: i64, nz: i64) -> Result<Runs, NavError> {
 }
 
 /// A stored normal component as `navsample.load` gives it: `(component / 127.0)` rounded to `float32`.
-fn normal(x: u8) -> f32 {
+pub(crate) fn normal(x: u8) -> f32 {
     (f64::from(x as i8) / 127.0) as f32
 }
 

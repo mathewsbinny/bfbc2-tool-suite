@@ -398,7 +398,7 @@ pub struct Catalogue {
     pub reading: bool,
     /// The content set (thumbnails).
     pub source: Option<GameSource>,
-    rx: Option<std::sync::mpsc::Receiver<Vec<Entry>>>,
+    rx: Option<crate::task::Task<Vec<Entry>>>,
 }
 
 impl Catalogue {
@@ -408,9 +408,8 @@ impl Catalogue {
         let entries = level_entries(scene);
         let mut seen: HashSet<String> = entries.iter().map(|e| e.path.clone()).collect();
         let rx = (!bases.is_empty() || game.is_some()).then(|| {
-            let (tx, rx) = std::sync::mpsc::channel();
             let g = game.clone();
-            std::thread::spawn(move || {
+            crate::task::Task::spawn_value("Reading the content browser's blueprints", move || {
                 let mut out = base_entries(&bases, &mut seen);
                 if let Some(g) = g {
                     let bundles = set_bundles(&g.opfor.join("game"), g.set, &g.levels, &g.own);
@@ -422,9 +421,8 @@ impl Catalogue {
                         .then(a.category.cmp(&b.category))
                         .then(a.name.cmp(&b.name))
                 });
-                let _ = tx.send(out);
-            });
-            rx
+                out
+            })
         });
         Self {
             entries,
@@ -436,19 +434,13 @@ impl Catalogue {
 
     /// Takes the folders' entries when they are read.
     pub fn poll(&mut self) {
-        if let Some(rx) = &self.rx {
-            match rx.try_recv() {
-                Ok(more) => {
-                    self.entries.extend(more);
-                    self.rx = None;
-                    self.reading = false;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    self.rx = None;
-                    self.reading = false;
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+        if let Some(r) = self.rx.as_ref().and_then(crate::task::Task::poll) {
+            // a worker that stopped without its entries leaves the level's own
+            if let Ok(more) = r {
+                self.entries.extend(more);
             }
+            self.rx = None;
+            self.reading = false;
         }
     }
 

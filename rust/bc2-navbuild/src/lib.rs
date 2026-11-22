@@ -60,6 +60,7 @@ pub mod rules;
 pub mod sector;
 pub mod trace;
 pub mod vehicle;
+pub mod walk;
 pub mod window;
 
 /// A fast hasher for the integer keys of the walks' maps (`FxHash`'s rotate, xor and multiply): no map whose iteration
@@ -342,6 +343,66 @@ impl Level {
             step: d.step,
             link_step: d.link_step,
         })
+    }
+
+    /// The level on a sample run's shared arrays (`grid`: its column starts, heights and columns, round NK4's
+    /// walkability), with its own `keep`, gradients and flags.
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] when an array does not have one value per surface.
+    #[expect(clippy::too_many_arguments, reason = "Level's arrays and settings")]
+    pub fn on_grid(
+        grid: &rules::Grid,
+        keep: Vec<bool>,
+        gx: Floats,
+        gz: Floats,
+        stair: Vec<bool>,
+        terrain: Vec<bool>,
+        pitch: f64,
+        step: f64,
+        link_step: f64,
+    ) -> Result<Level, NavError> {
+        let (start, y, col_of) = grid.shared();
+        let n = y.len();
+        for (name, len) in [
+            ("keep", keep.len()),
+            ("gx", gx.len()),
+            ("gz", gz.len()),
+            ("stair", stair.len()),
+            ("terrain", terrain.len()),
+        ] {
+            if len != n {
+                return Err(NavError::Shape(format!("{name}: {len} values for {n} surfaces")));
+            }
+        }
+        let (nx, nz) = grid.dims();
+        Ok(Level {
+            nx,
+            nz,
+            start,
+            keep,
+            y,
+            gx: Arc::new(gx),
+            gz: Arc::new(gz),
+            stair: stair.into(),
+            terrain: terrain.into(),
+            col_of,
+            pitch,
+            step,
+            link_step,
+        })
+    }
+
+    /// This level's per-surface flags kept (`keep`).
+    #[must_use]
+    pub fn keep(&self) -> &[bool] {
+        &self.keep
+    }
+
+    /// The step rule's gradients (gx, gz) and the stair flags.
+    #[must_use]
+    pub fn gradients(&self) -> (&Floats, &Floats, &[bool]) {
+        (&self.gx, &self.gz, &self.stair)
     }
 
     /// This level with other surfaces kept (`keep`, one flag per surface; the walk of another flood or the islands

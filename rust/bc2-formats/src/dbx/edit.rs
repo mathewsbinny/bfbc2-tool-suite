@@ -35,6 +35,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::model::{CONTAINER, NUMBERS, TEXT};
 use super::strings::MAGIC;
@@ -89,18 +90,71 @@ struct Snapshot {
     children: Option<Vec<Snapshot>>,
 }
 
+/// The elements a [`Nodes`] chunk holds.
+const CHUNK: usize = 1024;
+
+/// The element arena in shared chunks (round PR1b-0, audit AU5 ALG-4): a clone of the file shares every chunk, and an
+/// edit copies only the chunk of the element it changes (`Arc::make_mut`), so an editor checkpoint's copy of a level
+/// partition costs the chunks edited since, not the whole tree.
+#[derive(Debug, Clone, Default)]
+struct Nodes {
+    chunks: Vec<Arc<Vec<ENode>>>,
+    len: usize,
+}
+
+impl Nodes {
+    fn with_capacity(n: usize) -> Self {
+        Self {
+            chunks: Vec::with_capacity(n.div_ceil(CHUNK)),
+            len: 0,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    fn get(&self, i: usize) -> Option<&ENode> {
+        self.chunks.get(i / CHUNK)?.get(i % CHUNK)
+    }
+
+    fn get_mut(&mut self, i: usize) -> Option<&mut ENode> {
+        Arc::make_mut(self.chunks.get_mut(i / CHUNK)?).get_mut(i % CHUNK)
+    }
+
+    fn push(&mut self, e: ENode) {
+        match self.chunks.last_mut() {
+            Some(c) if c.len() < CHUNK => Arc::make_mut(c).push(e),
+            _ => {
+                let mut c = Vec::with_capacity(CHUNK);
+                c.push(e);
+                self.chunks.push(Arc::new(c));
+            }
+        }
+        self.len += 1;
+    }
+}
+
 /// A binary `.dbx` as `dbxbin.Dbx` holds it (see the module documentation).
+///
+/// A clone is cheap (round PR1b-0): the file's bytes, the string table and the elements are shared until an edit
+/// changes them.
 #[derive(Debug, Clone, Default)]
 pub struct EditDbx {
-    data: Vec<u8>,
+    /// The file as read: never edited, shared by the clones.
+    data: Arc<[u8]>,
     /// The header's word at offset 12, kept as it is.
     pub header: u32,
-    strings: Vec<Vec<u8>>,
-    index: HashMap<Vec<u8>, u32>,
+    strings: Arc<Vec<Vec<u8>>>,
+    index: Arc<HashMap<Vec<u8>, u32>>,
     /// The original string area (offsets and strings) as a range of `data`, written back while no string was added.
     area: Option<(usize, usize)>,
     n_orig: usize,
-    nodes: Vec<ENode>,
+    nodes: Nodes,
     roots: Vec<NodeId>,
     trailing: Vec<u8>,
 }
@@ -200,13 +254,13 @@ impl EditDbx {
             return Err(EditError::new("the string area runs past the end"));
         }
         let mut d = Self {
-            data: data.to_vec(),
+            data: Arc::from(data),
             header,
-            strings,
-            index,
+            strings: Arc::new(strings),
+            index: Arc::new(index),
             area: Some((24, 24 + area)),
             n_orig: count,
-            nodes: Vec::with_capacity((n - 24 - area) / 5),
+            nodes: Nodes::with_capacity((n - 24 - area) / 5),
             roots: Vec::new(),
             trailing: Vec::new(),
         };
@@ -298,8 +352,8 @@ impl EditDbx {
             return i;
         }
         let i = self.strings.len() as u32;
-        self.strings.push(s.to_vec());
-        self.index.insert(s.to_vec(), i);
+        Arc::make_mut(&mut self.strings).push(s.to_vec());
+        Arc::make_mut(&mut self.index).insert(s.to_vec(), i);
         i
     }
 
@@ -745,7 +799,7 @@ impl EditDbx {
             _ => {
                 let mut offs = Vec::with_capacity(4 * self.strings.len());
                 let mut blob = Vec::new();
-                for s in &self.strings {
+                for s in self.strings.iter() {
                     offs.extend_from_slice(&(blob.len() as u32).to_be_bytes());
                     blob.extend_from_slice(s);
                     blob.push(0);
