@@ -5,7 +5,7 @@
 
 use crate::pyproc::Tool;
 
-mod detailed;
+pub(crate) mod detailed;
 mod graphstats;
 mod hpdcheck;
 mod hpdview;
