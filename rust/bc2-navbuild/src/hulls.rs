@@ -77,8 +77,10 @@ struct Walk<'a> {
     by: HashMap<u64, &'a str>,
 }
 
+/// A correctly rounded fused multiply-add, `libm`'s (round CI1: not the C runtime's, which `f64::mul_add` calls
+/// without the `fma` target feature).
 fn fma(a: f64, b: f64, c: f64) -> f64 {
-    a.mul_add(b, c)
+    libm::fma(a, b, c)
 }
 
 /// `np.dot(x, y)` / the square of `linalg.norm` of 3-vectors (OpenBLAS `ddot`).

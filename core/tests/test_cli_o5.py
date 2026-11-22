@@ -37,13 +37,35 @@ import test_cli_o3 as o3  # noqa: E402
 ALL_GROUPS = ('readers', 'shader', 'bf1943', 'nav', 'texqa', 'stockmp')
 
 
+def temp_spellings() -> list[str]:
+    """The temporary folder (tempfile.gettempdir()) in every spelling a tool may print it: as given, long and short
+    (8.3) forms - a GitHub runner's TEMP is the 8.3 form (C:/Users/RUNNER~1/...), a PC's usually the long one;
+    longest first."""
+    import tempfile
+    t = os.path.abspath(tempfile.gettempdir())
+    names = {t}
+    if os.name == 'nt':
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        for fn in (k32.GetLongPathNameW, k32.GetShortPathNameW):
+            buf = ctypes.create_unicode_buffer(1024)
+            if 0 < fn(t, buf, 1024) < 1024:
+                names.add(buf.value)
+    return sorted(names, key=len, reverse=True)
+
+
 def _log_named(log: Callable[[Any], str]) -> Callable[[Any], str]:
     """Place.log with the names of temporary folders a tool makes itself taken out (stockmp's validate runs DbxEdit
-    on files in tempfile.mkdtemp('stockmp_validate_'): its log records name the folder, random on each run)."""
+    on files in tempfile.mkdtemp('stockmp_validate_'): its log records name the folder, random on each run, under
+    the machine's temporary folder - <temp> in the goldens, whichever spelling, long or 8.3, the run had)."""
     import re
+    temps = temp_spellings()
 
     def named(self: Any) -> str:
-        return re.sub(r'stockmp_validate_[a-z0-9_]+', 'stockmp_validate_N', log(self))
+        text = log(self)
+        for t in temps:
+            text = re.sub(re.escape(t) + r'(?=[\\/]stockmp_validate_)', '<temp>', text, flags=re.IGNORECASE)
+        return re.sub(r'stockmp_validate_[a-z0-9_]+', 'stockmp_validate_N', text)
     return named
 
 

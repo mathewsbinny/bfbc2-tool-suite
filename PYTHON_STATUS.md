@@ -26,12 +26,12 @@ rounds NK4 and NK5.
 |---|---:|---:|
 | live | 21 | 6,071 |
 | partly | 20 | 17,183 |
-| twin | 55 | 19,428 |
-| ported | 21 | 2,572 |
+| twin | 55 | 19,420 |
+| ported | 21 | 2,580 |
 | retired-pending | 3 | 310 |
 | stays | 58 | 10,602 |
-| test | 185 | 50,468 |
-| **all** | **363** | **106,634** |
+| test | 185 | 50,499 |
+| **all** | **363** | **106,665** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -40,7 +40,7 @@ rounds NK4 and NK5.
 | `bfbc2-auto-navkit` | 56 | 15,048 | 1,815 | 4,748 | 2,749 | 273 |  |  | 5,463 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
 | `bfbc2-bf1943-import` | 26 | 10,915 | 1,017 | 1,558 | 3,273 | 56 |  |  | 5,011 |
-| `bfbc2-console-convert` | 24 | 6,531 |  | 1,812 | 1,254 | 36 |  |  | 3,429 |
+| `bfbc2-console-convert` | 24 | 6,523 |  | 1,812 | 1,246 | 36 |  |  | 3,429 |
 | `bfbc2-console-readers` | 5 | 1,449 |  |  | 835 |  |  |  | 614 |
 | `bfbc2-culltree` | 4 | 1,889 |  |  | 1,042 |  |  |  | 847 |
 | `bfbc2-dbx-tools` | 1 | 22 |  |  |  |  | 22 |  |  |
@@ -52,11 +52,11 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 16 | 10,366 | 1,430 | 3,670 | 984 | 126 |  |  | 4,156 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 19,834 | 753 |  | 2,414 | 1,897 |  |  | 14,770 |
+| `core` | 76 | 19,862 | 753 |  | 2,414 | 1,905 |  |  | 14,790 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 33 | 5,969 |  |  |  |  |  | 5,702 | 267 |
 | `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
-| `tests` | 29 | 7,682 |  |  |  |  |  |  | 7,682 |
+| `tests` | 29 | 7,693 |  |  |  |  |  |  | 7,693 |
 
 Lines by status in the folder table.
 
@@ -203,7 +203,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-console-convert`
 
-24 files, 6,531 lines.
+24 files, 6,523 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -214,7 +214,7 @@ Lines by status in the folder table.
 | `bfbc2-console-convert/mesh.py` | 368 | library | twin | bc2_formats::meshdata, bc2_convert mesh | 17 suite modules (meshport, meshview, renderqa ...); tests 9; OPFOR 18 | PR1b-1c | Rust for parse / write / relayout; element, pair_by_kind, strip_to_list still Python for callers |
 | `bfbc2-console-convert/meshset.py` | 85 | library | twin | bc2_formats meshset | meshport, portparity, mesh, renderqa; tests 5; OPFOR 15 | PR1b-1c | write_reference kept for objects the core refuses |
 | `bfbc2-console-convert/terrain.py` | 204 | library | twin | bc2_convert::terrain | navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2 | PR1b-1c | Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens |
-| `bfbc2-console-convert/texture.py` | 239 | library | twin | bc2_formats texture (tiled, packed, layout) | 16 suite modules; tests 13; OPFOR 29 | PR1b-1c | tiled / packed / layout references kept by ruling: texqa's independent decoder |
+| `bfbc2-console-convert/texture.py` | 231 | library | twin | bc2_formats texture (tiled, packed, layout) | 16 suite modules; tests 13; OPFOR 29 | PR1b-1c | tiled / packed / layout references kept by ruling: texqa's independent decoder |
 | `bfbc2-console-convert/soot.py` | 36 | library | ported | bc2_convert terrain / converters (soot) | tests 2; OPFOR 2 | PR1b-1c | a thin call into the Rust core (F2a) |
 | `bfbc2-console-convert/tests/test_audio.py` | 256 | test | test |  | run_tests.py | Tests in Rust | Sound conversion (audio.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's sounds. |
 | `bfbc2-console-convert/tests/test_audio_native.py` | 385 | test | test |  | run_tests.py | Tests in Rust | audio.py's EA-XAS encoder and decoder (the Rust core: rust/bc2-convert audio, through bc2_native) against r... |
@@ -395,7 +395,7 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 19,834 lines.
+76 files, 19,862 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -416,7 +416,7 @@ Lines by status in the folder table.
 | `core/bfbc2core/fbrbtool.py` | 156 | library | ported | bc2_formats::fbrb::tool; bfbc2 fbrbtool | fbrbtool.py, navkit.py, hub; tests 11 | PR1b-2 | FbrbTool's commands in process |
 | `core/bfbc2core/level.py` | 336 | library | ported | bc2_scene (scene_load) | 13 suite modules; tests 9 | PR1b-1c | the level loader in Rust (E1a); the Python builds the tools' Entity / Level objects |
 | `core/bfbc2core/navdata.py` | 346 | library | ported | bc2_navbuild parity / bc2-editor navdata | navboundary, navparity, navwater_mesh, harness, overlay; tests 11 | NK5 | its Python twins retired (E3o); cells and areas from the core |
-| `core/bfbc2core/navpath.py` | 140 | library | ported | bc2_navbuild astar / navpath | harness checks; tests 6 | PR1b-2 | the path test over the route graph, in Rust |
+| `core/bfbc2core/navpath.py` | 148 | library | ported | bc2_navbuild astar / navpath | harness checks; tests 6 | PR1b-2 | the path test over the route graph, in Rust |
 | `core/bfbc2core/terrain.py` | 101 | library | ported | bc2_convert::terrain (heightfield) | navparity, navsample_offline, renderqa, level; tests 10; OPFOR 1 | PR1b-1c | height fields from the core |
 | `core/bfbc2core/water.py` | 103 | library | ported | bc2_formats::water | navregress, navwater, level; tests 5 | NK4 | water meshes from the core |
 | `core/bfbc2core/xmlinst.py` | 40 | library | ported | bc2_formats xmlinst | NavKit tools, overlay; tests 1; OPFOR 2 | NK5 | DbxEdit XML's instances in Rust (F2b) |
@@ -448,7 +448,7 @@ Lines by status in the folder table.
 | `core/tests/test_cli_o2.py` | 524 | test | test |  | run_tests.py | Tests in Rust | Round O2's command lines in Rust (rust\bc2-cli, bfbc2.exe: aptcheck, aptrefs, bc2loc; exeref, crashreader;... |
 | `core/tests/test_cli_o3.py` | 76 | test | test |  | run_tests.py | Tests in Rust | Round O3's command lines in Rust (rust\bc2-cli, bfbc2.exe: caches, stockmp, aptgraft, audio, dbxcatalogue,... |
 | `core/tests/test_cli_o4.py` | 218 | test | test |  | run_tests.py | Tests in Rust | Round O4's command lines in Rust (rust\bc2-cli, bfbc2.exe: NavKit's driver navkit.py, the editor's prepare_... |
-| `core/tests/test_cli_o5.py` | 85 | test | test |  | run_tests.py | Tests in Rust | Round O5's command lines in Rust (rust\bc2-cli, bfbc2.exe: the shader tools' command lines - shaderdb, rend... |
+| `core/tests/test_cli_o5.py` | 105 | test | test |  | run_tests.py | Tests in Rust | Round O5's command lines in Rust (rust\bc2-cli, bfbc2.exe: the shader tools' command lines - shaderdb, rend... |
 | `core/tests/test_core_edges.py` | 71 | test | test |  | run_tests.py | Tests in Rust | Edge cases of the core package, without game data (quick tier); regression tests for the round-3 audit: - t... |
 | `core/tests/test_dbx.py` | 58 | test | test |  | run_tests.py | Tests in Rust | Checks the core's DBX reader (the Rust core's since round F1a, 2026-11-18; test_dbx_native.py compares it w... |
 | `core/tests/test_dbx_native.py` | 319 | test | test |  | run_tests.py | Tests in Rust | The DBX reader (rust/bc2-formats dbx, through the bc2_native module) against what the retired Python reader... |
@@ -543,7 +543,7 @@ Lines by status in the folder table.
 
 ## `tests`
 
-29 files, 7,682 lines.
+29 files, 7,693 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -556,7 +556,7 @@ Lines by status in the folder table.
 | `tests/test_converter_edges.py` | 84 | test | test |  | run_tests.py | Tests in Rust | Edge cases of the converters and readers, without game data (quick tier). |
 | `tests/test_converter_units.py` | 321 | test | test |  | run_tests.py | Tests in Rust | Unit tests of the converters' Stage 3 fixes, without game data (quick tier): - havokport: a model group's s... |
 | `tests/test_deep_scan_fixes.py` | 252 | test | test |  | run_tests.py | Tests in Rust | Regression tests for the suite deep scan of 2026-11-15 (no game data): - C1 stock-MP install --apply is one... |
-| `tests/test_e3o_native.py` | 651 | test | test |  | run_tests.py | Tests in Rust | Round E3o (rust/BENCHMARKS.md, "E3o"): each faster path against the code it replaced, compared exactly (eve... |
+| `tests/test_e3o_native.py` | 652 | test | test |  | run_tests.py | Tests in Rust | Round E3o (rust/BENCHMARKS.md, "E3o"): each faster path against the code it replaced, compared exactly (eve... |
 | `tests/test_editor.py` | 89 | test | test |  | run_tests.py | Tests in Rust | The map editor's headless proof (rust\bc2-editor, rounds G1 and E2; rust\bc2-levelwrite): their tests, with... |
 | `tests/test_envvars.py` | 68 | test | test |  | run_tests.py | Tests in Rust | The environment-variable registry (core\bfbc2core\envvars.py, round QW1): every quoted BFBC2_* / BC2_* / BF... |
 | `tests/test_f3_native.py` | 900 | test | test |  | run_tests.py | Tests in Rust | Round F3: the rest of the suite's Python format code in the Rust core, each port against its Python referen... |
@@ -572,7 +572,7 @@ Lines by status in the folder table.
 | `tests/test_runner_args.py` | 73 | test | test |  | run_tests.py | Tests in Rust | The test runner's command line (quick tier, round RT3). |
 | `tests/test_runner_output.py` | 45 | test | test |  | run_tests.py | Tests in Rust | The test runner survives a failing test whose output the console cannot print (quick tier). |
 | `tests/test_runner_parallel.py` | 403 | test | test |  | run_tests.py | Tests in Rust | The test runner's side-by-side mode (run_tests.py -j N) keeps every test's meaning (quick tier, 2026-11-17). |
-| `tests/test_rust.py` | 549 | test | test |  | run_tests.py | Tests in Rust | The Rust core's own checks (rust\): formatting, clippy with warnings as errors, and every crate's tests. |
+| `tests/test_rust.py` | 559 | test | test |  | run_tests.py | Tests in Rust | The Rust core's own checks (rust\): formatting, clippy with warnings as errors, and every crate's tests. |
 | `tests/test_rust_skip.py` | 120 | test | test |  | run_tests.py | Tests in Rust | tests\test_rust.py's own rules (round TS1), on a stand-in workspace in a temp folder (no cargo run): - a cr... |
 | `tests/test_sd1_native.py` | 608 | test | test |  | run_tests.py | Tests in Rust | Round SD1: the shader database reader's last Python in the Rust core - ShaderDb.parse's dispatch (the byte... |
 | `tests/test_types.py` | 31 | test | test |  | run_tests.py | Tests in Rust | Types (quick tier): mypy, as pyproject.toml sets it up, finds nothing in any of the suite's Python folders. |

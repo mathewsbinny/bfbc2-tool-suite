@@ -20917,6 +20917,38 @@
    ]
   },
   {
+   "id": "XCONS-PAR-2",
+   "title": "Recorded measures are the same bits on every machine",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texcheck.rs:162-196"
+    },
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/navpath.py:89-93"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/astar.rs:26-33"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texcheck.rs::correlation_exact"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_e3o_native.py::quick_navpath"
+    }
+   ]
+  },
+  {
    "id": "XCONS-STG-1",
    "title": "Fourteen stages in a fixed order",
    "file": "spec/transforms/console.md",

@@ -14,7 +14,9 @@ use std::collections::BinaryHeap;
 /// How `np.linalg.norm` of a three-value vector is computed by the BLAS in use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Norm {
-    /// `sqrt(fma(z, z, fma(y, y, x * x)))` (`OpenBLAS`' `ddot` with fused multiply-adds).
+    /// `sqrt(fma(z, z, fma(y, y, x * x)))` (`OpenBLAS`' `ddot` with fused multiply-adds: its `SkylakeX` kernel, the
+    /// development PC's). The fma is `libm`'s, correctly rounded in Rust (round CI1): `f64::mul_add` without the
+    /// `fma` target feature calls the C runtime's `fma`, so the estimate's bits would be the installed Windows'.
     Fma,
     /// `sqrt((x * x + y * y) + z * z)`.
     Plain,
@@ -25,7 +27,7 @@ impl Norm {
     #[must_use]
     pub fn of(self, x: f64, y: f64, z: f64) -> f64 {
         match self {
-            Self::Fma => z.mul_add(z, y.mul_add(y, x * x)).sqrt(),
+            Self::Fma => libm::fma(z, z, libm::fma(y, y, x * x)).sqrt(),
             Self::Plain => (x * x + y * y + z * z).sqrt(),
         }
     }
