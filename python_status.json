@@ -2667,7 +2667,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 159,
+   "lines": 163,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -4215,8 +4215,8 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 120,
-   "note": "The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 7 tabs and the...",
+   "lines": 121,
+   "note": "The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 8 tabs and the...",
    "path": "tests/test_hub.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -4413,7 +4413,7 @@
  "totals": {
   "all": {
    "files": 362,
-   "lines": 106379
+   "lines": 106384
   },
   "by_folder": {
    "(root)": {
@@ -4605,8 +4605,8 @@
    },
    "core": {
     "files": 76,
-    "lines": 19830,
-    "live": 749,
+    "lines": 19834,
+    "live": 753,
     "partly": 0,
     "ported": 1897,
     "retired-pending": 0,
@@ -4649,20 +4649,20 @@
    },
    "tests": {
     "files": 29,
-    "lines": 7681,
+    "lines": 7682,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7681,
+    "test": 7682,
     "twin": 0
    }
   },
   "by_status": {
    "live": {
     "files": 21,
-    "lines": 6067
+    "lines": 6071
    },
    "partly": {
     "files": 20,
@@ -4682,7 +4682,7 @@
    },
    "test": {
     "files": 184,
-    "lines": 50008
+    "lines": 50009
    },
    "twin": {
     "files": 55,
