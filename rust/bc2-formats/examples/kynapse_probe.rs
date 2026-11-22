@@ -612,12 +612,13 @@ fn probe_file(name: &str, fd: &FileData, c: &mut C) {
             c.inc("own.single_owner_holds_node");
         }
     }
-    // The route graph read as the owner bit says (HPD-NODE-5): a border node's out-edges are its owner copies'.
-    let (strong, weak) = proxy_pairs(fd);
-    c.add("proxy.strong_pairs", strong);
-    c.add("proxy.weak_pairs", weak);
+    // The route graph as the runtime walks it (KYRT-PATH-3): a node's out-edges are all its copies', an edge into a
+    // border id with no owner copy is dropped.
+    let (strong, weak) = runtime_pairs(fd);
+    c.add("runtime.strong_pairs", strong);
+    c.add("runtime.weak_pairs", weak);
     println!(
-        "{name}: proxy reading: {:.2} % of the weakly connected node pairs strongly connected",
+        "{name}: as the runtime walks it: {:.2} % of the weakly connected node pairs strongly connected",
         100.0 * strong as f64 / weak.max(1) as f64
     );
     // The generator's rectangle: the ground's extent against the sector grid.
@@ -960,8 +961,16 @@ fn msvc_qsort<T: Copy>(v: &mut [T], cmp: &dyn Fn(&T, &T) -> i32) {
 }
 
 /// Node pairs in one strongly / one weakly connected component of the file's route graph, border copies joined by
-/// id (bit 31 masked), a border node's out-edges those of its owner copies only (bit 16 of c clear).
-fn proxy_pairs(fd: &FileData) -> (u64, u64) {
+/// id (bit 31 masked), a node's out-edges those of all its copies, an edge into a border id none of whose copies is an
+/// owner (bit 16 of c set on all) left out (KYRT-PATH-3).
+fn runtime_pairs(fd: &FileData) -> (u64, u64) {
+    fn find(p: &mut [usize], mut x: usize) -> usize {
+        while p[x] != x {
+            p[x] = p[p[x]];
+            x = p[x];
+        }
+        x
+    }
     let mut idx: HashMap<u32, usize> = HashMap::new();
     for s in &fd.sectors {
         for x in &s.3 {
@@ -970,11 +979,18 @@ fn proxy_pairs(fd: &FileData) -> (u64, u64) {
         }
     }
     let n = idx.len();
+    let owned: std::collections::HashSet<u32> = fd
+        .sectors
+        .iter()
+        .flat_map(|s| s.3.iter())
+        .filter(|x| x.id & 0x8000_0000 == 0 || x.c & 0x1_0000 == 0)
+        .map(|x| x.id)
+        .collect();
     let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
     for s in &fd.sectors {
         for e in &s.4 {
             let (a, b) = (&s.3[e.src as usize], &s.3[e.dst as usize]);
-            if a.id & 0x8000_0000 != 0 && a.c & 0x1_0000 != 0 {
+            if !owned.contains(&b.id) {
                 continue;
             }
             adj[idx[&(a.id & 0x7FFF_FFFF)]].push(idx[&(b.id & 0x7FFF_FFFF)]);
@@ -982,13 +998,6 @@ fn proxy_pairs(fd: &FileData) -> (u64, u64) {
     }
     let comp = tarjan(&adj);
     let mut parent: Vec<usize> = (0..n).collect();
-    fn find(p: &mut [usize], mut x: usize) -> usize {
-        while p[x] != x {
-            p[x] = p[p[x]];
-            x = p[x];
-        }
-        x
-    }
     for (a, out) in adj.iter().enumerate() {
         for &b in out {
             let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
@@ -999,9 +1008,9 @@ fn proxy_pairs(fd: &FileData) -> (u64, u64) {
     }
     let mut ws: HashMap<usize, u64> = HashMap::new();
     let mut ss: HashMap<usize, u64> = HashMap::new();
-    for v in 0..n {
+    for (v, &k) in comp.iter().enumerate() {
         *ws.entry(find(&mut parent, v)).or_default() += 1;
-        *ss.entry(comp[v]).or_default() += 1;
+        *ss.entry(k).or_default() += 1;
     }
     let pairs = |m: &HashMap<usize, u64>| m.values().map(|k| k * (k - 1) / 2).sum::<u64>();
     (pairs(&ss), pairs(&ws))
