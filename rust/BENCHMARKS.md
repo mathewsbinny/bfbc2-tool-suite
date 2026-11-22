@@ -9320,3 +9320,149 @@ navvehicle), so `VERSION` stays (RELEASING.md).
 
 3. **Memory**, if a level grows past the budget: stage a reduced to what the merge reads (the normal sectors' area
    maps, tiles and border runs) before stage b, and stage b's tracing in chunks of sectors.
+
+## PR1b-1: storage, I/O and memory, in part (2026-11-22, branch `pr1b1`)
+
+Audit AU5 section 6's PR1b-1 (PR0 items 4-8, ALG-5, ALG-10, ARC-4, ARC-5). This round did the memory item, part of the
+cache item and the DBX-document decision. The rest is listed under "What is left" below. Every output is the same:
+WW2 rebuild 10,852 of 10,852, the O-series goldens, and the bench digests below.
+
+Measuring: `rust\bench_memory.py` (new). It runs each batch reader in a child process and samples the child's
+committed memory every 2 ms. `--command <program ...>` runs any command and reports the commit peak of the whole
+process tree, the line printed before it and each process's share. Test peaks are `run_tests.py`'s own (job object
+peak, `test_times.json`).
+
+### 1. Memory
+
+**NumPy's OpenBLAS (the largest finding).** `import numpy` commits about 490 MB in every Python process on this
+16-thread PC: OpenBLAS's per-thread buffers (scipy-openblas 0.3.34, `MAX_THREADS=24`). The suite's array code does
+not use BLAS threads. With `OPENBLAS_NUM_THREADS=1`, `import numpy` commits 19 MB (4 threads: 115 MB).
+`suite_paths.py` and `bfbc2core/__init__.py` now set it with `os.environ.setdefault`, so a user's own value wins and
+every process the suite starts inherits it. It is not in the `bfbc2core.envvars` registry, which only takes the
+suite's own prefixes.
+
+| Peak (run_tests, job object) | before | after |
+|---|---:|---:|
+| geometry-native:game (terrain, water, Havok readers; 3 workers) | 2,895 MB | 990 MB |
+| navmesh-cells-routes-native:game | 5,434 MB | 1,560 MB |
+| texture-helpers-native:game | 5,227 MB (726 s) | 4,553 MB (458 s) |
+| model-tools-native:game | 5,522 MB (1,051 s) | 5,038 MB (1,171 s) |
+
+The geometry entry measured by process at its peak: main 514 MB (NumPy), workers 765 / 680 / 663 MB before;
+33 / 271 / 205 / 188 MB after. Reading each bundle's geometry in groups of 128 MB instead of all at once changed the
+peak by 12 MB only (2,895 -> 2,883), so that change was not kept: the terrain readers' 2.9 GB was OpenBLAS, not the
+readers.
+
+WW2 rebuild (OPFOR main, the suite at `pr1b1`), each step's process peak (working set / commit), PR1a's rebuild log
+against this one: the commit falls by about 480 MB in every step. The sum of the 55 steps' commit peaks is 79.9 ->
+53.4 GB. The level builds' peaks are 4,352 / 4,356 / 4,296 -> 3,871 / 3,873 / 3,822 MB, material_grid 4,046 -> 3,564,
+wake_level 2,816 -> 2,334 and bf1943_fx 2,575 -> 2,104. The whole rebuild took 22.0 -> 13.3 min. The time is not
+attributed: the PR1a run's machine load is not known, and the bundle cache was warm here.
+
+**The batch readers** (`bc2-py/src/window.rs`). `dbx_parse_many`, `dbx_to_xml_many`, `fbrb_read_many`,
+`xenos_parse_many`, `granny_roots_many`, `granny_to_pc_many` and `texture_convert_many` decoded every input on all
+cores and kept every Rust result. Only then did they build the Python objects, so all the Rust results and all the
+Python objects were alive at once. They now decode in a window: at least two items per core, more while the inputs
+stay under 64 MB, at most 4,096 items. The calling thread builds each result in input order while the window
+decodes ahead, and drops each Rust result once its object exists. `fbrb_read_many` keeps one bundle per core in
+flight. Each item is decoded alone by the same function, so the results are the same objects in the same order.
+`bench_memory.py`, the game copy, the peak above the inputs held, before -> after (results' digest unchanged):
+
+| Call | items | before | after |
+|---|---:|---:|---:|
+| `dbx_parse_many` (mp_common + sp_009 `.dbx`) | 10,075 | 686 MB, 1.6 s | 677 MB, 1.7 s |
+| `dbx_to_xml_many` | 10,075 | 160 MB, 0.24 s | 120 MB, 0.21 s |
+| `fbrb_read_many` (41 Dist level bundles' `.dbx`, cache off) | 41 | 1,002 MB, 2.1 s | 917 MB, 2.9 s |
+| `xenos_parse_many` (every Xbox level's shaders) | 55,903 | 5,877 MB, 33.2 s | 5,859 MB, 15.8 s |
+| `granny_roots_many` (mp_common) | 1,253 | 1,511 MB, 2.5 s | 937 MB, 2.8 s |
+
+What remains is mostly the Python objects the caller keeps: the 55,903 Xbox shader trees are 5.8 GB of Python
+objects, about 105 KB each. Bounding that is up to the callers (iterate in parts). The test that reads them already
+uses 2 workers of about 360 MB. Times on this PC vary by about 30 % between runs while other rounds build.
+`fbrb_read_many` gets slower when one large bundle dominates a window. `kymesh`'s `navkit_navdata_areas` /
+`navkit_mesh_cells` parse a file's sector meshes at once: these are small, so they were left as they are.
+
+**NavKit regression's 15 GB.** `navregress.py` builds one level at a time, so its 15.3 GB peak is one level's
+`navbuild.build`. NK5 moved that build to Rust and measured the largest build's peak at 11.8 -> 6.9 GB. The
+coordinator gave the regression peak to NK5 / NK5-rest; it was not measured here.
+
+**ALG-10, the WW2 level builds' peaks attributed.** Iwo Jima's build was run one step at a time under
+`bench_memory.py --command` (`ww2_level_build.py iwo_jima_s <step>`, after the rebuild; the oracle was checked again
+afterwards: 10,852 of 10,852). The commit peak of each step:
+
+| Step | peak | at |
+|---|---:|---|
+| fx | 797 MB | effectport's emitter copies |
+| objects | 836 MB | |
+| level | 2,346 MB | wake_level's partition pass (the level's DBX trees) |
+| shaders | 1,920 MB | wake_shaders' merge from the stock levels |
+| clone | 940 MB | |
+| billboards | 796 MB | |
+| translate | 778 MB | |
+| grid | **3,659 MB** | material_grid: "5,859 partitions reached from the level in 9 steps", each kept as a Python tree |
+
+The chain's 3.9 GB is the grid step. Wake's own `material_grid.py` step, at 3.56 GB, is the same walk. The bound
+belongs to OPFOR in Rust (stage 0 / 2): material_grid should parse each partition, take its material names and drop
+it (or walk the `dbxcatalogue` index) instead of keeping 5,859 trees. The level step comes next.
+
+### 2. One cache layer (in part)
+
+The mesh viewer's index `work\tools_out\meshview_index.pkl` (34 MB; written by the Python, `bfbc2.exe meshview` and
+the editor's Asset preview) is a project cache now: `meshview`, suffix `meshview_index.pkl`, cap
+`BFBC2_MESHVIEW_CACHE_MB` (default 256), in `caches.PROJECT_CACHES` and in bc2-cli's `budget::SPECS`. It is listed,
+pruned, cleared and counted in the overall budget, so the editor's writes are budgeted too: any tool's budget pass
+counts them. The `caches` help and the argparse recordings changed by that one name. `argfmt_golden.json`,
+`abbrev_golden.json` and `cli_o3_caches_golden.json` were re-recorded from the Python and `bfbc2.exe` matches them.
+
+Not done: one budget implementation (`caches.py`'s twin calling the Rust needs `budget` / `caches` moved out of
+bc2-cli into a library: PR1b-2's `bc2-gamefs`), content keys for the payload, culltree-row, HLSL, collision and
+shadercover caches, and `renderqa_truth.pkl` and OPFOR's pickles under the budget.
+
+### 7. The one DBX document: decided
+
+The two byte-preserving models:
+
+- `bc2_formats::dbx::edit::EditDbx` (dbxbin's port, E4a). It is an arena of chunked `Arc` nodes with `NodeId`
+  handles, and since PR1b-0 a clone shares everything until an edit. It keeps the string table and its area byte
+  for byte while no string is added, each element's string indexes, container flags and trailing bytes. It is used
+  by levelwrite's operations (12 files), stockmp, bc2-cli, bc2-py and the editor's edits.
+- `bc2_formats::dbxedit::EditFile` (DbxEdit.cs' port, GR4). It is an owned recursive tree (`Vec<Element>`, children
+  `Option<Vec<Element>>`), no handles, and a clone copies everything. It keeps i32 string indexes as stored (checked
+  only where read: DbxEdit's faults), every value's bytes, the string area's offsets and padding, and XML-text
+  files. It is used by DbxEdit's commands, import, leveldiff, check, and the editor's DBX inspector, panel and
+  compare. GR4 proved it on 31,037 prepared-level files and 1,232 DbxEditGUI steps.
+
+**Decision: one document with EditDbx's storage and EditFile's rules.** It lives in `bc2_formats::dbx::edit`. The
+arena, the handles and the shared clones stay: the editor's undo, checkpoints and levelwrite's operations depend on
+them (PR1b-0: 200 operations' checkpoints at +73 MB, not +279). The owned tree has none of this. EditFile's
+preservation and failure rules move onto the arena: raw i32 string indexes with DbxEdit's lazy faults, every value's
+stored bytes, the original offsets and padding, and the non-binary file case. With those, the arena keeps everything
+either model keeps. DbxEdit's commands (`dbxedit::{editor, import, leveldiff, check, export}`) and the inspector then
+run on the arena, and `EditFile` goes. The acceptance proof is the union of both proofs: GR4's 31,037 files and 1,232
+steps, DbxEdit's recordings (`cli-fbrbtool-dbxedit`), and levelwrite's export canaries and stockmp's goldens. After
+that come culltool's `Doc` and the culltree walker on the same document, and one varint (`dbx::cursor`'s) instead of
+the six.
+
+The merge is the PR1b-2 round's (too big for this round with its proofs). The order: (1) the rules onto the arena
+with EditFile's tests run against it; (2) the dbxedit commands ported, EditFile deleted; (3) culltool `Doc` and
+`bc2-levelwrite::culltree` on it (the Onslaught bundles' and the editor exports' cull trees byte for byte); (4) one
+varint.
+
+### What is left (precise)
+
+- **2, one cache layer**: one budget implementation (needs PR1b-2's library crate), content keys (a bundle's gzip
+  CRC-32 + ISIZE + compressed length for the payload cache, BLAKE3 of the inputs for the others; the cache file
+  format version raised, so every cache is cold once), `renderqa_truth.pkl` and OPFOR's pickles under the budget.
+- **3, restart points** (Rust half of S1): the disk tier still stores whole payloads. The plan is restart points at
+  deflate block boundaries (bit offset, output offset, 32 KB window) indexed per bundle on disk and shared by
+  processes. This needs an inflater that can start mid-stream: `netgzip`'s managed-inflater port can, and zlib-rs
+  through `libz-rs-sys` (`inflatePrime` / `inflateSetDictionary`) can.
+- **4, one BF1943 reader in bc2-formats**: `bc2-cli/src/bf1943src.rs` (the `fbrb1943.py` port) moved into
+  bc2-formats with the restart points, bound in `bc2_native`, and `bf1943import.Source` / `RESTARTS` on it. Proof:
+  the WW2 rebuild oracle.
+- **5, ALG-5**: the export's reach and closure walked once with one session per bundle (needs 3).
+- **6, sounds in Rust**: an XMA2 decoder in Rust, matched to ffmpeg's samples on the WW2 and console sound sets
+  (none written).
+- **7, the DBX merge**: steps (1)-(4) above.
+- **8**: `dbxparity.py` / `portparity.py` stay live Python.
+- **ALG-10's bound** (OPFOR in Rust): material_grid's walk streamed (3.66 GB).
