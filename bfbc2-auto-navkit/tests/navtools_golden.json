@@ -3,16 +3,16 @@
   "measures": {
    "got": {
     "sp_004_b": {
-     "candidate": "bf711ee42f2f02b20f1a804fc84ebb2621b04924",
+     "candidate": "bd44cedb25e7c88032ef29bf47c3fdddee72032f",
      "connectivity": 100.0,
      "ground": 98.49,
-     "row": "8364f1b00b553c3d92ad5484b62a27c1b81f2ec2"
+     "row": "4e8c827fd24f43f52b342a7b0a7274afd87bd10e"
     },
     "sp_009": {
-     "candidate": "2971a232f861d0900ea92e15ba9a2c24306ea1f6",
+     "candidate": "e9be0ef5ef1c45e71930516e9f6c1090552993be",
      "connectivity": 100.0,
      "ground": 99.97,
-     "row": "71dc2ee63d3e993ee59afb3bb41ab2072c6bd850"
+     "row": "50345a673ece226a4fdf332626d3e4ff5c96f546"
     }
    },
    "inputs": {
@@ -31,9 +31,9 @@
   },
   "vehicle": {
    "got": {
-    "bytes": 291704,
+    "bytes": 292600,
     "grid": "b67cbf33f95649f75c11f1a9b4e1cac55fa958a4",
-    "pathdata": "a5baa5ed8b714b67c6d0e33d4b5630c1ae74e14e"
+    "pathdata": "d630b57869bd951d788efffe2ced75181635db8d"
    },
    "inputs": {
     "game/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": "c3e96f73763f3805b47e08b9e83ebf57a68a963d",
@@ -55,5 +55,5 @@
    }
   }
  },
- "recorded": "2026-11-18"
+ "recorded": "2026-11-22"
 }
