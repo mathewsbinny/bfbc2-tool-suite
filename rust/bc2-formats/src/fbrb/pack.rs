@@ -914,24 +914,24 @@ fn read_exactly(src: &Path, dst: &mut [u8]) -> PackResult<()> {
     Ok(())
 }
 
-/// The bundle FbrbTool's `pack` makes of `dir` written to `out` as FbrbTool writes it: to `<out>.tmp-<process id>`
-/// beside it, then moved over `out`, so a pack cut short never leaves a truncated bundle where the old one was.
-/// Streamed ([`pack_rows_into`]): the payload is never held.
+/// The bundle FbrbTool's `pack` makes of `dir` written to `out` as FbrbTool writes it: to a temporary file beside it
+/// ([`crate::atomic::temp_name`]: `<out>.tmp-<process id>-<n>`), flushed to disk, then moved over `out`, so a pack
+/// cut short never leaves a truncated bundle where the old one was. Streamed ([`pack_rows_into`]): the payload is
+/// never held.
 ///
 /// # Errors
 /// As [`pack_dir`], and [`PackError::Io`] when the bundle cannot be written.
 pub fn pack_path(dir: impl AsRef<Path>, out: impl AsRef<Path>) -> PackResult<PackStats> {
     let out = out.as_ref();
     let (manifest, rows) = dir_rows(dir.as_ref())?;
-    let mut tmp = out.as_os_str().to_owned();
-    tmp.push(format!(".tmp-{}", std::process::id()));
-    let tmp = PathBuf::from(tmp);
+    let tmp = crate::atomic::temp_name(out);
     let written = fs::File::create(&tmp)
         .map_err(io_err(out))
         .and_then(|f| {
             let mut w = io::BufWriter::with_capacity(1 << 20, f);
             let stats = pack_rows_into(&manifest, &rows, &mut w, out)?;
             w.flush().map_err(io_err(out))?;
+            w.get_ref().sync_all().map_err(io_err(out))?;
             Ok(stats)
         })
         .and_then(|stats| crate::atomic::replace(&tmp, out).map_err(io_err(out)).map(|()| stats));

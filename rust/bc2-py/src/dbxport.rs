@@ -222,6 +222,7 @@ impl DbxCatalogue {
     /// its instances' types, as they are and as `TYPE_AS` writes them).
     fn defaults(&self, d: &Bound<'_, PyDict>, types: &HashSet<String>) -> PyResult<HashMap<String, (String, Id)>> {
         let mut out = HashMap::with_capacity(types.len());
+        #[allow(clippy::iter_over_hash_type, reason = "collected into a map keyed by type")]
         for t in types {
             let Some(v) = d.get_item(t)? else { continue };
             let (p, e): (String, Bound<'_, PyAny>) = v.extract()?;

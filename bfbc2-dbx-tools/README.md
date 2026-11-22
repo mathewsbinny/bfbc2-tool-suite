@@ -170,7 +170,7 @@ are logged as warnings.
 
 ```
 python ..\core\tests\test_dbxedit.py [--game]   the commands (Rust core) against DbxEdit.exe's recorded answers
-cargo test -p bc2-editor --test editor gr4::      the DBX inspector's window (rust\ folder)
+cargo test -p bc2-editor --test editor dbx_inspector_window::      the DBX inspector's window (rust\ folder)
 cargo test -p bc2-editor --test editor dbxedit_parity:: -- --ignored   against DbxEditGUI's recorded answers
 ```
 
@@ -178,7 +178,7 @@ cargo test -p bc2-editor --test editor dbxedit_parity:: -- --ignored   against D
   edit command, the level check, the slot fixer - messages and exit codes) are `core\tests\test_dbxedit.py`'s,
   against the retired exe's recorded answers.
 - **The window** (`rust/bc2-editor/tests/dbxedit_parity.rs`): DbxEditGUI's own answers recorded on 19 real files
-  before it went (`tests/data/dbxeditgui_gr4.json.gz`, digests) - the tree, 618 Applies, Undo, Save and `.bak`,
+  before it went (`tests/data/dbxeditgui_answers.json.gz`, digests) - the tree, 618 Applies, Undo, Save and `.bak`,
   Find, every menu command, graft, copy field, the level check, fix slots, XML export and import, the edit script -
   replayed on the inspector, every step identical; and every unique `.dbx` of the prepared levels (31,037) written
   back and through XML and import byte for byte.

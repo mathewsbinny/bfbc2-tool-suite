@@ -12,6 +12,7 @@
 
 #![allow(clippy::many_single_char_names, reason = "pixel and colour names: x, y, r, g, b")]
 
+#[cfg(feature = "pickle-cache")]
 pub mod cache;
 pub mod render;
 
@@ -44,6 +45,17 @@ fn is(r: &LazyLock<Option<Regex>>, s: &str) -> bool {
     r.as_ref().is_some_and(|r| r.is_match(s))
 }
 
+/// The index cache's three tables, in their dicts' order (`meshview_index.pkl`'s `data`).
+#[derive(Debug, Default, Clone)]
+pub struct Tables {
+    /// (entry name lower case, bundle, entry name as the bundle holds it).
+    pub where_: Vec<(String, String, String)>,
+    /// (mesh part name lower case, its vertex layout record after the GUID).
+    pub parts: Vec<(String, Vec<u8>)>,
+    /// (shader database entry name lower case, its texture names).
+    pub entries: Vec<(String, Vec<String>)>,
+}
+
 /// `meshview.Index`: which bundle holds each entry (the first stock bundle), each mesh part's vertex layout and each
 /// shader database entry's texture names, every level's Dx9 database read.
 #[derive(Debug, Default, Clone)]
@@ -58,7 +70,7 @@ pub struct Index {
 impl Index {
     /// The index from its tables.
     #[must_use]
-    pub fn from_tables(t: cache::Tables) -> Self {
+    pub fn from_tables(t: Tables) -> Self {
         let mut ix = Self::default();
         for (k, b, n) in t.where_ {
             if !ix.where_.contains_key(&k) {
@@ -80,6 +92,7 @@ impl Index {
     ///
     /// # Errors
     /// As [`cache::load`].
+    #[cfg(feature = "pickle-cache")]
     pub fn load(root: &str, say: &mut dyn FnMut(&str)) -> Result<Self, String> {
         cache::load(root, say).map(Self::from_tables)
     }
@@ -664,7 +677,7 @@ mod tests {
 
     #[test]
     fn find_and_lods() {
-        let t = cache::Tables {
+        let t = Tables {
             where_: vec![
                 (
                     "a/b_mesh_lod0_data.res".into(),

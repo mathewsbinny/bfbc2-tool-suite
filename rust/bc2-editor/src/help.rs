@@ -214,13 +214,13 @@ pub const WORKSPACES: [Workspace; 6] = [
     Workspace {
         name: "Gameplay",
         available: true,
-        what: "The game mode's flags, spawns, vehicle spawns, objectives and areas: only they can be selected; move them, give them a team from the context menu, deep duplicate a flag with its capture area; place new ones from the asset browser's Spawners and Objectives modes (with the team picker's team and the sub-objects they own). Linking them, Rush stages, tickets and the mode's checklist come with gameplay editing (round E4).",
+        what: "The game mode's flags, spawns, vehicle spawns, objectives and areas: only they can be selected; move them, give them a team from the context menu, deep duplicate a flag with its capture area; place new ones from the asset browser's Spawners and Objectives modes (with the team picker's team and the sub-objects they own). Linking them, Rush stages, tickets and the mode's checklist come with gameplay editing (planned).",
         when: "",
     },
     Workspace {
         name: "AI",
         available: true,
-        what: "The bots' orders, AI spawns and area points: only they can be selected. The level's navigation is drawn here (round GR2): NavKit's build and DICE's file side by side, the ground coloured by island, sector, pitch, difference or anomaly, each layer switchable in the Navigation panel; Islands and spawns lists the islands and the spawns off the main network to fly to; the path test (Shift+P) finds each file's route between two clicks; a reference level's AI layer can be drawn over the map. Navigation edits (regions, seeds, links, route edges, traversals, notes) are drawn with the Navigation edits panel's tools and kept in the project; Build with these edits runs NavKit, Install and Restore show what they write in the game copy before they run. Placing spawners and orders, routes and the cross-domain links come with round E5a.",
+        what: "The bots' orders, AI spawns and area points: only they can be selected. The level's navigation is drawn here: NavKit's build and DICE's file side by side, the ground coloured by island, sector, pitch, difference or anomaly, each layer switchable in the Navigation panel; Islands and spawns lists the islands and the spawns off the main network to fly to; the path test (Shift+P) finds each file's route between two clicks; a reference level's AI layer can be drawn over the map. Navigation edits (regions, seeds, links, route edges, traversals, notes) are drawn with the Navigation edits panel's tools and kept in the project; Build with these edits runs NavKit, Install and Restore show what they write in the game copy before they run. Placing spawners and orders, routes and the cross-domain links are planned.",
         when: "",
     },
 ];

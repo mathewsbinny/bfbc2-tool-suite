@@ -120,10 +120,10 @@ def main():
                 row['py_out'] = py[1].decode('latin-1')[-600:]
                 row['rs_out'] = rs[1].decode('latin-1')[-600:]
             rows.append(row)
-            print(json.dumps({k: v for k, v in row.items() if k not in ('py_out', 'rs_out')}), flush=True)
+            print(json.dumps({k: v for k, v in row.items() if k not in ('py_out', 'rs_out')}, sort_keys=True), flush=True)
     finally:
         shutil.rmtree(SCRATCH, ignore_errors=True)
-    json.dump(rows, open(OUT, 'w'), indent=1)
+    json.dump(rows, open(OUT, 'w'), indent=1, sort_keys=True)
     print(f'{len(rows) - bad} of {len(rows)} identical')
     return 1 if bad else 0
 

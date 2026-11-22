@@ -17,7 +17,7 @@
 //! records of dropped order nodes follow the graphs' order, and every sort is the reference's stable sort on the same
 //! keys (Python floats, compared as `f64`). Costs are `0x80000000 | floor(dist * 16)` with CPython's `math.dist`
 //! ([`crate::pymath::dist3`]) on the positions rounded to `float32`, as the file stores them; `math.hypot` is
-//! [`crate::pymath::hypot`]; `round(v, 2)` is [`bc2_pyrt::fmt::round_to`].
+//! [`crate::pymath::hypot`]; `round(v, 2)` (the dropped order nodes' report) is [`crate::pymath::round_to`].
 //!
 //! **Refused** ([`GraphError::Refused`]): a position or bound that is not finite or does not fit a `float32`, a
 //! cost or a node's sorted-index field that does not fit the file's 32 bits - values no build makes (the reference
@@ -27,9 +27,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::BuildHasher;
 
+use crate::pymath::round_to;
 use bc2_formats::hpd::{self, Edge, HpdFile, Node, Sector};
 use bc2_formats::kymesh::{LinkObject, NeighbourLink};
-use bc2_pyrt::fmt::round_to;
 
 use crate::pymath::{dist3, hypot};
 
@@ -189,6 +189,10 @@ fn components(graphs: &[SectorGraph]) -> Components {
     let linked = linked_ids(graphs);
     let mut root = HashMap::new();
     let mut size: HashMap<u32, usize> = HashMap::new();
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "each linked node counted under its root: counts"
+    )]
     for &i in pos.keys() {
         if linked.contains(&i) {
             let r = u.find(i);
@@ -240,6 +244,7 @@ pub fn shadow_islands<S: BuildHasher>(
         .collect();
     if s.objects_only && !small.is_empty() {
         let mut on_terrain: HashMap<u32, usize> = HashMap::new();
+        #[allow(clippy::iter_over_hash_type, reason = "counts per island")]
         for (i, r) in &root {
             if small.contains(r) && terrain.contains(i) {
                 *on_terrain.entry(*r).or_default() += 1;
@@ -255,6 +260,10 @@ pub fn shadow_islands<S: BuildHasher>(
         };
     }
     let mut grid: HashMap<(i64, i64), Vec<[f64; 3]>> = HashMap::new();
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "positions into buckets, only tested with any()"
+    )]
     for (i, r) in &root {
         if size.get(r).copied().unwrap_or(0) >= s.min_nodes
             && let Some(p) = pos.get(i)
@@ -272,6 +281,10 @@ pub fn shadow_islands<S: BuildHasher>(
             .push(*a);
     }
     let (mut anchored, mut near) = (HashSet::new(), HashSet::new());
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "membership tests and inserts into sets; each node's test reads only its own position"
+    )]
     for (i, r) in &root {
         if !small.contains(r) {
             continue;
@@ -360,6 +373,7 @@ pub fn prune_order_nodes<S: BuildHasher>(
         *size.entry(u.find(x)).or_default() += 1;
     }
     let mut drop = HashSet::new();
+    #[allow(clippy::iter_over_hash_type, reason = "counts per root")]
     for &i in order_ids {
         let r = u.find(i);
         if size.get(&r).copied().unwrap_or(0) < min_island {

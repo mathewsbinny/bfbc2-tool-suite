@@ -1284,8 +1284,8 @@ def write_file(graphs: Sequence[Graph], out_path: str, log: Log, t0: float, cfg:
         navislands.report(island, log)
     if removed:
         ORDER_STATS.setdefault('removed', []).extend(removed)
-    with open(out_path, 'wb') as f:
-        f.write(data)
+    from bfbc2core import atomicio
+    atomicio.write_bytes(out_path, data)     # whole or not at all (the suite's one writer, bc2_formats::atomic's twin)
     log(f'wrote {out_path}: {len(graphs)} sectors, {n_nodes} nodes, {n_edges} edges, {len(data)} bytes '
         f'({time.time() - t0:.0f} s)')
 

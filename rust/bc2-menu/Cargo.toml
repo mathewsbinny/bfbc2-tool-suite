@@ -1,6 +1,6 @@
 [package]
 name = "bc2-menu"
-description = "The menu tools' library in Rust (bfbc2-menu-tools: menucommon's pieces, round O3)"
+description = "The menu tools' library in Rust (bfbc2-menu-tools: menucommon's pieces)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

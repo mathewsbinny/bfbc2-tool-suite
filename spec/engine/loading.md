@@ -54,7 +54,7 @@ the engine's own post-process shaders (RNDR-POST-1). The menus build their level
 kept sorted as DICE keeps them). A tool that adds a level patches this bundle: the suite adds or takes out a level's
 description and its two list items and leaves every other entry as it was.
 
-[code: rust/bc2-levelwrite/src/export.rs:351-358] [code: rust/bc2-levelwrite/src/export.rs:3022-3126]
+[code: rust/bc2-levelwrite/src/export.rs:351-358] [code: rust/bc2-levelwrite/src/export.rs:3111-3470]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:848-852] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:655-659]
 
 ### LOAD-START-2: A game mode the description names must be in the startup bundle

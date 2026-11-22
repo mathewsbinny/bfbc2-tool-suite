@@ -584,16 +584,16 @@ fn run(py: &mut Py, a: &Args, sources: &[Loose]) -> PyResult<Ran> {
     })
 }
 
-/// `_write_json(path, data)`: indent 0, through `<path>.tmp-<pid>`.
+/// `_write_json(path, data)`: indent 0, text mode (CRLF), through a temporary file beside it (per process and write,
+/// AU4-CQ-18; [`pyos::files::write_atomic`]).
 fn write_json(path: &str, v: &Value) -> PyResult<()> {
     let dir = pyos::dirname(path)?;
     if dir.is_empty() {
         return Err(Fail::Python); // os.makedirs('') raises its own WinError
     }
     pyos::makedirs(&dir)?;
-    let tmp = format!("{path}.tmp-{}", std::process::id()); // per process (AU4-CQ-18)
-    pyos::write_text_utf8(&tmp, &pyjson::dumps(v, Some(0)))?;
-    pyos::files::replace(&tmp, path).map_err(|e| os_error(path, &e))
+    let text = pyjson::dumps(v, Some(0)).replace('\n', "\r\n");
+    pyos::files::write_atomic(path, text.as_bytes()).map_err(|(at, e)| os_error(&at, &e))
 }
 
 /// `_num`: inf as the string 'inf'.

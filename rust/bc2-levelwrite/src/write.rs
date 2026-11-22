@@ -621,6 +621,10 @@ impl LevelWriter {
     pub fn ownership(&self) -> Ownership {
         let (insts, refs) = self.ownership_graph();
         let mut referrers: HashMap<String, Vec<String>> = HashMap::new();
+        #[allow(
+            clippy::iter_over_hash_type,
+            reason = "referrers are only tested for membership (any)"
+        )]
         for (from, tos) in &refs {
             for t in tos {
                 referrers.entry(t.clone()).or_default().push(from.clone());

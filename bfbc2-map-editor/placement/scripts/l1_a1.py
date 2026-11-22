@@ -145,8 +145,8 @@ def main(argv):
     P['vehicle_respawn_delay_s'] = {k: q(v) for k, v in sorted(dl.items()) if len(v) >= 5}
     out = os.path.join(HERE, 'l1_a1_params.json')
     with open(out, 'w', encoding='utf-8') as fh:
-        json.dump(P, fh, indent=1)
-    print(json.dumps(P, indent=1))
+        json.dump(P, fh, indent=1, sort_keys=True)
+    print(json.dumps(P, indent=1, sort_keys=True))
 
 
 if __name__ == '__main__':

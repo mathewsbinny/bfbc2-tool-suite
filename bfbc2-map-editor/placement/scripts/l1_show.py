@@ -11,4 +11,4 @@ for r in doc['records']:
     if not r['metric'].startswith(pre) or r['metric'].startswith('all.'):
         continue
     extra = {k: v for k, v in r.items() if k not in ('level', 'era', 'mode', 'metric', 'value', 'unit', 'guids', 'note')}
-    print(r['level'], r['metric'], r['value'], r['unit'], json.dumps(extra)[:220])
+    print(r['level'], r['metric'], r['value'], r['unit'], json.dumps(extra, sort_keys=True)[:220])

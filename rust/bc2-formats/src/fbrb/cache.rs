@@ -494,6 +494,10 @@ pub fn superseded(folder: &Path) -> Vec<PathBuf> {
         }
     }
     let mut out = Vec::new();
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "the stale files to delete; the order of deleting cannot show"
+    )]
     for (bundle, files) in by_path {
         match File::open(&bundle).and_then(|f| Identity::of(&bundle, &f)) {
             Ok(now) => out.extend(files.into_iter().filter(|f| f.1 != now).map(|f| f.0)),

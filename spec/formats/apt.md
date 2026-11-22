@@ -338,7 +338,7 @@ A top-level End (0x00) ends only top-level streams: an End inside a function bod
 and so is a written byte that becomes opcode 0x00 (`zero-opcode`; OPFOR fills with `59 17`, push 0 then pop).
 
 [data: every movie of the game copy's movie sets (128) and the Xbox 360 menus pass; patched menus that broke these crashed while loading (OPFOR DEVELOPMENT_NOTES section 3)]
-[test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [test: rust/bc2-formats/src/aptscan.rs::findings_sorted] [code: rust/bc2-formats/src/aptscan.rs:120-130] [code: rust/bc2-formats/src/aptscan.rs:195-205]
+[test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [test: rust/bc2-formats/src/aptscan.rs::findings_sorted] [code: rust/bc2-formats/src/aptscan.rs:120-130] [code: rust/bc2-formats/src/aptscan.rs:199-209]
 [doc: bfbc2-menu-tools/README.md:44-53]
 
 ### APT-CODE-6: Constant indices: global lists and the constant pool
@@ -385,7 +385,7 @@ while the menus load, with no log output (`shared-list`). To add a PushData, a w
 removed or appends a new list; the suite's model copies, never shares, new data.
 
 [data: OPFOR's menu patches crashed the menus when two PushData shared a list (DEVELOPMENT_NOTES.md section 3); no movie of the game copy shares one]
-[test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [code: rust/bc2-formats/src/aptscan.rs:170-180]
+[test: bfbc2-menu-tools/tests/test_menu_tools.py::quick] [code: rust/bc2-formats/src/aptscan.rs:170-184]
 [doc: opfor:DEVELOPMENT_NOTES.md:735-738]
 
 ### APT-LOAD-3: Externs, FSCommands and events are names the engine resolves
@@ -399,7 +399,7 @@ names at 0x0143C898 in build 795745), sends FSCommands (`"FSCommand:<name>"` str
 first Onslaught timer graft read one the PC executable lacks).
 
 [exe: BFBC2Game.exe build 795745: name table 0x0143C898; main menu getter 0x76EC30; UI manager getter 0x95A1B0; HUD getter 0x777B30]
-[test: bfbc2-menu-tools/tests/test_menu_tools.py::game] [code: rust/bc2-formats/src/aptscan.rs:292]
+[test: bfbc2-menu-tools/tests/test_menu_tools.py::game] [code: rust/bc2-formats/src/aptscan.rs:296]
 [doc: bfbc2-menu-tools/README.md:59-82]
 
 ## Geometry and images

@@ -72,12 +72,12 @@ three of them inside a line) is recovered to operations 1 ... k and resumed. An 
 editors before OP1 wrote it, still reads. Project and lock files are written through a synced temporary file moved
 over the file with retries, the temporary removed on any failure (audit AU4 DS-20 / BUG-12).
 
-[code: rust/bc2-levelwrite/src/journal.rs:1-290] [code: rust/bc2-levelwrite/src/project.rs:880-960]
+[code: rust/bc2-levelwrite/src/journal.rs:1-290] [code: rust/bc2-levelwrite/src/project.rs:880-959]
 [code: rust/bc2-editor/src/edit.rs:775-800]
 [test: rust/bc2-levelwrite/src/journal.rs::a_journal_cut_anywhere_gives_its_last_whole_line]
 [test: rust/bc2-levelwrite/src/journal.rs::written_resumed_and_compacted]
-[test: rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed]
-[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal]
+[test: rust/bc2-levelwrite/tests/journal_kill.rs::journal_survives_its_writer_killed]
+[test: rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal]
 
 ### XLOG-DELTA-1: Brush strokes are tiles beside the project, named by sha1
 
@@ -95,7 +95,7 @@ redo cost only the tiles touched. The export does not write rasters yet (round E
 [code: rust/bc2-editor/src/edit.rs:800-870]
 [test: rust/bc2-levelwrite/src/delta.rs::rasters_tiles_and_strokes] [test: rust/bc2-levelwrite/src/delta.rs::tiles_in_a_folder]
 [test: rust/bc2-levelwrite/src/files.rs::strokes_apply_from_their_tiles]
-[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal] [test: rust/bc2-editor/tests/op1.rs::stroke_budgets]
+[test: rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal] [test: rust/bc2-editor/tests/editor_core.rs::stroke_budgets]
 
 ### XLOG-LOG-4: One editor per project; a save never overwrites another writer's file
 
@@ -118,7 +118,7 @@ An entity an operation creates gets `uuid5("opfor:mapedit", project id, operatio
 (INST-GUID-5), so applying the same log again gives the same guids, and two copies of one source in two operations
 differ.
 
-[code: rust/bc2-levelwrite/src/lib.rs:50-62] [code: rust/bc2-levelwrite/src/project.rs:530-539]
+[code: rust/bc2-levelwrite/src/lib.rs:52-65] [code: rust/bc2-levelwrite/src/project.rs:530-539]
 [test: rust/bc2-levelwrite/src/lib.rs::guids_are_deterministic]
 
 ### XLOG-BASE-1: The base-changed report names, never drops
@@ -146,9 +146,9 @@ per file in its checkpoints, so undo, redo and History jumps bring every file ba
 kinds applies to the same partition bytes as before and to no other file.
 
 [code: rust/bc2-levelwrite/src/files.rs:20-360] [code: rust/bc2-levelwrite/src/ops.rs:410-460]
-[code: rust/bc2-levelwrite/src/write.rs:1180-1220] [code: rust/bc2-editor/src/edit.rs:360-410]
+[code: rust/bc2-levelwrite/src/write.rs:1190-1230] [code: rust/bc2-editor/src/edit.rs:360-410]
 [test: rust/bc2-levelwrite/src/files.rs::multi_file_operations_apply_whole_or_not_at_all]
-[test: rust/bc2-editor/tests/op1.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all]
+[test: rust/bc2-editor/tests/editor_core.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all]
 
 ### XLOG-FILE-2: A base file is recorded when first edited; the export writes the edited group files
 
@@ -161,9 +161,9 @@ base's root file of the same name (renamed with the level, as the base's are) an
 project was made on. A target the export does not write yet (a height field, a paint layer) refuses the export in
 words; a project that edits only the partition exports byte for byte as before.
 
-[code: rust/bc2-levelwrite/src/project.rs:766-785] [code: rust/bc2-levelwrite/src/export.rs:585-595]
-[code: rust/bc2-levelwrite/src/export.rs:1015-1060] [code: rust/bc2-levelwrite/src/export.rs:1185-1225]
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members]
+[code: rust/bc2-levelwrite/src/project.rs:766-785] [code: rust/bc2-levelwrite/src/export.rs:585-600]
+[code: rust/bc2-levelwrite/src/export.rs:1032-1083] [code: rust/bc2-levelwrite/src/export.rs:1215-1255]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members]
 
 ### XLOG-MEM-1: Static group members are named by identity, never by place
 
@@ -181,7 +181,7 @@ in the partition; an operation naming no member is written as it always was.
 
 [code: rust/bc2-levelwrite/src/members.rs:36-86] [code: rust/bc2-editor/src/memberedit.rs:1-30]
 [test: rust/bc2-levelwrite/src/members.rs::identities_read_back]
-[test: rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects]
+[test: rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects]
 
 ### XLOG-MEM-2: A member's delete and add keep DICE's layout; the last of a kind stays
 
@@ -198,7 +198,7 @@ of DICE's 23,780 member transforms read on six levels is scaled, and a kind's co
 
 [code: rust/bc2-levelwrite/src/members.rs:405-575]
 [test: rust/bc2-levelwrite/src/members.rs::members_are_deleted_and_added_in_dices_layout]
-[test: rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects]
+[test: rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects]
 [data: 23,780 of 23,780 member transforms of six levels (four WW2 and BFBC2 groups' kinds) with unit rows]
 
 ### XLOG-MEM-3: The export makes the member edits whole: leaves, the client tree, the physics
@@ -218,7 +218,7 @@ member's leaf is reused by the first add and the second gets leaf L + 1, the oth
 an export without the member edits. A log without member edits runs none of this.
 
 [code: rust/bc2-levelwrite/src/groupexport.rs:1-30] [code: rust/bc2-levelwrite/src/culltree.rs:448-500]
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members]
 
 ## 2. Apply
 
@@ -232,7 +232,7 @@ field, a value of the wrong type or range, deleting `LevelData`) stops the apply
 A mode choice reads its donor's partition from the game copy through a resolver; without the game copy it fails in
 words.
 
-[code: rust/bc2-levelwrite/src/write.rs:1011-1060] [code: rust/bc2-levelwrite/src/write.rs:219-226]
+[code: rust/bc2-levelwrite/src/write.rs:1021-1070] [code: rust/bc2-levelwrite/src/write.rs:225-232]
 [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set] [test: rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation]
 
 ### XLOG-APP-2: The result differs from the base exactly where the operations say
@@ -265,7 +265,7 @@ duplicate also copies the instances it owns (a flag's capture area), each with i
 the instance's event connections, then the instance, list items naming it and single references to it (null);
 deleting many is one pass with the same result in any order.
 
-[code: rust/bc2-levelwrite/src/write.rs:219-345] [code: rust/bc2-levelwrite/src/write.rs:346-415] [code: rust/bc2-levelwrite/src/write.rs:635-798]
+[code: rust/bc2-levelwrite/src/write.rs:225-351] [code: rust/bc2-levelwrite/src/write.rs:352-421] [code: rust/bc2-levelwrite/src/write.rs:645-808]
 [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set] [test: rust/bc2-levelwrite/src/write.rs::deep_duplicate_and_place]
 
 ### XLOG-APP-5: Field values are typed from the data, never guessed
@@ -276,7 +276,7 @@ A field set takes its type (kind and size) from the field as the partitions' own
 rules as the DBX catalogue), and refuses a value outside it (a whole number past 32 bits, text into a number);
 placed objects get the defaults of a template instance of the same blueprint.
 
-[code: rust/bc2-levelwrite/src/write.rs:475-500] [test: rust/bc2-levelwrite/src/schema.rs::types_from_the_data] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
+[code: rust/bc2-levelwrite/src/write.rs:481-506] [test: rust/bc2-levelwrite/src/schema.rs::types_from_the_data] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 
 ### XLOG-APP-6: Typed gameplay operations check the data's rules
 
@@ -293,7 +293,7 @@ area names one point per outline). Each refuses in words: an object of another t
 there, a negative ticket count, a closed outline left with fewer than three points. On Valparaiso an insert then a
 remove gives the partition's content back.
 
-[code: rust/bc2-levelwrite/src/gameplay.rs:106-343] [code: rust/bc2-levelwrite/src/write.rs:1115-1135]
+[code: rust/bc2-levelwrite/src/gameplay.rs:106-343] [code: rust/bc2-levelwrite/src/write.rs:1125-1145]
 [test: rust/bc2-levelwrite/tests/gameplay_xf1.rs::typed_gameplay_operations_on_valparaiso]
 
 ### XLOG-APP-7: Paste is a deep duplicate
@@ -304,7 +304,7 @@ Paste copies what each pasted object owns (a flag's capture area and marker) wit
 copy moved by the paste's shift; an object another pasted one owns is copied as that one's. An edit of the copy's
 sub-objects (a ring point moved, the marker renamed) leaves the original's instances as they were.
 
-[code: rust/bc2-editor/src/app/tools.rs:1313-1342] [test: rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate]
+[code: rust/bc2-editor/src/app/tools.rs:1314-1343] [test: rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate]
 
 ## Open questions
 
