@@ -108,9 +108,12 @@ leaves across a corner. Areas are joined across the line by link objects (KYG-LI
 
 [data: axis C portals on the first corner line outside the rectangle: 97,720 of 101,418; C directions axis / diagonal / up 101,418 / 89,315 / 70,126]
 
-NavKit today (probe): every C portal is an axis portal on that line (74,408 of 74,408). It writes no diagonal and no
-"up" C portals. Measure: `navparity:borders` 94.69 %. Whether the runtime reads the direction is not known
-(KYRT-IGN-1), so the missing kinds may not matter in game.
+NavKit today (probe, round NKG1): every C portal is an axis portal on that line, its run cut at the sector square's
+lines so the pieces beyond link to the diagonal neighbour (KYG-LINK-1). It writes no "diagonal" or "up" directions:
+those are not kinds of geometry (KYN-C-1: they change along one straight run, and the runtime reads the direction in
+no test traced, KYRT-IGN-1), and what the vector holds is not decoded. C records whose middle lies in a diagonal
+neighbour's square: coarse 7,787, detailed 3,927 (DICE's infantry files of the same 15 levels 22,344 / 5,051; before
+NKG1 941 / 2,058). Measure: `navparity:borders` 94.69 %.
 
 ## 3. Areas
 
@@ -226,12 +229,24 @@ Border nodes lie in a band beside each 100 m line (median 2.2 m from it, p90 9.2
 along it (p90 5.8 m). Each is one id in every sector that holds it. A node near a corner is shared by three or four
 sectors. One copy, normally the one whose square holds the node, owns the edges (HPD-NODE-5).
 
-[data: 113,874 border ids: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4; owners: 107,437 one (103,458 the holding sector), 3,623 none, 2,738 two, 76 three]
+Every border id has edges in at least two of its sectors: a border node joins sectors.
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::border_ids_have_edges_in_two_sectors]
+[data: 113,874 border ids: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4; owners: 107,437 one (103,458 the holding sector), 3,623 none, 2,738 two, 76 three; 0 border ids with edges in fewer than two sectors in 35 of 35 files]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:897-901]
 
-NavKit today (probe): border nodes in a row 0.8 m from the line, about 10 m apart (`BORDER_NODE_SPACING`). 48,611 ids
-are in 2 sectors and only 288 in 3 or 4. It writes 112,296 edges from non-owner copies (DICE 8,039), which hold no
-edges in DICE's convention. Measures: `navparity:connectivity` 98.79 %, `over_connection` 15.31 %.
+NavKit today (probe): border nodes in a row 0.8 m from the line, inside the higher sector, about 10 m apart
+(`BORDER_NODE_SPACING`). 48,611 ids are in 2 sectors and only 288 in 3 or 4; 2,704 of 48,899 have edges in one sector
+only. All are owned by the higher sector, so 111,968 edges sit on non-owner copies (DICE 8,039). The runtime walks
+every copy's edges (KYRT-PATH-3), and these are NavKit's only edges from a border node into the lower sector: with
+them left out (round NKG1's `navbuild.OWNER_EDGES`, off) the strongly connected share of the graph as the runtime walks
+it falls from 100 to 6.5 % on sp_004_b (10.6 % sp_008_b, 22.3 % sp_009). So the edges move onto owner copies only with
+DICE's band, owned nodes on both sides of each line (NKG2). A second row 0.8 m into the lower sector, tried in NKG1,
+gave 92.7 % with owner-only edges but changed the sector graphs (new 2-3 node islands where its copy in the higher
+sector found no pair; a coarse / detailed seam on sp_007 split as the detailed graph re-pruned around the carried
+row): `connectivity` fell up to 0.5 points on 5 levels, so it waits for NKG2's band. Measures:
+`navparity:connectivity` 98.79 %, `over_connection` 15.31 %, `runtime_connectivity` 98.41 % and `strong_share`
+99.69 % (DICE 97.30 %).
 
 ### KYG-NODE-3: Node ids and the lookup lists
 
@@ -257,8 +272,10 @@ The runtime reads the lists in their order (KYRT-NODE-2): the node resolver test
 list whose axis has the fewest of them, and takes the first that passes. So the tie order can change which node a
 point resolves to, when two candidates share a coordinate on that axis and both pass.
 
-NavKit today (probe): a stable sort by index (2,480 / 2,487 / 2,470 of 2,494 sectors). Content parity does not need
-DICE's ties unless the runtime's range query depends on them (KYRT-NODE-1, open).
+NavKit today (probe): a stable sort by index (2,480 / 2,487 / 2,470 of 2,494 sectors). The runtime reads the lists in
+order (KYRT-NODE-2), so the ties can decide which node a point gets, but only between nodes with the same coordinate;
+with NavKit's own node positions (on cell centres, KYG-NODE-1) the ties are among NavKit's nodes, not DICE's, so round
+NKG1 left them: they matter once placement follows DICE's (NKG2), and DICE's tie rule is not decoded.
 
 ## 6. Route edges
 
@@ -277,10 +294,12 @@ do not cross D lines on infantry files (1 of 24,514 on sp_004_b, 11 of 82,602 on
 [data: 219,500 of 1,694,066 edges one-way; border-to-border edges 425,545]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:982-985] [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1009-1016]
 
-NavKit today (probe): within the reach (0 over), but undirected (0 one-way). It writes 6,916 duplicate (source,
-target) pairs, which DICE never does. It has 90,754 border-to-border edges against DICE's 425,545 on more levels.
-Measures: `navparity:edges_same` 0.02 %, `ai_pairwise` 92.67 %. Which pairs DICE joins (its `GraphAccuracy` 3 / 0.5 /
-15 and the directed cases) is open.
+NavKit today (probe, round NKG1): within the reach (0 over); one edge per (source, target) since NKG1 (KYN-EDGE-4;
+6,916 duplicates before, 1,894,046 edges now on the 15 regression builds); symmetric in every sector (0 one-way). By
+node id DICE's graph is symmetric too (KYG-EDGE-4); NavKit keeps a border node's edges on its non-owner copies until
+the band gives every line owners on both sides (KYG-NODE-2). Border-to-border edges 90,754 against DICE's 425,545 on
+more levels. Which pairs are joined is KYG-EDGE-3's spanner (NKG2). Measures: `navparity:edges_same` 0.02 %,
+`ai_pairwise` 92.67 %.
 
 ### KYG-EDGE-2: The stored cost
 
@@ -381,8 +400,14 @@ objects).
 [test: rust/bc2-formats/tests/kynapse_corpus.rs::link_objects_name_a_tile_item_of_an_adjacent_sector]
 [data: 16,450 link entries (6,263 to diagonal neighbours), 55,008 objects all resolved]
 
-NavKit today (probe): 45,522 objects all resolved, 5,383 cross-pitch, 41,536 on the mirrored tile. It has no
-diagonal-neighbour links, because it writes no diagonal C portals (KYG-SEC-2). Measure: `navparity:borders`.
+A C record lying in a diagonal neighbour's square links to that neighbour: of the C records a diagonal-neighbour link
+object lists, 91 % have an end in that neighbour's square (coarse 13,479 of 14,827).
+
+NavKit today (probe, round NKG1): each C run is cut where it crosses the sector square's line, and a piece beyond it
+links to the diagonal neighbour whose square holds it (to the axis neighbour when the diagonal one has no area there).
+On the 15 regression builds: 14,904 link entries, 5,922 to diagonal neighbours (before NKG1 8,994 and 0; DICE's
+infantry files of the same levels 14,562 and 5,682); 51,995 objects, all resolved, 6,614 cross-pitch (DICE 49,600 and
+8,875). Measure: `navparity:borders` 94.69 %.
 
 ## The NavKit gap list, in priority order
 
@@ -399,10 +424,11 @@ movement detail, then bytes):
    (`nodes_near` 47.6 %). **NKG2's target**: DICE's border band, as wide as `SectorOverlap` = DistEdgeMax (KYRT-CFG-1).
    The interior placement rule is still open (KYG-NODE-1 lists what it is not); until it is found, NKG2 measures
    `nodes_near` and `ai_pairwise`, not `nodes_same`.
-3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): 6,916 duplicate edges; 112,296 edges from non-owner border copies
-   (DICE 8,039), which the runtime uses (KYRT-PATH-3), so they add connections DICE does not have. DICE's one-way
-   edges are its border convention: the graph is symmetric by id (KYG-EDGE-4), so NavKit's undirected graph is right
-   once border edges sit on owner copies (NKG1). **NKG2's target**: KYG-EDGE-3's pair rule, a greedy 1.2-spanner over
+3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): the duplicates are gone (NKG1). 111,968 edges sit on non-owner
+   border copies (DICE 8,039); the runtime uses them (KYRT-PATH-3), and with NavKit's single border row they are its
+   only edges into the lower sector, so they move onto owner copies with the band (NKG2, KYG-NODE-2: round NKG1
+   measured 100 -> 6.5 % strongly connected without them). DICE's one-way edges are its border convention: the graph
+   is symmetric by id (KYG-EDGE-4), as NavKit's is. **NKG2's target**: KYG-EDGE-3's pair rule, a greedy 1.2-spanner over
    mutually reachable pairs within DistEdgeMax (which reproduces DICE's missing pairs at 63-81 % and keeps all but
    0.2 % of its edges); `edges_same` and `over_connection` measure it.
 4. **Area division** (KYG-AREA-2): no midline cut and 5-10x the off-grid portals (`portals` 6.5 %, `areas_same`
@@ -413,10 +439,11 @@ movement detail, then bytes):
 6. **D / F** (KYG-DF-1, KYG-DF-2): coarse recall 19 % / 33 %, nothing for vehicles or detailed areas. **NKG3's
    target** stays the coarse rule's recall; the vehicle rule is still open and needs a vehicle sample run (a cylinder of
    radius 2.5 m, height 4 m) before it can be fitted.
-7. **C portal kinds** (KYG-SEC-2) and **diagonal links** (KYG-LINK-1): no diagonal or "up" C portals, no
-   diagonal-neighbour links.
-8. **Table bounds** (KYN-SEC-2): the rectangle and height range instead of the node box. The loader's duplicate test
-   reads these bounds; NavKit's are unique, so there is no failure, but they are not DICE's values.
+7. **C portal directions** (KYG-SEC-2, KYN-C-1): DICE's "diagonal" and "up" values are not geometric and are read in
+   no test traced; not imitated. Diagonal-neighbour links: done (NKG1, KYG-LINK-1). DICE's C records are also cut
+   differently (17 % cross a square line; its 45-degree corner cuts), which follows its tracing (NKG2).
+8. **Table bounds** (KYN-SEC-2): done (NKG1): the node box in 2,489 of 2,494 sectors; the 5 others (no node, or a box
+   an earlier sector has) keep the build's bounds.
 9. **Lookup-list ties** (KYG-NODE-3): a stable sort; DICE's order is unknown. The runtime's resolver reads the lists
    in order (KYRT-NODE-2), so ties can change which node a point gets, but only between nodes with the same
    coordinate; with NavKit's own positions this matters only once placement matches DICE's.

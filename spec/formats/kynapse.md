@@ -347,21 +347,22 @@ space: 99.7 % of coarse vertices, 99.6 % of detailed and 98.6 % of vehicle. The 
 | OQ8 | The generator's rectangle (ground stops inside the sampled extent) | **open**: KYG-RECT-1 (round NKS-rest: the vehicle ground shares no level-wide rectangle with the infantry ground). Settles it: the generator's `SectorsDefinitionFile` / `MapBuilderLocalSettingsZone` boxes (generator input, not shipped) or a per-level fit of the straight cuts |
 | OQ9 | A records, and whether the end slot matters | **answered**: A records are read by a nearest-segment search with B (KYRT-IGN-1), so a writer must keep their count 0; the end slot is relocated like a pointer but its value is not read (KYRT-LOAD-3); a tile's trailing word *is* read (KYRT-LINK-1) |
 
-## 7. NavKit against this model (probe on NavKit's 15 regression builds, 2026-11-20 builds)
+## 7. NavKit against this model (probe on NavKit's 15 regression builds, 2026-11-20 builds; rows updated by round NKG1)
 
 The probe of section 9 run on `work\navkit\regress\<level>.hpd` (infantry only), against DICE's infantry files of the
 same 15 levels:
 
 | Rule | DICE | NavKit | Gap |
 |---|---|---|---|
-| KYN-SEC-2 table bounds | node box, 100 % | the mesh rectangle across, the heights' range up | bounds differ from DICE's in every sector (no runtime effect found beyond the duplicate test) |
+| KYN-SEC-2 table bounds | node box, 100 % | the node box since NKG1 (2,489 of 2,494; 5 without a node or with an earlier sector's box keep the rectangle) | none |
 | KYN-TILE-1 / 2 | holds | holds (0 vertices outside) | none |
-| KYN-C-1 directions | axis, diagonal and up | axis only (74,408) | no diagonal or up C portals |
+| KYN-C-1 directions | axis, "diagonal" and "up" values (not geometric) | axis only (85,098 since NKG1's cut runs) | the values are not decoded and not read in any test traced; not imitated |
 | KYN-B-1 two-way | 96.5 % | 100 % | DICE keeps some one-way portals |
 | KYN-NODE-1 ids | file-unique, sparse | file-unique, sparse | none |
 | KYN-EDGE-1 reach | holds | holds | none |
-| KYN-EDGE-3 one-way edges | 13.0 % | 0 % | NavKit's graph is undirected |
-| edges per (source, target) | one | 6,916 duplicate pairs | NavKit writes some edges twice |
+| KYN-EDGE-3 one-way edges | 13.0 % (the border convention, KYG-EDGE-4) | 0 % | NavKit keeps border edges on non-owner copies too (KYG-NODE-2: its one row needs them) |
+| KYN-LINK-1 diagonal-neighbour links | 5,682 of 14,562 entries (same 15 levels) | 5,922 of 14,904 since NKG1 (0 before) | DICE cuts its C records by its own tracing |
+| KYN-EDGE-4 edges per (source, target) | one | one since NKG1 (6,916 duplicate pairs before) | none |
 | border ids in 3-4 sectors | 9,426 | 288 | corner sharing far rarer |
 | KYN-DF-2 | holds | holds | none |
 
