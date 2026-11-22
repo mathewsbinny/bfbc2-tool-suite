@@ -4,7 +4,8 @@ Tools for building and debugging AI on Battlefield: Bad Company 2 maps, in one r
 share one core: level loading, a 3D view, picking and the game's data formats.
 
 Version: see `VERSION` and `CHANGELOG.md`. What is being worked on and what comes next: `ROADMAP.md`. How changes
-are merged and versions released: `RELEASING.md`.
+are merged and versions released: `RELEASING.md`. Which Python is left and what retires it, file by file:
+`PYTHON_STATUS.md` (ROADMAP.md, "Python left").
 
 ## Getting started
 
