@@ -2289,17 +2289,17 @@
    "status": "partly"
   },
   {
-   "callers": "33 suite modules; tests 36; OPFOR 54",
+   "callers": "33 suite modules; tests 37; OPFOR 54",
    "embedded_by": [
     "rust/bc2-cli/src/shader/shaderdb.rs"
    ],
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
-   "lines": 1741,
-   "note": "reader (SD1), queries (E4b) and the command line are Rust; left: the in-process Merger (clone_entry / add_part, OPFOR's 21 sites), the level cover index, path glue",
+   "lines": 1529,
+   "note": "reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue",
    "path": "bfbc2-shader-tools/shaderdb.py",
-   "retiring": "OPFOR in Rust stage 3a",
-   "rust": "bc2_formats::shaderdb (open, merge); bfbc2 shaderdb",
+   "retiring": "OPFOR in Rust stage 3",
+   "rust": "bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
    "status": "partly"
   },
   {
@@ -2331,9 +2331,21 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "test",
-   "lines": 566,
+   "lines": 559,
    "note": "shaderdb.py on databases built here (quick), and with --game on Project OPFOR BFBC2's game copy: - built Dx...",
    "path": "bfbc2-shader-tools/tests/test_shaderdb.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-shader-tools",
+   "kind": "test",
+   "lines": 413,
+   "note": "The shader merge in the Rust core (bc2_native.ShaderMerger, made by shaderdb.merger; round OR3a) against th...",
+   "path": "bfbc2-shader-tools/tests/test_shaderdb_merge.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
@@ -3903,7 +3915,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 834,
+   "lines": 837,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4412,8 +4424,8 @@
  ],
  "totals": {
   "all": {
-   "files": 362,
-   "lines": 106379
+   "files": 363,
+   "lines": 106576
   },
   "by_folder": {
    "(root)": {
@@ -4582,14 +4594,14 @@
     "twin": 0
    },
    "bfbc2-shader-tools": {
-    "files": 15,
-    "lines": 10125,
+    "files": 16,
+    "lines": 10319,
     "live": 1430,
-    "partly": 3882,
+    "partly": 3670,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
-    "test": 3703,
+    "test": 4109,
     "twin": 984
    },
    "bfbc2-stockmp-ai": {
@@ -4627,12 +4639,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5966,
+    "lines": 5969,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5699,
+    "stays": 5702,
     "test": 267,
     "twin": 0
    },
@@ -4666,7 +4678,7 @@
    },
    "partly": {
     "files": 20,
-    "lines": 17395
+    "lines": 17183
    },
    "ported": {
     "files": 21,
@@ -4678,11 +4690,11 @@
    },
    "stays": {
     "files": 58,
-    "lines": 10599
+    "lines": 10602
    },
    "test": {
-    "files": 184,
-    "lines": 50008
+    "files": 185,
+    "lines": 50414
    },
    "twin": {
     "files": 55,
