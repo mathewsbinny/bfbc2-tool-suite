@@ -211,12 +211,23 @@ fn main() {
                 }
             };
             let t_prop = t1.elapsed().as_secs_f64();
-            p.push(
-                Op::Move {
-                    items: prop.moves.clone(),
-                },
-                &prop.describe(),
+            p.push(prop.op(), &prop.describe());
+            let v = &prop.vehicles;
+            println!(
+                "    vehicles: {} placed ({} of the level's own moved, {} copies), {} links; {}",
+                v.vehicles.len(),
+                v.moves.len(),
+                v.places.len(),
+                v.links.len(),
+                v.vehicles
+                    .iter()
+                    .map(|x| format!("{} {:.0} m", x.class, x.distance))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
+            for note in &v.notes {
+                println!("      note: {note}");
+            }
             let found = bc2_levelwrite::validate::project(&game, &p).unwrap();
             let (ours, _) = export::current(&game, &p).unwrap();
             // the site rules with the collision too (validate::project reads the ground and water only): each finding once
@@ -273,7 +284,8 @@ fn main() {
                 "stats_inside": ins, "stats": all,
                 "turn": prop.turn, "scale": prop.scale, "moved": prop.moves.len(),
                 "clusters_fitted": prop.clusters_fitted, "points_fitted": prop.points_fitted, "bad": prop.bad_spots,
-                "seconds": t_prop, "candidates": prop.candidates,
+                "seconds": t_prop, "candidates": prop.candidates, "vehicles": prop.vehicles.vehicles,
+                "vehicle_notes": prop.vehicles.notes,
                 "compare": cmp, "stat_rows": prop.stats, "score": prop.score, "art": art,
                 "off_network": off.as_ref().map(Vec::len),
                 "dice_stats": autolayout::stats(&bc2_levelwrite::placement::measure(&dice, mode), mode, profile),

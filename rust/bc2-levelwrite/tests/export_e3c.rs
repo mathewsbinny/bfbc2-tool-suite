@@ -142,6 +142,7 @@ fn a_ww2_export_takes_its_donors_announcer() {
         },
         profile: Profile::Ww2,
         identity: None,
+        path_data: false,
     };
     let stage = std::env::temp_dir().join(format!("bc2_levelwrite_e3c_{}", std::process::id()));
     let rec = export::build(&game, &p, "test", &spec, &stage).unwrap();

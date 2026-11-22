@@ -546,6 +546,24 @@ that drive in). The export's XVAL-PLACE-3 and XVAL-PLACE-4 report a spawner past
 [data: A1: 707 vehicle spawners of the same 27 levels by L1's vehicle class (247 emplacements, 111 ambient, 64 tanks, 54 helicopters, 52 quads, 48 boats, 42 IFVs, 37 cars, 36 UAV stations, 15 planes): the tightest room per class as above]
 [doc: rust/BENCHMARKS.md:8167-8186]
 
+### GAME-VEH-2: DICE's vehicles can leave their spawners, in counts per mode
+
+Status: **observed**
+
+Every land vehicle DICE placed (tanks, IFVs, cars, quad bikes: 184 on the 27 levels measured) can drive 40 m or more
+from its spawner on ground no steeper than a 1.2 m step per 2 m and clear of static collision 0.6 to 2.5 m up; every
+boat whose water the level's mesh holds reaches 30.5 m or more of open water at least 0.5 m deep (`mp_009gr`'s the
+tightest); every helicopter has no static collision less than 60 m over it within 3.5 m (one Vietnam helipad,
+`nam_mp_005r`, has some 3.1 m up 7 m out); every WW2 plane has a straight take-off run of 34 m or more on some bearing.
+The spawners a capture point lists spawn by themselves (`AutoSpawn` true on all 172); 64 unlisted ones wait for events.
+DICE's counts per mode (L1's medians): a Conquest base's pool 4 (8 on the WW2 ports), a flag's 2 (one per team, or a
+neutral spawner); Rush's attackers 3 and defenders 2 a stage; Squad Rush none; Squad Deathmatch one IFV, owned by the
+layer's neutral capture point on every stock level. The export's XVAL-PLACE-6 to 8 report a spawner that cannot leave;
+the auto layout places vehicles to these counts (XLAY-AUTO-2).
+
+[data: A2: rust/bc2-editor/examples/vehicle_sites.rs on 707 vehicle spawners of 27 levels (21 Dist, 6 Package), 2026-11-22: way out per land class 40 m (the limit) on all; boats 30.5 m least; helicopters 60 m (the limit) within 3.5 m; planes 34 m least; owners and AutoSpawn as above]
+[data: bfbc2-map-editor/placement/l1_a1_params.json: hq_vehicle_pool_150m median 4 (CQ DICE) and 8 (CQ WW2), flag_vehicle_pool_150m 2, attacker_vehicles_per_stage 3, defender_vehicles_per_stage 2, SR 0, SDM vehicles 1]
+
 ### GAME-AREA-1: A combat area is a union of outlines, per team or shared
 
 Status: **observed**
