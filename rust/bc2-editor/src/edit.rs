@@ -1158,6 +1158,12 @@ impl Doc {
         self.base_bytes.as_deref()
     }
 
+    /// The base level's scene as it was read (its collision, terrain and water: round A1's site).
+    #[must_use]
+    pub fn base_scene(&self) -> &Scene {
+        &self.base
+    }
+
     /// The edited partition's bytes.
     #[must_use]
     pub fn partition(&self) -> Option<Vec<u8>> {

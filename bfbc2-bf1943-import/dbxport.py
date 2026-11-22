@@ -655,8 +655,9 @@ DICE_MOVED_CLASSES = {'GameSharedResources.PersistentWeapon'}
 #  ZoomType            hold -> press, unless the template's is hold (melee and thrown kept hold)
 #  SprintLookSpeedMultiplier 0.5 -> 1 (23 of 23 zoom levels)
 #  AlwaysAimHead       false -> the template's (DICE's varies by class)
-#  AnimBaseSet         wabsShg -> wabsRif (the knife); with a counterpart or paired donor, the donor's (the wrench on
-#                      the power tool's wabsHg, a pistol's wabsHg)
+#  AnimBaseSet         wabsShg -> wabsRif except on a shotgun (BF1943's knife; DICE keeps wabsShg for shotguns only:
+#                      20 of its 42, all pump-actions; spec WPN-WW2-8); with a counterpart or paired donor, the donor's
+#                      (the wrench on the power tool's wabsHg, a pistol's wabsHg)
 #  FireLogic.Recoil    the template's (DICE zeroed or retuned every nonzero BF1943 recoil: 27 firings)
 FIREARM_SPEED = 100.0
 # the weapon conventions apply to the soldiers' weapons (handheld, stationary): DICE kept the planes' and tanks'
@@ -2179,7 +2180,8 @@ def _conventions(inst: dbx.Element, by: dict[str, dbx.Element], P: _Port) -> Non
         a, ta = _field(inst, 'AnimBaseSet'), _field(tpl, 'AnimBaseSet')
         if a is not None:
             new = None
-            if a.text == 'wabsShg':
+            wc = _field(inst, 'WeaponClass')
+            if a.text == 'wabsShg' and not (wc is not None and wc.text == 'wcShotgun'):
                 new = 'wabsRif'
             elif step in ('counterpart', 'donor') and ta is not None and ta.text and ta.text != a.text:
                 new = ta.text

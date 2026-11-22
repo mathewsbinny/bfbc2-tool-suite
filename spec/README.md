@@ -149,23 +149,40 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [formats/audio.md](formats/audio.md) | Wave resources, EA-XAS audio |
 | [formats/loc.md](formats/loc.md) | localization tables |
 | [formats/aimanim.md](formats/aimanim.md) | AimAnimation |
+| [formats/bf1943.md](formats/bf1943.md) | BF1943 as a source: where it is read from, its bundles and levels, the class differences DICE resolved; an index of the BF1943 rules elsewhere (round SPG2) |
 | **The data model** | |
 | [model/types.md](model/types.md) | the DBX type system and value encoding |
 | [model/references.md](model/references.md) | instances, GUIDs, references in and across partitions |
 | [model/bundles.md](model/bundles.md) | partitions and bundles, `*deleted*` markers, bundle precedence |
 | [model/level.md](model/level.md) | the level: LevelData, its description, layers, Objects, event connections, model groups |
 | [model/registration.md](model/registration.md) | `package.mft`, `bundleManifest`, the level checksum |
+| [model/ai_orders.md](model/ai_orders.md) | AI orders: the fifteen order classes and their fields, whom an order commands, issuing and chaining, the readiness and urgency data, why no order knows a game mode |
 | **Engine subsystems (layer 3)** | |
 | [engine/loading.md](engine/loading.md) | the load's session states, the startup bundle, the level checksum (Md5Buffer), partitions and references at load, model groups |
 | [engine/levels.md](engine/levels.md) | level ids, mode levels, the level data at run time, what a description declares |
 | [engine/gameplay.md](engine/gameplay.md) | modes and mode layers, Conquest, tickets, Rush stages, Squad Deathmatch, spawns, combat areas, DICE's measured conventions (the L1 study) |
 | [engine/ai.md](engine/ai.md) | the AI's start, the Kynapse runtime, what a level needs for bots, AI crashes |
 | [engine/kynapse_runtime.md](engine/kynapse_runtime.md) | the Kynapse runtime from the executable: configuration, loading, point to sector / tile / area / node, search costs, straight moves, sector links, dynamic edges, what it ignores, crashes |
+| [engine/bot_ai.md](engine/bot_ai.md) | bot AI: the AI frame and its time-sliced passes, the bot and player proxy, goals / behaviours / squad behaviours, the control boundary (the AI player, its input object, the actions it sends), perception, combat, movement, vehicles, squads, the game state a bot reads, difficulty; the implementation interface for OPFOR's bot module and the RE still needed |
 | [engine/rendering.md](engine/rendering.md) | the Direct3D 11 renderer: shader databases, draws, order, terrain, water, weather, post-process, shadows |
 | [engine/audio.md](engine/audio.md) | waves, streaming and on-demand audio, the announcer per content set, voice-over events |
 | [engine/network.md](engine/network.md) | the in-process host (`hostMultiplayerLocal`), the transport, the join, the server browser |
 | [engine/menus.md](engine/menus.md) | the level catalogue, engine-movie events, movie loading and unloading |
 | [engine/crashes.md](engine/crashes.md) | index: every recorded fault address and its rule |
+| [engine/lighting.md](engine/lighting.md) | baked occlusion, irradiance volumes, reflection cubes, the outdoor light, point lights (`ActAsPointLight`, `PointLightEntityData`), sky props, DICE's night rules (round SPG) |
+| [engine/weather.md](engine/weather.md) | the weather system's classes, the 355 states, DICE's value ranges, weather effects and sounds, what the export writes (SPG) |
+| [engine/effects.md](engine/effects.md) | effect and emitter classes, per-level emitters and atlases, placed and camera-proximity effects (SPG) |
+| [engine/weapons.md](engine/weapons.md) | weapon, firing and projectile data, DICE's class conventions, patched balance, the WW2 ruling (SPG) |
+| [engine/vehicles.md](engine/vehicles.md) | vehicle entities, physics, health and armour, seats, weapons, spawners, BF1943 and console vehicles (SPG) |
+| [engine/materials.md](engine/materials.md) | the material grid, part and face materials, penetration, impact effects, grime and camouflage textures (SPG) |
+| [engine/destruction.md](engine/destruction.md) | health states, parts and bangers, destroyed meshes, terrain destruction, model-group members (SPG) |
+| [engine/persistence.md](engine/persistence.md) | stats, ranks, unlocks and licences offline; OPFOR's hooks (SPG); the `Persistence/*.dbx` classes, BFBC2's and BF1943's ranks and awards, the Pacific War table (SPG2) |
+| [engine/vegetation.md](engine/vegetation.md) | forests, middlegrowth and the terrain's undergrowth: classes, the undergrowth entry, OPFOR's stand-ins (SPG2) |
+| [engine/decals.md](engine/decals.md) | the terrain's baked road and decal strips, DICE's decal sources, impact decals (SPG2) |
+| [engine/animation.md](engine/animation.md) | the soldier skeleton, compiled animation trees and their baked hand IK, zoom rules, kits, skinning kinds, the ragdoll (SPG2) |
+| [engine/module.md](engine/module.md) | OPFOR's game module: every patch point in `BFBC2Game.exe` (221 addresses), how hooks are checked and installed (SPG2) |
+| [engine/onslaught.md](engine/onslaught.md) | Onslaught: the mode in DICE's data, what the PC engine does with it, Napisal's and OPFOR's console ports (SPG2) |
+| [engine/streaming.md](engine/streaming.md) | the async, streaming and on-demand bundles: mounting, contents, registry, the suite (SPG2) |
 | **The suite's transformations (layer 4)** | |
 | [transforms/pack.md](transforms/pack.md) | FBRB unpack and pack |
 | [transforms/dbx.md](transforms/dbx.md) | DBX read / write round trips, import, DbxEdit's commands |
@@ -179,8 +196,11 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/install.md](transforms/install.md) | install and revert: the stage protocol, byte-for-byte restore, the ledger |
 | [transforms/validation.md](transforms/validation.md) | the export's rule registry: every way an exported level fails or is refused, checked live, by the build and by the stage's check; DICE's placement tendencies (L1) as warnings |
 | [transforms/projectlog.md](transforms/projectlog.md) | the editor's project log: undo / redo, GUIDs, apply |
+| [transforms/terrain_edit.md](transforms/terrain_edit.md) | what a terrain sculpt, paint or new terrain must write, and what the game computes (SPG2, for E5 / E7) |
+| [transforms/shaders.md](transforms/shaders.md) | BF1943's Xenos shaders translated for Dx10 / 11: scope, code, binding tables, keys, fetch formats, the merge, Dx9 (SPG2) |
 
-[rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it.
+[rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it. [COVERAGE.md](COVERAGE.md) maps every BFBC2 system to its tools, rounds and rules; `probes/` holds
+the read-only scripts that measured DICE's data for the engine files.
 
 ## Navigation (Kynapse)
 
@@ -195,6 +215,16 @@ Round NKS's specification of navigation meshing as BFBC2 ships and runs it, in f
 
 The corpus rules are checked by `rust/bc2-formats/tests/kynapse_corpus.rs` (game tier) and measured by
 `rust/bc2-formats/examples/kynapse_probe.rs`, which also takes NavKit's builds on its command line for the gap counts.
+
+## Bot AI
+
+Round AIS's specification of what a bot AI decision-and-control implementation needs (2026-11-22):
+[engine/bot_ai.md](engine/bot_ai.md) (`BOT-*`: the runtime, the control boundary, perception, combat, movement,
+vehicles, squads, game state, difficulty; its last sections are the implementation interface for OPFOR's bot module
+and the reverse engineering still needed, in priority order) and [model/ai_orders.md](model/ai_orders.md) (`AIO-*`:
+the order data). DICE's campaign is the ground truth; the data rules are measured by
+`rust/bc2-formats/examples/ai_probe.rs` and checked by `rust/bc2-formats/tests/ai_corpus.rs` (game tier). The AI's
+start and what a level needs stay in [engine/ai.md](engine/ai.md).
 
 ## The plan
 
@@ -222,9 +252,10 @@ the suite's reproduction and its tests. Every recorded crash address is a rule i
 7. **Networking / hosting** (`network.md`): the in-process host, the transport, the server browser.
 8. **Menus** (`menus.md`): the level catalogue, engine-movie events, movie unload.
 
-Still to write: **physics** (the hit and part material rules of OPFOR's MATERIAL_SLOTS_RE beyond GAME-DMG-1 and the
-Havok rules, destruction, vehicles); **streaming** (`async` / `streaming_*` / `ondemand_*` mount order and
-precedence); **gameplay data** (kits, weapons, vehicles as DBX classes).
+Round SPG (the gap pass, `COVERAGE.md`) wrote lighting, weather, effects, weapons, vehicles, materials,
+destruction and persistence; round SPG2 the rest of its list: terrain writing, vegetation, the shader translation, the
+game module's patch points, animation and characters, decals, the rest of persistence, BF1943 as a source, Onslaught,
+the effects' processor chain and streaming. What is left is `COVERAGE.md` section 2.
 
 ### Layer 4: the suite's transformations (grown by each porting round)
 
@@ -290,3 +321,33 @@ of them new; 335 of the suite's 556 test functions cite no rule):
   2 (round V1). In-game proofs still open: an exported level loaded in game, the stock-map AI layer played.
 - **C++ tests.** OPFOR's DLL rule tests (`src/dll/tests/*_test.cpp`) are `int main()` programs, which `trace.py`
   cannot cite as `[test: ...]`; the network and menu rules cite the DLL code instead.
+
+**After round SPG** (2026-11-22: 933 rules in 54 files - 473 verified, 73 implemented, 357 observed, 30 inferred;
+164 new in 8 engine files - 14 verified, 17 implemented, 114 observed, 19 inferred; 421 rules without a test):
+
+- **The coverage matrix** (`COVERAGE.md`): 36 systems; before SPG 15 covered, 13 thin, 8 with no rule; after it 24
+  covered, 12 thin, none without rules. Its section 2 is the order of what is left.
+- **Closed:** the wrapper's material hash function (MAT-SLOT-1; `formats/havok.md` Open questions).
+- **The probes** (`probes/*.py`) measure DICE's data read-only and print counts and ranges; the rules they back are
+  **observed**. Turning the stable counts into game-tier checks would make them verified.
+- **What only RE or a playtest settles**: the point light chosen per draw and the effects' instance cap (LIGHT-PT-7,
+  LIGHT-PT-8), the hit material on plain placed objects (MAT-PEN-3), which weather state the engine starts in
+  (RNDR-WTHR-6), irradiance-volume sampling (LIGHT-IRR-3).
+
+**After round SPG2** (2026-11-22: 1,169 rules in 68 files - 521 verified, 115 implemented, 485 observed, 48 inferred;
+118 new in 11 files - 22 verified, 42 implemented, 46 observed, 8 inferred; the bot AI round AIS had brought the count
+to 1,051 in 59 files before it):
+
+- **New files**: `transforms/terrain_edit.md`, `transforms/shaders.md`, `engine/vegetation.md`, `engine/decals.md`,
+  `engine/animation.md`, `engine/module.md`, `engine/onslaught.md`, `engine/streaming.md`, `formats/bf1943.md`;
+  `engine/persistence.md` and `engine/effects.md` extended. Two probes (`probes/terrain.py`,
+  `probes/effects_chain.py`) and the first game-tier check of probe counts (`core/tests/test_spec_probes.py`, in
+  `run_tests.py game`): 14 rules verified by it.
+- **Corrected in place** (DICE's 30 terrains contradicted rules written from 3 levels): TERR-VT-3 (the undergrowth
+  entry's second field is a string; the suite misreads NAM_MP_003), TERR-VT-4 (sub-terrain maps of 4, 8 or 16; the
+  rule-only cells' leftover flag), TERR-VT-7 (flags 2 - 64, a shared tile on 8 terrains), RNDR-TERR-5 (14 of 30 height
+  ranges are not 500 m), LIGHT-PT-3 (the game copy's ONS_MP_002 is OPFOR's console port, not Napisal's), SND-STRM-1's
+  moved citation.
+- **Open, recorded as such**: PERS-SCORE-1 contradicts AI-NEED-5 (whether bots' deaths score with the scoring patch);
+  the main height-field tail (E7); the material map; the undergrowth numbers; the processor semantics; the mount
+  functions.

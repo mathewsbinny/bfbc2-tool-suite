@@ -286,13 +286,14 @@ Status: **verified** · Variants: PC
 A patch's pixel shader takes the world height back as the height map's sample (0 .. 1) times `heightmapWorldScaleY`,
 the same height its vertex shader places with `posScale.y`: the engine writes the height field's range there. The
 records store a placeholder 500 in every database read (64 records on MP_005, 19 on MP_009, all of Wake Island's
-patch shaders), which is the range of the stock and Vietnam height fields (0 .. 500 m) but half of Wake Island's
-(0 .. 1,000 m): read as stored, BF1943's sea-floor layers (which darken by depth below the water at 215 m) put the
+patch shaders), which is the range of 16 of DICE's 30 height fields (0 .. 500 m; the others 395 - 1,700 m: TEDIT-HF-2)
+and half of Wake Island's (0 .. 1,000 m): read as stored, BF1943's sea-floor layers (which darken by depth below the water at 215 m) put the
 island's beach and shallows 100 m deep and drew them black.
 
 [test: rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon] [code: rust/bc2-render/src/terrain.rs:359-364]
 [data: Wake Island's lagoon view: 52.8 % near-black pixels before round R5d, 0.0 % after; Coral Sea's 10.2 % -> 0.3 %]
 [data: Wake Island's `Wake_Grey` cells (12,803, one constant black layer) lie 165.9 - 203.4 m: 11.6 m or more under the water]
+[data: spec/probes/terrain.py, 2026-11-22: DICE main blocks' ranges 500 x 16, 1,000 x 8, 750 x 2, 1,700, 1,500, 650, 395]
 
 ## 5. Water
 

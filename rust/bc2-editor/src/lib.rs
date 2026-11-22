@@ -63,6 +63,7 @@
 pub mod actions;
 pub mod app;
 pub mod appicon;
+pub mod autolayout;
 pub mod camera;
 pub mod catalog;
 pub mod compare;

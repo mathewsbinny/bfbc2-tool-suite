@@ -23,10 +23,12 @@ SND-STRM-1), a null wave (0xFF2AC2, SND-NULL-1), a GameMode that does not resolv
 with no shader program (0x98BD6E, RNDR-DRAW-6), a group's part counts not matching its members (0xAB4E58,
 LEVEL-MG-4); and the black ones: a black loading screen (LVL-DESC-2), black tiled terrain cells (TERR-VT-5).
 
-Left for later rounds: engine limits on instances, spawns and event connections (they need reverse engineering
-first), HQ and spawn placement over water or inside rocks, a vehicle spawner's room and domain, an exported level's
-memory against the stock levels', Xbox 360 meshes in a staged bundle (their big-endian layout is not detected yet),
-and L1-HT-001 (a flag's height above the ground around it, which needs the terrain's height field).
+Round A1 added the site rules (XVAL-PLACE-2 to 4: spawn points over water or inside rocks, a vehicle spawner's room
+and domain, gameplay objects outside every combat area) and the path rule (XVAL-PLACE-5: spawns and objectives off the
+main route network), each bounded by what DICE's own levels do. Left for later rounds: engine limits on instances,
+spawns and event connections (they need reverse engineering first), an exported level's memory against the stock
+levels', Xbox 360 meshes in a staged bundle (their big-endian layout is not detected yet), and L1-HT-001 (a flag's
+height above the ground around it).
 
 ## 1. Severities
 
@@ -661,6 +663,56 @@ within 1 m of each other: their vehicles spawn into one another. Rests on GAME-S
 [code: rust/bc2-levelwrite/src/rules.rs:726] [code: rust/bc2-levelwrite/src/validate.rs:308]
 [test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it]
 
+### XVAL-PLACE-2: Spawn points stand on ground
+
+Status: **verified**
+
+Warning (round A1); checked live in the editor (its ground, water and collision) and by `mapexport validate` (the
+ground and water). A spawn point the edits moved or made over water deeper than 1.2 m, more than 4.5 m deep inside a
+static object's collision, more than 6 m under the ground or outside the terrain: a soldier spawning there drowns or
+is stuck. The bounds lie past what DICE's own 1,475 spawn points do (GAME-SPAWN-3); on the 27 levels measured the
+rule finds nothing. Rests on GAME-SPAWN-1, GAME-SPAWN-3.
+
+[code: rust/bc2-levelwrite/src/rules.rs:735] [code: rust/bc2-levelwrite/src/validate.rs:492] [code: rust/bc2-levelwrite/src/site.rs:461]
+[test: rust/bc2-levelwrite/tests/auto_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside]
+
+### XVAL-PLACE-3: A vehicle spawner has its vehicle's room and domain
+
+Status: **verified**
+
+Warning (round A1); checked live in the editor. A vehicle spawner the edits moved or made needs its vehicle's room
+(static collision no closer than below DICE's tightest of the class: tanks 2 m, helicopters 3.5 m, cars, boats, IFVs
+and quads 0.5 m) and its domain: land vehicles not over deep water, boats on water (where the level's water mesh lies
+near the ground), none buried in collision, land and sea vehicles inside the terrain. Otherwise the vehicle spawns into the world or cannot move. Rests on GAME-SPAWN-1,
+GAME-VEH-1.
+
+[code: rust/bc2-levelwrite/src/rules.rs:745] [code: rust/bc2-levelwrite/src/validate.rs:346] [code: rust/bc2-levelwrite/src/site.rs:483]
+[test: rust/bc2-levelwrite/tests/auto_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside]
+
+### XVAL-PLACE-4: Gameplay objects stand inside a combat area
+
+Status: **verified**
+
+Warning (round A1); checked live in the editor. An M-COM, a spawn point or a land or sea vehicle spawner the edits
+moved or made outside every combat area (a spawn point more than 1 m out, a vehicle more than 150 m out, farther than
+DICE's own): a player there is told to return to the area and dies as a deserter. Capture points are L1's (L1-CQ-013,
+L1-CQ-014); aircraft and the ambient backdrop are not held to it. Rests on GAME-AREA-1, GAME-AREA-2.
+
+[code: rust/bc2-levelwrite/src/rules.rs:756] [code: rust/bc2-levelwrite/src/validate.rs:415]
+[test: rust/bc2-levelwrite/tests/auto_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside]
+
+### XVAL-PLACE-5: Spawns and objectives have a path for the AI
+
+Status: **verified**
+
+Warning (round A1); checked live in the editor once the AI workspace has read the level's path data (NavKit's build,
+else DICE's file). A spawn point, flag or M-COM the edits moved or made with no route node within 15 m in plan and
+4 m in height, or whose nearest node is on an island cut off from the main network: a bot spawned there cannot
+leave, and bots cannot attack or defend an objective there. Rests on AI-NEED-2, AI-NAV-1.
+
+[code: rust/bc2-levelwrite/src/rules.rs:767] [code: rust/bc2-levelwrite/src/validate.rs:632] [code: rust/bc2-levelwrite/src/site.rs:551]
+[test: rust/bc2-levelwrite/tests/auto_layout.rs::path_rules_want_spawns_and_objectives_on_the_main_network]
+
 ## 3. DICE's placement tendencies (L1)
 
 Round L1 measured how DICE laid out gameplay on the 64 stock multiplayer levels of Conquest, Rush, Squad Rush and
@@ -727,3 +779,23 @@ GAME-AREA-1 and GAME-AREA-2. Each rule has a synthetic broken layout that raises
 | L1-AL-001 | `all.spawn_enemy_radius` | every mode; BFBC2, BFBC1, Vietnam, WW2 | - | outside 10-20 | 10-20 (64) |
 | L1-AL-002 | `cq.spawn_margin` | CQ; BFBC2, BFBC1, Vietnam, WW2 | below 0 | below 1 | 1.3-421.9 (19) |
 | L1-HT-002 | `cq.flag_pair_dist` | CQ; BFBC2, BFBC1, Vietnam | - | above 25 | 0-24.1 (16) |
+
+## 4. The auto layout (round A1)
+
+### XLAY-AUTO-1: The auto layout proposes DICE's layout fitted to the level, never applied silently
+
+Status: **verified**
+
+`bc2_levelwrite::autolayout::propose` lays a project's mode layer (a stock level's own, brought in by the target:
+XVAL-MODE-3) out on the base level's site: the whole layer turned, scaled (0.9 to 1.1 of DICE's own distances) and
+placed where the ground suits it - flags, bases, M-COMs and spawn points on open land, not in water or rocks, the
+combat areas over the terrain and the level's art - then a flag, base or M-COM with points in a bad spot moved with
+what belongs to it (up to 40 m) and a spawn point alone (up to 16 m), heights following the ground. Each of the best 8
+candidates is measured with L1's metrics (section 3) and the site rules; the proposal has the fewest warnings, then
+the fewest statistics outside DICE's ranges (`l1_a1_params.json`), then the fewest notes, then the best ground score.
+It is a list of moves the editor shows and commits as one move operation only when the user accepts it. The same
+partition, site and seed give the same proposal.
+
+[code: rust/bc2-levelwrite/src/autolayout.rs:1021-1030]
+[test: rust/bc2-levelwrite/tests/auto_layout.rs::the_auto_layout_moves_a_layout_out_of_the_lake_onto_the_town]
+[test: rust/bc2-editor/tests/auto_layout_panel.rs::the_auto_layout_is_proposed_drawn_accepted_and_validated]
