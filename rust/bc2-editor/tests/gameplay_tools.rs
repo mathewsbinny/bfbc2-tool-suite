@@ -13,6 +13,7 @@
     clippy::float_cmp,
     clippy::too_many_lines,
     clippy::panic,
+    clippy::many_single_char_names,
     missing_docs
 )]
 

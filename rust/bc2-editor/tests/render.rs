@@ -213,8 +213,8 @@ fn palette_opens_a_top_view_with_its_own_camera() {
     assert!(!app.tabs().contains(&Tab::Viewport(Projection::Top)));
     // the 3D view, Outliner, Layers, Place objects (round E2b), Properties, Links (round GR1), Navigation, Navigation
     // edits, Islands and spawns (round GR2), Problems, History, Diff (round EX1), Asset preview (round GR3), Auto
-    // layout (round A1)
-    assert_eq!(app.tabs().len(), 14);
+    // layout (round A1), Gameplay (round E4)
+    assert_eq!(app.tabs().len(), 15);
 }
 
 #[test]
