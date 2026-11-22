@@ -85,6 +85,7 @@ mod navgraph;
 mod navpath;
 mod navtools;
 mod navtrace;
+mod navwalk;
 mod pathdata;
 mod pefile;
 mod scene;
@@ -543,6 +544,14 @@ mod bc2_native {
     // round NK3: an area's detail features (navdetail.py's broken_sides ... _f_point retired)
     #[pymodule_export]
     use super::navdetail::{navkit_detail_f_cells, navkit_detail_features};
+
+    // round NK4: walkability end to end (navsample.load's run, coarse, the hand edits, water, the extent, walkable)
+    #[pymodule_export]
+    use super::navwalk::{
+        navkit_coarse, navkit_deep_water, navkit_edit_masks, navkit_ladder_ends, navkit_navsample_stream,
+        navkit_near_points, navkit_outside_bounds, navkit_region_mask, navkit_walk_stage, navkit_walkable,
+        navkit_water_tops,
+    };
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
