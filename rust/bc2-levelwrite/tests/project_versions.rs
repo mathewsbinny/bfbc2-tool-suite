@@ -75,7 +75,7 @@ fn version_7_projects_load_as_8_and_pins_need_8() {
     v7["version"] = serde_json::Value::from(7);
     v7["min_reader"] = serde_json::Value::from(1);
     let old = MapProject::from_json(&v7.to_string()).unwrap();
-    assert_eq!(VERSION, 8);
+    const { assert!(VERSION >= 8) };
     assert_eq!(old.version, VERSION);
     assert_eq!(old.operations, p.operations);
     assert_eq!(old.reader_needed(), 1);

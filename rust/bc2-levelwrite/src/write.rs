@@ -619,7 +619,38 @@ impl LevelWriter {
     /// The partition's reference graph, to ask [`Ownership::owned`] of many objects (one graph made).
     #[must_use]
     pub fn ownership(&self) -> Ownership {
-        let (insts, refs) = self.ownership_graph();
+        self.ownership_of(false)
+    }
+
+    /// The partition's graph of references and event connections (round E4): an object owns, besides what only it
+    /// refers to, what only its own events reach - a flag its announcement filters, messages and voice-over, an
+    /// M-COM its alarm glue ([`Ownership::owned_from`]). An event connection is an edge from its source to its
+    /// target.
+    #[must_use]
+    pub fn ownership_with_events(&self) -> Ownership {
+        self.ownership_of(true)
+    }
+
+    fn ownership_of(&self, events: bool) -> Ownership {
+        let (insts, mut refs) = self.ownership_graph();
+        if events {
+            for a in self.connection_arrays() {
+                for &c in self.d.children(a).unwrap_or_default() {
+                    let end = |f: &[u8]| {
+                        self.d
+                            .child(c, f)
+                            .and_then(|x| self.d.attr(x, b"ref"))
+                            .and_then(local_ref)
+                    };
+                    if let (Some(s), Some(t)) = (end(b"Source"), end(b"Target"))
+                        && refs.contains_key(&t)
+                        && let Some(out) = refs.get_mut(&s)
+                    {
+                        out.push(t);
+                    }
+                }
+            }
+        }
         let mut referrers: HashMap<String, Vec<String>> = HashMap::new();
         #[allow(
             clippy::iter_over_hash_type,
@@ -858,31 +889,54 @@ impl LevelWriter {
     /// The template missing or the level's `LevelData`, the new guid taken, a template without `Transform` or
     /// `ReferencedObject`, or a field value its type does not take.
     pub fn add_instance(&mut self, schema: &Schema, p: &Placed) -> Result<()> {
-        let field = p.ref_field.as_deref().unwrap_or("ReferencedObject");
         if !p.owned.is_empty() {
             // with the sub-instances it owns: the deep duplicate's copy, the connections among them only
-            if self.type_of(self.need(&p.template)?).ends_with(".LevelData") {
-                return Err(LevelWriteError::Refused(
-                    "the level itself (LevelData) cannot be a template".into(),
-                ));
-            }
-            self.copy_set(&p.template, &p.guid, &p.transform, &p.owned, true)?;
-            if !p.blueprint.is_empty() {
-                let e = self.need(&p.guid)?;
-                let r = self
-                    .d
-                    .child(e, field.as_bytes())
-                    .ok_or_else(|| LevelWriteError::NoField {
-                        guid: p.template.clone(),
-                        field: field.into(),
-                    })?;
-                self.d.set_ref(r, p.blueprint.as_bytes())?;
-            }
-            for f in &p.fields {
-                self.set_field(schema, &p.guid, &f.field, &f.value)?;
-            }
-            return Ok(());
+            return self.add_set(schema, p, true);
         }
+        self.add_one(schema, p)
+    }
+
+    /// Places a gameplay object with its logic (round E4, [`Op::PlaceUnit`]): a copy of the template and of every
+    /// sub-instance in `p.owned` (what it owns through references and events: [`crate::gameplay::unit`]), each
+    /// event connection from or to any of them copied with both ends remapped - a deep duplicate's copy, so the copy
+    /// is wired to the level's shared logic (a Rush stage's counters, the announcer) as its template is - then the
+    /// blueprint and the fields set.
+    ///
+    /// # Errors
+    /// As [`LevelWriter::add_instance`].
+    pub fn place_unit(&mut self, schema: &Schema, p: &Placed) -> Result<()> {
+        self.add_set(schema, p, false)
+    }
+
+    /// [`LevelWriter::add_instance`] with sub-instances: [`LevelWriter::copy_set`], then the blueprint and fields.
+    fn add_set(&mut self, schema: &Schema, p: &Placed, internal_only: bool) -> Result<()> {
+        let field = p.ref_field.as_deref().unwrap_or("ReferencedObject");
+        if self.type_of(self.need(&p.template)?).ends_with(".LevelData") {
+            return Err(LevelWriteError::Refused(
+                "the level itself (LevelData) cannot be a template".into(),
+            ));
+        }
+        self.copy_set(&p.template, &p.guid, &p.transform, &p.owned, internal_only)?;
+        if !p.blueprint.is_empty() {
+            let e = self.need(&p.guid)?;
+            let r = self
+                .d
+                .child(e, field.as_bytes())
+                .ok_or_else(|| LevelWriteError::NoField {
+                    guid: p.template.clone(),
+                    field: field.into(),
+                })?;
+            self.d.set_ref(r, p.blueprint.as_bytes())?;
+        }
+        for f in &p.fields {
+            self.set_field(schema, &p.guid, &f.field, &f.value)?;
+        }
+        Ok(())
+    }
+
+    /// [`LevelWriter::add_instance`] without sub-instances.
+    fn add_one(&mut self, schema: &Schema, p: &Placed) -> Result<()> {
+        let field = p.ref_field.as_deref().unwrap_or("ReferencedObject");
         let src = self.need(&p.template)?;
         if self.find(&p.guid).is_some() {
             return Err(LevelWriteError::Exists(p.guid.clone()));
@@ -944,15 +998,28 @@ impl Ownership {
     /// The sub-instances an object owns ([`LevelWriter::owned`]).
     #[must_use]
     pub fn owned(&self, guid: &str) -> Vec<String> {
-        let x = guid.to_ascii_uppercase();
-        if !self.refs.contains_key(&x) {
+        self.owned_from(&[guid.to_owned()])
+    }
+
+    /// The sub-instances a set of objects owns together (round E4): the greatest set reachable from them in which
+    /// every referrer of a member (and, in [`LevelWriter::ownership_with_events`]'s graph, every event source) is one
+    /// of the objects or a member; the objects themselves left out, in partition order. Unknown guids are skipped.
+    #[must_use]
+    pub fn owned_from(&self, roots: &[String]) -> Vec<String> {
+        let roots: Vec<String> = roots
+            .iter()
+            .map(|g| g.to_ascii_uppercase())
+            .filter(|g| self.refs.contains_key(g))
+            .collect();
+        if roots.is_empty() {
             return Vec::new();
         }
-        // the greatest set: reachable from the object, every referrer inside it
+        let is_root = |g: &str| roots.iter().any(|r| r == g);
+        // the greatest set: reachable from the objects, every referrer inside it
         let mut dead: HashSet<&str> = self.level.iter().map(String::as_str).collect();
         loop {
-            let mut reach: HashSet<&str> = HashSet::from([x.as_str()]);
-            let mut todo = vec![x.as_str()];
+            let mut reach: HashSet<&str> = roots.iter().map(String::as_str).collect();
+            let mut todo: Vec<&str> = roots.iter().map(String::as_str).collect();
             while let Some(g) = todo.pop() {
                 for t in self.refs.get(g).into_iter().flatten() {
                     if !dead.contains(t.as_str()) && reach.insert(t.as_str()) {
@@ -964,7 +1031,7 @@ impl Ownership {
                 .iter()
                 .copied()
                 .filter(|g| {
-                    *g != x
+                    !is_root(g)
                         && self
                             .referrers
                             .get(*g)
@@ -977,7 +1044,7 @@ impl Ownership {
                 return self
                     .order
                     .iter()
-                    .filter(|g| **g != x && reach.contains(g.as_str()))
+                    .filter(|g| !is_root(g) && reach.contains(g.as_str()))
                     .cloned()
                     .collect();
             }
@@ -1160,6 +1227,18 @@ pub fn apply_one_with(
         }
         Op::RemovePoint { guid } => {
             remove_point_counted(w, guid, out).map_err(fail)?;
+        }
+        Op::LinkPoint { spawner, point, linked } => {
+            crate::gameplay::link_point(w, spawner, point, *linked).map_err(fail)?;
+            out.fields += 1;
+        }
+        Op::SetRules { to, .. } => {
+            out.fields += crate::gameplay::set_rules(w, schema, to).map_err(fail)?;
+        }
+        Op::PlaceUnit { item } => {
+            w.place_unit(schema, item).map_err(fail)?;
+            out.placed += 1;
+            out.duplicated += item.owned.len();
         }
         Op::SetMode { to } => {
             let bytes = donors(&to.donor).ok_or_else(|| {
