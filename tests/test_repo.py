@@ -14,7 +14,9 @@ r"""The repository's own rules, checked before anything is pushed (no game data 
 - no runner entry named by a round code (O4:, F2a, E3o ...) beyond the 60 named so before round TS1's rule (audit AU3 TS-14),
   keyed by the entries' stable ids (round PR1a), every id well formed, unique and free of round codes;
 - no Rust test file, test data or module (tests/ and src/) named by a round code beyond those grandfathered by path
-  (round PR1a, audit AU5 NAM-1).
+  (round PR1a, audit AU5 NAM-1);
+- every .py file has its row in rust/python_status.py's table (the inventory PYTHON_STATUS.md), and no row names a
+  file that is gone.
 
   python tests\test_repo.py
 """
@@ -297,8 +299,24 @@ def unsorted_json_writes() -> list[str]:
     return out
 
 
+def python_status_problems() -> list[str]:
+    """Every .py file of the suite (tracked, or new and not ignored) has its row in rust/python_status.py's TABLE, and
+    no row names a file that is gone (PYTHON_STATUS.md is generated from it); the same check on stand-in lists must
+    name exactly the stray file and the gone row."""
+    sys.path.insert(0, os.path.join(SUITE, 'rust'))
+    import python_status as ps
+    row = ps.Row('a.py', ps.LIB, 'live', '', '', '', '')
+    got = ps.table_problems(['a.py', 'stray.py'], (row, row._replace(path='gone.py')))
+    want = ['stray.py: not in', 'gone.py: in']
+    ok = len(got) == 2 and all(g.startswith(w) for g, w in zip(got, want))
+    return ([] if ok else [f'the check on stand-in lists said {got}']) + ps.table_problems(ps.python_files(SUITE),
+                                                                                          ps.TABLE)
+
+
 def main(argv: list[str]) -> int:
     results = []
+    results.append(('every .py file is classified in rust/python_status.py (PYTHON_STATUS.md), and every row names '
+                    'a file that exists', python_status_problems()))
     results.append(('every test_*.py runs in a tier of run_tests.py (or is allowed out with its reason)',
                     untiered_test_files()))
     results.append(('no new runner entry named by a round code (O4:, F2a, E3o ...); every entry has a stable id',

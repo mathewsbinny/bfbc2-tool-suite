@@ -1,0 +1,876 @@
+r"""Every Python file of the suite with its port status: writes PYTHON_STATUS.md and python_status.json at the root.
+
+    python rust\python_status.py            write both files (the same bytes on every run of the same tree)
+    python rust\python_status.py --print    the Markdown on stdout, nothing written
+
+TABLE below is the one place each tracked .py file is classified (its kind, status, Rust counterpart, callers,
+retiring round and a one-line note). The non-blank line counts are counted from the files at each run, and the Rust
+files that embed a Python file with `include_str!` (bfbc2.exe prints its usage from it, or keys a cache by its hash)
+are found at each run; everything else is in the table. tests/test_repo.py fails when a .py file is not in the table
+or the table names a file that is gone, so a new or deleted Python file needs its row here (then run this script).
+Line counts change with every edit, so no check compares them: regenerate when the table changes.
+
+The statuses (ROADMAP.md "Python left"):
+    live             only Python does this job
+    partly           part of its job is ported; the note names what is left
+    twin             a Python twin of Rust code, kept for parity, as a fallback where the Rust refuses, or for callers
+    ported           Rust answers its job and the Python is a thin caller (a shim over bc2_native or bfbc2.exe)
+    retired-pending  in a retired tool's folder, to be moved or deleted (RETIRED.md rule 1)
+    stays            benchmarks and parity measurements against the old Python, build and dev scripts
+    test             tests and their helpers stay Python until "Tests in Rust"
+"""
+from __future__ import annotations
+
+import ast
+import json
+import os
+import re
+import subprocess
+import sys
+from typing import NamedTuple
+
+SUITE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MD = 'PYTHON_STATUS.md'
+JSON = 'python_status.json'
+
+STATUSES = ('live', 'partly', 'twin', 'ported', 'retired-pending', 'stays', 'test')
+TOOL = 'tool entry point'
+LIB = 'library'
+TEST = 'test'
+HELPER = 'test helper or golden recorder'
+BENCH = 'benchmark or parity script'
+DEV = 'build or dev script'
+SHIM = 'shim'
+KINDS = (TOOL, LIB, TEST, HELPER, BENCH, DEV, SHIM)
+
+
+class Row(NamedTuple):
+    path: str
+    kind: str
+    status: str
+    rust: str           # the Rust counterpart: crate::module or a bfbc2.exe command ('' if none)
+    callers: str        # who imports or runs it (suite, tests, Project OPFOR's src)
+    retiring: str       # ROADMAP's round, or "proposed: ..." where the ROADMAP names none
+    note: str           # one line ('' for a test: its docstring's first sentence is used)
+
+
+def R(path: str, kind: str, status: str, rust: str, callers: str, retiring: str, note: str) -> Row:
+    return Row(path, kind, status, rust, callers, retiring, note)
+
+
+def T(path: str, note: str = '') -> Row:
+    """A test file."""
+    return Row(path, TEST, 'test', '', 'run_tests.py', 'Tests in Rust', note)
+
+
+def H(path: str, callers: str, note: str = '') -> Row:
+    """A test helper or a test's case module."""
+    return Row(path, HELPER, 'test', '', callers, 'Tests in Rust', note)
+
+
+NAV = 'bfbc2-auto-navkit'
+HARN = 'bfbc2-automated-map-and-bot-test-harness'
+IMP = 'bfbc2-bf1943-import'
+CONV = 'bfbc2-console-convert'
+L1 = 'bfbc2-map-editor/placement/scripts'
+
+# The classifications (state of the suite's main at the QW3 merge, 49f79c3, 2026-11-22; NK4 / NK5 are changing
+# bfbc2-auto-navkit's rows as they port walkability and the stage). Callers: git grep of imports, script names and
+# runs in the suite and in Project OPFOR BFBC2's tracked files; "tests N" counts the suite's test files.
+TABLE: tuple[Row, ...] = (
+    # --- bfbc2-anim-tools
+    R('bfbc2-anim-tools/aimanim.py', LIB, 'ported', 'bc2_formats::aimanim; bfbc2 aimanim',
+      'bf1943import; tests 2; OPFOR 2 (bf1943_weapons, weapon_preview)', 'PR1b-2',
+      'references retired in RT1; parse / write / to_pc go through bc2_native; its docstring is the usage bfbc2.exe prints'),
+    R('bfbc2-anim-tools/granny.py', TOOL, 'partly', 'bc2_formats::granny, bc2_convert::granny / granny_edit',
+      'bf1943import, dbxport, meshport; tests 6; OPFOR 12', 'PR1b-2',
+      'reading and writing in Rust (E3i, F2a); left: curve_keys / sample on the reader side, Granny.put / field / '
+      'array_at, the *_reference twins'),
+    T('bfbc2-anim-tools/tests/test_aimanim.py'),
+    T('bfbc2-anim-tools/tests/test_granny.py'),
+    T('bfbc2-anim-tools/tests/test_granny_f2a_native.py'),
+    T('bfbc2-anim-tools/tests/test_granny_native.py'),
+    T('bfbc2-anim-tools/tests/test_granny_port.py'),
+
+    # --- bfbc2-auto-navkit (NK4 / NK5 in progress)
+    R(f'{NAV}/navkit.py', TOOL, 'partly', 'bfbc2 navkit (bc2-cli navkit: driver, prepare, apply)',
+      'hub, navkitGUI.pyw, navparity, navregress, harness; tests 23', 'NK5',
+      'Rust answers levels, prepare, check, compare, status, install, restore and apply on a DICE base; left: build, '
+      'all and apply on a NavKit base (navbuild), sample (starts the game)'),
+    R(f'{NAV}/tools/detailed.py', TOOL, 'partly', 'bfbc2 detailed (bc2-cli navtools::detailed)',
+      'navkit.py, navregress, navsample_offline, sample_all; tests 4', 'NK5',
+      'the choice is Rust (O5); left: --score (evaluation only) and the library calls of build_inputs'),
+    R(f'{NAV}/tools/hkpack.py', TOOL, 'twin', 'bc2_formats::havok packfile (hkpack_open); bfbc2 hkpack',
+      'levelobjects, navsample_offline, collision; tests 4; OPFOR research 2', 'proposed: PR1b-2',
+      "F4's read_value_reference / read_object_reference kept by ruling; Packfile keeps Python dicts"),
+    R(f'{NAV}/tools/hpdcheck.py', TOOL, 'twin', 'bfbc2 hpdcheck (bc2-cli navtools::hpdcheck)',
+      'navregress, navsample_offline, harness; tests 2', 'NK5',
+      'the command line is Rust; the library check() stays for the regression builds'),
+    R(f'{NAV}/tools/hpdtool.py', TOOL, 'twin', 'bc2_formats::hpd; bfbc2 hpdtool',
+      '22 suite modules (navkit, NavKit tools, navdata); tests 16; OPFOR 1', 'NK5',
+      'parse has no Python left (RT3); write_reference stays while the build hands it objects the core refuses'),
+    R(f'{NAV}/tools/hpdview.py', TOOL, 'live', '',
+      'none (bfbc2 hpdview checks arguments, then hands off)', 'proposed: PR1c (delete)',
+      "matplotlib drawing of one sector; the editor's navmesh view shows the same; nothing calls it"),
+    R(f'{NAV}/tools/kymesh.py', LIB, 'twin', 'bc2_navbuild / bc2_formats kymesh (kymesh_parse, write)',
+      'navkit.py, navbuild, navdetail, hpdtool, detailed, hpdcheck; tests 10', 'NK5',
+      'parse_mesh_reference kept "for good" as the format reference (E3o); write_mesh_reference for refused objects'),
+    R(f'{NAV}/tools/ladders.py', TOOL, 'twin', 'bfbc2 ladders (bc2-cli navkit::ladders)',
+      'navkit.py, navregress, navwalk; tests 3', 'NK4',
+      "the command line is Rust; extract() feeds navwalk's ladder re-floods"),
+    R(f'{NAV}/tools/levelobjects.py', TOOL, 'twin', 'bfbc2 levelobjects; bc2_scene::collision (navkit_level_scan)',
+      'navkit.py, navbuild, navregress, navsample_offline, navwalk, ladders; tests 5', 'NK5',
+      'the command line and the scan are Rust; the Python walk stays as fallback where the core refuses'),
+    R(f'{NAV}/tools/navboundary.py', TOOL, 'live', '', 'tests 3', 'proposed: NKG1',
+      "a cell-by-cell boundary diagnostic against DICE's path data; no Rust measure does it"),
+    R(f'{NAV}/tools/navbuild.py', LIB, 'partly', 'bc2_navbuild (graphfile, detail, rules, parity)',
+      'navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh, overlay; tests 12', 'NK4-NK5',
+      'graphs to file (NK2) and D / F (NK3) are Rust; left: stage, walkability glue, merge_detailed, build_inputs'),
+    R(f'{NAV}/tools/navcompare.py', TOOL, 'twin', 'bfbc2 navcompare (bc2-cli navkit::navcompare)',
+      'navkit.py, navparity; tests 3', 'NK5', 'the command line is Rust; compare() is a library of navparity'),
+    R(f'{NAV}/tools/navdetail.py', LIB, 'ported', 'bc2_navbuild::detail (navkit_detail_features)',
+      'navbuild; tests 1; rust/parity_nk3_detail.py', 'NK5',
+      "NK3 retired the Python rule; left: the stage's detail_pass glue in navbuild (NK5)"),
+    R(f'{NAV}/tools/navdf.py', TOOL, 'twin', 'bc2_navbuild::parity (compare_sectors)',
+      'navparity, navregress; tests 1', 'proposed: NKG1',
+      'D / F parity measure; the comparison runs in Rust when built, the Python as reference'),
+    R(f'{NAV}/tools/navdiff.py', TOOL, 'twin', 'bc2_navbuild::parity (navkit_area_cells)',
+      'navdf, navparity, navsample_offline, navvehicle, navwater, navdata; tests 7', 'proposed: NKG1',
+      "area cells in Rust (E3h); the layers' comparison and the PNGs are Python"),
+    R(f'{NAV}/tools/navdomains.py', TOOL, 'twin', 'bc2_navbuild domains (DomainGraph)',
+      'tests 4', 'proposed: A3',
+      "cross-domain route prototype; dijkstra in Rust (E4e) with the Python as fallback; no tool calls it"),
+    R(f'{NAV}/tools/navedits.py', LIB, 'live', '', 'navbuild, navwalk; tests 2', 'NK4',
+      "the navtune side file's walkability edits as build inputs (NK4: navedits.edits_for)"),
+    R(f'{NAV}/tools/navislands.py', LIB, 'ported', 'bc2_navbuild::graphfile::shadow_islands',
+      'navbuild; tests 1; rust/parity_nk2_file.py', 'NK5', "NK2 moved the rule; note_nodes / rule glue are the stage's"),
+    R(f'{NAV}/tools/navnative.py', SHIM, 'ported', 'bc2_native (the E4e functions)',
+      'levelobjects, navdf, navdiff, navdomains, navsample_offline, navvehicle, ordercheck; tests 2',
+      'PR1b-2', "the switch between E4e's Rust and their Python references; goes with them (one backend registry)"),
+    R(f'{NAV}/tools/navparity.py', TOOL, 'partly', 'bfbc2 navparity (bc2-cli navtools::navparity)',
+      '17 suite modules (navregress, harness, NavKit tools); tests 5', 'NK5',
+      'Rust answers argument errors and "no reference run"; left: run (the measures over many levels)'),
+    R(f'{NAV}/tools/navregress.py', TOOL, 'live', 'bfbc2 navregress (arguments only)',
+      'navkit.py, navboundary, navdf, navsample_offline, navvehicle, harness; tests 9', 'NK5',
+      'the regression builds run navbuild; level_water / reference_bounds / order_points_of move with NK5'),
+    R(f'{NAV}/tools/navsample.py', TOOL, 'partly', 'bc2_navbuild navsample (navkit_navsample_parse, _v3)',
+      'navkit.py, navbuild, detailed, navparity, navsample_offline, navvehicle; tests 8', 'NK4',
+      'load is Rust (versions 1-3); left: walkable / flood / compare and the info / compare command line'),
+    R(f'{NAV}/tools/navsample_offline.py', TOOL, 'partly', 'bc2_navbuild offline / hulls',
+      'tests 6; A2 plans it in process', 'proposed: after NK5 (A2)',
+      'file_bytes and the raster in Rust; left: asset_bodies (NumPy hulls), the level geometry, the command line'),
+    R(f'{NAV}/tools/navvehicle.py', TOOL, 'partly', 'bc2_navbuild vehicle (navkit_obstacle_distance)',
+      'navdomains; tests 5', 'NK5', 'obstacle distance in Rust (E4e); left: stage_on_grid runs navbuild.stage'),
+    R(f'{NAV}/tools/navwalk.py', LIB, 'partly', 'bc2_navbuild::rules (the grid walks)',
+      'navbuild, navislands, navvehicle, navwater_mesh, level; tests 10', 'NK4',
+      "the rules' grid walks are Rust; left: coarse and walkable's NumPy glue (seeds, anchors, re-floods)"),
+    R(f'{NAV}/tools/navwater.py', TOOL, 'live', '', 'navbuild, navwater_mesh; tests 1', 'NK4',
+      "water depth against DICE's coverage (a measure) plus water_tops, which NK4 takes"),
+    R(f'{NAV}/tools/navwater_mesh.py', TOOL, 'live', '', 'navdomains; tests 4', 'proposed: NK5 (or A3)',
+      "boats' navigation side file (prototype); a navbuild caller ROADMAP's NK5 must move"),
+    R(f'{NAV}/tools/ordercheck.py', TOOL, 'twin', 'bfbc2 ordercheck (bc2-cli navkit::ordercheck)',
+      'navkit.py, navcompare, navparity, harness, levelinfo, stockmp config; tests 2', 'NK5',
+      'the command line is Rust; its order_points / PathData are libraries of NavKit and the harness'),
+    R(f'{NAV}/tools/sample_all.py', TOOL, 'live', 'bfbc2 sample_all (arguments only)', 'navkit.py; tests 0',
+      'proposed: after NK5', "starts the game per level (Python by rule while sampling is navkit.py's)"),
+    T(f'{NAV}/tests/test_apply.py'),
+    T(f'{NAV}/tests/test_area_link.py'),
+    T(f'{NAV}/tests/test_bridge_union.py'),
+    T(f'{NAV}/tests/test_characters.py'),
+    T(f'{NAV}/tests/test_collision_backends.py'),
+    T(f'{NAV}/tests/test_column_sectors.py'),
+    T(f'{NAV}/tests/test_detail_features.py'),
+    T(f'{NAV}/tests/test_dynamic_props.py'),
+    T(f'{NAV}/tests/test_havok_index.py'),
+    T(f'{NAV}/tests/test_headroom.py'),
+    T(f'{NAV}/tests/test_links.py'),
+    T(f'{NAV}/tests/test_lips.py'),
+    T(f'{NAV}/tests/test_navboundary.py'),
+    T(f'{NAV}/tests/test_navbuild_native.py'),
+    T(f'{NAV}/tests/test_navdomains.py'),
+    T(f'{NAV}/tests/test_navedits.py'),
+    T(f'{NAV}/tests/test_navislands.py'),
+    T(f'{NAV}/tests/test_navkit_offline.py'),
+    T(f'{NAV}/tests/test_navsample_offline.py'),
+    T(f'{NAV}/tests/test_navtools_native.py'),
+    T(f'{NAV}/tests/test_navwater_mesh.py'),
+    T(f'{NAV}/tests/test_objective_floor.py'),
+    T(f'{NAV}/tests/test_pathdata_native.py'),
+    T(f'{NAV}/tests/test_portal_symmetry.py'),
+    T(f'{NAV}/tests/test_reference_clip.py'),
+    T(f'{NAV}/tests/test_regress_progress.py'),
+    T(f'{NAV}/tests/test_roof_prune.py'),
+    T(f'{NAV}/tests/test_tool_edges.py'),
+    T(f'{NAV}/tests/test_traversal.py'),
+    T(f'{NAV}/tests/test_vehicle.py'),
+    T(f'{NAV}/tests/test_vehicle_level.py'),
+    T(f'{NAV}/tests/test_water_rule.py'),
+
+    # --- bfbc2-automated-map-and-bot-test-harness
+    R(f'{HARN}/crash-reader/crashreaderlib.py', LIB, 'twin', 'bc2_harness (ExeHandle, crash log); bfbc2 crashreader',
+      'exeref; tests 3; rust/bench_harness, bench_sweep', 'PR1b-2',
+      'command line retired (RT3); Image keeps capstone for other executables'),
+    R(f'{HARN}/crash-reader/exeref.py', TOOL, 'twin', 'bc2_harness::pe (ExeHandle); bfbc2 exeref',
+      'tests 4; rust/bench_harness', 'PR1b-2',
+      'Rust answers BFBC2Game.exe; the Python handles other executables (capstone) and is the hand-off'),
+    R(f'{HARN}/crash-reader/harnesscore.py', SHIM, 'ported', 'bc2_harness through bc2_native',
+      'crashreaderlib, ingame, checks; tests 1', 'PR1b-2', "the harness's native loader (one backend registry)"),
+    R(f'{HARN}/harness.py', TOOL, 'partly', 'bfbc2 harness (bc2-cli harness: cli, runs)',
+      'tests 5', 'PR1b-2, Tests in Rust', 'Rust answers everything but run (NumPy draws, NavKit builds)'),
+    R(f'{HARN}/testharness/__init__.py', LIB, 'partly', '', 'harness.py; tests 3', 'PR1b-2',
+      "the package of the harness's library (its modules' rows below)"),
+    R(f'{HARN}/testharness/checks.py', LIB, 'partly', 'bc2_harness::graph (pair bits, cell index)',
+      'harness.py; tests 3', 'PR1b-2', 'reachability pair bits and the ground cell index in Rust; the test kinds Python'),
+    R(f'{HARN}/testharness/classify.py', LIB, 'live', '', 'harness.py, checks, levelinfo; tests 2', 'PR1b-2',
+      'which level points are infantry points'),
+    R(f'{HARN}/testharness/ingame.py', LIB, 'twin', 'bc2_harness (opfor.log sessions)',
+      'harness.py, checks, levelchecks, runs; tests 2', 'PR1b-2',
+      'sessions in Rust (E4f); sessions_reference kept (a faster Python algorithm, RT1)'),
+    R(f'{HARN}/testharness/levelchecks.py', LIB, 'live', '', 'harness.py; tests 2', 'PR1b-2',
+      "a level's AI-readiness checks from files"),
+    R(f'{HARN}/testharness/levelinfo.py', LIB, 'live', '', 'harness.py; tests 3', 'PR1b-2',
+      'what the harness reads about a level (points, AI layer, load set)'),
+    R(f'{HARN}/testharness/runs.py', LIB, 'twin', 'bc2-cli harness::runs', 'harness.py; tests 2', 'PR1b-2',
+      "saved runs and their comparison; bfbc2 harness show / compare / list answer in Rust"),
+    T(f'{HARN}/crash-reader/tests/test_crash_native.py'),
+    T(f'{HARN}/crash-reader/tests/test_crashreader.py'),
+    T(f'{HARN}/crash-reader/tests/test_exeref.py'),
+    T(f'{HARN}/tests/test_harness.py'),
+
+    # --- bfbc2-bf1943-import
+    R(f'{IMP}/bf1943import.py', TOOL, 'partly', 'bc2-cli bf1943src / import; bfbc2 bf1943import',
+      'dbxparity, meshport, portparity, texqa, renderqa, xdiff; tests 28; OPFOR 28', 'PR1b-1',
+      "Rust answers help, list, find and a current cache; left: import / check (the Importer), the source index pickle"),
+    R(f'{IMP}/dbxcatalogue.py', TOOL, 'partly', 'bc2_convert::dbxcatalogue (catalogue_build); bfbc2 dbxcatalogue',
+      'dbxparity, dbxport; tests 8; OPFOR 8', 'PR1b-1',
+      "the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle"),
+    R(f'{IMP}/dbxparity.py', TOOL, 'live', 'bfbc2 dbxparity (help and errors only)',
+      'dbxport, effectport; tests 3; OPFOR 1 (qa_checks)', 'PR1b-1',
+      "BF1943's partitions against DICE's, field by field: the parity runs are Python"),
+    R(f'{IMP}/dbxport.py', LIB, 'twin', 'bc2_convert::dbxport (port, rules)',
+      'dbxparity, effectport; tests 9; OPFOR 10', 'PR1b-1',
+      'the partition port is Rust (E4d); port_python kept as reference and fallback'),
+    R(f'{IMP}/effectport.py', LIB, 'live', '', 'tests 3; rust/bench_ports; OPFOR 5',
+      'proposed: OPFOR in Rust stage 2 (its only users are OPFOR\'s WW2 steps)',
+      'BF1943 effects with their emitters and textures; no Rust port (its *_reference is a faster Python algorithm)'),
+    R(f'{IMP}/emitteratlas.py', LIB, 'twin', 'bc2_convert::emitteratlas',
+      'texqa, texwrite; tests 3; OPFOR 3', 'PR1b-1',
+      'Rust since F2b; the Python kept (an unreadable chunk is recorded, float near-ties by design)'),
+    R(f'{IMP}/havokport.py', LIB, 'twin', 'bc2_convert::havokport', 'tests 3; rust/bench_ports; OPFOR 5', 'PR1b-1',
+      'Rust since F2b; its Python reference waits for recorded goldens (RT1)'),
+    R(f'{IMP}/importcore.py', SHIM, 'ported', "bc2_native (the importer's functions)",
+      'dbxcatalogue, emitteratlas, havokport, meshport, mopp; tests 3', 'PR1b-2', "the importer's native loader"),
+    R(f'{IMP}/meshport.py', LIB, 'partly', 'bc2_convert::meshport (the searches)',
+      'portparity; tests 4; OPFOR 6', 'PR1b-1', 'searches in Rust; left: the Porter, the writers, the shader plan'),
+    R(f'{IMP}/mopp.py', LIB, 'twin', 'bc2_convert::mopp', 'havokport; tests 3', 'PR1b-1',
+      'Rust since F2b; its Python reference waits for recorded goldens (RT1)'),
+    R(f'{IMP}/portparity.py', TOOL, 'live', 'bfbc2 portparity (help and errors only)',
+      'tests 2; OPFOR 1 (bf1943_vehicles)', 'PR1b-1',
+      "our BF1943 conversions against DICE's own PC versions: the runs are Python"),
+    T(f'{IMP}/tests/test_bf1943import.py'),
+    T(f'{IMP}/tests/test_dbxcatalogue_native.py'),
+    T(f'{IMP}/tests/test_dbxport.py'),
+    T(f'{IMP}/tests/test_dbxport_fair.py'),
+    T(f'{IMP}/tests/test_dbxport_native.py'),
+    T(f'{IMP}/tests/test_dbxport_opfor.py'),
+    T(f'{IMP}/tests/test_dbxport_ranking.py'),
+    T(f'{IMP}/tests/test_dbxport_rules.py'),
+    T(f'{IMP}/tests/test_dbxport_tables.py'),
+    T(f'{IMP}/tests/test_emitteratlas.py'),
+    T(f'{IMP}/tests/test_emitteratlas_native.py'),
+    T(f'{IMP}/tests/test_havokport.py'),
+    T(f'{IMP}/tests/test_havokport_native.py'),
+    T(f'{IMP}/tests/test_meshport.py'),
+    T(f'{IMP}/tests/test_ports_native.py'),
+
+    # --- bfbc2-console-convert
+    R(f'{CONV}/audio.py', TOOL, 'partly', 'bc2_formats::wave, bc2_convert XAS encoder; bfbc2 audio',
+      'tests 7; OPFOR 2 (wake_level, wake_vo)', 'PR1b-1',
+      'Wave / SPS reading and XAS encoding in Rust; left: one ffmpeg process per sound (XMA decode), the writers\' '
+      'references'),
+    R(f'{CONV}/convert.py', TOOL, 'twin', 'bfbc2 convert (bc2-cli nav::convert)', 'tests 4; rust/bench_sweep',
+      'PR1b-1', 'the command line is Rust; the Python answers damaged input; manifest() used by tests'),
+    R(f'{CONV}/havok.py', LIB, 'twin', 'bc2_convert havok / hkclasses (convert_wrapper)',
+      'havokport, convert; tests 7; OPFOR 7', 'PR1b-1', "F2a's references kept until recorded goldens retire them"),
+    R(f'{CONV}/mesh.py', LIB, 'twin', 'bc2_formats::meshdata, bc2_convert mesh',
+      '17 suite modules (meshport, meshview, renderqa ...); tests 9; OPFOR 18', 'PR1b-1',
+      'Rust for parse / write / relayout; element, pair_by_kind, strip_to_list still Python for callers'),
+    R(f'{CONV}/meshset.py', LIB, 'twin', 'bc2_formats meshset', 'meshport, portparity, mesh, renderqa; tests 5; OPFOR 15',
+      'PR1b-1', 'write_reference kept for objects the core refuses'),
+    R(f'{CONV}/soot.py', LIB, 'ported', 'bc2_convert terrain / converters (soot)', 'tests 2; OPFOR 2', 'PR1b-1',
+      'a thin call into the Rust core (F2a)'),
+    R(f'{CONV}/terrain.py', LIB, 'twin', 'bc2_convert::terrain',
+      'navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2', 'PR1b-1',
+      'Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens'),
+    R(f'{CONV}/texqa.py', TOOL, 'partly', 'bfbc2 texqa (bc2-cli texqa: the measures)',
+      'tests 9; OPFOR 1 (qa_checks)', 'PR1b-1',
+      "the measures are Rust; left: DICE's copies, BF1943 sources, the PIL contact sheets, argparse errors"),
+    R(f'{CONV}/texture.py', LIB, 'twin', 'bc2_formats texture (tiled, packed, layout)',
+      '16 suite modules; tests 13; OPFOR 29', 'PR1b-1',
+      "tiled / packed / layout references kept by ruling: texqa's independent decoder"),
+    T(f'{CONV}/tests/test_audio.py'),
+    T(f'{CONV}/tests/test_audio_native.py'),
+    T(f'{CONV}/tests/test_console_f2a_native.py'),
+    T(f'{CONV}/tests/test_havok.py'),
+    T(f'{CONV}/tests/test_havok_classes_native.py'),
+    T(f'{CONV}/tests/test_mesh_decode.py'),
+    T(f'{CONV}/tests/test_meshdata_native.py'),
+    T(f'{CONV}/tests/test_soot.py'),
+    T(f'{CONV}/tests/test_terrain.py'),
+    T(f'{CONV}/tests/test_texqa.py'),
+    T(f'{CONV}/tests/test_texture.py'),
+    T(f'{CONV}/tests/test_texture_helpers_native.py'),
+    T(f'{CONV}/tests/test_texture_native.py'),
+    T(f'{CONV}/tests/test_trees.py'),
+    T(f'{CONV}/tests/test_wave_native.py'),
+
+    # --- bfbc2-console-readers
+    R('bfbc2-console-readers/apt/apt.py', TOOL, 'twin', 'bc2_menu apt; bfbc2 apt',
+      'aptcheck, aptgraft, aptrefslib, menucommon; tests 6; OPFOR 2', 'OPFOR in Rust stage 5',
+      'the command line is Rust; Movie is a library of the menu tools and OPFOR'),
+    R('bfbc2-console-readers/stfs/stfs.py', TOOL, 'twin', 'bc2_formats stfs; bfbc2 stfs',
+      'hub; tests 4; OPFOR 2 (onslaught)', 'OPFOR in Rust stage 5', 'its Python kept as OPFOR\'s library (RT3)'),
+    R('bfbc2-console-readers/xiso/xisolib.py', LIB, 'twin', 'bc2_formats xiso; bfbc2 xiso',
+      'tests 2', 'proposed: PR1b-2 (delete)',
+      'command line retired (RT3); find_partition_reference / walk_reference kept; only tests import it'),
+    T('bfbc2-console-readers/tests/test_console_readers.py'),
+    T('bfbc2-console-readers/tests/test_console_readers_native.py'),
+
+    # --- bfbc2-culltree
+    R('bfbc2-culltree/culltreelib.py', LIB, 'twin', 'bc2_levelwrite cull tree; bfbc2 culltree',
+      'tests 4; bc2-cli cull (its hash keys the row cache)', 'PR1b-2',
+      "command line retired (RT3); F4's string-table reference kept by ruling"),
+    T('bfbc2-culltree/tests/test_culltree.py'),
+    T('bfbc2-culltree/tests/test_culltree_e3m.py'),
+    T('bfbc2-culltree/tests/test_culltree_native.py'),
+
+    # --- retired tools' folders
+    R('bfbc2-dbx-tools/dbxedit.py', SHIM, 'retired-pending', 'bfbc2 dbxedit (bc2_formats::dbxedit)',
+      'hub; tests 9; OPFOR 3 (through bfbc2core.dbxedit)', 'PR1c',
+      "DbxEdit's command line over bfbc2core.dbxedit; the folder's tools are retired (GR4)"),
+    R('bfbc2-fbrb-tool/fbrbtool.py', SHIM, 'retired-pending', 'bfbc2 fbrbtool (bc2_formats::fbrb::tool)',
+      'hub, navkit.py; tests 11; OPFOR 7 (bat / ps1 fallbacks)', 'PR1c',
+      "FbrbTool's command line over bfbc2core.fbrbtool; OPFOR's scripts name it as their fallback"),
+
+    # --- bfbc2-map-editor (L1's placement study)
+    R(f'{L1}/l1_a1.py', DEV, 'stays', '', 'none', 'PY1 / PR1c',
+      "writes l1_a1_params.json, which bc2_levelwrite::autolayout embeds"),
+    R(f'{L1}/l1_aabb.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'one-off check of AABB capture areas'),
+    R(f'{L1}/l1_analyze.py', DEV, 'stays', '', 'none', 'PY1 / PR1c', 'writes l1_distributions.md'),
+    R(f'{L1}/l1_anchor.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'one-off check of spawner anchors'),
+    R(f'{L1}/l1_cps.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'exploration (output not kept)'),
+    R(f'{L1}/l1_dmg.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'exploration (output not kept)'),
+    R(f'{L1}/l1_dump.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'exploration (output not kept)'),
+    R(f'{L1}/l1_explore.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'exploration (output not kept)'),
+    R(f'{L1}/l1_geom.py', LIB, 'twin', 'bc2_levelwrite::placement / site geometry', 'l1_measure, l1_sdmcheck, l1_try_hf',
+      'PY1 / PR1c', "l1_measure's plane geometry"),
+    R(f'{L1}/l1_level.py', LIB, 'twin', 'bc2_levelwrite::placement', 'l1_measure and 9 other L1 scripts',
+      'PY1 / PR1c', "l1_measure's level graph"),
+    R(f'{L1}/l1_levels.py', LIB, 'twin', 'bc2-levelwrite examples/v1_rules.rs', 'l1_measure, l1_aabb, l1_anchor, l1_scan',
+      'PY1 / PR1c', 'the stock MP levels with era and mode (v1_rules.rs lists them the same way)'),
+    R(f'{L1}/l1_measure.py', TOOL, 'twin', 'bc2_levelwrite::placement::measure',
+      'l1_sdmcheck; tests 1 (VW2 cites simulate)', 'PY1 / PR1c',
+      'V1 ported the measures (3,539 of 3,539 values equal); kept as the parity reference'),
+    R(f'{L1}/l1_read.py', LIB, 'twin', 'bc2_formats fbrb / dbx', 'l1_dump, l1_geom, l1_level, l1_levels, l1_measure',
+      'PY1 / PR1c', "a stock level's partition straight from the bundles"),
+    R(f'{L1}/l1_rules.py', DEV, 'stays', 'bc2_levelwrite::rules (embeds l1_rules.json)', 'none', 'PY1 / PR1c',
+      'the proposed rules checked against the stock levels (l1_rules_check.md)'),
+    R(f'{L1}/l1_rushcheck.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'one-off Rush check'),
+    R(f'{L1}/l1_scan.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'exploration across every level'),
+    R(f'{L1}/l1_sdmcheck.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'one-off Squad Deathmatch check'),
+    R(f'{L1}/l1_show.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)',
+      'prints a measurement file; starts with a UTF-8 BOM'),
+    R(f'{L1}/l1_try_ca.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)', 'exploration (output not kept)'),
+    R(f'{L1}/l1_try_hf.py', DEV, 'stays', '', 'none', 'proposed: PR1c (delete)',
+      'exploration (output not kept); starts with a UTF-8 BOM'),
+
+    # --- bfbc2-menu-tools
+    R('bfbc2-menu-tools/aptcheck.py', TOOL, 'twin', 'bc2_menu (aptcheck); bfbc2 aptcheck',
+      'apt, aptrefslib; tests 5; OPFOR 4', 'OPFOR in Rust stage 5',
+      'the command line is Rust; verify / lint still build Code in Python for the two movies'),
+    R('bfbc2-menu-tools/aptgraft.py', TOOL, 'partly', 'bc2_menu aptmodel (E4c); bfbc2 aptgraft',
+      'tests 4; OPFOR 11', 'OPFOR in Rust stage 5',
+      'the movie model and the command line are Rust; left: the grafting operations (Grafter, aliases, crosshair)'),
+    R('bfbc2-menu-tools/aptrefslib.py', LIB, 'twin', 'bc2_menu; bfbc2 aptrefs', 'tests 3; rust/bench_apt',
+      'proposed: PR1b-2 (delete)', 'command line retired (RT3); refs_many_python reference; only tests import it'),
+    R('bfbc2-menu-tools/bc2loc.py', TOOL, 'twin', 'bc2_menu loc; bfbc2 bc2loc', 'menucommon; tests 6; OPFOR 4',
+      'OPFOR in Rust stage 5', "khash_reference and LocFile's edits kept (Python state OPFOR edits)"),
+    R('bfbc2-menu-tools/menucommon.py', LIB, 'twin', 'bc2_menu (bigf, pe, common)',
+      'aptcheck, aptrefslib, bc2loc; tests 6', 'OPFOR in Rust stage 5',
+      "PEImage over the Rust PE reader, OPFOR's menu patch format, movie lookup"),
+    T('bfbc2-menu-tools/tests/test_apt_e3n.py'),
+    T('bfbc2-menu-tools/tests/test_apt_e4c.py'),
+    T('bfbc2-menu-tools/tests/test_aptgraft.py'),
+    T('bfbc2-menu-tools/tests/test_bc2loc_native.py'),
+    T('bfbc2-menu-tools/tests/test_bc2loc_write.py'),
+    T('bfbc2-menu-tools/tests/test_menu_tools.py'),
+    T('bfbc2-menu-tools/tests/test_pe_native.py'),
+
+    # --- bfbc2-mesh-viewer
+    R('bfbc2-mesh-viewer/meshview.py', TOOL, 'partly', 'bc2_convert::meshview; bfbc2 meshview; the editor\'s preview',
+      '25 suite modules (shaderdb, bf1943import, texqa ...); tests 31; OPFOR 47', 'PR1b-2',
+      "the index and drawing are Rust (GR3); left: Index as OPFOR's in-process API (ARC-4), page() for OPFOR's previews"),
+    R('bfbc2-mesh-viewer/tests/record_preview_parity.py', HELPER, 'stays', '', 'by hand (gr3.rs reads its output)',
+      'PR1b-2', "recorded meshview's answers for the editor's asset preview (GR3)"),
+    T('bfbc2-mesh-viewer/tests/test_meshview.py'),
+    T('bfbc2-mesh-viewer/tests/test_meshview_index.py'),
+
+    # --- bfbc2-model-tools
+    R('bfbc2-model-tools/decimate.py', LIB, 'live', '', 'tests 1; OPFOR 2 (type38, winchester1897)',
+      'PR1b-2', 'quadric edge collapses for weapon LODs; not ported'),
+    R('bfbc2-model-tools/shapes.py', LIB, 'live', '', 'tests 2; OPFOR 1 (type100)', 'PR1b-2',
+      'simple solids for weapon parts (lathe, extrude); not ported'),
+    R('bfbc2-model-tools/skinmesh.py', LIB, 'twin', 'bc2_convert skinmesh', 'tests 2; OPFOR 3', 'PR1b-2',
+      'Rust since F2a; its references kept (OPFOR feeds objects it builds)'),
+    R('bfbc2-model-tools/texwrite.py', LIB, 'twin', 'bc2_convert texwrite', 'emitteratlas; tests 7; OPFOR 11',
+      'PR1b-2', 'DXT encoding in Rust; resource / header packing and NumPy eigh still Python; references kept'),
+    T('bfbc2-model-tools/tests/test_decimate.py'),
+    T('bfbc2-model-tools/tests/test_model_f2a_native.py'),
+    T('bfbc2-model-tools/tests/test_models.py'),
+    T('bfbc2-model-tools/tests/test_texwrite.py'),
+
+    # --- bfbc2-navigation-studio (retired in GR2)
+    R('bfbc2-navigation-studio/overlay.py', TOOL, 'retired-pending', "bc2-editor nav (the Navigation panel's overlays)",
+      'tests 2', 'PR1c (or NK5: it imports navbuild)',
+      "headless JSON exports the editor's AI workspace also makes (GR2)"),
+    T('bfbc2-navigation-studio/tests/test_overlay_offline.py'),
+
+    # --- bfbc2-shader-tools
+    R('bfbc2-shader-tools/pcbuild.py', LIB, 'live', '', 'renderqa, xdiff; tests 6; OPFOR 10',
+      'OPFOR in Rust stage 3',
+      'HLSL compiled with d3dcompiler_47 (ctypes), its cache and the database bindings; no Rust compile path'),
+    R('bfbc2-shader-tools/renderqa.py', TOOL, 'partly', 'bfbc2 renderqa (argparse, errors); bc2-render (the draw)',
+      'meshview, xdiff; tests 7; OPFOR 6', 'OPFOR in Rust stage 3',
+      'left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets'),
+    R('bfbc2-shader-tools/shaderdb.py', TOOL, 'partly', 'bc2_formats::shaderdb (open, merge); bfbc2 shaderdb',
+      '33 suite modules; tests 36; OPFOR 54', 'OPFOR in Rust stage 3a',
+      "reader (SD1), queries (E4b) and the command line are Rust; left: the in-process Merger (clone_entry / "
+      "add_part, OPFOR's 21 sites), the level cover index, path glue"),
+    R('bfbc2-shader-tools/xdiff.py', TOOL, 'live', 'bfbc2 xdiff (argparse, errors only)',
+      'tests 5; OPFOR 4 (xdiff.main in process)', 'OPFOR in Rust stage 3',
+      "the translator's differential test (xenos_exec, WARP draws)"),
+    R('bfbc2-shader-tools/xenos.py', LIB, 'twin', 'bc2_shader::xenos (decoder, disasm)',
+      'xdiff, xenos_exec, xenos_hlsl; tests 5; OPFOR 4', 'OPFOR in Rust stage 3',
+      'parse_shader_python for damaged blobs and disasm for edited trees kept by ruling'),
+    R('bfbc2-shader-tools/xenos_exec.py', LIB, 'live', '', 'xdiff; tests 2', 'OPFOR in Rust stage 3',
+      'the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement)'),
+    R('bfbc2-shader-tools/xenos_hlsl.py', LIB, 'ported', 'bc2_shader::hlsl (translate)',
+      'xdiff, xenos_exec; tests 3; OPFOR 3', 'OPFOR in Rust stage 3',
+      'translate_python retired (R3); a thin call into the Rust translator'),
+    T('bfbc2-shader-tools/tests/test_pcbuild_batch.py'),
+    T('bfbc2-shader-tools/tests/test_renderqa.py'),
+    T('bfbc2-shader-tools/tests/test_shaderdb.py'),
+    T('bfbc2-shader-tools/tests/test_shaderdb_native.py'),
+    T('bfbc2-shader-tools/tests/test_shaderdb_queries.py'),
+    T('bfbc2-shader-tools/tests/test_shaderview_serve.py'),
+    T('bfbc2-shader-tools/tests/test_xdiff.py'),
+    T('bfbc2-shader-tools/tests/test_xenos_native.py'),
+
+    # --- bfbc2-stockmp-ai (its command line is Rust since RT3: only tests reach this Python)
+    R('bfbc2-stockmp-ai/author.py', LIB, 'twin', 'bc2_stockmp (schema, write)', 'pipeline; tests 5', 'PR1b-2',
+      'author_native is Rust (E4a); the Python reference remains'),
+    R('bfbc2-stockmp-ai/config.py', LIB, 'twin', 'bc2-cli stockmp::generate / pyx', 'author, pipeline, validate; tests 4',
+      'PR1b-2', 'generate and the snapper in Rust (O5); hand-written config shapes still compared against it'),
+    R('bfbc2-stockmp-ai/dbxbin.py', LIB, 'twin', 'bc2_formats::dbx edit', 'stockmp modules; tests 4; '
+      'rust/bc2-levelwrite/tests/dbxbin_reference.py', 'PR1b-2', "levelwrite's real_levels test uses it as reference"),
+    R('bfbc2-stockmp-ai/levelmodel.py', LIB, 'twin', 'bc2_stockmp (factions, model)', 'author, pipeline, stockmplib; '
+      'tests 3', 'PR1b-2', "the level model in Rust (E4a)"),
+    R('bfbc2-stockmp-ai/pipeline.py', LIB, 'twin', 'bc2-cli stockmp::build', 'stockmplib, validate; tests 8',
+      'PR1b-2', 'the build and packaging in Rust (O5)'),
+    R('bfbc2-stockmp-ai/stockcore.py', SHIM, 'ported', 'bc2_stockmp through bc2_native',
+      'author, dbxbin, levelmodel, validate; tests 3', 'PR1b-2', "the stock-MP tool's native loader"),
+    R('bfbc2-stockmp-ai/stockmplib.py', LIB, 'twin', 'bc2-cli stockmp; bfbc2 stockmp', 'tests 5', 'PR1b-2',
+      'command line retired (RT3); summary / install / pathdata_for kept for the tests only'),
+    R('bfbc2-stockmp-ai/validate.py', LIB, 'twin', 'bc2-cli stockmp::validate; bc2_stockmp checks',
+      'tests 4', 'PR1b-2', 'the offline checks in Rust (O5); the Python is the reference'),
+    T('bfbc2-stockmp-ai/tests/test_native_levels.py'),
+    T('bfbc2-stockmp-ai/tests/test_stockmp.py'),
+    T('bfbc2-stockmp-ai/tests/test_validate.py'),
+
+    # --- core
+    R('core/bfbc2core/__init__.py', LIB, 'live', '', 'every Python tool; OPFOR', 'the last Python',
+      "the package; __version__ from VERSION"),
+    R('core/bfbc2core/appicon.py', LIB, 'twin', 'rust/app_icon.rs, bc2-editor appicon', 'hub (.pyw); tests 1',
+      'proposed: with the hub', 'the icon lookup the Rust builds also make'),
+    R('core/bfbc2core/atomicio.py', LIB, 'twin', "bc2_formats' one whole-file writer (PR1a)",
+      '17 suite modules; tests 5', 'PR1b-2', 'atomic whole-file writes for the Python tools'),
+    R('core/bfbc2core/caches.py', TOOL, 'twin', 'bc2-cli caches / budget; bfbc2 caches',
+      '25 suite modules; tests 3', 'PR1b-1', "the cache budget's twin; the command line is Rust (O3)"),
+    R('core/bfbc2core/collision.py', LIB, 'ported', 'bc2_scene::collision (havok_index, triangles)',
+      'detailed, ladders, levelobjects, navsample_offline, navwater_mesh, level; tests 3', 'NK5',
+      'the Python walk retired (F1a); a thin module over the core'),
+    R('core/bfbc2core/dbx.py', LIB, 'ported', 'bc2_formats::dbx', '47 suite modules; tests 24; OPFOR 33', 'PR1b-1',
+      'read and written in Rust; Element trees for Python callers (PR1b-1 decides the one DBX document)'),
+    R('core/bfbc2core/dbxedit.py', LIB, 'ported', 'bc2_formats::dbxedit; bfbc2 dbxedit',
+      'navkit.py, validate, dbxedit.py; tests 9; OPFOR 3', 'PR1b-2', "DbxEdit's commands in process"),
+    R('core/bfbc2core/envvars.py', LIB, 'live', '', 'run_tests.py; tests 1 (test_envvars)', 'proposed: Tests in Rust',
+      'the registry of every environment variable the suite (Python and Rust) reads'),
+    R('core/bfbc2core/errors.py', LIB, 'twin', 'bc2-cli pyproc / pylog (errors.setup / guard emulated)',
+      '36 suite modules; tests 5; OPFOR 2', 'the last Python', "the Python tools' day logs and error reports"),
+    R('core/bfbc2core/fbrb.py', LIB, 'ported', 'bc2_formats::fbrb', '32 suite modules; tests 39; OPFOR 26', 'PR1b-1',
+      'a thin module over the core (the bundle cache in Rust)'),
+    R('core/bfbc2core/fbrbtool.py', LIB, 'ported', 'bc2_formats::fbrb::tool; bfbc2 fbrbtool',
+      'fbrbtool.py, navkit.py, hub; tests 11', 'PR1b-2', "FbrbTool's commands in process"),
+    R('core/bfbc2core/gameledger.py', LIB, 'twin', 'bc2_formats::gameledger; bfbc2 gameledger',
+      'navkit.py, texqa, stockmp pipeline / lib; tests 8; OPFOR 1 (test)', 'IN1',
+      'the Python twin of the install ledger (no install_keep / restate)'),
+    R('core/bfbc2core/level.py', LIB, 'ported', 'bc2_scene (scene_load)', '13 suite modules; tests 9', 'PR1b-1',
+      "the level loader in Rust (E1a); the Python builds the tools' Entity / Level objects"),
+    R('core/bfbc2core/native.py', LIB, 'live', 'bc2-cli pyproc (RETIRED list mirrored)',
+      '63 suite modules, CI workflows; tests 53; OPFOR 11', 'PR1b-2 (one registry), then the last Python',
+      'finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI'),
+    R('core/bfbc2core/navdata.py', LIB, 'ported', 'bc2_navbuild parity / bc2-editor navdata',
+      'navboundary, navparity, navwater_mesh, harness, overlay; tests 11', 'NK5',
+      'its Python twins retired (E3o); cells and areas from the core'),
+    R('core/bfbc2core/navpath.py', LIB, 'ported', 'bc2_navbuild astar / navpath', 'harness checks; tests 6', 'PR1b-2',
+      'the path test over the route graph, in Rust'),
+    R('core/bfbc2core/navtune.py', LIB, 'twin', 'bc2-cli navkit apply, bc2-editor navtune', 'navkit.py; tests 9',
+      'NK5', 'the navtune side files; the editor and bfbc2 navkit apply have their own'),
+    R('core/bfbc2core/paths.py', LIB, 'twin', 'bc2-cli / bc2-editor find_opfor, pyos',
+      '23 suite modules; tests 39; OPFOR 2 (opforcore.paths)', 'the last Python',
+      "the Python tools' path discovery; the Rust tools each have their own (PR1b-2's bc2-gamefs)"),
+    R('core/bfbc2core/terrain.py', LIB, 'ported', 'bc2_convert::terrain (heightfield)',
+      'navparity, navsample_offline, renderqa, level; tests 10; OPFOR 1', 'PR1b-1', 'height fields from the core'),
+    R('core/bfbc2core/water.py', LIB, 'ported', 'bc2_formats::water', 'navbuild, navregress, navwater, level; tests 5',
+      'NK4', 'water meshes from the core'),
+    R('core/bfbc2core/xmlinst.py', LIB, 'ported', 'bc2_formats xmlinst', 'NavKit tools, overlay; tests 1; OPFOR 2',
+      'NK5', "DbxEdit XML's instances in Rust (F2b)"),
+    H('core/tests/cli_o2_crash.py', 'test_cli_o2'),
+    H('core/tests/cli_o2_menu.py', 'test_cli_o2'),
+    H('core/tests/cli_o2_nav.py', 'test_cli_o2'),
+    H('core/tests/cli_o3_audio.py', 'test_cli_o3'),
+    H('core/tests/cli_o3_bf1943.py', 'test_cli_o3'),
+    H('core/tests/cli_o3_caches.py', 'test_cli_o3'),
+    H('core/tests/cli_o3_cull.py', 'test_cli_o3'),
+    H('core/tests/cli_o3_graft.py', 'test_cli_o3'),
+    H('core/tests/cli_o3_meshview.py', 'test_cli_o3'),
+    H('core/tests/cli_o3_stockmp.py', 'test_cli_o3'),
+    H('core/tests/cli_o4_harness.py', 'test_cli_o4'),
+    H('core/tests/cli_o4_navkit.py', 'test_cli_o4; rust/parity_nk1_apply.py'),
+    H('core/tests/cli_o4_navtools.py', 'test_cli_o4'),
+    H('core/tests/cli_o4_texqa.py', 'test_cli_o4'),
+    H('core/tests/cli_o5_bf1943.py', 'test_cli_o5'),
+    H('core/tests/cli_o5_nav.py', 'test_cli_o5'),
+    H('core/tests/cli_o5_readers.py', 'test_cli_o5'),
+    H('core/tests/cli_o5_shader.py', 'test_cli_o5'),
+    H('core/tests/cli_o5_stockmp.py', 'test_cli_o5'),
+    H('core/tests/csharp_golden.py', 'tests 8'),
+    H('core/tests/goldens.py', 'tests 8'),
+    T('core/tests/test_abbrev.py'),
+    T('core/tests/test_argfmt.py'),
+    T('core/tests/test_caches.py'),
+    T('core/tests/test_cli_o1.py'),
+    T('core/tests/test_cli_o2.py'),
+    T('core/tests/test_cli_o3.py'),
+    T('core/tests/test_cli_o4.py'),
+    T('core/tests/test_cli_o5.py'),
+    T('core/tests/test_core_edges.py'),
+    T('core/tests/test_dbx.py'),
+    T('core/tests/test_dbx_native.py'),
+    T('core/tests/test_dbx_write_native.py'),
+    T('core/tests/test_dbxedit.py'),
+    T('core/tests/test_errors.py'),
+    T('core/tests/test_fbrb.py'),
+    T('core/tests/test_fbrb_cache.py'),
+    T('core/tests/test_fbrb_native.py'),
+    T('core/tests/test_fbrb_pack_native.py'),
+    T('core/tests/test_fbrb_unpack_native.py'),
+    T('core/tests/test_fbrbtool.py'),
+    T('core/tests/test_gameledger.py'),
+    T('core/tests/test_geometry_native.py'),
+    T('core/tests/test_level.py'),
+    T('core/tests/test_logs_caches.py'),
+    T('core/tests/test_navdata.py'),
+    T('core/tests/test_navtune.py'),
+    T('core/tests/test_navtune_native.py'),
+    T('core/tests/test_paths.py'),
+    T('core/tests/test_prepare_o4.py'),
+    T('core/tests/test_scene_native.py'),
+    T('core/tests/test_terrain.py'),
+    T('core/tests/test_water.py'),
+    T('core/tests/test_xmlinst_native.py'),
+
+    # --- design
+    R('design/icons/make_icon.py', DEV, 'stays', '', 'by hand', 'stays', "makes the application icon from a render"),
+
+    # --- the root
+    R('run_tests.py', DEV, 'test', 'bc2 test entries run through it (tests/test_rust.py)',
+      'CI (checks.yml), hub, tests 51', 'Tests in Rust', 'the test runner: tiers, ids, scheduling'),
+    R('suite_paths.py', LIB, 'live', '', 'every Python tool and test; OPFOR 2', 'the last Python',
+      "the one sys.path bootstrap"),
+
+    # --- rust (scripts beside the crates)
+    R('rust/bc2-cli/gen_argspecs.py', DEV, 'stays', 'bc2-cli argspecs.rs (its output)', 'by hand; tests 2',
+      'with the last argparse tool',
+      "writes argspecs.rs from the Python tools' argparse parsers (needs them alive)"),
+    R('rust/bc2-editor/tests/package_levels_check.py', HELPER, 'test', '', 'G3 (by hand); tests 1', 'Tests in Rust',
+      "G3's independent check of Package-only levels"),
+    R('rust/bc2-editor/tests/record_inspector.py', HELPER, 'stays', '', 'by hand (inspector_parity.rs reads its '
+      'output)', 'PR1c', "recorded the retired Map Inspector's outliner for the editor's test"),
+    R('rust/bc2-levelwrite/tests/dbxbin_reference.py', HELPER, 'test', '', 'real_levels.rs', 'PR1b-2',
+      "the Python reference of levelwrite's edits (stockmp's dbxbin)"),
+    R('rust/bench_apt.py', BENCH, 'stays', '', 'by hand', 'stays', 'E4c timings'),
+    R('rust/bench_bf1943.py', BENCH, 'stays', '', 'by hand; tests 2', 'stays', 'E3r timings'),
+    R('rust/bench_cli.py', BENCH, 'stays', '', 'by hand', 'stays', 'O1 timings'),
+    R('rust/bench_dbx.py', BENCH, 'stays', '', 'by hand', 'stays', 'dbx reader timings'),
+    R('rust/bench_dbxport.py', BENCH, 'stays', '', 'by hand', 'stays', 'E4d timings (Rust and port_python)'),
+    R('rust/bench_f2a.py', BENCH, 'stays', '', 'by hand', 'stays', 'F2a timings against the references'),
+    R('rust/bench_fbrb.py', BENCH, 'stays', '', 'by hand', 'stays', 'bundle reader timings'),
+    R('rust/bench_fbrb_cache.py', BENCH, 'stays', '', 'by hand', 'stays', 'E3e bundle cache timings'),
+    R('rust/bench_granny.py', BENCH, 'stays', '', 'by hand', 'stays', 'E3i timings'),
+    R('rust/bench_harness.py', BENCH, 'stays', '', 'by hand', 'stays', 'E4f timings against the references'),
+    R('rust/bench_level.py', BENCH, 'stays', '', 'by hand', 'stays', 'level loader timings'),
+    R('rust/bench_navkit.py', BENCH, 'stays', '', 'by hand', 'NK5', 'one NavKit build (navregress.build_level)'),
+    R('rust/bench_ports.py', BENCH, 'stays', '', 'by hand; tests 2', 'stays', 'E3g timings'),
+    R('rust/bench_sd1.py', BENCH, 'stays', '', 'by hand', 'stays', 'SD1 timings'),
+    R('rust/bench_shaderdb.py', BENCH, 'stays', '', 'by hand', 'stays', 'E4b timings'),
+    R('rust/bench_sweep.py', BENCH, 'stays', '', 'by hand', 'stays', 'the E3m sweep'),
+    R('rust/bench_xenos.py', BENCH, 'stays', '', 'by hand', 'stays', 'E3f timings'),
+    R('rust/build_native.py', DEV, 'stays', 'cargo, maturin (it drives them)',
+      'CI, hub, 25 suite modules (the fix text); tests 27; OPFOR 4', 'Release',
+      'builds or downloads bc2_native and the binaries'),
+    R('rust/hang_stacks.py', DEV, 'stays', '', "bc2-editor's test hang guard (tests/main.rs); tests 1", 'stays',
+      "a hung process's thread stacks (HG1)"),
+    R('rust/native_census.py', DEV, 'stays', '', 'by hand', 'PR1b-2 (made a check)',
+      "who calls each bc2_native export (AU5 ARC-12)"),
+    R('rust/parity_e3o_nav.py', BENCH, 'stays', '', 'by hand; tests 2', 'stays',
+      'kymesh Rust reader against parse_mesh_reference'),
+    R('rust/parity_nk1_apply.py', BENCH, 'stays', '', 'by hand', 'stays', 'NK1 parity against a pre-NK1 checkout'),
+    R('rust/parity_nk2_file.py', BENCH, 'stays', '', 'by hand', 'stays', 'NK2 parity against a pre-NK2 checkout'),
+    R('rust/parity_nk3_detail.py', BENCH, 'stays', '', 'by hand (detail_tests.rs cites it)', 'stays',
+      'NK3 parity against a pre-NK3 checkout'),
+    R('rust/python_status.py', DEV, 'stays', '', 'by hand; tests/test_repo.py', 'stays',
+      'this inventory'),
+
+    # --- spec
+    R('spec/probes/destruction.py', DEV, 'stays', '', 'by hand', 'proposed: SPG2 (game-tier checks)',
+      'read-only probe for spec/engine/destruction.md'),
+    R('spec/probes/lighting.py', DEV, 'stays', '', 'by hand', 'proposed: SPG2 (game-tier checks)',
+      'read-only probe for the lighting, weather and effects specs'),
+    R('spec/probes/materials.py', DEV, 'stays', '', 'by hand', 'proposed: SPG2 (game-tier checks)',
+      'read-only probe for spec/engine/materials.md'),
+    R('spec/probes/vehicles.py', DEV, 'stays', '', 'by hand', 'proposed: SPG2 (game-tier checks)',
+      'read-only probe for spec/engine/vehicles.md'),
+    R('spec/probes/weapons.py', DEV, 'stays', '', 'by hand; tests 1', 'proposed: SPG2 (game-tier checks)',
+      'read-only probe for spec/engine/weapons.md'),
+    R('spec/trace.py', DEV, 'stays', '', 'run_tests.py (quick); tests 1', 'proposed: Tests in Rust',
+      "the specification's traceability check"),
+
+    # --- tests
+    H('tests/f0_parity.py', 'tests 15'),
+    H('tests/f2a_parity.py', 'tests 3'),
+    H('tests/replay.py', 'tests 14'),
+    T('tests/test_appicon.py'),
+    T('tests/test_asset_accuracy.py'),
+    T('tests/test_cli_errors.py'),
+    T('tests/test_converter_edges.py'),
+    T('tests/test_converter_units.py'),
+    T('tests/test_deep_scan_fixes.py'),
+    T('tests/test_e3o_native.py'),
+    T('tests/test_editor.py'),
+    T('tests/test_envvars.py'),
+    T('tests/test_f3_native.py'),
+    T('tests/test_f4_native.py'),
+    T('tests/test_hub.py'),
+    T('tests/test_lint.py'),
+    T('tests/test_locators.py'),
+    T('tests/test_native_required.py'),
+    T('tests/test_repo.py'),
+    T('tests/test_review_fixes.py'),
+    T('tests/test_review_fixes2.py'),
+    T('tests/test_review_regressions.py'),
+    T('tests/test_runner_args.py'),
+    T('tests/test_runner_output.py'),
+    T('tests/test_runner_parallel.py'),
+    T('tests/test_rust.py'),
+    T('tests/test_rust_skip.py'),
+    T('tests/test_sd1_native.py'),
+    T('tests/test_types.py'),
+)
+
+
+def python_files(root: str = SUITE) -> list[str]:
+    """The suite's .py files: tracked ones and new ones git does not ignore, those that exist (sorted, '/')."""
+    out = subprocess.run(['git', '-C', root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z', '--',
+                          '*.py'], capture_output=True, check=True).stdout.decode('utf-8')
+    return sorted({p for p in out.split('\0') if p and os.path.isfile(os.path.join(root, p))})
+
+
+def table_problems(files: list[str], table: tuple[Row, ...]) -> list[str]:
+    """What is wrong between the files and the table: a file with no row, a row naming no file, a row twice, a kind
+    or status that is not one of KINDS / STATUSES."""
+    paths = [r.path for r in table]
+    seen = set(paths)
+    out = [f'{p}: not in rust/python_status.py\'s TABLE (classify it: kind, status, Rust counterpart, callers, '
+           'retiring round, note)' for p in files if p not in seen]
+    on_disk = set(files)
+    out += [f'{p}: in rust/python_status.py\'s TABLE but the file is gone (take its row out)'
+            for p in paths if p not in on_disk]
+    out += [f'{p}: twice in TABLE' for p in sorted({p for p in paths if paths.count(p) > 1})]
+    out += [f'{r.path}: kind {r.kind!r} is not one of {KINDS}' for r in table if r.kind not in KINDS]
+    out += [f'{r.path}: status {r.status!r} is not one of {STATUSES}' for r in table if r.status not in STATUSES]
+    return out
+
+
+def non_blank_lines(path: str) -> int:
+    with open(path, 'rb') as f:
+        text = f.read().decode('utf-8-sig', errors='replace')
+    return sum(1 for line in text.splitlines() if line.strip())
+
+
+def first_sentence(path: str) -> str:
+    """A test's note: its module docstring's first sentence (up to 110 characters)."""
+    with open(path, 'rb') as f:
+        source = f.read().decode('utf-8-sig', errors='replace')
+    try:
+        doc = ast.get_docstring(ast.parse(source)) or ''
+    except SyntaxError:
+        return ''
+    text = ' '.join(doc.split())
+    cut = re.search(r'(?<=\.)\s', text)
+    text = text[:cut.start()] if cut else text
+    return text if len(text) <= 110 else text[:107].rstrip() + '...'
+
+
+INCLUDE = re.compile(r'include_str!\(\s*"([^"]+\.py)"\s*\)')
+
+
+def embedded(root: str = SUITE) -> dict[str, list[str]]:
+    """Python files a Rust source embeds with include_str! (bfbc2.exe prints its usage from the docstring, or keys a
+    cache by the file's hash): {python path: [rust files]}."""
+    out: dict[str, list[str]] = {}
+    tracked = subprocess.run(['git', '-C', root, 'ls-files', '-z', '--', 'rust/*.rs'], capture_output=True,
+                             check=True).stdout.decode('utf-8').split('\0')
+    for rs in sorted(p for p in tracked if p):
+        full = os.path.join(root, rs)
+        if not os.path.isfile(full):
+            continue
+        with open(full, encoding='utf-8', errors='replace') as f:
+            text = f.read()
+        for rel in INCLUDE.findall(text):
+            target = os.path.relpath(os.path.normpath(os.path.join(os.path.dirname(full), rel)), root)
+            out.setdefault(target.replace(os.sep, '/'), []).append(rs)
+    return {k: sorted(set(v)) for k, v in sorted(out.items())}
+
+
+def folder_of(path: str) -> str:
+    return path.split('/', 1)[0] if '/' in path else '(root)'
+
+
+def collect(root: str = SUITE) -> list[dict[str, object]]:
+    emb = embedded(root)
+    rows = []
+    for r in sorted(TABLE, key=lambda r: r.path):
+        full = os.path.join(root, r.path)
+        rows.append({
+            'path': r.path, 'folder': folder_of(r.path), 'lines': non_blank_lines(full), 'kind': r.kind,
+            'status': r.status, 'rust': r.rust, 'callers': r.callers, 'retiring': r.retiring,
+            'note': r.note or (first_sentence(full) if r.status == 'test' else ''),
+            'embedded_by': emb.get(r.path, []),
+        })
+    return rows
+
+
+def totals(rows: list[dict[str, object]]) -> dict[str, object]:
+    by_status = {s: {'files': 0, 'lines': 0} for s in STATUSES}
+    by_folder: dict[str, dict[str, int]] = {}
+    for r in rows:
+        n = int(str(r['lines']))
+        s = str(r['status'])
+        by_status[s]['files'] += 1
+        by_status[s]['lines'] += n
+        f = by_folder.setdefault(str(r['folder']), {'files': 0, 'lines': 0, **{k: 0 for k in STATUSES}})
+        f['files'] += 1
+        f['lines'] += n
+        f[s] += n
+    return {'by_status': by_status, 'by_folder': dict(sorted(by_folder.items())),
+            'all': {'files': len(rows), 'lines': sum(int(str(r['lines'])) for r in rows)}}
+
+
+def cell(text: object) -> str:
+    return str(text).replace('|', '\\|').replace('\n', ' ')
+
+
+def markdown(rows: list[dict[str, object]], tot: dict[str, object]) -> str:
+    by_status = tot['by_status']
+    by_folder = tot['by_folder']
+    alls = tot['all']
+    assert isinstance(by_status, dict) and isinstance(by_folder, dict) and isinstance(alls, dict)
+    out = [
+        '# Python status',
+        '',
+        'Every Python file of the suite, what it does for the port to Rust and the round that retires it. Generated by',
+        '`python rust\\python_status.py` from its table (do not edit this file: edit the table and run it again);',
+        'the same data as `python_status.json`. The folders and their rounds are ROADMAP.md\'s "Python left";',
+        'retired tools are in RETIRED.md, retired twins in `rust/BENCHMARKS.md` and CHANGELOG.md. A new or deleted',
+        '`.py` file fails `tests/test_repo.py` until its row is in the table.',
+        '',
+        '- **live**: only Python does this job (the real port work left).',
+        '- **partly**: part of its job is ported; the note names what is left.',
+        '- **twin**: a Python twin of Rust code, kept for parity, as the fallback where the Rust refuses, or for its'
+        ' callers.',
+        '- **ported**: Rust answers its job and the Python is a thin caller.',
+        "- **retired-pending**: in a retired tool's folder, to be moved or deleted.",
+        '- **stays**: benchmarks and parity measurements against the old Python, build and dev scripts.',
+        '- **test**: tests and their helpers stay Python until "Tests in Rust".',
+        '',
+        'Lines are non-blank lines, counted when this file was generated. "Embedded" marks a file a Rust source',
+        'includes with `include_str!` (bfbc2.exe prints its usage from it or keys a cache by its hash): editing or',
+        'deleting it changes the binary. Callers: imports and runs in the suite and in Project OPFOR BFBC2\'s tracked',
+        'files ("OPFOR N": its files); "tests N": the suite\'s test files. `bfbc2-auto-navkit` is being changed by',
+        'rounds NK4 and NK5.',
+        '',
+        '## Totals',
+        '',
+        '| Status | Files | Lines |',
+        '|---|---:|---:|',
+    ]
+    for s in STATUSES:
+        v = by_status[s]
+        out.append(f'| {s} | {v["files"]} | {v["lines"]:,} |')
+    out.append(f'| **all** | **{alls["files"]}** | **{alls["lines"]:,}** |')
+    out += ['', '| Folder | Files | Lines | ' + ' | '.join(STATUSES) + ' |',
+            '|---|---:|---:|' + '---:|' * len(STATUSES)]
+    for folder, v in by_folder.items():
+        out.append(f'| `{folder}` | {v["files"]} | {v["lines"]:,} | '
+                   + ' | '.join(f'{v[s]:,}' if v[s] else '' for s in STATUSES) + ' |')
+    out += ['', 'Lines by status in the folder table.', '']
+    order = {s: i for i, s in enumerate(STATUSES)}
+    for folder in by_folder:
+        mine = sorted((r for r in rows if r['folder'] == folder), key=lambda r: (order[str(r['status'])], r['path']))
+        v = by_folder[folder]
+        out += [f'## `{folder}`', '', f'{v["files"]} files, {v["lines"]:,} lines.', '',
+                '| File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |',
+                '|---|---:|---|---|---|---|---|---|']
+        for r in mine:
+            rust = cell(r['rust'])
+            if r['embedded_by']:
+                rust = (rust + '; ' if rust else '') + 'embedded'
+            out.append(f'| `{r["path"]}` | {r["lines"]} | {r["kind"]} | {r["status"]} | {rust} | {cell(r["callers"])} '
+                       f'| {cell(r["retiring"])} | {cell(r["note"])} |')
+        out.append('')
+    return '\n'.join(out)
+
+
+def main(argv: list[str]) -> int:
+    problems = table_problems(python_files(), TABLE)
+    if problems:
+        sys.stderr.write('python_status: the table does not match the files:\n' + ''.join(f'  {p}\n' for p in problems))
+        return 1
+    rows = collect()
+    tot = totals(rows)
+    md = markdown(rows, tot)
+    if '--print' in argv:
+        sys.stdout.write(md)
+        return 0
+    data = {'generator': 'rust/python_status.py', 'statuses': list(STATUSES), 'kinds': list(KINDS), 'files': rows,
+            'totals': tot}
+    for name, text in ((MD, md), (JSON, json.dumps(data, indent=1, sort_keys=True) + '\n')):
+        with open(os.path.join(SUITE, name), 'w', encoding='utf-8', newline='\n') as f:
+            f.write(text)
+    print(f'{MD}, {JSON}: {len(rows)} files')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
