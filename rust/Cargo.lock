@@ -512,6 +512,7 @@ version = "0.1.0"
 dependencies = [
  "bc2-convert",
  "bc2-formats",
+ "bc2-navbuild",
  "bc2-pyrt",
  "bc2-scene",
  "embed-resource",
@@ -538,12 +539,13 @@ name = "bc2-navbuild"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
- "bc2-pyrt",
+ "bc2-scene",
  "bc2-shader",
  "proptest",
  "rayon",
  "sha1_smol",
  "thiserror 2.0.21",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

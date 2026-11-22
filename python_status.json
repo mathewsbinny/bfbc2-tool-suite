@@ -753,14 +753,14 @@
    "status": "partly"
   },
   {
-   "callers": "tests 6; A2 plans it in process",
+   "callers": "tests 6; the export's path-data step (bc2_levelwrite::pathdata::sample_stage: `stage`)",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 1443,
+   "lines": 1547,
    "note": "file_bytes and the raster in Rust; left: asset_bodies (NumPy hulls), the level geometry, the command line",
    "path": "bfbc2-auto-navkit/tools/navsample_offline.py",
-   "retiring": "proposed: after NK5 (A2)",
+   "retiring": "A2-rest",
    "rust": "bc2_navbuild offline / hulls",
    "status": "partly"
   },
@@ -3891,6 +3891,18 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
+   "lines": 336,
+   "note": "NavKit's level driver through the command line, the editor in process and the export step (files, lines)",
+   "path": "rust/parity_navkit_paths.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
    "lines": 114,
    "note": "NK1 parity against a pre-NK1 checkout",
    "path": "rust/parity_nk1_apply.py",
@@ -3951,7 +3963,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 827,
+   "lines": 829,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4436,8 +4448,8 @@
  ],
  "totals": {
   "all": {
-   "files": 364,
-   "lines": 105660
+   "files": 365,
+   "lines": 106102
   },
   "by_folder": {
    "(root)": {
@@ -4464,9 +4476,9 @@
    },
    "bfbc2-auto-navkit": {
     "files": 61,
-    "lines": 16325,
+    "lines": 16429,
     "live": 1815,
-    "partly": 4424,
+    "partly": 4528,
     "ported": 272,
     "retired-pending": 0,
     "stays": 0,
@@ -4650,13 +4662,13 @@
     "twin": 0
    },
    "rust": {
-    "files": 32,
-    "lines": 5543,
+    "files": 33,
+    "lines": 5881,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5276,
+    "stays": 5614,
     "test": 267,
     "twin": 0
    },
@@ -4690,7 +4702,7 @@
    },
    "partly": {
     "files": 20,
-    "lines": 17024
+    "lines": 17128
    },
    "ported": {
     "files": 21,
@@ -4701,8 +4713,8 @@
     "lines": 310
    },
    "stays": {
-    "files": 55,
-    "lines": 8994
+    "files": 56,
+    "lines": 9332
    },
    "test": {
     "files": 188,
