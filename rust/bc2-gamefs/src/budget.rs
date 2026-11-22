@@ -892,7 +892,8 @@ mod tests {
     #[test]
     fn the_table() {
         let names: Vec<&str> = SPECS.iter().map(|s| s.name).collect();
-        assert_eq!(names.len(), 13);
+        assert_eq!(names.len(), 16);
+        assert_eq!(spec("ww2qa").unwrap().project, ["work", "ww2", "_qa", "cache"]);
         assert_eq!(spec("fbrb").unwrap().markers, [".seen"]);
         assert!(spec("hlsl").unwrap().off_without_localappdata);
         assert_eq!(spec("meshview").unwrap().project, ["work", "tools_out"]);
