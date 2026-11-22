@@ -93,8 +93,7 @@ impl Spawner {
 fn text(w: &LevelWriter, e: NodeId, f: &[u8]) -> String {
     w.d.child(e, f)
         .and_then(|x| w.d.text(x))
-        .map(|t| String::from_utf8_lossy(t).into_owned())
-        .unwrap_or_default()
+        .map_or_default(|t| String::from_utf8_lossy(t).into_owned())
 }
 
 /// Every vehicle spawner of a partition with a transform, in the partition's order.
@@ -589,10 +588,10 @@ pub fn plan(
             }
             continue;
         }
-        let mut made = 0usize;
+        let mut placed = 0usize;
         let mut tries = 0usize;
         let mut dead: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-        while made < want.n && tries < want.n * classes.len() * 2 + 4 && dead.len() < classes.len() {
+        while placed < want.n && tries < want.n * classes.len() * 2 + 4 && dead.len() < classes.len() {
             let Some(&class) = classes
                 .iter()
                 .cycle()
@@ -610,7 +609,7 @@ pub fn plan(
                     .any(|p| p.team == "TeamNeutral" && p.moving().is_some_and(|m| m.0 == class))
                 {
                     vec!["TeamNeutral"]
-                } else if want.n - made >= 2 {
+                } else if want.n - placed >= 2 {
                     vec!["Team1", "Team2"]
                 } else {
                     // one more is wanted: a pair would pass DICE's count
@@ -693,12 +692,12 @@ pub fn plan(
                     copy,
                     distance: d2(xz(want.at), rows_xz(&rows)),
                 });
-                made += 1;
+                placed += 1;
             }
         }
-        if made < want.n {
+        if placed < want.n {
             out.notes.push(format!(
-                "{}: {made} of DICE's {} vehicles placed (no spot with the vehicle's room, a way out and its capture \
+                "{}: {placed} of DICE's {} vehicles placed (no spot with the vehicle's room, a way out and its capture \
                  point's pool)",
                 want.cp, want.n
             ));

@@ -241,6 +241,13 @@ impl ViewState {
             .and_then(Doc::partition)
             .or_else(|| scene.file(0).map(|(_, d)| d.to_vec()));
         self.navs.spawn_list = spawns.iter().map(|(k, _)| *k).collect();
+        // round A2: the path data the project's last export staged with the level (its path-data step), when there is
+        // one and no other file was chosen
+        if self.navs.candidate.is_none()
+            && let Some(d) = self.doc.as_ref()
+        {
+            self.navs.candidate = staged_path_data(&root, &d.path);
+        }
         let lv = self.lv.clone();
         let points: Vec<[f64; 3]> = spawns.iter().map(|(_, p)| *p).collect();
         self.navs.start(&root, &lv, move |navkit, dice| nav::Inputs {
@@ -2031,4 +2038,16 @@ fn plan_lines(ui: &mut egui::Ui, p: &Palette, plan: &Plan) {
                 .color(p.ink_muted),
         );
     }
+}
+
+/// The infantry path data the project's last export staged with the level (round A2: the export's path-data step,
+/// `stage.json`'s `path_data`): its export file's stage, when the stage holds it.
+fn staged_path_data(opfor: &Path, project: &Path) -> Option<PathBuf> {
+    let text = std::fs::read_to_string(bc2_levelwrite::export::spec_path_of(project)).ok()?;
+    let spec = bc2_levelwrite::export::ExportSpec::from_json(&text).ok()?;
+    let stage = crate::export_ui::stage_of(opfor, &spec)?;
+    let rec = bc2_levelwrite::export::read_record(&stage).ok()?;
+    let f = rec.path_data?.files.into_iter().find(|f| f.path.contains("infantry"))?;
+    let p = stage.join(f.path);
+    p.is_file().then_some(p)
 }

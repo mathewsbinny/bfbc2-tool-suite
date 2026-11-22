@@ -11,7 +11,8 @@
     clippy::print_stdout,
     clippy::unwrap_used,
     clippy::too_many_lines,
-    clippy::cast_precision_loss
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names
 )]
 
 use std::collections::{BTreeMap, HashSet};

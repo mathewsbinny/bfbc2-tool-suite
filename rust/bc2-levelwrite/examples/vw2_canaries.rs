@@ -167,14 +167,32 @@ fn build(game: &Game, p: &MapProject, c: &Case, projects: &Path, stage: &Path, l
             picture: String::new(),
             ..Identity::default()
         }),
-        path_data: false,
+        // round A2: `--path-data` turns the export's path-data step on
+        path_data: std::env::args().any(|a| a == "--path-data"),
     };
     std::fs::write(
         export::spec_path_of(&path),
         serde_json::to_string_pretty(&spec).unwrap() + "\n",
     )
     .unwrap();
-    export::build(game, p, &path.display().to_string(), &spec, stage).unwrap()
+    match export::build(game, p, &path.display().to_string(), &spec, stage) {
+        Ok(r) => {
+            if let Some(pd) = &r.path_data {
+                println!("  {level}: path data staged: {}", pd.source);
+            }
+            r
+        }
+        // round A2: the path-data step refuses in words where the base's path data is not the level's
+        Err(e) if spec.path_data => {
+            println!("  {level}: path data refused: {e}");
+            let spec = ExportSpec {
+                path_data: false,
+                ..spec
+            };
+            export::build(game, p, &path.display().to_string(), &spec, stage).unwrap()
+        }
+        Err(e) => panic!("{level}: {e}"),
+    }
 }
 
 fn entries(stage: &Path, file: &str) -> BTreeMap<String, Vec<u8>> {
@@ -473,7 +491,12 @@ fn main() {
     let projects = PathBuf::from(&a[2]);
     let stages = PathBuf::from(&a[3]);
     std::fs::create_dir_all(projects.join("weather")).unwrap();
-    let only: Vec<&str> = a.iter().skip(4).map(String::as_str).collect();
+    let only: Vec<&str> = a
+        .iter()
+        .skip(4)
+        .map(String::as_str)
+        .filter(|x| !x.starts_with("--"))
+        .collect();
     let mut failed = Vec::new();
     for c in &CASES {
         if !only.is_empty() && !only.contains(&c.id) {

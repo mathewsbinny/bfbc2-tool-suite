@@ -1135,6 +1135,13 @@ pub fn build(
             }
         }
     }
+    // round A2: the path-data step refuses before anything is built when the base's path data is not the level's
+    if spec.path_data {
+        let opfor = game.root.parent().unwrap_or(&game.root);
+        let cur = LevelWriter::parse(&applied.bytes)?;
+        crate::pathdata::ready(opfor, project, &cur, &base_w)
+            .map_err(|why| crate::rules::refusal("XVAL-AI-1", format!("path data: {}", why.join("; "))))?;
+    }
     let mut w = LevelWriter::parse(&applied.bytes)?;
     // round V1: an object moved or made beyond the cull tree's +-2048 m is refused in words, before the tree
     if let Some(f) = crate::validate::out_of_range(&w, Some(&base_w)).first() {
