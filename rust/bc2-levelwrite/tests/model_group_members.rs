@@ -291,7 +291,7 @@ fn an_export_deletes_moves_and_adds_members() {
         let path_stage = root.join(format!("{}_path", name.to_ascii_lowercase())).join("stage");
         match export::build(&game, &p, "test", &with_path, &path_stage) {
             Ok(rec) => {
-                let pd = rec.path_data.as_ref().expect("the path data recorded");
+                let pd = rec.path_data.as_ref().unwrap();
                 println!("{name}: path data staged: {}", pd.source);
                 assert!(pd.source.contains("offline sampler on the stage"), "{}", pd.source);
                 let r = export::check(&game, &path_stage).unwrap();

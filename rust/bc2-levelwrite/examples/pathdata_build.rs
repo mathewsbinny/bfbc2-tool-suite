@@ -9,7 +9,11 @@
 //! `opfor` is the OPFOR folder whose `work` the build reads (a stand-in with junctions to the real one is fine);
 //! `game` the game copy the level's partition is read from.
 
-#![allow(clippy::print_stdout, clippy::print_stderr, reason = "a proof's command line prints its lines")]
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "a proof's command line prints its lines"
+)]
 
 use std::path::PathBuf;
 
@@ -66,7 +70,10 @@ fn main() {
             std::process::exit(1);
         }
         Ok(pathdata::Plan::Copy(src)) => {
-            eprintln!("no samples to build from (the step would copy {})", src.infantry.display());
+            eprintln!(
+                "no samples to build from (the step would copy {})",
+                src.infantry.display()
+            );
             std::process::exit(1);
         }
         Err(why) => {

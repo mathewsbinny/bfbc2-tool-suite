@@ -98,6 +98,60 @@ fn art_in(site: &bc2_levelwrite::site::Site, w: &LevelWriter) -> f64 {
     if n > 0.0 { sum / n } else { 0.0 }
 }
 
+/// The proposal exported with the path-data step into `<dir>\<level>_<donor>\stage`, then checked: the path-data
+/// lines of `mapexport check` printed.
+fn export_with_path_data(
+    game: &Game,
+    p: &MapProject,
+    lv: &str,
+    donor: &str,
+    mode: &str,
+    profile: Profile,
+    dir: &std::path::Path,
+) {
+    let level = format!("MAPEDIT_A1_{}_{}", lv.to_ascii_uppercase(), donor.to_ascii_uppercase());
+    let stage = dir.join(level.to_ascii_lowercase()).join("stage");
+    let path = dir.join(format!("{}.mapedit.json", level.to_ascii_lowercase()));
+    std::fs::create_dir_all(dir).unwrap();
+    p.save(&path).unwrap();
+    let spec = export::ExportSpec {
+        format: export::FORMAT.into(),
+        version: export::VERSION,
+        level: level.clone(),
+        folder: String::new(),
+        title: format!("A1 {lv} with {donor}'s layer"),
+        mode: mode.to_owned(),
+        layer: bc2_levelwrite::mpconvert::LayerSpec {
+            donor: p.mode().unwrap().donor.clone(),
+            bases: Vec::new(),
+            flags: Vec::new(),
+            combat_area: String::new(),
+        },
+        profile,
+        identity: None,
+        path_data: true,
+    };
+    let t = std::time::Instant::now();
+    match export::build(game, p, &path.display().to_string(), &spec, &stage) {
+        Ok(r) => {
+            println!(
+                "    export {level}: {:.0} s; path data: {}",
+                t.elapsed().as_secs_f64(),
+                r.path_data.as_ref().map_or("none".into(), |d| d.source.clone())
+            );
+            let c = export::check(game, &stage).unwrap();
+            for (ok, l) in c
+                .checks
+                .iter()
+                .filter(|c| c.1.contains("path data") || c.1.contains("route network"))
+            {
+                println!("      {} {l}", if *ok { "ok    " } else { "FAILED" });
+            }
+        }
+        Err(e) => println!("    export {level}: {e}"),
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let value = |k: &str| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).cloned();
@@ -249,6 +303,11 @@ fn main() {
                 for f in off.iter().take(5) {
                     println!("      {}", f.line());
                 }
+            }
+            // round NK6: `--export <folder>` exports the proposal with the path-data step (NavKit's build in process,
+            // the proposal's spawns and objectives as its seeds) and checks the stage (XVAL-AI-1, XVAL-PLACE-5)
+            if let Some(dir) = value("--export") {
+                export_with_path_data(&game, &p, &lv, &donor, mode.word(), profile, &PathBuf::from(dir));
             }
             let (ins, all) = prop.inside();
             let cmp = autolayout::compare(&dice, &ours, mode);

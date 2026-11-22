@@ -3,20 +3,20 @@
 //! level's bundles, recorded in `stage.json` (`path_data`) and checked by `mapexport check` (XVAL-AI-1, and
 //! XVAL-PLACE-5 on the staged file).
 //!
-//! **What it stages today.** NavKit's build of the project's **base level** - its newest: `work\navkit\<base>`
-//! (in-game samples), else `work\navkit_offline\<base>` (the offline sampler) - or DICE's own file for a base that
-//! has one (`Output\win32\ai\levels\<base>`, the backup an install kept first). The base's build is the level's path
-//! data exactly when the project changes nothing a bot walks on: its edits move, add and remove gameplay (spawns,
-//! flags, bases, M-COMs, combat areas, vehicle spawners: what the export's mode layer and the auto layout touch)
-//! and nothing of the level's collision (static objects, static group members, the terrain). The step refuses in
-//! words ([`blockers`]) when the project's edits change the collision, when it has navigation edits (applying them to
-//! a NavKit base is still Python: NK5), or when the base has no build.
+//! **What it stages** (round NK6, [`stage`]): NavKit's build of the project's level **in process**
+//! ([`build_bytes`] on `bc2_navbuild::inputs`, the code `bfbc2.exe navkit build` runs) whenever there are samples to
+//! build from ([`ready_at`]): the base level's prepared inputs and samples (in-game `work\navsample`, else offline
+//! `work\navsample_offline`) with the staged level's spawns, orders and objectives where the project changed them as
+//! the build's seeds and objective floors, and the project's navigation edits (walkability in the build; links, route
+//! edges and traversals by `graphedit` after it, the annotations staged beside the file). A project that changes the
+//! level's collision (static objects, static group members) is sampled offline on its stage first ([`sample_stage`]:
+//! `navsample_offline.py stage`, the staged bundle prepared into [`stage_tree`]; Python - the sampler's port is
+//! NavKit's next step), when its base level is prepared for NavKit. A base without samples stages its newest path
+//! data as it is (`work\navkit\<base>`, `work\navkit_offline\<base>`, DICE's own file) when the project changes
+//! nothing it depends on; otherwise the step refuses in words.
 //!
-//! **What it does not do yet** (blocked on NavKit's port, NK4 and NK5, and listed in `rust/BENCHMARKS.md` "A2"):
-//! sampling the edited level without the game (`navsample_offline` with the stage's partition and group files, in
-//! Rust with NK4), building it in process (NK5's `build_inputs` with the project's objectives as the seeds), applying
-//! the project's navigation edits on a NavKit base (NK5), and the stock-MP AI layer for the staged level (`stockmp`
-//! by a stock level's name today: `HasAI`, `PathfindingTypes`, `SectorOffsets`, AI spawners and orders).
+//! **Not yet**: a sculpted terrain (the stage sampler reads the base's), a base level NavKit cannot prepare (the
+//! Package-only WW2 levels), and the stock-MP AI layer for the staged level (`stockmp` by a stock level's name).
 #![allow(
     clippy::cast_precision_loss,
     reason = "node counts as f64 for shares: far below 2^52"
@@ -195,7 +195,9 @@ pub fn changes(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> C
                     .filter(|e| {
                         matches!(
                             e,
-                            FileEdit::MemberTransform { .. } | FileEdit::MemberDelete { .. } | FileEdit::MemberAdd { .. }
+                            FileEdit::MemberTransform { .. }
+                                | FileEdit::MemberDelete { .. }
+                                | FileEdit::MemberAdd { .. }
                         )
                     })
                     .count();
@@ -253,11 +255,13 @@ pub fn traversal_install_path(level: &str) -> String {
     format!("Output/win32/ai/levels/{lv}/infantry/{lv}.traversal.json")
 }
 
-/// The stage's NavKit folder (`navsample_offline.py stage`: the staged level prepared and sampled offline): an
-/// OPFOR-like tree, `<stage>\navkit\work\levels\<level>`, `work\navkit\<level>\navkit.json`, `work\navsample`.
+/// A staged level's NavKit folder (`navsample_offline.py stage`: the staged level prepared and sampled offline), in
+/// OPFOR's work folder (a short path: the unpacked bundle's names stay under Windows' 260 characters):
+/// `work\navkit_stage\<level>`, an OPFOR-like tree - `work\levels\<level>`, `work\navkit\<level>\navkit.json`,
+/// `work\navsample` under it.
 #[must_use]
-pub fn stage_tree(stage: &Path) -> PathBuf {
-    stage.join("navkit")
+pub fn stage_tree(opfor: &Path, level: &str) -> PathBuf {
+    opfor.join("work").join("navkit_stage").join(level.to_ascii_lowercase())
 }
 
 /// The samples a build of the project's level reads, and in words what they are: the stage's own (the offline
@@ -266,11 +270,11 @@ pub fn stage_tree(stage: &Path) -> PathBuf {
 #[must_use]
 pub fn samples_for(opfor: &Path, base_level: &str, stage: &Path, level: &str, collision: bool) -> Option<Samples> {
     let has = |dir: &Path, lv: &str| -> bool {
-        ["navkit", "full"].iter().any(|n| {
-            dir.join(format!("{lv}_{n}.bin")).is_file() && dir.join(format!("{lv}_{n}_hi.bin")).is_file()
-        })
+        ["navkit", "full"]
+            .iter()
+            .any(|n| dir.join(format!("{lv}_{n}.bin")).is_file() && dir.join(format!("{lv}_{n}_hi.bin")).is_file())
     };
-    let tree = stage_tree(stage);
+    let tree = stage_tree(opfor, level);
     let own = tree.join("work").join("navsample");
     let lv = level.to_ascii_lowercase();
     let set = tree.join("work").join("navkit").join(&lv).join("navkit.json");
@@ -348,6 +352,13 @@ pub fn ready_at(
     level: Option<&str>,
 ) -> Result<Plan, Vec<String>> {
     let c = changes(project, cur, base);
+    if c.terrain > 0 {
+        return Err(vec![format!(
+            "the project sculpts the terrain ({} stroke(s)): the stage's offline sampler reads the base level's \
+             terrain, so the level's path data cannot be built yet",
+            c.terrain
+        )]);
+    }
     let nowhere = PathBuf::new();
     let st = stage.unwrap_or(&nowhere);
     let lv = level.unwrap_or(&project.base.level);
@@ -698,7 +709,8 @@ pub fn stage_with(
 ) -> Result<PathDataRecord, Vec<String>> {
     let mut plan = ready_at(opfor, project, cur, base, Some(stage), Some(level))?;
     if plan == Plan::Sample {
-        sample_stage(opfor, stage, (level, &project.base.level), out).map_err(|e| vec![format!("the offline sampler on the stage: {e}")])?;
+        sample_stage(opfor, stage, (level, &project.base.level), out)
+            .map_err(|e| vec![format!("the offline sampler on the stage: {e}")])?;
         plan = ready_at(opfor, project, cur, base, Some(stage), Some(level))?;
         if plan == Plan::Sample {
             return Err(vec!["the offline sampler on the stage wrote no samples".into()]);

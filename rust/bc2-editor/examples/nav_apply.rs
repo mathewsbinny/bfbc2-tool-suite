@@ -8,7 +8,11 @@
 //!
 //! Exit code 0 when the build ended well, 1 when it failed (its last line says why), 2 for a usage error.
 
-#![allow(clippy::print_stdout, clippy::print_stderr, reason = "a proof's command line prints its lines")]
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "a proof's command line prints its lines"
+)]
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -23,12 +27,7 @@ fn main() {
         [flag, s] if flag == "--cancel-after" => s.parse::<f64>().ok().map(Duration::from_secs_f64),
         _ => None,
     };
-    let mut job = bc2_editor::nav::start_apply(
-        &PathBuf::from(root),
-        lv,
-        &PathBuf::from(side),
-        &PathBuf::from(out),
-    );
+    let mut job = bc2_editor::nav::start_apply(&PathBuf::from(root), lv, &PathBuf::from(side), &PathBuf::from(out));
     let t0 = Instant::now();
     let mut shown = 0;
     let mut asked = false;
