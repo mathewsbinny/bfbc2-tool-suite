@@ -495,7 +495,7 @@ pub struct DiffState {
     /// The row chosen in the panel.
     pub picked: Option<usize>,
     /// A comparison under way.
-    pub job: Option<std::sync::mpsc::Receiver<Result<DiffView, EditorError>>>,
+    pub job: Option<crate::task::Task<DiffView>>,
     /// What B is compared with.
     pub against: Against,
     /// The project's revision the comparison was made at.
@@ -527,37 +527,27 @@ impl DiffState {
 
     /// Starts a comparison of `a` and `b` on a worker.
     pub fn start(&mut self, a: Vec<u8>, b: Vec<u8>, labels: [String; 2], closure: HashSet<String>) {
-        let (tx, rx) = std::sync::mpsc::channel();
-        self.job = Some(rx);
-        std::thread::spawn(move || {
-            let _ = tx.send(DiffView::compute(&a, &b, &labels[0], &labels[1], &closure));
-        });
+        self.job = Some(crate::task::Task::spawn("The comparison", move || {
+            DiffView::compute(&a, &b, &labels[0], &labels[1], &closure)
+        }));
     }
 
     /// The worker's answer, when it came (`true`: the view changed).
     pub fn poll(&mut self) -> bool {
-        let Some(rx) = &self.job else { return false };
-        match rx.try_recv() {
-            Ok(r) => {
-                self.job = None;
-                self.view = Some(r.map(std::sync::Arc::new));
-                self.show = true;
-                self.picked = None;
-                true
-            }
-            Err(std::sync::mpsc::TryRecvError::Empty) => false,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                self.job = None;
-                self.view = Some(Err(EditorError::Level("the comparison stopped unexpectedly".into())));
-                true
-            }
-        }
+        let Some(r) = self.job.as_ref().and_then(crate::task::Task::poll) else {
+            return false;
+        };
+        self.job = None;
+        self.view = Some(r.map(std::sync::Arc::new));
+        self.show = true;
+        self.picked = None;
+        true
     }
 
     /// Waits for the worker (headless runs).
     pub fn settle(&mut self) {
-        if let Some(rx) = self.job.take() {
-            let r = rx.recv().unwrap_or_else(|e| Err(EditorError::Level(e.to_string())));
+        if let Some(job) = self.job.take() {
+            let r = job.wait();
             self.view = Some(r.map(std::sync::Arc::new));
             self.show = true;
             self.picked = None;

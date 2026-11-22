@@ -15,12 +15,12 @@
 
 #![allow(clippy::indexing_slicing, reason = "[f32; 3] vectors indexed by their axes (0..3)")]
 
+use crate::error::EditorError;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use bc2_convert::meshview::render::{Canvas, Laid, Look, View, frame, light, stack_models};
+use bc2_convert::meshview::render::{Canvas, Laid, Look, PartJob, View, frame, light, stack_models};
 use bc2_convert::meshview::{self, Channel, Image, Index, Mesh, Part};
 use bc2_render::simple::{Component, State, part_shown};
 
@@ -282,7 +282,7 @@ pub struct Preview {
     pub selected: Option<(usize, usize)>,
     /// Textures decoded for the other channels, by name.
     textures: HashMap<String, Option<Arc<Image>>>,
-    rx: Option<Receiver<Result<Vec<Model>, String>>>,
+    rx: Option<crate::task::Task<Vec<Model>>>,
     /// Bumped whenever what is drawn changes (the panel redraws then).
     pub revision: u64,
 }
@@ -310,7 +310,6 @@ impl Preview {
 
     /// Reads the subjects again (at [`Preview::lod`]) on a worker thread.
     pub fn reload(&mut self, opfor: &Path) {
-        let (tx, rx) = std::sync::mpsc::channel();
         let subjects = self.subjects.clone();
         let lod = self.lod;
         let opfor = opfor.to_path_buf();
@@ -319,16 +318,16 @@ impl Preview {
         } else {
             "Reading the game copy's mesh index (the first time: building it takes minutes)\u{2026}".into()
         };
-        std::thread::spawn(move || {
-            let got = index(&opfor).and_then(|ix| {
-                subjects
-                    .iter()
-                    .map(|s| read_model(&ix, s, Some(lod)))
-                    .collect::<Result<Vec<_>, String>>()
-            });
-            let _ = tx.send(got);
-        });
-        self.rx = Some(rx);
+        self.rx = Some(crate::task::Task::spawn("the preview's reader", move || {
+            index(&opfor)
+                .and_then(|ix| {
+                    subjects
+                        .iter()
+                        .map(|s| read_model(&ix, s, Some(lod)))
+                        .collect::<Result<Vec<_>, String>>()
+                })
+                .map_err(EditorError::Tool)
+        }));
     }
 
     /// Whether a read is under way.
@@ -339,9 +338,11 @@ impl Preview {
 
     /// Takes the worker's models when they are read; true when something arrived.
     pub fn poll(&mut self) -> bool {
-        let Some(rx) = &self.rx else { return false };
-        match rx.try_recv() {
-            Ok(Ok(models)) => {
+        let Some(r) = self.rx.as_ref().and_then(crate::task::Task::poll) else {
+            return false;
+        };
+        match r {
+            Ok(models) => {
                 let skipped: usize = models.iter().map(|m| m.read.notes.len()).sum();
                 self.status = if skipped > 0 {
                     format!("{skipped} parts skipped (no vertex layout in any level's shader database)")
@@ -356,17 +357,11 @@ impl Preview {
                 self.revision += 1;
                 true
             }
-            Ok(Err(e)) => {
-                self.status = e;
+            Err(e) => {
+                self.status = e.to_string();
                 self.models.clear();
                 self.rx = None;
                 self.revision += 1;
-                true
-            }
-            Err(TryRecvError::Empty) => false,
-            Err(TryRecvError::Disconnected) => {
-                self.status = "the preview's reader stopped".into();
-                self.rx = None;
                 true
             }
         }
@@ -489,21 +484,37 @@ impl Preview {
         let mut canvas = Canvas::new(cw, ch, colours.background);
         let flat_parts: Vec<&Part> = laid.iter().flat_map(|(p, _)| p.iter().copied()).collect();
         if self.shading != Shading::Wireframe {
-            for (k, ((p, pos), scr)) in flat_parts.iter().zip(&world).zip(&screen).enumerate() {
-                let model = ids.get(k).map_or(0, |x| x.0);
-                let tex = if self.shading == Shading::Textured {
-                    self.texture_for(&models, model, p)
-                } else {
-                    None
-                };
-                let look = Look {
-                    texture: tex.as_deref(),
-                    flat: [170.0; 3],
-                    shade: p.normals.is_some() || self.shading == Shading::Flat,
-                    id: k as u32,
-                };
-                canvas.fill(p, pos, scr, &look);
-            }
+            // every part's look first, then the parts drawn in bands on all cores (round PR1b-0, audit AU5 ALG-9:
+            // the orbit was drawn on the UI thread alone; the picture is the same, bit for bit)
+            let textures: Vec<Option<Arc<Image>>> = flat_parts
+                .iter()
+                .enumerate()
+                .map(|(k, p)| {
+                    let model = ids.get(k).map_or(0, |x| x.0);
+                    if self.shading == Shading::Textured {
+                        self.texture_for(&models, model, p)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let jobs: Vec<PartJob<'_>> = flat_parts
+                .iter()
+                .zip(&world)
+                .zip(&screen)
+                .zip(&textures)
+                .enumerate()
+                .map(|(k, (((p, pos), scr), tex))| {
+                    let look = Look {
+                        texture: tex.as_deref(),
+                        flat: [170.0; 3],
+                        shade: p.normals.is_some() || self.shading == Shading::Flat,
+                        id: k as u32,
+                    };
+                    (*p, pos.as_slice(), scr.as_slice(), look)
+                })
+                .collect();
+            canvas.fill_parts(&jobs);
         }
         let edge_of = |canvas: &mut Canvas, p: &Part, scr: &[[f32; 3]], c: [u8; 3], bias: Option<f64>| {
             for t in &p.indices {

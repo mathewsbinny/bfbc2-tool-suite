@@ -230,8 +230,10 @@ pub struct ViewState {
     pub doc: Option<Doc>,
     /// The workspace.
     pub workspace: Workspace,
-    /// The editing tool.
+    /// The editing tool chosen.
     pub tool: Tool,
+    /// Every editing tool's state (round PR1b-0, audit AU5 ARC-6: the tools behind [`crate::tool::ViewTool`]).
+    pub tools: crate::tool::Tools,
     /// World or local axes.
     pub space: Space,
     /// Snapping.
@@ -297,9 +299,7 @@ pub struct ViewState {
     pub browser: BrowserState,
     /// The context menu and the pointer over the views. Round OP1: split out of `ViewState`.
     pub menus: MenuState,
-    /// An outline (polygon) being drawn in a view. Round OP1: split out of `ViewState`.
-    pub outline: OutlineDraw,
-    /// The ruler and the measuring tool. Round OP1: split out of `ViewState`.
+    /// The measuring tool. Round OP1: split out of `ViewState`.
     pub measures: Measures,
     /// The Inspector: the property tree, its links and their rows (round GR1).
     /// Round OP1: split out of `ViewState`.
@@ -359,23 +359,10 @@ pub struct MenuState {
     pointer_ray: Option<(V3, V3)>,
 }
 
-/// An outline (polygon) being drawn in a view.
-///
-/// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
-pub struct OutlineDraw {
-    /// The polygon selection's corners (screen) and the view they are drawn in.
-    pub polygon: Vec<Pos2>,
-    polygon_view: Option<Projection>,
-    /// Enter was pressed: the polygon closes.
-    polygon_close: bool,
-}
-
-/// The ruler and the measuring tool.
+/// The measuring tool (the ruler is a [`crate::tool::ViewTool`] since round PR1b-0).
 ///
 /// Round OP1 (audit AU1 D9, AU4 CQ-7): one of the focused parts `ViewState` was split into.
 pub struct Measures {
-    /// The ruler's points (up to two).
-    pub ruler: Vec<V3>,
     /// Measuring (M): clicks add points to [`ViewState::measure`] instead of selecting.
     pub measuring: bool,
     /// The measured path's points.
@@ -1763,6 +1750,7 @@ impl EditorApp {
             doc,
             workspace: if editing { Workspace::Objects } else { Workspace::View },
             tool: Tool::Move,
+            tools: crate::tool::Tools::default(),
             space: Space::World,
             snap: Snap::default(),
             message: String::new(),
@@ -1812,13 +1800,7 @@ impl EditorApp {
                 menu_kind: None,
                 pointer_ray: None,
             },
-            outline: OutlineDraw {
-                polygon: Vec::new(),
-                polygon_view: None,
-                polygon_close: false,
-            },
             measures: Measures {
-                ruler: Vec::new(),
                 measuring: false,
                 measure: Vec::new(),
             },
@@ -2185,8 +2167,11 @@ impl EditorApp {
                 }
                 return;
             }
-            if v.outline.polygon.len() >= 3 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
-                v.outline.polygon_close = true;
+            // Enter is a tool's key when one takes it (the polygon's: it closes)
+            if let Some(t) = v.tools.all_mut().into_iter().find(|t| t.takes_enter())
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter))
+            {
+                t.enter();
             }
         }
         let redo2 = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), Key::Z);
