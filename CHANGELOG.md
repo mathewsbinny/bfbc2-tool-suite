@@ -28,6 +28,15 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Changed
+
+- NavKit's path data is closer to DICE's in structure (round NKG1): each sector's table bounds are the box of its
+  route nodes (KYN-SEC-2), no edge is written twice (KYN-EDGE-4), and border portals beyond a sector's square link to
+  the diagonal neighbour (KYN-LINK-1; 5,922 such link entries on the 15 regression levels, DICE 5,682). Every navparity
+  measure is unchanged; built files differ in bytes (`navbuild_golden.json` re-recorded). Edges only on owner border
+  copies are written behind `navbuild.OWNER_EDGES`, off: with NavKit's single border row they would cut routes into
+  the lower sector (KYRT-PATH-3).
+
 ### Added
 - **The bot AI specification's static RE, finished as far as it goes without the game** (round AIS-rest;
   specification only, no tool changed): the AI body - the proxy's three interfaces and its seat requests
@@ -40,6 +49,10 @@ landed on `main`.
   difficulty comes from (BOT-DIF-4); one server class for every order and the `IssueOrder` event hash (AIO-RT-1).
   The bot module's implementation interface is updated and the in-game test of the AI input object is written as a
   checklist. 12 new rules (69 in the two files).
+- navparity's directed measures, the route graph as the game's runtime walks it (KYRT-PATH-3): `runtime_connectivity`
+  and `strong_share` (navregress compares them); `kynapse_probe` counts one-way edges by their ends, C records against
+  the square lines and the strongly connected share; two game-tier corpus tests (`one_edge_per_source_and_target`,
+  `border_ids_have_edges_in_two_sectors`).
 
 ### Fixed
 - **The bot-kill scoring contradiction** (AI-NEED-5 against PERS-SCORE-1): the player-killed handler returns only for

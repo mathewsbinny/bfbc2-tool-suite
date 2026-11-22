@@ -224,6 +224,51 @@ fn node_ids_are_unique_in_the_file() {
     });
 }
 
+// spec: KYN-EDGE-4
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn one_edge_per_source_and_target() {
+    each(|f, h, _| {
+        for s in &h.sectors {
+            let mut seen = HashSet::new();
+            for e in &s.edges {
+                assert!(
+                    seen.insert((e.src, e.dst)),
+                    "{}: sector {:#x} has an edge twice",
+                    f.name,
+                    s.id
+                );
+            }
+        }
+    });
+}
+
+// spec: KYG-NODE-2
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn border_ids_have_edges_in_two_sectors() {
+    each(|f, h, _| {
+        let mut joins: HashMap<u32, HashSet<u32>> = HashMap::new();
+        for s in &h.sectors {
+            for n in &s.nodes {
+                if n.id & 0x8000_0000 != 0 {
+                    joins.entry(n.id).or_default();
+                }
+            }
+            for e in &s.edges {
+                for i in [e.src, e.dst] {
+                    let n = &s.nodes[i as usize];
+                    if n.id & 0x8000_0000 != 0 {
+                        joins.entry(n.id).or_default().insert(s.id);
+                    }
+                }
+            }
+        }
+        let lone = joins.values().filter(|v| v.len() < 2).count();
+        assert_eq!(lone, 0, "{}: border ids with edges in fewer than two sectors", f.name);
+    });
+}
+
 // spec: KYN-EDGE-1, KYG-EDGE-1
 #[test]
 #[ignore = "game tier: reads DICE's path data in the game copy"]

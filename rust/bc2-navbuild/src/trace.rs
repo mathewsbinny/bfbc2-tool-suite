@@ -459,6 +459,21 @@ pub fn trace_emit(
     oz: f64,
     pitch: f64,
 ) -> Vec<Emitted> {
+    trace_emit_cut(level, areas, per_area, cfg, (ox, oz, pitch), None)
+}
+
+/// [`trace_emit`], with each border portal's run also cut where `along` reaches 0 or `square` (the sector square's
+/// lines, `square` its samples across) when `square` is given: the pieces beyond the square lie in a diagonal
+/// neighbour's square and link there (KYN-LINK-1).
+#[must_use]
+pub fn trace_emit_cut(
+    level: &Level,
+    areas: &[Vec<Cell>],
+    per_area: Vec<EdgeRows>,
+    cfg: TraceCfg,
+    (ox, oz, pitch): (f64, f64, f64),
+    square: Option<i64>,
+) -> Vec<Emitted> {
     let mut out = Vec::with_capacity(areas.len());
     for (cells, mut edges) in areas.iter().zip(per_area) {
         // 45-degree bridges between diagonal-only neighbours of this area, across an open corner only
@@ -505,12 +520,13 @@ pub fn trace_emit(
                     .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             });
             let line = key.line();
+            let cut_here = |t: i64| matches!(key.kind, Kind::Border(..)) && square.is_some_and(|s| t == 0 || t == s);
             let mut start = 0;
             for r in 1..=runs.len() {
                 let (Some(&first), Some(&prev)) = (runs.get(start), runs.get(r - 1)) else {
                     continue;
                 };
-                if runs.get(r).is_some_and(|x| x.0 == prev.0 + 1) {
+                if runs.get(r).is_some_and(|x| x.0 == prev.0 + 1 && !cut_here(x.0)) {
                     continue;
                 }
                 let (a, b) = (first.0 as f64 - 0.5, prev.0 as f64 + 0.5);

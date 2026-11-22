@@ -14047,7 +14047,23 @@
    "evidence": [
     {
      "kind": "data",
-     "ref": "219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604"
+     "ref": "219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604; one-way edges by their ends (probe `e.one_way_*`)"
+    }
+   ]
+  },
+  {
+   "id": "KYN-EDGE-4",
+   "title": "One edge per source and target",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::one_edge_per_source_and_target"
+    },
+    {
+     "kind": "data",
+     "ref": "0 repeated (source, target) pairs in 3,120 of 3,120 sectors"
     }
    ]
   },
@@ -21099,8 +21115,12 @@
    "status": "observed",
    "evidence": [
     {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::border_ids_have_edges_in_two_sectors"
+    },
+    {
      "kind": "data",
-     "ref": "113,874 border ids: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4; owners: 107,437 one (103,458 the holding sector), 3,623 none, 2,738 two, 76 three"
+     "ref": "113,874 border ids: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4; owners: 107,437 one (103,458 the holding sector), 3,623 none, 2,738 two, 76 three; 0 border ids with edges in fewer than two sectors in 35 of 35 files"
     },
     {
      "kind": "doc",
