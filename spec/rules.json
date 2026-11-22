@@ -359,6 +359,323 @@
    ]
   },
   {
+   "id": "ANIM-RES-1",
+   "title": "The animation resources DICE ships",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's 1,021 bundles, 2026-11-22: entry types from the bundle headers; distinct = first copy of each lower-case name"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-SKEL-1",
+   "title": "One soldier skeleton, ske01, of 147 bones",
+   "file": "spec/engine/animation.md",
+   "status": "verified",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py:147-157"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: ske01 147 bones (root grannyRootBone, 19 jntWpn_*, 28 FJ_*), skevehicle 4; 2 SkeletonAsset in characters/skeletons with the values listed"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:21-23"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-SKEL-2",
+   "title": "BF1943's animations port by bone name, with no retargeting",
+   "file": "spec/engine/animation.md",
+   "status": "implemented",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-anim-tools/granny.py:688-693"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:67-73"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-FRAME-1",
+   "title": "Game data is right-handed: a soldier faces +z, his right is -x",
+   "file": "spec/engine/animation.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapon_preview.py:311"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_preview.py:226-227"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/pictures.py:9"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-TREE-1",
+   "title": "A compiled tree names no animation; animations bind by place",
+   "file": "spec/engine/animation.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/animswap.py:4-9"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/animswap.py:48-79"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's animations/weapons partitions, 2026-11-22: AnimationAsset 1,922, AimAnimationAsset 258, DeltaAnimationAsset 206"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:75-78"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-TREE-2",
+   "title": "The compiled tree bakes each hand's IK target",
+   "file": "spec/engine/animation.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/animswap.py:82-124"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtest 2026-11-08: the ported rifles' hands off the grips with the donor's baked targets, on them after the rewrite"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-TREE-3",
+   "title": "Same-base weapon trees keep their slot durations at fixed offsets",
+   "file": "spec/engine/animation.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "pairwise differences of same-size compiled trees; DICE's first-person weapon trees are 36,388 (2), 36,836 (2), 36,468, 36,292 and 36,500 bytes"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:148-181"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-ZOOM-1",
+   "title": "Hand IK in a scope's zoom is switched off in the compiled tree",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtest 2026-11-08: post-VS arm positions in the scoped Garand / Type 5 zoom; fixed by the M24-based tree, confirmed by the user"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:139-153"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-ZOOM-2",
+   "title": "A FOV specialisation the weapon lacks draws no world",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtest 2026-11-08: the grey zoom"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:303-306"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-ZOOM-3",
+   "title": "A sniper zoom on a rifle's gun sway needs the sniper's multipliers zeroed",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's RenderDoc playtests 2026-11-08 and 2026-11-13: NaN matrices in the zoomed draws"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:265-302"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:21"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-UNDEP-1",
+   "title": "DICE added 25 tracks to every third-person undeploy",
+   "file": "spec/engine/animation.md",
+   "status": "verified",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_bf1943import.py::undeploys"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:636-711"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:80-84"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-RIG-1",
+   "title": "The soldier rig's named bones in DBX",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: SharedSoldierAnimationTreeData 6, SoldierIKData 1 (characters/skeletons/ske01), BonePriority 9, InfluenceMapEffectData 3, SoldierProceduralLeaningData 1 in characters/skeletons"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-KIT-1",
+   "title": "A kit is a SoldierEntityData",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: the class counts, folders and field values listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/kits.py:27-34"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_KITS.md:85-92"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-KIT-2",
+   "title": "A kit's body: one mesh, kit joints and a static pose",
+   "file": "spec/engine/animation.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/kits.py:6-8"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/soldiers.py:16-26"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WAKE_VEHICLE_SEATED_POSE_2026-11-12.md:14-20"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-KIT-3",
+   "title": "DICE's death pickups draw the weapon, not a bag",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: 24 of 24 as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/kitbags.py:6-11"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-SKIN-1",
+   "title": "A part is drawn only with programs for its skinning kind",
+   "file": "spec/engine/animation.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_skinning.py::test_set_part_fa_changes_only_the_named_parts"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_skinning.py::test_single_bone"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/skinning.py:1-28"
+    }
+   ]
+  },
+  {
+   "id": "ANIM-RAG-1",
+   "title": "One ragdoll",
+   "file": "spec/engine/animation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's bundles, 2026-11-22: 2 RagdollResource entries, 1 RagdollAsset (Dist levels/mp_common/level-00.fbrb)"
+    }
+   ]
+  },
+  {
    "id": "SND-WAVE-1",
    "title": "IsStreaming says where the audio is",
    "file": "spec/engine/audio.md",
@@ -417,7 +734,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2551-2555"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2682-2687"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2759-2764"
     },
     {
      "kind": "test",
@@ -1352,6 +1673,108 @@
    ]
   },
   {
+   "id": "DECAL-STRIP-1",
+   "title": "Roads and terrain decals are strips in the visual terrain",
+   "file": "spec/engine/decals.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 DICE visual terrains, 1,424 strips; per-terrain 0 - 188; kinds by the shader name's last part; layers and second / mask shader counts as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:183-205"
+    }
+   ]
+  },
+  {
+   "id": "DECAL-STRIP-2",
+   "title": "Strips draw on the strip layout, over the patches, reading the height map",
+   "file": "spec/engine/decals.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:36-52"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:298-320"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_strip_and_patch_position_contracts"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island, 2026-11-12: 60 quad-decal strips cloned from shaders of other layouts drew as sheets across the sky until the strip donors were chosen by layout"
+    }
+   ]
+  },
+  {
+   "id": "DECAL-STRIP-3",
+   "title": "A road edit rewrites the strips; nothing re-bakes them in game",
+   "file": "spec/engine/decals.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "DECAL-STRIP-1 (world positions in the strip) and DECAL-SRC-1 (the sources are not in any bundle)"
+    }
+   ]
+  },
+  {
+   "id": "DECAL-SRC-1",
+   "title": "The terrain partition's decals are editor sources",
+   "file": "spec/engine/decals.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 terrain partitions: the class counts and references as listed; Enable true on every group, spline and quad decal, 280 of 314 full decals"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:473-481"
+    }
+   ]
+  },
+  {
+   "id": "DECAL-SRC-2",
+   "title": "The level partition's terrain splines",
+   "file": "spec/engine/decals.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: the four spline classes' counts and fields as listed"
+    }
+   ]
+  },
+  {
+   "id": "DECAL-IMP-1",
+   "title": "Bullet and blast decals come from the material grid",
+   "file": "spec/engine/decals.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 19,730 MaterialRelationDecalData in DICE's grids, Decal set on 17,338"
+    }
+   ]
+  },
+  {
    "id": "DSTR-STATE-1",
    "title": "A destructible part is a PartComponentData with health states",
    "file": "spec/engine/destruction.md",
@@ -1601,8 +2024,12 @@
    "id": "DSTR-TERR-4",
    "title": "TerrainData's destruction fields",
    "file": "spec/engine/destruction.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_partitions"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/destruction.py, 2026-11-22: 30 TerrainData instances, the values above"
@@ -1853,6 +2280,53 @@
     {
      "kind": "data",
      "ref": "spec/probes/lighting.py emitters on the game copy, 2026-11-22: 35 point-light templates by folder; Emissive true x 8; MaxCount 1 .. 201"
+    }
+   ]
+  },
+  {
+   "id": "FX-PROC-1",
+   "title": "One linked chain per emitter, spawn processors first, from SpawnRateData",
+   "file": "spec/engine/effects.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::emitters"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/effects_chain.py, 2026-11-22: 50,141 emitter documents (the fx partitions of DICE's bundles, each per-level name once); template root SpawnRateData on 50,141; the document chain the same chain 3,095, inside the template chain 45,830, other 1,216; 31 processor classes; spawn before update on 55,904 of 55,904"
+    }
+   ]
+  },
+  {
+   "id": "FX-PROC-2",
+   "title": "A processor is its class, a type tag, an enable flag and Pre / Post evaluators",
+   "file": "spec/engine/effects.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::emitters"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/effects_chain.py, 2026-11-22: the counts as listed over 966,139 chained processors"
+    }
+   ]
+  },
+  {
+   "id": "FX-PROC-3",
+   "title": "What an emitter draws",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/effects_chain.py, 2026-11-22: EmittableType over 50,141 templates"
     }
    ]
   },
@@ -3407,6 +3881,10 @@
     {
      "kind": "data",
      "ref": "spec/probes/lighting.py emitters: one template of colour (0.996, 0.354, 0.004) among the 35 point-light templates"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition (2,861 instances): 0 lamp effects, 2 GameEffectEntityData, OPFOR's stage markers beside it; Napisal's backed-up ONS_MP_002 (4,320 instances): 53 references to the lamp effect"
     }
    ]
   },
@@ -4454,6 +4932,493 @@
    ]
   },
   {
+   "id": "MOD-EXE-1",
+   "title": "Every address was read on PC client build 795745; only signatures check it at run time",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:1"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:136-158"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:162-188"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:370"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:17-18"
+    }
+   ]
+  },
+  {
+   "id": "MOD-HOOK-1",
+   "title": "A hook is a 5 - 27 byte jump to a 32-byte trampoline, after its bytes are checked",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.cpp:236-265"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.h:43-49"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:306-335"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/probes.cpp:821-850"
+    }
+   ]
+  },
+  {
+   "id": "MOD-HOOK-2",
+   "title": "Patches are committed together, with the game's other threads suspended",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.cpp:87-138"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.cpp:140-234"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.h:30-32"
+    }
+   ]
+  },
+  {
+   "id": "MOD-HOOK-3",
+   "title": "What is checked before writing, and what is not",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:43-46"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/profile.cpp:122-127"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/boatrelease.cpp:155-160"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:801-805"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:848-853"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:210-225"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:336-337"
+    }
+   ]
+  },
+  {
+   "id": "MOD-CNT-1",
+   "title": "221 addresses in 27 files",
+   "file": "spec/engine/module.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "a read of every file of opfor:src/dll, round SPG2 2026-11-22: addresses the code uses (patched, hooked, called, read or verified), comment-only mentions excluded (about 358 distinct hex values counting comments)"
+    }
+   ]
+  },
+  {
+   "id": "MOD-HOST-1",
+   "title": "The offline host and the shared engine calls",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:15-27"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:52"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:96-108"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:192-211"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:30-72"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:145-149"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:93-98"
+    }
+   ]
+  },
+  {
+   "id": "MOD-PATCH-1",
+   "title": "Vietnam without sign-in, and scoring with fewer than four players",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:91-108"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:123-132"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:27"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:237"
+    }
+   ]
+  },
+  {
+   "id": "MOD-MODE-1",
+   "title": "The Pacific War as a third game mod",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:47-58"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:119-123"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:233-260"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:291-303"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:376-380"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:462-512"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:636-711"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:22-73"
+    }
+   ]
+  },
+  {
+   "id": "MOD-BRWS-1",
+   "title": "The offline server browser and the mode names",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:55-56"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:377-416"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:429-491"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:508-509"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:787-808"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/ui_frame.cpp:15-35"
+    }
+   ]
+  },
+  {
+   "id": "MOD-FIX-1",
+   "title": "Engine guards for levels built from other builds' data",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:32-94"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:192-193"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:254-279"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:323-393"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:492-616"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:757-760"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:812-854"
+    }
+   ]
+  },
+  {
+   "id": "MOD-IN-1",
+   "title": "Controller input and on-screen prompts",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:61-63"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:211-252"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:930-986"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/prompts.cpp:47-63"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/prompts.cpp:169-194"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/inputframe.cpp:19-59"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:77-102"
+    }
+   ]
+  },
+  {
+   "id": "MOD-WW2-1",
+   "title": "The WW2 gameplay patches",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/repair.cpp:33-37"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/repair.cpp:147-163"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gear.cpp:41-48"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gear.cpp:192-216"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/boatrelease.cpp:34-38"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/boatrelease.cpp:148-166"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/horn.cpp:46-60"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/voprobe.cpp:29-33"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/voprobe.cpp:113-121"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_REPAIR_STATIONS_LANDING_GEAR_RE_2026-11-14.md:186"
+    }
+   ]
+  },
+  {
+   "id": "MOD-PERS-1",
+   "title": "The offline career, the profile and the stats screens",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:48-57"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:210-225"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:517-520"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/profile.cpp:105-130"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/profile.cpp:217"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_screens.cpp:52-64"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_screens.cpp:632-640"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:48-75"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:174-185"
+    }
+   ]
+  },
+  {
+   "id": "MOD-DEV-1",
+   "title": "Diagnostics and AI research, off by default",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/probes.cpp:71-218"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/forceai.cpp:19-47"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/sectoroffsets.cpp:20-58"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navgen.cpp:396-421"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navsample.cpp:349-398"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/killprobe.cpp:124-143"
+    }
+   ]
+  },
+  {
+   "id": "MOD-IMP-1",
+   "title": "The network guard and the user-data redirect patch imports by function",
+   "file": "spec/engine/module.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:321-349"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:400-426"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/userdata.cpp:416-457"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:391-396"
+    }
+   ]
+  },
+  {
    "id": "NET-SES-1",
    "title": "The menu's host command becomes a host-game message",
    "file": "spec/engine/network.md",
@@ -4623,6 +5588,308 @@
    ]
   },
   {
+   "id": "ONS-LVL-1",
+   "title": "Four levels on four multiplayer maps",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_CONSOLE_RESEARCH.md:142-151"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_common.py:20-23"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition: 5 CapturePointEntityData, 1 MissionEntityData, 1 SpawnPointManagerData, 1 reference to gamemodes/onslaught"
+    }
+   ]
+  },
+  {
+   "id": "ONS-MODE-1",
+   "title": "Onslaught is flags taken in sequence; the mode is data, its name read only by the UI",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "Xbox 360, PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x4304D0 the string compare; 0x142ABD8 the \"conquest\" literal; 0x92AB10 the mode owner, its id at +0x6C"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1279-1285"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:9-20"
+    }
+   ]
+  },
+  {
+   "id": "ONS-MODE-2",
+   "title": "OPFOR's GameModes/Onslaught is PC Conquest re-identified, matchmaking CONQUEST",
+   "file": "spec/engine/onslaught.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:55-59"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:216-246"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x5680C0 the matchmaking id to stats category"
+    }
+   ]
+  },
+  {
+   "id": "ONS-MODE-3",
+   "title": "The UI reads \"onslaught\" and \"airsuperiority\" as \"conquest\"",
+   "file": "spec/engine/onslaught.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:57-84"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:848-853"
+    }
+   ]
+  },
+  {
+   "id": "ONS-CAP-1",
+   "title": "On the PC, Onslaught flags need OnlyTakeableByTeam 0",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:334"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR playtest 2026-10-29 on a console-ported level: flag A with OnlyTakeableByTeam 1, 2 and 0, as described"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:41-46"
+    }
+   ]
+  },
+  {
+   "id": "ONS-CAP-2",
+   "title": "Door pre-destructions and the console's explosive objects are left out",
+   "file": "spec/engine/onslaught.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:47-54"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:93-115"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x56C58A the fault; 0x577390 the AI sphere query"
+    }
+   ]
+  },
+  {
+   "id": "ONS-END-1",
+   "title": "A round ends at the last flag; the stopwatch is OPFOR's",
+   "file": "spec/engine/onslaught.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:3-15"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:106-147"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud_format.h:8-16"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_hud.py:8-25"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught.py::test_hud_builds_on_the_current_movie_and_never_patches_twice"
+    }
+   ]
+  },
+  {
+   "id": "ONS-WAVE-1",
+   "title": "Waves are spawners switched on by events",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:106-144"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:94-97"
+    },
+    {
+     "kind": "data",
+     "ref": "Napisal's ONS_MP_005GR (OPFOR's research 2026-10-29): the spawner counts listed"
+    }
+   ]
+  },
+  {
+   "id": "ONS-PORT-1",
+   "title": "Napisal's ports run as Rush, without the sector offsets",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:96-97"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:196-210"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: Napisal's backed-up Package ONS_MP_002 level partition: 4,320 instances, 1 reference to gamemodes/goldrush"
+    }
+   ]
+  },
+  {
+   "id": "ONS-PORT-2",
+   "title": "Sector offsets are the most common per-sector value",
+   "file": "spec/engine/onslaught.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/apply_sector_offsets.py:78-87"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:ONSLAUGHT_PROCEDURE.md:146-151"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x14A93D0 the SectorOffsets path format"
+    }
+   ]
+  },
+  {
+   "id": "ONS-PORT-3",
+   "title": "What the console port drops: the night lamps, the moon, the lighthouse, the ambience",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_onslaught.py:261-278"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_onslaught.py:350-355"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition (2,861 instances, OPFOR's `.opfor-*-applied` stage markers beside it): the counts listed; Napisal's backed-up ONS_MP_002: 53 lamp-effect references, 143 GameEffectEntityData, 10 sound areas with sounds"
+    }
+   ]
+  },
+  {
+   "id": "ONS-PORT-4",
+   "title": "The console port rebuilds on the Linux server's level",
+   "file": "spec/engine/onslaught.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_linux_base.py:9-20"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_linux_base.py:45-48"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:268-271"
+    }
+   ]
+  },
+  {
+   "id": "ONS-REG-1",
+   "title": "Registration, and what the game copy lists",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:173-192"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Dist package.mft (the ons_mp_002 level block, the ons_mp_005gr blocks), bundleManifest and maps.ini Onslaught lines"
+    },
+    {
+     "kind": "exe",
+     "ref": "0xBD2D30 the level name table compare"
+    }
+   ]
+  },
+  {
+   "id": "ONS-NAP-1",
+   "title": "What still depends on Napisal",
+   "file": "spec/engine/onslaught.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:import_onslaught.bat:42-103"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_port.py:74-75"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/apply_ai_template.py:14-16"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_onslaught_qa.py::test_ai_template_plan_follows_the_bundle"
+    }
+   ]
+  },
+  {
    "id": "PERS-JOIN-1",
    "title": "The join makes a stats object and asks EA for its values",
    "file": "spec/engine/persistence.md",
@@ -4750,6 +6017,218 @@
     {
      "kind": "code",
      "ref": "opfor:src/dll/patches.cpp:115-123"
+    }
+   ]
+  },
+  {
+   "id": "PERS-DATA-1",
+   "title": "The persistence and award partitions",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's reads of DICE's two start-up bundles, 2026-11-22: class counts per partition as listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:170-179"
+    }
+   ]
+  },
+  {
+   "id": "PERS-DATA-2",
+   "title": "PersistenceData roots the career; value templates say how a stat is written",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of the patched MP_Template, 2026-11-22: the fields and counts listed"
+    }
+   ]
+  },
+  {
+   "id": "PERS-DATA-3",
+   "title": "Unlock items take their bit by order",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of the patched and Dist Weapons / Specializations, 2026-11-22: the values listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence_rules.h:10-21"
+    }
+   ]
+  },
+  {
+   "id": "PERS-RANK-1",
+   "title": "BFBC2's 50 ranks are inline in PointSystemParams",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of PointSystemParams in both start-up bundles, 2026-11-22"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_model.h:120-136"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_screens.cpp:172-179"
+    }
+   ]
+  },
+  {
+   "id": "PERS-AWD-1",
+   "title": "BFBC2's awards: stars, insignias, pins and achievements",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of MP_Awards / Ons_Awards in both start-up bundles, 2026-11-22: the splits listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:189-211"
+    }
+   ]
+  },
+  {
+   "id": "PERS-AWD-2",
+   "title": "Criteria count stat events over a scope",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of the patched MP_Awards, 2026-11-22: 440 criteria as listed"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x843310 the stat-name builder; 0x924070 the proficiency level"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_model.h:55-81"
+    }
+   ]
+  },
+  {
+   "id": "PERS-AWD-3",
+   "title": "BFBC2's award data descends from BF1943's",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:270-290"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2's read: BFBC2's PointSystemParams has 4 instances, no rank instances; BF1943's table (awards.json) 92 flat PointsFor* / StringFor* keys"
+    }
+   ]
+  },
+  {
+   "id": "PERS-SCORE-1",
+   "title": "With the scoring patch, bots' deaths are scored in the round",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:371-377"
+    }
+   ]
+  },
+  {
+   "id": "PERS-WW2-1",
+   "title": "BF1943's award set as OPFOR's table holds it",
+   "file": "spec/engine/persistence.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_awards.py::test_the_table_is_bf1943s_set"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_awards.py:154-211"
+    }
+   ]
+  },
+  {
+   "id": "PERS-WW2-2",
+   "title": "BF1943's ranks, point scale and dog tags",
+   "file": "spec/engine/persistence.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_awards.py::test_the_table_is_bf1943s_set"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_awards.py:212-225"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:129-148"
+    }
+   ]
+  },
+  {
+   "id": "PERS-WW2-3",
+   "title": "BF1943's categories map onto OPFOR's weapons and kits",
+   "file": "spec/engine/persistence.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_awards.py::test_members_map_onto_opfor_names_and_leave_the_tutorial_out"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_awards.py:50-97"
+    }
+   ]
+  },
+  {
+   "id": "PERS-WW2-4",
+   "title": "The award stings on Pacific levels",
+   "file": "spec/engine/persistence.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode_rules.h:134-139"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:62-63"
     }
    ]
   },
@@ -5234,6 +6713,10 @@
     {
      "kind": "data",
      "ref": "Wake Island's `Wake_Grey` cells (12,803, one constant black layer) lie 165.9 - 203.4 m: 11.6 m or more under the water"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: DICE main blocks' ranges 500 x 16, 1,000 x 8, 750 x 2, 1,700, 1,500, 650, 395"
     }
    ]
   },
@@ -5799,6 +7282,285 @@
     {
      "kind": "code",
      "ref": "rust/bc2-render/src/terrain.rs:560-649"
+    }
+   ]
+  },
+  {
+   "id": "STRM-MNT-1",
+   "title": "The global sound and award bundles are mounted at fixed paths",
+   "file": "spec/engine/streaming.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x565C79 push \"streaming_sounds\" (0x14185D4); 0x565CC7 push \"/sound/streaming/\" (0x14185C0); 0x565DC6 \"async/ondemand_sounds\"; 0x565E14 \"/sound/ondemand/\"; 0x565F14 \"async/ondemand_awards\"; 0x565F62 \"/async/awards/\"; calls 0x4E48E0 at 0x565D0F, 0x565E5D, 0x565FAC"
+    }
+   ]
+  },
+  {
+   "id": "STRM-MNT-2",
+   "title": "One streamed voice bundle per session, by language",
+   "file": "spec/engine/streaming.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x56F3DA call 0xF99E30; jump table 0x56F4F0, default \"en\"; 0x56F422 push \"streaming_vo_%s\"; 0x56F432 push \"/sound/streaming_loc/\"; 0x56F489 call 0x561C10; 0x561FBA push \"async/startup\"; a second copy of the sequence at 0x800267 / 0x800277"
+    },
+    {
+     "kind": "inferred",
+     "ref": "\"only one is opened\" from the code's shape: one formatted name per call"
+    }
+   ]
+  },
+  {
+   "id": "STRM-ASYNC-1",
+   "title": "A level's async bundles are its cutscenes, named by a hash",
+   "file": "spec/engine/streaming.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x62D9C9 push \"async/\", 0x62D9BF push \"/cutscene/c_\"; 0x8AF66F \"/cutscene/a_\""
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy's Dist async/levels, 2026-11-22: 119 files in 13 level folders, all under cutscene/, none a_*; Package async has no levels folder"
+    }
+   ]
+  },
+  {
+   "id": "STRM-ASYNC-2",
+   "title": "A weapon's async bundle, and which registry lists it",
+   "file": "spec/engine/streaming.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x80F175 / 0x80F2F1 push \"async/weapon/\" (0x1431C64); 0x891535 / 0x8B4532 push \"async/weapon\""
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy, 2026-11-22: Dist async 445 bundles, Package async 50; package.mft's async sources 50; bundleManifest's 445 async lines"
+    }
+   ]
+  },
+  {
+   "id": "STRM-REG-1",
+   "title": "The registry's spelling of the global bundles",
+   "file": "spec/engine/streaming.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the game copy's Dist bundleManifest and package.mft, 2026-11-22: the lines as described"
+    }
+   ]
+  },
+  {
+   "id": "STRM-CNT-1",
+   "title": "What each global bundle holds",
+   "file": "spec/engine/streaming.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the suite's bundle lister over the 10 files, 2026-11-22; the game copy includes OPFOR's installs in Package ondemand_awards and startup"
+    }
+   ]
+  },
+  {
+   "id": "STRM-SUITE-1",
+   "title": "The suite reads the global bundles Package first and writes none",
+   "file": "spec/engine/streaming.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::streamed_waves_named"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:393-415"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/catalog.rs:140-151"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/plan.rs:117-123"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/post.rs:103-112"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-console-convert/audio.py:46"
+    }
+   ]
+  },
+  {
+   "id": "VEG-CLS-1",
+   "title": "Forest, middlegrowth and undergrowth",
+   "file": "spec/engine/vegetation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: ForestEntityData 74, TreeMemberData 396 (InstanceCount sum 97,190), TreeMeshEntityData 737, MiddlegrowthModelGroupEntityData 93 (in 71 partitions), MiddlegrowthModelGroupMemberData 341 (82,908); member types by the MemberType's first folder as listed"
+    }
+   ]
+  },
+  {
+   "id": "VEG-CLS-2",
+   "title": "Forests and middlegrowth are model groups and keep the group rules",
+   "file": "spec/engine/vegetation.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:185-211"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/placement.rs:8-14"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: the two member classes' fields: FirstPhysicsPart, InstanceCount, MemberType, MeshEntityType, Name, PhysicsPartCount, PhysicsPartCountPerInstance, SpawnDatas, plus PartsToBangerParts (trees) / SoundCollisionScale (middlegrowth)"
+    }
+   ]
+  },
+  {
+   "id": "VEG-TREE-1",
+   "title": "A tree is a TreeMeshSet drawn through a TreeMeshEntityData",
+   "file": "spec/engine/vegetation.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 92 TreeMeshSet resources, 737 TreeMeshEntityData; TreeMeshAsset's 50 fields as listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:221-223"
+    }
+   ]
+  },
+  {
+   "id": "VEG-UG-1",
+   "title": "A patch shader with undergrowth names an undergrowth mask shader and its meshes",
+   "file": "spec/engine/vegetation.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 1,515 patch shaders: (UgMaskShaders named, meshes) 1,068, (neither) 447; mesh entries per patch shader 0 - 12 (0: 447, 1: 372, 4: 231, 2: 182, 5: 99); 142 distinct meshes; 149 RigidMeshSet in undergrowth folders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:206-224"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_audit.py:107"
+    }
+   ]
+  },
+  {
+   "id": "VEG-UG-2",
+   "title": "The undergrowth mesh entry",
+   "file": "spec/engine/vegetation.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 3,069 entries, tail 01 00 on all; second string set on 30, all in NAM_MP_003 (Package nam_common); shader name on 1,091"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:213-220"
+    }
+   ]
+  },
+  {
+   "id": "VEG-UG-3",
+   "title": "The entry's 12 numbers",
+   "file": "spec/engine/vegetation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: the 12 positions' ranges and most frequent values over 3,069 entries"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the meanings, from the ranges alone: pairs whose two values are equal or ordered, a last value of metre-like size (18 - 100); nothing in the executable or a playtest confirms them"
+    }
+   ]
+  },
+  {
+   "id": "VEG-UG-4",
+   "title": "Undergrowth layouts must be in the level's databases",
+   "file": "spec/engine/vegetation.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island port, 2026-11-08 onward: BF1943's beach grass and fern meshes have no part layouts in BF1943's five level databases"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:716-719"
+    }
+   ]
+  },
+  {
+   "id": "VEG-OPF-1",
+   "title": "BF1943's undergrowth is DICE's, by stand-in",
+   "file": "spec/engine/vegetation.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:716-768"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2722-2741"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2751-2769"
     }
    ]
   },
@@ -8054,6 +9816,149 @@
     {
      "kind": "inferred",
      "ref": "that the game stops at the sample count rather than the frame end is assumed from DICE's own last blocks, which are cut the same way"
+    }
+   ]
+  },
+  {
+   "id": "B43-SRC-1",
+   "title": "The suite reads BF1943 from the user's extracted copy, read only",
+   "file": "spec/formats/bf1943.md",
+   "status": "implemented",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/paths.py:56-57"
+    },
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/paths.py:154-161"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:17-18"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:79-82"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:35"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BF1943_WW2_ASSETS.md:7-21"
+    }
+   ]
+  },
+  {
+   "id": "B43-BNDL-1",
+   "title": "BF1943's bundle set: 85 bundles, no registry files",
+   "file": "spec/formats/bf1943.md",
+   "status": "observed",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the extraction listed on 2026-11-22 (round SPG2): 86 files, 85 .fbrb and config.zz; 5 level folders of 9 bundles each; 22 async/weapon bundles"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:19-23"
+    }
+   ]
+  },
+  {
+   "id": "B43-BNDL-2",
+   "title": "The same container; the same stored / compressed split",
+   "file": "spec/formats/bf1943.md",
+   "status": "observed",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the suite's bundle lister over the 85 bundles, 2026-11-22: compressed / stored and entry counts as listed"
+    }
+   ]
+  },
+  {
+   "id": "B43-LVL-1",
+   "title": "Five levels, one mode each",
+   "file": "spec/formats/bf1943.md",
+   "status": "observed",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the extraction's level folders, 2026-11-22: the five listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:73-81"
+    }
+   ]
+  },
+  {
+   "id": "B43-WPN-1",
+   "title": "12 of BF1943's 22 weapon bundles have a BFBC2 namesake",
+   "file": "spec/formats/bf1943.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "name comparison, 2026-11-22: BF1943's 22 async/weapon bundles against the game copy's 323 Dist async/weapon bundles"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BF1943_WW2_ASSETS.md:125-152"
+    }
+   ]
+  },
+  {
+   "id": "B43-DBX-1",
+   "title": "The class differences DICE resolved, and BF1943 classes BFBC2 lacks",
+   "file": "spec/formats/bf1943.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:126-133"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/DBXPORT_DEEP_AUDIT.md:35-49"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's port audit (2026-11): BFBC2's and BF1943's copies of the shared weapon and soldier partitions compared: the renamed fields, the 24 BoneFakePhysicsData (15 BoneIds differ), the moved aimer partition with its GUIDs"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:31-33"
+    }
+   ]
+  },
+  {
+   "id": "B43-HK-1",
+   "title": "Havok 4.6.1 carries no reflection; layouts come from data",
+   "file": "spec/formats/bf1943.md",
+   "status": "observed",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:94-104"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_FIELD_PARITY_AUDIT.md:14"
+    },
+    {
+     "kind": "data",
+     "ref": "the three vehicle pairs' physics file sizes as listed; BF1943's packfiles with an empty __types__ section"
     }
    ]
   },
@@ -14178,6 +16083,10 @@
     {
      "kind": "doc",
      "ref": "rust/bc2-render/src/terrain.rs:1-15"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 DICE visual terrains, 1,515 patch shaders, 3,069 undergrowth entries, every one ending 01 00; second string set on 30 (NAM_MP_003), shader name on 1,091"
     }
    ]
   },
@@ -14199,6 +16108,10 @@
     {
      "kind": "data",
      "ref": "MP_005: header (66, 1, 15, 7, 128); its 16,384 cells' tiled counts equal their non-zero flags"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 318 DICE patch maps; (W, S) = (128, 128) x 19, (64, 64) x 11, (16, 16) x 12, (8, 8) x 84, (4, 4) x 192; 358,282 of 367,872 cells' non-zero flags equal the tiled count, the rest rule-only cells with one flag"
     }
    ]
   },
@@ -14236,6 +16149,10 @@
     {
      "kind": "data",
      "ref": "DICE's MP_009: 757 tiled masks in 51 tiles' blocks, MP_005: 1,033 in 59; OPFOR's Wake Island: 998 in 78 (flags 8 and 4); no tile named outside its block"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: flags over DICE's 30 terrains 2 x 5,367, 4 x 11,712, 8 x 56,352, 16 x 13,750, 32 x 4,864, 64 x 2,558"
     }
    ]
   },
@@ -19837,6 +21754,264 @@
    ]
   },
   {
+   "id": "XSH-SCOPE-1",
+   "title": "Dx10 / Dx11 entries of ported objects, terrain patches and strips",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:1-45"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:72-77"
+    }
+   ]
+  },
+  {
+   "id": "XSH-SCOPE-2",
+   "title": "The translation runs in the suite's Rust core",
+   "file": "spec/transforms/shaders.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/xenos_hlsl.py:1-22"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xenos_native.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XSH-ALU-1",
+   "title": "Multiplication follows Direct3D 9: 0 times anything is 0",
+   "file": "spec/transforms/shaders.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:61-64"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/hlsl.rs:556-563"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xenos_native.py::main"
+    }
+   ]
+  },
+  {
+   "id": "XSH-ALU-2",
+   "title": "Alpha test moves from render state into the pixel shader",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:1017-1040"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_kitbags.py::test_cutout_and_textures_by_role"
+    }
+   ]
+  },
+  {
+   "id": "XSH-BIND-1",
+   "title": "Binding tables are generated from the compiled code",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:26-34"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:472-482"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_pcbuild_batch.py::quick"
+    }
+   ]
+  },
+  {
+   "id": "XSH-BIND-2",
+   "title": "The terrain's named constants stay named",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:36-55"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_strip_and_patch_position_contracts"
+    }
+   ]
+  },
+  {
+   "id": "XSH-KEY-1",
+   "title": "A program's key: the part's own layout and BF1943's mesh kind",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:1-12"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:275-280"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island carrier, 2026-11-07: the deck drew blotchy until the key's layout GUID was the part's; verified in game after"
+    }
+   ]
+  },
+  {
+   "id": "XSH-FETCH-1",
+   "title": "A BF1943 program is picked by fetch format, not by offset alone",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:14-23"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:186-204"
+    }
+   ]
+  },
+  {
+   "id": "XSH-FETCH-2",
+   "title": "Overlapping PC layout elements are skipped",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:207-219"
+    }
+   ]
+  },
+  {
+   "id": "XSH-PATCH-1",
+   "title": "Terrain patches translate onto BFBC2's two patch layouts",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_translate.py:32-40"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_patch_template_inputs"
+    }
+   ]
+  },
+  {
+   "id": "XSH-MERGE-1",
+   "title": "The merge copies entries by content and renumbers only what it adds",
+   "file": "spec/transforms/shaders.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:1-6"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:329-340"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/shaderdb.py:1003-1010"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/shaderdb.py:1128-1130"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb_native.py::run_merges"
+    }
+   ]
+  },
+  {
+   "id": "XSH-MERGE-2",
+   "title": "A cloned entry must cover its parts' layouts, or the install re-clones it",
+   "file": "spec/transforms/shaders.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2343-2347"
+    }
+   ]
+  },
+  {
+   "id": "XSH-DX-1",
+   "title": "Dx10 and Dx11 take the same translation; Dx9 keeps donors",
+   "file": "spec/transforms/shaders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Dx9 survey of Wake Island's Dx9_Single.res, 2026-11-15: 1,723 VS, 4,668 PS, 27,397 programs; the differences as listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:26-60"
+    }
+   ]
+  },
+  {
+   "id": "XSH-DX-2",
+   "title": "Each Dx database needs its own textures collected",
+   "file": "spec/transforms/shaders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island conversion, 2026-11-07: Dx10 / 11 patch programs sample normal maps the Dx9 programs lack"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:258-260"
+    }
+   ]
+  },
+  {
    "id": "XSMP-CFG-1",
    "title": "The configuration is checked before a build",
    "file": "spec/transforms/stockmp.md",
@@ -19985,6 +22160,273 @@
     {
      "kind": "test",
      "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-SRC-1",
+   "title": "The terrain partition is DICE's editor source; the game draws the baked resources",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 terrain partitions: TerrainData 30, TerrainHeightfieldData 53, TerrainHeightfieldGridCellInfo 43, TerrainFullDecal 314 (MaskTextureType TmttStandard 194, TmttArea 69, TmttNone 51), TerrainGroupDecal 80, TerrainSplineDecal 416, TerrainQuadDecal 40; every decal material / spline reference in no bundle"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:473-481"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-SRC-2",
+   "title": "What an edit writes, and what the game makes itself",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from RNDR-TERR-2 (normals from height samples), RNDR-TERR-5 (the engine writes the height scale), DSTR-TERR-2 (the engine writes the destruction mask), TERR-VT-3 (rule layers have no tile) and TEDIT-SRC-1 (the resources are what is drawn)"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-HF-1",
+   "title": "DICE's main blocks are 1,024 or 2,048 samples of 1 m, starting at height 0",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_fields"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 main blocks: n 1,024 x 11, 2,048 x 19; grid spacing 1 m on 30; min y 0 on 30"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-HF-2",
+   "title": "The height range is per level; DICE's are 395 - 1,700 m",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_fields"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: per main block (terrain, n, range) as listed; TerrainHeightfieldData.SizeY counts as listed"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-HF-3",
+   "title": "The derived parts of a height field are rewritten from the heights",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TERR-HF-4 / TERR-HF-5's grammars; the console and BF1943 converters keep the tails (TERR-HF-7, TERR-HF-8)"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-HF-4",
+   "title": "The height scale the patch shaders use is the engine's, not the database's",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "RNDR-TERR-5; pcbuild.ENGINE_NAMED lists the constant among those the engine writes by name"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:47-52"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island install, 2026-11-07 onward: its patch shaders cloned from mp_009cq (range 500 m) draw its 1,000 m terrain; spec/probes/terrain.py: MP_009 500 m"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-VT-1",
+   "title": "A painted cell writes its shader index, its tiles and its flags together",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: (W, non-zero flags = tiled count): (128, yes) 305,154, (128, no) 6,142, (64, yes) 41,608, (64, no) 3,448, (16 / 8 / 4, yes) 3,072 / 5,376 / 3,072; every mismatch a rule-only shader (tiled 0) with 1 flag (MP_002 343, SP_009 4,804, NAM_MP_002R 3,000 ...)"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-ATL-1",
+   "title": "One mask-tile atlas per terrain, laid out as its patch maps' header says",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 visual terrains, 1 atlas each; atlas (size, format, mips) against the header: 2048 x 1024 fmt 10 1 mip / (31, 15) x 5, 1024 x 512 / (15, 7) x 13, 1024 x 1024 / (15, 15) x 12, each = size / 64 - 1"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-ATL-2",
+   "title": "A tile covers a block of flag x flag cells; DICE's flags are 2 - 64",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py and a per-terrain count (SPG2 scratch), 2026-11-22: 94,603 tiled masks, 79,973 in their tile's one block; per terrain the flags and the one shared tile as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:800-811"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-SH-1",
+   "title": "A painted layer combination needs a patch shader entry in every database",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: patch shaders per terrain 7 - 109; layer counts 1: 48, 2: 194, 3: 344, 4: 424, 5: 328, 6: 152, 7: 24, 8: 1; tiled counts 0: 177, 1: 410, 2: 478, 3: 321, 4: 129"
+    },
+    {
+     "kind": "inferred",
+     "ref": "RNDR-TERR-1 (the entry per cell) and SHDB-LVL-1 (a level draws through its own databases only)"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:226-245"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-SH-2",
+   "title": "A donor patch shader must match the tiled layers and the atlas layout",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:226-269"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:408-410"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/fidelity_checks.py:317"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_dx9_donor_textures_never_another_level"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-SH-3",
+   "title": "Rule-only patches need both patch layouts",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:273-282"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:290-293"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_patch_layouts_and_tiles"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-MM-1",
+   "title": "The physics material map cannot be painted yet",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TERR-MM-1's open encoding (formats/terrain.md Open questions)"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-BLK-1",
+   "title": "Main block, then a ring of 12 per ring",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: blocks per terrain {1: 14, 13: 12, 25: 1, 37: 2, 49: 1}; 318 patch maps"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-OCC-1",
+   "title": "The colour / occlusion map under an edit is re-baked by ratio",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "LIGHT-BAKE-2 and LIGHT-BAKE-6"
     }
    ]
   },
