@@ -450,7 +450,8 @@ impl Op {
                     crate::files::FileEdit::Partition { op } => Some(&**op),
                     crate::files::FileEdit::MemberTransform { .. }
                     | crate::files::FileEdit::MemberDelete { .. }
-                    | crate::files::FileEdit::MemberAdd { .. } => None,
+                    | crate::files::FileEdit::MemberAdd { .. }
+                    | crate::files::FileEdit::GroupField { .. } => None,
                 })
                 .collect(),
             o => vec![o],

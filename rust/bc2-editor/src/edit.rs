@@ -472,6 +472,8 @@ impl Doc {
                                 self.copy_entity(k, &guid, Some(bc2_levelwrite::matrix_of(rows)));
                             }
                         }
+                        // a group file's field: nothing the scene shows
+                        FileEdit::GroupField { .. } => {}
                     }
                 }
             }
@@ -800,10 +802,15 @@ impl Doc {
         };
         let (game, cache) = (&self.game, &self.donors);
         let donors = |lv: &str| {
-            cache.borrow().get(&lv.to_ascii_lowercase()).cloned().flatten().or_else(|| {
-                game.as_ref()
-                    .and_then(|g| bc2_levelwrite::export::level_partition(g, lv).ok())
-            })
+            cache
+                .borrow()
+                .get(&lv.to_ascii_lowercase())
+                .cloned()
+                .flatten()
+                .or_else(|| {
+                    game.as_ref()
+                        .and_then(|g| bc2_levelwrite::export::level_partition(g, lv).ok())
+                })
         };
         let o = Operation {
             n: self.project.next_n(),
