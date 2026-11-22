@@ -24,14 +24,14 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 21 | 6,067 |
+| live | 21 | 6,071 |
 | partly | 20 | 17,395 |
 | twin | 55 | 19,428 |
 | ported | 21 | 2,572 |
 | retired-pending | 3 | 310 |
 | stays | 58 | 10,599 |
-| test | 184 | 50,008 |
-| **all** | **362** | **106,379** |
+| test | 184 | 50,009 |
+| **all** | **362** | **106,384** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -52,11 +52,11 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 15 | 10,125 | 1,430 | 3,882 | 984 | 126 |  |  | 3,703 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 19,830 | 749 |  | 2,414 | 1,897 |  |  | 14,770 |
+| `core` | 76 | 19,834 | 753 |  | 2,414 | 1,897 |  |  | 14,770 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 33 | 5,966 |  |  |  |  |  | 5,699 | 267 |
 | `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
-| `tests` | 29 | 7,681 |  |  |  |  |  |  | 7,681 |
+| `tests` | 29 | 7,682 |  |  |  |  |  |  | 7,682 |
 
 Lines by status in the folder table.
 
@@ -394,12 +394,12 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 19,830 lines.
+76 files, 19,834 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `core/bfbc2core/__init__.py` | 25 | library | live |  | every Python tool; OPFOR | the last Python | the package; __version__ from VERSION |
-| `core/bfbc2core/envvars.py` | 159 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
+| `core/bfbc2core/envvars.py` | 163 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
 | `core/bfbc2core/native.py` | 565 | library | live | bc2-cli pyproc (RETIRED list mirrored) | 63 suite modules, CI workflows; tests 53; OPFOR 11 | PR1b-2 (one registry), then the last Python | finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI |
 | `core/bfbc2core/appicon.py` | 35 | library | twin | rust/app_icon.rs, bc2-editor appicon | hub (.pyw); tests 1 | proposed: with the hub | the icon lookup the Rust builds also make |
 | `core/bfbc2core/atomicio.py` | 150 | library | twin | bc2_formats' one whole-file writer (PR1a) | 17 suite modules; tests 5 | PR1b-2 | atomic whole-file writes for the Python tools |
@@ -542,7 +542,7 @@ Lines by status in the folder table.
 
 ## `tests`
 
-29 files, 7,681 lines.
+29 files, 7,682 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -560,7 +560,7 @@ Lines by status in the folder table.
 | `tests/test_envvars.py` | 68 | test | test |  | run_tests.py | Tests in Rust | The environment-variable registry (core\bfbc2core\envvars.py, round QW1): every quoted BFBC2_* / BC2_* / BF... |
 | `tests/test_f3_native.py` | 900 | test | test |  | run_tests.py | Tests in Rust | Round F3: the rest of the suite's Python format code in the Rust core, each port against its Python referen... |
 | `tests/test_f4_native.py` | 709 | test | test |  | run_tests.py | Tests in Rust | Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or... |
-| `tests/test_hub.py` | 120 | test | test |  | run_tests.py | Tests in Rust | The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 7 tabs and the... |
+| `tests/test_hub.py` | 121 | test | test |  | run_tests.py | Tests in Rust | The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 8 tabs and the... |
 | `tests/test_lint.py` | 33 | test | test |  | run_tests.py | Tests in Rust | Lint (quick tier): ruff's checks from pyproject.toml find nothing in any of the suite's Python folders. |
 | `tests/test_locators.py` | 141 | test | test |  | run_tests.py | Tests in Rust | Every path locator gives the same answer as in a reference checkout of the suite (game tier: needs this mac... |
 | `tests/test_native_required.py` | 422 | test | test |  | run_tests.py | Tests in Rust | The Rust core is required for texture conversion and NavKit's grid walks (their Python retired on 2026-11-1... |
