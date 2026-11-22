@@ -77,6 +77,7 @@ mod kymesh;
 mod loc;
 mod meshdata;
 mod meshindex;
+mod navapply;
 mod navbuild;
 mod navgraph;
 mod navpath;
@@ -527,6 +528,10 @@ mod bc2_native {
     // round O3: meshview.Index's tables (bfbc2-mesh-viewer\meshview.py)
     #[pymodule_export]
     use super::meshindex::meshview_index;
+
+    // round NK1: navkit apply's edit stage (navlinks.py / navtraversal.py retired)
+    #[pymodule_export]
+    use super::navapply::{navkit_graph_edits, navkit_traversal};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

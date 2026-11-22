@@ -41,11 +41,9 @@ import levelobjects  # noqa: E402
 import navbuild  # noqa: E402
 import navcompare  # noqa: E402
 import navkit  # noqa: E402
-import navlinks  # noqa: E402,F401  (imported by apply; loaded before the write guard)
 import navparity  # noqa: E402
 import navregress  # noqa: E402
 import navsample  # noqa: E402
-import navtraversal  # noqa: E402,F401
 import navvehicle  # noqa: E402
 from bfbc2core import gameledger, navtune  # noqa: E402
 
@@ -621,7 +619,7 @@ def main(argv):
             tune4.add(navtune.op('traversal', kind='ladder', bottom=[0, 0, 0], top=[0, 5, 0]))
             tune4.save(navtune.default_path(root, 'sp_01'))
             written = []
-            P.set(navtraversal, 'write', lambda f, out, ops, level, path, log=None: written.append((out, len(ops), level, path)))
+            P.set(navkit, 'write_traversal', lambda data, out, ops, level, path, log=None: written.append((out, len(ops), level, path)))
             alog.clear()
             out1 = navkit.apply(pr, 'sp_01', log=alog.append, install_after=True)
             check(out1 == ours and built[-1][1] == [tune4.operations[0]] and written == [(ours, 1, 'Levels/SP_01', navkit.traversal_path(os.path.dirname(ours), 'sp_01'))]

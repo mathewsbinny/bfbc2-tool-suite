@@ -79,8 +79,6 @@ tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's
   navwater.py        water depth against path-data coverage (does the data leave out ground under water?)
   navboundary.py     area boundaries cell by cell against DICE's: matching / missing / extra edges, merged areas, portals; CSV + maps
   navedits.py        the walkability edits of a navigation side file as generator inputs (navkit.py apply)
-  navlinks.py        a side file's links and route edges written into a path-data file's route graph
-  navtraversal.py    a side file's traversal annotations (ladders, jumps ...) as <level>.traversal.json
   navvehicle.py      land-vehicle path data (vehicle\pathdata.hpd): build / compare / parity / info (see "Vehicle path data")
   navwater_mesh.py   boat navigation mesh on a level's water, a side file for OPFOR's bot layer (prototype)
   navdomains.py      domain graphs and a route planner across foot / land vehicle / boat / aircraft (prototype;
@@ -89,6 +87,9 @@ tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's
                      game launch; the stock MP batch (see "Standalone sampling")
   navnative.py       the Rust core's switch for the tools around the build (round E4e; BFBC2_NAVTOOLS_PYTHON=1)
   (graphstats.py     retired 2026-11-20, round RT1: bfbc2.exe graphstats)
+  (navlinks.py, navtraversal.py  retired 2026-11-21, round NK1: navkit apply's links, route edges and traversal
+                     annotations are the Rust core's - rust\bc2-navbuild\src\graphedit.rs; navkit.graph_edits /
+                     write_traversal call it, bfbc2.exe navkit apply answers a DICE base itself)
 tests\               NavKit's tests (run by the suite's run_tests.py; the suite README lists them)
 src\                 (reserved, empty)
 ```
@@ -619,12 +620,12 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
      unwalkable regions remove the sampled surfaces inside them before seeding (so a cut really
      disconnects), walkable regions force them in past the slope and clearance rules (they still join the
      network by the step rule), seeds add a seed, unseeds drop the island at the point. Later edits win where
-     regions overlap. Then links and route edges go into the route graph (`tools\navlinks.py`): each point
+     regions overlap. Then links and route edges go into the route graph (the Rust core since round NK1, `rust\bc2-navbuild\src\graphedit.rs`): each point
      joins its nearest route node, both nodes must be in one sector (border nodes count for both), links and
      added edges are two-way unless set one-way, costs follow DICE's rule. On a DICE base there is no rebuild:
      the links go into a copy of DICE's file, `pathdata_dice_edited.hpd`, for this PC only. The output is
      read back to check it. Traversals (ladders, jumps, vaults, drops) go to `<level>.traversal.json` next to
-     it (`tools\navtraversal.py`) for OPFOR's bot layer, not into the path data: the game's AI would plan
+     it (the same Rust module) for OPFOR's bot layer, not into the path data: the game's AI would plan
      through a ladder it cannot climb. Each has its ends, the route node and island at each end, and whether
      it joins two islands. The whole log is kept as `<output>.report.txt`. `--install` then installs the
      result (`navkit.py install --from <file>` installs any built file), with the traversal file beside the
