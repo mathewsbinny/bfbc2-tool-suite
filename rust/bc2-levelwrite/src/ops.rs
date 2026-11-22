@@ -426,7 +426,7 @@ impl Op {
         match self {
             Self::Files { edits } => {
                 let mut out: Vec<Target> = Vec::new();
-                for t in edits.iter().map(crate::files::FileEdit::target) {
+                for t in edits.iter().flat_map(crate::files::FileEdit::targets) {
                     if !out.contains(&t) {
                         out.push(t);
                     }
@@ -448,7 +448,10 @@ impl Op {
                 .iter()
                 .filter_map(|e| match e {
                     crate::files::FileEdit::Partition { op } => Some(&**op),
-                    crate::files::FileEdit::MemberTransform { .. } => None,
+                    crate::files::FileEdit::MemberTransform { .. }
+                    | crate::files::FileEdit::MemberDelete { .. }
+                    | crate::files::FileEdit::MemberAdd { .. }
+                    | crate::files::FileEdit::GroupField { .. } => None,
                 })
                 .collect(),
             o => vec![o],
@@ -460,9 +463,7 @@ impl Op {
     #[must_use]
     pub fn edits_partition(&self) -> bool {
         if let Self::Files { edits } = self {
-            return edits
-                .iter()
-                .any(|e| matches!(e, crate::files::FileEdit::Partition { .. }));
+            return edits.iter().any(crate::files::FileEdit::edits_partition);
         }
         matches!(
             self,

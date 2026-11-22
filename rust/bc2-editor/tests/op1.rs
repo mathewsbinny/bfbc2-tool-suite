@@ -127,7 +127,7 @@ pub(crate) fn member_move(x0: f32, x1: f32) -> FileEdit {
     FileEdit::MemberTransform {
         file: GROUP_FILE.into(),
         instance: GROUP.into(),
-        item: 1,
+        item: bc2_levelwrite::files::Member::Base(1),
         from: rows_at([x0, 1.0, 2.0]),
         to: rows_at([x1, 1.0, 2.0]),
     }
@@ -198,7 +198,7 @@ fn a_multi_file_operation_is_one_step_whole_or_not_at_all() {
                 FileEdit::MemberTransform {
                     file: GROUP_FILE.into(),
                     instance: GROUP.into(),
-                    item: 5,
+                    item: bc2_levelwrite::files::Member::Base(5),
                     from: rows_at([0.0; 3]),
                     to: rows_at([1.0; 3]),
                 },

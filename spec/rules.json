@@ -6789,6 +6789,31 @@
    ]
   },
   {
+   "id": "HAVOK-RUN-3",
+   "title": "The model groups' wrapper decoded",
+   "file": "spec/formats/havok.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:575-790"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "131 of 131 groups of 31 levels: part words = the owners' leaves per part, m = the member types, ends = the cumulative per-instance parts, c = k2 = the last end, run d / t then n bytes or none; 78 of 78 long runs the same bytes per instance of a type"
+    }
+   ]
+  },
+  {
    "id": "HAVOK-MAT-1",
    "title": "The material list",
    "file": "spec/formats/havok.md",
@@ -11927,6 +11952,70 @@
    ]
   },
   {
+   "id": "LEVEL-MG-5",
+   "title": "Member types lay the group file out in order",
+   "file": "spec/model/level.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "131 of 131 groups of 31 levels (BFBC2 Dist and Package, Vietnam, BFBC1, the four WW2 levels; 107,103 members): Assets = the types' InstanceCount sum, Transforms 16 per item, one SpawnDatas record per instance, InstanceCount > 0"
+    }
+   ]
+  },
+  {
+   "id": "LEVEL-MG-6",
+   "title": "Physics parts and network ids are cumulative; the count fields are ends",
+   "file": "spec/model/level.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "131 of 131 groups cumulative from 0, 47 of 47 static groups' network ids"
+    }
+   ]
+  },
+  {
+   "id": "LEVEL-MG-7",
+   "title": "A member's leaf is its Enums item and its SpawnDatas Enumeration",
+   "file": "spec/model/level.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "16 levels: 60,723 members, leaves 1 - L each once, L the client tree's leaf count in 16 of 16"
+    }
+   ]
+  },
+  {
+   "id": "LEVEL-MG-8",
+   "title": "A group's collision is per member type, placed at each instance",
+   "file": "spec/model/level.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "no per-instance placement exists in the resource (the wrapper's per-instance data is a leaf and a material byte per part, HAVOK-RUN-3), while the shapes are local"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005 StaticModelGroupEntity_HavokAsset.res: 85 mesh subparts and 77 convex shapes, coordinates -10.0 to 10.02 m"
+    }
+   ]
+  },
+  {
    "id": "LEVEL-TERR-1",
    "title": "The terrain entity",
    "file": "spec/model/level.md",
@@ -14842,6 +14931,10 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::a_version_6_project_loads_and_its_member_edit_applies"
     }
    ]
   },
@@ -15013,7 +15106,7 @@
    "id": "XLOG-FILE-2",
    "title": "A base file is recorded when first edited; the export writes the edited group files",
    "file": "spec/transforms/projectlog.md",
-   "status": "implemented",
+   "status": "verified",
    "evidence": [
     {
      "kind": "code",
@@ -15030,6 +15123,78 @@
     {
      "kind": "code",
      "ref": "rust/bc2-levelwrite/src/export.rs:1185-1225"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-MEM-1",
+   "title": "Static group members are named by identity, never by place",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:36-86"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/memberedit.rs:1-30"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::identities_read_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-MEM-2",
+   "title": "A member's delete and add keep DICE's layout; the last of a kind stays",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:405-575"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::members_are_deleted_and_added_in_dices_layout"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+    },
+    {
+     "kind": "data",
+     "ref": "23,780 of 23,780 member transforms of six levels (four WW2 and BFBC2 groups' kinds) with unit rows"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-MEM-3",
+   "title": "The export makes the member edits whole: leaves, the client tree, the physics",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/groupexport.rs:1-30"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:448-500"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },

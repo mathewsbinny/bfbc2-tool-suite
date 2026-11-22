@@ -42,7 +42,8 @@ A save writes the whole file through a temporary file and removes the autosave; 
 beside it (XLOG-AUTO-1), and an autosave that reads and differs from the saved project is offered for recovery. A file of another
 format, from a newer editor, or with an operation of an unknown kind is refused in words (the operation named, not
 dropped); an older version is migrated as it loads, one step at a time (versions 2 - 5 only added operation kinds;
-5 to 6 gives the base an empty `files`). Round OP1 (project format 6): `version` and `min_reader` are read whole -
+5 to 6 gives the base an empty `files`; 6 to 7, round SG1, only added the member delete and add, so a version-6 file
+loads as it is and is still written with `min_reader` 6 until it holds one). Round OP1 (project format 6): `version` and `min_reader` are read whole -
 a missing, zero, non-numeric or wider-than-32-bit version is refused, never cut or read as 0 (audit AU4 BUG-13); a
 file is written with `min_reader`, the newest operation kind in its log and redo stack (6 when it records base
 files), and a newer file whose `min_reader` this editor reaches is read. The recorded projects of versions 1, 2, 4
@@ -53,6 +54,7 @@ version-5 editor gives (sha1 checked on main at 082f2d2).
 [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files] [test: rust/bc2-levelwrite/tests/project_versions.rs::canary_projects_load_as_version_1]
 [test: rust/bc2-levelwrite/src/ops.rs::json_shape_and_names] [test: rust/bc2-levelwrite/src/project.rs::versions_and_min_reader]
 [test: rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same]
+[test: rust/bc2-levelwrite/src/project.rs::a_version_6_project_loads_and_its_member_edit_applies]
 
 ### XLOG-AUTO-1: The autosave is a journal: crash-safe, resumable, compacted
 
@@ -150,7 +152,7 @@ kinds applies to the same partition bytes as before and to no other file.
 
 ### XLOG-FILE-2: A base file is recorded when first edited; the export writes the edited group files
 
-Status: **implemented**
+Status: **verified**
 
 The first operation that edits a level file besides the partition records the file's sha1 and size in the project
 (`base.files`, keyed `group:<file>` / `terrain:<file>`). The export reads such a file from the base level's bundles
@@ -161,6 +163,62 @@ words; a project that edits only the partition exports byte for byte as before.
 
 [code: rust/bc2-levelwrite/src/project.rs:766-785] [code: rust/bc2-levelwrite/src/export.rs:585-595]
 [code: rust/bc2-levelwrite/src/export.rs:1015-1060] [code: rust/bc2-levelwrite/src/export.rs:1185-1225]
+[test: rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members]
+
+### XLOG-MEM-1: Static group members are named by identity, never by place
+
+Status: **verified**
+
+Round SG1. A member of a model group is named `<group instance guid>#<k>` by its place `k` in the base's group file
+for the whole project, and a member the project adds `<group instance guid>#+<n>` (`n` one more than any added to
+that instance in the log and its redo stack). The log's member edits name members so (JSON: the number for a base
+member, as round OP1 wrote it, `{"added": n}` for an added one); the project's files keep each edited group
+instance's members in their current order, and an edit finds a member's place through it. Deleting a member removes
+it from the files in DICE's layout (no tombstone, no gap: LEVEL-MG-5, LEVEL-MG-6), so later places shift while every
+name stays. The views' operations (move, turn, delete, duplicate, paste, place into a group from the asset browser)
+naming members become multi-file operations of the member's group file and, for a delete or an add, its member type
+in the partition; an operation naming no member is written as it always was.
+
+[code: rust/bc2-levelwrite/src/members.rs:36-86] [code: rust/bc2-editor/src/memberedit.rs:1-30]
+[test: rust/bc2-levelwrite/src/members.rs::identities_read_back]
+[test: rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects]
+
+### XLOG-MEM-2: A member's delete and add keep DICE's layout; the last of a kind stays
+
+Status: **verified**
+
+A delete takes the member's `Assets` item, its 16 transform numbers and its leaf out of the group file, its
+`SpawnDatas` record out of its member type, lowers `InstanceCount` and makes the group's cumulative part and network
+numbers again. An add copies a member of the kind (its `Assets` reference and `SpawnDatas` record) to the end of
+its kind's run at its own transform, its leaf 0 until the export gives one. The last member of a kind in its group is
+refused in words before the operation enters the log: DICE's groups never have a kind without one, and its
+collision stays in the group's physics. A kind the group does not hold cannot be added to it (its collision is not
+in the group's physics); the asset browser places it as a loose object and says so. Members are never scaled: none
+of DICE's 23,780 member transforms read on six levels is scaled, and a kind's collision is one shape.
+
+[code: rust/bc2-levelwrite/src/members.rs:405-575]
+[test: rust/bc2-levelwrite/src/members.rs::members_are_deleted_and_added_in_dices_layout]
+[test: rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects]
+[data: 23,780 of 23,780 member transforms of six levels (four WW2 and BFBC2 groups' kinds) with unit rows]
+
+### XLOG-MEM-3: The export makes the member edits whole: leaves, the client tree, the physics
+
+Status: **verified**
+
+For a log with member edits the export (`groupexport::stage`, after the log is applied): a moved member keeps its
+client-tree leaf, moved where it now stands (taken from under its parent and inserted where the tree's spheres hold
+it; its sphere is its base leaf carried by its old and new transforms); a deleted member's leaf is freed; an added
+member takes a freed leaf, else a new leaf at the client tree's end, its sphere the leaf of the base member it copies
+carried to it; its leaf is written to `Enums` and its `SpawnDatas` record. New client leaves move the exclusive
+tree's `EnumOffset` and every placed object's slot up by as many, after the exclusive tree's reslot (CULL-SLOT-2).
+Each edited group's physics resource is laid out again for the partition's member types (HAVOK-RUN-3); the packfile
+is kept. `mapexport check` holds every model group of the staged level to LEVEL-MG-5 - LEVEL-MG-7 and HAVOK-RUN-3.
+Wake Island and Atacama Desert exported with a delete, a move and two adds: every check line passes, the deleted
+member's leaf is reused by the first add and the second gets leaf L + 1, the other groups' files are the same bytes as
+an export without the member edits. A log without member edits runs none of this.
+
+[code: rust/bc2-levelwrite/src/groupexport.rs:1-30] [code: rust/bc2-levelwrite/src/culltree.rs:448-500]
+[test: rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members]
 
 ## 2. Apply
 
@@ -250,5 +308,8 @@ sub-objects (a ring point moved, the marker renamed) leaves the original's insta
 
 ## Open questions
 
-- Editing static model-group members in the editor (round SG1): the operation model and the export carry them since
-  OP1 (XLOG-FILE-1, XLOG-FILE-2); the views still treat members as read-only.
+- Static group members (round SG1, XLOG-MEM-1 - XLOG-MEM-3): whether the game accepts a member type with no
+  instance (the editor refuses the last of a kind until it is known), whether a member whose leaf sits far from its
+  old place culls well (its old ancestors keep their spheres), and everything in game: a moved member's collision
+  following its transform (LEVEL-MG-8 is inferred from the files), the new client leaves and the moved slots
+  (in-game tests paused, 2026-11-20).

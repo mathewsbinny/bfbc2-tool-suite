@@ -23,6 +23,7 @@ mod export_ex1;
 mod export_sp01;
 mod export_xf1;
 mod gameplay_xf1;
+mod groups_sg1;
 mod op1_journal;
 mod project_versions;
 mod real_levels;

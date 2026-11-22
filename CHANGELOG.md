@@ -28,6 +28,20 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **Static group members are editable in the map editor** (round SG1). Most of a WW2 map's objects (Wake Island:
+  2,999 group members against 1,329 placed objects: its buildings, fences, trees and props) live in model groups; they
+  are now selected, moved and turned with the gizmo or the properties' numbers, deleted, duplicated and pasted like
+  any object, and the asset browser's new **Place into** list adds an object of a kind a group holds to that group
+  (any other kind is placed as a loose object, and the editor says why). Members keep their names across deletes and
+  adds (`<group>#<k>` for the base's, `#+<n>` for added ones), every edit is one History step, and the last member of
+  a kind in its group is refused in words. The export writes the group files, the group's physics and the client cull
+  tree in DICE's layout: a moved member keeps its cull leaf, moved with it; an added one takes a deleted member's
+  leaf or a new one. `mapexport check` now holds every model group of a level to the rules all 131 of DICE's groups
+  keep.
+- **Project format 7** (round SG1): member deletes and adds. Version-6 projects load as they are and are written
+  with `min_reader` 6 until they hold one.
+
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
   synthetic build-795745 exe that O2's aptrefs cases write (Trojan:Win32/Bearfoos.A!ml). Round QW2's layout passed

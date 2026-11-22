@@ -335,6 +335,9 @@ pub struct BrowserState {
     pub placing: Option<Placing>,
     /// The sink popup.
     pub sink: Option<SinkPopup>,
+    /// Where placed objects go (round SG1): `None` a loose object of the level partition, else a model group's file
+    /// (a placed object of a kind the group holds becomes one of its members).
+    pub into_group: Option<String>,
 }
 
 /// The context menu and the pointer over the views.
@@ -1796,6 +1799,7 @@ impl EditorApp {
                 place_failed: None,
                 placing: None,
                 sink: None,
+                into_group: None,
             },
             menus: MenuState {
                 context: None,
