@@ -20,6 +20,7 @@
 use std::sync::{Condvar, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
+mod a1;
 mod asset_browser;
 mod dbxedit_parity;
 mod df1;

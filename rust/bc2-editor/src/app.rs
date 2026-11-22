@@ -43,6 +43,7 @@ use crate::query;
 use crate::render::{self, Gpu, SceneGpu, Target};
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
+mod autolayoutui;
 mod create;
 mod diffui;
 mod displayui;
@@ -102,6 +103,8 @@ pub enum Tab {
     Diff,
     /// The asset preview: a blueprint or mesh drawn as the mesh viewer drew it (round GR3).
     Preview,
+    /// The Gameplay workspace's auto layout: the mode's layer laid out on the ground, proposed (round A1).
+    AutoLayout,
 }
 
 impl Tab {
@@ -120,6 +123,7 @@ impl Tab {
             Self::NavEdits => "Navigation edits",
             Self::Diff => "Diff",
             Self::Preview => "Asset preview",
+            Self::AutoLayout => "Auto layout",
         }
     }
 }
@@ -135,7 +139,13 @@ pub fn default_layout() -> DockState<Tab> {
     let [centre, right] = s.split_right(
         centre,
         0.72,
-        vec![Tab::Properties, Tab::Navigation, Tab::Diff, Tab::Preview],
+        vec![
+            Tab::Properties,
+            Tab::Navigation,
+            Tab::Diff,
+            Tab::Preview,
+            Tab::AutoLayout,
+        ],
     );
     let [_, _] = s.split_below(right, 0.6, vec![Tab::Links, Tab::NavEdits, Tab::NavIslands]);
     let [_, _] = s.split_below(centre, 0.78, vec![Tab::Problems, Tab::History]);
@@ -245,6 +255,8 @@ pub struct ViewState {
     pub notes: Vec<String>,
     /// The export's rules checked live on the project (round V1: the Problems panel).
     pub live: crate::validation::Live,
+    /// The Gameplay workspace's auto layout and its proposal (round A1).
+    pub autolayout: crate::autolayout::AutoLayout,
     load_seconds: f64,
     /// The selection changed in the view: the outliner shows its row.
     reveal: bool,
@@ -1014,7 +1026,10 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             Action::CompareWithBase if doc.is_none() => {
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }
-            Action::ToggleDiffMarks | Action::ShowPanel(PanelKind::Diff | PanelKind::Preview) if !open => {
+            Action::ToggleDiffMarks
+            | Action::ShowPanel(PanelKind::Diff | PanelKind::Preview | PanelKind::AutoLayout)
+                if !open =>
+            {
                 Some("Open a map first")
             }
             Action::ToggleDiffMarks if v.is_none_or(|v| v.diff.current().is_none()) => {
@@ -1228,6 +1243,7 @@ impl EditorApp {
                     PanelKind::NavEdits => Tab::NavEdits,
                     PanelKind::Diff => Tab::Diff,
                     PanelKind::Preview => Tab::Preview,
+                    PanelKind::AutoLayout => Tab::AutoLayout,
                 };
                 if let Some(path) = self.dock.find_tab(&tab) {
                     let _ = self.dock.set_active_tab(path);
@@ -1770,6 +1786,7 @@ impl EditorApp {
             search: String::new(),
             notes,
             live: crate::validation::Live::default(),
+            autolayout: crate::autolayout::AutoLayout::default(),
             load_seconds: secs,
             reveal: false,
             labels: true,
@@ -3063,8 +3080,8 @@ impl ViewState {
         }
     }
 
-    /// Every viewport draws again.
-    fn redraw(&mut self) {
+    /// Every viewport draws again (after a camera set from outside: a test's).
+    pub fn redraw(&mut self) {
         for vp in self.viewports.values_mut() {
             vp.dirty = true;
         }
@@ -3204,6 +3221,7 @@ impl TabViewer for Tabs<'_> {
             Tab::NavEdits => self.nav_edits(ui),
             Tab::Diff => self.diff(ui),
             Tab::Preview => self.preview_panel(ui),
+            Tab::AutoLayout => self.auto_layout(ui),
         }
     }
 
@@ -3221,6 +3239,7 @@ impl TabViewer for Tabs<'_> {
                     | Tab::NavEdits
                     | Tab::Diff
                     | Tab::Preview
+                    | Tab::AutoLayout
             )
     }
 
