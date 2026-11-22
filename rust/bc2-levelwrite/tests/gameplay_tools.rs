@@ -16,6 +16,7 @@
     clippy::similar_names,
     clippy::doc_markdown,
     clippy::float_cmp,
+    clippy::panic,
     missing_docs
 )]
 
@@ -52,8 +53,7 @@ fn connections(w: &LevelWriter) -> Vec<(String, String, String, String)> {
                 w.d.child(c, f)
                     .and_then(|x| w.d.child(x, b"Name"))
                     .and_then(|x| w.d.text(x))
-                    .map(|t| String::from_utf8_lossy(t).into_owned())
-                    .unwrap_or_default()
+                    .map_or_else(String::new, |t| String::from_utf8_lossy(t).into_owned())
             };
             out.push((end(b"Source"), ev(b"SourceEvent"), end(b"Target"), ev(b"TargetEvent")));
         }
@@ -65,8 +65,7 @@ fn text(w: &LevelWriter, guid: &str, field: &[u8]) -> String {
     let e = w.find(guid).unwrap();
     w.d.child(e, field)
         .and_then(|x| w.d.text(x))
-        .map(|t| String::from_utf8_lossy(t).into_owned())
-        .unwrap_or_default()
+        .map_or_else(String::new, |t| String::from_utf8_lossy(t).into_owned())
 }
 
 /// The partition written and read back: the same bytes again (the DBX round trip).
@@ -119,12 +118,12 @@ fn a_flag_added_wired_and_deleted_on_valparaiso() {
     }
 
     let mut p = MapProject::new("Gameplay tools", "mp_001", "levels/MP_001", &base, Profile::Bfbc2);
-    let mut at = w0.transform(&template).unwrap();
-    at[3][0] += 60.0;
+    let mut at = w0.transform(&template).unwrap()[3];
+    at[0] += 60.0;
     let (op, flag) = {
         let n = p.next_n();
         let name = p.name.clone();
-        gameplay::add_flag(&w0, &at, Team::Team2, &|s| bc2_levelwrite::new_guid(&name, n, s)).unwrap()
+        gameplay::add_flag(&w0, at, Team::Team2, &|s| bc2_levelwrite::new_guid(&name, n, s)).unwrap()
     };
     p.push(op, "Add flag E");
     assert_eq!(p.reader_needed(), VERSION, "a flag added needs this editor's version");
@@ -235,9 +234,10 @@ fn a_spawn_point_added_and_deleted() {
     let before = gameplay::points(&w0, &spawner);
     let mut at = w0.transform(&before[0]).unwrap();
     at[3][2] += 4.0;
+    let pos = at[3];
     let mut p = MapProject::new("Gameplay tools", "mp_001", "levels/MP_001", &base, Profile::Bfbc2);
     let n = p.next_n();
-    let (op, point) = gameplay::add_spawn_point(&w0, &spawner, &at, &|s| {
+    let (op, point) = gameplay::add_spawn_point(&w0, &spawner, pos, &|s| {
         bc2_levelwrite::new_guid("Gameplay tools", n, s)
     })
     .unwrap();
@@ -289,15 +289,15 @@ fn an_mcom_added_to_a_rush_stage_and_taken_out() {
     let first = play[0].mcoms.clone();
     assert_eq!(first.len(), 2);
     let counters = gameplay::stage_counters(&w0, &first);
-    assert!(!counters.is_empty());
+    assert_ne!(counters.len(), 0, "the stage has counters");
     for (c, by) in &counters {
         assert_eq!(gameplay::trigger_amount(&w0, &schema, c), Some(by.len() as i64));
     }
-    let mut at = w0.transform(&first[0]).unwrap();
-    at[3][0] += 15.0;
+    let mut at = w0.transform(&first[0]).unwrap()[3];
+    at[0] += 15.0;
     let mut p = MapProject::new("Gameplay tools", "mp_012gr", "levels/MP_012GR", &base, Profile::Bfbc2);
     let n = p.next_n();
-    let (op, mcom) = gameplay::add_mcom(&w0, &schema, &first, &at, &|s| {
+    let (op, mcom) = gameplay::add_mcom(&w0, &schema, &first, at, &|s| {
         bc2_levelwrite::new_guid("Gameplay tools", n, s)
     })
     .unwrap();
@@ -574,8 +574,7 @@ fn the_tools_on_a_synthetic_level() {
     assert!(!by.contains_key("VoiceOverEntityData"), "{by:?}");
     let mut p = MapProject::new("Synthetic", "v1test", "levels/V1TEST", &base, Profile::Bfbc2);
     let n = p.next_n();
-    let at = bc2_levelwrite::rows_at([0.0, 0.0, 80.0]);
-    let (op, flag) = gameplay::add_flag(&w0, &at, Team::TeamNeutral, &|s| {
+    let (op, flag) = gameplay::add_flag(&w0, [0.0, 0.0, 80.0], Team::TeamNeutral, &|s| {
         bc2_levelwrite::new_guid("Synthetic", n, s)
     })
     .unwrap();
@@ -646,4 +645,104 @@ fn the_tools_on_a_synthetic_level() {
     raw["operations"] = ops;
     let again = MapProject::from_json(&raw.to_string()).unwrap();
     assert_eq!(again.operations, p.operations);
+}
+
+/// Game tier: the user's first target - Operation Aurora (`SP_01`) as a BFBC2 Conquest level - with the gameplay
+/// tools' edits (a flag E added, a spawn point added to its spawner, the rules set to 250 tickets and 25 s) exported
+/// by the export's own path (`export::build`, `mapexport build`'s) and held by its stage check (`export::check`); the
+/// staged partition reads back byte for byte and holds the new flag wired, its spawn point and the rules. What the
+/// game does with them stays unproven until a playtest (in-game tests are paused).
+// spec: GAME-CQ-10, GAME-RULES-1
+#[test]
+#[ignore = "game tier: a whole staged export; run_tests.py game runs it (tests/test_rust.py run --game)"]
+fn aurora_conquest_with_the_tools_edits_exports() {
+    let _gate = crate::gate();
+    let Some(dir) = game_dir() else {
+        println!("skipped: no game copy");
+        return;
+    };
+    let game = Game::open(&dir).unwrap();
+    let base = export::level_partition(&game, "sp_01").unwrap();
+    let mut p = MapProject::new("Gameplay tools export", "sp_01", "levels/SP_01", &base, Profile::Bfbc2);
+    let c = export::choose_mode(&game, &p, Profile::Bfbc2, "conquest", None).unwrap();
+    p.push(Op::SetMode { to: Box::new(c) }, "target");
+    let (cur, _) = export::current(&game, &p).unwrap();
+    let schema = Schema::scan(Some(&cur.d));
+    let flags0 = gameplay::flags(&cur);
+    let template = gameplay::flag_template(&cur).unwrap();
+    let mut at = cur.transform(&template).unwrap()[3];
+    at[2] += 50.0;
+    let n = p.next_n();
+    let id = p.id.clone();
+    let (op, flag) = gameplay::add_flag(&cur, at, Team::TeamNeutral, &|s| bc2_levelwrite::new_guid(&id, n, s)).unwrap();
+    p.push(op, "Add flag");
+    let (cur, _) = export::current(&game, &p).unwrap();
+    let spawner = gameplay::spawners(&cur, &flag)
+        .into_iter()
+        .find(|s| cur.type_of(cur.find(s).unwrap()).ends_with("SoldierSpawnEntityData"))
+        .unwrap();
+    let n = p.next_n();
+    let (op, point) = gameplay::add_spawn_point(&cur, &spawner, [at[0] + 6.0, at[1], at[2] + 6.0], &|s| {
+        bc2_levelwrite::new_guid(&id, n, s)
+    })
+    .unwrap();
+    p.push(op, "Add spawn point");
+    let now = gameplay::rules_of(&cur, &schema);
+    let mut to = Rules::default();
+    to.set(Rule::Tickets, Some(250.0));
+    to.set(Rule::CaptureS, Some(25.0));
+    p.push(Op::SetRules { from: Some(now), to }, "");
+    let spec = export::ExportSpec {
+        format: export::FORMAT.into(),
+        version: export::VERSION,
+        level: "MAPEDIT_GAMEPLAY_AURORA".into(),
+        folder: String::new(),
+        title: "Aurora gameplay tools".into(),
+        mode: "conquest".into(),
+        layer: bc2_levelwrite::mpconvert::LayerSpec {
+            donor: p.mode().unwrap().donor.clone(),
+            bases: Vec::new(),
+            flags: Vec::new(),
+            combat_area: String::new(),
+        },
+        profile: Profile::Bfbc2,
+        identity: None,
+        path_data: false,
+    };
+    let tmp = std::env::temp_dir().join(format!("bc2_gameplay_tools_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let stage = tmp.join("stage");
+    let t = std::time::Instant::now();
+    let rec = export::build(&game, &p, "test", &spec, &stage).unwrap();
+    println!("built in {:.1} s", t.elapsed().as_secs_f64());
+    let report = export::check(&game, &stage).unwrap();
+    for (code, ok, what) in report.lines() {
+        if !ok {
+            println!("FAIL {code} {what}");
+        }
+    }
+    assert!(report.ok(), "the stage check holds the export");
+    let name = format!("Levels/{}.dbx", rec.level);
+    let level = bc2_gamefs::bundles::read_path(stage.join("level-00.fbrb"), &[&name]).unwrap();
+    let w = round_trip(&level[0]);
+    let flags = gameplay::flags(&w);
+    assert_eq!(flags.len(), flags0.len() + 1, "{flags:?}");
+    assert!(flags.contains(&flag));
+    assert!(gameplay::points(&w, &spawner).contains(&point));
+    let schema = Schema::scan(Some(&w.d));
+    let rules = gameplay::rules_of(&w, &schema);
+    assert_eq!((rules.tickets, rules.capture_s), (Some(250), Some(25.0)));
+    assert_eq!(
+        gameplay::unit(&w, &flag).len(),
+        gameplay::unit(&w, &template).len() + 1,
+        "the new flag's unit: its template's and the new spawn point"
+    );
+    println!(
+        "staged {}: {} flags, letters {:?}, {}",
+        rec.level,
+        flags.len(),
+        gameplay::letters(&w),
+        rules.describe()
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
 }

@@ -1358,6 +1358,17 @@ impl ViewState {
                 self.set_selection(gpu, list, true);
             }
             Outcome::Commit(op, label) => self.commit(gpu, palette, *op, &label),
+            Outcome::CommitSelect(op, label, guids) => {
+                let n = self.doc.as_ref().and_then(Doc::last_n);
+                self.commit(gpu, palette, *op, &label);
+                if let Some(d) = self.doc.as_ref()
+                    && d.last_n() != n
+                {
+                    let ks: Vec<usize> = guids.iter().filter_map(|g| d.index(g)).collect();
+                    self.set_selection(gpu, ks, true);
+                    self.message = format!("{label}: done (Ctrl+Z undoes it)");
+                }
+            }
         }
     }
 
@@ -1528,6 +1539,7 @@ impl Tabs<'_> {
             clicked: resp.clicked(),
             double_clicked: resp.double_clicked(),
             at: resp.interact_pointer_pos(),
+            hover,
             editing: self.view.doc.is_some() && self.view.workspace.moves_objects(),
         };
         let mut tools = std::mem::take(&mut self.view.tools);

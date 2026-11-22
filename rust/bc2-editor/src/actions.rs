@@ -201,6 +201,8 @@ pub enum PanelKind {
     Preview,
     /// The Gameplay workspace's auto layout (round A1).
     AutoLayout,
+    /// The Gameplay workspace's tools and the round's rules (round E4).
+    Gameplay,
 }
 
 /// The Terrain and Vegetation workspaces' brushes (registered; their tools come in later rounds).
@@ -614,6 +616,20 @@ pub fn registry() -> Vec<Entry> {
             "Show auto layout",
             None,
             "Proposes a layout of the target mode's flags, bases, M-COMs, spawns and combat areas on the level's              ground in DICE's style; nothing changes until you accept it",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::Gameplay),
+            "Show gameplay",
+            None,
+            "The Gameplay workspace's tools (add flags, spawn points and M-COMs, carry them), the capture points and \
+             their teams, the Rush stages, and the round's rules with DICE's values",
+        ),
+        e(
+            Action::UseTool(Tool::Gameplay),
+            "Gameplay tool",
+            None,
+            "Adds a flag, a spawn point or an M-COM where you click, or carries one with what belongs to it (chosen \
+             in the Gameplay panel)",
         ),
         e(
             Action::ResetLayout,

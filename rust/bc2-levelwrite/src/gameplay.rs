@@ -585,6 +585,39 @@ impl Rules {
         }
     }
 
+    /// Every rule [`Rules`] holds, in the panel's order.
+    pub const ALL: [Rule; 6] = [
+        Rule::Tickets,
+        Rule::LossPerMin,
+        Rule::CaptureS,
+        Rule::Attackers,
+        Rule::Defenders,
+        Rule::Kills,
+    ];
+
+    /// `self` with each rule `stock` sets taken from it (DICE's defaults over the level's).
+    #[must_use]
+    pub fn with_defaults(mut self, stock: Self) -> Self {
+        for r in Self::ALL {
+            if let Some(v) = stock.get(r) {
+                self.set(r, Some(v));
+            }
+        }
+        self
+    }
+
+    /// Only the rules whose value differs from `now`'s (the others left as they are: `None`).
+    #[must_use]
+    pub fn changed_from(self, now: Self) -> Self {
+        let mut out = Self::default();
+        for r in Self::ALL {
+            if self.get(r) != now.get(r) {
+                out.set(r, self.get(r));
+            }
+        }
+        out
+    }
+
     /// The rules in words (the History).
     #[must_use]
     pub fn describe(&self) -> String {
@@ -738,11 +771,12 @@ fn all_of(
         .collect()
 }
 
-/// The capture points a team can take (flags: `UnableToChangeTeam` false), in the partition's order.
+/// The capture points a team can take (flags: `UnableToChangeTeam` false, or no such field), in the partition's
+/// order.
 #[must_use]
 pub fn flags(w: &LevelWriter) -> Vec<String> {
     all_of(w, CAPTURE_POINT, |w, e| {
-        crate::modelayer::bool_field(w, e, b"UnableToChangeTeam") == Some(false)
+        crate::modelayer::bool_field(w, e, b"UnableToChangeTeam") != Some(true)
     })
 }
 
@@ -810,14 +844,7 @@ fn set_number(w: &mut LevelWriter, schema: &Schema, guid: &str, field: &str, v: 
 /// A value is negative or not finite, a value has no object to hold it (a Conquest rule on a level without ticket
 /// counters), or a field does not take it.
 pub fn set_rules(w: &mut LevelWriter, schema: &Schema, to: &Rules) -> Result<usize> {
-    let all = [
-        Rule::Tickets,
-        Rule::LossPerMin,
-        Rule::CaptureS,
-        Rule::Attackers,
-        Rule::Defenders,
-        Rule::Kills,
-    ];
+    let all = Rules::ALL;
     if all.iter().filter_map(|r| to.get(*r)).any(|v| v < 0.0 || !v.is_finite()) {
         return Err(refused("the round's rules are numbers of 0 or more"));
     }
@@ -999,7 +1026,14 @@ fn partition(op: Op) -> FileEdit {
     FileEdit::Partition { op: Box::new(op) }
 }
 
-/// A flag added (round E4): a copy of [`flag_template`]'s unit at `at` (its zone, marker, spawners and spawn points
+/// The template's transform with its position at `at` (a new object stands turned as its template).
+fn standing(w: &LevelWriter, template: &str, at: [f32; 3]) -> Rows {
+    let mut r = w.transform(template).unwrap_or_else(|| crate::rows_at(at));
+    r[3] = at;
+    r
+}
+
+/// A flag added (round E4): a copy of [`flag_template`]'s unit standing at `at`, turned as it is (its zone, marker, spawners and spawn points
 /// carried with it; its team filters, capture messages and voice-over its own; wired to the level's shared logic as
 /// the template is), owned by `team`, lettered with [`next_letter`] (its name, its marker's `Sid`), its `Index` the
 /// level's highest plus one. One operation: the placement and the marker's letter. Returns it with the new flag's
@@ -1007,8 +1041,9 @@ fn partition(op: Op) -> FileEdit {
 ///
 /// # Errors
 /// The level has no flag to copy.
-pub fn add_flag(w: &LevelWriter, at: &Rows, team: Team, guid: &dyn Fn(&str) -> String) -> Result<(Op, String)> {
+pub fn add_flag(w: &LevelWriter, at: [f32; 3], team: Team, guid: &dyn Fn(&str) -> String) -> Result<(Op, String)> {
     let template = flag_template(w).ok_or_else(|| refused("the level has no flag to copy a new one from"))?;
+    let at = &standing(w, &template, at);
     let members = unit(w, &template);
     let owned = sub_copies(w, &members, at, guid);
     let letter = next_letter(w);
@@ -1038,11 +1073,14 @@ pub fn add_flag(w: &LevelWriter, at: &Rows, team: Team, guid: &dyn Fn(&str) -> S
             value: FieldValue::Text(name.clone()),
         })
         .collect();
-    fields.push(FieldIs {
-        field: "InitialOwnerTeam".into(),
-        value: FieldValue::Text(team.data().to_owned()),
-    });
-    if w.find(&template).is_some_and(|e| w.d.child(e, b"Index").is_some()) {
+    let has = |g: &str, f: &[u8]| w.find(g).is_some_and(|e| w.d.child(e, f).is_some());
+    if has(&template, b"InitialOwnerTeam") {
+        fields.push(FieldIs {
+            field: "InitialOwnerTeam".into(),
+            value: FieldValue::Text(team.data().to_owned()),
+        });
+    }
+    if has(&template, b"Index") {
         fields.push(FieldIs {
             field: "Index".into(),
             value: FieldValue::Int(index),
@@ -1064,17 +1102,22 @@ pub fn add_flag(w: &LevelWriter, at: &Rows, team: Team, guid: &dyn Fn(&str) -> S
     if let Some(m) = marker_of(w, &template)
         && let Some(copy) = owned.iter().find(|o| o.source == m)
     {
-        let mut items = vec![text_field("Sid", &copy.guid, &letter.to_string())];
-        if w.find(&m).is_some_and(|e| w.d.child(e, b"Name").is_some()) {
+        let mut items = Vec::new();
+        if has(&m, b"Sid") {
+            items.push(text_field("Sid", &copy.guid, &letter.to_string()));
+        }
+        if has(&m, b"Name") {
             items.push(text_field("Name", &copy.guid, &name));
         }
-        edits.push(partition(Op::SetField { items }));
+        if !items.is_empty() {
+            edits.push(partition(Op::SetField { items }));
+        }
     }
     Ok((Op::Files { edits }, new))
 }
 
 /// A spawn point added to a soldier spawner (round E4): a copy of one of its points (else of any spawn point of the
-/// level) at `at`, linked into the spawner's `AlternativeSpawnPoints` (GAME-SPAWN-1). One operation; returns it with
+/// level) standing at `at`, turned as it is, linked into the spawner's `AlternativeSpawnPoints` (GAME-SPAWN-1). One operation; returns it with
 /// the new point's guid.
 ///
 /// # Errors
@@ -1082,7 +1125,7 @@ pub fn add_flag(w: &LevelWriter, at: &Rows, team: Team, guid: &dyn Fn(&str) -> S
 pub fn add_spawn_point(
     w: &LevelWriter,
     spawner: &str,
-    at: &Rows,
+    at: [f32; 3],
     guid: &dyn Fn(&str) -> String,
 ) -> Result<(Op, String)> {
     of_type(w, spawner, SOLDIER_SPAWN, "a soldier spawner")?;
@@ -1095,6 +1138,7 @@ pub fn add_spawn_point(
                 .next()
         })
         .ok_or_else(|| refused("the level has no spawn point to copy a new one from"))?;
+    let at = &standing(w, &template, at);
     let new = guid(&template);
     let place = Op::Place {
         items: vec![Placed {
@@ -1149,7 +1193,7 @@ pub fn stage_of(w: &LevelWriter, mcom: &str) -> Option<Vec<String>> {
 }
 
 /// An M-COM added to a Rush stage (round E4): a copy of the stage's first M-COM with its unit (interactions,
-/// marker, alarm, charge trigger, objective props) at `at`, wired to the stage's counters and the announcer as it
+/// marker, alarm, charge trigger, objective props) standing at `at`, turned as it is, wired to the stage's counters and the announcer as it
 /// is, and every counter of the stage counting one more (GAME-RUSH-10). One operation; returns it with the new
 /// M-COM's guid.
 ///
@@ -1159,13 +1203,14 @@ pub fn add_mcom(
     w: &LevelWriter,
     schema: &Schema,
     stage: &[String],
-    at: &Rows,
+    at: [f32; 3],
     guid: &dyn Fn(&str) -> String,
 ) -> Result<(Op, String)> {
     let template = stage
         .first()
         .ok_or_else(|| refused("the stage has no M-COM to copy a new one from"))?
         .to_ascii_uppercase();
+    let at = &standing(w, &template, at);
     let members = unit(w, &template);
     let owned = sub_copies(w, &members, at, guid);
     let new = guid(&template);

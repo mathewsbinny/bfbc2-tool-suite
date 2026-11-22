@@ -522,6 +522,24 @@ impl LevelWriter {
                     .collect::<Result<Vec<_>>>()?;
                 self.d.set_numbers(e, &vals)?;
             }
+            // round E4: an instance the scanned partitions do not show (a mode layer grafted from a donor) - its own
+            // nonzero value is the evidence, by the same rule (`looks_whole`)
+            (FieldType::UnknownNumber { count: 1 }, FieldValue::Int(_) | FieldValue::Float(_))
+                if own_whole(self.d.raw(e)).is_some() =>
+            {
+                let x = match value {
+                    #[allow(clippy::cast_precision_loss, reason = "a 32-bit field's value")]
+                    FieldValue::Int(n) => *n as f64,
+                    FieldValue::Float(f) => *f,
+                    _ => 0.0,
+                };
+                let bytes = if own_whole(self.d.raw(e)) == Some(true) {
+                    whole32(x)?
+                } else {
+                    single(x)
+                };
+                self.d.set_numbers(e, &[bytes])?;
+            }
             (FieldType::UnknownNumber { count }, v) => {
                 let zeros = match v {
                     FieldValue::Int(0) => *count == 1,
@@ -544,6 +562,16 @@ impl LevelWriter {
             }
         }
         Ok(())
+    }
+}
+
+/// Whether one 4-byte value reads as a whole number (`Some(true)`) or a decimal, by `looks_whole`; `None` for 0 or
+/// another shape.
+fn own_whole(raw: &[u8]) -> Option<bool> {
+    let (size, vals) = bc2_formats::dbx::edit::numbers_of(raw)?;
+    match vals.as_slice() {
+        [one] if size == 4 => crate::schema::looks_whole(one),
+        _ => None,
     }
 }
 
