@@ -794,8 +794,62 @@ def compare(pr: Project, lv: str, log: Log = print, reference: str | None = None
 
 
 def traversal_path(folder: str, lv: str) -> str:
-    """The traversal annotations written next to a level's path data (navtraversal.py)."""
+    """The traversal annotations written next to a level's path data (write_traversal)."""
     return os.path.join(folder, f'{lv}.traversal.json')
+
+
+# The apply's edit stage runs in the Rust core (round NK1: rust/bc2-navbuild/src/graphedit.rs through bc2_native;
+# navlinks.py and navtraversal.py were retired against their recorded answers - core/tests/cli_o4_navkit.py's apply
+# cases and rust/BENCHMARKS.md "NK1"). bfbc2.exe answers navkit apply on a DICE base itself; a NavKit base rebuilds
+# the level here (navbuild.build) and then calls the same core. The side file's operations go to it as JSON.
+GRAPH_OPS = ('link-areas', 'route-edge')
+
+
+def _edit_core() -> Any:
+    """The Rust core for the apply's edits, or bfbc2core.native.NativeMissing saying how to get it."""
+    from bfbc2core import native
+    return native.require("navkit apply's edits (links, route edges, traversal annotations)", 'navkit_graph_edits')
+
+
+def _edit_refused() -> Exception:
+    from bfbc2core import native
+    return native.refused('navkit apply: a path-data file or a side-file value its edits do not take (a NaN or an '
+                          'infinity, a position past 2**53, a route edge whose cost does not fit 32 bits)')
+
+
+def graph_edits(data: bytes, operations: list[dict[str, Any]]) -> tuple[bytes, list[str], str]:
+    """The side file's links and route edges (DESIGN.md 5.1) written into the route graph of the path data `data`:
+    (the edited file, one line per graph operation - '  ' and its message, or '  NOT APPLIED: ' and why - and the
+    line saying how many were applied). A point joins the route node nearest to it (within 15 m horizontally and
+    4 m in height); the two nodes are looked for in one sector (the closest pair wins; border nodes let a link cross
+    a sector edge); costs are 0x80000000 | floor(3-D distance * 16); edges stay sorted by source node with each
+    node's first-edge index recomputed. ValueError / struct.error for a file that is not path data; IndexError for
+    an edge whose node index is past its sector's nodes."""
+    got = _edit_core().navkit_graph_edits(data, json.dumps(operations))
+    if got is None:
+        raise _edit_refused()
+    return bytes(got[0]), list(got[1]), str(got[2])
+
+
+def write_traversal(data: bytes, pathdata_path: str, operations: list[dict[str, Any]], level: Any, out_path: str,
+                    log: Log = print) -> int:
+    """The traversal annotations among operations (ladders, jumps, vaults, drops) written to out_path as
+    `<level>.traversal.json` for OPFOR's bot layer (format 'bfbc2-traversal' 1: each annotation's ends, the route
+    node each end joins - nearest within 15 m horizontally and 4 m in height - and its island, 0 the largest),
+    for the path data `data` written at pathdata_path (its SHA-1 recorded). Not route edges: the game's AI cannot
+    climb or jump them. Returns the annotations written."""
+    got = _edit_core().navkit_traversal(data, os.path.basename(pathdata_path), json.dumps(operations),
+                                        json.dumps(level))
+    if got is None:
+        raise _edit_refused()
+    text, lines = str(got[0]), list(got[1])
+    for line in lines:
+        log(line)
+    tmp = out_path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8', newline='\n') as fh:
+        fh.write(text)
+    os.replace(tmp, out_path)
+    return len(lines)
 
 
 def owner(lv: str) -> str:
@@ -930,8 +984,8 @@ def apply(pr: Project, lv: str, navtune_path: str | None = None, out: str | None
           install_after: bool = False, cfg: 'navbuild.BuildSettings | None' = None) -> str:
     """Builds the level with the edits of its navigation side file (DESIGN.md sections 5.1-5.2): walkability
     edits (regions, seeds, unseeds) go into the build, then links and route edges into its route graph
-    (navlinks.py); on a DICE base only the graph edits, on a copy of DICE's file. Traversal annotations go to
-    <level>.traversal.json next to it (navtraversal.py). The result is read back to check it, the whole log is
+    (graph_edits); on a DICE base only the graph edits, on a copy of DICE's file. Traversal annotations go to
+    <level>.traversal.json next to it (write_traversal). The result is read back to check it, the whole log is
     kept as <output>.report.txt, and with install_after the result is installed. cfg: navbuild.BuildSettings for a
     NavKit-base build (None: navbuild's defaults). Returns the output path."""
     lines: list[str] = []
@@ -965,9 +1019,8 @@ def _apply(pr: Project, lv: str, navtune_path: str | None, out: str | None, log:
         tune = navtune.load(navtune_path)
     except ValueError as e:
         raise NavKitError(str(e)) from e
-    import navlinks
     walk = [o for o in tune.operations if o['op'] in ('walkable', 'unwalkable', 'seed', 'unseed')]
-    graph = [o for o in tune.operations if o['op'] in navlinks.GRAPH_OPS]
+    graph = [o for o in tune.operations if o['op'] in GRAPH_OPS]
     later = [o for o in tune.operations if o['op'] == 'traversal']
     t0 = time.time()
     if tune.kind == 'navkit':
@@ -994,18 +1047,18 @@ def _apply(pr: Project, lv: str, navtune_path: str | None, out: str | None, log:
                 'by position and are applied, but check them')
         shutil.copyfile(src, out)
     if graph:
-        f = hpdtool.parse(open(out, 'rb').read())
-        results = navlinks.apply(f, graph, log=log)
-        open(out, 'wb').write(hpdtool.write(f))
-        log(f'  {sum(ok for _, ok, _ in results)} of {len(graph)} link / route-edge edit(s) applied')
+        edited, lines, applied = graph_edits(open(out, 'rb').read(), graph)
+        for line in lines:
+            log(line)
+        open(out, 'wb').write(edited)
+        log(applied)
     data = open(out, 'rb').read()
     f = hpdtool.parse(data)
     if hpdtool.write(f) != data:
         raise NavKitError(f'{out}: does not read back exactly - not usable')
     trav = traversal_path(os.path.dirname(out), lv)
     if later:
-        import navtraversal
-        navtraversal.write(f, out, later, tune.level, trav, log=log)
+        write_traversal(data, out, later, tune.level, trav, log=log)
         log(f'  {len(later)} traversal annotation(s) written to {os.path.relpath(trav, pr.root)} (for OPFOR\'s bot layer; '
             f'not route edges - the game\'s AI cannot climb or jump them)')
     elif os.path.isfile(trav):
