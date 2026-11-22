@@ -142,6 +142,16 @@ pub enum FileEdit {
         /// Its transform.
         rows: Rows,
     },
+    /// A typed field of an instance of a static group file (round SG1, for the DBX inspector of round GR4): set as
+    /// [`LevelWriter::set_field`] sets a partition's, its type read from the group file's own data. The member
+    /// arrays (`Assets`, `Transforms`, `Enums`) are never set so: they are arrays, and members change by the member
+    /// edits.
+    GroupField {
+        /// The group file.
+        file: String,
+        /// The field set (`guid` an instance of the group file).
+        set: crate::ops::FieldSet,
+    },
 }
 
 impl FileEdit {
@@ -156,7 +166,7 @@ impl FileEdit {
     pub fn targets(&self) -> Vec<Target> {
         match self {
             Self::Partition { .. } => vec![Target::Partition],
-            Self::MemberTransform { file, .. } => vec![Target::group(file)],
+            Self::MemberTransform { file, .. } | Self::GroupField { file, .. } => vec![Target::group(file)],
             Self::MemberDelete { file, .. } | Self::MemberAdd { file, .. } => {
                 vec![Target::group(file), Target::Partition]
             }
@@ -185,13 +195,14 @@ impl FileEdit {
                 crate::members::member_guid(instance, *item),
                 crate::members::member_guid(instance, *like)
             ),
+            Self::GroupField { file, set } => format!("Set {} of {} in {file}", set.field, set.guid),
         }
     }
 
     /// Whether it changes the level partition.
     #[must_use]
     pub fn edits_partition(&self) -> bool {
-        !matches!(self, Self::MemberTransform { .. })
+        !matches!(self, Self::MemberTransform { .. } | Self::GroupField { .. })
     }
 }
 
@@ -319,6 +330,32 @@ impl LevelFiles {
         for e in edits {
             let (file, instance) = match e {
                 FileEdit::Partition { .. } => continue,
+                FileEdit::GroupField { file, set } => {
+                    let Target::Group { file } = Target::group(file) else {
+                        continue;
+                    };
+                    let mut f = match stage.groups.remove(&file) {
+                        Some(w) => w,
+                        None => {
+                            if let Some(w) = self.groups.get(&file) {
+                                w.clone()
+                            } else {
+                                let t = Target::Group { file: file.clone() };
+                                let bytes = sources
+                                    .file(&t)
+                                    .ok_or_else(|| fail(LevelWriteError::NoFile(t.describe())))?;
+                                LevelWriter::parse(&bytes).map_err(fail)?
+                            }
+                        }
+                    };
+                    let field_schema = Schema::scan([&f.d]);
+                    f.set_field(&field_schema, &set.guid, &set.field, &set.to)
+                        .map_err(fail)?;
+                    stage.groups.insert(file, f);
+                    counts.fields += 1;
+                    counts.files += 1;
+                    continue;
+                }
                 FileEdit::MemberTransform { file, instance, .. }
                 | FileEdit::MemberDelete { file, instance, .. }
                 | FileEdit::MemberAdd { file, instance, .. } => (file, instance),
@@ -389,7 +426,7 @@ impl LevelFiles {
                     added.insert(name(*item), root);
                     counts.duplicated += 1;
                 }
-                FileEdit::Partition { .. } => {}
+                FileEdit::Partition { .. } | FileEdit::GroupField { .. } => {}
             }
             counts.files += 1;
         }
@@ -758,6 +795,72 @@ pub(crate) mod tests {
         let x = apply_files(&base, &old, &schema, &|_| None, &NoSources).unwrap();
         assert_eq!(x.partition, crate::write::apply(&base, &old, &schema).unwrap());
         assert!(x.files.is_empty());
+    }
+
+    /// Round SG1: a typed field of a group file's instance (the DBX inspector's edit through the project), typed by
+    /// the group file's own data; the member arrays are refused, nothing changed.
+    #[test]
+    fn group_fields_are_typed_by_the_group_file() {
+        let mut f = DbxFile::default();
+        let name = Element::text(
+            &mut f,
+            "field",
+            &[("name", "Name")],
+            "Levels/Test/StaticModelGroupEntity_HavokAsset",
+        );
+        let tr = Element::numbers(&mut f, "array", &[("name", "Transforms")], 4, &[0u8; 64]);
+        let item = Element::text(&mut f, "item", &[("ref", "objects/x/x_havok/y")], "");
+        let assets = Element::container(&mut f, "array", &[("name", "Assets")], vec![item]);
+        let inst = Element::container(
+            &mut f,
+            "instance",
+            &[("guid", G), ("type", "Physics.CompositeHavokAsset")],
+            vec![name, assets, tr],
+        );
+        let part = Element::container(&mut f, "partition", &[("guid", "G")], vec![inst]);
+        f.roots.push(part);
+        let group = bc2_formats::dbx::write(&f).unwrap();
+        let sources = |_: &Target| Some(group.clone());
+        let set = |field: &str, to: crate::ops::FieldValue| {
+            op(
+                1,
+                Op::Files {
+                    edits: vec![FileEdit::GroupField {
+                        file: FILE.into(),
+                        set: crate::ops::FieldSet {
+                            guid: G.into(),
+                            field: field.into(),
+                            from: None,
+                            to,
+                        },
+                    }],
+                },
+            )
+        };
+        let schema = Schema::default();
+        let ok = set("Name", crate::ops::FieldValue::Text("Levels/Test/Renamed".into()));
+        assert_eq!(ok.op.files(), [Target::group(FILE)]);
+        let mut files = LevelFiles::default();
+        let mut out = Applied::default();
+        files.apply(&ok, &schema, &mut out, &|_| None, &sources).unwrap();
+        let w = &files.groups[&file_key()];
+        let e = w.find(G).unwrap();
+        assert_eq!(
+            w.d.text(w.d.child(e, b"Name").unwrap()),
+            Some(&b"Levels/Test/Renamed"[..])
+        );
+        assert_eq!(out.fields, 1);
+        let before = files.groups[&file_key()].write().unwrap();
+        let bad = set("Transforms", crate::ops::FieldValue::Int(0));
+        assert!(files.apply(&bad, &schema, &mut out, &|_| None, &sources).is_err());
+        assert_eq!(files.groups[&file_key()].write().unwrap(), before);
+    }
+
+    fn file_key() -> String {
+        let Target::Group { file } = Target::group(FILE) else {
+            unreachable!()
+        };
+        file
     }
 
     /// Round OP1 part B: strokes on a height field (from the sources) and a paint layer (made by its first stroke),

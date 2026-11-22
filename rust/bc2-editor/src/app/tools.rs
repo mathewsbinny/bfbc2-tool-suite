@@ -2198,11 +2198,7 @@ impl Tabs<'_> {
         let set = source.as_ref().map_or("", |s| s.set.word());
         self.header(ui, "Place objects", &format!("{} of {total} {set}", shown.len()));
         // round SG1: placed as a loose object, or into one of the level's model groups
-        let groups = self
-            .view
-            .doc
-            .as_ref()
-            .map_or_else(Vec::new, crate::memberedit::groups);
+        let groups = self.view.doc.as_ref().map_or_else(Vec::new, crate::memberedit::groups);
         if !groups.is_empty() {
             let mut into = self.view.browser.into_group.clone();
             let name = |f: &str| f.trim_end_matches(".dbx").trim_end_matches("_HavokAsset").to_owned();

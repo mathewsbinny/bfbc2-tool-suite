@@ -766,6 +766,7 @@ impl MapProject {
                         e,
                         crate::files::FileEdit::MemberDelete { .. }
                             | crate::files::FileEdit::MemberAdd { .. }
+                            | crate::files::FileEdit::GroupField { .. }
                             | crate::files::FileEdit::MemberTransform {
                                 item: crate::members::Member::Added { .. },
                                 ..
