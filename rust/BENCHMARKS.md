@@ -9951,3 +9951,20 @@ quick part is unchanged:
 The files grow by the diagonal-neighbour link entries and shrink by the duplicate edges. navregress's reference run
 `regression` was saved again with this code (its measures are the old ones plus `runtime_connectivity` and
 `strong_share`).
+
+### Tests
+
+- `run_tests.py quick -j 2`: 133 of 133 (O2 among them), after merging main (5fd65e8); O4's navtools golden
+  re-recorded from the Python (only navparity's usage text and `show` table changed: the new docstring and the
+  `runtime %` column, which `bfbc2.exe navparity show` now prints too).
+- NavKit's game tier, 16 entries: `navbuild-native`, `navtools-native` (E4e's vehicle and parity-row recording
+  re-recorded: ONS_MP_002's vehicle path data a5baa5ed8b714b67c6d0e33d4b5630c1ae74e14e (291,704 bytes) ->
+  d630b57869bd951d788efffe2ced75181635db8d (292,600)), `navmesh-cells-routes-native`, `pathdata-native`,
+  `hpdtool-roundtrip`, `hpdtool-meshtrip`, `navdata`, `hpdcheck`, `navwater-mesh`, `vehicle-level`, `links`,
+  `traversal`, `apply`, `navregress:small`, `collision-backends`, O4 live: all pass.
+- `kynapse_corpus` (game tier): 14 of 14, the two new tests among them.
+- NK1's apply parity (`rust/parity_nk1_apply.py`, the pre-NK1 checkout 4a515a4 against this branch): 33 of 33
+  identical (the 18 DICE files and the 15 new regression builds).
+- `cargo test` (bc2-navbuild, bc2-formats, bc2-py), clippy `--all-targets -D warnings` (with bc2-cli), fmt, ruff and
+  mypy on the changed Python, `spec/trace.py --check`: pass.
+
