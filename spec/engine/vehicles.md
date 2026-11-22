@@ -19,7 +19,7 @@ from the binary numbers. Masses in kg, times in seconds, distances in metres. No
 
 ### VEH-ENT-1: A vehicle is an entity with one chassis component tree
 
-Status: **observed**
+Status: **verified**
 
 A vehicle partition's `VehicleAsset` names a `VehicleEntityData` (its primary object). Its `Components` hold one
 `VehicleComponentData`, the chassis, whose own `Components` tree holds everything else: `EngineComponentData`,
@@ -29,11 +29,12 @@ A vehicle partition's `VehicleAsset` names a `VehicleEntityData` (its primary ob
 `VehicleExitPointComponentData`, `SoldierGripComponentData` and effect and radar components. The entity itself holds
 the health zones, the material, the warning sounds, the explosion and the HUD data.
 
+[test: core/tests/test_spec_probes.py::spg_vehicles]
 [data: spec/probes/vehicles.py on the game copy, 2026-11-22: 97 VehicleEntityData, each with a VehicleComponentData; 80 VehicleAsset in objects/vehicles/; component classes over every vehicle's tree as listed per kind in the probe's output]
 
 ### VEH-ENT-2: HUD type is DICE's own classification
 
-Status: **observed**
+Status: **verified**
 
 `VehicleEntityData.HudData.VehicleType` (enum `VehicleHudType_*`) classes every vehicle: Car 22, Helicopter 18,
 Stationary 15, Tank 11, Dummy 10, Boat 9, StationaryUAV 4, Strategic 4, UAV 3, Count 1. It agrees with the
@@ -42,6 +43,7 @@ except that 4 boats carry a `RotorComponentData` for their propeller, and Dummy 
 (the campaign planes, set pieces). The executable names no other type (Airplane is in the enum but no stock vehicle
 uses it).
 
+[test: core/tests/test_spec_probes.py::spg_vehicles]
 [data: spec/probes/vehicles.py on the game copy, 2026-11-22: HUD type / build from the components: Car/wheeled 22, Helicopter/helicopter 18, Stationary/stationary 15, Tank/tracked 11, Dummy/stationary 7, Dummy/helicopter 3, Boat/boat 5, Boat/helicopter 4, StationaryUAV 4, Strategic 4, UAV/helicopter 3, Count 1]
 [doc: opfor:src/tools/ww2/bf1943_vehicles.py:237-241]
 
@@ -222,7 +224,7 @@ materials DICE's list lacks; the bombers keep their own `Bomber_Airframe` physic
 
 ### VEH-SPAWN-1: VehicleSpawnEntityData
 
-Status: **observed**
+Status: **verified**
 
 A level places a vehicle with a `VehicleSpawnEntityData` in its level partition: `Team`, `Vehicle` (one blueprint) or
 `Vehicles` (items, for team-dependent choices), `SpawnDelay` and `InitializedSpawnDelay`, `MaxVehicles` and
@@ -231,11 +233,12 @@ A level places a vehicle with a `VehicleSpawnEntityData` in its level partition:
 The stock multiplayer levels hold 1,044 (0-65 a level), the campaign levels 367; 68 multiplayer spawners use the
 `Vehicles` list (1 item on 45, 2 on 23).
 
+[test: core/tests/test_spec_probes.py::spg_vehicles]
 [data: spec/probes/vehicles.py on the game copy, 2026-11-22: 61 multiplayer level partitions, 1,044 VehicleSpawnEntityData; 13 campaign, 367; Vehicles items 0 x976 / 1 x45 / 2 x23 (mp), 0 x367 (sp)]
 
 ### VEH-SPAWN-2: DICE's multiplayer spawner values
 
-Status: **observed**
+Status: **verified**
 
 On DICE's multiplayer spawners: `MaxVehicles` 1 (1,043 of 1,044), `TimeUntilAbandoned` 10 s (1,027), the abandoned
 vehicle destroyed after 2-20 s (mode 10), `RespawnRange` 15 (1,026), `SpawnAreaRadius` 2.5 (971), `SpawnDelay` 0-600
@@ -243,6 +246,7 @@ s (mode 0); `AutoSpawn` false on 314 (spawned by events: Rush stages, flags), `I
 `eerOnlyPrimaryEntry` on 653. Spawned vehicles by folder: stationary weapons 290, Vietnam 287, land 249, static 112,
 air 101, sea 27.
 
+[test: core/tests/test_spec_probes.py::spg_vehicles]
 [data: spec/probes/vehicles.py on the game copy, 2026-11-22: mp spawner field ranges as listed in the spawners section]
 [doc: bfbc2-map-editor/placement/L1_placement_report.md:139]
 

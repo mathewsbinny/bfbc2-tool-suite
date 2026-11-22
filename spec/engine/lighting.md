@@ -99,23 +99,25 @@ irradiance volumes: 90 % of voxels within 8 of DICE's byte).
 
 ### LIGHT-IRR-1: An IrradianceVolume is a 36-byte header and one byte per voxel
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 An `IrradianceVolume` resource (`<mesh>_Irradiance.res`) is a little-endian header - the box's minimum and maximum
 (6 x f32), then the voxel counts nx, ny, nz (3 x u32) - followed by nx x ny x nz bytes, nothing else. Voxels are
 about 0.5 m apart (extent / (n - 1) 0.506 - 1.49 m, most within 0.52 m; the larger steps are thin axes of small
 volumes).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py baked on the game copy, 2026-11-22: 25 distinct IrradianceVolume resources, 25 of 25 exactly 36 + nx x ny x nz bytes; 8 .. 612,256 voxels a volume; cell size 0.506 .. 1.489 m]
 
 ### LIGHT-IRR-2: The voxels are scalar sky visibility, 51 .. 255
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 Each voxel byte is a sky visibility from 51 (0.2, the floor: inside walls) to 255 (open sky); no colour and no
 direction. The 25 volumes belong to buildings (houses, factories, hangars, the lighthouse) and are shared by every
 level that places the building.
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py baked: 1,703,118 voxels, minimum 51 (152,495 voxels), maximum 255 (979,692 voxels)]
 [data: research round WX0: the 25 volumes' owners]
 
@@ -135,7 +137,7 @@ inside its box) is the engine's.
 
 ### LIGHT-ENV-1: One StaticEnvmapEntityData per level names its reflection cube
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 A level's reflection cube is a `WorldRender.StaticEnvmapEntityData` in its level partition: `StaticEnvmap` names a
 cube texture (`mp05_envmap`, `mp02_envmap`; 64 KB) captured from the day sky; `InfluenceRadiusInner` /
@@ -143,6 +145,7 @@ cube texture (`mp05_envmap`, `mp02_envmap`; 64 KB) captured from the day sky; `I
 level partitions have one (70 one, 3 three); 7 of the 79 name no texture. The engine binds it as
 `outdoorLightReflectionEnvmap`. The suite's game-accurate view reads it from the placement.
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py lights on the game copy, 2026-11-22: 79 StaticEnvmapEntityData in 73 of 83 level partitions; InfluenceRadiusInner 5,000 x 62, 20 x 6, 20,000 x 4, 10,000 x 3; InfluenceRadiusOuter 10,000 x 66, 25 x 6, 30,000 x 4, 20,000 x 2; StaticEnvmap null x 7]
 [code: rust/bc2-render/src/placement.rs:117-118]
 
@@ -251,7 +254,7 @@ the post. `IsCameraProximityTriggered` is false on all of them, so every lamp pl
 
 ### LIGHT-PT-5: WorldRender.PointLightEntityData exists, on the Vietnam levels only
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 A point light can also be a `WorldRender.PointLightEntityData` placed in the level partition: `Color`, `Intensity`
 (1 x 60, 0.5 x 8), `Radius` 4 - 20 m (5 x 20, 8 x 20, 10 x 16), `FadeStartDistance` 5 - 25 m, `FadeEndDistance` 10 -
@@ -260,6 +263,7 @@ A point light can also be a `WorldRender.PointLightEntityData` placed in the lev
 all in the Vietnam levels (NAM_MP_002 2, NAM_MP_003 10, NAM_MP_005 5, in each of their mode levels), as fill lights in
 trenches and tunnels. No other level has one, and the editor's Lights overlay does not show them yet (VW2e-2).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py lights on the game copy, 2026-11-22: 68 PointLightEntityData in 12 of 83 level partitions, the field values as given]
 
 ### LIGHT-PT-6: Lamp glass is self-lit and glows in every state
@@ -311,24 +315,26 @@ preview therefore shows lamp glass glowing (LIGHT-PT-6) without light pools.
 
 ### LIGHT-SKY-1: The moon is a mesh prop, MP_008's
 
-Status: **observed** · Variants: PC, Xbox 360
+Status: **verified** · Variants: PC, Xbox 360
 
 BFBC2 draws no moon from the weather state (the sun disc is switched off with `Sun.Gain` 0 at night: 35 of DICE's 348
 sun partitions). The moon is a placed mesh prop, `terrains/mp_008/props/moon/moon`: placed on PC only in MP_008 and
 MP_008SDM, and reused by DICE in the Xbox ONS_MP_002 night at (-1851, 2166, -1662), about 3.3 km from the map's
 centre.
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py lights on the game copy, 2026-11-22: moon placements in mp_008 and mp_008sdm only]
 [data: spec/probes/lighting.py weather: DynamicSunData Gain 0 x 35 of 348]
 [data: research round WX1: the Xbox ONS_MP_002 placement]
 
 ### LIGHT-SKY-2: God rays are props, removed for a night
 
-Status: **observed** · Variants: PC, Xbox 360
+Status: **verified** · Variants: PC, Xbox 360
 
 Daylight shafts are placed god-ray meshes (`sp11_godrays` and kin): 40 placements in 7 level partitions of the game
 copy. DICE's night removed MP_002's 4.
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py lights: 40 god-ray placements in 7 levels]
 [data: research round WX1: the Xbox ONS_MP_002 partition lacks MP_002's 4 sp11_godrays]
 

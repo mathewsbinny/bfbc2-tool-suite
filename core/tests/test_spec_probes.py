@@ -1,6 +1,8 @@
-r"""The specification's probe counts as checks (round SPG2): the stable facts `spec/probes/terrain.py` and
-`spec/probes/effects_chain.py` measured on DICE's bundles of Project OPFOR BFBC2's game copy, asserted, so that the
-rules they back are verified instead of observed. Read only; skipped without the game copy.
+r"""The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/probes/`
+measure on DICE's bundles of Project OPFOR BFBC2's game copy, asserted, so that the rules they back are verified
+instead of observed. Read only; skipped without the game copy. `terrain.py` and `effects_chain.py` are read through
+their functions; SPG's five print-only probes (`materials`, `destruction`, `lighting`, `vehicles`, `weapons`) by the
+lines of their output that hold a rule's counts (EXPECT); `grime.py` and `menus.py` by their own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -36,6 +38,10 @@ def probe(name: str) -> ModuleType:
     return m
 
 
+def text(e: dbx.Element | None) -> str:
+    return '' if e is None else dbx.value(e)
+
+
 def check(ok: bool, what: str) -> None:
     print(('ok    ' if ok else 'FAIL  ') + what)
     if not ok:
@@ -51,14 +57,27 @@ class Terrains:
         self.atlas: dict[str, tuple[int, int, int, int]] = {}
         self.partitions: list[dbx.DbxFile] = []
         self.partition_names: set[str] = set()
+        # main blocks' tails (TERR-HF-4, 9 - 11): terrain -> (re-encoded, runs maximal, share under the finest grid)
+        self.tails: dict[str, tuple[bool, bool, float]] = {}
+        # material maps (TERR-MM-1 - 4): terrain -> (re-encoded, width, rows, names)
+        self.material_maps: dict[str, tuple[bool, int, int, list[str]]] = {}
+        # level grids' material names, and the terrain of each bundle that holds exactly one terrain partition
+        self.grid_names: dict[str, list[str]] = {}
+        self.grid_terrain: dict[str, str] = {}
         seen: set[str] = set()
         for path in bundles:
             es = [e for e in fbrb.entries(path) if not e.deleted]
             self.partition_names |= {e.name.lower()[:-4] for e in es if e.name.lower().endswith('.dbx')}
+            terrains = {m.group(1) for e in es for m in [re.fullmatch(r'terrains/([^/]+)/\1\.dbx', e.name.lower())] if m}
+            grids = [e.name for e in es if re.fullmatch(r'levels/[^/]+/materials_win32\.dbx', e.name.lower())]
+            if len(terrains) == 1:
+                for g in grids:
+                    self.grid_terrain.setdefault(g.split('/')[1].lower(), next(iter(terrains)))
             es = [e for e in es if e.name.lower() not in seen]
-            want = [e.name for e in es if e.type in ('TerrainHeightfield', 'VisualTerrain')
+            want = [e.name for e in es if e.type in ('TerrainHeightfield', 'VisualTerrain', 'TerrainMaterialMap')
                     or (e.type == 'ITexture' and 'masktile' in e.name.lower())
-                    or re.fullmatch(r'terrains/([^/]+)/\1\.dbx', e.name.lower())]
+                    or re.fullmatch(r'terrains/([^/]+)/\1\.dbx', e.name.lower())
+                    or e.name in grids]
             if not want:
                 continue
             types = {e.name: e.type for e in es}
@@ -66,7 +85,11 @@ class Terrains:
             for n in want:
                 seen.add(n.lower())
                 d = got[n]
-                if n.lower().endswith('.dbx'):
+                if n in grids:
+                    self.grid_names[n.split('/')[1].lower()] = [
+                        text(i.child('Name')).lower() for i in dbx.parse(d).instances
+                        if (i.attr('type') or '').endswith('.MaterialData')]
+                elif n.lower().endswith('.dbx'):
                     self.partitions.append(dbx.parse(d))
                 elif types[n] == 'ITexture':
                     v = struct.unpack_from('<8I', d)
@@ -74,6 +97,13 @@ class Terrains:
                 elif types[n] == 'TerrainHeightfield':
                     if struct.unpack_from('<I', d, 0x20)[0]:
                         self.main[n] = (struct.unpack_from('<I', d, 0x18)[0], struct.unpack_from('<6f', d))
+                        m = tp.main_tail(d)
+                        self.tails[n.split('/')[1].lower()] = (m['re_encoded'], m['maximal'],
+                                                               tp.below(m['grids'][-1], m['heights']))
+                elif types[n] == 'TerrainMaterialMap':
+                    mm = tp.material_map(d)
+                    self.material_maps[n.split('/')[1].lower()] = (mm['re_encoded'], mm['width'],
+                                                                   int(mm['cells'].shape[0]), mm['names'])
                 else:
                     self.visual[n] = tp.visual_terrain(d)
 
@@ -218,6 +248,175 @@ def emitters(bundles: list[Path], fx: ModuleType) -> None:
     check(type_bad == 0 and type_ok > 0, f'FX-PROC-2: ProcessorType = Pt + class ({type_ok}, {type_bad})')
 
 
+# spec: TERR-HF-4, TERR-HF-9, TERR-HF-10, TERR-HF-11
+def height_field_tails(t: Terrains) -> None:
+    check(len(t.tails) == 30, f'30 main blocks read ({len(t.tails)})')
+    check(all(r for r, _, _ in t.tails.values()),
+          f'TERR-HF-4 / 9 / 10: offsets, depth runs, padding and min / max tree re-encode byte for byte '
+          f'({sum(r for r, _, _ in t.tails.values())} of {len(t.tails)})')
+    check(all(m for _, m, _ in t.tails.values()), 'TERR-HF-9: every depth run is maximal (no two neighbours equal)')
+    shares = sorted(s for _, _, s in t.tails.values())
+    strict = sum(1 for s in shares if s == 1.0)
+    check(shares[0] >= 0.99 and strict == 15,
+          f'TERR-HF-11: the finest grid lies under the heights on >= 99 % of samples on all, all of them on 15 '
+          f'(lowest {shares[0]:.4f}, all of them on {strict})')
+
+
+# spec: TERR-MM-1, TERR-MM-2, TERR-MM-3, TERR-MM-4, TEDIT-MM-1
+def material_maps(t: Terrains) -> None:
+    mm = t.material_maps
+    check(len(mm) == 30 and all(r for r, _, _, _ in mm.values()),
+          f'TERR-MM-2: 30 material maps re-encode byte for byte ({sum(r for r, _, _, _ in mm.values())} of {len(mm)})')
+    widths = collections.Counter((w, rows) for _, w, rows, _ in mm.values())
+    check(widths == collections.Counter({(4096, 4096): 22, (2048, 2048): 8}), f'TERR-MM-3: square maps ({dict(widths)})')
+    sizes = {k.split('/')[-1].split('.')[0].lower(): n for k, (n, _) in t.main.items()}
+    per_metre = collections.Counter(w // sizes[k] for k, (_, w, _, _) in mm.items() if k in sizes)
+    check(per_metre == collections.Counter({2: 27, 4: 3}), f'TERR-MM-3: cells per metre ({dict(per_metre)})')
+    check(all(names[0] == 'defaultmaterial' and len(names) <= 16 for _, _, _, names in mm.values()),
+          'TERR-MM-4: index 0 is defaultmaterial, at most 16 names (4-bit cells)')
+    paired = [(g, tr) for g, tr in t.grid_terrain.items() if g in t.grid_names and tr in mm]
+    holds = sum(1 for g, tr in paired if all(n.lower() in t.grid_names[g] for n in mm[tr][3]))
+    same_index = sum(1 for g, tr in paired
+                     if [t.grid_names[g].index(n.lower()) for n in mm[tr][3] if n.lower() in t.grid_names[g]]
+                     == list(range(len(mm[tr][3]))))
+    check(len(paired) == 31 and holds == 31 and same_index == 0,
+          f'TERR-MM-4: every paired level grid holds its terrain\'s names, never at the same indices '
+          f'({holds} of {len(paired)}, same order {same_index})')
+
+
+def probe_output(name: str, *args: str) -> str:
+    """A print-only probe's output: its main() run in this process with these arguments."""
+    import contextlib
+    import io
+    m = probe(name)
+    out = io.StringIO()
+    argv = sys.argv
+    sys.argv = [name, *args]
+    try:
+        with contextlib.redirect_stdout(out):
+            if m.main.__code__.co_argcount:     # vehicles.py and weapons.py take their arguments
+                m.main(list(args))
+            else:
+                m.main()
+    finally:
+        sys.argv = argv
+    return out.getvalue()
+
+
+# The rules SPG's probes back and the lines of each probe's output that hold their counts (2026-11-22's runs).
+EXPECT: dict[str, list[tuple[str, str]]] = {
+    'materials': [
+        ('MAT-GRID-1', '81 partitions (74 from DICE bundles); materials 51 - 92, relations 953 - 3160'),
+        ('MAT-GRID-1', 'MaterialGridLayers items over all grids: 0'),
+        ('MAT-GRID-2', 'names whose index in MaterialGridData.Materials differs between grids: 114 of 121'),
+        ('MAT-GRID-3', 'Hash = 33-xor hash of the lower-case name: 5746 of 5746 MaterialData instances'),
+        ('MAT-GRID-3', "{'Construction': 1771, 'Projectiles': 1135, 'Explosions': 692, 'Vehicles': 677, "
+                       "'Terrain': 573, 'Vegetation': 395, 'Soldier': 355, 'Default': 148}"),
+        ('MAT-GRID-4', 'names whose flags differ between grids: 0'),
+        ('MAT-GRID-4', '121 names; per flag set: Penetrable 23, SeeThrough 9, ClientDestructible 9, '
+                       'NoCollisionResponse 3, NoCollisionResponseCombined 5'),
+        ('MAT-GRID-5', 'relations with a null side (a material against any): 3494'),
+        ('MAT-GRID-5', 'data items per relation: {1: 66833, 2: 49068, 3: 34283, 4: 13800}'),
+        ('MAT-GRID-6', 'relations by their MaterialRelationDamageData count: {0: 28783, 1: 107452, 2: 27749}; '
+                       'of those with 2 or more, every item with SourceMaterial set: 27728'),
+        ('MAT-SLOT-1', 'wrapper material hashes = 33-xor hashes of MaterialMappings, in order: 1183 of 1183'),
+        ('DSTR-TERR-3', 'MaterialRelationTerrainDestructionData.Width: 1 .. 13 (3454 values, 8 distinct'),
+        ('DSTR-TERR-3', 'MaterialRelationTerrainDestructionData.Depth: 0.1 .. 2 (3454 values, 9 distinct'),
+    ],
+    'destruction': [
+        ('DSTR-STATE-1', '1262 blueprints'),
+        ('DSTR-STATE-1', 'with PartComponentData parts: 599; parts per blueprint 1 .. 107'),
+        ('DSTR-STATE-2', 'health states per part: {0: 43, 1: 304, 2: 2720, 3: 64, 4: 4}'),
+        ('DSTR-STATE-2', "'lowest state at health 0': 2786"),
+        ('DSTR-STATE-4', "'lowest state shows nothing': 2512, 'lowest state has Effects': 2366, "
+                         "'healthiest state has Effects': 70"),
+        ('DSTR-STATE-6', 'DestroyRuinPartPercentage: 35 .. 100 (505 values, 7 distinct; most: 75 x 495'),
+        ('DSTR-MESH-2', "MeshName: {'empty (part gone)': 2521, 'the part name': 2574, 'other name': 642, "
+                        "'part name + suffix': 215}"),
+        ('DSTR-MESH-3', "{'banger': 44, 'wreck': 31, 'ruin': 2, 'destroyed': 0, 'debris': 9}"),
+        ('DSTR-MG-3', 'health-state arrays: empty in every member'),
+        ('DSTR-MG-3', 'equal to PhysicsPartCountPerInstance 1150, not 1433'),
+        ('DSTR-MG-4', 'DamageAreaTriggerEntityData instances: 1283'),
+        ('DSTR-TERR-1', 'terrains where every patch shader does: 6'),
+    ],
+    'lighting': [
+        ('LIGHT-PT-5', 'PointLightEntityData: 68 in 12 levels'),
+        ('LIGHT-ENV-1', 'StaticEnvmapEntityData: 79 in 73 levels'),
+        ('FX-PLACE-1', 'placed GameEffectEntityData: 13083 in 82 levels; camera-proximity 3024 in 62 levels'),
+        ('LIGHT-SKY-1', "moon placements: {'mp_008': 1, 'mp_008sdm': 1}"),
+        ('LIGHT-SKY-2', 'god-ray placements: 40 in 7 levels'),
+        ('FX-CLS-1', 'partitions: 4285'),
+        ('FX-PLACE-3', 'EmitterTemplateData: 2882; acting as point lights: 35'),
+        ('LIGHT-IRR-1', 'IrradianceVolume resources: 25; 36-byte header + nx*ny*nz bytes exactly: 25'),
+        ('LIGHT-IRR-2', 'voxel bytes 51 .. 255; at the floor (51): 152495, at 255: 979692 of 1703118'),
+        ('WTH-STATE-1', 'systems: 28; states listed: 457; per system 2 .. 53'),
+    ],
+    'vehicles': [
+        ('VEH-ENT-1', 'VehicleEntityData: 97 (land x26, air x24, stationary weapons x17, vietnam x9, sea x8, '
+                      'beach x8, static x5)'),
+        ('VEH-ENT-2', 'HUD types: Car x22, Helicopter x18, Stationary x15, Tank x11, Dummy x10, Boat x9'),
+        ('VEH-SPAWN-1', 'level partitions: 61 multiplayer, 13 campaign'),
+        ('VEH-SPAWN-1', 'total mp 1044, sp 367'),
+        ('VEH-SPAWN-2', 'mp RespawnRange: 10 x1, 15 x1026, 30 x17'),
+    ],
+    'weapons': [
+        ('WPN-CLS-1', '359 GameSharedResources.SoldierWeaponData'),
+        ('WPN-CLS-1', '574 GameSharedResources.ZoomLevelData'),
+        ('WPN-PATCH-1', 'with a Dist copy too: 351, of which differ from Dist\'s (XML form): 325'),
+        ('WPN-WW2-1', 'partitions in BF1943\'s folder (objects/weapons/handheld/beach/): 76'),
+    ],
+}
+
+
+def expect_lines(name: str) -> None:
+    out = probe_output(name)
+    for rule, text in EXPECT[name]:
+        check(text in out, f'{rule}: spec/probes/{name}.py prints {text[:70]!r}')
+
+
+# spec: MAT-GRID-1, MAT-GRID-2, MAT-GRID-3, MAT-GRID-4, MAT-GRID-5, MAT-GRID-6, MAT-SLOT-1, DSTR-TERR-3
+def spg_materials() -> None:
+    expect_lines('materials')
+
+
+# spec: DSTR-STATE-1, DSTR-STATE-2, DSTR-STATE-4, DSTR-STATE-6, DSTR-MESH-2, DSTR-MESH-3, DSTR-MG-3, DSTR-MG-4
+# spec: DSTR-TERR-1
+def spg_destruction() -> None:
+    expect_lines('destruction')
+
+
+# spec: LIGHT-PT-5, LIGHT-ENV-1, FX-PLACE-1, LIGHT-SKY-1, LIGHT-SKY-2, FX-CLS-1, FX-PLACE-3, LIGHT-IRR-1, LIGHT-IRR-2
+# spec: WTH-STATE-1
+def spg_lighting() -> None:
+    expect_lines('lighting')
+
+
+# spec: VEH-ENT-1, VEH-ENT-2, VEH-SPAWN-1, VEH-SPAWN-2
+def spg_vehicles() -> None:
+    expect_lines('vehicles')
+
+
+# spec: WPN-CLS-1, WPN-PATCH-1, WPN-WW2-1
+def spg_weapons() -> None:
+    expect_lines('weapons')
+
+
+def probe_checks(name: str, game: Path) -> None:
+    for ok, what in probe(name).checks(game):
+        check(ok, what)
+
+
+# spec: MAT-TEX-4, MAT-TEX-5, MAT-TEX-6, MAT-TEX-7, MAT-TEX-8, MAT-TEX-9, MAT-TEX-10, MAT-TEX-11
+def grime(game: Path) -> None:
+    probe_checks('grime', game)
+
+
+# spec: MENU-AS-1, MENU-AS-2, MENU-AS-3, MENU-AS-4, MENU-AS-5, MENU-AS-6, MENU-AS-7, MENU-AS-8, MENU-DLG-1
+# spec: MENU-RT-1, MENU-RT-2, MENU-RT-4, MENU-EVT-2, MENU-HUD-1, MENU-HUD-2, MENU-HUD-3, MENU-ED-2
+def menus(game: Path) -> None:
+    probe_checks('menus', game)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -234,7 +433,10 @@ def main() -> int:
     bundles = tp.stock_bundles(game)
     t = Terrains(bundles, tp)
     steps: list[Callable[[], None]] = [lambda: height_fields(t), lambda: visual_terrains(t),
-                                       lambda: terrain_partitions(t), lambda: emitters(bundles, fx)]
+                                       lambda: terrain_partitions(t), lambda: emitters(bundles, fx),
+                                       lambda: height_field_tails(t), lambda: material_maps(t),
+                                       spg_materials, spg_destruction, spg_lighting, spg_vehicles, spg_weapons,
+                                       lambda: grime(game), lambda: menus(game)]
     for step in steps:
         step()
     print(f'{"FAILED " + str(len(FAILED)) if FAILED else "passed"}: the specification probes\' counts '
