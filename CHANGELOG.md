@@ -28,6 +28,18 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Fixed
+- **The same answers on every machine** (round CI1, GitHub's `checks` run): `texture.check`'s correlation (used by
+  `convert.py verify-texture` / `bfbc2.exe convert verify-texture`) was NumPy's `corrcoef`, whose last bits follow
+  the CPU's OpenBLAS kernel; it is now computed exactly in the Rust core (`bc2_convert::texcheck::correlation`, the same value
+  in the module and `bfbc2.exe`). `navpath.route`'s `straight` distance was `np.linalg.norm` (a BLAS dot, the same
+  issue) and is now the route estimate's own formula (`navpath.distance`). NavKit's route estimate and hull dots use
+  a pure-Rust correctly rounded fma (`libm`) instead of the C runtime's. Spec rule XCONS-PAR-2.
+- The test runner's green-crate fingerprints no longer fail when the temporary folder is on another drive than the
+  checkout (`tests/test_rust.py`, GitHub's runner: D: and C:).
+- Goldens no longer hold the recording PC's temporary folder: stockmp's validate log records compare it as `<temp>`
+  in its long or 8.3 short form (`test_cli_o5.py`); `fbrbtool_golden_game.json`'s informational paths likewise.
+
 ## [0.17.0] - 2026-11-22
 
 ### Removed
