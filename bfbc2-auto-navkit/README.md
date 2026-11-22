@@ -69,7 +69,8 @@ tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's
                      shadow islands, the order nodes, the node and edge tables, the neighbour links, the file - in
                      the Rust core since round NK2: rust\bc2-navbuild\src\graphfile.rs)
   hpdcheck.py        structure of a pathdata.hpd: closed boundaries, edges, node order, D / F (as DICE's files)
-  navdetail.py       D lines and F cells of an area (DICE's rule; used by navbuild; tests\test_detail_features.py)
+  navdetail.py       D lines and F cells of an area (DICE's rule; in the Rust core since round NK3:
+                     rust\bc2-navbuild\src\detail.rs; used by navbuild; tests\test_detail_features.py)
   navislands.py      shadow islands: small route islands beside a larger one lose their nodes (the rule's
                      settings and terrain nodes; the rule runs in the Rust core since round NK2, in
                      navbuild.write_file; tests\test_navislands.py; see "Route islands")
@@ -330,7 +331,8 @@ outline. The runtime's straight-move test reads them (spec §4.5); route edges i
 
 - **`navbuild.DETAIL_FEATURES`** (on - `BuildSettings.detail_features`; `navkit.py build --no-detail` /
   `navbuild.py --no-detail` for the output before): `tools\navdetail.py` per area, called by `navbuild.detail_pass`
-  before the outline is emitted; broken sides leave the outline only in pairs (every boundary stays closed -
+  before the outline is emitted (the rule runs in the Rust core since round NK3; the two choices DICE's files never
+  meet - a loop of an F group starting at a pinch, an F vertex in an empty bridge cell - follow spec rule KYM-DF-2); broken sides leave the outline only in pairs (every boundary stays closed -
   `hpdcheck.py` also checks D / F structure now). `DETAIL_STEP` 0.6 m at pitch 0.8, 0.3 m (NavKit's own link step) at pitch 0.2.
 - **`navbuild.DETAIL_BLOCKS_EDGES`** (on): route edges do not step across a D side (straight or diagonal), as in DICE's
   graph; F cells may be crossed (DICE's edges cross F polygon sides on 0.4-0.6 %).

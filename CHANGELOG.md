@@ -120,6 +120,14 @@ landed on `main`.
   development PC, and the 4 golden builds of `test_navbuild_native.py`), the stage 2.4 times faster over those levels (1.4-3 times per level) with a third less memory. The rest of the
   build (walkability, areas, tracing, D lines and F cells, the stage's glue) is still the Python driving the Rust
   core (rounds NK3-NK5).
+- **NavKit's D lines and F cells are made in Rust** (round NK3): `navdetail` (each area's broken sides, D lines
+  and F cells) runs in the Rust core (`bc2_navbuild::detail`). On every call of the 15 regression builds it gives
+  the old Python's answers, except where the Python left a choice to its sets' iteration order. Those choices are
+  now a spec rule (KYM-DF-2), for shapes DICE's own files never contain. An F polygon vertex in an empty 45-degree
+  bridge cell, with no cell beside it on its record's side, takes the mean height of the nearest F cells toward that
+  side. The Python took whichever nearest cell its set gave first. This moves 13 F vertex heights in 7 regression
+  builds by 0.01-0.69 m; nothing else in any file changes. The 4 golden builds are unchanged. The detail step is
+  5.9 times faster within a build (17.6 -> 3.0 s over the 15 levels).
 
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
@@ -143,6 +151,11 @@ landed on `main`.
   `same_grid_resolver` and `cross_grid_resolver`; `navbuild.sector_links` now takes the stage's sector and a
   `link_scope` (the resolvers are the Rust core's), `write_file` the build's anchors. No command line or option
   went; nothing outside NavKit used them.
+- NavKit's Python for the detail features (round NK3): `navdetail.broken_sides`, `f_cell_sets`, `d_sides`,
+  `_unit`, `corner_cuts`, `_cut`, `d_lines`, `_components`, `_quarters`, `_loops`, `_turn`, `_simplify`,
+  `_f_point`, `SIDES` and `F_DIRECTION`. `navdetail.detail_features` and `f_cells` stay as calls into the Rust core. The new
+  `navdetail.features` also gives the D sides and the F cells of each axis, which `navbuild.detail_pass` reads. No
+  command line or option went, and nothing outside NavKit used them.
 
 ## [0.13.0] - 2026-11-21
 

@@ -8180,3 +8180,178 @@ A specification round: no tool's behaviour changed. Three spec files (`spec/form
 The NavKit gap list, in priority order: detailed sectors, node placement, edges, area division, the rectangle, D / F,
 C portal kinds and diagonal links, table bounds, lookup-list ties. The detail is in `kynapse_generation.md`. What is
 left is queued as NKS-rest in the ROADMAP.
+
+## NK3: NavKit's build, D lines and F cells (2026-11-22, branch `nk3`)
+
+NK1's plan, stage 2 of the build: `navdetail`, an area's broken sides, D lines and F cells (KYM-DF-1). NK1 and NK2
+found that the Python's set iteration order reaches this output. The round had two steps. First, prove the port
+against the Python. Then decide, per the DICE-fidelity rule, what the order-decided output should be.
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navdetail.broken_sides`, `f_cell_sets`, `d_sides`, `corner_cuts`, `d_lines` (unit sides, chains, corner cuts), `_components`, `_quarters`, `_loops`, `_simplify`, `f_cells`, `_f_point` | `bc2_navbuild::detail` (`detail_features`, `features`, `f_records`) | `bc2_native.navkit_detail_features` / `navkit_detail_f_cells` through `navdetail.features` / `detail_features` / `f_cells` |
+| `navbuild.detail_pass`'s second pass over the broken sides for the D sides (`f_cell_sets` + `d_sides` again) | the D sides in the same answer (`Features.d_sides`) | `navbuild.detail_pass` |
+
+`navdetail.py` keeps its interface: `eligible(i, j, di, dj)` and `breakable(a, b)` are still the caller's callables.
+The core asks them only about sides that step more than the link step, in the reference's order. The cells' dict and
+the half cells' dict are read in their order. `CUT_CORNERS` and `CHAIN_TURNS` are read per call. What stays Python
+until NK5: `detail_pass` itself (the cells' dict from `level.y`, `eligible`'s portal keys, the outline sides moved to
+D, `level.blocked`). Half of the detail step's remaining time is that dict.
+
+### What Python's set order did
+
+Every call of every regression build was recorded and replayed (`rust/parity_nk3_detail.py`: `capture`, then
+`order`). The recording holds the area's cells in their dict order, the half cells, and what `eligible` and
+`breakable` answered. That is 27,193 calls with 16.6 M cells. The Python left two choices to its sets' iteration
+order. CPython hashes int tuples without randomisation, so the order is the same on every run, but it is arbitrary.
+The other set uses do not reach the output: every iteration feeds a sort, a membership test or a sum of at most two
+values, and a sum of two values does not depend on their order.
+
+1. **A loop of an F group's boundary that starts at a pinch** (`_loops`: two edges leave the start vertex, and
+   `pop(0)` takes whichever the quarters' set inserted first). This happens only for a group's second loop (a hole,
+   or a second piece). Found on **0** of the 27,193 calls.
+2. **The nearest F cell's tie** (`_f_point`'s last fallback, `min(fset, key=distance)`). This applies to a vertex
+   with no area cell on the record's side and no F cell touching it: the centre of an empty cell where 45-degree
+   bridges meet. Three F cells around it are equally near. Found at **17** vertices on 10 levels, always with the
+   tied cells at different heights.
+
+Neither order changes when the cells' dict is reversed (the `reversed` probe: same answers on all calls), so
+reproducing the Python's choices would mean emulating CPython's tuple hash and set probing for these sets.
+
+**DICE's data** (`parity_nk3_detail.py dice`: the 18 DICE infantry files of the game copy, read only):
+
+- 44,380 of 44,380 F records are closed and counter-clockwise, with no repeated vertex.
+- No two records of one direction in an area share a vertex.
+- 195,813 of 195,813 normal-pitch F vertices are cell corners; none is at a cell centre.
+
+So DICE never produces either shape: no holes, no pinches, no vertex at an empty cell's centre. Its data cannot
+pick a rule.
+
+**The decision** (the coordinator agreed, 2026-11-22): spec rule **KYM-DF-2** (`spec/formats/hpd.md`). It is
+deterministic, and it is derived from DICE's own convention that an F record's corner heights come from the cells on
+its side.
+
+1. A loop starting at a pinch leaves along the edge whose end vertex is least (x, then z). At a pinch on the way it
+   takes the sharpest right turn, as before.
+2. Such a vertex takes the **mean height of the nearest F cells that lie furthest toward the record's side**. The
+   Python took whichever nearest cell its set gave first. It could take a cell on the record's opposite side.
+
+The rule decides only cases DICE never produces.
+
+### Parity
+
+- **The port** (`parity_nk3_detail.py compare`: the old checkout's `navdetail.py` and this checkout's Rust, each in
+  its own process, on every recorded call). The Rust gives the old Python's answers bit for bit (floats as bits,
+  -0.0 apart from 0.0) on **27,176 of 27,193 calls**. The other **17** are exactly the calls whose answers the order
+  decided. On those, the Rust gives the old Python's own answer once the Python's two choices are replaced by the
+  spec's rule (`loops_spec`, `f_point_spec`). That holds on **27,193 of 27,193** calls: 15 of 15 levels as
+  expected. The Python also gives its recorded answer on all 27,193 calls replayed (the replay is faithful).
+- **The whole builds** (`capture` with each checkout, the build clock fixed, files kept):
+  - 8 levels are **byte-identical** to the old build: ons_mp_004, sp_004_b, sp_008_b, sp_009 (the **4 golden
+    builds, as recorded**), sp_01, sp_007, sp_02 and sp_03.
+  - On sp_007, sp_02 and sp_03 the one changed vertex lies in a normal-pitch sector that the level's detailed zone
+    replaces (`merge_detailed`: sectors 0x0911, 0x0703, 0x0C06 at pitch 0.2), so it is not written.
+  - 7 levels differ, and **every differing byte is explained** (`parity_nk3_detail.py filediff`). The header,
+    every sector's fields, nodes and edges, and every mesh field are equal. Only F record point heights differ: 13
+    vertices, 30 bytes in all (the same `float32`s, 1-4 bytes each).
+  - sp_006's fifth vertex also lies in a replaced sector (0x1108).
+- **The 17 values** (heights with the 0.95 m offset; for written vertices, the files' `float32`s; area / record /
+  point index in the sector's mesh):
+
+| level | sector | area / record / point | record | vertex (x, z) | tied F cells | Python took | old y | new y | change |
+|---|---|---|---|---|---|---|---:|---:|---:|
+| ons_mp_002 | 0x0502 | 23 / 7 / 10 | +z | (292.8, -474.4) | (115, 32), (116, 31), (117, 32) | (115, 32) | 65.8034 | 65.9464 | +0.1430 |
+| sp_003_b | 0x0C06 | 40 / 1 / 11 | -x | (327.2, -432.0) | (34, 84), (34, 86), (35, 85) | (34, 84) | 187.2975 | 187.1257 | -0.1718 |
+| sp_005 | 0x0A05 | 14 / 10 / 4 | +x | (43.2, -341.6) | (53, 73), (54, 72), (54, 74) | (54, 74) | 199.0039 | 198.9950 | -0.0089 |
+| sp_005 | 0x0A0C | 104 / 11 / 6 | +z | (69.6, 391.2) | (86, 114), (87, 113), (88, 114) | (87, 113) | 273.3969 | 272.7541 | -0.6428 |
+| sp_005 | 0x0B0B | 70 / 0 / 10 | -x | (172.0, 257.6) | (90, 71), (90, 73), (91, 72) | (91, 72) | 189.1686 | 189.8559 | +0.6873 |
+| sp_005_b | 0x020F | 72 / 0 / 3 | -x | (-431.2, 682.4) | (86, 102), (86, 104), (87, 103) | (86, 102) | 323.3802 | 323.1239 | -0.2563 |
+| sp_005_b | 0x0D04 | 69 / 2 / 7 | +z | (644.0, -442.4) | (54, 72), (55, 71), (56, 72) | (56, 72) | 217.5252 | 217.4724 | -0.0528 |
+| sp_006 | 0x0312 | 6 / 9 / 10 | +x | (-689.6, 848.0) | (12, 60), (13, 59), (13, 61) | (13, 59) | 234.9392 | 235.0250 | +0.0858 |
+| sp_006 | 0x0313 | 181 / 0 / 3 | -x | (-616.8, 984.0) | (104, 104), (104, 106), (105, 105) | (104, 106) | 223.4036 | 223.3761 | -0.0275 |
+| sp_006 | 0x0E13 | 5 / 1 / 9 | -x | (448.8, 921.6) | (61, 26), (61, 28), (62, 27) | (62, 27) | 124.6782 | 124.0620 | -0.6162 |
+| sp_006 | 0x1108 (detailed zone) | not written | -x | (755.2, -185.6) | (69, 17), (69, 19), (70, 18) | (69, 17) | 107.2985 | 106.8850 | -0.4135 |
+| sp_006 | 0x120A | 21 / 7 / 4 | +x | (850.4, 64.8) | (62, 81), (63, 80), (63, 82) | (63, 80) | 163.8825 | 164.0486 | +0.1661 |
+| sp_007 | 0x0911 (detailed zone) | not written | -z | (-36.0, 891.2) | (79, 114), (80, 115), (81, 114) | (79, 114) | 257.3235 | 257.3434 | +0.0199 |
+| sp_008 | 0x0302 | 15 / 5 / 8 | +z | (-759.2, 196.8) | (50, 121), (51, 120), (52, 121) | (51, 120) | 148.2292 | 148.8641 | +0.6349 |
+| sp_02 | 0x0703 (detailed zone) | not written | -x | (23.2, -264.0) | (29, 44), (29, 46), (30, 45) | (29, 46) | 206.4756 | 206.4417 | -0.0339 |
+| sp_03 | 0x0C06 (detailed zone) | not written | -x | (327.2, -432.0) | (34, 84), (34, 86), (35, 85) | (34, 84) | 187.8239 | 187.6591 | -0.1648 |
+| sp_04 | 0x0106 | 86 / 7 / 3 | -z | (-211.2, -312.0) | (110, 110), (111, 111), (112, 110) | (110, 110) | 344.1512 | 344.1973 | +0.0461 |
+
+The tied cells are local (i, j) on the sector's sample grid; the vertex is the centre of the empty cell they
+surround. Example: on ons_mp_002, the +z record's vertex has no cell on its +z side, (116, 33). Of the three tied
+cells, (115, 32) and (117, 32) lie furthest toward +z. The new height is their mean; the Python took (115, 32) alone.
+
+- **XNAV-BLD-3** (builds may only get closer to DICE's). OPFOR's `work\navkit\regress` files were left as they
+  are. On the 10 affected levels, one level at a time, the old and the new build each went through navregress's
+  checks: hpdcheck's structure, navparity's measures against DICE's file, and navregress's `compare` with the saved
+  reference run "regression" at its 0.05 tolerance (scratch `xnav.py`, which writes nothing into OPFOR).
+  - On every level all navparity measures are **identical** between the old and the new build, D / F included: an
+    F vertex that moves at most 0.69 m stays within navdf's 1 m height match. No row value differs at all.
+  - **No measure is worse** than the reference on any of the 10 levels, old or new, and hpdcheck finds no structure
+    problem.
+  - The new builds' measures:
+
+| level | ground | areas | nodes | connectivity | AI coverage | D precision / recall | F precision / recall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ons_mp_002 | 98.38 | 1.16 | 0.13 | 100.00 | 100.0 | 49.73 / 10.35 | 25.53 / 19.23 |
+| sp_003_b | 97.41 | 0.84 | 1.47 | 93.68 | 96.5 | 50.10 / 31.25 | 31.77 / 46.94 |
+| sp_005 | 98.12 | 1.94 | 1.01 | 99.42 | 99.7 | 53.88 / 28.49 | 31.50 / 31.15 |
+| sp_005_b | 98.02 | 0.87 | 1.04 | 99.36 | 99.6 | 54.86 / 25.97 | 29.99 / 29.92 |
+| sp_006 | 99.18 | 5.77 | 0.33 | 99.46 | 98.1 | 45.56 / 28.89 | 31.93 / 48.97 |
+| sp_007 | 97.61 | 0.90 | 0.78 | 98.43 | 99.2 | 53.29 / 20.88 | 24.33 / 24.24 |
+| sp_008 | 97.63 | 1.20 | 0.54 | 98.63 | 99.3 | 57.95 / 13.63 | 40.99 / 18.03 |
+| sp_02 | 98.95 | 3.11 | 0.41 | 99.49 | 98.5 | 40.43 / 21.86 | 26.67 / 37.45 |
+| sp_03 | 97.53 | 1.18 | 1.23 | 98.46 | 99.4 | 50.28 / 28.48 | 27.41 / 38.66 |
+| sp_04 | 98.56 | 3.07 | 0.52 | 99.61 | 98.9 | 49.54 / 27.96 | 35.62 / 34.78 |
+
+  A navregress run would rewrite those 7 levels' `work\navkit\regress` files with the new bytes and report
+  them as "ok" with no measure change. It compares measures, not bytes, so it flags nothing here.
+- **NK1's apply parity**: 33 of 33 (`rust/parity_nk1_apply.py`, the old checkout against this one: the 18 DICE
+  files and the 15 regression builds). The apply's edit stage is untouched.
+- **`test_detail_features.py`**: all pass, with the random areas also checking the F cell sets the core returns.
+  **`test_navbuild_native.py`'s quick tier** (E2a / E3c / E3h recorded answers, whole stages with D and F): all
+  pass. Rust unit tests: `detail_tests.rs`, 8.
+
+### Time and memory
+
+Replaying the recorded calls (each checkout in its own process; peak = the process's peak working set above its
+working set once the calls were loaded):
+
+| | old Python | Rust |
+|---|---:|---:|
+| all 15 levels, 27,193 calls | 11.8 s | **3.3 s** (3.6x; most of it the dicts and lists crossing into and out of the core, and the `eligible` callbacks) |
+| sp_006 (2,945 calls) | 1.86 s, 61 MB | **0.42 s, 64 MB** |
+| sp_005 (3,240 calls) | 1.66 s, 54 MB | **0.40 s, 56 MB** |
+
+Inside the whole builds (each checkout's own build, alone, the build clock fixed; other agents' work beside them):
+
+| | old | new |
+|---|---:|---:|
+| `detail_features`, 15 levels | 17.6 s | **3.0 s** (5.9x) |
+| `detail_pass` (with its cells' dicts and outline edits), 15 levels | 38.1 s | **17.1 s** |
+| whole builds, 15 levels | 547 s | 356 s (the machine's load moved this more than the stage did) |
+
+The builds' peaks (2.7-9.4 GB) come from the stages before this one. The detail step's own memory is the replay's
+peak above: tens of MB either way.
+
+### Retired
+
+`navdetail.broken_sides`, `f_cell_sets`, `d_sides`, `_unit`, `corner_cuts`, `_cut`, `d_lines`, `_components`,
+`_quarters`, `_loops`, `_turn`, `_simplify`, `_f_point`, `SIDES` and `F_DIRECTION` are Python twins inside a living
+tool (RETIRED.md rule 4: recorded here and in CHANGELOG, not as RETIRED.md rows). The last commit with them is
+`8433e3a`. No command line went, and nothing outside NavKit imported them (Project OPFOR has no caller of navdetail),
+so `VERSION` stays (RELEASING.md).
+
+### What is left: NK4-NK5
+
+- NK4 (walkability end to end) and NK5 (the stage, `merge_detailed`, the driver) stand as NK1 and NK2 planned them.
+- NK5 now also takes `detail_pass`'s glue: the cells' dict from `level.y`, `eligible` from the portal keys, the
+  outline sides moved to D and `level.blocked`. With the store's areas in the core, the detail pass of a whole stage
+  can run in parallel in Rust, with no dict built and no callback. That is half of the 17 s above.
+- KYM-DF-2 also notes a fidelity gap left for later (PY1 or a NavKit parity round). NavKit's F groups can hold
+  holes, pinches and vertices at empty cells' centres, and DICE's never do: its 44,380 records are all simple loops
+  through cell corners. So DICE groups F cells differently, maybe 4-connected, or without the 45-degree bridges.
+  Measuring that on DICE's areas is a content question, not a port's.

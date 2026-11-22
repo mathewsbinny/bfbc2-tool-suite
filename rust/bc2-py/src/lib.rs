@@ -79,6 +79,7 @@ mod meshdata;
 mod meshindex;
 mod navapply;
 mod navbuild;
+mod navdetail;
 mod navfile;
 mod navgraph;
 mod navpath;
@@ -538,6 +539,10 @@ mod bc2_native {
     // assembly retired; sector_links is NavLevel.sector_links)
     #[pymodule_export]
     use super::navfile::{navkit_shadow_islands, navkit_write_graphs};
+
+    // round NK3: an area's detail features (navdetail.py's broken_sides ... _f_point retired)
+    #[pymodule_export]
+    use super::navdetail::{navkit_detail_f_cells, navkit_detail_features};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

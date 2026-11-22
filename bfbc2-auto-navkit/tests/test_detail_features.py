@@ -1,4 +1,5 @@
-r"""NavKit's D lines and F cells (navdetail.py, navbuild.detail_pass) on synthetic areas built here (no game data):
+r"""NavKit's D lines and F cells (navdetail.py - the Rust core's bc2_navbuild::detail since round NK3 - and
+navbuild.detail_pass) on synthetic areas built here (no game data):
 a flat area has none; a raised cell joined round a corner gives D lines in facing pairs (owner on the right, its
 heights) and no F cell; a cell stepped into and out of along x gives an F cell pair (-x then +x, -0.0 components,
 DICE's start corners, heights from each side); diagonal F cells are one polygon with 45-degree bridges; a side with
@@ -153,13 +154,14 @@ def main(argv):
 
     # random areas
     rnd = random.Random(7)
-    bad_pair = bad_cover = bad_closed = 0
+    bad_pair = bad_cover = bad_closed = bad_sets = 0
     n_f = n_d = 0
     navdetail.CUT_CORNERS = False                               # facing twins: without the corner cuts
     for _ in range(300):
         cells = {(i, j): rnd.choice((0.0, 0.3, 0.7, 1.4)) for i in range(6) for j in range(6) if rnd.random() < 0.85}
-        b, d, f = navdetail.detail_features(cells, P, 0, 0, 0.6)
-        fx, fz = navdetail.f_cell_sets(b)
+        feats = navdetail.features(cells, P, 0, 0, 0.6)
+        b, d, f, fx, fz = feats.broken, feats.lines, feats.cells, feats.fx, feats.fz
+        bad_sets += fx != {c for c in cells if ((c, (1, 0)) in b and (c, (-1, 0)) in b)} or             fz != {c for c in cells if ((c, (0, 1)) in b and (c, (0, -1)) in b)}
         n_f += len(f)
         n_d += len(d)
         units: Counter[tuple[tuple[float, float], tuple[float, float]]] = Counter()
@@ -181,12 +183,13 @@ def main(argv):
             # union's area is a quarter of a cell per quarter triangle
             covered = {c for c in cells if all(sum(in_poly(c[0] * P + dx, c[1] * P + dz, r.points) for r in neg) % 2
                                                for dx, dz in ((0.2, 0.01), (-0.2, 0.01), (0.01, 0.2), (0.01, -0.2)))}
-            want = sum(len(navdetail._quarters(g)) for g in navdetail._components(fs)) / 4.0 * P * P
+            want = quarter_count(fs) / 4.0 * P * P
             signed = sum(sum(a[0] * b[2] - b[0] * a[2] for a, b in zip(r.points, r.points[1:])) / 2.0 for r in neg)
             bad_cover += covered != fs or abs(signed - want) > 1e-6
     navdetail.CUT_CORNERS = True
     check(n_f > 0 and n_d > 0, f'random areas: {n_d} D lines, {n_f} F records')
     check(bad_pair == 0, f'random areas: every D side has its facing twin ({bad_pair} without)')
+    check(bad_sets == 0, f'random areas: the F cells are the cells with both sides along an axis broken ({bad_sets})')
     check(bad_closed == 0 and bad_cover == 0, f'random areas: F polygons closed and cover exactly the F cells ({bad_closed}, {bad_cover})')
 
     # kymesh writes them and reads them back
@@ -239,6 +242,17 @@ def main(argv):
           f'beside the line does not block ({free}, {on_line}, {off_line}, {straight})')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
+
+
+def quarter_count(fs):
+    """The quarter triangles covering the F cells fs: four per cell, and for each 45-degree bridge (two cells
+    touching only at a corner) two in each empty cell beside that corner - the area the F polygons must cover."""
+    q = {(c, s) for c in fs for s in ((1, 0), (-1, 0), (0, 1), (0, -1))}
+    for i, j in fs:
+        for di, dj in ((1, 1), (1, -1)):
+            if (i + di, j + dj) in fs and (i + di, j) not in fs and (i, j + dj) not in fs:
+                q |= {((i, j + dj), (0, -dj)), ((i, j + dj), (di, 0)), ((i + di, j), (-di, 0)), ((i + di, j), (0, dj))}
+    return len(q)
 
 
 def struct_f(v):
