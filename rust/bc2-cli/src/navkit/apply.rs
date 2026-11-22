@@ -427,9 +427,17 @@ fn navkit_base(
     })();
     match r {
         Ok(()) => {
-            pyos::write_text_utf8(&format!("{out}.report.txt"), &format!("{}
-", lines.join("
-")))?;
+            pyos::write_text_utf8(
+                &format!("{out}.report.txt"),
+                &format!(
+                    "{}
+",
+                    lines.join(
+                        "
+"
+                    )
+                ),
+            )?;
             if install_after {
                 super::driver::install(py, pr, lv, Some(&out))?;
             }
@@ -437,9 +445,17 @@ fn navkit_base(
         }
         Err(Fail::Err(e)) => {
             lines.push(format!("error: {}", e.msg));
-            pyos::write_text_utf8(&format!("{out}.report.txt"), &format!("{}
-", lines.join("
-")))?;
+            pyos::write_text_utf8(
+                &format!("{out}.report.txt"),
+                &format!(
+                    "{}
+",
+                    lines.join(
+                        "
+"
+                    )
+                ),
+            )?;
             Err(Fail::Err(e))
         }
         Err(Fail::Python) => Err(Fail::Python),

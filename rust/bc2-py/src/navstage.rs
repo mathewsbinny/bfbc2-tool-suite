@@ -7,6 +7,12 @@
 //! `navbuild._switches`, `navwalk._settings`): the tests switch the modules' names. The log is the caller's callable,
 //! called with each line as the build makes it.
 
+#![allow(
+    clippy::similar_names,
+    clippy::type_complexity,
+    reason = "the Python's tuples as they come (gx / gz and their float32 flags)"
+)]
+
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -86,18 +92,18 @@ fn switches_of(d: &Bound<'_, PyDict>) -> PyResult<Switches> {
         detail_terrain_only: get(d, "detail_terrain_only")?,
         cut_corners: get(d, "cut_corners")?,
         chain_turns: get(d, "chain_turns")?,
-        shadow: shadow.map(|(min_nodes, xz, dy, anchor_xz, anchor_dy, y_offset, objects_only)| Shadow {
-            min_nodes,
-            xz,
-            dy,
-            anchor_xz,
-            anchor_dy,
-            y_offset,
-            objects_only,
-        }),
-        header: header
-            .try_into()
-            .map_err(|_| value_error("36 header words needed"))?,
+        shadow: shadow.map(
+            |(min_nodes, xz, dy, anchor_xz, anchor_dy, y_offset, objects_only)| Shadow {
+                min_nodes,
+                xz,
+                dy,
+                anchor_xz,
+                anchor_dy,
+                y_offset,
+                objects_only,
+            },
+        ),
+        header: header.try_into().map_err(|_| value_error("36 header words needed"))?,
         roof_prune: get(d, "roof_prune")?,
         objective_floor: get(d, "objective_floor")?,
     })
@@ -112,8 +118,12 @@ fn inputs_of(d: &Bound<'_, PyDict>) -> PyResult<Inputs> {
     let edits = match item(d, "edits")? {
         None => None,
         Some(e) => {
-            let (regs, seeds, unseeds, counts): (Bound<'_, PyList>, Vec<[f64; 3]>, Vec<[f64; 3]>, Vec<(String, usize)>) =
-                e.extract()?;
+            let (regs, seeds, unseeds, counts): (
+                Bound<'_, PyList>,
+                Vec<[f64; 3]>,
+                Vec<[f64; 3]>,
+                Vec<(String, usize)>,
+            ) = e.extract()?;
             Some(Edits {
                 regions: regions(&regs)?,
                 seeds: points(Some(seeds)),
@@ -246,7 +256,12 @@ pub fn navkit_build<'py>(
     log: &Bound<'py, PyAny>,
     t0: f64,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let (inp, cfg, sw, ws) = (inputs_of(job)?, cfg_of(cfg)?, switches_of(switches)?, settings(walk_cfg)?);
+    let (inp, cfg, sw, ws) = (
+        inputs_of(job)?,
+        cfg_of(cfg)?,
+        switches_of(switches)?,
+        settings(walk_cfg)?,
+    );
     let out = PathBuf::from(out);
     let mut lg = PyLog::new(log, t0);
     let got = py.detach(|| build::build(&inp, &out, &cfg, &sw, &ws, clock, &mut lg));
@@ -270,7 +285,10 @@ impl NavStageGraphs {
 
     /// Per sector `(sid, nodes, pairs)`, for checks.
     fn summary(&self) -> Vec<(u32, usize, usize)> {
-        self.graphs.iter().map(|g| (g.sid, g.nodes.len(), g.pairs.len())).collect()
+        self.graphs
+            .iter()
+            .map(|g| (g.sid, g.nodes.len(), g.pairs.len()))
+            .collect()
     }
 }
 

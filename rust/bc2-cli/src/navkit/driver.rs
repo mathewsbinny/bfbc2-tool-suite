@@ -532,8 +532,9 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
             "build" => super::build::build_level(py, &pr, &lv, no_detail).map(|()| 0),
             "all" => all(py, &pr, &lv, (bx.as_deref(), y.as_deref()), yes, no_detail),
             // round NK1: a DICE base; round NK5: a NavKit base (a rebuild with the walkability edits)
-            "apply" => super::apply::apply(py, &pr, &lv, (opt("--navtune"), opt("--out")), install_flag, no_detail)
-                .map(|()| 0),
+            "apply" => {
+                super::apply::apply(py, &pr, &lv, (opt("--navtune"), opt("--out")), install_flag, no_detail).map(|()| 0)
+            }
             "status" => status(py, &pr, &lv).map(|()| 0),
             // unbuffered (navkitGUI: python -u, or PYTHONUNBUFFERED for this binary): each line out as it comes
             "prepare" if std::env::var("PYTHONUNBUFFERED").is_ok_and(|v| !v.is_empty()) => {
@@ -578,7 +579,9 @@ fn all(
     if yes {
         c.arg("--yes");
     }
-    let status = c.status().map_err(|e| navkit_error(format!("the sampling did not start: {e}")))?;
+    let status = c
+        .status()
+        .map_err(|e| navkit_error(format!("the sampling did not start: {e}")))?;
     if !status.success() {
         return Ok(status.code().unwrap_or(1)); // its error said by the sampling itself
     }

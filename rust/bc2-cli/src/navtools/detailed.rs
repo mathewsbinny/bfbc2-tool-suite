@@ -112,7 +112,12 @@ fn flagged_objects(objects: &[Value]) -> PyResult<Vec<Flagged>> {
 }
 
 /// `flagged_sectors(level_dir, common, xoff, zoff)`.
-pub(crate) fn flagged_sectors(level_dir: &str, common: &[String], xoff: i64, zoff: i64) -> PyResult<BTreeSet<(i64, i64)>> {
+pub(crate) fn flagged_sectors(
+    level_dir: &str,
+    common: &[String],
+    xoff: i64,
+    zoff: i64,
+) -> PyResult<BTreeSet<(i64, i64)>> {
     let mut bases: Vec<String> = vec![join(level_dir, &["pkg"])?, join(level_dir, &["dist"])?];
     bases.extend(common.iter().cloned());
     bases.retain(|b| pyos::isdir(b));
