@@ -184,11 +184,28 @@ count): `u32 n << 2 | 0-3` (big-endian; n the part's bytes including the word), 
 samples); BF1943's in-memory sounds one block of all packets; BF1943's streams end their last block with zero bytes
 after the parts (1,539 of 1,563). Any non-zero byte after the parts is refused. To decode, each stream's parts are
 padded to whole packets and wrapped as a RIFF WAVE with an `XMA2WAVEFORMATEX` (format tag 0x166, 2,048-byte packets)
-for ffmpeg's xma2 decoder.
+for the xma2 decoder (XMA-DEC-1).
 
 [data: BF1943 streams: 1,539 of 1,563 end their last block with zero bytes]
 [test: rust/bc2-formats/src/audioframe.rs::parts_padded_per_stream] [test: rust/bc2-formats/src/audioframe.rs::riff_layout] [code: rust/bc2-formats/src/audioframe.rs:70-101] [code: rust/bc2-formats/src/audioframe.rs:109-143]
 [doc: bfbc2-console-convert/audio.py:80-86]
+
+### XMA-DEC-1: Decoding EA-XMA: FFmpeg's xma2 decoder, its C path the reference
+
+Status: **verified** · Variants: Xbox 360, BF1943
+
+Each XMA stream's packets are decoded as `ffmpeg -cpuflags 0 -f wav` decodes the RIFF of WAVE-STR-4, to 16-bit
+samples: the WAV demuxer's packets (2,048-byte XMA packets grouped by the PCM packet-size rule), the XMA wrapper
+(the first 64 samples dropped, the last frame's trims at the end), WMA Pro frames of 512 samples (FFmpeg's
+`wmaprodec.c`, decode flags 0x10d6), its C inverse MDCT, and libswresample's float-to-16-bit rounding. The suite's
+decoder (`rust/bc2-xma`, round PR1b-1c) is that code ported and gives its samples to the bit. FFmpeg's default run
+replaces the C transforms with SIMD ones chosen by the CPU, which add in another order: its samples differ from the
+C path's in the last bit, by PC, so the C path is the reference. The game itself decodes in the Xbox 360's XMA
+hardware, which no tool reproduces; a difference of one in the last bit is far below EA-XAS's own error (XAS-ENC-1)
+when the samples are re-encoded for the PC.
+
+[data: 4,657 XMA streams (BFBC2 Xbox 1,847, BF1943 2,810), 1,039,009,766 samples: identical to ffmpeg 9.0.2 -cpuflags 0 on every stream; against its default (SIMD) run 364 streams identical, 169,447 samples (0.016 %) differ, each by 1]
+[test: rust/bc2-xma/src/mdct.rs::imdct_matches_the_definition] [test: rust/bc2-xma/src/lib.rs::random_packets_do_not_panic] [test: rust/bc2-xma/src/lib.rs::s16_rounds_half_to_even_and_saturates] [test: rust/bc2-xma/src/lib.rs::packet_size_follows_the_pcm_rule] [code: rust/bc2-xma/src/wmapro.rs:1-40] [code: rust/bc2-xma/src/lib.rs:180-240]
 
 ## EA-XAS v1
 

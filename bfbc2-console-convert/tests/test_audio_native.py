@@ -17,10 +17,12 @@ under "now", case by case; every other case must give the recorded answer.
                                        refused (beyond int16, floats, wrong shapes)
   python test_audio_native.py --game   + every Wave of Battlefield 1943 (in memory, and streamed with its waveDataSns
                                        entries) and every in-memory Wave of BFBC2's unpacked Xbox bundles (OPFOR
-                                       work\xbox): audio.convert's PC Wave against the recording (EA-XMA decoded by
-                                       ffmpeg); convert_many against convert. Skips what is missing. Options:
+                                       work\xbox): audio.convert's PC Wave against the recording (EA-XMA decoded in
+                                       the Rust core since round PR1b-1c; recorded again then, "now") and, with ffmpeg
+                                       there, against convert_reference on ffmpeg's C path (XMA-DEC-1); convert_many
+                                       against convert. Skips what is missing. Options:
                                        --every N (every Nth sound of each source; the game tier takes every 10th,
-                                       the full tier all), --limit N (sounds per source), --workers N (ffmpeg side by
+                                       the full tier all), --limit N (sounds per source), --workers N (sounds side by
                                        side)
   python test_audio_native.py --record [--game]
                                        write the "now" answers from the current code where they differ from the
@@ -262,46 +264,13 @@ def quick(golden: dict[str, Any], record: bool) -> None:
 
 # ------------------------------------------------------------------------------------------------ game
 
-class Decoded:
-    """audio.decode_xma remembered per stream: decoded in a worker thread (ffmpeg), then encoded on the main one."""
-
-    def __init__(self, real: Any) -> None:
-        self.real = real
-        self.memo: dict[Any, np.ndarray] = {}
-
-    def __call__(self, st: Any, trim: bool = True) -> np.ndarray:
-        key = (st.channels, st.rate, st.samples, trim, tuple(b for _, b in st.blocks))
-        if key not in self.memo:
-            self.memo[key] = self.real(st, trim)
-        return self.memo[key]
-
-
-DECODE_XMA = audio.decode_xma
-
-
-def prefetch(item: tuple[bytes, str, dict[int, bytes] | None]) -> Decoded:
-    """The sound's EA-XMA segments decoded (ffmpeg; in a worker thread), as convert will ask for them."""
-    b, source, streams = item
-    dec = Decoded(DECODE_XMA)
-    try:
-        w = audio.read_wave(b, 'bfbc2-xbox' if source == 'bfbc2' else source)
-        for i in range(3):
-            if w.segments[i] is not None:
-                st = audio.segment_stream(w, i, streams)
-                if st.codec == 3 and st.channels == w.channels:
-                    dec(st)
-    except audio.AudioError:
-        pass                                          # convert raises it again
-    return dec
-
-
-def converted(item: tuple[bytes, str, dict[int, bytes] | None], dec: Decoded) -> list[str]:
-    """audio.convert's outcome with the decodes remembered (main thread only: it swaps audio's decode_xma)."""
-    audio.decode_xma = dec
-    try:
-        return outcome(audio.convert, *item)
-    finally:
-        audio.decode_xma = DECODE_XMA
+def both_ways(item: tuple[bytes, str, dict[int, bytes] | None], ff: bool) -> tuple[list[str], bool | None]:
+    """audio.convert's outcome (the Rust core: EA-XMA decoded in process, XMA-DEC-1) and, with ffmpeg there, whether
+    convert_reference with ffmpeg's C path (-cpuflags 0) gives the same bytes or the same error."""
+    got = outcome(audio.convert, *item)
+    if not ff:
+        return got, None
+    return got, outcome(lambda *a: audio.convert_reference(*a, ffmpeg=True), *item) == got
 
 
 def item_sha(item: tuple[bytes, str, dict[int, bytes] | None]) -> str:
@@ -366,20 +335,24 @@ def xbox_items(every: int, limit: int | None) -> list[tuple[str, tuple[bytes, st
 def game(golden: dict[str, Any], record: bool, every: int, limit: int | None, workers: int) -> None:
     try:
         audio.ffmpeg_path()
+        ff = True
     except audio.AudioError as e:
-        print(f'SKIP --game: {e}')
-        return
+        print(f'no ffmpeg ({e}): the conversions are checked against the recording only')
+        ff = False
     for group, label, get in (('bf1943', 'Battlefield 1943', bf1943_items), ('xbox', 'BFBC2 Xbox, in memory', xbox_items)):
         items = get(every, limit)
         if not items:
             continue
         t0 = time.perf_counter()
         rec = Recorded(golden, group, record)
+        same = 0
         with ThreadPoolExecutor(workers) as ex:
-            for at in range(0, len(items), 4 * workers):          # a few ahead: decoded audio is not all kept
-                chunk = items[at:at + 4 * workers]
-                for (name, it), dec in zip(chunk, ex.map(prefetch, [it for _, it in chunk])):
-                    rec(name, converted(it, dec), item_sha(it))
+            for (name, it), (got, eq) in zip(items, ex.map(lambda x: both_ways(x[1], ff), items)):
+                rec(name, got, item_sha(it))
+                same += bool(eq)
+        if ff:
+            check(same == len(items), f'{label}: convert = convert_reference with ffmpeg -cpuflags 0 on {same} of '
+                  f'{len(items)} Waves (XMA-DEC-1)')
         print(rec.report(f'{label}: {len(items)} Waves converted ({time.perf_counter() - t0:.0f} s)'), flush=True)
         # the batch: convert_many against convert, some of them
         some = [it for _, it in items[:: max(1, len(items) // 40)]]

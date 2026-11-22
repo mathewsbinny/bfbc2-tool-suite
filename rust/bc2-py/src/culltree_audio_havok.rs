@@ -3,7 +3,7 @@
 //! | Python | binding | Rust |
 //! |---|---|---|
 //! | `culltree.Doc`'s string table | `culltree_strings` | here |
-//! | `audio.convert` / `decode` (`segment_stream`, `decode_xma` / `decode_xas`, the ffmpeg glue) | `audio_convert`, `audio_decode` | `bc2_convert::wavport` |
+//! | `audio.convert` / `decode` (`segment_stream`, `decode_xma` / `decode_xas`; EA-XMA through `bc2_xma`, no ffmpeg) | `audio_convert`, `audio_decode` | `bc2_convert::wavport` |
 //! | `hkpack.Packfile` (a handle: `deref`, `cstr`, `objects_of`, `read_object`, `read_value`) | `hkpack_open` / [`HkPackfile`] | `bc2_formats::havok::reflect` |
 //! | `navsample_offline.asset_bodies` (`_shape_parts`, `_hull_faces`, `_box_faces`) | `navkit_asset_bodies` | `bc2_navbuild::hulls` |
 //! | `meshview.load_mesh`'s part reader (`_values`) | `meshview_part` | here |
@@ -21,7 +21,6 @@
     reason = "the references' names; PyO3 extracts the arguments by value; a part's read as one tuple"
 )]
 
-use bc2_convert::wavport::Ffmpeg;
 use bc2_formats::havok::{self, reflect};
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
@@ -84,9 +83,8 @@ fn views(s: &[Option<Vec<u8>>]) -> [Option<&[u8]>; 3] {
 }
 
 /// `audio.convert(b, source, streams, word14)`: the PC Wave's bytes. `streams`: `[streams.get(i) for i in
-/// range(3)]` (bytes or `None`); `ffmpeg`: `audio.ffmpeg_path()`, or `None` (not looked for yet, or it raised): a
-/// sound that needs it then answers `'ffmpeg'`. Runs without the
-/// interpreter's lock (`convert_many`'s threads run side by side).
+/// range(3)]` (bytes or `None`). EA-XMA is decoded in process (`bc2_xma`, round PR1b-1c: no ffmpeg). Runs without
+/// the interpreter's lock (`convert_many`'s threads run side by side).
 #[pyfunction]
 pub fn audio_convert<'py>(
     py: Python<'py>,
@@ -94,7 +92,6 @@ pub fn audio_convert<'py>(
     source: &str,
     streams: &Bound<'py, PyAny>,
     word14: &Bound<'py, PyAny>,
-    ffmpeg: Option<String>,
 ) -> Option<Bound<'py, PyAny>> {
     let s = streams_of(streams)?;
     let word14 = if word14.get_type().is(py.get_type::<pyo3::types::PyInt>()) {
@@ -103,34 +100,45 @@ pub fn audio_convert<'py>(
         return None;
     };
     let data = b.as_bytes();
-    let ff = Ffmpeg {
-        path: ffmpeg.as_deref(),
-        ..Ffmpeg::default()
-    };
-    match py.detach(|| bc2_convert::wavport::convert(data, source, &views(&s), word14, &ff)) {
-        Some(out) => Some(PyBytes::new(py, &out).into_any()),
-        None if ff.wanted.load(std::sync::atomic::Ordering::Relaxed) => Some(PyString::new(py, "ffmpeg").into_any()),
-        None => None,
-    }
+    py.detach(|| bc2_convert::wavport::convert(data, source, &views(&s), word14))
+        .map(|out| PyBytes::new(py, &out).into_any())
 }
 
-/// `audio.decode(b, source, streams)`: `(int16 samples interleaved, channels, rate)`, `'ffmpeg'` as
-/// `audio_convert`, or `None`.
+/// `audio.xma_decode(packets, channels, rate)`: one XMA stream's packets (1 or 2 channels) decoded in process
+/// (`bc2_xma`, round PR1b-1c: FFmpeg's xma2 decoder ported) as ffmpeg decodes the XMA2 RIFF of them: int16 samples
+/// interleaved, little-endian; `None` for a stream the decoder does not open. Runs without the interpreter's lock.
+#[pyfunction]
+pub fn audio_xma_decode<'py>(
+    py: Python<'py>,
+    packets: &Bound<'py, PyBytes>,
+    channels: usize,
+    rate: u32,
+) -> Option<Bound<'py, PyBytes>> {
+    let data = packets.as_bytes();
+    let byte_rate = rate.saturating_mul(channels as u32).saturating_mul(2);
+    let pcm = py.detach(|| {
+        bc2_xma::decode(data, channels, rate, byte_rate)
+            .ok()
+            .map(|d| bc2_xma::to_s16(&d.planar))
+    })?;
+    let mut bytes: Vec<u8> = Vec::with_capacity(2 * pcm.len());
+    for v in &pcm {
+        bytes.extend_from_slice(&v.to_le_bytes());
+    }
+    Some(PyBytes::new(py, &bytes))
+}
+
+/// `audio.decode(b, source, streams)`: `(int16 samples interleaved, channels, rate)`, or `None`.
 #[pyfunction]
 pub fn audio_decode<'py>(
     py: Python<'py>,
     b: &Bound<'py, PyBytes>,
     source: &str,
     streams: &Bound<'py, PyAny>,
-    ffmpeg: Option<String>,
 ) -> Option<Bound<'py, PyAny>> {
     let s = streams_of(streams)?;
     let data = b.as_bytes();
-    let ff = Ffmpeg {
-        path: ffmpeg.as_deref(),
-        ..Ffmpeg::default()
-    };
-    match py.detach(|| bc2_convert::wavport::decode(data, source, &views(&s), &ff)) {
+    match py.detach(|| bc2_convert::wavport::decode(data, source, &views(&s))) {
         Some((pcm, ch, rate)) => {
             let mut bytes: Vec<u8> = Vec::with_capacity(2 * pcm.len());
             for v in &pcm {
@@ -138,7 +146,6 @@ pub fn audio_decode<'py>(
             }
             (PyByteArray::new(py, &bytes), ch, rate).into_bound_py_any(py).ok()
         }
-        None if ff.wanted.load(std::sync::atomic::Ordering::Relaxed) => Some(PyString::new(py, "ffmpeg").into_any()),
         None => None,
     }
 }

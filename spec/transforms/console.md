@@ -71,11 +71,11 @@ width with the quadtree's node count recomputed; a converted soot mesh equals it
 
 Status: **verified** · Variants: Xbox 360, BF1943
 
-A console Wave is decoded (EA-XMA, through ffmpeg) and re-encoded as EA-XAS by the suite's encoder (XAS-ENC-1) in
+A console Wave is decoded (EA-XMA, XMA-DEC-1) and re-encoded as EA-XAS by the suite's encoder (XAS-ENC-1) in
 DICE's block layout (XAS-BLK-1), held in memory in a PC Wave (WAVE-WR-1); its structure (segments, block lengths,
 sample counts) is that of the PC twins.
 
-[code: rust/bc2-convert/src/wavport.rs:205-254] [code: rust/bc2-convert/src/audio.rs:85-97]
+[code: rust/bc2-convert/src/wavport.rs:147-190] [code: rust/bc2-convert/src/audio.rs:85-97]
 [test: bfbc2-console-convert/tests/test_audio.py::main] [test: rust/bc2-convert/src/audio_tests.rs::groups_as_the_reference] [test: rust/bc2-convert/src/audio_tests.rs::layout_of_frames]
 [data: 35,811 BFBC2 twins' wrappers compared]
 
@@ -123,5 +123,3 @@ LOAD-PART-3, LOAD-PART-2, RNDR-DRAW-6.
 
 - 0x98BD6E on ONS_MP_004's console road / stop signs: which vertex layout or program the renderer lacks (layer 3,
   rendering).
-- XMA decoding depends on ffmpeg; a native EA-XMA decoder would remove the dependency and make the sound conversion
-  reproducible without it.

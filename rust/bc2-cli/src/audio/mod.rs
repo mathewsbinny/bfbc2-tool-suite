@@ -1,25 +1,22 @@
 //! Round O3's `audio` group: `bfbc2 audio bfbc2|bf1943 <input> <output> [--stream N=FILE]`, the command line of
 //! `bfbc2-console-convert\audio.py` (an Xbox 360 Wave resource, BFBC2's or Battlefield 1943's, as BFBC2's PC Wave)
 //! over the Rust core: the Wave and EA stream framing (`bc2_formats::wave`, round F0), the EA-XMA parts and the XMA2
-//! RIFF (`bc2_formats::audioframe`, F3), ffmpeg's xma2 decoder run as the Python runs it, the EA-XAS encoder
+//! RIFF (`bc2_formats::audioframe`, F3), EA-XMA decoded in process (`bc2_xma`, round PR1b-1c: no ffmpeg), the EA-XAS encoder
 //! (`bc2_convert::audio`, E3a) and DICE's blocks.
 //!
 //! The readers' errors: where the core refuses a resource or stream, [`reference`] reads it as the Python reference
 //! does, for the `AudioError` it raises (or, for a Battlefield 1943 sample rate that is NaN, the values: the core
 //! leaves those to the reference). `argparse`'s texts at the console's width or `COLUMNS` are [`crate::argfmt`]'s
 //! (round RT2). Handed to the Python: `--` and single-dash options other than `-h`; a `struct.error` of a cut header block; an `int()` the port does not
-//! read exactly (non-ASCII digits, a literal past 200 characters in its error); ffmpeg's samples that are not whole
-//! frames; a process start that fails other than "not found".
+//! read exactly (non-ASCII digits, a literal past 200 characters in its error); an XMA stream the in-process
+//! decoder gives no samples for.
 
 #![allow(
     clippy::indexing_slicing,
-    reason = "indexes within lengths checked just before (the arguments, the segments, ffmpeg's samples)"
+    reason = "indexes within lengths checked just before (the arguments, the segments, the decoded samples)"
 )]
 
 mod reference;
-
-use std::io::{Read as _, Write as _};
-use std::process::{Command, Stdio};
 
 use bc2_convert::audio as xas;
 use bc2_formats::{audioframe, wave};
@@ -360,169 +357,6 @@ fn codec_name(c: u32) -> &'static str {
     }
 }
 
-/// `os.walk(top)`'s first folder (top-down, in listing order) holding a file named `name`: its path.
-fn walk_find(top: &str, name: &str) -> Option<String> {
-    let entries: Vec<std::fs::DirEntry> = std::fs::read_dir(top).ok()?.flatten().collect();
-    let mut dirs = Vec::new();
-    let mut here = false;
-    for e in &entries {
-        let ft = e.file_type().ok();
-        let n = e.file_name().to_string_lossy().into_owned();
-        if ft.is_some_and(|t| t.is_dir() && !t.is_symlink()) {
-            dirs.push(n);
-        } else if n == name {
-            here = true;
-        }
-    }
-    if here {
-        return Some(bc2_pyrt::py::join(top, &[name]));
-    }
-    dirs.into_iter()
-        .find_map(|d| walk_find(&bc2_pyrt::py::join(top, &[&d]), name))
-}
-
-/// `shutil.which(cmd)` on Windows: the current folder first, then `PATH`'s folders (each once), each name with
-/// `PATHEXT`'s extensions.
-fn which(cmd: &str) -> Option<String> {
-    let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD;.VBS;.JS;.WS;.MSC".to_owned());
-    let exts: Vec<&str> = pathext.split(';').filter(|e| !e.is_empty()).collect();
-    let low = cmd.to_lowercase();
-    let files: Vec<String> = if exts.iter().any(|e| low.ends_with(&e.to_lowercase())) {
-        vec![cmd.to_owned()]
-    } else {
-        exts.iter().map(|e| format!("{cmd}{e}")).collect()
-    };
-    let mut dirs: Vec<String> = Vec::new();
-    if std::env::var_os("NoDefaultCurrentDirectoryInExePath").is_none() {
-        dirs.push(".".to_owned());
-    }
-    if let Some(p) = std::env::var_os("PATH") {
-        dirs.extend(
-            p.to_string_lossy()
-                .split(';')
-                .filter(|d| !d.is_empty())
-                .map(str::to_owned),
-        );
-    }
-    let mut seen = std::collections::HashSet::new();
-    for d in dirs {
-        if !seen.insert(crate::pyos::files::normcase(&d)) {
-            continue;
-        }
-        for f in &files {
-            let p = bc2_pyrt::py::join(&d, &[f]);
-            let path = std::path::Path::new(&p);
-            if path.exists() && !path.is_dir() {
-                return Some(p);
-            }
-        }
-    }
-    None
-}
-
-/// `ffmpeg_path()`.
-fn ffmpeg_path() -> AResult<String> {
-    if let Some(p) = std::env::var("FFMPEG").ok().filter(|p| !p.is_empty()) {
-        return Ok(p);
-    }
-    if let Some(p) = which("ffmpeg") {
-        return Ok(p);
-    }
-    let lad = std::env::var("LOCALAPPDATA").unwrap_or_default();
-    let base = bc2_pyrt::py::join(&lad, &["Microsoft", "WinGet", "Packages"]);
-    if bc2_pyrt::py::isdir(&base) {
-        let mut names: Vec<String> = std::fs::read_dir(&base).map_or_else(
-            |_| Vec::new(),
-            |r| {
-                r.flatten()
-                    .map(|e| e.file_name().to_string_lossy().into_owned())
-                    .collect()
-            },
-        );
-        names.sort();
-        for d in names.iter().rev() {
-            if d.starts_with("Gyan.FFmpeg")
-                && let Some(p) = walk_find(&bc2_pyrt::py::join(&base, &[d]), "ffmpeg.exe")
-            {
-                return Ok(p);
-            }
-        }
-    }
-    Err(audio_err("ffmpeg not found (PATH, $FFMPEG, WinGet Gyan.FFmpeg)"))
-}
-
-/// `ffmpeg_decode(data, 'wav', channels)`: interleaved int16 samples, through ffmpeg's pipes.
-fn ffmpeg_decode(data: &[u8], channels: usize) -> AResult<Vec<i16>> {
-    let exe = ffmpeg_path()?;
-    let spawned = Command::new(&exe)
-        .args([
-            "-v",
-            "error",
-            "-f",
-            "wav",
-            "-i",
-            "pipe:0",
-            "-f",
-            "s16le",
-            "-acodec",
-            "pcm_s16le",
-            "pipe:1",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn();
-    let mut child = match spawned {
-        Ok(c) => c,
-        // subprocess.run's OSError, uncaught: the Python's traceback names the Windows error
-        Err(e) => {
-            return Err(match e.raw_os_error() {
-                Some(2) => Outcome::Fail(Fail::Err(PyErr::new(
-                    "FileNotFoundError",
-                    "[WinError 2] The system cannot find the file specified",
-                ))),
-                Some(3) => Outcome::Fail(Fail::Err(PyErr::new(
-                    "FileNotFoundError",
-                    "[WinError 3] The system cannot find the path specified",
-                ))),
-                _ => PYTHON,
-            });
-        }
-    };
-    let stdin = child.stdin.take();
-    let input = data.to_vec();
-    let writer = std::thread::spawn(move || {
-        if let Some(mut s) = stdin {
-            let _ = s.write_all(&input);
-        }
-    });
-    let stderr = child.stderr.take();
-    let reader = std::thread::spawn(move || {
-        let mut e = Vec::new();
-        if let Some(mut s) = stderr {
-            let _ = s.read_to_end(&mut e);
-        }
-        e
-    });
-    let mut out = Vec::new();
-    if let Some(mut s) = child.stdout.take() {
-        let _ = s.read_to_end(&mut out);
-    }
-    let err = reader.join().unwrap_or_default();
-    let _ = writer.join();
-    let status = child.wait().map_err(|_| PYTHON)?;
-    if status.code() != Some(0) || (out.is_empty() && !data.is_empty()) {
-        let text = String::from_utf8_lossy(&err);
-        let text: String = text.trim_matches(bc2_pyrt::py::py_space).chars().take(300).collect();
-        return Err(audio_err(format!("ffmpeg (wav): {text}")));
-    }
-    // np.frombuffer(..., '<i2').reshape(-1, channels): whole samples of every channel, else numpy's ValueError
-    if !out.len().is_multiple_of(2 * channels.max(1)) {
-        return Err(PYTHON);
-    }
-    Ok(out.as_chunks::<2>().0.iter().map(|p| i16::from_le_bytes(*p)).collect())
-}
-
 /// `decode_xma(st)`: interleaved int16 samples, cut or padded with silence to the header's count.
 fn decode_xma(st: &Stream) -> AResult<Vec<i16>> {
     let views: Vec<&[u8]> = st.blocks.iter().map(|(_, d)| d.as_slice()).collect();
@@ -534,9 +368,10 @@ fn decode_xma(st: &Stream) -> AResult<Vec<i16>> {
     let mut cols: Vec<(usize, Vec<i16>)> = Vec::new();
     for (i, p) in parts.iter().enumerate() {
         let ch = 2.min(ch_all - 2 * i);
-        let riff =
-            audioframe::xma2_riff(p, ch as i64, i64::from(st.rate), i64::from(st.samples)).map_err(|_| PYTHON)?;
-        cols.push((ch, ffmpeg_decode(&riff, ch)?));
+        // the RIFF's own checks (a field past its width is the Python's struct.error)
+        audioframe::xma2_riff(&[], ch as i64, i64::from(st.rate), i64::from(st.samples)).map_err(|_| PYTHON)?;
+        // decoded in process (bc2_xma, round PR1b-1c); a stream it gives no samples for is the Python's
+        cols.push((ch, bc2_convert::wavport::decode_xma_part(p, ch, st.rate).ok_or(PYTHON)?));
     }
     let n = cols.iter().map(|(ch, c)| c.len() / ch).min().unwrap_or(0);
     let want = st.samples as usize;

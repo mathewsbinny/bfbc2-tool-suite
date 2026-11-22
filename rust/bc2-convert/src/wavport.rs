@@ -1,31 +1,17 @@
 //! `bfbc2-console-convert/audio.py`'s whole-resource paths in Rust (round F4): `convert` (an Xbox 360 Wave, BFBC2's
-//! or Battlefield 1943's, as BFBC2's PC Wave: every segment decoded through ffmpeg's xma2 decoder and encoded as
-//! EA-XAS v1 in DICE's blocks) and `decode` (a Wave's segments as int16 samples), with `segment_stream`,
-//! `decode_xma`, `decode_xas` and the ffmpeg glue, over the Rust readers and writers (`bc2_formats::wave`, F0;
-//! `bc2_formats::audioframe`, F3; [`crate::audio`]'s codec, E3a).
+//! or Battlefield 1943's, as BFBC2's PC Wave: every segment decoded from EA-XMA and encoded as EA-XAS v1 in DICE's
+//! blocks) and `decode` (a Wave's segments as int16 samples), with `segment_stream`, `decode_xma`, `decode_xas`,
+//! over the Rust readers and writers (`bc2_formats::wave`, F0; `bc2_formats::audioframe`, F3; [`crate::audio`]'s
+//! codec, E3a).
 //!
-//! ffmpeg runs as the Python runs it (`ffmpeg_decode`: `-v error -f wav -i pipe:0 -f s16le -acodec pcm_s16le
-//! pipe:1`, the file on its standard input); the caller passes the executable `audio.ffmpeg_path()` found. Every
-//! function answers `None` where the Python raises (an `AudioError`, NumPy's or `struct`'s errors), where a Rust
-//! reader refuses what the Python reference may read, and where ffmpeg fails or cannot start: the caller then runs
-//! the Python, whose answer or error it is.
-
-use std::io::{Read as _, Write as _};
-use std::process::{Command, Stdio};
+//! EA-XMA is decoded in process by `bc2_xma` (round PR1b-1c: FFmpeg's xma2 decoder ported, its C path's samples to
+//! the bit), where the Python reference ran ffmpeg once per XMA stream (`-f wav -i pipe:0 -f s16le`). Every function
+//! answers `None` where the Python raises (an `AudioError`, NumPy's or `struct`'s errors) and where a Rust reader
+//! refuses what the Python reference may read: the caller then runs the Python, whose answer or error it is.
 
 use bc2_formats::{audioframe, wave};
 
 use crate::audio as xas;
-
-/// The ffmpeg executable (`audio.ffmpeg_path()`), or none yet: a sound that needs it then sets `wanted` and is not
-/// converted (the caller finds ffmpeg and asks again; most sounds - PC Waves, errors - never need it).
-#[derive(Debug, Default)]
-pub struct Ffmpeg<'a> {
-    /// The executable's path.
-    pub path: Option<&'a str>,
-    /// Set when a sound needed ffmpeg and `path` was `None`.
-    pub wanted: std::sync::atomic::AtomicBool,
-}
 
 /// A decoded stream (`audio.Stream`'s fields the conversion reads).
 struct Stream {
@@ -79,59 +65,20 @@ fn segment_stream(w: &wave::Wave, src: wave::Source, i: usize, streams: &[Option
     (in_memory(&st) == u64::from(st.samples)).then_some(st)
 }
 
-/// `ffmpeg_decode(data, 'wav', channels)`: the int16 samples ffmpeg gives, interleaved.
-fn ffmpeg_decode(ffmpeg: &str, data: &[u8], channels: usize) -> Option<Vec<i16>> {
-    let mut child = Command::new(ffmpeg)
-        .args([
-            "-v",
-            "error",
-            "-f",
-            "wav",
-            "-i",
-            "pipe:0",
-            "-f",
-            "s16le",
-            "-acodec",
-            "pcm_s16le",
-            "pipe:1",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .ok()?;
-    let stdin = child.stdin.take();
-    let input = data.to_vec();
-    let writer = std::thread::spawn(move || {
-        if let Some(mut s) = stdin {
-            let _ = s.write_all(&input);
-        }
-    });
-    let stderr = child.stderr.take();
-    let reader = std::thread::spawn(move || {
-        let mut e = Vec::new();
-        if let Some(mut s) = stderr {
-            let _ = s.read_to_end(&mut e);
-        }
-    });
-    let mut out = Vec::new();
-    if let Some(mut s) = child.stdout.take() {
-        let _ = s.read_to_end(&mut out);
-    }
-    let _ = reader.join();
-    let _ = writer.join();
-    let status = child.wait().ok()?;
-    if status.code() != Some(0) || (out.is_empty() && !data.is_empty()) {
-        return None; // the Python's AudioError, with ffmpeg's message
-    }
-    if channels == 0 || !out.len().is_multiple_of(2 * channels) {
-        return None; // NumPy's reshape error
-    }
-    Some(out.as_chunks::<2>().0.iter().map(|p| i16::from_le_bytes(*p)).collect())
+/// One XMA stream's packets (one or two channels) decoded as ffmpeg's C path decodes the XMA2 RIFF
+/// `audio.xma2_riff` makes of them (XMA-DEC-1): interleaved int16 samples. Damaged packets decode as ffmpeg decodes
+/// them (its errors skipped, samples given); a stream that gives no samples is empty (the caller pads it with silence
+/// to the header's count, as it pads a short one), where the ffmpeg run raised its `AudioError` for an empty output.
+#[must_use]
+pub fn decode_xma_part(packets: &[u8], channels: usize, rate: u32) -> Option<Vec<i16>> {
+    // the RIFF's average bytes a second (rate * channels * 2) sets ffmpeg's demuxer packets
+    let byte_rate = rate.saturating_mul(channels as u32).saturating_mul(2);
+    let d = bc2_xma::decode(packets, channels, rate, byte_rate).ok()?;
+    Some(bc2_xma::to_s16(&d.planar))
 }
 
 /// `decode_xma(st)`: interleaved int16 samples, cut or padded with silence to the header's count.
-fn decode_xma(st: &Stream, ffmpeg: &Ffmpeg<'_>) -> Option<Vec<i16>> {
+fn decode_xma(st: &Stream) -> Option<Vec<i16>> {
     if st.codec != 3 {
         return None;
     }
@@ -140,16 +87,13 @@ fn decode_xma(st: &Stream, ffmpeg: &Ffmpeg<'_>) -> Option<Vec<i16>> {
     if parts.is_empty() {
         return None; // min() of nothing: ValueError
     }
-    let Some(ffmpeg) = ffmpeg.path else {
-        ffmpeg.wanted.store(true, std::sync::atomic::Ordering::Relaxed);
-        return None;
-    };
     let ch_all = st.channels as usize;
     let mut cols: Vec<(usize, Vec<i16>)> = Vec::new();
     for (i, p) in parts.iter().enumerate() {
         let ch = 2.min(ch_all.checked_sub(2 * i)?);
-        let riff = audioframe::xma2_riff(p, ch as i64, i64::from(st.rate), i64::from(st.samples)).ok()?;
-        cols.push((ch, ffmpeg_decode(ffmpeg, &riff, ch)?));
+        // the RIFF's own checks (a field past its width is the Python's struct.error)
+        audioframe::xma2_riff(&[], ch as i64, i64::from(st.rate), i64::from(st.samples)).ok()?;
+        cols.push((ch, decode_xma_part(p, ch, st.rate)?));
     }
     let n = cols.iter().map(|(ch, c)| c.len() / ch).min().unwrap_or(0);
     let want = st.samples as usize;
@@ -200,15 +144,9 @@ fn decode_xas(st: &Stream) -> Option<Vec<i16>> {
 }
 
 /// `audio.convert(b, source, streams, word14)`: the PC Wave's bytes. `streams`: each segment's `waveDataSns` bytes
-/// (`streams.get(i)`); `ffmpeg`: see [`Ffmpeg`].
+/// (`streams.get(i)`).
 #[must_use]
-pub fn convert(
-    b: &[u8],
-    source: &str,
-    streams: &[Option<&[u8]>; 3],
-    word14: u32,
-    ffmpeg: &Ffmpeg<'_>,
-) -> Option<Vec<u8>> {
+pub fn convert(b: &[u8], source: &str, streams: &[Option<&[u8]>; 3], word14: u32) -> Option<Vec<u8>> {
     let source = if source == "bfbc2" { "bfbc2-xbox" } else { source };
     if !matches!(source, "bfbc2-xbox" | "bf1943") {
         return None;
@@ -225,7 +163,7 @@ pub fn convert(
         if st.codec != 3 || st.channels != w.channels {
             return None;
         }
-        let pcm = decode_xma(&st, ffmpeg)?;
+        let pcm = decode_xma(&st)?;
         let ch = st.channels as usize;
         let frames = xas::encode(&pcm, ch).ok()?;
         let blocks = audioframe::xas_blocks(&frames, u64::from(st.samples), ch as u64, st.rate).ok()?;
@@ -252,12 +190,7 @@ pub fn convert(
 
 /// `audio.decode(b, source, streams)`: `(samples interleaved, channels, rate)`.
 #[must_use]
-pub fn decode(
-    b: &[u8],
-    source: &str,
-    streams: &[Option<&[u8]>; 3],
-    ffmpeg: &Ffmpeg<'_>,
-) -> Option<(Vec<i16>, usize, u32)> {
+pub fn decode(b: &[u8], source: &str, streams: &[Option<&[u8]>; 3]) -> Option<(Vec<i16>, usize, u32)> {
     let src = source_of(source)?;
     let w = wave::read_wave(b, src).ok()?;
     let mut out: Vec<i16> = Vec::new();
@@ -270,7 +203,7 @@ pub fn decode(
         let st = segment_stream(&w, src, i, streams)?;
         rate = Some(st.rate);
         let pcm = match st.codec {
-            3 => decode_xma(&st, ffmpeg)?,
+            3 => decode_xma(&st)?,
             4 => decode_xas(&st)?,
             _ => return None,
         };

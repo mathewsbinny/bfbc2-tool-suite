@@ -3,14 +3,16 @@ BFBC2's own Xbox files and Battlefield 1943's.
 
     import audio
     w = audio.read_wave(xbox_bytes, 'bfbc2-xbox')        # or 'bfbc2-pc', 'bf1943'
-    pcm, rate = audio.decode(xbox_bytes, 'bf1943')       # int16 (samples, channels); EA-XMA through ffmpeg
+    pcm, rate = audio.decode(xbox_bytes, 'bf1943')       # int16 (samples, channels); EA-XMA in the Rust core
     pc = audio.convert(xbox_bytes, 'bfbc2')              # BFBC2 PC Wave, EA-XAS, in memory
     pc = audio.convert(bf1943_stub, 'bf1943', streams={1: sns_bytes})   # a streamed sound (voice-over)
 
-    pcs = audio.convert_many([(xbox_bytes, 'bfbc2', None), ...])  # many at once (ffmpeg and the encoder side by side)
+    pcs = audio.convert_many([(xbox_bytes, 'bfbc2', None), ...])  # many at once (side by side in threads)
 
-Needs numpy, and ffmpeg (decoding only: EA-XMA as XMA2; on PATH, in $FFMPEG, or the WinGet Gyan.FFmpeg package) for
-anything that reads EA-XMA. The EA-XAS encoder and decoder are this module's own and run in the suite's Rust core
+Needs numpy. EA-XMA is decoded in the suite's Rust core (round PR1b-1c: rust/bc2-xma, FFmpeg's xma2 decoder ported,
+its C path's samples to the bit; xma_decode), so nothing here runs ffmpeg unless asked: ffmpeg (on PATH, in
+$FFMPEG, or the WinGet Gyan.FFmpeg package; -cpuflags 0) is only the tests' reference (decode_xma / decode_reference
+/ convert_reference with ffmpeg=True, ffmpeg_decode, ffmpeg_decode_xas). The EA-XAS encoder and decoder are this module's own and run in the suite's Rust core
 (rust/bc2-convert's audio, through bfbc2core's bc2_native), which they need: without the module (or with one built
 from other sources) they raise bfbc2core.native.NativeMissing saying how to get it (README.md, "The Rust core");
 BFBC2_PURE_PYTHON does not change that. The NumPy codec that was their reference was retired on 2026-11-18, after the
@@ -124,8 +126,7 @@ SOURCES = ('bfbc2-xbox', 'bfbc2-pc', 'bf1943')
 
 class AudioError(Exception):
     what_to_do = ('Check that the resource is a Wave from BFBC2 (Xbox 360 or PC) or Battlefield 1943 (Xbox 360); a '
-                  'streamed sound needs its <name>_waveDataSns_<n>.res from the streaming bundle; decoding EA-XMA '
-                  'needs ffmpeg (PATH or $FFMPEG).')
+                  'streamed sound needs its <name>_waveDataSns_<n>.res from the streaming bundle.')
 
 
 # ---------------------------------------------------------------- the Rust core (the EA-XAS codec)
@@ -363,7 +364,7 @@ def segment_stream(w, i, streams=None):
     return st
 
 
-# ---------------------------------------------------------------- EA-XMA (through ffmpeg)
+# ---------------------------------------------------------------- EA-XMA (the Rust core; ffmpeg as the reference)
 
 def ffmpeg_path():
     p = os.environ.get('FFMPEG') or shutil.which('ffmpeg')
@@ -380,9 +381,11 @@ def ffmpeg_path():
 
 
 def ffmpeg_decode(data, fmt, channels):
-    """int16 (samples, channels) of a file ffmpeg reads (fmt: its demuxer), through a pipe."""
-    r = subprocess.run([ffmpeg_path(), '-v', 'error', '-f', fmt, '-i', 'pipe:0', '-f', 's16le', '-acodec',
-                        'pcm_s16le', 'pipe:1'], input=data, capture_output=True)
+    """int16 (samples, channels) of a file ffmpeg reads (fmt: its demuxer), through a pipe. ffmpeg's C code only
+    (-cpuflags 0, round PR1b-1c): its SIMD transforms add in an order that depends on the CPU, so its default run
+    differs from PC to PC in the last bit of some samples (spec/formats/audio.md, XMA-DEC-1)."""
+    r = subprocess.run([ffmpeg_path(), '-v', 'error', '-cpuflags', '0', '-f', fmt, '-i', 'pipe:0', '-f', 's16le',
+                        '-acodec', 'pcm_s16le', 'pipe:1'], input=data, capture_output=True)
     if r.returncode or (not r.stdout and data):
         raise AudioError(f'ffmpeg ({fmt}): {r.stderr.decode(errors="replace").strip()[:300]}')
     return np.frombuffer(r.stdout, '<i2').reshape(-1, channels)
@@ -430,15 +433,27 @@ def xma2_riff(packets, channels, rate, samples):
     return _f3_answer(require().audio_xma2_riff(bytes(packets), channels, rate, samples), 'XMA2 RIFF')
 
 
-def decode_xma(st, trim=True):
-    """int16 (samples, channels) of an EA-XMA stream (ffmpeg's xma2 decoder per XMA stream), cut / padded to the
-    header's sample count (trim=False: as ffmpeg gives it)."""
+def xma_decode(packets, channels, rate):
+    """int16 (samples, channels) of one XMA stream's packets (1 or 2 channels) in the Rust core (round PR1b-1c:
+    bc2_native.audio_xma_decode, FFmpeg's xma2 decoder ported): ffmpeg_decode(xma2_riff(packets, channels, rate, n),
+    'wav', channels) as ffmpeg's C path (-cpuflags 0) gives it, to the bit."""
+    got = require().audio_xma_decode(bytes(packets), channels, rate)
+    if got is None:
+        raise AudioError(f'XMA2: {channels} channels at {rate} Hz: not a stream the decoder opens')
+    return np.frombuffer(got, '<i2').reshape(-1, channels)
+
+
+def decode_xma(st, trim=True, ffmpeg=False):
+    """int16 (samples, channels) of an EA-XMA stream, each XMA stream decoded by xma_decode (the Rust core), or with
+    ffmpeg=True by ffmpeg's xma2 decoder (C path: the reference the tests check the Rust against), cut / padded to the
+    header's sample count (trim=False: as the decoder gives it)."""
     if st.codec != 3:
         raise AudioError(f'EA stream codec {st.codec} ({CODECS.get(st.codec, "?")}), not EA-XMA')
     cols = []
     for i, p in enumerate(xma_parts(st)):
         ch = min(2, st.channels - 2 * i)
-        cols.append(ffmpeg_decode(xma2_riff(bytes(p), ch, st.rate, st.samples), 'wav', ch))
+        riff = xma2_riff(bytes(p), ch, st.rate, st.samples)          # its field checks either way
+        cols.append(ffmpeg_decode(riff, 'wav', ch) if ffmpeg else xma_decode(bytes(p), ch, st.rate))
     n = min(len(c) for c in cols)
     pcm = np.hstack([c[:n] for c in cols])
     if not trim:
@@ -540,30 +555,21 @@ def _stream_list(streams):
     return got if all(v is None or type(v) is bytes for v in got) else None
 
 
-def _ffmpeg_or_none():
-    try:
-        return ffmpeg_path()
-    except AudioError:
-        return None                         # the Rust core hands the sound back: the Python raises
-
-
 def decode(b, source, streams=None):
     """int16 (samples, channels) of a Wave's segments one after another, and the sample rate. In the Rust core when it
-    is built (round F4: bc2_native.audio_decode, ffmpeg run as ffmpeg_decode runs it), else decode_reference; a
-    sound it does not take (or an error) is the Python's."""
+    is built (round F4: bc2_native.audio_decode; EA-XMA decoded there since round PR1b-1c, no ffmpeg), else
+    decode_reference; a sound it does not take (or an error) is the Python's."""
     fn = _f3('audio_decode')
     sl = _stream_list(streams) if fn is not None and type(b) is bytes and type(source) is str else None
-    got = fn(b, source, sl, None) if sl is not None else None
-    if got == 'ffmpeg':                     # an EA-XMA sound: ffmpeg looked for only now, as the Python does
-        got = fn(b, source, sl, _ffmpeg_or_none())
-    if got is not None and got != 'ffmpeg':
+    got = fn(b, source, sl) if sl is not None else None
+    if got is not None:
         pcm, ch, rate = got
         return np.frombuffer(pcm, '<i2').reshape(-1, ch), rate
     return decode_reference(b, source, streams)
 
 
-def decode_reference(b, source, streams=None):
-    """The Python (the reference)."""
+def decode_reference(b, source, streams=None, ffmpeg=False):
+    """The Python (the reference): EA-XMA through xma_decode, or ffmpeg's C path with ffmpeg=True."""
     w = read_wave(b, source)
     out, rate = [], None
     for i in range(3):
@@ -572,7 +578,7 @@ def decode_reference(b, source, streams=None):
         st = segment_stream(w, i, streams)
         rate = st.rate
         if st.codec == 3:
-            out.append(decode_xma(st))
+            out.append(decode_xma(st, ffmpeg=ffmpeg))
         elif st.codec == 4:
             out.append(decode_xas(st))
         else:
@@ -585,17 +591,16 @@ def convert(b, source, streams=None, word14=0):
     every segment in memory as EA-XAS v1 in DICE's blocks. streams: {segment index: waveDataSns bytes} for streamed
     segments. word14: BFBC2's word 0x14 for a BF1943 source (0, as most BFBC2 sounds). In the Rust core when it is
     built (round F4: bc2_native.audio_convert, without the interpreter's lock: convert_many's threads run side by
-    side), else convert_reference; a sound it does not take (or an error) is the Python's."""
+    side; EA-XMA decoded there since round PR1b-1c, no ffmpeg), else convert_reference; a sound it does not take (or
+    an error) is the Python's."""
     fn = _f3('audio_convert')
     sl = _stream_list(streams) if fn is not None and type(b) is bytes and type(source) is str else None
-    got = fn(b, source, sl, word14, None) if sl is not None else None
-    if got == 'ffmpeg':                     # ffmpeg looked for once a sound needs it, as the Python does
-        got = fn(b, source, sl, word14, _ffmpeg_or_none())
+    got = fn(b, source, sl, word14) if sl is not None else None
     return got if type(got) is bytes else convert_reference(b, source, streams, word14)
 
 
-def convert_reference(b, source, streams=None, word14=0):
-    """The Python (the reference)."""
+def convert_reference(b, source, streams=None, word14=0, ffmpeg=False):
+    """The Python (the reference): EA-XMA through xma_decode, or ffmpeg's C path with ffmpeg=True."""
     source = 'bfbc2-xbox' if source == 'bfbc2' else source
     if source not in ('bfbc2-xbox', 'bf1943'):
         raise AudioError(f'convert: source {source!r} (bfbc2 or bf1943)')
@@ -610,7 +615,7 @@ def convert_reference(b, source, streams=None, word14=0):
             raise AudioError(f'segment {i}: codec {st.codec} ({CODECS.get(st.codec, "?")}), not EA-XMA')
         if st.channels != w.channels:
             raise AudioError(f'segment {i}: {st.channels} channels, the Wave says {w.channels}')
-        pc = encode_xas(decode_xma(st), st.rate)
+        pc = encode_xas(decode_xma(st, ffmpeg=ffmpeg), st.rate)
         segs.append((write_sps(pc), b''))
     out = Wave('bfbc2-pc', w.flags_id, w.total, w.intro, w.channels, w.outro,
                w.word14 if source == 'bfbc2-xbox' else word14, segs)
@@ -618,8 +623,8 @@ def convert_reference(b, source, streams=None, word14=0):
 
 
 def convert_many(items, workers=None):
-    """convert of many (b, source, streams) or (b, source, streams, word14), side by side in threads (ffmpeg runs
-    in its own processes, the Rust core's encoder without the interpreter): the PC Waves in order, each the bytes or
+    """convert of many (b, source, streams) or (b, source, streams, word14), side by side in threads (the Rust core's
+    decoder and encoder without the interpreter): the PC Waves in order, each the bytes or
     the AudioError it raised (returned, not raised). workers: the threads (default the CPU count, at most 8)."""
     items = [tuple(it) for it in items]
 

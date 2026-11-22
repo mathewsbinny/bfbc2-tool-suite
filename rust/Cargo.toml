@@ -26,7 +26,7 @@
 
 [workspace]
 resolver = "3"
-members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite", "bc2-render", "bc2-cli", "bc2-pyrt", "bc2-menu", "bc2-install", "bc2-gamefs", "bc2-tools"]
+members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite", "bc2-render", "bc2-cli", "bc2-pyrt", "bc2-menu", "bc2-install", "bc2-gamefs", "bc2-tools", "bc2-xma"]
 
 [workspace.package]
 version = "0.1.0"
@@ -52,6 +52,7 @@ bc2-menu = { path = "bc2-menu" }
 bc2-install = { path = "bc2-install" }
 bc2-gamefs = { path = "bc2-gamefs" }
 bc2-tools = { path = "bc2-tools" }
+bc2-xma = { path = "bc2-xma" }
 thiserror = "=2.0.21"
 rayon = "=1.12.0"
 # gzip of FBRB bundles: raw deflate (the gzip framing is read in bc2-formats, by the reference's rules) and CRC-32

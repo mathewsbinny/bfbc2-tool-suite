@@ -1,0 +1,16 @@
+[package]
+name = "bc2-xma"
+description = "An XMA2 decoder: FFmpeg's WMA Pro / XMA2 decoder (libavcodec/wmaprodec.c) ported to Rust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# a translation of FFmpeg's code and tables: FFmpeg's licence, not the suite's (README.md)
+license = "LGPL-2.1-or-later"
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+[lints]
+workspace = true
