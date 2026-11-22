@@ -97,4 +97,10 @@ jobs:
         run: python tests/test_types.py
 
       - name: Quick tier, game-free entries
-        run: python run_tests.py quick --no-game --ci-steps -j 2
+        # each FAIL line also as an annotation: they show on the run's page without signing in to read the log
+        run: |
+          python run_tests.py quick --no-game --ci-steps -j 2 2>&1 | Tee-Object -Variable out
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { "$_" } | Where-Object { $_ -match '^\s*FAIL' } | Select-Object -First 10 |
+            ForEach-Object { $m = $_.Trim(); if ($m.Length -gt 900) { $m = $m.Substring(0, 900) }; Write-Output "::error title=quick tier::$m" }
+          exit $code

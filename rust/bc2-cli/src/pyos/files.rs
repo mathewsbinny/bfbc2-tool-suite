@@ -7,7 +7,13 @@ use std::io;
 /// `os.stat` / `os.scandir` / `os.utime` / `os.remove` and `caches._delete_if_unchanged` as the suite's Python sees
 /// them: the caches' budget's own ([`bc2_gamefs::budget`], round PR1b-2: one implementation for the budget and these
 /// command lines).
-pub use bc2_gamefs::budget::{Stat, delete_if_unchanged, now, scandir, stat, utime_now};
+pub use bc2_gamefs::budget::{Stat, delete_if_unchanged, now, scandir, stat};
+// BF1943's source index (import, texqa) and the cull trees' cache touch their files
+#[cfg_attr(
+    not(any(feature = "import", feature = "texqa", feature = "cull")),
+    allow(unused_imports)
+)]
+pub use bc2_gamefs::budget::utime_now;
 
 /// `atomicio.locked(path)` ([`bc2_gamefs::atomic::locked`]).
 pub fn locked<T>(path: &str, f: impl FnOnce() -> T) -> io::Result<T> {

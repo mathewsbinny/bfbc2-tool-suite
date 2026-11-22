@@ -8,6 +8,8 @@
 //! The cache table and the pruning are [`bc2_gamefs::budget`]'s (round PR1b-2: one implementation, for this command
 //! line and `bfbc2core.caches` through `bc2_native`).
 
+// the caches command line's (a group built alone without it uses only after_bundle_read)
+#[cfg_attr(not(feature = "caches"), allow(unused_imports))]
 pub use bc2_gamefs::budget::{MB, PRUNE_EVERY, SPECS, Spec, TOTAL_ENV, folder};
 
 /// `fbrb._budget()` after a bundle read in a ported tool's process: `caches.maybe_prune_total()` unless the root's

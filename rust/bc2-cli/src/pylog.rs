@@ -188,10 +188,7 @@ pub fn logs_dir() -> String {
 }
 
 /// `os.path.expanduser('~')`.
-#[cfg_attr(
-    not(any(feature = "caches", feature = "graft", feature = "meshview", feature = "bf1943")),
-    allow(dead_code)
-)]
+#[cfg_attr(not(any(feature = "import", feature = "texqa", feature = "cull")), allow(dead_code))]
 pub fn home_dir() -> String {
     home()
 }
