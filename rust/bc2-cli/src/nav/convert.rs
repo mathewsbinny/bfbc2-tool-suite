@@ -598,59 +598,14 @@ fn cmd_texture(py: &mut Py, a: &Args) -> PyResult<i32> {
     Ok(0)
 }
 
-/// `np.corrcoef(a, b)[0, 1] if a.std() and b.std() else 1.0` of two integer pictures, exactly; None (the Python
-/// decides) within 1e-9 of the 0.9 threshold.
-#[allow(
-    clippy::cast_precision_loss,
-    reason = "the exact integer sums rounded once each; the 1e-9 margin around the threshold covers the rounding"
-)]
-fn correlation(a: &[[i32; 3]], b: &[[i32; 3]]) -> Option<f64> {
-    if a.len() != b.len() {
-        return None;
-    }
-    let n = i128::try_from(a.len() * 3).ok()?;
-    let (mut sa, mut sb, mut saa, mut sbb, mut sab) = (0i128, 0i128, 0i128, 0i128, 0i128);
-    for (x, y) in a.iter().flatten().zip(b.iter().flatten()) {
-        let (x, y) = (i128::from(*x), i128::from(*y));
-        sa += x;
-        sb += y;
-        saa += x * x;
-        sbb += y * y;
-        sab += x * y;
-    }
-    let va = n * saa - sa * sa;
-    let vb = n * sbb - sb * sb;
-    if va == 0 || vb == 0 {
-        return Some(1.0);
-    }
-    let c = (n * sab - sa * sb) as f64 / ((va as f64) * (vb as f64)).sqrt();
-    if !c.is_finite() || (c - 0.9).abs() < 1e-9 {
-        return None;
-    }
-    Some(c)
-}
-
-/// `texture.check(pc, reference)`: (worst, corr, same, total), None where the Python decides.
+/// `texture.check(pc, reference)`: (worst, corr); the correlation exact in the core as texture.py's
+/// (`texcheck::correlation`, round CI1: the same value as the Python's, so no margin around the 0.9 threshold).
 fn check(pc: &[u8], reference: Option<&[u8]>) -> PyResult<(Option<f64>, Option<f64>)> {
     let Some(got) = texcheck::check(pc, reference) else {
         return Err(Fail::Python);
     };
     let Some(c) = got else { return Ok((None, None)) };
-    let mut corr = None;
-    if let (Some((_same, _total, (w, h, a, b))), Some(r)) = (&c.blocks, reference) {
-        let fmt = u32::from_le_bytes(pc.get(8..12).and_then(|s| s.try_into().ok()).ok_or(Fail::Python)?);
-        let da = texcheck::decode(
-            pc.get(a.clone()).ok_or(Fail::Python)?,
-            i64::from(*w),
-            i64::from(*h),
-            fmt,
-        )
-        .ok_or(Fail::Python)?;
-        let db = texcheck::decode(r.get(b.clone()).ok_or(Fail::Python)?, i64::from(*w), i64::from(*h), fmt)
-            .ok_or(Fail::Python)?;
-        corr = Some(correlation(&da.2, &db.2).ok_or(Fail::Python)?);
-    }
-    Ok((Some(c.worst), corr))
+    Ok((Some(c.worst), c.corr))
 }
 
 fn cmd_verify_texture(py: &mut Py, a: &Args) -> PyResult<i32> {
