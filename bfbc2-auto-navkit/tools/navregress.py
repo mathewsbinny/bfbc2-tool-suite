@@ -39,8 +39,8 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
 import hpdcheck  # noqa: E402
-import navbuild  # noqa: E402
 import navparity  # noqa: E402
+import navwalk  # noqa: E402
 
 HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near', 'edges_same',
           'connectivity', 'runtime_connectivity', 'strong_share', 'ai_coverage', 'ai_pairwise',
@@ -151,7 +151,7 @@ def ladders_of(root, lv):
 
 def build_level(root, lv, out, log=lambda *a: None):
     samples, xoff, zoff, f = inputs(root, lv)
-    navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
+    navwalk.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                    seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv),
                    order_points=order_points_of(root, lv), area_orders=area_orders_of(root, lv),

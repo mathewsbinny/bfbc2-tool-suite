@@ -1,4 +1,4 @@
-r"""NavKit's water rule (navbuild.water_tops / deep_water) on a sample grid built here (no game data): ground more
+r"""NavKit's water rule (navwalk.water_tops / deep_water) on a sample grid built here (no game data): ground more
 than 1.5 m under the water is left out, shallower ground and ground outside the water are kept, stacked floors
 are judged by their own height, overlapping water pieces take the higher surface, and no water changes nothing.
 
@@ -17,7 +17,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
-import navbuild  # noqa: E402
+import navwalk  # noqa: E402
 
 
 def grid():
@@ -45,10 +45,10 @@ def main(argv):
     # water at y 3.0 over x 0..12 (two triangles), the whole z range; columns beyond x = 12 are dry
     v = np.array([[-1, 3.0, -1], [12, 3.0, -1], [12, 3.0, 9], [-1, 3.0, 9]], np.float32)
     t = np.array([[0, 1, 2], [0, 2, 3]])
-    top = navbuild.water_tops(s, v, t).reshape(s.nz, s.nx)
+    top = navwalk.water_tops(s, v, t).reshape(s.nz, s.nx)
     xs = np.arange(s.nx) * s.pitch
     check(np.allclose(top[:, xs <= 12], 3.0) and np.isinf(top[:, xs > 12.01]).all(), 'water heights: 3.0 m under the water, none beyond it')
-    deep = navbuild.deep_water(s, (v, t))
+    deep = navwalk.deep_water(s, (v, t))
     col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
     i = col % s.nx
     x = i * s.pitch
@@ -56,13 +56,13 @@ def main(argv):
     check(not deep[(i >= 10) & (s.y == 2.0) & (x <= 12)].any(), 'ground at y 2.0 (1 m deep): kept')
     check(not deep[s.y == 5.0].any(), 'a deck above the water: kept')
     check(not deep[x > 12.01].any(), 'ground outside the water: kept')
-    check(navbuild.deep_water(s, (v, t), limit=3.5).sum() == 0, 'with a 3.5 m limit nothing is too deep')
+    check(navwalk.deep_water(s, (v, t), limit=3.5).sum() == 0, 'with a 3.5 m limit nothing is too deep')
     # an overlapping, higher water piece over x 0..4: the higher surface counts there
     v2 = np.concatenate([v, np.array([[-1, 4.0, -1], [4, 4.0, -1], [4, 4.0, 9]], np.float32)])
     t2 = np.concatenate([t, np.array([[4, 5, 6]])])
-    top2 = navbuild.water_tops(s, v2, t2).reshape(s.nz, s.nx)
+    top2 = navwalk.water_tops(s, v2, t2).reshape(s.nz, s.nx)
     check(top2.max() == 4.0 and np.isclose(top2[0, 0], 4.0) and np.isclose(top2[0, 8], 3.0), 'overlapping water: the higher surface')
-    check(not navbuild.deep_water(s, None).any(), 'no water: nothing left out')
+    check(not navwalk.deep_water(s, None).any(), 'no water: nothing left out')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 

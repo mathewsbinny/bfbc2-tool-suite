@@ -61,19 +61,18 @@ tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's
   levelobjects.py    object placements, pathfinding flags, forbidden-object triangles of a level
                      (reads the level XML through core's bfbc2core/xmlinst.py: instances and field refs in any
                      attribute order - DICE's tools write guid / ref first, Napisal's type / name first)
-  navwalk.py         walkability rules + scoring against existing path data
+  navwalk.py         walkability rules + scoring against existing path data; navwalk.build: the level's whole
+                     build in the Rust core (rust\bc2-navbuild: build.rs, stage.rs), its settings the Rust defaults
+                     (bc2_native.navkit_settings(); a caller passes what it changes, e.g. --no-detail)
   detailed.py        which sectors are detailed zones (pitch 0.2), from the level alone
   ladders.py         the level's ladders and their collision boxes, for ladder links (written by prepare)
   sample_all.py      unattended in-game sampling of several levels
-  navbuild.py        the generator: samples + level objects -> pathdata.hpd (its last stage, graphs to file - the
-                     shadow islands, the order nodes, the node and edge tables, the neighbour links, the file - in
-                     the Rust core since round NK2: rust\bc2-navbuild\src\graphfile.rs)
   hpdcheck.py        structure of a pathdata.hpd: closed boundaries, edges, node order, D / F (as DICE's files)
   navdetail.py       D lines and F cells of an area (DICE's rule; in the Rust core since round NK3:
-                     rust\bc2-navbuild\src\detail.rs; used by navbuild; tests\test_detail_features.py)
+                     rust\bc2-navbuild\src\detail.rs; the build's is the stage's own; tests\test_detail_features.py)
   navislands.py      shadow islands: small route islands beside a larger one lose their nodes (the rule's
-                     settings and terrain nodes; the rule runs in the Rust core since round NK2, in
-                     navbuild.write_file; tests\test_navislands.py; see "Route islands")
+                     settings and terrain nodes; the rule runs in the Rust core since round NK2, in the build's
+                     writer; tests\test_navislands.py; see "Route islands")
   ordercheck.py      scoring: AI order positions on the areas, pairwise route check, self-check
   navcompare.py      two files on a level's AI positions: coverage, main network, pairwise, size
   navdiff.py         two files layer by layer: sectors, walkable cells, areas, boundaries, route graph
@@ -91,6 +90,11 @@ tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's
                      game launch; the stock MP batch (see "Standalone sampling")
   navnative.py       the Rust core's switch for the tools around the build (round E4e; BFBC2_NAVTOOLS_PYTHON=1)
   (graphstats.py     retired 2026-11-20, round RT1: bfbc2.exe graphstats)
+  (navbuild.py       retired 2026-11-22, round NK5-rest: the generator - samples + level objects -> pathdata.hpd - is
+                     the Rust core's since round NK5 (navwalk.build calls it); its settings and switches, which the
+                     notes below call navbuild.NAME, are the Rust BuildSettings / Switches fields of the lower-case
+                     name (rust\bc2-navbuild\src\stage.rs); its tests are Rust tests (stage_tests.rs) and
+                     tests\test_navbuild_native.py)
   (navlinks.py, navtraversal.py  retired 2026-11-21, round NK1: navkit apply's links, route edges and traversal
                      annotations are the Rust core's - rust\bc2-navbuild\src\graphedit.rs; navkit.graph_edits /
                      write_traversal call it, bfbc2.exe navkit apply answers a DICE base itself)
@@ -102,7 +106,7 @@ src\                 (reserved, empty)
 
 `tools\navsample_offline.py` writes the same files as OPFOR's `[dev] navsample` (version 3, both capsule runs, 0.8 m
 and 0.2 m over the detailed sectors) without starting the game, into `work\navsample_offline\`. NavKit's build takes
-them unchanged (`navbuild.build` with those paths).
+them unchanged (`navwalk.build` with those paths).
 
 ```
 python tools\navsample_offline.py all <level>                   prepare + sample 0.8 / 0.2 + build + check
@@ -330,7 +334,7 @@ form polygons stored twice, -axis then +axis, each corner's height from the cell
 outline. The runtime's straight-move test reads them (spec §4.5); route edges in DICE's files never cross a D line.
 
 - **`navbuild.DETAIL_FEATURES`** (on - `BuildSettings.detail_features`; `navkit.py build --no-detail` /
-  `navbuild.py --no-detail` for the output before): `tools\navdetail.py` per area, called by `navbuild.detail_pass`
+  `navbuild.py --no-detail`, retired, for the output before): `tools\navdetail.py` per area, called by `navbuild.detail_pass`
   before the outline is emitted (the rule runs in the Rust core since round NK3; the two choices DICE's files never
   meet - a loop of an F group starting at a pinch, an F vertex in an empty bridge cell - follow spec rule KYM-DF-2); broken sides leave the outline only in pairs (every boundary stays closed -
   `hpdcheck.py` also checks D / F structure now). `DETAIL_STEP` 0.6 m at pitch 0.8, 0.3 m (NavKit's own link step) at pitch 0.2.
@@ -417,7 +421,8 @@ rule below; AI order coverage on both Onslaught maps 100 %.
 - **Exact bridge tracing (2026-10-23; the `BRIDGE_UNION` switch and the old clipping removed 2026-11-18):** an area's 45-degree bridges are the exact union of
   the quarter cells they cut, traced as one outline, in place of clipping each bridge on its own (`clip_bridges`,
   which left gaps where bridges met: open boundaries, and walkable ground in no area). Ground 98.12 -> 98.22 %,
-  extra 8.36 -> 8.31; checked by `tests\test_bridge_union.py` (600 random patterns; the old method fails 107) and by
+  extra 8.36 -> 8.31; checked by `tests\test_bridge_union.py` (600 random patterns; the old method fails 107; a Rust test since
+  round NK5-rest: `bridge_outlines_are_closed`) and by
   `hpdcheck.py` on every regression build.
 
 - **The default pipeline:** `navkit.py sample` (and `all`, and the window's buttons) samples the level at 0.8 m, chooses

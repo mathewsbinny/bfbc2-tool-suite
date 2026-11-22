@@ -1,4 +1,4 @@
-r"""NavKit's bound to the reference extent (navbuild.outside_bounds, CLIP_TO_REFERENCE; navregress.reference_bounds) and
+r"""NavKit's bound to the reference extent (navwalk.outside_bounds, the build setting clip_to_reference; navregress.reference_bounds) and
 the edge-sector rule switch, without game data: surfaces outside the box (every floor of a column) are marked, the
 box edges are inclusive; reference_bounds takes outlines and portals at every pitch and leaves out border portals,
 and gives None for a level without path data; the defaults.
@@ -23,8 +23,8 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
 import kymesh  # noqa: E402
-import navbuild  # noqa: E402
 import navregress  # noqa: E402
+import navwalk  # noqa: E402
 
 
 def main(argv):
@@ -40,12 +40,12 @@ def main(argv):
     counts = [2 if (i, j) == (2, 1) else 1 for j in range(nz) for i in range(nx)]
     s: Any = SimpleNamespace(nx=nx, nz=nz, pitch=0.8, min_x=0.0, min_z=0.0,       # a navsample.Samples stand-in
                              start=np.concatenate([[0], np.cumsum(counts)]))
-    out = navbuild.outside_bounds(s, (0.8, 0.8, 2.4, 0.8))      # keeps x 0.8..2.4, z 0.8: columns i 1..3, j 1
+    out = navwalk.outside_bounds(s, (0.8, 0.8, 2.4, 0.8))      # keeps x 0.8..2.4, z 0.8: columns i 1..3, j 1
     col = np.repeat(np.arange(nx * nz), counts)
     kept = sorted({(c % nx, c // nx) for c in col[~out].tolist()})
     check(kept == [(1, 1), (2, 1), (3, 1)], f'inside: columns 1..3 of row 1, edges inclusive ({kept})')
     check(int((~out).sum()) == 4, 'both floors of a column inside are kept')
-    check(navbuild.outside_bounds(s, (-1, -1, 99, 99)).sum() == 0, 'a box around everything leaves nothing out')
+    check(navwalk.outside_bounds(s, (-1, -1, 99, 99)).sum() == 0, 'a box around everything leaves nothing out')
 
     # reference_bounds on a file faked through navparity / hpdtool
     area = SimpleNamespace(outline=[[(1.0, 0.0, 2.0), (3.0, 0.0, 2.0)]], portals=[SimpleNamespace(p0=(0.5, 0, 2.5), p1=(0.5, 0, 4.0))],
@@ -71,7 +71,8 @@ def main(argv):
         hpdtool.parse, kymesh.parse_mesh = real_parse, real_mesh
     check(b == (0.5, 1.6, 3.2, 4.0), f'reference extent from outlines and portals of every area, no border portals ({b})')
     check(none is None, 'no reference path data: no bound (a new map keeps its sampling box)')
-    check(navbuild.CLIP_TO_REFERENCE and navbuild.EDGE_SECTOR_RULE == 'grid_min' and navbuild.EDGE_SECTOR_TILES,
+    cfg, sw = navwalk.require_native().navkit_settings()       # the build's Rust defaults
+    check(cfg['clip_to_reference'] and sw['edge_rule_grid_min'] and sw['edge_sector_tiles'],
           'defaults: clip to the reference extent, edge-sector tiles on the grid minimum')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0

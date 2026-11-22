@@ -30,7 +30,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('navkit-tools')
 import navsample  # noqa: E402
 
-# The Rust core (rust/bc2-navbuild through bc2_native; navbuild.py's notes): walkable's flood, islands_of and
+# The Rust core (rust/bc2-navbuild through bc2_native): walkable's flood, islands_of and
 # matched_flags (round E1d), the walkability rules - headroom, stair_slope, narrow_lips, the stair landings,
 # near_objects / on_objects (E2a), near_characters, the seed picks, the roof rule (E3c) and the unseeds (E3h) - run in
 # it. Their Python was retired after the full test tier (2026-11-17 and 2026-11-18, round R1: rust/BENCHMARKS.md
@@ -394,8 +394,7 @@ def walk_inputs(forbid_tris: np.ndarray | None = None, step: float = 0.28, terra
                 soldier_points: Sequence[Sequence[float]] | None = None,
                 ladders: Sequence[dict[str, Any]] | None = None, anchors: Iterable[Sequence[float]] | None = None,
                 objective_points: Sequence[Sequence[float]] | None = None) -> dict[str, Any]:
-    """walkable's arguments as the Rust core takes them (navbuild.stage passes the same, the runs and forced flags
-    as files and regions)."""
+    """walkable's arguments as the Rust core takes them."""
     return dict(forbid=_tris(forbid_tris), dynamic=_tris(dynamic_tris), stair_tris=_tris(stair_tris),
                 exclude=_tris(exclude_tris), exclude_foot=_tris(exclude_footprint_tris), high=_capsule(high_capsule),
                 narrow=_capsule(narrow_capsule), step=float(step), terrain_seeds_only=bool(terrain_seeds_only),
@@ -453,7 +452,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
       clearance of the high_capsule run (capsule from 0.6 m) instead of the normal one.
     Hand edits (navedits.py): force_walkable / force_unwalkable (bool per surface) override the rules before
     seeding; unseeds (points) drop the island each lies on after seeding. grid_out: a list the floods' NavLevel is
-    appended to (navbuild.stage makes its Level's from it - NavLevel.with_walk). In the Rust core
+    appended to. In the Rust core
     (bc2_navbuild::walk::walkable, round NK4; the rules in the order this docstring's module notes give them)."""
     nat = require_native()
     args = walk_inputs(forbid_tris, step, terrain_seeds_only, dynamic_tris, high_capsule, stairs, narrow_capsule,
@@ -492,6 +491,121 @@ def roof_islands(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.
             ROOF_STATS['dropped'] = ROOF_STATS.get('dropped', 0) + stats[1][0]
             ROOF_STATS['surfaces'] = ROOF_STATS.get('surfaces', 0) + stats[1][1]
     return np.frombuffer(got, np.bool_).copy()
+
+
+# ------------------------------------------------------------------------------------------------ the build
+# NavKit's whole build runs in the Rust core (round NK5: bc2_navbuild::build through bc2_native.navkit_build). Its
+# settings and switches are the Rust defaults (bc2_navbuild::stage::BuildSettings / Switches; bc2_native.
+# navkit_settings() lists them); a caller passes only what it changes. navbuild.py, which held them as a Python
+# dataclass and module names beside the retired Python stage, went in round NK5-rest (rust/BENCHMARKS.md
+# "NK5-rest").
+
+MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
+                                # water is within 1.45 m, median over 11 levels; navwater.py)
+
+
+def water_tops(s: Any, vertices: np.ndarray | None, triangles: np.ndarray) -> np.ndarray:
+    """The water surface height over every sample column (-inf where there is no water). The columns are a regular
+    grid, so each water triangle only visits the columns its bounding box covers. In the Rust core (round NK4:
+    bc2_navbuild::walk::water_tops); s: anything with nx, nz, pitch, min_x, min_z."""
+    if vertices is None or not len(triangles):
+        return np.full(int(s.nx) * int(s.nz), -np.inf)
+    got = require_native().navkit_water_tops(
+        int(s.nx), int(s.nz), float(s.pitch), float(s.min_x), float(s.min_z),
+        np.ascontiguousarray(vertices, '<f8').tobytes(), np.ascontiguousarray(triangles, '<i8').tobytes())
+    return np.frombuffer(got, '<f8').copy()
+
+
+def outside_bounds(s: Any, bounds: Sequence[float]) -> np.ndarray:
+    """Surfaces whose column lies outside bounds (minX, minZ, maxX, maxZ) - bool per surface (the build setting
+    clip_to_reference: the bound to DICE's path data's extent); in the Rust core."""
+    got = require_native().navkit_outside_bounds(run_dict(s, normals=False), [float(v) for v in bounds[:4]])
+    return np.frombuffer(got, np.bool_).copy()
+
+
+def deep_water(s: Any, water: tuple[np.ndarray, np.ndarray] | None, limit: float = MAX_WATER_DEPTH) -> np.ndarray:
+    """Surfaces more than limit metres under the level's water (bool per surface). water: (vertices, triangles). In
+    the Rust core."""
+    if water is None:
+        return np.zeros(len(s.y), dtype=bool)
+    top = water_tops(s, water[0], water[1])
+    got = require_native().navkit_deep_water(run_dict(s, normals=False),
+                                             np.ascontiguousarray(top, '<f8').tobytes(), float(limit))
+    return np.frombuffer(got, np.bool_).copy()
+
+
+def clock_words(stamp: Any) -> tuple[int, int]:
+    """A sector's (date, clock) words of a time.localtime() stamp."""
+    return ((stamp.tm_year % 100) * 10000 + (stamp.tm_mon - 1) * 100 + stamp.tm_mday,
+            stamp.tm_hour * 1000000 + stamp.tm_min * 10000 + stamp.tm_sec * 100)
+
+
+def switches() -> dict[str, Any]:
+    """The build's switches this module owns (the stage's log line names what walkability did); the others are the
+    Rust defaults."""
+    return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR))
+
+
+def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,
+          log: Any = print, dynamic_path: str | None = None, high_path: str | None = None,
+          narrow_path: str | None = None, stairs_path: str | None = None, exclude_path: str | None = None,
+          exclude_foot_path: str | None = None, seeds: Sequence[Sequence[float]] | None = None,
+          edits: list[dict[str, Any]] | None = None, water: tuple[np.ndarray, np.ndarray] | None = None,
+          max_water_depth: float | None = MAX_WATER_DEPTH, bounds: Sequence[float] | None = None,
+          order_points: Sequence[Sequence[float]] | None = None, detailed: dict[str, Any] | None = None,
+          ladders: Sequence[dict[str, Any]] | None = None, area_orders: Sequence[Sequence[float]] | None = None,
+          settings: dict[str, Any] | None = None) -> dict[str, Any]:
+    """A level's path data from its sample runs, written to out_path: NavKit's whole build in the Rust core
+    (bc2_navbuild::build; the steps are rust/bc2-navbuild/src/stage.rs's). The log lines come through log as the build
+    makes them; returns the build's counts (order nodes, ladders, D / F, shadow islands, steep ground, what was
+    written).
+    edits: the operations of a navigation side file (navedits.regions_of reads the walkability ones).
+    water: the level's water mesh (vertices, triangles; core/bfbc2core/water.py): ground more than max_water_depth
+    under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win).
+    bounds: (minX, minZ, maxX, maxZ) of the reference path data (clip_to_reference), or None.
+    detailed: {'samples': a pitch-0.2 sampling run, 'high': its high-capsule run (or None), 'sectors': {(X, Y)}} -
+    those sectors are built at pitch 0.2 (DICE's detailed zones) and merged with the normal build.
+    settings: build settings over the Rust defaults (e.g. {'detail_features': False}; bc2_native.navkit_settings()
+    lists them), None: the defaults."""
+    import time
+    nat = require_native()                  # the build runs in the Rust core: say so before reading anything
+    t0 = time.time()
+
+    def npy(p: str | None) -> np.ndarray | None:
+        return np.load(p) if p else None
+    wet = water is not None and max_water_depth is not None
+    wmesh = None
+    if wet and water is not None:
+        wmesh = ((np.ascontiguousarray(water[0], '<f8').tobytes(), np.ascontiguousarray(water[1], '<i8').tobytes())
+                 if water[0] is not None and len(water[1]) else (b'', b''))
+    job: dict[str, Any] = dict(
+        samples=samples_path, high=high_path, narrow=narrow_path, forbid=_tris(npy(tris_path)),
+        dynamic=_tris(npy(dynamic_path)), stairs=_tris(npy(stairs_path)),
+        exclude=_tris(npy(exclude_path)), exclude_foot=_tris(npy(exclude_foot_path)),
+        step=float(step), xoff=int(xoff), zoff=int(zoff), seeds=list(seeds or []), water=wmesh,
+        max_water_depth=float(max_water_depth) if wet and max_water_depth is not None else None,
+        bounds=[float(v) for v in bounds[:4]] if bounds is not None else None,
+        order_points=list(order_points) if order_points is not None else None,
+        area_orders=list(area_orders) if area_orders else None,
+        ladders=_ladders(ladders) if ladders is not None else None)
+    if edits:
+        import navedits
+        regions, hand_seeds, unseeds, counts = navedits.regions_of(edits)
+        job['edits'] = (regions, hand_seeds, unseeds, list(counts.items()))
+    if detailed:
+        job['detailed'] = (detailed['samples'], detailed.get('high'), sorted(detailed['sectors']))
+    stamp = time.localtime()
+    try:
+        return cast(dict[str, Any], nat.navkit_build(job, settings, switches(), _settings(40.0), clock_words(stamp),
+                                                     out_path, log, t0))
+    except ValueError as e:
+        if str(e).startswith('no walkable ground') or 'outside the 256 x 256 grid' in str(e):
+            raise RuntimeError(str(e)) from None      # the stage's refusals, as the Python stage raised them
+        for p in (samples_path, high_path, narrow_path,
+                  *((detailed['samples'], detailed.get('high')) if detailed else ())):
+            if p:
+                navsample.load(p)                    # a file the core does not read: navsample.load says why
+        raise
 
 
 def score(s: navsample.Samples, keep: np.ndarray, hpd: str, tol: float = 0.6) -> dict[str, float]:

@@ -93,7 +93,7 @@
    ],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 1035,
+   "lines": 1032,
    "note": "Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions",
    "path": "bfbc2-auto-navkit/navkit.py",
    "retiring": "NK5",
@@ -108,30 +108,6 @@
    "lines": 128,
    "note": "navkit apply with walkability edits, on a level's NavKit build (sp_004_b by default; about 3 minutes): - no...",
    "path": "bfbc2-auto-navkit/tests/test_apply.py",
-   "retiring": "Tests in Rust",
-   "rust": "",
-   "status": "test"
-  },
-  {
-   "callers": "run_tests.py",
-   "embedded_by": [],
-   "folder": "bfbc2-auto-navkit",
-   "kind": "test",
-   "lines": 66,
-   "note": "NavKit's area link rule (navbuild.Level.connected with rule 'terrain' / 'raw', navbuild.components) on a sa...",
-   "path": "bfbc2-auto-navkit/tests/test_area_link.py",
-   "retiring": "Tests in Rust",
-   "rust": "",
-   "status": "test"
-  },
-  {
-   "callers": "run_tests.py",
-   "embedded_by": [],
-   "folder": "bfbc2-auto-navkit",
-   "kind": "test",
-   "lines": 104,
-   "note": "NavKit's 45-degree bridge outlines (navbuild.trace_emit, the Rust core's union of an area's bridges) on ran...",
-   "path": "bfbc2-auto-navkit/tests/test_bridge_union.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
@@ -165,20 +141,8 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 61,
-   "note": "navbuild.column_sectors: the sector of every sample column is floor(x / 100) of its position from the store...",
-   "path": "bfbc2-auto-navkit/tests/test_column_sectors.py",
-   "retiring": "Tests in Rust",
-   "rust": "",
-   "status": "test"
-  },
-  {
-   "callers": "run_tests.py",
-   "embedded_by": [],
-   "folder": "bfbc2-auto-navkit",
-   "kind": "test",
-   "lines": 234,
-   "note": "NavKit's D lines and F cells (navdetail.py - the Rust core's bc2_navbuild::detail since round NK3 - and nav...",
+   "lines": 197,
+   "note": "NavKit's D lines and F cells (navdetail.py - the Rust core's bc2_navbuild::detail since round NK3) on synth...",
    "path": "bfbc2-auto-navkit/tests/test_detail_features.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -261,7 +225,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 909,
+   "lines": 1045,
    "note": "NavKit in the Rust core (rust/bc2-navbuild through bc2_native).",
    "path": "bfbc2-auto-navkit/tests/test_navbuild_native.py",
    "retiring": "Tests in Rust",
@@ -297,7 +261,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 112,
+   "lines": 121,
    "note": "NavKit's shadow-island rule (navislands.py, SHADOW_ISLANDS; in the Rust core since round NK2) on route grap...",
    "path": "bfbc2-auto-navkit/tests/test_navislands.py",
    "retiring": "Tests in Rust",
@@ -381,20 +345,8 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 105,
-   "note": "NavKit's portal symmetry (navbuild.trace, SYMMETRIC_PORTALS / ONE_WAY_PORTALS) on sample grids built here (...",
-   "path": "bfbc2-auto-navkit/tests/test_portal_symmetry.py",
-   "retiring": "Tests in Rust",
-   "rust": "",
-   "status": "test"
-  },
-  {
-   "callers": "run_tests.py",
-   "embedded_by": [],
-   "folder": "bfbc2-auto-navkit",
-   "kind": "test",
-   "lines": 70,
-   "note": "NavKit's bound to the reference extent (navbuild.outside_bounds, CLIP_TO_REFERENCE; navregress.reference_bo...",
+   "lines": 71,
+   "note": "NavKit's bound to the reference extent (navwalk.outside_bounds, the build setting clip_to_reference; navreg...",
    "path": "bfbc2-auto-navkit/tests/test_reference_clip.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -429,7 +381,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 197,
+   "lines": 153,
    "note": "Edge cases of NavKit's smaller tools, on data built here (no game data): - ordercheck / navcompare on path...",
    "path": "bfbc2-auto-navkit/tests/test_tool_edges.py",
    "retiring": "Tests in Rust",
@@ -478,7 +430,7 @@
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
    "lines": 59,
-   "note": "NavKit's water rule (navbuild.water_tops / deep_water) on a sample grid built here (no game data): ground m...",
+   "note": "NavKit's water rule (navwalk.water_tops / deep_water) on a sample grid built here (no game data): ground mo...",
    "path": "bfbc2-auto-navkit/tests/test_water_rule.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -553,7 +505,7 @@
    "status": "live"
   },
   {
-   "callers": "navkit.py, navbuild, navdetail, hpdtool, detailed, hpdcheck; tests 10",
+   "callers": "navkit.py, navdetail, hpdtool, detailed, hpdcheck; tests 10",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
@@ -579,7 +531,7 @@
    "status": "twin"
   },
   {
-   "callers": "navkit.py, navbuild, navregress, navsample_offline, navwalk, ladders; tests 5",
+   "callers": "navkit.py, navregress, navsample_offline, navwalk, ladders; tests 5",
    "embedded_by": [
     "rust/bc2-cli/src/navkit/levelobjects.rs"
    ],
@@ -605,18 +557,6 @@
    "status": "live"
   },
   {
-   "callers": "navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh; tests 12",
-   "embedded_by": [],
-   "folder": "bfbc2-auto-navkit",
-   "kind": "library",
-   "lines": 1331,
-   "note": "build is a thin call (NK5: the whole build in Rust); left: the stage / merge_detailed / detail_pass twins the tests read, BuildSettings and the switches the bindings read (rust/BENCHMARKS.md \"NK5\", \"What is left\")",
-   "path": "bfbc2-auto-navkit/tools/navbuild.py",
-   "retiring": "NK5-rest",
-   "rust": "bc2_navbuild::build / ::stage (navkit_build, navkit_stage_grid)",
-   "status": "twin"
-  },
-  {
    "callers": "navkit.py, navparity; tests 3",
    "embedded_by": [
     "rust/bc2-cli/src/navkit/navcompare.rs"
@@ -631,12 +571,12 @@
    "status": "twin"
   },
   {
-   "callers": "navbuild; tests 1; rust/parity_nk3_detail.py",
+   "callers": "tests 1; rust/parity_nk3_detail.py (a pinned checkout)",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
    "lines": 86,
-   "note": "NK3 retired the Python rule; left: the stage's detail_pass glue in navbuild (NK5)",
+   "note": "NK3 retired the Python rule; the build's detail pass is the Rust stage's (NK5); features() for the tests",
    "path": "bfbc2-auto-navkit/tools/navdetail.py",
    "retiring": "NK5",
    "rust": "bc2_navbuild::detail (navkit_detail_features)",
@@ -679,7 +619,7 @@
    "status": "twin"
   },
   {
-   "callers": "navbuild, navwalk; tests 2",
+   "callers": "navwalk; tests 2",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "shim",
@@ -691,12 +631,12 @@
    "status": "ported"
   },
   {
-   "callers": "navbuild; tests 1; rust/parity_nk2_file.py",
+   "callers": "tests 1; rust/parity_nk2_file.py (a pinned checkout)",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 80,
-   "note": "NK2 moved the rule; note_nodes / rule glue are the stage's",
+   "lines": 81,
+   "note": "NK2 moved the rule; prune / note_nodes for callers outside the build (the build's are the Rust defaults)",
    "path": "bfbc2-auto-navkit/tools/navislands.py",
    "retiring": "NK5",
    "rust": "bc2_navbuild::graphfile::shadow_islands",
@@ -721,7 +661,7 @@
    ],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 292,
+   "lines": 415,
    "note": "Rust answers argument errors and \"no reference run\"; left: run (the measures over many levels)",
    "path": "bfbc2-auto-navkit/tools/navparity.py",
    "retiring": "NK5",
@@ -734,14 +674,14 @@
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
    "lines": 265,
-   "note": "the regression builds call navbuild.build (Rust since NK5); left: the run, its inputs and measures in Python",
+   "note": "the regression builds call navwalk.build (Rust since NK5); left: the run, its inputs and measures in Python",
    "path": "bfbc2-auto-navkit/tools/navregress.py",
    "retiring": "NK5",
    "rust": "bfbc2 navregress (arguments only)",
    "status": "live"
   },
   {
-   "callers": "navkit.py, navbuild, detailed, navparity, navsample_offline, navvehicle; tests 8",
+   "callers": "navkit.py, navwalk, detailed, navparity, navsample_offline, navvehicle; tests 8",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
@@ -769,32 +709,32 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 787,
-   "note": "obstacle distance (E4e) and stage_on_grid / write (NK5: navkit_stage_grid) in Rust; left: the flood, the seeds and the command line",
+   "lines": 789,
+   "note": "obstacle distance (E4e) and stage_on_grid / write (NK5: navkit_stage_grid; NK5-rest: its settings as overrides of the Rust defaults) in Rust; left: the flood, the seeds and the command line",
    "path": "bfbc2-auto-navkit/tools/navvehicle.py",
-   "retiring": "NK5-rest",
+   "retiring": "proposed: A3",
    "rust": "bc2_navbuild vehicle (navkit_obstacle_distance)",
    "status": "partly"
   },
   {
-   "callers": "navbuild, navislands, navvehicle, navwater_mesh, level; tests 10",
+   "callers": "navkit.py, navregress, navsample_offline, navislands, navvehicle, navwater_mesh, level; tests 12",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 484,
-   "note": "walkable, coarse and the rules are Rust (NK4); left: score's command line, step_fits for navbuild.Level",
+   "lines": 582,
+   "note": "walkable, coarse and the rules are Rust (NK4); build / water_tops / outside_bounds / deep_water are thin calls of the Rust build (NK5-rest: navbuild.py's); left: score's command line",
    "path": "bfbc2-auto-navkit/tools/navwalk.py",
    "retiring": "NK5",
    "rust": "bc2_navbuild::walk, ::rules (navkit_walkable, navkit_walk_stage)",
    "status": "partly"
   },
   {
-   "callers": "navbuild, navwater_mesh; tests 1",
+   "callers": "navwater_mesh; tests 1",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
    "lines": 193,
-   "note": "water depth against DICE's coverage (a measure); navbuild.water_tops is Rust since NK4 (bc2_navbuild::walk)",
+   "note": "water depth against DICE's coverage (a measure); navwalk.water_tops is Rust since NK4 (bc2_navbuild::walk)",
    "path": "bfbc2-auto-navkit/tools/navwater.py",
    "retiring": "proposed: NKG1",
    "rust": "",
@@ -806,7 +746,7 @@
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
    "lines": 884,
-   "note": "boats' navigation side file (prototype); a navbuild caller ROADMAP's NK5 must move",
+   "note": "boats' navigation side file (prototype); its water heights through navwalk.water_tops (Rust, NK4)",
    "path": "bfbc2-auto-navkit/tools/navwater_mesh.py",
    "retiring": "proposed: NK5 (or A3)",
    "rust": "",
@@ -2308,7 +2248,7 @@
    "lines": 270,
    "note": "headless JSON exports the editor's AI workspace also makes (GR2)",
    "path": "bfbc2-navigation-studio/overlay.py",
-   "retiring": "PR1c (or NK5: it imports navbuild)",
+   "retiring": "PR1c",
    "rust": "bc2-editor nav (the Navigation panel's overlays)",
    "status": "retired-pending"
   },
@@ -2867,7 +2807,7 @@
    "status": "ported"
   },
   {
-   "callers": "navbuild, navregress, navwater, level; tests 5",
+   "callers": "navregress, navwater, level; tests 5",
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
@@ -3567,7 +3507,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1361,
+   "lines": 1352,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3771,7 +3711,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 59,
+   "lines": 58,
    "note": "one NavKit build (navregress.build_level)",
    "path": "rust/bench_navkit.py",
    "retiring": "NK5",
@@ -3915,8 +3855,8 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 292,
-   "note": "NK2 parity against a pre-NK2 checkout",
+   "lines": 305,
+   "note": "NK2 parity against a pre-NK2 checkout (both checkouts pinned at bda5b8d or earlier: they need navbuild.py)",
    "path": "rust/parity_nk2_file.py",
    "retiring": "stays",
    "rust": "",
@@ -3927,8 +3867,8 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 500,
-   "note": "NK3 parity against a pre-NK3 checkout",
+   "lines": 512,
+   "note": "NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py)",
    "path": "rust/parity_nk3_detail.py",
    "retiring": "stays",
    "rust": "",
@@ -3939,8 +3879,8 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "benchmark or parity script",
-   "lines": 169,
-   "note": "NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes)",
+   "lines": 181,
+   "note": "NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py)",
    "path": "rust/parity_nk4_walk.py",
    "retiring": "stays",
    "rust": "",
@@ -3963,7 +3903,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 833,
+   "lines": 830,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4448,19 +4388,19 @@
  ],
  "totals": {
   "all": {
-   "files": 365,
-   "lines": 106288
+   "files": 360,
+   "lines": 104931
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1417,
+    "lines": 1408,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1361,
+    "test": 1352,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4475,15 +4415,15 @@
     "twin": 0
    },
    "bfbc2-auto-navkit": {
-    "files": 61,
-    "lines": 16429,
+    "files": 56,
+    "lines": 15048,
     "live": 1815,
-    "partly": 4528,
-    "ported": 272,
+    "partly": 4748,
+    "ported": 273,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5734,
-    "twin": 4080
+    "test": 5463,
+    "twin": 2749
    },
    "bfbc2-automated-map-and-bot-test-harness": {
     "files": 15,
@@ -4663,12 +4603,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5885,
+    "lines": 5918,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5618,
+    "stays": 5651,
     "test": 267,
     "twin": 0
    },
@@ -4702,11 +4642,11 @@
    },
    "partly": {
     "files": 20,
-    "lines": 17175
+    "lines": 17395
    },
    "ported": {
     "files": 21,
-    "lines": 2571
+    "lines": 2572
    },
    "retired-pending": {
     "files": 3,
@@ -4714,15 +4654,15 @@
    },
    "stays": {
     "files": 56,
-    "lines": 9336
+    "lines": 9369
    },
    "test": {
-    "files": 188,
-    "lines": 50106
+    "files": 184,
+    "lines": 49826
    },
    "twin": {
-    "files": 56,
-    "lines": 20733
+    "files": 55,
+    "lines": 19402
    }
   }
  }

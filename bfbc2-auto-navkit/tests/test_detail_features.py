@@ -1,11 +1,12 @@
-r"""NavKit's D lines and F cells (navdetail.py - the Rust core's bc2_navbuild::detail since round NK3 - and
-navbuild.detail_pass) on synthetic areas built here (no game data):
+r"""NavKit's D lines and F cells (navdetail.py - the Rust core's bc2_navbuild::detail since round NK3) on synthetic
+areas built here (no game data):
 a flat area has none; a raised cell joined round a corner gives D lines in facing pairs (owner on the right, its
 heights) and no F cell; a cell stepped into and out of along x gives an F cell pair (-x then +x, -0.0 components,
 DICE's start corners, heights from each side); diagonal F cells are one polygon with 45-degree bridges; a side with
 a portal gets none; random areas: D sides pair up, F polygons are closed and cover exactly the F cells; the records
-survive kymesh's writer; navbuild takes such sides out of the outline only in pairs (the boundary stays closed), and
-its route lines (line_walkable) do not step across a D side.
+survive kymesh's writer. (The stage's detail pass - broken sides out of the outline only in pairs - and its route
+lines not stepping across a D side are Rust tests since round NK5-rest: rust/bc2-navbuild/src/stage_tests.rs,
+the_detail_pass_moves_outline_sides_in_pairs and route_lines_do_not_step_across_a_d_side.)
 
   python test_detail_features.py
 """
@@ -14,8 +15,6 @@ import os
 import random
 import sys
 from collections import Counter
-from types import SimpleNamespace
-from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,7 +24,6 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
 import kymesh  # noqa: E402
-import navbuild  # noqa: E402
 import navdetail  # noqa: E402
 
 P = 0.8
@@ -205,41 +203,6 @@ def main(argv):
           [c.direction for c in back.cells] == [c.direction for c in f] and len(back.cells) == len(f) and
           kymesh.write_mesh(kymesh.parse_mesh(data)) == data, 'kymesh: D lines and F cells written, read back, rewritten byte for byte')
 
-    # navbuild.detail_pass: broken sides leave the outline in pairs only
-    ys = [0.0, 0.0, 0.0, 0.7]                                 # k: (0,0) (1,0) (0,1) (1,1)
-    level = SimpleNamespace(y=ys)
-    cells_area = {'cells': [(0, 0, 0), (1, 0, 1), (0, 1, 2), (1, 1, 3)]}
-    E = lambda axis, line, d_: ('E', None, axis, line, d_)
-    per_area = [{E('x', 0.5, 1): [(1, 0.95)], E('x', 0.5, -1): [(1, 1.65)],       # (0,1)|(1,1): outline on both cells
-                 E('z', 0.5, 1): [(1, 0.95)],                                     # (1,0)|(1,1): on one cell only
-                 E('x', -0.5, -1): [(0, 0.95), (1, 0.95)]}]                       # the area's own west edge
-    navbuild.DETAIL_STATS.clear()
-    out = navbuild.detail_pass(level, [cells_area], per_area, 0.0, 0.0, cfg=navbuild.DEFAULTS)
-    e = per_area[0]
-    check(e[E('x', 0.5, 1)] == [] and e[E('x', 0.5, -1)] == [] and e[E('z', 0.5, 1)] == [(1, 0.95)] and
-          e[E('x', -0.5, -1)] == [(0, 0.95), (1, 0.95)], 'detail_pass: a pair of outline sides moved to D, a one-sided one kept, the rest untouched')
-    check(len(out[0][0]) == 2 and navbuild.DETAIL_STATS.get('outline_one_sided') == 1, 'detail_pass: the D lines of the area (two L-shaped), the one-sided side counted')
-    per_area_d = [{E('x', 0.5, 1): [(1, 0.95)], E('x', 0.5, -1): [(1, 1.65)]}]
-    out_d = navbuild.detail_pass(level, [cells_area], per_area_d, 0.0, 0.0, cfg=navbuild.DEFAULTS.detailed())
-    check(out_d == [([], [])] and per_area_d[0][E('x', 0.5, 1)] == [(1, 0.95)],
-          'detail_pass with the detailed settings (pitch 0.2): no D / F there (DETAIL_IN_DETAILED off), outline untouched')
-    # route edges and D sides (DETAIL_BLOCKS_EDGES): a flat 3 x 3 grid, surface k = j * 3 + i (line_walkable runs in
-    # the Rust core: a real Level)
-    import numpy as np
-    plane: Any = SimpleNamespace(nx=3, nz=3, pitch=P, min_x=0.0, min_z=0.0, start=np.arange(10, dtype=np.int64),
-                                 y=np.zeros(9, np.float32), hit=None, flags=np.zeros(9, np.uint8),
-                                 normal=np.tile(np.array([0.0, 1.0, 0.0], np.float32), (9, 1)))
-    g = navbuild.Level(plane, np.ones(9, bool), 0.28)
-    free = navbuild.line_walkable(g, 0, (0, 0), (2, 1), 0, 0, 5)
-    g.blocked = {(1, 4), (4, 1)}                      # D side between (1, 0) and (1, 1): on the line
-    on_line = navbuild.line_walkable(g, 0, (0, 0), (2, 1), 0, 0, 5)
-    g.blocked = {(2, 5), (5, 2)}                      # between (2, 0) and (2, 1): the line passes (1, 1), not (2, 0)
-    off_line = navbuild.line_walkable(g, 0, (0, 0), (2, 1), 0, 0, 5)
-    g.blocked = {(0, 1), (1, 0)}                      # a straight step across a D side
-    straight = navbuild.line_walkable(g, 0, (0, 0), (2, 0), 0, 0, 2)
-    check(free and not on_line and off_line and not straight,
-          'line_walkable: no step across a D side - straight, or diagonal through the side cell the line passes; a D side '
-          f'beside the line does not block ({free}, {on_line}, {off_line}, {straight})')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 
