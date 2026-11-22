@@ -25,7 +25,6 @@ import gc
 import glob
 import os
 import random
-import shutil
 import struct
 import sys
 import tempfile
@@ -418,6 +417,18 @@ def area_hkpack(c: Checks) -> None:
         t.both(f'damaged {i}', 'quick:damaged', 0, pf_probe, ref, nat, damaged(rng.choice(seeds), rng))
     for i, b in enumerate(built_packfiles(rng)):
         t.both(f'built {i}', 'quick:built', 0, pf_probe, ref, nat, b)
+    # O2's sample packfile: its m_odd, a simple array of variants with data (no element size: [('?', 3)]), came back
+    # from the handle as [[('?', 3)]] (round F4 to QW3; the built ones above never hold such an array with data)
+    tests = os.path.join(os.path.dirname(HERE), 'core', 'tests')
+    if tests not in sys.path:
+        sys.path.insert(0, tests)
+    import cli_o2_nav
+    sample = cli_o2_nav._hk_sample()
+    got, want = outcome(pf_probe, sample), outcome(ref, sample)
+    odd = outcome(lambda d: [hkpack.Packfile(d).read_object(o, cn)['m_odd'] for o, cn in hkpack.Packfile(d).objects
+                             if cn == 'hkThing'], sample)
+    c.check(got == want and odd == outcome(lambda: [[('?', 3)]] * 3), 'hkpack.Packfile handle: an array of a type '
+            'without a size read as the reference reads it ([(\'?\', n)])', f'{str(odd)[:200]}')
     if GAME and root:
         n = with_classes = 0
         for pat in (os.path.join(root, 'game', '**', '*.fbrb'), os.path.join(root, 'work', 'ww2', '**', '*.fbrb')):
@@ -636,8 +647,11 @@ def area_meshview(c: Checks) -> None:
         return
     cache = os.path.join(SCRATCH, 'f4_meshview_index.pkl')
     src = os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
+    # a cache every run shares on purpose (signed by the game copy; meshview.Index builds a stale one under a lock):
+    # copied whole before it is named, so a run beside never reads half a copy
     if not os.path.isfile(cache) and os.path.isfile(src):
-        shutil.copyfile(src, cache)
+        from bfbc2core import atomicio
+        atomicio.copy_file(src, cache)
     ix = meshview.Index(shaderdb.find_opfor(None), cache)
     saved = meshview.mesh_surfaces
     meshview.mesh_surfaces = lambda _ix, _name: {}

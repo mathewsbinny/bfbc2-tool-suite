@@ -70,6 +70,20 @@ landed on `main`.
 - **Read-only probes** (`spec/probes/`): the scripts that measured DICE's data for these rules (lighting, weapons,
   vehicles, materials, destruction); they print counts and ranges only.
 
+### Fixed
+- **A ported shotgun keeps DICE's shotgun body set** (round QW3): the BF1943 import's weapon conventions moved every
+  `AnimBaseSet wabsShg` to `wabsRif`; that is right for BF1943's knife, the only BF1943 weapon with it, but DICE uses
+  `wabsShg` on 20 of its 42 shotguns (all pump-actions) and on no other class. The rule now leaves it on a weapon
+  whose `WeaponClass` is `wcShotgun` (spec WPN-WW2-8). BF1943 has no shotgun, so no WW2 build changes; its snipers
+  keep `AlwaysAimHead` false as DICE's 32 do (WPN-WW2-4).
+- **hkpack read an array of a type without a size as a list in a list** (round QW3): through the Rust core,
+  `Packfile.read_object` / `read_value` returned `[[('?', n)]]` where the Python reads `[('?', n)]` (since round F4);
+  `hkpack dump` in Python printed `m_odd: [[(?, 3)]]` in O2's live leg. The core's answer is the Python's again.
+- **Tests that shared a fixed file in `%TEMP%`** (round QW3) - the argparse width test's trace
+  (`argfmt_trace.txt`: two worktrees' runs at once failed with FileNotFoundError), the APT round-trip's movie
+  (`aptgraft_test.res`), O4's prepare stand-in (`o4prep`) and O5's stock-MP stand-in (`o5s`) - now use a folder of
+  the run's own; F4's shared mesh-viewer index cache is copied in whole before it is named.
+
 ## [0.14.0] - 2026-11-21
 
 ### Added
