@@ -9769,3 +9769,99 @@ which could be a project cache as `meshview_index.pkl` is.
 - **Item 6**: `dbxparity.py` / `portparity.py` ported (their `--predict` passes need the Python `Porter`'s pools and
   `dbxcatalogue`'s pickle; `portparity` needs `meshport`'s Porter).
 - **ALG-5's one walk**: the export's reach and closure walked once.
+
+## NKG1: NavKit's path data, structure toward DICE's (2026-11-22, branch `nkg1`)
+
+The first round of the NavKit gap list (`spec/transforms/kynapse_generation.md`): rules already known, low risk. Each
+change follows a numbered rule, is measured with `kynapse_probe` on DICE's 35 files and NavKit's 15 regression builds,
+and with navparity on the 15 levels (XNAV-BLD-3: nothing worse).
+
+### What changed in NavKit's file
+
+| Rule | Change | Switch (`navbuild.py`) |
+|---|---|---|
+| KYN-SEC-2 | the sector table's bounds are the box of the sector's written nodes (f32); a sector with no node, or whose box equals an earlier sector's (the loader's duplicate test), keeps the build's bounds | `NODE_BOUNDS` (on) |
+| KYN-EDGE-4 (new, verified) | one edge per (source, target): `graphfile::arcs` writes each pair both ways once | always |
+| KYN-LINK-1 / KYG-LINK-1 | a border portal's run is cut where it crosses the sector square's line (`trace::trace_emit_cut`); a piece beyond links to the diagonal neighbour whose square holds it, else to the axis neighbour | `DIAGONAL_LINKS` (on) |
+| HPD-NODE-5 / KYG-EDGE-4 | edges only out of owner border copies: written, but **off** (below) | `OWNER_EDGES` (off) |
+
+Not done: C records with DICE's "diagonal" / "up" direction values (KYN-C-1: the values change along one straight
+run, are not geometric and are read in no test traced; not imitated); the lookup lists' tie order (KYRT-NODE-2 reads
+the lists in order, but the ties are among NavKit's own nodes until placement follows DICE's: NKG2).
+
+### Owner-only edges and the runtime
+
+During the round, NKS-rest read the runtime's use of the owner bit (KYRT-PATH-3): the out-edge walk collects every
+copy's edges, and drops edges into a border id with no owner copy. navparity now measures the graph that way
+(`runtime_connectivity`, `strong_share`; the probe's `runtime.*` counts). NavKit's border nodes form one row 0.8 m into
+the higher sector, which owns them all, so the edges on their non-owner copies (111,968) are NavKit's only edges from a
+border node into the lower sector. Left out, the strongly connected share falls from 100 to 6.5 % (sp_004_b), 10.6 %
+(sp_008_b) and 22.3 % (sp_009). DICE can keep a node's edges on its owner copy because its band has owned nodes on
+both sides of each line (KYG-NODE-2). So `OWNER_EDGES` stays off until NKG2's band.
+
+A second row 0.8 m into the lower sector (each row owned by its sector) was tried: with owner-only edges it gave a
+92.7 % strongly connected share, but it changed the sector graphs. New 2-3 node islands appeared where the row's copy
+in the higher sector found no pair (islands 402 -> 435 mean). On sp_007 a 1,609-node group split at a coarse /
+detailed seam (0x0d0b | 0x0e0b), as the detailed graph re-pruned around the carried row. `connectivity` fell by up to
+0.51 points on 5 levels and `over_connection` rose by up to 2.09 on 6, so the row was taken out and waits for the band.
+Also measured on DICE's 35 files and verified: every border id has edges in two of its sectors or more (NavKit: 2,704 of
+48,899 do not; KYG-NODE-2).
+
+### Parity (15 regression levels, before = `work\navkit\regress` of 2026-11-20/22, after = this branch)
+
+Every navparity measure is the same on every level (means): `ground` 98.22, `extra_ground` 8.31, `areas_same` 5.18,
+`portals` 6.47, `outline` 97.99, `borders` 94.69, `costs` 95.91, `nodes_same` 0.64, `nodes_near` 47.63, `edges_same`
+0.02, `connectivity` 98.79, `over_connection` 15.31, `ai_coverage` 99.16, `ai_pairwise` 92.67, D / F 50.53 / 18.84 /
+34.02 / 33.46, `sectors_extra` 1.33, islands 402.47. `costs` is a share of `edges_same` (0-40 matched edges per
+level, nodes matched within 5 cm), so at this size it is noise. The new directed measures, the same before and after:
+
+| level | runtime_connectivity | strong_share | DICE's strong_share |
+|---|---:|---:|---:|
+| sp_01 | 97.89 | 99.28 | 96.71 |
+| sp_02 | 99.44 | 99.86 | 98.12 |
+| sp_03 | 97.58 | 99.10 | 96.69 |
+| sp_04 | 99.69 | 99.93 | 97.52 |
+| sp_003_b | 90.01 | 98.20 | 95.66 |
+| sp_004_b | 100 | 100 | 97.91 |
+| sp_005 | 99.23 | 99.72 | 96.84 |
+| sp_005_b | 99.27 | 99.90 | 96.73 |
+| sp_006 | 99.54 | 99.89 | 97.17 |
+| sp_007 | 98.12 | 99.84 | 97.90 |
+| sp_008 | 98.88 | 99.89 | 97.08 |
+| sp_008_b | 98.50 | 99.92 | 97.19 |
+| sp_009 | 100 | 100 | 98.07 |
+| ons_mp_002 | 99.75 | 99.86 | 97.58 |
+| ons_mp_004 | 98.19 | 99.97 | 98.30 |
+| mean | 98.41 | 99.69 | 97.30 |
+
+### Structure (probe, the 15 builds; DICE's infantry files of the same 15 levels in brackets)
+
+| Measure | before | after | DICE |
+|---|---:|---:|---:|
+| table bounds equal to the node box | 0 of 2,494 | 2,489 of 2,494 | 2,474 of 2,474 |
+| duplicate (source, target) edges | 6,916 | 0 | 0 |
+| edges | 1,900,962 | 1,894,046 | 1,551,934 |
+| link entries / to diagonal neighbours | 8,994 / 0 | 14,904 / 5,922 | 14,562 / 5,682 |
+| link objects (all resolved) / cross-pitch | 45,522 / 5,383 | 51,995 / 6,614 | 49,600 / 8,875 |
+| C records, middle in a diagonal neighbour's square (coarse / detailed) | 941 / 2,058 | 7,787 / 3,927 | 22,344 / 5,051 |
+| edges on non-owner copies | 112,296 | 111,968 | 7,355 |
+
+DICE's 35 files with the probe's new counts: one-way edges by their ends (owner border copy to non-owner copy 205,190,
+ordinary to non-owner 5,683, the rest 8,627; KYN-EDGE-3), C records crossing a square line (coarse 30,036, detailed
+11,566), strongly connected share as the runtime walks it 97.04 % over all 35.
+
+### The goldens and the reference
+
+The 4 golden builds of `bfbc2-auto-navkit/tests/navbuild_golden.json`, re-recorded (old -> new SHA-1, bytes); the
+quick part is unchanged:
+
+| level | old | new |
+|---|---|---|
+| sp_009 | 2971a232f861d0900ea92e15ba9a2c24306ea1f6 (406,216) | e9be0ef5ef1c45e71930516e9f6c1090552993be (408,096) |
+| sp_004_b | bf711ee42f2f02b20f1a804fc84ebb2621b04924 (8,235,888) | bd44cedb25e7c88032ef29bf47c3fdddee72032f (8,242,112) |
+| sp_008_b | 2d23c2131d7f14f1bbd09f4b9f251cba874860ad (8,477,720) | 2839e515d3802f501e4dc67513becc97591201a7 (8,484,708) |
+| ons_mp_004 | 843ca19e5ee911e6ce6fdcfaa1240389cac9b236 (7,623,072) | 020d7019c061c2e1b91335d540b213f8e80598ed (7,627,988) |
+
+The files grow by the diagonal-neighbour link entries and shrink by the duplicate edges. navregress's reference run
+`regression` was saved again with this code (its measures are the old ones plus `runtime_connectivity` and
+`strong_share`).
