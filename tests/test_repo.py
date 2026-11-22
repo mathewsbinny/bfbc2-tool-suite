@@ -239,8 +239,9 @@ def round_codes_shown_to_users() -> list[str]:
         if os.path.isfile(toml):
             with open(toml, encoding='utf-8') as f:
                 desc = re.search(r'^description\s*=\s*"(.*)"', f.read(), re.M)
-            if desc and ROUND_PHRASE.search(desc.group(1)):
-                out.append(f'{crate}/Cargo.toml description: "{ROUND_PHRASE.search(desc.group(1)).group(0)}"')
+            found = ROUND_PHRASE.search(desc.group(1)) if desc else None
+            if found:
+                out.append(f'{crate}/Cargo.toml description: "{found.group(0)}"')
     return out
 
 
