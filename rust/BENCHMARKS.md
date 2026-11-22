@@ -8177,6 +8177,52 @@ A specification round: no tool's behaviour changed. Two spec files (`spec/engine
 probes on the AI input object, the behaviours' writes, bots as scored and named players, the mode state's run-time
 objects, the bot object's class and senses, the order and squad runtime, the session's AI difficulty.
 
+## NKS-rest2: the Kynapse generator against the levels' own data (2026-11-22, branch `nksr2`)
+
+A specification round: no tool's behaviour changed. KYG-RECT-1 answered and verified, two new rules (KYG-NODE-4
+verified, KYG-NODE-5 observed), KYG-NODE-1, KYG-AREA-2, KYG-DET-1, KYG-EDGE-3 and KYG-DF-2 narrowed; the gap list's
+NKG2 / NKG3 targets, the open questions and `formats/kynapse.md`'s OQ6 / OQ8 updated.
+
+**Method.**
+- **DICE's files alone.** `rust/bc2-formats/examples/kynapse_rules.rs` (read-only, counts only), one fit per
+  `--only`: `cover` 95 s in release (every sample point of the 35 files, 26 million, against the nodes it sees),
+  `spacing` 2.1 s, `midline` 2.6 s, `holes` 18 s, `pairs` 12 s.
+- **Against the levels.** `rust/bc2-scene/examples/kynapse_geom.rs` loads each of the 17 prepared levels with
+  collision and height field through `bc2_scene::scene::load` (0.7-1.6 s a level; 0.5-8.4 million collision
+  triangles) beside DICE's files: `clearance` (nodes against the collision clipped to the soldier's height band, and
+  control points 1.7 m / -1.1 m beside each), `detailed` (each infantry sector's level data, `--rows` for the numbers),
+  `rect` (the ground's box against each entity category's box). ONS_MP_005 is not prepared and is skipped. Release
+  times for the 17 levels: `clearance` 104 s, `detailed` 25 s, `rect` 15 s.
+- **Looked at.** Single sectors were plotted from a scratch dump (deleted): they showed the coverage layout and the
+  axis pairs that the fits then measured.
+- **Tests.** `kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis` (1.3 s in the dev profile) and
+  `bc2-scene/tests/kynapse_rect.rs::ground_stops_25_m_beyond_the_spawns` (1.1 s; entities only), both game tier.
+- No NavKit build, no game run; no vehicle-shaped sample run exists (165 sample files surveyed).
+
+**The fits (DICE's 35 files; 17 prepared levels for the geometry):**
+
+| Rule | Fit | Coverage | Status |
+|---|---|---|---|
+| the rectangle (KYG-RECT-1) | the box of soldier + vehicle spawns grown by 25 m; samples kept to about 24.5 m beyond the outermost spawn (vehicle 22.2 m) | infantry: 45 of 52 campaign sides 0.11-0.91 m inside it, the other 7 end 13-347 m before, none past; vehicle: 7 of 48 sides 2.33-3.09 m inside, none past. Exceptions: the 5 Onslaught files (ONS_MP_002 242 m past the prepared partition's spawns) | verified |
+| step pairs (KYG-NODE-4) | ordinary nodes sharing x or z exactly, one step GraphAccuracy + 0.35 m apart (3.35 / 0.85 / 15.35 m) | 6,578 coarse pairs at 3.350 m +- 2 mm, 80 x any other gap within 20 %; detailed 226 (56 x), vehicle 44 (22 x); 7.6 % of coarse nodes on such half-step offsets | verified |
+| coverage (KYG-NODE-5) | every point of the ground sees a node within DistEdgeMax / 2 | 96.5 % coarse and 98.3 % detailed within 7.5 m, 95.2 % vehicle within 25 m; steep fall just past it; 1.8 % of coarse points see none within 30 m | observed |
+| node placement (KYG-NODE-1) | not the collision | coarse nodes: 95.5 % without collision within 3 m, as control points; "collision corner + radius" (0.35-0.45 m): 2.2 % of detailed nodes against 1.9 % of control points; a node's share's centroid a median 0.65 m away (not a converged centroidal layout) | observed |
+| the midline cut (KYG-AREA-2) | open | a cut rises with the crossings (single 0.6 %, five or more 21 %); between crossings 99 % no ground for cut and uncut alike; coarse areas hold 3,221 holes across a midline, so "no loop across a midline" is excluded | observed |
+| detailed sectors (KYG-DET-1) | no level-data rule | best single feature (>= 28 placed objects with collision) 91.8 % of 2,561 sectors, best pair 92.2 %; designer zones, not shipped | observed |
+| the spanner's misses (KYG-EDGE-3) | a step after the pass (inferred) | a cell-level reach test is passed by 95.7 % of coarse misses and 96.8 % of edges; no pair order explains a miss; misses on step-pair nodes 32 % (edges 9 %), both ends of degree <= 4 69 % (edges 39 %); vehicle misses leave the mesh's cells (85 %) | verified (edges), inferred (misses) |
+| vehicle D / F (KYG-DF-2) | not fittable from disk | needs one in-game `[dev] navsample` run at the vehicle settings (pitch 1.0, radius 2.5, height 4) on sp_04 or sp_02 | open |
+
+**What NKG2 can implement now.** The rectangle as a rule (the spawns' box + 25 m, the same on new maps, replacing
+`CLIP_TO_REFERENCE` on campaign levels; Onslaught keeps DICE's extent); interior node placement to DICE's coverage
+(every point sees a node within DistEdgeMax / 2) measured by the coverage, `nodes_near` and `ai_pairwise`; DICE's
+detailed sectors on DICE levels and a stand-in for new maps (`NeedsDetailedPathfinding` within 10 m, or 28 or more
+placed objects with collision in the sector; 91.8 %). NKG3: the coarse D / F recall; the vehicle rule waits for the
+vehicle sample run (a playtest item).
+
+**Left (NKS-rest3 in the ROADMAP):** the midline trigger, exact node positions (where a step pair's centre comes from),
+the step after the spanner, the rectangle on the Onslaught files, the vehicle D / F rule (in game), the runtime's LPF
+and node +0x14.
+
 ## NKS-rest: the Kynapse generator's rules fitted, and the runtime RE left (2026-11-22, branch `nksr`)
 
 A specification round: no tool's behaviour changed. New rules KYG-EDGE-3 / KYG-EDGE-4 (verified, two game-tier tests

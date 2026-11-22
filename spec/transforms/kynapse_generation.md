@@ -58,20 +58,33 @@ against `islands_reference` (402 / 424 mean), `over_connection` 15.31 %.
 
 ## 2. The generator's rectangle and the sectors
 
-### KYG-RECT-1: Ground stops at a rectangle that is not in the shipped data
+### KYG-RECT-1: Ground stops at the spawns' box grown by 25 m
 
-Status: **observed**
+Status: **verified**
 
 DICE's ground stops at straight lines 6-24 m inside the extent NavKit samples (the level's objects plus a margin).
-These lines are not combat areas, water or forbidden volumes, and no shipped entity holds them. Along each side of
-the ground's box, the last cell row covers only 9-64 % of the side, which is what a straight cut through uneven ground
-leaves. The generator's input (`SectorsDefinitionFile`, `MapBuilderLocalSettingsZone`'s boxes) is not shipped. So for
-a level with DICE data, DICE's own extent is the best record of the rectangle. Measured on the 35 files, the ground's
-box lies inside the sector grid's outer lines by -1.5 to 100.5 m per side. So the rectangle is not the sector grid:
-the grid is cut from the rectangle, not the other way round.
+Round NKS-rest2 found the lines in the level data: they are the box of the level's **soldier spawns (alternate spawns
+included) and vehicle spawns, grown by 25 m** on every side. On the 13 campaign levels' infantry files, 45 of the 52
+sides of the ground's box lie 0.11-0.91 m inside that box, a band one pitch (0.8 m) wide: the sample points kept are
+those up to about 24.5 m beyond the outermost spawn (the box less the entity radius and 0.1 m), and the outline runs
+half a pitch beyond the last one. The 7 other sides end 13-347 m before it, where the ground itself ends. No side
+passes it. Vehicle files are cut by the same box: the 7 of 48 vehicle sides that reach it lie 2.33-3.09 m inside it
+(radius 2.5 m, pitch 1.0 m), none passes it, and the others end on their own (vehicle ground is seeded from vehicle
+spawns and roads, KYG-SEED-1). Along each side the last cell row covers only 9-64 % of the side, which is what a
+straight cut through uneven ground leaves. The box is not the combat area, the height field, the placed objects or the
+AI orders: each of these leaves the ground outside its box on some sides or ends far inside it (below). The ground's
+box lies inside the sector grid's outer lines by -1.5 to 100.5 m per side, so the grid is cut from the box, not the
+other way round.
+
+Exceptions: the five Onslaught files (ONS_MP_002 / 004 / 005 / 005GR / 008) are not bounded by the spawns of the
+partitions NavKit prepares for those levels: ONS_MP_002's infantry ground reaches 242 m past them in +x and ONS_MP_008's
+39 m in -z. ONS_MP_005 has no prepared partition.
 
 [data: per file, the outline box against the outer sector lines (probe): e.g. sp_004_b infantry 37.2 / 73.1 / 13.2 / 62.7 m (min x / max x / min z / max z), sp_005 13.2 / 96.4 / 45.2 / 5.2, ons_mp_004 4.4 / 4.4 / 1.2 / 28.1; a box reaches past the outer grid line on 9 files: 1.5 m on 8 vehicle files, 0.4 m on sp_01 infantry (the margins, KYM-HDR-2)]
 [data: round NKS-rest (`kynapse_fit`): the vehicle file's ground box lies within 2.5 m of the infantry file's on 13 of 68 sides (17 levels) and 2.6-1,094 m inside it on the other 55, so the vehicle ground (seeded from vehicle spawns) shows no shared level-wide rectangle; on sp_04 all four sides lie 2.3-10.8 m apart]
+[test: rust/bc2-scene/tests/kynapse_rect.rs::ground_stops_25_m_beyond_the_spawns]
+[data: round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `rect` fit, 17 prepared levels): the infantry ground's sides against the spawns' box + 25 m, inset per side: sp_007 0.11 / 0.49 / 0.39 / 0.83 m, sp_02 0.20 / 0.50 / 0.41 / 0.19, sp_01 0.48 / 0.33 / 0.53 / 0.76, sp_003_b 0.63 / 0.80 / 0.79 / 0.22; the 45 sides at the box 0.110-0.908 m; vehicle sides at the box sp_003_b 2.33, sp_005_b 2.54, sp_007 2.33, sp_008 2.60 / 2.37, sp_008_b 3.09, sp_04 3.07]
+[data: round NKS-rest2, other boxes against the 68 infantry sides (17 levels): the ground lies more than 2 m outside the combat areas' box on 27 sides and outside the placed objects' box on 19; the height field's box ends more than 25 m beyond the ground on 66 sides and inside it on 2; with soldier spawns alone (+ 25 m) the ground passes the box (by more than 0.2 m) on 36 of the 132 sides of the 33 files, with vehicle spawns alone on 34, with both on 2 (Onslaught)]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:784-816]
 
 NavKit today: on a level with DICE data it clips to DICE's extent (`navbuild.CLIP_TO_REFERENCE`), which is a bound
@@ -138,7 +151,13 @@ Areas never cross a tile line, so every tile line through ground is a B portal. 
 ground again on the tile's midline (20 m into a 40 m tile; 10 m in a detailed tile; 25 m in a vehicle tile). The cut
 is on one axis only. On the three levels first measured it ran across the longer side of the area's box, but over all
 35 files only in 67 % of coarse cuts (round NKS-rest). No tested feature triggers it on all levels: size, height
-span, cell count, record size, boundary length, the tile and holes were tried. Over the corpus, B portals are:
+span, cell count, record size, boundary length, the tile and holes were tried. Round NKS-rest2 followed the lead that
+cut ground meets across the midline in two stretches. It holds as a tendency, not a rule: of the areas that cross a
+midline, a cut is likelier the more often the ground crosses it (coarse: 0.6 % of single crossings are cut, 4 % of
+double, 21 % of five or more), and 86 % of coarse cut groups cross two or more times against 30 % of uncut areas. What
+lies between the stretches is the same for cut and uncut ground (99 % no ground at all, not a raised or sunken area).
+"An area may not hold a hole across a midline" (a merge of half-tiles that refuses to close a loop) is excluded too:
+coarse areas hold 3,221 holes that cross a midline. Over the corpus, B portals are:
 
 | | on a tile line | on a midline | elsewhere |
 |---|---:|---:|---:|
@@ -152,6 +171,7 @@ boundaries follow no grid.
 [data: probe classification of 386,568 B portals; 325 of 326 cut groups cut along the longer side, 0 of 326 on both axes (sp_004_b, sp_005, sp_007)]
 [data: round NKS-rest over all 35 files (`kynapse_fit`, groups of areas joined across a tile midline by B portals): cut groups coarse 1,064, detailed 106, vehicle 400; cut across the longer side of the joined box in 711 / 51 / 237 only; the joined ground meets across the midline in two or more separate stretches (it surrounds something that crosses the midline) in 928 / 22 / 6; areas that straddle a midline uncut 22,695 / 20,381 / 1,633]
 [data: features that do not separate cut from uncut (round NKS-rest): the cells' share of the tile (uncut areas from 0 to 100 %, 954 coarse at a full tile; cuts from 1 %), the record size (cut 1-32 KB, uncut 0-14 KB, overlapping), the outline points, the tile (574 uncut straddlers in the 787 coarse tiles with a cut), and a hole crossing the midline (2,635 such holes in uncut coarse areas)]
+[data: round NKS-rest2 (`kynapse_rules`, `midline` and `holes` fits): crossings of the midline (stretches where the ground lies on both sides, sampled every half pitch) for coarse cut groups 1 / 2 / 3 / 4 / 5+ = 148 / 241 / 228 / 164 / 283 and for uncut areas 24,108 / 5,409 / 2,656 / 1,231 / 1,050; the gaps between stretches: cut 2,743 without ground and 29 holding another area's ground, uncut 19,192 and 159; holes of single areas (sample points no area holds, enclosed): coarse 99,997 within a quarter tile, 1,492 across the x midline, 1,582 across z, 147 across both (98 % without ground); detailed 36,821 / 2,406 / 2,498 / 675; joined cut groups: 641 of 1,064 coarse hold a hole across a midline, 416 holes in quarters only, 7 none]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:517-531]
 
 NavKit today (probe): coarse 75,436 / 1,748 / 64,370 and detailed 155,194 / 2,404 / 237,972. It has no midline cut,
@@ -188,8 +208,19 @@ The blueprint flag `NeedsDetailedPathfinding` on an object within 10 m picks 304
 the placements (most blueprints are in shared packages). Sampled features (object ground, stacked floors, stairs,
 spawns) correlate 90-97 % but no single threshold holds on every level.
 
+Round NKS-rest2 measured every infantry sector of the 17 prepared levels against the level data (spawns, AI orders,
+objectives, capture points, ladders, placed objects with collision, collision triangles, and DICE's own ground on
+objects and in stacked floors). No feature or pair of features gives the detailed sectors: the best single one, 28 or
+more placed objects with collision in the sector's square, classifies 91.8 % of the 2,561 sectors (the detailed ones
+hold 150 such objects on average, the coarse 4.5); the best pair (an OR or an AND of two thresholds, the 8 neighbours
+included) 92.2 %. Detailed sectors are where the buildings are, but the choice is the designer's: with the blocks not
+rectangles either, the generator's input (`DetailedZoneSettings` / `MapBuilderLocalSettingsZone` boxes, not shipped)
+is the likely source, so DICE's own list is the record for DICE's levels.
+
 [data: detailed sectors per file from the probe (571 of 2,626 infantry sectors); NeedsDetailedPathfinding within 10 m: 300 of 304 picks detailed, 296 of 498 found]
 [data: round NKS-rest: the 571 detailed sectors form 42 blocks of side-adjacent sectors (1-6 per file); only 14 blocks (30 sectors) are rectangles of the file's sectors, the others hold coarse sectors inside their box; so the detailed ground is not one designer box per block]
+[data: round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `detailed` fit; 544 detailed of 2,561 sectors, ONS_MP_005 not prepared): best single thresholds, share right: placed objects with collision >= 28 91.8 %, collision triangles >= 16,300 90.1 %, DICE ground on objects >= 1 sample 87.6 %, AI spawns >= 1 87.1 %, AI orders >= 1 86.5 %, stacked ground 84.8 %, vehicle spawns 84.5 %, objectives 81.5 %, ladders 81.3 %, capture points 79.7 %; best two-feature rule 92.2 % (objects in the 3 x 3 block >= 66 and in the sector >= 12); per level the best "ground on objects" threshold ranges from 1 to 2,757 m2]
+[inferred: no level-data rule reaches 93 % and the blocks are not rectangles, so the detailed sectors come from generator input that is not shipped (designer zones); a sector is detailed as a whole (KYN-SEC-4)]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:532-542] [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:596-600]
 
 NavKit today (probe): 710 detailed sectors where DICE's infantry files of the same 15 levels have 502, and 129,219
@@ -208,10 +239,22 @@ inwards by roughly the entity radius, and the rest are in open ground. Nodes are
 (vehicle median 1.98-1.99 m). Near AI order positions DICE has a node within 0.2 m. Areas without a node are normal
 (ONS_MP_002: 2,098 of 3,279, most under 4 m2).
 
+Round NKS-rest2 compared the nodes with the levels' collision and found that the placement does not come from it
+either. Coarse nodes stand on open terrain: 95.5 % have no collision triangle within 3 m in the soldier's height band
+(the ground + 0.3 to + 1.9 m), as many as points beside them (control points 1.7 m / -1.1 m away). Detailed nodes keep
+a slight preference for 0.4-0.6 m from collision (6.4 % against 3.5 % of control points), but "an obstacle corner or
+edge offset by the radius" (0.35-0.45 m from collision) holds for 2.2 % of detailed nodes against 1.9 % of control
+points, and 0.08 % of coarse nodes. What the nodes do show is a coverage property (KYG-NODE-5: the ground sees a node
+within DistEdgeMax / 2) and a construction signature (KYG-NODE-4: pairs exactly one step, GraphAccuracy + 0.35 m,
+apart along an axis). They are not a converged centroidal layout either: a node's share of the ground (the points
+whose nearest seen node it is) has its centroid a median 0.65 m (coarse), 0.55 m (detailed), 1.5 m (vehicle) away.
+
 [data: nodes on the cell-centre grid 22,375 and on the corner grid 784 of 596,069; ONS_MP_002 node distance from an outline point p50 / p90 detailed 1.7 / 4.3 m, coarse 2.9 / 6.8 m]
 [data: round NKS-rest over all 35 files (`kynapse_fit`), placements that do not hold: a lattice (the fraction of x on periods 0.05, 0.1, 0.2, 0.25, 0.4, 0.5 and 1 m is flat within 15 % but for the cell-centre spike); outline corners offset by the radius along both sides (607 of 197,599 coarse ordinary nodes; 66,494 lie within 2 m of an outline corner); the medial axis (the nodes' nearest-two-obstacles balance has the distribution of control points 0.6 r / 0.9 r away); one node at each area's cell centroid (coarse: 90,367 of 118,937 areas hold no node, 17,936 five or more)]
 [data: vehicle files: 7,324 of 18,590 areas hold one node and 9,939 none; a lone node lies within 0.7 m of its area's cell centroid in 6,557 of 7,324, spread evenly over 0-0.7 m (anywhere in the central 1 m cell)]
-[inferred: positions on no grid, no lattice and no outline feature point to the generator placing nodes from geometry the stored mesh does not keep (its own sample cloud or the collision), not from the stored outline]
+[data: round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `clearance` fit, 17 prepared levels): ordinary nodes against the collision clipped to the height band, nearest distance: coarse 186,858 of 195,699 with none within 3 m (control 186,840), 0.35-0.45 m 162 (control 195); detailed 61,312 of 143,040 none within 3 m (control 61,553), 0.35-0.45 m 3,134 (control 2,714), 0.40-0.60 m 9,145 (control 4,980); vehicle 3,778 of 9,383 none (control 3,814)]
+[data: round NKS-rest2 (`kynapse_rules`, `cover` fit): the centroid of a node's share of the ground against the node, for ordinary nodes 10 m or more inside their square: median 0.65 m coarse (144,583 nodes), 0.55 m detailed (100,368), 1.5 m vehicle]
+[inferred: positions on no grid, no lattice, no outline feature and no collision feature point to the generator placing nodes from its own sample cloud by a procedure that leaves the KYG-NODE-4 / KYG-NODE-5 traces (axis steps of GraphAccuracy + 0.35 m; coverage within DistEdgeMax / 2), not from the stored outline or the Havok shapes]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:165] [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:891-905]
 
 NavKit today (probe): every node on a cell centre (672,793 of 672,793). Measures: `navparity:nodes_same` 0.64 %,
@@ -259,6 +302,37 @@ point resolves to, when two candidates share a coordinate on that axis and both 
 
 NavKit today (probe): a stable sort by index (2,480 / 2,487 / 2,470 of 2,494 sectors). Content parity does not need
 DICE's ties unless the runtime's range query depends on them (KYRT-NODE-1, open).
+
+### KYG-NODE-4: Step pairs: nodes one step of GraphAccuracy + 0.35 m apart along an axis
+
+Status: **verified**
+
+Some ordinary nodes come in pairs that share one coordinate exactly (the same f32) and lie exactly one step apart on
+the other axis, the step being `GraphAccuracy` + 0.35 m: 3.35 m in coarse sectors, 0.85 m in detailed, 15.35 m in
+vehicle files. The gap is exact to the millimetre and stands 80, 56 and 22 times above any other gap within 20 % of it.
+Multiples of half the step appear too (5.025 and 6.7 m coarse, 23.025 and 46.05 m vehicle). The pairs are a minority
+(7.6 % of coarse ordinary nodes lie whole half-steps from another on both axes), mostly beside small obstacles, and
+their nodes carry few edges (KYG-EDGE-3:
+the spanner's unexplained pairs gather on them). So part of the placement moves or splits nodes by half-steps along x
+and z. Where the pair's centre comes from is not decoded.
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis]
+[data: round NKS-rest2 (`kynapse_rules`, `spacing` fit): pairs sharing x or z exactly, by gap: coarse 6,578 at 3.350 m (+- 2 mm; the next gap within 20 % 82), detailed 226 at 0.850 m (next 4), vehicle 44 at 15.350 m (next 2); coarse 753 at 6.700 m and 759 at 5.025 m; ordinary nodes joined to another by x and z offsets that are both whole half-steps: coarse 14,956 of 197,599 (12,166 in pairs, 2,313 in threes), detailed 4,176 of 147,130, vehicle 98 of 10,310]
+[data: round NKS-rest2, the axis gaps of the cell grid (multiples of half the pitch: 0.8, 1.2, 1.6, 2.4, 3.2, 4.0 m coarse) come from the 4 % of nodes on cell centres (KYG-NODE-1)]
+
+### KYG-NODE-5: The ground sees a node within DistEdgeMax / 2
+
+Status: **observed**
+
+Almost every point of the ground has a node of its sector in sight (no outline between) within half of DistEdgeMax:
+7.5 m on infantry files, 25 m on vehicle files. Plotted sectors show what this gives: in open ground a roughly
+triangular layout with nodes 7-8 m apart, in clutter nodes in the pockets and at the junctions of passages. The share
+falls steeply just past the half reach, so the coverage is a target of the placement, not a by-product. The rest (2-5 %)
+is ground that sees no node within 30 m (1.8 % of coarse points), on small areas without a node (KYG-NODE-1) or behind
+an outline at another height that the 2-D sight test counts.
+
+[data: round NKS-rest2 (`kynapse_rules`, `cover` fit): every sample point of DICE's areas (0.8 m apart; 1 m on vehicle files), the nearest node of the sector at the area's height it sees: coarse 96.53 % within 7.5 m (88.6 % within 6 m, 96.97 % within 8 m) of 19,096,684 points, 1.83 % none within 30 m; detailed 98.31 % within 7.5 m (92.0 % within 6 m, 98.79 % within 8 m) of 5,735,964; vehicle 95.2 % within 25 m (81.0 % within 15 m) of 1,415,580, 2.7 % none within 30 m]
+[data: the same within the sectors' own squares (margins left out): coarse 96.94 % within 8 m, detailed 98.80 %, vehicle 95.5 % within 25 m: the tail is not the margins]
 
 ## 6. Route edges
 
@@ -310,14 +384,29 @@ get an edge. This is a greedy 1.2-spanner. In DICE's final graphs:
 
 The rest of the pairs without an edge are not explained yet: coarse 52,527 (37 %), whose line stays on the mesh and
 keeps a clearance from the outline that does not differ from the edges'; vehicle 3,844, of which 3,283 leave the
-mesh. The order in which pairs are considered (by length, most likely) and the reachability test are open. A
-`GraphAccuracy` (3 / 0.5 / 15) does not give the cut-off: the excess of the route over the straight line, measured in
-metres or in units of `GraphAccuracy`, has no sharp edge.
+mesh. A `GraphAccuracy` (3 / 0.5 / 15) does not give the cut-off: the excess of the route over the straight line,
+measured in metres or in units of `GraphAccuracy`, has no sharp edge. Round NKS-rest2 tried the two leads:
+
+- **The reach test on the sample cells** (every pitch cell the line passes holds ground at its height, so the
+  outline's simplified corners cannot hide a blocked cell): 95.7 % of the coarse misses pass it, as 96.8 % of the
+  edges do, so it does not explain them. On vehicle files it does: 85 % of the misses leave the mesh's cells (10 % of
+  the edges).
+- **The order of the pairs**: no order explains a miss on its own. A greedy spanner only adds edges, so a route of at
+  most 1.2 times that existed when a pair was skipped is still there at the end. A miss therefore needs edges or
+  nodes that were taken away after the pass, and the data point there: the file's node numbering has gaps (KYG-NODE-3:
+  599,172 numbers for 355,039 ordinary ids), and the misses gather on the nodes a later step touched. 32 % of coarse
+  misses have an end on a step pair (KYG-NODE-4) against 9 % of edges, and in 69 % of misses neither end has more than
+  4 edges (39 % of edges).
+
+So the infantry rule is the spanner over the nodes of the main pass, with a later step (the step pairs, and the
+removal of numbered nodes) that the spanner does not revisit. That step is not decoded.
 
 [test: rust/bc2-formats/tests/kynapse_corpus.rs::edges_are_not_redundant_at_1_2]
 [data: edges between ordinary nodes with another route in their sector at most 1.2 times as long: infantry 946 of 487,308 node pairs, vehicle 427 of 11,814]
 [data: round NKS-rest probe (`kynapse_fit`), ordinary pairs within DistEdgeMax across and 3 m in height: coarse 253,010 with an edge (637 cross the outline or a D line) and 651,044 without (142,493 of them in sight); with a route at most 1.2 times as long: coarse edges 186 of 252,373, pairs without 89,966 of 142,493; detailed 742 of 189,995 and 134,546 of 198,161; vehicle 279 of 8,087 and 16,874 of 20,718]
 [data: vehicle edges cross the stored outline in 3,676 of 11,891 ordinary pairs, so the vehicle generator's reach test is not the stored outline]
+[data: round NKS-rest2 (`kynapse_rules`, `pairs` fit; pairs in sight of the outline and D lines): coarse edges 252,373 and misses (no edge, no route of at most 1.2 x) 52,338; the cell test passed by 244,196 edges and 50,067 misses; an end on a step pair: edges 22,808, misses 16,807; both ends with at most 4 edges: edges 99,269, misses 35,933; detailed misses 50,691 (step-pair end 1,168, cell test passed 46,565); vehicle misses 3,842 (cells off the mesh on 4 or more: 3,271; edges 822 of 8,086)]
+[inferred: a greedy spanner's skipped pairs keep their short route, so misses need a later step that removed nodes or edges or added nodes outside the pass; the numbering gaps and the misses' concentration on step-pair and low-degree nodes point to it]
 
 ### KYG-EDGE-4: The graph is symmetric by node id; a sector's one-way edges end at non-owner copies
 
@@ -359,9 +448,16 @@ Status: **observed**
 
 Vehicle D lines are not twinned facing pairs (163 pairs of 7,949 lines measured), 19 % have 3-8 points and 26 % of
 their segments are diagonal. F records include the four diagonals (897 of 2,162) and are not stored per direction
-(311 of 881 areas balanced). Vehicle edges cross D lines (0.58 %). The rule is open.
+(311 of 881 areas balanced). Vehicle edges cross D lines (0.58 %). The rule is open, and cannot be fitted from what is
+on disk: it needs the ground as the vehicle query sees it. Round NKS-rest2 surveyed OPFOR's sample files: every one was
+run with the soldier's capsule (radius 0.4 m, or 0.2-0.3 m in experiments), none with the vehicle's shape. What the
+fit needs is one in-game `[dev] navsample` run per level with vehicle data, at the vehicle settings (pitch 1.0 m,
+radius 2.5 m, height 4 m, the vehicle StepMax), over the vehicle file's extent; sp_04 (all four sides of its vehicle
+ground near the infantry's, KYG-RECT-1) and sp_02 are the first candidates. The fit then compares the sampled steps
+with DICE's D lines and F records cell by cell, as KYG-DF-1 was fitted.
 
 [data: vehicle D 8,597 lines (1,612 with 3+ points; 2,746 of 10,515 segments diagonal), F 2,162 records (897 diagonal); 881 areas with F, 311 balanced]
+[data: round NKS-rest2, OPFOR's sample files (`work\navsample`, `work\navsample_offline`, `work\navkit`): pitch 0.8 or 0.2 with capsule radius 0.4 in all but 4 (radius 0.2, 0.25, 0.3); no vehicle-shaped run]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1009-1016]
 
 NavKit today: no D / F in vehicle files (`navvehicle.DETAIL` off). The runtime uses D / F only in straight-move tests
@@ -391,14 +487,19 @@ movement detail, then bytes):
 
 1. **Detailed sectors** (KYG-DET-1): 710 against 502, 2.8x DICE's detailed areas. A wrong pitch changes ground, areas
    and nodes at once; DICE's bots stand in its detailed zones. **NKG2's target**: DICE's own detailed sectors on DICE
-   levels (502); for new maps the rule beyond `NeedsDetailedPathfinding` is still open (DICE's detailed sectors are
-   not one box per block, KYG-DET-1).
+   levels (502). For new maps DICE's choice is not recoverable from level data (designer zones, KYG-DET-1); the best
+   stand-in is `NeedsDetailedPathfinding` within 10 m (precise: 300 of 304 picks detailed) together with 28 or more
+   placed objects with collision in the sector (91.8 % of DICE's sectors classified right), offered as the default
+   and overridable per sector.
 2. **Node placement** (KYG-NODE-1, KYG-NODE-2): every NavKit node on a cell centre against DICE's 4 %; a sparse border
    row against DICE's band; corner sharing 288 against 9,426. The go-to's resolver takes the first node in lookup-list
    order within 15 m that passes a straight-line test (KYRT-NODE-1, KYRT-NODE-2), so placement decides routes
-   (`nodes_near` 47.6 %). **NKG2's target**: DICE's border band, as wide as `SectorOverlap` = DistEdgeMax (KYRT-CFG-1).
-   The interior placement rule is still open (KYG-NODE-1 lists what it is not); until it is found, NKG2 measures
-   `nodes_near` and `ai_pairwise`, not `nodes_same`.
+   (`nodes_near` 47.6 %). **NKG2's target**: DICE's border band, as wide as `SectorOverlap` = DistEdgeMax (KYRT-CFG-1),
+   and interior nodes placed to DICE's coverage (KYG-NODE-5): every sample point of the ground sees a node within
+   DistEdgeMax / 2 (DICE: 96.5 % coarse, 98.3 % detailed within 7.5 m; 95.2 % vehicle within 25 m), with no node on the
+   cell-centre grid by construction. The exact positions are still open (KYG-NODE-1 lists what they are not, now the
+   collision too; KYG-NODE-4's step pairs are their only decoded trace), so NKG2 measures the coverage, `nodes_near`
+   and `ai_pairwise`, not `nodes_same`.
 3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): 6,916 duplicate edges; 112,296 edges from non-owner border copies
    (DICE 8,039), which the runtime uses (KYRT-PATH-3), so they add connections DICE does not have. DICE's one-way
    edges are its border convention: the graph is symmetric by id (KYG-EDGE-4), so NavKit's undirected graph is right
@@ -406,13 +507,18 @@ movement detail, then bytes):
    mutually reachable pairs within DistEdgeMax (which reproduces DICE's missing pairs at 63-81 % and keeps all but
    0.2 % of its edges); `edges_same` and `over_connection` measure it.
 4. **Area division** (KYG-AREA-2): no midline cut and 5-10x the off-grid portals (`portals` 6.5 %, `areas_same`
-   5.2 %). The cut's trigger is still open (size, tile and hole features excluded); NKG2 can take the off-grid
-   portals (KYG-AREA-1's step boundaries DICE does not link) first.
-5. **The rectangle** (KYG-RECT-1): a borrowed bound on DICE levels, none on new maps. Still open: NKG2 keeps
-   DICE's extent on DICE levels and needs a rule (or the user's box) for new maps.
+   5.2 %). The cut's trigger is still open (size, tile, hole, crossing count and what lies between the crossings
+   excluded); NKG2 can take the off-grid portals (KYG-AREA-1's step boundaries DICE does not link) first.
+5. **The rectangle** (KYG-RECT-1): a borrowed bound on DICE levels, none on new maps. **NKG2's target**: the rule,
+   verified on the 13 campaign levels: the box of the soldier and vehicle spawns grown by 25 m, sample points kept up
+   to about 24.5 m beyond the outermost spawn (infantry; about 22.2 m on vehicle files), the same on new maps. It
+   replaces `navbuild.CLIP_TO_REFERENCE` on campaign levels; the Onslaught levels keep DICE's extent (their files are
+   not bounded by the prepared partitions' spawns).
 6. **D / F** (KYG-DF-1, KYG-DF-2): coarse recall 19 % / 33 %, nothing for vehicles or detailed areas. **NKG3's
-   target** stays the coarse rule's recall; the vehicle rule is still open and needs a vehicle sample run (a cylinder of
-   radius 2.5 m, height 4 m) before it can be fitted.
+   target** stays the coarse rule's recall. The vehicle rule cannot be fitted from the files on disk (no vehicle-shaped
+   sample run exists, KYG-DF-2): NKG3 needs one in-game `[dev] navsample` run at the vehicle settings (pitch 1.0 m, a
+   cylinder of radius 2.5 m, height 4 m) on sp_04 or sp_02 first, so it is a playtest item while in-game runs are
+   paused.
 7. **C portal kinds** (KYG-SEC-2) and **diagonal links** (KYG-LINK-1): no diagonal or "up" C portals, no
    diagonal-neighbour links.
 8. **Table bounds** (KYN-SEC-2): the rectangle and height range instead of the node box. The loader's duplicate test
@@ -423,22 +529,27 @@ movement detail, then bytes):
 
 ## Open questions
 
-Round NKS-rest fitted the rules below over all 35 files (`rust/bc2-formats/examples/kynapse_fit.rs`). Answered: which
-pairs get edges (KYG-EDGE-3, a 1.2-spanner) and which are one-way (KYG-EDGE-4, the border convention). Still open,
-with what the fits ruled out:
+Round NKS-rest fitted the rules below over all 35 files (`rust/bc2-formats/examples/kynapse_fit.rs`); round NKS-rest2
+went on with `rust/bc2-formats/examples/kynapse_rules.rs` (DICE's files alone) and `rust/bc2-scene/examples/kynapse_geom.rs`
+(DICE's files against the levels' collision, height field and entities). Answered: which pairs get edges (KYG-EDGE-3,
+a 1.2-spanner), which are one-way (KYG-EDGE-4, the border convention), and the rectangle (KYG-RECT-1, the spawns' box
+grown by 25 m, verified). Still open, with what the fits ruled out:
 
-- The midline cut's trigger (KYG-AREA-2): not the cell count, record size, outline length, tile or a hole crossing the
-  midline. Next: the cut groups' ground before the cut against the sampled levels (OPFOR's `work\navkit`), e.g. its
-  step structure or seeds.
-- Node placement (KYG-NODE-1): not a lattice, outline corners offset by the radius, the medial axis or area centroids.
-  Next: DICE's nodes against the level's collision geometry (corners of the Havok shapes offset by the radius), which
-  the offline sampler reads.
-- The remaining 37 % of coarse pairs without an edge (KYG-EDGE-3): the reach test and the order of the pairs.
-- The vehicle D / F rule (KYG-DF-2): needs a vehicle sample run.
-- Detailed sectors beyond `NeedsDetailedPathfinding` (KYG-DET-1): not one box per block. Next: every blueprint's flag
-  read from the shared packages.
-- The rectangle (KYG-RECT-1): the vehicle ground shares no level-wide rectangle with the infantry ground. Next: the
-  generator's `SectorsDefinitionFile` / zone boxes are not shipped, so a per-level fit of the straight cuts against
-  the sampled levels.
+- The midline cut's trigger (KYG-AREA-2): not the cell count, record size, outline length, tile, a hole crossing the
+  midline (single areas hold 3,221 such holes), the number of crossings (a tendency only) or what lies between them.
+  Next: the cut groups against the raw samples (OPFOR's `work\navsample` at pitch 0.8 / 0.2), e.g. the order in which
+  a tile's cells are grown.
+- Node placement (KYG-NODE-1): not a lattice, outline corners offset by the radius, the medial axis, area centroids,
+  the Havok collision's corners or edges offset by the radius, or a converged centroidal layout. Known: the coverage
+  (KYG-NODE-5) and the half-step moves along the axes (KYG-NODE-4). Next: where a step pair's centre comes from (its
+  two nodes' common start), against the raw samples.
+- The remaining 37 % of coarse pairs without an edge (KYG-EDGE-3): not the reach test on the sample cells, and no pair
+  order alone; they need a step after the spanner (inferred from the numbering gaps and the misses on step-pair and
+  low-degree nodes). Next: the same step as KYG-NODE-4's.
+- The vehicle D / F rule (KYG-DF-2): needs a vehicle-shaped sample run in game (none on disk); a playtest item.
+- Detailed sectors beyond `NeedsDetailedPathfinding` (KYG-DET-1): no level-data rule (best 92.2 %); designer zones that
+  are not shipped. Closed as unrecoverable for DICE's levels (their own list is the record); new maps use the stand-in
+  in the gap list.
+- The rectangle on the Onslaught files (KYG-RECT-1's exception): which spawns DICE built them from.
 
 The `formats/kynapse.md` section 6 table tracks the same questions.
