@@ -9,6 +9,7 @@ test_prepare_o4.py's.
 from __future__ import annotations
 
 import json
+import math
 import os
 import random
 import struct
@@ -201,6 +202,182 @@ def navkit_cases() -> list[Case]:
                                    'navkit: an unknown level', 'navkit: check against DICE'])
 
 
+def _f32r(x: float) -> float:
+    return float(struct.unpack('<f', struct.pack('<f', x))[0])
+
+
+def _apply_hpd(seed: int, grid: tuple[int, int] = (2, 2), spacing: float = 14.0) -> bytes:
+    """Round NK1: a path data file shaped as a real one for navkit apply's edit stage - sectors of 100 m side by
+    side, route nodes every `spacing` m (heights varied, some raised: steep), edges between neighbours (some
+    left out: one-way edges and islands), border nodes (high id bit) shared by both sectors of an edge, DistEdgeMax
+    on each sector's first node, edges sorted by source with each node's first-edge index (`a`) set as the generator
+    writes them, but one sector's edges shuffled. Written by the reference writer."""
+    hpdtool, kymesh = nav._navkit()
+    rng = random.Random(seed)
+    nx, nz = grid
+    next_id = 1
+    border: dict[tuple[float, float], tuple[int, float]] = {}
+    sectors = []
+    for X in range(nx):
+        for Y in range(nz):
+            x0, z0 = X * 100.0, Y * 100.0
+            pts: list[tuple[int, tuple[float, float, float]]] = []
+            steps = int(100 // spacing) + 1
+            for i in range(steps + 1):
+                for j in range(steps + 1):
+                    x, z = x0 + min(i * spacing, 100.0), z0 + min(j * spacing, 100.0)
+                    edge = x in (x0, x0 + 100.0) or z in (z0, z0 + 100.0)
+                    if not edge:
+                        if rng.random() < 0.08:
+                            continue                                # a hole
+                        x, z = x + rng.uniform(-2, 2), z + rng.uniform(-2, 2)
+                    y = (math.sin(x / 37.0) + math.cos(z / 23.0)) * 3 + (8.0 if rng.random() < 0.05 else 0.0) + 0.95
+                    if edge:
+                        key = (round(x, 3), round(z, 3))
+                        if key not in border:
+                            next_id += 1
+                            border[key] = (0x80000000 | next_id, _f32r(y))
+                        nid, y = border[key]
+                    else:
+                        next_id += 1
+                        nid = next_id
+                    pts.append((nid, (_f32r(x), _f32r(y), _f32r(z))))
+            edges = []
+            for a, (_ia, pa) in enumerate(pts):
+                for b, (_ib, pb) in enumerate(pts):
+                    if a == b or math.dist((pa[0], pa[2]), (pb[0], pb[2])) > spacing * 1.5:
+                        continue
+                    if abs(pa[1] - pb[1]) > 4.0 or rng.random() < 0.06:
+                        continue
+                    edges.append(hpdtool.Edge(0x80000000 | int(math.floor(math.dist(pa, pb) * 16)), a, b))
+            nodes = [hpdtool.Node(i, p, 0x80000000, 15.0 if k == 0 else 0.0, 0, rng.randrange(1 << 32),
+                                  rng.randrange(1 << 17)) for k, (i, p) in enumerate(pts)]
+            if (X, Y) == (0, 0):
+                rng.shuffle(edges)
+            else:
+                edges.sort(key=lambda e: e.src)
+                first: dict[int, int] = {}
+                for k, e in enumerate(edges):
+                    first.setdefault(e.src, k)
+                for n, node in enumerate(nodes):
+                    node.a = first[n] + 1 if n in first else 0
+            ys = [p[1] for _, p in pts]
+            bounds = (x0 - 0.8, x0 + 100.88, min(ys), max(ys), z0 - 0.8, z0 + 100.88)
+            sectors.append(hpdtool.Sector((X << 8) | Y, tuple(_f32r(v) for v in bounds), 0, 1251020, 12000000,
+                                          nodes, edges, kymesh.write_mesh_reference(nav._mesh(rng))))
+    return bytes(hpdtool.write_reference(hpdtool.HpdFile(tuple(range(36)), sectors)))
+
+
+def _ground(p: Any, dx: float = 0.0, dz: float = 0.0) -> list[float]:
+    """A side file's point near a node: its ground (node height - 0.95), moved a little, in millimetres."""
+    return [round(p[0] + dx, 3), round(p[1] - 0.95, 3), round(p[2] + dz, 3)]
+
+
+def _side(kind: str, ops: list[dict[str, Any]], sha1: str = '', level: Any = 'Levels/SP_TEST') -> str:
+    """A navigation side file (bfbc2core.navtune's format) as NavTune.save writes it."""
+    d = {'format': 'bfbc2-navtune', 'version': 1, 'level': level,
+         'base': {'kind': kind, 'sha1': sha1, 'file': 'pathdata.hpd'}, 'operations': ops}
+    return json.dumps(d, indent=1, ensure_ascii=False) + '\n'
+
+
+def apply_ops(data: bytes, seed: int, n: int = 12) -> list[dict[str, Any]]:
+    """Round NK1: side-file operations for a path data file - links between nodes, one-way and two-way route edges
+    added (one from int positions), route edges removed (inside a sector, and between two border nodes: in every
+    sector holding both), traversal annotations of every kind (one with no node near it), notes, a link no sector
+    can hold; positions in millimetres as the map editor records them."""
+    hpdtool, _kymesh = nav._navkit()
+    f = hpdtool.parse(data)
+    rng = random.Random(seed)
+    secs = [s for s in f.sectors if len(s.nodes) > 1]
+    ops: list[dict[str, Any]] = []
+    by = {'by': 'NK1-TEST', 'when': '2026-11-21T10:00:00'}
+    for k in range(n):
+        kind = k % 6
+        s = rng.choice(secs)
+        p, q = rng.choice(s.nodes).pos, rng.choice(s.nodes).pos
+        if kind == 0:
+            ops.append({'op': 'link-areas', 'a': _ground(p, rng.uniform(-3, 3), rng.uniform(-3, 3)),
+                        'b': _ground(q, rng.uniform(-3, 3), rng.uniform(-3, 3)), **by})
+        elif kind == 1:
+            ops.append({'op': 'route-edge', 'a': _ground(p), 'b': _ground(q), 'action': 'add', 'two-way': False, **by})
+        elif kind == 2 and s.edges:
+            e = rng.choice(s.edges)
+            ops.append({'op': 'route-edge', 'a': _ground(s.nodes[e.src].pos), 'b': _ground(s.nodes[e.dst].pos),
+                        'action': 'remove', **({'two-way': False} if rng.random() < 0.5 else {}), **by})
+        elif kind == 3:
+            t = rng.choice(['ladder', 'jump', 'vault', 'drop'])
+            ops.append({'op': 'traversal', 'kind': t, 'bottom': _ground(p, 0.5, -0.5), 'top': _ground(q, -1, 1),
+                        'two-way': t == 'ladder', **by})
+        elif kind == 4:
+            ops.append({'op': 'note', 'at': _ground(p), 'text': f'note {k}', **by})
+        else:
+            ops.append({'op': 'route-edge', 'a': [int(p[0]), int(p[1]), int(p[2])], 'b': _ground(q, 0.25, 0.25),
+                        'action': 'add', **by})
+    for s in f.sectors:
+        bb = [e for e in s.edges if s.nodes[e.src].id & 0x80000000 and s.nodes[e.dst].id & 0x80000000]
+        if bb:
+            e = bb[0]
+            ops.append({'op': 'route-edge', 'a': _ground(s.nodes[e.src].pos), 'b': _ground(s.nodes[e.dst].pos),
+                        'action': 'remove', **by})
+            break
+    ops.append({'op': 'link-areas', 'a': [-5000.0, 0.0, -5000.0], 'b': [9000.5, 1.0, 9000.25], **by})
+    ops.append({'op': 'traversal', 'kind': 'drop', 'bottom': [-5000, 0, -5000], 'top': [-4999.5, 3.5, -5000], **by})
+    return ops
+
+
+def apply_cases() -> list[Case]:
+    """Round NK1: navkit apply - a DICE base answered in Rust since NK1; a NavKit base rebuilds (the Python's)."""
+    import hashlib
+    dice = _apply_hpd(5)
+    xml = _level_xml(dice, 2)
+    sha = hashlib.sha1(dice).hexdigest()
+    ops = apply_ops(dice, 7)
+    side = 'opf\\work\\navkit\\sp_test\\sp_test.navtune.json'
+    o = ['--opfor', '{d}\\opf']
+    base = _opfor(dice=dice, xml=xml)
+
+    def with_side(text: str | bytes, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+        return dict(base, **{side: text}, **(extra or {}))
+    region = {'op': 'unwalkable', 'region': {'box': [0, 0, 0, 10, 5, 10]}, 'by': 'x', 'when': 'y'}
+    notes = [x for x in ops if x['op'] == 'note']
+    named = [dict(x, by='Ж PC é') for x in ops]
+    rows: list[tuple[str, dict[str, Any], list[str]]] = [
+        ('no side file', base, ['apply', 'sp_test', *o]),
+        ('a DICE base: links, route edges, traversals, notes', with_side(_side('dice', ops, sha)),
+         ['apply', 'sp_test', *o]),
+        ('a DICE base, the file changed since', with_side(_side('dice', ops, '0' * 40)), ['apply', 'SP_TEST', *o]),
+        ('a DICE base, --out and --navtune', dict(base, **{'mine.navtune.json': _side('dice', ops, sha)}),
+         ['apply', 'sp_test', '--navtune', '{d}\\mine.navtune.json', '--out', '{d}\\edited.hpd', *o]),
+        ('a DICE base, --install', with_side(_side('dice', ops, sha)), ['apply', 'sp_test', '--install', *o]),
+        ('a DICE base, notes only (stale annotations removed)',
+         with_side(_side('dice', notes, sha), {'opf\\work\\navkit\\sp_test\\sp_test.traversal.json': '{}'}),
+         ['apply', 'sp_test', *o]),
+        ('a DICE base, no operations', with_side(_side('dice', [], sha)), ['apply', 'sp_test', *o]),
+        ('a DICE base, names outside ASCII', with_side(_side('dice', named, sha, level='Levels/SP_TÉST')),
+         ['apply', 'sp_test', *o]),
+        ('a DICE base, region edits refused by the side file', with_side(_side('dice', [region, *ops], sha)),
+         ['apply', 'sp_test', *o]),
+        ('another base kind with region edits', with_side(_side('other', [region], sha)), ['apply', 'sp_test', *o]),
+        ('a DICE base, the level has none', dict(_opfor(xml=xml), **{side: _side('dice', ops, sha)}),
+         ['apply', 'sp_test', *o]),
+        ('a DICE base, its file not path data', dict(_opfor(dice=b'Kynogon HPX' + bytes(200), xml=xml),
+                                                     **{side: _side('dice', ops, sha)}), ['apply', 'sp_test', *o]),
+        ('a DICE base, its file cut short', dict(_opfor(dice=dice[:-7], xml=xml), **{side: _side('dice', ops, sha)}),
+         ['apply', 'sp_test', *o]),
+        ('a side file that is not JSON', with_side('{"format": '), ['apply', 'sp_test', *o]),
+        ('a side file of another format', with_side('{"format": "x"}'), ['apply', 'sp_test', *o]),
+        ('a side file of a newer version', with_side('{"format": "bfbc2-navtune", "version": 2}'),
+         ['apply', 'sp_test', *o]),
+        ('a side file with a bad operation', with_side(_side('dice', [{'op': 'link-areas', 'a': [1, 2]}], sha)),
+         ['apply', 'sp_test', *o]),
+        ('a NavKit base (rebuilds: the Python)', with_side(_side('navkit', ops, sha)), ['apply', 'sp_test', *o]),
+        ('--no-detail (the Python)', with_side(_side('dice', ops, sha)), ['apply', 'sp_test', '--no-detail', *o]),
+    ]
+    out: list[Case] = [(f'navkit apply: {name}', 'navkit', files, args, {}, False) for name, files, args in rows]
+    return nav.with_variants(out, ['navkit apply: a DICE base: links, route edges, traversals, notes',
+                                   'navkit apply: a DICE base, names outside ASCII'])
+
+
 def prepare_level_cases() -> list[Case]:
     full = _opfor()
     rows: list[tuple[str, dict[str, Any], list[str]]] = [
@@ -310,7 +487,7 @@ def order_cases() -> list[Case]:
 
 
 def cases() -> list[Case]:
-    return navkit_cases() + prepare_level_cases() + levelobjects_cases() + order_cases()
+    return navkit_cases() + apply_cases() + prepare_level_cases() + levelobjects_cases() + order_cases()
 
 
 def opfor_calls(opfor: str) -> list[Call]:
