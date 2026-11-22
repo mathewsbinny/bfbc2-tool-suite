@@ -49,6 +49,16 @@ landed on `main`.
   once the AI workspace has read the level's path data, spawns, flags and M-COMs the bots cannot reach from the main
   route network (XVAL-PLACE-5). Each bound lies past what DICE's own maps do. `mapexport validate` checks the first
   three on the level's height field and water.
+- **The specification's coverage matrix** (`spec/COVERAGE.md`, round SPG): every BFBC2 system against the suite's and
+  Project OPFOR BFBC2's tools, the queued rounds and the spec rules that cover it, with what is left in priority order.
+- **Eight engine specifications** (`spec/engine/`, 164 rules): `lighting.md` (baked occlusion, irradiance volumes,
+  reflection cubes, the outdoor light, point lights and `PointLightEntityData`, the moon and god rays, DICE's night
+  recipe), `weather.md` (the weather system's classes, DICE's 355 states and their value ranges, rain and snow
+  effects), `effects.md` (effects, emitters and the per-level emitter atlases), `weapons.md`, `vehicles.md`,
+  `materials.md` (the material grid, part and face materials, penetration, impact effects, grime and camouflage),
+  `destruction.md` and `persistence.md`; the wrapper's material hash is now known (the name's 33-xor hash).
+- **Read-only probes** (`spec/probes/`): the scripts that measured DICE's data for these rules (lighting, weapons,
+  vehicles, materials, destruction); they print counts and ranges only.
 
 ## [0.14.0] - 2026-11-21
 

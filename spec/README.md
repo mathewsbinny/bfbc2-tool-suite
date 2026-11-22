@@ -166,6 +166,14 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [engine/network.md](engine/network.md) | the in-process host (`hostMultiplayerLocal`), the transport, the join, the server browser |
 | [engine/menus.md](engine/menus.md) | the level catalogue, engine-movie events, movie loading and unloading |
 | [engine/crashes.md](engine/crashes.md) | index: every recorded fault address and its rule |
+| [engine/lighting.md](engine/lighting.md) | baked occlusion, irradiance volumes, reflection cubes, the outdoor light, point lights (`ActAsPointLight`, `PointLightEntityData`), sky props, DICE's night rules (round SPG) |
+| [engine/weather.md](engine/weather.md) | the weather system's classes, the 355 states, DICE's value ranges, weather effects and sounds, what the export writes (SPG) |
+| [engine/effects.md](engine/effects.md) | effect and emitter classes, per-level emitters and atlases, placed and camera-proximity effects (SPG) |
+| [engine/weapons.md](engine/weapons.md) | weapon, firing and projectile data, DICE's class conventions, patched balance, the WW2 ruling (SPG) |
+| [engine/vehicles.md](engine/vehicles.md) | vehicle entities, physics, health and armour, seats, weapons, spawners, BF1943 and console vehicles (SPG) |
+| [engine/materials.md](engine/materials.md) | the material grid, part and face materials, penetration, impact effects, grime and camouflage textures (SPG) |
+| [engine/destruction.md](engine/destruction.md) | health states, parts and bangers, destroyed meshes, terrain destruction, model-group members (SPG) |
+| [engine/persistence.md](engine/persistence.md) | stats, ranks, unlocks and licences offline; OPFOR's hooks (SPG) |
 | **The suite's transformations (layer 4)** | |
 | [transforms/pack.md](transforms/pack.md) | FBRB unpack and pack |
 | [transforms/dbx.md](transforms/dbx.md) | DBX read / write round trips, import, DbxEdit's commands |
@@ -180,7 +188,8 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/validation.md](transforms/validation.md) | the export's rule registry: every way an exported level fails or is refused, checked live, by the build and by the stage's check; DICE's placement tendencies (L1) as warnings |
 | [transforms/projectlog.md](transforms/projectlog.md) | the editor's project log: undo / redo, GUIDs, apply |
 
-[rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it.
+[rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it. [COVERAGE.md](COVERAGE.md) maps every BFBC2 system to its tools, rounds and rules; `probes/` holds
+the read-only scripts that measured DICE's data for the engine files.
 
 ## Navigation (Kynapse)
 
@@ -222,9 +231,11 @@ the suite's reproduction and its tests. Every recorded crash address is a rule i
 7. **Networking / hosting** (`network.md`): the in-process host, the transport, the server browser.
 8. **Menus** (`menus.md`): the level catalogue, engine-movie events, movie unload.
 
-Still to write: **physics** (the hit and part material rules of OPFOR's MATERIAL_SLOTS_RE beyond GAME-DMG-1 and the
-Havok rules, destruction, vehicles); **streaming** (`async` / `streaming_*` / `ondemand_*` mount order and
-precedence); **gameplay data** (kits, weapons, vehicles as DBX classes).
+Round SPG (the gap pass, `COVERAGE.md`) wrote lighting, weather, effects, weapons, vehicles, materials,
+destruction and persistence. Still to write, in the order `COVERAGE.md` section 2 gives: terrain writing, vegetation,
+the shader translation, the game module's patch points, animation and characters, decals, the rest of persistence,
+BF1943 as a source, Onslaught, the effects' processor chain, **streaming** (`async` / `streaming_*` / `ondemand_*`
+mount order and precedence).
 
 ### Layer 4: the suite's transformations (grown by each porting round)
 
@@ -290,3 +301,15 @@ of them new; 335 of the suite's 556 test functions cite no rule):
   2 (round V1). In-game proofs still open: an exported level loaded in game, the stock-map AI layer played.
 - **C++ tests.** OPFOR's DLL rule tests (`src/dll/tests/*_test.cpp`) are `int main()` programs, which `trace.py`
   cannot cite as `[test: ...]`; the network and menu rules cite the DLL code instead.
+
+**After round SPG** (2026-11-22: 933 rules in 54 files - 473 verified, 73 implemented, 357 observed, 30 inferred;
+164 new in 8 engine files - 14 verified, 17 implemented, 114 observed, 19 inferred; 421 rules without a test):
+
+- **The coverage matrix** (`COVERAGE.md`): 36 systems; before SPG 15 covered, 13 thin, 8 with no rule; after it 24
+  covered, 12 thin, none without rules. Its section 2 is the order of what is left.
+- **Closed:** the wrapper's material hash function (MAT-SLOT-1; `formats/havok.md` Open questions).
+- **The probes** (`probes/*.py`) measure DICE's data read-only and print counts and ranges; the rules they back are
+  **observed**. Turning the stable counts into game-tier checks would make them verified.
+- **What only RE or a playtest settles**: the point light chosen per draw and the effects' instance cap (LIGHT-PT-7,
+  LIGHT-PT-8), the hit material on plain placed objects (MAT-PEN-3), which weather state the engine starts in
+  (RNDR-WTHR-6), irradiance-volume sampling (LIGHT-IRR-3).
