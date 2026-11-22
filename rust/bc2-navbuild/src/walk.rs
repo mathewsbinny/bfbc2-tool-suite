@@ -982,6 +982,47 @@ pub struct WalkSettings {
     pub slope_tan: f64,
 }
 
+impl WalkSettings {
+    /// `navwalk`'s shipped settings for a call at `slope` degrees (`navwalk._settings(slope)`): the trigonometric
+    /// constants from the C library's `cos` / `tan` (`black_box`: computed at run time, not folded by the compiler),
+    /// as Python's `math` computes them.
+    #[must_use]
+    pub fn navkit(slope: f64) -> WalkSettings {
+        let rad = |d: f64| std::hint::black_box(d).to_radians();
+        WalkSettings {
+            characters_absent: true,
+            headroom_band: Some((0.5, 2.0)),
+            steep_terrain: false,
+            steep_max_cos: rad(55.0).cos(),
+            steep_span: 0.8,
+            lip_width: Some(2),
+            lip_object_rise: Some(0.3),
+            lip_object_slope_max: false,
+            lip_flat_cos: Some(rad(15.0).cos()),
+            roof_prune: true,
+            roof: RoofCfg {
+                raise: 2.0,
+                share: 0.5,
+                near: 2.0,
+                near_dy: 2.5,
+            },
+            dynamic_absent_headroom: true,
+            dynamic_floor: Some(0.3),
+            objective_floor: true,
+            objective_reach: 1.5,
+            sector: 100.0,
+            ladder_reach: 1.5,
+            ladder_foot: (-1.0, 1.0),
+            ladder_top: (-1.5, 0.5),
+            terrain_vtable: 0x0145_4D14,
+            character_vtable: 0x0148_3378,
+            slope,
+            slope_cos: rad(slope).cos() - 0.01,
+            slope_tan: rad(slope).tan(),
+        }
+    }
+}
+
 /// `walkable`'s arguments (`navwalk.walkable`).
 #[derive(Debug, Clone, Default)]
 #[allow(clippy::struct_excessive_bools)] // the call's switches
