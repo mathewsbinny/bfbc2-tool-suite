@@ -271,7 +271,7 @@ one counting four times). The editor's `validation::Live` makes it once per proj
 field and water from the game copy when the views have no terrain unpack) and checks XVAL-PLACE-2 to 4 live: spawn
 points over water, buried in collision or under the ground, a vehicle spawner's room and domain, gameplay objects
 outside every combat area; once the AI workspace has read the level's path data, XVAL-PLACE-5 (spawns, flags and
-M-COMs off the main route network, `site::Routes`). Every bound lies past what DICE's own levels do (the 21 stock
+M-COMs off the main route network, `site::Routes`). Every bound lies past what DICE's own levels do (the 27 stock
 levels measured raise nothing). The Gameplay workspace's **Auto layout** panel (`autolayout.rs`,
 `app/autolayoutui.rs`) runs `bc2_levelwrite::autolayout::propose` on a worker: the project's mode layer, DICE's own
 layout from the target's donor, turned, scaled and placed where the site suits it, fitted spot by spot, measured with

@@ -338,16 +338,15 @@ pub fn stacked_spawners(w: &LevelWriter, base: Option<&LevelWriter>) -> Vec<Find
 
 /// The room a vehicle of an L1 class needs around its spawner (metres clear of static collision 0.5 to 3 m above
 /// it, sampled every 0.5 m) and its domain. Each room is below the tightest of DICE's own spawners of the class on
-/// the 21 stock multiplayer levels measured (`rust/BENCHMARKS.md` "A1": tanks 3.5 m, cars 2 m, helicopters 5.5 m,
-/// boats 1 m, IFVs and quads 0.5 m); emplacements, UAV stations and the ambient aircraft stand where DICE built them
-/// in, so they are not held to a room.
+/// the 27 stock levels measured (`rust/BENCHMARKS.md` "A1": tanks 2.5 m, cars 1 m, helicopters 4 m, boats 1 m, IFVs
+/// and quads 0.5 m); emplacements, UAV stations and the ambient aircraft stand where DICE built them in, so they are
+/// not held to a room.
 #[must_use]
 pub fn vehicle_room(class: &str) -> Option<(f64, Domain)> {
     match class {
-        "tank" => Some((3.0, Domain::Land)),
-        "car" => Some((1.5, Domain::Land)),
-        "ifv" | "ifv_aa" | "quad" => Some((0.5, Domain::Land)),
-        "heli" => Some((5.0, Domain::Air)),
+        "tank" => Some((2.0, Domain::Land)),
+        "car" | "ifv" | "ifv_aa" | "quad" => Some((0.5, Domain::Land)),
+        "heli" => Some((3.5, Domain::Air)),
         "boat" => Some((0.5, Domain::Water)),
         _ => None,
     }
@@ -468,19 +467,21 @@ fn spot_words(site: &crate::site::Site, p: [f64; 3]) -> Option<String> {
 /// on the stock levels measured (`mp_006cq`'s tanks, `mp_007`'s IFVs: vehicles that drive in); one farther is
 /// reported.
 pub const VEHICLE_OUTSIDE: f64 = 150.0;
-/// How far a soldier spawn place may stand outside every combat area: DICE's one such place of 1,168 is less than
+/// How far a soldier spawn place may stand outside every combat area: DICE's one such place of 1,475 is less than
 /// a metre out (`mp_008`).
 pub const SPAWN_OUTSIDE: f64 = 1.0;
 
 /// The site rules (round A1) on the gameplay objects the edits moved or made (what the base level already has, at
 /// the same place, is DICE's and left out; `base` `None`: every object). Each threshold lies beyond what DICE's own
-/// objects do on the 21 stock multiplayer levels measured, where the rules find nothing (`rust/BENCHMARKS.md` "A1"):
+/// objects do on the 27 stock levels measured, where the rules find nothing (`rust/BENCHMARKS.md` "A1"):
 ///
 /// - XVAL-PLACE-2: a soldier spawn place (an alternative spawn point, a spawner without any) over water deeper than a
-///   soldier wades (1.2 m), buried deeper than 4 m inside a static object's collision (DICE's own: up to 3.6 m into
-///   a building's or a boulder's collision), more than 6 m under the ground or outside the terrain;
+///   soldier wades (1.2 m), buried deeper than 4.5 m inside a static object's collision (DICE's own: up to 4.2 m into
+///   a rock's; standing on an object's floor is an interior, not buried), more than 6 m under the ground or outside
+///   the terrain;
 /// - XVAL-PLACE-3: a vehicle spawner without its vehicle's room ([`vehicle_room`]) or out of its domain (a land
-///   vehicle over deep water, a boat on dry land, any buried in collision, a land or sea vehicle outside the terrain);
+///   vehicle over deep water, a boat on dry land where the water mesh lies near the ground, any buried in collision,
+///   a land or sea vehicle outside the terrain);
 /// - XVAL-PLACE-4: an M-COM outside every combat area, a soldier spawn place more than [`SPAWN_OUTSIDE`] outside, or
 ///   a land or sea vehicle spawner more than [`VEHICLE_OUTSIDE`] outside (aircraft and the ambient backdrop are not
 ///   held to it; capture points are L1's: L1-CQ-013 and L1-CQ-014 hold a flag and an HQ to its team's area, and
@@ -539,14 +540,16 @@ pub fn site_rules(w: &LevelWriter, base: Option<&LevelWriter>, site: &crate::sit
             let Some((room, domain)) = vehicle_room(c) else {
                 continue;
             };
-            let wet = site
-                .water(p[0], p[2])
-                .is_some_and(|s| site.ground(p[0], p[2]).is_none_or(|g| s > g));
+            let (surface, ground) = (site.water(p[0], p[2]), site.ground(p[0], p[2]));
+            let wet = surface.is_some_and(|s| ground.is_none_or(|g| s > g));
+            // a boat is judged only where the level's water mesh lies near the ground (within 10 m below it): water the
+            // mesh does not hold (Vietnam's rivers, `nam_mp_005r`: the mesh 103 m below them) is not seen
+            let judged = surface.is_some_and(|s| ground.is_none_or(|g| s > g - 10.0));
             let wrong = match (domain, spot) {
                 (Domain::Land | Domain::Water, Spot::OutsideTerrain) => Some("outside the terrain".to_owned()),
                 (_, Spot::Solid(d)) => Some(format!("{d:.1} m deep inside a static object's collision")),
                 (Domain::Land, Spot::Water(d)) => Some(format!("a land vehicle over water {d:.1} m deep")),
-                (Domain::Water, _) if !wet => Some("a boat on dry land".to_owned()),
+                (Domain::Water, _) if judged && !wet => Some("a boat on dry land".to_owned()),
                 _ => None,
             };
             let clear = if wrong.is_none() { site.clearance(p, room) } else { room };

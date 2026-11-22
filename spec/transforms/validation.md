@@ -667,13 +667,13 @@ within 1 m of each other: their vehicles spawn into one another. Rests on GAME-S
 
 Status: **verified**
 
-Warning (round A1); checked live in the editor and by `mapexport validate` when the base level's site is read (the
-editor reads its ground, water and collision). A spawn point the edits moved or made over water deeper than 1.2 m,
-more than 4 m deep inside a static object's collision, more than 6 m under the ground or outside the terrain: a
-soldier spawning there drowns or is stuck. The bounds lie past what DICE's own 1,168 spawn points do (GAME-SPAWN-3);
-on the 21 stock levels measured the rule finds nothing. Rests on GAME-SPAWN-1, GAME-SPAWN-3.
+Warning (round A1); checked live in the editor (its ground, water and collision) and by `mapexport validate` (the
+ground and water). A spawn point the edits moved or made over water deeper than 1.2 m, more than 4.5 m deep inside a
+static object's collision, more than 6 m under the ground or outside the terrain: a soldier spawning there drowns or
+is stuck. The bounds lie past what DICE's own 1,475 spawn points do (GAME-SPAWN-3); on the 27 levels measured the
+rule finds nothing. Rests on GAME-SPAWN-1, GAME-SPAWN-3.
 
-[code: rust/bc2-levelwrite/src/rules.rs:735] [code: rust/bc2-levelwrite/src/validate.rs:490] [code: rust/bc2-levelwrite/src/site.rs:446]
+[code: rust/bc2-levelwrite/src/rules.rs:735] [code: rust/bc2-levelwrite/src/validate.rs:491] [code: rust/bc2-levelwrite/src/site.rs:461]
 [test: rust/bc2-levelwrite/tests/a1_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside]
 
 ### XVAL-PLACE-3: A vehicle spawner has its vehicle's room and domain
@@ -681,12 +681,12 @@ on the 21 stock levels measured the rule finds nothing. Rests on GAME-SPAWN-1, G
 Status: **verified**
 
 Warning (round A1); checked live in the editor. A vehicle spawner the edits moved or made needs its vehicle's room
-(static collision no closer than DICE's tightest of the class: tanks 3 m, cars 1.5 m, helicopters 5 m, boats, IFVs
-and quads 0.5 m) and its domain: land vehicles not over deep water, boats on water, none buried in collision, land and
-sea vehicles inside the terrain. Otherwise the vehicle spawns into the world or cannot move. Rests on GAME-SPAWN-1,
+(static collision no closer than below DICE's tightest of the class: tanks 2 m, helicopters 3.5 m, cars, boats, IFVs
+and quads 0.5 m) and its domain: land vehicles not over deep water, boats on water (where the level's water mesh lies
+near the ground), none buried in collision, land and sea vehicles inside the terrain. Otherwise the vehicle spawns into the world or cannot move. Rests on GAME-SPAWN-1,
 GAME-VEH-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:745] [code: rust/bc2-levelwrite/src/validate.rs:345] [code: rust/bc2-levelwrite/src/site.rs:468]
+[code: rust/bc2-levelwrite/src/rules.rs:745] [code: rust/bc2-levelwrite/src/validate.rs:345] [code: rust/bc2-levelwrite/src/site.rs:483]
 [test: rust/bc2-levelwrite/tests/a1_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside]
 
 ### XVAL-PLACE-4: Gameplay objects stand inside a combat area
@@ -698,7 +698,7 @@ moved or made outside every combat area (a spawn point more than 1 m out, a vehi
 DICE's own): a player there is told to return to the area and dies as a deserter. Capture points are L1's (L1-CQ-013,
 L1-CQ-014); aircraft and the ambient backdrop are not held to it. Rests on GAME-AREA-1, GAME-AREA-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:756] [code: rust/bc2-levelwrite/src/validate.rs:415]
+[code: rust/bc2-levelwrite/src/rules.rs:756] [code: rust/bc2-levelwrite/src/validate.rs:414]
 [test: rust/bc2-levelwrite/tests/a1_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside]
 
 ### XVAL-PLACE-5: Spawns and objectives have a path for the AI
@@ -710,7 +710,7 @@ else DICE's file). A spawn point, flag or M-COM the edits moved or made with no 
 4 m in height, or whose nearest node is on an island cut off from the main network: a bot spawned there cannot
 leave, and bots cannot attack or defend an objective there. Rests on AI-NEED-2, AI-NAV-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:767] [code: rust/bc2-levelwrite/src/validate.rs:628] [code: rust/bc2-levelwrite/src/site.rs:536]
+[code: rust/bc2-levelwrite/src/rules.rs:767] [code: rust/bc2-levelwrite/src/validate.rs:631] [code: rust/bc2-levelwrite/src/site.rs:551]
 [test: rust/bc2-levelwrite/tests/a1_layout.rs::path_rules_want_spawns_and_objectives_on_the_main_network]
 
 ## 3. DICE's placement tendencies (L1)

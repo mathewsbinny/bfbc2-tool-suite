@@ -7700,21 +7700,31 @@ triangles), release.
 
 ### The site and path rules, calibrated on DICE's levels
 
-Each threshold lies past what DICE's own objects do. `examples/a1_calibrate.rs` runs the rules on every object of the
-21 stock multiplayer levels of `game\Dist` the editor opens with collision (mp_001 to mp_012sr: 1,168 spawn points, 504
-vehicle spawners, 125 capture points), with what each object measures:
+Each threshold lies past what DICE's own objects do. `examples/a1_calibrate.rs` runs the rules on every object of 27
+levels the editor opens with collision - the 21 stock multiplayer levels of `game\Dist` (mp_001 to mp_012sr) and six
+of `game\Package` (`mp_005gr`, Vietnam's `nam_mp_002cq` and `nam_mp_005r`, OPFOR's WW2 ports `wake_island_s`,
+`guadal_canal`, `iwo_jima_s`; `coral_sea`, Air Superiority, left out: the export does not offer the mode, and its
+carrier spawns stand outside the ground its terrain holds): 1,475 spawn points, 707 vehicle spawners, 165 capture
+points - with what each object measures:
 
 | measured on DICE's objects | value | the rule's bound |
 |---|---|---|
 | spawn points over water deeper than 1.2 m (surface to the ground or the pier under it) | 0 | XVAL-PLACE-2: deeper than 1.2 m |
-| spawn points buried in collision (depth up to the surface above) | 47, 0.01-3.58 m (floors, containers, barrier blocks, boulders); one 8.3 m in a bush's box | buried deeper than 4 m; vegetation left out |
+| spawn points buried in collision (depth up to the surface above) | 13, 0.01-4.24 m (boulders, `nam_mp_005r`'s rock); before the interior rule (a point standing on the object's own surface up to 0.6 m below it: a hangar, a container, a barrier's top) 47 more, up to a hangar's 5.4 m on `iwo_jima_s`; one 8.3 m in a bush's box | buried deeper than 4.5 m; interiors and vegetation left out |
 | spawn points under the height field | deepest 4.59 m (under a cliff on `mp_008`) | deeper than 6 m |
-| vehicle room, the tightest spawner per class (static collision 0.5-3 m above it, every 0.5 m on 16 bearings) | tank 3.5 m, car 2 m, heli 5.5 m, boat 1 m, IFV and quad 0.5 m | tank 3, car 1.5, heli 5, boat, IFV, quad 0.5 m |
-| boats: water under them | 21 of 21 over water, 0.4-1.9 m deep | a boat on dry land |
+| vehicle room, the tightest spawner per class (static collision 0.5-3 m above it, every 0.5 m on 16 bearings) | tank 2.5 m (`iwo_jima_s`), car 1 m, heli 4 m (`nam_mp_005r`), boat 1 m, IFV and quad 0.5 m | tank 2, heli 3.5, car, boat, IFV, quad 0.5 m |
+| boats: water under them | 44 of 48 over water, 0.4-28 m deep; `nam_mp_005r`'s 4 river boats on rivers the water mesh does not hold (its surface 86-104 m below them) | a boat on dry land, judged where the water mesh lies within 10 m below the ground |
 | land and sea vehicle spawners outside every combat area | up to 142 m (`mp_006cq`'s tanks, `mp_007`'s IFVs); helicopters and the ambient aircraft farther | more than 150 m; aircraft not held |
 | spawn points outside every combat area | one, less than 1 m (`mp_008`) | more than 1 m |
 | capture points outside every combat area | Rush, Squad Rush and Squad Deathmatch bases and squads (8) | not held (L1-CQ-013 / 014 hold flags and HQs to their team's area) |
-| **the site rules on DICE's 21 levels** | **0 findings** (before the calibration: 202) | |
+| **the site rules on the 27 levels** | **0 findings** (before the calibration: 202 on the 21 Dist levels) | |
+
+The rules also found what the target's first guess left on two of V1's export canaries (`mapexport validate` on
+their projects, and with collision `a1_calibrate --project`): Arica at dawn's Conquest layer has 18 spawn points in
+the harbour (water 1.4-56.2 m deep), Wake Island with Iwo Jima's state 22 in the sea (1.3-30.8 m) - the first guess fits
+the
+donor layer's box into the base's combat area without looking at the ground; the four Atacama canaries have none.
+The auto layout is what moves such a layer onto land.
 
 The rules report only what the edits moved or made (what the base has at the same place is DICE's), live in the
 editor and, without collision (the ground and water from the game copy), in `mapexport validate`:
@@ -7756,24 +7766,35 @@ centre), the combat areas' intersection over union, the share of the proposal's 
 
 | level | mode | donor chosen | errors / warnings / notes | statistics inside DICE's ranges | turn, scale | objects moved (clusters, points fitted) | DICE's anchors matched: n (mean m) | combat area IoU | proposal inside DICE's area | s |
 |---|---|---|---|---|---|---|---|---|---|---|
-| MP_001 | CQ | MP_006CQ | 0 / 0 / 0 | 27 of 27 | 0 deg, 0.99 | 252 (5, 1) | 5 (245) | 0.41 | 71 % | 2.5 |
-| MP_003 | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 211 deg, 0.87 | 270 (3, 0) | 5 (186) | 0.41 | 38 % | 1.9 |
-| MP_005 | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 15 deg, 0.90 | 270 (1, 0) | 5 (335) | 0.22 | 100 % | 2.4 |
-| MP_006CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 191 deg, 0.91 | 270 (2, 0) | 5 (85) | 0.55 | 78 % | 1.8 |
-| MP_009CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 192 deg, 1.00 | 270 (1, 0) | 5 (265) | 0.24 | 32 % | 2.6 |
-| NAM_MP_002CQ | CQ | NAM_MP_005CQ | 0 / 0 / 0 | 30 of 30 | 175 deg, 0.86 | 253 (3, 0) | 5 (155) | 0.32 | 70 % | 3.0 |
-| MP_005GR | Rush | MP_008 | 0 / 0 / 0 | 31 of 31 | 305 deg, 1.00 | 882 (3, 0) | 3 (115) | 0.26 | 100 % | 27.5 |
-| MP_009GR | Rush | MP_004 | 0 / 0 / 0 | 31 of 31 | 20 deg, 0.90 | 572 (4, 0) | 3 (244) | 0.32 | 88 % | 8.0 |
-| MP_012GR | Rush | MP_004 | 0 / 0 / 0 | 31 of 31 | 150 deg, 0.91 | 572 (2, 0) | 3 (147) | 0.28 | 56 % | 11.8 |
-| NAM_MP_005R | Rush | NAM_MP_003R | 0 / 0 / 0 | 31 of 31 | 15 deg, 0.99 | 391 (4, 2) | 3 (240) | 0.57 | 84 % | 5.1 |
-| MP_002SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 344 deg, 1.00 | 182 (2, 0) | 2 (99) | 0.61 | 100 % | 3.7 |
-| MP_005SR | SR | MP_003SR | 0 / 0 / 0 | 15 of 15 | 197 deg, 1.00 | 232 (0, 0) | 2 (166) | 0.29 | 69 % | 5.5 |
-| MP_012SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 165 deg, 1.00 | 182 (0, 0) | 2 (143) | 0.47 | 95 % | 4.4 |
-| MP_004SDM | SDM | MP_SP_005SDM | 0 / 0 / 1 | 4 of 5 | 135 deg, 1.00 | 214 (1, 0) | 1 (9) | 0.52 | 57 % | 2.7 |
-| MP_007SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 298 deg, 1.00 | 152 (0, 0) | 1 (85) | 0.30 | 75 % | 2.5 |
-| MP_009SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 208 deg, 1.00 | 152 (0, 0) | 1 (395) | 0.00 | 0 % | 2.2 |
+| MP_001 | CQ | MP_005 | 0 / 0 / 0 | 30 of 30 | 355 deg, 0.86 | 263 (0, 0) | 5 (299) | 0.36 | 76 % | 2.2 |
+| MP_003 | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 205 deg, 0.85 | 270 (2, 0) | 5 (187) | 0.39 | 41 % | 1.6 |
+| MP_005 | CQ | MP_009CQ | 0 / 0 / 0 | 30 of 30 | 350 deg, 1.00 | 200 (2, 0) | 5 (282) | 0.23 | 100 % | 1.9 |
+| MP_006CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 25 deg, 0.94 | 270 (2, 0) | 5 (242) | 0.45 | 70 % | 1.6 |
+| MP_009CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 0 deg, 0.85 | 270 (2, 0) | 5 (128) | 0.29 | 51 % | 1.7 |
+| NAM_MP_002CQ | CQ | NAM_MP_005CQ | 0 / 0 / 0 | 30 of 30 | 139 deg, 0.89 | 253 (3, 3) | 5 (116) | 0.41 | 61 % | 2.8 |
+| MP_005GR | Rush | MP_008 | 0 / 0 / 0 | 31 of 31 | 124 deg, 0.97 | 882 (3, 0) | 3 (280) | 0.25 | 100 % | 6.8 |
+| MP_009GR | Rush | MP_004 | 0 / 0 / 0 | 31 of 31 | 30 deg, 0.85 | 572 (5, 0) | 3 (241) | 0.33 | 87 % | 10.4 |
+| MP_012GR | Rush | MP_008 | 0 / 0 / 0 | 31 of 31 | 83 deg, 0.91 | 882 (2, 0) | 3 (176) | 0.36 | 88 % | 5.2 |
+| NAM_MP_005R | Rush | NAM_MP_003R | 0 / 0 / 1 | 31 of 31 | 348 deg, 0.90 | 391 (5, 0) | 3 (240) | 0.48 | 94 % | 4.3 |
+| MP_002SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 349 deg, 1.00 | 182 (0, 0) | 2 (78) | 0.58 | 100 % | 2.5 |
+| MP_005SR | SR | MP_003SR | 0 / 0 / 0 | 15 of 15 | 335 deg, 0.96 | 232 (1, 0) | 2 (173) | 0.17 | 35 % | 2.4 |
+| MP_012SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 166 deg, 1.00 | 182 (1, 0) | 2 (142) | 0.49 | 100 % | 1.9 |
+| MP_004SDM | SDM | MP_SP_005SDM | 0 / 0 / 1 | 4 of 5 | 135 deg, 1.00 | 214 (1, 0) | 1 (9) | 0.52 | 57 % | 1.7 |
+| MP_007SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 115 deg, 1.00 | 152 (0, 0) | 1 (65) | 0.36 | 83 % | 1.6 |
+| MP_009SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 0 deg, 1.00 | 152 (0, 0) | 1 (415) | 0.00 | 0 % | 2.1 |
 
-**16 of 16 levels: 0 errors and 0 warnings; 382 of 385 statistics inside DICE's ranges** (the 3 outside: Squad Deathmatch's vehicle count, below); 3 notes, all that one. Against DICE's own layout of each level the proposals differ, as a layout from another map's DICE layout would: DICE's anchors are matched 182 m away on average (median 161 m, from 9 to 395 m), the combat areas overlap with an intersection over union of 0.36 on average (median 0.32, from 0.00 to 0.61), and 70 % of the proposals' flags, bases, M-COMs and spawn points fall inside DICE's combat area (from 0 to 100 %). The closest: `MP_006CQ` (85 m, IoU 0.55), the Squad Rush levels `MP_002SR` and `MP_012SR` (IoU 0.61 and 0.47, 100 and 95 % inside), `MP_004SDM` (9 m); the farthest: `MP_009SDM` (its art drew the layout to the town 395 m from DICE's squads). The seconds are a donor's whole run (the project made, the target chosen, the proposal, its validation), release; the proposal alone is 0.7-0.9 s in the editor on `MP_003`. Seed 7 gives other proposals with the same verdicts (0 errors, 0 warnings and every statistic inside DICE's ranges on the 11 levels it finished in the round's time; one note).
+**16 of 16 levels: 0 errors and 0 warnings; 379 of 382 statistics inside DICE's ranges** (the 3 outside: Squad
+Deathmatch's vehicle count, below); 4 notes - those three and, on `NAM_MP_005R`, a stage's two M-COMs 63 m apart in
+height on its hills (L1-RU-014; `l1_a1_params.json` has no statistic for it). Against DICE's own layout of each level
+the proposals differ, as a layout from another map's DICE layout would: DICE's anchors are matched 192 m away on average
+(median 182 m, from 9 to 415 m), the combat areas overlap with an intersection over union of 0.35 on average (median
+0.36, from 0.00 to 0.58), and 71 % of the proposals' flags, bases, M-COMs and spawn points fall inside DICE's combat
+area (from 0 to 100 %). The closest: the Squad Rush levels `MP_002SR` and `MP_012SR` (IoU 0.58 and 0.49, 100 % inside),
+`MP_004SDM` (9 m), `NAM_MP_005R` (IoU 0.48, 94 % inside); the farthest: `MP_009SDM` (its art drew the layout to the town
+415 m from DICE's squads). The seconds are a donor's whole run (the project made, the target chosen, the proposal, its
+validation), release; the proposal alone is 0.8-0.9 s in the editor on `MP_003`. Seed 7 (before the calibration's last
+widening) gave other proposals with the same verdicts on the 11 levels it finished in the round's time (0 errors, 0
+warnings, every statistic inside DICE's ranges, one note).
 
 Squad Deathmatch's one value outside DICE's range is its vehicle count: the mode layer brings no vehicle spawner (E3d
 leaves the donor's vehicles to E4), so the layout has 0 where DICE's have 1 (L1-SD-006, a note); the auto layout only
@@ -7795,7 +7816,14 @@ standing half in the lake onto the town (no bad spot, no warning, every statisti
 path rule on a route graph with an island around one flag names exactly that flag's cluster, and every object when no
 node is near.
 
-**With path data** (`--routes`, the AI workspace's case): the Onslaught level `ONS_MP_004` (its installed path data: 8,843 route nodes) as a project with a BFBC2 Conquest target. DICE's own spawns, flags and M-COMs on it: 0 off the main network (XVAL-PLACE-5 silent). Without the routes the proposals left 0 to 47 objects off the main network per donor (7 for the donor chosen); with them (`autolayout::propose_with`: every spawn and objective also on the main network in the search, the fit and the check) the chosen proposal (`MP_005`'s layer) has **0 objects off the main network, 0 errors, 0 warnings, 0 notes, 30 of 30 statistics inside DICE's ranges**, its anchors 62 m from DICE's on average.
+**With path data** (`--routes`, the AI workspace's case): the Onslaught level `ONS_MP_004` (its installed path data:
+8,843 route nodes) as a project with a BFBC2 Conquest target. DICE's own spawns, flags and M-COMs on it: 0 off the main
+network (XVAL-PLACE-5 silent). Without the routes the proposals left 0 to 47 objects off the main network per donor (7
+for the donor then chosen);
+with them (`autolayout::propose_with`: every spawn and objective also on the main network in the search, the fit and
+the check) 7 of 9 donors' proposals have none off it, and the chosen one (`MP_005`'s layer) has **0 objects off the
+main network, 0 errors, 0 warnings, 0 notes, 30 of 30 statistics inside DICE's ranges**, its anchors 75 m from DICE's
+on average (combat area IoU 0.34).
 
 ### Part 2, the export's path-data step: the plan (A2)
 

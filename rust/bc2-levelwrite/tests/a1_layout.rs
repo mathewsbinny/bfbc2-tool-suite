@@ -159,7 +159,7 @@ fn site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_object
         vec![
             text("Team", "Team1"),
             rf("Vehicle", tank_ref),
-            at([300.0, g(300.0, -250.0) + 0.5, -250.0]),
+            at([300.0, g(300.0, -250.0) - 0.2, -250.0]),
         ],
         true,
     );
@@ -204,7 +204,7 @@ fn site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_object
         has("XVAL-PLACE-3", "only 1.5 m clear"),
         "a tank beside a building has no room"
     );
-    assert!(has("XVAL-PLACE-3", "4.5 m deep inside a static object's collision"));
+    assert!(has("XVAL-PLACE-3", "m deep inside a static object's collision"));
     assert!(has("XVAL-PLACE-4", "spawn point"));
     assert!(f.iter().all(|x| x.severity == Severity::Warning));
     // each rule is in the registry with its citations
