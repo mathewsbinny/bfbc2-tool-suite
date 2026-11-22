@@ -122,7 +122,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BC2_TEST_HANG_S': ('test', "the editor tests' hang guard: a test running longer (s) ends the binary, named"),
     'BC2_TEST_HANG_STACKS': ('test', "1: the hang guard prints every thread's stack first (rust\\hang_stacks.py)"),
     'BC2_XF1_STAGE': ('test', "XF1's cross-set export test keeps its staged export in this folder"),
-    'BC2_SG1_STAGE': ('test', "SG1's member-edit export test keeps its staged exports (one folder per level) here"),
+    'BC2_MEMBER_EDIT_STAGE': ('test', "the member-edit export test keeps its staged exports (one folder per level) here"),
     'BC2_EDITOR_PREPARE': ('test', "the editor's level prepare test on this level (a stand-in OPFOR folder)"),
     'BC2_EDITOR_G3': ('test', "G3's real Package levels test on these levels"),
     'BC2_EDITOR_G3_ART': ('test', "G3's content browser art test on"),
