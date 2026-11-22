@@ -472,6 +472,7 @@ name = "bc2-formats"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "libz-rs-sys",
  "memchr",
  "proptest",
  "rayon",
@@ -1767,6 +1768,15 @@ dependencies = [
  "libc",
  "plain",
  "redox_syscall 0.9.5",
+]
+
+[[package]]
+name = "libz-rs-sys"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "434324ee61a8e4a05dd3fdf03d51c073ea7fdaf5a35b2ca33c4ca9f3f37def4a"
+dependencies = [
+ "zlib-rs",
 ]
 
 [[package]]
