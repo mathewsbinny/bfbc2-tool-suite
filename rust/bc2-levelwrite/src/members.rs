@@ -185,11 +185,23 @@ pub fn file_of(name: &str) -> String {
 pub fn group_entities(w: &LevelWriter) -> Vec<GroupEntity> {
     let d = &w.d;
     let mut out = Vec::new();
-    for e in d.instances() {
+    let instances = d.instances();
+    // every instance by its guid (upper case; the first of a guid, as LevelWriter::find answers), made once: the
+    // member types were found one walk of the partition each (round PR1b-0, audit AU5 ALG-3)
+    let mut by_guid: Option<std::collections::HashMap<Vec<u8>, NodeId>> = None;
+    for &e in &instances {
         let ty = w.type_of(e);
         if !(ty.ends_with("ModelGroupEntityData") || ty.ends_with(".ForestEntityData")) {
             continue;
         }
+        let by_guid = by_guid.get_or_insert_with(|| {
+            let mut m = std::collections::HashMap::with_capacity(instances.len());
+            for &i in &instances {
+                m.entry(d.attr(i, b"guid").unwrap_or_default().to_ascii_uppercase())
+                    .or_insert(i);
+            }
+            m
+        });
         let name = d
             .child(e, b"Name")
             .and_then(|n| d.text(n))
@@ -200,7 +212,11 @@ pub fn group_entities(w: &LevelWriter) -> Vec<GroupEntity> {
             .unwrap_or_default()
             .iter()
             .filter_map(|&i| d.attr(i, b"ref"))
-            .filter_map(|r| w.find(&String::from_utf8_lossy(r)))
+            .filter_map(|r| {
+                by_guid
+                    .get(String::from_utf8_lossy(r).as_bytes().to_ascii_uppercase().as_slice())
+                    .copied()
+            })
             .collect();
         out.push(GroupEntity { entity: e, name, types });
     }

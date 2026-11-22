@@ -103,7 +103,7 @@ pub fn scene_load<'py>(
         }
         None => out.set_item("collision", py.None())?,
     }
-    match (&s.heightfield, &s.terrain) {
+    match (s.heightfield.as_deref(), s.terrain.as_deref()) {
         (Some(hf), Some((verts, tris))) => out.set_item(
             "terrain",
             (

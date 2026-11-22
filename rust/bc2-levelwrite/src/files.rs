@@ -14,6 +14,7 @@
 //! project ([`crate::project::Base::files`]), so a changed base file is reported as the partition's is.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -248,12 +249,16 @@ impl<F: Fn(&Target) -> Option<Vec<u8>>> Sources for F {
 
 /// The files of a level as a project's log leaves them: a writer per file (audit AU1 R18). The partition's is made
 /// from the base; the others are read from [`Sources`] when an operation first names them.
+///
+/// Each writer is shared (round PR1b-0, audit AU5 ALG-3 / ALG-4): a clone of the files (an editor checkpoint, a
+/// refusal's trial) shares every writer, and an operation copies a writer only when it edits one that is shared
+/// (`Arc::make_mut`), so checkpoints hold one copy of each file per change, not one per checkpoint.
 #[derive(Debug, Clone, Default)]
 pub struct LevelFiles {
     /// The level partition (`None`: the scene has none, as the demo's).
-    pub partition: Option<LevelWriter>,
+    pub partition: Option<Arc<LevelWriter>>,
     /// The static group files edited, by [`Target::group`]'s name.
-    pub groups: BTreeMap<String, LevelWriter>,
+    pub groups: BTreeMap<String, Arc<LevelWriter>>,
     /// The rasters strokes changed (height fields, paint layers), by target: their tiles shared with the
     /// checkpoints that hold them ([`crate::delta::Raster`]).
     pub rasters: BTreeMap<Target, crate::delta::Raster>,
@@ -270,7 +275,7 @@ impl LevelFiles {
     #[must_use]
     pub fn new(partition: Option<LevelWriter>) -> Self {
         Self {
-            partition,
+            partition: partition.map(Arc::new),
             groups: BTreeMap::new(),
             rasters: BTreeMap::new(),
             orders: Orders::new(),
@@ -303,7 +308,7 @@ impl LevelFiles {
         }
         let Op::Files { edits } = &o.op else {
             if let Some(w) = self.partition.as_mut() {
-                apply_one_with(w, o, schema, out, donors)?;
+                apply_one_with(Arc::make_mut(w), o, schema, out, donors)?;
             }
             return Ok(());
         };
@@ -312,14 +317,15 @@ impl LevelFiles {
             name: o.name(),
             error,
         };
-        // the copies the edits are made on: the partition only when an edit names it, each group file once
+        // the copies the edits are made on: the partition only when an edit names it, each group file once (shared
+        // until the first edit of each: Arc::make_mut copies it then)
         let mut stage = Self::default();
         let mut counts = Applied::default();
         if edits.iter().any(FileEdit::edits_partition) {
             stage.partition.clone_from(&self.partition);
         }
         if let Some(w) = stage.partition.as_mut() {
-            apply_partition_edits(w, o, schema, &mut counts, donors)?;
+            apply_partition_edits(Arc::make_mut(w), o, schema, &mut counts, donors)?;
         } else if o.op.parts().iter().any(|p| matches!(p, Op::Files { .. })) {
             return Err(fail(LevelWriteError::Refused(
                 "a multi-file operation holds another one".into(),
@@ -338,18 +344,19 @@ impl LevelFiles {
                         Some(w) => w,
                         None => {
                             if let Some(w) = self.groups.get(&file) {
-                                w.clone()
+                                Arc::clone(w)
                             } else {
                                 let t = Target::Group { file: file.clone() };
                                 let bytes = sources
                                     .file(&t)
                                     .ok_or_else(|| fail(LevelWriteError::NoFile(t.describe())))?;
-                                LevelWriter::parse(&bytes).map_err(fail)?
+                                Arc::new(LevelWriter::parse(&bytes).map_err(fail)?)
                             }
                         }
                     };
                     let field_schema = Schema::scan([&f.d]);
-                    f.set_field(&field_schema, &set.guid, &set.field, &set.to)
+                    Arc::make_mut(&mut f)
+                        .set_field(&field_schema, &set.guid, &set.field, &set.to)
                         .map_err(fail)?;
                     stage.groups.insert(file, f);
                     counts.fields += 1;
@@ -365,20 +372,22 @@ impl LevelFiles {
             };
             if !stage.groups.contains_key(&file) {
                 let w = if let Some(w) = self.groups.get(&file) {
-                    w.clone()
+                    Arc::clone(w)
                 } else {
                     let t = Target::Group { file: file.clone() };
                     let bytes = sources
                         .file(&t)
                         .ok_or_else(|| fail(LevelWriteError::NoFile(t.describe())))?;
-                    LevelWriter::parse(&bytes).map_err(fail)?
+                    Arc::new(LevelWriter::parse(&bytes).map_err(fail)?)
                 };
                 stage.groups.insert(file.clone(), w);
             }
-            let f = stage
-                .groups
-                .get_mut(&file)
-                .ok_or_else(|| fail(LevelWriteError::NoFile(file.clone())))?;
+            let f = Arc::make_mut(
+                stage
+                    .groups
+                    .get_mut(&file)
+                    .ok_or_else(|| fail(LevelWriteError::NoFile(file.clone())))?,
+            );
             let key = (file.clone(), instance.to_ascii_uppercase());
             let order: &mut Order = match orders.entry(key) {
                 std::collections::btree_map::Entry::Occupied(x) => x.into_mut(),
@@ -403,7 +412,7 @@ impl LevelFiles {
                         .partition
                         .as_mut()
                         .ok_or_else(|| fail(LevelWriteError::NoFile(Target::Partition.describe())))?;
-                    crate::members::delete(f, w, &file, instance, order, *item).map_err(fail)?;
+                    crate::members::delete(f, Arc::make_mut(w), &file, instance, order, *item).map_err(fail)?;
                     counts.deleted += 1;
                 }
                 FileEdit::MemberAdd { item, like, rows, .. } => {
@@ -417,7 +426,8 @@ impl LevelFiles {
                         .partition
                         .as_mut()
                         .ok_or_else(|| fail(LevelWriteError::NoFile(Target::Partition.describe())))?;
-                    crate::members::add(f, w, &file, instance, order, *like, *item, rows).map_err(fail)?;
+                    crate::members::add(f, Arc::make_mut(w), &file, instance, order, *like, *item, rows)
+                        .map_err(fail)?;
                     // the base member whose leaf shape it takes at export
                     let root = match like {
                         Member::Base(_) => *like,
@@ -604,7 +614,7 @@ pub fn apply_files<'a>(
     };
     out.bytes = files
         .partition
-        .as_ref()
+        .as_deref()
         .map_or_else(|| Ok(Vec::new()), LevelWriter::write)
         .map_err(write)?;
     let edited = files.edited().map_err(write)?;

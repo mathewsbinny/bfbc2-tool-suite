@@ -158,7 +158,7 @@ pub fn scene() -> Scene {
             t.push([a + 1, a + n, a + n + 1]);
         }
     }
-    s.terrain = Some((v, t));
+    s.terrain = Some(Arc::new((v, t)));
     // the flag's capture area: a ring with a 5 m prism
     let ring: Vec<[f64; 3]> = (0..12)
         .map(|k| {
