@@ -64,3 +64,12 @@ pub use read::{
     read_path_uncached, read_payload, stream_payload,
 };
 pub use unpack::{UnpackError, UnpackStats, unpack_bytes, unpack_path};
+
+/// The length of the gzip member header at the start of `data` as zlib's inflate reads it (`zlib.decompressobj(31)`:
+/// reserved flags refused, the header checksum checked); `Ok(None)` when not all of it is there.
+///
+/// # Errors
+/// [`FbrbError::Gzip`] for a header zlib refuses.
+pub fn gzip_member_header(data: &[u8]) -> Result<Option<usize>> {
+    gzip::zlib_header(data)
+}

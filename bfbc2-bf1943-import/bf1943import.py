@@ -53,7 +53,12 @@ import suite_paths  # noqa: E402
 suite_paths.use('shader-tools', 'mesh-viewer', 'console-convert', 'anim-tools', 'core')
 import aimanim  # noqa: E402
 import granny  # noqa: E402
-from bfbc2core import errors, paths  # noqa: E402
+from bfbc2core import errors, native, paths  # noqa: E402
+
+# The suite's one BF1943 bundle reader (bc2_formats::bf1943, round PR1b-1-rest): the bundle check (fbrb1943.Bundle's
+# verdict, for the reader version it follows) and a compressed payload's reads through restart points kept on disk.
+# The Python below is its reference (BFBC2_PURE_PYTHON=1, or native.use_backend('bf1943source', False)).
+native.register_backend('bf1943source', 'bf1943_read')
 
 SOLDIER = 'characters/skeletons/ske01.res'
 UNDEPLOY = re.compile(r'/3p/(stand|crouch)undeploy\.res$')
@@ -237,11 +242,18 @@ class _RestartCache:
                 self.stats['dropped'] += 1
 
     def held(self):
-        """(entries, bytes as costed)."""
+        """(entries, bytes as costed); the Rust reader's (bc2_formats::bf1943: the process's points) when it reads."""
+        m = native.backend('bf1943source')
+        if m is not None:
+            n, held, *_ = m.bf1943_restarts()
+            return n, held
         with self._lock:
             return len(self._d), self._held
 
     def clear(self):
+        m = native.backend('bf1943source')
+        if m is not None:
+            m.bf1943_restarts_clear()
         with self._lock:
             self._d.clear()
             self._cost.clear()
@@ -318,8 +330,8 @@ class Source:
         self._restarts: dict[str, Any] = {}            # rel -> restart points (_points)
         import threading
         self._lock = threading.Lock()
-        self.stats = {'checked': 0, 'from_index': 0, 'indexed': 0, 'shared_points': 0, 'spans': 0, 'hits': 0,
-                      'whole': 0, 'stored_reads': 0, 'decompressed_bytes': 0}
+        self.stats = {'checked': 0, 'from_index': 0, 'indexed': 0, 'shared_points': 0, 'from_disk': 0, 'spans': 0,
+                      'hits': 0, 'whole': 0, 'stored_reads': 0, 'decompressed_bytes': 0}
         self.info: dict[str, _BundleInfo] = {}
         self.entries: dict[str, tuple[str, dict[str, Any]]] = {}
         fb = fbrb1943()
@@ -392,6 +404,14 @@ class Source:
         """(size, mtime_ns, entries or None when fbrb1943 refuses the bundle, compressed, payload start, payload
         length) - fbrb1943.Bundle's verdict on the whole file, as WholeSource reads it."""
         size, mtime = (st.st_size, st.st_mtime_ns) if st is not None else (-1, -1)
+        m = native.backend('bf1943source')
+        if m is not None and _reader_signature(fb) == m.bf1943_reader():
+            # the Rust check of this very reader version: the same entries (dicts in the reader's key order)
+            got = m.bf1943_check(open(path, 'rb').read())
+            if got is None:
+                return (size, mtime, None, False, 0, 0)
+            entries, compressed, payload_at, payload_len = got
+            return (size, mtime, entries, compressed, payload_at, payload_len)
         try:
             raw = open(path, 'rb').read()
             bd = fb.Bundle(raw)
@@ -514,7 +534,28 @@ class Source:
         self._keep(key, data)
         return data
 
+    def _native_read(self, m, rel, b, offset, size):
+        """A compressed payload's bytes through the Rust reader's restart points (made once by any process and kept
+        on disk in index_dir(), by the payload's content; each span checked against its CRC-32)."""
+        self._changed(rel, b)
+        try:
+            data, info = m.bf1943_read(b.path, b.size, b.mtime_ns, b.payload_at, b.payload_len, offset, size,
+                                       index_dir())
+        except OSError as e:
+            raise Bf1943ImportError(f'{rel}: the BF1943 bundle cannot be read any more ({e})') from None
+        except ValueError as e:
+            if e.args and e.args[0] == 'damaged':
+                raise Bf1943ImportError(f'{rel}: the BF1943 bundle\'s payload no longer decompresses '
+                                        f'({e.args[-1]})') from None
+            raise Bf1943ImportError(f'{rel}: the BF1943 bundle\'s payload changed after the source was opened') from None
+        for k, v in info.items():
+            self.stats[k] = self.stats.get(k, 0) + v
+        return data
+
     def _compressed(self, rel, b, offset, size):
+        m = native.backend('bf1943source')
+        if m is not None:
+            return self._native_read(m, rel, b, offset, size)
         points = self._points(rel, b)
         if points is False:                                     # not one plain member: the whole stream, each time
             import gzip

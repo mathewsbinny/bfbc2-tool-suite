@@ -129,8 +129,8 @@ print(json.dumps([out, fbrb.cache_stats()]))
 
 
 def processes(work: str, bundles: list[str], n: int) -> tuple[bool, str]:
-    """n processes read the same bundles at once through one disk cache: the same results as without it, one whole
-    payload per bundle in the cache, no temporary file left."""
+    """n processes read the same bundles at once through one disk cache: the same results as without it, one points
+    file per bundle's content in the cache, no temporary file left."""
     import json
     folder = os.path.join(work, 'shared')
     shutil.rmtree(folder, ignore_errors=True)
@@ -148,12 +148,14 @@ def processes(work: str, bundles: list[str], n: int) -> tuple[bool, str]:
     got = [json.loads(o) for o, _ in results]
     same = all(r[0] == want for r in got)
     files = os.listdir(folder)
-    payloads = [f for f in files if f.endswith('.payload')]
-    tmp = [f for f in files if f.endswith('.tmp')]
+    points = [f for f in files if f.endswith('.points')]
+    tmp = [f for f in files if '.tmp' in f]
     written = sum(r[1]['written'] for r in got)
     hits = sum(r[1]['disk_hits'] for r in got)
-    ok = same and len(payloads) == len(bundles) and not tmp
-    return ok, f'same {same}, {len(payloads)} payloads, {len(tmp)} temporary, {written} written, {hits} disk hits'
+    # one points file per payload content (round PR1b-1-rest: copies of the same bundle share one)
+    contents = {hashlib.sha1(open(b, 'rb').read()).hexdigest() for b in bundles}
+    ok = same and len(points) == len(contents) and not tmp
+    return ok, f'same {same}, {len(points)} points files, {len(tmp)} temporary, {written} written, {hits} disk hits'
 
 
 def game_sample(files: list[str], work: str, rng: random.Random, per: int, check: Any, label: str) -> None:
@@ -205,7 +207,7 @@ def game_sample(files: list[str], work: str, rng: random.Random, per: int, check
     shutil.rmtree(os.path.join(work, 'cache'), ignore_errors=True)
     check(not bad, f'{label}: {n_bundles} bundles, {n_entries} entries ({n_bytes / 1e9:.2f} GB) in {n_reads} reads in '
           f'a random order: the same bytes through the cache ({stats["disk_hits"]} disk hits, {stats["memory_hits"]} '
-          f'memory hits, {stats["written"]} payloads written; {time.time() - t:.0f} s)', '; '.join(bad[:3]))
+          f'memory hits, {stats["written"]} points files written; {time.time() - t:.0f} s)', '; '.join(bad[:3]))
 
 
 def stored_sample(files: list[str], rng: random.Random, check: Any) -> None:
@@ -300,7 +302,7 @@ def main(argv: list[str]) -> int:
             open(p, 'wb').write(fbrb.build([(n, t, d[::-1] if k else d[1:]) for n, t, d in items()], True))
             others.append(p)
         ok, detail = processes(work, [zipped] + others, 4)
-        check(ok, '4 processes at once through one disk cache: the same bytes, one whole payload per bundle, no '
+        check(ok, '4 processes at once through one disk cache: the same bytes, one points file per bundle content, no '
               'temporary file left', detail)
         print(f'       ({detail})')
 

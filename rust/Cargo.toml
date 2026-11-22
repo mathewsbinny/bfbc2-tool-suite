@@ -52,6 +52,9 @@ thiserror = "=2.0.21"
 rayon = "=1.12.0"
 # gzip of FBRB bundles: raw deflate (the gzip framing is read in bc2-formats, by the reference's rules) and CRC-32
 flate2 = { version = "=1.1.11", default-features = false, features = ["zlib-rs"] }
+# restart points in a deflate stream (bc2_formats::restart): zlib's C interface on zlib-rs (the inflater flate2
+# already uses), for inflate's Z_BLOCK stops, inflatePrime and the window; no symbols exported
+libz-rs-sys = { version = "=0.6.8", default-features = false, features = ["std", "rust-allocator"] }
 pyo3 = { version = "=0.30.1", default-features = false, features = ["macros", "abi3-py312"] }
 proptest = { version = "=1.12.0", default-features = false, features = ["std"] }
 sha1_smol = "=1.0.1"
