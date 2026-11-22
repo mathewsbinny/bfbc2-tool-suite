@@ -29,13 +29,13 @@ rounds NK4 and NK5.
 | twin | 55 | 19,395 |
 | ported | 20 | 2,503 |
 | retired-pending | 3 | 310 |
-| stays | 50 | 7,976 |
-| test | 187 | 49,719 |
-| **all** | **358** | **104,487** |
+| stays | 52 | 8,509 |
+| test | 188 | 49,945 |
+| **all** | **361** | **105,246** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,410 | 52 |  |  |  |  |  | 1,358 |
+| `(root)` | 2 | 1,413 | 52 |  |  |  |  |  | 1,361 |
 | `bfbc2-anim-tools` | 7 | 2,462 |  | 1,108 |  | 106 |  |  | 1,248 |
 | `bfbc2-auto-navkit` | 61 | 16,407 | 1,872 | 5,879 | 2,749 | 204 |  |  | 5,703 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
@@ -52,22 +52,22 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 15 | 10,117 | 1,430 | 3,874 | 984 | 126 |  |  | 3,703 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 75 | 19,380 | 734 |  | 2,381 | 1,897 |  |  | 14,368 |
+| `core` | 76 | 19,603 | 734 |  | 2,381 | 1,897 |  |  | 14,591 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 29 | 5,053 |  |  |  |  |  | 4,786 | 267 |
-| `spec` | 6 | 2,200 |  |  |  |  |  | 2,200 |  |
+| `rust` | 29 | 5,058 |  |  |  |  |  | 4,791 | 267 |
+| `spec` | 8 | 2,728 |  |  |  |  |  | 2,728 |  |
 | `tests` | 29 | 7,679 |  |  |  |  |  |  | 7,679 |
 
 Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,410 lines.
+2 files, 1,413 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 52 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1358 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1361 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -399,7 +399,7 @@ Lines by status in the folder table.
 
 ## `core`
 
-75 files, 19,380 lines.
+76 files, 19,603 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -475,6 +475,7 @@ Lines by status in the folder table.
 | `core/tests/test_paths.py` | 244 | test | test |  | run_tests.py | Tests in Rust | bfbc2core.paths on a stand-in folder tree (quick tier, no game data): where the suite finds Project OPFOR B... |
 | `core/tests/test_prepare_o4.py` | 194 | test | test |  | run_tests.py | Tests in Rust | Round O4: the editor's level prepare in Rust (bfbc2.exe prepare_level, rust\bc2-cli\src\navkit) against the... |
 | `core/tests/test_scene_native.py` | 103 | test | test |  | run_tests.py | Tests in Rust | level.load through the Rust scene (rust/bc2-scene, bc2_native.scene_load) against what the retired Python l... |
+| `core/tests/test_spec_probes.py` | 223 | test | test |  | run_tests.py | Tests in Rust | The specification's probe counts as checks (round SPG2): the stable facts `spec/probes/terrain.py` and `spe... |
 | `core/tests/test_terrain.py` | 61 | test | test |  | run_tests.py | Tests in Rust | Checks terrain.py against the in-game terrain samples NavKit took (work\navsample\<level>_navkit.bin or _fu... |
 | `core/tests/test_water.py` | 62 | test | test |  | run_tests.py | Tests in Rust | water.py on every level of Project OPFOR BFBC2's game copy: each .Water.Mesh.res is read to its last byte,... |
 | `core/tests/test_xmlinst_native.py` | 149 | test | test |  | run_tests.py | Tests in Rust | Round F2b (rust/BENCHMARKS.md, "F2b"): bfbc2core.xmlinst in the Rust core against its patterns (instances_r... |
@@ -489,7 +490,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-29 files, 5,053 lines.
+29 files, 5,058 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -519,19 +520,21 @@ Lines by status in the folder table.
 | `rust/parity_nk1_apply.py` | 114 | benchmark or parity script | stays |  | by hand | stays | NK1 parity against a pre-NK1 checkout |
 | `rust/parity_nk2_file.py` | 292 | benchmark or parity script | stays |  | by hand | stays | NK2 parity against a pre-NK2 checkout |
 | `rust/parity_nk3_detail.py` | 500 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout |
-| `rust/python_status.py` | 813 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 818 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 
 ## `spec`
 
-6 files, 2,200 lines.
+8 files, 2,728 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `spec/probes/destruction.py` | 304 | build or dev script | stays |  | by hand | proposed: SPG2 (game-tier checks) | read-only probe for spec/engine/destruction.md |
+| `spec/probes/effects_chain.py` | 143 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier |
 | `spec/probes/lighting.py` | 342 | build or dev script | stays |  | by hand | proposed: SPG2 (game-tier checks) | read-only probe for the lighting, weather and effects specs |
 | `spec/probes/materials.py` | 365 | build or dev script | stays |  | by hand | proposed: SPG2 (game-tier checks) | read-only probe for spec/engine/materials.md |
+| `spec/probes/terrain.py` | 385 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier |
 | `spec/probes/vehicles.py` | 359 | build or dev script | stays |  | by hand | proposed: SPG2 (game-tier checks) | read-only probe for spec/engine/vehicles.md |
 | `spec/probes/weapons.py` | 456 | build or dev script | stays |  | by hand; tests 1 | proposed: SPG2 (game-tier checks) | read-only probe for spec/engine/weapons.md |
 | `spec/trace.py` | 374 | build or dev script | stays |  | run_tests.py (quick); tests 1 | proposed: Tests in Rust | the specification's traceability check |
