@@ -261,9 +261,23 @@ stock range; a flag with no spawn is L1-CQ-010). The editor's `validation::Live`
 the document's revision; the base's own check and the donor read once) and the Problems panel (`app/problemsui.rs`)
 lists the document's own problems and the findings, errors first, with the rule's code, its message and citations on
 hover and a "Go to" link that selects the object and frames it. `mapexport build` refuses the errors with the code
-first; `mapexport check` names each line's rule. Not yet: objects outside the combat area in general (L1's margins
-cover flags, bases, spawns and M-COMs), spawns with no path (needs NavKit's data), assets not safe to place, the WW2
-kit rule on placements.
+first; `mapexport check` names each line's rule. Not yet: assets not safe to place, the WW2 kit rule on placements.
+
+**Round A1 (2026-11-21): the site rules and the auto layout.** `bc2_levelwrite::site` is the base level's ground as
+the rules see it: the height field, the water mesh on 4 m cells, every static object's collision indexed on 8 m cells
+(a place is buried in an object when a vertical line through it crosses that object's triangles an odd number of
+times above and below it; vegetation never buries) and the level's art (static objects within 48 m, a destructible
+one counting four times). The editor's `validation::Live` makes it once per project from the base scene (the height
+field and water from the game copy when the views have no terrain unpack) and checks XVAL-PLACE-2 to 4 live: spawn
+points over water, buried in collision or under the ground, a vehicle spawner's room and domain, gameplay objects
+outside every combat area; once the AI workspace has read the level's path data, XVAL-PLACE-5 (spawns, flags and
+M-COMs off the main route network, `site::Routes`). Every bound lies past what DICE's own levels do (the 27 stock
+levels measured raise nothing). The Gameplay workspace's **Auto layout** panel (`autolayout.rs`,
+`app/autolayoutui.rs`) runs `bc2_levelwrite::autolayout::propose` on a worker: the project's mode layer, DICE's own
+layout from the target's donor, turned, scaled and placed where the site suits it, fitted spot by spot, measured with
+L1's metrics against `l1_a1_params.json`; the proposal is drawn over the views (rings at the new flags, M-COMs and
+spawns, the new combat outlines) and listed with its findings and statistics, and Accept commits it as one move
+operation (a stale proposal - the project changed since - cannot be accepted).
 
 ### 3.8 Performance: a hybrid Rust core (the user, 2026-11-16)
 

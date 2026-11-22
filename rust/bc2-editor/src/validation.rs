@@ -25,6 +25,10 @@ pub struct Live {
     /// Donor levels' partitions (and their sha1), read once.
     donors: HashMap<String, Option<(LevelWriter, String)>>,
     findings: Vec<Finding>,
+    /// The base level's site (ground, water, collision: round A1's rules), made once per project.
+    site: Option<(String, std::sync::Arc<bc2_levelwrite::site::Site>)>,
+    /// The level's route graph from the AI workspace's path data (round A1: XVAL-PLACE-5), once it is read.
+    routes: Option<std::sync::Arc<bc2_levelwrite::site::Routes>>,
     /// How long the last validation took (milliseconds).
     pub took_ms: f64,
 }
@@ -60,6 +64,9 @@ impl Live {
             .and_then(|c| self.donors.get(&c.donor))
             .and_then(Option::as_ref)
             .map(|(w, s)| (w, s.as_str()));
+        if self.site.as_ref().is_none_or(|s| s.0 != doc.project.id) {
+            self.site = Some((doc.project.id.clone(), std::sync::Arc::new(site_of(doc))));
+        }
         let (base, base_check) = self.base.as_ref().map_or((None, None), |b| (b.1.as_ref(), Some(&b.2)));
         let level = doc.writer();
         self.findings = if doc.base_bytes().is_none() {
@@ -75,6 +82,8 @@ impl Live {
                 languages: None,
                 base_check,
                 mode: None,
+                site: self.site.as_ref().map(|s| s.1.as_ref()),
+                routes: self.routes.as_deref(),
             })
         };
         self.at = Some(key);
@@ -82,11 +91,72 @@ impl Live {
         true
     }
 
+    /// The level's route graph changed (the AI workspace read its path data): validates again.
+    pub fn set_routes(&mut self, routes: Option<std::sync::Arc<bc2_levelwrite::site::Routes>>) {
+        self.routes = routes;
+        self.at = None;
+    }
+
+    /// The level's route graph, once the AI workspace has read its path data.
+    #[must_use]
+    pub fn routes(&self) -> Option<std::sync::Arc<bc2_levelwrite::site::Routes>> {
+        self.routes.clone()
+    }
+
+    /// The base level's site (made at the first validation of the project).
+    #[must_use]
+    pub fn site(&self) -> Option<std::sync::Arc<bc2_levelwrite::site::Site>> {
+        self.site.as_ref().map(|s| s.1.clone())
+    }
+
     /// The findings of the last validation.
     #[must_use]
     pub fn findings(&self) -> &[Finding] {
         &self.findings
     }
+}
+
+/// The base level's site: its ground, water and static collision, the base's own gameplay layer left out (its
+/// M-COMs are objectives, not the world); the height field and water from the game copy when the views have no
+/// terrain unpack.
+#[must_use]
+pub fn site_of(doc: &Doc) -> bc2_levelwrite::site::Site {
+    let base = doc.base_bytes().and_then(|b| LevelWriter::parse(b).ok());
+    let skip: HashSet<String> = base.as_ref().map_or_default(bc2_levelwrite::modelayer::layer);
+    let scene = doc.base_scene();
+    if scene.heightfield.is_none()
+        && let (Some(g), Some(w)) = (doc.game(), base.as_ref())
+        && let Ok((hf, water)) = bc2_levelwrite::export::ground_of(g, &doc.project.base.level, w)
+    {
+        // the terrain not unpacked for the views: the height field and water from the game copy's bundles
+        return bc2_levelwrite::site::with_ground(scene, &skip, hf, water.as_ref());
+    }
+    bc2_levelwrite::site::from_scene(scene, &skip)
+}
+
+/// The route graph of the AI workspace's path data (NavKit's build when there is one, else DICE's file): each node
+/// on the ground (the file's node height less [`crate::navdata::Y_OFFSET`]) with its island.
+#[must_use]
+pub fn routes_of(
+    loaded: Option<&Result<crate::nav::Loaded, crate::error::EditorError>>,
+) -> Option<std::sync::Arc<bc2_levelwrite::site::Routes>> {
+    let f = loaded?.as_ref().ok()?.files.first()?;
+    let nodes = f
+        .data
+        .node_pos
+        .iter()
+        .map(|p| [p[0], p[1] - crate::navdata::Y_OFFSET, p[2]])
+        .collect();
+    let source = if f.name == "NavKit" {
+        "NavKit's build"
+    } else {
+        "DICE's path data"
+    };
+    Some(std::sync::Arc::new(bc2_levelwrite::site::Routes::new(
+        nodes,
+        f.data.node_island.clone(),
+        source,
+    )))
 }
 
 /// One row of the Problems panel.

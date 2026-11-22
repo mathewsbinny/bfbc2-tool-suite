@@ -14,6 +14,7 @@
 
 use std::sync::{Condvar, Mutex, PoisonError};
 
+mod auto_layout;
 mod culltool_ct1;
 mod df1;
 mod export_e3b;

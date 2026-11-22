@@ -449,6 +449,8 @@ impl ViewState {
         }
         // round EX1: the differences (the Diff panel's), over any mode
         self.diff_look(&mut look, palette);
+        // round A1: the auto layout's proposal, until it is accepted or discarded
+        look.overlay.extend(self.autolayout.lines(self.doc.as_ref(), palette));
         self.gpu_scene.look = look;
     }
 
