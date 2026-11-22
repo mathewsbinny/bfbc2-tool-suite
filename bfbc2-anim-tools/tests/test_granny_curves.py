@@ -145,7 +145,7 @@ class Tally:
         keys = curve_keys_reference(cd)
         times = [k[0] for k in keys]
         ts = [-1.0, 0.0] + times + [(x + y) / 2 for x, y in zip(times, times[1:])] + [(times[-1] if times else 0) + 1]
-        for t in ts:
+        for t in ts[:: max(1, len(ts) // 24)]:            # at most ~24 samples a curve (each crosses into Rust)
             self.samples += 1
             ra, rb = bits(sample_reference(keys, t, (0.0, 0.0, 0.0))), bits(granny.sample(keys, t, (0.0, 0.0, 0.0)))
             if ra != rb:

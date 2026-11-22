@@ -10322,7 +10322,9 @@ whole). `core/tests/cli_o3_meshview.py` writes the `.bin` from the format (an in
   keeps the retired Python as the reference: built curves of every format (3,607 curves, 42,192 samples) and, with
   `--game`, the WW2 tools' animations and every 8th other one of the game copy: see Tests.
 - `texwrite.py`'s packing (`resource`, `texture`'s header, `wrapped`, `l8_bytes`): `bc2_convert::texwrite::resource`
-  / `wrapped` / `l8_bytes`. The DXT encoders' principal axes stay `numpy.linalg.eigh`'s (OpenBLAS, processor
+  / `wrapped` / `l8_bytes`. Measured: `sample` through `bc2_native` costs 16 us a call against the Python's 3 us (the
+  keys are converted on every call; OPFOR samples a few tracks a frame, so the rebuild's time did not move): a batch
+  call (keys once, many times) is the fix if it ever matters. The DXT encoders' principal axes stay `numpy.linalg.eigh`'s (OpenBLAS, processor
   dependent: round F2a).
 
 ### 4. The editor's install run on `Task`
@@ -10353,7 +10355,7 @@ Rust. OPFOR's `SUITE_REQUIRES` (< 0.18.0) warned, as expected (OPFOR branch `pr1
   (only the cache file changed: `REKEY` takes the `.bin`'s SHA-1 trailer out, which hashes the case folder's paths);
   the cull group 190 of 190 and the caches group as recorded (unchanged).
 - Game tier by hand: `test_meshview.py` (the Garand's parts, the soldier's coordinates, the picture), `test_granny.py`
-  (shifts, big-endian), `test_granny_curves.py --game` (GRANNY_GAME), `test_texwrite.py`, `test_model_f2a_native.py`
+  (shifts, big-endian), `test_granny_curves.py --game` (1,126 animations - the WW2 tools' and every 8th other - 231,340 curves, 2,233,706 samples: all equal, after one fix: Python's `q ** 2` in `_quat` is the C library's `pow`, which differs from `q * q` in the last bit for some values - 600 of the sampled orientation curves were off with `x * x`; the port calls `powf` with the exponent kept opaque from LLVM, which would turn it back into `x * x`; the WW2 rebuild above ran before this fix and still matched the oracle), `test_texwrite.py`, `test_model_f2a_native.py`
   (6 of 6), `test_f4_native.py` (7 of 7), `test_deep_scan_fixes.py` (the unreadable bundle said, not cached).
 - `rust\native_census.py --check`: 273 exports, 0 without a caller (recorded again: OPFOR no longer calls
   `meshview_index`); `python_status.py` regenerated; `spec/trace.py --check` ok (stockmp's citation moved with the

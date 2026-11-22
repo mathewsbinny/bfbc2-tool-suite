@@ -55,7 +55,7 @@
    "embedded_by": [],
    "folder": "bfbc2-anim-tools",
    "kind": "test",
-   "lines": 208,
+   "lines": 211,
    "note": "granny.curve_keys and granny.sample on the Rust core (round PR1b-2-rest: bc2_convert::granny_edit) against...",
    "path": "bfbc2-anim-tools/tests/test_granny_curves.py",
    "retiring": "Tests in Rust",
@@ -3519,7 +3519,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1355,
+   "lines": 1359,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -4425,29 +4425,29 @@
  "totals": {
   "all": {
    "files": 363,
-   "lines": 106304
+   "lines": 106311
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1411,
+    "lines": 1415,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1355,
+    "test": 1359,
     "twin": 0
    },
    "bfbc2-anim-tools": {
     "files": 8,
-    "lines": 2617,
+    "lines": 2620,
     "live": 0,
     "partly": 1055,
     "ported": 106,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1456,
+    "test": 1459,
     "twin": 0
    },
    "bfbc2-auto-navkit": {
@@ -4694,7 +4694,7 @@
    },
    "test": {
     "files": 185,
-    "lines": 50189
+    "lines": 50196
    },
    "twin": {
     "files": 55,

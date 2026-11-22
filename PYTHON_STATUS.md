@@ -30,13 +30,13 @@ rounds NK4 and NK5.
 | ported | 21 | 2,572 |
 | retired-pending | 3 | 310 |
 | stays | 58 | 10,604 |
-| test | 185 | 50,189 |
-| **all** | **363** | **106,304** |
+| test | 185 | 50,196 |
+| **all** | **363** | **106,311** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,411 | 56 |  |  |  |  |  | 1,355 |
-| `bfbc2-anim-tools` | 8 | 2,617 |  | 1,055 |  | 106 |  |  | 1,456 |
+| `(root)` | 2 | 1,415 | 56 |  |  |  |  |  | 1,359 |
+| `bfbc2-anim-tools` | 8 | 2,620 |  | 1,055 |  | 106 |  |  | 1,459 |
 | `bfbc2-auto-navkit` | 56 | 15,048 | 1,815 | 4,748 | 2,749 | 273 |  |  | 5,463 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
 | `bfbc2-bf1943-import` | 26 | 10,915 | 1,017 | 1,558 | 3,273 | 56 |  |  | 5,011 |
@@ -62,16 +62,16 @@ Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,411 lines.
+2 files, 1,415 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1355 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1359 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
-8 files, 2,617 lines.
+8 files, 2,620 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -79,7 +79,7 @@ Lines by status in the folder table.
 | `bfbc2-anim-tools/aimanim.py` | 106 | library | ported | bc2_formats::aimanim; bfbc2 aimanim; embedded | bf1943import; tests 2; OPFOR 2 (bf1943_weapons, weapon_preview) | PR1b-2 | references retired in RT1; parse / write / to_pc go through bc2_native; its docstring is the usage bfbc2.exe prints |
 | `bfbc2-anim-tools/tests/test_aimanim.py` | 124 | test | test |  | run_tests.py | Tests in Rust | aimanim.py: generated aim poses (AimAnimation) read, written and renumbered. |
 | `bfbc2-anim-tools/tests/test_granny.py` | 216 | test | test |  | run_tests.py | Tests in Rust | granny.py on the game's files (game tier; skipped without them): - the soldier skeleton (characters/skeleto... |
-| `bfbc2-anim-tools/tests/test_granny_curves.py` | 208 | test | test |  | run_tests.py | Tests in Rust | granny.curve_keys and granny.sample on the Rust core (round PR1b-2-rest: bc2_convert::granny_edit) against... |
+| `bfbc2-anim-tools/tests/test_granny_curves.py` | 211 | test | test |  | run_tests.py | Tests in Rust | granny.curve_keys and granny.sample on the Rust core (round PR1b-2-rest: bc2_convert::granny_edit) against... |
 | `bfbc2-anim-tools/tests/test_granny_f2a_native.py` | 187 | test | test |  | run_tests.py | Tests in Rust | Round F2a: Granny's writing side in the Rust core against its Python reference - Granny.to_bytes (the CRC),... |
 | `bfbc2-anim-tools/tests/test_granny_native.py` | 563 | test | test |  | run_tests.py | Tests in Rust | granny.py's Rust core (bc2_native: bc2_formats::granny, bc2_convert::granny): the reader against granny.py'... |
 | `bfbc2-anim-tools/tests/test_granny_port.py` | 158 | test | test |  | run_tests.py | Tests in Rust | granny.py's Xbox 360 -> PC conversion (to_pc) and DICE's bone table. |

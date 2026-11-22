@@ -1036,7 +1036,11 @@ fn quat(a: i64, b: i64, c: i64, scales: &[f64; 4], offsets: &[f64; 4], top: i64)
     q[i2] = (a & mask) as f64 * scales[i2] + offsets[i2];
     q[i3] = (b & mask) as f64 * scales[i3] + offsets[i3];
     q[i4] = (c & mask) as f64 * scales[i4] + offsets[i4];
-    let r = 1.0 - q[i2] * q[i2] - q[i3] * q[i3] - q[i4] * q[i4];
+    // `1 - q[i2] ** 2 - ...`: Python's `**` is the C library's pow, which is not always x * x (99 in 200,000 random
+    // values here; 600 of the game's sampled orientation curves were a last bit off with x * x)
+    // (the exponent kept opaque: LLVM would turn pow(x, 2.0) into x * x)
+    let two = std::hint::black_box(2.0f64);
+    let r = 1.0 - q[i2].powf(two) - q[i3].powf(two) - q[i4].powf(two);
     let sign = if a & top != 0 { -1.0 } else { 1.0 };
     q[i1] = py_max(0.0, r).sqrt() * sign;
     q.to_vec()
