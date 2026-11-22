@@ -25,14 +25,12 @@ bc2-convert.workspace = true
 png.workspace = true
 zune-jpeg.workspace = true
 zune-core.workspace = true
+# round A1: the site (ground, water, collision) of the auto layout and the placement rules; the proofs load levels
+bc2-scene.workspace = true
 
 # mapexport.exe's application icon (round I1: build.rs)
 [build-dependencies]
 embed-resource.workspace = true
-
-[dev-dependencies]
-# the proofs: an edited partition loaded as a level
-bc2-scene.workspace = true
 
 [lints]
 workspace = true

@@ -27,6 +27,7 @@
     reason = "tree walks: d (the file), e / x / y (elements), a / b (the two files compared), t (a type)"
 )]
 
+pub mod autolayout;
 pub mod awards;
 pub mod cullcache;
 pub mod culltool;
@@ -50,6 +51,7 @@ pub mod project;
 pub mod rules;
 pub mod schema;
 pub mod shaders;
+pub mod site;
 pub mod validate;
 pub mod weather;
 pub mod write;
