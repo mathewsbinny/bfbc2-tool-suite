@@ -1,7 +1,7 @@
 {
  "levels": {
   "ons_mp_004": {
-   "bytes": 7623072,
+   "bytes": 7627988,
    "inputs": {
     "work/levels/ons_mp_004/dynamic_tris.npy": "9c9acd989a22ed59c3271e73cbd0f5e987e9fb27",
     "work/levels/ons_mp_004/forbid_tris.npy": "50fdfce0970303105e02a9e100e48009fe109e57",
@@ -15,10 +15,10 @@
     "work/navsample/ons_mp_004_navkit_hi_p02.bin": "77e7509a44941fb1d95ca66cf3d1da643579a937",
     "work/navsample/ons_mp_004_navkit_p02.bin": "0de7ca9590976402f747e77a8b8f3b3cd75b3193"
    },
-   "pathdata": "843ca19e5ee911e6ce6fdcfaa1240389cac9b236"
+   "pathdata": "020d7019c061c2e1b91335d540b213f8e80598ed"
   },
   "sp_004_b": {
-   "bytes": 8235888,
+   "bytes": 8242112,
    "inputs": {
     "work/levels/sp_004_b/dynamic_tris.npy": "94be7a1d433eaeaa47dd17e890fed17d7468e2d2",
     "work/levels/sp_004_b/forbid_tris.npy": "0e7e80affad5a7470794e8e24a13cdd48607222f",
@@ -32,10 +32,10 @@
     "work/navsample/sp_004_b_navkit_hi_p02.bin": "01c6256fb79818653452b7b0e6faf3674a83e322",
     "work/navsample/sp_004_b_navkit_p02.bin": "fcf7849f0b1bb3a318489ca29d7ebbf16e6ffeaf"
    },
-   "pathdata": "bf711ee42f2f02b20f1a804fc84ebb2621b04924"
+   "pathdata": "bd44cedb25e7c88032ef29bf47c3fdddee72032f"
   },
   "sp_008_b": {
-   "bytes": 8477720,
+   "bytes": 8484708,
    "inputs": {
     "work/levels/sp_008_b/dynamic_tris.npy": "92823a8272ab53cdca206a4b7be272f7eac62b68",
     "work/levels/sp_008_b/forbid_tris.npy": "f935576798edba0deb6b1d1151265bef7c0abdc3",
@@ -49,10 +49,10 @@
     "work/navsample/sp_008_b_navkit_hi_p02.bin": "dd95409faac4cc13e75605df2888b6ab7f3f0503",
     "work/navsample/sp_008_b_navkit_p02.bin": "3c4046568694ef99a92cd3e0dae6c7fba7f06b73"
    },
-   "pathdata": "2d23c2131d7f14f1bbd09f4b9f251cba874860ad"
+   "pathdata": "2839e515d3802f501e4dc67513becc97591201a7"
   },
   "sp_009": {
-   "bytes": 406216,
+   "bytes": 408096,
    "inputs": {
     "work/levels/sp_009/dynamic_tris.npy": "c6cba883fba060e98cffea2296694a6033698fed",
     "work/levels/sp_009/forbid_tris.npy": "e2c636589cceb8830b96578220b8711e0188c0a5",
@@ -66,7 +66,7 @@
     "work/navsample/sp_009_navkit_hi_p02.bin": "4453af7e87fe8e3c24e68c7706cd08a96404048a",
     "work/navsample/sp_009_navkit_p02.bin": "854e44c4426edab320dedb005e41153ad74c5ce2"
    },
-   "pathdata": "2971a232f861d0900ea92e15ba9a2c24306ea1f6"
+   "pathdata": "e9be0ef5ef1c45e71930516e9f6c1090552993be"
   }
  },
  "quick": {
@@ -347,7 +347,7 @@
    }
   ]
  },
- "recorded": "2026-11-18",
+ "recorded": "2026-11-22",
  "retired": {
   "e2a": [
    "946f85acb3794d85eaa7e650699226450f3c91ba",

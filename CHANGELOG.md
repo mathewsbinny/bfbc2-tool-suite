@@ -43,6 +43,36 @@ landed on `main`.
 - **The native census is a check** (`python rust\native_census.py --check`, `run_tests.py` quick, `native-census`):
   an export of `bc2_native` that no tool, test or Project OPFOR file calls fails; `--record` keeps OPFOR's callers
   (`rust\native_census.json`) for a checkout without OPFOR beside it.
+- **The bot AI specification's static RE, finished as far as it goes without the game** (round AIS-rest;
+  specification only, no tool changed): the AI body - the proxy's three interfaces and its seat requests
+  (BOT-CTL-6); who writes which slot of the AI input object (BOT-CTL-7: reload and fire as digital actions, the
+  infantry's move target, sprint, weapon slot and aim, the vehicle controls' analog throttle, brake, yaw, pitch and
+  roll); stance, aim state, weapon slot, vehicle weapons and seats set directly (BOT-CTL-8); the creators of goals,
+  behaviours, plans and controls (BOT-RT-9); the vehicle controls (BOT-VEH-5); bots as scored and named players
+  (BOT-SCO-1 to BOT-SCO-4: the name at ServerPlayer +0xC2C, the three tests that keep bots from scoring); a capture
+  point's owner and progress (BOT-GS-3) and the counters' and objectives' classes (BOT-GS-4); where a session's AI
+  difficulty comes from (BOT-DIF-4); one server class for every order and the `IssueOrder` event hash (AIO-RT-1).
+  The bot module's implementation interface is updated and the in-game test of the AI input object is written as a
+  checklist. 12 new rules (69 in the two files).
+- navparity's directed measures, the route graph as the game's runtime walks it (KYRT-PATH-3): `runtime_connectivity`
+  and `strong_share` (navregress compares them); `kynapse_probe` counts one-way edges by their ends, C records against
+  the square lines and the strongly connected share; two game-tier corpus tests (`one_edge_per_source_and_target`,
+  `border_ids_have_edges_in_two_sectors`).
+
+- **The terrain's last undecoded bytes, specified** (round SPG2-rest; specification and probes): a main height-field
+  block's tail is a run-length coded depth map (the editor's `DepthMap.png`), a min / max tree of the heights down to
+  16-sample cells and a lower envelope of grids 2 to n / 8 + 1 a side (TERR-HF-4, TERR-HF-9 - 11); the physics
+  material map is 512 x 256-cell blocks of 4-bit cells, a repeated byte starting a run, over the main block with rows
+  along z, its names resolved in the level's material grid by name (TERR-MM-2 - 4). Both re-encode byte for byte on
+  DICE's 30 terrains, so the map editor's terrain rounds can write a new main block (E7) and paint footstep and impact
+  materials (TEDIT-HF-3, TEDIT-MM-1). The undergrowth entries are the engine's `TerrainUndergrowthType`
+  (VEG-UG-3, VEG-UG-5: density, variation, mask range, scales, wind, view distance).
+- **Grime, camouflage and the menus' runtime in the specification** (`spec/engine/materials.md` MAT-TEX-5 - 19,
+  `spec/engine/menus.md` MENU-AS / RT / EVT / HUD / ED, 41 rules) with two new probes, `spec/probes/grime.py` and
+  `spec/probes/menus.py`.
+- **Every specification probe is a game-tier check**: `core/tests/test_spec_probes.py` (`run_tests.py game`) now also
+  holds SPG's five probes' counts (materials, destruction, lighting, vehicles, weapons), the two new probes' and the
+  terrain tails and material maps: 172 checks; 74 rules move to verified.
 
 ### Changed
 - **One editable DBX document** (round PR1b-2, PR1b-1's decision): DbxEdit's model (`dbxedit::EditFile`) merged into
@@ -59,6 +89,12 @@ landed on `main`.
 - **The map editor's background jobs run on one `Task` type**: the start screen's catalog, a level's load and its
   render meshes, the export's profiles, preview and run, NavKit's comparison read (a worker that dies is an error
   naming the job).
+- NavKit's path data is closer to DICE's in structure (round NKG1): each sector's table bounds are the box of its
+  route nodes (KYN-SEC-2), no edge is written twice (KYN-EDGE-4), and border portals beyond a sector's square link to
+  the diagonal neighbour (KYN-LINK-1; 5,922 such link entries on the 15 regression levels, DICE 5,682). Every navparity
+  measure is unchanged; built files differ in bytes (`navbuild_golden.json` re-recorded). Edges only on owner border
+  copies are written behind `navbuild.OWNER_EDGES`, off: with NavKit's single border row they would cut routes into
+  the lower sector (KYRT-PATH-3).
 
 ### Removed
 - `bc2_formats::dbxedit::EditFile` and `dbxedit::Element` (the one document is `EditDbx`), `dbxedit::run` /
@@ -70,6 +106,25 @@ landed on `main`.
   `fbrb::{tool, unpack_path, unpack_bytes, UnpackError, UnpackStats}` (now `bc2_tools::`).
 - `bc2_formats::bf1943::Payloads::read`'s folder argument: it takes a `PointsStore` (`bc2_gamefs::points::Folder`).
 - `bc2_native.xas_encode` (no caller; `xas_encode_many` does its work).
+
+### Fixed
+- **The bot-kill scoring contradiction** (AI-NEED-5 against PERS-SCORE-1): the player-killed handler returns only for
+  a null victim, so with OPFOR's offline-scoring patch a human's kill of a bot scores; what blocked it offline was the
+  4-client scoring flag. AI-NEED-5, PERS-SCORE-1 and the open-question lists now say so (BOT-SCO-3); a playtest still
+  has to confirm it.
+- **More of DICE's Kynapse generator decoded** (round NKS-rest2; specification and probes only, no tool changed): the
+  generator's rectangle is the box of the level's soldier and vehicle spawns grown by 25 m (KYG-RECT-1, verified on
+  the 13 campaign levels by a new game-tier test, `rust/bc2-scene/tests/kynapse_rect.rs`); some route nodes come in
+  pairs exactly one step of GraphAccuracy + 0.35 m apart along an axis (KYG-NODE-4, verified by a new test in
+  `kynapse_corpus.rs`); every point of DICE's ground sees a node within half of DistEdgeMax (KYG-NODE-5, 96.5 % coarse,
+  98.3 % detailed, 95.2 % vehicle). Node placement is not from the Havok collision, detailed sectors follow no
+  level-data rule (best 92 %: designer zones), and the midline cut and the spanner's unexplained pairs are narrowed
+  further. Two new probes: `rust/bc2-formats/examples/kynapse_rules.rs` (DICE's files) and
+  `rust/bc2-scene/examples/kynapse_geom.rs` (DICE's files against the levels' collision, height field and entities).
+- **NAM_MP_003's terrain in the game-accurate view**: the visual-terrain reader took an undergrowth entry's second
+  string as one byte and refused that terrain, so the view of `nam_mp_003cq` / `r` / `sdm` / `sr` drew no terrain
+  patches or road strips. The reader now reads the string and keeps the undergrowth entries
+  (`bc2_render::terrain::PatchShader::meshes`); the other 33 visual terrains of the game copy read as before.
 
 ## [0.16.0] - 2026-11-22
 

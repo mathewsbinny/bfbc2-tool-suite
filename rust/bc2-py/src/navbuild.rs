@@ -743,6 +743,7 @@ impl NavLevel {
             borders: borders
                 .into_iter()
                 .map(|(area, index, di, dj, t0, t1, line)| bc2_navbuild::graphfile::Border {
+                    along: 0,
                     area,
                     index,
                     di,

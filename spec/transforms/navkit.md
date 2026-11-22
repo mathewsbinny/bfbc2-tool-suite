@@ -156,6 +156,13 @@ Measured 2026-11-20 (15 regression levels, means): `ground` 98.22 %, `connectivi
 `areas_same` 5.18 %, `portals` 6.47 %, `nodes_same` 0.64 %, `nodes_near` 47.63 %, `edges_same` 0.02 %, D / F recall
 18.8 / 33.5 %.
 
+Measured 2026-11-22 after round NKG1 (the same levels, means): every measure above unchanged; the directed measures
+navparity reports since NKG1, the graph as the runtime walks it (KYRT-PATH-3: a node's edges are all its copies';
+edges into a border node with no owner copy dropped), `runtime_connectivity` 98.41 % (sp_003_b 90.01 % lowest) and
+`strong_share` 99.69 % (DICE's own files 97.30 %). Structure (probe): table bounds the node box in 2,489 of 2,494
+sectors (0 before), duplicate edges 0 (6,916), diagonal-neighbour links 5,922 of 14,904 entries (0 of 8,994; DICE
+5,682 of 14,562).
+
 ## Open questions
 
 - The levels where NavKit's coverage still falls short of DICE's (KYNAPSE_SPEC.md and the parity runs); the goal is

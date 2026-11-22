@@ -8177,6 +8177,52 @@ A specification round: no tool's behaviour changed. Two spec files (`spec/engine
 probes on the AI input object, the behaviours' writes, bots as scored and named players, the mode state's run-time
 objects, the bot object's class and senses, the order and squad runtime, the session's AI difficulty.
 
+## NKS-rest2: the Kynapse generator against the levels' own data (2026-11-22, branch `nksr2`)
+
+A specification round: no tool's behaviour changed. KYG-RECT-1 answered and verified, two new rules (KYG-NODE-4
+verified, KYG-NODE-5 observed), KYG-NODE-1, KYG-AREA-2, KYG-DET-1, KYG-EDGE-3 and KYG-DF-2 narrowed; the gap list's
+NKG2 / NKG3 targets, the open questions and `formats/kynapse.md`'s OQ6 / OQ8 updated.
+
+**Method.**
+- **DICE's files alone.** `rust/bc2-formats/examples/kynapse_rules.rs` (read-only, counts only), one fit per
+  `--only`: `cover` 95 s in release (every sample point of the 35 files, 26 million, against the nodes it sees),
+  `spacing` 2.1 s, `midline` 2.6 s, `holes` 18 s, `pairs` 12 s.
+- **Against the levels.** `rust/bc2-scene/examples/kynapse_geom.rs` loads each of the 17 prepared levels with
+  collision and height field through `bc2_scene::scene::load` (0.7-1.6 s a level; 0.5-8.4 million collision
+  triangles) beside DICE's files: `clearance` (nodes against the collision clipped to the soldier's height band, and
+  control points 1.7 m / -1.1 m beside each), `detailed` (each infantry sector's level data, `--rows` for the numbers),
+  `rect` (the ground's box against each entity category's box). ONS_MP_005 is not prepared and is skipped. Release
+  times for the 17 levels: `clearance` 104 s, `detailed` 25 s, `rect` 15 s.
+- **Looked at.** Single sectors were plotted from a scratch dump (deleted): they showed the coverage layout and the
+  axis pairs that the fits then measured.
+- **Tests.** `kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis` (1.3 s in the dev profile) and
+  `bc2-scene/tests/kynapse_rect.rs::ground_stops_25_m_beyond_the_spawns` (1.1 s; entities only), both game tier.
+- No NavKit build, no game run; no vehicle-shaped sample run exists (165 sample files surveyed).
+
+**The fits (DICE's 35 files; 17 prepared levels for the geometry):**
+
+| Rule | Fit | Coverage | Status |
+|---|---|---|---|
+| the rectangle (KYG-RECT-1) | the box of soldier + vehicle spawns grown by 25 m; samples kept to about 24.5 m beyond the outermost spawn (vehicle 22.2 m) | infantry: 45 of 52 campaign sides 0.11-0.91 m inside it, the other 7 end 13-347 m before, none past; vehicle: 7 of 48 sides 2.33-3.09 m inside, none past. Exceptions: the 5 Onslaught files (ONS_MP_002 242 m past the prepared partition's spawns) | verified |
+| step pairs (KYG-NODE-4) | ordinary nodes sharing x or z exactly, one step GraphAccuracy + 0.35 m apart (3.35 / 0.85 / 15.35 m) | 6,578 coarse pairs at 3.350 m +- 2 mm, 80 x any other gap within 20 %; detailed 226 (56 x), vehicle 44 (22 x); 7.6 % of coarse nodes on such half-step offsets | verified |
+| coverage (KYG-NODE-5) | every point of the ground sees a node within DistEdgeMax / 2 | 96.5 % coarse and 98.3 % detailed within 7.5 m, 95.2 % vehicle within 25 m; steep fall just past it; 1.8 % of coarse points see none within 30 m | observed |
+| node placement (KYG-NODE-1) | not the collision | coarse nodes: 95.5 % without collision within 3 m, as control points; "collision corner + radius" (0.35-0.45 m): 2.2 % of detailed nodes against 1.9 % of control points; a node's share's centroid a median 0.65 m away (not a converged centroidal layout) | observed |
+| the midline cut (KYG-AREA-2) | open | a cut rises with the crossings (single 0.6 %, five or more 21 %); between crossings 99 % no ground for cut and uncut alike; coarse areas hold 3,221 holes across a midline, so "no loop across a midline" is excluded | observed |
+| detailed sectors (KYG-DET-1) | no level-data rule | best single feature (>= 28 placed objects with collision) 91.8 % of 2,561 sectors, best pair 92.2 %; designer zones, not shipped | observed |
+| the spanner's misses (KYG-EDGE-3) | a step after the pass (inferred) | a cell-level reach test is passed by 95.7 % of coarse misses and 96.8 % of edges; no pair order explains a miss; misses on step-pair nodes 32 % (edges 9 %), both ends of degree <= 4 69 % (edges 39 %); vehicle misses leave the mesh's cells (85 %) | verified (edges), inferred (misses) |
+| vehicle D / F (KYG-DF-2) | not fittable from disk | needs one in-game `[dev] navsample` run at the vehicle settings (pitch 1.0, radius 2.5, height 4) on sp_04 or sp_02 | open |
+
+**What NKG2 can implement now.** The rectangle as a rule (the spawns' box + 25 m, the same on new maps, replacing
+`CLIP_TO_REFERENCE` on campaign levels; Onslaught keeps DICE's extent); interior node placement to DICE's coverage
+(every point sees a node within DistEdgeMax / 2) measured by the coverage, `nodes_near` and `ai_pairwise`; DICE's
+detailed sectors on DICE levels and a stand-in for new maps (`NeedsDetailedPathfinding` within 10 m, or 28 or more
+placed objects with collision in the sector; 91.8 %). NKG3: the coarse D / F recall; the vehicle rule waits for the
+vehicle sample run (a playtest item).
+
+**Left (NKS-rest3 in the ROADMAP):** the midline trigger, exact node positions (where a step pair's centre comes from),
+the step after the spanner, the rectangle on the Onslaught files, the vehicle D / F rule (in game), the runtime's LPF
+and node +0x14.
+
 ## NKS-rest: the Kynapse generator's rules fitted, and the runtime RE left (2026-11-22, branch `nksr`)
 
 A specification round: no tool's behaviour changed. New rules KYG-EDGE-3 / KYG-EDGE-4 (verified, two game-tier tests
@@ -9769,6 +9815,257 @@ which could be a project cache as `meshview_index.pkl` is.
 - **Item 6**: `dbxparity.py` / `portparity.py` ported (their `--predict` passes need the Python `Porter`'s pools and
   `dbxcatalogue`'s pickle; `portparity` needs `meshport`'s Porter).
 - **ALG-5's one walk**: the export's reach and closure walked once.
+
+## AIS-rest: the bot AI's static RE, finished as far as it goes without the game (2026-11-22, branch `aisr`)
+
+A specification round: no tool's behaviour changed. 12 new rules (`spec/engine/bot_ai.md` 52, `spec/model/ai_orders.md`
+17; 69 in the two files: 5 verified, 55 observed, 9 inferred); BOT-RT-6, BOT-CTL-1, BOT-MOV-1 / 2, BOT-VEH-3, BOT-GS-1,
+BOT-DIF-4, AI-NEED-5 and PERS-SCORE-1 corrected or narrowed.
+
+**Method.**
+- **Ghidra.** A scratch copy of OPFOR's analysed project (258 MB, headless, `-readOnly`, deleted at the end), six
+  probe runs (decompiles, scalar searches for 0xD84 / 0xC2C, string and vtable listings), each 2-6 minutes.
+- **Scans.** Python with pefile / capstone over the executable, read only: the 86 creator registrations (`call
+  0x500660` after the type record's push), the behaviour / control instance vtables through their creators, linear
+  sweeps of the AI code (0xE40000-0xF30000, 414,448 instructions) for calls through an object loaded from a +0xC field
+  (the input object), +8 (the soldier interface) or +4, and for slot-2 / slot-3 calls with an action index of 0-12
+  as their first argument; E8 / E9 target and 32-bit pointer scans for callers and vtables; the engine's event-name
+  hash (djb2 with xor, from 0x10013E0) applied to event names and searched as immediates.
+- No game launch.
+
+**Findings for OPFOR's bot module:**
+
+| Finding | Rule |
+|---|---|
+| the bot's +0x8C points at its proxy: +4 a body interface, +8 the soldier interface (vtable 0x014197B8), +0xC the input object; seat-entry and exit requests at +0x24 / +0x28 | BOT-RT-6, BOT-CTL-6 |
+| DICE's AI writes reload and fire as digital actions, walks infantry by a move target (slot 15), not throttle / strafe; sprint, weapon slot (0 or last) and aim through their own slots; no site writes strafe, alt fire, zoom, jump or interact | BOT-CTL-7 |
+| stance is the soldier interface's slot 20 (0x58DAB0 -> 0x69F5B0), never `EiaChangePose`; vehicle weapons by input slots 17 / 18; seats by 0x5725E0 / 0x56D480 | BOT-CTL-8 |
+| cars and tanks write throttle 0, brake 2, yaw 3; turrets pitch 4 and roll 5; helicopters all five | BOT-VEH-5 |
+| the kill handler's 12 AI tests gate stat events and the skill rating only; bots never score (0x86C12D, 0x86A7EE) and have no scoring record (0x865D7F) | BOT-SCO-1, BOT-SCO-2 |
+| AI-NEED-5 against PERS-SCORE-1: the offline block was the 4-client scoring flag; with the patch a human's kill of a bot scores | BOT-SCO-3 |
+| a player's name is the EASTL string at +0xC2C, set by 0x564AE0 (the AI spawn at 0x72D3FB, from its soldier's data) and sent with the AI flag by 0x5486D0 | BOT-SCO-4 |
+| a capture point's owner +0x94, progress team +0x7C, progress +0x9C, captured flag +0xAC; 0x725630 / 0x711AA0 fire OnCaptured / OnLost | BOT-GS-3 |
+| an offline match runs the AI at the session's +0xC8: 1 (Normal) unless a campaign level ran before | BOT-DIF-4 |
+| one server order class; `IssueOrder` is the event hash 0xD2199312 checked in 0x58DD20 | AIO-RT-1 |
+
+**Proof.** `spec/trace.py --emit` / `--check` clean (1,195 rules); `run_tests.py quick -j 2` green.
+
+**What is left** (ROADMAP AIS-rest2; `spec/engine/bot_ai.md` "Reverse engineering still needed"): the in-game test of
+the AI input object (its checklist is in `bot_ai.md`, "Play-test plan for item 1"); whether bots count in capture areas
+and for tickets; the combat fire site (only scripted `EiaFire` writes were found); the Rush stage and M-COM state; the
+bot object's class and senses; the order issue (0x5A5490) and the urgency sum; who sets the proxy's seat-entry request;
+the soldier interface's state bits.
+
+## NKG1: NavKit's path data, structure toward DICE's (2026-11-22, branch `nkg1`)
+
+The first round of the NavKit gap list (`spec/transforms/kynapse_generation.md`): rules already known, low risk. Each
+change follows a numbered rule, is measured with `kynapse_probe` on DICE's 35 files and NavKit's 15 regression builds,
+and with navparity on the 15 levels (XNAV-BLD-3: nothing worse).
+
+### What changed in NavKit's file
+
+| Rule | Change | Switch (`navbuild.py`) |
+|---|---|---|
+| KYN-SEC-2 | the sector table's bounds are the box of the sector's written nodes (f32); a sector with no node, or whose box equals an earlier sector's (the loader's duplicate test), keeps the build's bounds | `NODE_BOUNDS` (on) |
+| KYN-EDGE-4 (new, verified) | one edge per (source, target): `graphfile::arcs` writes each pair both ways once | always |
+| KYN-LINK-1 / KYG-LINK-1 | a border portal's run is cut where it crosses the sector square's line (`trace::trace_emit_cut`); a piece beyond links to the diagonal neighbour whose square holds it, else to the axis neighbour | `DIAGONAL_LINKS` (on) |
+| HPD-NODE-5 / KYG-EDGE-4 | edges only out of owner border copies: written, but **off** (below) | `OWNER_EDGES` (off) |
+
+Not done: C records with DICE's "diagonal" / "up" direction values (KYN-C-1: the values change along one straight
+run, are not geometric and are read in no test traced; not imitated); the lookup lists' tie order (KYRT-NODE-2 reads
+the lists in order, but the ties are among NavKit's own nodes until placement follows DICE's: NKG2).
+
+### Owner-only edges and the runtime
+
+During the round, NKS-rest read the runtime's use of the owner bit (KYRT-PATH-3): the out-edge walk collects every
+copy's edges, and drops edges into a border id with no owner copy. navparity now measures the graph that way
+(`runtime_connectivity`, `strong_share`; the probe's `runtime.*` counts). NavKit's border nodes form one row 0.8 m into
+the higher sector, which owns them all, so the edges on their non-owner copies (111,968) are NavKit's only edges from a
+border node into the lower sector. Left out, the strongly connected share falls from 100 to 6.5 % (sp_004_b), 10.6 %
+(sp_008_b) and 22.3 % (sp_009). DICE can keep a node's edges on its owner copy because its band has owned nodes on
+both sides of each line (KYG-NODE-2). So `OWNER_EDGES` stays off until NKG2's band.
+
+A second row 0.8 m into the lower sector (each row owned by its sector) was tried: with owner-only edges it gave a
+92.7 % strongly connected share, but it changed the sector graphs. New 2-3 node islands appeared where the row's copy
+in the higher sector found no pair (islands 402 -> 435 mean). On sp_007 a 1,609-node group split at a coarse /
+detailed seam (0x0d0b | 0x0e0b), as the detailed graph re-pruned around the carried row. `connectivity` fell by up to
+0.51 points on 5 levels and `over_connection` rose by up to 2.09 on 6, so the row was taken out and waits for the band.
+Also measured on DICE's 35 files and verified: every border id has edges in two of its sectors or more (NavKit: 2,704 of
+48,899 do not; KYG-NODE-2).
+
+### Parity (15 regression levels, before = `work\navkit\regress` of 2026-11-20/22, after = this branch)
+
+Every navparity measure is the same on every level (means): `ground` 98.22, `extra_ground` 8.31, `areas_same` 5.18,
+`portals` 6.47, `outline` 97.99, `borders` 94.69, `costs` 95.91, `nodes_same` 0.64, `nodes_near` 47.63, `edges_same`
+0.02, `connectivity` 98.79, `over_connection` 15.31, `ai_coverage` 99.16, `ai_pairwise` 92.67, D / F 50.53 / 18.84 /
+34.02 / 33.46, `sectors_extra` 1.33, islands 402.47. `costs` is a share of `edges_same` (0-40 matched edges per
+level, nodes matched within 5 cm), so at this size it is noise. The new directed measures, the same before and after:
+
+| level | runtime_connectivity | strong_share | DICE's strong_share |
+|---|---:|---:|---:|
+| sp_01 | 97.89 | 99.28 | 96.71 |
+| sp_02 | 99.44 | 99.86 | 98.12 |
+| sp_03 | 97.58 | 99.10 | 96.69 |
+| sp_04 | 99.69 | 99.93 | 97.52 |
+| sp_003_b | 90.01 | 98.20 | 95.66 |
+| sp_004_b | 100 | 100 | 97.91 |
+| sp_005 | 99.23 | 99.72 | 96.84 |
+| sp_005_b | 99.27 | 99.90 | 96.73 |
+| sp_006 | 99.54 | 99.89 | 97.17 |
+| sp_007 | 98.12 | 99.84 | 97.90 |
+| sp_008 | 98.88 | 99.89 | 97.08 |
+| sp_008_b | 98.50 | 99.92 | 97.19 |
+| sp_009 | 100 | 100 | 98.07 |
+| ons_mp_002 | 99.75 | 99.86 | 97.58 |
+| ons_mp_004 | 98.19 | 99.97 | 98.30 |
+| mean | 98.41 | 99.69 | 97.30 |
+
+### Structure (probe, the 15 builds; DICE's infantry files of the same 15 levels in brackets)
+
+| Measure | before | after | DICE |
+|---|---:|---:|---:|
+| table bounds equal to the node box | 0 of 2,494 | 2,489 of 2,494 | 2,474 of 2,474 |
+| duplicate (source, target) edges | 6,916 | 0 | 0 |
+| edges | 1,900,962 | 1,894,046 | 1,551,934 |
+| link entries / to diagonal neighbours | 8,994 / 0 | 14,904 / 5,922 | 14,562 / 5,682 |
+| link objects (all resolved) / cross-pitch | 45,522 / 5,383 | 51,995 / 6,614 | 49,600 / 8,875 |
+| C records, middle in a diagonal neighbour's square (coarse / detailed) | 941 / 2,058 | 7,787 / 3,927 | 22,344 / 5,051 |
+| edges on non-owner copies | 112,296 | 111,968 | 7,355 |
+
+DICE's 35 files with the probe's new counts: one-way edges by their ends (owner border copy to non-owner copy 205,190,
+ordinary to non-owner 5,683, the rest 8,627; KYN-EDGE-3), C records crossing a square line (coarse 30,036, detailed
+11,566), strongly connected share as the runtime walks it 97.04 % over all 35.
+
+### The goldens and the reference
+
+The 4 golden builds of `bfbc2-auto-navkit/tests/navbuild_golden.json`, re-recorded (old -> new SHA-1, bytes); the
+quick part is unchanged:
+
+| level | old | new |
+|---|---|---|
+| sp_009 | 2971a232f861d0900ea92e15ba9a2c24306ea1f6 (406,216) | e9be0ef5ef1c45e71930516e9f6c1090552993be (408,096) |
+| sp_004_b | bf711ee42f2f02b20f1a804fc84ebb2621b04924 (8,235,888) | bd44cedb25e7c88032ef29bf47c3fdddee72032f (8,242,112) |
+| sp_008_b | 2d23c2131d7f14f1bbd09f4b9f251cba874860ad (8,477,720) | 2839e515d3802f501e4dc67513becc97591201a7 (8,484,708) |
+| ons_mp_004 | 843ca19e5ee911e6ce6fdcfaa1240389cac9b236 (7,623,072) | 020d7019c061c2e1b91335d540b213f8e80598ed (7,627,988) |
+
+The files grow by the diagonal-neighbour link entries and shrink by the duplicate edges. navregress's reference run
+`regression` was saved again with this code (its measures are the old ones plus `runtime_connectivity` and
+`strong_share`).
+
+### Tests
+
+- `run_tests.py quick -j 2`: 133 of 133 (O2 among them), after merging main (5fd65e8); O4's navtools golden
+  re-recorded from the Python (only navparity's usage text and `show` table changed: the new docstring and the
+  `runtime %` column, which `bfbc2.exe navparity show` now prints too).
+- NavKit's game tier, 16 entries: `navbuild-native`, `navtools-native` (E4e's vehicle and parity-row recording
+  re-recorded: ONS_MP_002's vehicle path data a5baa5ed8b714b67c6d0e33d4b5630c1ae74e14e (291,704 bytes) ->
+  d630b57869bd951d788efffe2ced75181635db8d (292,600)), `navmesh-cells-routes-native`, `pathdata-native`,
+  `hpdtool-roundtrip`, `hpdtool-meshtrip`, `navdata`, `hpdcheck`, `navwater-mesh`, `vehicle-level`, `links`,
+  `traversal`, `apply`, `navregress:small`, `collision-backends`, O4 live: all pass.
+- `kynapse_corpus` (game tier): 14 of 14, the two new tests among them.
+- NK1's apply parity (`rust/parity_nk1_apply.py`, the pre-NK1 checkout 4a515a4 against this branch): 33 of 33
+  identical (the 18 DICE files and the 15 new regression builds).
+- `cargo test` (bc2-navbuild, bc2-formats, bc2-py), clippy `--all-targets -D warnings` (with bc2-cli), fmt, ruff and
+  mypy on the changed Python, `spec/trace.py --check`: pass.
+
+## SPG2-rest: what the specification's gap pass left (2026-11-22, branch `spg2r`)
+
+Mostly specification, plus one reader fix in `bc2-render`. Nothing written to `game\`; the game never launched. The
+probes read DICE's bundles of the game copy (`game/**/levels/*/*.fbrb` dated before 2013, each resource once) through
+the worktree's own `bc2_native`.
+
+### Coverage, before and after
+
+| | rules | verified | implemented | observed | inferred | covered | thin |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| before (main at 5674dc8, NKS-rest included) | 1,183 | 531 | 116 | 487 | 49 | 34 | 2 |
+| after | 1,231 | 605 | 126 | 453 | 47 | 36 | 0 |
+
+48 new rules: TERR-HF-9 - 11, TERR-MM-2 - 4, VEG-UG-5, MAT-TEX-5 - 19 (15), 26 MENU rules; 74 rules observed ->
+verified by the game-tier check.
+
+### 1. The main height-field block's tail
+
+The "n offsets, A bytes, fixed part" split was the same bytes cut in the wrong places. The tail is:
+
+| part | size | |
+|---|---|---|
+| row offsets | 4n | where each depth-map row's runs start (u16 units) |
+| depth runs | 4 bytes a run | (count, value) u16 pairs, maximal, a row adding up to n; the editor's `<T>-DepthMap.png` |
+| padding | 0 - 15 | to 16 bytes from the heights' start; A (0x2D) = offsets + runs + padding |
+| min / max tree | 10,922 / 43,690 u16 | root first, rows along z, down to 16-sample cells, each node one sample wider |
+| lower envelope | 22,363 / 88,412 u16 | grids of 2, 3, 5, ..., n / 8 + 1 a side, coarsest first |
+
+Offsets, runs, padding and tree re-encode byte for byte on 30 of 30 DICE main blocks. The envelope lies under every
+height sample on 15 terrains and under at least 99.48 % on the rest (presumably heights edited after it was built);
+DICE's generator was not reproduced (greedy lowering matches 17 - 24 % of the vertices), so a writer keeps or builds a
+surface under the ground (TEDIT-HF-3). Depth maps: mostly 255 on 26 terrains, mostly 0 on MP_001, MP_004, SP_01 and
+NAM_MP_006; 0 under MP_005's town buildings.
+
+### 2. The physics material map
+
+Blocks of 512 x 256 cells tile a width x width map (8 x 16 blocks at 4,096, 4 x 8 at 2,048); a row is bytes of two
+4-bit cells (low nibble first), a byte equal to the one before followed by a count c meaning c + 1 pairs; the
+block's 256 u16 are the rows' byte lengths. All 30 maps re-encode byte for byte. The map covers the main block with
+rows along z (SeaBed against height: r = -0.55 to -0.89 on six terrains, against -0.21 to +0.60 transposed or spread
+twice as wide): 0.5 m cells on 27 terrains, 0.25 m on MP_001, MP_002, MP_008. Index 0 is `defaultmaterial` on all;
+1 - 10 names, each a `MaterialData` of the level's grid (31 of 31 paired grids hold them, never at the same index: the
+engine resolves by name).
+
+### 3. The NAM_MP_003 reader fix
+
+`bc2_render::terrain::parse_visual` skipped one byte where an undergrowth entry has a string; NAM_MP_003's 30 entries
+name `<mesh>/<guid>` there, so the reader ran out of step ("runs past the end at 0x2f65c") and the four nam_mp_003
+levels (cq, r, sdm, sr) drew no terrain patches or road strips in the game-accurate view. Fixed, the entries kept as
+`PatchShader::meshes` (`UndergrowthMesh`, compared by bits so `PatchShader` stays `Eq`). Old and new reader over the
+game copy's 34 visual terrains (DICE's 30 and OPFOR's four WW2): the same shaders, maps and roads on 33, NAM_MP_003
+read now; `Terrain::load` of nam_mp_003cq prepares its 53 patch shaders. Tests: a unit test, and
+`tests/visual_terrains.rs` (30 terrains, 1,515 patch shaders, 3,069 entries, 0.7 s with the game copy). Left alone:
+`bc2-convert`'s walk and console-convert's `terrain.py` read the same field as one byte (their inputs never set it).
+
+### 4. The undergrowth numbers
+
+`BFBC2Game.exe`'s type information has `TerrainUndergrowthType` (0x4C bytes, a field of `TerrainDecalMaterial`'s
+`UndergrowthTypes`): `Mesh`, `MeshShaderSet`, `CacheShader`, `Density`, `Variation`, `MinMask`, `MaxMask`,
+`WindScale`, `ViewDistance`, two-float `MinScale`, `MaxScale`, `MinMaskScaleFactor`, flags `SkewEnable`,
+`RotateEnable`, `Enable`: exactly the entry's 3 strings and 12 floats. Matched by order and DICE's ranges (VEG-UG-5,
+inferred): density, variation, min / max mask, min scale (x, y), max scale (x, y), mask scale factor (x, y), wind
+scale, view distance; 01 00 presumably rotate on, skew off.
+
+### 5. Grime / camouflage and the menus' runtime
+
+Written with two helper agents, each confined to its spec file and probe. Findings that change planned work:
+
+- Vehicle camouflage is shader set 1 (desert) or 2 (snow) of the same mesh, picked by the level's spawners; soldier
+  and weapon camouflage is bound per level by the level's compiled shader database (38 of 58 soldier entries differ
+  between databases), not by any DBX: a modder's new level needs its database built with the right camo.
+- `DirtColor` / `DirtFactor` are per-object values the engine writes (placeholders in the databases); the terrain
+  materials carry `DirtTriggerFactor` / `Color` (MAT-TEX-6, 7).
+- The movies' interpreter dispatches through a 185-entry table at 0x1545B00 with no bound check; 132 opcodes have a
+  handler, and four the suite names (0x57, 0x68, 0x8D, 0xB9) have none (MENU-RT-1, 2, MENU-ED-2: no tool checks that a
+  written movie avoids them). aptgraft's comment names 0x1311570 a binary-operator handler; the table says GetMember.
+
+### 6. Every probe a game-tier check
+
+`core/tests/test_spec_probes.py` (`run_tests.py game`): the terrain tails and material maps, SPG's five print-only
+probes by the output lines that hold their rules' counts, and `grime.py` / `menus.py` by their `checks()`: 172 checks,
+all passing, 3 min 24 s (the material maps' Python decode about 30 s of it).
+
+| probe | run alone |
+|---|---:|
+| `weapons.py` | 5 s |
+| `vehicles.py` | 17 s |
+| `materials.py` | 19 s |
+| `destruction.py` | 16 s |
+| `lighting.py` | 20 s |
+| `grime.py` | 35 - 45 s |
+| `menus.py` | 9 - 12 s |
+
+### Left
+
+`spec/COVERAGE.md` section 2 (queued as SPG2-rest2): the terrain rules' playtest, the undergrowth loader, the RE list
+(emitter processors, mounts, `OnlyTakeableByTeam`, the award evaluator, dirt build-up, the menus' loading roots), the
+other two readers' one-byte undergrowth field.
 
 ## PR1b-2: the crate shape, in part (2026-11-22, branch `pr1b2`)
 

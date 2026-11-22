@@ -18,7 +18,7 @@ otherwise. Executable findings are OPFOR's static RE (`opfor:research/MATERIAL_S
 
 ### DSTR-STATE-1: A destructible part is a PartComponentData with health states
 
-Status: **observed**
+Status: **verified**
 
 A blueprint's object (`StaticModelEntityData` in 1,035 of the 1,262 blueprints; also `DynamicModelEntityData` 49,
 `MiddlegrowthModelEntityData` 28, `FenceModelEntityData` 14, `TreeBangerEntityData` 13, `BangerEntityData` 11,
@@ -28,16 +28,18 @@ A blueprint's object (`StaticModelEntityData` in 1,035 of the 1,262 blueprints; 
 `HealthStateData` holds `Health`, `MeshName`, `Effects`, `Explosion`, `SpawnedBanger`, `CopyDamageToBanger`,
 `SpawnedBangerImpulseParams`, `LoosePartPhysics`, `LoosePartPhysicsArray` and `PreferedShapeType`.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py on the game copy, 2026-11-22: 1,262 blueprints, 599 with PartComponentData parts (1 - 107 each; 1 part in 313, 2 in 65), 3,135 parts; object classes as above, 90 without an object instance]
 
 ### DSTR-STATE-2: Two states per part, stored lowest health first
 
-Status: **observed**
+Status: **verified**
 
 2,720 of 3,135 parts have two health states, 304 one, 64 three, 4 four, 43 none. A part's states are stored in
 increasing `Health`: in every part with two or more states the first is the lowest, and its `Health` is 0 in 2,786 of
 the 2,788.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: states per part 0 x 43, 1 x 304, 2 x 2,720, 3 x 64, 4 x 4; lowest first in 2,788 of 2,788 multi-state parts; the lowest at Health 0 in 2,786]
 
 ### DSTR-STATE-3: A state's Health is where it begins; the healthiest is the part's start
@@ -56,12 +58,13 @@ the intact object, the destroyed one, or any step between (stage k: each part's 
 
 ### DSTR-STATE-4: The last state shows nothing and plays the destruction effects
 
-Status: **observed**
+Status: **verified**
 
 In parts with two or more states the lowest state shows no mesh (`MeshName` empty) in 2,512 of 2,788 and carries the
 destruction effects (`Effects`: smoke, debris emitters) in 2,366; the healthiest state has effects in only 70. The
 effects are thus played on entering the destroyed state.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: 2,788 multi-state parts: lowest state MeshName empty 2,512, Effects 2,366; healthiest state Effects 70; Effects items 4,133 over 2,482 states]
 
 ### DSTR-STATE-5: Each health state has its own part material
@@ -77,12 +80,13 @@ another material than the intact one.
 
 ### DSTR-STATE-6: Object collapse settings
 
-Status: **observed**
+Status: **verified**
 
 A destructible object carries `DestroyRuinPartPercentage` (75 on 495 of 505), `ManyPartsDestroyedPercentage` (80 on
 489) and `AboutToBeDestroyedTime` (0 on 494; 0.5 - 5 s on the rest), and `PartLinks` (`PartLinkData`: two part
 indices and names) on 93 of 568; 80 parts are named `ruin*` (a hangar's `part_1` linked to its `ruin`).
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: 505 objects with the percentages: DestroyRuinPartPercentage 35 - 100 (75 x 495), ManyPartsDestroyedPercentage 40 - 101 (80 x 489), AboutToBeDestroyedTime 0 - 5 (0 x 494); PartLinks 0 - 165 per object, none on 475 of 568]
 
 ### DSTR-STATE-7: The ruin takes over when enough parts are gone
@@ -149,22 +153,24 @@ physics asset: the destroyed and damaged meshes are parts of the same mesh and p
 
 ### DSTR-MESH-2: State naming
 
-Status: **observed**
+Status: **verified**
 
 The intact state shows the part's own name (in 2,303 of 2,788 multi-state parts); a damaged state the part name plus
 a suffix (215 states: `_dest` 80, `_ruin` 65, `_destruction` 46, `_downed` 9, `_damaged` 5) or another name (642,
 `ruin_downed` among them); the destroyed state nothing (2,521 empty names over all states).
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: MeshName over all states: the part name 2,574, part name plus suffix 215, other 642, empty 2,521]
 
 ### DSTR-MESH-3: Wrecks and debris are blueprints of their own
 
-Status: **observed**
+Status: **verified**
 
 Whole destroyed objects placed as such (vehicle wrecks, debris piles) are separate blueprints, not states:
 31 of the blueprints have `wreck` in their name and 9 `debris`; only 2 blueprint names contain `ruin` (ruins are
 parts, DSTR-STATE-6).
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: blueprint names (last part) containing banger 44, wreck 31, debris 9, ruin 2, destroyed 0]
 
 ### DSTR-MESH-4: Soot
@@ -180,12 +186,13 @@ Every DICE Dx11 shader database holds the soot programs (`SootPerPixel`, `SootPe
 
 ### DSTR-TERR-1: Destruction is a rule layer of the patch shaders
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 The terrain's destruction look is a rule layer of the patch shaders (TERR-VT-3): a patch shader that has it is named
 `.../PatchMaskShaders/<layers>_Destruction`. 21 of DICE's 30 visual terrains have such shaders (6 on every patch
 shader, 9 none: presumably terrains that are not destructible).
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: 30 DICE VisualTerrain resources, 7 - 109 patch mask shaders each, 0 - 72 of them ending _Destruction; every one in 6, none in 9]
 
 ### DSTR-TERR-2: The dynamic destruction mask
@@ -203,13 +210,14 @@ atlas values: the terrain as the level starts.
 
 ### DSTR-TERR-3: Crater size per material pair
 
-Status: **observed**
+Status: **verified**
 
 The material grid gives a crater's size per pair of explosion and terrain material
 (`MaterialRelationTerrainDestructionData`): `Width` 1 - 13 (5 on 1,307 of 3,454, 4 on 934, 3 on 726) and `Depth`
 0.1 - 2 (0.5 on 1,931, 0.35 on 814), presumably metres. `MaterialPropertyTerrainData.DestructionEffect` is null on
 all 363.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: 3,454 MaterialRelationTerrainDestructionData in DICE's grids: Width 1 - 13 (8 values), Depth 0.1 - 2 (9 values)]
 
 ### DSTR-TERR-4: TerrainData's destruction fields
@@ -250,20 +258,22 @@ thus the blueprint's, part for part; adding or deleting a member re-lays only th
 
 ### DSTR-MG-3: The members' health-state arrays are empty in the files
 
-Status: **observed**
+Status: **verified**
 
 `StaticModelGroupMemberData` has `FirstPartHealthStateIndices` and `FirstPartHealthStateNetworkIds`; both are empty
 in every member of DICE's levels, so a member's starting state is not stored: every member starts intact. Its
 `NetworkIdCountPerInstance` equals `PhysicsPartCountPerInstance` in 1,150 of 2,583 types.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: health-state arrays empty in all 3,352 member types of 74 level partitions; NetworkIdCountPerInstance equal to PhysicsPartCountPerInstance in 1,150, not in 1,433]
 
 ### DSTR-MG-4: Collapse kill zones
 
-Status: **observed**
+Status: **verified**
 
 DICE's levels hold 1,283 `DamageAreaTriggerEntityData` instances, the building-collapse kill zones of GAME-DMG-1.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: 1,283 DamageAreaTriggerEntityData in 74 level partitions]
 
 ## Open questions

@@ -386,6 +386,26 @@ fn probe_file(name: &str, fd: &FileData, c: &mut C) {
                     "axis"
                 };
                 c.inc(&format!("c.dir_{dir}_{cl}"));
+                // the square whose area holds the portal's middle (own, an axis neighbour's, a diagonal one's), and
+                // portals that cross a square line along them (KYN-LINK-1's diagonal links)
+                let at = |v: f32, sq: f64| {
+                    let r = f64::from(v) - sq;
+                    i32::from(r >= 100.0) - i32::from(r < 0.0)
+                };
+                let (mx, mz) = ((bp.p0[0] + bp.p1[0]) / 2.0, (bp.p0[2] + bp.p1[2]) / 2.0);
+                let square = match (at(mx, sq_x), at(mz, sq_z)) {
+                    (0, 0) => "own",
+                    (0, _) | (_, 0) => "axis_neighbour",
+                    _ => "diagonal_neighbour",
+                };
+                c.inc(&format!("c.middle_in_{square}_square_{cl}"));
+                let crosses = |a: f32, b: f32, sq: f64| {
+                    let (lo, hi) = (f64::from(a.min(b)), f64::from(a.max(b)));
+                    [sq, sq + 100.0].iter().any(|&l| lo < l - 1e-3 && hi > l + 1e-3)
+                };
+                if crosses(bp.p0[0], bp.p1[0], sq_x) || crosses(bp.p0[2], bp.p1[2], sq_z) {
+                    c.inc(&format!("c.crosses_a_square_line_{cl}"));
+                }
                 if dir == "axis" {
                     let (v, lo, hi) = if d[0] != 0.0 {
                         (bp.p0[0], m.rect[0], m.rect[1])
@@ -592,6 +612,15 @@ fn probe_file(name: &str, fd: &FileData, c: &mut C) {
             c.inc("own.single_owner_holds_node");
         }
     }
+    // The route graph as the runtime walks it (KYRT-PATH-3): a node's out-edges are all its copies', an edge into a
+    // border id with no owner copy is dropped.
+    let (strong, weak) = runtime_pairs(fd);
+    c.add("runtime.strong_pairs", strong);
+    c.add("runtime.weak_pairs", weak);
+    println!(
+        "{name}: as the runtime walks it: {:.2} % of the weakly connected node pairs strongly connected",
+        100.0 * strong as f64 / weak.max(1) as f64
+    );
     // The generator's rectangle: the ground's extent against the sector grid.
     let lo_x = (minx_id as f64 + off.0 as f64) * 100.0;
     let hi_x = (maxx_id as f64 + 1.0 + off.0 as f64) * 100.0;
@@ -733,11 +762,21 @@ fn probe_graph(nodes: &[hpd::Node], edges: &[hpd::Edge], m: &kymesh::Mesh, cl: &
             }
         }
         prev = Some((e.src, e.dst));
-        c.inc(if pairs.contains(&(e.dst, e.src)) {
-            "e.two_way"
-        } else {
-            "e.one_way"
-        });
+        let two_way = pairs.contains(&(e.dst, e.src));
+        c.inc(if two_way { "e.two_way" } else { "e.one_way" });
+        // KYN-EDGE-3: the kinds of a one-way edge's ends (ordinary, owner border copy, non-owner border copy)
+        let kind = |x: &hpd::Node| {
+            if x.id & 0x8000_0000 == 0 {
+                "ord"
+            } else if x.c & 0x1_0000 != 0 {
+                "bnon"
+            } else {
+                "bown"
+            }
+        };
+        if !two_way {
+            c.inc(&format!("e.one_way_{}_to_{}", kind(a), kind(b)));
+        }
         let both_border = a.id & b.id & 0x8000_0000 != 0;
         let lim = if both_border { 2.0 * dmax } else { dmax };
         if d > lim + 0.01 {
@@ -919,4 +958,113 @@ fn msvc_qsort<T: Copy>(v: &mut [T], cmp: &dyn Fn(&T, &T) -> i32) {
             None => return,
         }
     }
+}
+
+/// Node pairs in one strongly / one weakly connected component of the file's route graph, border copies joined by
+/// id (bit 31 masked), a node's out-edges those of all its copies, an edge into a border id none of whose copies is an
+/// owner (bit 16 of c set on all) left out (KYRT-PATH-3).
+fn runtime_pairs(fd: &FileData) -> (u64, u64) {
+    fn find(p: &mut [usize], mut x: usize) -> usize {
+        while p[x] != x {
+            p[x] = p[p[x]];
+            x = p[x];
+        }
+        x
+    }
+    let mut idx: HashMap<u32, usize> = HashMap::new();
+    for s in &fd.sectors {
+        for x in &s.3 {
+            let l = idx.len();
+            idx.entry(x.id & 0x7FFF_FFFF).or_insert(l);
+        }
+    }
+    let n = idx.len();
+    let owned: std::collections::HashSet<u32> = fd
+        .sectors
+        .iter()
+        .flat_map(|s| s.3.iter())
+        .filter(|x| x.id & 0x8000_0000 == 0 || x.c & 0x1_0000 == 0)
+        .map(|x| x.id)
+        .collect();
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for s in &fd.sectors {
+        for e in &s.4 {
+            let (a, b) = (&s.3[e.src as usize], &s.3[e.dst as usize]);
+            if !owned.contains(&b.id) {
+                continue;
+            }
+            adj[idx[&(a.id & 0x7FFF_FFFF)]].push(idx[&(b.id & 0x7FFF_FFFF)]);
+        }
+    }
+    let comp = tarjan(&adj);
+    let mut parent: Vec<usize> = (0..n).collect();
+    for (a, out) in adj.iter().enumerate() {
+        for &b in out {
+            let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
+            if ra != rb {
+                parent[ra] = rb;
+            }
+        }
+    }
+    let mut ws: HashMap<usize, u64> = HashMap::new();
+    let mut ss: HashMap<usize, u64> = HashMap::new();
+    for (v, &k) in comp.iter().enumerate() {
+        *ws.entry(find(&mut parent, v)).or_default() += 1;
+        *ss.entry(k).or_default() += 1;
+    }
+    let pairs = |m: &HashMap<usize, u64>| m.values().map(|k| k * (k - 1) / 2).sum::<u64>();
+    (pairs(&ss), pairs(&ws))
+}
+
+/// Strongly connected components (Tarjan's, iterative): a component number per node.
+fn tarjan(adj: &[Vec<usize>]) -> Vec<usize> {
+    let n = adj.len();
+    let (mut index, mut low, mut comp) = (vec![usize::MAX; n], vec![0usize; n], vec![usize::MAX; n]);
+    let mut on = vec![false; n];
+    let mut stack: Vec<usize> = Vec::new();
+    let (mut next, mut ncomp) = (0usize, 0usize);
+    for root in 0..n {
+        if index[root] != usize::MAX {
+            continue;
+        }
+        index[root] = next;
+        low[root] = next;
+        next += 1;
+        stack.push(root);
+        on[root] = true;
+        let mut call: Vec<(usize, usize)> = vec![(root, 0)];
+        while let Some(&(v, i)) = call.last() {
+            if i < adj[v].len() {
+                call.last_mut().unwrap().1 += 1;
+                let w = adj[v][i];
+                if index[w] == usize::MAX {
+                    index[w] = next;
+                    low[w] = next;
+                    next += 1;
+                    stack.push(w);
+                    on[w] = true;
+                    call.push((w, 0));
+                } else if on[w] {
+                    low[v] = low[v].min(index[w]);
+                }
+                continue;
+            }
+            call.pop();
+            if let Some(&(u, _)) = call.last() {
+                low[u] = low[u].min(low[v]);
+            }
+            if low[v] == index[v] {
+                loop {
+                    let w = stack.pop().unwrap();
+                    on[w] = false;
+                    comp[w] = ncomp;
+                    if w == v {
+                        break;
+                    }
+                }
+                ncomp += 1;
+            }
+        }
+    }
+    comp
 }

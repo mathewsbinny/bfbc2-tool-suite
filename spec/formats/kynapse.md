@@ -189,6 +189,13 @@ on the side its direction points to. That is half a pitch outside the minimum si
 The runtime fills a C record's +0x18 / +0x1C with the neighbouring area's address and size when the neighbour sector
 loads (KYRT-LINK-1). It does not read the direction in any test traced.
 
+The "diagonal" and "up" directions are not kinds of geometry. Consecutive C records along one straight run on one
+corner line carry up, (0.924, 0.383, -0.383), (0.707, 0.707, -0.707) and (1, 1, -0) in turn. The y component is often
+not 0, and 41 % of the coarse "diagonal" records lie on an axis line. Coarse C records are axis-line segments (63,366 axis, 21,737
+"diagonal", 36,932 "up") or slanted 45-degree corner cuts (104 / 30,743 / 21,387). What the vector holds is not decoded.
+A C record whose middle lies in a diagonal neighbour's square: coarse 23,510 of 174,830, detailed 5,892 of 76,247; one
+that crosses a square line along it: coarse 30,036, detailed 11,566.
+
 [data: axis C portals on that line: coarse 63,272 of 63,974, detailed 28,781 of 31,767, vehicle 5,667 of 5,677; of the rest, 76 lie on that line of the opposite side and 3,622 elsewhere]
 
 ### KYN-LINK-1: A link object names a tile item of an adjacent sector
@@ -293,9 +300,21 @@ Status: **observed**
 Edges are sorted by source node (HPD-EDGE-1). Within one source they follow neither target order (656,207 steps up,
 563,604 down) nor length order. 13.0 % of edges have no edge back in their sector. Joined by node id over the file,
 99.1 % of infantry and 95.1 % of vehicle edges have one: the one-way edges are mostly edges into non-owner border
-copies, whose edge back lives in the owner's sector (KYG-EDGE-4).
+copies, whose edge back lives in the owner's sector (KYG-EDGE-4). By their ends: 205,190 from an owner border copy
+into a non-owner copy and 5,683 from an ordinary node into one (96.1 %); the other 8,627 (ordinary to ordinary
+2,858, between owned border copies 3,819, into an owned copy 1,581, owned to ordinary 369) are the few edges without
+a reverse by node id.
 
-[data: 219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604]
+[data: 219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604; one-way edges by their ends (probe `e.one_way_*`)]
+
+### KYN-EDGE-4: One edge per source and target
+
+Status: **verified**
+
+No sector holds two edges with the same source and target.
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::one_edge_per_source_and_target]
+[data: 0 repeated (source, target) pairs in 3,120 of 3,120 sectors]
 
 ## 5. Units and coordinate frames
 
@@ -323,26 +342,27 @@ space: 99.7 % of coarse vertices, 99.6 % of detailed and 98.6 % of vehicle. The 
 | OQ3 | The header words besides the count, and the resolution field | **answered**: KYN-FILE-1 (words 0, 3, 8-17, 32, 33, 35 read; 1, 4-7, 34 not), KYN-TILE-1 (resolution = 1 / tile size) |
 | OQ4 | How the runtime gets the tile size | **answered**: KYN-TILE-1, KYRT-TILE-1 |
 | OQ5 | The link object's header | **answered**: KYN-LINK-1 (the neighbour's tile and item; every object resolves) |
-| OQ6 | DICE's area division: the midline cut's trigger; the vehicle D / F rule; detailed sectors beyond `NeedsDetailedPathfinding` | **open, narrowed** (round NKS-rest): the per-cut features were fitted over all 35 files and none triggers the cut (KYG-AREA-2 lists them); the detailed sectors are not one box per block (KYG-DET-1). Settles it: the cut groups against the sampled levels, a vehicle-sample run (D / F), every blueprint's `NeedsDetailedPathfinding` read from the shared packages (detailed sectors) |
+| OQ6 | DICE's area division: the midline cut's trigger; the vehicle D / F rule; detailed sectors beyond `NeedsDetailedPathfinding` | **open, narrowed** (rounds NKS-rest, NKS-rest2): the per-cut features were fitted over all 35 files and none triggers the cut; neither does the number of times the ground crosses the midline (a tendency: 0.6 % of single crossings cut, 21 % of five or more) nor what lies between the crossings (KYG-AREA-2). Detailed sectors: no level-data rule (best 92.2 %; KYG-DET-1), so designer zones that are not shipped: DICE's list is the record for its levels. The vehicle D / F rule needs a vehicle-shaped sample run in game; none is on disk (KYG-DF-2). Settles it: the cut groups against the raw samples; an in-game vehicle sample run |
 | OQ7 | Whether the runtime needs a file's ids to match `SectorOffsets`; why one ONS_MP_002 sector resolved at 0, 0 | **answered in part**: the point-to-sector lookup is `floor(x / 100) - offset` and the id must be in 1..255 (KYRT-SEC-1), so ids that do not match the asset's offsets name the wrong sector. With offsets 0, 0 on ONS_MP_002, the sectors that still resolved were reached through `SectorOverlap`'s extra ids or by a coincident id: **open**. Settles it: a runtime probe of 0x0106D970's ids at the failing points |
-| OQ8 | The generator's rectangle (ground stops inside the sampled extent) | **open**: KYG-RECT-1 (round NKS-rest: the vehicle ground shares no level-wide rectangle with the infantry ground). Settles it: the generator's `SectorsDefinitionFile` / `MapBuilderLocalSettingsZone` boxes (generator input, not shipped) or a per-level fit of the straight cuts |
+| OQ8 | The generator's rectangle (ground stops inside the sampled extent) | **answered** (KYG-RECT-1, round NKS-rest2, verified on the 13 campaign levels): the box of the level's soldier and vehicle spawns grown by 25 m; 45 of 52 infantry sides lie 0.11-0.91 m inside it and none passes it. Open: the Onslaught files, which the prepared partitions' spawns do not bound |
 | OQ9 | A records, and whether the end slot matters | **answered**: A records are read by a nearest-segment search with B (KYRT-IGN-1), so a writer must keep their count 0; the end slot is relocated like a pointer but its value is not read (KYRT-LOAD-3); a tile's trailing word *is* read (KYRT-LINK-1) |
 
-## 7. NavKit against this model (probe on NavKit's 15 regression builds, 2026-11-20 builds)
+## 7. NavKit against this model (probe on NavKit's 15 regression builds, 2026-11-20 builds; rows updated by round NKG1)
 
 The probe of section 9 run on `work\navkit\regress\<level>.hpd` (infantry only), against DICE's infantry files of the
 same 15 levels:
 
 | Rule | DICE | NavKit | Gap |
 |---|---|---|---|
-| KYN-SEC-2 table bounds | node box, 100 % | the mesh rectangle across, the heights' range up | bounds differ from DICE's in every sector (no runtime effect found beyond the duplicate test) |
+| KYN-SEC-2 table bounds | node box, 100 % | the node box since NKG1 (2,489 of 2,494; 5 without a node or with an earlier sector's box keep the rectangle) | none |
 | KYN-TILE-1 / 2 | holds | holds (0 vertices outside) | none |
-| KYN-C-1 directions | axis, diagonal and up | axis only (74,408) | no diagonal or up C portals |
+| KYN-C-1 directions | axis, "diagonal" and "up" values (not geometric) | axis only (85,098 since NKG1's cut runs) | the values are not decoded and not read in any test traced; not imitated |
 | KYN-B-1 two-way | 96.5 % | 100 % | DICE keeps some one-way portals |
 | KYN-NODE-1 ids | file-unique, sparse | file-unique, sparse | none |
 | KYN-EDGE-1 reach | holds | holds | none |
-| KYN-EDGE-3 one-way edges | 13.0 % | 0 % | NavKit's graph is undirected |
-| edges per (source, target) | one | 6,916 duplicate pairs | NavKit writes some edges twice |
+| KYN-EDGE-3 one-way edges | 13.0 % (the border convention, KYG-EDGE-4) | 0 % | NavKit keeps border edges on non-owner copies too (KYG-NODE-2: its one row needs them) |
+| KYN-LINK-1 diagonal-neighbour links | 5,682 of 14,562 entries (same 15 levels) | 5,922 of 14,904 since NKG1 (0 before) | DICE cuts its C records by its own tracing |
+| KYN-EDGE-4 edges per (source, target) | one | one since NKG1 (6,916 duplicate pairs before) | none |
 | border ids in 3-4 sectors | 9,426 | 288 | corner sharing far rarer |
 | KYN-DF-2 | holds | holds | none |
 

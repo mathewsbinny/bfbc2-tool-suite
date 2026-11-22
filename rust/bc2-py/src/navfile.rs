@@ -212,6 +212,7 @@ pub fn navkit_write_graphs<'py>(
             sort_by_id: layout.0,
             border_owner: layout.1,
             dist_edge_max: layout.2,
+            ..Layout::default()
         },
         header,
         date,
