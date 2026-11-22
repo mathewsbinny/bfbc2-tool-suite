@@ -7320,10 +7320,14 @@ reads any file.
   fake game copy): an apply has 38 write steps (5 level bundles, the record, ww2_common and its record, the 2
   markers, then the ledger's journal, blobs, files and records of 6 commits), a revert 15; killed before each one,
   the next run finishes with the files and records of a run never interrupted, and no lock left.
-- **The install oracle** (`compare_oracle.py --install`, 21,197 staging digests): run by the coordinator from OPFOR's
-  main checkout after the merge (one plan at a time); the build half that writes the staging is the Python of
-  before, and the installer writes `registration_all.txt` and each level's `report.txt` with the same bytes (the
-  printed plan above is the same).
+- **The install oracle** (`compare_oracle.py --install`, 21,197 staging digests; the coordinator's plan from OPFOR's
+  main with both merges, 230 s): 21,192 identical at first, 5 differing, decoded: `registration_all.txt` and the 4
+  levels' `report.txt` were written with LF, where Python's text mode writes CRLF (fixed: `text_mode`; with CRLF
+  `registration_all.txt` is the oracle's byte for byte); and each `report.txt`'s mesh-flags line lists the switched
+  off flags in the closure's set order - Python's per-process string hash order, so two Python plans differed there
+  too (noted at OPFOR c3503fc): every one of the 4 reports matched the oracle under some order of that one list
+  (searched: 5!, 9!, 9!, 10! orders). OPFOR now sorts that list and records the 4 reports' new digests (the only
+  change of the oracle; a second plan must give 21,197 of 21,197).
 - Tests: `bc2-install` 9 unit + 3 integration (a fake game: plan, apply, opt-out; a failed gate writes nothing;
   `install_keep`'s order and `restate`), `bc2-formats`, `bc2-cli`; clippy `-D warnings`; OPFOR's quick tier and
   opforcore's tests (`test_suite_ledger_compat` both ways), ruff and mypy clean; `spec/trace.py --check` (rules
