@@ -132,7 +132,7 @@ by its sha256); a file an install put where there was none is reported as instal
 no ledger owner holds is answered by the markers of before the ledger (the earliest backup). The three readers (the
 NavKit driver, its Rust twin, the map editor) answer alike.
 
-[code: bfbc2-auto-navkit/navkit.py:77-108] [code: rust/bc2-cli/src/navshared.rs:66-133]
+[code: bfbc2-auto-navkit/navkit.py:77-108] [code: rust/bc2-navbuild/src/inputs.rs:168-234]
 [code: rust/bc2-editor/src/navdata.rs:1479-1494]
 [test: core/tests/test_gameledger.py::python_twin] [test: rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file]
 

@@ -18,8 +18,9 @@ path = "src/main.rs"
 bc2-formats.workspace = true
 bc2-scene.workspace = true
 bc2-levelwrite.workspace = true
-# the AI workspace's navigation data (round GR2): NavKit's cell sampling, the path test's A*, the side file's text
-bc2-navbuild.workspace = true
+# the AI workspace's navigation data (round GR2): NavKit's cell sampling, the path test's A*, the side file's text;
+# Build with these edits in process (round NK6: the level driver, inputs / apply, with graphedit)
+bc2-navbuild = { workspace = true, features = ["graphedit"] }
 # the side file's base and the traversal annotations' file check (round GR2)
 sha1_smol.workspace = true
 # the game-accurate view (round R5)

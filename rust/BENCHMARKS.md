@@ -9466,3 +9466,137 @@ varint.
 - **7, the DBX merge**: steps (1)-(4) above.
 - **8**: `dbxparity.py` / `portparity.py` stay live Python.
 - **ALG-10's bound** (OPFOR in Rust): material_grid's walk streamed (3.66 GB).
+## NK6: NavKit in the editor, the export's path data built in process (2026-11-22, branch `nk6`)
+
+NK5-rest's first item and A2-rest: NavKit's level driver as a library, the editor's Build with these edits in
+process, and the export's path-data step building the level itself. Nothing was written to `game\`; the game never
+launched. `navbuild.py`'s retirement (NK5-rest's second item) was not reached: see "What is left".
+
+### The level driver as a library (`bc2_navbuild::inputs`, `::apply`)
+
+| was (bc2-cli, on `pyos` / `pyjson` / `Py`) | now | who runs it |
+|---|---|---|
+| `navkit/build.rs`: `build_inputs`, `detailed_sectors` and its cache, `stale_detailed_samples`, `level_water`, `build_level`, `edits_of` | `bc2_navbuild::inputs` | `bfbc2.exe navkit build / all / apply`, the editor, the export |
+| `navkit/apply.rs`: `navkit apply` on a DICE base and on a NavKit base, the report | `bc2_navbuild::apply` (feature `graphedit`) | the same |
+| `navkit/prepare.rs`: `heightfield_of` (the terrain unpack, stamped, under its lock), `reference_bounds` | `inputs::heightfield_of`, `inputs::reference_bounds` | the same, and `navkit prepare` |
+| `navtools/detailed.rs`: `flagged_sectors`, `stacked_columns` | `inputs::flagged_sectors`, `inputs::stacked_columns` | the same, and `bfbc2.exe detailed` |
+| `navshared.rs`: `original_file` (the ledger's original, the markers before it) | `inputs::original_file` | every NavKit tool |
+| `bc2-pyrt::json` / `fmt::round_to` in `graphedit` | `bc2_navbuild::pyjson` (Python's `json`, `float_repr` from `bc2_shader::pyrepr`), `pymath::round_to` | `graphedit` no longer pulls `bc2-pyrt` |
+| `pyos` | `bc2_navbuild::ntpath` (ntpath's join / relpath / abspath, `os.walk`, `glob`, Python's `OSError` texts) | |
+
+The command line keeps only its edges (`navkit/build.rs`, 100 lines): the lines printed through `py`, the in-process
+FbrbTool runs logged as the Python's tool runs are, the library's errors as the Python's exceptions (`Fail::Raised`
+-> `PyErr`, a hand-off -> the Python). New in the library: a level prepared before `area_orders.json` existed has its
+objectives read from its XML (`levelobjects.area_orders`, the Python's `navregress.area_orders_of`), which the command
+line used to hand to the Python; `Root::samples_dir` (the offline sampler's or a stage's samples); the build's cancel
+(`stage::Log::cancelled`, checked between walkability, the stage, the detailed pass's walkability and stage, the merge
+and the file: `NavError::Cancelled`); `inputs::local_clock` (`time.localtime()`'s words for the sectors).
+
+### The editor's Build in process
+
+`nav::start_apply`: the Build button's job is `bc2_navbuild::apply::apply` on a `Task<()>` (PR1b-0's), its lines
+pushed as they come (the panel shows them), **Cancel the build** setting its flag (the build stops at its next step and
+removes its partial output; closing the editor does the same). Install and Restore stay `bfbc2.exe navkit` children.
+A cancel on sp_006 asked 3 s in stopped 1.3 s later, after the walkability step, with no file left.
+
+### Parity (`rust/parity_navkit_paths.py`)
+
+- **The 15 regression levels through every path** (`build`): `bfbc2.exe navkit build`, the editor in process (an
+  apply of an empty NavKit side file, `examples/nav_apply.rs`) and the export's step (`pathdata::build_bytes` on an
+  unedited project, `bc2-levelwrite`'s `examples/pathdata_build.rs`), each in a stand-in OPFOR folder (junctions to
+  the game, the prepared levels, the samples), and navregress's build with the golden clock: **15 of 15 identical**
+  (the files' SHA-1 with each sector's build date and time zeroed); **the 4 golden builds as recorded** (sp_009,
+  sp_004_b, sp_008_b, ons_mp_004).
+
+| level | CLI s | editor s | export s | | level | CLI s | editor s | export s |
+|---|---:|---:|---:|---|---|---:|---:|---:|
+| ons_mp_002 | 7.6 | 6.0 | 6.4 | | sp_007 | 18.6 | 17.6 | 17.7 |
+| ons_mp_004 | 5.6 | 3.9 | 4.6 | | sp_008 | 9.8 | 7.3 | 7.2 |
+| sp_003_b | 9.9 | 8.8 | 8.9 | | sp_008_b | 6.8 | 5.6 | 5.8 |
+| sp_004_b | 5.4 | 4.5 | 4.4 | | sp_009 | 2.9 | 1.8 | 1.9 |
+| sp_005 | 19.5 | 18.2 | 17.9 | | sp_01 | 10.2 | 8.2 | 8.5 |
+| sp_005_b | 14.3 | 12.9 | 13.7 | | sp_02 | 8.3 | 7.1 | 6.9 |
+| sp_006 | 22.2 | 20.4 | 20.4 | | sp_03 | 14.1 | 12.6 | 12.6 |
+| | | | | | sp_04 | 12.6 | 11.3 | 11.6 |
+
+  (The CLI's second or so more is the process start and its log.)
+- **NK1's apply set** (`dice`: the 18 DICE files and the 15 regression builds, NK1's generated side files of 36-39
+  links, route edges, traversals and notes): the command line and the editor in process **33 of 33 identical** - the
+  edited file, the traversal annotations, the report and every line. The command line's own answers against the
+  retired Python stay the quick tier's recorded `navkit apply` cases (`core/tests/cli_o4_navkit.py`, O4): pass.
+- **A NavKit base** (`navapply`: a walkable box, an unwalkable polygon, a seed, an unseed and 15 graph edits on
+  sp_009, sp_004_b, ons_mp_004): **3 of 3 identical**, files (dated fields zeroed; the annotations' `pathdata_sha1`
+  checked against each run's own file) and lines.
+
+### The export's path-data step (A2-rest)
+
+`pathdata::stage` now builds the level (`build_bytes`) whenever there are samples (`ready_at` -> `Plan`):
+
+- the base level's prepared inputs and samples (in-game `work\navsample`, else `work\navsample_offline`);
+- the staged level's spawns (`.SoldierSpawnEntityData`), AI orders (`Entity.AreaGeometryEntityData`) and objectives
+  (`.AreaOrderEntityData`) in place of the base's lists when the project changed them, plus the spawn points (seeds)
+  and the flags and M-COMs (objective floors) it moved or made - an unedited project's build is the base's own;
+- the project's navigation edits: walkability in the build (`inputs::edits_of`), links and route edges by
+  `graphedit` after it, traversals staged as `ai/infantry/<level>.traversal.json` beside the file;
+- a project that changes the collision (static objects, static group members) is **sampled on its stage first**
+  (`Plan::Sample`, `pathdata::sample_stage`: `navsample_offline.py stage <stage> --level --base`, a Python child -
+  the sampler's 1,572 lines were not ported this round): the staged `level-00.fbrb` unpacked and converted into
+  `work\navkit_stage\<level>` (a short path: the stage's own folder made unpacked names longer than 260 characters),
+  the base's group files the stage does not carry copied in, `levelobjects` and `ladders` on the staged partition,
+  the base's settings and terrain, both capsule runs at 0.8 m and at 0.2 m over the detailed sectors; then the build
+  reads that tree (DICE's extent the base's);
+- a sculpted terrain is refused (the stage sampler reads the base's terrain); a base NavKit cannot prepare is refused
+  in words (the Package-only WW2 levels); a base without samples and a project that changes nothing it depends on
+  stages the base's newest path data as before.
+
+**Proof.**
+
+| export | path data | XVAL-AI-1 | XVAL-PLACE-5 |
+|---|---|---|---|
+| Arica at dawn (VW2, MP_002) | built in process from the base's offline samples, 21,306 route nodes | ok | 30 off (the canary's first-guess layer: spawns in the harbour, as A2 found) |
+| Atacama in fog / under Arica's sky / at night / in rain (VW2, MP_005) | built in process, 31,028 route nodes each | ok (4 of 4) | 9 off each (first guess, as A2) |
+| Wake Island under Iwo Jima's sky (VW2) | refused: no samples, no build, no DICE file; NavKit cannot prepare a Package-only level | - | - |
+| SG1 member edits, MP_005 (4 member edits) | the stage sampled offline (`work\navkit_stage\mapedit_sg1_atacama`, 965 MB: the unpacked bundle and the samples), then built in process: 31,819 route nodes (the SG1 game test, 218 s with both levels' exports) | ok | 9 off (the project's first-guess layer, as the canaries) |
+| SG1 member edits, Wake Island | refused: the member edits change the collision and wake_island_s is not prepared for NavKit | - | - |
+| the auto layout on MP_002 (MP_012CQ's layer; `a1_layout --export`) | built in process, 22,395 route nodes | ok | **ok: 0 off** (21,331 nodes on the main network) |
+| the auto layout on MP_005 (MP_009CQ's layer) | built in process, 32,608 route nodes | ok | **ok: 0 off** |
+
+So every stage whose base NavKit can prepare gets its path data, and XVAL-PLACE-5 passes at the stage wherever the
+auto layout placed the gameplay. Project OPFOR's `mapedit_install.py` installs a stage's `path_data` through the
+install ledger (owner `mapedit-ai:<level>`) and reverts it with the level (OPFOR commit `8306a7b`, its test
+`test_path_data_through_the_install_ledger`). In-game behaviour (bots on the staged path data) is unproven until a
+playtest.
+
+### Tests
+
+- `cargo test` of bc2-navbuild (85 + 53), bc2-levelwrite, bc2-cli, bc2-py: pass; `clippy --all-targets
+  --all-features -D warnings` and `fmt` on the five crates; ruff and mypy on the changed Python.
+- `run_tests.py quick -j 2`: 132 of 133, the one failure (the sorted-JSON rule on the stage sampler's two new
+  `json.dump` calls) fixed and `tests/test_repo.py` passing after it; O2 passes.
+- NavKit's game tier (`run_tests.py game --only navkit`, then `traversal`, `navdata`, `meshtrip`): 46 of 46,
+  `navregress:small`, `apply`, `links`, `navbuild-native`, `vehicle-level`, `navwater-mesh`, `collision-backends`,
+  `navmesh-cells-routes-native`, the live O2 / O4 / O5 among them.
+- The editor's game tests: `gr2::ai_workspace_on_ons_mp_004`, `gr2::edit_build_install_restore_on_a_scratch_copy` (its
+  Build now in process), `auto_layout_panel` (2): 4 of 4. The SG1 game test (`model_group_members`, its path-data
+  branch new): pass. Project OPFOR: `test_mapedit_install` 6 of 6.
+- `spec/trace.py --check`: ok (XNAV-INS-3's code reference moved with `original_file`). XNAV-BLD-3 and the parity
+  target's measures are unchanged by construction: every build is the same bytes.
+
+### What is left
+
+- **NK5-rest 2: retiring `navbuild.py`** - not started this round: `BuildSettings` and the switches the bindings read
+  (`_cfg_dict`, `_switches`; the tests patch the module's names) into a settings module, the eight tests
+  (`test_navbuild_native` E3h, `test_detail_features`, `test_portal_symmetry`, `test_bridge_union`, `test_area_link`,
+  `test_navislands`, `test_tool_edges`, `test_column_sectors`) and the NK2-NK4 parity scripts moved to Rust tests or
+  the bindings, then the file and its twins deleted (RETIRED.md rule 4) with the PYI rows; `navkit.py`'s own `build` /
+  `apply` (the command line's hand-off) need the thin `navbuild.build` call kept somewhere.
+- **The offline sampler in Rust** (`navsample_offline.py`, 1,572 lines: the Havok bodies, the rasterised casts, the
+  capsule test), then the stage step without Python; a sculpted terrain sampled from the stage's own terrain.
+- **NavKit for Package-only levels** (the WW2 levels: Wake Island has no samples and `navkit prepare` lists Dist
+  levels only).
+- **The stock-MP AI layer for a staged level** (`stockmp` takes a stock level's name: reading the staged partition
+  and path data instead, and writing the layer into the stage).
+- **The rest of `mapedit_install` (IN1)**: the install plan's dry run naming the path data's ledger state, a stage
+  re-export replacing installed path data, `navkit install` and `mapedit-ai` on the same level.
+- NK5-rest 3 (memory past the budget) and A2-rest's other items (a later Rush stage's vehicles, engine limits, the
+  level's memory, Xbox 360 meshes in a stage, L1-HT-001) as listed before.

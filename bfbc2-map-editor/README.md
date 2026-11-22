@@ -212,7 +212,8 @@ layers, the selected area or spawn, the anomaly overlay, Compare with a referenc
 The **path test** (Shift+P, or "Path test from here" on the ground) finds each file's route between two clicks, or
 says why there is none. In a project, navigation edits (walkable and unwalkable regions, seeds, linked areas, route
 edges, traversals, notes) are operations of the project's log, saved with it and as the level's side file
-(`navtune.json`); **Build with these edits** runs `bfbc2.exe navkit apply`, and **Install into the game** /
+(`navtune.json`); **Build with these edits** runs NavKit's apply in the editor itself (the code `bfbc2.exe navkit
+apply` runs: the same files and lines, shown as they come, with **Cancel the build**), and **Install into the game** /
 **Restore DICE's original** show what they write in the game copy's AI path data before they run. Placing AI
 spawners and orders, routes and the cross-domain links come later (EDITOR_ARCHITECTURE.md 3.4a, step E5a); the
 tactical authoring, bot AI debugger and AI behaviour simulator workspaces after that (section 10).

@@ -27,6 +27,8 @@ zune-jpeg.workspace = true
 zune-core.workspace = true
 # round A1: the site (ground, water, collision) of the auto layout and the placement rules; the proofs load levels
 bc2-scene.workspace = true
+# round NK6: the export's path-data step builds the level in process (NavKit's level driver, its apply edits)
+bc2-navbuild = { workspace = true, features = ["graphedit"] }
 
 # mapexport.exe's application icon (round I1: build.rs)
 [build-dependencies]

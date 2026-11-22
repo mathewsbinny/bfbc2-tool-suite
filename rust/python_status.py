@@ -159,7 +159,7 @@ TABLE: tuple[Row, ...] = (
       'navkit.py, navbuild, detailed, navparity, navsample_offline, navvehicle; tests 8', 'NK4',
       'load is Rust (versions 1-3; version 3 streamed, NK4); left: flood / compare and the info / compare command line'),
     R(f'{NAV}/tools/navsample_offline.py', TOOL, 'partly', 'bc2_navbuild offline / hulls',
-      'tests 6; A2 plans it in process', 'proposed: after NK5 (A2)',
+      "tests 6; the export's path-data step (bc2_levelwrite::pathdata::sample_stage: `stage`)", 'A2-rest',
       'file_bytes and the raster in Rust; left: asset_bodies (NumPy hulls), the level geometry, the command line'),
     R(f'{NAV}/tools/navvehicle.py', TOOL, 'partly', 'bc2_navbuild vehicle (navkit_obstacle_distance)',
       'navdomains; tests 5', 'NK5-rest', 'obstacle distance (E4e) and stage_on_grid / write (NK5: navkit_stage_grid) '
@@ -649,6 +649,8 @@ TABLE: tuple[Row, ...] = (
       "NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes)"),
     R('rust/parity_nk5_build.py', BENCH, 'stays', '', 'by hand', 'stays',
       "round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory)"),
+    R('rust/parity_navkit_paths.py', BENCH, 'stays', '', 'by hand', 'stays',
+      "NavKit's level driver through the command line, the editor in process and the export step (files, lines)"),
     R('rust/python_status.py', DEV, 'stays', '', 'by hand; tests/test_repo.py', 'stays',
       'this inventory'),
 

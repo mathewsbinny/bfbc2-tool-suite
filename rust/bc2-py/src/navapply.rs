@@ -5,7 +5,7 @@
 //! not take: `None` (the caller raises `bfbc2core.native.Refused`).
 
 use bc2_navbuild::graphedit::{self, EditError};
-use bc2_pyrt::json::{self, Value};
+use bc2_navbuild::pyjson::{self as json, Value};
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;

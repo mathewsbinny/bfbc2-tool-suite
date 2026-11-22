@@ -1468,9 +1468,10 @@ pub fn window(
                     ui.separator();
                     // round A2: the export's path-data step (opt-in)
                     ui.checkbox(&mut spec.path_data, "Stage the level's path data for bots").on_hover_text(
-                        "Stages NavKit's build of the base level (or DICE's file) with the level, checked by the \
-                         export; refused when the project changes the level's collision or has navigation edits \
-                         (sampling the edited level is NavKit's next step)",
+                        "Builds the level's path data with NavKit in process - the project's spawns and objectives as \
+                         its seeds, its navigation edits applied; a level whose collision the project changes is \
+                         sampled offline first (minutes) - and stages it with the level, checked by the export. A \
+                         base level NavKit has no samples of stages DICE's file as it is",
                     );
                     let mut problems =
                         checks_for(spec, game.as_ref(), saved, profiles.as_ref(), project_target.is_some());

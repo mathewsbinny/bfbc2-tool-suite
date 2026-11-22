@@ -11,16 +11,21 @@ repository.workspace = true
 [dependencies]
 bc2-formats.workspace = true
 bc2-shader.workspace = true
-# NavKit's apply edits (graphedit, round NK1): the traversal annotations as Python's json.dump writes them and Python's
-# round(); only the command line (bc2-cli) uses them, so the Python-runtime emulation stays at that edge (round PR1a)
-bc2-pyrt = { workspace = true, optional = true }
+# the level driver (inputs.rs, round NK6): the detailed sectors near a NeedsDetailedPathfinding object's collision
+# (the suite's Havok index)
+bc2-scene.workspace = true
 sha1_smol.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
 
+# the sectors' build date and clock as the Python's time.localtime() gives them (inputs::local_clock, round NK6)
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
 [features]
-# graphedit: NavKit's apply edits on a path-data file (bc2-cli's `navkit apply`); off for the editor and the module
-graphedit = ["dep:bc2-pyrt"]
+# graphedit: NavKit's apply edits on a path-data file (`navkit apply`: bc2-cli, the bindings and, round NK6, the
+# editor's Build in process); Python's json and round() are this crate's own (pyjson, pymath), not bc2-pyrt
+graphedit = []
 
 [dev-dependencies]
 proptest.workspace = true
