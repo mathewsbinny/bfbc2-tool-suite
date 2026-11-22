@@ -16,9 +16,11 @@
 //! | `ww2_level_install.save_staged` / `load_staged` / `fingerprint` | [`staged`] |
 //! | `opforcore.stages.Stages.install` / `restate` / `check_install` | `bc2_gamefs::ledger` ([`Ledger::install_keep`](bc2_gamefs::ledger::Ledger::install_keep), `restate`), [`run`] |
 //! | `rebuild_all.locked` (the install takes it too) | [`lock`] |
+//! | `opforcore\migrate.py`; the mod manager (round MM1): enable / disable / uninstall / restore-original / verify | [`mods`] |
 
 pub mod lock;
 pub mod marks;
+pub mod mods;
 pub mod plan;
 pub mod pytext;
 pub mod run;

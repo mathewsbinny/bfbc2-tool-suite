@@ -10260,3 +10260,101 @@ goldens and the byte-identical regression below. `parity_nk5_build.py` and `benc
   in chunks).
 - `navislands.py` and `navdetail.py` stay for their own callers (prune, features for the tests); the build reads the
   Rust defaults of their settings, so their module names no longer change a build.
+
+## MM1: the OPFOR mod manager (2026-11-22, branch `mm1`, with Project OPFOR's `mm1-migrate`)
+
+`bfbc2 mods` (`rust/bc2-install/src/mods`, the `mods` tool group) turns Project OPFOR's mods on and off one at a time
+on the install ledger of round DF2, without a rebuild; the hub has a Mods tab on it. Spec `transforms/install.md`
+section 5 (XINST-MOD-1 to -9).
+
+**The model.** A mod is the ledger owners its tools name (`opforcore.stages.owner_of`), the level folders installed
+beside the ledger with their own record, or a setting: `ww2` (`wake`, `minimap-edges`, the WW2 level folders),
+`pacific-menus` (`pacificmenu`; needs `ww2` and `vietnam`), `vietnam` (`opfor.ini [patches] vietnam`, on when
+missing), `onslaught:<level>` (the 14 console-port stages and the Napisal-level fixes on that level; `onslaught` the
+shared `loadset` / `loading`), `mapedit` (`mapedit`, `mapedit-ai:<lv>`, the exported level folders),
+`navkit:<lv>`, `stockmp:<lv>`, `base` (`import`, `manifestfix`).
+
+- **disable** takes the mod's layers out top first through the ledger (`Ledger::uninstall_files`, new: some of an
+  owner's files), after the layers built on them - their mods, and the mods needing it, named and taken only with
+  `--yes` (exit 2 otherwise, nothing written). What each layer wrote is kept (`<game>\opfor\mods\blobs`, a hard link of
+  the file the ledger replaces: no copy) with its write time; the level folders are moved aside (a rename: write
+  times kept, which the DLL's `.opfor-tips` / `.opfor-stings` markers compare). `wake`'s own `opfor.ini` keys go back,
+  the launcher's later edits kept (the WW2 install's `ini_refresh` rule, as a restate of the prior first).
+- **enable** moves the folders back first, then installs the kept bytes last-out-first (`install_keep`) and sets each
+  file's write time back: byte for byte and time for time. A kept layer goes back only on the file it was built on;
+  else refused in words naming what to enable first - except an `.ini`, which gets the keys changed meanwhile carried
+  over. The mods disabled in the same operation come back with it (`--only`: not).
+- **uninstall** is a disable dropping the kept copies (the WW2 opt-out's bundleManifest repair kept as `manifestfix`).
+- **restore-original** `<file> ...` takes every layer off those files (owners' other files kept), `--all` every mod
+  but the settings: DICE's files (each bottom layer's prior), the installs kept for `enable`.
+- **vietnam** is set through the file, every prior and value the ledger keeps (`Ledger::edit_through`, new: one
+  journalled commit) and every kept copy, so no revert or enable takes the setting back.
+- **verify**: each ledger file's stack (top write = file, each write = the next prior, every prior - DICE's original at
+  the bottom - intact by sha256), each level folder against its record, each kept copy, files with old markers, and,
+  after `bfbc2 mods baseline`, every other game file.
+- **migrate**: `opforcore\migrate.py` in Rust (`Ledger::write_migrated`, new).
+- **No interruption loses anything**: every check, then the kept bytes linked, then the operation journal
+  (`.op.json`, every step with its data) before the first game write; each step re-runnable; the next command (or
+  `resume`) finishes a killed one. `BC2_MODS_CRASH_AT=<n>`: exit 9 before the n-th write step (its own and the
+  ledger's).
+
+**Found and fixed.** OPFOR's `migrate.py` (and the port) refused a file for good after a run killed while archiving its
+markers once one old backup had moved: the backups left were fewer than the records written. A file is now refused
+only when a backup's owner holds no record (OPFOR `mm1-migrate` a2d6d69: `test_an_interruption_at_every_marker_move_resumes`
+fails without the fix, passes with it).
+
+### Proof on scratch copies (never `game\`)
+
+The author's game copy's affected files - the 23 files with markers from before the ledger and their markers, the 5
+WW2 level folders, the main menu bundle and its marker: 182 files, 4.19 GB - copied twice with their write times into a
+temporary folder (A, B).
+
+- **The migration, Rust against OPFOR's Python**: `bfbc2 mods migrate` on A, OPFOR's `migrate.py` on B: the plans'
+  36 lines identical (23 files, 23 migratable, 0 refused), the applies' lines identical, then 288 files of each copy
+  (game files, ledger records less their id and time, blobs, archived markers) identical, write times included.
+  3.9 s against 3.8 s.
+- **Round trips on A**, compared with B (untouched after its migration) file by file, bytes and write times:
+
+  | Operation (then enable) | Mods taken | Game files after the enable |
+  |---|---|---|
+  | `disable ww2` (refused without `--yes`: nothing written) | ww2, pacific-menus | identical (2.4 s / 1.0 s) |
+  | `disable onslaught` | the 6 Onslaught mods, ww2, pacific-menus | identical (24 s / 32 s: 41 layers on 40 MB bundles, each a journalled commit) |
+  | `disable pacific-menus`, `disable base` | as named; base takes onslaught, ww2, pacific-menus | identical |
+  | `disable vietnam` | vietnam, pacific-menus; opfor.ini `vietnam=0` | identical bytes (opfor.ini rewritten twice: its write time new) |
+  | `restore-original --all` | every mod but vietnam | the 22 ledger files each its original's sha256, no WW2 folder; identical after `enable ww2` (the whole group) |
+  | `restore-original Dist/win32/package.mft` | the file's 3 layers | DICE's file; `enable ww2 --only` refused in words first; identical after base, onslaught, ww2 |
+
+- **A real kill at every write step** (`BC2_MODS_CRASH_AT`, `bfbc2.exe` ended with exit 9): `disable ww2` has 55 write
+  steps (the journal, 2 kept records, the restate, 2 ledger commits, 30 level files moved, ...), `enable ww2` 72; killed
+  before each, then `bfbc2 mods resume` and the command again: every disabled state the uninterrupted one's (bytes),
+  every enable back to B, bytes and write times; no lock left.
+- **Uninstall** (`uninstall ww2 --yes`): wake's and minimap-edges' files back, the 5 folders and their kept copies gone,
+  `manifestfix` kept, `verify` 18 checked, 0 problems. Against OR1's opt-out (`bfbc2 install revert` with the last
+  install plan, its paths moved onto a third copy C of B): 23 game files, 21 identical; the 2 others are the WW2 content
+  the opt-out leaves - `minimap-edges`' layer on the startup bundle (a WW2 install of 2026-11-12, migrated as its own
+  owner, which `install revert` does not revert) and the Pacific menus (`menu_install.py --revert`'s, outside OR1).
+- **The hub's Mods tab** on A (`BFBC2_MODS_GAME`): the list, Disable / Enable of `onslaught:ons_mp_008` through the
+  tab's methods, the migration's plan.
+- **The real game copy**: 1,582 files, every path, size, write time and sha256 the same before and after the round.
+
+### Tests
+
+- `bc2-install` `tests/mods.rs` (16: every mod's round trip byte for byte and time for time on a fake game copy, the
+  confirmations, the refusals, restore-original per file and whole, the setting, the ini carry-over, uninstall, verify,
+  a held lock, the migration and its resume; an in-process kill at every step of a disable, an enable, a
+  restore-original, a setting and the migration), the unit tests (`catalog`, `ini`, `migrate`); `bc2-cli`
+  `tests/mods.rs` (the command lines' exit codes; a real kill at every step of a disable and of an enable);
+  `bc2-gamefs` as before. clippy `--all-targets -D warnings` on bc2-gamefs, bc2-install, bc2-cli; every tool group of
+  `bfbc2.exe` alone (18, `mods` new, in CI's list); `fmt`.
+- OPFOR (`mm1-migrate`): opforcore 84 of 84 (6 skipped: no game copy in a worktree).
+
+### Left
+
+- The editor's Help > Diagnostics entry: waits for IN1's doctor.
+- One map editor export disabled while the others stay: the shared files are one owner's patch for every export
+  (`mapedit`), so `mapedit` goes as a whole; per level needs `mapedit_install.py`'s rebuild or IN1's slots.
+- A kept layer goes back only on the file it was built on (a settings file excepted): re-basing a bundle or a
+  registration text onto a changed file is IN1's registration slots.
+- `mods install ww2` (the staged plan through `bfbc2 install apply --staged`) and `mods install onslaught:<level>`
+  (OPFOR's `console_port.py`) hand over to the installers; neither was run here (they write the real game copy).
+- In game: nothing played (in-game tests paused); the write times of the DLL's markers are kept by construction.

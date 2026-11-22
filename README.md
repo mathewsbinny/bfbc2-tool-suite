@@ -60,9 +60,9 @@ the same codes as the Python command line it ports:
 |---|---|---|
 | 0 | done; for a checking command, nothing found | every tool |
 | 1 | an error (the cause, what to do and the log's path printed), or a check that found problems: `dbxedit check` / `roundtrip`, `aptcheck`, `texqa --baseline` regressions, `mapexport check` failing lines, `run_tests.py` failed tests, `gameledger original` with no original; a retired command line's refused input (README "bfbc2.exe") | every tool |
-| 2 | wrong arguments: argparse's usage error (Python's and `bfbc2.exe`'s), `bfbc2-editor` options, `bfbc2 gameledger` and `bfbc2 install` usage, `run_tests.py`'s unknown options, an `--only` that matches no test, `--no-game` outside the quick tier | every command line |
-| 3 | `dbxedit import`: written, but with guessed field types (check the result); `bfbc2 install`: another WW2 rebuild or install holds the rebuild lock (`work\ww2\_rebuild\rebuild.lock`), nothing done | `dbxedit`, `install` |
-| 9 | stopped on purpose by `BC2_LEDGER_CRASH_AT` / `BC2_INSTALL_CRASH_AT` (the install ledger's and the installer's crash tests only) | `bfbc2 gameledger`, `bfbc2 install`, ledger writes |
+| 2 | wrong arguments: argparse's usage error (Python's and `bfbc2.exe`'s), `bfbc2-editor` options, `bfbc2 gameledger`, `bfbc2 install` and `bfbc2 mods` usage, a `bfbc2 mods` operation that changes other mods too (run again with `--yes`), `run_tests.py`'s unknown options, an `--only` that matches no test, `--no-game` outside the quick tier | every command line |
+| 3 | `dbxedit import`: written, but with guessed field types (check the result); `bfbc2 install`: another WW2 rebuild or install holds the rebuild lock (`work\ww2\_rebuild\rebuild.lock`), nothing done; `bfbc2 mods`: another mods operation is running | `dbxedit`, `install`, `mods` |
+| 9 | stopped on purpose by `BC2_LEDGER_CRASH_AT` / `BC2_INSTALL_CRASH_AT` / `BC2_MODS_CRASH_AT` (the install ledger's and the installer's crash tests only) | `bfbc2 gameledger`, `bfbc2 install`, ledger writes |
 
 A Python tool that stops with an uncaught error also exits 1 (after the window or the printed cause). Project
 OPFOR's scripts stop with `SystemExit(<message>)`, which is exit code 1 too.
@@ -278,7 +278,7 @@ few milliseconds). A module from other sources is never used silently: the piece
 | `rust/bc2-editor` | the map editor application, binary `bfbc2-editor.exe` (rounds G1 - G4, E2b, GR1; "The map editor" above); not part of `bc2_native` |
 | `rust/bc2-levelwrite` | the map project's operation log and its edits on a level partition (round E2), the export (`export`, `mpconvert`, `modelayer`, `profile`, `culltree`, `awards`; rounds E3 - E3d) and the binary `mapexport.exe` |
 | `rust/bc2-render` | the editor's game-accurate view: DICE's Direct3D 11 shaders over the level (rounds R5 - R5c) |
-| `rust/bc2-install` | the game-copy installer on the install ledger (round OR1, "OPFOR in Rust" stage 1): Project OPFOR's WW2 install after its build staged the bundles - the backup guard, the levels' bundles and records, the DLL's markers, the shared bundles and ini files through the ledger (`gameledger::Ledger::install_keep` / `restate`, the records OPFOR's Python wrote), the registration last, the verification, the opt-out, `--apply-staged`'s record and input fingerprint, the WW2 rebuild's lock; the registration and ini rules (`text`) as one implementation; `bfbc2 install` runs it |
+| `rust/bc2-install` | the game-copy installer on the install ledger (round OR1, "OPFOR in Rust" stage 1): Project OPFOR's WW2 install after its build staged the bundles - the backup guard, the levels' bundles and records, the DLL's markers, the shared bundles and ini files through the ledger (`gameledger::Ledger::install_keep` / `restate`, the records OPFOR's Python wrote), the registration last, the verification, the opt-out, `--apply-staged`'s record and input fingerprint, the WW2 rebuild's lock; the registration and ini rules (`text`) as one implementation; `bfbc2 install` runs it; since round MM1 the mod manager (`mods`: enable / disable / uninstall / restore-original / verify, the migration of the markers from before the ledger), run by `bfbc2 mods` and the hub's Mods tab |
 
 **The core formats** (round F1a: their Python retired, the module required): `dbx.parse`, `to_xml`, `parse_many` and
 `to_xml_many` run in Rust and raise `ValueError` (`DeletedEntry` for an empty file) for a file that is not a binary
@@ -622,6 +622,7 @@ per call; `rust/BENCHMARKS.md`, "O1" - "O5"). `python rust\build_native.py --dow
 | `harness` | `bfbc2-automated-map-and-bot-test-harness\harness.py` | `run` (NavKit builds, NumPy drawings) |
 | `caches` | `core\bfbc2core\caches.py` (`python -m bfbc2core.caches`) | nothing on real use |
 | `meshview`, `dbxcatalogue`, `dbxparity`, `portparity`, `bf1943import` | `bfbc2-mesh-viewer\meshview.py`, `bfbc2-bf1943-import\<tool>.py` | the drawings, the parity runs, the catalogue's cache build, `bf1943import import` / `check` (Rust answers help, `list`, `find` and a current cache) |
+| `mods` | none: new in round MM1 - Project OPFOR's mod manager on the install ledger (`list`, `status`, `enable`, `disable`, `install`, `uninstall`, `restore-original`, `verify`, `baseline`, `migrate`, `resume`; `bfbc2 mods` alone prints its usage; spec `transforms/install.md` section 5) | `install onslaught:<level>` runs OPFOR's `console_port.py` |
 | `install` | Project OPFOR's `wake_install.py` / `ww2_level_install.py` install side (round OR1: OPFOR's build writes the install plan, `bfbc2 install plan / apply / revert / marks` does the rest; `crate bc2-install`) | nothing: OPFOR's Python builds the staging and calls it |
 | `shaderdb`, `renderqa`, `xdiff` | `bfbc2-shader-tools\<tool>.py` | renderqa's and xdiff's drawing (Direct3D 11, NumPy, Pillow; Rust checks the arguments); `shaderdb` is Rust end to end, `merge` included |
 

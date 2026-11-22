@@ -360,6 +360,14 @@ impl Ledger {
         self.root.join("blobs").join(format!("{sha}.bin"))
     }
 
+    /// A blob's bytes, checked against its sha256.
+    ///
+    /// # Errors
+    /// Missing, unreadable or damaged (its sha256 differs), in words.
+    pub fn blob_bytes(&self, sha: &str) -> Result<Vec<u8>, String> {
+        self.blob(sha)
+    }
+
     fn blob(&self, sha: &str) -> Result<Vec<u8>, String> {
         let p = self.blob_path(sha);
         let d = fs::read(&p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -1533,3 +1541,8 @@ mod tests;
 // round OR1: Project OPFOR's stage operations (install with the owner's other files kept, restate)
 #[path = "ledger_keep.rs"]
 mod keep;
+
+// round MM1: the mod manager's operations (some of an owner's files out, a setting edited through every layer, the
+// migration's records)
+#[path = "ledger_part.rs"]
+mod part;
