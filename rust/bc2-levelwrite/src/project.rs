@@ -1153,7 +1153,7 @@ mod tests {
         let back: serde_json::Value = serde_json::from_str(&q.to_json().unwrap()).unwrap();
         assert_eq!(
             (back["version"].as_u64(), back["min_reader"].as_u64()),
-            (Some(7), Some(7))
+            (Some(u64::from(VERSION)), Some(7))
         );
     }
 

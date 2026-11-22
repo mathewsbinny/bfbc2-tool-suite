@@ -9060,3 +9060,134 @@ it runs: these stay threads). Nothing bounds how many run at once: the bounded p
   folder.
 - The project-log replays: the bench's state digests through 200 moves, undo, redo, History and 200 member edits, and
   the corpus replay test above.
+
+## A2: the auto layout's vehicles, control and the export's path-data step (2026-11-22, branch `a2`)
+
+Round A2 (ROADMAP "A2"): the auto layout's items that need no path data - vehicles and control - and the export's
+path-data step as far as NavKit's port allows (the rest is A2-rest). Nothing was written to `game\`; the game never
+launched; no NavKit build ran.
+
+### Vehicles: what DICE's need around their spawners (`bc2_levelwrite::vehicles`, `site`)
+
+New site measures: a land vehicle's **way out** (`Site::way_out`: a flood fill on 2 m cells from the spawner's surface,
+a step up to 1.2 m, a drop up to 2 m, nothing static 0.6 to 2.5 m above the surface, water up to 1.2 m), a boat's
+**water reach** (`water_reach`: 4 m water cells at least 0.5 m deep, nothing static at the surface), an aircraft's
+**open sky** (`open_sky`: the lowest collision 3 m or more above the spawner within a radius) and a plane's **take-off
+run** (`runway`: the longest straight run on 16 bearings, a 10 m span, no step over 1 m, no water, nothing crossing 0.6
+to 5 m up). `examples/vehicle_sites.rs` (bc2-editor) measured every vehicle spawner of the 27 levels A1 calibrated on
+(707; 291 of vehicles that move):
+
+| class | spawners | the tightest of DICE's | the rule's bound |
+|---|---:|---|---|
+| tank, IFV, IFV-AA, car, quad bike | 184 | every one drives 40 m (the measure's limit) | XVAL-PLACE-6: under 20 m |
+| boat (where the water mesh is judged) | 44 | 30.5 m of open water (`mp_009gr`) | XVAL-PLACE-7: under 24 m |
+| helicopter | 49 | no collision under 60 m within 3.5 m (one Vietnam pad, `nam_mp_005r`, has some 3.1 m up 7 m out) | XVAL-PLACE-8: under 12 m within 3.5 m |
+| plane (WW2 ports) | 15 | a 34 m run (`guadal_canal`); one of OPFOR's planes on `iwo_jima_s` stands inside a hangar's solid collision, so the run counts crossings, not solids | XVAL-PLACE-8: under 30 m |
+| **XVAL-PLACE-2 to 8 on the 27 levels** | | **0 findings** (`a1_calibrate`: 1,475 spawn points, 707 vehicle spawners; `vehicle_sites`) | |
+
+DICE's spawners a capture point lists all spawn by themselves (`AutoSpawn` true on 172 of 172); 64 unlisted ones wait
+for events. Flags' vehicles are neutral spawners or one per team; every stock Squad Deathmatch level's one IFV
+belongs to the layer's neutral capture point, 5-19 m from it. New spec rules: GAME-VEH-2 (`engine/gameplay.md`),
+XVAL-PLACE-6 to 8.
+
+### Vehicles in the auto layout
+
+`vehicles::plan`, on the laid-out layer: each capture point gets DICE's count (L1's medians, `l1_a1_params.json`: a
+Conquest base 4, 8 on WW2; a flag 2; Rush's stage-1 attackers' base 3, defenders' 2; Squad Rush none; Squad
+Deathmatch 1), from the level's own spawners no capture point of the layer owns and that spawn by themselves (DICE's
+for the level: the base's own layer has gone), by team (a flag: a neutral spawner, else one of each team) and class in
+DICE's order (L1's class totals), each moved once, then copies (`Op::Place`), each on the first good spot of rings 12
+to 88 m out (boats 8 to 148 m, aircraft from 20 m) facing the layout's centre (a plane its run), joined to its capture
+point (`Op::LinkSpawner`, which now takes vehicle spawners). The proposal commits as one operation (`Proposal::op`:
+`Op::Files` with the moves, the copies, the links; the log's base check now reads a multi-part operation's parts in
+order, so a link may name a copy made before it). `placement::measure` gains L1's vehicle pools (`cq.hq_vehicle_pool`,
+`cq.flag_vehicle_pool`) and Rush's per-stage vehicles; the auto layout holds them against DICE's ranges.
+
+**The 16 held-out levels** (`examples/a1_layout.rs`, as A1: every donor of the era and mode but the level's own map,
+the best chosen without DICE's layout; release):
+
+| level | mode | donor chosen | errors / warnings / notes | statistics inside DICE's ranges | vehicles (copies) | classes | s |
+|---|---|---|---|---|---|---|---|
+| MP_001 | CQ | MP_005 | 0 / 0 / 0 | 35 of 35 | 14 (6) | 8 ifv, 2 quad, 4 tank | 3.9 |
+| MP_003 | CQ | MP_001 | 0 / 0 / 0 | 42 of 42 | 16 (10) | 12 ifv, 4 quad | 1.9 |
+| MP_005 | CQ | MP_009CQ | 0 / 0 / 0 | 35 of 35 | 14 (2) | 2 car, 2 heli, 2 quad, 8 tank | 2.5 |
+| MP_006CQ | CQ | MP_001 | 0 / 0 / 0 | 42 of 42 | 16 (14) | 16 quad | 2.8 |
+| MP_009CQ | CQ | MP_001 | 0 / 0 / 0 | 39 of 39 | 4 (0) | 1 boat, 1 ifv, 2 quad | 2.3 |
+| NAM_MP_002CQ | CQ | NAM_MP_005CQ | 0 / 0 / 0 | 33 of 33 | 6 (4) | 6 tank | 2.6 |
+| MP_005GR | Rush | MP_008 | 0 / 0 / 0 | 37 of 37 | 5 (0) | 1 quad, 4 tank | 6.1 |
+| MP_009GR | Rush | MP_004 | 0 / 0 / 0 | 37 of 37 | 3 (0) | 1 car, 1 ifv, 1 quad | 3.5 |
+| MP_012GR | Rush | MP_008 | 0 / 0 / 0 | 37 of 37 | 5 (0) | 1 heli, 2 ifv, 1 quad, 1 tank | 6.2 |
+| NAM_MP_005R | Rush | NAM_MP_003R | 0 / 0 / 1 | 37 of 37 | 3 (0) | 3 boat | 2.9 |
+| MP_002SR | SR | MP_001SR | 0 / 0 / 0 | 19 of 19 | 0 | - | 1.7 |
+| MP_005SR | SR | MP_003SR | 0 / 0 / 0 | 19 of 19 | 0 | - | 2.0 |
+| MP_012SR | SR | MP_001SR | 0 / 0 / 0 | 19 of 19 | 0 | - | 1.5 |
+| MP_004SDM | SDM | MP_SP_005SDM | 0 / 0 / 0 | 5 of 5 | 1 (0) | 1 ifv | 1.8 |
+| MP_007SDM | SDM | MP_004SDM | 0 / 0 / 0 | 5 of 5 | 1 (0) | 1 ifv | 1.7 |
+| MP_009SDM | SDM | MP_004SDM | 0 / 0 / 0 | 5 of 5 | 1 (0) | 1 ifv | 1.9 |
+
+**16 of 16 levels: 0 errors, 0 warnings; 446 of 446 statistics inside DICE's ranges** (A1: 379 of 382; the 64 more
+are the vehicle statistics: Conquest's base and flag pools, Rush's and Squad Rush's per-stage vehicles), **Squad
+Deathmatch's vehicle placed** on all three (5 of 5 each, A1's 4 of 5); 1 note, A1's (`NAM_MP_005R`'s M-COMs 63 m apart
+in height). Where a level's own spawners lack a team's vehicles that spawn by themselves the proposal says so and
+places fewer (`MP_009CQ`: no Team 1 vehicle, flags without a spawner of each team; `NAM_MP_002CQ`: its HQs' helicopters
+and tanks wait for events; Rush: one side's), all inside DICE's ranges. Two fixes the run found: a boat's spot needs
+water over the terrain (XVAL-PLACE-3's "dry land", `NAM_MP_005R`'s river), and a flag short of one vehicle takes no pair.
+
+### Control: several proposals, pins, the areas after Accept
+
+- `autolayout::propose_all(.., pins, k)`: the best `k` of the 8 fitted candidates (distinct places or turns), each
+  given its vehicles and measured again; `propose_with` is its first.
+- **Pins** (`Op::Pin`, the project's organisation; **project format 8**, a version-7 file loads as it is): a pinned
+  flag, base or M-COM keeps its place - the search runs over turns and scales only, the centre the one that puts the
+  pins on their own places best, a pin left off costing 0.2 a metre - and its own spawns and markers follow it; a pinned
+  spawn point or vehicle spawner is not moved and a pinned vehicle counts for its capture point.
+- The panel: Seed, Proposals (1-4), Propose layouts; Pin selection / Unpin selection / Unpin all; a column per proposal
+  (Show, Accept, warnings and notes, statistics inside, turn and scale, vehicles); the shown proposal's statistics,
+  vehicles and notes, findings below. Proposals run on PR1b-0's `Task`.
+- **VW1's areas follow the project** (`overlays::with_project`): the combat and capture areas are read again from the
+  project's partition at each revision that edits it; the base's effects, lights, sounds and spawn checks stay.
+
+The editor (`rust/bc2-editor/tests/auto_layout_panel.rs`, game tier, release, 16 s with A1's test): Laguna Alta with
+Panama Canal's layer, three proposals in 1.5 s, each 0 warnings, 42 of 42 statistics inside, 16 vehicles (10 new);
+after Accept every one of the 6 capture points has its capture area drawn where it stands, the combat area too, and
+every vehicle joins its capture point; A1's test still passes (now with vehicles). Screenshots (Dark, Light;
+`BC2_EDITOR_SHOTS`): `auto_layout_proposals_<theme>.png` (three columns, proposal 2 drawn), `auto_layout_areas_<theme>.png`
+(the accepted layout's areas). Synthetic (`tests/auto_layout_vehicles.rs`, no game data): the three rules raised by a
+tank in a courtyard, a boat in a pond, a helicopter under a roof and a plane in a courtyard and silent on the same in the
+open; a Conquest layout's 14 vehicles (each HQ 4, each flag a neutral pair) from 5 own spawners (all moved, 9 copies),
+the log replaying the operation, three distinct proposals, deterministic, pins kept.
+
+### The export's path-data step (`bc2_levelwrite::pathdata`, opt-in)
+
+`ExportSpec.path_data` (the Export window's "Stage the level's path data for bots"): `pathdata::ready` before anything
+is built - the base's newest path data (`work\navkit\<base>`, else `work\navkit_offline\<base>`, else DICE's own file,
+the ledger's original first) and no blocker: the project edits no collision (a static object moved, added or deleted;
+a static group member edited; the terrain sculpted) and has no navigation edits - else `mapexport build` refuses
+(XVAL-AI-1) naming why. The file is staged as `ai/infantry/pathdata.hpd` (`ai/vehicle/` with DICE's), recorded in
+`stage.json`'s `path_data` with its install path `Output/win32/ai/levels/<id>/infantry/pathdata.hpd`. `mapexport check`
+adds XVAL-AI-1 (the file recorded, Kynapse, every sector's nodes sorted: HPD-NODE-2 / AI-CRASH-4) and XVAL-PLACE-5 on
+the staged file's route graph (`pathdata::routes_of`: nodes by id, islands by size, as the AI workspace makes them). The
+AI workspace opens a project's staged path data when its last export staged one (and reads `work\navkit_offline`
+builds too).
+
+**Proof** (`examples/vw2_canaries.rs --path-data`, the six VW2 canaries, and the SG1 member-edit test):
+
+| export | base | path data | XVAL-AI-1 | XVAL-PLACE-5 on the stage |
+|---|---|---|---|---|
+| Arica at dawn | MP_002 | NavKit's offline build staged (57 sectors, 22,700 nodes) | ok | 30 spawns / objectives of the first-guess layer off the main network |
+| Atacama in fog, under Arica's sky, at night, in rain | MP_005 | NavKit's offline build staged (81 sectors, 32,664 nodes) | ok (4 of 4) | 9 off the main network each |
+| Wake Island under Iwo Jima's sky | WAKE_ISLAND_S | refused: no NavKit build and no DICE file for it | - | - |
+| SG1's member edits (Wake Island, MP_005) | | refused before the build: the static group members edited | - | - |
+
+The canaries' layers are the target's first guess (A1: Arica's spawns stand in the harbour), so XVAL-PLACE-5 fails on
+the stage as it should. The auto layout with the same path data (`a1_layout --routes`, its `propose_with`) puts every
+spawn point, flag and M-COM on the main network: MP_002's best (MP_012CQ's layer) and MP_005's (MP_009CQ's) 0 off,
+0 warnings, every statistic inside (DICE's own layouts: 13 and 7 off on these offline builds).
+
+**Blocked on NavKit's port (A2-rest)**: sampling the edited level without the game (`navsample_offline` with the
+stage's partition and group files: Python, and not a `navkit` step; NK4 ported walkability, not the sampler's partition
+override), building in process with the project's spawns and objectives as seeds and objective floors (NK5's
+`build_inputs`), applying navigation edits to a NavKit base (`navkit apply` on a NavKit base: Python until NK5), the
+stock-MP AI layer for a staged level (`stockmp` by a stock level's name: HasAI, PathfindingTypes, SectorOffsets, AI
+spawners and orders), and OPFOR's `mapedit_install.py` installing `path_data`. A later Rush stage's vehicles wait for
+the stage events (E4). In-game behaviour (vehicles spawning, bots on the staged path data) is unproven until a playtest.
