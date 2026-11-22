@@ -9422,6 +9422,21 @@ install ledger (owner `mapedit-ai:<level>`) and reverts it with the level (OPFOR
 `test_path_data_through_the_install_ledger`). In-game behaviour (bots on the staged path data) is unproven until a
 playtest.
 
+### Tests
+
+- `cargo test` of bc2-navbuild (85 + 53), bc2-levelwrite, bc2-cli, bc2-py: pass; `clippy --all-targets
+  --all-features -D warnings` and `fmt` on the five crates; ruff and mypy on the changed Python.
+- `run_tests.py quick -j 2`: 132 of 133, the one failure (the sorted-JSON rule on the stage sampler's two new
+  `json.dump` calls) fixed and `tests/test_repo.py` passing after it; O2 passes.
+- NavKit's game tier (`run_tests.py game --only navkit`, then `traversal`, `navdata`, `meshtrip`): 46 of 46,
+  `navregress:small`, `apply`, `links`, `navbuild-native`, `vehicle-level`, `navwater-mesh`, `collision-backends`,
+  `navmesh-cells-routes-native`, the live O2 / O4 / O5 among them.
+- The editor's game tests: `gr2::ai_workspace_on_ons_mp_004`, `gr2::edit_build_install_restore_on_a_scratch_copy` (its
+  Build now in process), `auto_layout_panel` (2): 4 of 4. The SG1 game test (`model_group_members`, its path-data
+  branch new): pass. Project OPFOR: `test_mapedit_install` 6 of 6.
+- `spec/trace.py --check`: ok (XNAV-INS-3's code reference moved with `original_file`). XNAV-BLD-3 and the parity
+  target's measures are unchanged by construction: every build is the same bytes.
+
 ### What is left
 
 - **NK5-rest 2: retiring `navbuild.py`** - not started this round: `BuildSettings` and the switches the bindings read
