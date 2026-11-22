@@ -37,6 +37,18 @@ landed on `main`.
   deviates today and the gaps in priority order). `formats/hpd.md`'s open questions are tracked items, five answered.
   A game-tier corpus test checks the verified rules on DICE's files; `cargo run --example kynapse_probe` measures
   DICE's files or NavKit's builds.
+- **Auto layout** (round A1): the Gameplay workspace's Auto layout panel proposes where the target mode's flags,
+  bases, M-COMs, spawns and combat areas go on the level, in DICE's style - the mode's layer (DICE's own layout,
+  from the target's donor) turned, scaled and placed where the level's ground, water, rocks and buildings suit it,
+  then held against DICE's statistics from the stock maps. The proposal is drawn over the views with its findings and
+  statistics; nothing changes until you accept it, and an undo takes it back. A seed gives other proposals; the same
+  seed gives the same one.
+- **Placement checks on the ground** (round A1), live in the Problems panel: spawn points over water, inside rocks or
+  walls or under the ground (XVAL-PLACE-2), a vehicle spawner without room for its vehicle or out of its domain - a
+  tank in the sea, a boat on land (XVAL-PLACE-3), gameplay objects outside every combat area (XVAL-PLACE-4), and,
+  once the AI workspace has read the level's path data, spawns, flags and M-COMs the bots cannot reach from the main
+  route network (XVAL-PLACE-5). Each bound lies past what DICE's own maps do. `mapexport validate` checks the first
+  three on the level's height field and water.
 
 ## [0.14.0] - 2026-11-21
 
