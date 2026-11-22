@@ -82,7 +82,8 @@ def norm(b, root):
 
 def main():
     rows = []
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('BFBC2_CLI', 'PYTHON'))}
+    drop = ('BFBC2_CLI_PYTHON', 'BFBC2_CLI_SUITE', 'BFBC2_CLI_TRACE', 'BFBC2_CLI_WORKERS')
+    env = {k: v for k, v in os.environ.items() if k not in drop and not k.startswith('PYTHON')}
     env['LOCALAPPDATA'] = os.path.join(SCRATCH, 'lad')
     bad = 0
     try:
