@@ -8587,3 +8587,34 @@ The worktree has no `bc2_native` build; the probes ran with `PYTHONPATH` naming 
 `spec/COVERAGE.md` section 2 (queued as SPG2): terrain writing, vegetation, the shader translation, the game
 module's patch points, animation and characters, decals, the rest of persistence, BF1943 as a source, Onslaught,
 the effects' processor chain, streaming.
+
+## QW3: small cleanups (2026-11-22, branch `qw3`)
+
+Three fixes and a sweep; nothing written to `game\`, the game never launched.
+
+### The shotgun body set (dbxport)
+
+DICE's data (a read of the game copy, Package before Dist): `wcShotgun` takes `wabsShg` on 21 weapons (20 players',
+1 AI clone), every one `fltSingleFireWithBoltAction` (870 MCS, Neostead, TOZ-194, the Vietnam 870), and `wabsRif` on
+23 (Saiga and USAS-12, semi-automatic and automatic, and the pump-action SPAS-12). No other class uses `wabsShg`.
+BF1943's 367 weapon partitions hold one `wabsShg`, the Shin-gunto knife (`wcKnife`), and no shotgun. The conventions
+pass now moves `wabsShg` to `wabsRif` only off a shotgun, in `dbxport.py` and `bc2_convert::dbxport`; the knife is
+ported as before, so the WW2 rebuild's outputs do not change and the oracle stays as committed (no rebuild run).
+OPFOR's installed WW2 weapons: the M1897 (a copy of DICE's 870, not ported) `wcShotgun` / `wabsShg` /
+pump-action; all 11 WW2 `wcSniper` weapons `AlwaysAimHead` false, as DICE's 32.
+
+### hkpack's unsized arrays
+
+`bc2_native.HkPackfile`'s value conversion put `Value::Unknown` into a list although the reader already holds it in
+one: `[[('?', n)]]` against the Python's `[('?', n)]`, since round F4 (F4's 120 built packfiles never held such an
+array with data). O2's live leg (`test_cli_o2.py --live --game`) passes again: 361 s, every group; F4's hkpack area
+checks O2's sample packfile both ways (2 of 2, 18 s).
+
+### Fixed temporary names in tests
+
+`test_argfmt.py` (trace), `test_aptgraft.py` (movie), `test_prepare_o4.py` (stand-in), `cli_o5_stockmp.py`
+(stand-in): a folder of the run's own (`tempfile.mkdtemp`), removed after; `--root` / `BFBC2_O5_STANDIN` still name
+one. `test_f4_native.py`'s mesh-viewer index stays a shared, signed cache and is copied in through
+`atomicio.copy_file`. Two `test_argfmt.py` runs at once: 943 of 943 each, no folder left behind. The quick
+tier (`run_tests.py quick -j 2`): 133 of 133 in 1,023 s, O2 among them. The Rust tests all name their folders with the process id already. Left alone: OPFOR's
+`wake_ambience.py` writes fixed `%TEMP%` names, but it is a rebuild step (one rebuild at a time), not a test.
