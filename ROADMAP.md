@@ -125,15 +125,15 @@ NK1-NK3). A round that retires a folder's code deletes it (RETIRED.md for a tool
 | `core` | ~5,860 | The cache budget's twin, the install ledger's twin, the native-backend registry, shared helpers | PR1b-1, PR1b-2 |
 | `bfbc2-menu-tools` | ~4,960 | Menu building (OPFOR's menus) | OPFOR in Rust stage 5 |
 | `bfbc2-console-convert` | ~3,650 | Audio conversion (one ffmpeg per sound), texqa's twin | PR1b-1 (sounds decoded in Rust) |
-| `bfbc2-harness` | ~2,930 | The harness's Python side (its command line is Rust, O4) | PR1b-2, Tests in Rust |
+| `bfbc2-automated-map-and-bot-test-harness` | ~2,930 | The harness's Python side (its command line is Rust, O4) | PR1b-2, Tests in Rust |
 | `bfbc2-stockmp-ai` | ~2,730 | The stock-MP library twin (its command line is Rust, O2) | PR1b-2 |
 | `bfbc2-map-editor` | ~2,400 | L1's placement study scripts (their measures ported in V1) | PY1 / PR1c (kept as research or retired) |
 | `bfbc2-anim-tools` | ~1,370 | Animation tooling | PR1b-2 (the user, 2026-11-22) |
-| `culltree` | ~1,210 | culltree's Python twin (its command line is Rust, CT1 / RT3) | PR1b-2 |
+| `bfbc2-culltree` | ~1,210 | culltree's Python twin (its command line is Rust, CT1 / RT3) | PR1b-2 |
 | `bfbc2-model-tools` | ~1,170 | Model conversion helpers | PR1b-2 (the user, 2026-11-22) |
-| `console-readers` | ~940 | Xbox 360 readers | OPFOR in Rust stage 5 / the Onslaught re-port |
+| `bfbc2-console-readers` | ~940 | Xbox 360 readers | OPFOR in Rust stage 5 / the Onslaught re-port |
 | `bfbc2-mesh-viewer` | ~680 | `meshview.py`: OPFOR's game-index API (46 files, 103 calls) and `page()` | PR1b-2 (AU5 ARC-4: the Rust port through `bc2_native`) |
-| `navigation-studio`, `bfbc2-dbx-tools`, `bfbc2-fbrb-tool` | ~350 | Leftovers in retired tools' folders | PR1c (moved into core or their user) |
+| `bfbc2-navigation-studio`, `bfbc2-dbx-tools`, `bfbc2-fbrb-tool` | ~350 | Leftovers in retired tools' folders | PR1c (moved into core or their user) |
 | `rust/*.py` | ~3,400 | Benchmark and parity scripts against the old Python | stay (they are measurements, not tools) |
 
 OPFOR's own pipeline (WW2 level build, shader glue, material grid and pictures, Onslaught / menus / testrun) is OPFOR in
