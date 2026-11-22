@@ -49,7 +49,7 @@ pub const PATCH_LAYOUT_NO_TILES: [u8; 16] = [
 pub const PATCH_STRIDE: u32 = 20;
 
 /// A patch shader of the `VisualTerrain`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PatchShader {
     /// Its entry (`Terrains/MP_005/MP_005/PatchMaskShaders/Dunes_Asphalt_Destruction`).
     pub name: String,
@@ -59,6 +59,23 @@ pub struct PatchShader {
     pub layers: u32,
     /// Tiled masks.
     pub tiled: u32,
+    /// Its undergrowth mesh entries, in their groups (VEG-UG-1 / VEG-UG-2; none when `undergrowth` is empty).
+    pub meshes: Vec<Vec<UndergrowthMesh>>,
+}
+
+/// One undergrowth mesh entry of a patch shader (VEG-UG-2).
+#[derive(Debug, Clone, PartialEq)]
+pub struct UndergrowthMesh {
+    /// The mesh set (`vegetation/undergrowth/...`).
+    pub mesh: String,
+    /// The mesh's asset reference, `<mesh>/<guid>`: empty on every DICE terrain but `NAM_MP_003`.
+    pub asset: String,
+    /// A shader entry, or empty.
+    pub shader: String,
+    /// The 12 numbers (VEG-UG-3).
+    pub values: [f32; 12],
+    /// The two bytes that end the entry (01 00 on every DICE entry).
+    pub tail: [u8; 2],
 }
 
 /// One terrain block's patch map.
@@ -217,19 +234,37 @@ pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, RenderError> {
     for _ in 0..w.u32()? {
         let (name, undergrowth) = (w.string()?, w.string()?);
         let (layers, tiled) = (w.u32()?, w.u32()?);
+        let mut meshes = Vec::new();
         for _ in 0..w.u32()? {
+            let mut group = Vec::new();
             for _ in 0..w.u32()? {
-                w.string()?;
-                w.skip(1)?;
-                w.string()?;
-                w.skip(4 * 12 + 2)?;
+                // the second string is a string, not one byte: NAM_MP_003's entries name `<mesh>/<guid>` there
+                // (VEG-UG-2; rounds R5 - SPG2 skipped one byte and refused that level's visual terrain)
+                let (mesh, asset, shader) = (w.string()?, w.string()?, w.string()?);
+                let mut values = [0f32; 12];
+                for v in &mut values {
+                    *v = f32_at(data, w.o);
+                    w.skip(4)?;
+                }
+                let at = w.o;
+                w.skip(2)?;
+                let tail = [0, 1].map(|k| data.get(at + k).copied().unwrap_or(0));
+                group.push(UndergrowthMesh {
+                    mesh,
+                    asset,
+                    shader,
+                    values,
+                    tail,
+                });
             }
+            meshes.push(group);
         }
         out.shaders.push(PatchShader {
             name,
             undergrowth,
             layers,
             tiled,
+            meshes,
         });
     }
     if w.u32()? != n {
@@ -946,5 +981,95 @@ mod tests {
         assert_eq!((m.side(), m.shader_side, m.atlas.as_str()), (2, 2, "T/atlas"));
         assert_eq!(m.flags.first(), Some(&[8, 0, 0, 0]));
         assert!(parse_visual(&d[..d.len() - 1]).is_err());
+    }
+
+    /// A visual terrain of one block with one patch shader whose undergrowth entries are `entries` (mesh, asset,
+    /// shader, first value), in one group.
+    fn with_undergrowth(entries: &[(&str, &str, &str, f32)]) -> Vec<u8> {
+        let mut d = Vec::new();
+        let u = |d: &mut Vec<u8>, v: u32| d.extend(v.to_le_bytes());
+        let s = |d: &mut Vec<u8>, v: &str| {
+            d.extend(v.as_bytes());
+            d.push(0);
+        };
+        u(&mut d, 1);
+        for _ in 0..2 {
+            for _ in 0..4 {
+                u(&mut d, 0);
+            }
+        }
+        u(&mut d, 1);
+        s(&mut d, "T/a/b/PatchMaskShaders/X");
+        s(&mut d, "T/a/b/UgMaskShaders/X");
+        u(&mut d, 2);
+        u(&mut d, 0);
+        u(&mut d, 1); // one group
+        u(&mut d, entries.len() as u32);
+        for &(mesh, asset, shader, first) in entries {
+            s(&mut d, mesh);
+            s(&mut d, asset);
+            s(&mut d, shader);
+            d.extend(first.to_le_bytes());
+            for k in 1..12u8 {
+                d.extend(f32::from(k).to_le_bytes());
+            }
+            d.extend([1, 0]);
+        }
+        u(&mut d, 1);
+        for v in [-8.0f32, 0.0, -8.0, 8.0, 100.0, 8.0] {
+            d.extend(v.to_le_bytes());
+        }
+        for v in [66, 1, 15, 7, 1] {
+            u(&mut d, v);
+        }
+        d.extend([0u8; 8 + 4]);
+        u(&mut d, 1);
+        d.push(0);
+        d.extend(b"T/hf\0T/atlas\0");
+        d
+    }
+
+    // spec: VEG-UG-2
+    #[test]
+    fn undergrowth_entries_read_their_asset_string() {
+        // DICE's MP / SP terrains: the second string empty (the one byte rounds R5 - SPG2 skipped)
+        let vt = parse_visual(&with_undergrowth(&[
+            ("ug/grass_Mesh", "", "", 0.4),
+            ("ug/fern_Mesh", "", "S/x", 1.0),
+        ]))
+        .expect("reads");
+        let m = &vt.shaders[0].meshes;
+        assert_eq!(m.len(), 1);
+        assert_eq!(
+            m[0].iter()
+                .map(|e| (
+                    e.mesh.as_str(),
+                    e.asset.as_str(),
+                    e.shader.as_str(),
+                    e.values[0],
+                    e.tail
+                ))
+                .collect::<Vec<_>>(),
+            [
+                ("ug/grass_Mesh", "", "", 0.4, [1, 0]),
+                ("ug/fern_Mesh", "", "S/x", 1.0, [1, 0])
+            ]
+        );
+        assert_eq!(m[0][1].values[11], 11.0);
+        // NAM_MP_003's: `<mesh>/<guid>` there; skipping one byte read the rest of that string as the shader name
+        // and the file ran out of step
+        let nam = with_undergrowth(&[(
+            "ug/grass_Mesh",
+            "ug/grass_Mesh/0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+            "",
+            0.8,
+        )]);
+        let vt = parse_visual(&nam).expect("reads");
+        let e = &vt.shaders[0].meshes[0][0];
+        assert_eq!(
+            (e.asset.as_str(), e.shader.as_str(), e.values[0], e.values[11]),
+            ("ug/grass_Mesh/0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0", "", 0.8, 11.0)
+        );
+        assert_eq!(vt.maps[0].atlas, "T/atlas");
     }
 }
