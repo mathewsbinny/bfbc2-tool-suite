@@ -1367,7 +1367,7 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "library",
-   "lines": 204,
+   "lines": 205,
    "note": "Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens",
    "path": "bfbc2-console-convert/terrain.py",
    "retiring": "PR1b-1c",
@@ -1475,7 +1475,7 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "test",
-   "lines": 169,
+   "lines": 195,
    "note": "Terrain conversion (terrain.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's Wake Island.",
    "path": "bfbc2-console-convert/tests/test_terrain.py",
    "retiring": "Tests in Rust",
@@ -3999,7 +3999,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 479,
+   "lines": 494,
    "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
    "path": "spec/probes/menus.py",
    "retiring": "stays",
@@ -4437,7 +4437,7 @@
  "totals": {
   "all": {
    "files": 364,
-   "lines": 106622
+   "lines": 106664
   },
   "by_folder": {
    "(root)": {
@@ -4497,14 +4497,14 @@
    },
    "bfbc2-console-convert": {
     "files": 24,
-    "lines": 6509,
+    "lines": 6536,
     "live": 0,
     "partly": 1817,
     "ported": 36,
     "retired-pending": 0,
     "stays": 0,
-    "test": 3410,
-    "twin": 1246
+    "test": 3436,
+    "twin": 1247
    },
    "bfbc2-console-readers": {
     "files": 5,
@@ -4662,12 +4662,12 @@
    },
    "spec": {
     "files": 10,
-    "lines": 3910,
+    "lines": 3925,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 3910,
+    "stays": 3925,
     "test": 0,
     "twin": 0
    },
@@ -4702,15 +4702,15 @@
    },
    "stays": {
     "files": 58,
-    "lines": 10607
+    "lines": 10622
    },
    "test": {
     "files": 186,
-    "lines": 50665
+    "lines": 50691
    },
    "twin": {
     "files": 55,
-    "lines": 19450
+    "lines": 19451
    }
   }
  }

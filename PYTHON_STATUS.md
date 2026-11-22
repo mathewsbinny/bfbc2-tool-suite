@@ -26,12 +26,12 @@ rounds NK4 and NK5.
 |---|---:|---:|
 | live | 21 | 6,074 |
 | partly | 20 | 16,936 |
-| twin | 55 | 19,450 |
+| twin | 55 | 19,451 |
 | ported | 21 | 2,580 |
 | retired-pending | 3 | 310 |
-| stays | 58 | 10,607 |
-| test | 186 | 50,665 |
-| **all** | **364** | **106,622** |
+| stays | 58 | 10,622 |
+| test | 186 | 50,691 |
+| **all** | **364** | **106,664** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -40,7 +40,7 @@ rounds NK4 and NK5.
 | `bfbc2-auto-navkit` | 56 | 15,048 | 1,815 | 4,748 | 2,749 | 273 |  |  | 5,463 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
 | `bfbc2-bf1943-import` | 26 | 10,919 | 1,017 | 1,562 | 3,273 | 56 |  |  | 5,011 |
-| `bfbc2-console-convert` | 24 | 6,509 |  | 1,817 | 1,246 | 36 |  |  | 3,410 |
+| `bfbc2-console-convert` | 24 | 6,536 |  | 1,817 | 1,247 | 36 |  |  | 3,436 |
 | `bfbc2-console-readers` | 5 | 1,449 |  |  | 835 |  |  |  | 614 |
 | `bfbc2-culltree` | 4 | 1,898 |  |  | 1,051 |  |  |  | 847 |
 | `bfbc2-dbx-tools` | 1 | 22 |  |  |  |  | 22 |  |  |
@@ -55,7 +55,7 @@ rounds NK4 and NK5.
 | `core` | 76 | 19,918 | 756 |  | 2,427 | 1,905 |  |  | 14,830 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 33 | 5,974 |  |  |  |  |  | 5,707 | 267 |
-| `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
+| `spec` | 10 | 3,925 |  |  |  |  |  | 3,925 |  |
 | `tests` | 29 | 7,620 |  |  |  |  |  |  | 7,620 |
 
 Lines by status in the folder table.
@@ -204,7 +204,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-console-convert`
 
-24 files, 6,509 lines.
+24 files, 6,536 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -214,7 +214,7 @@ Lines by status in the folder table.
 | `bfbc2-console-convert/havok.py` | 177 | library | twin | bc2_convert havok / hkclasses (convert_wrapper) | havokport, convert; tests 7; OPFOR 7 | PR1b-1c | F2a's references kept until recorded goldens retire them |
 | `bfbc2-console-convert/mesh.py` | 368 | library | twin | bc2_formats::meshdata, bc2_convert mesh | 17 suite modules (meshport, meshview, renderqa ...); tests 9; OPFOR 18 | PR1b-1c | Rust for parse / write / relayout; element, pair_by_kind, strip_to_list still Python for callers |
 | `bfbc2-console-convert/meshset.py` | 85 | library | twin | bc2_formats meshset | meshport, portparity, mesh, renderqa; tests 5; OPFOR 15 | PR1b-1c | write_reference kept for objects the core refuses |
-| `bfbc2-console-convert/terrain.py` | 204 | library | twin | bc2_convert::terrain | navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2 | PR1b-1c | Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens |
+| `bfbc2-console-convert/terrain.py` | 205 | library | twin | bc2_convert::terrain | navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2 | PR1b-1c | Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens |
 | `bfbc2-console-convert/texture.py` | 231 | library | twin | bc2_formats texture (tiled, packed, layout) | 16 suite modules; tests 13; OPFOR 29 | PR1b-1c | tiled / packed / layout references kept by ruling: texqa's independent decoder |
 | `bfbc2-console-convert/soot.py` | 36 | library | ported | bc2_convert terrain / converters (soot) | tests 2; OPFOR 2 | PR1b-1c | a thin call into the Rust core (F2a) |
 | `bfbc2-console-convert/tests/test_audio.py` | 256 | test | test |  | run_tests.py | Tests in Rust | Sound conversion (audio.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's sounds. |
@@ -225,7 +225,7 @@ Lines by status in the folder table.
 | `bfbc2-console-convert/tests/test_mesh_decode.py` | 121 | test | test |  | run_tests.py | Tests in Rust | mesh.py's decode and console_layouts (game tier; each part skipped when its files are not on the PC). |
 | `bfbc2-console-convert/tests/test_meshdata_native.py` | 282 | test | test |  | run_tests.py | Tests in Rust | Round F0: mesh resource headers in the Rust core - MeshData (mesh.parse / write: bc2_native.mesh_parse / me... |
 | `bfbc2-console-convert/tests/test_soot.py` | 72 | test | test |  | run_tests.py | Tests in Rust | Soot mesh conversion (soot.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's soot meshes. |
-| `bfbc2-console-convert/tests/test_terrain.py` | 169 | test | test |  | run_tests.py | Tests in Rust | Terrain conversion (terrain.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's Wake Island. |
+| `bfbc2-console-convert/tests/test_terrain.py` | 195 | test | test |  | run_tests.py | Tests in Rust | Terrain conversion (terrain.py) against BFBC2's own Xbox / PC twins, and on Battlefield 1943's Wake Island. |
 | `bfbc2-console-convert/tests/test_texqa.py` | 316 | test | test |  | run_tests.py | Tests in Rust | texqa.py, the converted-texture QA (quick tier: synthetic textures, no game data). |
 | `bfbc2-console-convert/tests/test_texture.py` | 300 | test | test |  | run_tests.py | Tests in Rust | texture.py on the game's files (game tier; skipped without them): - the layout's sizes: every console textu... |
 | `bfbc2-console-convert/tests/test_texture_helpers_native.py` | 214 | test | test |  | run_tests.py | Tests in Rust | Round F0: texture.py's layout helpers (tiled, packed, layout: bc2_native.texture_tiled / texture_packed / t... |
@@ -527,7 +527,7 @@ Lines by status in the folder table.
 
 ## `spec`
 
-10 files, 3,910 lines.
+10 files, 3,925 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -536,7 +536,7 @@ Lines by status in the folder table.
 | `spec/probes/grime.py` | 524 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/materials.md section 5 (grime, dirt, camouflage); checked in the game tier |
 | `spec/probes/lighting.py` | 342 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for the lighting, weather and effects specs |
 | `spec/probes/materials.py` | 365 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/materials.md |
-| `spec/probes/menus.py` | 479 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier |
+| `spec/probes/menus.py` | 494 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier |
 | `spec/probes/terrain.py` | 564 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier |
 | `spec/probes/vehicles.py` | 359 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/vehicles.md |
 | `spec/probes/weapons.py` | 456 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/weapons.md |
