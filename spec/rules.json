@@ -1783,7 +1783,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3899-3903"
+     "ref": "opfor:src/tools/ww2/wake_install.py:3677-3681"
     },
     {
      "kind": "doc",
@@ -6785,6 +6785,31 @@
     {
      "kind": "data",
      "ref": "game copy: 529 runs whose first u16 is not 0; all 529 are `_HavokAsset.res` files and all 529 have a valid little-endian table (m not equal to n); the undecoded bytes after the table are 8 - 8,506 bytes"
+    }
+   ]
+  },
+  {
+   "id": "HAVOK-RUN-3",
+   "title": "The model groups' wrapper decoded",
+   "file": "spec/formats/havok.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:575-790"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "131 of 131 groups of 31 levels: part words = the owners' leaves per part, m = the member types, ends = the cumulative per-instance parts, c = k2 = the last end, run d / t then n bytes or none; 78 of 78 long runs the same bytes per instance of a type"
     }
    ]
   },
@@ -11927,6 +11952,70 @@
    ]
   },
   {
+   "id": "LEVEL-MG-5",
+   "title": "Member types lay the group file out in order",
+   "file": "spec/model/level.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "131 of 131 groups of 31 levels (BFBC2 Dist and Package, Vietnam, BFBC1, the four WW2 levels; 107,103 members): Assets = the types' InstanceCount sum, Transforms 16 per item, one SpawnDatas record per instance, InstanceCount > 0"
+    }
+   ]
+  },
+  {
+   "id": "LEVEL-MG-6",
+   "title": "Physics parts and network ids are cumulative; the count fields are ends",
+   "file": "spec/model/level.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "131 of 131 groups cumulative from 0, 47 of 47 static groups' network ids"
+    }
+   ]
+  },
+  {
+   "id": "LEVEL-MG-7",
+   "title": "A member's leaf is its Enums item and its SpawnDatas Enumeration",
+   "file": "spec/model/level.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "16 levels: 60,723 members, leaves 1 - L each once, L the client tree's leaf count in 16 of 16"
+    }
+   ]
+  },
+  {
+   "id": "LEVEL-MG-8",
+   "title": "A group's collision is per member type, placed at each instance",
+   "file": "spec/model/level.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "no per-instance placement exists in the resource (the wrapper's per-instance data is a leaf and a material byte per part, HAVOK-RUN-3), while the shapes are local"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005 StaticModelGroupEntity_HavokAsset.res: 85 mesh subparts and 77 convex shapes, coordinates -10.0 to 10.02 m"
+    }
+   ]
+  },
+  {
    "id": "LEVEL-TERR-1",
    "title": "The terrain entity",
    "file": "spec/model/level.md",
@@ -12562,7 +12651,11 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3431-3445"
+     "ref": "rust/bc2-install/src/run.rs:730-743"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:434-470"
     },
     {
      "kind": "doc",
@@ -14289,7 +14382,7 @@
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure"
     }
    ]
   },
@@ -14366,6 +14459,98 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_dry_run_and_read_only"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-1",
+   "title": "The gates and the guard before the first write; the registration last",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:641-775"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/marks.rs:312-354"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/main.rs::plan_apply_revert_on_a_fake_game"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/main.rs::a_failed_gate_writes_nothing"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_an_install_on_top_refuses_the_redo"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-2",
+   "title": "The records and the files are the Python installer's",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/gameledger_keep.rs:83-440"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:823-905"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR1 scratch proof, 2026-11-21: 37 / 74 / 37 files and 5-6 records identical per step (rust/BENCHMARKS.md OR1)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/main.rs::install_keep_orders_and_restate"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_revert_gives_the_files_back"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_a_launcher_edit_is_kept_by_the_opt_out"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-3",
+   "title": "A kill at any write step is resumed",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:229-258"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/lock.rs:60-139"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_a_kill_at_every_write_step_recovers"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock"
     }
    ]
   },
@@ -14842,6 +15027,10 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::a_version_6_project_loads_and_its_member_edit_applies"
     }
    ]
   },
@@ -15013,7 +15202,7 @@
    "id": "XLOG-FILE-2",
    "title": "A base file is recorded when first edited; the export writes the edited group files",
    "file": "spec/transforms/projectlog.md",
-   "status": "implemented",
+   "status": "verified",
    "evidence": [
     {
      "kind": "code",
@@ -15030,6 +15219,78 @@
     {
      "kind": "code",
      "ref": "rust/bc2-levelwrite/src/export.rs:1185-1225"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-MEM-1",
+   "title": "Static group members are named by identity, never by place",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:36-86"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/memberedit.rs:1-30"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::identities_read_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-MEM-2",
+   "title": "A member's delete and add keep DICE's layout; the last of a kind stays",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:405-575"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::members_are_deleted_and_added_in_dices_layout"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+    },
+    {
+     "kind": "data",
+     "ref": "23,780 of 23,780 member transforms of six levels (four WW2 and BFBC2 groups' kinds) with unit rows"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-MEM-3",
+   "title": "The export makes the member edits whole: leaves, the client tree, the physics",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/groupexport.rs:1-30"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:448-500"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },
@@ -15357,7 +15618,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1017"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1022"
     },
     {
      "kind": "code",
@@ -15378,14 +15639,6 @@
     {
      "kind": "code",
      "ref": "rust/bc2-levelwrite/src/rules.rs:167"
-    },
-    {
-     "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1059"
-    },
-    {
-     "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:359"
     },
     {
      "kind": "test",
@@ -15429,7 +15682,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1042"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1047"
     },
     {
      "kind": "code",
@@ -15457,7 +15710,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1084"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1092"
     },
     {
      "kind": "test",
@@ -15477,7 +15730,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:957"
+     "ref": "rust/bc2-levelwrite/src/export.rs:962"
     },
     {
      "kind": "code",
@@ -15505,7 +15758,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:964"
+     "ref": "rust/bc2-levelwrite/src/export.rs:969"
     },
     {
      "kind": "test",
@@ -15525,7 +15778,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2991"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3031"
     },
     {
      "kind": "code",
@@ -15573,7 +15826,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1157"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1179"
     },
     {
      "kind": "test",
@@ -15593,7 +15846,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2741"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2781"
     },
     {
      "kind": "test",
@@ -15613,7 +15866,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2755"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2795"
     },
     {
      "kind": "test",
@@ -15633,7 +15886,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:934"
+     "ref": "rust/bc2-levelwrite/src/export.rs:939"
     },
     {
      "kind": "test",
@@ -15657,7 +15910,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3152"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3201"
     },
     {
      "kind": "test",
@@ -15677,7 +15930,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3732"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3827"
     },
     {
      "kind": "test",
@@ -15697,7 +15950,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3899"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3994"
     },
     {
      "kind": "code",
@@ -15869,7 +16122,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3949"
+     "ref": "rust/bc2-levelwrite/src/export.rs:4044"
     },
     {
      "kind": "test",
@@ -15889,7 +16142,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3977"
+     "ref": "rust/bc2-levelwrite/src/export.rs:4072"
     },
     {
      "kind": "test",
@@ -15909,7 +16162,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2640"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2677"
     },
     {
      "kind": "test",
@@ -15929,7 +16182,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2680"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2717"
     },
     {
      "kind": "test",
@@ -15949,7 +16202,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2797"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2837"
     },
     {
      "kind": "test",
@@ -15969,7 +16222,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2858"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2898"
     },
     {
      "kind": "test",
@@ -15989,7 +16242,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2866"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2906"
     },
     {
      "kind": "test",
@@ -16009,7 +16262,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2875"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2915"
     },
     {
      "kind": "test",
@@ -16029,7 +16282,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2922"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2962"
     },
     {
      "kind": "test",
@@ -16049,7 +16302,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2893"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2933"
     },
     {
      "kind": "test",
@@ -16069,7 +16322,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2905"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2945"
     },
     {
      "kind": "test",
@@ -16089,7 +16342,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2970"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3010"
     },
     {
      "kind": "test",
@@ -16109,7 +16362,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3567"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3662"
     },
     {
      "kind": "test",
@@ -16129,7 +16382,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3628"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3723"
     },
     {
      "kind": "test",
@@ -16149,7 +16402,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3633"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3728"
     },
     {
      "kind": "test",
@@ -16169,7 +16422,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3638"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3733"
     },
     {
      "kind": "test",
@@ -16189,7 +16442,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3651"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3746"
     },
     {
      "kind": "test",
@@ -16209,7 +16462,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3838"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3933"
     },
     {
      "kind": "test",
@@ -16229,7 +16482,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2952"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2992"
     },
     {
      "kind": "test",
@@ -16249,7 +16502,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3044"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3084"
     },
     {
      "kind": "test",
@@ -16269,7 +16522,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3404"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3499"
     },
     {
      "kind": "test",
@@ -16293,7 +16546,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3438"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3533"
     },
     {
      "kind": "test",
@@ -16341,7 +16594,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3486"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3581"
     },
     {
      "kind": "test",
@@ -16365,7 +16618,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3297"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3346"
     },
     {
      "kind": "code",
@@ -16393,7 +16646,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2695"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2732"
     },
     {
      "kind": "test",
@@ -16417,7 +16670,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3182"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3231"
     },
     {
      "kind": "test",
@@ -16441,7 +16694,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3230"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3279"
     },
     {
      "kind": "test",
@@ -16461,7 +16714,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3197"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3246"
     },
     {
      "kind": "test",
@@ -16475,7 +16728,7 @@
   },
   {
    "id": "XVAL-GRP-1",
-   "title": "An edited static group keeps its members",
+   "title": "An edited static group keeps DICE's layout and its kinds",
    "file": "spec/transforms/validation.md",
    "status": "verified",
    "evidence": [
@@ -16485,7 +16738,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3276"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3325"
     },
     {
      "kind": "test",
@@ -16494,6 +16747,10 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/src/export.rs::group_member_changes_are_named"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },
@@ -16505,7 +16762,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:675"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:678"
     },
     {
      "kind": "code",
@@ -16525,7 +16782,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:684"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:687"
     },
     {
      "kind": "code",
@@ -16545,7 +16802,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:693"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:696"
     },
     {
      "kind": "code",
@@ -16565,7 +16822,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:702"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:705"
     },
     {
      "kind": "code",
@@ -16589,7 +16846,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:712"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:715"
     },
     {
      "kind": "code",
@@ -16613,7 +16870,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:723"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:726"
     },
     {
      "kind": "code",
@@ -16830,23 +17087,23 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_before_writing_when_a_backup_is_refused"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_when_the_model_groups_do_not_fit"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_revert_refuses_before_changing_anything"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_revert_refuses_before_changing_anything"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_patch_bundle_raising_changes_nothing"
+     "ref": "opfor:src/tools/tests/test_ww2_levels.py::test_a_failing_shared_patch_runs_no_installer"
     }
    ]
   }

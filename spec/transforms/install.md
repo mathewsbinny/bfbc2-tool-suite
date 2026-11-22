@@ -219,7 +219,7 @@ last (REG-NEW-4). The shared patch is always built from this tool's backup while
 installed export is in one patch, and a shared file no installed export needs any more goes back from its backup.
 
 [code: opfor:src/tools/mapedit/mapedit_install.py:346-378] [code: opfor:src/tools/mapedit/mapedit_install.py:234-275]
-[test: opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy] [test: opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last]
+[test: opfor:src/tools/tests/test_mapedit_install.py::test_apply_then_revert_on_a_scratch_copy] [test: opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure]
 
 ### XINST-MAP-3: Revert gives every file back byte for byte
 
@@ -263,10 +263,65 @@ a foreign edit changed) is reported and nothing is written.
 [test: opfor:src/tools/opforcore/tests/test_ledger.py::test_six_orders_and_foreign_write] [test: opfor:src/tools/opforcore/tests/test_ledger.py::test_stacking_and_splice_records]
 [test: opfor:src/tools/opforcore/tests/test_ledger.py::test_foreign_edit_of_owned_slot_refused] [test: opfor:src/tools/opforcore/tests/test_ledger.py::test_dry_run_and_read_only]
 
+## 4. The WW2 install in the suite (round OR1, "OPFOR in Rust" stage 1)
+
+Project OPFOR's WW2 install (`wake_install.py --plan / --apply / --apply-staged / --revert`) builds the levels'
+bundles and the shared patches in Python, then writes the install plan (`bfbc2-install-plan/1`: the staging and
+OPFOR's decisions as data) and runs `bfbc2 install` (`bc2-install`, the game-copy installer IN1 builds on).
+
+### XINST-WW2-1: The gates and the guard before the first write; the registration last
+
+Status: **verified**
+
+A plan whose level failed its model-group or icon gate, or a shared file whose copy from before the install holds
+the install's own content (the backup guard on the plan's marks: WW2 entries, lines, the pause-map shader, the
+level list, the names build's files), writes nothing; then every shared file's ledger check (another install on top,
+a change outside the ledger) before the first write. The order is the Python's: each level's bundles and record,
+ww2_common, the DLL's markers, the shared bundles (one commit each), opfor.ini and maps.ini, the registration
+(package.mft, bundleManifest) last; then each level verified. An interrupted commit is rolled back before any file
+is read.
+
+[code: rust/bc2-install/src/run.rs:641-775] [code: rust/bc2-install/src/marks.rs:312-354]
+[test: rust/bc2-install/tests/main.rs::plan_apply_revert_on_a_fake_game] [test: rust/bc2-install/tests/main.rs::a_failed_gate_writes_nothing]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_an_install_on_top_refuses_the_redo]
+
+### XINST-WW2-2: The records and the files are the Python installer's
+
+Status: **verified**
+
+The shared files go through the ledger as owner `wake` the way `opforcore.stages` writes them (`install_keep`: the
+owner's other files kept, an unchanged file kept in place, the record's order untouched / kept / new; `restate` for
+opfor.ini edited by the launcher), so a game copy installed by either installer reverts with the other. On scratch
+copies of the author's game copy's affected files (migrated into the ledger), the Python installer (OPFOR 1b9ec17)
+and this one ran revert, apply of the real staging and revert: every file identical (74 after the apply; the DLL's
+two markers name their own bundle's write time), every ledger record identical but its id and time, the printed
+lines identical, and each copy after the second revert byte for byte the one before the apply.
+
+[code: rust/bc2-formats/src/gameledger_keep.rs:83-440] [code: rust/bc2-install/src/run.rs:823-905]
+[data: round OR1 scratch proof, 2026-11-21: 37 / 74 / 37 files and 5-6 records identical per step (rust/BENCHMARKS.md OR1)]
+[test: rust/bc2-install/tests/main.rs::install_keep_orders_and_restate]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_revert_gives_the_files_back]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_a_launcher_edit_is_kept_by_the_opt_out]
+
+### XINST-WW2-3: A kill at any write step is resumed
+
+Status: **verified**
+
+`BC2_INSTALL_CRASH_AT=<n>` ends `bfbc2 install` before its n-th write step (a level bundle, a record, a marker, a
+ledger journal, blob, file or record), as a kill would; the next run rolls the interrupted commit back and finishes
+with the same files and records as a run never interrupted, for apply and revert alike. The run holds the WW2
+rebuild's lock (`work\ww2\_rebuild\rebuild.lock`): a rebuild and an install never run at once.
+
+[code: rust/bc2-install/src/run.rs:229-258] [code: rust/bc2-install/src/lock.rs:60-139]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_a_kill_at_every_write_step_recovers]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock]
+
 ## Open questions
 
 - Since round DF2 every whole-file install is on the ledger; the game copies with old markers are migrated by
   `opforcore\migrate.py` (XINST-OPF-3). The slot contributions (XINST-LED-1) are used by OPFOR's add-ons only; moving
   the registration writes (package.mft blocks, bundleManifest lines, ini keys) onto slots is IN1's.
-- The installer is planned to move into the suite (EDITOR_ARCHITECTURE 6, ruling 3); until then these rules cite
-  OPFOR's code.
+- The installer moves into the suite: the WW2 install's game-copy side is `bc2-install` since round OR1 (section 4);
+  the map export's install (`mapedit_install.py`, section 2) is IN1's next step, on the same crate.

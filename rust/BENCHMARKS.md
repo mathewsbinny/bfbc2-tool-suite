@@ -7254,6 +7254,229 @@ runs it).
 
 **Left.** Static group files have no generic field operation in OP1's `Op::Files` (only members' transforms), so the inspector edits a group file through its own save path, not the project; OPFOR's `opforcore.paths.TOOL_DIRS` still names `DbxEditGUI` (unused) and its `SUITE_REQUIRES` must move to `('0.13.0', '0.14.0')`.
 
+## SG1: static group members editable (2026-11-21, branch `sg1`)
+
+ROADMAP's SG1 row (audit AU1 A6 / G-N4, OP1's left items). Measured on the development PC (16 threads, 15 GB) beside
+the other rounds; `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4`, the build folder `rust-targets\bfbc2-tool-suite-sg1`.
+Spec: LEVEL-MG-5 - LEVEL-MG-8, HAVOK-RUN-3, XLOG-MEM-1 - XLOG-MEM-3 (new), XLOG-FILE-2 (now verified), XLOG-LOG-2.
+No Python replaced; `game\` only read.
+
+### The ground truth: how DICE's levels hold a group
+
+Read from the game copy's level bundles: 131 model groups of 31 levels (BFBC2 Dist and Package, Vietnam, BFBC1, the
+four WW2 levels), 107,103 members; every rule below holds on all of them (`tests/groups_sg1.rs::
+every_stock_group_keeps_the_rules` re-checks 63 groups of 16 levels, 60,723 members, 504 rule checks, in the game tier).
+
+| File | What it holds per member |
+|---|---|
+| level partition | the group entity's `MemberDatas`: one member type per blueprint and shader set, `InstanceCount`, one `SpawnDatas` record per instance (`Enumeration` = its client-tree leaf, `MeshShaderSet`), `FirstPhysicsPart` / `PhysicsPartCount` and (static groups) `FirstNetworkId` / `NetworkIdCount` **cumulative over the types, the "count" fields being ends** (MP_005's palms: 291 -> 317 for 13 x 2 parts) |
+| `<Group>_HavokAsset.dbx` | `Assets`, `Transforms` (16 numbers), `Enums` (= the `SpawnDatas` enumerations, in order), all in member-type runs |
+| `<Group>_HavokAsset.res` | collision **per member type** in its own space (MP_005's static group: 32 types, 33 rigid bodies and MOPP shapes, every vertex within 10.1 m of its origin; no instance placement anywhere), and per physics part of every instance one wrapper word and one material byte |
+
+The model-group wrapper (spec HAVOK-RUN-2 left it undecoded): the n "part hashes" are **each part's owning instance's
+leaf**, repeated per part; the c boxes and the table's k2 words are one per type part; the m end positions the
+cumulative per-instance parts of the m types; the undecoded bytes are HAVOK-RUN-1's index run over the instance parts
+(`d`, `t`, one byte per part when d is not 1), the same bytes for every instance of a type (78 of 78 long runs).
+Members' leaves are 1 .. L of the client tree, each once (16 of 16 levels). No member transform is scaled (23,780 of
+23,780 on six levels).
+
+### The identity scheme
+
+Deleting a member must leave no gap (every number above is cumulative, and a type's collision and network ids are
+indexed through them), so DICE's places shift. Tombstones were rejected: a tombstoned instance keeps its collision,
+its network id and its leaf, and parking it anywhere is a guess about the physics world's bounds. So:
+
+- a base member is `<group instance>#<k>` (k its place in the **base's** file) for the whole project; an added one
+  `#+<n>` (per instance, one more than any in the log and redo stack); JSON: the number as OP1 wrote it, `{"added": n}`;
+- `LevelFiles` keeps each edited instance's current order; an edit finds a member's place through it;
+- the files are always in DICE's layout: a delete takes the `Assets` item, the 16 numbers and the `Enums` item out,
+  the type's `SpawnDatas` record, `InstanceCount - 1`, and makes the cumulative numbers again; an add copies a member
+  of the kind to the end of its kind's run (its leaf 0 until the export);
+- the last member of a kind is refused (no DICE group has a type without one; its collision stays in the `.res`);
+  a kind the group does not hold cannot be added (its collision is not in the group's physics): placed loose instead.
+
+### The editor
+
+`bc2_editor::memberedit::lower` turns the views' operations into member edits: Move / Rotate (gizmo, typed numbers,
+align, distribute, snap), Delete, Duplicate, Deep duplicate, Paste, and the asset browser's new **Place into** list.
+An operation naming no member is written exactly as before. `Doc::refusal` applies an operation to copies of the files
+first, so a refused one (the last of a kind) never enters the log; `Doc::created_by_last` selects the copies. History
+names members (`Delete group member <G>#12 (barriersandbag_1) (2 files)`). Properties says which group, kind and place
+a member is. GR4's ask: `FileEdit::GroupField`, a typed field set on any instance of a group file (typed by the group
+file's own data; the member arrays refused), so the DBX inspector can edit group files through the project.
+
+Proofs: `tests/sg1.rs::members_are_edited_like_objects` (synthetic: mixed object and member move, deletes, the
+refusals, duplicates of a base and an added member, History jumps to 2, 4, 0 and the end equal to a fresh replay -
+the files, the orders, every shown transform - save as version 7, reopen); `tests/sg1.rs::
+wake_members_through_the_interface` (game tier: Wake opened headless, a `barriersandbag_1` member of the static
+group's 1,345 selected, dragged along the gizmo's X arm on a 1 m grid: one `files` operation of one member transform,
+5 m; Delete; Ctrl+D on another of its kind gives `#+1`, selected; two undos).
+
+Screenshots (`BC2_EDITOR_SHOTS`, the session's scratch folder `sg1\shots`): `sg1_wake_member_moved_dark.png`,
+`sg1_wake_member_moved_light.png` - the moved member selected with its gizmo, Properties and History.
+
+### The export
+
+`bc2_levelwrite::groupexport::stage` (only for a log with member edits):
+
+- a moved member keeps its client leaf, reseated (`CullTree::reseat`: taken from under its parent, inserted where
+  the spheres hold it; its sphere carried by its old and new transforms); a deleted member's leaf is freed; an added
+  member takes a freed leaf, else a new leaf L + 1; new client leaves move the exclusive tree's `EnumOffset` and every
+  placed slot up by as many, after XF1's reslot (`culltree::shift_slots`);
+- the added members' leaves written to `Enums` and their `SpawnDatas`;
+- each edited group's `.res` laid out again (`GroupPhysics::relaid`): part words and material bytes; the packfile,
+  boxes, table and material list kept. With its own layout it is the base's bytes on all 63 groups read.
+
+`mapexport check` gains a line per model group holding the staged files to LEVEL-MG-5 - 7 and HAVOK-RUN-3.
+
+`tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members` (release-like dev profile):
+
+| Level | Static group | Edits | Leaves | `.res` parts | EnumOffset | Build |
+|---|---:|---|---|---:|---|---:|
+| Wake Island (WW2) | 1,345 -> 1,346 | 1 deleted, 1 moved 6 m, 2 added | freed 1, reused 1, new 3000 | 2,125 -> 2,126 | 2999 -> 3000, 1,034 slots moved | 8.4 - 12.5 s |
+| Atacama Desert (MP_005) | 1,773 -> 1,774 | the same | freed 1, reused 1, new 2297 | 5,940 -> 5,941 | 2296 -> 2297, 2,071 slots moved | 14.3 - 15.9 s |
+
+Every check line passes on both (the group lines, the cull tree, shapes and slots); the type's run grew by one with
+the moved member first, the added ones at the run's end; the freed leaf went to the first add; the `.res` member
+types, table, tail and packfile byte for byte the base's; the other six group files of each level byte for byte as
+an export of the same project without the member edits.
+
+**The canaries.** The six E3d canary projects built with main's `mapexport` (8e2a657) and this branch's into the same
+stage folder: **80 of 80 staged files byte for byte** (`stage.json` and `report.txt` with their timing lines left
+out), `check` passing on both.
+
+**Install round trip.** The Wake and Atacama stages through OPFOR's `mapedit_install.py --apply` (this branch's
+release `mapexport` as `BFBC2_MAPEXPORT`, `--game` a scratch copy of the six shared files, `--check-game` the real
+game copy): every check line passed (the four group lines each), both level bundles installed byte for byte, 24
+`package.mft` and 16 `bundleManifest` lines; `--revert` of both: the six shared files back with their sha256, the
+levels' folders gone. `game\`: 1,582 files, the same sizes and write times before and after.
+
+### Left, with reasons
+
+- **Not proven until a playtest** (in-game tests paused): that the game loads the relaid groups (the cumulative
+  numbers and the `.res` are what its reader indexes by; no crash at 0xAB4E58), that a moved member's collision
+  follows its transform (LEVEL-MG-8 is inferred from the files), that a reseated or new client leaf culls the member
+  where it stands, and that placed objects still cull after their slots moved up.
+- **A kind the group does not hold** cannot be added to it: its collision would need a new rigid body and MOPP shape
+  in the packfile (no MOPP builder yet); such objects are placed loose.
+- **The last member of a kind** is refused: whether the game takes `InstanceCount` 0 is unknown.
+- **Member properties** beyond the transform (the instance's `MeshShaderSet`) are not edited; `GroupField` covers the
+  group file's own fields only. GR4's inspector can now route group-file edits through the project (not wired here).
+- **Scale**: not offered for members (DICE never scales one; one collision shape per kind).
+- A member moved far keeps its old ancestors' spheres (they stay valid, only looser); a rebuilt client tree would
+  be tighter.
+
+### Proof
+
+- `cargo fmt`, clippy `--all-targets -D warnings` (bc2-levelwrite, bc2-editor) clean; cargo tests: levelwrite lib 45,
+  `levelwrite` 13 run (11 ignored, the game tier); editor lib 71, `editor` 53 run (24 ignored). Game tier run here:
+  `groups_sg1::` 2 of 2, `sg1::wake_members_through_the_interface`, the canaries above, `export_xf1::` 2 of 2, editor `xf1::undo_on_a_mode_project` and `op1::stroke_budgets_on_10000_strokes`.
+- Release builds: `python rust\build_native.py` (bc2_native.pyd, bfbc2.exe) and `--editor` (4 min 45 s).
+- `spec\trace.py --check`: 707 rules (eight new).
+- `python run_tests.py quick -j 2`: 132 of 133 in 860 s, O2 passing (main's AV1 merged); the one failure the environment-variable check (the stage variable was named by the round's code), renamed `BC2_MEMBER_EDIT_STAGE` and that entry passed again.
+- ruff and mypy on `core\bfbc2core\envvars.py` (`BC2_MEMBER_EDIT_STAGE` registered).
+## OR1: OPFOR in Rust, stage 1 - the WW2 install's game-copy side (2026-11-21, branch `or1`, with Project OPFOR's `or1`)
+
+**What moved.** Project OPFOR's WW2 install (`wake_install.py --plan / --apply / --apply-staged / --revert`,
+`ww2_level_install.py`; audit AU3 OP-1, OP-6) is two halves: the build (each level's closure, the ported assets, the
+shader databases, the textures, the terrain, `write_stage` and the packs, ww2_common, the shared bundles' patches:
+`wake_install.build` and `build_shared`, about 3,400 lines) and the install (the guard, the copies, the ledger
+writes, the registration, the verification, the opt-out, the staged record). The install is the new crate
+`rust/bc2-install`, run by `bfbc2 install`; the build stays Python until stage 2 (the level build) and stage 3 (the
+shader glue).
+
+| Project OPFOR (Python, removed from `wake_install.py` / `ww2_level_install.py`) | `bc2-install` |
+|---|---|
+| `mft_parse`, `mft_text`, `mft_with_level`, `bm_with_level`, `register` | `text`, `run::Run::register` |
+| `ini_value`, `ini_with_level`, `ini_with_key`, `ini_without_key`, `maps_with_levels`, `ini_text_new`, `set_ini`, `text_writes`, `all_text_writes` | `text`, `run` |
+| `ww2_marks`, `guard_backup`, `check_backup`, `ini_backup_refresh`, `refresh_ini` | `marks::Guard`, `run` (OPFOR's `ww2_marks` is a thin caller: `bfbc2 install marks`) |
+| `install_patch`, `stings_state`, `mark_stings`, `mark_tips`, `write_record`, `verify` | `run::Run::install` |
+| `install_all`'s guard and write half, `revert_all`, `revert` (less the menu mode) | `run::Run::install`, `run::Run::revert` |
+| `save_staged`, `load_staged`, `fingerprint`, `registration_lines`, `write_registration_text` | `staged`, `run` |
+| `opforcore.stages.Stages.install` (keep_others), `restate`, `check_install` | `bc2_formats::gameledger::Ledger::install_keep`, `restate`, `file_layers`, `slot_holders` (`gameledger_keep.rs`); `run::Run::check_install` |
+| `rebuild_all.locked` (now `ww2\rebuildlock.py`, taken by the install too) | `lock` (the same file and fields, plus the driver's token) |
+
+OPFOR's Python keeps its entry points as thin callers: `ww2_level_install.install_all` builds every level and the
+shared patches as before, writes the install plan (`bfbc2-install-plan/1`, `work\ww2\_rebuild\install_plan.json`:
+the staging and OPFOR's decisions as data - each level's bundles, report and gates, its registration blocks, the dev
+ini's and maps.ini's values, the DLL's markers and the names they need, what marks WW2 content for the guard, what
+the verification checks, the staged record's walk) and runs `bfbc2 install plan` or `apply`; `--apply-staged` is
+`bfbc2 install apply --staged work\ww2\staged.json` (the record now holds the plan); `--revert` is
+`bfbc2 install revert`, then `menu_install.py --revert` (stage 5's). `wake_install.py` 4,520 -> 4,085 lines,
+`ww2_level_install.py` 455 -> 393 with the plan writer; the two test modules of the moved rules
+(`test_ww2_ini_backup.py`, `test_ww2_apply_staged.py`) and the install half of `test_ww2_install.py` retired, their
+cases in `bc2-install`'s tests and OPFOR's new `test_ww2_installer.py`.
+
+**The rebuild lock** (OR0 left it open). `wake_install.py` (every mode that installs or plans) and
+`ww2_level_install.py <level>` (not `--atlas-only`, a step of `rebuild_all`, which holds the lock) take
+`work\ww2\_rebuild\rebuild.lock` for the whole run, as `rebuild_all` does, with a token they hand to
+`bfbc2 install --lock-token`; run alone, `bfbc2 install` takes the lock itself. A second run is refused in words
+(exit code 3); a lock whose process is gone is taken over with a note.
+
+**Found and fixed on the way.** The Python read the shared text files (the guard, the list of files the registration
+writes) before its first ledger operation rolled an interrupted commit back: after a kill in the registration's commit
+(package.mft written, bundleManifest not), the next run's guard saw Wake's blocks in package.mft that no record held
+and refused ("already holds the WW2 install's own content"). The installer rolls an interrupted commit back before it
+reads any file.
+
+### Proof
+
+- **The Python installer against the Rust one, on scratch copies** (never `game\`): the WW2 install's 7 shared files,
+  their 22 old markers and the 5 WW2 level folders of the author's game copy, copied with their write times and
+  migrated into the ledger (`opforcore\migrate.py --apply`: 8 files, owners `import`, `loadset`, `loading`,
+  `minimap-edges`, `manifestfix`, `wake`, none refused); one copy for each installer, each running the opt-out, an
+  apply of the real staging (`work\ww2\install*`, the last plan's: 4 levels, ww2_common, the 3 shared patches), then
+  the opt-out again. OPFOR main's Python (1b9ec17) against OR1's plan through `bfbc2 install`:
+
+  | Step | Files | Identical | Ledger records | Printed lines |
+  |---|---|---|---|---|
+  | revert (the opt-out) | 37 / 37 | 37 | 5 of 5 identical (less their ids and times) | 13 / 13 identical |
+  | apply | 74 / 74 | 72 + the DLL's 2 markers (each `<size> <FILETIME>` of its own installed bundle, checked) | 6 of 6 identical | 820 / 820 identical |
+  | revert | 37 / 37 | 37 | 5 of 5 identical | 12 / 12 identical |
+
+  Each copy after its second revert is byte for byte (every file's sha256, every record) the copy after its first:
+  the apply and the opt-out give the files back. The real game copy: 1,582 files, every path, size and write time
+  the same before and after.
+- **A kill at every write step** (`BC2_INSTALL_CRASH_AT=<n>`, OPFOR's `test_a_kill_at_every_write_step_recovers` on a
+  fake game copy): an apply has 38 write steps (5 level bundles, the record, ww2_common and its record, the 2
+  markers, then the ledger's journal, blobs, files and records of 6 commits), a revert 15; killed before each one,
+  the next run finishes with the files and records of a run never interrupted, and no lock left.
+- **The install oracle** (`compare_oracle.py --install`, 21,197 staging digests; the coordinator's plan from OPFOR's
+  main with both merges, 230 s): 21,192 identical at first, 5 differing, decoded: `registration_all.txt` and the 4
+  levels' `report.txt` were written with LF, where Python's text mode writes CRLF (fixed: `text_mode`; with CRLF
+  `registration_all.txt` is the oracle's byte for byte); and each `report.txt`'s mesh-flags line lists the switched
+  off flags in the closure's set order - Python's per-process string hash order, so two Python plans differed there
+  too (noted at OPFOR c3503fc): every one of the 4 reports matched the oracle under some order of that one list
+  (searched: 5!, 9!, 9!, 10! orders). OPFOR now sorts that list and records the 4 reports' new digests (the only
+  change of the oracle; a second plan must give 21,197 of 21,197).
+- Tests: `bc2-install` 9 unit + 3 integration (a fake game: plan, apply, opt-out; a failed gate writes nothing;
+  `install_keep`'s order and `restate`), `bc2-formats`, `bc2-cli`; clippy `-D warnings`; OPFOR's quick tier and
+  opforcore's tests (`test_suite_ledger_compat` both ways), ruff and mypy clean; `spec/trace.py --check` (rules
+  XINST-WW2-1 to -3).
+
+### Timings (this PC, other rounds running)
+
+| | Python (OPFOR main) | Rust (OR1) |
+|---|---|---|
+| the plan's tail (the guard, the registration's report, the reports, `registration_all.txt`, the staged record: the fingerprint and 1.8 GB of staged bundles' sha256) | 2.4 - 4.4 s (3 runs) | 2.9 - 3.3 s (3 runs, the plan JSON written in 0.03 s) |
+| apply (the real staging onto a scratch copy) | 4.5 s | 3.4 s |
+| revert | 1.9 - 2.5 s | 2.2 - 2.6 s |
+
+The tail reads and hashes the 1.8 GB the plan staged: the disk sets its time, in either language. The whole plan
+(OR0: 4 min 14 s) is the build's: stage 1 does not change it; the coordinator's oracle run gives this round's figure.
+
+### Left for stage 2 (the level build)
+
+`wake_install.build` and what it calls, still Python: the stock index and `our_files` (the inputs), `port_missing`
+(BF1943 assets ported at install time), `patch_ours` / `sky_patch` / `kit_voices` / `edit_level` (the level and our
+partitions), `root_files`, the closure, the emitter atlas's re-pointing, `mesh_flags`, `ondemand_waves`,
+`write_stage` and `pack_level` (the staging folders and their packs), `undergrowth_files`, `terrain_files`,
+`model_group_check`, `icon_gate` / `level_names`, `build_ww2_common`, `description`, and the shared patches
+(`build_shared`: `patch_bundle`, `level_list_query`, `air_superiority_mode`, `loading_pictures`); then `shader_dbs`,
+`autoclone`, `fix_layouts`, `register_parts`, `zonly_programs` and the textures they name, which use the Python
+shader `Merger` (stage 3, the shader glue). The map export's install (`mapedit_install.py`, its own copies of the
+registration rules) moves onto `bc2-install` with IN1. The Python twin `bfbc2core.gameledger` has no `install_keep`
+/ `restate` (the suite's Python installers do not need them).
 
 ## V1: the export's compatibility and validation layer (2026-11-21, branch `v1`)
 
@@ -7266,7 +7489,7 @@ placement warnings.
 the export's own (`XVAL-<section>-<n>`) and L1's 49 placement rules (`L1-CQ-002` ...; L1-HT-001 left out: it needs
 the terrain's height field). By severity: **51 errors, 55 warnings, 2 notes** (the XVAL rules 51 / 6 / 2; every
 placement rule a warning, its stock-band findings notes). By where they are checked (a rule may be in several):
-live in the editor 19 (and the 49 placement rules), by `mapexport build` 17, by `mapexport check` 44, by the DBX inspector 5.
+live in the editor 19 (and the 49 placement rules), by `mapexport build` 18, by `mapexport check` 44, by the DBX inspector 5.
 
 Gathered under codes: every `mapexport check` line (each line now prints its code; `CheckReport.codes`), the
 build's refusals (their words start with the code), EX1's name rules (`names::Problem.code`, XVAL-NAME-1 to 7; the
@@ -7282,7 +7505,7 @@ New checks, from the crash-risk audits and the memory notes:
 | XVAL-TERR-1 | the staged terrain bundle is the base's own, entry for entry (patch shaders with their own mask atlas: TERR-VT-5, black tiled cells) | check | terrain patch donor rules, AU1 RISK-9 |
 | XVAL-CONS-1 | no Xbox 360 texture (big-endian header) or Havok packfile (layout rules 04 00 00 01) in a stage | check | console resource formats |
 | XVAL-SHDR-2 | the 40 km/h road sign never drawn with another level's shader entries (0x98BD6E, OPFOR's Isla Inocentes test) | live, check | console resource formats (the road-sign crash) |
-| XVAL-GRP-1 | an edited static group file keeps every group's member blueprints and count (0xAB4E58, LEVEL-MG-4) | check | AU1 RISK-3 (SG1 makes members editable) |
+| XVAL-GRP-1 | an edited static group keeps DICE's layout (SG1's per-group lines: members, leaves, cumulative parts and network ids, physics) and its kinds: none left without a member, none new; SG1's refusal of the last member of a kind is a GRP-1 refusal (0xAB4E58, LEVEL-MG-4) | build, check | AU1 RISK-3, SG1 |
 | XVAL-REG-4 | a note on every stage: install on the server and every client (CSUM-CHK-4) | check | new-level registration |
 | XVAL-CULL-4 | an object moved or placed beyond +-2048 m refused in words (before: `culltree::encode` failed mid-build) | live, build | AU1 G-N39 / G-N40 |
 | XVAL-MODE-4 | the donor's partition changed since the mode was chosen (before: a report note only) | live, build | AU1 G-N7 |
@@ -7352,3 +7575,9 @@ or in rocks and a vehicle spawner's room and domain (G-N44 / G-N45: the scene's 
 stock statistic yet), the exported level's memory (R34), Xbox 360 meshes in a stage (their layout is not detected),
 the WW2 profile's kit rule on placements (G-N41), L1-HT-001. A1's auto layout can use `placement::measure` as its
 objective and `l1_a1_params.json` as its start.
+
+**After merging SG1 and OR1** (main ddaf6d6): SG1's member-edit exports (`tests/groups_sg1.rs`, Wake Island as WW2
+Conquest and MP_005 as Conquest, a member deleted, one moved, two added) pass every check line, their 5 XVAL-GRP-1
+lines each, and `validate::project` raises no error (Wake: 1 finding below error, MP_005: none; `validate::project`
+now reads the base's group files as the export does). Deleting every member of a group's smallest kind is refused as
+`XVAL-GRP-1: ...` on both (Wake's heattank, MP_005's invwall_nohealth; `rules::apply_code`).

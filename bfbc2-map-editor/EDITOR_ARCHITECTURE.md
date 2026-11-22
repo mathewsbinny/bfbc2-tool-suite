@@ -69,8 +69,8 @@ The log follows `navtune.json`'s proven pattern:
   field, a paint layer, the navigation side file, or the project itself (layers, folders, the export's choices). The
   editor's document holds one writer per file (`LevelFiles`), each read from the level as loaded the first time an
   operation names it; its sha1 then goes into the project's `base.files` for the base-changed check. The `files`
-  operation holds edits of several files (partition operations, group members' transforms; round SG1 adds the
-  member edits the views need) and applies them on copies: all or nothing, one undo step, the scene following only
+  operation holds edits of several files (partition operations, group members' transforms, deletes and adds) and
+  applies them on copies: all or nothing, one undo step, the scene following only
   a whole apply. The export applies the log to all files at once and writes the edited group files in place of the
   base's; a target it does not write yet (terrain before E5) refuses the export in words.
 - **Brush strokes** (round OP1, audit AU1 R24 / D19): a `stroke` operation names the 64 x 64 tiles of a raster
@@ -81,9 +81,24 @@ The log follows `navtune.json`'s proven pattern:
 - **Autosave** (round OP1, audit AU1 R17): an append-only journal (`bc2_levelwrite::journal`), one checksummed line
   per change after a first line holding the project; crash-safe (a torn last line is left out), resumable and
   compacted. The organisation follows each new operation instead of replaying the log.
-- **Versions** (project format 6): `version` is the writer's, `min_reader` the lowest version that reads the file
-  (its newest operation kind); each version step has a migration (`project::migrate`), and the recorded projects of
-  versions 1 - 5 (`rust/bc2-levelwrite/tests/data/projects`) must load and replay to the same partition.
+- **Static group members** (round SG1; spec XLOG-MEM-1 - 3, LEVEL-MG-5 - 8, HAVOK-RUN-3): a model group is three
+  files - the partition's group entity and member types (`InstanceCount`, `SpawnDatas` with each instance's cull
+  leaf, cumulative physics-part and network-id numbers whose "count" fields are ends), the group file (`Assets`,
+  `Transforms`, `Enums` in member-type runs) and the physics resource (collision per member type in its own space;
+  per instance part only a leaf word and a material byte). Members are named by identity: `<instance>#<k>` (k the
+  base's place) for the whole project, `#+<n>` for added ones; `LevelFiles` keeps each edited instance's current
+  order. The views' operations are made member edits by `bc2_editor::memberedit::lower` (an operation naming no
+  member is written as before); a delete or add changes the group file and its member type in DICE's layout (no
+  tombstones), the last of a kind is refused in words before it enters the log (`Doc::refusal`), an add copies a kind
+  the group holds (the asset browser's **Place into** list; another kind is placed loose), and members are not
+  scaled (DICE never does; one collision shape per kind). The export (`bc2_levelwrite::groupexport`) gives the
+  leaves: a moved member keeps its client-tree leaf, reseated at its new place; an added one takes a deleted
+  member's leaf or a new client leaf (then the exclusive tree's `EnumOffset` and every placed slot move up by as
+  many); each edited group's physics is laid out again. `mapexport check` holds every group to DICE's rules.
+- **Versions** (project format 7): `version` is the writer's, `min_reader` the lowest version that reads the file
+  (its newest operation kind; 7 for a member delete or add); each version step has a migration
+  (`project::migrate`), and the recorded projects of versions 1 - 6 (`rust/bc2-levelwrite/tests/data/projects`) must
+  load (1 - 5 replay to the same partition, 6 its member move to the same member).
 
 ### 3.2 The core additions
 
@@ -583,7 +598,7 @@ Company 1 maps, mode layouts such as MP_005GR) are listed, prepared and opened b
 - **Viewport modes** (the editor view): lit, unlit, wireframe, collision, navmesh (Kynapse path data), cull tree
   (each object's slot: none, shared, its own; the leaves' spheres). **Polygon selection** (P). **Several objects'
   fields** in Properties, "Mixed" where they differ, one operation for all.
-- Static group members stay read-only (queued). Placed and copied objects keep their template's `Enumeration` (cull
+- Static group members are edited like objects (round SG1, 3.1 "Static group members"). Placed and copied objects keep their template's `Enumeration` (cull
   slot) in the project; the export gives each its own blueprint's shape (round XF1, 3.12). **Paste** is a deep
   duplicate (round XF1): a pasted flag has its own capture area and marker.
 

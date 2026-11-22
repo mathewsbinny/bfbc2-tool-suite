@@ -115,7 +115,11 @@ pub fn rows(doc: &Doc, live: &Live) -> Vec<Row> {
                 crate::error::Severity::Warning => Severity::Warning,
                 crate::error::Severity::Note => Severity::Note,
             },
-            code: p.code.rule().to_owned(),
+            code: if p.code == crate::error::ProblemCode::NotApplied {
+                bc2_levelwrite::rules::apply_code(&p.text).to_owned()
+            } else {
+                p.code.rule().to_owned()
+            },
             text: p.text.clone(),
             objects: p.objects.clone(),
         })

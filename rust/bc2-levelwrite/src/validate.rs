@@ -352,11 +352,15 @@ pub fn project(game: &Game, p: &MapProject) -> crate::export::Result<Vec<Finding
     let base = LevelWriter::parse(&base_bytes).ok();
     let schema = crate::Schema::scan(base.iter().map(|b| &b.d));
     let donors = |lv: &str| crate::export::level_partition(game, lv).ok();
-    let level = match crate::files::apply_files(&base_bytes, &p.operations, &schema, &donors, &crate::files::NoSources)
-    {
+    let base_lv = p.base.level.to_ascii_lowercase();
+    let base_bundles = game.loaded(&base_lv, "level");
+    // the log's other files (static group files) as the export reads them: the base's own
+    let sources = |t: &Target| crate::export::base_level_file(game, &base_bundles, &base_lv, t);
+    let level = match crate::files::apply_files(&base_bytes, &p.operations, &schema, &donors, &sources) {
         Ok(a) => LevelWriter::parse(&a.partition.bytes).ok(),
         Err(e) => {
-            out.push(Finding::new("XVAL-EDIT-3", e.to_string()));
+            let m = e.to_string();
+            out.push(Finding::new(crate::rules::apply_code(&m), m));
             None
         }
     };

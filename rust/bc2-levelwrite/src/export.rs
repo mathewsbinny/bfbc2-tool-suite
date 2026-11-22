@@ -586,7 +586,12 @@ fn read_one(game: &Game, bundles: &[PathBuf], name: &str) -> Result<Vec<u8>> {
 
 /// A file of the base level besides its partition, by its target (round OP1): a static group file
 /// (`levels/<base>/<file>`) from the base's level bundles; `None` when they do not have it.
-fn base_level_file(game: &Game, bundles: &[PathBuf], base: &str, target: &crate::files::Target) -> Option<Vec<u8>> {
+pub(crate) fn base_level_file(
+    game: &Game,
+    bundles: &[PathBuf],
+    base: &str,
+    target: &crate::files::Target,
+) -> Option<Vec<u8>> {
     let crate::files::Target::Group { file } = target else {
         return None;
     };
@@ -1047,7 +1052,7 @@ pub fn build(
         ));
     }
     // round OP1: the log's other files (static group files) read from the base's bundles when it names them
-    let (edited_files, applied) = {
+    let (edited_files, applied, member_orders, members_added) = {
         let sources = |t: &crate::files::Target| base_level_file(game, &base_bundles, &base, t);
         let all = crate::files::apply_files(
             &base_bytes,
@@ -1056,15 +1061,18 @@ pub fn build(
             &|lv| level_partition(game, lv).ok(),
             &sources,
         )
-        .map_err(|e| crate::rules::refusal("XVAL-EDIT-3", e))?;
-        (all.files, all.partition)
+        .map_err(|e| {
+            let m = e.to_string();
+            crate::rules::refusal(crate::rules::apply_code(&m), m)
+        })?;
+        (all.files, all.partition, all.orders, all.added)
     };
     report.push(format!(
         "project: {} operations applied ({} transforms, {} deleted, {} duplicated, {} placed, {} fields)",
         applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.placed, applied.fields
     ));
     let mut edited_groups: HashMap<String, Vec<u8>> = HashMap::new();
-    for (t, data) in edited_files {
+    for (t, data) in edited_files.clone() {
         match &t {
             crate::files::Target::Group { file } => {
                 let note = match project.base.files.get(&t.base_key().unwrap_or_default()) {
@@ -1094,6 +1102,20 @@ pub fn build(
     // round V1: an object moved or made beyond the cull tree's +-2048 m is refused in words, before the tree
     if let Some(f) = crate::validate::out_of_range(&w, Some(&base_w)).first() {
         return Err(crate::rules::refusal(&f.code, &f.message));
+    }
+    // round SG1: the static group edits made whole - added members' leaves, moved members' leaves moved, the client
+    // cull tree and the groups' physics laid out again (nothing is done for a log without member edits)
+    let groups_staged = crate::groupexport::stage(
+        &base_w,
+        &mut w,
+        &edited_files,
+        &member_orders,
+        &members_added,
+        &|name| read_one(game, &base_bundles, &format!("levels/{base}/{name}")).ok(),
+    )?;
+    report.extend(groups_staged.report.iter().cloned());
+    for (name, data) in &groups_staged.files {
+        edited_groups.insert(format!("levels/{base}/{name}"), data.clone());
     }
     // 2. multiplayer: the campaign out, the donor's layer in, placed, the level's fields
     let donor_bytes = level_partition(game, &donor_lv)?;
@@ -1267,7 +1289,22 @@ pub fn build(
     if let Some((name, mut d)) = exclusive {
         let t_cull = std::time::Instant::now();
         let mut others = LevelShapes::new(game, std::slice::from_ref(&donor_lv));
-        let r = crate::culltree::reslot(&base_w, &mut w, &mut d, &mut |bp| others.find(bp))?;
+        let mut r = crate::culltree::reslot(&base_w, &mut w, &mut d, &mut |bp| others.find(bp))?;
+        // round SG1: the client tree got leaves at its end, so the exclusive tree's slots start later
+        if groups_staged.appended > 0 {
+            let old = crate::culltree::CullTree::read(&d)?.enum_offset;
+            crate::culltree::set_enum_offset(&mut d, old + groups_staged.appended)?;
+            let n = crate::culltree::shift_slots(&mut w, old, groups_staged.appended)?;
+            for o in &mut r.objects {
+                o.new += groups_staged.appended;
+            }
+            report.push(format!(
+                "cull tree: the client tree has {} more leaves: the exclusive tree's EnumOffset {old} -> {}, {n} \
+                 placed objects' slots moved up by as many",
+                groups_staged.appended,
+                old + groups_staged.appended
+            ));
+        }
         report.push(format!(
             "cull tree: {} objects given new leaves (leaves {} -> {}); {} left without a slot (no level slots their \
              blueprint)",
@@ -2706,6 +2743,9 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             }
         ),
     );
+    // round SG1: every model group of the level as DICE's groups are (its file, its member types, its leaves, its
+    // physics' part words and materials), edited or not
+    check_groups(&rec, &own_entries, &mut r);
     // the registration: one block and one manifest line per bundle, each block's targets present
     // (the voice-over blocks, lines and bundles after them: the announcer's check, `check_announcer`)
     let is_vo = |l: &str| {
@@ -3116,26 +3156,35 @@ fn group_members(d: &EditDbx) -> BTreeMap<String, (Vec<String>, usize)> {
     out
 }
 
-/// What an edited static group file changed in its groups' members (XVAL-GRP-1): each group of `base` must keep its
-/// members' blueprints, in order, and their transforms' count.
+/// What an edited static group file changed in the kinds its groups hold (XVAL-GRP-1, round SG1's rules): members
+/// may be moved, deleted and added (relaid in DICE's layout: [`crate::members::check_group`]), but every kind a group
+/// holds keeps a member - deleting the last one is refused - and no group gains a kind it did not hold (an added
+/// member is a copy of one of its group's); each group's transforms are 16 numbers a member.
 #[must_use]
 pub fn group_changes(base: &EditDbx, edited: &EditDbx) -> Vec<String> {
     let (ma, mb) = (group_members(base), group_members(edited));
+    let kinds = |a: &[String]| a.iter().cloned().collect::<BTreeSet<String>>();
     let mut bad = Vec::new();
-    for (g, (assets, tr)) in &ma {
-        match mb.get(g) {
-            Some((x, t)) if x == assets && t == tr => {}
-            Some((x, _)) => bad.push(format!(
-                "{g}: {} members, the base's {} ({})",
-                x.len(),
-                assets.len(),
-                if x.len() == assets.len() {
-                    "other blueprints"
-                } else {
-                    "another count"
-                }
-            )),
-            None => bad.push(format!("{g}: the group is gone")),
+    for (g, (assets, _)) in &ma {
+        let Some((x, t)) = mb.get(g) else {
+            bad.push(format!("{g}: the group is gone"));
+            continue;
+        };
+        let (was, now) = (kinds(assets), kinds(x));
+        let gone: Vec<&String> = was.difference(&now).collect();
+        let new: Vec<&String> = now.difference(&was).collect();
+        if !gone.is_empty() {
+            bad.push(format!(
+                "{g}: no member of {gone:?} left (the last of a kind is never deleted)"
+            ));
+        }
+        if !new.is_empty() {
+            bad.push(format!(
+                "{g}: holds {new:?}, kinds it did not hold (a member is added as a copy of its group's)"
+            ));
+        }
+        if *t != 16 * x.len() {
+            bad.push(format!("{g}: {} transform numbers for {} members", t, x.len()));
         }
     }
     bad
@@ -3276,8 +3325,8 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
         "XVAL-GRP-1",
         bad.is_empty(),
         format!(
-            "static groups: the {groups} group file(s) the project edited keep every group's members (blueprints \
-             and count: 0xAB4E58){}",
+            "static groups: the {groups} group file(s) the project edited keep every kind their groups hold and none \
+             new (0xAB4E58){}",
             if bad.is_empty() {
                 String::new()
             } else {
@@ -3310,6 +3359,52 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
 
 /// The leaves a slot owns in a tree: from its first leaf to the next slot's (at most two), as [`crate::culltree`]
 /// counts them.
+/// The staged level's model groups held to [`crate::members::check_group`]'s rules: one line per group.
+fn check_groups(rec: &StageRecord, entries: &[StagedEntry], r: &mut CheckReport) {
+    let lv = rec.level.to_ascii_lowercase();
+    let find = |name: &str| {
+        entries
+            .iter()
+            .find(|e| e.name.eq_ignore_ascii_case(name))
+            .map(|e| e.data.as_slice())
+    };
+    let Some(w) = find(&format!("levels/{lv}.dbx")).and_then(|d| LevelWriter::parse(d).ok()) else {
+        return;
+    };
+    let leaves = find(&format!("levels/{lv}/{}", crate::groupexport::CLIENT_TREE))
+        .and_then(|d| EditDbx::parse(d).ok())
+        .and_then(|d| crate::culltree::CullTree::read(&d).ok())
+        .map(|t| t.leaf_count());
+    for g in crate::members::group_entities(&w) {
+        let file = crate::members::file_of(&g.name);
+        let Some(f) = find(&format!("levels/{lv}/{file}")).and_then(|d| LevelWriter::parse(d).ok()) else {
+            r.add(
+                "XVAL-GRP-1",
+                false,
+                format!("static group {}: its file {file} is staged", g.name),
+            );
+            continue;
+        };
+        let res = find(&format!("levels/{lv}/{}.res", file.trim_end_matches(".dbx")));
+        let found = crate::members::check_group(&w, &g, &f, res, leaves);
+        let bad: Vec<&str> = found.iter().filter(|x| !x.0).map(|x| x.1.as_str()).collect();
+        r.add(
+            "XVAL-GRP-1",
+            bad.is_empty(),
+            format!(
+                "static group {}: {} rules hold (members, leaves, cumulative parts and network ids, physics){}",
+                g.name,
+                found.len(),
+                if bad.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (not: {})", bad.join("; "))
+                }
+            ),
+        );
+    }
+}
+
 fn slot_leaves(t: &crate::culltree::CullTree, slot: u32, n: usize) -> Vec<(crate::culltree::Sphere, f32)> {
     let first = slot.saturating_sub(t.enum_offset);
     (first..first + n as u32).filter_map(|l| t.leaf(l)).collect()
@@ -4420,8 +4515,18 @@ mod tests {
             group_changes(&base, &file(&["objects/a/a/G1", "objects/b/b/G2"], 2)),
             Vec::<String>::new()
         );
-        assert!(group_changes(&base, &file(&["objects/a/a/G1"], 1))[0].contains("another count"));
-        assert!(group_changes(&base, &file(&["objects/a/a/G1", "objects/c/c/G3"], 2))[0].contains("other blueprints"));
+        // SG1's edits: members moved, deleted, added as copies - the kinds kept
+        assert_eq!(
+            group_changes(&base, &file(&["objects/a/a/G1", "objects/a/a/G1", "objects/b/b/G2"], 3)),
+            Vec::<String>::new()
+        );
+        // the last of a kind deleted; a kind the group did not hold; transforms not 16 a member
+        assert!(group_changes(&base, &file(&["objects/a/a/G1"], 1))[0].contains("no member of"));
+        assert!(
+            group_changes(&base, &file(&["objects/a/a/G1", "objects/b/b/G2", "objects/c/c/G3"], 3))[0]
+                .contains("did not hold")
+        );
+        assert!(group_changes(&base, &file(&["objects/a/a/G1", "objects/b/b/G2"], 3))[0].contains("transform"));
     }
 
     /// Round QW2 (audit AU1 RISK-4): the entries `check` refuses in a staged bundle (spec SND-STRM-1).
