@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bc2_formats::dbx;
 use bc2_formats::fbrb;
-use bc2_formats::shaderdb::query::{self, Coverage};
+use bc2_formats::shaderdb::query;
 use bc2_formats::shaderdb::{self, ShaderDb};
 
 use super::argp::{self, Kind, Nargs, Opt, Parsed, Parser, Pos, Ty};
@@ -217,15 +217,8 @@ fn sub_parser(cmd: &str) -> Option<Parser> {
 
 // ------------------------------------------------------------------------------------------- Python's text
 
-/// A latin-1 name as Python's `str` holds it.
-pub fn latin(b: &[u8]) -> String {
-    b.iter().map(|&c| char::from(c)).collect()
-}
-
-/// A `str` as latin-1 bytes, or None when it holds a character past U+00FF.
-pub fn to_latin(s: &str) -> Option<Vec<u8>> {
-    s.chars().map(|c| u8::try_from(u32::from(c)).ok()).collect()
-}
+// latin-1 names as Python's `str` holds them, hex, and the database's views: the library's merge module's (one copy)
+pub use bc2_formats::shaderdb::merge::{coverage, entry_programs, hex, latin, to_latin};
 
 /// Python's `str.lower()` where this port knows it: latin-1 by Python's rules, and characters past U+00FF whose
 /// lower case is themselves; None otherwise (the caller hands the line to the Python).
@@ -454,15 +447,7 @@ pub fn load(spec: &str, dx: Option<u32>, opfor: Option<&str>) -> PyResult<Loaded
 
 /// `ShaderDb.program_refs(i)` (a short record: the reference's `struct.error`, handed off).
 pub fn program_refs(db: &ShaderDb<'_>, i: usize) -> PyResult<[usize; 4]> {
-    let p = db.programs.get(i).ok_or(Fail::Python)?;
-    Ok(query::program_refs(p, db.big_endian)
-        .ok_or(Fail::Python)?
-        .map(|x| x as usize))
-}
-
-/// `ShaderDb.entry_programs()`: {entry GUID: program indices}, the last group of a GUID kept.
-pub fn entry_programs<'d>(db: &'d ShaderDb<'_>) -> HashMap<&'d [u8], &'d [u16]> {
-    db.groups.iter().map(|(g, idx)| (*g, idx.as_slice())).collect()
+    shaderdb::merge::program_refs(db, i).map_err(|_| Fail::Python)
 }
 
 /// `ShaderDb.mesh_names()`
@@ -491,28 +476,6 @@ pub fn check(db: &ShaderDb<'_>) -> PyResult<Vec<String>> {
             .collect(),
     };
     query::check(&input).ok_or(Fail::Python)
-}
-
-/// `coverage(db, meshes)`: per mesh (lower case, as given) its entries.
-pub fn coverage(db: &ShaderDb<'_>, meshes: &[String]) -> Vec<u32> {
-    let bytes: Vec<Option<Vec<u8>>> = meshes.iter().map(|m| to_latin(m)).collect();
-    // a mesh with a character past latin-1 matches no latin-1 entry: its own counter, never counted
-    let keyed: Vec<Vec<u8>> = bytes
-        .iter()
-        .enumerate()
-        .map(|(i, b)| {
-            b.clone()
-                .unwrap_or_else(|| format!("\u{0}{i}\u{0}not latin-1").into_bytes())
-        })
-        .collect();
-    let (mut c, at) = Coverage::new(keyed.iter().map(Vec::as_slice));
-    for e in &db.entries {
-        c.add(&e.name);
-    }
-    at.iter()
-        .zip(&bytes)
-        .map(|(&k, b)| if b.is_some() { c.counts[k] } else { 0 })
-        .collect()
 }
 
 /// `split_name(name, meshes)`.
@@ -881,14 +844,6 @@ fn cmd_list(
         distinct.len()
     ))?;
     Ok(0)
-}
-
-pub fn hex(b: &[u8]) -> String {
-    use std::fmt::Write as _;
-    b.iter().fold(String::new(), |mut s, x| {
-        let _ = write!(s, "{x:02x}");
-        s
-    })
 }
 
 /// A constant's value as Python compares it (a float's == : NaN equal to nothing).

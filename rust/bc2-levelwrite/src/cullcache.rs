@@ -8,7 +8,8 @@
 //! file), which `bfbc2.exe` computes from the copy of `culltree.py` it was built with, so an entry is used only by
 //! code that reads the reference levels as that file does (both give the same rows: the parity tests). An entry
 //! this reader does not know (another code, a damaged or foreign file, another shape) is a miss, as Python's
-//! `pickle.load` failing is; it is then written again. Writes go to `<entry>.<pid>.tmp`, renamed over the entry.
+//! `pickle.load` failing is; it is then written again. Writes go through `bc2_formats::atomic::write` (a temporary
+//! file beside the entry, `<entry>.tmp-<pid>-<n>`, renamed over it).
 //!
 //! The Rust also keeps a listing entry per `--ref-dir` folder (`list-<sha1>.pkl`, its own: `culltree.py` searches
 //! the folders afresh each run): `{'kind', 'code', 'folder', 'files': [(path below the folder, size, mtime_ns, holds
@@ -336,18 +337,15 @@ impl PickleStore {
         join(&self.folder, &[&format!("list-{}.pkl", &h[..24])])
     }
 
-    /// The value pickled to `<f>.<pid>.tmp`, renamed over `f`.
+    /// The value pickled to `f` ([`bc2_formats::atomic::write`]).
     fn write(&self, f: &str, v: &Value) {
         let Ok(data) = pickle_write::dumps(v) else {
             return;
         };
-        let tmp = format!("{f}.{}.tmp", std::process::id());
         let done = std::fs::create_dir_all(&self.folder)
-            .and_then(|()| std::fs::write(&tmp, &data))
-            .and_then(|()| std::fs::rename(&tmp, f));
+            .and_then(|()| Ok(bc2_formats::atomic::write(std::path::Path::new(f), &[&data])?));
         if done.is_err() {
-            let _ = std::fs::remove_file(&tmp); // a cache that cannot be written is not used
-            return;
+            return; // a cache that cannot be written is not used
         }
         self.wrote.store(true, Ordering::Relaxed);
     }

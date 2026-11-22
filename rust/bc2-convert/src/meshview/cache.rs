@@ -148,16 +148,7 @@ pub fn same_sig(v: Option<Value>, sig: &[Sig]) -> bool {
         })
 }
 
-/// The cache's three tables, in their dicts' order.
-#[derive(Debug, Default, Clone)]
-pub struct Tables {
-    /// (entry name lower case, bundle, entry name as the bundle holds it).
-    pub where_: Vec<(String, String, String)>,
-    /// (mesh part name lower case, its vertex layout record after the GUID).
-    pub parts: Vec<(String, Vec<u8>)>,
-    /// (shader database entry name lower case, its texture names).
-    pub entries: Vec<(String, Vec<String>)>,
-}
+pub use super::Tables;
 
 /// The cache's tables when its version and signature are this game copy's; `None` when missing, old or damaged.
 #[must_use]
@@ -282,59 +273,13 @@ pub fn tables(ix: &meshindex::MeshIndex, bundles: &[String]) -> Tables {
     }
 }
 
-/// `atomicio.locked(path)`: `f` run while holding the lock between processes on the lock file (created when missing,
-/// kept afterwards; Python's `msvcrt.locking` of its first byte and this whole-file lock exclude each other).
-///
-/// # Errors
-/// The lock file cannot be made or locked.
-pub fn locked<T>(path: &str, f: impl FnOnce() -> T) -> std::io::Result<T> {
-    if let Some(dir) = std::path::Path::new(path).parent()
-        && !dir.as_os_str().is_empty()
-    {
+/// `atomicio.write_bytes(path, data)`: [`bc2_formats::atomic::write`] with the folder made first.
+fn write_atomic(path: &str, data: &[u8]) -> std::io::Result<()> {
+    let path = std::path::Path::new(path);
+    if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    let file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(path)?;
-    file.lock()?;
-    let out = f();
-    let _ = file.unlock();
-    Ok(out)
-}
-
-/// `atomicio.write_bytes(path, data)`: beside the file (`<path>.tmp-<pid>`), flushed, then moved over it (a few
-/// tries: another process may be reading the old file for a moment).
-///
-/// # Errors
-/// The file cannot be written or moved.
-pub fn write_atomic(path: &str, data: &[u8]) -> std::io::Result<()> {
-    use std::io::Write as _;
-    if let Some(dir) = std::path::Path::new(path).parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = format!("{path}.tmp-{}", std::process::id());
-    let r = (|| {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(data)?;
-        f.sync_all()?;
-        drop(f);
-        let mut last = Ok(());
-        for k in 0..10u64 {
-            last = std::fs::rename(&tmp, path);
-            if last.is_ok() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(50 * (k + 1)));
-        }
-        last
-    })();
-    if r.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    r
+    Ok(bc2_formats::atomic::write(path, &[data])?)
 }
 
 /// The index of the game copy at `root` (its signature's bundles): from the cache when current, else built in Rust
@@ -351,7 +296,7 @@ pub fn load(root: &str, say: &mut dyn FnMut(&str)) -> Result<Tables, String> {
     if let Some(t) = read(&path, &sig) {
         return Ok(t);
     }
-    locked(&format!("{path}.lock"), || {
+    bc2_formats::atomic::locked(std::path::Path::new(&format!("{path}.lock")), || {
         if let Some(t) = read(&path, &sig) {
             return Ok(t);
         }

@@ -478,9 +478,8 @@ fn store(dir: &Path, c: &Catalog, bundles: Vec<Stamp>, levels: Vec<String>) -> s
         thumbs,
         modes: c.modes.clone().into_iter().collect(),
     };
-    let tmp = dir.join(format!("{RECORD}.tmp"));
-    fs::write(&tmp, serde_json::to_vec_pretty(&r).map_err(std::io::Error::other)?)?;
-    fs::rename(tmp, dir.join(RECORD))
+    let data = serde_json::to_vec_pretty(&r).map_err(std::io::Error::other)?;
+    Ok(bc2_formats::atomic::write(&dir.join(RECORD), &[&data])?)
 }
 
 #[cfg(test)]

@@ -11,10 +11,16 @@ repository.workspace = true
 [dependencies]
 bc2-formats.workspace = true
 bc2-shader.workspace = true
-bc2-pyrt.workspace = true
+# NavKit's apply edits (graphedit, round NK1): the traversal annotations as Python's json.dump writes them and Python's
+# round(); only the command line (bc2-cli) uses them, so the Python-runtime emulation stays at that edge (round PR1a)
+bc2-pyrt = { workspace = true, optional = true }
 sha1_smol.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
+
+[features]
+# graphedit: NavKit's apply edits on a path-data file (bc2-cli's `navkit apply`); off for the editor and the module
+graphedit = ["dep:bc2-pyrt"]
 
 [dev-dependencies]
 proptest.workspace = true
