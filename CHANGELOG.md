@@ -29,6 +29,16 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **The bot AI specification** (round AIS): what a bot AI decision-and-control implementation needs in BFBC2, in
+  two new spec files - `spec/engine/bot_ai.md` (41 rules: the server's AI frame and its time-sliced sensing / decision /
+  behaviour passes, the per-player AI proxy and the bot object, goals / behaviours / plans / squad behaviours; the
+  control boundary - an AI soldier is a server player with the AI flag, driven through an `EntryInputState` its AI
+  input object pushes into the player's input handler like a remote human's, with the 13 actions DICE's AI sends and the
+  ones it never does; perception, combat, movement, vehicles, squads, the game state a bot reads and the difficulty
+  data; an implementation interface for OPFOR's bot module and the reverse engineering still needed in priority order)
+  and `spec/model/ai_orders.md` (16 rules: the fifteen order classes, their fields, whom an order commands, issuing and
+  chaining, the readiness and urgency data). Measured on DICE's AI partitions and 13 campaign levels by
+  `cargo run --example ai_probe`; five rules verified by the game-tier tests `rust/bc2-formats/tests/ai_corpus.rs`.
 - **The Kynapse specification** (round NKS): navigation meshing as BFBC2 ships and runs it, in three new spec files -
   `spec/formats/kynapse.md` (what path data means: worlds per pathfinding type, sector kinds and bounds, the resolution
   field as one over the tile size, areas, portals, links, node ids, edges, D / F by type, units and frames),
