@@ -17,9 +17,25 @@ Status: **observed** · Variants: PC
 One function (0x5657B0 - 0x566043) reads `Core.DiskLayoutEmulation`, `Network.Version` and "Game", then pairs each
 global bundle with a virtual path and calls 0x4E48E0 for each pair, in this order: `streaming_sounds` ->
 `/sound/streaming/`, `async/ondemand_sounds` -> `/sound/ondemand/`, `async/ondemand_awards` -> `/async/awards/`.
-That 0x4E48E0 mounts and what the paths mean are inferred from the shape.
+0x4E48E0 does not mount: it grows the table the pairs go in (STRM-MNT-3, round SPG2-rest2).
 
 [exe: 0x565C79 push "streaming_sounds" (0x14185D4); 0x565CC7 push "/sound/streaming/" (0x14185C0); 0x565DC6 "async/ondemand_sounds"; 0x565E14 "/sound/ondemand/"; 0x565F14 "async/ondemand_awards"; 0x565F62 "/async/awards/"; calls 0x4E48E0 at 0x565D0F, 0x565E5D, 0x565FAC]
+
+### STRM-MNT-3: The mount table and the mount: a hashed entry index at a virtual path
+
+Status: **observed** · Variants: PC
+
+0x5657B0 does not open the bundles: it appends one 0x1C-byte record per pair to a table it gets from 0x1386AE0 (0x4E48E0
+is the table's grow call, a virtual call at +0xC): the bundle name (+0), the virtual path (+0xC) and a flag byte (+0x18),
+0 for `streaming_sounds` and 1 for the two `async/ondemand_*` bundles (the on-demand ones, read when asked for). The
+mount itself is 0x464B10 (bundle name, path), the one STRM-MNT-2's voice bundle goes through: it makes a 0x238-byte
+bundle object (0x4DE490) that reads the bundle's entry names and indexes them by a case-insensitive hash (h = 5381;
+h = h x 33 ^ lower(c) per byte) in a sorted table of 0x20-byte records searched by halves, then attaches it at the
+path (0x4DCF30 -> 0x4DCCB0). A name is therefore found in a mounted bundle whatever its case, and two names that
+differ only in case are one entry to the engine. Which code drains the table into 0x464B10 was not followed.
+
+[exe: BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns at +0 / +0xC, flag stores 0x565CFD (0), uStack 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC]`); 0x464B10 (alloc 0x238, 0x4DE490, 0x4C4410, 0x4DCF30); 0x4DE490 (hash loop: 0x1505, `* 0x21 ^ c`, upper case folded; binary search over 0x20-byte records); 0x4DCF30 -> 0x4DCCB0]
+[inferred: "drained later" from the table being filled with no open call in 0x5657B0; the flag's meaning from which bundles carry 1]
 
 ### STRM-MNT-2: One streamed voice bundle per session, by language
 
@@ -111,8 +127,8 @@ overrides are not seen there.
 
 ## Open questions
 
-- What 0x4E48E0, 0x464B10 and 0x465530 do (mount, open, load), and whether a mount point shadows a level's own
-  `sound/...` names.
+- 0x4E48E0 and 0x464B10 are read (STRM-MNT-3); 0x465530, the code that drains the mount table, and whether a mount
+  point shadows a level's own `sound/...` names are not.
 - When the weapon and cutscene bundles are opened (kit selection, first spawn, the cutscene's start), and whether a
   level's bundle stack consults them for names.
 - Whether `Core.DiskLayoutEmulation` and the registry's leading slash affect lookup.

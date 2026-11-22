@@ -237,6 +237,29 @@ sky visibility and leaves the rest byte for byte (LIGHT-BAKE-6).
 
 [inferred: LIGHT-BAKE-2 and LIGHT-BAKE-6]
 
+## 5. The playtest plan (E5 / E7)
+
+Written by round SPG2-rest2 (2026-11-22); not run: in-game tests are paused. Every rule above that a writer relies on
+stays at its status until its step passes. One level throughout: a copy of MP_005 (one main block, n = 1024, mostly
+255 depth with 0 footprints, TERR-HF-9) exported by the editor as a test level of its own (registered on server and
+client, never over DICE's MP_005), Conquest, offline host, one player and, from step 6, a few bots.
+
+| Step | Terrain written | What to do in game | Settles |
+|---|---|---|---|
+| 0 | none (the export's canary: the terrain bundle byte for byte as DICE's) | load, look around, a RenderDoc frame from three fixed camera points | the baseline every later frame is compared with |
+| 1 | the depth map only: a 64 x 64 m square set 255 -> 0 in the open, and one building footprint 0 -> 255 (heights, tree and envelope untouched) | the same explosive (C4, then a mortar) on each square and on unedited ground beside it; measure the crater (DSTR-TERR-4) | TERR-HF-9: whether the value limits crater depth, and in which direction |
+| 2 | a sculpt (a 20 m hill raised, a 10 m pit dug) with the min / max tree and the envelope recomputed (TEDIT-HF-3) | walk and drive over and into both; view them from 50, 300 and 1,000 m; RenderDoc at each | the sculpt path end to end: drawing, collision, LOD; what reads the heights for collision (TEDIT open question) |
+| 3 | step 2's heights with the **old** tree and envelope (stale) | the same views and walks | TERR-HF-10 / TERR-HF-11: whether stale bounds cull terrain or objects (holes, popping) or break collision; whether the game checks them |
+| 4 | step 2 with an envelope raised 5 m above the heights over the pit only | view the pit from far and near; objects behind the pit's rim | TERR-HF-11: what the lower envelope is used for (occlusion: objects behind wrongly culled; collision: an invisible floor) |
+| 5 | a material paint: a 4 x 4 m checkerboard of 0.5 m cells, `Mud` and `Tarmac` (both in MP_005's grid), visual layers untouched | walk along a line across it (footsteps), fire single shots across it every 0.25 m (impact effect per hit), drive a jeep across it | TEDIT-MM-1: nearest cell or blend at a contact; MAT-FX-1 / MAT-FX-2 on painted cells; MAT-TEX-20: the jeep's dirt grows on Mud and Tarmac at the materials' `DirtTriggerFactor` |
+| 6 | a visual paint of a new layer combination (TEDIT-SH-1) with its patch and undergrowth mask shader entries | look at it from near and far; bots walk across it | TEDIT-VT-1, TEDIT-SH-1 / -2, VEG-UG-1 (undergrowth grows on the painted area) and the AI's path data (rebuilt for steps 2 - 4) |
+| 7 | E7: a new level from a height map (N = 1, TEDIT-BLK-1) | load, walk the edges, a RenderDoc frame | TEDIT-HF-1 / -2 and the whole writer |
+
+Each step records: the export's terrain bundle digests, the module's log, RenderDoc frames by the unattended-playtest
+scripts, screenshots, and for steps 1 and 5 the positions and results in a table. A step that crashes stops the plan
+and its crash goes to `engine/crashes.md` with the address. A step passes when what it watches matches the rule (then
+the rule's status rises to verified with the playtest as its data) or a new rule is written for what was seen.
+
 ## Open questions
 
 - The main block's tail (TERR-HF-4) is decoded; whether the game checks the lower envelope (TERR-HF-11) against the
@@ -246,4 +269,5 @@ sky visibility and leaves the rest byte for byte (LIGHT-BAKE-6).
 - Whether the engine reads the material map's cell under a contact or blends neighbours (TEDIT-MM-1).
 - Whether a patch map's shared tile (TEDIT-ATL-2) is always a uniform mask.
 - Whether a cell's leftover flag on a rule-only patch (TEDIT-VT-1) is read by anything.
-- Nothing here has been loaded in game: every rule a writer relies on must be checked by a playtest first.
+- Nothing here has been loaded in game: every rule a writer relies on must be checked by a playtest first (section
+  5's plan).

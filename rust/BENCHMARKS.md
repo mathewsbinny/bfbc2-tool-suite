@@ -10743,3 +10743,32 @@ saved, not the step's time.
   files against the Python's.
 - **The collision alias cache** stays keyed by file stamps (decided above); the culltree folder listing
   (`list-<sha1>.pkl`, bfbc2.exe's own) likewise: it exists to skip reading files whose size and time are unchanged.
+
+## SPG2-rest2: reverse engineering for the specification (2026-11-22, branch `spg2r2`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745) with a scratch copy of Project OPFOR's analysed Ghidra project
+(read only, headless, about 20 s a batch) and capstone sweeps of the executable's code; DICE's data through the suite's
+readers. No game run (in-game tests are paused). Per item:
+
+| Item | Found | Rules |
+|---|---|---|
+| `OnlyTakeableByTeam` | data +0x84, read once, by the capture update 0x726B60: the point is skipped while its progress belongs to the named team; the progress's team becomes the lowering team at neutral, so a point the named team lowers freezes at neutral (the 2026-10-29 playtest's three results); the data class's generated getters (0x6F5740 -) are dead, the reads inlined | ONS-CAP-3, GAME-CQ-10; BOT-GS-3 corrected (progress 0 - 100) |
+| bots in captures | the area list 0x724060 has no AI-flag test | BOT-GS-5 |
+| dirt build-up | 0x884C20: at 5 m/s and up on a material with `MaterialPropertyTerrainData`, factor += `DirtTriggerFactor` x dt (clamped 0 - 1), colour blended towards `DirtTriggerColor`; nothing lowers it; drawn as `dirtFactor` / `dirtColor` through the instance's handle table | MAT-TEX-20 |
+| mount functions | 0x5657B0 fills a table (0x4E48E0 is its grow call); 0x464B10 mounts: a 0x238-byte bundle object indexing names by a case-insensitive djb2-xor hash | STRM-MNT-3 |
+| award evaluator | the scoring object (made at every level start) loads `MP_Awards` / `SP_Awards` and links criteria to stats; awards move only on the per-player stat events (humans only, scoring flag) | PERS-AWD-4 |
+| menus' loading roots | `LevelDescription.LoadingMovie` is a Bink video (40 of 74 DICE levels), not the Flash root; the roots stay unnamed; a `_loading` movie gets one extra player call | MENU-LOAD-1 (probe check `level_loading_movies`) |
+| emitter processors | the 37 processor and 12 evaluator types and the polynomial's fields from the type information; the particle update not found | FX-PROC-4 |
+| undergrowth loader | the type's field order (pairs first) is not the file's; no code touches the type's flag bytes in the terrain module: not found | VEG-UG-6 |
+| one-byte undergrowth reading | `bc2-convert`'s walk reads the second string; DICE's PC visual terrains 29 -> 30 of 30 (main refuses NAM_MP_003 "runs past the end at 0x2f65c"); the 20 console twins and BF1943's three terrains convert as before | VEG-UG-2, TERR-VT-3 (tests `undergrowth_second_string_is_a_string`, `pc_visual_terrains`) |
+| terrain playtest | the plan, 8 steps, `spec/transforms/terrain_edit.md` section 5 | - |
+
+Rules 1,258 -> 1,267 (verified 619 -> 620, observed 465 -> 473).
+
+### What is left (SPG2-rest3)
+
+The undergrowth entry's parser (start from the `VisualTerrain` vtable 0x144FCF0's 19 slots), the particle update
+(a reader of a polynomial's `Coefficients` beside `ScaleValue`; the 37-way switch 0x11DD76A is unread), the Flash
+loading roots and the menus' event queue / FSCommand callback, who drains the mount table, the award listener
+classes, which entities run the dirt build-up; and every playtest: the terrain plan, ONS-CAP-3's patch, a RenderDoc
+capture for MAT-TEX-20, bots on a flag (BOT-GS-5).

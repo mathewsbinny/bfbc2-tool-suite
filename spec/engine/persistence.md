@@ -218,6 +218,24 @@ file, 50 referenced). BFBC2's executable has no `AwardGroup_PatchShield`, no `Aw
 [doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:270-290]
 [data: round SPG2's read: BFBC2's PointSystemParams has 4 instances, no rank instances; BF1943's table (awards.json) 92 flat PointsFor* / StringFor* keys]
 
+### PERS-AWD-4: The award tree is loaded at every level start and driven by the per-player stat events
+
+Status: **observed** · Variants: PC
+
+The server's scoring object (0x1454 bytes, constructor 0x86A660) is made at every level start, offline too
+(allocation at 0x86B4B4, no network or player-count test on the way). Its constructor loads the award tree (0x86A0F0):
+`Persistence/SP_Awards` when its single-player flag (+0xC, the level start's +0x1E) is set, else
+`Persistence/MP_Awards`, and 0x869360 walks the tree: every award is keyed by its id in a hash table, then each
+criterion is linked both ways to its award and its stat (0x8669B0: the criterion's stat key and flag). Nothing scores
+an award at load. What moves an award is the per-player stat events: 0x8584D0 looks up the listener registered for
+(player, event) and calls it (vtable +4) with the two stat categories, the value and the scope. So the evaluator runs
+offline as soon as stat events are sent, and those are sent only for human players and only with the server's scoring
+flag (BOT-SCO-1): without OPFOR's scoring patch (BOT-SCO-3) no award moves offline, with it a human's events reach the
+awards. The listener classes (one per `CriteriaType`: in a round, in a spawn, all-time) and where a finished award is
+written were not followed.
+
+[exe: BFBC2Game.exe 0x86B4B4 (`push 0x1454`, then 0x86A660(server +0x2C, +0xC, byte +0x1E)); 0x86A660 (+0xC the flag; 0x86A796 call 0x86A0F0); 0x86A0F0 ("Persistence/MP_Awards" 0x1433BFC, "Persistence/SP_Awards" 0x1433C14 by the flag; 0x869360); 0x869360 (0x863E70 collects the awards, hash by id, 0x8669B0 per criterion: criterion +0xC key, +0x14 flag); 0x8584D0 (listener lookup 0x844410 by (player, event), call vtable +4); callers of 0x8584D0: 0x85A030, 0x8684F0, 0x86DC90]
+
 ### PERS-SCORE-1: With the scoring patch, bots' deaths are scored in the round
 
 Status: **observed** · Variants: PC
@@ -291,8 +309,9 @@ game yet.
 ## Open questions
 
 - **The rank table's sources** (PERS-UNLK-1): which stats the award and vehicle scores sum.
-- **BFBC2's award evaluator**: its entry point and whether it runs offline; why the career save drops the round's
-  kills (PERS-SCORE-1).
+- **BFBC2's award evaluator**: loaded and wired at every level start, driven by the stat events (PERS-AWD-4); the
+  listener classes per criteria type and where a finished award is written are open, and so is why the career save
+  drops the round's kills (PERS-SCORE-1).
 - **Bots' deaths scored or not**: settled statically by round AIS-rest (PERS-SCORE-1 holds with the patch, BOT-SCO-3);
   the kill-probe playtest confirms it.
 - The unlock bit space: whether the specializations continue the weapons' bits (PERS-DATA-3).

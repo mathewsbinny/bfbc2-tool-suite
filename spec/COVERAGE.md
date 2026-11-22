@@ -36,13 +36,13 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **Point lights** (ActAsPointLight emitters, `PointLightEntityData`) | editor Lights overlay | VW2c lamp tool, VW2e night conversion | none -> LIGHT-PT (9) | none | covered for VW2c / VW2e; the per-draw choice and the instance cap open (RE) | as after SPG |
 | **Weather system** (states, switches, effects) | bc2-render weather, editor weather picker, levelwrite weather (VW2a-c) | VW2d, VW3 weather editor | RNDR-WTHR (9) -> **engine/weather (12)** | thin | covered | as after SPG |
 | **Sky, moon, god rays** | bc2-render sky dome | VW2e (moon, god rays), RenderDoc (clouds) | RNDR-SKY (3) + LIGHT-SKY (4) | thin | covered (the panoramic clouds' composite still open, RNDR-SKY-3) | as after SPG |
-| **Effects, emitters, emitter atlases** | editor Effects overlay, emitteratlas (suite), OPFOR emitter_atlas, E3d cross-set copy | VW2c, VW2d | none -> **engine/effects (11)** | none | covered for the atlas and placement; the processor chain is thin | covered: the processor chain FX-PROC (3; its semantics open) |
+| **Effects, emitters, emitter atlases** | editor Effects overlay, emitteratlas (suite), OPFOR emitter_atlas, E3d cross-set copy | VW2c, VW2d | none -> **engine/effects (11)** | none | covered for the atlas and placement; the processor chain is thin | covered: the processor chain FX-PROC (4: SPG2-rest2 adds the executable's enums; its semantics open) |
 | **Weapons and projectiles** (firing, damage, sway, zoom, ammo, grenades, attachments) | OPFOR bf1943_weapons, weapons, rifle_grenades, rg_projectiles, scopes, attachments; dbxport | translate weapons (hold), air raid (hold) | none -> **engine/weapons (34)** | none | covered | as after SPG |
 | **Vehicles** (entity, physics, seats, health, spawners) | OPFOR bf1943_vehicles, vehicle_input_profile, boatrelease (DLL), console_vehicles / console_markv | repair stations, air raid, Air Superiority (hold) | SND-VEH-1 (1) -> **engine/vehicles (22)** | none | covered | as after SPG |
 | **Materials and the material grid** (part / hit material, penetration, impact effects) | OPFOR material_grid, physmat, wake_material_states; havokport | OPFOR in Rust 4 | HAVOK-MAT (2), GAME-DMG-1 -> **engine/materials (30)** | none | covered; the hit material of plain objects open (playtest) | as after SPG |
 | **Destruction** (health states, parts, bangers, destroyed meshes, collapse) | bc2-render destruction states, editor (SG1 members), levelwrite members | E4 (M-COMs), the map editor's group edits | HAVOK-RUN-3, GAME-DMG-1 -> **engine/destruction (22)** | none | covered | as after SPG |
-| **Grime, dirt, camouflage** | OPFOR grime, grime_models, grime_sheet | translate soldiers (hold) | none -> MAT-TEX (4) | none | thin: MAT-TEX-3 inferred; the grime pipeline's own rules not written | SPG2-rest: covered (data side): MAT-TEX (19): dirt slots and constants, terrain dirt triggers, vehicle / soldier / weapon camouflage per level, OPFOR's weathering pass; how dirt builds up at run time open |
-| **Vegetation and undergrowth** (TreeMeshSet, undergrowth, billboards) | mesh readers, bc2-render, conversion (TreeMeshSet) | **E6 vegetation** | MSET-PART-2, RNDR-TERR-4 (2) | thin | thin (plan, section 2) | covered: engine/vegetation (8); SPG2-rest: the undergrowth entry is the engine's TerrainUndergrowthType (VEG-UG-3, 5), the NAM_MP_003 reader fix |
+| **Grime, dirt, camouflage** | OPFOR grime, grime_models, grime_sheet | translate soldiers (hold) | none -> MAT-TEX (4) | none | thin: MAT-TEX-3 inferred; the grime pipeline's own rules not written | SPG2-rest: covered (data side): MAT-TEX (19): dirt slots and constants, terrain dirt triggers, vehicle / soldier / weapon camouflage per level, OPFOR's weathering pass; SPG2-rest2: the run-time build-up (MAT-TEX-20) |
+| **Vegetation and undergrowth** (TreeMeshSet, undergrowth, billboards) | mesh readers, bc2-render, conversion (TreeMeshSet) | **E6 vegetation** | MSET-PART-2, RNDR-TERR-4 (2) | thin | thin (plan, section 2) | covered: engine/vegetation (8); SPG2-rest: the undergrowth entry is the engine's TerrainUndergrowthType (VEG-UG-3, 5), the NAM_MP_003 reader fix; SPG2-rest2: bc2-convert's reader fixed too, the loader not found (VEG-UG-6) |
 | **Animation and characters** (Granny, anim trees, aim, skeletons, soldiers, kits) | granny, aimanim, anim-tools, OPFOR anims / animswap / soldiers / kits / kitbags / skinning | translate soldiers (hold) | formats/granny (8), aimanim (3) | thin | thin (plan, section 2) | covered: engine/animation (17) |
 | **Decals and roads** | bc2-render (baked strips) | E5 | RNDR-TERR-4 (1) | thin | thin (plan, section 2) | covered: engine/decals (6) |
 | **Audio and voice-over** | console-convert XAS, OPFOR wake_vo / wake_ambience | E3c done | formats/audio (16), engine/audio (16) | covered | covered | as after SPG |
@@ -70,6 +70,25 @@ verified, 116 -> 126 implemented, 487 -> 453 observed, 49 -> 47 inferred); cover
 check (`core/tests/test_spec_probes.py`) now holds every probe's stable counts: 172 checks, about 3.5 minutes.
 
 ## 2. What is left, in the order the queued rounds need it
+
+Round SPG2-rest2 (2026-11-22) did section 2b's items 3 (in part) and 4 and wrote item 1's playtest plan; section 2b keeps
+SPG2-rest's list as it was. Left (queued as SPG2-rest3):
+
+1. **Terrain, in game**: the plan is written (`transforms/terrain_edit.md` section 5: depth map, stale and synthetic
+   lower envelope and min / max tree, material sampling, collision, a new level); it waits on in-game tests. The
+   suite's height-field readers still split the tail the old way (`Tail::Sections`): E7 reads the four parts.
+2. **The undergrowth loader**: not found (VEG-UG-6: the type's offsets lead nowhere, the run-time keeps its own
+   layout); next the `VisualTerrain` class's 19 slots (vtable 0x144FCF0) for the entry's parser. VEG-UG-5 stays
+   inferred.
+3. **RE still needed**: the particle update (FX-PROC-4 has the enums and fields, not the formulas); who drains the
+   mount table (STRM-MNT-3); the award listener classes and where a finished award is written (PERS-AWD-4), why the
+   career save drops the round's kills (PERS-SCORE-1); which entities run the dirt build-up (MAT-TEX-20); the Flash
+   loading roots (MENU-LOAD-1 rules out the level description), the event queue and FSCommand callback; the compiled
+   anim tree's layout (ANIM-TREE-3).
+4. **Playtests found by this round's reading**: ONS-CAP-3's patch for "defenders cannot retake"; bots alone on a flag
+   (BOT-GS-5); a RenderDoc capture of a vehicle before and after Mud (MAT-TEX-20); the kill probe (PERS-SCORE-1).
+
+## 2b. What was left after SPG2-rest (kept as written)
 
 Round SPG2-rest (2026-11-22) did section 2a's items 1 - 2, 4 and 5 and part of 3 (the undergrowth fields); section 2a
 keeps SPG2's list as it was. Left:

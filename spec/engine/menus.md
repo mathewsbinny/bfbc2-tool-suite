@@ -199,6 +199,26 @@ their pages when opened; library movies come with the bundles.
 [data: spec/probes/menus.py, 2026-11-22: <name>.swf constants all name corpus movies; loadMovie literal targets per movie; loadClip, dice.ImageManager, loadTexture and asyncF in the same 34 movies]
 [inferred: dice.ImageManager asks the engine for a texture by FSCommand, waits for asyncF and loads it with a MovieClipLoader: the four always occur together]
 
+### MENU-LOAD-1: A level's loading picture is a Bink video its description names; the Flash loading roots are not
+
+Status: **verified** · Variants: PC
+
+`LevelData.LevelDescription` carries the loading screen's video: `LoadingMovie` (+0x100, a reference to a
+`Render.BinkMemoryAsset` in the level's own `Levels/<level>/UI/` folder: `MP05_CQ`, `MP05_Rush` ... per mode, or
+`LoadingMovie` for the campaign), beside `LoadingScreens` (an array), `LoadingMovieLoopBeginFrame` / `-EndFrame`,
+`LoadingTime` and `Music` (the type information also lists `LoadingMovieTopLeft` / `-Dimensions` there, at offsets that
+suggest a nested structure). 40 of DICE's
+74 level partitions set it, every one inside its level's UI folder; the 34 that do not are Vietnam's, BC1's, the
+`mp_sp_*` levels' and SP_01. So the "loading" a level names is a video, not the Flash movie that frames it: the
+`loading_mp` / `loading_sp` / `loading_sp01` roots of MENU-AS-8 are still named by no data or executable string
+found. The one executable test on a movie's name is the movie object's constructor (0xFDC780 -> 0xFDBE30): a movie
+whose name contains `_loading` gets one extra call on its player at creation (vtable +0x20 with 0), which no other
+movie gets.
+
+[test: core/tests/test_spec_probes.py::menus]
+[data: spec/probes/menus.py, 2026-11-22: LoadingMovie set on 40 of 74 DICE level partitions, all under Levels/<level>/UI/; the two read by hand (MP05_CQ, SP_02's LoadingMovie) are Render.BinkMemoryAsset with a BinkMemory resource]
+[exe: BFBC2Game.exe LevelDescription's field descriptors 0x1C23758 - 0x1C23848 (Name +0xF4, Description +0xE8, LoadingScreens +0x104, LoadingMovie +0x100, LoadingMovieTopLeft / LoadingMovieDimensions +0x8 / +0x0, LoopBeginFrame +0xD4, LoopEndFrame +0xD0, AttackerTeam +0xE4, LoadingTime +0xD8, Music +0x114); 0xFDBE30 (substring test 0x50E8E0 with "_loading" 0x14B2710)]
+
 ## The interpreter
 
 ### MENU-RT-1: One opcode byte, a 185-entry handler table, no bound check
@@ -461,7 +481,8 @@ the step before. The byte-offset patches therefore always meet DICE's bytes; the
 ## Open questions
 
 - Which movies load in which order beyond the literal loads of MENU-AS-8: the loading roots (loading_mp, loading_sp,
-  loading_sp01) are named by no GameModeData or executable string found; where the engine takes them from.
+  loading_sp01) are named by no GameModeData, LevelDescription (MENU-LOAD-1: its LoadingMovie is a Bink video) or
+  executable string found; where the engine takes them from.
 - Whether the HUD, the main menu and the loading screens share one `_global` (MENU-AS-5's "first registration wins"
   across them).
 - How `loadMovie("<name>.swf")` and an import's movie name find the resource: by the UI asset's name or its

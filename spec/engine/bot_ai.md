@@ -724,16 +724,16 @@ The server capture point (`ServerCapturePointEntity`, constructor 0x7169D0 over 
 | +0x7C | the team the progress belongs to (set to the new team when the point is lost) |
 | +0x94 | the owner, copied from +0x7C when the capture completes |
 | +0x98 | the last step's rate (1 / capture time, times the step's factor) |
-| +0x9C | the progress, 0 to 1 |
+| +0x9C | the progress, 0 to 100 (corrected by round SPG2-rest2: the constant is 100.0, GAME-CQ-10) |
 | +0xA0 | reset with the progress when the point is lost |
 | +0xAC | the captured flag |
 
-Capturing (0x725630, args: the players in the area, a factor, dt) adds `factor / data +0x9C (CaptureTime) * dt` to the
-progress; at 1 it clears every listed player's +0xCA6, sets the owner, posts message 0x11 / 0x17 on the server's
-channel, sends the clients a "ROUN"/"CPTA" event and fires `OnCaptured` (hash 0x7D1F6304). Losing (0x711AA0) runs the
+Capturing (0x725630, args: the players in the area, a factor, dt) adds `factor x 100 / data +0x9C (TimeToGetControl)
+x dt` to the progress (GAME-CQ-10); at 100 it clears every listed player's +0xCA6, sets the owner, posts message
+0x11 / 0x17 on the server's channel, sends the clients a "ROUN"/"CPTA" event and fires `OnCaptured` (hash 0x7D1F6304). Losing (0x711AA0) runs the
 same with data +0xA0 (the lose time) downwards; at 0 it posts 0x11 / 0x18, sends "ROUN"/"CPLO" and fires `OnLost`
 (0xAA8A2040), then sets +0x7C to its argument. Neither function reads the AI flag: whether bots in the area count is
-decided where the area's player list is built, which was not found (OPFOR's captureprobe watches the data reads).
+decided where the area's player list is built: 0x724060, which has no AI test either (BOT-GS-5).
 
 [exe: BFBC2Game.exe 0x7169D0 (base 0x7159B0, vtable 0x01429470); 0x725630 (+0x98 / +0x9C, data +0x9C, `0x68F1E0(+0x7C, 0x7D1F6304)`, message `(0x11, 0x17)`, 0x842F30('ROUN', 'CPTA')); 0x711AA0 (data +0xA0, `0x68F1E0(+0x7C, 0xAA8A2040)`, message `(0x11, 0x18)`, 'CPLO', +0x7C = arg 4); event-name hash at 0x10013E0 (djb2 with xor: h = 5381, h = h * 33 ^ c)]
 
@@ -750,6 +750,20 @@ field holds the ticket count, the Rush stage or an M-COM's armed and destroyed s
 events (GAME-RUSH-9) remain the way to follow them. A bot module can find every one of these objects by its vtable.
 
 [exe: BFBC2Game.exe constructors 0x66E190 (0x68FB90 x 4 with the hashes), 0x67A030, 0x6740D0 (server object `+0x18` vtable +8 with 0x10); name functions 0x66A250, 0x6695D0, 0x669AF0 (vtable slots at 0x0141FEF8, 0x0142042C, 0x0141FDC4)]
+
+### BOT-GS-5: Bots in a capture point's area count like humans
+
+Status: **observed** · Variants: PC
+
+The capture update 0x726B60 (GAME-CQ-10) builds the area's player list in 0x724060: it walks the server's player list
+(0x532270) and takes every player whose soldier (vtable +0x30) is alive (health above 0) and whose team (+0xA8) is set,
+and who stands in the capture sphere (`CaptureRadius` data +0x11C, `IsCapturedInUpperSphere` data +0x138, through
+0x6CA7B0) or in the point's capture volume when it has one (0x6E54C0). It counts the players per team and returns the
+count of the progress's team (+0x7C) and the largest other team with its count. Nothing in it reads the AI flag
+(+0xD84): a bot standing on a flag counts toward `MinNrToTakeControl` and the capture speed like a human, so DICE's
+capture rules need no bot-specific patch. A playtest with bots alone on a flag confirms it.
+
+[exe: BFBC2Game.exe 0x724060 (player list 0x532270; soldier vtable +0x30, its +0x2C component's vtable +8 > 0; team +0xA8; 0x6CA7B0 with data +0x11C / +0x138 or 0x6E54C0; per-team counts through 0x7216E0; outputs the +0x7C team's count, the best other team and its count); no +0xD84 operand in 0x724060 - 0x72425F; caller 0x726B60]
 
 ### BOT-SCO-1: The kill handler's AI tests gate stat events, not the kill score
 
@@ -944,10 +958,10 @@ In priority order (what blocks OPFOR's bots first), each with how to settle it. 
 
 1. **The AI input object in a running game** (needs the game; the plan is below). Proves BOT-CTL-2, BOT-CTL-3 and
    BOT-CTL-7 and decides between the two ways of BOT-CTL-4.
-2. **Bots in captures and tickets.** Where a capture point builds the list of players in its area (the argument of
-   0x725630 / 0x711AA0) and whether it drops AI players; which ticket counter or life counter field a bot's death
-   changes. Start from the callers of 0x725630 and the ticket counter's vtable 0x0141FDF0 (its event handler for the
-   four hashes of BOT-GS-4); then probe a capture by bots only (`MinNrToTakeControl`) and a bot death with tickets.
+2. **Bots in captures and tickets.** Captures settled statically by round SPG2-rest2 (BOT-GS-5: the area list keeps
+   bots); which ticket counter or life counter field a bot's death changes is open. Start from the ticket counter's
+   vtable 0x0141FDF0 (its event handler for the four hashes of BOT-GS-4); then probe a capture by bots only
+   (`MinNrToTakeControl`) and a bot death with tickets.
 3. **The Rush stage and M-COM state.** The mission objective's and the life counter's fields (vtables 0x0141FCD8,
    0x01420320) and the M-COM's armed / destroyed state; GAME-RUSH-9's events stay the interface until then.
 4. **The bot object and its senses.** BOT-RT-6's class: 0xEEF450 is unreferenced, so start from a reader of the bot's
