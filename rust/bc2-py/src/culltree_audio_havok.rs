@@ -196,7 +196,7 @@ impl HkPackfile {
 
     /// `hkpack_parse(data)`'s tuple: what the Python's dicts are built from.
     fn fields<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyTuple>>> {
-        crate::formats_f3::hkpack_parse(py, self.data.bind(py))
+        crate::aim_pathmesh_audio::hkpack_parse(py, self.data.bind(py))
     }
 
     /// `deref(slot)`.

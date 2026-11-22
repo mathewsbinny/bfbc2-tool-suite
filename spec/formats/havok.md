@@ -130,7 +130,7 @@ the boxes, the table, the material list and the packfile stay.
 
 [code: rust/bc2-levelwrite/src/members.rs:575-790]
 [test: rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays]
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules]
 [data: 131 of 131 groups of 31 levels: part words = the owners' leaves per part, m = the member types, ends = the cumulative per-instance parts, c = k2 = the last end, run d / t then n bytes or none; 78 of 78 long runs the same bytes per instance of a type]
 
 ### HAVOK-MAT-1: The material list

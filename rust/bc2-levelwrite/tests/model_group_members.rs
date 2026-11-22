@@ -359,6 +359,7 @@ fn an_export_deletes_moves_and_adds_members() {
         export::build(&game, &plain, "test", &spec(name, &plain, profile), &plain_stage).unwrap();
         let s0 = staged(&plain_stage);
         let mut same = 0;
+        #[allow(clippy::iter_over_hash_type, reason = "an assertion per file and a count")]
         for (n, d) in &s0 {
             if n.contains("_havokasset.") && !n.contains(&g.file.trim_end_matches(".dbx").to_string()) {
                 assert_eq!(s.get(n), Some(d), "{lv}: {n}");
