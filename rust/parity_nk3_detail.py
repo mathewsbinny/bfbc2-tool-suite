@@ -178,7 +178,7 @@ def capture_child(suite, opfor, lv, scratch):
                   for q in golden_test.input_files(opfor, lv, navregress)}
         res['golden'] = ('inputs changed' if inputs != g['inputs'] else
                          'as recorded' if g['pathdata'] == res['sha1'] else 'DIFFERENT')
-    print(json.dumps(res), flush=True)
+    print(json.dumps(res, sort_keys=True), flush=True)
 
 
 # ------------------------------------------------------------------------------------------------ replay
@@ -213,7 +213,7 @@ def run_child(suite, scratch, lv, out, spec=''):
     with open(out, 'wb') as f:
         pickle.dump(answers, f, protocol=pickle.HIGHEST_PROTOCOL)
     print(json.dumps({'s': took, 'loaded_mb': ws0, 'peak_mb': peak1, 'peak_above_mb': peak1 - ws0,
-                      'same_as_recorded': sum(a == c['answer'] for a, c in zip(answers, calls))}), flush=True)
+                      'same_as_recorded': sum(a == c['answer'] for a, c in zip(answers, calls))}, sort_keys=True), flush=True)
 
 
 def child_json(cmd):
@@ -322,7 +322,7 @@ def order_child(old, scratch, lv):
     nd._loops, nd._f_point = real_loops, real_point
     ev['level'] = lv
     ev['examples'] = examples
-    print(json.dumps(ev), flush=True)
+    print(json.dumps(ev, sort_keys=True), flush=True)
 
 
 def loops_spec(quarters, turn):
@@ -480,12 +480,12 @@ def main():
         return 0
     if cmd == 'dice':
         # python rust\parity_nk3_detail.py dice <suite> <opfor>
-        print(json.dumps(dice_shapes(*sys.argv[2:4])))
+        print(json.dumps(dice_shapes(*sys.argv[2:4]), sort_keys=True))
         return 0
     if cmd == 'filediff':
         # python rust\parity_nk3_detail.py filediff <suite> <old.hpd> <new.hpd>
         ok, changes, nbytes = file_diff(*sys.argv[2:5])
-        print(json.dumps({'rest_equal': ok, 'changes': changes, 'bytes_differ': nbytes}))
+        print(json.dumps({'rest_equal': ok, 'changes': changes, 'bytes_differ': nbytes}, sort_keys=True))
         return 0 if ok else 1
     if cmd == '--order':
         order_child(*sys.argv[2:5])
@@ -497,7 +497,7 @@ def main():
         for lv in sys.argv[5:] or LEVELS:
             r = child_json([sys.executable, me, '--capture', suite, opfor, lv, scratch])
             r.setdefault('level', lv)
-            print(json.dumps(r), flush=True)
+            print(json.dumps(r, sort_keys=True), flush=True)
         return 0
     if cmd == 'order':
         old, scratch, out_json = sys.argv[2:5]
@@ -506,9 +506,9 @@ def main():
             r = child_json([sys.executable, me, '--order', old, scratch, lv])
             r.setdefault('level', lv)
             results.append(r)
-            print(json.dumps({k: v for k, v in r.items() if k != 'examples'}), flush=True)
+            print(json.dumps({k: v for k, v in r.items() if k != 'examples'}, sort_keys=True), flush=True)
             with open(out_json, 'w', encoding='utf-8', newline='\n') as f:
-                json.dump(results, f, indent=1)
+                json.dump(results, f, indent=1, sort_keys=True)
         return 0
     if cmd == 'compare':
         old, new, scratch, out_json = sys.argv[2:6]
@@ -539,9 +539,9 @@ def main():
                 r['new_vs_spec_differ'] = sum(a != b for a, b in zip(got['new'], got['spec']))
                 r['order_decided'] = [n for n, (a, b) in enumerate(zip(got['old'], got['spec'])) if a != b]
             results.append(r)
-            print(json.dumps(r), flush=True)
+            print(json.dumps(r, sort_keys=True), flush=True)
             with open(out_json, 'w', encoding='utf-8', newline='\n') as f:
-                json.dump(results, f, indent=1)
+                json.dump(results, f, indent=1, sort_keys=True)
         bad = [r['level'] for r in results if r.get('new_vs_spec_differ') != 0 or r.get('old_as_recorded') != r['calls']
                or r.get('differ_calls') != r.get('order_decided')]
         n = sum(r['calls'] for r in results)

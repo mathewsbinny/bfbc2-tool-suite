@@ -307,6 +307,21 @@ impl<'a> Lv<'a> {
     }
 }
 
+/// Every vehicle spawner of a partition with L1's classes of the vehicles it makes (round A1's site rules): guid,
+/// node, classes (`tank`, `boat`, `heli` ...; `other` for a vehicle L1 does not class).
+#[must_use]
+pub fn vehicle_spawners(w: &LevelWriter) -> Vec<(String, NodeId, Vec<&'static str>)> {
+    let lv = Lv::new(w);
+    lv.of("VehicleSpawnEntityData")
+        .into_iter()
+        .filter_map(|g| {
+            let n = lv.node(&g)?;
+            let classes = lv.vehicles_of(&g).into_iter().map(|x| x.1).collect();
+            Some((g, n, classes))
+        })
+        .collect()
+}
+
 /// L1's vehicle class of a blueprint reference (`objects/vehicles/<domain>/<kind>/...`).
 fn vehicle_class(r: &str) -> &'static str {
     const VEH: &[(&str, &str)] = &[

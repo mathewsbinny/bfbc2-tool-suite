@@ -491,6 +491,16 @@ def main() -> int:
     check(dbx.value(field(ff, 'FireLogic', 'Recoil', 'MaxRecoilAngleX')) == '4' and
           dbx.value(field(ff, 'Shot', 'InitialSpeed')) == '0/0/400/0',
           'conventions=False: BF1943\'s values (the nested recoil moved, as before)')
+    # the body set: wabsShg is DICE's shotgun body set (20 of its 42 shotguns, no other class): a knife moves to
+    # wabsRif, a shotgun keeps it (spec WPN-WW2-8)
+    swd = 'GameSharedResources.SoldierWeaponData'
+    wt = tmpl(inst(B + '1', swd, [txt('WeaponClass', 'wcKnife'), txt('AnimBaseSet', 'wabsRif')]))
+    got = []
+    for cls in ('wcKnife', 'wcShotgun'):
+        bf = part(A + '1', [inst(A + '1', swd, [txt('WeaponClass', cls), txt('AnimBaseSet', 'wabsShg')])])
+        data, rep = dbxport.port(bf, wt, name='objects/weapons/handheld/beach/x/x')
+        got.append(parsed(data).instances[0].child('AnimBaseSet').text)
+    check(got == ['wabsRif', 'wabsShg'], 'AnimBaseSet: wabsShg -> wabsRif on a knife, kept on a shotgun', got)
 
     # ---------------------------------------------------------------- the emitter gradient converter
     # BF1943's level copies hold the 512-texel RGBA row twice (4,096 floats); DICE's one row (2,048): the first row

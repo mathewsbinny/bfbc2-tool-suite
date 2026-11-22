@@ -413,29 +413,31 @@ def game(c):
     root = mc.find_opfor()
     from bfbc2core import fbrb
     seen, bad, files = set(), [], 0
-    for top in (os.path.join(root, 'game', 'Dist', 'win32'), os.path.join(root, 'game', 'Package')):
-        for dp, _, fs in os.walk(top):
-            for f in sorted(fs):
-                if not f.endswith('.fbrb'):
-                    continue
-                p = os.path.join(dp, f)
-                ents = [e.name for e in fbrb.entries(p) if e.type == 'SwfMovie']
-                if not ents:
-                    continue
-                for name, data in fbrb.read(p, ents).items():
-                    files += 1
-                    h = hashlib.md5(data).hexdigest()
-                    if h in seen:
+    # each movie written to a folder of this run's own (was %TEMP%\aptgraft_test.res, shared by every worktree's run)
+    with tempfile.TemporaryDirectory(prefix='aptgraft_', ignore_cleanup_errors=True) as scratch:
+        for top in (os.path.join(root, 'game', 'Dist', 'win32'), os.path.join(root, 'game', 'Package')):
+            for dp, _, fs in os.walk(top):
+                for f in sorted(fs):
+                    if not f.endswith('.fbrb'):
                         continue
-                    seen.add(h)
-                    tmp = os.path.join(tempfile.gettempdir(), 'aptgraft_test.res')
-                    open(tmp, 'wb').write(data)
-                    try:
-                        probs, _ = ag.roundtrip(tmp, pack=True)
-                    except ag.AptError as e:
-                        probs = [str(e)]
-                    if probs:
-                        bad.append(f'{os.path.relpath(p, root)}:{name}: {probs[0]}')
+                    p = os.path.join(dp, f)
+                    ents = [e.name for e in fbrb.entries(p) if e.type == 'SwfMovie']
+                    if not ents:
+                        continue
+                    for name, data in fbrb.read(p, ents).items():
+                        files += 1
+                        h = hashlib.md5(data).hexdigest()
+                        if h in seen:
+                            continue
+                        seen.add(h)
+                        tmp = os.path.join(scratch, 'movie.res')
+                        open(tmp, 'wb').write(data)
+                        try:
+                            probs, _ = ag.roundtrip(tmp, pack=True)
+                        except ag.AptError as e:
+                            probs = [str(e)]
+                        if probs:
+                            bad.append(f'{os.path.relpath(p, root)}:{name}: {probs[0]}')
     c.check(len(seen) > 80 and not bad, f'every SwfMovie of the game copy round-trips byte for byte and packed '
                                         f'({len(seen)} different, {files} entries)', '; '.join(bad[:4]))
     # label-alias: the vehicle icons in weaponicon are frames labelled with the vehicle's name

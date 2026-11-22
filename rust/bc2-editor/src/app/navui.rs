@@ -283,7 +283,13 @@ impl ViewState {
                 self.nav_refresh(gpu, palette);
             }
         }
-        let mut again = self.navs.poll() || std::mem::take(&mut self.navs.dirty);
+        let fresh = self.navs.poll();
+        if fresh {
+            // round A1: the Problems panel checks spawns and objectives against the routes read (XVAL-PLACE-5)
+            self.live
+                .set_routes(crate::validation::routes_of(self.navs.loaded.as_ref()));
+        }
+        let mut again = fresh || std::mem::take(&mut self.navs.dirty);
         let rev = self.doc.as_ref().map(|d| d.revision);
         if rev != self.navs.drawn {
             self.navs.drawn = rev;

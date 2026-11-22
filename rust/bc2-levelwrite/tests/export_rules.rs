@@ -28,7 +28,7 @@ use bc2_levelwrite::{MapProject, Op, Profile};
 // ------------------------------------------------------------------------------------------------ a level builder
 
 /// Instances of a synthetic level partition, made in order.
-struct Lb {
+pub(crate) struct Lb {
     f: DbxFile,
     insts: Vec<Element>,
     objects: Vec<String>,
@@ -36,31 +36,31 @@ struct Lb {
     next: u32,
 }
 
-type Field = Box<dyn FnOnce(&mut DbxFile) -> Element>;
+pub(crate) type Field = Box<dyn FnOnce(&mut DbxFile) -> Element>;
 
-fn text(n: &'static str, v: &str) -> Field {
+pub(crate) fn text(n: &'static str, v: &str) -> Field {
     let v = v.to_owned();
     Box::new(move |f| Element::text(f, "field", &[("name", n)], &v))
 }
 
-fn boolean(n: &'static str, v: bool) -> Field {
+pub(crate) fn boolean(n: &'static str, v: bool) -> Field {
     Box::new(move |f| Element::scalar(f, "field", 6, &[("name", n)], [0, u8::from(v)]))
 }
 
-fn float(n: &'static str, v: f32) -> Field {
+pub(crate) fn float(n: &'static str, v: f32) -> Field {
     Box::new(move |f| Element::numbers(f, "field", &[("name", n)], 4, &v.to_be_bytes()))
 }
 
-fn int(n: &'static str, v: i32) -> Field {
+pub(crate) fn int(n: &'static str, v: i32) -> Field {
     Box::new(move |f| Element::numbers(f, "field", &[("name", n)], 4, &v.to_be_bytes()))
 }
 
-fn rf(n: &'static str, g: &str) -> Field {
+pub(crate) fn rf(n: &'static str, g: &str) -> Field {
     let g = g.to_owned();
     Box::new(move |f| Element::text(f, "field", &[("ref", &g), ("name", n)], ""))
 }
 
-fn refs(n: &'static str, gs: &[String]) -> Field {
+pub(crate) fn refs(n: &'static str, gs: &[String]) -> Field {
     let gs = gs.to_vec();
     Box::new(move |f| {
         let items = gs.iter().map(|g| Element::text(f, "item", &[("ref", g)], "")).collect();
@@ -68,7 +68,7 @@ fn refs(n: &'static str, gs: &[String]) -> Field {
     })
 }
 
-fn at(p: [f32; 3]) -> Field {
+pub(crate) fn at(p: [f32; 3]) -> Field {
     Box::new(move |f| {
         let mut t = Vec::new();
         for v in [
@@ -81,7 +81,7 @@ fn at(p: [f32; 3]) -> Field {
 }
 
 impl Lb {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             f: DbxFile::default(),
             insts: Vec::new(),
@@ -98,13 +98,13 @@ impl Lb {
     }
 
     /// An instance of `ty` with `fields`; listed in LevelData.Objects when `listed`.
-    fn add(&mut self, ty: &str, fields: Vec<Field>, listed: bool) -> String {
+    pub(crate) fn add(&mut self, ty: &str, fields: Vec<Field>, listed: bool) -> String {
         let g = self.guid();
         self.add_as(&g, ty, fields, listed);
         g
     }
 
-    fn add_as(&mut self, g: &str, ty: &str, fields: Vec<Field>, listed: bool) {
+    pub(crate) fn add_as(&mut self, g: &str, ty: &str, fields: Vec<Field>, listed: bool) {
         let kids: Vec<Element> = fields.into_iter().map(|x| x(&mut self.f)).collect();
         let t = format!("Entity.{ty}");
         let e = Element::container(&mut self.f, "instance", &[("guid", g), ("type", &t)], kids);
@@ -114,12 +114,12 @@ impl Lb {
         }
     }
 
-    fn event(&mut self, src: &str, sev: &str, dst: &str, tev: &str) {
+    pub(crate) fn event(&mut self, src: &str, sev: &str, dst: &str, tev: &str) {
         self.events.push((src.into(), sev.into(), dst.into(), tev.into()));
     }
 
     /// A combat area: its outline's points chained by `Next`.
-    fn area(&mut self, team: &str, restricted: bool, enabled: bool, pts: &[[f32; 2]]) -> String {
+    pub(crate) fn area(&mut self, team: &str, restricted: bool, enabled: bool, pts: &[[f32; 2]]) -> String {
         let gs: Vec<String> = pts.iter().map(|_| self.guid()).collect();
         for (k, p) in pts.iter().enumerate() {
             let next = gs[(k + 1) % gs.len()].clone();
@@ -143,7 +143,7 @@ impl Lb {
     }
 
     /// A soldier spawner of `team` with alternative points at `pts`.
-    fn spawner(&mut self, team: &str, pts: &[[f32; 3]], radius: f32) -> String {
+    pub(crate) fn spawner(&mut self, team: &str, pts: &[[f32; 3]], radius: f32) -> String {
         let alts: Vec<String> = pts
             .iter()
             .map(|p| self.add("AlternateSpawnEntityData", vec![at(*p)], false))
@@ -161,7 +161,7 @@ impl Lb {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn capture_point(
+    pub(crate) fn capture_point(
         &mut self,
         name: &str,
         team: &str,
@@ -190,7 +190,7 @@ impl Lb {
         self.add("CapturePointEntityData", f, true)
     }
 
-    fn bytes(mut self) -> Vec<u8> {
+    pub(crate) fn bytes(mut self) -> Vec<u8> {
         let f = &mut self.f;
         let items: Vec<Element> = self
             .objects
@@ -235,31 +235,31 @@ impl Lb {
 
 /// A Conquest layout: two HQs, flags, one shared or two per-team combat areas.
 #[derive(Clone)]
-struct Cq {
-    hq: [[f32; 3]; 2],
-    flags: Vec<[f32; 3]>,
+pub(crate) struct Cq {
+    pub(crate) hq: [[f32; 3]; 2],
+    pub(crate) flags: Vec<[f32; 3]>,
     /// Per flag: its spawn points' offsets.
-    flag_spawns: Vec<Vec<[f32; 3]>>,
-    hq_spawns: usize,
-    area: Vec<[f32; 2]>,
+    pub(crate) flag_spawns: Vec<Vec<[f32; 3]>>,
+    pub(crate) hq_spawns: usize,
+    pub(crate) area: Vec<[f32; 2]>,
     /// Per team areas (team 1's, team 2's) instead of the shared one.
-    team_areas: Option<[Vec<[f32; 2]>; 2]>,
-    radius: f32,
-    time: i32,
-    tickets: i32,
-    enemy_radius: f32,
+    pub(crate) team_areas: Option<[Vec<[f32; 2]>; 2]>,
+    pub(crate) radius: f32,
+    pub(crate) time: i32,
+    pub(crate) tickets: i32,
+    pub(crate) enemy_radius: f32,
 }
 
-fn square(h: f32) -> Vec<[f32; 2]> {
+pub(crate) fn square(h: f32) -> Vec<[f32; 2]> {
     vec![[-h, -h], [h, -h], [h, h], [-h, h]]
 }
 
-fn rect(x0: f32, z0: f32, x1: f32, z1: f32) -> Vec<[f32; 2]> {
+pub(crate) fn rect(x0: f32, z0: f32, x1: f32, z1: f32) -> Vec<[f32; 2]> {
     vec![[x0, z0], [x1, z0], [x1, z1], [x0, z1]]
 }
 
 impl Cq {
-    fn clean() -> Self {
+    pub(crate) fn clean() -> Self {
         let spawns = vec![[10.0, 0.0, 10.0], [-10.0, 0.0, 10.0], [0.0, 0.0, -15.0]];
         Self {
             hq: [[0.0, 0.0, -250.0], [0.0, 0.0, 250.0]],
@@ -275,7 +275,7 @@ impl Cq {
         }
     }
 
-    fn bytes(&self) -> Vec<u8> {
+    pub(crate) fn bytes(&self) -> Vec<u8> {
         let mut b = Lb::new();
         for (k, (team, p)) in [("Team1", self.hq[0]), ("Team2", self.hq[1])].into_iter().enumerate() {
             let pts: Vec<[f32; 3]> = (0..self.hq_spawns)
@@ -334,7 +334,7 @@ impl Cq {
 /// A Rush (or Squad Rush) layout along +z: stage k's M-COMs at z = 200 k, its attackers' base `att` behind them, its
 /// defenders' base `def` in front; attackers' areas growing, defenders' per stage.
 #[derive(Clone)]
-struct Rush {
+pub(crate) struct Rush {
     stages: usize,
     /// M-COM x offsets of a stage (2 for Rush, 1 for Squad Rush).
     mcoms: Vec<f32>,
@@ -354,7 +354,7 @@ struct Rush {
 }
 
 impl Rush {
-    fn clean() -> Self {
+    pub(crate) fn clean() -> Self {
         Self {
             stages: 3,
             mcoms: vec![-20.0, 20.0],
@@ -370,7 +370,7 @@ impl Rush {
         }
     }
 
-    fn squad() -> Self {
+    pub(crate) fn squad() -> Self {
         Self {
             mcoms: vec![0.0],
             step: 120.0,
@@ -379,7 +379,7 @@ impl Rush {
         }
     }
 
-    fn bytes(&self) -> Vec<u8> {
+    pub(crate) fn bytes(&self) -> Vec<u8> {
         let mut b = Lb::new();
         let interact = b.add("GameInteractionEntityData", vec![], true);
         b.add(
@@ -465,7 +465,7 @@ impl Rush {
 
 /// A Squad Deathmatch layout: four squads sharing a grid of spawn points, a vehicle.
 #[derive(Clone)]
-struct Sdm {
+pub(crate) struct Sdm {
     squads: usize,
     cols: usize,
     rows: usize,
@@ -477,7 +477,7 @@ struct Sdm {
 }
 
 impl Sdm {
-    fn clean() -> Self {
+    pub(crate) fn clean() -> Self {
         Self {
             squads: 4,
             cols: 5,
@@ -489,7 +489,7 @@ impl Sdm {
         }
     }
 
-    fn bytes(&self) -> Vec<u8> {
+    pub(crate) fn bytes(&self) -> Vec<u8> {
         let mut b = Lb::new();
         let mut pts = Vec::new();
         for i in 0..self.cols {
@@ -542,7 +542,7 @@ impl Sdm {
 
 // ------------------------------------------------------------------------------------------------ running the rules
 
-fn project(bytes: &[u8], profile: Profile) -> MapProject {
+pub(crate) fn project(bytes: &[u8], profile: Profile) -> MapProject {
     MapProject::new("V1 test", "v1test", "Levels/V1TEST", bytes, profile)
 }
 
@@ -558,6 +558,8 @@ fn findings(bytes: &[u8], profile: Profile, mode: Mode) -> Vec<Finding> {
         languages: None,
         base_check: None,
         mode: Some(mode),
+        site: None,
+        routes: None,
     })
 }
 
@@ -814,6 +816,8 @@ fn edit_findings(p: &MapProject, level: Option<&LevelWriter>, base: Option<&Leve
         languages: None,
         base_check: None,
         mode: Some(Mode::Conquest),
+        site: None,
+        routes: None,
     })
 }
 
@@ -885,6 +889,8 @@ fn each_edit_rule_has_a_broken_project_that_raises_it() {
         languages: None,
         base_check: None,
         mode: None,
+        site: None,
+        routes: None,
     });
     expect("XVAL-MODE-3", &f);
     expect("XVAL-MODE-4", &f);
@@ -971,6 +977,8 @@ fn each_edit_rule_has_a_broken_project_that_raises_it() {
             languages: None,
             base_check: None,
             mode: None,
+            site: None,
+            routes: None,
         });
         expect(code, &f);
     }
@@ -1007,6 +1015,8 @@ fn each_edit_rule_has_a_broken_project_that_raises_it() {
             languages: None,
             base_check: None,
             mode: None,
+            site: None,
+            routes: None,
         })
     };
     let p1 = project(&plain.write().unwrap(), Profile::Bfbc2);
@@ -1095,6 +1105,10 @@ fn each_edit_rule_has_a_broken_project_that_raises_it() {
     // editor's replay raises (OP1's typed problems; the game tier's v1_stage_rules runs them through `validate::project`)
     for r in rules::all().iter().filter(|r| r.phases.contains(&rules::Phase::Edit)) {
         if ["XVAL-EDIT-1", "XVAL-EDIT-2", "XVAL-EDIT-3"].contains(&r.code.as_str()) {
+            continue;
+        }
+        // round A1's site and path rules read a site and a route graph: tests/auto_layout.rs breaks a layout for each
+        if ["XVAL-PLACE-2", "XVAL-PLACE-3", "XVAL-PLACE-4", "XVAL-PLACE-5"].contains(&r.code.as_str()) {
             continue;
         }
         assert!(
