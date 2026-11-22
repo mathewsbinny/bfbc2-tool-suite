@@ -141,6 +141,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [formats/shaderdb.md](formats/shaderdb.md) | Dx9 / Dx10 / Dx11 shader databases, vertex layouts, Xenos microcode |
 | **Navigation** | |
 | [formats/hpd.md](formats/hpd.md) | Kynapse path data (`.hpd`) and its kymesh / graph blocks |
+| [formats/kynapse.md](formats/kynapse.md) | Kynapse path data's meaning: worlds per type, sectors, tiles and resolution, areas, portals, links, the route graph, units and frames |
 | [formats/navsample.md](formats/navsample.md) | the suite's navigation samples |
 | [formats/culltree.md](formats/culltree.md) | static cull trees |
 | **Menus, sound, text** | |
@@ -159,6 +160,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [engine/levels.md](engine/levels.md) | level ids, mode levels, the level data at run time, what a description declares |
 | [engine/gameplay.md](engine/gameplay.md) | modes and mode layers, Conquest, tickets, Rush stages, Squad Deathmatch, spawns, combat areas, DICE's measured conventions (the L1 study) |
 | [engine/ai.md](engine/ai.md) | the AI's start, the Kynapse runtime, what a level needs for bots, AI crashes |
+| [engine/kynapse_runtime.md](engine/kynapse_runtime.md) | the Kynapse runtime from the executable: configuration, loading, point to sector / tile / area / node, search costs, straight moves, sector links, dynamic edges, what it ignores, crashes |
 | [engine/rendering.md](engine/rendering.md) | the Direct3D 11 renderer: shader databases, draws, order, terrain, water, weather, post-process, shadows |
 | [engine/audio.md](engine/audio.md) | waves, streaming and on-demand audio, the announcer per content set, voice-over events |
 | [engine/network.md](engine/network.md) | the in-process host (`hostMultiplayerLocal`), the transport, the join, the server browser |
@@ -171,6 +173,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/console.md](transforms/console.md) | Xbox 360 -> PC conversion and the Onslaught port's stages |
 | [transforms/ww2.md](transforms/ww2.md) | BF1943 -> BFBC2 ports and the WW2 rebuild (the oracle) |
 | [transforms/navkit.md](transforms/navkit.md) | NavKit build, apply, install, restore |
+| [transforms/kynapse_generation.md](transforms/kynapse_generation.md) | DICE's generator as rules measured on its output, with NavKit's gap per rule |
 | [transforms/stockmp.md](transforms/stockmp.md) | the stock-map AI layer: build, checks, install, revert |
 | [transforms/export.md](transforms/export.md) | map export: preconditions, closure, registration, names, the stage's check |
 | [transforms/install.md](transforms/install.md) | install and revert: the stage protocol, byte-for-byte restore, the ledger |
@@ -178,6 +181,20 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/projectlog.md](transforms/projectlog.md) | the editor's project log: undo / redo, GUIDs, apply |
 
 [rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it.
+
+## Navigation (Kynapse)
+
+Round NKS's specification of navigation meshing as BFBC2 ships and runs it, in four files:
+
+| File | Layer | What |
+|---|---|---|
+| [formats/hpd.md](formats/hpd.md) | 1 | the bytes: file, sector table, route graph, runtime-mesh record (`HPD-*`, `KYM-*`) |
+| [formats/kynapse.md](formats/kynapse.md) | 1-2 | the meaning: worlds per pathfinding type, sector kinds and bounds, tiles and the resolution field, areas, B / C portals, links, node ids, edges, D / F by type, units and frames; the tracked open questions (`KYN-*`) |
+| [engine/kynapse_runtime.md](engine/kynapse_runtime.md) | 3 | what `BFBC2Game.exe` does with it, from reverse engineering (`KYRT-*`); the AI around it is [engine/ai.md](engine/ai.md) |
+| [transforms/kynapse_generation.md](transforms/kynapse_generation.md) | 4 | DICE's generator behaviour as rules with corpus counts, NavKit's gap per rule and the gap list in priority order (`KYG-*`) |
+
+The corpus rules are checked by `rust/bc2-formats/tests/kynapse_corpus.rs` (game tier) and measured by
+`rust/bc2-formats/examples/kynapse_probe.rs`, which also takes NavKit's builds on its command line for the gap counts.
 
 ## The plan
 

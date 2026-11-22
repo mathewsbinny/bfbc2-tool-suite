@@ -1567,6 +1567,237 @@
    ]
   },
   {
+   "id": "KYRT-CFG-1",
+   "title": "Sector size, overlap and offsets are world settings from the level",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "set-up 0x00F20C0E-0x00F20CD9 (size from [obj+0x40"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-LOAD-1",
+   "title": "The file loader",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "from-file entry 0x01092270, from-memory 0x01092160, state machine 0x01092340; magic 0x0108EC95; word 0 0x0108ECAE; table 0x01091130 / 0x010911A6; word-35 records 0x01091980-0x010919A2; block offset 0x01090193-0x010901D9; buffer sizes 0x0106C770 / 0x0106C7B0; trailer 0x0108E237-0x0108E286"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-LOAD-2",
+   "title": "Duplicate sectors",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0109171B `cmp [+0x3B4"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-LOAD-3",
+   "title": "Relocating the runtime mesh",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "relocation 0x010A41D0 (marker 0x010A41E4, version 0x010A428E, flags 0x010A42A2-0x010A42A7, loaded 0x010A42B2, tables 0x010A42AD-0x010A42E1, tile table 0x010A42E3-0x010A4310); tiles 0x010A3BB0; areas 0x010A3A70-0x010A3BAC (A 0x010A3A87, B 0x010A3AB0, C 0x010A3AE0); links 0x010A4380, 0x010A43C4, 0x010A43F8; renumbering 0x010A3C10; relative use 0x01073B32-0x01073B3A, 0x01071D21"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-SEC-1",
+   "title": "Point to sector",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "point to sector 0x0106D8D0 (floor via 0x00C5286C, `sub [+0x874C"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-TILE-1",
+   "title": "Point to tiles",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x01071BC0 (rectangle test 0x01071430; tiles 0x01071BDF-0x01071C48; the pitch neighbourhood 0x01071C4C-0x01071D02); table index `imul edx, [esi+0x28"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-AREA-1",
+   "title": "Point in area",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0107ADD0 -> 0x010706D0 (cached) / 0x010707A0 (every mesh) -> 0x01073EA0 (item heights 0x01073EF4-0x01073F0F) -> inside test 0x01073B00 (E, B, C; pre-test 0x010739D0 with 1.1 at 0x0143BD08; parity 0x01073740)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the exact maths of 0x01073740 (on-segment band versus crossing) was not followed instruction by instruction"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-NODE-1",
+   "title": "Point to route node",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "resolver 0x00F095C0 -> point query 0x00F09360 / 0x0107ADD0, snap 0x00F01250; node lookup 0x01086CE0 -> gather 0x0105ED80 (R from [status+0x38"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:429-435"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-PATH-1",
+   "title": "Graph search costs",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "out-edge walk 0x0105C930 (first edge - 1 at 0x0105C9B2-0x0105C9C6); static test 0x01079B3B; cost call `[edi+0xC"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the default cost object's formula (likely the 3-D distance, which the stored cost word also encodes), the heuristic, and whether another stage reads the cost word's low bits were not traced"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-PATH-2",
+   "title": "Border nodes in the search",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "masked compares 0x0105C066-0x0105C085, 0x0105C148, 0x01079A90-0x01079A96"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:566-570"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-MOVE-1",
+   "title": "Straight moves, path following and smoothing",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "segment test 0x01072A60 (D +0x38 / +0x3C, E +0x40 / +0x44, F +0x48; segment against polyline 0x01071900), variant 0x01072D00; reached from 0x0058EF90 via 0x00F2D170, 0x00F2CF90, 0x01070E60, 0x010756A0, 0x01074B30"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:917-935"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-LINK-1",
+   "title": "Joining neighbouring sectors",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x010A44D0 (called both ways from 0x01070974 / 0x01070980; 0x010A44F4-0x010A4554); unlink 0x010A3CB0 from 0x01070917"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-DYN-1",
+   "title": "Dynamic edges, and destruction",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "registration 0x0108DAB0 -> 0x01089520 (no table: false); dynamic test 0x0105CE67 -> 0x0108EDA0 -> 0x0105CF20 (0x01087EC0 / 0x01087F80); services registered in 0x00F1B980 (0x00F1BCA3, 0x00F1BD59, 0x00F1C83E, 0x00F1C915); LpfManager profile strings used in 0x010C5E50"
+    },
+    {
+     "kind": "data",
+     "ref": "word 35 = 0 in 35 of 35 files; bit 31 set on 1,694,066 of 1,694,066 edges"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-IGN-1",
+   "title": "Unread fields, and A records",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "no reads of words 1, 4-7, 34 found outside the swap pass 0x0108EAE0; date / time passed to 0x010C8A30 / 0x010C8A50; A and B walked in 0x01071D10 with 0x010714C0"
+    },
+    {
+     "kind": "inferred",
+     "ref": "\"not read\" covers the functions traced (loader, relocation, point location, search, links); the code was not swept exhaustively"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-CRASH-1",
+   "title": "What bad path data does to the runtime",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "version refusal 0x010A428E; magic / word 0 0x0108EC95-0x0108ECAE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:450-461"
+    }
+   ]
+  },
+  {
    "id": "LVL-ID-1",
    "title": "A level is `Levels/<LV>` everywhere",
    "file": "spec/engine/levels.md",
@@ -8043,6 +8274,318 @@
     {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:356-361"
+    }
+   ]
+  },
+  {
+   "id": "KYN-WORLD-1",
+   "title": "One file and one world per pathfinding type",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's 35 files: 18 infantry (2,626 sectors: 2,055 at pitch 0.8, 571 at 0.2), 17 vehicle (494 sectors, all at pitch 1.0); radius 0.4 / 2.5 and DistEdgeMax 15 / 50 on every sector of its type"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:76-98"
+    }
+   ]
+  },
+  {
+   "id": "KYN-FILE-1",
+   "title": "The header words the loader reads",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::header_words_and_sector_kinds"
+    },
+    {
+     "kind": "exe",
+     "ref": "magic `_stricmp` 0x0108EC95-0x0108ECA1; `cmp [esi+0x3A8"
+    },
+    {
+     "kind": "data",
+     "ref": "word 0 = 2, word 3 = 1, words 32 / 33 = 36 / 12 and word 35 = 0 in 35 of 35 files"
+    }
+   ]
+  },
+  {
+   "id": "KYN-SEC-1",
+   "title": "The sector table's kind word and the sector id range",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::header_words_and_sector_kinds"
+    },
+    {
+     "kind": "exe",
+     "ref": "kind counted 0x01091272-0x010912CA; containers 0x0108FAD7-0x0108FB04; block offset +1 / size -1 for kind != 0 at 0x010901AA-0x010901CA; id range check 0x0106D941-0x0106D960"
+    },
+    {
+     "kind": "data",
+     "ref": "kind 0 in 3,120 of 3,120 sectors; ids within 1..255 on both axes in 35 of 35 files"
+    }
+   ]
+  },
+  {
+   "id": "KYN-SEC-2",
+   "title": "The table's bounds are the box of the sector's route nodes",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::table_bounds_are_the_route_nodes_box"
+    },
+    {
+     "kind": "exe",
+     "ref": "duplicate test over the six bounds 0x01091791-0x01091807, mode 1 only"
+    },
+    {
+     "kind": "data",
+     "ref": "bounds equal the node box bit for bit in 3,120 of 3,120 sectors; 0 sectors without a node; 0 files with two equal boxes"
+    }
+   ]
+  },
+  {
+   "id": "KYN-SEC-3",
+   "title": "Sector ids and the file's offsets",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::one_sector_offset_per_file"
+    },
+    {
+     "kind": "data",
+     "ref": "one offset pair per file in 35 of 35 files (3,120 of 3,120 sectors agree); the vehicle pair differs from the infantry pair on 6 of 17 levels"
+    }
+   ]
+  },
+  {
+   "id": "KYN-SEC-4",
+   "title": "Coarse and detailed sectors",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "pitch and radius of every area equal its sector header's in 188,988 of 188,988 areas; detailed sectors per infantry file 4-55 (571 of 2,626)"
+    }
+   ]
+  },
+  {
+   "id": "KYN-TILE-1",
+   "title": "The resolution field is one over the tile size",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::resolution_is_one_over_the_tile_size"
+    },
+    {
+     "kind": "exe",
+     "ref": "tile range 0x01071BC0: `fsub [mesh+0x14"
+    },
+    {
+     "kind": "data",
+     "ref": "resolution = 1/40, 1/20, 1/50 in 2,055, 571 and 494 sectors; tile counts = ceil(span x resolution) in 3,120 of 3,120"
+    }
+   ]
+  },
+  {
+   "id": "KYN-TILE-2",
+   "title": "An area lies in the tile that holds its cells",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::resolution_is_one_over_the_tile_size"
+    },
+    {
+     "kind": "data",
+     "ref": "6,279,328 of 6,279,328 outline vertices inside their tile's range; with span / tiles as the edge, 1,799,317 outside"
+    }
+   ]
+  },
+  {
+   "id": "KYN-AREA-1",
+   "title": "Areas, their tile items and their index",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "sector, tile and index equal the naming tile's in 188,988 of 188,988 areas; tile item heights equal the header's in 188,988 of 188,988"
+    }
+   ]
+  },
+  {
+   "id": "KYN-B-1",
+   "title": "Portals between areas (B) are mostly two-way",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "373,053 of 386,568 B portals have a portal back to their area; 13,515 do not"
+    }
+   ]
+  },
+  {
+   "id": "KYN-C-1",
+   "title": "Border portals (C) sit on the first cell-corner line outside the rectangle",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "axis C portals on that line: coarse 63,272 of 63,974, detailed 28,781 of 31,767, vehicle 5,667 of 5,677; of the rest, 76 lie on that line of the opposite side and 3,622 elsewhere"
+    }
+   ]
+  },
+  {
+   "id": "KYN-LINK-1",
+   "title": "A link object names a tile item of an adjacent sector",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::link_objects_name_a_tile_item_of_an_adjacent_sector"
+    },
+    {
+     "kind": "exe",
+     "ref": "link resolution 0x010A44D0: tile = neighbour.tiles[x x tilesZ + z"
+    },
+    {
+     "kind": "data",
+     "ref": "55,008 of 55,008 link objects resolved; 16,450 entries, all adjacent; 9,396 cross-pitch objects; 2 entries naming an absent sector"
+    }
+   ]
+  },
+  {
+   "id": "KYN-DF-1",
+   "title": "D and F by pathfinding type",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "probe counts of every D line and F record of DICE's 35 files (section 9)"
+    }
+   ]
+  },
+  {
+   "id": "KYN-DF-2",
+   "title": "Infantry F records come in twins, ordered by direction",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::infantry_f_records_by_direction_and_twinned"
+    },
+    {
+     "kind": "data",
+     "ref": "10,964 of 10,964 infantry areas with F ordered and twinned; vehicle areas with F 881, twinned 311"
+    }
+   ]
+  },
+  {
+   "id": "KYN-NODE-1",
+   "title": "Node ids are unique in the file, in one number space",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::node_ids_are_unique_in_the_file"
+    },
+    {
+     "kind": "data",
+     "ref": "0 ordinary ids in two sectors and 0 border ids whose low bits equal an ordinary id, in 35 of 35 files; border ids 113,874: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4"
+    }
+   ]
+  },
+  {
+   "id": "KYN-NODE-2",
+   "title": "The node's flags word is a link slot",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0108DE60 / 0x0108DEE0 test the word's sign, mask 0x7FFFFFFF and binary-search 0x0108D5E0; results written back at 0x0108E2D0-0x0108E2E8; reader 0x0105C400"
+    },
+    {
+     "kind": "data",
+     "ref": "0x80000000 on 596,069 of 596,069 nodes"
+    }
+   ]
+  },
+  {
+   "id": "KYN-EDGE-1",
+   "title": "An edge reaches DistEdgeMax across, twice that at a border",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edge_reach_is_dist_edge_max_across"
+    },
+    {
+     "kind": "data",
+     "ref": "1,694,066 edges: 0 ordinary pairs over DistEdgeMax across; 29,210 border-to-border and 916 ordinary-to-border edges over DistEdgeMax across, 0 over twice it"
+    }
+   ]
+  },
+  {
+   "id": "KYN-EDGE-2",
+   "title": "The cost word: a static flag and a dynamic index",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "`test dword [edge"
+    },
+    {
+     "kind": "data",
+     "ref": "bit 31 set on 1,694,066 of 1,694,066 edges; cost exact with an f32 length on all of them"
+    }
+   ]
+  },
+  {
+   "id": "KYN-EDGE-3",
+   "title": "One-way edges and the edge order within a node",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604"
+    }
+   ]
+  },
+  {
+   "id": "KYN-UNIT-1",
+   "title": "Units and frames",
+   "file": "spec/formats/kynapse.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "outline vertices on the half-pitch grid: coarse 3,688,293 of 3,699,138, detailed 2,354,344 of 2,364,824, vehicle 212,389 of 215,366; 101,816 nodes lie outside their sector's rectangle, 101,734 of them border copies"
     }
    ]
   },
@@ -14551,6 +15094,306 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock"
+    }
+   ]
+  },
+  {
+   "id": "KYG-IN-1",
+   "title": "The generator samples the running engine's collision",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "build driver 0x00F299A0 (no caller), step classes created by 0x00F194F0, map-builder callbacks installed by 0x00F13570 (+0x868 point 0x00EFE7F0, +0x870 ray 0x00EFE840, +0x874 capsule 0x00EFE920 or box 0x00EFE980)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:294-332"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:140-166"
+    }
+   ]
+  },
+  {
+   "id": "KYG-SEED-1",
+   "title": "Seeds: sector perimeters on terrain, and soldier spawns",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the run on sp_01 (1,044,900 point queries on the perimeter lines); DICE's isolated upper-floor islands of 5-8 nodes each hold `SoldierSpawnEntityData` positions; vehicle sectors with ground holding a spline control point or vehicle spawn: sp_04 63 of 65, sp_01 30 of 33, sp_006 75 of 77"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:205-222"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:362-366"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:108-118"
+    }
+   ]
+  },
+  {
+   "id": "KYG-RECT-1",
+   "title": "Ground stops at a rectangle that is not in the shipped data",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "per file, the outline box against the outer sector lines (probe): e.g. sp_004_b infantry 37.2 / 73.1 / 13.2 / 62.7 m (min x / max x / min z / max z), sp_005 13.2 / 96.4 / 45.2 / 5.2, ons_mp_004 4.4 / 4.4 / 1.2 / 28.1; a box reaches past the outer grid line on 9 files: 1.5 m on 8 vehicle files, 0.4 m on sp_01 infantry (the margins, KYM-HDR-2)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:784-816"
+    }
+   ]
+  },
+  {
+   "id": "KYG-SEC-1",
+   "title": "Sectors: a 100 m grid numbered from the file's offsets",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::one_sector_offset_per_file"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::table_bounds_are_the_route_nodes_box"
+    },
+    {
+     "kind": "data",
+     "ref": "3,120 of 3,120 sectors on one offset pair per file and holding a node"
+    }
+   ]
+  },
+  {
+   "id": "KYG-SEC-2",
+   "title": "Sectors overlap by their margins, and C portals close them",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "axis C portals on the first corner line outside the rectangle: 97,720 of 101,418; C directions axis / diagonal / up 101,418 / 89,315 / 70,126"
+    }
+   ]
+  },
+  {
+   "id": "KYG-AREA-1",
+   "title": "Walkable cells link at a raw 0.6 m step",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "regrouping DICE's own cells by this rule reproduces 63-79 % of its areas exactly over 8 levels (sp_004_b 72.3 %), against 33-63 % for joining every neighbour; linked steps max 0.591 m, unlinked from 0.62 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:629-652"
+    }
+   ]
+  },
+  {
+   "id": "KYG-AREA-2",
+   "title": "Tiles cut areas; a conditional midline cut on the longer side",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "probe classification of 386,568 B portals; 325 of 326 cut groups cut along the longer side, 0 of 326 on both axes (sp_004_b, sp_005, sp_007)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:517-531"
+    }
+   ]
+  },
+  {
+   "id": "KYG-AREA-3",
+   "title": "Area heights",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "sp_004_b normal-pitch areas median +0.000 / +1.520 against the outline heights minus 0.95; vehicle files lowest ground .. highest + 3.2 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:690-696"
+    }
+   ]
+  },
+  {
+   "id": "KYG-DET-1",
+   "title": "Which sectors are detailed",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "detailed sectors per file from the probe (571 of 2,626 infantry sectors); NeedsDetailedPathfinding within 10 m: 300 of 304 picks detailed, 296 of 498 found"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:532-542"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:596-600"
+    }
+   ]
+  },
+  {
+   "id": "KYG-NODE-1",
+   "title": "Node placement is off the sampling grid",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "nodes on the cell-centre grid 22,375 and on the corner grid 784 of 596,069; ONS_MP_002 node distance from an outline point p50 / p90 detailed 1.7 / 4.3 m, coarse 2.9 / 6.8 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:165"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:891-905"
+    }
+   ]
+  },
+  {
+   "id": "KYG-NODE-2",
+   "title": "Border nodes form a band shared by two to four sectors",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "113,874 border ids: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4; owners: 107,437 one (103,458 the holding sector), 3,623 none, 2,738 two, 76 three"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:897-901"
+    }
+   ]
+  },
+  {
+   "id": "KYG-NODE-3",
+   "title": "Node ids and the lookup lists",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "lists sorted by their coordinate in 3,120 of 3,120 sectors for x, y and z"
+    },
+    {
+     "kind": "inferred",
+     "ref": "equal f32 coordinates whose order follows no rule on the stored values points to a sort on the generator's unrounded coordinates before they were stored as f32"
+    }
+   ]
+  },
+  {
+   "id": "KYG-EDGE-1",
+   "title": "Edges join nodes within DistEdgeMax across",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edge_reach_is_dist_edge_max_across"
+    },
+    {
+     "kind": "data",
+     "ref": "219,500 of 1,694,066 edges one-way; border-to-border edges 425,545"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:982-985"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1009-1016"
+    }
+   ]
+  },
+  {
+   "id": "KYG-EDGE-2",
+   "title": "The stored cost",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tools/hpdcheck.py::check"
+    },
+    {
+     "kind": "data",
+     "ref": "1,694,066 of 1,694,066 edges with L computed in f32"
+    }
+   ]
+  },
+  {
+   "id": "KYG-DF-1",
+   "title": "Infantry D / F from broken sides",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "coarse D lines 431,972 (98.1 % 2 points, 7,880 with 3, 268 with 4 or more), F records 40,908; detailed 81,158 and 3,472"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:939-1008"
+    }
+   ]
+  },
+  {
+   "id": "KYG-DF-2",
+   "title": "Vehicle D / F follow another rule",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "vehicle D 8,597 lines (1,612 with 3+ points; 2,746 of 10,515 segments diagonal), F 2,162 records (897 diagonal); 881 areas with F, 311 balanced"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1009-1016"
+    }
+   ]
+  },
+  {
+   "id": "KYG-LINK-1",
+   "title": "Link objects join each C portal run to the neighbour's area",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::link_objects_name_a_tile_item_of_an_adjacent_sector"
+    },
+    {
+     "kind": "data",
+     "ref": "16,450 link entries (6,263 to diagonal neighbours), 55,008 objects all resolved"
     }
    ]
   },
