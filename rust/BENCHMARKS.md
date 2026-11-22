@@ -10101,6 +10101,7 @@ never writes.
 | the project partition's edits (`project_partition_edits_are_project_operations`) | ok |
 | levelwrite's whole-level tests and export canaries (quick + game tier, 38) | 37 ok; `model_group_members` needed `bc2_native` built in the worktree (passed once built) |
 | DbxEdit's robustness (proptest), the editor's DBX unit tests | ok |
+| DbxEdit.exe's recorded answers (`dbxedit:game`): 160 edit fingerprints; 1,592 corpus files, 12,464 command runs | all identical |
 
 ### 2. `bc2-formats` split: `bc2-gamefs` and `bc2-tools`
 
@@ -10123,8 +10124,8 @@ temporary files and markers, the bundle cache's superseded points first, then le
 checked again under the lock), clear, usage, the overall pruning. `bfbc2.exe caches` / `budget` call it (their two
 copies deleted; `pyos::files`' stat, scandir and delete are its); `bfbc2core.caches`' `prune`, `maybe_prune`,
 `prune_total` and `clear` call it through `bc2_native.caches_prune` / `caches_prune_total` / `caches_clear` (the
-Python is kept for a missing module). The caches group's recorded answers (`cli-caches-...`) and `caches` tests:
-RESULT_QUICK.
+Python is kept for a missing module). The caches group's recorded answers: 184 of 184 (the overall pruning's members need the project folder found as
+before: one fix during the round). `run_tests.py quick -j 2` after merging main: **134 of 134**.
 
 ### 3. The census a check
 
