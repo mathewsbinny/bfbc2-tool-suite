@@ -83,6 +83,7 @@ mod navdetail;
 mod navfile;
 mod navgraph;
 mod navpath;
+mod navstage;
 mod navtools;
 mod navtrace;
 mod navwalk;
@@ -552,6 +553,10 @@ mod bc2_native {
         navkit_near_points, navkit_outside_bounds, navkit_region_mask, navkit_walk_stage, navkit_walkable,
         navkit_water_tops,
     };
+
+    // round NK5: the whole build (the stage, merge_detailed, detail_pass's glue, the meshes' assembly retired)
+    #[pymodule_export]
+    use super::navstage::{NavStageGraphs, navkit_build, navkit_stage_grid, navkit_write_stage};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

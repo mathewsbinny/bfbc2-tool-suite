@@ -31,8 +31,8 @@ use crate::pyproc::{Fail, Py, PyErr, PyResult};
 
 const SOURCE: &str = include_str!("../../../../bfbc2-auto-navkit/tools/detailed.py");
 
-const MARGIN: f64 = 5.0;
-const STACKED_MIN: u64 = 100;
+pub(crate) const MARGIN: f64 = 5.0;
+pub(crate) const STACKED_MIN: u64 = 100;
 const STACK_GAP: f64 = 2.0;
 const SLOPE_MAX: f64 = 40.0;
 
@@ -112,7 +112,7 @@ fn flagged_objects(objects: &[Value]) -> PyResult<Vec<Flagged>> {
 }
 
 /// `flagged_sectors(level_dir, common, xoff, zoff)`.
-fn flagged_sectors(level_dir: &str, common: &[String], xoff: i64, zoff: i64) -> PyResult<BTreeSet<(i64, i64)>> {
+pub(crate) fn flagged_sectors(level_dir: &str, common: &[String], xoff: i64, zoff: i64) -> PyResult<BTreeSet<(i64, i64)>> {
     let mut bases: Vec<String> = vec![join(level_dir, &["pkg"])?, join(level_dir, &["dist"])?];
     bases.extend(common.iter().cloned());
     bases.retain(|b| pyos::isdir(b));
@@ -175,7 +175,7 @@ fn flagged_sectors(level_dir: &str, common: &[String], xoff: i64, zoff: i64) -> 
 }
 
 /// `stacked_columns(samples_path, xoff, zoff)`: {sector: columns with standable surfaces `STACK_GAP` apart}.
-fn stacked_columns(path: &str, xoff: i64, zoff: i64) -> PyResult<BTreeMap<(i64, i64), u64>> {
+pub(crate) fn stacked_columns(path: &str, xoff: i64, zoff: i64) -> PyResult<BTreeMap<(i64, i64), u64>> {
     use bc2_navbuild::navsample;
     let data = std::fs::read(path).map_err(|_| Fail::Python)?;
     // HEADER '<4sI3f2i6fI'

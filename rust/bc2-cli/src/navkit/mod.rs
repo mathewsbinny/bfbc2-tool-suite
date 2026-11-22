@@ -22,6 +22,7 @@ use crate::pyfmt;
 use crate::pyproc::{Fail, PyErr, PyResult, Tool};
 
 mod apply;
+pub(crate) mod build;
 mod driver;
 mod ladders;
 mod levelobjects;

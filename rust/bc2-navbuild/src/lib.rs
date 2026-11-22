@@ -40,6 +40,7 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 pub mod astar;
+pub mod build;
 pub mod detail;
 pub mod domains;
 pub mod graph;
@@ -58,6 +59,7 @@ pub mod pymath;
 pub mod route;
 pub mod rules;
 pub mod sector;
+pub mod stage;
 pub mod trace;
 pub mod vehicle;
 pub mod walk;
@@ -130,6 +132,9 @@ pub enum NavError {
     /// A cell the call needs is not in the cell map.
     #[error("no cell known for surface {0}")]
     Cell(i64),
+    /// A build stopped, in the reference's words (no ground kept, a sector off the grid, a file not written).
+    #[error("{0}")]
+    Build(String),
 }
 
 /// A NumPy scalar of the dtype the reference computes in: `float32` or `float64`. The arithmetic follows NumPy 2:
@@ -502,6 +507,31 @@ impl Level {
 
     fn flag(v: &[bool], k: usize) -> bool {
         v.get(k).copied().unwrap_or(false)
+    }
+
+    /// Surface k stands on terrain (`Level.terrain[k]`).
+    #[must_use]
+    pub fn terrain(&self, k: usize) -> bool {
+        Self::flag(&self.terrain, k)
+    }
+
+    /// The column (`j * nx + i`) surface k is in (`Level.col_of[k]`).
+    #[must_use]
+    pub fn column_of(&self, k: usize) -> usize {
+        self.col_of.get(k).copied().unwrap_or(0)
+    }
+
+    /// The grid's columns along x and z.
+    #[must_use]
+    pub fn grid_size(&self) -> (usize, usize) {
+        (self.nx, self.nz)
+    }
+
+    /// Every sampled surface of column (gi, gj), kept or not; none outside the grid (`range(s.start[c], s.start[c +
+    /// 1])`).
+    #[must_use]
+    pub fn column_surfaces(&self, gi: i64, gj: i64) -> std::ops::Range<usize> {
+        self.column(gi, gj).unwrap_or(0..0)
     }
 
     fn column(&self, gi: i64, gj: i64) -> Option<std::ops::Range<usize>> {
