@@ -7,6 +7,7 @@ Tabs: Levels (open a level in the map editor, or its navigation there), Bundles 
 at the bottom. The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
 """
 import contextlib
+import functools
 import json
 import os
 import queue
@@ -116,6 +117,7 @@ class Hub:
         self.tab_crash()
         self.tab_xbox()
         self.tab_tests()
+        self.tab_mods()
         self.tab_more()
         self.tails = {}                        # label -> the last lines of a tool's output (for error reports)
         root.report_callback_exception = lambda t, v, tb: errors.report(v, tb=tb, where='a button')
@@ -530,6 +532,98 @@ class Hub:
                                                                      f'Tests ({self.t_tier.get()})')).pack(side='left')
         ttk.Button(b, text='What would run', command=lambda: self.run([PYTHON, SCRIPTS['tests'], self.t_tier.get(), '--list'],
                                                                       'Tests: list')).pack(side='left', padx=6)
+
+    # --- Mods: Project OPFOR's mods on the install ledger (round MM1, bfbc2 mods) --------------------------
+    def mods_game(self):
+        """The game copy the Mods tab works on: BFBC2_MODS_GAME (tests: a scratch copy), else Project OPFOR's."""
+        return os.environ.get('BFBC2_MODS_GAME') or (self.pr.game if self.pr is not None else '')
+
+    def mods_cmd(self, *args):
+        exe = native.cli_exe()
+        if exe is None:
+            raise RuntimeError('The Mods tab needs the suite\'s command-line binary (bin\\bfbc2.exe): build it with '
+                               'python rust\\build_native.py.')
+        return [exe, 'mods', *args, '--game', self.mods_game()]
+
+    def tab_mods(self):
+        f = self.form('Mods', 'Project OPFOR\'s mods: the Pacific War, its menus, the Vietnam opt-in, the Onslaught '
+                              'console ports, map editor exports, NavKit and stock-MP per level. Disable keeps a mod\'s '
+                              'files aside (Enable brings them back as they were, no rebuild); Uninstall drops them; '
+                              'Restore DICE\'s files takes every mod off (each comes back with Enable). Mods built on '
+                              'the one you pick are named and need your yes. Close the game first.')
+        self.mods_tree = ttk.Treeview(f, columns=('state', 'title'), height=12, selectmode='extended')
+        self.mods_tree.heading('#0', text='Mod')
+        self.mods_tree.heading('state', text='State')
+        self.mods_tree.heading('title', text='What it is')
+        self.mods_tree.column('#0', width=190)
+        self.mods_tree.column('state', width=90, anchor='center')
+        self.mods_tree.column('title', width=520)
+        self.mods_tree.grid(row=1, column=0, columnspan=3, sticky='nsew')
+        f.rowconfigure(1, weight=1)
+        b = ttk.Frame(f)
+        b.grid(row=2, column=0, columnspan=3, sticky='w', pady=8)
+        for text, cmd in (('Enable', 'enable'), ('Disable', 'disable'), ('Uninstall', 'uninstall')):
+            ttk.Button(b, text=text, command=functools.partial(self.mods_act, cmd)).pack(side='left', padx=(0, 6))
+        ttk.Button(b, text='Verify', command=lambda: self.run(self.mods_cmd('verify'), 'Mods: verify',
+                                                              ok=(0, 1))).pack(side='left', padx=6)
+        ttk.Button(b, text='Restore DICE\'s files', command=lambda: self.mods_act('restore-original', '--all')
+                   ).pack(side='left', padx=6)
+        ttk.Button(b, text='Migrate old markers', command=self.mods_migrate).pack(side='left', padx=6)
+        ttk.Button(b, text='Resume', command=lambda: self.run(self.mods_cmd('resume'), 'Mods: resume')
+                   ).pack(side='left', padx=6)
+        ttk.Button(b, text='Refresh', command=self.fill_mods).pack(side='left', padx=6)
+        self.fill_mods()
+
+    def fill_mods(self):
+        self.mods_tree.delete(*self.mods_tree.get_children())
+        if not self.mods_game():
+            self.mods_tree.insert('', 'end', text='(no game copy found)', values=('', ''))
+            return
+        try:
+            r = subprocess.run(self.mods_cmd('list', '--json'), capture_output=True, text=True,
+                               creationflags=NO_WINDOW, timeout=120)
+            mods = json.loads(r.stdout)['mods'] if r.returncode == 0 else []
+        except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as e:
+            self.mods_tree.insert('', 'end', text='(the mod list could not be read)', values=('', str(e)))
+            return
+        for m in mods:
+            self.mods_tree.insert('', 'end', iid=m['id'], text=m['id'], values=(m['state'], m['title']))
+
+    def mods_act(self, cmd, *extra):
+        """A mods command on the chosen mods: asked without --yes first; what else it changes is shown and needs a
+        yes; then it runs with --yes, the list refreshed after."""
+        names = [] if extra else list(self.mods_tree.selection())
+        if not extra and not names:
+            messagebox.showinfo('BFBC2 Tool Suite', 'Choose a mod in the list first.')
+            return
+        try:
+            first = subprocess.run(self.mods_cmd(cmd, *names, *extra), capture_output=True, text=True,
+                                   creationflags=NO_WINDOW, timeout=600)
+        except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+            errors.report(e, where=f'mods {cmd}')
+            return
+        if first.returncode == 2:
+            if not messagebox.askyesno('BFBC2 Tool Suite', first.stderr.strip() + '\n\nGo ahead?'):
+                return
+            self.run(self.mods_cmd(cmd, *names, *extra, '--yes'), f'Mods: {cmd} {" ".join(names)}'.strip())
+        else:
+            self.write(f'\n> Mods: {cmd} {" ".join(names)}\n{first.stdout}{first.stderr}')
+        self.root.after(1500, self.fill_mods)
+
+    def mods_migrate(self):
+        """The markers of before the install ledger: the plan first, then (asked) the migration."""
+        try:
+            plan = subprocess.run(self.mods_cmd('migrate'), capture_output=True, text=True, creationflags=NO_WINDOW,
+                                  timeout=600)
+        except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+            errors.report(e, where='mods migrate')
+            return
+        self.write(f'\n> Mods: migrate (the plan)\n{plan.stdout}{plan.stderr}')
+        last = (plan.stdout.strip().splitlines() or [''])[-1]
+        if last.startswith('0 file(s)'):
+            return
+        if messagebox.askyesno('BFBC2 Tool Suite', f'{last}\n\nMigrate them now (every old backup kept)?'):
+            self.run(self.mods_cmd('migrate', '--apply'), 'Mods: migrate', ok=(0, 1))
 
     # --- More tools ---------------------------------------------------------------------------------
     def tab_more(self):

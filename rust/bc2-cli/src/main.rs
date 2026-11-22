@@ -98,6 +98,7 @@ mod gameledger_cli;
 // round OR1: the game-copy installer (Project OPFOR's WW2 install)
 mod install_cli;
 mod leveldiff;
+// round MM1: the mod manager (Project OPFOR's mods on the install ledger)
 #[cfg_attr(
     not(all(
         feature = "menu",
@@ -122,6 +123,8 @@ mod logs;
 mod menu;
 #[cfg(feature = "meshview")]
 mod meshview;
+#[cfg(feature = "mods")]
+mod mods_cli;
 #[cfg(feature = "nav")]
 mod nav;
 #[cfg(feature = "navkit")]
@@ -215,6 +218,7 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      leveldiff <a.dbx> <b.dbx> [options]   two .dbx files compared instance by instance (LevelDiff's)\n  \
      gameledger status|holders|original|recover <game> ...   the game copy's install ledger\n  \
      install plan|apply|revert|marks <plan.json> ...   the game-copy installer: Project OPFOR's WW2 install\n  \
+     mods list|status|enable|disable|install|uninstall|verify|restore-original|migrate ...   OPFOR's mod manager\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
      exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
      hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
@@ -341,6 +345,10 @@ fn main() -> ExitCode {
     }
     if first == "install" {
         return install_cli::main(rest);
+    }
+    #[cfg(feature = "mods")]
+    if first == "mods" {
+        return mods_cli::main(rest);
     }
     if let Some(t) = py_tool(first) {
         return pyproc::run(t, rest);

@@ -122,6 +122,10 @@ VARIABLES: dict[str, tuple[str, str]] = {
                              'level bundle, a record, a marker or a ledger step), as a kill would (round OR1)'),
     'BC2_LEDGER_CRASH_AT': ('test', "the install ledger stops the process (exit 9) before its n-th write step, as a "
                             'kill would (round DF2)'),
+    'BFBC2_MODS_GAME': ('test', "the hub's Mods tab works on this game copy (a scratch copy) instead of Project "
+                        "OPFOR's (round MM1)"),
+    'BC2_MODS_CRASH_AT': ('test', "bfbc2 mods stops the process (exit 9) before its n-th write step (its own and the "
+                          "ledger's), as a kill would (round MM1)"),
     'BC2_EDITOR_SHOTS': ('test', "the editor tests save their screenshots there"),
     'BC2_EDITOR_COLLISION_VIEW': ('test', "1: the simplified view stays on collision (round SV1's before pictures)"),
     'BC2_EX1_STAGE': ('test', "EX1's names test keeps its staged canary export in this folder"),

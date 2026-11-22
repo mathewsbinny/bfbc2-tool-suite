@@ -44,6 +44,13 @@ jobs:
         with:
           python-version: '3.13'           # the development PC's Python (the module itself serves 3.12 and later)
 
+      - name: Time zone the goldens were recorded in
+        # the command lines' goldens hold local times (crashreader's report, navkit status's build time, the log
+        # folder's pruning by date), recorded on the development PC; the runner's UTC moved them 5 hours
+        run: |
+          tzutil /s "Eastern Standard Time"
+          tzutil /g
+
       - name: Rust toolchain (rust/rust-toolchain.toml)
         working-directory: rust
         run: |
@@ -81,7 +88,7 @@ jobs:
         working-directory: rust
         # round QW2 (audit AU2 A18): the groups are meant to build alone (bc2-cli/Cargo.toml [features])
         run: |
-          foreach ($g in @('menu','crash','nav','caches','stockmp','graft','audio','bf1943','meshview','cull','navkit','navtools','harness','texqa','shader','readers','import')) {
+          foreach ($g in @('menu','crash','nav','caches','stockmp','graft','audio','bf1943','meshview','cull','navkit','navtools','harness','texqa','shader','readers','import','mods')) {
             cargo clippy -p bc2-cli --no-default-features --features $g -- -D warnings
             if ($LASTEXITCODE) { Write-Error "the $g group does not build alone"; exit $LASTEXITCODE }
           }

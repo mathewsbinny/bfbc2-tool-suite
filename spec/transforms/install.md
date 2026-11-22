@@ -318,6 +318,140 @@ rebuild's lock (`work\ww2\_rebuild\rebuild.lock`): a rebuild and an install neve
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_a_kill_at_every_write_step_recovers]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock]
 
+## 5. The mod manager (round MM1)
+
+`bfbc2 mods` (`bc2_install::mods`) turns Project OPFOR's mods on and off one at a time on the install ledger of
+section 0, without a rebuild: `list / status / enable / disable / install / uninstall / restore-original / verify /
+baseline / migrate / resume`. Its own folder is `<game>\opfor\mods` (kept copies in `stash\` and `blobs\`, moved level
+folders in `folders\`, the operation journal `.op.json`, a lock).
+
+### XINST-MOD-1: A mod is the installs its tools name
+
+Status: **verified**
+
+Each ledger owner belongs to one mod by the name its tool gives it (`opforcore.stages.owner_of`): `wake` and
+`minimap-edges` the Pacific War (`ww2`), `pacificmenu` its menus (`pacific-menus`), the console port's 14 stages and
+the Napisal-level fixes on a level `onslaught:<level>` (their shared files `onslaught`), `mapedit` / `mapedit-ai:<lv>`
+the map editor's exports, `navkit:<lv>` / `stockmp:<lv>` the suite's, `import` and `manifestfix` OPFOR's `base`; a
+level folder holding an `opfor-<stage>-installed.json` beside the ledger is the Pacific War's (the map editor's for
+`opfor-mapedit-installed.json`); `opfor.ini [patches] vietnam` is the `vietnam` setting, on when missing (the DLL's
+default since 2026-11-22). A mod is enabled, disabled or partly so (some of it kept aside). `pacific-menus` needs `ww2`
+and `vietnam`.
+
+[code: rust/bc2-install/src/mods/catalog.rs:1-230]
+[test: rust/bc2-install/src/mods/catalog.rs::owners_map_to_mods] [test: rust/bc2-install/src/mods/catalog.rs::groups_select_their_levels]
+[test: rust/bc2-install/tests/mods.rs::the_list_names_every_mod]
+
+### XINST-MOD-2: Disable keeps what each layer wrote; enable puts it back byte for byte, on what it was built on
+
+Status: **verified**
+
+Disable takes a mod's layers out through the ledger (each file's prior back) after hard-linking what each wrote into
+the kept copy, with its write time; its level folders are moved aside (a rename: their write times, which the DLL's
+markers compare, are kept). Enable moves the folders back first and installs the kept bytes last-out-first, each file's
+write time set back, so a disable / enable round trip leaves every game file as it was, bytes and write time. A kept
+layer goes back only on the file it was built on (its prior's sha256): otherwise it is refused in words naming what
+to enable first, except a settings file (`.ini`), which gets the keys changed while the mod was out carried onto the
+kept copy. An owner's own ini keys (`wake`'s `[dev] level` and `[gamemode] pacific_levels`, the WW2 install's
+`ini_refresh` rule) go back on disable with every other edit made since kept.
+
+[code: rust/bc2-install/src/mods/plan.rs:379-580] [code: rust/bc2-install/src/mods/plan.rs:662-820]
+[code: rust/bc2-install/src/mods/mod.rs:691-890] [code: rust/bc2-gamefs/src/ledger_part.rs:29-150]
+[test: rust/bc2-install/tests/mods.rs::disable_and_enable_ww2_round_trip_byte_for_byte]
+[test: rust/bc2-install/tests/mods.rs::a_settings_edit_made_while_a_mod_is_out_is_carried_onto_it]
+[test: rust/bc2-install/src/mods/ini.rs::rebase_carries_the_edits_made_since] [test: rust/bc2-install/src/mods/ini.rs::owned_keys_alone_go_back]
+[data: round MM1 scratch proof, 2026-11-22: ww2, onslaught, pacific-menus, base and vietnam each disabled and enabled on a scratch copy of the author's game copy's 182 affected files: every game file identical to the copy before, bytes and write times (opfor.ini's write time new after the setting)]
+
+### XINST-MOD-3: What is built on a mod goes first, with a confirmation; it comes back with it
+
+Status: **verified**
+
+Disabling a mod takes first every owner whose layer sits on one of its layers (built on its file) and every mod that
+needs it; without `--yes` nothing is written and the command names them (exit 2). Enable brings back the mods disabled
+in the same operation (unless `--only`); mods it needs that are off come with `--yes` only.
+
+[code: rust/bc2-install/src/mods/plan.rs:267-313] [code: rust/bc2-install/src/mods/plan.rs:587-660]
+[test: rust/bc2-install/tests/mods.rs::disabling_onslaught_takes_what_was_built_on_it_first]
+[test: rust/bc2-cli/tests/mods.rs::the_command_lines_and_their_exit_codes]
+
+### XINST-MOD-4: restore-original gives DICE's files back and keeps the installs
+
+Status: **verified**
+
+`restore-original <file> ...` takes every layer off the files given (each owner's other files kept: its mod is then
+partly disabled); `--all` disables every mod but the settings. The files are then the bottom layer's prior, DICE's
+original kept once by sha256 (none where an install created the file), and what came off is kept: `enable` puts each
+back, refused when the layer under it is not back yet.
+
+[code: rust/bc2-install/src/mods/plan.rs:825-912]
+[test: rust/bc2-install/tests/mods.rs::restore_original_all_gives_dices_files_and_enable_gives_the_mods_back]
+[test: rust/bc2-install/tests/mods.rs::restore_original_of_one_file_keeps_the_owners_other_files]
+[data: round MM1 scratch proof: restore-original --all left each of the 22 ledger files with its original sha256 and no WW2 level folder; enable gave every file back, bytes and write times]
+
+### XINST-MOD-5: A setting is set through every state the ledger keeps
+
+Status: **verified**
+
+Turning `vietnam` off or on sets the key in the file, in every layer's prior and value the ledger keeps of it (one
+journalled commit, `Ledger::edit_through`) and in every kept copy, so no later revert or enable, in any order, takes
+the setting back.
+
+[code: rust/bc2-gamefs/src/ledger_part.rs:213-320] [code: rust/bc2-install/src/mods/mod.rs:891-945]
+[test: rust/bc2-install/tests/mods.rs::vietnam_is_set_through_every_layer_and_kept_copy]
+
+### XINST-MOD-6: An operation interrupted at any step is finished by the next command
+
+Status: **verified**
+
+Every operation is planned and checked first, the kept bytes linked, then written as one journal holding every step
+with all its data before the first game write; each step can run again with the same result (each ledger step one
+journalled ledger commit, XINST-GL-2). A killed process leaves the journal and a stale lock: the next `bfbc2 mods`
+command (or `resume`) carries the operation to its end. `BC2_MODS_CRASH_AT=<n>` ends the process before its n-th write
+step, its own and the ledger's.
+
+[code: rust/bc2-install/src/mods/mod.rs:600-690]
+[test: rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_a_disable_is_finished]
+[test: rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_an_enable_is_finished]
+[test: rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_restore_original_is_finished]
+[test: rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_a_setting_is_finished]
+[test: rust/bc2-cli/tests/mods.rs::a_real_kill_at_every_step_of_a_disable] [test: rust/bc2-cli/tests/mods.rs::a_real_kill_at_every_step_of_an_enable]
+
+### XINST-MOD-7: Uninstall drops the kept copy; the WW2 opt-out keeps the manifest repair
+
+Status: **verified**
+
+`uninstall` is a disable (with its confirmation always) whose kept copies are dropped; the mods built on it stay
+disabled and kept. Uninstalling `ww2` keeps the bundleManifest repair as owner `manifestfix`, as the opt-out does.
+
+[code: rust/bc2-install/src/mods/plan.rs:210-265] [code: rust/bc2-install/src/mods/mod.rs:947-990]
+[test: rust/bc2-install/tests/mods.rs::uninstall_drops_the_kept_copy_and_keeps_the_manifest_repair]
+
+### XINST-MOD-8: verify checks every file the ledger holds, the level folders and the kept copies
+
+Status: **verified**
+
+Per ledger file: the top layer's write is the file, each layer's write the next one's prior, every prior (DICE's
+original at the bottom) kept intact by its sha256; each installed level folder against its own install record; each
+kept copy by its sha256; files still carrying markers from before the ledger; with a baseline (`bfbc2 mods baseline`)
+every other game file. Exit 1 on any problem.
+
+[code: rust/bc2-install/src/mods/verify.rs:52-280]
+[test: rust/bc2-install/tests/mods.rs::verify_finds_a_changed_file_and_a_damaged_kept_copy]
+
+### XINST-MOD-9: The migration in the suite is OPFOR's, and resumes from any interruption
+
+Status: **verified**
+
+`bfbc2 mods migrate` (the plan) and `--apply` are `opforcore\migrate.py` in Rust: the same stacks, refusals, notes and
+lines. A run interrupted while archiving the markers resumes: the backups left may be fewer than the records already
+written, so a file is refused only when a backup's owner holds no record (before MM1, a kill after the first backup
+moved left the file refused for good, in OPFOR's Python too).
+
+[code: rust/bc2-install/src/mods/migrate.rs:123-560] [code: opfor:src/tools/opforcore/migrate.py:138-146]
+[test: rust/bc2-install/tests/mods.rs::migrate_plans_applies_resumes_and_reverts_to_the_backups]
+[test: rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_the_migration_is_finished]
+[data: round MM1: two scratch copies of the author's 182 affected files, one migrated by OPFOR's migrate.py, one by bfbc2 mods migrate: the plan's 36 lines and the apply's lines identical, 288 files (game files, records less their id and time, blobs, archived markers) identical with their write times]
+
 ## Open questions
 
 - Since round DF2 every whole-file install is on the ledger; the game copies with old markers are migrated by

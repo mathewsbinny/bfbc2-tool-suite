@@ -23,7 +23,6 @@ does not read (cut short or damaged, a format decode does not know) raises a Con
 bfbc2core.native.Refused.
 """
 import os
-import struct
 import sys
 from typing import Any
 
@@ -264,9 +263,9 @@ def check(pc, reference=None):
     should be about its larger neighbour scaled down; a reference (the PC's own file of the asset) should look the
     same where it is the same art. Every format decode() reads is compared (DECODED: the block formats and L8); for
     any other (RGBA16F, B8G8R8A8, ...) nothing is measured and the result is (None, None, None, None) - not
-    compared, which a caller must not read as a pass. The mip-chain error and the block counts in the Rust core
-    (round F2a: bc2_convert::texcheck::check, NumPy's values to the bit), the correlation with NumPy's corrcoef
-    here."""
+    compared, which a caller must not read as a pass. All in the Rust core (round F2a: bc2_convert::texcheck::check;
+    the mip-chain error NumPy's value to the bit). The correlation is np.corrcoef's, computed exactly (round CI1,
+    spec rule XCONS-PAR-2: integer sums, one rounding each) - NumPy's own last bits follow the CPU's BLAS kernel."""
     if isinstance(pc, bytearray | memoryview):
         pc = bytes(pc)
     if isinstance(reference, bytearray | memoryview):
@@ -278,14 +277,7 @@ def check(pc, reference=None):
         raise _refused('check: a PC texture (or reference) the checker does not read (cut short or damaged)')
     if got[1] is None:
         return None, None, None, None
-    import numpy as np
-    worst, same, total, args = got[1]
-    corr = None
-    if args is not None:
-        w, h, (a0, a1), (b0, b1) = args
-        fmt = struct.unpack_from('<I', pc, 8)[0]
-        a, b = decode(pc[a0:a1], w, h, fmt).ravel(), decode(reference[b0:b1], w, h, fmt).ravel()
-        corr = float(np.corrcoef(a, b)[0, 1]) if a.std() and b.std() else 1.0
+    worst, corr, same, total = got[1]
     return worst, corr, same, total
 
 

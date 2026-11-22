@@ -567,6 +567,7 @@ dependencies = [
  "bc2-scene",
  "bc2-shader",
  "bc2-tools",
+ "libm",
  "proptest",
  "rayon",
  "sha1_smol",
@@ -589,9 +590,11 @@ dependencies = [
  "bc2-stockmp",
  "bc2-tools",
  "bc2-xma",
+ "bumpalo",
  "iced-x86",
  "pyo3",
  "rayon",
+ "self_cell",
 ]
 
 [[package]]

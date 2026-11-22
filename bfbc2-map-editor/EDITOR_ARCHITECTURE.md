@@ -427,7 +427,8 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
     Python code as the fallback. Identical on all 745 databases of the game copy, OPFOR's Xbox and BF1943 levels and
     work folders, and on the four WW2 levels' merges.
   - The profile put the merge's time in an algorithm (every name against every needed path), fixed in Python
-    (`needed_test`); the merge stays Python, as the WW2 tools drive `Merger` directly. A level's shaders-step merge:
+    (`needed_test`); the merge stayed Python then, as the WW2 tools drove `Merger` directly (in Rust since round OR3a:
+    `shaderdb.merger`, `bc2_native.ShaderMerger`). A level's shaders-step merge:
     40 -> 26 s, of which 20 s is now reading the databases out of the bundles (three reads per level where one would
     do: a caller change).
   - `bc2_formats::culltree` reads the element stream `culltree.py`'s `Doc` reads and finds the `--ref-dir` levels on

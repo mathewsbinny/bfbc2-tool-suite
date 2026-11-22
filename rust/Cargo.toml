@@ -64,10 +64,17 @@ libz-rs-sys = { version = "=0.6.8", default-features = false, features = ["std",
 pyo3 = { version = "=0.30.1", default-features = false, features = ["macros", "abi3-py312"] }
 proptest = { version = "=1.12.0", default-features = false, features = ["std"] }
 sha1_smol = "=1.0.1"
+# a correctly rounded fma in pure Rust (round CI1): f64::mul_add on x86_64-pc-windows-msvc without the fma target
+# feature is a call into the C runtime's fma, whose bits are the installed Windows' - libm's are the same everywhere
+libm = "=0.2.16"
 # the allocation counts of rust/BENCHMARKS.md (examples/dbx_mem.rs)
 stats_alloc = "=0.1.10"
 # the crash reader's and exeref's x86 decoding (bc2-harness, round E4f: capstone's text and operands rebuilt on it)
 iced-x86 = { version = "=1.21.0", default-features = false, features = ["std", "decoder", "instr_info"] }
+# bc2_native.ShaderMerger (round OR3a): the merger borrows the records of its base and donors, kept in its own arena
+# (bumpalo) beside it in one value (self_cell); both already in the lock (wasm-bindgen, egui)
+bumpalo = "=3.20.3"
+self_cell = "=1.3.0"
 # the opfor.log readers' literal searches and line patterns (bc2-harness)
 memchr = "=2.8.3"
 aho-corasick = "=1.1.5"

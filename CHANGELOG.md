@@ -56,6 +56,60 @@ landed on `main`.
 - `bc2_convert::wavport::Ffmpeg` and the `ffmpeg` argument of `bc2_native.audio_convert` / `audio_decode` (and their
   `'ffmpeg'` answer): the decoder runs in process.
 
+### Fixed
+- **The same answers on every machine** (round CI1, GitHub's `checks` run): `texture.check`'s correlation (used by
+  `convert.py verify-texture` / `bfbc2.exe convert verify-texture`) was NumPy's `corrcoef`, whose last bits follow
+  the CPU's OpenBLAS kernel; it is now computed exactly in the Rust core (`bc2_convert::texcheck::correlation`, the same value
+  in the module and `bfbc2.exe`). `navpath.route`'s `straight` distance was `np.linalg.norm` (a BLAS dot, the same
+  issue) and is now the route estimate's own formula (`navpath.distance`). NavKit's route estimate and hull dots use
+  a pure-Rust correctly rounded fma (`libm`) instead of the C runtime's. Spec rule XCONS-PAR-2.
+- The test runner's green-crate fingerprints no longer fail when the temporary folder is on another drive than the
+  checkout (`tests/test_rust.py`, GitHub's runner: D: and C:).
+- Goldens no longer hold the recording PC's temporary folder: stockmp's validate log records compare it as `<temp>`
+  in its long or 8.3 short form (`test_cli_o5.py`); `fbrbtool_golden_game.json`'s informational paths likewise.
+
+## [0.18.0] - 2026-11-22
+
+### Added
+- **`bfbc2 mods`** (round MM1): Project OPFOR's mod manager on the install ledger - `list`, `status`, `enable`,
+  `disable`, `install`, `uninstall`, `restore-original`, `verify`, `baseline`, `migrate`, `resume`. The mods: the
+  Pacific War (`ww2`), its menus (`pacific-menus`), the Vietnam opt-in (`vietnam`), each Onslaught console port
+  (`onslaught:<level>`, or `onslaught` for all), the map editor's exports (`mapedit`), NavKit's path data and stock-MP's
+  AI per level (`navkit:<level>`, `stockmp:<level>`), OPFOR's import (`base`). A disabled mod's files are kept aside
+  (`<game>\opfor\mods`: hard links, its level folders moved), so `enable` puts them back byte for byte with their
+  write times, without a rebuild; the mods built on one (or needing it) are disabled with it after a confirmation
+  (`--yes`) and come back with it; `restore-original <file> ... | --all` gives DICE's files back and keeps the installs;
+  `verify` checks every file the ledger holds, the level folders and the kept copies; `migrate` is OPFOR's
+  `migrate.py` in Rust (the plan first, `--apply` after). Any operation killed part way is finished by the next command.
+  Spec `transforms/install.md` section 5 (XINST-MOD-1 to -9); `BC2_MODS_CRASH_AT` for the tests.
+- **The hub's Mods tab**: the mods and their state, Enable / Disable / Uninstall / Verify / Restore DICE's files /
+  Migrate old markers / Resume, a confirmation for what else changes.
+- `bfbc2.exe`'s `mods` tool group (builds alone; in CI's list).
+
+- `bc2_formats::shaderdb::merge`: `Merger::clone_entry` / `clone_entry_from_self`, `add_part` / `add_part_from_self`,
+  `add_donor_kept` (a donor read for one call), `finished`, `current`, `retexture`, `name_guid` and the `Store` trait
+  (where the records a merge makes live).
+
+### Fixed
+- The migration of the markers from before the ledger, killed after the first old backup was archived, left that file
+  refused for good on the next run (OPFOR's `migrate.py` too: fixed on its side, branch `mm1-migrate`).
+
+### Removed
+- **`shaderdb.Merger`** (`bfbc2-shader-tools/shaderdb.py`'s Python merge class, round OR3a), with `shaderdb.ProgRef`
+  and `Merger._shader_key` (now the module's `_shader_key`): the merge is the Rust core's. `shaderdb.merger(base,
+  need=(), all_names=False)` makes a `bc2_native.ShaderMerger` (`bc2_formats::shaderdb::merge::Merger`) with the same
+  calls (`add_donor`, `clone_entry`, `add_part`, `finish`) and lists (`entry_names`, `part_names`, `added`, `report`,
+  `conflicts`, `part_conflicts`, `shared_programs`, `out`); `shaderdb.merge` uses it. The same answers as the Python
+  class on its recorded ones (`tests/test_shaderdb_merge.py`: 271 built, damaged and random cases, 1,709 calls; the
+  game copy's ONS_MP_008 + mp_008cq, 114 calls). Project OPFOR's 21 merges moved onto it (its `SUITE_REQUIRES` 0.18.0
+  to below 0.19.0). It needs the Rust core: there is no Python twin.
+
+### Changed
+- The merge no longer keeps its donors: a donor is read from its bytes and only what the merge takes from it is kept,
+  so a caller may let a donor go between calls (OPFOR's clone pass reads one donor level at a time). A name that is
+  not latin-1 (an entry's or a part's) is refused with a `ShaderDbError`; the Python raised `UnicodeEncodeError` for
+  an entry and appended a part it could not write. A donor that only exists in memory (its bytes do not read back:
+  a shader naming a table past its end, a short record) is refused whole.
 ## [0.17.0] - 2026-11-22
 
 ### Removed

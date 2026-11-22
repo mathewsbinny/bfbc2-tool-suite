@@ -309,7 +309,8 @@ pub fn mesh_relayout_blocks<'py>(
 }
 
 /// `texture.check(pc, reference)`'s statistics: `(True, None)` for a format it does not compare, else `(True,
-/// (worst, same, total, (w, h, (a, b), (c, d)) or None))` - the last for the correlation the caller computes.
+/// (worst, corr, same, total))`, the last three `None` without a reference of the same header (round CI1: the
+/// correlation in the core, exact - `texcheck::correlation` - instead of NumPy's `corrcoef` in the caller).
 #[pyfunction]
 #[pyo3(signature = (pc, reference=None))]
 pub fn texture_check<'py>(
@@ -322,15 +323,8 @@ pub fn texture_check<'py>(
         return Ok(None);
     };
     let Some(c) = got else { return answer(py, Ok(py.None())) };
-    let blocks = c
-        .blocks
-        .map(|(same, total, (w, h, d, rr))| (same, total, (w, h, (d.start, d.end), (rr.start, rr.end))));
-    let v = match blocks {
-        Some((same, total, args)) => (c.worst, Some(same), Some(total), Some(args))
-            .into_pyobject(py)?
-            .into_any(),
-        None => (c.worst, py.None(), py.None(), py.None()).into_pyobject(py)?.into_any(),
-    };
+    let (same, total) = c.blocks.unzip();
+    let v = (c.worst, c.corr, same, total).into_pyobject(py)?.into_any();
     answer(py, Ok(v))
 }
 

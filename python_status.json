@@ -1559,7 +1559,7 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "library",
-   "lines": 239,
+   "lines": 231,
    "note": "tiled / packed / layout references kept by ruling: texqa's independent decoder",
    "path": "bfbc2-console-convert/texture.py",
    "retiring": "PR1b-1c",
@@ -2289,17 +2289,17 @@
    "status": "partly"
   },
   {
-   "callers": "33 suite modules; tests 36; OPFOR 54",
+   "callers": "33 suite modules; tests 37; OPFOR 54",
    "embedded_by": [
     "rust/bc2-cli/src/shader/shaderdb.rs"
    ],
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
-   "lines": 1741,
-   "note": "reader (SD1), queries (E4b) and the command line are Rust; left: the in-process Merger (clone_entry / add_part, OPFOR's 21 sites), the level cover index, path glue",
+   "lines": 1529,
+   "note": "reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue",
    "path": "bfbc2-shader-tools/shaderdb.py",
-   "retiring": "OPFOR in Rust stage 3a",
-   "rust": "bc2_formats::shaderdb (open, merge); bfbc2 shaderdb",
+   "retiring": "OPFOR in Rust stage 3",
+   "rust": "bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
    "status": "partly"
   },
   {
@@ -2331,9 +2331,21 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "test",
-   "lines": 566,
+   "lines": 559,
    "note": "shaderdb.py on databases built here (quick), and with --game on Project OPFOR BFBC2's game copy: - built Dx...",
    "path": "bfbc2-shader-tools/tests/test_shaderdb.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-shader-tools",
+   "kind": "test",
+   "lines": 460,
+   "note": "The shader merge in the Rust core (bc2_native.ShaderMerger, made by shaderdb.merger; round OR3a) against th...",
+   "path": "bfbc2-shader-tools/tests/test_shaderdb_merge.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
@@ -2667,7 +2679,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 159,
+   "lines": 163,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -2763,7 +2775,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 140,
+   "lines": 148,
    "note": "the path test over the route graph, in Rust",
    "path": "core/bfbc2core/navpath.py",
    "retiring": "PR1b-2",
@@ -3171,7 +3183,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 85,
+   "lines": 105,
    "note": "Round O5's command lines in Rust (rust\\bc2-cli, bfbc2.exe: the shader tools' command lines - shaderdb, rend...",
    "path": "core/tests/test_cli_o5.py",
    "retiring": "Tests in Rust",
@@ -3507,7 +3519,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1355,
+   "lines": 1361,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3903,7 +3915,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 834,
+   "lines": 837,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4155,7 +4167,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 651,
+   "lines": 652,
    "note": "Round E3o (rust/BENCHMARKS.md, \"E3o\"): each faster path against the code it replaced, compared exactly (eve...",
    "path": "tests/test_e3o_native.py",
    "retiring": "Tests in Rust",
@@ -4215,8 +4227,8 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 120,
-   "note": "The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 7 tabs and the...",
+   "lines": 121,
+   "note": "The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 8 tabs and the...",
    "path": "tests/test_hub.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -4347,7 +4359,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 549,
+   "lines": 559,
    "note": "The Rust core's own checks (rust\\): formatting, clippy with warnings as errors, and every crate's tests.",
    "path": "tests/test_rust.py",
    "retiring": "Tests in Rust",
@@ -4412,19 +4424,19 @@
  ],
  "totals": {
   "all": {
-   "files": 362,
-   "lines": 106379
+   "files": 363,
+   "lines": 106665
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1411,
+    "lines": 1417,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1355,
+    "test": 1361,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4473,14 +4485,14 @@
    },
    "bfbc2-console-convert": {
     "files": 24,
-    "lines": 6531,
+    "lines": 6523,
     "live": 0,
     "partly": 1812,
     "ported": 36,
     "retired-pending": 0,
     "stays": 0,
     "test": 3429,
-    "twin": 1254
+    "twin": 1246
    },
    "bfbc2-console-readers": {
     "files": 5,
@@ -4582,14 +4594,14 @@
     "twin": 0
    },
    "bfbc2-shader-tools": {
-    "files": 15,
-    "lines": 10125,
+    "files": 16,
+    "lines": 10366,
     "live": 1430,
-    "partly": 3882,
+    "partly": 3670,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
-    "test": 3703,
+    "test": 4156,
     "twin": 984
    },
    "bfbc2-stockmp-ai": {
@@ -4605,13 +4617,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19830,
-    "live": 749,
+    "lines": 19862,
+    "live": 753,
     "partly": 0,
-    "ported": 1897,
+    "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14770,
+    "test": 14790,
     "twin": 2414
    },
    "design": {
@@ -4627,12 +4639,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5966,
+    "lines": 5969,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5699,
+    "stays": 5702,
     "test": 267,
     "twin": 0
    },
@@ -4649,28 +4661,28 @@
    },
    "tests": {
     "files": 29,
-    "lines": 7681,
+    "lines": 7693,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7681,
+    "test": 7693,
     "twin": 0
    }
   },
   "by_status": {
    "live": {
     "files": 21,
-    "lines": 6067
+    "lines": 6071
    },
    "partly": {
     "files": 20,
-    "lines": 17395
+    "lines": 17183
    },
    "ported": {
     "files": 21,
-    "lines": 2572
+    "lines": 2580
    },
    "retired-pending": {
     "files": 3,
@@ -4678,15 +4690,15 @@
    },
    "stays": {
     "files": 58,
-    "lines": 10599
+    "lines": 10602
    },
    "test": {
-    "files": 184,
-    "lines": 50008
+    "files": 185,
+    "lines": 50499
    },
    "twin": {
     "files": 55,
-    "lines": 19428
+    "lines": 19420
    }
   }
  }

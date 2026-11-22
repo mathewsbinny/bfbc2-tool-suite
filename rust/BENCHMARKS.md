@@ -10261,6 +10261,256 @@ goldens and the byte-identical regression below. `parity_nk5_build.py` and `benc
 - `navislands.py` and `navdetail.py` stay for their own callers (prune, features for the tests); the build reads the
   Rust defaults of their settings, so their module names no longer change a build.
 
+## MM1: the OPFOR mod manager (2026-11-22, branch `mm1`, with Project OPFOR's `mm1-migrate`)
+
+`bfbc2 mods` (`rust/bc2-install/src/mods`, the `mods` tool group) turns Project OPFOR's mods on and off one at a time
+on the install ledger of round DF2, without a rebuild; the hub has a Mods tab on it. Spec `transforms/install.md`
+section 5 (XINST-MOD-1 to -9).
+
+**The model.** A mod is the ledger owners its tools name (`opforcore.stages.owner_of`), the level folders installed
+beside the ledger with their own record, or a setting: `ww2` (`wake`, `minimap-edges`, the WW2 level folders),
+`pacific-menus` (`pacificmenu`; needs `ww2` and `vietnam`), `vietnam` (`opfor.ini [patches] vietnam`, on when
+missing), `onslaught:<level>` (the 14 console-port stages and the Napisal-level fixes on that level; `onslaught` the
+shared `loadset` / `loading`), `mapedit` (`mapedit`, `mapedit-ai:<lv>`, the exported level folders),
+`navkit:<lv>`, `stockmp:<lv>`, `base` (`import`, `manifestfix`).
+
+- **disable** takes the mod's layers out top first through the ledger (`Ledger::uninstall_files`, new: some of an
+  owner's files), after the layers built on them - their mods, and the mods needing it, named and taken only with
+  `--yes` (exit 2 otherwise, nothing written). What each layer wrote is kept (`<game>\opfor\mods\blobs`, a hard link of
+  the file the ledger replaces: no copy) with its write time; the level folders are moved aside (a rename: write
+  times kept, which the DLL's `.opfor-tips` / `.opfor-stings` markers compare). `wake`'s own `opfor.ini` keys go back,
+  the launcher's later edits kept (the WW2 install's `ini_refresh` rule, as a restate of the prior first).
+- **enable** moves the folders back first, then installs the kept bytes last-out-first (`install_keep`) and sets each
+  file's write time back: byte for byte and time for time. A kept layer goes back only on the file it was built on;
+  else refused in words naming what to enable first - except an `.ini`, which gets the keys changed meanwhile carried
+  over. The mods disabled in the same operation come back with it (`--only`: not).
+- **uninstall** is a disable dropping the kept copies (the WW2 opt-out's bundleManifest repair kept as `manifestfix`).
+- **restore-original** `<file> ...` takes every layer off those files (owners' other files kept), `--all` every mod
+  but the settings: DICE's files (each bottom layer's prior), the installs kept for `enable`.
+- **vietnam** is set through the file, every prior and value the ledger keeps (`Ledger::edit_through`, new: one
+  journalled commit) and every kept copy, so no revert or enable takes the setting back.
+- **verify**: each ledger file's stack (top write = file, each write = the next prior, every prior - DICE's original at
+  the bottom - intact by sha256), each level folder against its record, each kept copy, files with old markers, and,
+  after `bfbc2 mods baseline`, every other game file.
+- **migrate**: `opforcore\migrate.py` in Rust (`Ledger::write_migrated`, new).
+- **No interruption loses anything**: every check, then the kept bytes linked, then the operation journal
+  (`.op.json`, every step with its data) before the first game write; each step re-runnable; the next command (or
+  `resume`) finishes a killed one. `BC2_MODS_CRASH_AT=<n>`: exit 9 before the n-th write step (its own and the
+  ledger's).
+
+**Found and fixed.** OPFOR's `migrate.py` (and the port) refused a file for good after a run killed while archiving its
+markers once one old backup had moved: the backups left were fewer than the records written. A file is now refused
+only when a backup's owner holds no record (OPFOR `mm1-migrate` a2d6d69: `test_an_interruption_at_every_marker_move_resumes`
+fails without the fix, passes with it).
+
+### Proof on scratch copies (never `game\`)
+
+The author's game copy's affected files - the 23 files with markers from before the ledger and their markers, the 5
+WW2 level folders, the main menu bundle and its marker: 182 files, 4.19 GB - copied twice with their write times into a
+temporary folder (A, B).
+
+- **The migration, Rust against OPFOR's Python**: `bfbc2 mods migrate` on A, OPFOR's `migrate.py` on B: the plans'
+  36 lines identical (23 files, 23 migratable, 0 refused), the applies' lines identical, then 288 files of each copy
+  (game files, ledger records less their id and time, blobs, archived markers) identical, write times included.
+  3.9 s against 3.8 s.
+- **Round trips on A**, compared with B (untouched after its migration) file by file, bytes and write times:
+
+  | Operation (then enable) | Mods taken | Game files after the enable |
+  |---|---|---|
+  | `disable ww2` (refused without `--yes`: nothing written) | ww2, pacific-menus | identical (2.4 s / 1.0 s) |
+  | `disable onslaught` | the 6 Onslaught mods, ww2, pacific-menus | identical (24 s / 32 s: 41 layers on 40 MB bundles, each a journalled commit) |
+  | `disable pacific-menus`, `disable base` | as named; base takes onslaught, ww2, pacific-menus | identical |
+  | `disable vietnam` | vietnam, pacific-menus; opfor.ini `vietnam=0` | identical bytes (opfor.ini rewritten twice: its write time new) |
+  | `restore-original --all` | every mod but vietnam | the 22 ledger files each its original's sha256, no WW2 folder; identical after `enable ww2` (the whole group) |
+  | `restore-original Dist/win32/package.mft` | the file's 3 layers | DICE's file; `enable ww2 --only` refused in words first; identical after base, onslaught, ww2 |
+
+- **A real kill at every write step** (`BC2_MODS_CRASH_AT`, `bfbc2.exe` ended with exit 9): `disable ww2` has 55 write
+  steps (the journal, 2 kept records, the restate, 2 ledger commits, 30 level files moved, ...), `enable ww2` 72; killed
+  before each, then `bfbc2 mods resume` and the command again: every disabled state the uninterrupted one's (bytes),
+  every enable back to B, bytes and write times; no lock left.
+- **Uninstall** (`uninstall ww2 --yes`): wake's and minimap-edges' files back, the 5 folders and their kept copies gone,
+  `manifestfix` kept, `verify` 18 checked, 0 problems. Against OR1's opt-out (`bfbc2 install revert` with the last
+  install plan, its paths moved onto a third copy C of B): 23 game files, 21 identical; the 2 others are the WW2 content
+  the opt-out leaves - `minimap-edges`' layer on the startup bundle (a WW2 install of 2026-11-12, migrated as its own
+  owner, which `install revert` does not revert) and the Pacific menus (`menu_install.py --revert`'s, outside OR1).
+- **The hub's Mods tab** on A (`BFBC2_MODS_GAME`): the list, Disable / Enable of `onslaught:ons_mp_008` through the
+  tab's methods, the migration's plan.
+- **The real game copy**: 1,582 files, every path, size, write time and sha256 the same before and after the round.
+
+### Tests
+
+- `bc2-install` `tests/mods.rs` (16: every mod's round trip byte for byte and time for time on a fake game copy, the
+  confirmations, the refusals, restore-original per file and whole, the setting, the ini carry-over, uninstall, verify,
+  a held lock, the migration and its resume; an in-process kill at every step of a disable, an enable, a
+  restore-original, a setting and the migration), the unit tests (`catalog`, `ini`, `migrate`); `bc2-cli`
+  `tests/mods.rs` (the command lines' exit codes; a real kill at every step of a disable and of an enable);
+  `bc2-gamefs` as before. clippy `--all-targets -D warnings` on bc2-gamefs, bc2-install, bc2-cli; every tool group of
+  `bfbc2.exe` alone (18, `mods` new, in CI's list); `fmt`.
+- OPFOR (`mm1-migrate`): opforcore 84 of 84 (6 skipped: no game copy in a worktree).
+
+### Left
+
+- The editor's Help > Diagnostics entry: waits for IN1's doctor.
+- One map editor export disabled while the others stay: the shared files are one owner's patch for every export
+  (`mapedit`), so `mapedit` goes as a whole; per level needs `mapedit_install.py`'s rebuild or IN1's slots.
+- A kept layer goes back only on the file it was built on (a settings file excepted): re-basing a bundle or a
+  registration text onto a changed file is IN1's registration slots.
+- `mods install ww2` (the staged plan through `bfbc2 install apply --staged`) and `mods install onslaught:<level>`
+  (OPFOR's `console_port.py`) hand over to the installers; neither was run here (they write the real game copy).
+- In game: nothing played (in-game tests paused); the write times of the DLL's markers are kept by construction.
+## OR3a: OPFOR in Rust, stage 3a - the shader Merger (2026-11-22, branch `or3a`, with Project OPFOR's `or3a`)
+
+### What moved
+
+The Python `shaderdb.Merger` (audit AU3 AR-5, ARC-9; found too big for QW2) is retired. `bc2_formats::shaderdb::merge`
+had `add_donor` and `finish` (round SD1's command-line merge, XF1's export); it now also has:
+
+- `clone_entry` / `clone_entry_from_self`: the Python `clone_entry` rule for rule - the checks first (the entry, each
+  program's indices, record lengths, new ids, fragments, layouts, the texture renames against both parameter blocks),
+  with the same messages and order, then the programs with ids MD5(new name + old id), keys naming the new entry and
+  retextured blocks; atomic.
+- `retexture` (simultaneous, whole-name renames in a field's span; hits counted only when every rename fits),
+  `name_guid`.
+- `add_part` / `add_part_from_self`, `add_donor_kept`.
+- Donors with a lifetime of their own: what a merge takes from a donor read for one call (records, shaders, layouts,
+  fragment and entry GUIDs, keys) is copied into a `Store`; a donor that lives as long as the file (`add_donor`: the
+  command line, the export) is still borrowed.
+
+`bc2_native.ShaderMerger` (`rust/bc2-py/src/shaderdb_merge.rs`), made by `shaderdb.merger(base, need, all_names)`,
+holds the merger and its arena (bumpalo) in one value (self_cell) with a copy of the base. It keeps the Python
+merger's contract with the base, which OPFOR relies on: every record a call adds is appended to the base's own lists
+at once (OPFOR reads `base.entries`, `base.layouts` and `entry_textures(base, ...)` between calls in `_autoclone`,
+`register_parts`, `wake_translate.add_foreign_entries`), the programs, keys and groups replaced at `finish`; a donor
+that *is* the base reads the base as merged so far (the Python's `donor.entries` held the new entries while its
+`groups` did not: a clone of an entry cloned earlier in the same merge has no programs - kept for parity, see
+below). Donors: read from `to_bytes()`, the last 4 kept, each known by its object (a weak reference: the merger keeps
+no donor alive, so `wake_shaders --clone`'s one-level-at-a-time reading still frees each level) and a stamp of its
+section lists and items by identity (a donor changed between calls is read again). `shaderdb.merge` (the
+`add_donor` loop) runs on it.
+
+Project OPFOR: the 21 sites (`wake_install` 10, `wake_translate` 2, `wake_shaders`, `ww2_level_build`,
+`detail_layers`, `minimap_edges`, `rg_projectiles`, `shingunto`, `type100`, `type38`, `console_markv`) call
+`S.merger(base)`; `test_ww2_billboards` patches `merger`.
+
+### Proof
+
+- **The Python merger's recorded answers** (`bfbc2-shader-tools/tests/test_shaderdb_merge.py`): recorded from
+  `shaderdb.Merger` at `8ce3cd9` before the deletion (loaded beside the checkout's `shaderdb.py`), then answered by
+  the Rust merger: each call's value or error (type and message), then the base's bytes and the merger's lists
+  (added, report, conflicts, part_conflicts, shared_programs, entry_names, part_names) after every call, the merged
+  bytes and the donors' (unchanged) after `finish`.
+  - built Dx9 / Dx10 / Dx11 / Xbox 360 databases: clones with a swap and a chain of renames, from the base itself
+    and of an entry cloned in the same merge, every refusal; parts (new, again, another layout, no layout, from the
+    base); donors with shared and conflicting programs and part conflicts, `all_names`; a kind mismatch; the program
+    limit at 0xfffe + 1 / + 2;
+  - damaged donors (11 kinds): program indices, a parameter block index and entry groups past their tables, keys
+    naming fragments / layouts no file has, a duplicated program, two entries of a name, a fragment named twice; and
+    three a file cannot hold (a shader's table past its end, a short key, a short program);
+  - 240 seeded random cases (random kinds, entries, textures, damage and 2-9 calls each).
+
+  **271 cases, 1,709 calls: identical**, but for three kinds of answer decided against the Python (each allowed by
+  name in the comparison): an `IndexError`'s message (the Python's was Python's own), a name that is not latin-1
+  (`ShaderDbError` in words; the Python raised `UnicodeEncodeError`), and a donor only memory holds (read from its
+  bytes and refused whole with a `ShaderDbError`; for those cases only `clone_entry` is compared - the Python took
+  the layouts and entries of such a donor as far as they went).
+  The game copy (`--game`): ONS_MP_008 with 12 of mp_008cq's entries cloned (swapped or shortened texture names), 4
+  of its own entries cloned from itself, 20 part layouts and the flags' `add_donor`, Dx9 / Dx10 / Dx11: **3 cases,
+  114 calls identical**.
+- Rust tests (`merge.rs`): retexture's renames, a clone's ids / keys / textures, every refusal adding nothing, the
+  self clone's empty entry, parts, a donor dropped after its calls.
+- Only the Rust merger (`native_only`): the base holds a new entry before `finish`, a donor changed between calls is
+  read again, no donor is kept alive, a part name that is not latin-1 is refused with nothing added, no call after
+  `finish`.
+- **WW2 rebuild**: OPFOR's main checkout on its branch `or3a` (the 21 sites moved; 6d8a98f), `OPFOR_TOOLKIT`
+  a scratch folder of junctions (`bfbc2-tool-suite` to this worktree with its fresh `bc2_native.pyd` and `bin\bfbc2.exe`,
+  version 0.18.0; `bf1943-tool-suite`, `operation-rising-sun`), `--jobs 2`: all 55 steps in 18.9 min (the 3 level
+  chains side by side in 410 s; other rounds building beside it). `compare_oracle`: **10,852 of 10,852 identical**
+  (differ 0, missing 0, extra 0); `qa_checks.py` passed. The steps that merge: `wake_shaders` (10 s), `detail_layers`
+  (14 s), `wake_shaders --clone` (59 s), the weapon ports' dry runs, `wake_translate`, `minimap_edges` and the level
+  builds' shaders steps.
+- **Install oracle**: `wake_install.py --plan` (the coordinator's conditions: its code path read first - the build stages under
+  `work\ww2`, `bfbc2 install plan` writes nothing, the game copy has no ledger to roll back - and the game copy's 1,582
+  files, 11.6 GB, hashed with path, size, time and sha256 before the rebuild and after the plan: identical), 6.7 min:
+  `compare_oracle --install` **21,197 of 21,197 identical** - wake_install's 10 merges (undergrowth stand-ins, tree
+  billboards, the clone lists, the partly covered meshes, terrain materials, autoclone's two passes, the edge
+  half-instancing re-sort, part registration, grafts, layout fixes) on all four levels.
+
+### Timings
+
+The game cases' calls alone (ONS_MP_008 + mp_008cq: 12 clones, 4 clones from the base, 20 parts, one donor,
+`finish`; best of 3, the loads left out): Python merger 0.23 / 0.23 / 0.24 s (Dx9 / 10 / 11), Rust 0.15 / 0.36 /
+0.20 s. At this size the calls are not where the time goes: the Rust merger reads the base and each donor through
+`to_bytes()` and a parse, and appends what it adds to the base's Python lists, which costs what the Python's indexing
+cost. The gain is memory and one implementation (the command line, the export and OPFOR's 21 sites on the same
+code); OPFOR's merging steps took the same time in the rebuild as in PR1b-2's.
+
+### Decided, and found
+
+- **A clone of an entry cloned in the same merge has no programs.** The Python read `base.entries` (the new entry
+  there) and `base.groups` (its programs not yet) - an entry that draws nothing. Kept for the oracle; OPFOR's
+  `_autoclone` can reach it (a material found among `m.entry_names` and cloned from the base in the same pass). Left
+  for a DICE decision (PY1): refuse it, or finish before the second pass's clones.
+- The level cover index stays Python: its pickle cache is one of the caches PR1b-2-rest gives content keys
+  (`shadercover`); moving it now would change the cache format twice. `retexture` stays Python (OPFOR's own block
+  edits in `wake_terrain` / `ww2_char_shaders`; the merge's is the Rust one).
+
+### Tests
+
+- `cargo test -p bc2-formats`: 190 unit tests (6 new in `merge.rs`) and the integration tests pass; clippy
+  `--all-targets -D warnings` on bc2-formats, bc2-py, bc2-cli, bc2-levelwrite; each of `bfbc2.exe`'s 17 tool groups
+  alone (`--no-default-features --features <g>`): clean.
+- `test_shaderdb_merge.py` (quick, and `--game`), `test_shaderdb.py` (its clone and merge checks on the new merger;
+  the program-limit check moved to the merge test's real 0xfffe cases).
+- `python run_tests.py quick -j 2`: 131 of 131 passed in 1,452 s (the new `shaderdb-merge` entry 1.4 s), O2 among them.
+- `spec/trace.py --check`: 1,247 rules (SHDB-LVL-3 new: a cloned entry); ruff and mypy clean on the changed Python.
+- Project OPFOR (`or3a`): OPFOR's quick tests from a worktree of `or3a` with this suite (`OPFOR_TOOLKIT`): 361 passed, 6 failed, 8 skipped. The 6 are the worktree's: 4 need the game copy and `work\` (a worktree has neither: `nam_common` and the loading pictures missing), and `test_types` onslaught / ww2 run mypy with `pyproject.toml`'s `mypy_path` fixed at `..\bfbc2-tool-suite` (main, 0.17.0, no `shaderdb.merger`); mypy with that path pointed at this worktree: onslaught 20 files and ww2 82 files, no issues. `test_ww2_billboards` (the patched `merger`) and every merging test pass. ruff clean on the changed files.
+
+### What is left
+
+- The level cover index (`level_cover_prefixes`, `donor_levels`) with PR1b-2-rest's content keys; `retexture`'s
+  Python twin; the rest of stage 3 (OPFOR's shader glue in `wake_shaders` / `wake_translate` / `ww2_char_shaders`).
+- The self-clone accident above (PY1).
+## CI1: GitHub's checks green (2026-11-22, branch `ci1`)
+
+GitHub's `checks` run (`python run_tests.py quick --no-game --ci-steps -j 2` on windows-latest) failed five entries
+on f4071e3. Their causes, found by reproducing the runner on the development PC: a fresh `git clone` on another drive
+(`subst Q:`) than an 8.3-short TEMP on C:, no Project OPFOR above it, no `OPFOR_` / `BFBC2_` / `BC2_` / `BF1943_`
+variables, no ffmpeg on PATH, CI's variables, and `OPENBLAS_CORETYPE=Haswell`. That simulation failed the same five
+entries with the same counts as the runner's annotations (routes 4950 of 10000, texture.check 1090 of 1200).
+
+| Entry | Root cause | Fix |
+|---|---|---|
+| green crates (`test_rust_skip.py`) | `os.path.relpath` across drives raises (checkout D:, stand-in workspace in TEMP on C:) | `test_rust._input_name`: falls back to the checkout |
+| O5 stockmp | validate's log records name the temporary folder: the PC's long path recorded, the runner's 8.3 `RUNNER~1` | `<temp>` in long and short spellings; goldens rewritten |
+| F2a texture.check | `np.corrcoef` is a BLAS dot: OpenBLAS's kernel (SkylakeX here, Haswell / Zen there) changes its last bits | exact correlation in the core; 135 + 744 answers re-recorded |
+| E3o routes | `Route.straight` was `np.linalg.norm` (a BLAS `ddot`), same cause | the estimate's formula (`navpath.distance`) |
+| O3 audio | ffmpeg missing on the runner | not this round's: PR1b-1c's Rust XMA2 decoder |
+
+The OpenBLAS kernel is the root cause, not the C runtime: NumPy 2.5's own float64 ufuncs dispatch only up to X86_V3 on
+Windows (no AVX-512 / SVML paths), and `np.exp` / `log` / `log10` / `sin` / `cos` / `arctan2` / `power` / `hypot` /
+`tanh` / `arccos` gave the same bits with AVX-512 disabled; `np.corrcoef` (random integer arrays) and `np.linalg.norm`
+of 200,000 random 3-vectors changed bits with `OPENBLAS_CORETYPE` (SkylakeX = this PC's default; Haswell = Zen;
+Prescott, Nehalem each different). The Rust module imports from the C runtime only `fma`, `pow`, `powf`, `atan2`,
+`atan`, `sin`, `cos` and `fmod` (its import table); `fma` (f64::mul_add without the `fma` target feature) defined
+NavKit's route estimate, now `libm::fma`. None of the others reached a failing entry.
+
+Re-recording: `texture.check_reference`'s replayed answers were rewritten only where the exact correlation differs
+from the recording, and each rewritten answer was first proven to be the old recording with NumPy's corrcoef put back
+(the worst, same and total unchanged): 135 of 1,192 quick answers, 744 of 8,582 game answers (a texture against
+itself: exact 1.0 where this PC's OpenBLAS gave a value a few units in the last place from it). The recorded routes
+did not change: the estimate's formula is np.linalg.norm's bits on the recording PC.
+
+### Tests
+
+- The runner simulation on the branch: 123 of 124, the one failure O3's audio group (182 lines; PR1b-1c's).
+- `run_tests.py quick -j 2` in the worktree: 129 of 130; the one failure `dbx-write-native`'s DbxEdit round trip
+  reading a work\ww2 file another round's WW2 rebuild was rewriting at the time (the entry passes alone).
+- texture.check with `OPENBLAS_CORETYPE` default, Haswell and Prescott: 1,200 of 1,200, 0 wrong replays each; E3o's
+  routes 10,000 of 10,000 with default and Haswell; O5 stockmp 73 of 73; green crates with TEMP on another drive.
+- cargo fmt; clippy `--all-targets -D warnings` on bc2-convert, bc2-navbuild, bc2-py, bc2-cli and each of
+  bfbc2.exe's 17 tool groups alone; cargo test of those crates (texcheck's new `correlation_exact` among them);
+  ruff, mypy; `spec/trace.py --check` (XCONS-PAR-2 new).
+
 ## PR1b-1c: sounds decoded in Rust, content keys, the export's one walk (2026-11-22, branch `pr1b1c`)
 
 What PR1b-1-rest left (above, "What is left"): items 1, 3 and 4 done, item 2 not started (left, below).

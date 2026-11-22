@@ -16813,7 +16813,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:165-200"
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:275-306"
     },
     {
      "kind": "code",
@@ -16822,6 +16822,39 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ]
+  },
+  {
+   "id": "SHDB-LVL-3",
+   "title": "A cloned entry is the donor's under a new name",
+   "file": "spec/formats/shaderdb.md",
+   "status": "implemented",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:123-201"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:697-863"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:918-950"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_renames_ids_keys_and_textures"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_refusals_add_nothing"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb_merge.py::main"
     }
    ]
   },
@@ -20921,6 +20954,38 @@
    ]
   },
   {
+   "id": "XCONS-PAR-2",
+   "title": "Recorded measures are the same bits on every machine",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texcheck.rs:162-196"
+    },
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/navpath.py:89-93"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/astar.rs:26-33"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texcheck.rs::correlation_exact"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_e3o_native.py::quick_navpath"
+    }
+   ]
+  },
+  {
    "id": "XCONS-STG-1",
    "title": "Fourteen stages in a fixed order",
    "file": "spec/transforms/console.md",
@@ -22111,6 +22176,242 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-1",
+   "title": "A mod is the installs its tools name",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/catalog.rs:1-230"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/mods/catalog.rs::owners_map_to_mods"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/mods/catalog.rs::groups_select_their_levels"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::the_list_names_every_mod"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-2",
+   "title": "Disable keeps what each layer wrote; enable puts it back byte for byte, on what it was built on",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/plan.rs:379-580"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/plan.rs:662-820"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/mod.rs:691-890"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-gamefs/src/ledger_part.rs:29-150"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::disable_and_enable_ww2_round_trip_byte_for_byte"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::a_settings_edit_made_while_a_mod_is_out_is_carried_onto_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/mods/ini.rs::rebase_carries_the_edits_made_since"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/mods/ini.rs::owned_keys_alone_go_back"
+    },
+    {
+     "kind": "data",
+     "ref": "round MM1 scratch proof, 2026-11-22: ww2, onslaught, pacific-menus, base and vietnam each disabled and enabled on a scratch copy of the author's game copy's 182 affected files: every game file identical to the copy before, bytes and write times (opfor.ini's write time new after the setting)"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-3",
+   "title": "What is built on a mod goes first, with a confirmation; it comes back with it",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/plan.rs:267-313"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/plan.rs:587-660"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::disabling_onslaught_takes_what_was_built_on_it_first"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/tests/mods.rs::the_command_lines_and_their_exit_codes"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-4",
+   "title": "restore-original gives DICE's files back and keeps the installs",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/plan.rs:825-912"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::restore_original_all_gives_dices_files_and_enable_gives_the_mods_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::restore_original_of_one_file_keeps_the_owners_other_files"
+    },
+    {
+     "kind": "data",
+     "ref": "round MM1 scratch proof: restore-original --all left each of the 22 ledger files with its original sha256 and no WW2 level folder; enable gave every file back, bytes and write times"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-5",
+   "title": "A setting is set through every state the ledger keeps",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-gamefs/src/ledger_part.rs:213-320"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/mod.rs:891-945"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::vietnam_is_set_through_every_layer_and_kept_copy"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-6",
+   "title": "An operation interrupted at any step is finished by the next command",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/mod.rs:600-690"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_a_disable_is_finished"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_an_enable_is_finished"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_restore_original_is_finished"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_a_setting_is_finished"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/tests/mods.rs::a_real_kill_at_every_step_of_a_disable"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/tests/mods.rs::a_real_kill_at_every_step_of_an_enable"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-7",
+   "title": "Uninstall drops the kept copy; the WW2 opt-out keeps the manifest repair",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/plan.rs:210-265"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/mod.rs:947-990"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::uninstall_drops_the_kept_copy_and_keeps_the_manifest_repair"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-8",
+   "title": "verify checks every file the ledger holds, the level folders and the kept copies",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/verify.rs:52-280"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::verify_finds_a_changed_file_and_a_damaged_kept_copy"
+    }
+   ]
+  },
+  {
+   "id": "XINST-MOD-9",
+   "title": "The migration in the suite is OPFOR's, and resumes from any interruption",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/mods/migrate.rs:123-560"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/opforcore/migrate.py:138-146"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::migrate_plans_applies_resumes_and_reverts_to_the_backups"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/mods.rs::a_kill_at_every_step_of_the_migration_is_finished"
+    },
+    {
+     "kind": "data",
+     "ref": "round MM1: two scratch copies of the author's 182 affected files, one migrated by OPFOR's migrate.py, one by bfbc2 mods migrate: the plan's 36 lines and the apply's lines identical, 288 files (game files, records less their id and time, blobs, archived markers) identical with their write times"
     }
    ]
   },
