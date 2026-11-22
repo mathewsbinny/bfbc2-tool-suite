@@ -128,7 +128,7 @@ pub(crate) fn gunzip_all(data: &[u8]) -> Result<Vec<u8>> {
 
 /// The length of the gzip member header at the start of `data` as zlib's inflate reads it (`Ok(None)`: not all of
 /// it is there yet).
-fn zlib_header(data: &[u8]) -> Result<Option<usize>> {
+pub(crate) fn zlib_header(data: &[u8]) -> Result<Option<usize>> {
     match data.get(..2) {
         None => return Ok(None),
         Some(m) if m != [0x1F, 0x8B] => return Err(gzip_err("incorrect header check")),

@@ -10,23 +10,30 @@
 //! - **in this process**: the payload decompressed so far, with the inflater's state ([`Session`]), so a later
 //!   read inside it is a copy and one past it continues where the last stopped; up to [`CacheConfig::memory`]
 //!   bytes of them, the least recently used dropped first;
-//! - **on disk, shared by every process**: the whole decompressed payload of a large bundle (from
+//! - **on disk, shared by every process**: the restart points of a large bundle's payload (from
 //!   [`CacheConfig::disk_min`] compressed bytes) that has been read before (by any process: a marker file is left at
-//!   the first read), written once in full and then read with a seek. The files live in
-//!   [`CacheConfig::folder`], `%LOCALAPPDATA%\bfbc2-tool-suite\cache\fbrb` by default, up to
-//!   [`CacheConfig::disk_cap`] bytes, the least recently used deleted first.
+//!   the first read), a `.points` file ([`crate::restart`], round PR1b-1-rest): a read seeks into the bundle's own
+//!   compressed bytes and inflates at most a span (1 MiB) per entry, the decoded spans kept within
+//!   [`CacheConfig::memory`]. A points file is about 3 % of the payload it serves (the whole decompressed payloads it
+//!   replaced, `.payload` files, filled the 16 GiB cap). The files live in [`CacheConfig::folder`],
+//!   `%LOCALAPPDATA%\bfbc2-tool-suite\cache\fbrb` by default, up to [`CacheConfig::disk_cap`] bytes, the least
+//!   recently used deleted first.
 //!
-//! Every layer is keyed by the bundle's [`Identity`]: its canonical path, length, modification and creation times,
-//! taken from the open file the read uses, so a bundle replaced or rewritten is a different bundle, and a cache file
-//! repeats the identity in its own header, checked before use. Cache files are written beside their final name and
-//! moved over it ([`crate::atomic::replace`]), so a reader in another process sees a whole file or none.
+//! The memory layers are keyed by the bundle's [`Identity`]: its canonical path, length, modification and creation
+//! times, taken from the open file the read uses, so a bundle replaced or rewritten is a different bundle. A points
+//! file is keyed by the payload's **content** (`ContentKey`: the bundle's length and header bytes, the payload's
+//! first bytes and the gzip trailer's CRC-32 and length), so every copy of the same bundle (a level's `Dist` and
+//! `Package` copies) shares one; each span read is checked against the CRC-32 recorded when the points were made, so
+//! bytes that changed are refused (the read falls back to decompressing), never answered as other bytes. Cache files
+//! are written beside their final name and moved over it ([`crate::atomic`]), so a reader in another process sees a
+//! whole file or none.
 //!
-//! **Superseded payloads** (round QW1, audit AU2 S1): a bundle rewritten at the same path (an install, a scratch
-//! copy) is a new identity, and its old payload can never be read again; nor can a deleted bundle's (a temporary
-//! folder's). Writing a bundle's payload deletes the other payloads of the same canonical path
-//! ([`drop_superseded`]); [`superseded`] lists every payload of a folder whose bundle was rewritten or deleted, for
-//! the caches tool's `--prune` (`bfbc2core.caches`, `bfbc2 caches`). (The audit's "28 bundle names with 2-3
-//! payloads" were mostly two bundles each - a level's `Dist` and `Package` copies -, both current.)
+//! **Superseded points** (round QW1, audit AU2 S1): a bundle rewritten at the same path (an install, a scratch copy)
+//! with other bytes has other points, and the old ones serve no read made through that path again; nor do a deleted
+//! bundle's (a temporary folder's). Writing a bundle's points deletes the other points files made from the same
+//! canonical path ([`drop_superseded`]); [`superseded`] lists every points file of a folder whose bundle was
+//! rewritten or deleted, and every `.payload` file of the retired format, for the caches tool's `--prune`
+//! (`bfbc2core.caches`, `bfbc2 caches`).
 //!
 //! **The same results.** The reference reads the payload 1 MiB of compressed bytes at a time, from the start, until
 //! the decompressed bytes reach the end of the last entry asked for; an error in any chunk it reads is raised, and
@@ -36,11 +43,13 @@
 //! would not gets its bytes. A payload goes to disk only once its whole stream has been read with its checksum and
 //! length checked: every chunk is then valid, so any read of it is a copy (or [`FbrbError::PayloadEnds`] past its
 //! end), as the reference's would be. A bundle whose stream fails is never written; its reads keep the session's
-//! rules. Stored (unzipped) payloads need none of this: [`super::read_payload`] seeks to each entry.
+//! rules. Stored (unzipped) payloads need none of this: [`super::read_payload`] seeks to each entry. The points are
+//! made by a pass over the whole stream with zlib-rs's `Z_BLOCK` stops (the same inflater, the same header and
+//! trailer checks), so a stream either the reference or that pass refuses is never written.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{self, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
@@ -50,6 +59,7 @@ use super::error::{FbrbError, Result};
 use super::gzip::Member;
 use super::header::{Entry, Header, read_header};
 use super::read::{CHUNK, Collector, read_full, read_payload};
+use crate::restart::{self, Index, Spans};
 
 /// How many bundle headers a process keeps.
 pub const HEADERS: usize = 64;
@@ -71,10 +81,15 @@ pub const DEFAULT_DISK_MIN_MB: u64 = 8;
 /// The default in-process budget, MiB.
 pub const DEFAULT_MEMORY_MB: u64 = 128;
 
-/// A cache file's first bytes (the format's version is in them).
-const MAGIC: &[u8; 8] = b"BC2FBPL1";
-/// A temporary file written to this recently is another writer at work: a reader does not write the bundle too.
-const BUSY: Duration = Duration::from_secs(60);
+/// A points file's first bytes (the format's version is in them).
+const MAGIC: &[u8; 8] = b"BC2FBPT1";
+/// The points files' extension.
+const POINTS: &str = "points";
+/// The retired whole-payload files' extension (format `BC2FBPL1`, before round PR1b-1-rest): never read, listed by
+/// [`superseded`], counted and trimmed with the points files.
+const LEGACY: &str = "payload";
+/// Points files a process keeps parsed.
+const INDEXES: usize = 256;
 /// Temporary files older than this are a writer that died: deleted when the cache is trimmed.
 const STALE_TMP: Duration = Duration::from_secs(3600);
 /// Markers older than this are forgotten when the cache is trimmed.
@@ -142,7 +157,7 @@ impl CacheConfig {
 pub struct CacheStats {
     /// Reads of zipped payloads through the cache.
     pub reads: u64,
-    /// Reads answered from a payload on disk.
+    /// Reads answered through a points file on disk.
     pub disk_hits: u64,
     /// Reads answered from a session's bytes without decompressing anything.
     pub memory_hits: u64,
@@ -150,9 +165,9 @@ pub struct CacheStats {
     pub decompressed_reads: u64,
     /// Payload bytes decompressed.
     pub decompressed_bytes: u64,
-    /// Payloads written to disk, and their bytes.
+    /// Points files written to disk.
     pub written: u64,
-    /// The bytes of the payloads written.
+    /// The bytes of the points files written.
     pub written_bytes: u64,
     /// Headers answered from memory.
     pub header_hits: u64,
@@ -232,6 +247,50 @@ impl Identity {
         let name: Vec<&str> = parts.iter().rev().map(String::as_str).collect();
         format!("{}-{h:016x}", name.join("_").to_ascii_lowercase())
     }
+}
+
+/// A payload's identity by content, for its points file: the bundle's length, where its payload starts, the
+/// SHA-1 of its first 64 KiB (the header and the payload's start) and its last 8 bytes (the gzip trailer's CRC-32 and
+/// length when the member ends the file). Every copy of the same bundle has the same key; the CRC-32 of each span,
+/// checked on every read, catches bytes that differ anyway.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ContentKey {
+    bytes: Vec<u8>,
+    /// FNV-1a of the bytes: the points file's name and the decoded spans' key.
+    hash: u64,
+}
+
+impl ContentKey {
+    fn of(f: &mut File, len: u64, payload_start: u64) -> io::Result<Self> {
+        let mut head = vec![0u8; len.min(1 << 16) as usize];
+        f.seek(SeekFrom::Start(0))?;
+        f.read_exact(&mut head)?;
+        let mut tail = [0u8; 8];
+        if len >= 8 {
+            f.seek(SeekFrom::Start(len - 8))?;
+            f.read_exact(&mut tail)?;
+        }
+        let mut sha = sha1_smol::Sha1::new();
+        sha.update(&head);
+        let mut bytes = b"fbrb points v1".to_vec();
+        bytes.extend(len.to_le_bytes());
+        bytes.extend(payload_start.to_le_bytes());
+        bytes.extend(restart::SPAN.to_le_bytes());
+        bytes.extend(sha.digest().bytes());
+        bytes.extend(tail);
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in &bytes {
+            h = (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
+        }
+        Ok(Self { bytes, hash: h })
+    }
+}
+
+/// A points file read: where the deflate data starts after the payload's start (the gzip header's length), and the
+/// points.
+struct Points {
+    header_len: u64,
+    index: Index,
 }
 
 /// How a session's stream stands.
@@ -403,12 +462,17 @@ struct State {
     no_disk: HashSet<Identity>,
     /// Cache files whose time this cache has refreshed (once each).
     touched: HashSet<PathBuf>,
+    /// The content keys of the bundles read (by identity).
+    keys: HashMap<Identity, ContentKey>,
+    /// Points files parsed, the most recently used last (at most [`INDEXES`]).
+    indexes: VecDeque<(u64, Arc<Points>)>,
+    /// The content keys whose points are known to be in the disk cache's folder (written or checked).
+    on_disk: HashSet<u64>,
     stats: CacheStats,
 }
 
 static GLOBAL: OnceLock<Cache> = OnceLock::new();
 static TICK: AtomicU64 = AtomicU64::new(0);
-static TMP: AtomicU64 = AtomicU64::new(0);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
@@ -446,89 +510,108 @@ pub fn reset_stats() {
     global().reset_stats();
 }
 
-/// The bytes of the payloads in the disk cache's `folder`, and their count.
+/// The bytes of the cache files (points, and any retired payloads) in the disk cache's `folder`, and their count.
 #[must_use]
 pub fn disk_usage(folder: &Path) -> (u64, usize) {
-    let files = payload_files(folder);
+    let files = cache_files(folder);
     (files.iter().map(|f| f.1).sum(), files.len())
 }
 
-/// The identity a payload file's header names (`None`: not a payload file of this format, or damaged).
-fn payload_identity(file: &Path) -> Option<Identity> {
-    let mut f = File::open(file).ok()?;
-    let mut head = [0u8; 20];
-    f.read_exact(&mut head).ok()?;
-    let (magic, rest) = head.split_at(8);
-    if magic != MAGIC {
+/// A points file's header: (the content key's bytes, the identity of the bundle it was made from, where its points
+/// start in the file). `None`: not a points file of this format, or damaged.
+fn points_head(data: &[u8]) -> Option<(Vec<u8>, Identity, usize)> {
+    let rest = data.strip_prefix(MAGIC.as_slice())?;
+    let key_len = u32::from_le_bytes(rest.get(..4)?.try_into().ok()?) as usize;
+    let key = rest.get(4..4 + key_len)?.to_vec();
+    let at = 4 + key_len;
+    let id_len = u32::from_le_bytes(rest.get(at..at + 4)?.try_into().ok()?) as usize;
+    let id = rest.get(at + 4..at + 4 + id_len)?;
+    if id_len < 44 {
         return None;
     }
-    let key_len = u32::from_le_bytes(rest.get(8..12)?.try_into().ok()?) as usize;
-    if !(44..=44 + 32_768).contains(&key_len) {
+    let len = u64::from_le_bytes(id.get(..8)?.try_into().ok()?);
+    let modified = u128::from_le_bytes(id.get(8..24)?.try_into().ok()?);
+    let created = u128::from_le_bytes(id.get(24..40)?.try_into().ok()?);
+    let path_len = u32::from_le_bytes(id.get(40..44)?.try_into().ok()?) as usize;
+    let path = String::from_utf8(id.get(44..44 + path_len)?.to_vec()).ok()?;
+    if 44 + path_len != id_len {
         return None;
     }
-    let mut key = vec![0; key_len];
-    f.read_exact(&mut key).ok()?;
-    let len = u64::from_le_bytes(key.get(..8)?.try_into().ok()?);
-    let modified = u128::from_le_bytes(key.get(8..24)?.try_into().ok()?);
-    let created = u128::from_le_bytes(key.get(24..40)?.try_into().ok()?);
-    let path_len = u32::from_le_bytes(key.get(40..44)?.try_into().ok()?) as usize;
-    let path = String::from_utf8(key.get(44..44 + path_len)?.to_vec()).ok()?;
-    (44 + path_len == key_len).then(|| Identity {
+    let identity = Identity {
         path: PathBuf::from(path),
         len,
         modified,
         created,
-    })
+    };
+    Some((key, identity, 8 + at + 4 + id_len))
 }
 
-/// The payload files of `folder` no read can use again (round QW1): those whose bundle was rewritten (the file at
-/// their header's path has another identity now) or deleted (nothing is at that path). A bundle that is there but
-/// cannot be opened (held by another program) keeps its payloads, and a file that is not a readable payload of this
-/// format is never listed.
+/// The key and source identity a points file's header names (only the header is read).
+fn points_identity(file: &Path) -> Option<(Vec<u8>, Identity)> {
+    let mut f = File::open(file).ok()?;
+    let mut head = vec![0u8; 1 << 16];
+    let n = read_full(&mut f, &mut head).ok()?;
+    head.truncate(n);
+    let (key, id, _) = points_head(&head)?;
+    Some((key, id))
+}
+
+/// The cache files of `folder` no read can use again (round QW1): every retired `.payload` file, and the points
+/// files whose bundle was rewritten with other bytes (the file at their header's path has another content key now)
+/// or deleted (nothing is at that path). A bundle that is there but cannot be opened (held by another program) keeps
+/// its points, and a file that is not a readable points file of this format is never listed.
 #[must_use]
 pub fn superseded(folder: &Path) -> Vec<PathBuf> {
-    let mut by_path: HashMap<PathBuf, Vec<(PathBuf, Identity)>> = HashMap::new();
-    for (file, _, _) in payload_files(folder) {
-        if let Some(id) = payload_identity(&file) {
-            by_path.entry(id.path.clone()).or_default().push((file, id));
+    let mut by_path: HashMap<PathBuf, Vec<(PathBuf, Vec<u8>)>> = HashMap::new();
+    let mut out = Vec::new();
+    for (file, _, _) in cache_files(folder) {
+        if file.extension().is_some_and(|x| x == LEGACY) {
+            out.push(file);
+        } else if let Some((key, id)) = points_identity(&file) {
+            by_path.entry(id.path.clone()).or_default().push((file, key));
         }
     }
-    let mut out = Vec::new();
     #[allow(
         clippy::iter_over_hash_type,
-        reason = "the stale files to delete; the order of deleting cannot show"
+        reason = "the stale files to delete, sorted below; the order of deleting cannot show"
     )]
     for (bundle, files) in by_path {
-        match File::open(&bundle).and_then(|f| Identity::of(&bundle, &f)) {
-            Ok(now) => out.extend(files.into_iter().filter(|f| f.1 != now).map(|f| f.0)),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => out.extend(files.into_iter().map(|f| f.0)),
-            Err(_) => {}
+        let now = File::open(&bundle).map_err(FbrbError::Io).and_then(|mut f| {
+            let id = Identity::of(&bundle, &f)?;
+            let header = read_header(&mut f)?;
+            Ok(ContentKey::of(&mut f, id.len, header.payload_start)?)
+        });
+        match now {
+            Ok(key) => out.extend(files.into_iter().filter(|f| f.1 != key.bytes).map(|f| f.0)),
+            Err(FbrbError::Io(e)) if e.kind() == io::ErrorKind::NotFound => {
+                out.extend(files.into_iter().map(|f| f.0));
+            }
+            // a file there that is no bundle any more: its points serve nothing
+            Err(FbrbError::Io(_)) => {}
+            Err(_) => out.extend(files.into_iter().map(|f| f.0)),
         }
     }
     out.sort();
     out
 }
 
-/// Deletes the payload files of the bundle `id` names other than its own (the bundle was rewritten: they are never
-/// read again). Only files whose header names the same canonical path are touched; one another process holds open
-/// stays (Windows) and goes with the least-recently-used cap or the caches tool's `--prune`.
-fn drop_superseded(folder: &Path, id: &Identity) {
-    let own = payload_path(folder, id);
-    let stem = id.stem();
-    let prefix = stem.rsplit_once('-').map_or(stem.as_str(), |(p, _)| p);
-    for (file, _, _) in payload_files(folder) {
-        let named = file.file_name().map_or_default(|n| n.to_string_lossy().into_owned());
+/// Deletes the points files made from the bundle `id` names other than `own` (the bundle was rewritten: no read
+/// through that path uses them again). Only files whose header names the same canonical path are touched; one
+/// another process holds open stays (Windows) and goes with the least-recently-used cap or the caches tool's
+/// `--prune`.
+fn drop_superseded(folder: &Path, id: &Identity, own: &Path) {
+    for (file, _, _) in cache_files(folder) {
         if file != own
-            && named.starts_with(prefix)
-            && payload_identity(&file).is_some_and(|other| other.path == id.path && other != *id)
+            && file.extension().is_some_and(|x| x == POINTS)
+            && points_identity(&file).is_some_and(|(_, other)| other.path == id.path)
         {
             let _ = fs::remove_file(&file);
         }
     }
 }
 
-/// `[(path, length, modified)]` of the payload files in `folder`.
-fn payload_files(folder: &Path) -> Vec<(PathBuf, u64, SystemTime)> {
+/// `[(path, length, modified)]` of the cache files in `folder`: points files and retired payloads.
+fn cache_files(folder: &Path) -> Vec<(PathBuf, u64, SystemTime)> {
     let Ok(rd) = fs::read_dir(folder) else {
         return Vec::new();
     };
@@ -536,7 +619,7 @@ fn payload_files(folder: &Path) -> Vec<(PathBuf, u64, SystemTime)> {
         .filter_map(|e| {
             let p = e.path();
             let m = e.metadata().ok()?;
-            (p.extension().is_some_and(|x| x == "payload") && m.is_file())
+            (p.extension().is_some_and(|x| x == POINTS || x == LEGACY) && m.is_file())
                 .then(|| (p, m.len(), m.modified().unwrap_or(UNIX_EPOCH)))
         })
         .collect()
@@ -546,6 +629,8 @@ fn payload_files(folder: &Path) -> Vec<(PathBuf, u64, SystemTime)> {
 /// process has one ([`global`]); tests make their own.
 pub struct Cache {
     state: Mutex<State>,
+    /// Spans decoded through points files, within the memory budget.
+    spans: Spans,
 }
 
 impl Cache {
@@ -560,8 +645,12 @@ impl Cache {
                 headers: VecDeque::new(),
                 no_disk: HashSet::new(),
                 touched: HashSet::new(),
+                keys: HashMap::new(),
+                indexes: VecDeque::new(),
+                on_disk: HashSet::new(),
                 stats: CacheStats::default(),
             }),
+            spans: Spans::new(0),
         }
     }
 
@@ -584,6 +673,11 @@ impl Cache {
         s.headers.clear();
         s.no_disk.clear();
         s.touched.clear();
+        s.keys.clear();
+        s.indexes.clear();
+        s.on_disk.clear();
+        drop(s);
+        self.spans.clear();
     }
 
     /// Forgets what was kept in memory (the configuration and the disk cache stay).
@@ -592,6 +686,11 @@ impl Cache {
         s.sessions.clear();
         s.charged = 0;
         s.headers.clear();
+        s.keys.clear();
+        s.indexes.clear();
+        s.on_disk.clear();
+        drop(s);
+        self.spans.clear();
     }
 
     /// What the cache did since it was made or [`Cache::reset_stats`].
@@ -681,23 +780,47 @@ impl Cache {
         let config = self.config();
         self.state().stats.reads += 1;
         let big = id.len.saturating_sub(header.payload_start) >= config.disk_min;
+        self.spans.set_budget(config.memory);
         if let Some(folder) = config.folder.as_deref().filter(|_| big) {
-            if let Some(got) = self.disk_read(folder, id, entries) {
-                self.state().stats.disk_hits += 1;
+            if let Some((got, from_disk)) = self.points_read(Some(folder), id, f, header, entries) {
+                if from_disk {
+                    self.state().stats.disk_hits += 1;
+                } else {
+                    self.state().stats.memory_hits += 1;
+                    // points made in memory at the bundle's first read: written once it is seen again
+                    self.persist(folder, &config, id, f, header);
+                }
                 return got;
             }
             // (another process writing it now: this read goes on as an unseen one, and later ones find the file)
-            if seen_before(folder, id) && !self.state().no_disk.contains(id) && !writer_busy(folder, id) {
-                return self.to_disk(folder, &config, id, f, header, entries, end);
+            if seen_before(folder, id) && !self.state().no_disk.contains(id) {
+                return self.make_points(Some(folder), &config, id, f, header, entries, end);
             }
         }
         if end > config.memory {
-            // more than the cache keeps: read as the reference does
+            // more than the cache keeps in sessions: the payload's restart points in the process (round
+            // PR1b-1-rest, audit AU5 ALG-5: an export's walks read the same large bundles step after step, each
+            // read decompressing from the start), made by one pass over the stream; none when nothing is kept
+            if config.memory > 0 && !self.state().no_disk.contains(id) {
+                if let Some((got, _)) = self.points_read(None, id, f, header, entries) {
+                    self.state().stats.memory_hits += 1;
+                    return got;
+                }
+                return self.make_points(None, &config, id, f, header, entries, end);
+            }
+            // read as the reference does
             let mut st = self.state();
             st.stats.decompressed_reads += 1;
             st.stats.decompressed_bytes += end;
             drop(st);
             return read_payload(f, header, entries);
+        }
+        // a bundle whose points were made (its content key known) is read through them, not a new session
+        if self.state().keys.contains_key(id)
+            && let Some((got, _)) = self.points_read(None, id, f, header, entries)
+        {
+            self.state().stats.memory_hits += 1;
+            return got;
         }
         let session = self.session_of(id, header);
         let mut s = lock(&session);
@@ -749,44 +872,137 @@ impl Cache {
         }
     }
 
-    /// The entries from the disk cache, `None` when it has no (whole, matching) file for the bundle.
-    fn disk_read(&self, folder: &Path, id: &Identity, entries: &[&Entry]) -> Option<Result<Vec<Vec<u8>>>> {
-        let (mut f, start, len) = open_payload(folder, id)?;
-        let path = payload_path(folder, id);
+    /// The bundle's content key (made once per identity).
+    fn key_of(&self, id: &Identity, f: &mut File, header: &Header) -> Option<ContentKey> {
+        if let Some(k) = self.state().keys.get(id) {
+            return Some(k.clone());
+        }
+        let k = ContentKey::of(f, id.len, header.payload_start).ok()?;
+        self.state().keys.insert(id.clone(), k.clone());
+        Some(k)
+    }
+
+    /// The points of `key` kept in the process, else read from `folder`'s points file (`None`: no folder): the
+    /// points and whether they came from the file. `None` when neither has them.
+    fn points_of(&self, folder: Option<&Path>, key: &ContentKey) -> Option<(Arc<Points>, bool)> {
+        {
+            let mut s = self.state();
+            if let Some(at) = s.indexes.iter().position(|(h, _)| *h == key.hash) {
+                let got = s.indexes.remove(at)?;
+                let points = Arc::clone(&got.1);
+                s.indexes.push_back(got);
+                return Some((points, false));
+            }
+        }
+        let path = points_path(folder?, key);
+        let data = fs::read(&path).ok()?;
+        let (stored, _, at) = points_head(&data)?;
+        if stored != key.bytes {
+            return None;
+        }
+        let header_len = u64::from_le_bytes(data.get(at..at + 8)?.try_into().ok()?);
+        let index = Index::from_bytes(data.get(at + 8..)?).ok()?;
+        let points = self.keep_points(key, Points { header_len, index });
         if self.state().touched.insert(path.clone()) {
             // the least recently used go first when the cache is trimmed: this one was just used
             if let Ok(w) = OpenOptions::new().write(true).open(&path) {
                 let _ = w.set_modified(SystemTime::now());
             }
         }
-        let mut out = Vec::with_capacity(entries.len());
-        for e in entries {
-            if e.size == 0 {
-                out.push(Vec::new());
-                continue;
-            }
-            if e.end() > len {
-                return Some(Err(FbrbError::PayloadEnds));
-            }
-            let mut b = vec![0; e.size as usize];
-            let read = f
-                .seek(SeekFrom::Start(start + u64::from(e.offset)))
-                .and_then(|_| f.read_exact(&mut b));
-            if read.is_err() {
-                return None; // the file went away or was cut short: read the bundle instead
-            }
-            out.push(b);
-        }
-        Some(Ok(out))
+        Some((points, true))
     }
 
-    /// Decompresses the whole payload (continuing this cache's session when there is one) into a new cache file and
-    /// answers the read from it on the way. A stream that fails or ends early is not written: the bundle is read as
-    /// the reference reads it, through its session, from then on.
-    #[allow(clippy::too_many_arguments)]
-    fn to_disk(
+    /// Keeps `points` in the process: at most [`INDEXES`], and their windows within the memory budget (the least
+    /// recently used dropped first; the newest always kept).
+    fn keep_points(&self, key: &ContentKey, points: Points) -> Arc<Points> {
+        let points = Arc::new(points);
+        let mut s = self.state();
+        s.indexes.retain(|(h, _)| *h != key.hash);
+        s.indexes.push_back((key.hash, Arc::clone(&points)));
+        let budget = s.config.memory;
+        while s.indexes.len() > 1
+            && (s.indexes.len() > INDEXES || s.indexes.iter().map(|(_, p)| p.index.cost()).sum::<u64>() > budget)
+        {
+            if let Some((h, _)) = s.indexes.pop_front() {
+                self.spans.forget(h);
+            }
+        }
+        points
+    }
+
+    /// Writes the points this process made of the bundle `id` to `folder` when the folder has none and the bundle
+    /// was read before (the disk cache's rule); once per bundle and process.
+    fn persist(&self, folder: &Path, config: &CacheConfig, id: &Identity, f: &mut File, header: &Header) {
+        let Some(key) = self.key_of(id, f, header) else { return };
+        let points = {
+            let mut s = self.state();
+            if !s.on_disk.insert(key.hash) {
+                return;
+            }
+            s.indexes
+                .iter()
+                .find(|(h, _)| *h == key.hash)
+                .map(|(_, p)| Arc::clone(p))
+        };
+        let Some(points) = points else { return };
+        let target = points_path(folder, &key);
+        if target.is_file() || !seen_before(folder, id) {
+            return;
+        }
+        if let Some(n) = write_points(folder, &key, id, &points) {
+            let mut st = self.state();
+            st.stats.written += 1;
+            st.stats.written_bytes += n;
+            drop(st);
+            drop_superseded(folder, id, &target);
+            trim(folder, config.disk_cap, &target);
+        }
+    }
+
+    /// Forgets a points file that failed a read (another process may have replaced it; the next read parses it
+    /// again).
+    fn forget_points(&self, key: &ContentKey) {
+        self.state().indexes.retain(|(h, _)| *h != key.hash);
+        self.spans.forget(key.hash);
+    }
+
+    /// The entries through the bundle's restart points (kept in the process, else `folder`'s points file), and
+    /// whether the points came from the file; `None` when there are none, or a span read through them fails (the
+    /// bytes are not the ones the points were made from).
+    fn points_read(
         &self,
-        folder: &Path,
+        folder: Option<&Path>,
+        id: &Identity,
+        f: &mut File,
+        header: &Header,
+        entries: &[&Entry],
+    ) -> Option<(Result<Vec<Vec<u8>>>, bool)> {
+        let key = self.key_of(id, f, header)?;
+        let (points, from_disk) = self.points_of(folder, &key)?;
+        let base = header.payload_start + points.header_len;
+        if entries.iter().any(|e| e.size > 0 && e.end() > points.index.output_len) {
+            return Some((Err(FbrbError::PayloadEnds), from_disk));
+        }
+        let ranges: Vec<(u64, u64)> = entries
+            .iter()
+            .map(|e| (u64::from(e.offset), u64::from(e.size)))
+            .collect();
+        // the spans the entries need decoded side by side (each task its own handle on the bundle)
+        let Ok(out) = restart::read_ranges(&points.index, &id.path, base, &ranges, &self.spans, key.hash) else {
+            self.forget_points(&key);
+            return None; // read the bundle instead
+        };
+        Some((Ok(out), from_disk))
+    }
+
+    /// Decompresses the whole payload once more, making its restart points (kept in the process, and written to a
+    /// points file in `folder` when given), and answers the read on the way. A stream that fails, ends early or has
+    /// anything but its trailer after it gets no points: the bundle is read as the reference reads it, through its
+    /// session, from then on.
+    #[allow(clippy::too_many_arguments)]
+    fn make_points(
+        &self,
+        folder: Option<&Path>,
         config: &CacheConfig,
         id: &Identity,
         f: &mut File,
@@ -795,10 +1011,15 @@ impl Cache {
         end: u64,
     ) -> Result<Vec<Vec<u8>>> {
         let session = self.session_of(id, header);
-        let mut s = lock(&session);
-        // another thread may have written it while this one waited
-        if let Some(got) = self.disk_read(folder, id, entries) {
-            self.state().stats.disk_hits += 1;
+        let s = lock(&session);
+        // another thread may have made them while this one waited
+        if let Some((got, from_disk)) = self.points_read(folder, id, f, header, entries) {
+            let mut st = self.state();
+            if from_disk {
+                st.stats.disk_hits += 1;
+            } else {
+                st.stats.memory_hits += 1;
+            }
             return got;
         }
         if matches!(s.flow, Flow::Failed(_)) {
@@ -806,69 +1027,88 @@ impl Cache {
             self.state().no_disk.insert(id.clone());
             return s.answer(entries, end);
         }
-        // (a session whose member ended goes on below: there is nothing more to feed, and its bytes are written)
-        let tmp = folder.join(format!(
-            "{}.{}.{}.tmp",
-            id.stem(),
-            std::process::id(),
-            TMP.fetch_add(1, Ordering::Relaxed)
-        ));
-        let mut out = File::create(&tmp).ok().map(|w| BufWriter::with_capacity(1 << 20, w));
+        // (the session stays locked while the points are made: another thread reading the bundle waits for them)
+        let Some(key) = self.key_of(id, f, header) else {
+            self.state().no_disk.insert(id.clone());
+            return read_payload(f, header, entries);
+        };
         let mut c = Collector::new(entries);
-        c.take(&s.data);
-        let prefix = s.data.len() as u64;
-        // the payload's length goes into the file's header once it is known
-        if let Some(w) = out.as_mut()
-            && (w.write_all(&file_header(id, 0)).is_err() || w.write_all(&s.data).is_err())
-        {
-            out = None;
-        }
-        let mut made = 0u64;
-        let fed = feed_rest(&mut s, f, &mut |d: &[u8]| {
-            c.take(d);
-            made += d.len() as u64;
-            if let Some(w) = out.as_mut()
-                && w.write_all(d).is_err()
-            {
-                out = None;
-            }
-        });
-        let done = s.member.done();
-        // the session's member has gone past its bytes: a thread that waited for it starts again from the start
-        *s = Session::new(header.payload_start);
-        drop(s);
+        let made = index_payload(f, header.payload_start, &mut |d: &[u8]| c.take(d));
+        // the points serve every later read (or the stream fails): the session's bytes are of no more use
         self.drop_session(id);
+        drop(s);
+        let Some((header_len, index)) = made else {
+            // the stream failed, stopped short or has more after it: the reference's answer for this read, and
+            // nothing on disk later
+            let mut st = self.state();
+            st.no_disk.insert(id.clone());
+            st.stats.decompressed_reads += 1;
+            drop(st);
+            return read_payload(f, header, entries);
+        };
+        let output_len = index.output_len;
+        let points = self.keep_points(&key, Points { header_len, index });
+        let written = folder.and_then(|d| write_points(d, &key, id, &points).map(|n| (d, n)));
         {
             let mut st = self.state();
             st.stats.decompressed_reads += 1;
-            st.stats.decompressed_bytes += made;
-        }
-        let total = prefix + made;
-        let target = payload_path(folder, id);
-        let written = match (&fed, done, out) {
-            (Ok(()), true, Some(w)) => {
-                finish_file(w, id, total).is_ok() && crate::atomic::replace(&tmp, &target).is_ok()
+            st.stats.decompressed_bytes += output_len;
+            if let Some((_, n)) = written {
+                st.stats.written += 1;
+                st.stats.written_bytes += n;
             }
-            _ => false,
-        };
-        if written {
-            let mut st = self.state();
-            st.stats.written += 1;
-            st.stats.written_bytes += total;
-            drop(st);
-            drop_superseded(folder, id);
-            trim(folder, config.disk_cap, &target);
-        } else {
-            let _ = fs::remove_file(&tmp);
         }
-        if fed.is_ok() && done {
-            c.finish()
-        } else {
-            // the stream failed or stopped short: the reference's answer for this read, and nothing on disk later
-            self.state().no_disk.insert(id.clone());
-            read_payload(f, header, entries)
+        if let Some((d, _)) = written {
+            self.state().on_disk.insert(key.hash);
+            let target = points_path(d, &key);
+            drop_superseded(d, id, &target);
+            trim(d, config.disk_cap, &target);
         }
+        c.finish()
     }
+}
+
+/// Writes `points` to their file in `folder` (made from the bundle `id`): the file's bytes, `None` when it could not
+/// be written (only a cache: the next process makes them again).
+fn write_points(folder: &Path, key: &ContentKey, id: &Identity, points: &Points) -> Option<u64> {
+    let mut body = Vec::new();
+    body.extend(MAGIC);
+    body.extend((key.bytes.len() as u32).to_le_bytes());
+    body.extend(&key.bytes);
+    let idb = id.bytes();
+    body.extend((idb.len() as u32).to_le_bytes());
+    body.extend(idb);
+    body.extend(points.header_len.to_le_bytes());
+    body.extend(points.index.to_bytes());
+    crate::atomic::write(&points_path(folder, key), &[&body])
+        .ok()
+        .map(|()| body.len() as u64)
+}
+
+/// A gzip payload's restart points, made by decompressing it once from `payload_start` (zlib's header rules, as the
+/// reference's `zlib.decompressobj(16 + MAX_WBITS)`), its output given to `sink`: `(the header's length, the index)`
+/// when the member is whole - its trailer's CRC-32 and length checked - and `None` when it fails, ends early, or the
+/// file has anything after its trailer other than the member's end.
+fn index_payload(f: &mut File, payload_start: u64, sink: &mut impl FnMut(&[u8])) -> Option<(u64, Index)> {
+    let len = f.metadata().ok()?.len();
+    f.seek(SeekFrom::Start(payload_start)).ok()?;
+    let mut head = vec![0u8; 1 << 16];
+    let n = read_full(f, &mut head).ok()?;
+    let header_len = super::gzip::zlib_header(head.get(..n)?).ok()?? as u64;
+    let base = payload_start + header_len;
+    f.seek(SeekFrom::Start(base)).ok()?;
+    let built = restart::build(&mut BufReader::with_capacity(CHUNK, &mut *f), restart::SPAN, sink).ok()?;
+    let ix = built.index;
+    let trailer_at = base + ix.input_len;
+    if trailer_at + 8 > len {
+        return None;
+    }
+    let mut tail = [0u8; 8];
+    f.seek(SeekFrom::Start(trailer_at)).ok()?;
+    f.read_exact(&mut tail).ok()?;
+    let crc = u32::from_le_bytes(tail.get(..4)?.try_into().ok()?);
+    let isize = u32::from_le_bytes(tail.get(4..)?.try_into().ok()?);
+    (crc == ix.crc && isize == (ix.output_len & 0xFFFF_FFFF) as u32).then_some((header_len, ix))
 }
 
 /// Records a session's size after a read and drops the least recently used beyond the budget (the session itself
@@ -900,8 +1140,8 @@ pub(crate) fn extract_path(path: &Path) -> Result<(Header, Vec<Vec<u8>>)> {
     global().extract_path(path)
 }
 
-fn payload_path(folder: &Path, id: &Identity) -> PathBuf {
-    folder.join(format!("{}.payload", id.stem()))
+fn points_path(folder: &Path, key: &ContentKey) -> PathBuf {
+    folder.join(format!("{:016x}.{POINTS}", key.hash))
 }
 
 /// Whether a read of this bundle came before (this one leaves the marker for the next).
@@ -916,85 +1156,7 @@ fn seen_before(folder: &Path, id: &Identity) -> bool {
     }
 }
 
-/// Whether another writer's temporary file for this bundle was written to in the last [`BUSY`].
-fn writer_busy(folder: &Path, id: &Identity) -> bool {
-    let prefix = format!("{}.", id.stem());
-    let now = SystemTime::now();
-    let Ok(rd) = fs::read_dir(folder) else { return false };
-    rd.flatten().any(|e| {
-        let name = e.file_name();
-        let name = name.to_string_lossy();
-        name.starts_with(&prefix)
-            && name.ends_with(".tmp")
-            && e.metadata()
-                .and_then(|m| m.modified())
-                .ok()
-                .and_then(|t| now.duration_since(t).ok())
-                .is_some_and(|age| age < BUSY)
-    })
-}
-
-/// A cache file's header for `id` and a payload of `len` bytes.
-fn file_header(id: &Identity, len: u64) -> Vec<u8> {
-    let key = id.bytes();
-    let mut h = Vec::with_capacity(key.len() + 20);
-    h.extend(MAGIC);
-    h.extend(len.to_le_bytes());
-    h.extend((key.len() as u32).to_le_bytes());
-    h.extend(key);
-    h
-}
-
-/// Opens the cache file of `id` and checks it: `(file, where the payload starts, its length)`.
-fn open_payload(folder: &Path, id: &Identity) -> Option<(File, u64, u64)> {
-    let mut f = File::open(payload_path(folder, id)).ok()?;
-    let mut head = [0u8; 20];
-    f.read_exact(&mut head).ok()?;
-    let (magic, rest) = head.split_at(8);
-    if magic != MAGIC {
-        return None;
-    }
-    let len = u64::from_le_bytes(rest.get(..8)?.try_into().ok()?);
-    let key_len = u32::from_le_bytes(rest.get(8..12)?.try_into().ok()?) as usize;
-    let want = id.bytes();
-    if key_len != want.len() {
-        return None;
-    }
-    let mut key = vec![0; key_len];
-    f.read_exact(&mut key).ok()?;
-    let start = 20 + key_len as u64;
-    if key != want || f.metadata().ok()?.len() != start + len {
-        return None;
-    }
-    Some((f, start, len))
-}
-
-/// Feeds the rest of the session's stream, chunk by chunk as the reference does, to `sink`.
-fn feed_rest(s: &mut Session, f: &mut File, sink: &mut impl FnMut(&[u8])) -> Result<()> {
-    f.seek(SeekFrom::Start(s.next_in))?;
-    let mut buf = vec![0; CHUNK];
-    loop {
-        let n = read_full(f, &mut buf)?;
-        if n == 0 {
-            return Ok(());
-        }
-        s.member.feed(buf.get(..n).unwrap_or_default(), sink)?;
-        s.next_in += n as u64;
-        if s.member.done() {
-            return Ok(());
-        }
-    }
-}
-
-/// Writes the payload's length into the cache file's header and makes the file durable.
-fn finish_file(w: BufWriter<File>, id: &Identity, len: u64) -> io::Result<()> {
-    let mut f = w.into_inner().map_err(io::IntoInnerError::into_error)?;
-    f.seek(SeekFrom::Start(0))?;
-    f.write_all(&file_header(id, len))?;
-    f.sync_all()
-}
-
-/// Deletes the least recently used payloads beyond `cap` bytes (never `keep`), temporary files of writers that
+/// Deletes the least recently used cache files beyond `cap` bytes (never `keep`), temporary files of writers that
 /// died, and old markers.
 fn trim(folder: &Path, cap: u64, keep: &Path) {
     let now = SystemTime::now();
@@ -1013,7 +1175,7 @@ fn trim(folder: &Path, cap: u64, keep: &Path) {
             }
         }
     }
-    let mut files = payload_files(folder);
+    let mut files = cache_files(folder);
     let mut total: u64 = files.iter().map(|f| f.1).sum();
     files.sort_by_key(|f| f.2);
     for (p, len, _) in files {

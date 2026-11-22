@@ -28,7 +28,27 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-22
+
 ### Added
+- **The Kynapse specification's open rules, fitted** (round NKS-rest; specification only, no tool changed): DICE's
+  route edges form a greedy 1.2-spanner (an edge is left out when the graph already has a route at most 1.2 times as
+  long; KYG-EDGE-3) and the graph is symmetric by node id, a sector's one-way edges being edges into non-owner
+  border copies (KYG-EDGE-4), both checked on DICE's 35 files by two new game-tier tests in `kynapse_corpus.rs`;
+  from the executable, the node lookup's box query and its use of the lookup lists in order (KYRT-NODE-2), where the
+  owner bit is read (KYRT-PATH-3) and the local-pathfinding layer beside the path data (KYRT-DYN-2). A new probe,
+  `rust/bc2-formats/examples/kynapse_fit.rs`, records the per-feature fits.
+- **Restart points in a deflate stream** (round PR1b-1-rest, `bc2_formats::restart`): a payload decompressed once
+  is read anywhere after by inflating at most a span (1 MiB) from the nearest block boundary (zlib-rs through
+  `libz-rs-sys`: `Z_BLOCK` stops, `inflatePrime`, the 32 KiB window as the dictionary, as zlib's `zran.c`). Each span
+  keeps its CRC-32 and is checked on every read: bytes that changed are refused, never read as other bytes.
+- **One BF1943 bundle reader** (`bc2_formats::bf1943`): `fbrb1943.Bundle`'s check (moved from `bfbc2.exe`'s
+  `bf1943src`) and a compressed payload's reads through restart points kept on disk by the payload's content
+  (`%LOCALAPPDATA%\bfbc2-tool-suite\cache\bf1943source\*.points`) and in the process (`BF1943_RESTARTS_MB`,
+  `BF1943_SOURCE_MEMORY_MB`). `bf1943import.Source` and `RESTARTS` read through it (`bc2_native.bf1943_check` /
+  `bf1943_read` / `bf1943_restarts`); the Python reader stays as the reference (`BFBC2_PURE_PYTHON=1`).
+- **renderqa's truth index is a cache** (`renderqa`, `BFBC2_RENDERQA_CACHE` / `BFBC2_RENDERQA_CACHE_MB`, default
+  64 MB): listed, pruned and cleared by `bfbc2 caches` and counted in the overall budget.
 - **The auto layout's vehicles** (round A2, `bc2_levelwrite::vehicles`): a proposal places the mode layer's vehicles
   by team and class from the level's own vehicle spawners (moved, then copies), in DICE's per-mode counts (a Conquest
   base 4, 8 on WW2; a flag 2; Rush's first attackers' and defenders' bases 3 and 2; Squad Deathmatch's one IFV), each
@@ -59,6 +79,18 @@ landed on `main`.
   `bfbc2 caches` / `python -m bfbc2core.caches` and counted in the overall budget.
 
 ### Changed
+- **The Kynapse specification, corrected by round NKS-rest**: `SectorOverlap` is the path-finding type's
+  `DistEdgeMax` (15 m infantry, 50 m vehicle; KYRT-CFG-1); the search's step cost and heuristic are both the f32 3-D
+  distance (`Kaim::CConstraintShortestPath`, `CHeuristicEuclidianDistance`) with 100 expansions per call
+  (KYRT-PATH-1); the node resolver tests candidates in lookup-list order, not by distance, so the lists' tie order is
+  read (KYRT-NODE-1, HPD-NODE-6); DICE's 13 % one-way edges are the border convention, not a directed graph
+  (KYN-EDGE-3); the midline cut's "longer side" holds for 67 % of cuts over all files, not 325 of 326 (KYG-AREA-2);
+  open questions OQ1, OQ2, OQ6 and OQ8 updated, and NavKit's gap list given NKG2's and NKG3's targets.
+- **The bundle cache keeps restart points, not payloads** (`bc2_formats::fbrb::cache`): a large bundle read again
+  gets a `.points` file (about 1 % of its payload; the WW2 replay's 8.09 GiB of payload files became 0.1 GiB), keyed
+  by the bundle's content, so every copy of the same bundle shares one. A payload past the in-process budget is
+  decompressed once per process, its points made in memory (audit AU5 ALG-5: the disk-off replay 150.6 s and
+  68.9 GiB inflated before, 46.5 s and 28.0 GiB after); a read's spans are decoded on the worker threads.
 - **Less memory** (round PR1b-1): NumPy's OpenBLAS runs one thread unless `OPENBLAS_NUM_THREADS` says otherwise
   (`suite_paths`, `bfbc2core`): each Python process importing NumPy committed about 490 MB for its 16 threads' buffers.
   Test peaks: geometry readers 2.9 -> 1.0 GB, NavKit cells and routes 5.4 -> 1.6 GB, texture helpers 5.2 -> 4.6 GB, model tools 5.5 -> 5.0 GB; the WW2 rebuild's steps each about 480 MB less (level builds 4.35 -> 3.87 GB).
@@ -84,6 +116,10 @@ landed on `main`.
   `bfbc2.exe navkit build` reads the objectives of a level prepared before `area_orders.json` from its XML instead of
   handing the run to the Python. `bc2_levelwrite::pathdata::ready` returns the step's plan (`Plan`: build, sample,
   copy).
+
+### Removed
+- **The bundle cache's whole-payload files** (`.payload`, format `BC2FBPL1`): no longer read or written. `bfbc2
+  caches --prune` lists them as superseded and deletes them; they count against the cap until then.
 
 ## [0.15.0] - 2026-11-22
 

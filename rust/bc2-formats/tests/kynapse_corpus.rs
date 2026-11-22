@@ -8,6 +8,7 @@
 //! `project-opfor-bfbc2` beside the suite) is read. A test passes with a note when the folder is missing. The
 //! measurements behind the observed rules are `examples/kynapse_probe.rs`.
 #![allow(
+    clippy::many_single_char_names,
     clippy::indexing_slicing,
     clippy::doc_markdown,
     clippy::naive_bytecount,
@@ -389,4 +390,143 @@ fn edge_costs_are_the_f32_length_in_sixteenths() {
         }
     });
     println!("{edges} edge costs exact");
+}
+
+// spec: KYG-EDGE-4
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn edges_have_a_reverse_by_node_id() {
+    // [one-way by masked id, edges, one-way in their sector, of them into a non-owner copy] per type
+    let mut n = [[0u64; 4]; 2];
+    each(|f, h, _| {
+        let t = usize::from(f.vehicle);
+        let mut ids: HashSet<(u32, u32)> = HashSet::new();
+        for s in &h.sectors {
+            for e in &s.edges {
+                ids.insert((
+                    s.nodes[e.src as usize].id & 0x7FFF_FFFF,
+                    s.nodes[e.dst as usize].id & 0x7FFF_FFFF,
+                ));
+            }
+        }
+        for s in &h.sectors {
+            let local: HashSet<(u32, u32)> = s.edges.iter().map(|e| (e.src, e.dst)).collect();
+            for e in &s.edges {
+                let (a, b) = (&s.nodes[e.src as usize], &s.nodes[e.dst as usize]);
+                n[t][1] += 1;
+                if !ids.contains(&(b.id & 0x7FFF_FFFF, a.id & 0x7FFF_FFFF)) {
+                    n[t][0] += 1;
+                }
+                if !local.contains(&(e.dst, e.src)) {
+                    n[t][2] += 1;
+                    if b.c & 0x1_0000 != 0 {
+                        n[t][3] += 1;
+                    }
+                }
+            }
+        }
+    });
+    if n[0][1] == 0 {
+        return;
+    }
+    println!(
+        "infantry: {} of {} edges without a reverse by id ({} one-way in their sector, {} of them into a non-owner copy); vehicle: {} of {} ({}, {})",
+        n[0][0], n[0][1], n[0][2], n[0][3], n[1][0], n[1][1], n[1][2], n[1][3]
+    );
+    // DICE's 35 files: infantry 14,692 of 1,646,482, vehicle 2,343 of 47,584.
+    assert!(
+        n[0][0] * 100 <= n[0][1],
+        "infantry: more than 1 % of edges one-way by id"
+    );
+    assert!(n[1][0] * 20 <= n[1][1], "vehicle: more than 5 % of edges one-way by id");
+    // A sector's one-way edges are mostly edges into a border copy that holds no edges of its own.
+    assert!(
+        n[0][3] * 100 >= n[0][2] * 95,
+        "infantry: under 95 % of in-sector one-way edges end at a non-owner copy"
+    );
+}
+
+/// The sector graph's shortest route from `i` to `j` that does not take the edge between them, if one is at most
+/// `limit` long (3-D lengths of the stored positions).
+fn route_without(nodes: &[hpd::Node], adj: &[Vec<usize>], i: usize, j: usize, limit: f64) -> Option<f64> {
+    let d3 = |u: usize, v: usize| -> f64 {
+        let (a, b) = (&nodes[u].pos, &nodes[v].pos);
+        let w = [f64::from(a[0] - b[0]), f64::from(a[1] - b[1]), f64::from(a[2] - b[2])];
+        (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt()
+    };
+    let mut best: HashMap<usize, f64> = HashMap::new();
+    let mut heap = std::collections::BinaryHeap::new();
+    best.insert(i, 0.0);
+    heap.push((std::cmp::Reverse(0u64), i));
+    while let Some((std::cmp::Reverse(k), u)) = heap.pop() {
+        let du = k as f64 / 1e6;
+        if du > best.get(&u).copied().unwrap_or(f64::MAX) + 1e-9 {
+            continue;
+        }
+        if u == j {
+            return Some(du);
+        }
+        for &v in &adj[u] {
+            if (u == i && v == j) || (u == j && v == i) {
+                continue;
+            }
+            let dv = du + d3(u, v);
+            if dv <= limit && dv < best.get(&v).copied().unwrap_or(f64::MAX) {
+                best.insert(v, dv);
+                heap.push((std::cmp::Reverse((dv * 1e6) as u64), v));
+            }
+        }
+    }
+    None
+}
+
+// spec: KYG-EDGE-3
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn edges_are_not_redundant_at_1_2() {
+    // [edges between ordinary nodes, of them with another route at most 1.2 x as long] per type
+    let mut n = [[0u64; 2]; 2];
+    each(|f, h, _| {
+        let t = usize::from(f.vehicle);
+        for s in &h.sectors {
+            let mut adj: Vec<Vec<usize>> = vec![Vec::new(); s.nodes.len()];
+            for e in &s.edges {
+                let (a, b) = (e.src as usize, e.dst as usize);
+                if !adj[a].contains(&b) {
+                    adj[a].push(b);
+                }
+                if !adj[b].contains(&a) {
+                    adj[b].push(a);
+                }
+            }
+            for e in &s.edges {
+                let (i, j) = (e.src as usize, e.dst as usize);
+                if (s.nodes[i].id | s.nodes[j].id) & 0x8000_0000 != 0 || i > j {
+                    continue;
+                }
+                let (a, b) = (&s.nodes[i].pos, &s.nodes[j].pos);
+                let w = [f64::from(a[0] - b[0]), f64::from(a[1] - b[1]), f64::from(a[2] - b[2])];
+                let d = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
+                n[t][0] += 1;
+                if route_without(&s.nodes, &adj, i, j, 1.2 * d).is_some() {
+                    n[t][1] += 1;
+                }
+            }
+        }
+    });
+    if n[0][0] == 0 {
+        return;
+    }
+    println!(
+        "edges between ordinary nodes with another route at most 1.2 x as long: infantry {} of {}, vehicle {} of {}",
+        n[0][1], n[0][0], n[1][1], n[1][0]
+    );
+    assert!(
+        n[0][1] * 100 <= n[0][0],
+        "infantry: more than 1 % of edges redundant at 1.2"
+    );
+    assert!(
+        n[1][1] * 20 <= n[1][0],
+        "vehicle: more than 5 % of edges redundant at 1.2"
+    );
 }

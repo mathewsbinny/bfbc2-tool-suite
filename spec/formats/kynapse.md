@@ -298,11 +298,12 @@ rounding.
 Status: **observed**
 
 Edges are sorted by source node (HPD-EDGE-1). Within one source they follow neither target order (656,207 steps up,
-563,604 down) nor length order. 13.0 % of edges have no edge back: the graph is directed. 96.1 % of the one-way edges
-lead into a border copy the sector does not own (HPD-NODE-5): such a copy holds none of the node's edges (the owner's
-copy does), so the edge back is not in this sector. From an owner border copy 205,190, from an ordinary node 5,683.
-The other 8,627 (ordinary to ordinary 2,858, between owned border copies 3,819, into an owned border copy 1,581, owned
-to ordinary 369) follow no rule found yet (KYG-EDGE-1).
+563,604 down) nor length order. 13.0 % of edges have no edge back in their sector. Joined by node id over the file,
+99.1 % of infantry and 95.1 % of vehicle edges have one: the one-way edges are mostly edges into non-owner border
+copies, whose edge back lives in the owner's sector (KYG-EDGE-4). By their ends: 205,190 from an owner border copy
+into a non-owner copy and 5,683 from an ordinary node into one (96.1 %); the other 8,627 (ordinary to ordinary
+2,858, between owned border copies 3,819, into an owned copy 1,581, owned to ordinary 369) are the few edges without
+a reverse by node id.
 
 [data: 219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604; one-way edges by their ends (probe `e.one_way_*`)]
 
@@ -336,14 +337,14 @@ space: 99.7 % of coarse vertices, 99.6 % of detailed and 98.6 % of vehicle. The 
 
 | # | Question | State |
 |---|---|---|
-| OQ1 | The tie-break of the three lookup lists (HPD-NODE-6) | **open, narrowed** (KYG-NODE-3): none of index ascending / descending, the other axes, a stable sort or MSVC `qsort` reproduces DICE's ties. Most likely the generator sorted unrounded (pre-f32) coordinates. The runtime use of the lists was not traced (KYRT-NODE-1). Settles it: the lists' reader in the runtime (does any order of equal keys matter?), or the generator's sort |
-| OQ2 | Border ids without an owner copy, or with two (HPD-NODE-5) | **open, measured**: of 113,874 border ids, 107,437 have one owner (103,458 of them in the sector whose square holds the node), 3,623 none, 2,738 two, 76 three. Settles it: tracing the runtime's use of bit 16 in the search (KYRT-PATH-2) |
+| OQ1 | The tie-break of the three lookup lists (HPD-NODE-6) | **open, narrowed** (KYG-NODE-3): none of index ascending / descending, the other axes, a stable sort or MSVC `qsort` reproduces DICE's ties. Most likely the generator sorted unrounded (pre-f32) coordinates. The runtime's reader is now known (KYRT-NODE-2, round NKS-rest): a box query that walks the list with the fewest candidates in its order, and the resolver takes the first candidate that passes, so equal keys' order can change a point's node. Settles it: the generator's sort |
+| OQ2 | Border ids without an owner copy, or with two (HPD-NODE-5) | **answered** (KYRT-PATH-3, round NKS-rest): of 113,874 border ids, 107,437 have one owner (103,458 of them in the sector whose square holds the node), 3,623 none, 2,738 two, 76 three. The runtime drops edges into a node none of whose loaded copies is an owner and never resolves a point to a non-owner copy, so DICE's 3,623 ownerless ids are unreachable; ids with two or three owners are one node and keep their edges. Which copy DICE made the owner (KYG-NODE-2) stays a generator question |
 | OQ3 | The header words besides the count, and the resolution field | **answered**: KYN-FILE-1 (words 0, 3, 8-17, 32, 33, 35 read; 1, 4-7, 34 not), KYN-TILE-1 (resolution = 1 / tile size) |
 | OQ4 | How the runtime gets the tile size | **answered**: KYN-TILE-1, KYRT-TILE-1 |
 | OQ5 | The link object's header | **answered**: KYN-LINK-1 (the neighbour's tile and item; every object resolves) |
-| OQ6 | DICE's area division: the midline cut's trigger; the vehicle D / F rule; detailed sectors beyond `NeedsDetailedPathfinding` | **open**: KYG-AREA-2, KYG-DF-2, KYG-DET-1 record what the corpus shows. Settles it: per-cut features against all 35 files (the midline), a vehicle-sample run (D / F), every blueprint's `NeedsDetailedPathfinding` read from the shared packages (detailed sectors) |
+| OQ6 | DICE's area division: the midline cut's trigger; the vehicle D / F rule; detailed sectors beyond `NeedsDetailedPathfinding` | **open, narrowed** (round NKS-rest): the per-cut features were fitted over all 35 files and none triggers the cut (KYG-AREA-2 lists them); the detailed sectors are not one box per block (KYG-DET-1). Settles it: the cut groups against the sampled levels, a vehicle-sample run (D / F), every blueprint's `NeedsDetailedPathfinding` read from the shared packages (detailed sectors) |
 | OQ7 | Whether the runtime needs a file's ids to match `SectorOffsets`; why one ONS_MP_002 sector resolved at 0, 0 | **answered in part**: the point-to-sector lookup is `floor(x / 100) - offset` and the id must be in 1..255 (KYRT-SEC-1), so ids that do not match the asset's offsets name the wrong sector. With offsets 0, 0 on ONS_MP_002, the sectors that still resolved were reached through `SectorOverlap`'s extra ids or by a coincident id: **open**. Settles it: a runtime probe of 0x0106D970's ids at the failing points |
-| OQ8 | The generator's rectangle (ground stops inside the sampled extent) | **open**: KYG-RECT-1. Settles it: the generator's `SectorsDefinitionFile` / `MapBuilderLocalSettingsZone` boxes (generator input, not shipped) or a per-level fit of the straight cuts |
+| OQ8 | The generator's rectangle (ground stops inside the sampled extent) | **open**: KYG-RECT-1 (round NKS-rest: the vehicle ground shares no level-wide rectangle with the infantry ground). Settles it: the generator's `SectorsDefinitionFile` / `MapBuilderLocalSettingsZone` boxes (generator input, not shipped) or a per-level fit of the straight cuts |
 | OQ9 | A records, and whether the end slot matters | **answered**: A records are read by a nearest-segment search with B (KYRT-IGN-1), so a writer must keep their count 0; the end slot is relocated like a pointer but its value is not read (KYRT-LOAD-3); a tile's trailing word *is* read (KYRT-LINK-1) |
 
 ## 7. NavKit against this model (probe on NavKit's 15 regression builds, 2026-11-20 builds)
