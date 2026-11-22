@@ -110,7 +110,7 @@ fn usage(top: &str, s: &Spec) -> (u64, usize, u64) {
 
 /// `prune_total(opfor=opfor)`: {name: what it did there}, in the members' order.
 fn prune_total(opfor: Option<&str>) -> PyResult<Vec<(&'static str, Done)>> {
-    gb::prune_total(total_cap(), opfor).map_err(|_| Fail::Python)
+    gb::prune_total(total_cap(), project_root(opfor).as_deref()).map_err(|_| Fail::Python)
 }
 
 // ------------------------------------------------------------------------------------------------ the folders
