@@ -189,6 +189,9 @@ fn entries(stage: &Path, file: &str) -> BTreeMap<String, Vec<u8>> {
 /// too, and the renamed paths mapped back: what is left differs only where the export meant it to.
 fn normal(data: &[u8], back: &HashMap<String, String>) -> String {
     let mut x = bc2_formats::dbx::to_xml(data).unwrap();
+    // longest names first, then by name: a name inside another is replaced after it, the same way on every run
+    let mut back: Vec<(&String, &String)> = back.iter().collect();
+    back.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then_with(|| a.0.cmp(b.0)));
     for (new, old) in back {
         x = x.replace(new.as_str(), old);
         x = x.replace(&title(new), &title(old));

@@ -330,6 +330,7 @@ impl Taken {
             }
         }
         if let Ok(live) = game.live(&game.ondemand_awards()) {
+            #[allow(clippy::iter_over_hash_type, reason = "collected into a sorted set")]
             for k in live.keys() {
                 if let Some(n) = k
                     .strip_prefix("awards/images/loadingscreens/")

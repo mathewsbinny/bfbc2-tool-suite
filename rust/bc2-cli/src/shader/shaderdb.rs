@@ -815,9 +815,11 @@ fn cmd_list(
             ps.insert(r[1]);
         }
         let mut size = 0;
+        #[allow(clippy::iter_over_hash_type, reason = "a sum")]
         for v in &vs {
             size += db.vs.get(*v).ok_or(Fail::Python)?.code.len();
         }
+        #[allow(clippy::iter_over_hash_type, reason = "a sum")]
         for f in &ps {
             size += db.ps.get(*f).ok_or(Fail::Python)?.code.len();
         }
@@ -919,6 +921,10 @@ fn cmd_textures(
         }
     }
     let mut names: HashSet<&[u8]> = HashSet::new();
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "collected into a set (only its size is shown)"
+    )]
     for &i in last.values() {
         for t in &tex[i] {
             names.insert(t.name);

@@ -3061,6 +3061,10 @@ impl ViewState {
 
     /// Every viewport draws again.
     fn redraw(&mut self) {
+        #[allow(
+            clippy::iter_over_hash_type,
+            reason = "every viewport is marked; the order cannot show"
+        )]
         for vp in self.viewports.values_mut() {
             vp.dirty = true;
         }
@@ -3133,6 +3137,7 @@ impl ViewState {
         };
         if let Some(p) = e.position() {
             let size = self.gpu_scene.sizes.get(e.index).copied().unwrap_or(2.0);
+            #[allow(clippy::iter_over_hash_type, reason = "every viewport is focused alike")]
             for vp in self.viewports.values_mut() {
                 vp.camera.focus(p, Some(camera::focus_distance(size)));
                 vp.dirty = true;

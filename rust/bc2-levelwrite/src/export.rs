@@ -1027,7 +1027,7 @@ pub fn build(
         )
     }) {
         return Err(err(format!(
-            "{} is edited by the project, and the export does not write it yet (round E5)",
+            "{} is edited by the project, and the export does not write it yet",
             t.describe()
         )));
     }
@@ -2808,6 +2808,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             let absent = !everywhere.contains(&format!("{part}.dbx"));
             let froms: HashSet<&String> = wanted.get(&part).map_or_default(|v| v.iter().map(|x| &x.1).collect());
             let mut stock_too = absent && !froms.is_empty();
+            #[allow(clippy::iter_over_hash_type, reason = "an all-of test over the set")]
             for from in froms {
                 let refs = if let Some(v) = stock_cache.get(from) {
                     v.clone()

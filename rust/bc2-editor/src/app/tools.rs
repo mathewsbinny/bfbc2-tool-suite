@@ -784,6 +784,7 @@ impl ViewState {
             }
             Action::FocusHere => {
                 if let Some(p) = self.point_here() {
+                    #[allow(clippy::iter_over_hash_type, reason = "every viewport is focused alike")]
                     for vp in self.viewports.values_mut() {
                         vp.camera.focus(p, None);
                         vp.dirty = true;

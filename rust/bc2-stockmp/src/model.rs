@@ -414,6 +414,10 @@ impl Model {
                 enabled_by.insert(t, s.clone());
             }
         }
+        #[allow(
+            clippy::iter_over_hash_type,
+            reason = "a check per list (each sorted); the first failure refuses"
+        )]
         for list in fed.values() {
             let mut gs: Vec<&Bytes> = list.iter().map(|(g, _)| g).collect();
             if gs.iter().any(|g| !g.is_ascii()) {
