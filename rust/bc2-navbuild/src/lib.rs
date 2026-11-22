@@ -1,5 +1,6 @@
-//! NavKit's path-data generator (`bfbc2-auto-navkit/tools/navbuild.py`): the grid walks a build spends its time
-//! in, ported from the Python reference, which stays the fallback (`rust/BENCHMARKS.md`, "NavKit's grid walks").
+//! NavKit's path-data generator (the port of `bfbc2-auto-navkit/tools/navbuild.py`, retired in round NK5-rest:
+//! the whole build is here, `build` and `stage`; `navwalk.build` calls it): first the grid walks a build spends its
+//! time in (`rust/BENCHMARKS.md`, "NavKit's grid walks").
 //!
 //! A build asks, a hundred million times on a small level, which kept surface of a neighbouring sample column a
 //! surface links to (`Level.neighbour`, with `Level.connected` and `navwalk.step_fits`); four callers make almost
@@ -243,6 +244,16 @@ impl Rule {
             "raw" => Some(Rule::Raw),
             "terrain" => Some(Rule::Terrain),
             _ => None,
+        }
+    }
+
+    /// The rule's name (`from_name`'s).
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Rule::Slope => "slope",
+            Rule::Raw => "raw",
+            Rule::Terrain => "terrain",
         }
     }
 }
