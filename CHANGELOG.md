@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-22
+
 ### Added
 - **The Kynapse specification** (round NKS): navigation meshing as BFBC2 ships and runs it, in three new spec files -
   `spec/formats/kynapse.md` (what path data means: worlds per pathfinding type, sector kinds and bounds, the resolution
