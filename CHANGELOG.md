@@ -28,6 +28,16 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Changed
+- **NavKit's build runs in Rust end to end** (round NK5): `bc2_navbuild::stage` (sector discovery, the areas, the
+  border-node runs, the seam nodes carried between pitches, the one-way portal pieces, the detail pass's glue, the
+  meshes' assembly, the route graphs and their ids, `merge_detailed`) and `bc2_navbuild::build` (walkability to the
+  file, the build's log lines). `bfbc2.exe navkit build`, `all` and `apply` on a NavKit base no longer hand off to the
+  Python (`--no-detail` included; `all` runs only the game's sampling as a `navkit.py sample` child);
+  `navbuild.build` and `navvehicle.stage_on_grid` / `write` are thin calls of the module. Every regression level's
+  file and log lines are the same bytes as before (15 of 15; the 4 golden builds as recorded); whole builds 234 ->
+  151 s over the 15 levels, the largest build's peak memory 11.8 -> 6.9 GB.
+
 ## [0.15.0] - 2026-11-22
 
 ### Added

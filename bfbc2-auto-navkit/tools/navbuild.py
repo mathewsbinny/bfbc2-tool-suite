@@ -859,9 +859,12 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
         got = nat.navkit_build(job, _cfg_dict(cfg), _switches(), navwalk._settings(40.0), _clock(stamp), out_path, log,
                                t0)
     except ValueError as e:
-        if str(e).startswith(('level arrays do not agree: no walkable ground', 'level arrays do not agree: ')) \
-                and ('no walkable ground' in str(e) or 'outside the 256 x 256 grid' in str(e)):
-            raise RuntimeError(str(e).split(': ', 1)[1]) from None
+        if str(e).startswith('no walkable ground') or 'outside the 256 x 256 grid' in str(e):
+            raise RuntimeError(str(e)) from None      # the stage's refusals, as the Python stage raised them
+        for p in (samples_path, high_path, narrow_path,
+                  *((detailed['samples'], detailed.get('high')) if detailed else ())):
+            if p:
+                navsample.load(p)                    # a file the core does not read: navsample.load says why
         raise
     _note_report(got)
 
