@@ -15,16 +15,6 @@ thiserror.workspace = true
 rayon.workspace = true
 regex.workspace = true
 memchr.workspace = true
-# round GR3: the mesh viewer's index cache (meshview_index.pkl, a pickle) shared with the Python and bfbc2.exe; behind
-# the pickle-cache feature since round PR1a (audit AU5 ARC-1), so the Python-runtime emulation is not a dependency of
-# the library itself
-bc2-pyrt = { workspace = true, optional = true }
-
-[features]
-# pickle-cache: meshview::cache and meshview::Index::load (the cache shared with meshview.py, read and written as its
-# pickle); enabled by bfbc2.exe (bc2-cli) and the map editor's asset preview until the Python reader of the cache goes
-# (audit AU5 ARC-4), then the cache becomes a native format
-pickle-cache = ["dep:bc2-pyrt"]
 
 [dev-dependencies]
 proptest.workspace = true

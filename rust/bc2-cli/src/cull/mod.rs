@@ -60,7 +60,7 @@ impl Out<'_> {
             return Ok(());
         };
         let dir = dirname(&abspath(path));
-        std::fs::create_dir_all(&dir).map_err(|e| ct::mkdir_error(&dir, &e))?;
+        std::fs::create_dir_all(&dir).map_err(|e| ct::mkdir_error(&dir, e))?;
         let text = format!("{}\n", self.lines.join("\n")).replace('\n', "\r\n");
         std::fs::write(path, text).map_err(|e| crate::pyproc::os_error(path, &e))
     }
@@ -71,7 +71,7 @@ fn arg_all(args: &mut Vec<String>, name: &str) -> PyResult<Vec<String>> {
     let mut vals = Vec::new();
     while let Some(i) = args.iter().position(|a| a == name) {
         if i + 1 >= args.len() {
-            return Err(cte(format!("{name} needs a value")));
+            return Err(cte(format!("{name} needs a value")).into());
         }
         vals.push(args.remove(i + 1));
         args.remove(i);
@@ -154,10 +154,16 @@ fn ref_levels(out: &mut Out, refs: &[String], dirs: &[String], target: (&str, &s
     let store = cache_folder()
         .zip(cullcache::code_id(SOURCE))
         .map(|(folder, code)| PickleStore::new(folder, code, touch));
+    let mut sink: Option<Fail> = None;
     let r = ref_rows(
         refs,
         dirs,
-        &mut |s| out.log(s),
+        &mut |s| {
+            out.log(s).map_err(|f| {
+                sink = Some(f);
+                ct::CullError::Sink
+            })
+        },
         Some(target),
         reference(),
         store.as_ref().map(|s| s as &dyn ct::RowStore),
@@ -167,7 +173,7 @@ fn ref_levels(out: &mut Out, refs: &[String], dirs: &[String], target: (&str, &s
     {
         crate::caches::maybe_prune("culltree", &s.folder);
     }
-    r
+    r.map_err(|e| sink.take().unwrap_or_else(|| e.into()))
 }
 
 /// `{k: c, ...}` of the leaves per object, sorted.
@@ -243,7 +249,7 @@ fn cmd_verify(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
     let added = arg(&mut args, "--added")?;
     let report_p = arg(&mut args, "--report")?;
     if args.len() != 2 {
-        return Err(cte("verify needs <tree.dbx> <level.dbx>"));
+        return Err(cte("verify needs <tree.dbx> <level.dbx>").into());
     }
     let mut t = CullTree::read_only(&args[0])?;
     let lv = Level::read(&args[1])?;
@@ -338,21 +344,15 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
     let client_p = arg(&mut args, "--client")?;
     let report_p = arg(&mut args, "--report")?;
     let (Some(out_tree), Some(out_level)) = (out_tree, out_level) else {
-        return Err(cte(
-            "add needs <tree.dbx> <level.dbx>, --objects or --auto, --out-tree and --out-level",
-        ));
+        return Err(cte("add needs <tree.dbx> <level.dbx>, --objects or --auto, --out-tree and --out-level").into());
     };
     if args.len() != 2 || !(objs_arg.is_some() || auto) {
-        return Err(cte(
-            "add needs <tree.dbx> <level.dbx>, --objects or --auto, --out-tree and --out-level",
-        ));
+        return Err(cte("add needs <tree.dbx> <level.dbx>, --objects or --auto, --out-tree and --out-level").into());
     }
     let low = |p: &str| abspath(p).to_lowercase();
     for path in [&out_tree, &out_level] {
         if low(path) == low(&args[0]) || low(path) == low(&args[1]) {
-            return Err(cte(
-                "write the results to new files (--out-tree / --out-level), not over the inputs",
-            ));
+            return Err(cte("write the results to new files (--out-tree / --out-level), not over the inputs").into());
         }
     }
     let mut t = CullTree::read(&args[0])?;
@@ -407,7 +407,7 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
                 continue;
             }
             let Some(o) = lv.by_guid(g) else {
-                return Err(cte(format!("object {g} is not in {}", basename(&args[1]))));
+                return Err(cte(format!("object {g} is not in {}", basename(&args[1]))).into());
             };
             objs.push(o);
         }
@@ -425,7 +425,14 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
         t.enum_offset,
         t.leaves()
     ))?;
-    let done = ct::add(&mut t, &mut lv, &objs, &found, &mut |s| out.log(s))?;
+    let mut sink: Option<Fail> = None;
+    let done = ct::add(&mut t, &mut lv, &objs, &found, &mut |s| {
+        out.log(s).map_err(|f| {
+            sink = Some(f);
+            ct::CullError::Sink
+        })
+    })
+    .map_err(|e| sink.take().unwrap_or_else(|| e.into()))?;
     t.write(&out_tree)?;
     lv.doc.write(&out_level)?;
     // the documents are not used once written (round CT1: their memory freed before the files are read back)
@@ -482,15 +489,12 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
     match cmd.as_str() {
         "info" => {
             if rest.is_empty() {
-                return Err(cte("info needs <tree.dbx> [<level.dbx>]"));
+                return Err(cte("info needs <tree.dbx> [<level.dbx>]").into());
             }
             cmd_info(rest, &mut out)
         }
         "verify" => cmd_verify(rest.to_vec(), &mut out),
         "add" => cmd_add(rest.to_vec(), &mut out),
-        _ => Err(cte(format!(
-            "unknown command {}: use info, verify or add",
-            str_repr(cmd)
-        ))),
+        _ => Err(cte(format!("unknown command {}: use info, verify or add", str_repr(cmd))).into()),
     }
 }

@@ -22,18 +22,26 @@ wireframe, normals, the bounds with their measurements, several meshes stacked, 
 `bfbc2-map-editor\EDITOR_ARCHITECTURE.md` 9.3 lists where each feature of the page went.
 
 The first run indexes the game copy's bundles (levels, async weapon / character bundles, the rest) and every level's
-Dx9 shader database, and caches that in `work\tools_out\meshview_index.pkl` (rebuilt when a bundle changes; the map
-editor reads and writes the same cache). How a mesh is read is in the docstring of `meshview.py` and the console
-converter's FORMAT.md. Needs Python 3.12+, `numpy`, `Pillow` and the suite's Rust core.
+Dx9 shader database, and caches that in `work\tools_out\meshview_index.bin` (rebuilt when a bundle changes; the map
+editor and `bfbc2.exe` read and write the same cache). How a mesh is read is in the docstring of `meshview.py` and the
+console converter's FORMAT.md. Needs Python 3.12+, `numpy`, `Pillow` and the suite's Rust core.
+
+Since round PR1b-2-rest the index, `load_mesh`, `mesh_surfaces`, `stack_models` and `render` are the Rust port's
+(`rust\bc2-convert\src\meshview`, through `bc2_native`: `MeshViewIndex`, `meshview_stack`, `meshview_render`); the
+module keeps the NumPy arrays and dicts its callers take, the stock bundles' list (`_bundles`), `read()`'s partition
+cache and `page()`. The index's old pickle (`meshview_index.pkl`) is no longer read; the caches' budget clears a
+leftover one.
 
 `bin\bfbc2.exe meshview ...` (the suite's `bin\`, round O3) takes the same arguments: it answers `find` and the help
-from a current index in Rust and hands the drawing to the Python (the suite's README, "bfbc2.exe").
+from the index in Rust (building it when the cache is not current) and hands the drawing to the Python (the
+suite's README, "bfbc2.exe").
 
 `meshview.page()` (the page for a browser) is deprecated: the command line no longer writes it, and it stays only for
 Project OPFOR BFBC2's WW2 tools (`attachments.py`, `scopes.py`), which still write their preview pages with it
 (`RETIRED.md`).
 
-`tests\record_preview_parity.py` records this tool's answers on real meshes (digests only) for the editor's parity
-tests (`rust\bc2-editor\tests\gr3.rs`).
+`tests\record_preview_parity.py` recorded this tool's answers on real meshes (digests only) for the editor's parity
+tests (`rust\bc2-editor\tests\gr3.rs`) while the tool was Python; the recording is the retired Python's (run again, it
+records the Rust port).
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

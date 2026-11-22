@@ -57,7 +57,8 @@
 //! `navkit_navsample_write`, `hkpack_parse`; `xenos_disasm_body` (`xenos.rs`).
 //!
 //! Round F4 (`culltree_audio_havok.rs`): `culltree_strings`, `audio_convert` / `audio_decode`, `hkpack_open` / `HkPackfile`,
-//! `navkit_asset_bodies`, `meshview_part`, `texqa_read`; `xenos_disasm` (`xenos.rs`).
+//! `navkit_asset_bodies`, `texqa_read`; `xenos_disasm` (`xenos.rs`). (`meshview_part` went in round PR1b-2-rest:
+//! `load_mesh` is the Rust port's, `MeshViewIndex.load_mesh`.)
 
 mod aim_pathmesh_audio;
 mod apt;
@@ -520,8 +521,7 @@ mod bc2_native {
     // round F4: F3's leftovers
     #[pymodule_export]
     use super::culltree_audio_havok::{
-        HkPackfile, audio_convert, audio_decode, culltree_strings, hkpack_open, meshview_part, navkit_asset_bodies,
-        texqa_read,
+        HkPackfile, audio_convert, audio_decode, culltree_strings, hkpack_open, navkit_asset_bodies, texqa_read,
     };
 
     #[pymodule_export]
@@ -554,16 +554,18 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::converters::{
-        TexWriteJob, granny_add_tracks, granny_orientation_plan, granny_shift_plan, granny_with_crc,
-        havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks, skin_bounds,
-        skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert, terrain_heightfield,
-        terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts, terrain_visual_water_parts,
-        texture_check, texwrite_alpha, texwrite_l8_down, texwrite_levels,
+        TexWriteJob, granny_add_tracks, granny_curve_keys, granny_orientation_plan, granny_sample, granny_shift_plan,
+        granny_with_crc, havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks,
+        skin_bounds, skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert,
+        terrain_heightfield, terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts,
+        terrain_visual_water_parts, texture_check, texwrite_alpha, texwrite_l8_bytes, texwrite_l8_down,
+        texwrite_levels, texwrite_resource, texwrite_wrapped,
     };
 
-    // round O3: meshview.Index's tables (bfbc2-mesh-viewer\meshview.py)
+    // round PR1b-2-rest: the mesh viewer's Python API on its Rust port (bfbc2-mesh-viewer\meshview.py; round O3's
+    // meshview_index went with the pickle cache)
     #[pymodule_export]
-    use super::meshindex::meshview_index;
+    use super::meshindex::{MeshViewIndex, meshview_open, meshview_render, meshview_stack};
 
     // round NK1: navkit apply's edit stage (navlinks.py / navtraversal.py retired)
     #[pymodule_export]

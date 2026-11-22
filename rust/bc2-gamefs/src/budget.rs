@@ -201,7 +201,8 @@ pub const SPECS: &[Spec] = &[
     ),
     project(
         "meshview",
-        &["meshview_index.pkl"],
+        // round PR1b-2-rest: bc2_gamefs::meshindex's cache, and the retired pickle a copy may still hold
+        &["meshview_index.bin", "meshview_index.pkl"],
         &["work", "tools_out"],
         "BFBC2_MESHVIEW_CACHE_MB",
         256.0,

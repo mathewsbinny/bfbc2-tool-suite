@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-22
+
 ### Fixed
 - **The same answers on every machine** (round CI1, GitHub's `checks` run): `texture.check`'s correlation (used by
   `convert.py verify-texture` / `bfbc2.exe convert verify-texture`) was NumPy's `corrcoef`, whose last bits follow
@@ -39,6 +41,50 @@ landed on `main`.
   checkout (`tests/test_rust.py`, GitHub's runner: D: and C:).
 - Goldens no longer hold the recording PC's temporary folder: stockmp's validate log records compare it as `<temp>`
   in its long or 8.3 short form (`test_cli_o5.py`); `fbrbtool_golden_game.json`'s informational paths likewise.
+
+### Removed
+- **The mesh viewer's pickle cache** `work\tools_out\meshview_index.pkl` (round PR1b-2-rest, audit AU5 ARC-4): the
+  index of the game copy is `bc2_gamefs::meshindex`'s own file, `meshview_index.bin` (magic, version 4, the bundles'
+  signature, the tables, a SHA-1 of it all: a damaged or foreign file is built again, never half read), read and
+  written in Rust by `meshview.Index` (through `bc2_native.meshview_open`), `bfbc2.exe meshview` / `dbxcatalogue` and
+  the map editor's asset preview. A leftover `.pkl` is counted and cleared by the `meshview` cache's budget.
+- **`meshview.py`'s Python index build, part reader and renderer** (`Index._build_reference`, `_add_database`,
+  `_read_part` / `_read_part_reference` / `_values`, `_texture`, `use_native`, `CACHE_VERSION`, `COLOUR` /
+  `NOT_COLOUR`, `SIZE`, and the module's `meshdata` / `texture` imports): `Index`, `load_mesh`, `mesh_surfaces`,
+  `stack_models` and `render` are the Rust port's (`bc2_convert::meshview`); `page()` stays (Project OPFOR's WW2
+  preview pages). `bc2_native.meshview_index` and `meshview_part` went (`MeshViewIndex`, `meshview_open`,
+  `meshview_stack`, `meshview_render` instead).
+- **`bc2-convert`'s `pickle-cache` feature** and its `bc2-pyrt` dependency; `bc2_convert::meshview::cache`'s pickle
+  reader and writer (`read`, `cache_bytes`, `same_sig`, `signature`, `mtime_ns`, `Sig`, `CACHE_VERSION`: now
+  `bc2_gamefs::meshindex`'s); `bc2_gamefs::meshindex::build` returns the index (what it left out in `skipped`)
+  instead of an error.
+- **`granny.py`'s Python curve reader** (`_trunc_scale`, `_quat`, `bits_of`): `curve_keys` and `sample` are the Rust
+  core's (`bc2_convert::granny_edit::curve_keys` / `sample`, `bc2_native.granny_curve_keys` / `granny_sample`).
+- **LevelDiff's command line moved** from `bc2_formats::dbxedit::leveldiff` (`Run`, `parse_args`, `run`, `USAGE`) to
+  `bc2_tools::leveldiff`; the comparison stays in `bc2_formats`.
+- `tests/test_f4_native.py`'s `meshview` area and `tests/f4_golden_meshview.json` (the part reader they compared is
+  the Rust port's whole now).
+
+### Changed
+- **`bc2_levelwrite::culltool` has typed errors** (`CullError`: `CullTree`, `Io`, `Mkdir`, `Damaged`, `Sink`;
+  `CullResult`) instead of the Python emulation's `Fail`; `bfbc2.exe culltree` turns them into the Python's
+  exceptions through `From<CullError> for Fail` (the same texts and exit codes). `RefLevel.rows` holds the tree's
+  `CullTreeError` text.
+- **One Project OPFOR finder**, `bc2_gamefs::game::find_opfor` / `opfor_candidates` (`Beside::Only` as
+  `shaderdb.find_opfor`, `Beside::Above` as `bfbc2core.paths.find_opfor`; `OpforNotFound` names the folders tried),
+  for bc2-cli's meshview / bf1943, shader, NavKit and stock-MP groups, bc2-menu and the map editor (six copies).
+- The mesh index is built whatever it meets: an unreadable bundle or database is left out, said, and the index not
+  cached (the Python reference did this for some failures and raised on others; no DICE file has any).
+- `meshview.render` draws in float32 positions (NumPy drew a float64 part in float64; a preview's pixels may differ
+  for those). Its shading is NumPy's to the bit: OpenBLAS' `sdot` length and `ddot` facing, found on 19,045 real
+  triangles (the port missed a triangle's colour by one level in 9 of 360 parity pictures before).
+- The map editor's install run is a `Task` (the last of PR1b-0's background jobs).
+- `texwrite.py`'s packing (`resource`, `texture`'s header, `wrapped`, `l8_bytes`) is the Rust core's
+  (`bc2_native.texwrite_resource` / `texwrite_wrapped` / `texwrite_l8_bytes`).
+
+### Added
+- `bfbc2-anim-tools/tests/test_granny_curves.py`: `curve_keys` / `sample` against the retired Python on built curves
+  of every format and, with `--game`, every animation curve of the game copy.
 
 ## [0.18.0] - 2026-11-22
 

@@ -24112,7 +24112,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-cli/src/stockmp/mod.rs:309-436"
+     "ref": "rust/bc2-cli/src/stockmp/mod.rs:285-412"
     },
     {
      "kind": "test",
@@ -24140,7 +24140,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-cli/src/stockmp/mod.rs:309-436"
+     "ref": "rust/bc2-cli/src/stockmp/mod.rs:285-412"
     },
     {
      "kind": "test",

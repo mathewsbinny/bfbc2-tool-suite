@@ -133,32 +133,10 @@ pub const MOVIE_SETS: [(&str, &str); 7] = [
 /// `find_opfor(given)`: given, `OPFOR_ROOT`, then `project-opfor-bfbc2` beside the suite or a folder above it; the
 /// first with a `game` folder, absolute.
 pub fn find_opfor(given: Option<&str>) -> PyResult<String> {
-    let mut cands: Vec<String> = Vec::new();
-    cands.extend(given.filter(|g| !g.is_empty()).map(str::to_owned));
-    if let Ok(v) = std::env::var("OPFOR_ROOT")
-        && !v.is_empty()
-    {
-        cands.push(v);
-    }
-    let suite = abspath(&bc2_pyrt::py::suite_root().to_string_lossy());
-    let mut d = suite.clone();
-    cands.push(join(&d, &["project-opfor-bfbc2"]));
-    loop {
-        let up = dirname(&d);
-        if up == d {
-            break;
-        }
-        d = up;
-        cands.push(join(&d, &["project-opfor-bfbc2"]));
-    }
-    for c in cands {
-        if isdir(&join(&c, &["game"])) {
-            return Ok(abspath(&c));
-        }
-    }
-    Err(menu_err(
-        "Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT",
-    ))
+    let suite = bc2_pyrt::py::suite_root();
+    bc2_gamefs::game::find_opfor(given, true, bc2_gamefs::game::Beside::Above(&[suite.as_path()]))
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|_| menu_err("Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT"))
 }
 
 /// `out_dir(root)`: `<OPFOR>\work\tools_out`, made.

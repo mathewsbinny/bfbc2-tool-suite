@@ -19,7 +19,7 @@
    "embedded_by": [],
    "folder": "bfbc2-anim-tools",
    "kind": "tool entry point",
-   "lines": 1108,
+   "lines": 1055,
    "note": "reading and writing in Rust (E3i, F2a); left: curve_keys / sample on the reader side, Granny.put / field / array_at, the *_reference twins",
    "path": "bfbc2-anim-tools/granny.py",
    "retiring": "PR1b-2",
@@ -46,6 +46,18 @@
    "lines": 216,
    "note": "granny.py on the game's files (game tier; skipped without them): - the soldier skeleton (characters/skeleto...",
    "path": "bfbc2-anim-tools/tests/test_granny.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-anim-tools",
+   "kind": "test",
+   "lines": 211,
+   "note": "granny.curve_keys and granny.sample on the Rust core (round PR1b-2-rest: bc2_convert::granny_edit) against...",
+   "path": "bfbc2-anim-tools/tests/test_granny_curves.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
@@ -2101,8 +2113,8 @@
    ],
    "folder": "bfbc2-mesh-viewer",
    "kind": "tool entry point",
-   "lines": 603,
-   "note": "the index and drawing are Rust (GR3); left: Index as OPFOR's in-process API (ARC-4), page() for OPFOR's previews",
+   "lines": 386,
+   "note": "PR1b-2-rest: Index / load_mesh / mesh_surfaces / stack_models / render on the Rust port through bc2_native (MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); left in Python: the NumPy arrays and dicts, _bundles (OPFOR's step tracker sees its walk), the partition cache of read(), page() (OPFOR's WW2 preview pages)",
    "path": "bfbc2-mesh-viewer/meshview.py",
    "retiring": "PR1b-2",
    "rust": "bc2_convert::meshview; bfbc2 meshview; the editor's preview",
@@ -2114,7 +2126,7 @@
    "folder": "bfbc2-mesh-viewer",
    "kind": "test helper or golden recorder",
    "lines": 78,
-   "note": "recorded meshview's answers for the editor's asset preview (GR3)",
+   "note": "recorded meshview's answers for the editor's asset preview (GR3); the recording is the retired Python's (since PR1b-2-rest meshview.py is the Rust port: running it again records the port)",
    "path": "bfbc2-mesh-viewer/tests/record_preview_parity.py",
    "retiring": "PR1b-2",
    "rust": "",
@@ -2125,7 +2137,7 @@
    "embedded_by": [],
    "folder": "bfbc2-mesh-viewer",
    "kind": "test",
-   "lines": 80,
+   "lines": 81,
    "note": "meshview.py on the game's files (game tier; skipped without them): - the M1 Garand's first-person mesh read...",
    "path": "bfbc2-mesh-viewer/tests/test_meshview.py",
    "retiring": "Tests in Rust",
@@ -2137,7 +2149,7 @@
    "embedded_by": [],
    "folder": "bfbc2-mesh-viewer",
    "kind": "test",
-   "lines": 150,
+   "lines": 152,
    "note": "meshview.py's game-copy index without the game (quick tier): the bundles it indexes (stock levels and async...",
    "path": "bfbc2-mesh-viewer/tests/test_meshview_index.py",
    "retiring": "Tests in Rust",
@@ -2233,7 +2245,7 @@
    "embedded_by": [],
    "folder": "bfbc2-model-tools",
    "kind": "library",
-   "lines": 341,
+   "lines": 349,
    "note": "DXT encoding in Rust; resource / header packing and NumPy eigh still Python; references kept",
    "path": "bfbc2-model-tools/texwrite.py",
    "retiring": "PR1b-2",
@@ -2631,7 +2643,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "tool entry point",
-   "lines": 931,
+   "lines": 932,
    "note": "the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate",
    "path": "core/bfbc2core/caches.py",
    "retiring": "PR1b-2",
@@ -2895,7 +2907,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test helper or golden recorder",
-   "lines": 143,
+   "lines": 139,
    "note": "Round O3's bf1943 group: the command lines test_cli_o3.py replays for bfbc2-bf1943-import's dbxcatalogue.py...",
    "path": "core/tests/cli_o3_bf1943.py",
    "retiring": "Tests in Rust",
@@ -2943,7 +2955,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test helper or golden recorder",
-   "lines": 222,
+   "lines": 264,
    "note": "Round O3's meshview group: the command lines test_cli_o3.py replays for meshview.py (its `find`; drawing a...",
    "path": "core/tests/cli_o3_meshview.py",
    "retiring": "Tests in Rust",
@@ -3519,7 +3531,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1361,
+   "lines": 1365,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3915,7 +3927,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 837,
+   "lines": 842,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4215,7 +4227,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 709,
+   "lines": 641,
    "note": "Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or...",
    "path": "tests/test_f4_native.py",
    "retiring": "Tests in Rust",
@@ -4424,30 +4436,30 @@
  ],
  "totals": {
   "all": {
-   "files": 363,
-   "lines": 106665
+   "files": 364,
+   "lines": 106597
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1417,
+    "lines": 1421,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1361,
+    "test": 1365,
     "twin": 0
    },
    "bfbc2-anim-tools": {
-    "files": 7,
-    "lines": 2462,
+    "files": 8,
+    "lines": 2620,
     "live": 0,
-    "partly": 1108,
+    "partly": 1055,
     "ported": 106,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1248,
+    "test": 1459,
     "twin": 0
    },
    "bfbc2-auto-navkit": {
@@ -4562,25 +4574,25 @@
    },
    "bfbc2-mesh-viewer": {
     "files": 4,
-    "lines": 911,
+    "lines": 697,
     "live": 0,
-    "partly": 603,
+    "partly": 386,
     "ported": 0,
     "retired-pending": 0,
     "stays": 78,
-    "test": 230,
+    "test": 233,
     "twin": 0
    },
    "bfbc2-model-tools": {
     "files": 8,
-    "lines": 1686,
+    "lines": 1694,
     "live": 364,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
     "test": 664,
-    "twin": 658
+    "twin": 666
    },
    "bfbc2-navigation-studio": {
     "files": 2,
@@ -4617,14 +4629,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 19862,
+    "lines": 19901,
     "live": 753,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14790,
-    "twin": 2414
+    "test": 14828,
+    "twin": 2415
    },
    "design": {
     "files": 1,
@@ -4639,12 +4651,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5969,
+    "lines": 5974,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5702,
+    "stays": 5707,
     "test": 267,
     "twin": 0
    },
@@ -4661,13 +4673,13 @@
    },
    "tests": {
     "files": 29,
-    "lines": 7693,
+    "lines": 7625,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7693,
+    "test": 7625,
     "twin": 0
    }
   },
@@ -4678,7 +4690,7 @@
    },
    "partly": {
     "files": 20,
-    "lines": 17183
+    "lines": 16913
    },
    "ported": {
     "files": 21,
@@ -4690,15 +4702,15 @@
    },
    "stays": {
     "files": 58,
-    "lines": 10602
+    "lines": 10607
    },
    "test": {
-    "files": 185,
-    "lines": 50499
+    "files": 186,
+    "lines": 50687
    },
    "twin": {
     "files": 55,
-    "lines": 19420
+    "lines": 19429
    }
   }
  }

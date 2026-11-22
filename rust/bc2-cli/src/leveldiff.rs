@@ -1,5 +1,5 @@
 //! `bfbc2 leveldiff`: LevelDiff's command line (round EX1; `LevelDiff.exe`, a .NET Framework program, retired), run
-//! in process by [`bc2_formats::dbxedit::leveldiff`]. The same arguments, text, JSON file and exit codes (0 no
+//! in process by [`bc2_tools::leveldiff`]. The same arguments, text, JSON file and exit codes (0 no
 //! differences, 1 differences, 2 bad input, 3 an unexpected error), proven against LevelDiff.exe's recorded answers
 //! on real level pairs (`rust/BENCHMARKS.md`, "EX1").
 //!
@@ -10,7 +10,7 @@
 
 use std::process::ExitCode;
 
-use bc2_formats::dbxedit::leveldiff;
+use bc2_tools::leveldiff;
 
 use crate::{pylog, pystdio};
 

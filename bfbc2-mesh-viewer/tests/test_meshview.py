@@ -21,7 +21,8 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('mesh-viewer')
+suite_paths.use('mesh-viewer', 'console-convert')
+import mesh as meshdata  # noqa: E402
 import meshview  # noqa: E402
 import shaderdb  # noqa: E402
 
@@ -56,12 +57,12 @@ def main() -> int:
     bad, seen, inside = [], 0, 0
     for p in body:
         uv = p['uvs']
-        els, _ = meshview.meshdata.elements(rec[p['name']])
-        k = meshview.meshdata.texcoord_element(els)
+        els, _ = meshdata.elements(rec[p['name']])
+        k = meshdata.texcoord_element(els)
         if k is None:                                     # depth-only splits: positions and skinning only
             continue
         seen += 1
-        dec = meshview.meshdata.decode(b, rec[p['name']], p['name'], big_endian=False)['uvs']
+        dec = meshdata.decode(b, rec[p['name']], p['name'], big_endian=False)['uvs']
         first = next(e for e in els if e[1] == 0)
         if (uv is None or tuple(els[k]) != (0x06, 0, 40, 0) or tuple(first) != (0x08, 0, 16, 0)
                 or not np.array_equal(dec, uv)):

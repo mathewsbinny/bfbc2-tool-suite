@@ -24,21 +24,6 @@ pub fn fail(f: ntpath::Fail) -> Fail {
     }
 }
 
-/// `bfbc2core.paths.walk_up(start)`: `<start>\project-opfor-bfbc2`, then the same in each folder above.
-fn walk_up(start: &str) -> PyResult<Vec<String>> {
-    let mut d = pyos::abspath(start)?;
-    let mut out = vec![pyos::join2(&d, "project-opfor-bfbc2")?];
-    loop {
-        let up = pyos::dirname(&d)?;
-        if up == d {
-            break;
-        }
-        d = up;
-        out.push(pyos::join2(&d, "project-opfor-bfbc2")?);
-    }
-    Ok(out)
-}
-
 /// The suite folder the Python tools sit in (NavKit's `find_opfor` walks up from it).
 pub fn suite() -> PyResult<String> {
     let s = crate::pyproc::suite_root()
@@ -48,30 +33,15 @@ pub fn suite() -> PyResult<String> {
     pyos::abspath(&s)
 }
 
-/// `bfbc2core.paths.find_opfor(given, start=<the suite>)`: Ok(folder) or Err(GameCopyNotFound's text).
+/// `bfbc2core.paths.find_opfor(given, start=<the suite>)`: Ok(folder) or Err(GameCopyNotFound's text)
+/// ([`bc2_gamefs::game::find_opfor`], walking up from the suite).
 pub fn find_opfor_text(given: Option<&str>, env: bool) -> PyResult<Result<String, String>> {
-    let mut looked: Vec<String> = Vec::new();
-    for c in [
-        given.map(str::to_owned),
-        if env { std::env::var("OPFOR_ROOT").ok() } else { None },
-    ]
-    .into_iter()
-    .flatten()
-    {
-        if !c.is_empty() {
-            looked.push(c);
-        }
-    }
-    looked.extend(walk_up(&suite()?)?);
-    for c in &looked {
-        if pyos::isdir(&pyos::join2(c, "game")?) {
-            return Ok(Ok(pyos::abspath(c)?));
-        }
-    }
-    Ok(Err(format!(
-        "Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT (looked for a game\\ folder in: {})",
-        looked.join(", ")
-    )))
+    let suite = std::path::PathBuf::from(suite()?);
+    Ok(
+        bc2_gamefs::game::find_opfor(given, env, bc2_gamefs::game::Beside::Above(&[suite.as_path()]))
+            .map(|p| p.to_string_lossy().into_owned())
+            .map_err(|e| e.to_string()),
+    )
 }
 
 /// `navkit.find_opfor(given)`: the folder, or `NavKitError` with `GameCopyNotFound`'s text (`kind` names the class as
