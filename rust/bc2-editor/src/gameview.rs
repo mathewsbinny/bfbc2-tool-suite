@@ -196,7 +196,7 @@ pub fn read_world(opfor: &Path, lv: &str, scene: &Scene) -> Result<ReadWorld, Ed
 
 /// A game-accurate view being read on a worker (round OP1).
 pub struct GameLoad {
-    rx: std::sync::mpsc::Receiver<Result<ReadWorld, EditorError>>,
+    rx: crate::task::Task<ReadWorld>,
     /// Since when.
     pub since: Instant,
 }
@@ -205,27 +205,17 @@ impl GameLoad {
     /// Starts reading the level's world on a worker (the scene's placed things taken now).
     #[must_use]
     pub fn start(opfor: &Path, lv: &str, scene: &Scene) -> Self {
-        let (tx, rx) = std::sync::mpsc::channel();
         let (opfor, lv, scene) = (opfor.to_path_buf(), lv.to_owned(), scene.clone());
-        std::thread::spawn(move || {
-            let r = crate::export_ui::guarded("The game-accurate view", || read_world(&opfor, &lv, &scene));
-            let _ = tx.send(r);
-        });
         Self {
-            rx,
+            rx: crate::task::Task::spawn("The game-accurate view", move || read_world(&opfor, &lv, &scene)),
             since: Instant::now(),
         }
     }
 
     /// The view, once read (`None`: still reading); a worker that stopped without an answer is an error.
+    #[must_use]
     pub fn poll(&self) -> Option<Result<GameView, EditorError>> {
-        match self.rx.try_recv() {
-            Ok(r) => Some(r.and_then(GameView::finish)),
-            Err(std::sync::mpsc::TryRecvError::Empty) => None,
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(Err(EditorError::Worker(
-                "the game-accurate view's worker stopped unexpectedly".into(),
-            ))),
-        }
+        self.rx.poll().map(|r| r.and_then(GameView::finish))
     }
 
     /// Waits for the view (headless runs and tests).
@@ -233,10 +223,7 @@ impl GameLoad {
     /// # Errors
     /// As [`GameView::load`].
     pub fn wait(self) -> Result<GameView, EditorError> {
-        self.rx
-            .recv()
-            .map_err(|_| EditorError::Worker("the game-accurate view's worker stopped unexpectedly".into()))?
-            .and_then(GameView::finish)
+        self.rx.wait().and_then(GameView::finish)
     }
 }
 

@@ -119,6 +119,9 @@ pub struct Canvas {
     pub owner: Vec<u32>,
 }
 
+/// One part as [`Canvas::fill_parts`] draws it: the part, its vertices in the world and on screen, its look.
+pub type PartJob<'a> = (&'a Part, &'a [[f32; 3]], &'a [[f32; 3]], Look<'a>);
+
 /// How [`Canvas::fill`] colours a part.
 #[derive(Debug, Clone, Copy)]
 pub struct Look<'a> {
@@ -155,106 +158,50 @@ impl Canvas {
 
     /// `render`'s triangle loop for one part: its vertices on screen (`sx`, `sy` float32 pixels, `sz` the depth,
     /// smaller nearer) and in the world (`pos`, for the facing), drawn where nearer than what is there.
-    #[allow(
-        clippy::too_many_lines,
-        clippy::similar_names,
-        clippy::many_single_char_names,
-        reason = "render's loop as the Python writes it"
-    )]
     pub fn fill(&mut self, part: &Part, pos: &[[f32; 3]], screen: &[[f32; 3]], look: &Look<'_>) {
         let (w, h) = (self.image.w as i64, self.image.h as i64);
-        let light = light();
-        let uv = part.uvs.as_deref();
-        for t in &part.indices {
-            let [i0, i1, i2] = t.map(|i| i as usize);
-            let (Some(a), Some(b), Some(c)) = (screen.get(i0), screen.get(i1), screen.get(i2)) else {
-                continue;
-            };
-            let ([x0, y0, z0], [x1, y1, z1], [x2, y2, z2]) = (*a, *b, *c);
-            let area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
-            if area.abs() < 1e-9_f32 || area.is_nan() {
-                continue;
-            }
-            // int(max(min(x0, x1, x2), 0)), int(min(max(x0, x1, x2), w - 1)) + 1: Python's min / max of the floats
-            let lo_x = x0.min(x1).min(x2);
-            let hi_x = x0.max(x1).max(x2);
-            let lo_y = y0.min(y1).min(y2);
-            let hi_y = y0.max(y1).max(y2);
-            let clamp_lo = |v: f32| if 0.0 > v { 0 } else { v as i64 };
-            let clamp_hi = |v: f32, m: i64| if (m as f32) < v { m } else { v as i64 };
-            let (xa, xb) = (clamp_lo(lo_x), clamp_hi(hi_x, w - 1) + 1);
-            let (ya, yb) = (clamp_lo(lo_y), clamp_hi(hi_y, h - 1) + 1);
-            if xa >= xb || ya >= yb {
-                continue;
-            }
-            let area64 = f64::from(area);
-            let (fx0, fx1, fx2) = (f64::from(x0), f64::from(x1), f64::from(x2));
-            let (fy0, fy1, fy2) = (f64::from(y0), f64::from(y1), f64::from(y2));
-            let (fz0, fz1, fz2) = (f64::from(z0), f64::from(z1), f64::from(z2));
-            // the facing's shade: computed once per triangle (the Python's, after its first pixel hit)
-            let mut shade: Option<f32> = None;
-            let shade_of = || -> f32 {
-                if !look.shade {
-                    return 1.0;
+        let mut band = Band {
+            rgb: &mut self.image.rgb,
+            depth: &mut self.depth,
+            owner: &mut self.owner,
+            rows: (0, h),
+        };
+        fill_band(&mut band, w, h, part, pos, screen, look);
+    }
+
+    /// [`Canvas::fill`] for each part in order, the picture drawn in horizontal bands at once on all cores (round
+    /// PR1b-0, audit AU5 ALG-9: the asset preview's orbit). Each band draws every triangle in the same order and
+    /// each pixel's arithmetic is [`Canvas::fill`]'s, so the picture, its depths and owners are the same, bit for
+    /// bit.
+    pub fn fill_parts(&mut self, parts: &[PartJob<'_>]) {
+        use rayon::prelude::*;
+        let (w, h) = (self.image.w as i64, self.image.h as i64);
+        let wu = self.image.w.max(1);
+        // about 32 rows a band, at most 64 bands
+        let rows = (self.image.h.div_ceil(64)).max(32);
+        let bands: Vec<Band<'_>> = self
+            .image
+            .rgb
+            .chunks_mut(rows * wu * 3)
+            .zip(self.depth.chunks_mut(rows * wu))
+            .zip(self.owner.chunks_mut(rows * wu))
+            .enumerate()
+            .map(|(k, ((rgb, depth), owner))| {
+                let y0 = (k * rows) as i64;
+                let n = (depth.len() / wu) as i64;
+                Band {
+                    rgb,
+                    depth,
+                    owner,
+                    rows: (y0, y0 + n),
                 }
-                let (Some(p0), Some(p1), Some(p2)) = (pos.get(i0), pos.get(i1), pos.get(i2)) else {
-                    return 1.0;
-                };
-                let e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
-                let e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
-                let n = [
-                    e1[1] * e2[2] - e1[2] * e2[1],
-                    e1[2] * e2[0] - e1[0] * e2[2],
-                    e1[0] * e2[1] - e1[1] * e2[0],
-                ];
-                let nl = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-                if nl > 0.0 {
-                    let d = f64::from(n[0]) * light[0] + f64::from(n[1]) * light[1] + f64::from(n[2]) * light[2];
-                    0.35f32 + 0.65f32 * ((d as f32) / nl).abs()
-                } else {
-                    1.0
-                }
-            };
-            for py in ya..yb {
-                let gy = py as f64 + 0.5;
-                for px in xa..xb {
-                    let gx = px as f64 + 0.5;
-                    let w0 = ((fx1 - gx) * (fy2 - gy) - (fx2 - gx) * (fy1 - gy)) / area64;
-                    let w1 = ((fx2 - gx) * (fy0 - gy) - (fx0 - gx) * (fy2 - gy)) / area64;
-                    let w2 = 1.0 - w0 - w1;
-                    if !(w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0) {
-                        continue;
-                    }
-                    let z = w0 * fz0 + w1 * fz1 + w2 * fz2;
-                    let k = (py * w + px) as usize;
-                    let Some(slot) = self.depth.get_mut(k) else { continue };
-                    if !(z < *slot) {
-                        continue;
-                    }
-                    *slot = z;
-                    if let Some(o) = self.owner.get_mut(k) {
-                        *o = look.id;
-                    }
-                    let s = *shade.get_or_insert_with(shade_of);
-                    let col: [f32; 3] = match (look.texture, uv) {
-                        (Some(tex), Some(uv)) => {
-                            let at = |i: usize| uv.get(i).copied().unwrap_or([0.0; 2]);
-                            let (t0, t1, t2) = (at(i0), at(i1), at(i2));
-                            let u = w0 * f64::from(t0[0]) + w1 * f64::from(t1[0]) + w2 * f64::from(t2[0]);
-                            let v = w0 * f64::from(t0[1]) + w1 * f64::from(t1[1]) + w2 * f64::from(t2[1]);
-                            let tx = (np_mod1(u) * (tex.w as f64 - 1.0)) as usize;
-                            let ty = (np_mod1(v) * (tex.h as f64 - 1.0)) as usize;
-                            tex.at(tx, ty).map(f32::from)
-                        }
-                        _ => look.flat,
-                    };
-                    let out = col.map(|c| (c * s).clamp(0.0, 255.0) as u8);
-                    if let Some(dst) = self.image.rgb.get_mut(k * 3..k * 3 + 3) {
-                        dst.copy_from_slice(&out);
-                    }
-                }
+            })
+            .collect();
+        bands.into_par_iter().for_each(|mut band| {
+            for (part, pos, screen, look) in parts {
+                fill_band(&mut band, w, h, part, pos, screen, look);
             }
-        }
+        });
     }
 
     /// A line from `a` to `b` (pixels), in front of what is drawn where `depth` says so (`None`: over everything).
@@ -284,6 +231,121 @@ impl Canvas {
             }
             if let Some(dst) = self.image.rgb.get_mut(k * 3..k * 3 + 3) {
                 dst.copy_from_slice(&colour);
+            }
+        }
+    }
+}
+
+/// Rows `rows.0 .. rows.1` of a canvas: its pixels, depths and owners from the first of those rows.
+struct Band<'a> {
+    rgb: &'a mut [u8],
+    depth: &'a mut [f64],
+    owner: &'a mut [u32],
+    rows: (i64, i64),
+}
+
+/// [`Canvas::fill`]'s triangle loop on the rows of `band` (of a `w` x `h` canvas).
+#[allow(
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    reason = "render's loop as the Python writes it"
+)]
+fn fill_band(band: &mut Band<'_>, w: i64, h: i64, part: &Part, pos: &[[f32; 3]], screen: &[[f32; 3]], look: &Look<'_>) {
+    let light = light();
+    let uv = part.uvs.as_deref();
+    for t in &part.indices {
+        let [i0, i1, i2] = t.map(|i| i as usize);
+        let (Some(a), Some(b), Some(c)) = (screen.get(i0), screen.get(i1), screen.get(i2)) else {
+            continue;
+        };
+        let ([x0, y0, z0], [x1, y1, z1], [x2, y2, z2]) = (*a, *b, *c);
+        let area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+        if area.abs() < 1e-9_f32 || area.is_nan() {
+            continue;
+        }
+        // int(max(min(x0, x1, x2), 0)), int(min(max(x0, x1, x2), w - 1)) + 1: Python's min / max of the floats
+        let lo_x = x0.min(x1).min(x2);
+        let hi_x = x0.max(x1).max(x2);
+        let lo_y = y0.min(y1).min(y2);
+        let hi_y = y0.max(y1).max(y2);
+        let clamp_lo = |v: f32| if 0.0 > v { 0 } else { v as i64 };
+        let clamp_hi = |v: f32, m: i64| if (m as f32) < v { m } else { v as i64 };
+        let (xa, xb) = (clamp_lo(lo_x), clamp_hi(hi_x, w - 1) + 1);
+        let (ya, yb) = (clamp_lo(lo_y), clamp_hi(hi_y, h - 1) + 1);
+        if xa >= xb || ya >= yb {
+            continue;
+        }
+        // the band's rows of it
+        let (ya, yb) = (ya.max(band.rows.0), yb.min(band.rows.1));
+        if ya >= yb {
+            continue;
+        }
+        let area64 = f64::from(area);
+        let (fx0, fx1, fx2) = (f64::from(x0), f64::from(x1), f64::from(x2));
+        let (fy0, fy1, fy2) = (f64::from(y0), f64::from(y1), f64::from(y2));
+        let (fz0, fz1, fz2) = (f64::from(z0), f64::from(z1), f64::from(z2));
+        // the facing's shade: computed once per triangle (the Python's, after its first pixel hit)
+        let mut shade: Option<f32> = None;
+        let shade_of = || -> f32 {
+            if !look.shade {
+                return 1.0;
+            }
+            let (Some(p0), Some(p1), Some(p2)) = (pos.get(i0), pos.get(i1), pos.get(i2)) else {
+                return 1.0;
+            };
+            let e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+            let e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+            let n = [
+                e1[1] * e2[2] - e1[2] * e2[1],
+                e1[2] * e2[0] - e1[0] * e2[2],
+                e1[0] * e2[1] - e1[1] * e2[0],
+            ];
+            let nl = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+            if nl > 0.0 {
+                let d = f64::from(n[0]) * light[0] + f64::from(n[1]) * light[1] + f64::from(n[2]) * light[2];
+                0.35f32 + 0.65f32 * ((d as f32) / nl).abs()
+            } else {
+                1.0
+            }
+        };
+        for py in ya..yb {
+            let gy = py as f64 + 0.5;
+            for px in xa..xb {
+                let gx = px as f64 + 0.5;
+                let w0 = ((fx1 - gx) * (fy2 - gy) - (fx2 - gx) * (fy1 - gy)) / area64;
+                let w1 = ((fx2 - gx) * (fy0 - gy) - (fx0 - gx) * (fy2 - gy)) / area64;
+                let w2 = 1.0 - w0 - w1;
+                if !(w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0) {
+                    continue;
+                }
+                let z = w0 * fz0 + w1 * fz1 + w2 * fz2;
+                let k = ((py - band.rows.0) * w + px) as usize;
+                let Some(slot) = band.depth.get_mut(k) else { continue };
+                if !(z < *slot) {
+                    continue;
+                }
+                *slot = z;
+                if let Some(o) = band.owner.get_mut(k) {
+                    *o = look.id;
+                }
+                let s = *shade.get_or_insert_with(shade_of);
+                let col: [f32; 3] = match (look.texture, uv) {
+                    (Some(tex), Some(uv)) => {
+                        let at = |i: usize| uv.get(i).copied().unwrap_or([0.0; 2]);
+                        let (t0, t1, t2) = (at(i0), at(i1), at(i2));
+                        let u = w0 * f64::from(t0[0]) + w1 * f64::from(t1[0]) + w2 * f64::from(t2[0]);
+                        let v = w0 * f64::from(t0[1]) + w1 * f64::from(t1[1]) + w2 * f64::from(t2[1]);
+                        let tx = (np_mod1(u) * (tex.w as f64 - 1.0)) as usize;
+                        let ty = (np_mod1(v) * (tex.h as f64 - 1.0)) as usize;
+                        tex.at(tx, ty).map(f32::from)
+                    }
+                    _ => look.flat,
+                };
+                let out = col.map(|c| (c * s).clamp(0.0, 255.0) as u8);
+                if let Some(dst) = band.rgb.get_mut(k * 3..k * 3 + 3) {
+                    dst.copy_from_slice(&out);
+                }
             }
         }
     }

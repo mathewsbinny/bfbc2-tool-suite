@@ -812,7 +812,7 @@ pub fn from_scene<S: std::hash::BuildHasher>(scene: &bc2_scene::scene::Scene, sk
     with_ground(
         scene,
         skip,
-        scene.heightfield.clone(),
+        scene.heightfield.as_deref().cloned(),
         scene.water.as_ref().map(|w| &w.mesh),
     )
 }

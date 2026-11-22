@@ -285,7 +285,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 64,
+   "lines": 95,
    "note": "navedits.py, the walkability edits as generator inputs, on a small sample grid built here (no game data): s...",
    "path": "bfbc2-auto-navkit/tests/test_navedits.py",
    "retiring": "Tests in Rust",
@@ -574,7 +574,7 @@
    "lines": 51,
    "note": "the command line is Rust; extract() feeds navwalk's ladder re-floods",
    "path": "bfbc2-auto-navkit/tools/ladders.py",
-   "retiring": "NK4",
+   "retiring": "NK5",
    "rust": "bfbc2 ladders (bc2-cli navkit::ladders)",
    "status": "twin"
   },
@@ -609,10 +609,10 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 1271,
-   "note": "graphs to file (NK2) and D / F (NK3) are Rust; left: stage, walkability glue, merge_detailed, build_inputs",
+   "lines": 1258,
+   "note": "graphs to file (NK2), D / F (NK3) and walkability (NK4) are Rust; left: stage, merge_detailed, build_inputs",
    "path": "bfbc2-auto-navkit/tools/navbuild.py",
-   "retiring": "NK4-NK5",
+   "retiring": "NK5",
    "rust": "bc2_navbuild (graphfile, detail, rules, parity)",
    "status": "partly"
   },
@@ -682,13 +682,13 @@
    "callers": "navbuild, navwalk; tests 2",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
-   "kind": "library",
-   "lines": 57,
-   "note": "the navtune side file's walkability edits as build inputs (NK4: navedits.edits_for)",
+   "kind": "shim",
+   "lines": 68,
+   "note": "NK4: the masks are Rust (matplotlib's crossing test ported); left: regions_of parses a side file's operations",
    "path": "bfbc2-auto-navkit/tools/navedits.py",
-   "retiring": "NK4",
-   "rust": "",
-   "status": "live"
+   "retiring": "NK5",
+   "rust": "bc2_navbuild::walk (edit_masks, region_mask_at)",
+   "status": "ported"
   },
   {
    "callers": "navbuild; tests 1; rust/parity_nk2_file.py",
@@ -745,8 +745,8 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 265,
-   "note": "load is Rust (versions 1-3); left: walkable / flood / compare and the info / compare command line",
+   "lines": 278,
+   "note": "load is Rust (versions 1-3; version 3 streamed, NK4); left: flood / compare and the info / compare command line",
    "path": "bfbc2-auto-navkit/tools/navsample.py",
    "retiring": "NK4",
    "rust": "bc2_navbuild navsample (navkit_navsample_parse, _v3)",
@@ -781,11 +781,11 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 692,
-   "note": "the rules' grid walks are Rust; left: coarse and walkable's NumPy glue (seeds, anchors, re-floods)",
+   "lines": 484,
+   "note": "walkable, coarse and the rules are Rust (NK4); left: score's command line, step_fits for navbuild.Level",
    "path": "bfbc2-auto-navkit/tools/navwalk.py",
-   "retiring": "NK4",
-   "rust": "bc2_navbuild::rules (the grid walks)",
+   "retiring": "NK5",
+   "rust": "bc2_navbuild::walk, ::rules (navkit_walkable, navkit_walk_stage)",
    "status": "partly"
   },
   {
@@ -794,9 +794,9 @@
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
    "lines": 193,
-   "note": "water depth against DICE's coverage (a measure) plus water_tops, which NK4 takes",
+   "note": "water depth against DICE's coverage (a measure); navbuild.water_tops is Rust since NK4 (bc2_navbuild::walk)",
    "path": "bfbc2-auto-navkit/tools/navwater.py",
-   "retiring": "NK4",
+   "retiring": "proposed: NKG1",
    "rust": "",
    "status": "live"
   },
@@ -3911,11 +3911,23 @@
    "status": "stays"
   },
   {
+   "callers": "by hand",
+   "embedded_by": [],
+   "folder": "rust",
+   "kind": "benchmark or parity script",
+   "lines": 169,
+   "note": "NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes)",
+   "path": "rust/parity_nk4_walk.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
    "callers": "by hand; tests/test_repo.py",
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 818,
+   "lines": 821,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4400,8 +4412,8 @@
  ],
  "totals": {
   "all": {
-   "files": 361,
-   "lines": 105246
+   "files": 362,
+   "lines": 105252
   },
   "by_folder": {
    "(root)": {
@@ -4428,13 +4440,13 @@
    },
    "bfbc2-auto-navkit": {
     "files": 61,
-    "lines": 16407,
-    "live": 1872,
-    "partly": 5879,
-    "ported": 204,
+    "lines": 16241,
+    "live": 1815,
+    "partly": 5671,
+    "ported": 272,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5703,
+    "test": 5734,
     "twin": 2749
    },
    "bfbc2-automated-map-and-bot-test-harness": {
@@ -4614,13 +4626,13 @@
     "twin": 0
    },
    "rust": {
-    "files": 29,
-    "lines": 5058,
+    "files": 30,
+    "lines": 5230,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 4791,
+    "stays": 4963,
     "test": 267,
     "twin": 0
    },
@@ -4649,28 +4661,28 @@
   },
   "by_status": {
    "live": {
-    "files": 22,
-    "lines": 6105
+    "files": 21,
+    "lines": 6048
    },
    "partly": {
     "files": 21,
-    "lines": 18479
+    "lines": 18271
    },
    "ported": {
-    "files": 20,
-    "lines": 2503
+    "files": 21,
+    "lines": 2571
    },
    "retired-pending": {
     "files": 3,
     "lines": 310
    },
    "stays": {
-    "files": 52,
-    "lines": 8509
+    "files": 53,
+    "lines": 8681
    },
    "test": {
     "files": 188,
-    "lines": 49945
+    "lines": 49976
    },
    "twin": {
     "files": 55,

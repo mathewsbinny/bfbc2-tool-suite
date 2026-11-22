@@ -14,21 +14,27 @@
 //! (`narrow_lips`' flat test on the normals) is NumPy 2's: the Python float is cast to `float32`.
 #![allow(clippy::many_single_char_names, reason = "the reference's names")]
 
+use std::sync::Arc;
+
 use crate::{Floats, NavError, pymath};
 
 /// A sample run (`navsample.Samples`): per column the range of its surfaces, per surface its height (`float64`), the
-/// grid's pitch and origin.
+/// grid's pitch and origin. The arrays are shared ([`Grid::shared`]): round NK4's walkability hands them on to the
+/// flood's [`crate::Level`] without a copy.
 #[derive(Debug, Clone)]
 pub struct Grid {
     nx: usize,
     nz: usize,
-    start: Vec<usize>,
-    y: Vec<f64>,
+    start: Arc<[usize]>,
+    y: Arc<[f64]>,
     pitch: f64,
     min_x: f64,
     min_z: f64,
-    col_of: Vec<usize>,
+    col_of: Arc<[usize]>,
 }
+
+/// A grid's shared arrays: column starts, heights, each surface's column.
+pub type Shared = (Arc<[usize]>, Arc<[f64]>, Arc<[usize]>);
 
 /// `stair_slope`'s answer: per surface the slope (degrees), the gradient along x, along z.
 pub type Slopes = (Vec<f64>, Vec<f64>, Vec<f64>);
@@ -167,6 +173,22 @@ impl Grid {
         min_x: f64,
         min_z: f64,
     ) -> Result<Grid, NavError> {
+        Self::from_shared(nx, nz, start.into(), y.into(), pitch, min_x, min_z)
+    }
+
+    /// [`Grid::new`] on arrays already shared.
+    ///
+    /// # Errors
+    /// As [`Grid::new`].
+    pub fn from_shared(
+        nx: usize,
+        nz: usize,
+        start: Arc<[usize]>,
+        y: Arc<[f64]>,
+        pitch: f64,
+        min_x: f64,
+        min_z: f64,
+    ) -> Result<Grid, NavError> {
         let cols = nx
             .checked_mul(nz)
             .ok_or_else(|| NavError::Shape("grid too large".into()))?;
@@ -193,8 +215,20 @@ impl Grid {
             pitch,
             min_x,
             min_z,
-            col_of,
+            col_of: col_of.into(),
         })
+    }
+
+    /// (nx, nz).
+    #[must_use]
+    pub fn dims(&self) -> (usize, usize) {
+        (self.nx, self.nz)
+    }
+
+    /// The shared arrays: column starts, heights, each surface's column.
+    #[must_use]
+    pub fn shared(&self) -> Shared {
+        (Arc::clone(&self.start), Arc::clone(&self.y), Arc::clone(&self.col_of))
     }
 
     /// The number of surfaces.

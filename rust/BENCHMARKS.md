@@ -8752,3 +8752,311 @@ New rules (verified / implemented / observed / inferred): `transforms/terrain_ed
 ### Left
 
 `spec/COVERAGE.md` section 2 (queued as SPG2-rest).
+
+## NK4: NavKit's walkability end to end (2026-11-22, branch `nk4`)
+
+NK1's plan, stage 3 of the build: everything `navbuild.stage` did from the sample file to the kept surfaces. The
+build's largest memory peaks came from this stage (PR1b's "NavKit regression's 15 GB"): the pitch-0.2 runs of the
+detailed pass (100-650 MB files, up to 30 M surfaces) went through NumPy's masks, gradients and loops.
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navbuild.stage`'s walkability (`navsample.load`, `coarse`, `navedits.edits_for`, `deep_water`, `outside_bounds`, the forced flags folded together, the high and narrow runs, `walkable`, the ladders' kept ends) | `bc2_navbuild::walk::stage` | `bc2_native.navkit_walk_stage`, called once per stage by `navbuild.stage` |
+| `navwalk.walkable`'s NumPy glue: the masks (clear, characters, slope, terrain), the gradients and their `np.where`s, the steep-terrain and lip rules' wiring, the stairs and landings, `raised_bars`, the narrow capsule, the forbidden and dynamic objects, the headroom band, `DYNAMIC_FLOOR`, the edge seeds (`round(x % SECTOR, 1)`), the seed picks, the floods, the ladders' re-floods, the unseeds, the roof islands with their anchors | `walk::walkable` | `navwalk.walkable` (a thin call: `navkit_walkable`) |
+| `navwalk.near_points`, `ladder_ends`, `objective_floor`, `coarse` | `walk::near_points`, `ladder_ends`, `objective_floor`, `Samples::coarse` | `navwalk.near_points` / `ladder_ends` / `coarse` (thin calls); `objective_floor` inside `walkable` |
+| `navedits.region_mask` (NumPy and matplotlib's `Path.contains_points`), `edits_for`'s masks | `walk::region_mask_at`, `edit_masks`, `points_in_polygon` | `navedits.region_mask` / `edits_for` (thin calls); `navedits.regions_of` parses a side file's operations |
+| `navbuild.water_tops`, `deep_water`, `outside_bounds` | `walk::water_tops`, `deep_water`, `outside_bounds` | the same names (thin calls; `navvehicle` and `navwater_mesh` call `water_tops`) |
+| `navsample.load` of a version 3 file: the whole file in memory, then the arrays | `walk::Samples::load_v3`: the counts from the trailer, then the records a block at a time | `navsample.load` (`navkit_navsample_stream`); versions 1 / 2 and damaged files as before |
+
+The rules `walkable` calls were ported before (E2a, E3c, E3h: `rules::Grid`, `Level::flood`, `graph::roof_drop`);
+NK4 ports the glue between them, so a stage hands the core the file names and the inputs once and gets back the
+run, the kept flags, the gradients, the stair flags, the floods' `NavLevel`, the statistics and the counts the stage
+logs. `rules::Grid` now shares its arrays (`Arc`) with the floods' level (`Level::on_grid`): the heights, column
+starts and surface columns are held once.
+
+What stays Python until NK5: `navbuild.Level` (its `y`, `col_of`, `terrain` from the run), the rest of `stage`, and
+the module settings, read at each call (`navwalk._settings`: the tests switch them).
+
+### Python's order and floats
+
+Nothing a set or dict iterates reaches the answer: `anchor_k` (the roof islands' anchors), the sector-line columns
+`per_i` / `per_j` and the ladders' `done` are only tested for membership (the roof rule marks an island anchored; the
+order of the anchors does not matter, `graph::roof_drop`); the hand edits' counts are the side file's operations in
+order. No NumPy reduction over many floats: the sums count flags (exact), `np.median` of the objective floor's
+heights takes the mean of at most two, `np.unique` sorts. So no order rule was needed.
+
+The floats are the Python's, bit for bit (the arrays below):
+
+- **NumPy 2's comparisons (NEP 50).** A Python float compared with a `float32` array or scalar is cast to `float32`
+  first: the normals' slope tests (`normal[:, 1] >= cos(radians(slope)) - 0.01`, the 55-degree steep limit, the
+  lips' 15-degree flat test) and the ladder ends' height bands (`y0 <= s.y[k] <= y1` on the run's `float32`
+  heights); likewise `on_objects`' bounding-box filter on `float32` triangles. Measured: for a sample file's normals
+  (k / 127 as `float32`) the `float32` limit and the `float64` one decide the same for all 255 values at all three
+  limits, so the cast decides nothing there. The ladder bands are NavKit's own rule (DICE's path data has no ladder
+  links; parity treats them as outside), so they keep the run's precision as a spec rule (XNAV-BLD-4) rather than a
+  DICE question.
+- **Dtypes.** The gradients are `float32` from the normals (`-n.x / max(n.y, 0.05)` in `float32`) until a rule
+  replaces some (`np.where` with `float64` slopes: `float64`); a build always runs the stair rule, so its gradients
+  are `float64` (as before).
+- **Python's arithmetic.** `round()` half to even for column indices, `%` with the divisor's sign and `round(x, 1)`
+  (the correctly rounded decimal) for the sector lines, `math.hypot` (CPython's), `min` / `max` taking the first of
+  equals, tuples ordered `(not kept, distance)` for the ladder ends; the trigonometric constants are computed in
+  Python (the C library's `cos` / `tan`, as before) and passed in.
+- **matplotlib's crossing test.** A polygon region's points on its outline are in or out as matplotlib 3.11 decides
+  (`_path.h`'s `point_in_path_impl`: half-open edges, the closing edge back to the first vertex). The port follows it
+  and is checked against matplotlib: 400 random polygons, half with vertices on a 0.5 m lattice so sample points fall
+  on edges and vertices, some self-crossing, on a 0.25 m point lattice: 0 differ (`test_navedits.py`). Polygons with
+  fewer than 3 vertices contain nothing, as matplotlib's.
+
+One behaviour is not the Python's: a version 1 run (no hit words) has `hit` None. `navsample.load` gave an empty
+`(0, 3)` array, on which `walkable` and `navbuild.Level` failed (a broadcast error), so no build could use such a run
+before; now it builds with every surface counted as terrain, as a run without hit words always was in `coarse`.
+
+### Parity
+
+- **Every regression level, against the old Python** (`rust/parity_nk4_walk.py capture`: each level's whole build
+  through `navregress.build_level`, the build clock fixed, once with a checkout of `30f19b0` - the Python before NK4
+  - and once with this branch, one level at a time, the two interleaved; `compare`): **15 of 15 identical**: per
+  stage (the normal pass and the detailed pass, 30 stages) the run as `navbuild.Level` gets it (`start`, `y`,
+  `normal`, `flags`, `hit`, pitch, grid) and `keep`, `gx`, `gz`, `stair` with their dtypes, as SHA-1s; `STEEP_STATS`;
+  every log line (the seconds blanked); and the path data's SHA-1. The 4 golden builds (sp_009, sp_004_b, sp_008_b,
+  ons_mp_004) as recorded.
+- **XNAV-BLD-3**: the files are byte-identical to the Python's, so every navparity measure is unchanged by
+  construction; no regression reference changes.
+- **NK1's apply parity**: 33 of 33 (`rust/parity_nk1_apply.py`; the apply's edit stage is untouched).
+- **The quick tier's recorded answers** (`test_navbuild_native.py`: E2a's 331 answers - `walkable` with every rule
+  on random runs, in `float32` and `float64`, among them -, E3c's 456, E3h's 39 whole stages): all as recorded.
+  `test_navedits`, `test_water_rule`, `test_reference_clip`, `test_headroom`, `test_lips`, `test_roof_prune`,
+  `test_objective_floor`, `test_characters`, `test_dynamic_props`, `test_apply`: pass. Rust: `walk_tests.rs`, 7.
+
+### Time and memory
+
+Each level's whole build, old and new interleaved (one process each, one at a time; other agents' builds beside
+them). Walkability: from the stage's start to `navbuild.Level` (old: `navsample.load` ... `walkable`; new: the one
+call). Memory is the process's private bytes (committed memory, sampled every 10 ms; the working set understates a
+peak when Windows trims pages under load); "above its start" is the stage's peak less what the process held when the
+stage began (the normal pass's results).
+
+| level | surfaces 0.8 / 0.2 | walkability 0.8, old -> new (s) | walkability 0.2, old -> new (s) | walkability 0.2 peak above its start, old -> new (MB) | build peak, old -> new (MB) |
+|---|---:|---:|---:|---:|---:|
+| ons_mp_002 | 0.8 M / 9.6 M | 0.83 -> **0.45** | 6.77 -> **2.66** | 3,559 -> **1,659** | 4,419 -> **3,920** |
+| ons_mp_004 | 0.5 M / 5.1 M | 0.30 -> **0.13** | 2.59 -> **1.19** | 1,811 -> **750** | 3,140 -> **2,856** |
+| sp_003_b | 5.0 M / 11.2 M | 2.58 -> **1.36** | 8.48 -> **3.62** | 4,315 -> **1,919** | 6,337 -> **5,545** |
+| sp_004_b | 0.5 M / 7.7 M | 0.30 -> **0.21** | 4.24 -> **1.85** | 2,753 -> **1,114** | 3,703 -> **3,396** |
+| sp_005 | 4.3 M / 23.4 M | 2.03 -> **1.52** | 24.23 -> **8.26** | 10,081 -> **4,222** | 12,253 -> **10,181** |
+| sp_005_b | 4.3 M / 18.8 M | 2.00 -> **1.13** | 14.32 -> **5.18** | 7,906 -> **3,193** | 9,989 -> **8,169** |
+| sp_006 | 5.9 M / 26.4 M | 3.65 -> **2.13** | 39.71 -> **8.87** | 12,507 -> **5,139** | 15,204 -> **11,862** |
+| sp_007 | 4.4 M / 30.2 M | 3.27 -> **1.82** | 35.30 -> **11.14** | 12,774 -> **5,622** | 14,627 -> **9,652** |
+| sp_008 | 0.9 M / 17.6 M | 0.81 -> **0.49** | 10.14 -> **4.56** | 6,200 -> **2,550** | 7,005 -> **4,828** |
+| sp_008_b | 0.6 M / 13.0 M | 0.34 -> **0.22** | 7.83 -> **2.78** | 4,374 -> **1,764** | 5,082 -> **3,796** |
+| sp_009 | 0.1 M / 1.7 M | 0.05 -> **0.03** | 0.84 -> **0.36** | 808 -> **332** | 1,365 -> **1,252** |
+| sp_01 | 2.4 M / 16.0 M | 1.32 -> **1.09** | 10.76 -> **5.99** | 6,122 -> **2,653** | 7,367 -> **5,610** |
+| sp_02 | 1.8 M / 17.1 M | 1.09 -> **0.48** | 14.51 -> **4.37** | 6,930 -> **2,741** | 8,036 -> **5,324** |
+| sp_03 | 4.8 M / 22.1 M | 2.73 -> **1.70** | 18.07 -> **7.40** | 9,258 -> **4,224** | 11,271 -> **7,945** |
+| sp_04 | 3.4 M / 22.3 M | 1.30 -> **0.79** | 13.95 -> **6.56** | 9,487 -> **3,931** | 11,181 -> **8,739** |
+
+| | old Python | Rust | |
+|---|---:|---:|---:|
+| walkability, 30 stages | 234.3 s | **88.3 s** | 2.7x |
+| the detailed pass's walkability, largest (sp_006, 26.4 M surfaces) | 39.7 s | **8.9 s** | 4.5x |
+| the walkability's own peak, largest (sp_007, 30.2 M surfaces) | 12.8 GB | **5.6 GB** | 2.3x less |
+| the whole build's peak, largest (sp_006) | 15.2 GB | **11.9 GB** | |
+| whole builds, 15 levels | 483 s | **310 s** | |
+
+**Where the peaks come from.** Before NK4 the detailed pass's walkability was the build's peak on 12 of 15 levels
+(all but the three smallest). Its own peak is now 2.2-2.5 times lower, and on no level the build's peak, which is
+now later in the detailed pass: the stage's areas, tracing and one-way portals, which NK5 moves (sp_04: the
+walkability call 5.1 GB, the areas 6.2 GB, the one-way portals 6.6 GB, in working set). A stage's walkability now
+holds: the run (33 bytes a surface and 8 a column: heights as `float64`, normals, flags, hit words), the high run's
+heights and flags (9 a surface), the floods' level (the shared heights and columns, the gradients as `float64`, three
+flags), the masks (a byte a surface each) and one `stair_slope` answer at a time (24 a surface); a version 3 file is
+read a block of records at a time, never whole (before: the file's bytes beside the arrays, twice - the run and the
+high run). The NumPy version held many `float64` / bool temporaries of every mask expression at once.
+
+### Retired
+
+`navwalk.walkable`'s body (its NumPy glue), `near_points`, `ladder_ends`, `objective_floor`, `coarse`'s loop and
+`_column_picks`; `navedits.region_mask`'s NumPy / matplotlib body and `edits_for`'s mask loop; `navbuild.water_tops`',
+`deep_water`'s and `outside_bounds`' bodies and `stage`'s walkability block. Python twins inside a living tool
+(RETIRED.md rule 4: recorded here and in CHANGELOG, not as RETIRED.md rows); the last commit with them is `30f19b0`.
+The functions stay as thin calls with the same arguments and answers; no command line went, and nothing outside
+NavKit imports them (Project OPFOR has no caller of navwalk, navedits or navbuild), so `VERSION` stays (RELEASING.md).
+navedits no longer imports matplotlib.
+
+### What is left: NK5
+
+NK5 as NK1-NK3 planned it: the stage (sector discovery, specs, border-node runs, carried seam nodes, the one-way
+drop, the detail loop with `detail_pass`'s glue, graph jobs and ids, the meshes' assembly), `merge_detailed`, the
+driver's `build_inputs`; then `navkit build` / `all` / `apply` on a NavKit base in Rust, the editor's AI workspace in
+process, `navbuild.py` retired after its other callers move. For NK5 from here:
+
+- `walk::stage` already returns the run and the floods' `Level` in Rust: NK5's stage can keep them there
+  (`navbuild.Level`'s `y` / `col_of` / `terrain` and the `NavLevel` rebuilt with `with_walk` are copies the core
+  already holds), and the run need not cross to Python at all (today it does, as `navsample.Samples` over the core's
+  bytes, for `Level`, `column_sectors`, `merge_detailed`'s seed points and navvehicle).
+- The build's peak is now the detailed pass's areas and one-way portals (above): NK5 should measure them the same way
+  (`parity_nk4_walk.py`'s sampler).
+- `merge_detailed` passes stage a's kept ground in the detailed sectors as Python tuples (0.26-0.85 M seed points);
+  in Rust it is a mask.
+## PR1b-0: the map editor's core before E4 (2026-11-22, branch `pr1b0`)
+
+Audit AU5 section 6's PR1b-0: ALG-1, ALG-3, ALG-4, ARC-6, ARC-7, ALG-2, ALG-8, ALG-9. The rule: every result stays the
+same, bit for bit. Measured on the development PC (16 threads, 15 GB) with other rounds' builds beside it; release
+builds; `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4`, build folder `rust-targets\bfbc2-tool-suite-pr1b0`. The "before"
+column is main at 30f19b0 built from a throw-away worktree, run back to back with "after". Nothing was written to
+`game\`; the game was never launched.
+
+### The numbers (`examples/editor_core_bench.rs`, `ray_bench.rs`, `preview_bench.rs`)
+
+`editor_core_bench <OPFOR> <level> 200 100`: the scene's clone, a document, 200 moves, three undos, three redos, History
+to the middle, the base and the end (the first ray straight down after each), then 100 static group members moved and
+100 deleted (each checked by `Doc::refusal` first, as the editor does) and one undo. The heap is counted by a counting
+global allocator. Every state's digest (partition bytes, each edited group file, every transform, the deleted set)
+and the run's whole digest are the same before and after: SP_01 `bb797793...`, Wake Island `145c4c0e...`.
+
+| | SP_01 before | SP_01 after | Wake before | Wake after |
+|---|---:|---:|---:|---:|
+| base scene clone | 18.6 ms, 56.8 MB | 7.2 ms, 9.4 MB | 8.8 ms, 50.5 MB | 4.0 ms, 5.0 MB |
+| undo / redo / History (9 steps) | 47 - 77 ms | 14 - 18 ms | 22 - 29 ms | 7 - 12 ms |
+| first ray after each of them | 114 - 123 ms | 0.58 - 0.67 ms | 105 - 113 ms | 0.34 - 0.37 ms |
+| heap after 200 moves (8 checkpoints) | +279 MB (peak +314) | +73 MB (peak +82) | +92 MB (peak +104) | +37 MB (peak +41) |
+| document made | 257 ms, +106 MB | 172 ms, +41 MB | 67 ms, +66 MB | 53 ms, +14 MB |
+| member delete: refusal check, median | 90.5 ms | 3.7 ms | 14.6 ms | 1.4 ms |
+| member delete: commit, median | 72.1 ms | 0.5 ms | 9.8 ms | 0.1 ms |
+| 100 refusals + 100 deletes | 17.98 s | 0.49 s | 2.54 s | 0.18 s |
+| undo after the member edits | 1,117 ms | 59 ms | 285 ms | 33 ms |
+| `members::group_entities` | one partition walk per member type | 2.2 ms | | 0.6 ms |
+
+The heap after 200 moves is AU3 PF-4's and AU5 ALG-4's question: 8 checkpoints held a whole copy of the partition's
+writer each (26 MB on SP_01) plus their entities. With the writers' elements in shared chunks a checkpoint holds the
+chunks edited since the one before (a copy of the writer now costs 0.0 MB and 0.0 ms until it is edited), so the 8
+checkpoints are bounded by what changed, not by the level's size: no further bound was needed.
+
+Rays (`ray_bench <OPFOR> <level> 400`; digests the same: SP_01 `d8c898ee...`, Wake `770ecf88...`):
+
+| | SP_01 before | after | Wake before | after |
+|---|---:|---:|---:|---:|
+| vertical ray (`ground_below`) | 0.581 ms | 0.604 ms | 0.493 ms | 0.492 ms |
+| picking ray | 0.675 ms | 0.640 ms | 0.554 ms | 0.502 ms |
+| `surface_below` | 0.293 ms | 0.290 ms | 0.231 ms | 0.202 ms |
+| picking ray, terrain only | | 0.254 ms | | 0.249 ms |
+
+The asset preview's orbit at 1200 x 900 (`preview_bench 1200 900 30`; digests the same): the guard tower 21.6 -> 6.9
+ms a picture (median), the 29,048-triangle soldier 23.7 -> 7.8 ms, under a 60 Hz frame on the UI thread.
+
+### 1. ALG-1: the terrain, its ray grid and the base scene shared
+
+`Scene::terrain` and `Scene::heightfield` are `Option<Arc<..>>`, the scene's partition bytes an `Arc` (private); a
+clone shares them. `RayCache` is shared by a scene's clones and keeps up to 4 terrain grids, each keyed by its mesh's
+`Arc` (held weakly: a mesh no scene holds is freed, and its grid goes at the next look-up), so the base and every
+undo's scene build the grid once. `Scene::with_entities` makes an undo's scene from the base without copying the
+base's entities (it marks the moved ones changed as `set_transform` did). For E5: a stroke that edits the terrain
+replaces the mesh's `Arc` (a new grid then); updating only the grid cells a stroke's tiles cover is E5's
+(`raygrid::TerrainGrid` buckets triangles by plan cell, so the cells of a tile are known).
+
+### 2. ALG-3: member edits applied once, the group entities found by one index
+
+- `LevelFiles::partition` and `groups` hold `Arc<LevelWriter>`; `apply` stages on `Arc` clones and `Arc::make_mut`
+  copies a writer only when an edit changes a shared one.
+- `bc2_formats::dbx::edit::EditDbx` keeps its elements in chunks of 1,024 behind `Arc`s and its file bytes and string
+  table in `Arc`s: a clone costs the chunk pointers, an edit copies one chunk.
+- `Doc::refusal` keeps the files its trial made (the document's revision, the operation, the files); a commit of the
+  same operation at the same revision takes them instead of applying it again.
+- The base partition is parsed once per document (`Doc::base_writer`), not again on every replay from the base.
+- `members::group_entities` found each member type with `LevelWriter::find`, a walk of every instance with a string
+  upper-cased per instance: one walk per member type, per member edit. It now builds one guid index per call.
+- Not done: one `Schema` per group file for `GroupField` edits (such an edit still scans its file; no tool makes them in
+  bulk yet), and a group-entity index kept across calls (it would need the writer to say when an instance is added or
+  removed; the per-call index already takes it from 169 ms to 2 ms on SP_01).
+
+### 3. ALG-4: checkpoint memory measured and bounded
+
+See the table: +279 MB -> +73 MB on SP_01 after 200 operations (Wake +92 -> +37 MB), from the chunked writers and the
+shared scene. `CHECKPOINT_EVERY` (16) and `CHECKPOINTS` (8) are unchanged.
+
+### 4. ARC-6: the tool trait
+
+`bc2_editor::tool`:
+
+```rust
+pub trait ViewTool {
+    fn id(&self) -> Tool;                                    // gizmo::Tool: what the actions and the toolbar name
+    fn key(&self) -> Option<&'static str> { None }           // its toolbar key
+    fn gizmo(&self) -> bool { false }                        // moves / turns with the shared gizmo drag
+    fn boxes(&self) -> bool { true }                         // a left drag on empty ground draws a box
+    fn input(&mut self, p: &Pointer, v: &ViewState) -> Option<Outcome> { None } // before the editing input
+    fn click(&mut self, hit: Option<Hit>, snap_vertex: bool) -> Option<Outcome> { None }
+    fn draw(&self, d: &Draw<'_>, layer: Layer) {}            // what it holds, at Layer::Edit or Layer::Tools
+    fn takes_enter(&self) -> bool { false }
+    fn enter(&mut self) {}
+    fn transient(&self) -> bool { false }                    // Esc cancels it first
+    fn cancel(&mut self) {}
+    fn left(&mut self) {}                                    // another tool was chosen
+}
+pub enum Outcome { Done, Message(String), Select(Vec<usize>, String), Commit(Box<Op>, String) }
+```
+
+`Tools` holds every tool's state (`ViewState::tools`; `ViewState::tool` is the chosen id): Select, Move and Rotate
+(the gizmo's drag, handles, snapping and surface placement stay shared in the views), Ruler (its points, read-out and
+drawing) and Polygon (its corners, double click and Enter, its selection). The toolbar is built from the tools' keys;
+Esc and the transient check ask every tool; a tool chosen tells the others. `ViewState::outline` (`OutlineDraw`) and
+`Measures::ruler` are gone (CHANGELOG Removed). Tests: `tool::tests` (3), beside the editor's. Not moved (not view tools
+yet): placing from the content browser and the gameplay tiles, the sink popup and the picker, the AI workspace's nine
+`NavTool`s (in `navui`), the measuring path (M). E4's flags, spawns, M-COMs and teams should be new implementors and
+a line in `Tools`; the AI tools are the next to move. `export::build` and `export_ui::window` were not split (ARC-6's
+second half; E4 does not need it).
+
+Game layer (the user's later targets: MOH 2010, Warfighter, BFBC1, BF3, BF4): the trait and `Task` assume no BFBC2
+format. Two BFBC2-specific points sit in the editor core: `Outcome::Commit` carries `bc2_levelwrite::Op` (a game layer
+would put an operation type per game behind the level API there), and tools see the `bc2_scene` scene through
+`ViewState` (a game-neutral scene trait would go in `bc2_scene`).
+
+### 5. ARC-7: one background-job type
+
+`bc2_editor::task::Task<T>`: `spawn(what, body)` / `spawn_value`, a thread named `bc2-editor: <what>`, the body under
+DF1's `guarded` (a panic is an error naming `what`), one answer on its own channel; `poll`, `wait`, `wait_for`; a
+worker that ended without an answer is `EditorError::Worker`. On it: the comparison (`compare::DiffState`), the content
+browser's catalogue, the game-accurate view's world (`GameLoad`), the asset preview's reader and its "Read the mesh
+index" button, the export's preview (`diffui`) and round A1's auto layout (merged in with main 350ba30): 7 of the 19
+thread spawns. Left with their own threads, each
+already guarded or answering once: the export window's four (`export_ui`: they share `answer()`, and tests inject
+their receivers through `running_from`), the level load and its two helpers in `app.rs`, the AI workspace's two
+(`nav.rs`: a job with a cancel flag and streamed output) and `prepare`'s three (a tool's stdout and stderr read while
+it runs: these stay threads). Nothing bounds how many run at once: the bounded pool is PR1b-2 item 11 (ALG-11).
+
+### 6. ALG-2, ALG-8, ALG-9
+
+- **ALG-2.** An object ray takes the blueprints' shapes under one lock per ray (it was a lock and a look-up per placed
+  object) and, for an object its sphere does not reject, tests in the object's own space only the runs of 16
+  triangles whose bounds (padded by 1e-4 m plus a millionth of their size) its path meets, placing those triangles as
+  `world_triangles` does, without a list. The hits are the same (digests above). The gain is small (picking 0.675 ->
+  0.640 ms on SP_01): what is left of an object ray is the loop over every placed collision mesh (5,924 on SP_01) and
+  its blueprint's look-up by name; a grid of the objects' spheres needs the scene to say when an entity moved (E4's
+  placement tools, with an edit generation on `Scene`).
+- **ALG-8.** The DBX inspector's undo stack keeps at most `UNDO_BUDGET` (256 MB) of steps, the oldest going first (the
+  file stays modified); an edit clones the file and serialises it only when the edit changed it; a project field's
+  trial copies the file, not the inspector's undo, script and output. Test
+  `dbxinspect::tests::the_undo_stack_keeps_its_budget`.
+- **ALG-9.** `Canvas::fill_parts` draws every part in horizontal bands (32 rows or more, at most 64 bands) on all cores,
+  each band running `Canvas::fill`'s triangle loop in the same order on its own rows: the same picture, depths and
+  owners. The preview's orbit uses it; Save picture and the parity tests keep `fill`. The cache key is still a
+  `format!` of the state (well under a millisecond).
+
+### Proof of identical behaviour
+
+- Tests: bc2-editor lib 76 and `editor` 53 run (25 game tier ignored); the game-tier tests this round touches, 13 of
+  13: `xf1::undo_on_a_mode_project`, `group_members::wake_members_through_the_interface`,
+  `real_level_editing::placement_on_real_terrain`, `dbx_inspector_window::`,
+  `dbxedit_parity::the_inspector_gives_dbxeditguis_answers`, `editor_core::stroke_budgets_on_10000_strokes`,
+  `view_toggles::` (3), `problems_panel::`, `inspector_parity::`, `every_level::`, `game_view_live::`; bc2-levelwrite's
+  `export_xf1::` (2) and `model_group_members::` (2); bc2-formats, bc2-scene, bc2-levelwrite and bc2-convert's crate
+  tests (the replay corpus's `project::tests::old_projects_load_and_replay_the_same` among them).
+- Screenshots of the main views (`bfbc2-editor --screenshot`, 1600 x 950): the start screen dark, light and WW2, the
+  demo level dark, light and with a selection, MP_005, SP_01's navigation view and Wake Island: byte for byte the same
+  before and after. MP_005's differs between two runs of the same binary in 41 pixels of the status bar (a reading
+  indicator); the second "after" run equals the "before" run byte for byte. The screenshots stayed in the session's scratch
+  folder.
+- The project-log replays: the bench's state digests through 200 moves, undo, redo, History and 200 member edits, and
+  the corpus replay test above.

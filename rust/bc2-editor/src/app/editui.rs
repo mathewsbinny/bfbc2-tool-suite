@@ -689,9 +689,7 @@ impl ViewState {
             }
             Action::UseTool(t) => {
                 self.tool = t;
-                if t != Tool::Ruler {
-                    self.measures.ruler.clear();
-                }
+                self.tools.choose(t);
                 self.message = format!("{} tool", t.name());
             }
             Action::ToggleSpace => {
@@ -931,7 +929,7 @@ impl Tabs<'_> {
         });
         let view = Self::view_of(rect, &vp.camera);
         let local = |p: Pos2| [f64::from(p.x - rect.min.x), f64::from(p.y - rect.min.y)];
-        let gizmo_tool = matches!(self.view.tool, Tool::Move | Tool::Rotate);
+        let gizmo_tool = self.view.tools.get(self.view.tool).gizmo();
         let frame = self.view.gizmo_frame();
         if self.view.pointer.drag.is_none() {
             self.view.pointer.hover = match (frame, hover) {
@@ -964,7 +962,7 @@ impl Tabs<'_> {
                     objects,
                     placed: false,
                 });
-            } else if self.view.tool != Tool::Ruler {
+            } else if self.view.tools.get(self.view.tool).boxes() {
                 self.view.pointer.box_from = Some((projection, at));
             }
             return true;
@@ -1031,21 +1029,11 @@ impl Tabs<'_> {
 
     /// A click while editing: select (with its group), Ctrl or Shift adds or removes; the ruler takes the point.
     pub(super) fn edit_click(&mut self, entity: Option<usize>, add: bool, hit: Option<query::Hit>) {
-        if self.view.tool == Tool::Ruler {
-            if let Some(h) = hit {
-                let p = if self.view.snap.vertex {
-                    query::snap_vertex(&h)
-                } else {
-                    h.point
-                };
-                if self.view.measures.ruler.len() >= 2 {
-                    self.view.measures.ruler.clear();
-                }
-                self.view.measures.ruler.push(p);
-                if let [a, b] = self.view.measures.ruler.as_slice() {
-                    self.view.message = ruler_text(*a, *b);
-                }
-            }
+        // the chosen tool's click (round PR1b-0: the ruler's points), else the click selects
+        let (tool, snap_vertex) = (self.view.tool, self.view.snap.vertex);
+        if let Some(outcome) = self.view.tools.get_mut(tool).click(hit, snap_vertex) {
+            let palette = self.palette;
+            self.view.tool_outcome(self.gpu, &palette, outcome);
             return;
         }
         let Some(d) = self.view.doc.as_ref() else { return };
@@ -1135,27 +1123,18 @@ impl Tabs<'_> {
                 egui::StrokeKind::Middle,
             );
         }
-        // the ruler
-        let pts: Vec<Pos2> = self
-            .view
-            .measures
-            .ruler
-            .iter()
-            .filter_map(|w| view.project(*w))
-            .map(to_screen)
-            .collect();
-        for q in &pts {
-            painter.circle_filled(*q, 4.0, p.view_selection);
-        }
-        if let ([a, b], [wa, wb]) = (pts.as_slice(), self.view.measures.ruler.as_slice()) {
-            painter.line_segment([*a, *b], Stroke::new(2.0, p.view_selection));
-            let label = ruler_text(*wa, *wb);
-            let g = painter.layout_no_wrap(label, FontId::monospace(12.0), p.ink);
-            let mid = Pos2::new(f32::midpoint(a.x, b.x), f32::midpoint(a.y, b.y)) - Vec2::new(0.0, 14.0);
-            let r = Rect::from_center_size(mid, g.size() + Vec2::splat(8.0));
-            painter.rect_filled(r, CornerRadius::same(2), p.scene_label);
-            painter.galley(r.min + Vec2::splat(4.0), g, p.ink);
-        }
+        // what the tools hold (the ruler)
+        self.view.tools.draw(
+            &crate::tool::Draw {
+                painter: &painter,
+                projection,
+                rect,
+                view,
+                hover: ui.input(|i| i.pointer.hover_pos()),
+                palette: &p,
+            },
+            crate::tool::Layer::Edit,
+        );
         // the gizmo toolbar, along the top of the view
         // (it wraps onto a second row in a narrow view)
         let bar = Rect::from_min_size(rect.min + Vec2::splat(6.0), Vec2::new(rect.width() - 12.0, 64.0));
@@ -1179,21 +1158,16 @@ impl Tabs<'_> {
         let p = self.palette;
         let v = &mut *self.view;
         ui.spacing_mut().item_spacing.x = 6.0;
-        for (t, key) in [
-            (Tool::Select, "Q"),
-            (Tool::Move, "W"),
-            (Tool::Rotate, "E"),
-            (Tool::Ruler, "R"),
-        ] {
+        // the tools with a key, in their order (round PR1b-0: from the tools themselves)
+        let bar: Vec<(Tool, &str)> = v.tools.all().iter().filter_map(|t| Some((t.id(), t.key()?))).collect();
+        for (t, key) in bar {
             if ui
                 .selectable_label(v.tool == t, t.name())
                 .on_hover_text(format!("{} ({key})", t.name()))
                 .clicked()
             {
                 v.tool = t;
-                if t != Tool::Ruler {
-                    v.measures.ruler.clear();
-                }
+                v.tools.choose(t);
             }
         }
         ui.separator();
@@ -1814,18 +1788,6 @@ fn sink_editor(ui: &mut egui::Ui, place: &mut Placement, id: &str) {
         .on_hover_text("Sink along the surface normal (off: straight down)");
     ui.checkbox(&mut place.align_to_normal, "Align")
         .on_hover_text("Turn the object's up axis to the surface normal");
-}
-
-/// The ruler's read-out: total, horizontal and height difference.
-#[must_use]
-pub(super) fn ruler_text(a: V3, b: V3) -> String {
-    let d = math::sub(b, a);
-    format!(
-        "{:.2} m  (horizontal {:.2} m, height {:+.2} m)",
-        math::len(d),
-        d[0].hypot(d[2]),
-        d[1]
-    )
 }
 
 /// The outliner's Folders and Groups (a project's own organisation), above the kinds.
