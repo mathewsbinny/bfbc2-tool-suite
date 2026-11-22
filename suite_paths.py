@@ -19,6 +19,11 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
+# NumPy's OpenBLAS commits about 30 MB per core at import (490 MB on a 16-thread PC) for threads the suite's array
+# code does not use; one thread unless the environment says otherwise. Set before NumPy's first import in this process
+# (when this file comes first) and inherited by every process it starts (round PR1b-1: a test tier's peak 2.7 -> 0.7 GB).
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+
 # short name -> folder under the suite root
 FOLDERS = {
     'root': '',

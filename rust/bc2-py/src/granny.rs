@@ -12,7 +12,6 @@ use bc2_formats::granny::{Granny, GrannyError, Object, Ref, Scalar, Text, Value}
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyBytesMethods, PyDict, PyList, PyString, PyTuple};
-use rayon::prelude::*;
 
 /// A bone map: {old index: new index}.
 type Bones = HashMap<u32, u32>;
@@ -216,19 +215,17 @@ pub fn granny_roots_many<'py>(
     limit: i64,
 ) -> PyResult<Bound<'py, PyList>> {
     let slices: Vec<&[u8]> = items.iter().map(PyBytesMethods::as_bytes).collect();
-    let read = py.detach(|| {
-        slices
-            .par_iter()
-            .map(|b| Granny::parse(b).and_then(|g| g.root(limit).map(|t| (g, t))))
-            .collect::<Vec<_>>()
-    });
     let out = PyList::empty(py);
-    for r in &read {
-        match r {
-            Ok((g, t)) => out.append(Builder::new(py, g).value(t)?)?,
-            Err(e) => out.append(value_error(e).into_value(py))?,
-        }
-    }
+    crate::window::map(
+        py,
+        &slices,
+        |b| b.len(),
+        |b| Granny::parse(b).and_then(|g| g.root(limit).map(|t| (g, t))),
+        |r| match r {
+            Ok((g, t)) => out.append(Builder::new(py, &g).value(&t)?),
+            Err(e) => out.append(value_error(&e).into_value(py)),
+        },
+    )?;
     Ok(out)
 }
 
@@ -263,13 +260,16 @@ pub fn granny_to_pc_many<'py>(
 ) -> PyResult<Bound<'py, PyList>> {
     let jobs: Vec<bc2_convert::granny::Job<'_, std::hash::RandomState>> =
         items.iter().map(|(b, m)| (b.as_bytes(), m.as_ref())).collect();
-    let results = py.detach(|| bc2_convert::granny::to_pc_all(&jobs));
     let out = PyList::empty(py);
-    for r in results {
-        match r {
-            Ok(b) => out.append(PyBytes::new(py, &b))?,
-            Err(e) => out.append(value_error(&e).into_value(py))?,
-        }
-    }
+    crate::window::map(
+        py,
+        &jobs,
+        |(b, _)| b.len(),
+        |(b, m)| bc2_convert::granny::to_pc(b, *m),
+        |r| match r {
+            Ok(b) => out.append(PyBytes::new(py, &b)),
+            Err(e) => out.append(value_error(&e).into_value(py)),
+        },
+    )?;
     Ok(out)
 }

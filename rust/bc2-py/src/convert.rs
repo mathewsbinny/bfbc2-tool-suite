@@ -37,14 +37,17 @@ pub fn texture_convert<'py>(py: Python<'py>, data: &Bound<'py, PyBytes>) -> PyRe
 )]
 pub fn texture_convert_many<'py>(py: Python<'py>, items: Vec<Bound<'py, PyBytes>>) -> PyResult<Bound<'py, PyList>> {
     let slices: Vec<&[u8]> = items.iter().map(PyBytesMethods::as_bytes).collect();
-    let results = py.detach(|| texture::convert_all(&slices));
     let out = PyList::empty(py);
-    for r in results {
-        match r {
-            Ok(b) => out.append(PyBytes::new(py, &b))?,
-            Err(e) => out.append(PyValueError::new_err(e.to_string()).into_value(py))?,
-        }
-    }
+    crate::window::map(
+        py,
+        &slices,
+        |s| s.len(),
+        |s| texture::convert(s),
+        |r| match r {
+            Ok(b) => out.append(PyBytes::new(py, &b)),
+            Err(e) => out.append(PyValueError::new_err(e.to_string()).into_value(py)),
+        },
+    )?;
     Ok(out)
 }
 
