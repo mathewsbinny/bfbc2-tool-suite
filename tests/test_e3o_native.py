@@ -294,7 +294,8 @@ def random_nav(rnd: random.Random) -> navdata.NavData:
     for a in range(m):
         for _ in range(rnd.randint(0, 3)):
             b = rnd.randrange(m)
-            d = float(np.linalg.norm(pos[a] - pos[b]))
+            # the estimate's formula, not np.linalg.norm: its BLAS dot's last bits follow the CPU (round CI1)
+            d = navpath.distance(pos[a] - pos[b])
             if d < 30:
                 pairs.append((a, b, int(d * 16) / 16.0))
                 if rnd.random() < 0.8:
