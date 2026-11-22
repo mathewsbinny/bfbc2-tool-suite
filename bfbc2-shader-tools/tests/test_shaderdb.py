@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable, Sequence
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
@@ -229,15 +230,7 @@ def quick(c: Checks, tmp: str) -> None:
         c.check(False, 'a Dx9 donor for a Dx10 base is refused')
     except sd.ShaderDbError:
         c.check(True, 'a Dx9 donor for a Dx10 base is refused')
-    old = sd.MAX_PROGRAMS
-    sd.MAX_PROGRAMS = 6
-    try:
-        sd.merge(build(9, [(A, 3)], 1), [(build(9, [(B, 4)], 2), 'big')], ['objects/b/b_mesh'])
-        c.check(False, 'the program limit (entry groups index programs with u16) is enforced')
-    except sd.ShaderDbError:
-        c.check(True, 'the program limit (entry groups index programs with u16) is enforced')
-    finally:
-        sd.MAX_PROGRAMS = old
+    # the program limit (entry groups index programs with u16): test_shaderdb_merge.py's 0xfffe + 1 / + 2 cases
 
     # ---- the command line
     paths: dict[str, str] = {}
@@ -336,7 +329,7 @@ def retexture(c: Checks) -> None:
 
 
 def clone(c: Checks) -> None:
-    """Merger.clone_entry: a donor entry again under a new name, with new program ids and renamed textures; every
+    """The merger's clone_entry (bc2_native.ShaderMerger): a donor entry again under a new name, with new program ids and renamed textures; every
     refusal (a texture the entry lacks, a fragment or vertex layout the file lacks, an existing name) is a
     ShaderDbError that leaves the merger as it was."""
     A = 'Objects/A/A_Mesh/Objects/A/Shaders/Metal'
@@ -349,15 +342,15 @@ def clone(c: Checks) -> None:
         donor = with_textures(build(9, [(B, 3)], 41), {B: wood})
         return base, donor
 
-    def state(m: sd.Merger) -> tuple:
+    def state(m: Any) -> tuple:
         o = m.out
         return (len(o.vs), len(o.ps), len(o.params), len(o.bindings), len(o.regs), len(o.fragments), len(o.layouts),
-                len(o.entries), len(o.parts), len(m.new_programs), len(m.prog_ix), len(m.groups), len(m.added),
-                len(m.entry_names), len(m.frag_g), len(m.lay_g))
+                len(o.entries), len(o.parts), len(o.programs), len(o.groups), len(m.added), len(m.entry_names),
+                len(m.part_names), o.to_bytes())
 
     base, donor = fresh()
     base_c, donor_c = sd.entry_contents(base), sd.entry_contents(donor)
-    m = sd.Merger(base, [])
+    m = sd.merger(base)
     n = m.clone_entry(donor, B, N, {'Textures/B/Wood_Df': 'Textures/B/Wood_Nm', 'Textures/B/Wood_Nm': 'Textures/B/Wood_Df'})
     out, data = reparse(m.finish())
     tex = sd.entry_textures(out)
@@ -375,9 +368,9 @@ def clone(c: Checks) -> None:
             'clone_entry: the base entry draws as before; the donor is not changed')
     c.check(sd.ShaderDb.parse(data, 9).to_bytes() == data, 'clone_entry: the result re-parses to the same bytes')
 
-    def refused(what: str, setup: Callable[[sd.Merger, sd.ShaderDb], tuple]) -> None:
+    def refused(what: str, setup: Callable[[Any, sd.ShaderDb], tuple]) -> None:
         base, donor = fresh()
-        m = sd.Merger(base, [])
+        m = sd.merger(base)
         args = setup(m, donor)
         before = state(m)
         try:
@@ -390,12 +383,12 @@ def clone(c: Checks) -> None:
             c.check(False, f'clone_entry: {what} is refused (ShaderDbError) and nothing is added',
                     f'{type(ex).__name__}: {ex}; {before} -> {state(m)}')
 
-    def no_fragment(m: sd.Merger, donor: sd.ShaderDb) -> tuple:
+    def no_fragment(m: Any, donor: sd.ShaderDb) -> tuple:
         g = donor.name_guid(B)
         for i in donor.entry_programs()[g][1:]:              # the first program fine, a later one naming no fragment
             donor.keys[i] = donor.keys[i][:16] + b'Z' * 16 + donor.keys[i][32:]
         return B, N
-    def no_layout(m: sd.Merger, donor: sd.ShaderDb) -> tuple:
+    def no_layout(m: Any, donor: sd.ShaderDb) -> tuple:
         g = donor.name_guid(B)
         last = donor.entry_programs()[g][-1]
         donor.keys[last] = donor.keys[last][:32] + b'Q' * 16 + donor.keys[last][48:]

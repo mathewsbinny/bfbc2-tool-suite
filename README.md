@@ -330,14 +330,15 @@ file's bytes in a `bc2_native.ShaderDbHandle` with the places of its records, an
 (`params`, `entries`, `vs` ...: the same objects as before) only when the attribute is first read; a pickle or copy
 holds plain lists. The logic answers from the handle: `entry_textures`, the new `entry_signatures` (OPFOR's
 `wake_shaders.signatures` in one call) and `entry_layouts`, `coverage`, `ShaderDb.mesh_names`, `ShaderDb.check`,
-`Merger.add_donor`'s needed names and the writer read a section from the file while it was never made and from the
+the merge's needed names and the writer read a section from the file while it was never made and from the
 caller's list once it was (a list changed in place or replaced is read again: the entries' and groups' lookups are
 kept between calls and checked by identity each call); `block_textures`, `block_constants`,
 `block_engine_textures` and `texture_kind` read in Rust. Where the plain case does not hold (an item of another
 type, a name that is not latin-1, an index past its section) the Python runs: the `*_reference` functions
 (`entry_textures_reference`, `check_reference` ...) are the reference, `use_native(False)` / `BFBC2_PURE_PYTHON=1`
-turn the handle off (`tests/test_shaderdb_queries.py`). The merge, clone and patch helpers (`Merger`'s records,
-`clone_entry`, `retexture`, `finish`) stay Python, by measurement. Since round SD1 (2026-11-20) the opening of a
+turn the handle off (`tests/test_shaderdb_queries.py`). The in-process merge is the Rust core's since round OR3a
+(`shaderdb.merger`: `bc2_native.ShaderMerger` - `add_donor`, `clone_entry`, `add_part`, `finish`; the Python `Merger`
+retired, `tests/test_shaderdb_merge.py`); `retexture` stays Python for OPFOR's own block edits. Since round SD1 (2026-11-20) the opening of a
 database too - `ShaderDb.parse`'s choice of byte order and layout and its messages, `pick_database`, `dx_from_name`
 - is one Rust module (`bc2_formats::shaderdb::open`) shared by `shaderdb.py` and `bfbc2.exe shaderdb`, the Python
 kept as the reference and the fallback (`tests\sd1_golden_*.json`).

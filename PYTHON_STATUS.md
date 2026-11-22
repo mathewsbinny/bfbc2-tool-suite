@@ -25,17 +25,17 @@ rounds NK4 and NK5.
 | Status | Files | Lines |
 |---|---:|---:|
 | live | 21 | 6,071 |
-| partly | 20 | 17,395 |
+| partly | 20 | 17,183 |
 | twin | 55 | 19,428 |
 | ported | 21 | 2,572 |
 | retired-pending | 3 | 310 |
-| stays | 58 | 10,599 |
-| test | 184 | 50,009 |
-| **all** | **362** | **106,384** |
+| stays | 58 | 10,602 |
+| test | 185 | 50,468 |
+| **all** | **363** | **106,634** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,411 | 56 |  |  |  |  |  | 1,355 |
+| `(root)` | 2 | 1,417 | 56 |  |  |  |  |  | 1,361 |
 | `bfbc2-anim-tools` | 7 | 2,462 |  | 1,108 |  | 106 |  |  | 1,248 |
 | `bfbc2-auto-navkit` | 56 | 15,048 | 1,815 | 4,748 | 2,749 | 273 |  |  | 5,463 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
@@ -50,11 +50,11 @@ rounds NK4 and NK5.
 | `bfbc2-mesh-viewer` | 4 | 911 |  | 603 |  |  |  | 78 | 230 |
 | `bfbc2-model-tools` | 8 | 1,686 | 364 |  | 658 |  |  |  | 664 |
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
-| `bfbc2-shader-tools` | 15 | 10,125 | 1,430 | 3,882 | 984 | 126 |  |  | 3,703 |
+| `bfbc2-shader-tools` | 16 | 10,366 | 1,430 | 3,670 | 984 | 126 |  |  | 4,156 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 19,834 | 753 |  | 2,414 | 1,897 |  |  | 14,770 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 5,966 |  |  |  |  |  | 5,699 | 267 |
+| `rust` | 33 | 5,969 |  |  |  |  |  | 5,702 | 267 |
 | `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
 | `tests` | 29 | 7,682 |  |  |  |  |  |  | 7,682 |
 
@@ -62,12 +62,12 @@ Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,411 lines.
+2 files, 1,417 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1355 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1361 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -354,7 +354,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-shader-tools`
 
-15 files, 10,125 lines.
+16 files, 10,366 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -362,12 +362,13 @@ Lines by status in the folder table.
 | `bfbc2-shader-tools/xdiff.py` | 394 | tool entry point | live | bfbc2 xdiff (argparse, errors only) | tests 5; OPFOR 4 (xdiff.main in process) | OPFOR in Rust stage 3 | the translator's differential test (xenos_exec, WARP draws) |
 | `bfbc2-shader-tools/xenos_exec.py` | 492 | library | live |  | xdiff; tests 2 | OPFOR in Rust stage 3 | the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement) |
 | `bfbc2-shader-tools/renderqa.py` | 2141 | tool entry point | partly | bfbc2 renderqa (argparse, errors); bc2-render (the draw) | meshview, xdiff; tests 7; OPFOR 6 | OPFOR in Rust stage 3 | left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets |
-| `bfbc2-shader-tools/shaderdb.py` | 1741 | tool entry point | partly | bc2_formats::shaderdb (open, merge); bfbc2 shaderdb; embedded | 33 suite modules; tests 36; OPFOR 54 | OPFOR in Rust stage 3a | reader (SD1), queries (E4b) and the command line are Rust; left: the in-process Merger (clone_entry / add_part, OPFOR's 21 sites), the level cover index, path glue |
+| `bfbc2-shader-tools/shaderdb.py` | 1529 | tool entry point | partly | bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb; embedded | 33 suite modules; tests 37; OPFOR 54 | OPFOR in Rust stage 3 | reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue |
 | `bfbc2-shader-tools/xenos.py` | 984 | library | twin | bc2_shader::xenos (decoder, disasm) | xdiff, xenos_exec, xenos_hlsl; tests 5; OPFOR 4 | OPFOR in Rust stage 3 | parse_shader_python for damaged blobs and disasm for edited trees kept by ruling |
 | `bfbc2-shader-tools/xenos_hlsl.py` | 126 | library | ported | bc2_shader::hlsl (translate) | xdiff, xenos_exec; tests 3; OPFOR 3 | OPFOR in Rust stage 3 | translate_python retired (R3); a thin call into the Rust translator |
 | `bfbc2-shader-tools/tests/test_pcbuild_batch.py` | 203 | test | test |  | run_tests.py | Tests in Rust | pcbuild's compile cache and batches (round E3d): compile_hlsl remembers compiles (memory, disk), compile_ma... |
 | `bfbc2-shader-tools/tests/test_renderqa.py` | 765 | test | test |  | run_tests.py | Tests in Rust | renderqa.py, the offline render harness: on files built here (quick), and with --game on Project OPFOR BFBC... |
-| `bfbc2-shader-tools/tests/test_shaderdb.py` | 566 | test | test |  | run_tests.py | Tests in Rust | shaderdb.py on databases built here (quick), and with --game on Project OPFOR BFBC2's game copy: - built Dx... |
+| `bfbc2-shader-tools/tests/test_shaderdb.py` | 559 | test | test |  | run_tests.py | Tests in Rust | shaderdb.py on databases built here (quick), and with --game on Project OPFOR BFBC2's game copy: - built Dx... |
+| `bfbc2-shader-tools/tests/test_shaderdb_merge.py` | 460 | test | test |  | run_tests.py | Tests in Rust | The shader merge in the Rust core (bc2_native.ShaderMerger, made by shaderdb.merger; round OR3a) against th... |
 | `bfbc2-shader-tools/tests/test_shaderdb_native.py` | 422 | test | test |  | run_tests.py | Tests in Rust | The Rust shader database reader and writer (rust/bc2-formats shaderdb, through the bc2_native module) again... |
 | `bfbc2-shader-tools/tests/test_shaderdb_queries.py` | 337 | test | test |  | run_tests.py | Tests in Rust | Round E4b: the shader database kept in the Rust core (bc2_native.ShaderDbHandle) and the queries it answers... |
 | `bfbc2-shader-tools/tests/test_shaderview_serve.py` | 261 | test | test |  | run_tests.py | Tests in Rust | shaderview -serve (round E3l): many jobs on one Direct3D device, against one shaderview process per job. |
@@ -485,7 +486,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 5,966 lines.
+33 files, 5,969 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -519,7 +520,7 @@ Lines by status in the folder table.
 | `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
 | `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 834 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 837 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 

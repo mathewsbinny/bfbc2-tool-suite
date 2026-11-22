@@ -587,9 +587,11 @@ dependencies = [
  "bc2-shader",
  "bc2-stockmp",
  "bc2-tools",
+ "bumpalo",
  "iced-x86",
  "pyo3",
  "rayon",
+ "self_cell",
 ]
 
 [[package]]
