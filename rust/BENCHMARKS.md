@@ -9237,8 +9237,13 @@ left to dicts and sets, and how the port keeps it:
   this branch's `bin\bfbc2.exe` on sp_009 and sp_004_b, the level's `work\navkit` files restored after; an apply with
   a region edit, a seed and a note): stdout the same line for line (seconds blanked), the built and the applied files
   the same once each sector's build date and time are zeroed, the apply reports the same.
-- **NK1's apply parity**: see below (`rust/parity_nk1_apply.py`; the DICE base's edit stage is untouched, its code only
-  split so the NavKit base shares its tail).
+- **NK1's apply parity**: **33 of 33 identical** (`rust/parity_nk1_apply.py`: the 18 DICE files and the 15 regression
+  builds; the DICE base's edit stage is untouched, its code only split so the NavKit base shares its tail).
+- **The tiers** (after merging main with A2): `run_tests.py quick -j 2` 133 of 133 (O2 among them); NavKit's game
+  tier 13 of 13 (`apply`, `traversal`, `links`, `navbuild-native`, `vehicle-level`, `navwater-mesh`, `navtools-native`,
+  `navdata`, `hpdtool-meshtrip`, `collision-backends`, `navmesh-cells-routes-native`, `navregress:small`,
+  `cli-navkit-prepare-harness-texqa:live`); the editor's AI-workspace game tests (`gr2::ai_workspace_on_ons_mp_004`,
+  `gr2::edit_build_install_restore_on_a_scratch_copy`: its Build now runs the Rust build through `bfbc2.exe`): pass.
 - Tests: `stage_tests.rs` (6: Python's `repr` / `format(g)`, navwalk's trigonometric constants bit for bit, the
   `.npy` reader, the detailed settings, a whole stage on a synthetic two-sector ground read back as a file, the
   no-ground refusal); `test_navbuild_native.py`, `test_vehicle.py`, `test_apply.py`, `test_tool_edges.py`,
@@ -9250,6 +9255,8 @@ left to dicts and sets, and how the port keeps it:
 Each level's whole build, old and new (one process each, one at a time; other agents' work beside them; peak = the
 process's peak private bytes, sampled every 10 ms; the detailed pass's columns are the largest private bytes between
 its log lines: its walkability, then its stage).
+
+The build peak is the regression's: each row is `navregress.build_level` of one level in its own process (the build that made NavKit regression's 15 GB peak), so navregress's peak per level falls the same way, 11.8 -> 6.9 GB at most (navparity's measures after each build were not part of the capture). Measured without `OPENBLAS_NUM_THREADS=1`: about 0.5 GB of each figure is NumPy's import in the Python process.
 
 | level | build, old -> new (s) | build peak, old -> new (MB) | detailed pass: walkability, stage, old -> new (MB) |
 |---|---:|---:|---:|
