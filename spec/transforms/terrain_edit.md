@@ -38,7 +38,7 @@ Status: **inferred** · Variants: PC
 
 | Edit | Writes | Computed by the game, not written |
 |---|---|---|
-| sculpt | the height field's heights (main block; the sub-terrain ring where the edit reaches it) and their derived parts (TEDIT-HF-2, TEDIT-HF-3); the colour / occlusion map's texels under the edit (LIGHT-BAKE-6); the physics material map if materials move (TEDIT-MM-1) | the patch normals (the pixel shader takes them from neighbouring height samples, RNDR-TERR-2); `heightmapWorldScaleY` and the other named terrain constants (RNDR-TERR-5, TEDIT-HF-4); the destruction mask (DSTR-TERR-2) |
+| sculpt | the height field's heights (main block; the sub-terrain ring where the edit reaches it) and their derived parts (TEDIT-HF-2, TEDIT-HF-3); the colour / occlusion map's texels under the edit (LIGHT-BAKE-6); the physics material map if materials move (TEDIT-MM-1); the min / max trees and the lower envelope (TEDIT-HF-3) | the patch normals (the pixel shader takes them from neighbouring height samples, RNDR-TERR-2); `heightmapWorldScaleY` and the other named terrain constants (RNDR-TERR-5, TEDIT-HF-4); the destruction mask (DSTR-TERR-2) |
 | paint | the patch map cells (shader index, tiles, flags: TEDIT-VT-1), the mask-tile atlas's tiles (TEDIT-ATL-1), a patch shader entry in every Dx database for a layer combination the level lacks (TEDIT-SH-1), the undergrowth that patch shader names (VEG-UG-1) | the rule layers (base, slope, sea floor, destruction: computed in the shader, TERR-VT-3) |
 | new terrain (E7) | all of the above, a new main block of 1,024 or 2,048 samples (TEDIT-HF-1), a material map, and the level's registration | as above |
 
@@ -75,15 +75,25 @@ clamp: widening changes no other resource (TEDIT-HF-4).
 
 ### TEDIT-HF-3: The derived parts of a height field are rewritten from the heights
 
-Status: **inferred** · Variants: PC
+Status: **verified** · Variants: PC
 
-After the heights change, a sub-terrain block's min / max quadtree (TERR-HF-5: per 16-sample cell, root first) must
-be recomputed from its heights, since it is fully decoded and a stale one would bound the old ground. The main
-block's tail (TERR-HF-4: n offsets, the first section, the fixed part) is not decoded: a writer that changes heights
-keeps it as it is (the converters do the same) and the game is not known to care. Until the tail is decoded a sculpt
-is a risk to test in game first; E7's new terrain cannot write one at all (formats/terrain.md Open questions).
+After the heights change, every part of a block that is computed from them is rewritten:
 
-[inferred: TERR-HF-4 / TERR-HF-5's grammars; the console and BF1943 converters keep the tails (TERR-HF-7, TERR-HF-8)]
+- a sub-terrain block's min / max quadtree (TERR-HF-5) and the main block's min / max tree (TERR-HF-10), recomputed:
+  both are fully decoded, and the main block's recomputes byte for byte on DICE's 30 terrains;
+- the main block's lower envelope (TERR-HF-11), lowered wherever the new heights dip under it: DICE's own generator is
+  not reproduced, so a writer keeps DICE's grids where they still lie under the ground and lowers the rest (a new
+  block, E7, writes grids built to lie under its heights); since DICE's envelopes already poke through on 15 of 30
+  terrains, a surface under the ground is what the data asks, not an exact copy;
+- the depth map (TERR-HF-9) is not derived: a sculpt keeps it; a new block writes one (all 255, presumably full
+  depth, as most of DICE's), run-length coded with maximal runs, padded to 16 bytes from the heights' start, with A
+  (header 0x2D) the length of the offsets, runs and padding.
+
+With these an E7 writer can write a whole main block of 1,024 or 2,048 samples; what the game does with a stale or
+synthetic envelope is not known until a playtest.
+
+[test: core/tests/test_spec_probes.py::height_field_tails]
+[inferred: TERR-HF-4 - TERR-HF-11's grammars; the console and BF1943 converters keep the tails as they are (TERR-HF-7, TERR-HF-8)]
 
 ### TEDIT-HF-4: The height scale the patch shaders use is the engine's, not the database's
 
@@ -187,16 +197,21 @@ patch shader must have programs for both layouts (OPFOR's `PATCH_LAYOUTS`; Dx9's
 [code: opfor:src/tools/ww2/wake_shaders.py:290-293]
 [test: opfor:src/tools/tests/test_ww2_terrain_patches.py::test_patch_layouts_and_tiles]
 
-### TEDIT-MM-1: The physics material map cannot be painted yet
+### TEDIT-MM-1: Painting a physics material writes the material map's cells
 
-Status: **inferred** · Variants: PC
+Status: **verified** · Variants: PC
 
-Which physics material a terrain cell has (footsteps, impacts, crater size: DSTR-TERR-3) is the `TerrainMaterialMap`
-(TERR-MM-1: 2,048 or 4,096 wide, 32 or 128 blocks, a 256-entry table per block, the names list), whose per-block data
-is not decoded. Until it is, a paint changes the look and not the material: painted asphalt still sounds like the
-grass it was.
+Which physics material a terrain cell has (footsteps, impacts, vehicle dust, crater size: DSTR-TERR-3, MAT-FX-1,
+MAT-FX-2) is the `TerrainMaterialMap`, now decoded (TERR-MM-2 - TERR-MM-4): a paint that changes what the ground is
+made of writes the cells under the brush (0.5 m, or 0.25 m on MP_001, MP_002 and MP_008: TERR-MM-3) to the index of
+the material's name, re-codes each touched row (and so the block's row lengths and byte length) as DICE does, and adds
+the name to the names list when the map lacks it (at most 16 names; the level's grid must hold the material, MAT-GRID-2,
+for every level that uses the terrain). A visual paint (TEDIT-VT-1) and the material paint are separate writes: the
+patch layers are not tied to materials in the data, so the editor pairs them (asphalt patch -> `tarmac`) by its own
+table. DICE's cells re-encode byte for byte, so an untouched block stays as DICE has it.
 
-[inferred: TERR-MM-1's open encoding (formats/terrain.md Open questions)]
+[test: core/tests/test_spec_probes.py::material_maps]
+[inferred: TERR-MM-2 - TERR-MM-4; the pairing of visual layers with materials is the editor's choice (no field links them in DICE's resources)]
 
 ## 4. The rest of the terrain bundle
 
@@ -224,11 +239,11 @@ sky visibility and leaves the rest byte for byte (LIGHT-BAKE-6).
 
 ## Open questions
 
-- The main block's tail (TERR-HF-4): what it holds and whether the game checks it after a sculpt; needed for E7's
-  new terrain.
+- The main block's tail (TERR-HF-4) is decoded; whether the game checks the lower envelope (TERR-HF-11) against the
+  heights, and what the depth map's values do in game, wait on a playtest of a sculpted terrain.
 - What reads the height field for collision and for the AI (Havok's heightfield shape, the navigation sampler):
   whether a sculpt also needs the level's collision or path data rebuilt (navigation: yes, as for any geometry).
-- The material map's encoding (TEDIT-MM-1).
+- Whether the engine reads the material map's cell under a contact or blends neighbours (TEDIT-MM-1).
 - Whether a patch map's shared tile (TEDIT-ATL-2) is always a uniform mask.
 - Whether a cell's leftover flag on a rule-only patch (TEDIT-VT-1) is read by anything.
 - Nothing here has been loaded in game: every rule a writer relies on must be checked by a playtest first.

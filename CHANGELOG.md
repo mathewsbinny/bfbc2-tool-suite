@@ -29,7 +29,6 @@ landed on `main`.
 ## [Unreleased]
 
 ### Changed
-
 - NavKit's path data is closer to DICE's in structure (round NKG1): each sector's table bounds are the box of its
   route nodes (KYN-SEC-2), no edge is written twice (KYN-EDGE-4), and border portals beyond a sector's square link to
   the diagonal neighbour (KYN-LINK-1; 5,922 such link entries on the 15 regression levels, DICE 5,682). Every navparity
@@ -54,6 +53,21 @@ landed on `main`.
   the square lines and the strongly connected share; two game-tier corpus tests (`one_edge_per_source_and_target`,
   `border_ids_have_edges_in_two_sectors`).
 
+- **The terrain's last undecoded bytes, specified** (round SPG2-rest; specification and probes): a main height-field
+  block's tail is a run-length coded depth map (the editor's `DepthMap.png`), a min / max tree of the heights down to
+  16-sample cells and a lower envelope of grids 2 to n / 8 + 1 a side (TERR-HF-4, TERR-HF-9 - 11); the physics
+  material map is 512 x 256-cell blocks of 4-bit cells, a repeated byte starting a run, over the main block with rows
+  along z, its names resolved in the level's material grid by name (TERR-MM-2 - 4). Both re-encode byte for byte on
+  DICE's 30 terrains, so the map editor's terrain rounds can write a new main block (E7) and paint footstep and impact
+  materials (TEDIT-HF-3, TEDIT-MM-1). The undergrowth entries are the engine's `TerrainUndergrowthType`
+  (VEG-UG-3, VEG-UG-5: density, variation, mask range, scales, wind, view distance).
+- **Grime, camouflage and the menus' runtime in the specification** (`spec/engine/materials.md` MAT-TEX-5 - 19,
+  `spec/engine/menus.md` MENU-AS / RT / EVT / HUD / ED, 41 rules) with two new probes, `spec/probes/grime.py` and
+  `spec/probes/menus.py`.
+- **Every specification probe is a game-tier check**: `core/tests/test_spec_probes.py` (`run_tests.py game`) now also
+  holds SPG's five probes' counts (materials, destruction, lighting, vehicles, weapons), the two new probes' and the
+  terrain tails and material maps: 172 checks; 74 rules move to verified.
+
 ### Fixed
 - **The bot-kill scoring contradiction** (AI-NEED-5 against PERS-SCORE-1): the player-killed handler returns only for
   a null victim, so with OPFOR's offline-scoring patch a human's kill of a bot scores; what blocked it offline was the
@@ -68,6 +82,10 @@ landed on `main`.
   level-data rule (best 92 %: designer zones), and the midline cut and the spanner's unexplained pairs are narrowed
   further. Two new probes: `rust/bc2-formats/examples/kynapse_rules.rs` (DICE's files) and
   `rust/bc2-scene/examples/kynapse_geom.rs` (DICE's files against the levels' collision, height field and entities).
+- **NAM_MP_003's terrain in the game-accurate view**: the visual-terrain reader took an undergrowth entry's second
+  string as one byte and refused that terrain, so the view of `nam_mp_003cq` / `r` / `sdm` / `sr` drew no terrain
+  patches or road strips. The reader now reads the string and keeps the undergrowth entries
+  (`bc2_render::terrain::PatchShader::meshes`); the other 33 visual terrains of the game copy read as before.
 
 ## [0.16.0] - 2026-11-22
 

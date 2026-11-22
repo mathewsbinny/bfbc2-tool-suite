@@ -71,7 +71,7 @@ level's closure finds them only through the visual terrain.
 
 [test: core/tests/test_spec_probes.py::visual_terrains]
 [data: spec/probes/terrain.py, 2026-11-22: 1,515 patch shaders: (UgMaskShaders named, meshes) 1,068, (neither) 447; mesh entries per patch shader 0 - 12 (0: 447, 1: 372, 4: 231, 2: 182, 5: 99); 142 distinct meshes; 149 RigidMeshSet in undergrowth folders]
-[code: rust/bc2-render/src/terrain.rs:206-224]
+[code: rust/bc2-render/src/terrain.rs:245-280]
 [doc: opfor:src/tools/ww2/wake_audit.py:107]
 
 ### VEG-UG-2: The undergrowth mesh entry
@@ -79,38 +79,64 @@ level's closure finds them only through the visual terrain.
 Status: **verified** · Variants: PC
 
 An undergrowth mesh entry is: the mesh name, a second string, a shader name, 12 x f32, then the bytes 01 00 (3,069 of
-3,069). The second string is empty on every DICE terrain but NAM_MP_003, whose 30 entries hold `<mesh>/<guid>` (the
-mesh's asset reference); the shader name is set on 1,091 entries. The suite's reader takes the second string as one
-zero byte (TERR-VT-3's grammar until this round), so it misreads NAM_MP_003's visual terrain: the editor's
-game-accurate view and anything that parses that level's terrain must read it as a string.
+3,069). The second string is empty on every DICE terrain but NAM_MP_003, whose 30 entries hold `<mesh>/<guid>` (a
+reference into the mesh's partition, presumably its shader set: VEG-UG-3); the shader name, set on 1,091 entries, is a
+`Terrains/<T>/Shaders/..._Cache` entry. The suite's visual-terrain reader took the second string as one zero byte
+until round SPG2-rest, so it refused NAM_MP_003's visual terrain: the game-accurate view of nam_mp_003cq, r, sdm and sr
+drew no terrain patches and no road strips. It reads the string now and keeps every entry (`PatchShader::meshes`); all
+30 DICE visual terrains read, and the other 33 visual terrains of the game copy read as before.
 
 [test: core/tests/test_spec_probes.py::visual_terrains]
+[test: rust/bc2-render/src/terrain.rs::undergrowth_entries_read_their_asset_string]
+[test: rust/bc2-render/tests/visual_terrains.rs::every_dice_visual_terrain_reads_with_its_undergrowth]
 [data: spec/probes/terrain.py, 2026-11-22: 3,069 entries, tail 01 00 on all; second string set on 30, all in NAM_MP_003 (Package nam_common); shader name on 1,091]
-[code: rust/bc2-render/src/terrain.rs:213-220]
+[data: SPG2-rest, 2026-11-22: old and new reader over the game copy's 34 visual terrains: the same shaders, maps and roads on 33, NAM_MP_003 refused before ("runs past the end at 0x2f65c") and read now; Terrain::load of nam_mp_003cq prepares its 53 patch shaders]
+[code: rust/bc2-render/src/terrain.rs:245-280]
 
-### VEG-UG-3: The entry's 12 numbers
+### VEG-UG-3: An entry is the engine's TerrainUndergrowthType
 
 Status: **observed** · Variants: PC
 
-DICE's values per position over 3,069 entries (the meaning is inferred from the ranges and pairs, not from the
-executable):
+The executable's type information has a class `TerrainUndergrowthType` of 0x4C bytes (named by `TerrainDecalMaterial`'s
+`UndergrowthTypes` array), with 15 fields: `Mesh` (+0x3C), `MeshShaderSet` (+0x38), `CacheShader` (+0x44), `Density`
+(+0x40), `Variation` (+0x34), `MinMask` (+0x28), `MaxMask` (+0x24), `WindScale` (+0x30), `ViewDistance` (+0x2C), three
+two-float fields `MinScale` (+0x1C), `MaxScale` (+0x14) and `MinMaskScaleFactor` (+0x0C) (one field type, eight bytes
+apart), and three byte flags `SkewEnable` (+0x48), `RotateEnable` (+0x49), `Enable` (+0x4A). That is three strings,
+6 + 3 x 2 = 12 floats and the flags: the entry's grammar (VEG-UG-2) less one flag. Next to it, `TerrainMaskFunction`
+has `MinAltitude`, `MaxAltitude`, `MinSlope`, `MaxSlope`. The render settings scale every type at run time
+(`UndergrowthDensityScale`, `UndergrowthViewDistanceScale` / `ScaleMax`, `UndergrowthPoplessDistanceRatio`,
+`UndergrowthCellSize`, `UndergrowthMaxHeight`, `UndergrowthWindSpeed`, `UndergrowthSinkVelocity`,
+`UndergrowthSinkSafeRadius` ...), and the engine keeps an undergrowth cache and mask textures of its own
+(`Terrain/Undergrowth/Cache`, `.../Mask`): the instances are generated at run time, not stored.
 
-| # | Range | Most | Reading |
-|---|---|---|---|
-| 0 | 0.1 - 2.2 | 1, 0.4, 0.8 | density |
-| 1, 3 | 0.906 - 1, 0.603 - 1 | 1 | colour or brightness variation |
-| 2 | 0 - 1 | 0, 0.99 | slope or mask threshold |
-| 4, 5 | 0.3 - 55 | 0.5, 1 | a min / max pair (size) |
-| 6, 7 | 0.5 - 80 | 1, 1.2, 2 | a min / max pair (scale) |
-| 8, 9 | 0.3 - 1.2 | 1 (always equal) | a min / max pair |
-| 10 | 0 - 0.3 | 0, 0.1 | sink into the ground |
-| 11 | 18 - 100 | 55 (1,907) | draw distance, metres |
+[exe: BFBC2Game.exe type information: TerrainUndergrowthType's record at file offset 0x11640B0 (size 0x4C), its field descriptors (name, type, offset) at 0x1195940 - 0x1195AA7; the names at 0x10AA880 - 0x10AA9A0; the Undergrowth* settings at 0x10500A0 - 0x10505B4; the cache and mask resource names at 0x104FBBC - 0x104FC4C]
 
-A port that uses another level's undergrowth mesh copies that level's 12 numbers for it (OPFOR: VEG-OPF-1); a new
-entry starts from the values DICE uses most for a similar mesh.
+### VEG-UG-5: The 12 numbers' fields
 
-[data: spec/probes/terrain.py, 2026-11-22: the 12 positions' ranges and most frequent values over 3,069 entries]
-[inferred: the meanings, from the ranges alone: pairs whose two values are equal or ordered, a last value of metre-like size (18 - 100); nothing in the executable or a playtest confirms them]
+Status: **inferred** · Variants: PC
+
+Matching TERR-VT-3's 12 floats to VEG-UG-3's fields by count, order and DICE's values (3,069 entries):
+
+| # | Field | Range | Most | Why |
+|---|---|---|---|---|
+| 0 | `Density` | 0.1 - 2.2 | 1, 0.4, 0.8 | a density per patch area |
+| 1 | `Variation` | 0.906 - 1 | 1 (2,895) | always at or over #2 |
+| 2 | `MinMask` | 0 - 0.9999 | 0, 0.99 | under #1 and #3 on every entry |
+| 3 | `MaxMask` | 0.603 - 1 | 1 (2,882) | at or over #2 on every entry |
+| 4, 5 | `MinScale` (x, y) | 0.3 - 55 | 0.5, 1 | #5 never over #4; correlated 0.94 with #6, #7 |
+| 6, 7 | `MaxScale` (x, y) | 0.5 - 80 | 1, 1.2, 2 | over #4, #5 on 99.5 % |
+| 8, 9 | `MinMaskScaleFactor` (x, y) | 0.3 - 1.2 | 1 | #8 = #9 on every entry |
+| 10 | `WindScale` | 0 - 0.3 | 0, 0.1 | under every other number on every entry |
+| 11 | `ViewDistance` | 18 - 100 | 55 (1,907) | metres, over every other number |
+
+The order follows the type's field list after the strings (`Density`, `Variation`, `MinMask`, `MaxMask`, then the
+two-float fields, `WindScale`, `ViewDistance`); the closing bytes 01 00 are presumably `RotateEnable` and
+`SkewEnable` (rotated, not skewed), `Enable` being left out (an entry that is written is enabled). A port that uses
+another level's undergrowth mesh copies that level's 12 numbers for it (OPFOR: VEG-OPF-1); a new entry starts from the
+values DICE uses most for a similar mesh.
+
+[data: spec/probes/terrain.py, 2026-11-22: the 12 positions' ranges, most frequent values and orderings over 3,069 entries]
+[inferred: the fields of VEG-UG-3 matched to the positions by the count (6 floats and 3 pairs), the order of the type's field list, and DICE's ranges and orderings; the loader that reads the entry was not traced, so the order inside a pair and the two flags are not confirmed]
 
 ### VEG-UG-4: Undergrowth layouts must be in the level's databases
 
@@ -141,7 +167,8 @@ uses most for that mesh (MP_004 uses one block in all 40 of its grass's patch gr
 
 ## Open questions
 
-- The 12 numbers' meanings (VEG-UG-3): the engine's undergrowth code is not traced.
+- The 12 numbers' fields are named (VEG-UG-3, VEG-UG-5) but matched by data, not by the loader's code; which
+  component of a two-float scale is the height, and the two closing flags, are open.
 - How the undergrowth mask shader chooses where each mesh grows (per layer weight, a noise, the mask tiles) and what
   the per-entry shader name changes.
 - The undergrowth cache: whether the engine bakes instance positions per patch at load (a cache resource) or each

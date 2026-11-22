@@ -21,7 +21,7 @@ RE of `BFBC2Game.exe` (`opfor:research/MATERIAL_SLOTS_RE.md`, 2026-11-09); nothi
 
 ### MAT-GRID-1: One grid partition per level
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 A level's materials are one partition `Levels/<LV>/Materials_Win32` (BF1943's levels: `materials_xenon`) holding one
 `Entity.MaterialGridData` instance: `Name`, `Materials` (references to `Entity.MaterialData`), `MaterialRelations`
@@ -29,24 +29,26 @@ A level's materials are one partition `Levels/<LV>/Materials_Win32` (BF1943's le
 `LevelData.MaterialGrid` (LEVEL-DATA-1). A level bundle may also hold its other modes' grids (MP_001's bundle holds
 MP_001SR's, MP_006's those of MP_006CQ and MP_006SDM).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py on the game copy, 2026-11-22: 81 materials_win32 grid partitions (74 from DICE bundles), 51 - 92 materials and 953 - 3,160 relations each; 4 materials_xenon partitions (OPFOR's WW2 levels), 104 - 111 materials, 4,049 - 4,706 relations; MaterialGridLayers items over all grids 0]
 
 ### MAT-GRID-2: A grid holds only the level's materials, in its own order
 
-Status: **observed**
+Status: **verified**
 
 Each grid lists the materials its level uses, not a shared catalogue: DICE's 74 grids name 121 distinct materials
 between them, and 114 of the 121 sit at different indices of `Materials` in different grids. A material's grid index
 (the low part of its runtime id, HAVOK-MAT-2) is therefore per level; across levels a material is the same only by
 its name and `Hash` (MAT-GRID-3).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: 121 distinct MaterialData names in DICE's 74 grids; 114 of them at more than one index of MaterialGridData.Materials]
 [exe: the runtime material id (grid index plus flag bits) is built at 0x10029E0]
 [doc: opfor:research/MATERIAL_SLOTS_RE.md:17-21]
 
 ### MAT-GRID-3: MaterialData and its Hash
 
-Status: **observed**
+Status: **verified**
 
 An `Entity.MaterialData` has `DebugColor` (4 floats), `Category` (`Construction`, `Projectiles`, `Explosions`,
 `Vehicles`, `Terrain`, `Vegetation`, `Soldier`, `Default`), `Name`, five flags (`Penetrable`, `ClientDestructible`,
@@ -54,13 +56,14 @@ An `Entity.MaterialData` has `DebugColor` (4 floats), `Category` (`Construction`
 of the lower-case name: `h = h * 33 ^ byte` from 5381, the function the physics wrapper uses for part names
 (`bc2_formats::havok::part_hash`). The same name has the same hash in BFBC2 and BF1943.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: Hash equal to the 33-xor hash of the lower-case Name on 5,746 of 5,746 MaterialData instances of DICE's grids; categories Construction 1,771, Projectiles 1,135, Explosions 692, Vehicles 677, Terrain 573, Vegetation 395, Soldier 355, Default 148]
 [code: rust/bc2-formats/src/havok.rs:587-591]
 [doc: opfor:src/tools/ww2/material_grid.py:333-334]
 
 ### MAT-GRID-4: The flags belong to the name
 
-Status: **observed**
+Status: **verified**
 
 No material's flags differ between DICE's grids. 23 of the 121 materials are `Penetrable`, 9 `SeeThrough`, 9
 `ClientDestructible`, 3 `NoCollisionResponse` (glass_breakable, the two tree branch materials), 5
@@ -70,11 +73,12 @@ razorwire, water, water_pool, wood_seethrough). The other Penetrable ones: fabri
 the four soldier body / head materials, transport_helo, the two tree branch materials, wood, wood_banger,
 wood_fragile. Brick, concrete, metal and stone are not penetrable.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: 0 of 121 names with differing flags; Penetrable 23, SeeThrough 9 (all 9 also Penetrable), ClientDestructible 9, NoCollisionResponse 3, NoCollisionResponseCombined 5]
 
 ### MAT-GRID-5: Relations: two materials and their data
 
-Status: **observed**
+Status: **verified**
 
 A `MaterialRelationData` names `Material1` and `Material2` (a `null` side stands for any material) and a `Data`
 array of 1 - 4 items, each a relation data instance of the same partition:
@@ -90,16 +94,18 @@ array of 1 - 4 items, each a relation data instance of the same partition:
 
 Every data item has a `SourceMaterial` reference (set on 64,361 of 323,018 items).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: DICE's grids: relations with a null side 3,494; data items per relation 1 x 66,833, 2 x 49,068, 3 x 34,283, 4 x 13,800; the class counts above]
 
 ### MAT-GRID-6: Two damage items per relation, one per source material
 
-Status: **observed**
+Status: **verified**
 
 A relation holds no, one or two `MaterialRelationDamageData` items; where it holds two, both name a
 `SourceMaterial` (27,728 of 27,749), so one relation carries the damage in both directions of the pair, each item
 for one side as the source.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: DICE's relations by damage items: 0 x 28,783, 1 x 107,452, 2 x 27,749; of the 27,749, every item with SourceMaterial set in 27,728]
 
 ### MAT-GRID-7: The damage fields and their ranges
@@ -155,12 +161,13 @@ all.
 
 ### MAT-SLOT-1: The wrapper's material hashes are the names' 33-xor hashes
 
-Status: **observed**
+Status: **verified**
 
 The u32 material hashes at the end of a physics wrapper (HAVOK-WRAP-1, HAVOK-MAT-1) are the 33-xor hashes
 (MAT-GRID-3) of the HavokAsset partition's `MaterialMappings` names, in order. A material can therefore be appended
 to a file's list with its hash computed from its name; no donor file is needed for the hash.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: 1,183 of 1,183 DICE physics assets: wrapper hashes equal to the hashes of MaterialMappings in order]
 [doc: opfor:src/tools/ww2/bf1943_vehicles.py:360-374]
 
@@ -305,6 +312,14 @@ against anything. A ported object must use materials the target level's grid hol
 The grid decides behaviour; a surface's look is its shader's textures and constants. The baked occlusion textures
 (`_Oc`, `_OcRGB`, `_Occlusion`, `_AO`, `_SkyOc`) are RNDR-LIGHT-1's; the texture header is TEX-HDR-1's.
 
+The counts of MAT-TEX-4 to MAT-TEX-11 are `spec/probes/grime.py`'s (2026-11-22, about 45 s): every DICE `Dx11ShaderDatabase`
+(74, one per level), each entry (`<mesh>/<shader>`) once from the first database holding it unless a count says it
+is per database, a texture record's sampler register named by the program's own pixel shader (its DXBC `RDEF` texture
+bindings: `texture_DirtMask2`, `texture_Texture3` ...); the DICE DBX partitions that name a shader set, the 74 DICE
+`materials_win32` grids, and the string table of `BFBC2Game.exe`. "Class" is the entry's or mesh's path: soldiers
+`Characters/`, vehicles `Objects/Vehicles/`, weapons `Objects/Weapons/`, buildings `Objects/Buildings/`, objects
+the rest of `Objects/`, terrain `Terrains/`. MAT-TEX-12 to MAT-TEX-19 are OPFOR's WW2 grime pass.
+
 ### MAT-TEX-1: DICE's texture suffixes
 
 Status: **verified**
@@ -319,16 +334,22 @@ DICE names a texture by its role with a suffix: colour `_C` / `_D` / `_Df` / `_C
 [test: rust/bc2-formats/src/shaderdb/query.rs::kinds]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:736-739]
 
-### MAT-TEX-2: Grime and dirt are shader layers, not painted maps
+### MAT-TEX-2: Grime and dirt are shader layers over the asset's maps
 
 Status: **observed**
 
-DICE's dirt and wear come from shader layers over the asset's own maps: dirt-mask samplers (`texture_DirtMask`,
-`texture_DirtMask2`), material-mask samplers (`texture_MaterialMask`, `texture_MaterialMask2`) and the dirt
-constants `DirtColor` / `DirtFactor` (and `DirtColor2` / `DirtFactor2`), with shared tiled textures (`DirtMaskRGB`,
-`Dt_Dirt_00N`, `Msk_Generic`, `Msk_Scratch_Tear`, `Dt_Rust_001`). No database names a grime constant.
+DICE's dirt and wear are drawn by the shader from textures of their own over the asset's colour map: dirt-mask
+samplers (`texture_DirtMask`, `texture_DirtMask2`, `texture_DirtMask3`), dirt samplers (`texture_Dirt`,
+`texture_Dirt2`), material-mask samplers (`texture_MaterialMask` ... `3`) and the per-instance dirt constants
+`DirtColor` / `DirtFactor` (and `DirtColor2` / `DirtFactor2`; MAT-TEX-6). The named slots hold shared textures only
+(MAT-TEX-5); most dirt and wear layers are bound through generic slots (`texture_Texture<N>`, `texture_Layer*_Detail*`):
+the shared tiles `DirtMaskRGB`, `Dt_Dirt_001` / `_002`, `Msk_Generic`, `Msk_Scratch_Tear`, `Dt_Rust_001`, and
+per-asset dirt maps (the vehicles' `<vehicle>_Dirt`, the soldiers' `DirtMap_01` / `DirtMap_01_C`). No database names
+a grime constant. (Corrected 2026-11-22: the earlier text said dirt is never a painted map; the per-asset dirt maps
+are painted, but as separate layers, not into the colour map.)
 
 [data: spec/probes/materials.py, 2026-11-22: of 74 DICE Dx11 shader databases, texture_DirtMask in 69, texture_DirtMask2 54, texture_MaterialMask 48, texture_MaterialMask2 47, DirtColor and DirtFactor 36, DirtColor2 10, DirtFactor2 6, texture_OcclusionTexture 74]
+[data: spec/probes/grime.py, 2026-11-22: (entry, slot) bindings over the distinct entries: DirtMaskRGB in texture_DirtMask* 84 and in texture_Texture<N> 310; Dt_Dirt_001 in texture_Layer2_Detail2 372, texture_Layer1_Detail2 171, texture_Texture<N> 136; DirtMap_01 in texture_Texture<N> 394, DirtMap_01_C 360; the per-vehicle dirt maps BMD3_Dirt, Cav_dirt, Cobra_dirt, M1A2_Dirt, M3Bradley_Dirt, T90_dirt, Truck_Dirt, Vodnik_Dirt only in texture_Texture<N> (or a register the pixel shader does not read)]
 [doc: opfor:research/WW2_VISUAL_PARITY.md:10-24]
 
 ### MAT-TEX-3: OcRGB maps: occlusion in red, blend masks in green and blue
@@ -346,13 +367,273 @@ extra texture-coordinate sets. The green channel is thus a material mask, not oc
 
 ### MAT-TEX-4: Camouflage is a texture, not a parameter
 
-Status: **inferred**
+Status: **verified**
 
-Camouflage patterns are textures (`Camo_*`, `Dt_Camo_*`, ghillie colour maps) bound like other colour or detail
-layers, not a shader parameter: a camouflaged variant is a texture swap.
+Camouflage patterns are textures (`Camo_*`, `Dt_Camo_*`, `DesertCamo_01_D`, `Ghillie_Camo_C`, the vehicles'
+`*_C_Desert` / `*_Snow_C` liveries) bound in generic slots (`texture_Texture<N>`) like any colour or detail layer:
+no sampler, constant or engine parameter is named for camouflage. A camouflaged variant is a texture swap, made in
+one of two ways: another shader set of the same mesh (vehicles, MAT-TEX-9), or another texture bound to the same
+entry by the level's shader database (soldiers and weapons, MAT-TEX-10, MAT-TEX-11). No variant is a separate mesh
+or blueprint.
 
-[inferred: 20 distinct DICE texture names contain camo, and a name scan of MP_005's Dx11 database (exploration for this file, not a probe output) found camo only in texture names, among constants and samplers none]
+[test: core/tests/test_spec_probes.py::grime]
 [data: spec/probes/materials.py, 2026-11-22: 20 distinct DICE ITexture names containing camo]
+[data: spec/probes/grime.py, 2026-11-22: every (entry, camo texture) binding over the 74 databases is in a texture_Texture<N> slot (texture_Texture6 86, texture_Texture2 41, texture_Texture3 37, texture_Texture8 25, texture_Texture 18, the rest 72); no pixel shader texture name and no parameter-block constant of the 74 databases contains camo]
+
+### MAT-TEX-5: The dirt and material-mask slots hold shared textures
+
+Status: **verified**
+
+Where a shader names a dirt or material-mask slot, the texture in it is one of three shared tiles: every
+`texture_DirtMask`, `texture_DirtMask2` and `texture_DirtMask3` holds `Textures/Vehicles/Dirt/DirtMaskRGB` (but two
+helicopter-rotor entries, whose `texture_DirtMask` holds the rotor's own `Huey_Rotors_01_A`), every `texture_Dirt` /
+`texture_Dirt2` holds `Dt_Dirt_002`, every `texture_MaterialMask` ... `3` holds `Msk_Plaster_Rust`. The dirt masks
+are the vehicles', weapons' and soldiers' (`DirtMask2` mostly weapons'); the material masks the buildings' (rust and
+plaster wear over the facade). No per-asset texture is ever bound in these slots: an asset's own dirt is a layer in a
+generic slot (MAT-TEX-2).
+
+[test: core/tests/test_spec_probes.py::grime]
+[data: spec/probes/grime.py, 2026-11-22: of 9,747 distinct entries (terrain 3,592, objects 2,936, buildings 997, weapons 859, soldiers 627, vehicles 364, vegetation 314, other 58): texture_DirtMask 26 entries (vehicles 10, weapons 10, objects 6; DirtMaskRGB 24, Huey_Rotors_01_A 2; in 69 databases), texture_DirtMask2 51 (weapons 41, soldiers 8, objects 2; in 54), texture_DirtMask3 9 (weapons 8, soldiers 1), texture_Dirt 7 (objects 4, soldiers 3), texture_Dirt2 3 (soldiers), texture_MaterialMask 60 (buildings 59, objects 1), texture_MaterialMask2 55 (buildings 47, objects 7, terrain 1), texture_MaterialMask3 7 (objects)]
+
+### MAT-TEX-6: DirtColor and DirtFactor are per-instance values the engine writes
+
+Status: **verified**
+
+The dirt constants are not a material's setting: in every parameter block that carries them `DirtFactor` (and
+`DirtFactor2`) is 0 and `DirtColor` black (one entry grey 0.334), as `Destruction_factor` is 0 everywhere. The
+executable lists `dirtColor` and `dirtFactor` at the end of its run of per-instance shader constant names, beside
+`destruction_factor`, `PickupSpec`, `turretRotation`, `trackOffset`, `weaponHeat` ...: values the renderer writes per
+drawn object over the block's placeholder. The entries that carry them are vehicles' and objects' (one terrain
+entry). How an instance's dirt grows is MAT-TEX-7.
+
+[test: core/tests/test_spec_probes.py::grime]
+[data: spec/probes/grime.py, 2026-11-22: DirtColor and DirtFactor in 16 distinct entries (objects 8, vehicles 7, terrain 1), DirtColor2 4, DirtFactor2 2, Destruction_factor 23 (vehicles 11, objects 9, weapons 2, terrain 1); block values DirtFactor / DirtFactor2 0 in all, DirtColor (0, 0, 0) 15 and (0.334, 0.334, 0.334) 1, DirtColor2 (0, 0, 0) 4, Destruction_factor 0 in all]
+[exe: BFBC2Game.exe string table, file offsets 0x101AF78 - 0x101B1A2: destruction_factor, PickupSpec, LightMap, edgeModelSize, edgeModelPos, edgeModelDir, statModPrimDraw, statModPrimBuil, weaponSpecialization, cameraRoll, cameraPitch, compassRotation, turretRotation, lockWarning, healthWarning, reloadPercentage, weaponHeat, isReloading, lightPower, trackOffset, dirtColor, dirtFactor (each once in the file); the code reading the run was not traced]
+[inferred: the run's other names are values only the game knows per object (a turret's angle, a weapon's heat, a track's scroll), so the run is the per-instance constants the renderer fills; the zero block values are then placeholders]
+
+### MAT-TEX-7: Terrain materials carry the dirt trigger
+
+Status: **verified**
+
+Every DICE grid gives its ground materials a `MaterialPropertyTerrainData` on the relation of that material with any
+material (the relation's other side null): `DirtTriggerFactor` 0.1 (grass 0.001) and a `DirtTriggerColor`, a dull
+brown-grey (red 0 - 0.275, green 0 - 0.269, blue 0 - 0.235; most often 0.255 / 0.228 / 0.148). The materials are
+Gravel, Rock, Dirt, Grass, Tarmac, SeaBed, Sand, Mud, Snow and Field. The colour is a Vec3 whose fourth value is
+padding: read the binary values (the XML prints it as a large integer). That a vehicle driving on such a material
+takes on the colour at the factor's rate (`dirtColor` / `dirtFactor`, MAT-TEX-6) is the likely reading; no code was
+traced.
+
+[test: core/tests/test_spec_probes.py::grime]
+[data: spec/probes/grime.py, 2026-11-22: 363 MaterialPropertyTerrainData in all 74 DICE materials_win32 grids, every one on a relation with one side null; per material Gravel 58, Rock 54, Dirt 44, Grass 42, Tarmac 40, SeaBed 40, Sand 37, Mud 24, Snow 15, Field 9; DirtTriggerFactor 0.1 x 321, 0.001 x 42 (Grass, every one); DirtTriggerColor 7 - 9 distinct values per channel]
+[exe: BFBC2Game.exe names MaterialPropertyTerrainData's fields DirtTriggerFactor, DirtTriggerColor and DestructionEffect beside the other material property classes (MaterialPropertyHealthData, MaterialPropertySootData, MaterialPropertyAIData ...), file offsets 0x1071ACC - 0x1071AF4]
+[inferred: the names (DirtTrigger*, dirtColor / dirtFactor) and the per-instance dirt constants on vehicle entries]
+
+### MAT-TEX-8: A mesh's shader sets and who picks one
+
+Status: **verified**
+
+A mesh asset (`Render.RigidMeshAsset`, `SkinnedMeshAsset`, `CompositeMeshAsset`, `TreeMeshAsset`) lists its
+`ShaderSets`: `Render.MeshShaderSetAsset` items, each a list of (surface name, shader) in `SurfaceShaders`; set 0 is
+the default, a later set lists only the surfaces it changes (the M3A3's desert set 2 of the default's 6 surfaces) or
+none. Most meshes have one set. What draws the mesh picks a set: by number on the spawners
+(`VehicleSpawnEntityData.MeshShaderSetNumber`, `SoldierSpawnEntityData.MeshShaderSetNumber`) and as an override on
+the soldier and its weapons (`SoldierEntityData.MeshShaderSetNumberOverride`,
+`SoldierWeaponData.MeshShaderSetNumberOverride`, -1 = none), by reference on placed objects (`MeshShaderSet` of
+`ReferenceObjectData`, `StaticModelEntityData`, `DynamicModelEntityData`, `VehicleEntityData` ...: the colour
+variants of containers, crates and car wrecks, the level's own building variants).
+
+[test: core/tests/test_spec_probes.py::grime]
+[data: spec/probes/grime.py, 2026-11-22: mesh assets by ShaderSets count: objects 1 set 1,090, 2 - 11 sets 193; buildings 1 set 59, 2 - 16 sets 23, none 14; vehicles 1 set 86, 2 - 4 sets 14; soldiers 1 set 29, 2 - 5 sets 34; weapons 1 set 155, 2 - 3 sets 13, none 68; terrain 1 set 423, 2 - 5 sets 45; vegetation 1 set 115, 2 - 5 sets 4. VehicleSpawnEntityData.MeshShaderSetNumber 0 x 1,226, 1 x 99, 2 x 83; SoldierSpawnEntityData.MeshShaderSetNumber 0 x 1,910, 1 x 15, 2 x 20; SoldierEntityData.MeshShaderSetNumberOverride -1 x 71, 1 x 12, 0 x 1; SoldierWeaponData.MeshShaderSetNumberOverride -1 x 337, 1 x 22; MeshShaderSet set on ReferenceObjectData 24,177 of 141,724, StaticModelEntityData 6 of 1,407, DynamicModelEntityData 7 of 61, VehicleEntityData 5 of 98, null on every other class]
+[exe: BFBC2Game.exe names MeshShaderSet, MeshShaderSetAsset, MeshShaderSetIndex, MeshShaderSetNumber, MeshShaderSetNumberOverride, ParachuteMeshShaderSet, ShaderSets and UseTeamShaderSet]
+
+### MAT-TEX-9: Vehicle camouflage is shader set 1 (desert) or 2 (snow), picked per level
+
+Status: **verified**
+
+A vehicle with liveries keeps one mesh: its shader set 1 is the desert livery and set 2 the snow livery, each set's
+shaders binding the livery textures (`M1A2_C_Desert`, `M3Bradley_Snow` + `M3Bradley_Snowmask`, `Humvee_C_Desert`
+...). A vehicle without a desert livery repeats its default set as set 1 (the Russian vehicles), so set numbers mean
+the same on every vehicle. The level's vehicle spawners choose: number 1 on the desert levels, 2 on the snow levels.
+The Cobra's and Mi28's set 1 is a `_merc` set and the campaign's AH-60 has its own; the M1A2's and M48's set 3 is
+empty.
+
+[test: core/tests/test_spec_probes.py::grime]
+[data: spec/probes/grime.py, 2026-11-22: 14 vehicle meshes with more than one set; set 1 desert on 6 (Cav, Humvee, M1A2, M3A3, M48, QuadBike), the same as set 0 on 5 (AA-BMD3, BMD3, T90, Truck, Vodnik), merc 2 (Cobra, Mi28), other 1 (AH60_Sp); set 2 snow on 9; set 3 empty on 2. Vehicle entries binding a _Desert / _Snow / snow-mask texture: 8 desert and 18 snow, each entry's shader name naming the same livery. MeshShaderSetNumber 1 on 13 levels (bc1_oasis cq / gr / sdm, mp_001, mp_001sdm, mp_005, mp_005gr, mp_006, mp_006cq, mp_006sdm, sp_006, sp_02, sp_04), 2 on 13 (mp_003, mp_007, mp_007gr, mp_007sdm, mp_008, mp_008sdm, mp_012cq, mp_012gr, mp_sp_002gr, mp_sp_002sdm, sp_004_b, sp_02, sp_04)]
+
+### MAT-TEX-10: Soldier camouflage is bound per level in the level's shader database
+
+Status: **verified**
+
+A soldier's mesh and shader set are the same on every level; its camouflage is not. The same database entry (soldier
+mesh / shader) binds another `Camo_*` texture in another level's database, in matched pairs: woodland
+(`Camo_US1981Woodland` with `Camo_RUS_03`), desert (`Camo_Digital` with `Camo_RUS_04`), snow (`Camo_Snow_1` with
+`Camo_RUS_gorod`). No DBX partition of DICE's names those textures at all, so the choice exists only in the compiled
+databases. Vietnam's databases bind their own `US_Camo_02` / `US_Camo_detail`. The soldier meshes' shader set 1 is
+the kit-upgrade appearance (`*_KitUpgrade_01` shaders, presumably what `MeshShaderSetNumberOverride` 1 picks), and
+the Russian heads' and bodies' set 2 an `all_white` set; the campaign's spawners use sets 1 and 2 on four levels.
+
+[test: core/tests/test_spec_probes.py::grime]
+[data: spec/probes/grime.py, 2026-11-22: 58 soldier entries bind a camo texture, 38 of them another one in another database; per database the (US, RUS) pair its soldier entries bind most: woodland 22, snow 15, desert 14, woodland without RUS 2, RUS_03 only 1, none of the six 20 (Vietnam); DBX partitions referencing a Camo_* soldier texture: 0; soldier sets beyond 0: set 1 kitupgrade 20, empty 8, snow 3 (campaign headgear), other 3; set 2 all_white 4, empty 8; SoldierSpawnEntityData.MeshShaderSetNumber 1 on sp_003_b, sp_006, sp_007, 2 on sp_005]
+[inferred: the level's camo choice is made when the content build compiles the level's database (a per-level texture substitution); the game only sees the result; the kit-upgrade reading is from the set's shader names and the override's values (-1, 0, 1)]
+
+### MAT-TEX-11: Weapons' camouflage is a tiled detail layer, also bound per level
+
+Status: **verified**
+
+Weapons carry camouflage as a tiled detail texture in a generic slot (`Dt_Camo_Wood`, `Dt_Camo_Desert`,
+`Dt_Camo_Snow`; Vietnam's weapons a fixed `DesertCamo_01_D`): the sniper rifles' shaders and some rifles',
+sub-machine guns' and machine guns' (mostly their `KitUpgrade_01` shaders). As with the soldiers (MAT-TEX-10), the same weapon entry binds the tile of the
+level: on every multiplayer level the tile follows the US soldiers' camo (desert with `Camo_Digital`, wood with
+`Camo_US1981Woodland`, snow with `Camo_Snow_1`); four campaign levels keep the wood tile with snow or desert
+soldiers. The quad bike instead swaps `Dt_Camo_Wood` / `_Desert` / `_Snow` through its three shader sets
+(MAT-TEX-9), and the camouflage net is an OcRGB prop with `Dt_Camonet_RGB_01` as its detail (MAT-TEX-3). No weapon
+spawner picks a camo set: weapon pickups never use the team's set.
+
+[test: core/tests/test_spec_probes.py::grime]
+[data: spec/probes/grime.py, 2026-11-22: 26 weapon entries bind a Dt_Camo_* tile, 17 of them another tile in another database; per database the tile its weapons bind most: Dt_Camo_Wood 28, Dt_Camo_Desert 13, Dt_Camo_Snow 12; against the US soldiers' camo of the same database: 49 agree, 4 differ (sp_004_b, sp_02, sp_04: wood with Camo_Snow_1; sp_006: wood with Camo_Digital); distinct entries over every database binding DesertCamo_01_D: weapons 68, vehicles 1; Dt_Camonet_RGB_01 objects 4, vehicles 1; Camonet_Oc_RGB objects 7; DynamicWeaponPickupEntityData / WeaponPickupEntityData.UseTeamShaderSet false on all 115]
+
+### MAT-TEX-12: OPFOR weathers clean colour maps up to DICE's class median
+
+Status: **implemented** · Variants: BF1943
+
+OPFOR's WW2 port has no dirt layers on its own materials (MAT-TEX-2's layers come only with a DICE donor entry,
+MAT-TEX-19), so its grime pass bakes grime into the colour maps of the custom assets that lack it. It measures a
+colour map at the level whose longer side is at most 1,024 texels: fine contrast (the mean absolute Laplacian of
+luminance over painted texels, luminance over 12) and local variation (the median standard deviation of 8 x 8
+blocks). The target is the median of DICE's own textures of the class: 8 weapon and 7 vehicle colour maps, 5 OcRGB
+props, up to 12 terrain tiles picked from the game copy and 14 `Dt_*` material tiles. A map needs grime when its
+fine contrast is under 75 % of the target; where the shader layers DICE's grit itself the target is lowered (the
+rifle grenades: 0.7).
+
+[code: opfor:src/tools/ww2/grime.py:55-77]
+[code: opfor:src/tools/ww2/grime.py:130-142]
+[code: opfor:src/tools/ww2/grime.py:193-207]
+[code: opfor:src/tools/ww2/grime.py:226-264]
+[code: opfor:src/tools/ww2/grime.py:546]
+
+### MAT-TEX-13: The weathering is DICE's own detail textures, at one strength found by bisection
+
+Status: **implemented** · Variants: BF1943
+
+The weathered map is the clean map with DICE's textures tiled across texture space at half their size: the grain of
+`Textures/_GENERAL/Dt_Dirt_002` multiplied in (its bright lines kept faint), the sparse scratches of
+`Textures/Metal/BrushedMetal` added on metal (metal from the specular map's red channel, else unsaturated colour),
+the red channel of `Scratches_01_M` blurred into broad dusty-brown patches; creases darkened from the ambient
+occlusion (an `_S` map's green channel) or, without one, from the normal map's curvature, which also brightens convex
+metal edges. One strength scales it all: 14 bisection steps find the strength at which fine contrast meets the
+target, at most 2.2; per item a lower cap, a weaker patch weight or areas kept near the original (the M1897 stock,
+the Shin Gunto blade, the Type 30 guard).
+
+[code: opfor:src/tools/ww2/grime.py:152-156]
+[code: opfor:src/tools/ww2/grime.py:269-304]
+[code: opfor:src/tools/ww2/grime.py:307-358]
+[code: opfor:src/tools/ww2/grime.py:550-559]
+
+### MAT-TEX-14: Weathering never darkens a map by more than 15 %
+
+Status: **verified** · Variants: BF1943
+
+The painted texels' mean brightness after weathering stays within 15 % of the clean map's: first on the float
+result, then again on the encoded texture in linear luminance (sRGB decoded when the header's colour flag says so).
+An encoding that breaks the budget is blended back towards the original (80 %, 60 %, 40 %, 20 % of the change);
+if none fits, the original bytes are kept. The texture header and the alpha are kept.
+
+[code: opfor:src/tools/ww2/grime.py:148]
+[code: opfor:src/tools/ww2/grime.py:333-342]
+[code: opfor:src/tools/ww2/grime.py:441-470]
+[test: opfor:src/tools/tests/test_ww2_weathering_policy.py::test_encoded_weathering_respects_linear_luminance_budget_and_transparency]
+
+### MAT-TEX-15: Only the listed custom assets are restyled; BF1943's artwork is restored
+
+Status: **verified** · Variants: BF1943
+
+The pass styles only four custom assets (the M1897 and Type 38 / Type 30 free models, OPFOR's rifle grenades, the
+Shin Gunto repaint). Every other texture it surveys (BF1943's weapons, vehicles, props and Wake's map textures) is
+left as its producer wrote it; where an earlier run had weathered one, the recorded weathered copy is replaced by the
+tool's own output, and a file that is not a recorded result of the pass (a newer build or a user's edit) is never
+overwritten.
+
+[code: opfor:src/tools/ww2/grime.py:143-146]
+[code: opfor:src/tools/ww2/grime.py:425-438]
+[code: opfor:src/tools/ww2/grime.py:521-530]
+[code: opfor:src/tools/ww2/grime.py:574-590]
+[test: opfor:src/tools/tests/test_ww2_weathering_policy.py::test_weathering_restores_own_results_and_preserves_newer_edits]
+[test: opfor:src/tools/tests/test_ww2_weathering_policy.py::test_weathering_preserves_packed_channels_without_reencoding]
+
+### MAT-TEX-16: The pass records what it wrote, so it can run again
+
+Status: **verified** · Variants: BF1943
+
+Beside a weathered texture the pass keeps the tool's output as `<name>.res.orig` and a `<name>.res.grime.json`
+record naming the weathered result's SHA-1 and every earlier result the file may still hold. The record is written
+before the texture (both atomically), so a crash between them leaves a file the pass still knows for its own. A
+texture whose bytes are no recorded result is the tool's new output and becomes the new original; the survey reads
+the `.orig` only while the file is still a recorded weathered copy. Each run starts from the original: the pass is
+idempotent.
+
+[code: opfor:src/tools/ww2/grime.py:372-422]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_grime_crash_between_writes_keeps_the_original]
+[test: opfor:src/tools/tests/test_ww2_grime_source.py::test_survey_source_is_the_orig_only_for_a_recorded_weathered_copy]
+[test: opfor:src/tools/tests/test_ww2_grime_source.py::test_survey_source_without_an_orig_is_the_file]
+
+### MAT-TEX-17: What the pass leaves alone, and the formats it keeps
+
+Status: **verified** · Variants: BF1943
+
+On the Wake level's converted textures the pass takes only DXT1 / DXT5 colour textures (the header's colour flag set,
+not a normal map by name) and skips by path: sky, ambient occlusion, masks, gloss / specular / occlusion maps,
+`RGBM`, decals, dirt maps (grime themselves), water and wakes, flat colour swatches, the intensity map, flags, road
+masks, the carrier, terrain quads, shadow cards and razor wire; a skipped texture an earlier run weathered is
+restored. The terrain's ground textures fall under the skip list. A Wake copy of an item's texture takes the item's
+result byte for byte. A DXT5 map keeps its alpha and a DXT1 map its 1-bit transparency (decoded and re-encoded with
+it; without, every transparent texel came back black).
+
+[code: opfor:src/tools/ww2/grime.py:116-129]
+[code: opfor:src/tools/ww2/grime.py:174-190]
+[code: opfor:src/tools/ww2/grime.py:498-518]
+[code: opfor:src/tools/ww2/grime.py:537-545]
+[code: opfor:src/tools/ww2/grime.py:591-597]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_grime_keeps_dxt1_alpha]
+[test: opfor:src/tools/tests/test_ww2_terrain_colour.py::test_ground_build_restores_source_alias_and_weathering_excludes_it]
+
+### MAT-TEX-18: The pass runs after the shader clone pass, and its references are cached by their inputs
+
+Status: **verified** · Variants: BF1943
+
+The WW2 rebuild runs `grime.py --apply` (only with `--apply`) after `wake_shaders.py --clone`, which converts the
+BF1943 textures the pass weathers. The DICE reference picks for the map classes are cached in `grime_refs.json` under
+a hash of everything they depend on but the textures' bytes (the patterns, the candidates found in the game copy's
+index, the material tiles, a version); any change, or a cache without the key, picks again. The before / after
+sheets (`grime.py --sheet`, `grime_models.py`) are pictures for review: a 256-texel crop of each weathered map's
+busiest painted area beside a DICE texture of its class at the same texel density, and the weathered weapons and
+vehicles rendered whole from `.orig` (before) and the weathered file (after); nothing is installed from them.
+
+[code: opfor:src/tools/ww2/rebuild_all.py:99-103]
+[code: opfor:src/tools/ww2/grime.py:157-164]
+[code: opfor:src/tools/ww2/grime_sheet.py:15-29]
+[code: opfor:src/tools/ww2/grime_sheet.py:48-83]
+[code: opfor:src/tools/ww2/grime_models.py:30-50]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_rebuild_step_order]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_from_selects_exactly]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_grime_ref_cache_is_invalidated]
+
+### MAT-TEX-19: Ported materials borrow DICE's layers from a donor entry
+
+Status: **implemented** · Variants: BF1943
+
+A ported BF1943 material (colour map + normal + specular, no layers) can take a DICE entry of the layered scheme as
+donor: the donor's colour, normal and specular samplers get the port's own textures, its shared layers (`Dt_*`,
+`Nm_General*`, detail normal atlases, `Textures/_MASK/`, metal tiles, vehicle tiles, the shared dirt masks,
+`Detailmetal_N`, `Scratches_*_M`) stay. A donor qualifies when its programs were compiled for the port's vertex
+layouts, it sets every constant the port's shader sets, it has no unique texture of another role (a decal sheet, its
+own tile map) and no normal, specular or sky reflection the port lacks; the best is the one with the preferred name,
+a normal map and the most layers. OcRGB donors are left out: their masks need extra texture-coordinate sets the
+ports do not have (MAT-TEX-3).
+
+[code: opfor:src/tools/ww2/detail_layers.py:45-66]
+[code: opfor:src/tools/ww2/detail_layers.py:96-135]
+[doc: opfor:src/tools/ww2/detail_layers.py:1-25]
+[doc: opfor:research/WW2_VISUAL_PARITY.md:37-53]
 
 ## 6. OPFOR's WW2 materials
 
@@ -433,7 +714,23 @@ take BF1943's `SoldierBody` / `SoldierHead` relations; every other weapon keeps 
 - **The entity default material** (MAT-SLOT-5): that `entity+0x30` is the DBX `Material` field is presumed; the
   entity data class's field table in the executable would show it.
 - **OcRGB channels** (MAT-TEX-3): a disassembly of one OcRGB prop's pixel shader (which channel scales which
-  sampler) would make the rule observed; the values of `DirtFactor` per material were not measured.
+  sampler) would make the rule observed.
+- **How dirt accumulates** (MAT-TEX-6, MAT-TEX-7): the code that reads the executable's run of per-instance constant
+  names, and what feeds `dirtColor` / `dirtFactor` (the terrain material under a vehicle's wheels, its rate, whether
+  dirt fades or washes off in water), were not traced; a RenderDoc capture of a vehicle before and after driving
+  over Mud would show the constants change. Which DirtMaskRGB channel a dirt shader reads is likewise unread.
+- **Who makes the per-level camo** (MAT-TEX-10, MAT-TEX-11): no shipped DBX names the soldier camo textures, so the
+  level's choice was made by DICE's content build; a level added by a modder needs its database compiled (or merged)
+  with the camo of its theme. Whether the game can switch camo at run time (it seems not) is open; the four campaign
+  levels whose weapons keep the wood tile with snow or desert soldiers may be DICE's oversight.
+- **Shader-set fall-back** (MAT-TEX-8): that a surface a later set does not list draws with set 0's shader is the
+  reading of the M3A3's sets, not traced; the meaning of `MeshShaderSetIndex` (in the executable, in no DICE DBX
+  field) is unknown.
+- **The soldiers' set 1 and set 2** (MAT-TEX-10): that `MeshShaderSetNumberOverride` 1 is the rank's kit upgrade and
+  what the Russian `all_white` set is for (a cutscene or a debug look) are unconfirmed.
+- **OPFOR's grime against DICE's runtime dirt** (MAT-TEX-12): the pass bakes static grime into colour maps; DICE's
+  vehicles get dirty at run time (MAT-TEX-7). Giving the WW2 vehicles DICE's dirt constants (a donor entry carrying
+  `DirtColor` / `DirtFactor`, MAT-TEX-19) was not tried.
 - **The grid index at run time** (MAT-GRID-2): whether the game resolves a part's material by hash against the level's
   grid when the level loads (the likely reading, since indices differ per level) or at each hit.
 - **The air raid** (MAT-WW2-5) becomes implemented when `ww2/air-raid` is merged.

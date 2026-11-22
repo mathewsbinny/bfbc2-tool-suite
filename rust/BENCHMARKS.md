@@ -9968,3 +9968,101 @@ The files grow by the diagonal-neighbour link entries and shrink by the duplicat
 - `cargo test` (bc2-navbuild, bc2-formats, bc2-py), clippy `--all-targets -D warnings` (with bc2-cli), fmt, ruff and
   mypy on the changed Python, `spec/trace.py --check`: pass.
 
+## SPG2-rest: what the specification's gap pass left (2026-11-22, branch `spg2r`)
+
+Mostly specification, plus one reader fix in `bc2-render`. Nothing written to `game\`; the game never launched. The
+probes read DICE's bundles of the game copy (`game/**/levels/*/*.fbrb` dated before 2013, each resource once) through
+the worktree's own `bc2_native`.
+
+### Coverage, before and after
+
+| | rules | verified | implemented | observed | inferred | covered | thin |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| before (main at 5674dc8, NKS-rest included) | 1,183 | 531 | 116 | 487 | 49 | 34 | 2 |
+| after | 1,231 | 605 | 126 | 453 | 47 | 36 | 0 |
+
+48 new rules: TERR-HF-9 - 11, TERR-MM-2 - 4, VEG-UG-5, MAT-TEX-5 - 19 (15), 26 MENU rules; 74 rules observed ->
+verified by the game-tier check.
+
+### 1. The main height-field block's tail
+
+The "n offsets, A bytes, fixed part" split was the same bytes cut in the wrong places. The tail is:
+
+| part | size | |
+|---|---|---|
+| row offsets | 4n | where each depth-map row's runs start (u16 units) |
+| depth runs | 4 bytes a run | (count, value) u16 pairs, maximal, a row adding up to n; the editor's `<T>-DepthMap.png` |
+| padding | 0 - 15 | to 16 bytes from the heights' start; A (0x2D) = offsets + runs + padding |
+| min / max tree | 10,922 / 43,690 u16 | root first, rows along z, down to 16-sample cells, each node one sample wider |
+| lower envelope | 22,363 / 88,412 u16 | grids of 2, 3, 5, ..., n / 8 + 1 a side, coarsest first |
+
+Offsets, runs, padding and tree re-encode byte for byte on 30 of 30 DICE main blocks. The envelope lies under every
+height sample on 15 terrains and under at least 99.48 % on the rest (presumably heights edited after it was built);
+DICE's generator was not reproduced (greedy lowering matches 17 - 24 % of the vertices), so a writer keeps or builds a
+surface under the ground (TEDIT-HF-3). Depth maps: mostly 255 on 26 terrains, mostly 0 on MP_001, MP_004, SP_01 and
+NAM_MP_006; 0 under MP_005's town buildings.
+
+### 2. The physics material map
+
+Blocks of 512 x 256 cells tile a width x width map (8 x 16 blocks at 4,096, 4 x 8 at 2,048); a row is bytes of two
+4-bit cells (low nibble first), a byte equal to the one before followed by a count c meaning c + 1 pairs; the
+block's 256 u16 are the rows' byte lengths. All 30 maps re-encode byte for byte. The map covers the main block with
+rows along z (SeaBed against height: r = -0.55 to -0.89 on six terrains, against -0.21 to +0.60 transposed or spread
+twice as wide): 0.5 m cells on 27 terrains, 0.25 m on MP_001, MP_002, MP_008. Index 0 is `defaultmaterial` on all;
+1 - 10 names, each a `MaterialData` of the level's grid (31 of 31 paired grids hold them, never at the same index: the
+engine resolves by name).
+
+### 3. The NAM_MP_003 reader fix
+
+`bc2_render::terrain::parse_visual` skipped one byte where an undergrowth entry has a string; NAM_MP_003's 30 entries
+name `<mesh>/<guid>` there, so the reader ran out of step ("runs past the end at 0x2f65c") and the four nam_mp_003
+levels (cq, r, sdm, sr) drew no terrain patches or road strips in the game-accurate view. Fixed, the entries kept as
+`PatchShader::meshes` (`UndergrowthMesh`, compared by bits so `PatchShader` stays `Eq`). Old and new reader over the
+game copy's 34 visual terrains (DICE's 30 and OPFOR's four WW2): the same shaders, maps and roads on 33, NAM_MP_003
+read now; `Terrain::load` of nam_mp_003cq prepares its 53 patch shaders. Tests: a unit test, and
+`tests/visual_terrains.rs` (30 terrains, 1,515 patch shaders, 3,069 entries, 0.7 s with the game copy). Left alone:
+`bc2-convert`'s walk and console-convert's `terrain.py` read the same field as one byte (their inputs never set it).
+
+### 4. The undergrowth numbers
+
+`BFBC2Game.exe`'s type information has `TerrainUndergrowthType` (0x4C bytes, a field of `TerrainDecalMaterial`'s
+`UndergrowthTypes`): `Mesh`, `MeshShaderSet`, `CacheShader`, `Density`, `Variation`, `MinMask`, `MaxMask`,
+`WindScale`, `ViewDistance`, two-float `MinScale`, `MaxScale`, `MinMaskScaleFactor`, flags `SkewEnable`,
+`RotateEnable`, `Enable`: exactly the entry's 3 strings and 12 floats. Matched by order and DICE's ranges (VEG-UG-5,
+inferred): density, variation, min / max mask, min scale (x, y), max scale (x, y), mask scale factor (x, y), wind
+scale, view distance; 01 00 presumably rotate on, skew off.
+
+### 5. Grime / camouflage and the menus' runtime
+
+Written with two helper agents, each confined to its spec file and probe. Findings that change planned work:
+
+- Vehicle camouflage is shader set 1 (desert) or 2 (snow) of the same mesh, picked by the level's spawners; soldier
+  and weapon camouflage is bound per level by the level's compiled shader database (38 of 58 soldier entries differ
+  between databases), not by any DBX: a modder's new level needs its database built with the right camo.
+- `DirtColor` / `DirtFactor` are per-object values the engine writes (placeholders in the databases); the terrain
+  materials carry `DirtTriggerFactor` / `Color` (MAT-TEX-6, 7).
+- The movies' interpreter dispatches through a 185-entry table at 0x1545B00 with no bound check; 132 opcodes have a
+  handler, and four the suite names (0x57, 0x68, 0x8D, 0xB9) have none (MENU-RT-1, 2, MENU-ED-2: no tool checks that a
+  written movie avoids them). aptgraft's comment names 0x1311570 a binary-operator handler; the table says GetMember.
+
+### 6. Every probe a game-tier check
+
+`core/tests/test_spec_probes.py` (`run_tests.py game`): the terrain tails and material maps, SPG's five print-only
+probes by the output lines that hold their rules' counts, and `grime.py` / `menus.py` by their `checks()`: 172 checks,
+all passing, 3 min 24 s (the material maps' Python decode about 30 s of it).
+
+| probe | run alone |
+|---|---:|
+| `weapons.py` | 5 s |
+| `vehicles.py` | 17 s |
+| `materials.py` | 19 s |
+| `destruction.py` | 16 s |
+| `lighting.py` | 20 s |
+| `grime.py` | 35 - 45 s |
+| `menus.py` | 9 - 12 s |
+
+### Left
+
+`spec/COVERAGE.md` section 2 (queued as SPG2-rest2): the terrain rules' playtest, the undergrowth loader, the RE list
+(emitter processors, mounts, `OnlyTakeableByTeam`, the award evaluator, dirt build-up, the menus' loading roots), the
+other two readers' one-byte undergrowth field.
