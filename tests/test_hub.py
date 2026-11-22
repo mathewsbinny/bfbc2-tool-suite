@@ -1,4 +1,4 @@
-r"""The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 7 tabs and the
+r"""The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 8 tabs and the
 game copy's levels; FbrbTool lists a bundle, bfbc2.exe leveldiff compares a level with itself, the crash reader reads a
 report built here, the test runner lists a tier - each through its tab's button, its output in the pane. Needs a
 display and Project OPFOR BFBC2's game copy. (The Python 3D tools' level picker, pick.py, was retired in round RT3.)
@@ -62,7 +62,8 @@ def main(argv: list[str]) -> int:
         return hub.text.get('1.0', 'end')
 
     tabs = [hub.tabs.tab(t, 'text') for t in hub.tabs.tabs()]
-    check(tabs == ['Levels', 'Bundles', 'Level diff', 'Crash reader', 'Xbox files', 'Tests', 'More tools'], f'7 tabs: {", ".join(tabs)}')
+    check(tabs == ['Levels', 'Bundles', 'Level diff', 'Crash reader', 'Xbox files', 'Tests', 'Mods', 'More tools'],
+          f'8 tabs: {", ".join(tabs)}')
     levels = hub.tree.get_children()
     check(len(levels) > 30 and 'sp_01' in levels and 'mp_005' in levels, f'the Levels tab lists the game copy\'s levels ({len(levels)})')
     check(hub.tree.set('sp_01', 'dice') == 'yes' and hub.tree.set('sp_01', 'prepared') == 'yes', 'with what each has (sp_01: prepared, DICE path data)')
