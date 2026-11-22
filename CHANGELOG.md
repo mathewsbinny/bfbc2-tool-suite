@@ -28,6 +28,26 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **`bfbc2 mods`** (round MM1): Project OPFOR's mod manager on the install ledger - `list`, `status`, `enable`,
+  `disable`, `install`, `uninstall`, `restore-original`, `verify`, `baseline`, `migrate`, `resume`. The mods: the
+  Pacific War (`ww2`), its menus (`pacific-menus`), the Vietnam opt-in (`vietnam`), each Onslaught console port
+  (`onslaught:<level>`, or `onslaught` for all), the map editor's exports (`mapedit`), NavKit's path data and stock-MP's
+  AI per level (`navkit:<level>`, `stockmp:<level>`), OPFOR's import (`base`). A disabled mod's files are kept aside
+  (`<game>\opfor\mods`: hard links, its level folders moved), so `enable` puts them back byte for byte with their
+  write times, without a rebuild; the mods built on one (or needing it) are disabled with it after a confirmation
+  (`--yes`) and come back with it; `restore-original <file> ... | --all` gives DICE's files back and keeps the installs;
+  `verify` checks every file the ledger holds, the level folders and the kept copies; `migrate` is OPFOR's
+  `migrate.py` in Rust (the plan first, `--apply` after). Any operation killed part way is finished by the next command.
+  Spec `transforms/install.md` section 5 (XINST-MOD-1 to -9); `BC2_MODS_CRASH_AT` for the tests.
+- **The hub's Mods tab**: the mods and their state, Enable / Disable / Uninstall / Verify / Restore DICE's files /
+  Migrate old markers / Resume, a confirmation for what else changes.
+- `bfbc2.exe`'s `mods` tool group (builds alone; in CI's list).
+
+### Fixed
+- The migration of the markers from before the ledger, killed after the first old backup was archived, left that file
+  refused for good on the next run (OPFOR's `migrate.py` too: fixed on its side, branch `mm1-migrate`).
+
 ## [0.17.0] - 2026-11-22
 
 ### Removed

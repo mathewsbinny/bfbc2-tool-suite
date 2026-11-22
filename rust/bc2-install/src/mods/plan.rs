@@ -48,6 +48,7 @@ struct View {
     recs: BTreeMap<String, Value>,
     stash: BTreeMap<String, OwnerStash>,
     fstash: BTreeMap<String, FolderStash>,
+    marks: BTreeMap<String, super::SettingMark>,
     folders: Vec<(String, String, &'static str)>,
 }
 
@@ -72,6 +73,7 @@ impl Manager {
             recs: self.ledger().records().map_err(from_ledger)?,
             stash: self.owner_stashes()?,
             fstash: self.folder_stashes()?,
+            marks: self.setting_marks()?,
             folders: catalog::folders(&self.game),
         })
     }
@@ -361,6 +363,7 @@ impl Manager {
                     key: st.key.to_owned(),
                     value: st.off.to_owned(),
                 });
+                op.steps.push(Step::MarkSetting { id: st.id.to_owned() });
             }
         }
         Ok(op)
@@ -595,6 +598,7 @@ impl Manager {
                     .filter(|s| set.contains(&s.mod_id))
                     .map(|s| &s.op)
                     .chain(v.fstash.values().filter(|f| set.contains(&f.mod_id)).map(|f| &f.op))
+                    .chain(v.marks.values().filter(|m| set.contains(&m.mod_id)).map(|m| &m.op))
                     .collect();
                 let with: BTreeSet<String> = v
                     .stash
@@ -606,6 +610,12 @@ impl Manager {
                             .values()
                             .filter(|f| ops.contains(&f.op))
                             .map(|f| f.mod_id.clone()),
+                    )
+                    .chain(
+                        v.marks
+                            .values()
+                            .filter(|m| ops.contains(&m.op))
+                            .map(|m| m.mod_id.clone()),
                     )
                     .collect();
                 for m in with {
@@ -792,6 +802,11 @@ impl Manager {
                     section: st.section.to_owned(),
                     key: st.key.to_owned(),
                     value: st.on.to_owned(),
+                });
+            }
+            if set.contains(st.id) && v.marks.contains_key(st.id) {
+                steps.push(Step::Drop {
+                    name: format!("setting~{}", st.id),
                 });
             }
         }

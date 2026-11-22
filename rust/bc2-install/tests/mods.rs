@@ -9,6 +9,7 @@
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::panic,
+    clippy::many_single_char_names,
     reason = "test assertions on known fixtures"
 )]
 

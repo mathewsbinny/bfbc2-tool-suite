@@ -179,6 +179,18 @@ pub struct FolderStash {
     pub files: Vec<FolderFile>,
 }
 
+/// A setting mod turned off: the operation that did it (the mods disabled with it come back with it).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingMark {
+    /// [`STASH_FORMAT`].
+    pub format: String,
+    /// The setting mod.
+    #[serde(rename = "mod")]
+    pub mod_id: String,
+    /// The operation.
+    pub op: String,
+}
+
 /// A file a step installs from the kept bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InFile {
@@ -261,6 +273,12 @@ pub enum Step {
     },
     /// The bundleManifest repair kept as its own install (the WW2 opt-out's, AU4-SM-6).
     ManifestFix,
+    /// A setting mod turned off by this operation: its mark (`stash\setting~<id>.json`), so the mods disabled with it
+    /// come back with it.
+    MarkSetting {
+        /// The setting mod.
+        id: String,
+    },
 }
 
 /// An operation: its steps, written before the first.
@@ -414,6 +432,22 @@ impl Manager {
                 let s: OwnerStash = serde_json::from_value(v)
                     .map_err(|e| ModError::Io(format!("{}: damaged ({e})", self.stash_path(&name).display())))?;
                 out.insert(s.owner.clone(), s);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The marks of the setting mods turned off, by mod.
+    ///
+    /// # Errors
+    /// A damaged record.
+    pub fn setting_marks(&self) -> Result<BTreeMap<String, SettingMark>, ModError> {
+        let mut out = BTreeMap::new();
+        for (name, v) in self.stash_files()? {
+            if name.starts_with("setting~") {
+                let s: SettingMark = serde_json::from_value(v)
+                    .map_err(|e| ModError::Io(format!("{}: damaged ({e})", self.stash_path(&name).display())))?;
+                out.insert(s.mod_id.clone(), s);
             }
         }
         Ok(out)
@@ -838,6 +872,20 @@ impl Manager {
                 }
             }
             Step::ManifestFix => self.manifest_fix(lines)?,
+            Step::MarkSetting { id } => {
+                let p = self.stash_path(&format!("setting~{id}"));
+                if !p.is_file() {
+                    self.step(&format!("mark {id}"))?;
+                    self.write_json(
+                        &p,
+                        &SettingMark {
+                            format: STASH_FORMAT.to_owned(),
+                            mod_id: id.clone(),
+                            op: op.to_owned(),
+                        },
+                    )?;
+                }
+            }
         }
         Ok(())
     }
