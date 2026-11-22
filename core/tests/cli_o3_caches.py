@@ -21,9 +21,9 @@ VARIANTS = {'PYTHONUTF8=1': {'PYTHONUTF8': '1'}, 'PYTHONUNBUFFERED=1': {'PYTHONU
             'PYTHONIOENCODING=utf-8': {'PYTHONIOENCODING': 'utf-8'}}
 
 CACHE_ENVS = ('BFBC2_HLSL_CACHE', 'BFBC2_FBRB_CACHE', 'BFBC2_COLLISION_CACHE', 'BFBC2_EFFECTPORT_CACHE',
-              'BFBC2_CULLTREE_CACHE', 'BF1943_SOURCE_INDEX', 'BFBC2_SHADERCOVER_CACHE')
+              'BFBC2_CULLTREE_CACHE', 'BF1943_SOURCE_INDEX', 'BFBC2_SHADERCOVER_CACHE', 'BFBC2_RENDERQA_CACHE')
 CAP_ENVS = ('BFBC2_HLSL_CACHE_MB', 'BFBC2_FBRB_CACHE_GB', 'BFBC2_COLLISION_CACHE_MB', 'BFBC2_EFFECTPORT_CACHE_MB',
-            'BFBC2_CULLTREE_CACHE_MB', 'BF1943_SOURCE_INDEX_MB', 'BFBC2_SHADERCOVER_CACHE_MB',
+            'BFBC2_CULLTREE_CACHE_MB', 'BF1943_SOURCE_INDEX_MB', 'BFBC2_SHADERCOVER_CACHE_MB', 'BFBC2_RENDERQA_CACHE_MB',
             'BFBC2_NAVSTUDIO_CACHE_MB', 'BFBC2_HARNESS_CACHE_MB', 'BFBC2_NAVWATER_CACHE_MB', 'BFBC2_EDITOR_CACHE_MB', 'BFBC2_MESHVIEW_CACHE_MB',
             'BFBC2_CACHE_TOTAL_GB', 'BFBC2_LOGS_MB', 'BFBC2_LOG_TOOL_MB', 'BFBC2_LOG_FILE_MB', 'BFBC2_LOG_ARCHIVE_MB')
 # every case: caches at their defaults under the run's local app data, no Project OPFOR (OPFOR_ROOT names a folder
@@ -252,7 +252,7 @@ def opfor_calls(opfor: str) -> list[Call]:
     """The real caches, project caches, build folders and log folder, read-only (listed; logs pruned on a copy)."""
     lad = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
     real = os.path.join(lad, 'bfbc2-tool-suite')
-    names = ['hlsl', 'fbrb', 'collision', 'effectport', 'culltree', 'bf1943source', 'shadercover']
+    names = ['hlsl', 'fbrb', 'collision', 'effectport', 'culltree', 'bf1943source', 'shadercover', 'renderqa']
     real_caches = {e: os.path.join(real, 'cache', n) for e, n in zip(CACHE_ENVS, names)}
     roots = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
                          'rust-targets')

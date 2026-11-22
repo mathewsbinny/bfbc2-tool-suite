@@ -118,6 +118,139 @@ def _bundle(entries, compressed=True, members=1):
 
 
 def lazy_source(check):
+    """Source's reading by its Python reference (lazy_source_python) and by the suite's Rust reader
+    (lazy_source_rust, bc2_formats::bf1943), each against WholeSource."""
+    from bfbc2core import native
+    was = native.use_backend('bf1943source', False)
+    try:
+        lazy_source_python(check)
+    finally:
+        native.use_backend('bf1943source', None)
+    if native.use_backend('bf1943source', True):
+        try:
+            lazy_source_rust(check)
+        finally:
+            native.use_backend('bf1943source', None)
+    elif was:
+        check(False, 'lazy source: the Rust reader is built but could not be turned on')
+    else:
+        print('SKIP lazy source (Rust): bc2_native has no bf1943_read (python rust\build_native.py)')
+
+
+def lazy_source_rust(check):
+    """Source on the Rust reader (round PR1b-1-rest) against WholeSource on built bundles: a payload of several
+    MiB (restart points 1 MiB apart, most inside a byte) read in a random order, a two-member payload (read whole), a
+    stored one, a refused one; the points made once per process, kept on disk by the payload's content and read back
+    by a later process (RESTARTS cleared), none kept with BF1943_RESTARTS_MB=0; four Sources on four threads; a
+    bundle changed after the open refused."""
+    import random
+    import threading
+    try:
+        bi.fbrb1943()
+    except bi.Bf1943ImportError as e:
+        print(f'SKIP lazy source (Rust): {e}')
+        return
+    rng = random.Random(2043)
+    tmp = tempfile.mkdtemp(prefix='bf1943rs_')
+    old = os.environ.get(bi.INDEX_ENV)
+    letters = bytes.maketrans(bytes(range(256)), bytes(b'abcdefghijklmnopq'[i % 17] for i in range(256)))
+    try:
+        folder = os.path.join(tmp, 'xenon')
+        os.makedirs(os.path.join(folder, 'levels'))
+        files = {
+            'levels/huge-00.fbrb': _bundle([(f'Huge/E{i}.res', 'Mesh', rng.randbytes(rng.choice((0, 9, 70000, 200000)))
+                                             .translate(letters)) for i in range(60)]),
+            'aa-00.fbrb': _bundle([(f'Two/E{i}.res', 'Mesh', rng.randbytes(3000)) for i in range(20)], members=2),
+            'stored-00.fbrb': _bundle([(f'S/E{i}.res', 'Wave', rng.randbytes(rng.randrange(0, 4000))) for i in range(30)],
+                                      compressed=False),
+            'bad-00.fbrb': _bundle([('Bad/E.res', 'Mesh', b'abc')])[:-3],
+        }
+        for rel, raw in files.items():
+            with open(os.path.join(folder, *rel.split('/')), 'wb') as fh:
+                fh.write(raw)
+        os.environ[bi.INDEX_ENV] = os.path.join(tmp, 'index')
+        bi.RESTARTS.clear()
+        ref = bi.WholeSource(folder)
+        src = bi.Source(folder)
+        check(src.entries == ref.entries and list(src.bundles) == list(ref.bundles) and
+              'bad-00.fbrb' not in src.bundles and src.stats['checked'] == 4,
+              'lazy source (Rust): the same entries and bundles as WholeSource (the damaged bundle refused by both)')
+        keys = sorted(ref.entries) * 2
+        rng.shuffle(keys)
+        same = sum(src.data(k) == ref.data(k) for k in keys)
+        check(same == len(keys) and src.stats['indexed'] == 2 and src.stats['spans'] >= 4 and
+              src.stats['whole'] > 0 and src.stats['stored_reads'] > 0,
+              f'lazy source (Rust): {same} of {len(keys)} reads in a random order the WholeSource bytes (points made '
+              f'{src.stats["indexed"]}, spans {src.stats["spans"]}, hits {src.stats["hits"]}, whole '
+              f'{src.stats["whole"]}, stored {src.stats["stored_reads"]})')
+        points = [f for f in os.listdir(os.path.join(tmp, 'index')) if f.endswith('.points')]
+        check(len(points) == 1, f'lazy source (Rust): one points file on disk (the one-member payload): {points}')
+        again = bi.Source(folder)
+        ok = all(again.data(k) == ref.data(k) for k in ref.entries)
+        check(ok and again.stats['from_index'] == 4 and again.stats['indexed'] == 0 and
+              again.stats['shared_points'] > 0,
+              'lazy source (Rust): a second Source reuses the process points, the same bytes')
+        bi.RESTARTS.clear()                             # a later process: the points from disk
+        later = bi.Source(folder)
+        ok = all(later.data(k) == ref.data(k) for k in ref.entries)
+        check(ok and later.stats['from_disk'] == 1 and later.stats['indexed'] == 1,
+              f'lazy source (Rust): a later process reads the points from disk (from disk {later.stats["from_disk"]}, '
+              f'made {later.stats["indexed"]}: the two-member payload, read whole)')
+        old_mb = os.environ.get(bi.RESTARTS_ENV)
+        try:
+            os.environ[bi.RESTARTS_ENV] = '0'
+            bi.RESTARTS.clear()
+            off = bi.Source(folder)
+            ok = all(off.data(k) == ref.data(k) for k in ref.entries)
+            check(ok and bi.RESTARTS.held() == (0, 0),
+                  'lazy source (Rust): BF1943_RESTARTS_MB=0 keeps no points in the process')
+        finally:
+            if old_mb is None:
+                os.environ.pop(bi.RESTARTS_ENV, None)
+            else:
+                os.environ[bi.RESTARTS_ENV] = old_mb
+            bi.RESTARTS.clear()
+        shared = [bi.Source(folder) for _ in range(4)]
+        errors: list[str] = []
+
+        def read_all(s, order):
+            for k in order:
+                if s.data(k) != ref.data(k):
+                    errors.append(k)
+        threads = [threading.Thread(target=read_all, args=(s, rng.sample(sorted(ref.entries), len(ref.entries))))
+                   for s in shared]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        check(not errors, f'lazy source (Rust): four Sources reading at once on four threads get the WholeSource '
+              f'bytes ({len(errors)} wrong)')
+        again = bi.Source(folder)
+        huge = os.path.join(folder, 'levels', 'huge-00.fbrb')
+        raw = bytearray(files['levels/huge-00.fbrb'])
+        raw[-4000] ^= 0xFF                                       # inside the payload's deflate data
+        k = max((k for k in ref.entries if k.startswith('huge/') and ref.entries[k][1]['size'] > 4000),
+                key=lambda k: ref.entries[k][1]['offset'])
+        st = os.stat(huge)
+        with open(huge, 'wb') as fh:
+            fh.write(raw)
+        os.utime(huge, ns=(st.st_atime_ns, st.st_mtime_ns))      # the same size and time: only the span's CRC-32 sees it
+        bi.RESTARTS.clear()                             # (spans decoded before the change are answered as read)
+        try:
+            again.data(k)
+            check(False, 'lazy source (Rust): a bundle changed in place (same size and time) is refused')
+        except bi.Bf1943ImportError:
+            check(True, 'lazy source (Rust): a bundle changed in place (same size and time) is refused')
+    finally:
+        bi.RESTARTS.clear()
+        if old is None:
+            os.environ.pop(bi.INDEX_ENV, None)
+        else:
+            os.environ[bi.INDEX_ENV] = old
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def lazy_source_python(check):
     """Source (round E3r: entries checked once and indexed on disk, data read through restart points) against
     WholeSource on built bundles: every entry in a random order, through restart points 4 KiB apart and a span budget
     that keeps almost nothing; a bundle of two gzip members (read whole each time), a stored one, one fbrb1943

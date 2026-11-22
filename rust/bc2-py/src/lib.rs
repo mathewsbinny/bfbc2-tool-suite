@@ -20,6 +20,9 @@
 //! `bfbc2-console-readers/apt/apt.py`; the menu tools' movie model `AptModel` and `apt_roundtrip_many`,
 //! `apt_check_many`, `apt_refs_many` (`aptmodel.rs`, round E4c) for aptgraft, aptcheck and aptrefs.
 //!
+//! BF1943's bundles (`bf1943.rs`, round PR1b-1-rest): `bf1943_check`, `bf1943_read` (restart points),
+//! `bf1943_reader`, `bf1943_restarts` / `bf1943_restarts_clear`, for `bfbc2-bf1943-import/bf1943import.py`'s `Source`.
+//!
 //! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`; FbrbTool's
 //! (`fbrbtool.rs`): `fbrbtool_run` / `fbrbtool_run_many`, for `core/bfbc2core/fbrbtool.py`.
 //!
@@ -59,6 +62,7 @@
 mod aim_pathmesh_audio;
 mod apt;
 mod aptmodel;
+mod bf1943;
 mod console;
 mod convert;
 mod converters;
@@ -422,6 +426,9 @@ mod bc2_native {
     };
     #[pymodule_export]
     use super::fbrbtool::{fbrbtool_gunzip, fbrbtool_run, fbrbtool_run_many};
+
+    #[pymodule_export]
+    use super::bf1943::{bf1943_check, bf1943_read, bf1943_reader, bf1943_restarts, bf1943_restarts_clear};
 
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, fbrb_unpack, zlib_deflate};
