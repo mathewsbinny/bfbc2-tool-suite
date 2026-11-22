@@ -2918,7 +2918,8 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     let mut base_loaded = game.loaded(&rec.base, "level");
     base_loaded.extend(game.startup());
     let cl = closure(game, &block_loaded, &base_loaded, &own_entries, &[], false)?;
-    r.add("XVAL-REF-5", 
+    r.add(
+        "XVAL-REF-5",
         cl.unresolved.is_empty(),
         format!(
             "closure: every partition the level reaches ({} walked in its own and its base's bundles, {} copied in by \
@@ -2930,11 +2931,19 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
                 let mut f: Vec<&str> = rec.closure.iter().map(|c| c.from.as_str()).collect();
                 f.sort_unstable();
                 f.dedup();
-                if f.is_empty() { "nowhere".to_owned() } else { f.join(", ") }
+                if f.is_empty() {
+                    "nowhere".to_owned()
+                } else {
+                    f.join(", ")
+                }
             },
             rec.profile.word(),
             cl.nowhere.len(),
-            cl.unresolved.iter().take(8).map(|(n, by)| format!("{n} (named by {by})")).collect::<Vec<_>>()
+            cl.unresolved
+                .iter()
+                .take(8)
+                .map(|(n, by)| format!("{n} (named by {by})"))
+                .collect::<Vec<_>>()
         ),
     );
     // round VW2: the weather the export gave the level
@@ -2978,7 +2987,8 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         match donor {
             Some(d) => {
                 let miss = crate::modelayer::missing(&mode, &have, &d);
-                r.add("XVAL-MODE-3", 
+                r.add(
+                    "XVAL-MODE-3",
                     miss.is_empty(),
                     format!(
                         "mode layer: {} {} - {} bases {:?}, {} flags, {} combat areas, counters {:?} (tickets, lives, \
