@@ -211,6 +211,7 @@ reached"). DICE's files are not perfectly regular here: some border ids have no 
 `hpdcheck` does not check this rule.
 
 [data: bit 16 set on 127,880 nodes of the 35 files, every one a border node; sp_004_b: 1,379 of 1,445 border ids owned by the sector whose square holds the node]
+[exe: read as the byte at node +0x22: edges into a node with no loaded owner copy dropped (0x0105C8C0), non-owner copies skipped by the node lookup (0x0105E786); KYRT-PATH-3]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:566-570] [doc: bfbc2-auto-navkit/tools/hpdcheck.py:14-15]
 
 ### HPD-NODE-6: Spatial lookup lists
@@ -219,7 +220,9 @@ Status: **observed**
 
 Fields *b* and *c* hold three lists interleaved, one entry per node slot: the node indices sorted by x (low half of
 *b*), by y (high half of *b*) and by z (low half of *c*). The k-th node's fields hold the k-th entry of each list, not
-the node's own rank. The tie-break order among equal coordinates is not known.
+the node's own rank. The tie-break order among equal coordinates is not known. The runtime's node lookup
+binary-searches the three lists and walks one of them in order (KYRT-NODE-2), so the order of equal coordinates is
+read.
 
 [data: 93 % / 98.7 % / 92.8 % of entries exact over the 2,776 campaign sectors measured, the rest ties]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:445-450]
@@ -584,8 +587,7 @@ settle it: `formats/kynapse.md` section 6 (OQ1-OQ9). Answered there: the header 
 (KYN-FILE-1, KYN-TILE-1), the tile size (KYN-TILE-1), the link object's header (KYN-LINK-1), A records and the end
 slot (KYRT-IGN-1, KYRT-LOAD-3). Still open:
 
-- the lookup lists' tie-break (HPD-NODE-6; KYG-NODE-3 narrows it);
-- border ids with no owner or two (HPD-NODE-5; counts in KYG-NODE-2);
+- the lookup lists' tie-break (HPD-NODE-6; KYG-NODE-3 narrows it, KYRT-NODE-2 shows the runtime reads it);
 - DICE's area division, the vehicle D / F rule and the detailed sectors (KYG-AREA-2, KYG-DF-2, KYG-DET-1);
 - the ONS_MP_002 sector that resolved at offsets 0, 0 (HPD-USE-2; KYRT-SEC-1 gives the lookup);
 - the generator's rectangle (KYG-RECT-1).

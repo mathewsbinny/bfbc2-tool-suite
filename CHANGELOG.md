@@ -29,6 +29,13 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **The Kynapse specification's open rules, fitted** (round NKS-rest; specification only, no tool changed): DICE's
+  route edges form a greedy 1.2-spanner (an edge is left out when the graph already has a route at most 1.2 times as
+  long; KYG-EDGE-3) and the graph is symmetric by node id, a sector's one-way edges being edges into non-owner
+  border copies (KYG-EDGE-4), both checked on DICE's 35 files by two new game-tier tests in `kynapse_corpus.rs`;
+  from the executable, the node lookup's box query and its use of the lookup lists in order (KYRT-NODE-2), where the
+  owner bit is read (KYRT-PATH-3) and the local-pathfinding layer beside the path data (KYRT-DYN-2). A new probe,
+  `rust/bc2-formats/examples/kynapse_fit.rs`, records the per-feature fits.
 - **The auto layout's vehicles** (round A2, `bc2_levelwrite::vehicles`): a proposal places the mode layer's vehicles
   by team and class from the level's own vehicle spawners (moved, then copies), in DICE's per-mode counts (a Conquest
   base 4, 8 on WW2; a flag 2; Rush's first attackers' and defenders' bases 3 and 2; Squad Deathmatch's one IFV), each
@@ -59,6 +66,13 @@ landed on `main`.
   `bfbc2 caches` / `python -m bfbc2core.caches` and counted in the overall budget.
 
 ### Changed
+- **The Kynapse specification, corrected by round NKS-rest**: `SectorOverlap` is the path-finding type's
+  `DistEdgeMax` (15 m infantry, 50 m vehicle; KYRT-CFG-1); the search's step cost and heuristic are both the f32 3-D
+  distance (`Kaim::CConstraintShortestPath`, `CHeuristicEuclidianDistance`) with 100 expansions per call
+  (KYRT-PATH-1); the node resolver tests candidates in lookup-list order, not by distance, so the lists' tie order is
+  read (KYRT-NODE-1, HPD-NODE-6); DICE's 13 % one-way edges are the border convention, not a directed graph
+  (KYN-EDGE-3); the midline cut's "longer side" holds for 67 % of cuts over all files, not 325 of 326 (KYG-AREA-2);
+  open questions OQ1, OQ2, OQ6 and OQ8 updated, and NavKit's gap list given NKG2's and NKG3's targets.
 - **Less memory** (round PR1b-1): NumPy's OpenBLAS runs one thread unless `OPENBLAS_NUM_THREADS` says otherwise
   (`suite_paths`, `bfbc2core`): each Python process importing NumPy committed about 490 MB for its 16 threads' buffers.
   Test peaks: geometry readers 2.9 -> 1.0 GB, NavKit cells and routes 5.4 -> 1.6 GB, texture helpers 5.2 -> 4.6 GB, model tools 5.5 -> 5.0 GB; the WW2 rebuild's steps each about 480 MB less (level builds 4.35 -> 3.87 GB).

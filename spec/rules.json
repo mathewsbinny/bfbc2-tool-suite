@@ -3275,6 +3275,10 @@
      "ref": "set-up 0x00F20C0E-0x00F20CD9 (size from [obj+0x40"
     },
     {
+     "kind": "exe",
+     "ref": "`PathfindingType`'s reflected field table 0x01C39DB8-0x01C39EBF, 24-byte entries {name, type, offset}: OutputName +0x30, EntityRadius +0x2C, MaxGraphHandles +0x3C, SubgraphsToLoad +0x44, SubgraphBoxSize +0x40, DiagramHalfWidth +0x1C, MaxGaps +0x18, DistEdgeMax +0x20, CanGoMaxEntityRadius +0x28, UseLocalPathfinding +0x48; names at 0x014752CC-0x01475364"
+    },
+    {
      "kind": "doc",
      "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471"
     }
@@ -3374,8 +3378,25 @@
      "ref": "resolver 0x00F095C0 -> point query 0x00F09360 / 0x0107ADD0, snap 0x00F01250; node lookup 0x01086CE0 -> gather 0x0105ED80 (R from [status+0x38"
     },
     {
+     "kind": "exe",
+     "ref": "the candidates walked one by one from the gather's list: cursor [list+8"
+    },
+    {
      "kind": "doc",
      "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:429-435"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-NODE-2",
+   "title": "The box query reads the lookup lists, in list order",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "box query 0x0105E270: list fields read as `movzx [node+0x1C"
     }
    ]
   },
@@ -3391,8 +3412,16 @@
      "ref": "out-edge walk 0x0105C930 (first edge - 1 at 0x0105C9B2-0x0105C9C6); static test 0x01079B3B; cost call `[edi+0xC"
     },
     {
+     "kind": "exe",
+     "ref": "RTTI vtables `Kaim::CConstraintShortestPath` 0x014C2D28 (+0xC = 0x01059480: dx, dy, dz of the positions at node +4 / +8 / +0xC, sum of squares, `sqrt` 0x00C521BC, stored as f32), `Kaim::CSphereConstraint` 0x014C2D44 (+0xC = 0x01059970: radius at +0x14 against 0.0, equal: false at 0x01059985; else a squared-distance test against the radius, then `jmp 0x01059480`), `Kaim::CHeuristicEuclidianDistance` 0x014C2D78 (+0x8 = 0x01059210, the same distance); the path finder's own constraint written at +0x43C, 0x010803D1; the AI's pair created at 0x00F0F122-0x00F0F192 (+0x94 sphere, +0x98 shortest path)"
+    },
+    {
+     "kind": "exe",
+     "ref": "heuristic call 0x01079320 (`cmp [edi+0x10"
+    },
+    {
      "kind": "inferred",
-     "ref": "the default cost object's formula (likely the 3-D distance, which the stored cost word also encodes), the heuristic, and whether another stage reads the cost word's low bits were not traced"
+     "ref": "whether another stage reads the cost word's low bits was not traced"
     }
    ]
   },
@@ -3410,6 +3439,23 @@
     {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:566-570"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-PATH-3",
+   "title": "Where the owner bit is read",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "target filter 0x0105C8C0 (`cmp byte [ebp+0x22"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the chain through node +0x14 is written at load (the file holds DistEdgeMax or 0 there, HPD-NODE-1); the write was not found"
     }
    ]
   },
@@ -3457,6 +3503,23 @@
     {
      "kind": "data",
      "ref": "word 35 = 0 in 35 of 35 files; bit 31 set on 1,694,066 of 1,694,066 edges"
+    }
+   ]
+  },
+  {
+   "id": "KYRT-DYN-2",
+   "title": "Local pathfinding: an obstacle layer beside the path data",
+   "file": "spec/engine/kynapse_runtime.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "service and layer names 0x014A9360 (`CGapManager`), 0x014A9530 (`Mpd::CLpfManager`), 0x014A95C4 (`CObstaclesLayer`), 0x014A95A4 (`MaxObstacles`), 0x014A94E8 (`CLpfPreMerger_Grid`), 0x014A9800 (the LPF goal refiner), 0x014A9A48 (`Mpd::CGoto_GapDynamicAvoidance_v2`); the obstacle layer configured at 0x00F1F584-0x00F1F600 (and again 0x00F1FA47-0x00F1FADE); the managers registered 0x00F1BCA3 / 0x00F1BD59, their profile names `LpfManager::AreaComputation` / `::PreAggregateComputation` at 0x00F1C915 / 0x00F1C83E and in the service 0x010C69E4-0x010C69F5; `PdtWhenDestroyed` 0x0145C728 and `DestructibleLocalPathfindingParts` 0x01460610 without a code reference found"
+    },
+    {
+     "kind": "inferred",
+     "ref": "from the configuration's class and parameter names only; no LPF method was disassembled and no live probe was run (in-game tests are paused)"
     }
    ]
   },
@@ -12956,6 +13019,10 @@
      "ref": "bit 16 set on 127,880 nodes of the 35 files, every one a border node; sp_004_b: 1,379 of 1,445 border ids owned by the sector whose square holds the node"
     },
     {
+     "kind": "exe",
+     "ref": "read as the byte at node +0x22: edges into a node with no loaded owner copy dropped (0x0105C8C0), non-owner copies skipped by the node lookup (0x0105E786); KYRT-PATH-3"
+    },
+    {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:566-570"
     },
@@ -20660,6 +20727,10 @@
      "ref": "per file, the outline box against the outer sector lines (probe): e.g. sp_004_b infantry 37.2 / 73.1 / 13.2 / 62.7 m (min x / max x / min z / max z), sp_005 13.2 / 96.4 / 45.2 / 5.2, ons_mp_004 4.4 / 4.4 / 1.2 / 28.1; a box reaches past the outer grid line on 9 files: 1.5 m on 8 vehicle files, 0.4 m on sp_01 infantry (the margins, KYM-HDR-2)"
     },
     {
+     "kind": "data",
+     "ref": "round NKS-rest (`kynapse_fit`): the vehicle file's ground box lies within 2.5 m of the infantry file's on 13 of 68 sides (17 levels) and 2.6-1,094 m inside it on the other 55, so the vehicle ground (seeded from vehicle spawns) shows no shared level-wide rectangle; on sp_04 all four sides lie 2.3-10.8 m apart"
+    },
+    {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:784-816"
     }
@@ -20724,6 +20795,14 @@
      "ref": "probe classification of 386,568 B portals; 325 of 326 cut groups cut along the longer side, 0 of 326 on both axes (sp_004_b, sp_005, sp_007)"
     },
     {
+     "kind": "data",
+     "ref": "round NKS-rest over all 35 files (`kynapse_fit`, groups of areas joined across a tile midline by B portals): cut groups coarse 1,064, detailed 106, vehicle 400; cut across the longer side of the joined box in 711 / 51 / 237 only; the joined ground meets across the midline in two or more separate stretches (it surrounds something that crosses the midline) in 928 / 22 / 6; areas that straddle a midline uncut 22,695 / 20,381 / 1,633"
+    },
+    {
+     "kind": "data",
+     "ref": "features that do not separate cut from uncut (round NKS-rest): the cells' share of the tile (uncut areas from 0 to 100 %, 954 coarse at a full tile; cuts from 1 %), the record size (cut 1-32 KB, uncut 0-14 KB, overlapping), the outline points, the tile (574 uncut straddlers in the 787 coarse tiles with a cut), and a hole crossing the midline (2,635 such holes in uncut coarse areas)"
+    },
+    {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:517-531"
     }
@@ -20756,6 +20835,10 @@
      "ref": "detailed sectors per file from the probe (571 of 2,626 infantry sectors); NeedsDetailedPathfinding within 10 m: 300 of 304 picks detailed, 296 of 498 found"
     },
     {
+     "kind": "data",
+     "ref": "round NKS-rest: the 571 detailed sectors form 42 blocks of side-adjacent sectors (1-6 per file); only 14 blocks (30 sectors) are rectangles of the file's sectors, the others hold coarse sectors inside their box; so the detailed ground is not one designer box per block"
+    },
+    {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:532-542"
     },
@@ -20774,6 +20857,18 @@
     {
      "kind": "data",
      "ref": "nodes on the cell-centre grid 22,375 and on the corner grid 784 of 596,069; ONS_MP_002 node distance from an outline point p50 / p90 detailed 1.7 / 4.3 m, coarse 2.9 / 6.8 m"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest over all 35 files (`kynapse_fit`), placements that do not hold: a lattice (the fraction of x on periods 0.05, 0.1, 0.2, 0.25, 0.4, 0.5 and 1 m is flat within 15 % but for the cell-centre spike); outline corners offset by the radius along both sides (607 of 197,599 coarse ordinary nodes; 66,494 lie within 2 m of an outline corner); the medial axis (the nodes' nearest-two-obstacles balance has the distribution of control points 0.6 r / 0.9 r away); one node at each area's cell centroid (coarse: 90,367 of 118,937 areas hold no node, 17,936 five or more)"
+    },
+    {
+     "kind": "data",
+     "ref": "vehicle files: 7,324 of 18,590 areas hold one node and 9,939 none; a lone node lies within 0.7 m of its area's cell centroid in 6,557 of 7,324, spread evenly over 0-0.7 m (anywhere in the central 1 m cell)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "positions on no grid, no lattice and no outline feature point to the generator placing nodes from geometry the stored mesh does not keep (its own sample cloud or the collision), not from the stored outline"
     },
     {
      "kind": "doc",
@@ -20854,6 +20949,46 @@
     {
      "kind": "data",
      "ref": "1,694,066 of 1,694,066 edges with L computed in f32"
+    }
+   ]
+  },
+  {
+   "id": "KYG-EDGE-3",
+   "title": "Edges are added unless the graph already has a route at most 1.2 times as long",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edges_are_not_redundant_at_1_2"
+    },
+    {
+     "kind": "data",
+     "ref": "edges between ordinary nodes with another route in their sector at most 1.2 times as long: infantry 946 of 487,308 node pairs, vehicle 427 of 11,814"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest probe (`kynapse_fit`), ordinary pairs within DistEdgeMax across and 3 m in height: coarse 253,010 with an edge (637 cross the outline or a D line) and 651,044 without (142,493 of them in sight); with a route at most 1.2 times as long: coarse edges 186 of 252,373, pairs without 89,966 of 142,493; detailed 742 of 189,995 and 134,546 of 198,161; vehicle 279 of 8,087 and 16,874 of 20,718"
+    },
+    {
+     "kind": "data",
+     "ref": "vehicle edges cross the stored outline in 3,676 of 11,891 ordinary pairs, so the vehicle generator's reach test is not the stored outline"
+    }
+   ]
+  },
+  {
+   "id": "KYG-EDGE-4",
+   "title": "The graph is symmetric by node id; a sector's one-way edges end at non-owner copies",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edges_have_a_reverse_by_node_id"
+    },
+    {
+     "kind": "data",
+     "ref": "one-way by id: infantry 14,692 of 1,646,482 edges (border-border 5,533, ordinary-border 7,113, ordinary-ordinary 2,046; 5,921 down, 2,867 level, 5,904 up by more than 0.3 m), vehicle 2,343 of 47,584; one-way in their sector: infantry 212,664 (206,058 into a non-owner copy), vehicle 6,836 (4,815)"
     }
    ]
   },

@@ -215,6 +215,8 @@ Round NKS's specification of navigation meshing as BFBC2 ships and runs it, in f
 
 The corpus rules are checked by `rust/bc2-formats/tests/kynapse_corpus.rs` (game tier) and measured by
 `rust/bc2-formats/examples/kynapse_probe.rs`, which also takes NavKit's builds on its command line for the gap counts.
+`rust/bc2-formats/examples/kynapse_fit.rs` holds round NKS-rest's per-feature fits of the generator rules (the midline
+cut, node placement, edge pairs and one-way edges, detailed blocks, the rectangle) over the 35 files.
 
 ## Bot AI
 
