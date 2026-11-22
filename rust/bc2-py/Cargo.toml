@@ -27,6 +27,9 @@ bc2-harness.workspace = true
 bc2-pyrt.workspace = true
 iced-x86.workspace = true
 pyo3.workspace = true
+# ShaderMerger's arena and the value that holds it with the merger (round OR3a)
+bumpalo.workspace = true
+self_cell.workspace = true
 rayon.workspace = true
 
 [lints]

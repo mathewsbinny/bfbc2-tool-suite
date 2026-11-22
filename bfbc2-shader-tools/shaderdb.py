@@ -77,8 +77,7 @@ MAX_PROGRAMS = 0x10000     # entry groups index programs with u16
 ZERO_GUID = bytes(16)
 
 Named = tuple[str, bytes]                   # (name, GUID): an entry, fragment or mesh-part name
-ProgRef = tuple[str, int]                   # a program while merging: ('old', base index) or ('new', new index)
-ShaderKey = tuple[bytes, bytes, bytes, bytes, bytes, bytes]   # a shader by content (Merger._shader_key)
+ShaderKey = tuple[bytes, bytes, bytes, bytes, bytes, bytes]   # a shader by content (_shader_key)
 TextureRef = tuple[int, int, str]           # (sampler, cube, texture name)
 EntryContents = dict[str, frozenset[tuple[bytes, bytes, ShaderKey, ShaderKey, bytes, bytes]]]
 MeshUse = dict[str, tuple[str, list[str]]]  # {lower-case path: (shown name, [partitions using it])}
@@ -1000,252 +999,34 @@ def needed_test(need: Iterable[str]) -> Callable[[str], bool]:
 
 # ------------------------------------------------------------------------------------------------ merging
 
-class Merger:
-    """Builds base + donor entries (FORMAT.md section 5). Base records keep their order and indices except
-    programs, which are re-sorted by GUID (entry groups are renumbered); new records are appended."""
+def merger(base: ShaderDb, need: Collection[str] = (), all_names: bool = False) -> Any:
+    """The shader merge on base (changed in place): bc2_native.ShaderMerger, the Rust core's merger
+    (bc2_formats::shaderdb::merge; round OR3a retired the Python Merger it replaced, with the same answers on its
+    recorded ones, tests/test_shaderdb_merge.py). need: the lower-case mesh paths whose entries add_donor may add
+    (the needed names the base has no entry for; all_names: every one). Its calls:
 
-    def __init__(self, base: ShaderDb, need: Collection[str], all_names: bool = False) -> None:
-        self.out = base
-        self.need = need
-        self.all_names = all_names
-        self.in_base = {n for n, c in coverage(base, need).items() if c}   # needed names the base has entries for
-        self.part_conflicts: list[str] = []
-        self.report: list[str] = []
-        self.added: list[tuple[str, str]] = []  # (entry name, donor label)
-        self.shared_programs = 0                # donor programs the merged file already has, identical
-        self.conflicts: list[str] = []          # donor programs whose GUID the merged file has with other content
-        b = base
-        self.param_ix = _first_index(b.params)
-        self.binding_ix = _first_index(b.bindings)
-        self.regs_ix = _first_index(b.regs)
-        self.vs_ix = _first_index(self._shader_key(b, s) for s in b.vs)
-        self.ps_ix = _first_index(self._shader_key(b, s) for s in b.ps)
-        self.prog_ix: dict[bytes, ProgRef] = {p[:16]: ('old', i) for i, p in enumerate(b.programs)}
-        self.prog_body = {p[:16]: (p[:0x20], k) for p, k in zip(b.programs, b.keys)}
-        self.entry_names = {n for n, _ in b.entries}
-        self.frag_g = {g for _, g in b.fragments}
-        self.lay_g = {r[:16] for r in b.layouts}
-        self.part_names = {n: g for n, g in b.parts}
-        self.groups: dict[bytes, list[ProgRef]] = {g: [('old', i) for i in idx] for g, idx in b.groups}
-        self.new_programs: list[tuple[bytes, bytes]] = []  # (program bytes with new refs, key)
+      add_donor(donor, label)                       every needed donor entry the file lacks, with what it draws with,
+                                                    and the needed meshes' mesh-part names
+      clone_entry(donor, entry, new_name, textures=None, label='donor') -> programs
+                                                    the donor's entry again under a new name: new program ids (MD5 of
+                                                    the new name and the old id), keys naming it, the textures renamed
+                                                    ({old: new}, simultaneous, exact case; retexture); nothing added
+                                                    when refused (a ShaderDbError)
+      add_part(name, layout_guid, donor, label='donor')   a mesh-part name -> vertex layout (taken from the donor)
+      finish() -> base                              the programs re-sorted, the entry groups renumbered; the merger
+                                                    takes no more calls
 
-    @staticmethod
-    def _shader_key(db: ShaderDb, s: Shader) -> ShaderKey:
-        return (s.guid, s.code, s.tail, db.params[s.param], db.bindings[s.binding], db.regs[s.regs])
+    and entry_names, part_names, added, report, conflicts, part_conflicts, shared_programs, out. Between calls the
+    base holds what was added (appended to its lists), its programs, keys and groups the base's until finish; a
+    donor that is the base itself reads it as merged so far. Nothing else may change the base while the merger is
+    open. Needs the Rust core (there is no Python twin)."""
+    from bfbc2core import native
+    return native.require('the shader merge', 'ShaderMerger').ShaderMerger(base, list(need), all_names)
 
-    def _table(self, rec: bytes, lst: list[bytes], ix: dict[bytes, int]) -> int:
-        i = ix.get(rec)
-        if i is None:
-            i = ix[rec] = len(lst)
-            lst.append(rec)
-        return i
 
-    def _shader(self, donor: ShaderDb, s: Shader, lst: list[Shader], ix: dict[ShaderKey, int]) -> int:
-        key = self._shader_key(donor, s)
-        i = ix.get(key)
-        if i is None:
-            o = self.out
-            new = Shader(s.guid, s.code, self._table(donor.params[s.param], o.params, self.param_ix),
-                         self._table(donor.bindings[s.binding], o.bindings, self.binding_ix),
-                         self._table(donor.regs[s.regs], o.regs, self.regs_ix), s.tail)
-            i = ix[key] = len(lst)
-            lst.append(new)
-        return i
-
-    def _same_kind(self, donor: ShaderDb, label: str) -> None:
-        o = self.out
-        if (donor.dx, donor.big_endian, donor.key_size) != (o.dx, o.big_endian, o.key_size):
-            raise ShaderDbError(f'{label} is a {donor.platform} database (version {donor.version}) and the base is '
-                                f'{o.platform} (version {o.version}): merge files of the same kind')
-
-    def add_donor(self, donor: ShaderDb, label: str) -> None:
-        self._same_kind(donor, label)
-        o = self.out
-        groups = donor.entry_programs()
-        frag_names = {g: n for n, g in donor.fragments}
-        layouts = {r[:16]: r for r in donor.layouts}
-        took = 0
-        want = [n for n in self.need if self.all_names or n not in self.in_base]   # names it may add to
-        mine = needed_test(want)
-        h = _handle(donor)
-        picked = h.select_needed(donor.__dict__, want) if h is not None else None
-        # the donor's entries and mesh-part names the needed names take: picked by the Rust core (the same test,
-        # without making the donor's name lists), else tested here one by one
-        cand_entries = picked[0] if picked is not None else [(n, g) for n, g in donor.entries if mine(n)]
-        cand_parts = picked[1] if picked is not None else donor.parts
-        for name, guid in cand_entries:
-            if name in self.entry_names:
-                continue
-            progs: list[ProgRef] = []
-            for pi in groups.get(guid, []):
-                prog, key = donor.programs[pi], donor.keys[pi]
-                pg = prog[:16]
-                if pg in self.prog_ix:
-                    if self.prog_body[pg] == (prog[:0x20], key):
-                        self.shared_programs += 1
-                    else:
-                        self.conflicts.append(f'{name}: program {pg.hex()} is in the merged file with other '
-                                              f'content (that one kept)')
-                    progs.append(self.prog_ix[pg])
-                    continue
-                v, f, a, b = donor.program_refs(pi)
-                nv = self._shader(donor, donor.vs[v], o.vs, self.vs_ix)
-                nf = self._shader(donor, donor.ps[f], o.ps, self.ps_ix)
-                na = self._table(donor.params[a], o.params, self.param_ix)
-                nb = self._table(donor.params[b], o.params, self.param_ix)
-                new = prog[:0x20] + struct.pack(o.e + '4I', nv, nf, na, nb)
-                self.prog_ix[pg] = ('new', len(self.new_programs))
-                self.prog_body[pg] = (prog[:0x20], key)
-                progs.append(self.prog_ix[pg])
-                self.new_programs.append((new, key))
-                fg, lg = key[16:32], key[32:48]
-                if fg != ZERO_GUID and fg not in self.frag_g:
-                    if fg not in frag_names:
-                        raise ShaderDbError(f'{label}: a program of {name} names a fragment the file has no name for')
-                    o.fragments.append((frag_names[fg], fg))
-                    self.frag_g.add(fg)
-                self._layout(lg, layouts, label)
-            o.entries.append((name, guid))
-            self.entry_names.add(name)
-            self.groups[guid] = progs
-            self.added.append((name, label))
-            took += 1
-        parts = 0
-        for name, lg in cand_parts:
-            pm = part_mesh(name)
-            if pm is None or not mine(pm):
-                continue
-            if name in self.part_names:
-                if self.part_names[name] != lg:
-                    self.part_conflicts.append(f'{name}: {label} has another vertex layout (the existing one kept)')
-                continue
-            self._layout(lg, layouts, label)
-            o.parts.append((name, lg))
-            self.part_names[name] = lg
-            parts += 1
-        self.report.append(f'{label}: {took} entries, {parts} mesh-part names')
-
-    def clone_entry(self, donor: ShaderDb, entry: str, new_name: str, textures: dict[str, str] | None = None,
-                    label: str = 'donor') -> int:
-        """Adds donor's entry `entry` again under `new_name`: its programs with new ids (MD5 of the new name and the
-        old id: a program id must not repeat), their keys naming the new entry, and copies of their parameter blocks
-        with texture names replaced (textures: {old name: new name}; the names sit in zero-padded fields, FORMAT.md
-        section 1, so a new name may be as long as the old one plus its padding). The shaders, tables, fragments and
-        vertex layouts are shared as add_donor shares them. Returns the number of programs.
-
-        Atomic: everything that can refuse the clone (the entry, its programs' indices and new ids, the texture
-        renames, its fragments' names, its vertex layouts) is checked before anything is added - a ShaderDbError
-        leaves the merger as it was, so a caller that goes on after one writes no half-cloned entry."""
-        self._same_kind(donor, label)
-        if new_name in self.entry_names:
-            raise ShaderDbError(f'{new_name}: the database has this entry already')
-        groups = donor.entry_programs()
-        guid_old = dict(donor.entries).get(entry)
-        if guid_old is None:
-            raise ShaderDbError(f'{label} has no entry {entry}')
-        o = self.out
-        new_guid = o.name_guid(new_name)
-        if new_guid in self.groups:
-            raise ShaderDbError(f'{new_name}: the database has an entry group with this name\'s id already')
-        frag_names = {g: n for n, g in donor.fragments}
-        layouts = {r[:16]: r for r in donor.layouts}
-        try:
-            renames = {k.encode('latin-1'): v.encode('latin-1') for k, v in (textures or {}).items()}
-        except UnicodeEncodeError as ex:
-            raise ShaderDbError(f'{new_name}: a texture name is not latin-1 ({ex})') from None
-        # every texture to rename must be one the entry uses (else the clone silently keeps the donor's - a case
-        # mismatch alone does it), and every program must be whole: checked before anything is added
-        seen: dict[bytes, int] = {}
-        ids: set[bytes] = set()
-        for pi in groups.get(guid_old, []):
-            where = f'{new_name}: {label}:{entry} program {pi}'
-            if not 0 <= pi < min(len(donor.programs), len(donor.keys)):
-                raise ShaderDbError(f'{where}: not in the file')
-            if len(donor.programs[pi]) < 0x30 or len(donor.keys[pi]) < 48:
-                raise ShaderDbError(f'{where}: a short program or key record')
-            v, f, a, b = donor.program_refs(pi)
-            if v >= len(donor.vs) or f >= len(donor.ps) or a >= len(donor.params) or b >= len(donor.params):
-                raise ShaderDbError(f'{where}: a shader or parameter block index past its table')
-            for s in (donor.vs[v], donor.ps[f]):
-                if s.param >= len(donor.params) or s.binding >= len(donor.bindings) or s.regs >= len(donor.regs):
-                    raise ShaderDbError(f'{where}: a shader\'s table index past its table')
-            pg = hashlib.md5(new_name.encode('latin-1') + donor.programs[pi][:16]).digest()
-            if pg in self.prog_ix or pg in ids:
-                raise ShaderDbError(f'{new_name}: program id {pg.hex()} exists')
-            ids.add(pg)
-            key = donor.keys[pi]
-            fg, lg = key[16:32], key[32:48]
-            if fg != ZERO_GUID and fg not in self.frag_g and fg not in frag_names:
-                raise ShaderDbError(f'{where}: names a fragment the file has no name for')
-            if lg not in self.lay_g and lg not in layouts:
-                raise ShaderDbError(f'{label}: a vertex layout it uses is not in the file ({where})')
-            retexture(donor.params[a], renames, new_name, seen)
-            retexture(donor.params[b], renames, new_name, seen)
-        unused = [k.decode('latin-1') for k in renames if not seen.get(k)]
-        if unused:
-            raise ShaderDbError(f'{new_name}: {label}:{entry} uses no texture named {", ".join(unused)} '
-                                f'(names are matched exactly, case included)')
-        hits = None
-        progs: list[ProgRef] = []
-        for pi in groups.get(guid_old, []):
-            prog, key = donor.programs[pi], donor.keys[pi]
-            pg = hashlib.md5(new_name.encode('latin-1') + prog[:16]).digest()
-            v, f, a, b = donor.program_refs(pi)
-            nv = self._shader(donor, donor.vs[v], o.vs, self.vs_ix)
-            nf = self._shader(donor, donor.ps[f], o.ps, self.ps_ix)
-            na = self._table(retexture(donor.params[a], renames, new_name, hits), o.params, self.param_ix)
-            nb = self._table(retexture(donor.params[b], renames, new_name, hits), o.params, self.param_ix)
-            new = pg + prog[16:0x20] + struct.pack(o.e + '4I', nv, nf, na, nb)
-            nkey = new_guid + key[16:]
-            self.prog_ix[pg] = ('new', len(self.new_programs))
-            self.prog_body[pg] = (new[:0x20], nkey)
-            progs.append(self.prog_ix[pg])
-            self.new_programs.append((new, nkey))
-            fg, lg = key[16:32], key[32:48]
-            if fg != ZERO_GUID and fg not in self.frag_g:
-                o.fragments.append((frag_names[fg], fg))
-                self.frag_g.add(fg)
-            self._layout(lg, layouts, label)
-        o.entries.append((new_name, new_guid))
-        self.entry_names.add(new_name)
-        self.groups[new_guid] = progs
-        self.added.append((new_name, f'{label}:{entry}'))
-        return len(progs)
-
-    def add_part(self, name: str, layout_guid: bytes, donor: ShaderDb, label: str = 'donor') -> None:
-        """A mesh-part name -> vertex layout (the layout taken from donor when the database lacks it)."""
-        if name in self.part_names:
-            if self.part_names[name] != layout_guid:
-                raise ShaderDbError(f'{name}: the database has this part with another layout')
-            return
-        self._layout(layout_guid, {r[:16]: r for r in donor.layouts}, label)
-        self.out.parts.append((name, layout_guid))
-        self.part_names[name] = layout_guid
-
-    def _layout(self, lg: bytes, layouts: dict[bytes, bytes], label: str) -> None:
-        if lg in self.lay_g:
-            return
-        if lg not in layouts:
-            raise ShaderDbError(f'{label}: a vertex layout it uses is not in the file')
-        self.out.layouts.append(layouts[lg])
-        self.lay_g.add(lg)
-
-    def finish(self) -> ShaderDb:
-        o = self.out
-        total = len(o.programs) + len(self.new_programs)
-        if total >= MAX_PROGRAMS:
-            raise ShaderDbError(f'the merged file would have {total} programs; entry groups index at most '
-                                f'{MAX_PROGRAMS - 1}: take fewer donor entries')
-        allp = [(p, k, ('old', i)) for i, (p, k) in enumerate(zip(o.programs, o.keys))]
-        allp += [(p, k, ('new', i)) for i, (p, k) in enumerate(self.new_programs)]
-        allp.sort(key=lambda t: o.pc_guid(t[0][:16]))
-        where = {t[2]: i for i, t in enumerate(allp)}
-        o.programs = [t[0] for t in allp]
-        o.keys = [t[1] for t in allp]
-        groups = [(g, sorted(where[x] for x in idx)) for g, idx in self.groups.items()]
-        groups.sort(key=lambda t: o.pc_guid(t[0]))
-        o.groups = groups
-        return o
+def _shader_key(db: ShaderDb, s: Shader) -> ShaderKey:
+    """A shader by content: its GUID, code, input description and its three tables' records."""
+    return (s.guid, s.code, s.tail, db.params[s.param], db.bindings[s.binding], db.regs[s.regs])
 
 
 TEXTURE_FIELD = 0x80                    # a texture name's zero-padded field in a parameter block
@@ -1518,13 +1299,13 @@ def entry_contents(db: ShaderDb, names: Container[str] | None = None) -> EntryCo
         items = []
         for i in progs.get(g, []):
             v, f, x, y = db.program_refs(i)
-            items.append((db.programs[i][:0x20], db.keys[i], Merger._shader_key(db, db.vs[v]),
-                          Merger._shader_key(db, db.ps[f]), db.params[x], db.params[y]))
+            items.append((db.programs[i][:0x20], db.keys[i], _shader_key(db, db.vs[v]),
+                          _shader_key(db, db.ps[f]), db.params[x], db.params[y]))
         out[name] = frozenset(items)
     return out
 
 
-def verify_merge(merged: ShaderDb, sources: Sequence[tuple[ShaderDb, EntryContents | None]], m: Merger) -> list[str]:
+def verify_merge(merged: ShaderDb, sources: Sequence[tuple[ShaderDb, EntryContents | None]], m: Any) -> list[str]:
     """Problems (empty = none): every entry of the merged file must draw with exactly what it drew with in its
     source (sources: [(base, its entry_contents before merging)] + [(donor, None)...]); mesh-part names must keep
     their layout."""
@@ -1548,9 +1329,9 @@ def verify_merge(merged: ShaderDb, sources: Sequence[tuple[ShaderDb, EntryConten
 
 
 def merge(base: ShaderDb, donors: Iterable[tuple[ShaderDb, str]], need: Collection[str],
-          all_names: bool = False) -> Merger:
-    """base: ShaderDb (changed in place); donors: [(ShaderDb, label)]; need: lower-case paths. The Merger."""
-    m = Merger(base, need, all_names)
+          all_names: bool = False) -> Any:
+    """base: ShaderDb (changed in place); donors: [(ShaderDb, label)]; need: lower-case paths. The merger (finished)."""
+    m = merger(base, need, all_names)
     for db, label in donors:
         m.add_donor(db, label)
     m.finish()

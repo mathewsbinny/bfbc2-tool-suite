@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-22
+
 ### Added
 - **`bfbc2 mods`** (round MM1): Project OPFOR's mod manager on the install ledger - `list`, `status`, `enable`,
   `disable`, `install`, `uninstall`, `restore-original`, `verify`, `baseline`, `migrate`, `resume`. The mods: the
@@ -44,9 +46,30 @@ landed on `main`.
   Migrate old markers / Resume, a confirmation for what else changes.
 - `bfbc2.exe`'s `mods` tool group (builds alone; in CI's list).
 
+- `bc2_formats::shaderdb::merge`: `Merger::clone_entry` / `clone_entry_from_self`, `add_part` / `add_part_from_self`,
+  `add_donor_kept` (a donor read for one call), `finished`, `current`, `retexture`, `name_guid` and the `Store` trait
+  (where the records a merge makes live).
+
 ### Fixed
 - The migration of the markers from before the ledger, killed after the first old backup was archived, left that file
   refused for good on the next run (OPFOR's `migrate.py` too: fixed on its side, branch `mm1-migrate`).
+
+### Removed
+- **`shaderdb.Merger`** (`bfbc2-shader-tools/shaderdb.py`'s Python merge class, round OR3a), with `shaderdb.ProgRef`
+  and `Merger._shader_key` (now the module's `_shader_key`): the merge is the Rust core's. `shaderdb.merger(base,
+  need=(), all_names=False)` makes a `bc2_native.ShaderMerger` (`bc2_formats::shaderdb::merge::Merger`) with the same
+  calls (`add_donor`, `clone_entry`, `add_part`, `finish`) and lists (`entry_names`, `part_names`, `added`, `report`,
+  `conflicts`, `part_conflicts`, `shared_programs`, `out`); `shaderdb.merge` uses it. The same answers as the Python
+  class on its recorded ones (`tests/test_shaderdb_merge.py`: 271 built, damaged and random cases, 1,709 calls; the
+  game copy's ONS_MP_008 + mp_008cq, 114 calls). Project OPFOR's 21 merges moved onto it (its `SUITE_REQUIRES` 0.18.0
+  to below 0.19.0). It needs the Rust core: there is no Python twin.
+
+### Changed
+- The merge no longer keeps its donors: a donor is read from its bytes and only what the merge takes from it is kept,
+  so a caller may let a donor go between calls (OPFOR's clone pass reads one donor level at a time). A name that is
+  not latin-1 (an entry's or a part's) is refused with a `ShaderDbError`; the Python raised `UnicodeEncodeError` for
+  an entry and appended a part it could not write. A donor that only exists in memory (its bytes do not read back:
+  a shader naming a table past its end, a short record) is refused whole.
 
 ## [0.17.0] - 2026-11-22
 

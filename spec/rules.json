@@ -16776,7 +16776,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:165-200"
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:275-306"
     },
     {
      "kind": "code",
@@ -16785,6 +16785,39 @@
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ]
+  },
+  {
+   "id": "SHDB-LVL-3",
+   "title": "A cloned entry is the donor's under a new name",
+   "file": "spec/formats/shaderdb.md",
+   "status": "implemented",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:123-201"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:697-863"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:918-950"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_renames_ids_keys_and_textures"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_refusals_add_nothing"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb_merge.py::main"
     }
    ]
   },

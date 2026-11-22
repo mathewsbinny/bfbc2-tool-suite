@@ -101,15 +101,21 @@ entry.
 
 ### Cloning an entry for a new mesh (from Python)
 
-`Merger.clone_entry(donor, entry, new_name, textures)` adds a donor's entry again under a new name - a mesh the
-database has never drawn, e.g. a mesh converted from the console (OPFOR's `console_markv.py`) or a new weapon
-variant: its programs get new ids (MD5 of the new name and the old id), their keys name the new entry, and copies of
-their parameter blocks carry the new texture names (`textures`: {old name: new name}). Texture names are replaced only
-as whole names at the start of their field, within the field's 128 bytes; every name to replace must be one the
-entry uses (exact case) - otherwise nothing is added and the error names it. `Merger.add_part(name, layout_guid,
-donor)` names a mesh part's vertex layout (`<mesh>_lod<N>/<part>/<technique>`). A plain database file's kind comes
-from its name (`Dx9`, `Dx10`, `Dx11`); a contradicting `--dx` or base kind is refused, not merged (Dx10 and Dx11
-share a layout and would parse either way).
+`shaderdb.merger(base)` is the merge in the Rust core (`bc2_native.ShaderMerger`, `bc2_formats::shaderdb::merge`;
+round OR3a retired the Python `Merger` class it replaced, proved on that class's recorded answers,
+`tests/test_shaderdb_merge.py`). `clone_entry(donor, entry, new_name, textures)` adds a donor's entry again under a
+new name - a mesh the database has never drawn, e.g. a mesh converted from the console (OPFOR's `console_markv.py`)
+or a new weapon variant: its programs get new ids (MD5 of the new name and the old id), their keys name the new
+entry, and copies of their parameter blocks carry the new texture names (`textures`: {old name: new name}). Texture
+names are replaced only as whole names at the start of their field, within the field's 128 bytes; every name to
+replace must be one the entry uses (exact case) - otherwise nothing is added and the error names it.
+`add_part(name, layout_guid, donor)` names a mesh part's vertex layout (`<mesh>_lod<N>/<part>/<technique>`),
+`add_donor(donor, label)` adds a donor's needed entries as the command line's merge does, and `finish()` re-sorts the
+programs and returns the base, changed in place (between calls the base already holds what was added, its programs
+and groups at `finish`; a donor that is the base itself reads it as merged so far). A donor is read from its bytes
+and only what the merge takes from it is kept, so a caller may let it go between calls. A plain database file's kind
+comes from its name (`Dx9`, `Dx10`, `Dx11`); a contradicting `--dx` or base kind is refused, not merged (Dx10 and
+Dx11 share a layout and would parse either way).
 
 ### Reading textures and layouts (from Python)
 

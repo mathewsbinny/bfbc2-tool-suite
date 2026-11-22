@@ -10358,3 +10358,115 @@ temporary folder (A, B).
 - `mods install ww2` (the staged plan through `bfbc2 install apply --staged`) and `mods install onslaught:<level>`
   (OPFOR's `console_port.py`) hand over to the installers; neither was run here (they write the real game copy).
 - In game: nothing played (in-game tests paused); the write times of the DLL's markers are kept by construction.
+## OR3a: OPFOR in Rust, stage 3a - the shader Merger (2026-11-22, branch `or3a`, with Project OPFOR's `or3a`)
+
+### What moved
+
+The Python `shaderdb.Merger` (audit AU3 AR-5, ARC-9; found too big for QW2) is retired. `bc2_formats::shaderdb::merge`
+had `add_donor` and `finish` (round SD1's command-line merge, XF1's export); it now also has:
+
+- `clone_entry` / `clone_entry_from_self`: the Python `clone_entry` rule for rule - the checks first (the entry, each
+  program's indices, record lengths, new ids, fragments, layouts, the texture renames against both parameter blocks),
+  with the same messages and order, then the programs with ids MD5(new name + old id), keys naming the new entry and
+  retextured blocks; atomic.
+- `retexture` (simultaneous, whole-name renames in a field's span; hits counted only when every rename fits),
+  `name_guid`.
+- `add_part` / `add_part_from_self`, `add_donor_kept`.
+- Donors with a lifetime of their own: what a merge takes from a donor read for one call (records, shaders, layouts,
+  fragment and entry GUIDs, keys) is copied into a `Store`; a donor that lives as long as the file (`add_donor`: the
+  command line, the export) is still borrowed.
+
+`bc2_native.ShaderMerger` (`rust/bc2-py/src/shaderdb_merge.rs`), made by `shaderdb.merger(base, need, all_names)`,
+holds the merger and its arena (bumpalo) in one value (self_cell) with a copy of the base. It keeps the Python
+merger's contract with the base, which OPFOR relies on: every record a call adds is appended to the base's own lists
+at once (OPFOR reads `base.entries`, `base.layouts` and `entry_textures(base, ...)` between calls in `_autoclone`,
+`register_parts`, `wake_translate.add_foreign_entries`), the programs, keys and groups replaced at `finish`; a donor
+that *is* the base reads the base as merged so far (the Python's `donor.entries` held the new entries while its
+`groups` did not: a clone of an entry cloned earlier in the same merge has no programs - kept for parity, see
+below). Donors: read from `to_bytes()`, the last 4 kept, each known by its object (a weak reference: the merger keeps
+no donor alive, so `wake_shaders --clone`'s one-level-at-a-time reading still frees each level) and a stamp of its
+section lists and items by identity (a donor changed between calls is read again). `shaderdb.merge` (the
+`add_donor` loop) runs on it.
+
+Project OPFOR: the 21 sites (`wake_install` 10, `wake_translate` 2, `wake_shaders`, `ww2_level_build`,
+`detail_layers`, `minimap_edges`, `rg_projectiles`, `shingunto`, `type100`, `type38`, `console_markv`) call
+`S.merger(base)`; `test_ww2_billboards` patches `merger`.
+
+### Proof
+
+- **The Python merger's recorded answers** (`bfbc2-shader-tools/tests/test_shaderdb_merge.py`): recorded from
+  `shaderdb.Merger` at `8ce3cd9` before the deletion (loaded beside the checkout's `shaderdb.py`), then answered by
+  the Rust merger: each call's value or error (type and message), then the base's bytes and the merger's lists
+  (added, report, conflicts, part_conflicts, shared_programs, entry_names, part_names) after every call, the merged
+  bytes and the donors' (unchanged) after `finish`.
+  - built Dx9 / Dx10 / Dx11 / Xbox 360 databases: clones with a swap and a chain of renames, from the base itself
+    and of an entry cloned in the same merge, every refusal; parts (new, again, another layout, no layout, from the
+    base); donors with shared and conflicting programs and part conflicts, `all_names`; a kind mismatch; the program
+    limit at 0xfffe + 1 / + 2;
+  - damaged donors (11 kinds): program indices, a parameter block index and entry groups past their tables, keys
+    naming fragments / layouts no file has, a duplicated program, two entries of a name, a fragment named twice; and
+    three a file cannot hold (a shader's table past its end, a short key, a short program);
+  - 240 seeded random cases (random kinds, entries, textures, damage and 2-9 calls each).
+
+  **271 cases, 1,709 calls: identical**, but for three kinds of answer decided against the Python (each allowed by
+  name in the comparison): an `IndexError`'s message (the Python's was Python's own), a name that is not latin-1
+  (`ShaderDbError` in words; the Python raised `UnicodeEncodeError`), and a donor only memory holds (read from its
+  bytes and refused whole with a `ShaderDbError`; for those cases only `clone_entry` is compared - the Python took
+  the layouts and entries of such a donor as far as they went).
+  The game copy (`--game`): ONS_MP_008 with 12 of mp_008cq's entries cloned (swapped or shortened texture names), 4
+  of its own entries cloned from itself, 20 part layouts and the flags' `add_donor`, Dx9 / Dx10 / Dx11: **3 cases,
+  114 calls identical**.
+- Rust tests (`merge.rs`): retexture's renames, a clone's ids / keys / textures, every refusal adding nothing, the
+  self clone's empty entry, parts, a donor dropped after its calls.
+- Only the Rust merger (`native_only`): the base holds a new entry before `finish`, a donor changed between calls is
+  read again, no donor is kept alive, a part name that is not latin-1 is refused with nothing added, no call after
+  `finish`.
+- **WW2 rebuild**: OPFOR's main checkout on its branch `or3a` (the 21 sites moved; 6d8a98f), `OPFOR_TOOLKIT`
+  a scratch folder of junctions (`bfbc2-tool-suite` to this worktree with its fresh `bc2_native.pyd` and `bin\bfbc2.exe`,
+  version 0.18.0; `bf1943-tool-suite`, `operation-rising-sun`), `--jobs 2`: all 55 steps in 18.9 min (the 3 level
+  chains side by side in 410 s; other rounds building beside it). `compare_oracle`: **10,852 of 10,852 identical**
+  (differ 0, missing 0, extra 0); `qa_checks.py` passed. The steps that merge: `wake_shaders` (10 s), `detail_layers`
+  (14 s), `wake_shaders --clone` (59 s), the weapon ports' dry runs, `wake_translate`, `minimap_edges` and the level
+  builds' shaders steps.
+- **Install oracle**: `wake_install.py --plan` (the coordinator's conditions: its code path read first - the build stages under
+  `work\ww2`, `bfbc2 install plan` writes nothing, the game copy has no ledger to roll back - and the game copy's 1,582
+  files, 11.6 GB, hashed with path, size, time and sha256 before the rebuild and after the plan: identical), 6.7 min:
+  `compare_oracle --install` **21,197 of 21,197 identical** - wake_install's 10 merges (undergrowth stand-ins, tree
+  billboards, the clone lists, the partly covered meshes, terrain materials, autoclone's two passes, the edge
+  half-instancing re-sort, part registration, grafts, layout fixes) on all four levels.
+
+### Timings
+
+The game cases' calls alone (ONS_MP_008 + mp_008cq: 12 clones, 4 clones from the base, 20 parts, one donor,
+`finish`; best of 3, the loads left out): Python merger 0.23 / 0.23 / 0.24 s (Dx9 / 10 / 11), Rust 0.15 / 0.36 /
+0.20 s. At this size the calls are not where the time goes: the Rust merger reads the base and each donor through
+`to_bytes()` and a parse, and appends what it adds to the base's Python lists, which costs what the Python's indexing
+cost. The gain is memory and one implementation (the command line, the export and OPFOR's 21 sites on the same
+code); OPFOR's merging steps took the same time in the rebuild as in PR1b-2's.
+
+### Decided, and found
+
+- **A clone of an entry cloned in the same merge has no programs.** The Python read `base.entries` (the new entry
+  there) and `base.groups` (its programs not yet) - an entry that draws nothing. Kept for the oracle; OPFOR's
+  `_autoclone` can reach it (a material found among `m.entry_names` and cloned from the base in the same pass). Left
+  for a DICE decision (PY1): refuse it, or finish before the second pass's clones.
+- The level cover index stays Python: its pickle cache is one of the caches PR1b-2-rest gives content keys
+  (`shadercover`); moving it now would change the cache format twice. `retexture` stays Python (OPFOR's own block
+  edits in `wake_terrain` / `ww2_char_shaders`; the merge's is the Rust one).
+
+### Tests
+
+- `cargo test -p bc2-formats`: 190 unit tests (6 new in `merge.rs`) and the integration tests pass; clippy
+  `--all-targets -D warnings` on bc2-formats, bc2-py, bc2-cli, bc2-levelwrite; each of `bfbc2.exe`'s 17 tool groups
+  alone (`--no-default-features --features <g>`): clean.
+- `test_shaderdb_merge.py` (quick, and `--game`), `test_shaderdb.py` (its clone and merge checks on the new merger;
+  the program-limit check moved to the merge test's real 0xfffe cases).
+- `python run_tests.py quick -j 2`: 131 of 131 passed in 1,452 s (the new `shaderdb-merge` entry 1.4 s), O2 among them.
+- `spec/trace.py --check`: 1,247 rules (SHDB-LVL-3 new: a cloned entry); ruff and mypy clean on the changed Python.
+- Project OPFOR (`or3a`): OPFOR's quick tests from a worktree of `or3a` with this suite (`OPFOR_TOOLKIT`): 361 passed, 6 failed, 8 skipped. The 6 are the worktree's: 4 need the game copy and `work\` (a worktree has neither: `nam_common` and the loading pictures missing), and `test_types` onslaught / ww2 run mypy with `pyproject.toml`'s `mypy_path` fixed at `..\bfbc2-tool-suite` (main, 0.17.0, no `shaderdb.merger`); mypy with that path pointed at this worktree: onslaught 20 files and ww2 82 files, no issues. `test_ww2_billboards` (the patched `merger`) and every merging test pass. ruff clean on the changed files.
+
+### What is left
+
+- The level cover index (`level_cover_prefixes`, `donor_levels`) with PR1b-2-rest's content keys; `retexture`'s
+  Python twin; the rest of stage 3 (OPFOR's shader glue in `wake_shaders` / `wake_translate` / `ww2_char_shaders`).
+- The self-clone accident above (PY1).
