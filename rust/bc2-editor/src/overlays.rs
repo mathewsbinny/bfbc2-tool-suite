@@ -1059,7 +1059,7 @@ fn area_item(
             ))
         }
         "CapturePointEntityData" => {
-            let Some(p) = here else { return None };
+            let p = here?;
             let t = team(&text(i, "InitialOwnerTeam"));
             let hq = text(i, "UnableToChangeTeam") == "true";
             let radius = num(i, "CaptureRadius").unwrap_or(0.0);

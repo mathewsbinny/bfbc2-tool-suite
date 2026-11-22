@@ -11,6 +11,7 @@
     clippy::print_stdout,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
+    clippy::assert_is_empty,
     missing_docs
 )]
 
@@ -267,7 +268,7 @@ fn hpd_file(order: [u32; 2]) -> Vec<u8> {
         c: 0,
     };
     let edge = |s: u32, d: u32| hpd::Edge {
-        tag: 0x8000_0000 | 160,
+        tag: 0x8000_0000 | 0xA0,
         src: s,
         dst: d,
     };

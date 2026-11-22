@@ -1030,6 +1030,10 @@ struct Fitted {
     bad: usize,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the pins, the clusters and the spawn points fitted in turn"
+)]
 fn fit(l: &Layer, f: &Fit, site: &Site, routes: Option<&Routes>, pinned: &[bool]) -> Fitted {
     let is_pinned = |i: usize| pinned.get(i).copied().unwrap_or(false);
     let mut rows: Vec<Rows> = l.items.iter().map(|it| placed(it, f, l.pivot, site)).collect();
@@ -1164,6 +1168,9 @@ pub fn propose(w: &LevelWriter, site: &Site, ask: Ask) -> Result<Proposal> {
     propose_with(w, site, None, ask)
 }
 
+/// A fitted candidate: (warnings and bad spots, statistics outside, notes, score), the proposal, the layout applied.
+type Ranked = ((usize, usize, usize, f64), Proposal, LevelWriter);
+
 /// [`propose`] with the level's path data: every flag, base, M-COM and spawn point also on the main route network
 /// (the path rule XVAL-PLACE-5 held as the site rules are).
 ///
@@ -1227,7 +1234,7 @@ pub fn propose_all(
         let st = stats(&measures, ask.mode, ask.profile);
         (findings, st)
     };
-    let mut ranked: Vec<((usize, usize, usize, f64), Proposal, LevelWriter)> = Vec::new();
+    let mut ranked: Vec<Ranked> = Vec::new();
     for (sc, f) in cands {
         let fitted = fit(&layer, &f, site, routes, &pinned);
         let mut work = w.clone();

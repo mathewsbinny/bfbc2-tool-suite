@@ -3155,6 +3155,22 @@
    ]
   },
   {
+   "id": "GAME-VEH-2",
+   "title": "DICE's vehicles can leave their spawners, in counts per mode",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "A2: rust/bc2-editor/examples/vehicle_sites.rs on 707 vehicle spawners of 27 levels (21 Dist, 6 Package), 2026-11-22: way out per land class 40 m (the limit) on all; boats 30.5 m least; helicopters 60 m (the limit) within 3.5 m; planes 34 m least; owners and AutoSpawn as above"
+    },
+    {
+     "kind": "data",
+     "ref": "bfbc2-map-editor/placement/l1_a1_params.json: hq_vehicle_pool_150m median 4 (CQ DICE) and 8 (CQ WW2), flag_vehicle_pool_150m 2, attacker_vehicles_per_stage 3, defender_vehicles_per_stage 2, SR 0, SDM vehicles 1"
+    }
+   ]
+  },
+  {
    "id": "GAME-AREA-1",
    "title": "A combat area is a union of outlines, per team or shared",
    "file": "spec/engine/gameplay.md",
@@ -23867,6 +23883,98 @@
    ]
   },
   {
+   "id": "XVAL-PLACE-6",
+   "title": "A land vehicle has a drivable way out",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vehicles.rs:177"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/site.rs:561"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:574"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::vehicle_rules_raise_on_shut_in_vehicles_and_not_in_the_open"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PLACE-7",
+   "title": "A boat has water access",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vehicles.rs:177"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/site.rs:618"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::vehicle_rules_raise_on_shut_in_vehicles_and_not_in_the_open"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PLACE-8",
+   "title": "An aircraft has an open launch area",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vehicles.rs:177"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/site.rs:667"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/site.rs:693"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::vehicle_rules_raise_on_shut_in_vehicles_and_not_in_the_open"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-AI-1",
+   "title": "The staged path data is the level's and loads",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:276"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:221"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:725"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_path_data_step_finds_refuses_stages_and_checks"
+    }
+   ]
+  },
+  {
    "id": "XLAY-AUTO-1",
    "title": "The auto layout proposes DICE's layout fitted to the level, never applied silently",
    "file": "spec/transforms/validation.md",
@@ -23874,7 +23982,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/autolayout.rs:1021-1030"
+     "ref": "rust/bc2-levelwrite/src/autolayout.rs:1191"
     },
     {
      "kind": "test",
@@ -23883,6 +23991,86 @@
     {
      "kind": "test",
      "ref": "rust/bc2-editor/tests/auto_layout_panel.rs::the_auto_layout_is_proposed_drawn_accepted_and_validated"
+    }
+   ]
+  },
+  {
+   "id": "XLAY-AUTO-2",
+   "title": "The auto layout places the layer's vehicles by class, in DICE's counts",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vehicles.rs:501"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vehicles.rs:230"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/autolayout.rs:185"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_auto_layout_places_vehicles_proposes_several_and_keeps_pins"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/auto_layout_panel.rs::several_proposals_side_by_side_with_vehicles_and_the_areas_after_accept"
+    }
+   ]
+  },
+  {
+   "id": "XLAY-AUTO-3",
+   "title": "Several proposals; pinned objects stay where they stand",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/autolayout.rs:1191"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/autolayout.rs:606"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/ops.rs:304"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_auto_layout_places_vehicles_proposes_several_and_keeps_pins"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/project_versions.rs::version_7_projects_load_as_8_and_pins_need_8"
+    }
+   ]
+  },
+  {
+   "id": "XLAY-PATH-1",
+   "title": "The export's path-data step stages the base's build only where it is the level's",
+   "file": "spec/transforms/validation.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:120"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:221"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_path_data_step_finds_refuses_stages_and_checks"
     }
    ]
   },

@@ -16,7 +16,7 @@
 //! sampling the edited level without the game (`navsample_offline` with the stage's partition and group files, in
 //! Rust with NK4), building it in process (NK5's `build_inputs` with the project's objectives as the seeds), applying
 //! the project's navigation edits on a NavKit base (NK5), and the stock-MP AI layer for the staged level (`stockmp`
-//! by a stock level's name today: HasAI, PathfindingTypes, SectorOffsets, AI spawners and orders).
+//! by a stock level's name today: `HasAI`, `PathfindingTypes`, `SectorOffsets`, AI spawners and orders).
 #![allow(
     clippy::cast_precision_loss,
     reason = "node counts as f64 for shares: far below 2^52"
@@ -128,8 +128,7 @@ pub fn blockers(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> 
         let ty = cur
             .find(&up)
             .or_else(|| base.find(&up))
-            .map(|e| cur.find(&up).map_or_else(|| base.type_of(e), |c| cur.type_of(c)))
-            .unwrap_or_default();
+            .map_or_default(|e| cur.find(&up).map_or_else(|| base.type_of(e), |c| cur.type_of(c)));
         GAMEPLAY.iter().any(|t| ty.ends_with(&format!(".{t}")))
     };
     let mut objects: BTreeSet<String> = BTreeSet::new();
@@ -226,21 +225,7 @@ pub fn stage(
     stage: &Path,
     level: &str,
 ) -> Result<PathDataRecord, Vec<String>> {
-    let mut why = blockers(project, cur, base);
-    let found = sources(opfor, &project.base.level);
-    let Some(src) = found.first() else {
-        why.push(format!(
-            "{} has no path data: neither NavKit's build (work\\navkit\\{lv}, work\\navkit_offline\\{lv}) nor DICE's \
-             file; build it first (`python bfbc2-auto-navkit\\tools\\navsample_offline.py all {lv}`, Python until \
-             NK4 / NK5)",
-            project.base.level,
-            lv = project.base.level.to_ascii_lowercase()
-        ));
-        return Err(why);
-    };
-    if !why.is_empty() {
-        return Err(why);
-    }
+    let src = ready(opfor, project, cur, base)?;
     let mut files = Vec::new();
     for (kind, from) in [("infantry", Some(&src.infantry)), ("vehicle", src.vehicle.as_ref())] {
         let Some(from) = from else { continue };
@@ -266,6 +251,30 @@ pub fn stage(
         source: format!("{} ({})", src.kind, src.infantry.display()),
         base: project.base.level.to_ascii_lowercase(),
     })
+}
+
+/// The path data the step would stage ([`sources`]' first) when nothing blocks it ([`blockers`]); the export's build
+/// asks this before it builds anything.
+///
+/// # Errors
+/// The reasons it cannot, each in words.
+pub fn ready(opfor: &Path, project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> Result<Source, Vec<String>> {
+    let mut why = blockers(project, cur, base);
+    let found = sources(opfor, &project.base.level);
+    let Some(src) = found.first() else {
+        why.push(format!(
+            "{} has no path data: neither NavKit's build (work\\navkit\\{lv}, work\\navkit_offline\\{lv}) nor DICE's \
+             file; build it first (`python bfbc2-auto-navkit\\tools\\navsample_offline.py all {lv}`, Python until \
+             NK4 / NK5)",
+            project.base.level,
+            lv = project.base.level.to_ascii_lowercase()
+        ));
+        return Err(why);
+    };
+    if !why.is_empty() {
+        return Err(why);
+    }
+    Ok(src.clone())
 }
 
 /// The check lines of a stage's path data (`mapexport check`): each file the one recorded, Kynapse path data, every

@@ -44,8 +44,7 @@ impl Tabs<'_> {
             .view
             .doc
             .as_ref()
-            .map(|d| self.view.autolayout.all(d).to_vec())
-            .unwrap_or_default();
+            .map_or_default(|d| self.view.autolayout.all(d).to_vec());
         let shown = self.view.autolayout.shown.min(all.len().saturating_sub(1));
         let summary = all.get(shown).map_or_else(String::new, |x| {
             let (w, n) = x.counts();
@@ -262,17 +261,24 @@ fn proposal_column(
             if shown { p.accent } else { p.line },
         ))
         .corner_radius(4.0);
+    let width = (ui.available_width() - 2.0 * m.space_2).max(40.0);
     frame.show(ui, |ui| {
-        ui.label(
+        ui.set_width(width);
+        // each line wraps to the column (three side by side in a narrow dock)
+        let line = |ui: &mut egui::Ui, t: RichText| {
+            ui.add(egui::Label::new(t).wrap());
+        };
+        line(
+            ui,
             RichText::new(if k == 0 {
-                "Proposal 1 (best)".to_owned()
+                "1 (best)".to_owned()
             } else {
-                format!("Proposal {}", k + 1)
+                format!("{}", k + 1)
             })
             .text_style(style("body-strong"))
             .color(if shown { p.accent } else { p.ink }),
         );
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             if ui
                 .add_enabled(!shown, egui::Button::new("Show"))
                 .on_hover_text("Draw this proposal in the views")
@@ -288,36 +294,29 @@ fn proposal_column(
                 asked.accept = Some(k);
             }
         });
-        let (wc, word) = if w == 0 {
-            (p.status_ok, format!("{w} warnings"))
-        } else {
-            (p.status_warn, format!("{w} warnings"))
-        };
-        ui.label(RichText::new(format!("{word}, {n} notes")).color(wc));
-        ui.label(
-            RichText::new(format!("{a} of {b} statistics inside DICE's ranges")).color(if a == b {
+        let wc = if w == 0 { p.status_ok } else { p.status_warn };
+        line(ui, RichText::new(format!("{w} warnings, {n} notes")).color(wc));
+        line(
+            ui,
+            RichText::new(format!("{a}/{b} inside DICE's ranges")).color(if a == b {
                 p.status_ok
             } else {
                 p.status_warn
             }),
         );
-        ui.label(
-            RichText::new(format!(
-                "Turned {:.0} deg, scale {:.2}; {} objects moved",
-                prop.turn,
-                prop.scale,
-                prop.moves.len()
-            ))
-            .color(p.ink_muted),
+        line(
+            ui,
+            RichText::new(format!("{:.0} deg, scale {:.2}", prop.turn, prop.scale)).color(p.ink_muted),
         );
         let v = &prop.vehicles;
-        ui.label(
+        line(
+            ui,
             RichText::new(format!(
-                "{} vehicles ({} new){}",
+                "{} vehicles, {} new{}",
                 v.vehicles.len(),
                 v.places.len(),
                 if prop.pinned > 0 {
-                    format!("; {} pinned kept", prop.pinned)
+                    format!("; {} pinned", prop.pinned)
                 } else {
                     String::new()
                 }
