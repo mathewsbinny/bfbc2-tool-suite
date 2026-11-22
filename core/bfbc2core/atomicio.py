@@ -149,6 +149,12 @@ def write_text(path: str, text: str, encoding: str = 'utf-8', newline: str | Non
     write_bytes(path, text.encode(encoding))
 
 
+def dumps_stable(obj: Any, **kw: Any) -> str:
+    """json.dumps(obj, sort_keys=True, ...): the suite's JSON text with its keys in a fixed order (round PR1a: new
+    JSON writes sort their keys; tests\\test_repo.py's JSON_ORDER_KEPT lists the older ones kept in insertion order)."""
+    return json.dumps(obj, sort_keys=True, **kw)
+
+
 def write_json(path: str, obj: Any, **kw: Any) -> None:
     """json.dump(obj, ...) to path, whole or not at all (the serialisation runs before the file is touched)."""
     write_text(path, json.dumps(obj, **kw))

@@ -170,6 +170,10 @@ pub fn check(recs: &[Record], nconst: usize) -> Check {
             );
         }
     }
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "into a sorted map keyed by the list; each list is sorted"
+    )]
     for (plist, ats) in &mut users {
         if ats.len() > 1 {
             ats.sort_unstable();

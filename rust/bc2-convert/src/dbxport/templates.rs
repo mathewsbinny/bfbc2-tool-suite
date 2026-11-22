@@ -58,6 +58,10 @@ impl Ranking {
             let Some(c) = all.get(ci) else { continue };
             let (ordinal, slot, inputs) = &c.role;
             let set: HashSet<&(String, String)> = inputs.iter().collect();
+            #[allow(
+                clippy::iter_over_hash_type,
+                reason = "each input once: its own list gets i, in the outer loop's order"
+            )]
             for p in set {
                 r.by_input.entry(p.clone()).or_default().push(i);
             }
@@ -74,6 +78,7 @@ impl Ranking {
         let (ordinal, slot, inputs) = role;
         let mut scores: HashMap<usize, usize> = HashMap::new();
         let set: HashSet<&(String, String)> = inputs.iter().collect();
+        #[allow(clippy::iter_over_hash_type, reason = "scores are sums")]
         for p in set {
             for &i in self.by_input.get(p).map_or(&[][..], Vec::as_slice) {
                 *scores.entry(i).or_insert(0) += 4;
@@ -86,6 +91,10 @@ impl Ranking {
         }
         if !scores.is_empty() {
             let mut best: Option<(usize, usize)> = None; // (score, i)
+            #[allow(
+                clippy::iter_over_hash_type,
+                reason = "the best score wins, ties to the lowest index"
+            )]
             for (&i, &s) in &scores {
                 let ci = *self.cands.get(i)?;
                 let s = s + usize::from(all.get(ci)?.role.0 == *ordinal);

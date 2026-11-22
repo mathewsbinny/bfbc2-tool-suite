@@ -444,6 +444,7 @@ fn store(dir: &Path, c: &Catalog, bundles: Vec<Stamp>, levels: Vec<String>) -> s
     fs::create_dir_all(dir)?;
     let mut keep: HashSet<String> = HashSet::new();
     let mut cards = BTreeMap::new();
+    #[allow(clippy::iter_over_hash_type, reason = "one file per card, recorded in a sorted map")]
     for (set, p) in &c.cards {
         let file = format!(
             "card_{}.png",
@@ -456,6 +457,10 @@ fn store(dir: &Path, c: &Catalog, bundles: Vec<Stamp>, levels: Vec<String>) -> s
         cards.insert(set.word().to_owned(), file);
     }
     let mut thumbs = BTreeMap::new();
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "one file per thumbnail, recorded in a sorted map"
+    )]
     for (lv, p) in &c.thumbs {
         let file = format!("thumb_{lv}.png");
         write_png(&dir.join(&file), p)?;

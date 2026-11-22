@@ -91,7 +91,9 @@ pub fn scene_load<'py>(
     match &s.collision {
         Some(c) => {
             let tris = PyDict::new(py);
-            for (bp, t) in &c.blueprints {
+            let mut bps: Vec<_> = c.blueprints.iter().collect();
+            bps.sort_by(|a, b| a.0.cmp(b.0)); // the dict in name order, the same on every run
+            for (bp, t) in bps {
                 let v = t
                     .as_ref()
                     .map(|t| PyByteArray::new(py, &le(t.iter().flatten().flatten().copied(), f32::to_le_bytes)));

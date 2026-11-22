@@ -93,7 +93,7 @@ def run_mesh(src, ix, names, out):
         for k in sorted(r['poses']):
             h.update(k.encode() + sha(r['poses'][k]).encode())
         h.update(json.dumps(r['plan'], sort_keys=True, default=str).encode())
-        h.update(json.dumps(r['notes']).encode())
+        h.update(json.dumps(r['notes'], sort_keys=True).encode())
         out[f'mesh:{n}'] = h.hexdigest()
 
 
