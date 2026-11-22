@@ -483,6 +483,35 @@ search itself (areas, portals, route graph) does not need them, so a file with n
 [exe: 0x1072A60 walks D (+0x38 / +0x3C), E (+0x40 / +0x44) and F (+0x48) of an area in its segment test; flag bits 2 = D, 1 = E, 4 = F; reached from game AI code via 0x58EF90]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:917-1014]
 
+### KYM-DF-2: F polygons where DICE's data decides nothing (NavKit's generator)
+
+Status: **verified**
+
+DICE's F records never have these shapes. On the 18 DICE infantry files, every one of the 195,813 normal-pitch F
+vertices is a cell corner, never a cell centre. Every one of the 44,380 F records is a simple loop, counter-clockwise
+and closed. No two records of one direction in an area share a vertex, so DICE has no holes, no pinches and no
+touching loops. NavKit's F groups (8-connected, with 45-degree bridges through the empty cells beside a diagonal
+touch) can make both shapes, and the generator decides them by a rule of its own, never by an iteration order:
+
+- **A loop that starts at a pinch.** A pinch is where two boundary edges leave the loop's start vertex: a second
+  piece or a hole of the group. The loop leaves along the edge whose end vertex is least (x, then z). At a pinch on
+  the way, it takes the sharpest right turn.
+- **A vertex with no area cell on the record's side and no F cell touching it.** This is the centre of an empty cell
+  where 45-degree bridges meet. It takes the mean height of the F cells nearest to it (half-unit |dx| + |dz|) that
+  lie furthest toward the record's side. This follows DICE's convention that a record's corner heights come from
+  the cells on its side (KYM-DF-1).
+
+The rule decides only cases DICE never produces. Until round NK3 the Python generator left both to its sets'
+iteration order. On the 15 regression levels the first never occurs; the second occurs at 17 vertices and changed
+their heights by 0.01-0.69 m, 13 of them in the files (the other 4 lie in sectors a detailed zone replaces;
+`rust/BENCHMARKS.md` "NK3").
+
+[code: rust/bc2-navbuild/src/detail.rs:529-585] [code: rust/bc2-navbuild/src/detail.rs:653-715]
+[test: rust/bc2-navbuild/src/detail_tests.rs::a_loop_starting_at_a_pinch_takes_the_least_edge]
+[test: rust/bc2-navbuild/src/detail_tests.rs::nearest_f_cells_toward_the_side]
+[data: 18 DICE infantry files: 195,813 of 195,813 normal-pitch F vertices at cell corners; 44,380 of 44,380 F records closed, counter-clockwise, no repeated vertex, no two records of one direction in an area sharing a vertex]
+[data: NavKit's 15 regression builds, 27,193 detail calls: 0 loops starting at a pinch; 17 vertices with tied nearest F cells of different heights]
+
 ### KYM-LINK-1: Neighbour links
 
 Status: **verified**

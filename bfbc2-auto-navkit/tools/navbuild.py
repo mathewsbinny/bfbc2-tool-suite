@@ -705,11 +705,10 @@ def detail_pass(level: Any, areas: Sequence[AreaInfo], per_area: Sequence[EdgeRo
         def eligible(i: int, j: int, di: int, dj: int, linked: set[tuple[Any, ...]] = linked) -> bool:     # neither of the two cells has a portal or border portal on the side
             return (('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)) not in linked and \
                 (('x', i + di * 0.5, -di, j) if di else ('z', j + dj * 0.5, -dj, i)) not in linked
-        broken, lines, fcells = navdetail.detail_features(cells, cfg.pitch, ox, oz, step, eligible, half, breakable,
-                                                          with_f=DETAIL_F[kind])
+        feats = navdetail.features(cells, cfg.pitch, ox, oz, step, eligible, half, breakable, with_f=DETAIL_F[kind])
+        broken, lines, fcells = feats.broken, feats.lines, feats.cells
         if broken and cfg.detail_blocks_edges and hasattr(level, 'blocked'):
-            fsets = navdetail.f_cell_sets(broken, cells) if DETAIL_F[kind] else (set(), set())
-            for (i, j), (di, dj) in navdetail.d_sides(broken, *fsets):
+            for (i, j), (di, dj) in feats.d_sides:
                 if (i, j) in ks and (i + di, j + dj) in ks:
                     level.blocked.add((ks[(i, j)], ks[(i + di, j + dj)]))
         broken = {b_ for b_ in broken if b_[0] in cells and (b_[0][0] + b_[1][0], b_[0][1] + b_[1][1]) in cells}
