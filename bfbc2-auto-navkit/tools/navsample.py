@@ -80,7 +80,20 @@ def load(path: str) -> tuple[Samples, int]:
     """A sample file's Samples and the columns read (an interrupted run of version 1 / 2 reads fewer than nx * nz;
     the rest are empty): the records in the Rust core (navkit_navsample_parse, navkit_navsample_v3). A file the core
     does not read: a version 1 / 2 record cut short raises struct.error in the retired Python's words; version 3's
-    counts or records cut short or damaged raise bfbc2core.native.Refused (a ValueError)."""
+    counts or records cut short or damaged raise bfbc2core.native.Refused (a ValueError). A whole version 3 file is
+    read a block of records at a time (round NK4: navkit_navsample_stream, without the file's bytes held beside the
+    arrays); the same arrays."""
+    with open(path, 'rb') as f:
+        head = f.read(HEADER.size)
+    if len(head) == HEADER.size and head[:4] == b'ONS1' and struct.unpack_from('<I', head, 4)[0] == 3:
+        got = _core().navkit_navsample_stream(path)
+        if got is not None:
+            d, c = got
+            h = d['header']
+            return Samples(d['pitch'], d['min_x'], d['min_z'], d['nx'], d['nz'], h[0], h[1], h[2], h[3], h[4], h[5],
+                           np.frombuffer(d['start'], '<i8'), np.frombuffer(d['y'], '<f4'),
+                           np.frombuffer(d['normal'], '<f4').reshape(-1, 3), np.frombuffer(d['flags'], np.uint8),
+                           np.frombuffer(d['hit'], '<u4').reshape(-1, 3)), c
     data = open(path, 'rb').read()
     magic, version, pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, _ = \
         HEADER.unpack_from(data, 0)
