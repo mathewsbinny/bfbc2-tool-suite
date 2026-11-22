@@ -9,7 +9,7 @@
 #   cargo fmt --check
 #   python build_native.py                       the Python module (bc2_native) into core\ (README.md)
 #
-# Crates (17): bc2-formats (the game's file formats, no Python types, no files written), bc2-gamefs (the game layer:
+# Crates (18): bc2-formats (the game's file formats, no Python types, no files written), bc2-gamefs (the game layer:
 # atomic writes, the install ledger, process liveness, the bundle cache and the caches' budget, the mesh index),
 # bc2-tools (FbrbTool's and DbxEdit's command lines as a library), bc2-scene (a level: entities, collision, terrain,
 # water), bc2-py (PyO3 bindings, module bc2_native), bc2-convert (the console converters and the BF1943 import's ports:
@@ -21,7 +21,8 @@
 # rounds E2, E3), bc2-render (the editor's game-accurate view: DICE's Direct3D 11 shaders, round R5), bc2-cli (the
 # command-line binary bfbc2: the tools' command lines as subcommands, round O1), bc2-pyrt (what the Python command lines
 # show of the Python runtime, for bc2-cli's ports, rounds O2 - O3), bc2-menu (the menu tools' library, rounds O2 - O3),
-# bc2-install (the game-copy installer on the install ledger: Project OPFOR's WW2 install, round OR1; bfbc2 install).
+# bc2-install (the game-copy installer on the install ledger: Project OPFOR's WW2 install, round OR1; bfbc2 install),
+# bc2-xma (the XMA2 decoder: FFmpeg's ported, round PR1b-1c; LGPL-2.1-or-later as FFmpeg is, its README.md).
 # Later crates join `members` and take their dependencies from [workspace.dependencies].
 
 [workspace]
