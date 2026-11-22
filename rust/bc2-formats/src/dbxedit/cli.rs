@@ -3,10 +3,7 @@
 //! the caller to write.
 
 use std::collections::HashMap;
-use std::fs;
-use std::io::Write as _;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use rayon::prelude::*;
 
@@ -58,27 +55,16 @@ impl Outcome {
     }
 }
 
-static WRITES: AtomicU64 = AtomicU64::new(0);
-
-/// `AtomicFile.WriteAllBytes`: written beside the target (`<path>.tmp-<process>-<n>`), flushed, then moved over it
-/// with [`crate::atomic::replace`] (which waits out a moment's lock on the target).
+/// `AtomicFile.WriteAllBytes`: [`crate::atomic::write`] (beside the target as `<path>.tmp-<process>-<n>`, flushed,
+/// then moved over it, waiting out a moment's lock on the target).
 ///
 /// # Errors
-/// The I/O error as .NET words it.
+/// The I/O error as .NET words it: with the temporary file's name when it could not be written, the target's when
+/// the move failed.
 pub fn write_atomic(path: &str, data: &[u8]) -> Result<()> {
-    let n = WRITES.fetch_add(1, Ordering::Relaxed);
-    let tmp = format!("{path}.tmp-{}-{n}", std::process::id());
-    let written = fs::File::create(&tmp).and_then(|mut f| {
-        f.write_all(data)?;
-        f.sync_all()
-    });
-    if let Err(e) = written {
-        let _ = fs::remove_file(&tmp);
-        return Err(Fault::io(&e, Path::new(&tmp)));
-    }
-    crate::atomic::replace(Path::new(&tmp), Path::new(path)).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        Fault::io(&e, Path::new(path))
+    crate::atomic::write(Path::new(path), &[data]).map_err(|e| match &e {
+        crate::atomic::WriteError::Temp(tmp, io) => Fault::io(io, tmp),
+        crate::atomic::WriteError::Replace(io) => Fault::io(io, Path::new(path)),
     })
 }
 

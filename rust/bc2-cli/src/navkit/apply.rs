@@ -313,9 +313,7 @@ fn run(
         for l in &t.lines {
             say(py, l.clone())?;
         }
-        let tmp = format!("{trav}.tmp");
-        std::fs::write(&tmp, t.text.as_bytes()).map_err(|e| crate::pyproc::os_error(&tmp, &e))?;
-        std::fs::rename(&tmp, &trav).map_err(|e| crate::pyproc::os_error(&tmp, &e))?;
+        pyos::files::write_atomic(&trav, t.text.as_bytes()).map_err(|(at, e)| crate::pyproc::os_error(&at, &e))?;
         say(
             py,
             format!(

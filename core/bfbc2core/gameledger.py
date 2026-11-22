@@ -33,9 +33,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import atomicio
+
 FORMAT = 'opfor-ledger/1'
 JOURNAL_FORMAT = 'opfor-ledger-txn/1'
-TMP = '.opfor-ledger-tmp'
+TMP = '.opfor-ledger-tmp'       # the fixed temporary name before round PR1a: never a legacy marker, removed on recovery
 LOCK, JOURNAL, JOURNAL_DIR, DIRTY = '.lock', '.txn.json', '.txn', '.dirty'
 TRIES = 11
 
@@ -150,19 +152,11 @@ def _retry(fn: Callable[[], None]) -> None:
 
 
 def write_atomic(path: str, data: bytes) -> None:
-    """data to path: written to <path>.opfor-ledger-tmp, flushed to disk, moved over path (retried while held)."""
+    """data to path with atomicio.write_bytes (its folder made first): a per-process temporary name beside it, flushed
+    to disk, moved over path (retried while held). Before round PR1a the temporary name was the fixed <path> + TMP,
+    which two writers of one path would have shared."""
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-    tmp = path + TMP
-    try:
-        with open(tmp, 'wb') as f:
-            f.write(data)
-            f.flush()
-            os.fsync(f.fileno())
-        _retry(lambda: os.replace(tmp, path))
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.remove(tmp)
-        raise
+    atomicio.write_bytes(path, data)
 
 
 def _remove(path: str) -> None:
@@ -499,6 +493,7 @@ class Ledger:
                 p = self._target(base, rel)
                 with contextlib.suppress(OSError):
                     os.remove(p + TMP)
+                atomicio.remove_dead_temps(p, pid_alive)
                 sha = _sha_of(t.get('pre'))
                 if sha is None:
                     if os.path.isfile(p):

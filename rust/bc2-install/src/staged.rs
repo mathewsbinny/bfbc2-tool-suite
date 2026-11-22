@@ -158,16 +158,9 @@ pub fn save(plan: &Plan) -> Result<(), String> {
     };
     let text = serde_json::to_string_pretty(&rec).map_err(|e| e.to_string())?;
     let out = Path::new(&plan.staged.path);
-    let tmp = out.with_file_name(format!(
-        "{}.tmp-{}",
-        out.file_name()
-            .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
-        std::process::id()
-    ));
-    fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
-    bc2_formats::atomic::replace(&tmp, out).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        format!("{}: {e}", out.display())
+    bc2_formats::atomic::write(out, &[text.as_bytes()]).map_err(|e| match e {
+        bc2_formats::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
+        bc2_formats::atomic::WriteError::Replace(e) => format!("{}: {e}", out.display()),
     })
 }
 

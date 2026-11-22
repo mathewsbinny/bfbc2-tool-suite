@@ -260,8 +260,11 @@ def step_clippy(env: dict[str, str], argv: list[str]) -> int:
         print(f'ok   cargo clippy --all-targets -D warnings: all {len(crates)} crates unchanged since their last green '
               f'clippy on this PC')
         return 0
-    # -p for a subset: only bc2-cli has features of its own, so a crate is linted alike alone or in the workspace
-    which = ['--workspace'] if len(todo) == len(crates) else [a for c in todo for a in ('-p', package_name(c))]
+    # -p for a subset, with --all-features: the library crates' edge features (bc2-convert's pickle-cache,
+    # bc2-navbuild's graphedit) are on in the workspace through bc2-cli, and bc2-cli's all are its default, so a crate
+    # is linted alike alone or in the workspace
+    which = (['--workspace'] if len(todo) == len(crates)
+             else [*(a for c in todo for a in ('-p', package_name(c))), '--all-features'])
     t0 = time.time()
     r = cargo(env, 'clippy', *which, '--all-targets', '--', '-D', 'warnings')
     left = len(crates) - len(todo)

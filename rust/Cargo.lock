@@ -451,7 +451,6 @@ dependencies = [
  "bc2-formats",
  "bc2-levelwrite",
  "bc2-navbuild",
- "bc2-pyrt",
  "bc2-render",
  "bc2-scene",
  "bytemuck",

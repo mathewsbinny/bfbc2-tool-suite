@@ -42,6 +42,7 @@ use thiserror::Error;
 pub mod astar;
 pub mod domains;
 pub mod graph;
+#[cfg(feature = "graphedit")]
 pub mod graphedit;
 pub mod hulls;
 pub mod levelscan;

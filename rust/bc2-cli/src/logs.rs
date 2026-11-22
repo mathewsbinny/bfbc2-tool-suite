@@ -232,7 +232,6 @@ fn archive_logs(top: &str, files: &[Seen]) -> io::Result<Option<String>> {
         n += 1;
         path = bc2_pyrt::py::join(&folder, &[&format!("logs-{stamp}-{n}.zip")]);
     }
-    let tmp = format!("{path}.tmp-{}", std::process::id());
     let written = (|| -> io::Result<()> {
         let mut zip = Zip::default();
         for f in &files {
@@ -241,13 +240,11 @@ fn archive_logs(top: &str, files: &[Seen]) -> io::Result<Option<String>> {
             let name = bc2_pyrt::py::basename(&f.path);
             zip.add(&name, &data, st.mtime, readonly(&f.path));
         }
-        let mut out = std::fs::File::create(&tmp)?;
-        out.write_all(&zip.finish())?;
-        out.sync_all()?;
-        drop(out);
-        fsx::replace(&tmp, &path)
+        Ok(bc2_formats::atomic::write(
+            std::path::Path::new(&path),
+            &[&zip.finish()],
+        )?)
     })();
-    let _ = std::fs::remove_file(&tmp);
     written?;
     let cap = (pylog::number(LOG_ARCHIVE_ENV, 1024.0) * MB) as u64;
     let mut olds: Vec<(i128, String, u64)> = Vec::new();

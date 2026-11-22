@@ -20,7 +20,7 @@ pub mod files;
 
 use std::fmt::Write as _;
 use std::fs;
-use std::io::{Read as _, Write as _};
+use std::io::Read as _;
 use std::path::Path;
 
 use crate::pyproc::{Fail, PyErr, PyResult, os_error};
@@ -444,25 +444,10 @@ pub fn write_text_utf8(path: &str, text: &str) -> PyResult<()> {
     fs::write(path, text.replace('\n', "\r\n")).map_err(|e| os_error(path, &e))
 }
 
-/// `atomicio.write_bytes(path, data)`: `<path>.tmp-<pid>` written and synced, then moved over the target (tried
-/// again while another process holds it for a moment).
+/// `atomicio.write_bytes(path, data)` ([`files::write_atomic`]): `<path>.tmp-<pid>-<n>` written and synced, then
+/// moved over the target (tried again while another process holds it for a moment).
 pub fn atomic_write(path: &str, data: &[u8]) -> PyResult<()> {
-    let tmp = format!("{path}.tmp-{}", std::process::id());
-    let r = (|| {
-        let mut f = fs::File::create(&tmp)?;
-        f.write_all(data)?;
-        f.flush()?;
-        f.sync_all()
-    })();
-    if let Err(e) = r {
-        let _ = fs::remove_file(&tmp);
-        return Err(os_error(&tmp, &e));
-    }
-    if let Err(e) = bc2_formats::atomic::replace(Path::new(&tmp), Path::new(path)) {
-        let _ = fs::remove_file(&tmp);
-        return Err(os_error(path, &e));
-    }
-    Ok(())
+    files::write_atomic(path, data).map_err(|(at, e)| os_error(&at, &e))
 }
 
 /// `atomicio.write_text(path, text)` (UTF-8, `\n` as `\r\n`).

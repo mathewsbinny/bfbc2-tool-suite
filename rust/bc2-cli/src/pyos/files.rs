@@ -4,7 +4,7 @@
 
 use std::fs::{self, File, FileTimes, OpenOptions};
 use std::io;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// `os.stat` / `DirEntry.stat()`'s fields the caches use.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -112,45 +112,24 @@ pub fn delete_if_unchanged(path: &str, size: u64, mtime_ns: i128, check: bool) -
     }
 }
 
-/// `atomicio.locked(path)`: `f` run while holding the lock between processes on the lock file (created when missing,
-/// kept afterwards; Python's `msvcrt.locking` the its first byte and this whole-file lock exclude each other).
+/// `atomicio.locked(path)` ([`bc2_formats::atomic::locked`]).
 pub fn locked<T>(path: &str, f: impl FnOnce() -> T) -> io::Result<T> {
-    if let Some(dir) = std::path::Path::new(path).parent()
-        && !dir.as_os_str().is_empty()
-    {
-        fs::create_dir_all(dir)?;
-    }
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(path)?;
-    file.lock()?;
-    let out = f();
-    let _ = file.unlock();
-    Ok(out)
+    bc2_formats::atomic::locked(std::path::Path::new(path), f)
 }
 
-/// `atomicio._transient`: a moment's lock by another process (access denied, sharing or lock violation).
-fn transient(e: &io::Error) -> bool {
-    e.kind() == io::ErrorKind::PermissionDenied || matches!(e.raw_os_error(), Some(5 | 32 | 33))
-}
-
-/// `atomicio.replace(tmp, path)`: `os.replace`, tried again (11 tries, waits growing by 50 ms) while another process
-/// holds the target for a moment.
+/// `atomicio.replace(tmp, path)` ([`bc2_formats::atomic::replace`]: 11 tries, waits growing by 50 ms, while another
+/// process holds the target for a moment).
 pub fn replace(tmp: &str, path: &str) -> io::Result<()> {
-    let mut n = 1u64;
-    loop {
-        match fs::rename(tmp, path) {
-            Ok(()) => return Ok(()),
-            Err(e) if n < 11 && transient(&e) => {
-                std::thread::sleep(Duration::from_millis(50 * n));
-                n += 1;
-            }
-            Err(e) => return Err(e),
-        }
-    }
+    bc2_formats::atomic::replace(std::path::Path::new(tmp), std::path::Path::new(path))
+}
+
+/// `atomicio.write_bytes(path, data)` ([`bc2_formats::atomic::write`]): beside the target as `<path>.tmp-<pid>-<n>`,
+/// flushed to disk, moved over it. The error names the temporary file when it could not be written, else the target.
+pub fn write_atomic(path: &str, data: &[u8]) -> Result<(), (String, io::Error)> {
+    bc2_formats::atomic::write(std::path::Path::new(path), &[data]).map_err(|e| match e {
+        bc2_formats::atomic::WriteError::Temp(tmp, e) => (tmp.to_string_lossy().into_owned(), e),
+        bc2_formats::atomic::WriteError::Replace(e) => (path.to_owned(), e),
+    })
 }
 
 /// A directory entry as `os.scandir` gives it: its path (`os.path.join(top, name)`), name, kind and stat (the
