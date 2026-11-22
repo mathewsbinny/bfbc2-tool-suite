@@ -8,6 +8,8 @@
 //!
 //! Exit code 0 when the build ended well, 1 when it failed (its last line says why), 2 for a usage error.
 
+#![allow(clippy::print_stdout, clippy::print_stderr, reason = "a proof's command line prints its lines")]
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -33,7 +35,7 @@ fn main() {
     let ok = loop {
         let done = job.poll();
         let lines = job.output();
-        for l in &lines[shown..] {
+        for l in lines.get(shown..).unwrap_or_default() {
             println!("{l}");
         }
         shown = lines.len();
@@ -46,7 +48,7 @@ fn main() {
         }
         std::thread::sleep(Duration::from_millis(50));
     };
-    for l in &job.output()[shown..] {
+    for l in job.output().get(shown..).unwrap_or_default() {
         println!("{l}");
     }
     std::process::exit(i32::from(!ok));

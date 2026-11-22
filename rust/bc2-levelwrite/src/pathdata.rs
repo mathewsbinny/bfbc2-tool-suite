@@ -113,11 +113,62 @@ const GAMEPLAY: &[&str] = &[
     "VehicleSpawnEntityData",
 ];
 
-/// Why the base's path data is not the project's level's (empty: it is): edits of the collision (a static object
-/// moved, added or deleted; a static group member edited; the terrain sculpted) - the level must be sampled again,
-/// NK4 - and navigation edits, which a NavKit base takes only through the Python (NK5).
+/// What a project changes that the path data depends on.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Changes {
+    /// Static objects moved, added or deleted (their names, upper case).
+    pub objects: BTreeSet<String>,
+    /// Static group member edits.
+    pub members: usize,
+    /// Terrain strokes.
+    pub terrain: usize,
+    /// The navigation edits the log leaves.
+    pub nav: usize,
+}
+
+impl Changes {
+    /// Whether the level's collision changed (it must be sampled again).
+    #[must_use]
+    pub fn collision(&self) -> bool {
+        !self.objects.is_empty() || self.members > 0 || self.terrain > 0
+    }
+
+    /// The collision changes in words (empty: none).
+    #[must_use]
+    pub fn collision_words(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if !self.objects.is_empty() {
+            let first: Vec<&str> = self.objects.iter().take(3).map(String::as_str).collect();
+            out.push(format!(
+                "the project moves, adds or deletes {} static object(s) ({}{}): the level's collision changed, so it \
+                 must be sampled again (the offline sampler on the stage: `navsample_offline.py stage`, run by the export when the base level is prepared)",
+                self.objects.len(),
+                first.join(", "),
+                if self.objects.len() > 3 { ", ..." } else { "" }
+            ));
+        }
+        if self.members > 0 {
+            out.push(format!(
+                "the project edits {} static group member(s): the level's collision changed, so it must be sampled \
+                 again (the offline sampler on the stage's group files: `navsample_offline.py stage`, run by the export when the base level is prepared)",
+                self.members
+            ));
+        }
+        if self.terrain > 0 {
+            out.push(format!(
+                "the project sculpts the terrain ({} stroke(s)): the level's ground changed, so it must be sampled \
+                 again (the offline sampler on the stage: `navsample_offline.py stage`, run by the export when the base level is prepared)",
+                self.terrain
+            ));
+        }
+        out
+    }
+}
+
+/// What the project changes that the path data depends on: the collision (a static object moved, added or deleted;
+/// a static group member edited; the terrain sculpted) and its navigation edits.
 #[must_use]
-pub fn blockers(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> Vec<String> {
+pub fn changes(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> Changes {
     let layer = crate::modelayer::layer(cur);
     let base_layer = crate::modelayer::layer(base);
     let gameplay = |g: &str| -> bool {
@@ -131,26 +182,20 @@ pub fn blockers(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> 
             .map_or_default(|e| cur.find(&up).map_or_else(|| base.type_of(e), |c| cur.type_of(c)));
         GAMEPLAY.iter().any(|t| ty.ends_with(&format!(".{t}")))
     };
-    let mut objects: BTreeSet<String> = BTreeSet::new();
-    let mut members = 0usize;
-    let mut terrain = 0usize;
-    let mut nav = 0usize;
+    let mut c = Changes::default();
     for o in &project.operations {
         match &o.op {
-            Op::NavAdd { .. } | Op::NavLoad { .. } => nav += 1,
             Op::Stroke {
                 target: crate::files::Target::Terrain { .. },
                 ..
-            } => terrain += 1,
+            } => c.terrain += 1,
             Op::Files { edits } => {
-                members += edits
+                c.members += edits
                     .iter()
                     .filter(|e| {
                         matches!(
                             e,
-                            FileEdit::MemberTransform { .. }
-                                | FileEdit::MemberDelete { .. }
-                                | FileEdit::MemberAdd { .. }
+                            FileEdit::MemberTransform { .. } | FileEdit::MemberDelete { .. } | FileEdit::MemberAdd { .. }
                         )
                     })
                     .count();
@@ -165,38 +210,27 @@ pub fn blockers(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> 
             };
             for g in named {
                 if !gameplay(g) {
-                    objects.insert(g.to_ascii_uppercase());
+                    c.objects.insert(g.to_ascii_uppercase());
                 }
             }
         }
     }
-    let mut out = Vec::new();
-    if !objects.is_empty() {
-        let first: Vec<&str> = objects.iter().take(3).map(String::as_str).collect();
+    c.nav = project.nav_edits().edits.len();
+    c
+}
+
+/// Why the base's path data cannot simply be copied for the project's level (empty: it can): the collision changes
+/// ([`Changes::collision_words`]) and the navigation edits. The step builds the level in process instead
+/// ([`build`]) where it has the samples.
+#[must_use]
+pub fn blockers(project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> Vec<String> {
+    let c = changes(project, cur, base);
+    let mut out = c.collision_words();
+    if c.nav > 0 {
         out.push(format!(
-            "the project moves, adds or deletes {} static object(s) ({}{}): the level's collision changed, so it must \
-             be sampled again (the offline sampler on the edited partition: NK4)",
-            objects.len(),
-            first.join(", "),
-            if objects.len() > 3 { ", ..." } else { "" }
-        ));
-    }
-    if members > 0 {
-        out.push(format!(
-            "the project edits {members} static group member(s): the level's collision changed, so it must be sampled \
-             again (with the stage's group files: NK4)"
-        ));
-    }
-    if terrain > 0 {
-        out.push(format!(
-            "the project sculpts the terrain ({terrain} stroke(s)): the level's ground changed, so it must be sampled \
-             again (NK4)"
-        ));
-    }
-    if nav > 0 {
-        out.push(format!(
-            "the project has {nav} navigation edit(s): applying them to a NavKit build is still Python (`navkit \
-             apply` on a NavKit base: NK5)"
+            "the project has {} navigation edit(s): they are built into NavKit's build of the level, which needs the \
+             level's samples",
+            c.nav
         ));
     }
     out
@@ -211,9 +245,346 @@ pub fn install_path(level: &str, kind: &str) -> String {
     )
 }
 
-/// Stages the project's path data into `stage` (`ai/<infantry|vehicle>/pathdata.hpd`) for the level `level`: the
-/// base level's newest path data ([`sources`]) when nothing blocks it ([`blockers`]). Nothing in the game copy or
-/// the OPFOR folder is written.
+/// Where a staged traversal-annotation file goes in the game copy (beside the infantry path data, as `navkit
+/// install` puts it).
+#[must_use]
+pub fn traversal_install_path(level: &str) -> String {
+    let lv = level.to_ascii_lowercase();
+    format!("Output/win32/ai/levels/{lv}/infantry/{lv}.traversal.json")
+}
+
+/// The stage's NavKit folder (`navsample_offline.py stage`: the staged level prepared and sampled offline): an
+/// OPFOR-like tree, `<stage>\navkit\work\levels\<level>`, `work\navkit\<level>\navkit.json`, `work\navsample`.
+#[must_use]
+pub fn stage_tree(stage: &Path) -> PathBuf {
+    stage.join("navkit")
+}
+
+/// The samples a build of the project's level reads, and in words what they are: the stage's own (the offline
+/// sampler on the edited level, [`stage_tree`]), else - when the project changes no collision - the base level's
+/// in-game samples (`work\navsample`), else its offline ones (`work\navsample_offline`). `None`: none fit.
+#[must_use]
+pub fn samples_for(opfor: &Path, base_level: &str, stage: &Path, level: &str, collision: bool) -> Option<Samples> {
+    let has = |dir: &Path, lv: &str| -> bool {
+        ["navkit", "full"].iter().any(|n| {
+            dir.join(format!("{lv}_{n}.bin")).is_file() && dir.join(format!("{lv}_{n}_hi.bin")).is_file()
+        })
+    };
+    let tree = stage_tree(stage);
+    let own = tree.join("work").join("navsample");
+    let lv = level.to_ascii_lowercase();
+    let set = tree.join("work").join("navkit").join(&lv).join("navkit.json");
+    if !stage.as_os_str().is_empty() && has(&own, &lv) && set.is_file() {
+        return Some(Samples {
+            dir: own,
+            level: lv,
+            kind: "the offline sampler on the stage".into(),
+            tree: Some(tree),
+        });
+    }
+    if collision {
+        return None;
+    }
+    let b = base_level.to_ascii_lowercase();
+    for (dir, kind) in [
+        ("navsample", "the base level's in-game samples"),
+        ("navsample_offline", "the base level's offline samples"),
+    ] {
+        let d = opfor.join("work").join(dir);
+        if has(&d, &b) {
+            return Some(Samples {
+                dir: d,
+                level: b,
+                kind: kind.into(),
+                tree: None,
+            });
+        }
+    }
+    None
+}
+
+/// The samples a build reads ([`samples_for`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Samples {
+    /// Their folder.
+    pub dir: PathBuf,
+    /// The level name they carry (`<level>_navkit.bin`).
+    pub level: String,
+    /// What they are, in words.
+    pub kind: String,
+    /// The stage's prepared tree they belong to ([`stage_tree`]); `None`: the base level's in OPFOR's work folder.
+    pub tree: Option<PathBuf>,
+}
+
+/// What the step will do for the project (asked before anything is built).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Plan {
+    /// Build the level in process from these samples.
+    Build(Samples),
+    /// Sample the stage offline first (`navsample_offline.py stage`: the project changes the collision), then build.
+    Sample,
+    /// Copy the base's newest path data as it is (no samples to build from, and nothing that changes it).
+    Copy(Source),
+}
+
+/// The path-data step's plan for the project ([`Plan`]), or why it cannot run (each reason in words).
+///
+/// # Errors
+/// The reasons it cannot.
+pub fn ready(opfor: &Path, project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> Result<Plan, Vec<String>> {
+    ready_at(opfor, project, cur, base, None, None)
+}
+
+/// [`ready`] with the stage folder and level id the export writes (the stage's own samples count).
+///
+/// # Errors
+/// The reasons it cannot.
+pub fn ready_at(
+    opfor: &Path,
+    project: &MapProject,
+    cur: &LevelWriter,
+    base: &LevelWriter,
+    stage: Option<&Path>,
+    level: Option<&str>,
+) -> Result<Plan, Vec<String>> {
+    let c = changes(project, cur, base);
+    let nowhere = PathBuf::new();
+    let st = stage.unwrap_or(&nowhere);
+    let lv = level.unwrap_or(&project.base.level);
+    let prepared = opfor
+        .join("work")
+        .join("navkit")
+        .join(project.base.level.to_ascii_lowercase())
+        .join("navkit.json")
+        .is_file();
+    if prepared && let Some(s) = samples_for(opfor, &project.base.level, st, lv, c.collision()) {
+        return Ok(Plan::Build(s));
+    }
+    if prepared && c.collision() && stage.is_some() {
+        return Ok(Plan::Sample);
+    }
+    let mut why = c.collision_words();
+    if !why.is_empty() && !prepared {
+        why.push(format!(
+            "the base level {} is not prepared for NavKit (`bfbc2.exe navkit prepare {}`), so the stage cannot be \
+             sampled",
+            project.base.level,
+            project.base.level.to_ascii_uppercase()
+        ));
+    }
+    if !why.is_empty() {
+        return Err(why);
+    }
+    if c.nav > 0 {
+        why.push(format!(
+            "the project has {} navigation edit(s), but {} has no samples to build them into (sample it: \
+             `python bfbc2-auto-navkit\\tools\\navsample_offline.py all {}`)",
+            c.nav,
+            project.base.level,
+            project.base.level.to_ascii_lowercase()
+        ));
+        return Err(why);
+    }
+    match sources(opfor, &project.base.level).into_iter().next() {
+        Some(src) => Ok(Plan::Copy(src)),
+        None => Err(vec![format!(
+            "{} has no path data: neither NavKit's build (work\\navkit\\{lv}, work\\navkit_offline\\{lv}), nor samples \
+             to build it from, nor DICE's file; sample it first (`python bfbc2-auto-navkit\\tools\\navsample_offline.py \
+             all {lv}`)",
+            project.base.level,
+            lv = project.base.level.to_ascii_lowercase()
+        )]),
+    }
+}
+
+/// The f32 of a partition as Python reads it back from the level's XML (`float()` of its shortest text).
+fn xml_f64(v: f32) -> f64 {
+    format!("{v}").parse().unwrap_or_else(|_| f64::from(v))
+}
+
+/// The translations of a level's instances of a type (`levelobjects.points_of`: the ones away from the origin).
+fn points_of(w: &LevelWriter, suffix: &str) -> Vec<(f64, f64, f64)> {
+    w.d.of_type(suffix.as_bytes())
+        .into_iter()
+        .filter_map(|e| w.transform_at(e))
+        .map(|r| r[3])
+        .filter(|t| t.iter().any(|c| f64::from(*c).abs() > 1e-3))
+        .map(|t| (xml_f64(t[0]), xml_f64(t[1]), xml_f64(t[2])))
+        .collect()
+}
+
+/// The staged level's own seeds and anchors, replacing the base's where the project changed them: the soldier
+/// spawns (`.SoldierSpawnEntityData`), the AI orders (`Entity.AreaGeometryEntityData`) and the objectives
+/// (`.AreaOrderEntityData`) as NavKit's prepare reads them; then the spawn points (seeds) and the flags and M-COMs
+/// (objective floors) the project moved or made, so its gameplay stands on the main route network (XVAL-PLACE-5).
+fn level_points(inp: &mut bc2_navbuild::build::Inputs, cur: &LevelWriter, base: &LevelWriter) {
+    for (suffix, slot) in [
+        (".SoldierSpawnEntityData", 0),
+        ("Entity.AreaGeometryEntityData", 1),
+        (".AreaOrderEntityData", 2),
+    ] {
+        let (now, before) = (points_of(cur, suffix), points_of(base, suffix));
+        if now == before {
+            continue; // the base's own lists (NavKit's prepare's) stand
+        }
+        match slot {
+            0 => inp.seeds = now,
+            1 => inp.order_points = Some(now),
+            _ => inp.area_orders = Some(now),
+        }
+    }
+    let p3 = |r: crate::ops::Rows| (xml_f64(r[3][0]), xml_f64(r[3][1]), xml_f64(r[3][2]));
+    let moved = |guid: &str, r: crate::ops::Rows| base.transform(guid) != Some(r);
+    for e in cur.d.of_type(b".AlternateSpawnEntityData") {
+        let g = String::from_utf8_lossy(cur.d.attr(e, b"guid").unwrap_or_default()).into_owned();
+        if let Some(r) = cur.transform_at(e)
+            && moved(&g, r)
+        {
+            inp.seeds.push(p3(r));
+        }
+    }
+    let mut objectives = Vec::new();
+    for e in cur.d.of_type(b".CapturePointEntityData") {
+        let g = String::from_utf8_lossy(cur.d.attr(e, b"guid").unwrap_or_default()).into_owned();
+        if let Some(r) = cur.transform_at(e)
+            && moved(&g, r)
+        {
+            objectives.push(p3(r));
+        }
+    }
+    for (g, _, p) in crate::modelayer::anchors(cur).iter().filter(|a| a.1.contains("M-COM")) {
+        let r = cur.transform(g).unwrap_or_else(|| crate::rows_at(*p));
+        if moved(g, r) {
+            objectives.push(p3(r));
+        }
+    }
+    if !objectives.is_empty() {
+        inp.area_orders.get_or_insert_with(Vec::new).extend(objectives);
+    }
+}
+
+/// A navigation edit as the side file's JSON value (`navtune.op`'s fields, in order).
+fn edit_value(e: &crate::navedit::NavEdit) -> Option<bc2_navbuild::pyjson::Value> {
+    bc2_navbuild::pyjson::loads(&serde_json::to_string(e).ok()?)
+}
+
+/// The project's level built in process (round NK6): NavKit's build of the base's prepared inputs read from `samples`
+/// (`bc2_navbuild::inputs::build_inputs`), with the staged level's spawns and objectives ([`level_points`]) and the
+/// project's navigation edits (the walkability edits in the build; links, route edges and traversals by
+/// `graphedit` after it, as `navkit apply` does). Its lines go to `out`. Returns the path data's bytes and the
+/// traversal annotations' text (when the edits have traversals).
+///
+/// # Errors
+/// The build's error, in words.
+#[allow(clippy::too_many_arguments)]
+pub fn build_bytes(
+    opfor: &Path,
+    project: &MapProject,
+    cur: &LevelWriter,
+    base: &LevelWriter,
+    samples: &Samples,
+    level: &str,
+    clock: (u32, u32),
+    out: &mut dyn bc2_navbuild::inputs::Out,
+) -> Result<(Vec<u8>, Option<String>), String> {
+    use bc2_navbuild::{graphedit, inputs};
+    let words = |e: bc2_navbuild::ntpath::Fail| match e {
+        bc2_navbuild::ntpath::Fail::Raised(r) => r.msg,
+        e => e.to_string(),
+    };
+    let blv = project.base.level.to_ascii_lowercase();
+    let opfor_root = inputs::Root::new(&opfor.display().to_string()).map_err(words)?;
+    let mut g = match &samples.tree {
+        None => {
+            let mut root = opfor_root.clone();
+            root.samples_dir = Some(samples.dir.display().to_string());
+            inputs::build_inputs(&root, &blv, &inputs::quiet_tool).map_err(words)?
+        }
+        Some(tree) => {
+            // the stage prepared and sampled offline: its own tree (objects, triangle lists, spawns, orders,
+            // settings, terrain), the game copy's for the rest; DICE's extent is the base level's
+            let t = tree.display().to_string();
+            let root = inputs::Root {
+                root: t.clone(),
+                game: opfor_root.game.clone(),
+                work: bc2_navbuild::ntpath::join2(&t, "work").map_err(words)?,
+                samples_dir: None,
+            };
+            let mut g = inputs::build_inputs(&root, &samples.level, &inputs::quiet_tool).map_err(words)?;
+            g.inputs.bounds = inputs::reference_bounds(&opfor_root, &blv).map_err(words)?;
+            g
+        }
+    };
+    for l in &g.lines {
+        out.line(l).map_err(words)?;
+    }
+    level_points(&mut g.inputs, cur, base);
+    let ops: Vec<bc2_navbuild::pyjson::Value> = project.nav_edits().edits.iter().filter_map(edit_value).collect();
+    let is = |o: &bc2_navbuild::pyjson::Value, names: &[&str]| {
+        o.get("op")
+            .and_then(bc2_navbuild::pyjson::Value::as_str)
+            .is_some_and(|n| names.contains(&n))
+    };
+    let walk: Vec<bc2_navbuild::pyjson::Value> = ops
+        .iter()
+        .filter(|o| is(o, &["walkable", "unwalkable", "seed", "unseed"]))
+        .cloned()
+        .collect();
+    if !walk.is_empty() {
+        g.inputs.edits = Some(inputs::edits_of(&walk).map_err(words)?);
+    }
+    let tmp = std::env::temp_dir().join(format!("bc2_pathdata_{}_{level}.hpd", std::process::id()));
+    let run = inputs::Run {
+        clock,
+        no_detail: false,
+    };
+    inputs::run_build(&g.inputs, &tmp.display().to_string(), run, out, None).map_err(words)?;
+    let read = std::fs::read(&tmp).map_err(|e| format!("{}: {e}", tmp.display()));
+    let _ = std::fs::remove_file(&tmp);
+    let mut data = read?;
+    let ge = |e: graphedit::EditError| match e {
+        graphedit::EditError::Raised { msg, .. } => msg,
+        graphedit::EditError::Refused(m) => m,
+    };
+    if ops.iter().any(|o| is(o, &graphedit::GRAPH_OPS)) {
+        let edited = graphedit::graph_edits(&data, &ops).map_err(ge)?;
+        for l in &edited.lines {
+            out.line(l).map_err(words)?;
+        }
+        out.line(&edited.summary).map_err(words)?;
+        data = edited.data;
+    }
+    if !graphedit::read_back(&data).map_err(ge)? {
+        return Err("the built path data does not read back exactly - not usable".into());
+    }
+    let trav = if ops.iter().any(|o| is(o, &["traversal"])) {
+        let name = install_path(level, "infantry");
+        let t = graphedit::traversal(&data, &name, &ops, &bc2_navbuild::pyjson::Value::Str(level.to_owned()))
+            .map_err(ge)?;
+        for l in &t.lines {
+            out.line(l).map_err(words)?;
+        }
+        Some(t.text)
+    } else {
+        None
+    };
+    Ok((data, trav))
+}
+
+/// Lines kept (the export's report takes the last).
+struct Kept(Vec<String>);
+
+impl bc2_navbuild::inputs::Out for Kept {
+    fn line(&mut self, text: &str) -> bc2_navbuild::ntpath::Res<()> {
+        self.0.push(text.to_owned());
+        Ok(())
+    }
+}
+
+/// Stages the project's path data into `stage` (`ai/<infantry|vehicle>/pathdata.hpd`, and the traversal
+/// annotations beside the infantry file) for the level `level`: built in process ([`build_bytes`]) when there are
+/// samples to build from ([`ready_at`]), else the base level's newest path data as it is. Nothing in the game copy is
+/// written (the build may unpack the base's terrain into OPFOR's work folder, as NavKit's prepare does).
 ///
 /// # Errors
 /// The reasons it cannot (each in words), or a file that cannot be read or written.
@@ -225,56 +596,180 @@ pub fn stage(
     stage: &Path,
     level: &str,
 ) -> Result<PathDataRecord, Vec<String>> {
-    let src = ready(opfor, project, cur, base)?;
+    let mut kept = Kept(Vec::new());
+    stage_with(
+        opfor,
+        project,
+        cur,
+        base,
+        stage,
+        level,
+        bc2_navbuild::inputs::local_clock(),
+        &mut kept,
+    )
+}
+
+/// The Python the suite runs its Python steps with: `BFBC2_PYTHON`, else `bin\python.txt`'s, else `python`.
+fn python() -> PathBuf {
+    if let Some(v) = std::env::var_os("BFBC2_PYTHON").filter(|p| !p.is_empty()) {
+        return PathBuf::from(v);
+    }
+    let suite = bc2_pyrt::py::suite_root();
+    std::fs::read_to_string(suite.join("bin").join("python.txt"))
+        .ok()
+        .and_then(|t| t.lines().map(str::trim).find(|l| !l.is_empty()).map(|l| suite.join(l)))
+        .filter(|p| p.is_file())
+        .unwrap_or_else(|| PathBuf::from("python"))
+}
+
+/// The offline sampler on the stage (`navsample_offline.py stage <stage>`: the staged level prepared from its bundle
+/// and sampled into [`stage_tree`]; Python - the sampler's port is NavKit's next step), its lines to `out`.
+///
+/// # Errors
+/// It did not start or failed: its last lines.
+pub fn sample_stage(
+    opfor: &Path,
+    stage: &Path,
+    (level, base): (&str, &str),
+    out: &mut dyn bc2_navbuild::inputs::Out,
+) -> Result<(), String> {
+    use std::io::BufRead as _;
+    let script = bc2_pyrt::py::suite_root()
+        .join("bfbc2-auto-navkit")
+        .join("tools")
+        .join("navsample_offline.py");
+    let mut c = std::process::Command::new(python());
+    c.arg(&script)
+        .arg("stage")
+        .arg(stage)
+        .args(["--level", level, "--base", base])
+        .arg("--opfor")
+        .arg(opfor)
+        .env("PYTHONUNBUFFERED", "1")
+        .env("OPENBLAS_NUM_THREADS", "1")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        c.creation_flags(0x0800_0000);
+    }
+    let mut child = c.spawn().map_err(|e| format!("{}: {e}", script.display()))?;
+    let err = child.stderr.take().map(|s| {
+        std::thread::spawn(move || {
+            std::io::BufReader::new(s)
+                .lines()
+                .map_while(Result::ok)
+                .collect::<Vec<String>>()
+        })
+    });
+    let mut tail: Vec<String> = Vec::new();
+    if let Some(o) = child.stdout.take() {
+        for l in std::io::BufReader::new(o).lines().map_while(Result::ok) {
+            let _ = out.line(&l);
+            tail.push(l);
+        }
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    let errs = err.and_then(|h| h.join().ok()).unwrap_or_default();
+    if status.success() {
+        return Ok(());
+    }
+    tail.extend(errs);
+    let n = tail.len();
+    Err(tail.get(n.saturating_sub(4)..).unwrap_or_default().join(" | "))
+}
+
+/// [`stage`] with the sectors' clock words and the build's lines going to `out`.
+///
+/// # Errors
+/// The reasons it cannot (each in words), or a file that cannot be read or written.
+#[allow(clippy::too_many_arguments)]
+pub fn stage_with(
+    opfor: &Path,
+    project: &MapProject,
+    cur: &LevelWriter,
+    base: &LevelWriter,
+    stage: &Path,
+    level: &str,
+    clock: (u32, u32),
+    out: &mut dyn bc2_navbuild::inputs::Out,
+) -> Result<PathDataRecord, Vec<String>> {
+    let mut plan = ready_at(opfor, project, cur, base, Some(stage), Some(level))?;
+    if plan == Plan::Sample {
+        sample_stage(opfor, stage, (level, &project.base.level), out).map_err(|e| vec![format!("the offline sampler on the stage: {e}")])?;
+        plan = ready_at(opfor, project, cur, base, Some(stage), Some(level))?;
+        if plan == Plan::Sample {
+            return Err(vec!["the offline sampler on the stage wrote no samples".into()]);
+        }
+    }
     let mut files = Vec::new();
-    for (kind, from) in [("infantry", Some(&src.infantry)), ("vehicle", src.vehicle.as_ref())] {
-        let Some(from) = from else { continue };
-        let bytes = std::fs::read(from).map_err(|e| vec![format!("{}: {e}", from.display())])?;
-        let hpd = bc2_formats::hpd::parse(&bytes)
-            .map_err(|e| vec![format!("{}: not Kynapse path data ({e})", from.display())])?;
-        let rel = format!("ai/{kind}/pathdata.hpd");
-        let out = stage.join("ai").join(kind).join("pathdata.hpd");
+    let mut put = |rel: String, install: String, bytes: &[u8], entries: usize| -> Result<(), Vec<String>> {
+        let out = stage.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR));
         if let Some(dir) = out.parent() {
             std::fs::create_dir_all(dir).map_err(|e| vec![format!("{}: {e}", dir.display())])?;
         }
-        bc2_formats::atomic::write(&out, &[&bytes]).map_err(|e| vec![format!("{}: {e:?}", out.display())])?;
+        bc2_formats::atomic::write(&out, &[bytes]).map_err(|e| vec![format!("{}: {e:?}", out.display())])?;
         files.push(crate::export::StagedFile {
             path: rel,
-            install: install_path(level, kind),
-            sha1: crate::project::sha1_hex(&bytes),
+            install,
+            sha1: crate::project::sha1_hex(bytes),
             size: bytes.len() as u64,
-            entries: hpd.sectors.len(),
+            entries,
         });
-    }
+        Ok(())
+    };
+    let source = match plan {
+        Plan::Build(samples) => {
+            let (bytes, trav) = build_bytes(opfor, project, cur, base, &samples, level, clock, out)
+                .map_err(|e| vec![format!("NavKit's build of the level: {e}")])?;
+            let hpd = bc2_formats::hpd::parse(&bytes)
+                .map_err(|e| vec![format!("the built path data is not Kynapse path data ({e})")])?;
+            let n = hpd.sectors.len();
+            put(
+                "ai/infantry/pathdata.hpd".into(),
+                install_path(level, "infantry"),
+                &bytes,
+                n,
+            )?;
+            if let Some(t) = trav {
+                let lv = level.to_ascii_lowercase();
+                put(
+                    format!("ai/infantry/{lv}.traversal.json"),
+                    traversal_install_path(level),
+                    t.as_bytes(),
+                    0,
+                )?;
+            }
+            format!(
+                "NavKit's build of the level in process from {} ({})",
+                samples.kind,
+                samples.dir.display()
+            )
+        }
+        Plan::Sample => return Err(vec!["the offline sampler on the stage wrote no samples".into()]),
+        Plan::Copy(src) => {
+            for (kind, from) in [("infantry", Some(&src.infantry)), ("vehicle", src.vehicle.as_ref())] {
+                let Some(from) = from else { continue };
+                let bytes = std::fs::read(from).map_err(|e| vec![format!("{}: {e}", from.display())])?;
+                let hpd = bc2_formats::hpd::parse(&bytes)
+                    .map_err(|e| vec![format!("{}: not Kynapse path data ({e})", from.display())])?;
+                put(
+                    format!("ai/{kind}/pathdata.hpd"),
+                    install_path(level, kind),
+                    &bytes,
+                    hpd.sectors.len(),
+                )?;
+            }
+            format!("{} ({})", src.kind, src.infantry.display())
+        }
+    };
     Ok(PathDataRecord {
         files,
-        source: format!("{} ({})", src.kind, src.infantry.display()),
+        source,
         base: project.base.level.to_ascii_lowercase(),
     })
-}
-
-/// The path data the step would stage ([`sources`]' first) when nothing blocks it ([`blockers`]); the export's build
-/// asks this before it builds anything.
-///
-/// # Errors
-/// The reasons it cannot, each in words.
-pub fn ready(opfor: &Path, project: &MapProject, cur: &LevelWriter, base: &LevelWriter) -> Result<Source, Vec<String>> {
-    let mut why = blockers(project, cur, base);
-    let found = sources(opfor, &project.base.level);
-    let Some(src) = found.first() else {
-        why.push(format!(
-            "{} has no path data: neither NavKit's build (work\\navkit\\{lv}, work\\navkit_offline\\{lv}) nor DICE's \
-             file; build it first (`python bfbc2-auto-navkit\\tools\\navsample_offline.py all {lv}`, Python until \
-             NK4 / NK5)",
-            project.base.level,
-            lv = project.base.level.to_ascii_lowercase()
-        ));
-        return Err(why);
-    };
-    if !why.is_empty() {
-        return Err(why);
-    }
-    Ok(src.clone())
 }
 
 /// The check lines of a stage's path data (`mapexport check`): each file the one recorded, Kynapse path data, every

@@ -78,6 +78,9 @@ pub struct Root {
     pub game: String,
     /// `<root>\work`.
     pub work: String,
+    /// The samples' folder when not `<work>\navsample` (the offline sampler's `<work>\navsample_offline`, or a
+    /// stage's own samples: the export's path-data step).
+    pub samples_dir: Option<String>,
 }
 
 impl Root {
@@ -87,6 +90,7 @@ impl Root {
             root: root.to_owned(),
             game: join2(root, "game")?,
             work: join2(root, "work")?,
+            samples_dir: None,
         })
     }
 
@@ -138,13 +142,21 @@ impl Root {
 
     /// `pr.samples(lv, suffix)`.
     pub fn samples(&self, lv: &str, suffix: &str) -> Res<String> {
-        join(&self.work, &["navsample", &format!("{lv}_navkit{suffix}.bin")])
+        join2(&self.samples_folder()?, &format!("{lv}_navkit{suffix}.bin"))
+    }
+
+    /// The samples' folder: `<work>\navsample`, or [`Root::samples_dir`].
+    pub fn samples_folder(&self) -> Res<String> {
+        match &self.samples_dir {
+            Some(d) => Ok(d.clone()),
+            None => join2(&self.work, "navsample"),
+        }
     }
 
     /// `pr.samples08(lv)`: `<lv>_navkit.bin`, or `<lv>_full.bin` of older campaign runs.
     pub fn samples08(&self, lv: &str) -> Res<Option<String>> {
         for name in [format!("{lv}_navkit"), format!("{lv}_full")] {
-            let q = join(&self.work, &["navsample", &format!("{name}.bin")])?;
+            let q = join2(&self.samples_folder()?, &format!("{name}.bin"))?;
             if os::isfile(&q) {
                 return Ok(Some(q));
             }
@@ -788,6 +800,58 @@ pub fn reference_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
     Ok(Some(b))
 }
 
+/// `navregress.area_orders_of` for a level prepared before `area_orders.json` existed: `levelobjects.area_orders` of
+/// the converted level partition (`work\levels\<lv>\dist\levels\<lv>.xml`, any case): the Transform translation of
+/// every `.AreaOrderEntityData` away from the origin; `None` where the Python's `except Exception` gives `None` (no
+/// partition, no folder).
+fn area_orders_xml(l: &str, lv: &str) -> Res<Option<Vec<(f64, f64, f64)>>> {
+    const OPEN: &str = "<complex name=\"Transform\">";
+    let d = join(l, &["dist", "levels"])?;
+    let Ok(names) = os::listdir(&d) else {
+        return Ok(None);
+    };
+    let Some(name) = names.iter().find(|f| f.to_lowercase() == format!("{lv}.xml")) else {
+        return Ok(None);
+    };
+    let Ok(data) = std::fs::read(join2(&d, name)?) else {
+        return Ok(None);
+    };
+    let text = String::from_utf8_lossy(&data);
+    let found = bc2_formats::xmlinst::instances(&text, Some(".AreaOrderEntityData")).ok_or(Fail::Handoff)?;
+    let mut pts = Vec::new();
+    for (_t, _g, body) in found {
+        // re.search(r'<complex name="Transform">([^<]*)</complex>', body): the first such element
+        let mut from = 0;
+        let mut vals = None;
+        while let Some(p) = body.get(from..).and_then(|r| r.find(OPEN)) {
+            let s = from + p + OPEN.len();
+            let rest = body.get(s..).unwrap_or("");
+            let end = rest.find('<').unwrap_or(rest.len());
+            if rest.get(end..).is_some_and(|r| r.starts_with("</complex>")) {
+                vals = Some(&rest[..end]);
+                break;
+            }
+            from = from + p + 1;
+        }
+        let Some(vals) = vals else { continue };
+        let v = vals
+            .split('/')
+            .map(|a| {
+                let t = a.trim();
+                // float(): plain decimal text only; anything else (a Python-only spelling) is the Python's
+                if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit() || b"+-.eE".contains(&b)) {
+                    return Err(Fail::Handoff);
+                }
+                t.parse::<f64>().map_err(|_| Fail::Handoff)
+            })
+            .collect::<Res<Vec<f64>>>()?;
+        if v.len() >= 15 && v[12..15].iter().any(|c| c.abs() > 1e-3) {
+            pts.push((v[12], v[13], v[14]));
+        }
+    }
+    Ok(Some(pts))
+}
+
 /// What `build_inputs` gives: the inputs, the lines it logs (each printed after `== build`).
 #[derive(Debug, Clone)]
 pub struct Gathered {
@@ -857,10 +921,11 @@ pub fn build_inputs(r: &Root, lv: &str, tool: ToolRun<'_>) -> Res<Gathered> {
         None
     };
     let ao = join2(&l, "area_orders.json")?;
-    if !os::isfile(&ao) {
-        return Err(Fail::Handoff); // read from the level's XML (levelobjects.area_orders): the Python's
-    }
-    inp.area_orders = Some(points(&load_json(&ao)?)?);
+    inp.area_orders = if os::isfile(&ao) {
+        Some(points(&load_json(&ao)?)?)
+    } else {
+        area_orders_xml(&l, lv)?
+    };
     let lp = join2(&l, "ladders.json")?;
     if os::isfile(&lp) {
         let v = load_json(&lp)?;
