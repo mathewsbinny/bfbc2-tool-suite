@@ -177,7 +177,7 @@ impl Languages {
             }
         }
         let refs: Vec<&str> = names.iter().map(String::as_str).collect();
-        let Ok(data) = fbrb::read_path(bundle, &refs) else {
+        let Ok(data) = bc2_gamefs::bundles::read_path(bundle, &refs) else {
             return out;
         };
         for (n, d) in names.iter().zip(&data) {

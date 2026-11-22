@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 
 use bc2_editor::dbxinspect::{Applied, DbxDoc, NodePath};
 use bc2_editor::levels;
-use bc2_formats::dbxedit::{self as dx, EditFile};
+use bc2_formats::dbxedit::{self as dx, EditDbx};
 use serde_json::Value;
 
 fn recorded() -> Value {
@@ -170,9 +170,9 @@ impl Replay {
     }
 }
 
-fn source(root: &Path, rel: &str) -> (String, EditFile) {
+fn source(root: &Path, rel: &str) -> (String, EditDbx) {
     let p = root.join(rel);
-    let f = EditFile::parse(std::fs::read(&p).unwrap()).unwrap();
+    let f = dx::read(&std::fs::read(&p).unwrap()).unwrap();
     (p.display().to_string(), f)
 }
 
@@ -515,8 +515,7 @@ fn every_level_file_round_trips_through_the_inspector() {
                     if !seen.lock().unwrap().insert(sha1(&data)) {
                         continue;
                     }
-                    let Ok(d) = DbxDoc::from_bytes(data.clone(), bc2_editor::dbxinspect::Source::File(p.clone()), "x")
-                    else {
+                    let Ok(d) = DbxDoc::from_bytes(&data, bc2_editor::dbxinspect::Source::File(p.clone()), "x") else {
                         continue;
                     };
                     let mut bad = None;
@@ -524,9 +523,9 @@ fn every_level_file_round_trips_through_the_inspector() {
                         bad = Some("written back");
                     } else {
                         let xml = dx::convert(&data).unwrap();
-                        let reference = EditFile::parse(data.clone()).unwrap();
+                        let reference = dx::read(&data).unwrap();
                         match dx::import(|| Ok(xml), "x.xml", Some(&reference), &[]) {
-                            Ok((back, _)) if back.serialize().unwrap() == data => {}
+                            Ok((back, _)) if dx::serialize(&back).unwrap() == data => {}
                             _ => bad = Some("XML imported back"),
                         }
                     }

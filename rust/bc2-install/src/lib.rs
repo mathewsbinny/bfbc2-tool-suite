@@ -14,7 +14,7 @@
 //! | `ww2_level_install.install_all`'s guard and write half, `set_ini`, `register`, `install_patch`, `mark_stings`, `mark_tips`, `verify` | [`run::Run::install`] |
 //! | `ww2_level_install.revert_all`, `wake_install.revert` (less the menu mode's revert) | [`run::Run::revert`] |
 //! | `ww2_level_install.save_staged` / `load_staged` / `fingerprint` | [`staged`] |
-//! | `opforcore.stages.Stages.install` / `restate` / `check_install` | `bc2_formats::gameledger` ([`Ledger::install_keep`](bc2_formats::gameledger::Ledger::install_keep), `restate`), [`run`] |
+//! | `opforcore.stages.Stages.install` / `restate` / `check_install` | `bc2_gamefs::ledger` ([`Ledger::install_keep`](bc2_gamefs::ledger::Ledger::install_keep), `restate`), [`run`] |
 //! | `rebuild_all.locked` (the install takes it too) | [`lock`] |
 
 pub mod lock;

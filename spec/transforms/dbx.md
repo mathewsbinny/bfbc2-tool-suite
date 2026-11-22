@@ -46,7 +46,7 @@ writer's for every corpus file as read and after seeded random edits, for 2,000 
 a tree it cannot write (an element kind or value it has no encoding for) is an error naming the element, where the
 Python writer raised one.
 
-[code: rust/bc2-formats/src/dbx/writer.rs:276] [test: rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree]
+[code: rust/bc2-formats/src/dbx/writer.rs:268] [test: rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree]
 [test: rust/bc2-formats/src/dbx/writer.rs::refuses_unwritable_elements] [test: rust/bc2-formats/tests/robustness.rs::write_then_read_keeps_the_tree]
 [test: core/tests/test_dbx_write_native.py::edge_trees] [test: core/tests/test_dbx_write_native.py::random_trees]
 [doc: rust/BENCHMARKS.md:331-333]
@@ -59,7 +59,7 @@ Status: **verified**
 the edit did not touch is kept: string indexes, the header word, container bytes and the trailer; new strings are
 appended. DbxEdit's `roundtrip` leaves files written by `dbx::write` unchanged too (3,000 corpus files checked).
 
-[code: rust/bc2-formats/src/dbx/edit.rs:708] [test: rust/bc2-formats/src/dbx/edit.rs::unchanged_files_come_back]
+[code: rust/bc2-formats/src/dbx/edit.rs:942] [test: rust/bc2-formats/src/dbx/edit.rs::unchanged_files_come_back]
 [test: rust/bc2-formats/src/dbx/edit.rs::edits_and_clones] [test: core/tests/test_dbx_write_native.py::check_dbxedit]
 
 ## 3. XML back to binary
@@ -87,7 +87,7 @@ did: the same files written byte for byte, the same messages and exit codes, for
 usage, option and damaged-file errors, every edit fingerprint of the 795745 corpus and a recorded sample of 2,000
 corpus files through `xml`, `roundtrip`, `import` and an edit battery.
 
-[code: rust/bc2-formats/src/dbxedit/cli.rs:95-113]
+[code: rust/bc2-tools/src/dbxedit.rs:91-109]
 [test: core/tests/test_dbxedit.py::quick] [test: core/tests/test_dbxedit.py::golden_edits] [test: core/tests/test_dbxedit.py::game]
 
 ### XDBX-CMD-2: What each edit does
@@ -105,7 +105,7 @@ Status: **verified**
 
 An edit that names a guid or field the file does not have changes nothing and says so.
 
-[code: rust/bc2-formats/src/dbxedit/editor.rs:85-94] [code: rust/bc2-formats/src/dbxedit/editor.rs:113-145] [code: rust/bc2-formats/src/dbxedit/editor.rs:222-240] [code: rust/bc2-formats/src/dbxedit/editor.rs:395-410]
+[code: rust/bc2-formats/src/dbxedit/editor.rs:121-130] [code: rust/bc2-formats/src/dbxedit/editor.rs:151-183] [code: rust/bc2-formats/src/dbxedit/editor.rs:251-271] [code: rust/bc2-formats/src/dbxedit/editor.rs:418-433]
 [test: core/tests/test_dbxedit.py::quick] [test: core/tests/test_dbxedit.py::battery]
 
 ### XDBX-CMD-3: Output files are written atomically
@@ -115,7 +115,7 @@ Status: **verified**
 DbxEdit writes each output beside its target (`<path>.tmp-<process>-<n>`), flushed, then moved over it, waiting out
 a moment's lock; an error removes the temporary file and leaves the target as it was.
 
-[code: rust/bc2-formats/src/dbxedit/cli.rs:58-70] [test: rust/bc2-formats/src/atomic.rs::a_lasting_lock_is_returned] [test: rust/bc2-formats/src/atomic.rs::other_errors_are_not_retried]
+[code: rust/bc2-tools/src/dbxedit.rs:54-66] [test: rust/bc2-gamefs/src/atomic.rs::a_lasting_lock_is_returned] [test: rust/bc2-gamefs/src/atomic.rs::other_errors_are_not_retried]
 
 ## Open questions
 

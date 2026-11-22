@@ -339,13 +339,13 @@ impl Source {
             payload_at: b.payload_at,
             payload_len: b.payload_len,
         };
-        let folder = index_dir().map(std::path::PathBuf::from);
+        let store = index_dir().map(|d| bc2_gamefs::points::Folder(d.into()));
         bc2_formats::bf1943::global()
             .read(
                 &r,
                 u64::from(e.offset),
                 u64::from(e.size),
-                folder.as_deref(),
+                store.as_ref().map(|s| s as &dyn bc2_formats::bf1943::PointsStore),
                 bc2_formats::bf1943::Budgets::from_env(),
             )
             .ok()

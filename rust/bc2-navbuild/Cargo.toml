@@ -10,6 +10,8 @@ repository.workspace = true
 
 [dependencies]
 bc2-formats.workspace = true
+bc2-tools.workspace = true
+bc2-gamefs.workspace = true
 bc2-shader.workspace = true
 # the level driver (inputs.rs, round NK6): the detailed sectors near a NeedsDetailedPathfinding object's collision
 # (the suite's Havok index)

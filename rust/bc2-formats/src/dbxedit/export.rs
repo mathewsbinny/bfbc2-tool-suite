@@ -6,7 +6,7 @@
 use crate::dbx::{WHOLE_NUMBER_FIELDS, net_r_double, net_r_single};
 
 use super::fault::{Fault, FaultKind, Result};
-use super::file::{CONTAINER, Element, NUMBERS, TEXT, Table, be_u32, read_varint};
+use super::file::{CONTAINER, EditDbx, NUMBERS, NodeId, TEXT, Table, be_u32, read_varint};
 
 /// Whether 4-byte values of `field` are always whole numbers (hashes and ids).
 #[must_use]
@@ -89,16 +89,18 @@ fn numbers_text(payload: &[u8], pos: &mut usize, field: &str) -> Result<String> 
 ///
 /// # Errors
 /// A damaged value or string index.
-pub fn value_text(t: &Table, e: &Element) -> Result<String> {
+pub fn value_text(d: &EditDbx, e: NodeId) -> Result<String> {
+    let t = Table(d);
     let field = t.first_value(e)?;
     let mut pos = 0;
-    if e.kind == TEXT {
-        return Ok(t.s(read_varint(&e.payload, &mut pos)?)?.to_owned());
+    let payload = d.payload(e);
+    if d.kind(e) == TEXT {
+        return Ok(t.s(read_varint(payload, &mut pos)? as u32)?.to_owned());
     }
-    if e.kind == NUMBERS {
-        return numbers_text(&e.payload, &mut pos, field);
+    if d.kind(e) == NUMBERS {
+        return numbers_text(payload, &mut pos, field);
     }
-    Ok(scalar(*e.payload.get(1).ok_or_else(Fault::index)?))
+    Ok(scalar(*payload.get(1).ok_or_else(Fault::index)?))
 }
 
 /// `Escape`: `&`, `<`, `>` and `"` as entities.
@@ -172,7 +174,7 @@ pub fn convert(data: &[u8]) -> Result<String> {
         let name = s(tag)?;
         let head = *data.get(pos).ok_or_else(Fault::index)?;
         pos += 1;
-        let kind = i32::from(head >> 4);
+        let kind = head >> 4;
         indent(&mut xml, open.len());
         xml.push('<');
         xml.push_str(name);

@@ -4,18 +4,19 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
-use rayon::prelude::*;
-
 use super::error::{FbrbError, Result};
 use super::gzip::Member;
 use super::header::{Entry, Header, read_header};
 
 /// The payload is read (and, zipped, decompressed) this many bytes at a time, as the reference does: a damaged
 /// stream is noticed at the same point.
-pub(crate) const CHUNK: usize = 1 << 20;
+pub const CHUNK: usize = 1 << 20;
 
 /// Fills `buf` from `r` as far as it can (Python's buffered `read(n)`: short only at the end of the file).
-pub(crate) fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
+///
+/// # Errors
+/// The reader's error (but `Interrupted`, which is retried).
+pub fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
     let mut n = 0;
     while n < buf.len() {
         let Some(rest) = buf.get_mut(n..) else { break };
@@ -30,7 +31,7 @@ pub(crate) fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
 }
 
 /// Collects the bytes of some entries from the payload as it streams past.
-pub(crate) struct Collector<'e> {
+pub struct Collector<'e> {
     /// The entries, sorted by offset, each with the index of its output.
     order: Vec<(&'e Entry, usize)>,
     out: Vec<Vec<u8>>,
@@ -40,7 +41,9 @@ pub(crate) struct Collector<'e> {
 }
 
 impl<'e> Collector<'e> {
-    pub(crate) fn new(entries: &[&'e Entry]) -> Self {
+    /// A collector of `entries` (their bytes in this order).
+    #[must_use]
+    pub fn new(entries: &[&'e Entry]) -> Self {
         let mut order: Vec<(&Entry, usize)> = entries.iter().copied().zip(0..).collect();
         order.sort_by_key(|(e, _)| e.offset);
         Self {
@@ -52,7 +55,7 @@ impl<'e> Collector<'e> {
     }
 
     /// The bytes of the payload at the current position.
-    pub(crate) fn take(&mut self, data: &[u8]) {
+    pub fn take(&mut self, data: &[u8]) {
         let (lo, hi) = (self.pos, self.pos + data.len() as u64);
         while self.order.get(self.first_open).is_some_and(|(e, _)| e.end() <= lo) {
             self.first_open += 1;
@@ -71,7 +74,11 @@ impl<'e> Collector<'e> {
         self.pos = hi;
     }
 
-    pub(crate) fn finish(self) -> Result<Vec<Vec<u8>>> {
+    /// Each entry's bytes.
+    ///
+    /// # Errors
+    /// [`FbrbError::PayloadEnds`] when the payload ended before an entry's last byte.
+    pub fn finish(self) -> Result<Vec<Vec<u8>>> {
         let complete = self
             .order
             .iter()
@@ -228,16 +235,6 @@ pub fn entries_path(path: impl AsRef<Path>) -> Result<Header> {
     read_header(&mut File::open(path)?)
 }
 
-/// [`read`] from the file at `path`, through the bundle cache ([`super::cache`]: the header kept, the payload
-/// decompressed once per process or, for a large bundle read again, once for every process): the same bytes and
-/// errors as [`read_path_uncached`].
-///
-/// # Errors
-/// As [`read`].
-pub fn read_path<S: AsRef<str>>(path: impl AsRef<Path>, names: &[S]) -> Result<Vec<Vec<u8>>> {
-    super::cache::read_path(path.as_ref(), names)
-}
-
 /// [`read`] from the file at `path`, without the cache: the payload decompressed from its start every time.
 ///
 /// # Errors
@@ -246,33 +243,12 @@ pub fn read_path_uncached<S: AsRef<str>>(path: impl AsRef<Path>, names: &[S]) ->
     read(&mut File::open(path)?, names)
 }
 
-/// [`extract`] of the file at `path`, through the bundle cache (as [`read_path`]).
-///
-/// # Errors
-/// As [`extract`].
-pub fn extract_path(path: impl AsRef<Path>) -> Result<(Header, Vec<Vec<u8>>)> {
-    super::cache::extract_path(path.as_ref())
-}
-
 /// [`extract`] of the file at `path`, without the cache.
 ///
 /// # Errors
 /// As [`extract`].
 pub fn extract_path_uncached(path: impl AsRef<Path>) -> Result<(Header, Vec<Vec<u8>>)> {
     extract(&mut File::open(path)?)
-}
-
-/// [`read_path`] of each `(bundle, names)`, in parallel (one bundle per task: a payload is one gzip stream).
-/// Results keep the input order.
-#[must_use]
-pub fn read_many<P: AsRef<Path> + Sync, S: AsRef<str> + Sync>(items: &[(P, Vec<S>)]) -> Vec<Result<Vec<Vec<u8>>>> {
-    items.par_iter().map(|(p, n)| read_path(p, n)).collect()
-}
-
-/// [`extract_path`] of each bundle, in parallel. Results keep the input order.
-#[must_use]
-pub fn extract_many<P: AsRef<Path> + Sync>(paths: &[P]) -> Vec<Result<(Header, Vec<Vec<u8>>)>> {
-    paths.par_iter().map(extract_path).collect()
 }
 
 #[cfg(test)]
@@ -361,13 +337,10 @@ mod tests {
         let p = dir.join("t.fbrb");
         std::fs::write(&p, bundle(true)).unwrap();
         assert_eq!(entries_path(&p).unwrap().entries.len(), 4);
-        assert_eq!(read_path(&p, &["empty.txt"]).unwrap(), vec![Vec::<u8>::new()]);
-        assert_eq!(extract_path(&p).unwrap().1.len(), 4);
+        assert_eq!(read_path_uncached(&p, &["empty.txt"]).unwrap(), vec![Vec::<u8>::new()]);
+        assert_eq!(extract_path_uncached(&p).unwrap().1.len(), 4);
         let missing = dir.join("missing.fbrb");
-        let many = read_many(&[(p.clone(), vec!["levels/test.dbx"]), (missing.clone(), vec!["x"])]);
-        assert!(many[0].is_ok() && matches!(many[1], Err(FbrbError::Io(_))));
-        let ex = extract_many(&[&p, &missing]);
-        assert!(ex[0].is_ok() && ex[1].is_err());
+        assert!(matches!(read_path_uncached(&missing, &["x"]), Err(FbrbError::Io(_))));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

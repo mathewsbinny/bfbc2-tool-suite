@@ -240,7 +240,7 @@ fn level_partition(game: &Path, level: &str) -> Option<(String, Vec<u8>)> {
         game.join("Dist").join("win32").join("levels").join(level),
     ] {
         for b in bundles(&dir) {
-            let Ok((h, data)) = fbrb::extract_path(&b) else {
+            let Ok((h, data)) = fbrb::extract_path_uncached(&b) else {
                 continue;
             };
             for (e, d) in h.entries.iter().zip(data) {
@@ -278,7 +278,7 @@ fn main() {
         let dir = game.join("Dist").join("win32").join("levels").join(common);
         let mut n = 0usize;
         for b in bundles(&dir) {
-            let Ok((h, data)) = fbrb::extract_path(&b) else {
+            let Ok((h, data)) = fbrb::extract_path_uncached(&b) else {
                 continue;
             };
             for (e, d) in h.entries.iter().zip(data) {

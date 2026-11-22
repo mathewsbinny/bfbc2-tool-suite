@@ -2,7 +2,7 @@
 //! (`os.walk` + `relpath`), the install markers of before round DF2 (`*.opfor-stockmp-applied`: the SHA-256 of the
 //! file written; `stock_file` still reads them on a game copy whose install was not adopted into the install ledger)
 //! and `pipeline.check_report` (out\game against its `build_report.json`). The install itself is `bfbc2.exe`'s
-//! (`bc2-cli`'s `stockmp` group) on the game copy's install ledger (`bc2_formats::gameledger`, round DF2).
+//! (`bc2-cli`'s `stockmp` group) on the game copy's install ledger (`bc2_gamefs::ledger`, round DF2).
 //!
 //! Where Windows' path rules or Python's readers would see something the port does not reproduce - a name
 //! `GetFullPathNameW` / `normcase` changes (a trailing dot or space, a cased letter outside the ranges below), a link

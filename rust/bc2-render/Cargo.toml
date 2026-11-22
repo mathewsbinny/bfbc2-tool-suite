@@ -12,6 +12,7 @@ autotests = false
 
 [dependencies]
 bc2-formats.workspace = true
+bc2-gamefs.workspace = true
 # the tonemap over a frame's pixels
 rayon.workspace = true
 # the renderer's errors by kind (round OP1)

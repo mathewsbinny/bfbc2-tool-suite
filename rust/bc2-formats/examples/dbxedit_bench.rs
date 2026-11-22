@@ -8,7 +8,7 @@
 
 use std::time::Instant;
 
-use bc2_formats::dbxedit::{EditFile, convert, editor, import};
+use bc2_formats::dbxedit::{self, convert, editor, import};
 
 fn best<T>(runs: usize, mut f: impl FnMut() -> T) -> (f64, T) {
     let mut best = f64::MAX;
@@ -23,10 +23,10 @@ fn best<T>(runs: usize, mut f: impl FnMut() -> T) -> (f64, T) {
 }
 
 /// Every value's text, its length added to `n`.
-fn walk(t: &bc2_formats::dbxedit::Table, e: &bc2_formats::dbxedit::Element, n: &mut usize) {
-    match &e.children {
-        Some(k) => k.iter().for_each(|c| walk(t, c, n)),
-        None => *n += bc2_formats::dbxedit::value_text(t, e).unwrap().len(),
+fn walk(d: &dbxedit::EditDbx, e: dbxedit::NodeId, n: &mut usize) {
+    match d.children(e) {
+        Some(k) => k.iter().for_each(|&c| walk(d, c, n)),
+        None => *n += dbxedit::value_text(d, e).unwrap().len(),
     }
 }
 
@@ -36,9 +36,9 @@ fn main() {
     let runs: usize = args.get(2).and_then(|r| r.parse().ok()).unwrap_or(10);
     let data = std::fs::read(path).expect("readable");
     println!("{path}: {} KB, best of {runs}", data.len() / 1000);
-    let (t, file) = best(runs, || EditFile::parse(data.clone()).unwrap());
+    let (t, file) = best(runs, || dbxedit::read(&data).unwrap());
     println!("  parse            {t:8.2} ms");
-    let (t, bytes) = best(runs, || file.serialize().unwrap());
+    let (t, bytes) = best(runs, || dbxedit::serialize(&file).unwrap());
     println!("  serialize        {t:8.2} ms  (identical: {})", bytes == data);
     let (t, xml) = best(runs, || convert(&data).unwrap());
     println!("  xml (convert)    {t:8.2} ms  ({} KB of text)", xml.len() / 1000);
@@ -52,12 +52,12 @@ fn main() {
         "  import --like    {t:8.2} ms  ({} kept, {} changed; identical: {})",
         report.kept,
         report.changed,
-        back.serialize().unwrap() == data
+        dbxedit::serialize(&back).unwrap() == data
     );
-    let (t, _) = best(runs, || bc2_formats::dbxedit::parse_xml(&xml, "x.xml").unwrap());
+    let (t, _) = best(runs, || dbxedit::parse_xml(&xml, "x.xml").unwrap());
     println!("    of which the XML read {t:8.2} ms");
     let (t, _) = best(runs, || {
-        let mut b = bc2_formats::dbxedit::TypeBook::default();
+        let mut b = dbxedit::TypeBook::default();
         b.learn(&file).unwrap();
         b
     });
@@ -66,7 +66,7 @@ fn main() {
     println!("    the reference copied  {t:8.2} ms");
     let (t, _) = best(runs, || {
         let mut n = 0;
-        file.top_level.iter().for_each(|e| walk(&file.table, e, &mut n));
+        file.roots().iter().for_each(|&e| walk(&file, e, &mut n));
         n
     });
     println!("    every value's text    {t:8.2} ms");

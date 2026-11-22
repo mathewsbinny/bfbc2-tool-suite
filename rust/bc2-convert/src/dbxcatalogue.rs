@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 
 use bc2_formats::dbx::{self, CONTAINER, DbxTree, NUMBERS, Node, TEXT};
-use bc2_formats::fbrb;
 use rayon::prelude::*;
 
 use crate::pyfmt::OrderedMap;
@@ -283,7 +282,7 @@ pub fn build(bundles: &[Job], group: usize) -> Option<Built> {
             .iter()
             .map(|(b, ks)| (*b, ks.iter().map(|k| k.to_lowercase()).collect()))
             .collect();
-        let read = fbrb::read_many(&jobs);
+        let read = bc2_gamefs::bundles::read_many(&jobs);
         let mut datas: Vec<(&str, &str, Vec<u8>)> = Vec::new();
         for (r, (b, ks)) in read.into_iter().zip(grp) {
             let data = r.ok()?;

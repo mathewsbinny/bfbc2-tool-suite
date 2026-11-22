@@ -81,34 +81,13 @@ pub fn py_max(v: &[f64]) -> f64 {
 
 // ------------------------------------------------------------------------------------------------ binary DBX
 
-fn varint(data: &[u8], mut pos: usize) -> PyResult<(u64, usize)> {
-    let mut v: u64 = 0;
-    let mut shift = 0u32;
-    loop {
-        let b = *data.get(pos).ok_or(PY)?;
-        pos += 1;
-        let low = u64::from(b & 0x7f);
-        if shift > 63 || (shift > 0 && low >> (64 - shift) != 0) {
-            return Err(PY); // a big integer only Python reads
-        }
-        v |= low << shift;
-        if b < 0x80 {
-            return Ok((v, pos));
-        }
-        shift += 7;
-    }
+/// A varint ([`bc2_formats::varint::read_u64`]); one past 64 bits is a big integer only Python reads.
+fn varint(data: &[u8], pos: usize) -> PyResult<(u64, usize)> {
+    bc2_formats::varint::read_u64(data, pos).map_err(|_| PY)
 }
 
-fn put_varint(mut v: u64, out: &mut Vec<u8>) {
-    loop {
-        let b = (v & 0x7f) as u8;
-        v >>= 7;
-        if v == 0 {
-            out.push(b);
-            return;
-        }
-        out.push(b | 0x80);
-    }
+fn put_varint(v: u64, out: &mut Vec<u8>) {
+    bc2_formats::varint::put(out, v);
 }
 
 /// `El`: an element as the reference keeps it.
@@ -1177,24 +1156,7 @@ impl Objects {
     }
 }
 
-fn varint_e(data: &[u8], mut pos: usize) -> Result<(u64, usize), raw::ElementError> {
-    let start = pos;
-    let mut v = 0u64;
-    let mut shift = 0u32;
-    loop {
-        let b = *data.get(pos).ok_or(raw::ElementError::Truncated(start))?;
-        pos += 1;
-        let low = u64::from(b & 0x7f);
-        if shift > 63 || (shift > 0 && low >> (64 - shift) != 0) {
-            return Err(raw::ElementError::Varint(start));
-        }
-        v |= low << shift;
-        if b < 0x80 {
-            return Ok((v, pos));
-        }
-        shift += 7;
-    }
-}
+use raw::varint as varint_e;
 
 /// What [`stream_root`] hands out: each child of the first root, and - for the containers among a root child's own
 /// children that `streamed` picks - each of their items instead of the container holding them (the container is

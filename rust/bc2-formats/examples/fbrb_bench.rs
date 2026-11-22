@@ -73,7 +73,7 @@ fn main() {
     let extract = || {
         files
             .par_iter()
-            .filter_map(|f| fbrb::extract_path(f).ok())
+            .filter_map(|f| fbrb::extract_path_uncached(f).ok())
             .map(|(h, d)| (h.entries.len(), d.iter().map(|x| x.len() as u64).sum::<u64>()))
             .reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
     };

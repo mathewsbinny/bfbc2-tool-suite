@@ -110,7 +110,7 @@ A member's field name is its `name` attribute. Members are looked up by the firs
 equals the field name (exact case). A structure that is an array element has no name and is addressed by its
 position.
 
-[code: rust/bc2-formats/src/dbx/model.rs:165-169] [code: rust/bc2-formats/src/dbxedit/check.rs:258-285]
+[code: rust/bc2-formats/src/dbx/model.rs:165-169] [code: rust/bc2-formats/src/dbxedit/check.rs:261-288]
 [test: rust/bc2-formats/src/dbx/model.rs::lookups]
 
 ### TYPE-ATTR-3: The instance type is `<Namespace>.<Class>`
@@ -123,7 +123,7 @@ namespace. Twelve namespaces occur in the level corpus (`Emitter`, `GameSharedRe
 `Terrain`, `Animation`, `Render`, `Decal`, `Physics`, `Weather`, `WorldRender`, `Overgrowth`, ...).
 
 [data: level corpus: 14 distinct namespace prefixes; the largest Emitter 1,378,673 instances, GameSharedResources 357,107, Entity 266,203]
-[code: rust/bc2-scene/src/scene.rs:81-93] [code: rust/bc2-formats/src/dbxedit/check.rs:258-260]
+[code: rust/bc2-scene/src/scene.rs:81-93] [code: rust/bc2-formats/src/dbxedit/check.rs:261-263]
 
 ### TYPE-ATTR-4: exportMode
 
@@ -260,8 +260,8 @@ A `LinearTransform` member (`Transform`, `InitialRootBoneTransform`, ...) is a `
 three words used. The position is words 12, 13 and 14. Each row's fourth word is padding (all four 0, or all four
 0xCDCDCDCD); an edit writes the three words of each row and keeps the fourth.
 
-[code: rust/bc2-scene/src/scene.rs:395-397] [code: rust/bc2-formats/src/dbxedit/check.rs:76-80]
-[code: rust/bc2-formats/src/dbx/edit.rs:568-572] [test: rust/bc2-scene/tests/scene.rs::loads_a_level]
+[code: rust/bc2-scene/src/scene.rs:395-397] [code: rust/bc2-formats/src/dbxedit/check.rs:77-81]
+[code: rust/bc2-formats/src/dbx/edit.rs:795-799] [test: rust/bc2-scene/tests/scene.rs::loads_a_level]
 [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 [data: MP_005 level bundle: 7,343 Transform complexes, fourth words all 0 on 4,562 and all CDCDCDCD on 2,781]
 
@@ -326,7 +326,7 @@ a class lists its members in the same order (the catalogue's `order`), so the da
 class.
 
 [inferred: no tag or attribute names a class definition (TYPE-ELEM-1, TYPE-ATTR-1); the importer's catalogue builds field order, shapes and defaults per class from the partitions themselves, which would be unnecessary with a schema in the files]
-[code: rust/bc2-convert/src/dbxcatalogue.rs:40-60]
+[code: rust/bc2-convert/src/dbxcatalogue.rs:39-59]
 
 ### TYPE-SCH-2: The suite learns types from the data
 

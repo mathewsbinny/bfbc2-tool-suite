@@ -100,7 +100,7 @@ impl Files {
 
     /// Reads names from the bundles; returns how many were read. Round R5d: the bundles of a round are read at once
     /// (one task a bundle: a payload is one gzip stream) and through the suite's bundle cache
-    /// ([`bc2_formats::fbrb::read_many`]: the payload decompressed so far kept in the process, and a large bundle read
+    /// ([`bc2_gamefs::bundles::read_many`]: the payload decompressed so far kept in the process, and a large bundle read
     /// a second time written whole to the shared disk cache, `BFBC2_FBRB_CACHE`, inside its one budget), so a later
     /// round seeks instead of decompressing the payload from its start again. [`UNCACHED_ENV`] (or the cache turned
     /// off) reads as before: one streamed pass a bundle, one bundle after another.
@@ -136,7 +136,7 @@ impl Files {
                 })
                 .collect()
         } else {
-            fbrb::read_many(&items)
+            bc2_gamefs::bundles::read_many(&items)
                 .into_iter()
                 .zip(&items)
                 .map(|(r, (p, _))| r.map_err(|e| RenderError::Data(format!("{}: {e}", p.display()))))

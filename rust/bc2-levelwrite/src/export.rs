@@ -450,7 +450,7 @@ pub fn read_found(found: &[&Found]) -> Result<Vec<Vec<u8>>> {
     let mut out = vec![Vec::new(); found.len()];
     for (b, items) in by_bundle {
         let names: Vec<&str> = items.iter().map(|x| x.1).collect();
-        let data = fbrb::read_path(b, &names).map_err(|e| err(format!("{}: {e}", b.display())))?;
+        let data = bc2_gamefs::bundles::read_path(b, &names).map_err(|e| err(format!("{}: {e}", b.display())))?;
         for ((i, _), d) in items.into_iter().zip(data) {
             if let Some(slot) = out.get_mut(i) {
                 *slot = d;
@@ -4265,7 +4265,7 @@ pub fn patch_startup(
         std::fs::remove_dir_all(work)?;
     }
     let _scratch = Scratch(work);
-    fbrb::unpack_path(source, work).map_err(|e| err(format!("{}: {e}", source.display())))?;
+    bc2_tools::unpack_path(source, work).map_err(|e| err(format!("{}: {e}", source.display())))?;
     let man_path = work.join("fbrb.manifest");
     let man = String::from_utf8_lossy(&std::fs::read(&man_path)?).into_owned();
     let mut lines: Vec<String> = man.lines().map(str::to_owned).collect();
@@ -4352,7 +4352,7 @@ pub fn patch_startup(
         body.push(format!("{name}|{NONRES}|{FLAGS:08x}|{}|{}", bytes.len(), bytes.len()));
     }
     std::fs::write(&man_path, format!("{head}\n{}\n", body.join("\n")))?;
-    fbrb::pack_path(work, out)?;
+    bc2_gamefs::bundles::pack_path(work, out)?;
     std::fs::remove_dir_all(work)?;
     Ok(items)
 }
@@ -4366,7 +4366,7 @@ fn repack(source: &Path, work: &Path, out: &Path, f: impl FnOnce(&Path, &mut Vec
         std::fs::remove_dir_all(work)?;
     }
     let _scratch = Scratch(work);
-    fbrb::unpack_path(source, work).map_err(|e| err(format!("{}: {e}", source.display())))?;
+    bc2_tools::unpack_path(source, work).map_err(|e| err(format!("{}: {e}", source.display())))?;
     let man_path = work.join("fbrb.manifest");
     let man = String::from_utf8_lossy(&std::fs::read(&man_path)?).into_owned();
     let mut lines: Vec<String> = man.lines().map(str::to_owned).collect();
@@ -4377,7 +4377,7 @@ fn repack(source: &Path, work: &Path, out: &Path, f: impl FnOnce(&Path, &mut Vec
     };
     f(work, &mut lines)?;
     std::fs::write(&man_path, format!("{head}\n{}\n", lines.join("\n")))?;
-    fbrb::pack_path(work, out)?;
+    bc2_gamefs::bundles::pack_path(work, out)?;
     std::fs::remove_dir_all(work)?;
     Ok(())
 }

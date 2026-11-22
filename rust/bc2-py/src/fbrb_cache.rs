@@ -1,9 +1,10 @@
-//! The bundle cache's controls (round E3e: `bc2_formats::fbrb::cache`), for `bfbc2core.fbrb`: the configuration,
-//! what the cache did, and a read without it (the tests' reference).
+//! The bundle cache's controls (round E3e: `bc2_gamefs::bundles` since round PR1b-2), for `bfbc2core.fbrb`: the
+//! configuration, what the cache did, and a read without it (the tests' reference).
 
 use std::path::PathBuf;
 
-use bc2_formats::fbrb::{self, cache};
+use bc2_formats::fbrb;
+use bc2_gamefs::bundles as cache;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 

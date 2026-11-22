@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 
-use bc2_formats::gameledger::{self, Ledger, Legacy};
+use bc2_gamefs::ledger::{self as gameledger, Ledger, Legacy};
 use bc2_stockmp::install::{self, APPLIED, BACKUP, Fault, isfile, join};
 
 mod build;
@@ -439,6 +439,6 @@ fn install(py: &mut Py, paths: &Paths, args: &[String]) -> PyResult<i32> {
     }
 }
 
-fn ledger(e: &gameledger::Error) -> Fail {
+fn ledger(e: &gameledger::LedgerError) -> Fail {
     Fail::Err(PyErr::new("LedgerError", e.to_string()))
 }

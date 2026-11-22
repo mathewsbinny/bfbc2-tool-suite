@@ -10,7 +10,7 @@
 //!   byte order, leftovers, roundtrip); [`aptscan`]: `aptcheck`'s rules and `aptrefs`' scan over the decoded records.
 //! - [`dbx`]: binary `.dbx` partitions (`bfbc2-dbx-tools/FORMAT.md` sections 1-3), a port of
 //!   `core/bfbc2core/dbx.py`: the element tree, the readable XML (identical to `DbxEdit xml`), values and a writer.
-//! - [`dbxedit`]: DbxEdit's commands in process (`xml`, `edit`, `import`, `check`, `roundtrip`, `fixslots`), a
+//! - [`dbxedit`]: DbxEdit's model and commands in process (edits, import, export, check), a
 //!   port of `bfbc2-dbx-tools/DbxEdit.cs` giving its files, messages and exit codes.
 //! - [`fbrb`]: `.fbrb` bundles, a port of `core/bfbc2core/fbrb.py`: the header's entries and any entry's data.
 //! - [`granny`]: Granny skeletons and animations (PC and Xbox 360), a port of the reader of
@@ -49,7 +49,6 @@ pub mod aimanim;
 pub mod apt;
 pub mod aptmodel;
 pub mod aptscan;
-pub mod atomic;
 pub mod audioframe;
 pub mod bf1943;
 pub mod bigf;
@@ -57,7 +56,6 @@ pub mod culltree;
 pub mod dbx;
 pub mod dbxedit;
 pub mod fbrb;
-pub mod gameledger;
 pub mod granny;
 pub mod guid;
 pub mod havok;
@@ -66,13 +64,12 @@ pub mod hpdlayout;
 pub mod kymesh;
 pub mod loc;
 pub mod meshdata;
-pub mod meshindex;
 pub mod pe;
 pub mod restart;
-pub mod sha256;
 pub mod shaderdb;
 pub mod stfs;
 pub mod terrain;
+pub mod varint;
 pub mod water;
 pub mod wave;
 pub mod xiso;
@@ -81,8 +78,8 @@ pub mod zlib;
 
 mod bytes;
 
-/// The number of worker threads the batch functions ([`dbx::parse_all`], [`dbx::to_xml_all`], [`fbrb::read_many`]) use: rayon's
-/// global pool, `RAYON_NUM_THREADS` or else one per logical core.
+/// The number of worker threads the batch functions ([`dbx::parse_all`], [`dbx::to_xml_all`],
+/// `bc2_gamefs::bundles::read_many`) use: rayon's global pool, `RAYON_NUM_THREADS` or else one per logical core.
 #[must_use]
 pub fn threads() -> usize {
     rayon::current_num_threads()

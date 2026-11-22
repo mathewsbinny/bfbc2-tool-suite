@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use crate::dbx::net_g;
 
 use super::fault::{Fault, Result};
-use super::file::{EditFile, Element, NUMBERS, be_u32};
+use super::file::{EditDbx, NUMBERS, NodeId, Table, be_u32, instances, kids, partition_children, read};
 use super::net;
 
 /// A placed object (`ReferenceObjectData`): blueprint, position and cull slot (`Enumeration`).
@@ -40,10 +40,10 @@ impl PlacedObject {
     ///
     /// # Errors
     /// A file without a partition, an instance that is not a container, or a damaged string.
-    pub fn all(f: &EditFile) -> Result<Vec<PlacedObject>> {
-        let t = &f.table;
+    pub fn all(f: &EditDbx) -> Result<Vec<PlacedObject>> {
+        let t = Table(f);
         let mut list = Vec::new();
-        for (index, i) in f.partition_children()?.iter().enumerate() {
+        for (index, &i) in partition_children(f)?.iter().enumerate() {
             if t.tag(i)? != "instance" {
                 continue;
             }
@@ -61,11 +61,12 @@ impl PlacedObject {
                 y: 0.0,
                 z: 0.0,
             };
-            for (ci, c) in i.children.as_ref().ok_or_else(Fault::null)?.iter().enumerate() {
+            for (ci, &c) in f.children(i).ok_or_else(Fault::null)?.iter().enumerate() {
                 let name = t.get(c, "name")?;
-                if name == Some("Enumeration") && c.kind == NUMBERS && c.payload.len() == 6 {
+                let payload = f.payload(c);
+                if name == Some("Enumeration") && f.kind(c) == NUMBERS && payload.len() == 6 {
                     o.slot = Some(ci);
-                    o.slot_value = be_u32(&c.payload, 2)? as i32;
+                    o.slot_value = be_u32(payload, 2)? as i32;
                 } else if name == Some("ReferencedObject") {
                     let r = net::to_lower(t.get(c, "ref")?.unwrap_or(""));
                     let parts: Vec<&str> = r.split('/').collect();
@@ -74,10 +75,10 @@ impl PlacedObject {
                     } else {
                         String::new()
                     });
-                } else if name == Some("Transform") && c.kind == NUMBERS && c.payload.len() >= 2 + 16 * 4 {
-                    o.x = float_at(&c.payload, 2 + 12 * 4);
-                    o.y = float_at(&c.payload, 2 + 13 * 4);
-                    o.z = float_at(&c.payload, 2 + 14 * 4);
+                } else if name == Some("Transform") && f.kind(c) == NUMBERS && payload.len() >= 2 + 16 * 4 {
+                    o.x = float_at(payload, 2 + 12 * 4);
+                    o.y = float_at(payload, 2 + 13 * 4);
+                    o.z = float_at(payload, 2 + 14 * 4);
                 }
             }
             list.push(o);
@@ -139,7 +140,7 @@ pub struct SlotResult {
 ///
 /// # Errors
 /// A damaged file, or an object without a guid.
-pub fn fix_slots(file: &mut EditFile, cull_level: &EditFile) -> Result<SlotResult> {
+pub fn fix_slots(file: &mut EditDbx, cull_level: &EditDbx) -> Result<SlotResult> {
     let mine: Vec<PlacedObject> = PlacedObject::all(file)?
         .into_iter()
         .filter(|o| o.slot.is_some())
@@ -198,20 +199,22 @@ pub fn fix_slots(file: &mut EditFile, cull_level: &EditFile) -> Result<SlotResul
             }
         }
     }
-    let p = file.top_level.first_mut().ok_or_else(Fault::list_index)?;
-    let kids = p.children.as_mut().ok_or_else(Fault::null)?;
+    let p = *file.roots().first().ok_or_else(Fault::list_index)?;
+    let parts = file.children(p).ok_or_else(Fault::null)?.to_vec();
     for (mi, v) in assigned {
         let Some(o) = mine.get(mi) else { continue };
         if o.slot_value == v {
             continue;
         }
-        if let Some(c) = kids
-            .get_mut(o.index)
-            .and_then(|i| i.children.as_mut())
-            .and_then(|k| o.slot.and_then(|s| k.get_mut(s)))
-        {
+        let slot = parts
+            .get(o.index)
+            .and_then(|&i| file.children(i))
+            .and_then(|k| o.slot.and_then(|s| k.get(s)))
+            .copied();
+        if let Some(c) = slot {
             let b = v.to_be_bytes();
-            c.payload = vec![1, 4, b[0], b[1], b[2], b[3]];
+            file.set_payload(c, vec![1, 4, b[0], b[1], b[2], b[3]])
+                .map_err(|_| Fault::null())?;
         }
         r.changed += 1;
     }
@@ -259,16 +262,13 @@ fn short(ty: &str) -> &str {
     ty.rfind('.').map_or(ty, |i| ty.get(i + 1..).unwrap_or(""))
 }
 
-fn walk<'f>(
-    file: &'f EditFile,
-    element: &'f Element,
-    path: &str,
-    visit: &mut dyn FnMut(&'f Element, &str) -> Result<()>,
-) -> Result<()> {
-    let table = &file.table;
-    let Some(kids) = &element.children else { return Ok(()) };
+fn walk(file: &EditDbx, element: NodeId, path: &str, visit: &mut dyn FnMut(NodeId, &str) -> Result<()>) -> Result<()> {
+    let table = Table(file);
+    let Some(kids) = file.children(element) else {
+        return Ok(());
+    };
     let mut seen: HashMap<String, usize> = HashMap::new();
-    for child in kids {
+    for &child in kids {
         let name = match table.get(child, "name")? {
             Some(name) => name.to_owned(),
             None => table.tag(child)?.to_owned(),
@@ -293,17 +293,17 @@ fn walk<'f>(
 ///
 /// # Errors
 /// A damaged file, or an object without a guid where one is compared.
-pub fn level_check(f: &EditFile, slots_from: Option<&EditFile>, bundles: &[String]) -> Result<Vec<Finding>> {
-    let t = &f.table;
+pub fn level_check(f: &EditDbx, slots_from: Option<&EditDbx>, bundles: &[String]) -> Result<Vec<Finding>> {
+    let t = Table(f);
     let mut found = Vec::new();
     let mut guids = HashSet::new();
-    for i in f.instances()? {
+    for i in instances(f)? {
         guids.insert(net::to_upper(t.get(i?, "guid")?.unwrap_or("")));
     }
     // external references: "partition|guid" -> up to 3 places, in the order first met
     let mut external: Vec<(String, Vec<String>)> = Vec::new();
     let mut external_index: HashMap<String, usize> = HashMap::new();
-    for inst in f.instances()? {
+    for inst in instances(f)? {
         let inst = inst?;
         let ty = t.get(inst, "type")?.unwrap_or("");
         let place = format!("{} {}", short(ty), t.get(inst, "guid")?.unwrap_or(""));
@@ -367,10 +367,10 @@ pub fn level_check(f: &EditFile, slots_from: Option<&EditFile>, bundles: &[Strin
     Ok(found)
 }
 
-fn check_world_listed(f: &EditFile, found: &mut Vec<Finding>) -> Result<()> {
-    let t = &f.table;
+fn check_world_listed(f: &EditDbx, found: &mut Vec<Finding>) -> Result<()> {
+    let t = Table(f);
     let mut level = None;
-    for i in f.instances()? {
+    for i in instances(f)? {
         let i = i?;
         if t.get(i, "type")?.unwrap_or("").ends_with(".LevelData") {
             level = Some(i);
@@ -379,19 +379,19 @@ fn check_world_listed(f: &EditFile, found: &mut Vec<Finding>) -> Result<()> {
     }
     let Some(level) = level else { return Ok(()) };
     let mut objects = None;
-    for c in level.children.as_ref().ok_or_else(Fault::null)? {
-        if t.get(c, "name")? == Some("Objects") && c.is_container() {
+    for &c in f.children(level).ok_or_else(Fault::null)? {
+        if t.get(c, "name")? == Some("Objects") && f.is_container(c) {
             objects = Some(c);
             break;
         }
     }
     let mut listed = HashSet::new();
     if let Some(o) = objects {
-        for c in o.kids() {
+        for &c in kids(f, o) {
             listed.insert(net::to_upper(t.get(c, "ref")?.unwrap_or("")));
         }
     }
-    for i in f.instances()? {
+    for i in instances(f)? {
         let i = i?;
         let ty = t.get(i, "type")?.unwrap_or("");
         let guid = t.get(i, "guid")?;
@@ -412,7 +412,7 @@ fn check_world_listed(f: &EditFile, found: &mut Vec<Finding>) -> Result<()> {
     Ok(())
 }
 
-fn check_slots(f: &EditFile, slots_from: Option<&EditFile>, found: &mut Vec<Finding>) -> Result<()> {
+fn check_slots(f: &EditDbx, slots_from: Option<&EditDbx>, found: &mut Vec<Finding>) -> Result<()> {
     let all = PlacedObject::all(f)?;
     let objects: Vec<&PlacedObject> = all.iter().filter(|o| o.slot.is_some() && o.slot_value != 0).collect();
     let mut groups: Vec<(i32, Vec<&PlacedObject>)> = Vec::new();
@@ -510,11 +510,11 @@ fn check_external(external: &[(String, Vec<String>)], bundles: &[String], found:
         };
         let lp = net::to_upper(path);
         if !loaded.contains_key(&lp) {
-            let d = EditFile::parse(net::read_bytes(path)?)?;
-            let g = if d.is_binary {
+            let d = read(&net::read_bytes(path)?)?;
+            let g = if d.is_binary() {
                 let mut set = HashSet::new();
-                for i in d.instances()? {
-                    set.insert(net::to_upper(d.table.get(i?, "guid")?.unwrap_or("")));
+                for i in instances(&d)? {
+                    set.insert(net::to_upper(Table(&d).get(i?, "guid")?.unwrap_or("")));
                 }
                 Some(set)
             } else {

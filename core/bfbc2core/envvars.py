@@ -91,6 +91,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'OPFOR_TOOLKIT': ('paths', "the folder holding the suite as Project OPFOR sees it (OPFOR's opforcore.paths)"),
     'OPFOR_GAME': ('paths', "a game folder for levelwrite's export tests (default: OPFOR's game copy)"),
     # workers
+    'BFBC2_WORKERS': ('workers', "the suite's one worker knob: the Rust core's pool (bc2_native, bfbc2.exe, the map editor) and every tool's workers without its own variable"),
     'BFBC2_HLSL_WORKERS': ('workers', "pcbuild's compiler processes"),
     'BFBC2_TEXQA_WORKERS': ('workers', "texqa's worker processes"),
     'BFBC2_XDIFF_WORKERS': ('workers', "xdiff's worker processes"),

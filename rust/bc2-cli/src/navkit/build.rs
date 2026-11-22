@@ -24,7 +24,7 @@ pub fn root(pr: &Project) -> Root {
 /// An in-process `FbrbTool` run, logged as the Python's tool runs are.
 pub fn tool(args: &[String]) -> i32 {
     let logp = crate::pylog::log_path("fbrbtool");
-    let o = bc2_formats::fbrb::tool::run(args, logp.as_deref());
+    let o = bc2_tools::fbrbtool::run(args, logp.as_deref());
     crate::pylog::append(logp.as_deref(), "fbrbtool", args, &o.log);
     o.code
 }

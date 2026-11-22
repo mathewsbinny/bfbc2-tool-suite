@@ -21,3 +21,15 @@ def _read_version(path: str = VERSION_FILE) -> str:
 
 
 __version__ = _read_version()
+
+WORKERS_ENV = 'BFBC2_WORKERS'
+
+
+def workers(tool_env: str, default: int) -> int:
+    """A tool's workers (round PR1b-2, the one knob): its own variable (tool_env), else BFBC2_WORKERS (also the
+    Rust core's pool: bc2_gamefs::workers), else default; at least 1."""
+    for env in (tool_env, WORKERS_ENV):
+        v = os.environ.get(env, '').strip()
+        if v.isdigit():
+            return max(1, int(v))
+    return max(1, default)

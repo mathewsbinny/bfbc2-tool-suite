@@ -7,13 +7,9 @@ use std::path::Path;
 
 use rayon::prelude::*;
 
-use super::check::{fix_slots, level_check};
-use super::editor;
-use super::export::convert;
-use super::fault::{Fault, FaultKind, Result};
-use super::file::EditFile;
-use super::import::import;
-use super::net;
+use bc2_formats::dbxedit::{
+    EditDbx, Fault, FaultKind, Result, convert, editor, fix_slots, import, instance, level_check, net, read, serialize,
+};
 
 /// What a run of a command printed, its exit code, and the lines DbxEdit would have logged.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -55,21 +51,21 @@ impl Outcome {
     }
 }
 
-/// `AtomicFile.WriteAllBytes`: [`crate::atomic::write`] (beside the target as `<path>.tmp-<process>-<n>`, flushed,
+/// `AtomicFile.WriteAllBytes`: [`bc2_gamefs::atomic::write`] (beside the target as `<path>.tmp-<process>-<n>`, flushed,
 /// then moved over it, waiting out a moment's lock on the target).
 ///
 /// # Errors
 /// The I/O error as .NET words it: with the temporary file's name when it could not be written, the target's when
 /// the move failed.
 pub fn write_atomic(path: &str, data: &[u8]) -> Result<()> {
-    crate::atomic::write(Path::new(path), &[data]).map_err(|e| match &e {
-        crate::atomic::WriteError::Temp(tmp, io) => Fault::io(io, tmp),
-        crate::atomic::WriteError::Replace(io) => Fault::io(io, Path::new(path)),
+    bc2_gamefs::atomic::write(Path::new(path), &[data]).map_err(|e| match &e {
+        bc2_gamefs::atomic::WriteError::Temp(tmp, io) => Fault::io(io, tmp),
+        bc2_gamefs::atomic::WriteError::Replace(io) => Fault::io(io, Path::new(path)),
     })
 }
 
-fn read_file(path: &str) -> Result<EditFile> {
-    EditFile::parse(net::read_bytes(path)?)
+fn read_file(path: &str) -> Result<EditDbx> {
+    read(&net::read_bytes(path)?)
 }
 
 fn deleted_note(n: usize) -> String {
@@ -190,17 +186,17 @@ fn roundtrip(path: &str, o: &mut Outcome) -> Result<i32> {
                 continue;
             }
         };
-        if !d.is_binary {
+        if !d.is_binary() {
             skipped += 1;
             continue;
         }
-        let written = d.serialize()?;
-        if written == d.original {
+        let written = serialize(&d)?;
+        if written == d.original() {
             same += 1;
         } else {
             different += 1;
             if different <= 10 {
-                o.out(&format!("DIFF {f} ({} -> {})", d.original.len(), written.len()));
+                o.out(&format!("DIFF {f} ({} -> {})", d.original().len(), written.len()));
             }
         }
     }
@@ -242,7 +238,7 @@ fn part<'a>(p: &[&'a str], i: usize) -> Result<&'a str> {
     p.get(i).copied().ok_or_else(Fault::index)
 }
 
-fn source<'c>(cache: &'c mut HashMap<String, EditFile>, path: &str) -> Result<&'c EditFile> {
+fn source<'c>(cache: &'c mut HashMap<String, EditDbx>, path: &str) -> Result<&'c EditDbx> {
     if !cache.contains_key(path) {
         let f = read_file(path)?;
         cache.insert(path.to_owned(), f);
@@ -253,8 +249,8 @@ fn source<'c>(cache: &'c mut HashMap<String, EditFile>, path: &str) -> Result<&'
 /// One `edit` command applied: `Some(exit code)` when it stops the edit (nothing is written then).
 #[expect(clippy::too_many_lines, reason = "one arm per command, as DbxEdit's Program.Edit")]
 fn apply(
-    file: &mut EditFile,
-    sources: &mut HashMap<String, EditFile>,
+    file: &mut EditDbx,
+    sources: &mut HashMap<String, EditDbx>,
     fields_set: &mut usize,
     command: &str,
     o: &mut Outcome,
@@ -356,7 +352,7 @@ fn apply(
                 "graft {guid} from {}: {count} instance(s)",
                 net::file_name(src_path)
             ));
-            if count == 0 && file.instance(guid)?.is_none() {
+            if count == 0 && instance(file, guid)?.is_none() {
                 o.err(&format!("nothing grafted for {guid}"));
                 return Ok(Some(1));
             }
@@ -373,12 +369,12 @@ fn edit(args: &[String], o: &mut Outcome) -> Result<i32> {
     let input = args.get(1).map_or("", String::as_str);
     let output = args.get(2).map_or("", String::as_str);
     let mut file = read_file(input)?;
-    if !file.is_binary {
+    if !file.is_binary() {
         o.err(&format!("not a binary dbx: {input}"));
         return Ok(2);
     }
     let commands = expand_commands(args.get(3..).unwrap_or_default())?;
-    let mut sources: HashMap<String, EditFile> = HashMap::new();
+    let mut sources: HashMap<String, EditDbx> = HashMap::new();
     let mut fields_set = 0;
     for c in &commands {
         if let Some(code) = apply(&mut file, &mut sources, &mut fields_set, c, o)? {
@@ -388,7 +384,7 @@ fn edit(args: &[String], o: &mut Outcome) -> Result<i32> {
     if fields_set > 0 {
         o.out(&format!("setfield: {fields_set} field(s)"));
     }
-    write_atomic(output, &file.serialize()?)?;
+    write_atomic(output, &serialize(&file)?)?;
     Ok(0)
 }
 
@@ -427,7 +423,7 @@ fn import_cmd(args: &[String], o: &mut Outcome) -> Result<i32> {
         let reference = match &like {
             Some(l) => {
                 let r = read_file(l)?;
-                if !r.is_binary {
+                if !r.is_binary() {
                     o.err(&format!("import: not a binary dbx: {l}"));
                     return Ok(1);
                 }
@@ -439,7 +435,7 @@ fn import_cmd(args: &[String], o: &mut Outcome) -> Result<i32> {
         for tp in &type_paths {
             for p in net::dbx_files(tp)? {
                 let d = read_file(&p)?;
-                if d.is_binary {
+                if d.is_binary() {
                     type_files.push(d);
                 }
             }
@@ -450,7 +446,7 @@ fn import_cmd(args: &[String], o: &mut Outcome) -> Result<i32> {
             reference.as_ref(),
             &type_files,
         )?;
-        write_atomic(output, &result.serialize()?)?;
+        write_atomic(output, &serialize(&result)?)?;
         let types_from = like.as_ref().map_or(String::new(), |l| format!(" (types from {l})"));
         let rounded = if report.rounded > 0 {
             format!("; {} decimal(s) rounded to the nearest 4-byte value", report.rounded)
@@ -507,7 +503,7 @@ fn check(args: &[String], o: &mut Outcome) -> Result<i32> {
     }
     let path = args.get(1).map_or("", String::as_str);
     let f = read_file(path)?;
-    if !f.is_binary {
+    if !f.is_binary() {
         o.err(&format!("not a binary dbx: {path}"));
         return Ok(2);
     }
@@ -534,7 +530,7 @@ fn fixslots(args: &[String], o: &mut Outcome) -> Result<i32> {
     }
     let mut f = read_file(args.get(1).map_or("", String::as_str))?;
     let from = read_file(args.get(4).map_or("", String::as_str))?;
-    if !f.is_binary || !from.is_binary {
+    if !f.is_binary() || !from.is_binary() {
         o.err("not a binary dbx");
         return Ok(2);
     }
@@ -546,6 +542,6 @@ fn fixslots(args: &[String], o: &mut Outcome) -> Result<i32> {
     for u in r.unmatched.iter().take(30) {
         o.out(&format!("  no counterpart: {u}"));
     }
-    write_atomic(args.get(2).map_or("", String::as_str), &f.serialize()?)?;
+    write_atomic(args.get(2).map_or("", String::as_str), &serialize(&f)?)?;
     Ok(0)
 }

@@ -22,7 +22,7 @@ The index words are big-endian on every platform; only the length word at 4 is l
 Xbox 360 alike).
 
 [data: 1,027 of 1,027 SwfMovies of the game copy: magic BIGF, the word at 4 = the length read little-endian, the word at 12 = the end of the index read big-endian]
-[test: rust/bc2-formats/src/bigf.rs::members] [test: bfbc2-menu-tools/tests/test_bc2loc_native.py::bigf_checks] [code: rust/bc2-formats/src/bigf.rs:13-18] [code: rust/bc2-formats/src/fbrb/tool.rs:967-981]
+[test: rust/bc2-formats/src/bigf.rs::members] [test: bfbc2-menu-tools/tests/test_bc2loc_native.py::bigf_checks] [code: rust/bc2-formats/src/bigf.rs:13-18] [code: rust/bc2-tools/src/fbrbtool.rs:966-980]
 [doc: bfbc2-menu-tools/aptgraft.py:100-101]
 
 ### BIGF-IDX-1: Index entries

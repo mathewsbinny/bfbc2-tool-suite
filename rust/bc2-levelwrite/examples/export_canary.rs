@@ -69,6 +69,6 @@ fn main() {
     std::fs::create_dir_all(&out).unwrap();
     p.save(&out.join("canary.mapedit.json")).unwrap();
     let text = serde_json::to_string_pretty(&spec).unwrap();
-    bc2_formats::atomic::write(&out.join("canary.export.json"), &[text.as_bytes()]).unwrap();
+    bc2_gamefs::atomic::write(&out.join("canary.export.json"), &[text.as_bytes()]).unwrap();
     println!("wrote {}", out.display());
 }

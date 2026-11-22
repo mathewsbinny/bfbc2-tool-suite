@@ -24,18 +24,18 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 21 | 6,057 |
+| live | 21 | 6,067 |
 | partly | 20 | 17,298 |
-| twin | 56 | 20,741 |
+| twin | 56 | 20,767 |
 | ported | 21 | 2,571 |
 | retired-pending | 3 | 310 |
-| stays | 58 | 10,522 |
-| test | 188 | 50,280 |
-| **all** | **367** | **107,779** |
+| stays | 58 | 10,566 |
+| test | 188 | 50,283 |
+| **all** | **367** | **107,862** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `(root)` | 2 | 1,417 | 56 |  |  |  |  |  | 1,361 |
+| `(root)` | 2 | 1,420 | 56 |  |  |  |  |  | 1,364 |
 | `bfbc2-anim-tools` | 7 | 2,462 |  | 1,108 |  | 106 |  |  | 1,248 |
 | `bfbc2-auto-navkit` | 61 | 16,560 | 1,815 | 4,651 | 4,088 | 272 |  |  | 5,734 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
@@ -52,9 +52,9 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 15 | 10,125 | 1,430 | 3,882 | 984 | 126 |  |  | 3,703 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 19,791 | 739 |  | 2,388 | 1,897 |  |  | 14,767 |
+| `core` | 76 | 19,827 | 749 |  | 2,414 | 1,897 |  |  | 14,767 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 5,889 |  |  |  |  |  | 5,622 | 267 |
+| `rust` | 33 | 5,933 |  |  |  |  |  | 5,666 | 267 |
 | `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
 | `tests` | 29 | 7,679 |  |  |  |  |  |  | 7,679 |
 
@@ -62,12 +62,12 @@ Lines by status in the folder table.
 
 ## `(root)`
 
-2 files, 1,417 lines.
+2 files, 1,420 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
 | `suite_paths.py` | 56 | library | live |  | every Python tool and test; OPFOR 2 | the last Python | the one sys.path bootstrap |
-| `run_tests.py` | 1361 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
+| `run_tests.py` | 1364 | build or dev script | test | bc2 test entries run through it (tests/test_rust.py) | CI (checks.yml), hub, tests 51 | Tests in Rust | the test runner: tiers, ids, scheduling |
 
 ## `bfbc2-anim-tools`
 
@@ -399,16 +399,16 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 19,791 lines.
+76 files, 19,827 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `core/bfbc2core/__init__.py` | 16 | library | live |  | every Python tool; OPFOR | the last Python | the package; __version__ from VERSION |
-| `core/bfbc2core/envvars.py` | 158 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
+| `core/bfbc2core/__init__.py` | 25 | library | live |  | every Python tool; OPFOR | the last Python | the package; __version__ from VERSION |
+| `core/bfbc2core/envvars.py` | 159 | library | live |  | run_tests.py; tests 1 (test_envvars) | proposed: Tests in Rust | the registry of every environment variable the suite (Python and Rust) reads |
 | `core/bfbc2core/native.py` | 565 | library | live | bc2-cli pyproc (RETIRED list mirrored) | 63 suite modules, CI workflows; tests 53; OPFOR 11 | PR1b-2 (one registry), then the last Python | finds and loads bc2_native, its fingerprint, the backend registry, RETIRED_CLI |
 | `core/bfbc2core/appicon.py` | 35 | library | twin | rust/app_icon.rs, bc2-editor appicon | hub (.pyw); tests 1 | proposed: with the hub | the icon lookup the Rust builds also make |
 | `core/bfbc2core/atomicio.py` | 150 | library | twin | bc2_formats' one whole-file writer (PR1a) | 17 suite modules; tests 5 | PR1b-2 | atomic whole-file writes for the Python tools |
-| `core/bfbc2core/caches.py` | 905 | tool entry point | twin | bc2-cli caches / budget; bfbc2 caches | 25 suite modules; tests 3 | PR1b-2 | the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate |
+| `core/bfbc2core/caches.py` | 931 | tool entry point | twin | bc2-cli caches / budget; bfbc2 caches | 25 suite modules; tests 3 | PR1b-2 | the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate |
 | `core/bfbc2core/errors.py` | 184 | library | twin | bc2-cli pyproc / pylog (errors.setup / guard emulated) | 36 suite modules; tests 5; OPFOR 2 | the last Python | the Python tools' day logs and error reports |
 | `core/bfbc2core/gameledger.py` | 806 | library | twin | bc2_formats::gameledger; bfbc2 gameledger | navkit.py, texqa, stockmp pipeline / lib; tests 8; OPFOR 1 (test) | IN1 | the Python twin of the install ledger (no install_keep / restate) |
 | `core/bfbc2core/navtune.py` | 169 | library | twin | bc2-cli navkit apply, bc2-editor navtune | navkit.py; tests 9 | NK5 | the navtune side files; the editor and bfbc2 navkit apply have their own |
@@ -490,7 +490,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 5,889 lines.
+33 files, 5,933 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -516,7 +516,7 @@ Lines by status in the folder table.
 | `rust/bench_xenos.py` | 114 | benchmark or parity script | stays |  | by hand | stays | E3f timings |
 | `rust/build_native.py` | 365 | build or dev script | stays | cargo, maturin (it drives them) | CI, hub, 25 suite modules (the fix text); tests 27; OPFOR 4 | Release | builds or downloads bc2_native and the binaries |
 | `rust/hang_stacks.py` | 163 | build or dev script | stays |  | bc2-editor's test hang guard (tests/main.rs); tests 1 | stays | a hung process's thread stacks (HG1) |
-| `rust/native_census.py` | 86 | build or dev script | stays |  | by hand | PR1b-2 (made a check) | who calls each bc2_native export (AU5 ARC-12) |
+| `rust/native_census.py` | 130 | build or dev script | stays |  | by hand | PR1b-2 (made a check) | who calls each bc2_native export (AU5 ARC-12) |
 | `rust/parity_e3o_nav.py` | 106 | benchmark or parity script | stays |  | by hand; tests 2 | stays | kymesh Rust reader against parse_mesh_reference |
 | `rust/parity_navkit_paths.py` | 336 | benchmark or parity script | stays |  | by hand | stays | NavKit's level driver through the command line, the editor in process and the export step (files, lines) |
 | `rust/parity_nk1_apply.py` | 114 | benchmark or parity script | stays |  | by hand | stays | NK1 parity against a pre-NK1 checkout |

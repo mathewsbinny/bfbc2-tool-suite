@@ -240,7 +240,7 @@ pub fn out_of_range(w: &LevelWriter, base: Option<&LevelWriter>) -> Vec<Finding>
 #[must_use]
 pub fn dbx_check(w: &LevelWriter) -> Vec<Finding> {
     let Ok(bytes) = w.write() else { return Vec::new() };
-    let Ok(f) = bc2_formats::dbxedit::EditFile::parse(bytes) else {
+    let Ok(f) = bc2_formats::dbxedit::read(&bytes) else {
         return Vec::new();
     };
     let Ok(found) = bc2_formats::dbxedit::level_check(&f, None, &[]) else {

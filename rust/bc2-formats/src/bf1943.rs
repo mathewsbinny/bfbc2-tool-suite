@@ -23,7 +23,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use crate::restart::{self, Index, RestartError, Spans};
@@ -366,15 +366,39 @@ fn content_key(f: &mut File, r: &PayloadRef) -> io::Result<Vec<u8>> {
     Ok(key)
 }
 
-fn points_file(folder: &Path, key: &[u8]) -> PathBuf {
+/// Where a payload's restart points are kept between processes (`bc2_gamefs::points::Folder`: a file per payload,
+/// named by its content): the bytes of [`points_bytes`] by the payload's content key. Only a cache: a store that
+/// loses or refuses them makes the next read decompress the payload again.
+pub trait PointsStore: Sync {
+    /// The bytes kept for `key`, if any.
+    fn load(&self, key: &[u8]) -> Option<Vec<u8>>;
+    /// `bytes` kept for `key`.
+    fn save(&self, key: &[u8], bytes: &[u8]);
+}
+
+/// The name of the points kept for a payload's content key: the first 24 hex digits of its SHA-1.
+#[must_use]
+pub fn points_name(key: &[u8]) -> String {
     let mut h = sha1_smol::Sha1::new();
     h.update(key);
     let hex = h.digest().to_string();
-    folder.join(format!("{}.points", &hex[..24]))
+    format!("{}.points", hex.get(..24).unwrap_or(&hex))
 }
 
-fn load_points(folder: &Path, key: &[u8]) -> Option<(u64, Index)> {
-    let data = std::fs::read(points_file(folder, key)).ok()?;
+/// A points file's bytes: its magic, the content key, the payload's base and the restart index.
+#[must_use]
+pub fn points_bytes(key: &[u8], base: u64, index: &Index) -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend(POINTS_MAGIC);
+    b.extend((key.len() as u32).to_le_bytes());
+    b.extend(key);
+    b.extend(base.to_le_bytes());
+    b.extend(index.to_bytes());
+    b
+}
+
+fn load_points(store: &dyn PointsStore, key: &[u8]) -> Option<(u64, Index)> {
+    let data = store.load(key)?;
     let rest = data.strip_prefix(POINTS_MAGIC.as_slice())?;
     let klen = u32::from_le_bytes(rest.get(..4)?.try_into().ok()?) as usize;
     if rest.get(4..4 + klen)? != key {
@@ -383,19 +407,6 @@ fn load_points(folder: &Path, key: &[u8]) -> Option<(u64, Index)> {
     let base = u64::from_le_bytes(rest.get(4 + klen..12 + klen)?.try_into().ok()?);
     let index = Index::from_bytes(rest.get(12 + klen..)?).ok()?;
     Some((base, index))
-}
-
-fn save_points(folder: &Path, key: &[u8], base: u64, index: &Index) {
-    let mut b = Vec::new();
-    b.extend(POINTS_MAGIC);
-    b.extend((key.len() as u32).to_le_bytes());
-    b.extend(key);
-    b.extend(base.to_le_bytes());
-    b.extend(index.to_bytes());
-    // only a cache: a failed write leaves the next process to make the points again
-    if std::fs::create_dir_all(folder).is_ok() {
-        let _ = crate::atomic::write_rebuildable(&points_file(folder, key), &[&b]);
-    }
 }
 
 /// The points of a compressed payload made: `How::Points` when it is one plain gzip member (zlib's rules, nothing
@@ -442,7 +453,7 @@ impl Payloads {
     }
 
     /// `[offset, offset + size)` of the compressed payload `r`, through the process's points (made, or read from
-    /// `folder`'s points files, when not kept; `None`: no files) within `budgets`.
+    /// `store`, when not kept; `None`: none kept between processes) within `budgets`.
     ///
     /// # Errors
     /// [`ReadError`]: the file cannot be read, its payload no longer decompresses or is not the one opened.
@@ -451,7 +462,7 @@ impl Payloads {
         r: &PayloadRef,
         offset: u64,
         size: u64,
-        folder: Option<&Path>,
+        store: Option<&dyn PointsStore>,
         budgets: Budgets,
     ) -> Result<(Vec<u8>, ReadInfo), ReadError> {
         let mut info = ReadInfo::default();
@@ -476,7 +487,7 @@ impl Payloads {
             got
         } else {
             let content = content_key(&mut f, r)?;
-            let disk = folder.and_then(|d| load_points(d, &content));
+            let disk = store.and_then(|d| load_points(d, &content));
             let how = if let Some((base, index)) = disk {
                 info.from_disk = true;
                 How::Points { base, index }
@@ -484,8 +495,8 @@ impl Payloads {
                 let (how, made) = make(&mut f, r)?;
                 info.indexed = true;
                 info.decompressed_bytes += made;
-                if let (Some(d), How::Points { base, index }) = (folder, &how) {
-                    save_points(d, &content, *base, index);
+                if let (Some(d), How::Points { base, index }) = (store, &how) {
+                    d.save(&content, &points_bytes(&content, *base, index));
                 }
                 how
             };
@@ -677,6 +688,19 @@ mod tests {
 
     #[test]
     fn reads_through_points_and_whole() {
+        /// Points kept in memory: what a second process finds in the store.
+        #[derive(Default)]
+        struct Kept(Mutex<HashMap<Vec<u8>, Vec<u8>>>);
+        impl PointsStore for Kept {
+            fn load(&self, key: &[u8]) -> Option<Vec<u8>> {
+                self.0.lock().unwrap().get(key).cloned()
+            }
+            fn save(&self, key: &[u8], bytes: &[u8]) {
+                self.0.lock().unwrap().insert(key.to_vec(), bytes.to_vec());
+            }
+        }
+        let kept = Kept::default();
+        let store: Option<&dyn PointsStore> = Some(&kept);
         let dir = std::env::temp_dir().join(format!("bc2-bf1943-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let data: Vec<Vec<u8>> = (0..12).map(|i| noise(300_000 + i * 7_000, i as u32 + 1)).collect();
@@ -709,7 +733,7 @@ mod tests {
             };
             for (k, e) in c.entries.iter().enumerate().rev() {
                 let (got, info) = p
-                    .read(&r, u64::from(e.offset), u64::from(e.size), Some(&dir), budgets)
+                    .read(&r, u64::from(e.offset), u64::from(e.size), store, budgets)
                     .unwrap();
                 assert_eq!(got, data[k]);
                 assert_eq!(info.whole, split);
@@ -720,7 +744,7 @@ mod tests {
                 spans: Spans::new(0),
             };
             let e = &c.entries[5];
-            let (got, info) = q.read(&r, u64::from(e.offset), 10, Some(&dir), budgets).unwrap();
+            let (got, info) = q.read(&r, u64::from(e.offset), 10, store, budgets).unwrap();
             assert_eq!(got, &data[5][..10]);
             assert_eq!(info.from_disk, !split);
         }
@@ -746,13 +770,7 @@ mod tests {
         let e = c.entries.last().unwrap();
         // the points on disk are found by content (the trailer and the first bytes are the same) and the span's
         // CRC-32 refuses the changed bytes
-        let got = p.read(
-            &r,
-            u64::from(e.offset),
-            u64::from(e.size),
-            Some(&dir),
-            Budgets::from_env(),
-        );
+        let got = p.read(&r, u64::from(e.offset), u64::from(e.size), store, Budgets::from_env());
         assert!(got.is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }

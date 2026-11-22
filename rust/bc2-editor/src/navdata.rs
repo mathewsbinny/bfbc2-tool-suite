@@ -1493,8 +1493,8 @@ pub fn installed_pathdata(opfor: &Path, lv: &str) -> PathBuf {
 /// stage wrote it where there was no original (`.opfor-new`, or a `-applied` marker without its backup).
 #[must_use]
 pub fn original_file(p: &Path) -> Option<PathBuf> {
-    if let Some(game) = bc2_formats::gameledger::find_game(p) {
-        let led = bc2_formats::gameledger::Ledger::new(&game);
+    if let Some(game) = bc2_gamefs::game::find_game(p) {
+        let led = bc2_gamefs::ledger::Ledger::new(&game);
         let rel = p.strip_prefix(&game).ok()?.to_string_lossy().into_owned();
         if !led.holders(&rel).ok()?.is_empty() {
             return led.original(&rel).ok()?;

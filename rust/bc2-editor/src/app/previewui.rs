@@ -111,7 +111,7 @@ impl Tabs<'_> {
                         && let Some(root) = self.view.root.clone()
                     {
                         // read in the background; the panel asks again until it is there
-                        drop(crate::task::Task::spawn_value("Reading the mesh index", move || {
+                        drop(Task::spawn_value("Reading the mesh index", move || {
                             let _ = crate::preview::index(&root);
                         }));
                     }

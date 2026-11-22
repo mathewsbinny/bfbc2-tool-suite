@@ -1,7 +1,7 @@
 //! `navkit.Project` and the module functions around it: the OPFOR folder, the game copy's levels, the original path
 //! data (`original_file`), the in-process FbrbTool / DbxEdit runs and the stamped unpack.
 
-use bc2_formats::{dbxedit, fbrb};
+use bc2_tools::dbxedit;
 
 use super::{navkit_error, splitlines, strip};
 use crate::pyfmt::str_repr;
@@ -44,7 +44,7 @@ fn run_tool(args: &[String]) -> (i32, String) {
     );
     let log = pylog::log_path(name);
     let o = if fbrb_tool {
-        let o = fbrb::tool::run(rest, log.as_deref());
+        let o = bc2_tools::fbrbtool::run(rest, log.as_deref());
         (o.code, o.stdout, o.stderr, o.log)
     } else {
         let o = dbxedit::run(rest, log.as_deref());

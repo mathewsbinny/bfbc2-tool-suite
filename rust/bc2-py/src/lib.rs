@@ -41,7 +41,7 @@
 //! `granny_to_pc` / `granny_to_pc_many`, for `bfbc2-anim-tools/granny.py`.
 //!
 //! The converter's (`convert.rs`): `texture_convert` / `texture_convert_many`, and the EA-XAS audio codec
-//! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` needs;
+//! (`xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` needs;
 //! `mesh_vertices`, `havok_convert_packfile` / `havok_verify_packfile` / `HavokClasses` (rounds E3g, E3o) for
 //! `mesh.py` and `havok.py`.
 //!
@@ -63,6 +63,7 @@ mod aim_pathmesh_audio;
 mod apt;
 mod aptmodel;
 mod bf1943;
+mod budget;
 mod console;
 mod convert;
 mod converters;
@@ -350,7 +351,7 @@ fn fbrb_read<'py>(
     lowered: Vec<String>,
 ) -> PyResult<Bound<'py, PyList>> {
     let data = py
-        .detach(|| fbrb::read_path(path, &lowered))
+        .detach(|| bc2_gamefs::bundles::read_path(path, &lowered))
         .map_err(|e| fbrb_error(e, path, &keys))?;
     bytes_list(py, &data)
 }
@@ -375,7 +376,7 @@ fn fbrb_read_many(py: Python<'_>, items: Vec<(String, Vec<String>, Vec<String>)>
         &jobs,
         |_| window::WINDOW_BYTES,
         threads(),
-        |(p, n)| fbrb::read_path(p, n),
+        |(p, n)| bc2_gamefs::bundles::read_path(p, n),
         |r| {
             let (path, keys, _) = names
                 .next()
@@ -389,7 +390,8 @@ fn fbrb_read_many(py: Python<'_>, items: Vec<(String, Vec<String>, Vec<String>)>
     Ok(out)
 }
 
-/// The number of worker threads the batch functions use (`RAYON_NUM_THREADS`, else every core).
+/// The number of worker threads the batch functions use (`BFBC2_WORKERS`, else `RAYON_NUM_THREADS`, else every core:
+/// `bc2_gamefs::workers`).
 #[pyfunction]
 fn threads() -> usize {
     bc2_formats::threads()
@@ -415,6 +417,8 @@ mod bc2_native {
     #[pymodule_export]
     use super::scene::scene_load;
 
+    #[pymodule_export]
+    use super::budget::{caches_clear, caches_prune, caches_prune_total};
     #[pymodule_export]
     use super::dbxedit::{dbxedit_run, dbxedit_run_many};
     #[pymodule_export]
@@ -462,7 +466,7 @@ mod bc2_native {
     #[pymodule_export]
     use super::convert::{
         HavokClasses, havok_convert_packfile, havok_verify_packfile, mesh_vertices, texture_convert,
-        texture_convert_many, xas_decode_frames, xas_encode, xas_encode_many,
+        texture_convert_many, xas_decode_frames, xas_encode_many,
     };
 
     #[pymodule_export]
@@ -603,6 +607,8 @@ mod bc2_native {
     /// a build without it), which `bfbc2core.native` compares with the checkout's before using the module.
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        // the one worker pool (BFBC2_WORKERS), made before any batch function runs
+        bc2_gamefs::workers::init();
         m.add("__version__", env!("CARGO_PKG_VERSION"))?;
         m.add("__source_hash__", option_env!("BC2_SOURCE_HASH").unwrap_or(""))
     }

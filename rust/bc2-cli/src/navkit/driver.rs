@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use bc2_formats::gameledger::{self, Ledger, Legacy};
+use bc2_gamefs::ledger::{self as gameledger, Ledger, Legacy};
 use regex::Regex;
 
 use super::navcompare;
@@ -87,7 +87,7 @@ pub(crate) fn owner(lv: &str) -> String {
     format!("navkit:{}", lv.to_lowercase())
 }
 
-fn ledger_fail(e: &gameledger::Error) -> Fail {
+fn ledger_fail(e: &gameledger::LedgerError) -> Fail {
     navkit_error(e.to_string())
 }
 

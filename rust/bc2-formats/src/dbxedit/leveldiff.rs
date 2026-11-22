@@ -23,7 +23,7 @@ use std::fmt::Write as _;
 use super::check::PlacedObject;
 use super::export::value_text;
 use super::fault::{Fault, Result};
-use super::file::{EditFile, Element, NUMBERS, Table, be_u32};
+use super::file::{EditDbx, NUMBERS, NodeId, Table, be_u32, kids, partition_children, read};
 use super::net;
 use crate::dbx::net_g;
 
@@ -163,12 +163,12 @@ impl<T> Ordered<T> {
 }
 
 /// `TypeOf`: the type after its last dot.
-fn type_of(t: &Table, e: &Element) -> Result<String> {
+fn type_of(t: Table<'_>, e: NodeId) -> Result<String> {
     let ty = t.get(e, "type")?.unwrap_or("");
     Ok(ty.rsplit_once('.').map_or(ty, |(_, s)| s).to_owned())
 }
 
-fn get(t: &Table, e: &Element, a: &str) -> Result<Option<String>> {
+fn get(t: Table<'_>, e: NodeId, a: &str) -> Result<Option<String>> {
     Ok(t.get(e, a)?.map(str::to_owned))
 }
 
@@ -184,10 +184,10 @@ fn contains_ignore_case(s: &str, part: &str) -> bool {
 }
 
 /// The instances a side compares: (partition child index, element), `--type` applied.
-fn pick<'f>(f: &'f EditFile, o: &Options) -> Result<Vec<(usize, &'f Element)>> {
-    let t = &f.table;
+fn pick(f: &EditDbx, o: &Options) -> Result<Vec<(usize, NodeId)>> {
+    let t = Table(f);
     let mut out = Vec::new();
-    for (k, e) in f.partition_children()?.iter().enumerate() {
+    for (k, &e) in partition_children(f)?.iter().enumerate() {
         if t.tag(e)? != "instance" {
             continue;
         }
@@ -203,15 +203,15 @@ fn pick<'f>(f: &'f EditFile, o: &Options) -> Result<Vec<(usize, &'f Element)>> {
 
 /// `Flatten`: an instance's fields as path -> value, lists of references as path -> entries.
 fn flatten(
-    t: &Table,
-    e: &Element,
+    t: Table<'_>,
+    e: NodeId,
     path: &str,
     o: &Options,
     values: &mut Ordered<String>,
     lists: &mut Ordered<Vec<String>>,
 ) -> Result<()> {
     let mut seen: HashMap<String, usize> = HashMap::new();
-    for c in e.children.as_deref().ok_or_else(Fault::null)? {
+    for &c in t.0.children(e).ok_or_else(Fault::null)? {
         let name = t.get(c, "name")?;
         if let Some(n) = name
             && o.ignore.contains(n)
@@ -230,9 +230,9 @@ fn flatten(
         if n > 0 || (name.is_none() && tag != "item") {
             p = format!("{p}[{n}]");
         }
-        if let Some(kids) = &c.children {
+        if let Some(kids) = t.0.children(c) {
             let mut ref_list = !kids.is_empty();
-            for x in kids {
+            for &x in kids {
                 if !ref_list {
                     break;
                 }
@@ -240,7 +240,7 @@ fn flatten(
             }
             if ref_list {
                 let mut refs = Vec::with_capacity(kids.len());
-                for x in kids {
+                for &x in kids {
                     refs.push(t.get(x, "ref")?.unwrap_or("").to_owned());
                 }
                 lists.slot(&p, Vec::new).extend(refs);
@@ -252,7 +252,7 @@ fn flatten(
         }
         let v = match t.get(c, "ref")? {
             Some(r) => format!("-> {r}"),
-            None => value_text(t, c)?,
+            None => value_text(t.0, c)?,
         };
         *values.slot(&p, String::new) = v;
     }
@@ -293,14 +293,8 @@ fn union<'a>(a: &'a [String], b: &'a [String]) -> Vec<&'a str> {
         .collect()
 }
 
-fn compare(
-    a: &EditFile,
-    ia: (usize, &Element),
-    b: &EditFile,
-    ib: (usize, &Element),
-    o: &Options,
-) -> Result<InstanceDiff> {
-    let (ta, tb) = (&a.table, &b.table);
+fn compare(a: &EditDbx, ia: (usize, NodeId), b: &EditDbx, ib: (usize, NodeId), o: &Options) -> Result<InstanceDiff> {
+    let (ta, tb) = (Table(a), Table(b));
     let mut d = InstanceDiff {
         guid: get(ta, ia.1, "guid")?,
         guid_b: get(tb, ib.1, "guid")?,
@@ -372,8 +366,8 @@ fn compare(
     Ok(d)
 }
 
-fn listed(f: &EditFile, (k, e): (usize, &Element), placed: &HashMap<usize, PlacedObject>) -> Result<Listed> {
-    let t = &f.table;
+fn listed(f: &EditDbx, (k, e): (usize, NodeId), placed: &HashMap<usize, PlacedObject>) -> Result<Listed> {
+    let t = Table(f);
     Ok(Listed {
         index: k,
         ty: type_of(t, e)?,
@@ -389,17 +383,17 @@ fn listed(f: &EditFile, (k, e): (usize, &Element), placed: &HashMap<usize, Place
 ///
 /// # Errors
 /// A damaged file (where LevelDiff would fail with exit code 3).
-pub fn diff(a: &EditFile, b: &EditFile, o: &Options) -> Result<LevelDiff> {
+pub fn diff(a: &EditDbx, b: &EditDbx, o: &Options) -> Result<LevelDiff> {
     let (ia, ib) = (pick(a, o)?, pick(b, o)?);
     let mut by_guid_b: HashMap<String, usize> = HashMap::new();
-    for (n, (_, e)) in ib.iter().enumerate() {
-        by_guid_b.insert(net::to_upper(b.table.get(e, "guid")?.unwrap_or("")), n);
+    for (n, &(_, e)) in ib.iter().enumerate() {
+        by_guid_b.insert(net::to_upper(Table(b).get(e, "guid")?.unwrap_or("")), n);
     }
     let mut pairs: Vec<(usize, usize)> = Vec::new();
     let mut only_a: Vec<usize> = Vec::new();
     let mut matched_b: HashSet<usize> = HashSet::new();
-    for (n, (_, e)) in ia.iter().enumerate() {
-        match by_guid_b.get(&net::to_upper(a.table.get(e, "guid")?.unwrap_or(""))) {
+    for (n, &(_, e)) in ia.iter().enumerate() {
+        match by_guid_b.get(&net::to_upper(Table(a).get(e, "guid")?.unwrap_or(""))) {
             Some(&m) => {
                 pairs.push((n, m));
                 matched_b.insert(m);
@@ -448,7 +442,7 @@ pub fn diff(a: &EditFile, b: &EditFile, o: &Options) -> Result<LevelDiff> {
             changed.push(d);
         }
     }
-    let list = |f: &EditFile, side: &[(usize, &Element)], which: &[usize], placed: &HashMap<usize, PlacedObject>| {
+    let list = |f: &EditDbx, side: &[(usize, NodeId)], which: &[usize], placed: &HashMap<usize, PlacedObject>| {
         which
             .iter()
             .filter_map(|&n| side.get(n).copied())
@@ -466,13 +460,13 @@ pub fn diff(a: &EditFile, b: &EditFile, o: &Options) -> Result<LevelDiff> {
     })
 }
 
-/// Compares two files' bytes ([`diff`] after [`EditFile::parse`]).
+/// Compares two files' bytes ([`diff`] after DbxEdit's [`read`].
 ///
 /// # Errors
 /// A file that is not a binary `.dbx`, or a damaged one.
 pub fn diff_bytes(a: &[u8], b: &[u8], o: &Options) -> Result<LevelDiff> {
-    let (fa, fb) = (EditFile::parse(a.to_vec())?, EditFile::parse(b.to_vec())?);
-    if !fa.is_binary || !fb.is_binary {
+    let (fa, fb) = (read(a)?, read(b)?);
+    if !fa.is_binary() || !fb.is_binary() {
         return Err(Fault::invalid("both files must be binary .dbx"));
     }
     diff(&fa, &fb, o)
@@ -775,8 +769,8 @@ pub fn run(args: &[String], log_path: Option<&str>) -> Run {
         r.code = 2;
         return r;
     };
-    let read = |p: &str| -> Result<EditFile> { EditFile::parse(net::read_bytes(p)?) };
-    let (a, b) = match read(fa).and_then(|a| Ok((a, read(fb)?))) {
+    let load = |p: &str| -> Result<EditDbx> { read(&net::read_bytes(p)?) };
+    let (a, b) = match load(fa).and_then(|a| Ok((a, load(fb)?))) {
         Ok(x) => x,
         Err(f) => {
             let (cause, todo) = f.explain();
@@ -793,7 +787,7 @@ pub fn run(args: &[String], log_path: Option<&str>) -> Run {
             return r;
         }
     };
-    if !a.is_binary || !b.is_binary {
+    if !a.is_binary() || !b.is_binary() {
         r.stderr = "both files must be binary .dbx\n".into();
         r.code = 2;
         return r;
@@ -823,11 +817,12 @@ pub fn run(args: &[String], log_path: Option<&str>) -> Run {
 /// The position of an instance with a `Transform` (a 4 x 4 matrix of singles: its translation), by its index among
 /// the partition's children.
 #[must_use]
-pub fn position_of(f: &EditFile, index: usize) -> Option<[f32; 3]> {
-    let i = f.partition_children().ok()?.get(index)?;
-    for c in i.kids() {
-        if f.table.get(c, "name").ok()? == Some("Transform") && c.kind == NUMBERS && c.payload.len() >= 2 + 16 * 4 {
-            let at = |k: usize| be_u32(&c.payload, 2 + k * 4).map_or(0.0, f32::from_bits);
+pub fn position_of(f: &EditDbx, index: usize) -> Option<[f32; 3]> {
+    let i = *partition_children(f).ok()?.get(index)?;
+    for &c in kids(f, i) {
+        let payload = f.payload(c);
+        if Table(f).get(c, "name").ok()? == Some("Transform") && f.kind(c) == NUMBERS && payload.len() >= 2 + 16 * 4 {
+            let at = |k: usize| be_u32(payload, 2 + k * 4).map_or(0.0, f32::from_bits);
             return Some([at(12), at(13), at(14)]);
         }
     }

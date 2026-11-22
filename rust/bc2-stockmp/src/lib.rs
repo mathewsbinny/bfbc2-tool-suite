@@ -26,8 +26,8 @@ pub use bc2_formats::guid;
 pub mod install;
 pub mod model;
 pub mod pytext;
-/// SHA-256: moved to `bc2_formats::sha256` (round DF2: one implementation for the installers and the ledger).
-pub use bc2_formats::sha256;
+/// SHA-256: moved to `bc2_gamefs::sha256` (round DF2: one implementation for the installers and the ledger).
+pub use bc2_gamefs::sha256;
 
 /// The Python reference decides: an input, or a path through it, where the port does not give the reference's
 /// answer itself (the reason, for tests and logs).

@@ -9,8 +9,8 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
 use bc2_formats::fbrb;
-use bc2_formats::gameledger::Ledger;
-use bc2_formats::sha256;
+use bc2_gamefs::ledger::Ledger;
+use bc2_gamefs::sha256;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -174,7 +174,7 @@ impl Guard {
         let data: BTreeMap<&str, Vec<u8>> = if want.is_empty() {
             BTreeMap::new()
         } else {
-            let got = fbrb::read_path(path, &want).map_err(|e| format!("{}: {e}", path.display()))?;
+            let got = bc2_gamefs::bundles::read_path(path, &want).map_err(|e| format!("{}: {e}", path.display()))?;
             want.iter().copied().zip(got).collect()
         };
         let mark = self.spec.ui_mark.as_bytes();
@@ -206,7 +206,7 @@ impl Guard {
     fn rel(&self, path: &str) -> Option<String> {
         let p = Path::new(path);
         let r = p.strip_prefix(&self.game).ok()?;
-        bc2_formats::gameledger::norm_rel(&r.to_string_lossy()).ok()
+        bc2_gamefs::ledger::norm_rel(&r.to_string_lossy()).ok()
     }
 
     /// `before_wake` / `stages.before_path`: a path to the file as it was before the owner wrote it - the old marker

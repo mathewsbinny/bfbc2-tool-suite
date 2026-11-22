@@ -19,7 +19,7 @@ use std::hash::{BuildHasherDefault, Hasher};
 use std::path::Path;
 
 use bc2_formats::dbx::{self, CONTAINER, TEXT};
-use bc2_formats::fbrb::{self, PackError, PackStats};
+use bc2_formats::fbrb::{PackError, PackStats};
 use pyo3::exceptions::{PyOSError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -242,20 +242,20 @@ fn stats(s: PackStats) -> (usize, u64) {
 /// streamed into the file (round S1: the payload is never held).
 #[pyfunction]
 pub fn fbrb_pack(py: Python<'_>, folder: &str, out: &str) -> PyResult<(usize, u64)> {
-    py.detach(|| fbrb::pack_path(Path::new(folder), Path::new(out)))
+    py.detach(|| bc2_gamefs::bundles::pack_path(Path::new(folder), Path::new(out)))
         .map(stats)
         .map_err(|e| pack_error(&e))
 }
 
-/// FbrbTool's `unpack <bundle> <out>` through Rust (`bc2_formats::fbrb::unpack_path`): `(entries, payload bytes,
+/// FbrbTool's `unpack <bundle> <out>` through Rust (`bc2_tools::unpack_path`): `(entries, payload bytes,
 /// *deleted* markers)`. A bundle FbrbTool refused raises `ValueError` (with the files it left behind), a file that
 /// cannot be read or written `OSError`. Runs with the interpreter released.
 #[pyfunction]
 pub fn fbrb_unpack(py: Python<'_>, bundle: &str, out: &str) -> PyResult<(usize, u64, usize)> {
-    py.detach(|| fbrb::unpack_path(Path::new(bundle), Path::new(out)))
+    py.detach(|| bc2_tools::unpack_path(Path::new(bundle), Path::new(out)))
         .map(|s| (s.entries, s.payload_len, s.deleted))
         .map_err(|e| match e {
-            fbrb::UnpackError::Io { .. } => PyOSError::new_err(e.to_string()),
+            bc2_tools::UnpackError::Io { .. } => PyOSError::new_err(e.to_string()),
             _ => PyValueError::new_err(e.to_string()),
         })
 }
@@ -268,7 +268,7 @@ pub fn fbrb_unpack(py: Python<'_>, bundle: &str, out: &str) -> PyResult<(usize, 
     reason = "PyO3 extracts a list argument as an owned Vec"
 )]
 pub fn fbrb_pack_many(py: Python<'_>, items: Vec<(String, String)>) -> PyResult<Bound<'_, PyList>> {
-    let results = py.detach(|| fbrb::pack_many(&items));
+    let results = py.detach(|| bc2_gamefs::bundles::pack_many(&items));
     let out = PyList::empty(py);
     for r in results {
         match r {
