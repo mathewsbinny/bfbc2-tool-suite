@@ -102,8 +102,8 @@ mod tests {
     fn a_task_answers_once_and_a_panic_is_an_error() {
         let t = Task::spawn_value("Adding", || 2 + 3);
         assert_eq!(t.wait().unwrap(), 5);
-        // the answer was taken: the worker is gone, and says so
-        assert!(matches!(t.poll(), Some(Err(EditorError::Worker(_)))));
+        // the answer was taken: once the worker is gone (its sender dropped just after the send), it says so
+        assert!(matches!(t.wait(), Err(EditorError::Worker(_))));
         let t: Task<u32> = Task::spawn("Failing", || Err(EditorError::Tool("no".into())));
         assert!(matches!(t.wait(), Err(EditorError::Tool(m)) if m == "no"));
         let t: Task<u32> = Task::spawn("Panicking", || panic!("boom"));
