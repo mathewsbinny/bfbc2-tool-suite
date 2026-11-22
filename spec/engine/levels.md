@@ -86,7 +86,7 @@ under its own name needs its own key (`<LV>_NAME`) and both pictures, or keeps i
 picture.
 
 [data: OPFOR's records: a _NAME prefix mismatch gave a black loading screen; stock keys such as MP_009_NAME name mp_009's picture]
-[code: rust/bc2-levelwrite/src/export.rs:135-150] [code: rust/bc2-levelwrite/src/export.rs:1920-1930]
+[code: rust/bc2-levelwrite/src/export.rs:135-150] [code: rust/bc2-levelwrite/src/export.rs:1951-1961]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1034-1040] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1372]
 
 ## Open questions

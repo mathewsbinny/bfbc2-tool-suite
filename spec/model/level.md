@@ -66,7 +66,7 @@ Status: **implemented**
 `LevelData.Name` is `Levels/<LV>`; a level under a new name sets it, the primary instance's `id` and the
 description's `LevelName` to the new name.
 
-[code: rust/bc2-levelwrite/src/mpconvert.rs:1062-1075] [code: rust/bc2-levelwrite/src/export.rs:880-881]
+[code: rust/bc2-levelwrite/src/mpconvert.rs:1062-1075] [code: rust/bc2-levelwrite/src/export.rs:885-886]
 [test: rust/bc2-levelwrite/src/mpconvert.rs::names_follow_the_level_and_case]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:839-840]
 
@@ -145,7 +145,7 @@ Status: **verified**
 A copy of a listed instance is listed too: the level writer adds an `Objects` item for each duplicated or placed
 instance whose original has one, and removes the item of a deleted instance (REF-DEL-1).
 
-[code: rust/bc2-levelwrite/src/write.rs:346-410] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
+[code: rust/bc2-levelwrite/src/write.rs:352-416] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 [test: rust/bc2-levelwrite/src/write.rs::deep_duplicate_and_place]
 
 ## 4. Event connections
@@ -160,7 +160,7 @@ and `Target` (references), `SourceEvent` and `TargetEvent` (complexes, each a `N
 number): "when Source fires SourceEvent, send TargetEvent to Target".
 
 [data: 28 level partitions: EventConnections only on LevelData (28), 26,892 connections, every one with the members Source, Target, SourceEvent, TargetEvent; all 53,784 event complexes are Name (text), Id (numbers)]
-[code: rust/bc2-levelwrite/src/write.rs:194-212]
+[code: rust/bc2-levelwrite/src/write.rs:200-218]
 
 ### LEVEL-EVT-2: Connection ends
 
@@ -179,7 +179,7 @@ Removing an instance removes every connection whose `Source` or `Target` names i
 would otherwise leave the connection with a `null` end); copying an instance copies its connections with the ends
 re-pointed.
 
-[code: rust/bc2-levelwrite/src/write.rs:219-238] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
+[code: rust/bc2-levelwrite/src/write.rs:225-244] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 
 ## 5. Placed objects and cull slots
 

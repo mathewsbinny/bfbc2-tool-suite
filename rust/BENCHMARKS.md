@@ -7574,6 +7574,211 @@ The build's Python, in an order that keeps each stage self-contained and provabl
    `bfbc2-navigation-studio/overlay.py`, `rust/bench_navkit.py`. Retiring `navkit.py build` / `apply` removes
    command-line paths: a VERSION bump then (RELEASING.md).
 
+## V1: the export's compatibility and validation layer (2026-11-21, branch `v1`)
+
+Round V1 (ROADMAP "V1, L1, A1"; audit AU1 A9, G-N5 to G-N7, G-N19, G-N39 to G-N41, R22, R33, R35, RISK-3, RISK-4,
+RISK-9): every way an exported level can fail in the game, or be refused by the export, as one rule registry, checked
+live in the editor, by the build and by the stage's check; and round L1's study of DICE's stock maps turned into
+placement warnings.
+
+**The registry** (`bc2_levelwrite::rules`, `mapexport rules`, `spec/transforms/validation.md`): 108 rules - 59 of
+the export's own (`XVAL-<section>-<n>`) and L1's 49 placement rules (`L1-CQ-002` ...; L1-HT-001 left out: it needs
+the terrain's height field). By severity: **51 errors, 55 warnings, 2 notes** (the XVAL rules 51 / 6 / 2; every
+placement rule a warning, its stock-band findings notes). By where they are checked (a rule may be in several):
+live in the editor 19 (and the 49 placement rules), by `mapexport build` 18, by `mapexport check` 44, by the DBX inspector 5.
+
+Gathered under codes: every `mapexport check` line (each line now prints its code; `CheckReport.codes`), the
+build's refusals (their words start with the code), EX1's name rules (`names::Problem.code`, XVAL-NAME-1 to 7; the
+stage's XVAL-NAME-8 / 9), XF1's cull-shape and cull-slot lines (XVAL-CULL-2 / 3) and shader line (XVAL-SHDR-1),
+QW2's streamed-wave check (XVAL-SND-1), OP1's typed Problems (`ProblemCode::rule`: XVAL-EDIT-1 to 3), GR4's DBX
+inspector Level > Check (`rules::dbx_check_code`: XVAL-OBJ-1 to 3, XVAL-REF-1 / 3 / 4, XVAL-CULL-5 / 6).
+
+New checks, from the crash-risk audits and the memory notes:
+
+| rule | what | where | from |
+|---|---|---|---|
+| XVAL-SND-2 | a deleted marker in a staged bundle hiding a sound (a null wave: 0xFF2AC2, SND-NULL-1) | check | AU1 RISK-4 |
+| XVAL-TERR-1 | the staged terrain bundle is the base's own, entry for entry (patch shaders with their own mask atlas: TERR-VT-5, black tiled cells) | check | terrain patch donor rules, AU1 RISK-9 |
+| XVAL-CONS-1 | no Xbox 360 texture (big-endian header) or Havok packfile (layout rules 04 00 00 01) in a stage | check | console resource formats |
+| XVAL-SHDR-2 | the 40 km/h road sign never drawn with another level's shader entries (0x98BD6E, OPFOR's Isla Inocentes test) | live, check | console resource formats (the road-sign crash) |
+| XVAL-GRP-1 | an edited static group keeps DICE's layout (SG1's per-group lines: members, leaves, cumulative parts and network ids, physics) and its kinds: none left without a member, none new; SG1's refusal of the last member of a kind is a GRP-1 refusal (0xAB4E58, LEVEL-MG-4) | build, check | AU1 RISK-3, SG1 |
+| XVAL-REG-4 | a note on every stage: install on the server and every client (CSUM-CHK-4) | check | new-level registration |
+| XVAL-CULL-4 | an object moved or placed beyond +-2048 m refused in words (before: `culltree::encode` failed mid-build) | live, build | AU1 G-N39 / G-N40 |
+| XVAL-MODE-4 | the donor's partition changed since the mode was chosen (before: a report note only) | live, build | AU1 G-N7 |
+| XVAL-EDIT-4 | the partition does not parse (before: silent) | live | AU1 G-N19 |
+| XVAL-PLACE-1 | two vehicle spawners of one team within 1 m (pairs the base already has are DICE's) | live | AU1 A9 |
+| XVAL-OBJ-1 to 3 | GR4's Level > Check live: an empty object-list entry, a world object without physics, an object not listed | live | GR4 |
+
+**Placement** (`bc2_levelwrite::placement`): L1's measurements ported from `l1_measure.py` (the same metric names
+and definitions: capture zones, spawn points, combat-area unions on L1's raster, margins to the union's boundary
+sampled every 2 m, the Rush stages as `modelayer::rush_play` plays them). On the 64 stock levels of `maps.ini`
+(Conquest, Rush, Squad Rush, Squad Deathmatch; BFBC2, BFBC1, Vietnam, WW2), against `l1_measure.py`'s
+`l1_measurements.json` (8,771 records, 33.8 s): **3,539 of 3,539 values the rules read equal to 0.1** (the 67
+`cq.flag.prominence` values are L1-HT-001's, not ported). Each finding quotes the stock range, the levels and the
+rule's ID: "Flag A is 58 m from the nearest other flag; DICE keeps flags 58-450 m apart (median 121 m).
+[L1-CQ-002: stock 58 to 450.4, 16 levels]".
+
+| measure | value |
+|---|---|
+| the 64 stock levels: errors / warnings / notes | 0 / 0 / 29 |
+| the notes, per rule | CQ-002 8, CQ-003 3, CQ-004 1, CQ-005 2, RU-003 4, RU-004 1, RU-004s 1, RU-008 2, RU-011 4, RU-012 2, RU-013 1: exactly L1's `info_flagged` lists (`l1_rules_check.md`) |
+| DICE's own levels, the rules that report only edits (raw) | XVAL-CULL-4: 37 objects beyond +-2048 m on stock levels (sky domes, backdrops); XVAL-PLACE-1: 1 stacked pair; the DBX check: 0 |
+| the 64 levels, each read, validated and measured, release (`examples/v1_rules.rs`) | 23.8 s (160-500 ms a level, most of it reading the partition) |
+| L1's measurements of a level, release | 2-26 ms |
+| DbxEditGUI's Level > Check of a partition (written, parsed, checked), release | 30-102 ms |
+
+DICE's levels hold objects beyond the cull tree's range and one stacked pair of vehicle spawners, so those two rules
+(and the DBX check, whose stock findings would be DICE's) report only what the edits bring: objects the edits moved
+or made, pairs the base does not have, findings the base's own check does not have.
+
+**The six export canaries** (round VW2's `examples/vw2_canaries.rs`, built again on this branch: Arica at dawn,
+Atacama with Arica's sky, with MP_008CQ's fog, at night, after rain, Wake Island with Iwo Jima's state; each also
+built as its baseline): every one passes `mapexport check`, 50-52 lines under 36 rules, 4.1-7.3 s a check (release);
+the six new lines (XVAL-REG-4's note, XVAL-SND-2, XVAL-TERR-1, XVAL-CONS-1, XVAL-GRP-1, XVAL-SHDR-2) pass on all.
+`mapexport validate` on their six projects: no error and no warning on any; two notes - the
+Arica dawn canary's first-guess Conquest layer has two flags 31 m apart in height (L1-HT-002: DICE's within 24 m),
+and Wake Island's HQs are 65 m apart in their nearest-flag distance (L1-CQ-005; Wake Island itself is one of L1's
+two stock outliers at 94 m). `mapexport rules`: 108 rules, 51 errors, 55 warnings, 2 notes.
+
+**Synthetic broken projects** (`tests/v1_rules.rs`, no game data): small synthetic levels built element by element
+(a Conquest layout of two HQs, three flags, spawners with alternative points, a combat area of `Next`-linked
+outline points, ticket counters; a Rush layout of three stages of two M-COMs with their counters' Enable / Disable
+events, growing attackers' areas and per-stage defenders' areas, a life counter; Squad Rush; a Squad Deathmatch
+layout of four squads sharing a grid of 20 spawn points, a vehicle, kill counters). The four clean layouts raise
+nothing and are recognised as their mode; **49 of 49 placement rules** each raised by a layout broken one way, at
+their severity, with their citation; **every edit-phase rule** but the log's three raised by a broken project (a
+paint stroke, Onslaught chosen, a layer without flags with the donor changed, five names of the wrong form, two
+names the game already has, a prop 3 km out, the 40 km/h sign, two stacked spawners, a null object-list entry, a
+model group with a null `PhysicsData`, an unlisted terrain entity, a dangling local reference). Game tier
+(`tests/v1_stage.rs`): the build refuses XVAL-REG-3, XVAL-MODE-1, XVAL-EDIT-5, XVAL-CULL-4 and XVAL-EDIT-2 with the
+code first, and `validate::project` gives XVAL-EDIT-1 / 2 / 3; a staged canary (Atacama's Rush as BFBC2 Conquest,
+24.9 s) passes its 43 lines (35 rules), and a copy broken once per rule (a sha1, an entry count, a manifest line, a
+missing target, the menus' list, a name key, the donor, the sign's merged entries, streamed wave data, a deleted
+sound marker, a console texture, a terrain entry) fails exactly those 12 rules, checked in 5.5 s. A test keeps
+`validation.md` and the registry the same.
+
+**The editor** (`rust/bc2-editor/tests/v1.rs`, game tier): E3d's canary (Atacama's Rush as BFBC2 Conquest) opened
+as a project raises nothing; two edits through the document - flag B moved 20 m from flag A, a prop moved 3 km out -
+and the panel lists 5 rows - 1 error (XVAL-CULL-4), 2 warnings (L1-CQ-002 for the two flags now 20 m apart) and 2
+notes - errors first, each naming objects the scene has; an undo takes the error away. Live validation after an edit: **65-89 ms**
+(the dev profile, optimised; the base's own DBX check and the donor read once). Before `LevelWriter::transform_at`
+(V1: a transform by node; `find` walks every instance) the same validation took 3.3-4.3 s, the placement and range
+loops looking each object up by guid. Screenshots (Dark, Light): `v1_problems_dark.png`, `v1_problems_light.png`
+(`BC2_EDITOR_SHOTS`).
+
+Left for A1 and later: engine limits (instances, spawns, event connections: RE first, AU1 G-N39), spawns over water
+or in rocks and a vehicle spawner's room and domain (G-N44 / G-N45: the scene's collision and water are there; no
+stock statistic yet), the exported level's memory (R34), Xbox 360 meshes in a stage (their layout is not detected),
+the WW2 profile's kit rule on placements (G-N41), L1-HT-001. A1's auto layout can use `placement::measure` as its
+objective and `l1_a1_params.json` as its start.
+
+**After merging SG1 and OR1** (main ddaf6d6): SG1's member-edit exports (`tests/groups_sg1.rs`, Wake Island as WW2
+Conquest and MP_005 as Conquest, a member deleted, one moved, two added) pass every check line, their 5 XVAL-GRP-1
+lines each, and `validate::project` raises no error (Wake: 1 finding below error, MP_005: none; `validate::project`
+now reads the base's group files as the export does). Deleting every member of a group's smallest kind is refused as
+`XVAL-GRP-1: ...` on both (Wake's heattank, MP_005's invwall_nohealth; `rules::apply_code`).
+## NK2: NavKit's build, graphs to file (2026-11-21, branch `nk2`)
+
+NK1's plan, stage 1 of the build: everything a build does once its route graphs exist, and the neighbour links of
+the sectors' runtime meshes. A build now hands its graphs to the Rust core once (`navbuild.write_file`, called with
+the build's anchors), and the core prunes, lays out and writes the file; the stage's two link resolvers run in the core
+from the stage's own areas.
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navislands.components`, `shadowing` and `prune`'s loop (the shadow-island rule: small route islands mostly on objects, holding no anchor, beside a large one) | `bc2_navbuild::graphfile::shadow_islands`, `drop_edges` | `navbuild.write_file` (with the anchors: a build); `navislands.prune` is a thin call (`bc2_native.navkit_shadow_islands`) for other callers |
+| `navbuild.prune_order_nodes` (order nodes in islands under `ORDER_MIN_ISLAND`; `ORDER_STATS['removed']`) | `graphfile::prune_order_nodes` | `write_file` |
+| `navbuild.finalize_graph` (nodes without an edge dropped, sorted by unsigned id, costs from the `float32` positions, first-edge indices, the sorted-list fields `b` / `c`, the border owner bit) | `graphfile::finalize` | `write_file` |
+| `write_file`'s assembly (each sector's record, the meshes written, `hpdtool.write`) | `graphfile::write_file` (`kymesh::write`, `hpd::write`; the meshes read from the build's `kymesh.Mesh` values and written in parallel) | `bc2_native.navkit_write_graphs` |
+| `sector_links` (links grouped by sector and area across, the portals' offsets in their area objects) with `border_cell`, `same_grid_resolver` and `cross_grid_resolver` | `graphfile::sector_links` with `Border::inner_cell`; the resolvers in `bc2-py`'s `navgraph::sector_links` on the stage's `NavLevel` / `NavAreas` | `NavLevel.sector_links` (a `NavLinkScope` per stage: `navbuild.link_scope` / `link_across`), called by `stage` and `merge_detailed` |
+
+What stays Python until NK5: the stage builds the `kymesh.Area` / `Mesh` values (their tiles, height ranges,
+rectangle, bounds) from the traced areas and D / F details, because the stage's result is read as Python values by
+navvehicle, navwater_mesh, the golden test's whole-stage digests and `merge_detailed`, which sets the links of meshes
+already made. The mesh assembly's only computation, the links, is the core's; the rest is the values' construction,
+which moves with the stage.
+
+### Parity
+
+- **Every regression level, against the old Python** (`rust/parity_nk2_file.py`: this checkout builds each level
+  through `navregress.build_level` with the build clock fixed; inside the build every `sector_links` call also runs
+  the old Python's `sector_links` with the stage's resolver, or `merge_detailed`'s same-grid / cross-grid pair, from
+  the main checkout's `navbuild.py`, and `write_file` also runs the old `navislands.prune` and `write_file` on the same
+  graphs; then each checkout builds the level once more alone): **15 of 15 levels identical**: every sector's links
+  (5,698 calls), the file, the log lines, the island statistics and `ORDER_STATS['removed']`; and the old checkout's
+  own build, the new checkout's own build and the compared build have one SHA-1 per level.
+- **The golden builds** (`tests/navbuild_golden.json`, the build clock fixed): sp_009, sp_004_b, sp_008_b and
+  ons_mp_004 as recorded, in the parity run and in `test_navbuild_native.py --game --levels
+  sp_009,sp_004_b,sp_008_b,ons_mp_004`; its quick tier (the E2a / E3c / E3h recorded answers, among them whole stages
+  with their meshes' links) unchanged.
+- **NK1's apply parity**: 33 of 33 (`rust/parity_nk1_apply.py`, main's `navkit.py` - NK1's, itself 33 of 33
+  against the Python before NK1 - against this branch's `bfbc2.exe navkit apply`: the 18 DICE files and the 15
+  regression builds; the apply's edit stage is untouched).
+- **Python's order**: nothing a set or dict iteration orders reaches the output. The islands dropped are a set of
+  ids (which island a node is in does not depend on the union-find's order: the roots differ, the members do not);
+  the order nodes dropped, a set; `ORDER_STATS['removed']` follows the graphs' order; `sector_links` sorts its
+  groups; every sort is the reference's stable sort on the same keys (unsigned ids; the build's float64 positions,
+  finite). No NumPy arithmetic is in the stage but the `float32` rounding of positions for the costs (`as f32`:
+  round to nearest, as `np.float32`) and the cross-grid resolver's float64 heights (IEEE, the same). Proven on all
+  15 levels as above, which include every golden level.
+- **DICE parity cannot move**: the files are byte-identical to the Python's, so no content argument (navparity /
+  hpdcheck) is needed.
+
+### Time and memory
+
+The stage alone (its inputs - graphs, meshes, anchors, order and terrain ids - pickled from the build and loaded in
+a fresh process; old: `navislands.prune` + `write_file`, new: `write_file`), and the links inside each checkout's
+whole build (old: `sector_links` with its Python resolvers; new: `NavLevel.sector_links` with the scopes). Peak:
+the process's peak working set above its working set once the inputs were loaded (other agents' builds beside it).
+
+| level | file (MB) | links compared | stage alone, old -> new (s) | stage peak above inputs, old / new (MB) | links in the whole build, old -> new (s) | whole build, old -> new (s) |
+|---|---:|---:|---:|---:|---:|---:|
+| ons_mp_002 | 7.9 | 146 | 0.33 -> **0.16** | 39 / **38** | 0.03 -> 0.02 | 11 -> 11 |
+| ons_mp_004 | 7.3 | 72 | 0.34 -> **0.15** | 35 / **38** | 0.01 -> 0.02 | 6 -> 6 |
+| sp_003_b | 27.5 | 645 | 1.47 -> **0.47** | 131 / **92** | 0.11 -> 0.12 | 24 -> 22 |
+| sp_004_b | 7.9 | 107 | 0.40 -> **0.15** | 38 / **36** | 0.02 -> 0.02 | 8 -> 8 |
+| sp_005 | 37.2 | 615 | 2.16 -> **0.69** | 181 / **121** | 0.98 -> 0.45 | 58 -> 46 |
+| sp_005_b | 39.1 | 597 | 1.66 -> **0.93** | 182 / **130** | 0.95 -> 2.11 | 47 -> 41 |
+| sp_006 | 33.9 | 841 | 2.03 -> **0.69** | 171 / **113** | 1.36 -> 1.22 | 60 -> 66 |
+| sp_007 | 31.8 | 677 | 1.44 -> **0.66** | 151 / **113** | 2.22 -> 1.35 | 57 -> 62 |
+| sp_008 | 12.0 | 111 | 0.82 -> **0.36** | 56 / **52** | 0.04 -> 0.04 | 17 -> 15 |
+| sp_008_b | 8.1 | 75 | 0.40 -> **0.15** | 37 / **37** | 0.02 -> 0.02 | 9 -> 9 |
+| sp_009 | 0.4 | 22 | 0.07 -> **0.05** | 4 / **4** | 0.00 -> 0.00 | 2 -> 2 |
+| sp_01 | 17.4 | 320 | 0.73 -> **0.35** | 85 / **66** | 0.16 -> 0.15 | 21 -> 22 |
+| sp_02 | 13.0 | 290 | 0.57 -> **0.29** | 64 / **51** | 0.10 -> 0.04 | 18 -> 17 |
+| sp_03 | 31.2 | 679 | 1.39 -> **0.87** | 150 / **105** | 1.60 -> 1.09 | 66 -> 46 |
+| sp_04 | 20.9 | 501 | 1.74 -> **0.55** | 104 / **72** | 0.87 -> 0.65 | 50 -> 35 |
+| all 15 | | 5,698 | 15.6 -> **6.5** (2.4x) | largest 182 / **130** | 8.5 -> 7.3 | 454 -> 406 |
+
+The links are 1-3 % of a build either way, and their time is noisy here (the builds ran beside other agents'
+work; the first lookup of a stage's areas builds the core's per-sector area maps once, 0.1-1 s on the large levels,
+whichever caller comes first): 8.5 -> 7.3 s over the 15 levels, no claim beyond "not slower". The whole builds
+(old and new checkout each alone, one after the other) moved by the stage's time and the machine's load: 454 -> 406
+s. A whole build's own peak (7-8.5 GB on sp_005 / sp_005_b / sp_006 / sp_04) is the stages before this one (PR1b's
+"NavKit regression's 15 GB"); this stage's part is the table's.
+
+The new stage's time is mostly reading the build's `kymesh.Mesh` values into Rust (0.08 of 0.12 s on sp_004_b; with
+the meshes' bytes given, 0.04 s): the meshes are Python values until NK5 moves their assembly.
+
+### Retired
+
+`navislands.components` / `shadowing` and `prune`'s own loop; `navbuild.prune_order_nodes`, `finalize_graph`,
+`border_cell`, `same_grid_resolver`, `cross_grid_resolver`, and `write_file`'s and `sector_links`' bodies: Python
+twins inside a living tool (RETIRED.md rule 4: recorded here and in CHANGELOG, not as RETIRED.md rows); the last
+commit with them is `08b1382`. No command line went and nothing outside NavKit called them (Project OPFOR has no
+caller of navbuild or navislands), so `VERSION` stays (RELEASING.md). `test_navislands.py` checks the file
+`write_file` writes in place of `finalize_graph`'s tables.
+
+### What is left: NK3-NK5
+
+NK1's plan stands for NK3 (`navdetail`: its sets' order reaches the D lines and F cells) and NK4 (walkability end to
+end). NK5 now also takes the meshes' assembly: in `stage`, the `kymesh.Area` per area (height range from the pass-1
+`ylims`, portals / borders / outline from the trace, D / F from `navdetail`), the tile items, the rectangle and the
+sector bounds; then the stage's graphs and meshes can stay in Rust from the areas to `graphfile::write_file` (no
+`kymesh.Mesh` read back: the 0.08 s above), `merge_detailed`'s links run on its two stages' cores directly, and
+`navvehicle` / `navwater_mesh` / the golden test read a Rust stage result.
 ## PR1a: the post-Rust improvements' small fixes that stop drift (2026-11-21, branch `pr1a`)
 
 Audit AU5 section 6 re-scoped PR1 and made PR1a the first round: the small fixes that stop drift. Its seven items are
@@ -7903,3 +8108,38 @@ to the Python". Left for PY1.
 - **`gameindex.rs`' own pickle reader:** it keeps `Rc` rows for memory, so it is not the cache module's `read`. It
   goes when the cache's Python reader does (ARC-4).
 - **Module docs that cite rounds:** rewritten as files are touched (NAM-2).
+
+### Merging main (V1, NK2) into PR1a
+
+PR1a's rules ran over what V1 and NK2 added while the round was under way.
+
+- **Round names.** V1's test files were named by round: `bc2-editor/tests/v1.rs`, `bc2-levelwrite/tests/v1_rules.rs`
+  and `v1_stage.rs`. The rule had let them through, because its exception for project-format files (`v1.mapedit.json`
+  ... `v6`) matched any `v<n>`. The exception now covers only a name that is a version and nothing else. The three
+  files are now `problems_panel.rs`, `export_rules.rs` and `export_rules_stage.rs`; their mod lines,
+  `spec/transforms/validation.md` and `rules.json` were updated to match.
+  - V1's test functions are still named `v1_*` (the rule does not cover function names).
+  - The example `examples/v1_rules.rs` is outside the rule and was left (PR1c).
+  - NK2's `parity_nk2_file.py` lives under `rust/` and is outside the rule too.
+- **Test ids.** Neither round added a `run_tests.py` entry, so there were no new ids to give.
+- **Hash order.** The lint flagged 7 new loops:
+  - 2 reached an output and now run in a fixed order:
+    - the export's XVAL-GRP-1 check walked the staged level's entries in hash order, and its message lists the first
+      five problems; it now walks them in name order;
+    - `validate`'s vehicle-spawner findings (XVAL-PLACE-1) were grouped by team in a `HashMap`; it is now a
+      `BTreeMap`, so the Problems panel and `mapexport validate` list them the same way on every run.
+  - 5 in NK2's `graphfile` were reviewed and annotated: counts, set membership, and bucket lists only tested with
+    `any()`.
+- **JSON key order.** `parity_nk2_file.py`'s 5 unsorted JSON writes now sort their keys.
+- **`bc2-pyrt` in NK2.** `graphfile.rs` used `bc2_pyrt::fmt::round_to` for one thing: `round(v, 2)` of the dropped
+  order nodes' positions, which only reach the build's report. It now uses `bc2_navbuild::pymath::round_to`, the same
+  body. So `bc2-navbuild` links `bc2-pyrt` only with its `graphedit` feature, and `graphfile` (which the editor's
+  dependency closure includes) does not. For PY1 this is class 2: a report number.
+- **The atomic writer.** V1 and NK2 added no file writer in the Rust tools; V1's `v1_rules` example writes a scratch
+  measures file. NK2's `navbuild.write_file` (the Python build's path-data file) now writes through
+  `atomicio.write_bytes`: the same bytes, whole or not at all.
+- **The `bc2_native` census.** It now counts 240 exports in 39 files (NK2's `navkit_write_graphs`,
+  `navkit_shadow_islands` and the class `NavLinkScope`). 226 are called by a suite tool, 8 by OPFOR, and 14 by no tool (the same 14 as
+  before).
+- **The spec.** The merged spec's citations were remapped from the side each line came from (main's or PR1a's) to the
+  merged files, and `rules.json` was re-emitted: 769 rules.

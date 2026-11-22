@@ -118,7 +118,7 @@ An entity an operation creates gets `uuid5("opfor:mapedit", project id, operatio
 (INST-GUID-5), so applying the same log again gives the same guids, and two copies of one source in two operations
 differ.
 
-[code: rust/bc2-levelwrite/src/lib.rs:50-62] [code: rust/bc2-levelwrite/src/project.rs:530-539]
+[code: rust/bc2-levelwrite/src/lib.rs:52-65] [code: rust/bc2-levelwrite/src/project.rs:530-539]
 [test: rust/bc2-levelwrite/src/lib.rs::guids_are_deterministic]
 
 ### XLOG-BASE-1: The base-changed report names, never drops
@@ -146,7 +146,7 @@ per file in its checkpoints, so undo, redo and History jumps bring every file ba
 kinds applies to the same partition bytes as before and to no other file.
 
 [code: rust/bc2-levelwrite/src/files.rs:20-360] [code: rust/bc2-levelwrite/src/ops.rs:410-460]
-[code: rust/bc2-levelwrite/src/write.rs:1184-1224] [code: rust/bc2-editor/src/edit.rs:360-410]
+[code: rust/bc2-levelwrite/src/write.rs:1190-1230] [code: rust/bc2-editor/src/edit.rs:360-410]
 [test: rust/bc2-levelwrite/src/files.rs::multi_file_operations_apply_whole_or_not_at_all]
 [test: rust/bc2-editor/tests/editor_core.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all]
 
@@ -161,8 +161,8 @@ base's root file of the same name (renamed with the level, as the base's are) an
 project was made on. A target the export does not write yet (a height field, a paint layer) refuses the export in
 words; a project that edits only the partition exports byte for byte as before.
 
-[code: rust/bc2-levelwrite/src/project.rs:766-785] [code: rust/bc2-levelwrite/src/export.rs:585-595]
-[code: rust/bc2-levelwrite/src/export.rs:1015-1060] [code: rust/bc2-levelwrite/src/export.rs:1185-1225]
+[code: rust/bc2-levelwrite/src/project.rs:766-785] [code: rust/bc2-levelwrite/src/export.rs:585-600]
+[code: rust/bc2-levelwrite/src/export.rs:1032-1083] [code: rust/bc2-levelwrite/src/export.rs:1215-1255]
 [test: rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members]
 
 ### XLOG-MEM-1: Static group members are named by identity, never by place
@@ -232,7 +232,7 @@ field, a value of the wrong type or range, deleting `LevelData`) stops the apply
 A mode choice reads its donor's partition from the game copy through a resolver; without the game copy it fails in
 words.
 
-[code: rust/bc2-levelwrite/src/write.rs:1015-1064] [code: rust/bc2-levelwrite/src/write.rs:219-226]
+[code: rust/bc2-levelwrite/src/write.rs:1021-1070] [code: rust/bc2-levelwrite/src/write.rs:225-232]
 [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set] [test: rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation]
 
 ### XLOG-APP-2: The result differs from the base exactly where the operations say
@@ -265,7 +265,7 @@ duplicate also copies the instances it owns (a flag's capture area), each with i
 the instance's event connections, then the instance, list items naming it and single references to it (null);
 deleting many is one pass with the same result in any order.
 
-[code: rust/bc2-levelwrite/src/write.rs:219-345] [code: rust/bc2-levelwrite/src/write.rs:346-415] [code: rust/bc2-levelwrite/src/write.rs:639-802]
+[code: rust/bc2-levelwrite/src/write.rs:225-351] [code: rust/bc2-levelwrite/src/write.rs:352-421] [code: rust/bc2-levelwrite/src/write.rs:645-808]
 [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set] [test: rust/bc2-levelwrite/src/write.rs::deep_duplicate_and_place]
 
 ### XLOG-APP-5: Field values are typed from the data, never guessed
@@ -276,7 +276,7 @@ A field set takes its type (kind and size) from the field as the partitions' own
 rules as the DBX catalogue), and refuses a value outside it (a whole number past 32 bits, text into a number);
 placed objects get the defaults of a template instance of the same blueprint.
 
-[code: rust/bc2-levelwrite/src/write.rs:475-500] [test: rust/bc2-levelwrite/src/schema.rs::types_from_the_data] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
+[code: rust/bc2-levelwrite/src/write.rs:481-506] [test: rust/bc2-levelwrite/src/schema.rs::types_from_the_data] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 
 ### XLOG-APP-6: Typed gameplay operations check the data's rules
 
@@ -293,7 +293,7 @@ area names one point per outline). Each refuses in words: an object of another t
 there, a negative ticket count, a closed outline left with fewer than three points. On Valparaiso an insert then a
 remove gives the partition's content back.
 
-[code: rust/bc2-levelwrite/src/gameplay.rs:106-343] [code: rust/bc2-levelwrite/src/write.rs:1119-1139]
+[code: rust/bc2-levelwrite/src/gameplay.rs:106-343] [code: rust/bc2-levelwrite/src/write.rs:1125-1145]
 [test: rust/bc2-levelwrite/tests/gameplay_xf1.rs::typed_gameplay_operations_on_valparaiso]
 
 ### XLOG-APP-7: Paste is a deep duplicate

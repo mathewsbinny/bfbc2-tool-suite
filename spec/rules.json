@@ -400,7 +400,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2491-2495"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2551-2555"
     },
     {
      "kind": "test",
@@ -555,11 +555,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1764-1775"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1795-1806"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2770-2780"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2836-2847"
     },
     {
      "kind": "test",
@@ -1692,7 +1692,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1920-1930"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1951-1961"
     },
     {
      "kind": "doc",
@@ -1758,7 +1758,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3023-3127"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3111-3470"
     },
     {
      "kind": "doc",
@@ -9672,7 +9672,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3047-3104"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3385-3447"
     },
     {
      "kind": "test",
@@ -11211,7 +11211,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1579-1584"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1610-1615"
     },
     {
      "kind": "code",
@@ -11423,7 +11423,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1062-1075"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1085-1101"
     },
     {
      "kind": "doc",
@@ -11583,7 +11583,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:880-881"
+     "ref": "rust/bc2-levelwrite/src/export.rs:885-886"
     },
     {
      "kind": "test",
@@ -11719,7 +11719,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:346-410"
+     "ref": "rust/bc2-levelwrite/src/write.rs:352-416"
     },
     {
      "kind": "test",
@@ -11743,7 +11743,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:194-212"
+     "ref": "rust/bc2-levelwrite/src/write.rs:200-218"
     }
    ]
   },
@@ -11767,7 +11767,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-238"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-244"
     },
     {
      "kind": "test",
@@ -12119,7 +12119,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1372-1377"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1403-1408"
     },
     {
      "kind": "test",
@@ -12191,7 +12191,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1358-1370"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1389-1401"
     },
     {
      "kind": "code",
@@ -12231,7 +12231,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1560-1572"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1591-1603"
     },
     {
      "kind": "test",
@@ -12247,7 +12247,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1579-1584"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1610-1615"
     },
     {
      "kind": "code",
@@ -12283,7 +12283,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1541-1600"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1572-1631"
     },
     {
      "kind": "code",
@@ -12311,7 +12311,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1600-1640"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1631-1671"
     },
     {
      "kind": "doc",
@@ -12371,7 +12371,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-238"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-244"
     },
     {
      "kind": "test",
@@ -12475,7 +12475,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:563-596"
+     "ref": "rust/bc2-levelwrite/src/export.rs:563-601"
     },
     {
      "kind": "test",
@@ -12527,7 +12527,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:598-608"
+     "ref": "rust/bc2-levelwrite/src/export.rs:603-613"
     },
     {
      "kind": "test",
@@ -12559,11 +12559,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:598-608"
+     "ref": "rust/bc2-levelwrite/src/export.rs:603-613"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1505-1522"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1536-1553"
     },
     {
      "kind": "test",
@@ -12583,11 +12583,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:563-596"
+     "ref": "rust/bc2-levelwrite/src/export.rs:563-601"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1505-1540"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1536-1571"
     },
     {
      "kind": "test",
@@ -12611,7 +12611,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:644-655"
+     "ref": "rust/bc2-levelwrite/src/export.rs:649-660"
     },
     {
      "kind": "doc",
@@ -13518,7 +13518,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2916-3044"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2998-3382"
     },
     {
      "kind": "test",
@@ -13534,7 +13534,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2548-2594"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2608-2654"
     },
     {
      "kind": "test",
@@ -13770,7 +13770,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:826-841"
+     "ref": "rust/bc2-levelwrite/src/export.rs:831-846"
     },
     {
      "kind": "test",
@@ -13790,7 +13790,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:854-870"
+     "ref": "rust/bc2-levelwrite/src/export.rs:859-875"
     },
     {
      "kind": "code",
@@ -13842,7 +13842,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:627-668"
+     "ref": "rust/bc2-levelwrite/src/export.rs:632-673"
     },
     {
      "kind": "test",
@@ -13862,7 +13862,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1561-1692"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1592-1723"
     },
     {
      "kind": "test",
@@ -13886,11 +13886,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1770-1831"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1801-1862"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2770-2790"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2836-2857"
     },
     {
      "kind": "test",
@@ -13914,7 +13914,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:741-795"
+     "ref": "rust/bc2-levelwrite/src/export.rs:746-800"
     },
     {
      "kind": "test",
@@ -13954,7 +13954,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3161-3273"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3505-3618"
     },
     {
      "kind": "test",
@@ -13994,11 +13994,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2194-2599"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2225-2659"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2618-2741"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2679-2807"
     },
     {
      "kind": "test",
@@ -15138,7 +15138,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/lib.rs:50-62"
+     "ref": "rust/bc2-levelwrite/src/lib.rs:52-65"
     },
     {
      "kind": "code",
@@ -15182,7 +15182,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1184-1224"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1190-1230"
     },
     {
      "kind": "code",
@@ -15210,15 +15210,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:585-595"
+     "ref": "rust/bc2-levelwrite/src/export.rs:585-600"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1015-1060"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1032-1083"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1185-1225"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1215-1255"
     },
     {
      "kind": "test",
@@ -15302,11 +15302,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1015-1064"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1021-1070"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-226"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-232"
     },
     {
      "kind": "test",
@@ -15358,15 +15358,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-345"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-351"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:346-415"
+     "ref": "rust/bc2-levelwrite/src/write.rs:352-421"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:639-802"
+     "ref": "rust/bc2-levelwrite/src/write.rs:645-808"
     },
     {
      "kind": "test",
@@ -15386,7 +15386,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:475-500"
+     "ref": "rust/bc2-levelwrite/src/write.rs:481-506"
     },
     {
      "kind": "test",
@@ -15410,7 +15410,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1119-1139"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1125-1145"
     },
     {
      "kind": "test",
@@ -15583,6 +15583,1302 @@
     {
      "kind": "test",
      "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-EDIT-1",
+   "title": "The base level changed since the project was made",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:147"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:336"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-EDIT-2",
+   "title": "An operation names an object the level does not have",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:157"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1022"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:347"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-EDIT-3",
+   "title": "An operation does not apply",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:167"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-EDIT-4",
+   "title": "The level partition does not parse",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:177"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:117"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-EDIT-5",
+   "title": "Terrain and paint edits are not exported yet",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:187"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1047"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:64"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-EDIT-6",
+   "title": "Only the level's own root files are exported",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:197"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1092"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-MODE-1",
+   "title": "Only modes the export offers",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:208"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:962"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:78"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-MODE-2",
+   "title": "The donor is a level of the era's mode",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:218"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:969"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-MODE-3",
+   "title": "The mode layer is complete",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3032"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:99"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-MODE-4",
+   "title": "The donor level changed since the mode was chosen",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:239"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:83"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-MODE-5",
+   "title": "The export file's combat area is in the base",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:249"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1179"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REG-1",
+   "title": "One package.mft block and one bundleManifest line per bundle",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:260"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2781"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REG-2",
+   "title": "Every bundle the registration names exists",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:270"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2795"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REG-3",
+   "title": "A new name, never a level of the game",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:279"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:939"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REG-4",
+   "title": "Server and client need the same registration",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:288"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3202"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REG-5",
+   "title": "The announcer's registration is the donor's",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:298"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3831"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-1",
+   "title": "The level id's form",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:309"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3998"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:382"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-2",
+   "title": "No _NAME in the level id",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:318"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:418"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-3",
+   "title": "The level id clashes with nothing the game has",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:328"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:431"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_ex1.rs::names_are_checked_against_the_game_copy"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-4",
+   "title": "The folder is the id in lower case",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:337"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:480"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-5",
+   "title": "The server-browser name's form",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:346"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:492"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-6",
+   "title": "The server-browser name is not another map's",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:356"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:538"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_ex1.rs::names_are_checked_against_the_game_copy"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-7",
+   "title": "The on-screen names fit every language",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:365"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:553"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-8",
+   "title": "Every place names the level the same",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:375"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:4048"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-NAME-9",
+   "title": "The level's own name keys and pictures",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:386"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:4076"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-FILE-1",
+   "title": "The staged files are the ones recorded",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:397"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2677"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-FILE-2",
+   "title": "Every staged bundle opens and every partition parses",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:406"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2717"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REF-1",
+   "title": "Local references name an instance of their partition",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:416"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2837"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REF-2",
+   "title": "DICE's own dangling references",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:425"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2899"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REF-3",
+   "title": "Every referenced partition is in a bundle the level loads",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:435"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2907"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REF-4",
+   "title": "Every external reference names an instance of its partition",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:444"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2916"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-REF-5",
+   "title": "The closure resolves under the profile's bundles",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:453"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2963"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-LVL-1",
+   "title": "LevelData.Name is the level's path",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:464"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2934"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-LVL-2",
+   "title": "The description names the level",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:473"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2946"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-LVL-3",
+   "title": "The height field is in a bundle the level loads",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:482"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3011"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PROF-1",
+   "title": "Every block loads the era's common bundles",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:492"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3666"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PROF-2",
+   "title": "The game mode is the donor's and resolves",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:502"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3727"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PROF-3",
+   "title": "The factions are the donor's",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:512"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3732"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PROF-4",
+   "title": "The kit pictures are the donor's and resolve",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:521"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3737"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PROF-5",
+   "title": "The era's level fields",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:530"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3750"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PROF-6",
+   "title": "The announcer is the era's",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:539"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3937"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-WTHR-1",
+   "title": "The weather the export gave the level",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:549"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2993"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-CULL-1",
+   "title": "One cull tree, one object per slot",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:559"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3085"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-CULL-2",
+   "title": "A moved or placed object stands in its own blueprint's cull shape",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:569"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3503"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-CULL-3",
+   "title": "Every new static object has a cull slot",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:579"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3537"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-CULL-4",
+   "title": "Objects stay within +-2048 m",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:589"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:214"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-SHDR-1",
+   "title": "Shader entries for every mesh the level draws",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:600"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3585"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-SHDR-2",
+   "title": "No 40 km/h sign drawn with another level's entries",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:610"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3350"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:165"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-SND-1",
+   "title": "No streamed wave data in a level bundle",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:621"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2732"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::streamed_waves_named"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-SND-2",
+   "title": "No deleted marker hides a sound",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:630"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3232"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-TERR-1",
+   "title": "The terrain is the base's own, whole",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:641"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3280"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-CONS-1",
+   "title": "No Xbox 360 resource in a PC level",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:653"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3247"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-GRP-1",
+   "title": "An edited static group keeps DICE's layout and its kinds",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:664"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3329"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::group_member_changes_are_named"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-OBJ-1",
+   "title": "No empty entry in the level's object list",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:678"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:296"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-OBJ-2",
+   "title": "A world object keeps its physics and mesh",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:687"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:296"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-OBJ-3",
+   "title": "World objects are in the level's object list",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:696"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:296"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-CULL-5",
+   "title": "No cull slot shared by two objects",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:705"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:138"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:296"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-CULL-6",
+   "title": "Slots agree with the level whose cull trees are used",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:715"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:138"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:296"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-PLACE-1",
+   "title": "Vehicle spawners do not stand on each other",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:726"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/validate.rs:308"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },

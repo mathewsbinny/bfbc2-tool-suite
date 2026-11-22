@@ -44,6 +44,7 @@ pub mod domains;
 pub mod graph;
 #[cfg(feature = "graphedit")]
 pub mod graphedit;
+pub mod graphfile;
 pub mod hulls;
 pub mod levelscan;
 pub mod measures;

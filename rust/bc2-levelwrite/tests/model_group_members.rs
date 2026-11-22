@@ -293,6 +293,39 @@ fn an_export_deletes_moves_and_adds_members() {
             "{lv}: {:#?}",
             r.checks.iter().filter(|c| !c.0).collect::<Vec<_>>()
         );
+        // round V1: the export's rules on the member edits - the stage's group lines (XVAL-GRP-1: SG1's layout and the
+        // kinds kept) pass, and the project raises no error live
+        let grp: Vec<(&str, bool, &str)> = r.lines().filter(|x| x.0 == "XVAL-GRP-1").collect();
+        assert!(grp.len() >= 2 && grp.iter().all(|x| x.1), "{lv}: {grp:#?}");
+        let found = bc2_levelwrite::validate::project(&game, &p).unwrap();
+        assert!(
+            found
+                .iter()
+                .all(|f| f.severity != bc2_levelwrite::rules::Severity::Error),
+            "{lv}: {found:#?}"
+        );
+        println!(
+            "{lv}: V1 - {} XVAL-GRP-1 lines pass; validate: {} findings, no error",
+            grp.len(),
+            found.len()
+        );
+        // every member of the group's smallest kind deleted: the last one is refused, under XVAL-GRP-1
+        if let Some(&(first_of, n)) = g.runs.iter().min_by_key(|r| r.1) {
+            let mut last = plain.clone();
+            let edits = (first_of..first_of + n)
+                .map(|k| FileEdit::MemberDelete {
+                    file: g.file.clone(),
+                    instance: g.instance.clone(),
+                    item: Member::Base(k),
+                    asset: members::asset_at(&g.base, &g.instance, k).unwrap(),
+                    rows: rows(k),
+                })
+                .collect();
+            last.push(Op::Files { edits }, "SG1: delete every member of a kind");
+            let e = export::build(&game, &last, "test", &spec(name, &last, profile), &tmp.join("refused")).unwrap_err();
+            assert!(e.0.starts_with("XVAL-GRP-1: "), "{lv}: {}", e.0);
+            println!("{lv}: refused: {}", e.0.chars().take(140).collect::<String>());
+        }
         for l in rec
             .report
             .iter()

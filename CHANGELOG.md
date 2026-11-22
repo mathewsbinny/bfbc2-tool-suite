@@ -31,6 +31,22 @@ landed on `main`.
 ## [0.14.0] - 2026-11-21
 
 ### Added
+- **The export's rule registry** (round V1): every way an exported level can fail in the game, or be refused by the
+  export, is a named rule with a code (`XVAL-REG-1`), a severity (error, warning or note), a plain-language message
+  and the specification rules it rests on (`spec/transforms/validation.md`). `mapexport rules` lists them;
+  `mapexport validate <project> --game <game>` checks a project as the editor does (exit code 1 on an error).
+- **Live validation in the editor's Problems panel**: after every change the project is checked against the
+  export's rules and DICE's placement tendencies, errors first, each row with its rule's code (its message and
+  spec citations on hover) and a "Go to" link that selects the object and moves the views to it. Notes can be
+  hidden.
+- **Placement warnings from DICE's stock maps** (round L1's study): flag spacing, HQ distances, capture zones,
+  spawn counts and distances, combat-area margins, Rush stage spacing and spawn distances, Squad Deathmatch spawns
+  and vehicles - 49 rules, each finding quoting DICE's range ("Stage 3 is 40 m from stage 2; DICE's Rush stages are
+  93-316 m apart"). Warnings and notes only, never errors; no stock level raises a warning.
+- New export checks: a deleted marker hiding a sound (0xFF2AC2), the terrain bundle the base's own (black tiled
+  cells), Xbox 360 textures or Havok physics in a stage, an edited static group losing a kind or gaining one (0xAB4E58; SG1's layout lines carry the same rule), the
+  40 km/h road sign drawn with another level's entries (0x98BD6E), a note that the server and every client need
+  the install; the build refuses an object moved or placed beyond +-2048 m in words.
 - **Static group members are editable in the map editor** (round SG1). Most of a WW2 map's objects (Wake Island:
   2,999 group members against 1,329 placed objects: its buildings, fences, trees and props) live in model groups; they
   are now selected, moved and turned with the gizmo or the properties' numbers, deleted, duplicated and pasted like
@@ -68,6 +84,9 @@ landed on `main`.
   names is still read.
 
 ### Changed
+- Every `mapexport check` line names its rule (`ok     XVAL-REG-1  registration: ...`), and every refusal of
+  `mapexport build` starts with its rule's code. `CheckReport` has the codes beside its lines (`codes`, `lines()`,
+  `findings()`).
 - **`bfbc2.exe navkit apply` answers a DICE base in Rust** (round NK1): the side file's links, route edges and
   traversal annotations go into a copy of DICE's path data without Python (`bc2_navbuild::graphedit`), the same
   files, report and output as before (252 of 252 recorded command lines; every DICE file and NavKit regression build
@@ -77,12 +96,20 @@ landed on `main`.
 - **`bfbc2.exe`'s usage and the crates' descriptions name tools by what they do** (round PR1a, audit AU5 NAM-2), not by
   the round that wrote them; the map editor's export hints and Help text too.
 - **The editor's prepared-copy record lists its files in a fixed order** (round PR1a): before, the order of
-  `prepared.json`'s files varied from run to run (hash order); `bc2_native`'s scene collision dict is in name order.
+  `prepared.json`'s files varied from run to run (hash order); `bc2_native`'s scene collision dict is in name order;
+  `mapexport validate`'s and the Problems panel's vehicle-spawner findings and the export check XVAL-GRP-1's list of
+  problems come out in the same order on every run.
 - The Rust crates' Python-runtime emulation (`bc2-pyrt`) is no longer a dependency of the map editor; the mesh index
   cache is `bc2-convert`'s `pickle-cache` feature and NavKit's apply edits `bc2-navbuild`'s `graphedit` feature
   (round PR1a, audit AU5 ARC-1).
 - Spec HAVOK-WRAP-1 and the console converter's FORMAT.md call the wrapper's n words part words: part-name hashes in a
   blueprint, the owners' leaves in a model group (round PR1a, audit AU5 NAM-4).
+- **NavKit's build writes its path data in Rust** (round NK2): the build's last stage - the shadow-island rule, the
+  order nodes' pruning, each sector's node and edge tables, the neighbour links of the runtime meshes and the file -
+  runs in the Rust core (`bc2_navbuild::graphfile`). The same files byte for byte (all 15 regression levels of the
+  development PC, and the 4 golden builds of `test_navbuild_native.py`), the stage 2.4 times faster over those levels (1.4-3 times per level) with a third less memory. The rest of the
+  build (walkability, areas, tracing, D lines and F cells, the stage's glue) is still the Python driving the Rust
+  core (rounds NK3-NK5).
 
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
@@ -101,6 +128,11 @@ landed on `main`.
   menu tools; `PeImage::open` has none, `PeImage::from_bytes` is new), `bc2-cli`'s copies of the shader-database
   helpers; `bc2_convert::meshview::cache` and `bc2_navbuild::graphedit` now need their crate's feature. Test files and
   `bc2-py` modules named by round were renamed by function (`rust/BENCHMARKS.md` "PR1a").
+- NavKit's Python for a build's last stage (round NK2): `navislands.components` / `shadowing` (`navislands.prune`
+  stays, a call into the Rust core), `navbuild.prune_order_nodes`, `finalize_graph`, `border_cell`,
+  `same_grid_resolver` and `cross_grid_resolver`; `navbuild.sector_links` now takes the stage's sector and a
+  `link_scope` (the resolvers are the Rust core's), `write_file` the build's anchors. No command line or option
+  went; nothing outside NavKit used them.
 
 ## [0.13.0] - 2026-11-21
 
