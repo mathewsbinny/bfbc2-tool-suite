@@ -191,9 +191,21 @@ def crate_fingerprint(crate: str, step: str, rust: str = RUST, env: dict[str, st
     for p in crate_inputs(crate, rust):
         with open(p, 'rb') as f:
             data = f.read().replace(b'\r\n', b'\n')
-        h.update(f'{os.path.relpath(p, base).replace(os.sep, "/")}\0{len(data)}\0'.encode())
+        h.update(f'{_input_name(p, base)}\0{len(data)}\0'.encode())
         h.update(data)
     return h.hexdigest()
+
+
+def _input_name(p: str, base: str) -> str:
+    """An input's name in a fingerprint: its path from the checkout `base`; one on another drive (this file, when a
+    stand-in workspace sits in a temporary folder on another drive than the checkout - GitHub's runner checks out on
+    D:, its TEMP is on C:) from this checkout instead, else as it is."""
+    for root in (base, SUITE):
+        try:
+            return os.path.relpath(p, root).replace(os.sep, '/')
+        except ValueError:                                   # another drive: relpath has no answer
+            continue
+    return os.path.abspath(p).replace(os.sep, '/')
 
 
 # --- green fingerprints ----------------------------------------------------------------------------------------------
