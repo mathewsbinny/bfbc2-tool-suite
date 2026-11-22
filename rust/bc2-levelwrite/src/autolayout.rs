@@ -128,6 +128,12 @@ pub struct Proposal {
     pub candidates: usize,
     /// The ground score of the chosen candidate (lower is better).
     pub score: f64,
+    /// The vehicles placed (round A2): the level's own spawners moved, copies of them, the capture points they join.
+    #[serde(default)]
+    pub vehicles: crate::vehicles::Plan,
+    /// The objects the user pinned that the layout kept where they stand (round A2).
+    #[serde(default)]
+    pub pinned: usize,
 }
 
 impl Proposal {
@@ -152,14 +158,61 @@ impl Proposal {
     pub fn describe(&self) -> String {
         let (w, n) = self.counts();
         let (a, b) = self.inside();
+        let v = &self.vehicles;
+        let vehicles = if v.vehicles.is_empty() {
+            String::new()
+        } else {
+            format!(
+                ", {} vehicles ({} new)",
+                v.vehicles.len(),
+                v.vehicles.iter().filter(|x| x.copy).count()
+            )
+        };
         format!(
-            "Auto layout (seed {}): turned {:.0} deg, scale {:.2}, {} objects moved; {w} warnings, {n} notes; {a} of {b} \
-             statistics inside DICE's ranges",
+            "Auto layout (seed {}): turned {:.0} deg, scale {:.2}, {} objects moved{vehicles}; {w} warnings, {n} notes; \
+             {a} of {b} statistics inside DICE's ranges",
             self.seed,
             self.turn,
             self.scale,
-            self.moves.len()
+            self.moves.len() + v.moves.len()
         )
+    }
+
+    /// The operation that commits it: one move (A1's), or with vehicles one multi-part operation of the partition -
+    /// the moves (the layer's and the vehicle spawners'), the copies placed, the links to their capture points -
+    /// applied whole and undone in one step.
+    #[must_use]
+    pub fn op(&self) -> crate::Op {
+        use crate::files::FileEdit;
+        let v = &self.vehicles;
+        let mut moves = self.moves.clone();
+        moves.extend(v.moves.iter().cloned());
+        if v.places.is_empty() && v.links.is_empty() {
+            return crate::Op::Move { items: moves };
+        }
+        let mut edits = Vec::new();
+        if !moves.is_empty() {
+            edits.push(FileEdit::Partition {
+                op: Box::new(crate::Op::Move { items: moves }),
+            });
+        }
+        if !v.places.is_empty() {
+            edits.push(FileEdit::Partition {
+                op: Box::new(crate::Op::Place {
+                    items: v.places.clone(),
+                }),
+            });
+        }
+        for (point, spawner) in &v.links {
+            edits.push(FileEdit::Partition {
+                op: Box::new(crate::Op::LinkSpawner {
+                    point: point.clone(),
+                    spawner: spawner.clone(),
+                    linked: true,
+                }),
+            });
+        }
+        crate::Op::Files { edits }
     }
 }
 
@@ -206,6 +259,8 @@ fn stat_map(mode: Mode) -> &'static [(&'static str, &'static str, &'static str)]
             ("cq.combat_area_union", "combat_area_m2", ""),
             ("cq.flag_margin", "flag_margin_m", ""),
             ("cq.hq_margin", "hq_margin_m", ""),
+            ("cq.hq_vehicle_pool", "hq_vehicle_pool_150m", ""),
+            ("cq.flag_vehicle_pool", "flag_vehicle_pool_150m", ""),
         ],
         Mode::Rush | Mode::SquadRush => &[
             ("rush.stage_count", "stages", ""),
@@ -227,6 +282,8 @@ fn stat_map(mode: Mode) -> &'static [(&'static str, &'static str, &'static str)]
             ("rush.obj_margin_attacker_area", "obj_margin_attacker_area_m", ""),
             ("rush.obj_margin_defender_area", "obj_margin_defender_area_m", ""),
             ("rush.lives", "attacker_lives", "attacker"),
+            ("rush.attacker_vehicles", "attacker_vehicles_per_stage", ""),
+            ("rush.defender_vehicles", "defender_vehicles_per_stage", ""),
         ],
         Mode::SquadDeathmatch => &[
             ("sdm.squad_count", "squads", ""),
@@ -544,6 +601,36 @@ impl Fit {
         [self.centre[0] + dx * c + dz * s, self.centre[1] - dx * s + dz * c]
     }
 
+    /// The fit of a turn and scale that keeps pinned points where they stand (round A2): the centre that puts them,
+    /// on average, on their own places, and how far (metres, mean) they are from them then.
+    fn pinned(turn: f64, scale: f64, pivot: [f64; 2], pins: &[[f64; 2]]) -> (Self, f64) {
+        let mut f = Self {
+            turn,
+            scale,
+            centre: [0.0, 0.0],
+        };
+        if pins.is_empty() {
+            return (f, 0.0);
+        }
+        let n = pins.len() as f64;
+        let mut c = [0.0, 0.0];
+        for p in pins {
+            let q = f.apply(pivot, *p);
+            c[0] += (p[0] - q[0]) / n;
+            c[1] += (p[1] - q[1]) / n;
+        }
+        f.centre = c;
+        let off = pins
+            .iter()
+            .map(|p| {
+                let q = f.apply(pivot, *p);
+                (q[0] - p[0]).hypot(q[1] - p[1])
+            })
+            .sum::<f64>()
+            / n;
+        (f, off)
+    }
+
     /// A direction (a row of a transform) turned.
     fn turn_row(&self, r: [f32; 3]) -> [f32; 3] {
         let (s, c) = self.turn.sin_cos();
@@ -733,7 +820,28 @@ fn thin(s: &Samples, n: usize) -> Samples {
 
 /// The best distinct candidates (centres 48 m or bearings 20 degrees apart), best first.
 #[allow(clippy::too_many_lines, reason = "the coarse pass and the refinement in one piece")]
-fn search(l: &Layer, site: &Site, walk: &Walk, seed: u64, base: f64, keep: usize) -> (Vec<(f64, Fit)>, usize) {
+fn search(
+    l: &Layer,
+    site: &Site,
+    walk: &Walk,
+    seed: u64,
+    base: f64,
+    keep: usize,
+    pins: &[[f64; 2]],
+) -> (Vec<(f64, Fit)>, usize) {
+    // pinned points (round A2): each turn and scale has its one centre; a pin left off its place costs 0.2 a metre
+    let pin_cost = |f: &Fit| {
+        if pins.is_empty() {
+            (*f, 0.0)
+        } else {
+            let (g, off) = Fit::pinned(f.turn, f.scale, l.pivot, pins);
+            (g, 0.2 * off)
+        }
+    };
+    let score = |f: &Fit, s: &Samples| -> (f64, Fit) {
+        let (g, extra) = pin_cost(f);
+        (score(&g, l.pivot, s, walk, site, base) + extra, g)
+    };
     let full = samples(l, 400);
     let coarse = thin(&full, 60);
     let mut rng = Rng(seed);
@@ -761,6 +869,10 @@ fn search(l: &Layer, site: &Site, walk: &Walk, seed: u64, base: f64, keep: usize
         }
         z += step;
     }
+    if !pins.is_empty() {
+        // the centre follows from the turn and the scale
+        centres = vec![l.pivot];
+    }
     if centres.is_empty() {
         let mut z = z0 + step / 2.0;
         while z < z1 {
@@ -777,8 +889,7 @@ fn search(l: &Layer, site: &Site, walk: &Walk, seed: u64, base: f64, keep: usize
     for &scale in &scales {
         for &turn in &turns {
             for &centre in &centres {
-                let f = Fit { turn, scale, centre };
-                scored.push((score(&f, l.pivot, &coarse, walk, site, base), f));
+                scored.push(score(&Fit { turn, scale, centre }, &coarse));
             }
         }
     }
@@ -806,9 +917,9 @@ fn search(l: &Layer, site: &Site, walk: &Walk, seed: u64, base: f64, keep: usize
     // refine each on every point: bearing, centre and scale stepped down
     let mut refined: Vec<(f64, Fit)> = top
         .into_iter()
-        .map(|(_, mut f)| {
-            let mut best = score(&f, l.pivot, &full, walk, site, base);
-            let (mut dt, mut dc, mut ds) = (5f64.to_radians(), 8.0, 0.04);
+        .map(|(_, f0)| {
+            let (mut best, mut f) = score(&f0, &full);
+            let (mut dt, mut dc, mut ds) = (5f64.to_radians(), if pins.is_empty() { 8.0 } else { 0.0 }, 0.04);
             for _ in 0..4 {
                 let mut moved = true;
                 while moved {
@@ -842,7 +953,7 @@ fn search(l: &Layer, site: &Site, walk: &Walk, seed: u64, base: f64, keep: usize
                         },
                     ];
                     for t in tries {
-                        let s = score(&t, l.pivot, &full, walk, site, base);
+                        let (s, t) = score(&t, &full);
                         if s + 1e-9 < best {
                             best = s;
                             f = t;
@@ -919,8 +1030,36 @@ struct Fitted {
     bad: usize,
 }
 
-fn fit(l: &Layer, f: &Fit, site: &Site, routes: Option<&Routes>) -> Fitted {
+fn fit(l: &Layer, f: &Fit, site: &Site, routes: Option<&Routes>, pinned: &[bool]) -> Fitted {
+    let is_pinned = |i: usize| pinned.get(i).copied().unwrap_or(false);
     let mut rows: Vec<Rows> = l.items.iter().map(|it| placed(it, f, l.pivot, site)).collect();
+    // pinned objects stay where they stand (round A2); a pinned flag's, base's or M-COM's own spawns and markers
+    // follow it
+    for members in &l.clusters {
+        let Some(&a) = members.first() else { continue };
+        let (Some(it), Some(now)) = (l.items.get(a), rows.get(a).copied()) else {
+            continue;
+        };
+        if !is_pinned(a) {
+            continue;
+        }
+        let d = [
+            f64::from(it.rows[3][0]) - f64::from(now[3][0]),
+            f64::from(it.rows[3][2]) - f64::from(now[3][2]),
+        ];
+        for &i in members.iter().skip(1) {
+            if let (Some(m), Some(x)) = (l.items.get(i), rows.get_mut(i)) {
+                *x = shifted(x, m.above, d, site);
+            }
+        }
+    }
+    for (i, it) in l.items.iter().enumerate() {
+        if is_pinned(i)
+            && let Some(x) = rows.get_mut(i)
+        {
+            *x = it.rows;
+        }
+    }
     let mut fitted = (0, 0);
     let count_bad = |rows: &[Rows], members: &[usize]| {
         members
@@ -947,7 +1086,7 @@ fn fit(l: &Layer, f: &Fit, site: &Site, routes: Option<&Routes>) -> Fitted {
                     .iter()
                     .enumerate()
                     .map(|(i, x)| match l.items.get(i) {
-                        Some(it) if members.contains(&i) => shifted(x, it.above, d, site),
+                        Some(it) if members.contains(&i) && !is_pinned(i) => shifted(x, it.above, d, site),
                         _ => *x,
                     })
                     .collect();
@@ -962,6 +1101,9 @@ fn fit(l: &Layer, f: &Fit, site: &Site, routes: Option<&Routes>) -> Fitted {
         }
         if best.1 != [0.0, 0.0] {
             for &i in members {
+                if is_pinned(i) {
+                    continue;
+                }
                 if let (Some(it), Some(x)) = (l.items.get(i), rows.get_mut(i)) {
                     *x = shifted(x, it.above, best.1, site);
                 }
@@ -977,7 +1119,7 @@ fn fit(l: &Layer, f: &Fit, site: &Site, routes: Option<&Routes>) -> Fitted {
             continue;
         }
         let mut done = false;
-        if it.role == Role::Spawn {
+        if it.role == Role::Spawn && !is_pinned(i) {
             'ring: for ring in 1..=8 {
                 let rad = f64::from(ring) * 2.0;
                 for k in 0..16 {
@@ -1028,6 +1170,32 @@ pub fn propose(w: &LevelWriter, site: &Site, ask: Ask) -> Result<Proposal> {
 /// # Errors
 /// As [`propose`].
 pub fn propose_with(w: &LevelWriter, site: &Site, routes: Option<&Routes>, ask: Ask) -> Result<Proposal> {
+    propose_all(w, site, routes, ask, &BTreeSet::new(), 1)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| refused("no place on the level holds the layer"))
+}
+
+/// The auto layout's best `k` proposals (round A2: the editor shows several side by side), best first, each a
+/// distinct place or turn of the layer, each with its vehicles ([`crate::vehicles::plan`]) and measured with them.
+/// The objects in `pins` (upper-case guids) stay where they stand: a pinned flag, base or M-COM keeps its place (the
+/// layer is turned and scaled about the pins, its centre where they stand best) with its own spawns and markers; a
+/// pinned spawn point or vehicle spawner is not moved; the rest is laid out around them.
+///
+/// # Errors
+/// As [`propose`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "the candidates fitted, checked, ranked, then given their vehicles"
+)]
+pub fn propose_all(
+    w: &LevelWriter,
+    site: &Site,
+    routes: Option<&Routes>,
+    ask: Ask,
+    pins: &BTreeSet<String>,
+    k: usize,
+) -> Result<Vec<Proposal>> {
     if !site.has_terrain() {
         return Err(refused(
             "the level has no terrain height field: nothing to lay the gameplay out on",
@@ -1039,66 +1207,124 @@ pub fn propose_with(w: &LevelWriter, site: &Site, routes: Option<&Routes>, ask: 
             "the project has no mode layer (no flag, base or M-COM): choose the export's target mode first",
         ));
     }
+    let pinned: Vec<bool> = layer.items.iter().map(|it| pins.contains(&it.guid)).collect();
+    let pin_points: Vec<[f64; 2]> = layer
+        .items
+        .iter()
+        .zip(&pinned)
+        .filter(|(it, p)| **p && it.role != Role::Outline)
+        .map(|(it, _)| [f64::from(it.rows[3][0]), f64::from(it.rows[3][2])])
+        .collect();
     let walk = Walk::new(site, routes);
-    let (cands, n) = search(&layer, site, &walk, ask.seed, ask.layer_scale, 8);
-    let mut work = w.clone();
-    let mut best: Option<((usize, usize, usize, f64), Proposal)> = None;
+    let (cands, n) = search(&layer, site, &walk, ask.seed, ask.layer_scale, 8, &pin_points);
+    let check = |work: &LevelWriter| {
+        let measures = placement::measure(work, ask.mode);
+        let mut findings = placement::check_measures(&measures, ask.mode, placement::group(ask.profile));
+        findings.extend(crate::validate::site_rules(work, Some(w), site));
+        if let Some(r) = routes {
+            findings.extend(crate::validate::path_rules(work, Some(w), r));
+        }
+        let st = stats(&measures, ask.mode, ask.profile);
+        (findings, st)
+    };
+    let mut ranked: Vec<((usize, usize, usize, f64), Proposal, LevelWriter)> = Vec::new();
     for (sc, f) in cands {
-        let fitted = fit(&layer, &f, site, routes);
+        let fitted = fit(&layer, &f, site, routes, &pinned);
+        let mut work = w.clone();
         for (it, r) in layer.items.iter().zip(&fitted.rows) {
             if let Some(t) = work.d.child(it.node, b"Transform") {
                 work.d.set_transform(t, r)?;
             }
         }
-        let measures = placement::measure(&work, ask.mode);
-        let mut findings = placement::check_measures(&measures, ask.mode, placement::group(ask.profile));
-        findings.extend(crate::validate::site_rules(&work, Some(w), site));
-        if let Some(r) = routes {
-            findings.extend(crate::validate::path_rules(&work, Some(w), r));
-        }
-        let st = stats(&measures, ask.mode, ask.profile);
+        let (findings, st) = check(&work);
         let warn = findings.iter().filter(|x| x.severity >= Severity::Warning).count();
         let notes = findings.len() - warn;
         let outside: usize = st.iter().map(|s| s.values.len() - s.inside).sum();
         let total = sc + stat_cost(&st, ask.mode, ask.profile);
         let key = (warn + fitted.bad, outside, notes, total);
-        let better = best.as_ref().is_none_or(|(k, _)| {
-            (key.0, key.1, key.2) < (k.0, k.1, k.2) || ((key.0, key.1, key.2) == (k.0, k.1, k.2) && key.3 < k.3)
-        });
-        if better {
-            let moves = layer
-                .items
-                .iter()
-                .zip(&fitted.rows)
-                .filter(|(it, r)| it.rows != **r)
-                .map(|(it, r)| Moved {
-                    guid: it.guid.clone(),
-                    from: it.rows,
-                    to: *r,
-                    placement: None,
-                })
-                .collect();
-            best = Some((
-                key,
-                Proposal {
-                    moves,
-                    seed: ask.seed,
-                    turn: f.turn.to_degrees().rem_euclid(360.0),
-                    scale: f.scale * ask.layer_scale,
-                    centre: f.centre,
-                    clusters_fitted: fitted.clusters,
-                    points_fitted: fitted.points,
-                    bad_spots: fitted.bad,
-                    findings,
-                    stats: st,
-                    candidates: n,
-                    score: total,
-                },
-            ));
-        }
+        let moves = layer
+            .items
+            .iter()
+            .zip(&fitted.rows)
+            .filter(|(it, r)| it.rows != **r)
+            .map(|(it, r)| Moved {
+                guid: it.guid.clone(),
+                from: it.rows,
+                to: *r,
+                placement: None,
+            })
+            .collect();
+        ranked.push((
+            key,
+            Proposal {
+                moves,
+                seed: ask.seed,
+                turn: f.turn.to_degrees().rem_euclid(360.0),
+                scale: f.scale * ask.layer_scale,
+                centre: f.centre,
+                clusters_fitted: fitted.clusters,
+                points_fitted: fitted.points,
+                bad_spots: fitted.bad,
+                findings,
+                stats: st,
+                candidates: n,
+                score: total,
+                vehicles: crate::vehicles::Plan::default(),
+                pinned: pinned.iter().filter(|p| **p).count(),
+            },
+            work,
+        ));
     }
-    best.map(|b| b.1)
-        .ok_or_else(|| refused("no place on the level holds the layer"))
+    // the fewest warnings and bad spots, then statistics outside DICE's ranges, then notes, then the score; ties keep
+    // the earlier candidate
+    ranked.sort_by(|a, b| {
+        (a.0.0, a.0.1, a.0.2)
+            .cmp(&(b.0.0, b.0.1, b.0.2))
+            .then(a.0.3.total_cmp(&b.0.3))
+    });
+    let others = pins
+        .iter()
+        .filter(|g| !layer.items.iter().any(|it| &it.guid == *g) && w.find(g).is_some())
+        .count();
+    let mut out = Vec::new();
+    for (_, mut prop, work) in ranked.into_iter().take(k.max(1)) {
+        prop.pinned += others;
+        // the vehicles (round A2) on the laid-out layer, then the proposal measured again with them
+        let tag = format!("auto-layout/{}/{}", ask.seed, w.d.instances().len());
+        prop.vehicles = crate::vehicles::plan(&work, site, ask.mode, ask.profile, pins, &tag);
+        if !prop.vehicles.vehicles.is_empty() {
+            let mut with = work.clone();
+            let op = crate::Operation {
+                n: 0,
+                by: String::new(),
+                when: String::new(),
+                label: String::new(),
+                op: Proposal {
+                    moves: Vec::new(),
+                    ..prop.clone()
+                }
+                .op(),
+            };
+            let mut applied = crate::write::Applied::default();
+            match crate::write::apply_one(&mut with, &op, &crate::Schema::default(), &mut applied) {
+                Ok(()) => {
+                    let (findings, st) = check(&with);
+                    prop.findings = findings;
+                    prop.stats = st;
+                }
+                Err(e) => {
+                    let v = &mut prop.vehicles;
+                    v.notes.push(format!("the vehicles could not be applied: {e}"));
+                    v.moves.clear();
+                    v.places.clear();
+                    v.links.clear();
+                    v.vehicles.clear();
+                }
+            }
+        }
+        out.push(prop);
+    }
+    Ok(out)
 }
 
 /// The objects of a proposal by guid, for the editor's preview (where each would stand).

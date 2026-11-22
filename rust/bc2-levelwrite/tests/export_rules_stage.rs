@@ -67,6 +67,7 @@ fn spec_of(p: &MapProject, id: &str) -> ExportSpec {
         },
         profile: Profile::Bfbc2,
         identity: None,
+        path_data: false,
     }
 }
 

@@ -34,11 +34,12 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 /// - 7: round SG1, static group members deleted and added (`files`' `member-delete` and `member-add` edits, an added
 ///   member named `{"added": n}`: [`crate::members::Member`]); a version-6 file loads as it is (its member edits name
 ///   base members by number, as version 7 does).
-pub const VERSION: u32 = 7;
+/// - 8: round A2, objects pinned for the auto layout (`pin`); a version-7 file loads as it is.
+pub const VERSION: u32 = 8;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
-pub const OP_VERSIONS: [(&str, u32); 12] = [
+pub const OP_VERSIONS: [(&str, u32); 13] = [
     ("nav-add", 2),
     ("nav-remove", 2),
     ("nav-load", 2),
@@ -51,6 +52,7 @@ pub const OP_VERSIONS: [(&str, u32); 12] = [
     ("remove-point", 5),
     ("files", 6),
     ("stroke", 6),
+    ("pin", 8),
 ];
 
 /// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; round OP1 made
@@ -65,6 +67,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 4 -> 5: the typed gameplay operations were added (round XF1); a version-4 log has none
         // 5 -> 6: the base records its other files' sha1s (round OP1); a version-5 project edited none
         // 6 -> 7: member deletes and adds were added (round SG1); a version-6 log has none
+        // 7 -> 8: the auto layout's pins were added (round A2); a version-7 log has none
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {
@@ -732,15 +735,17 @@ impl MapProject {
             |w| w.guids().into_iter().collect(),
         );
         for o in &self.operations {
-            for t in o.op.targets() {
-                if !known.contains(&t.to_ascii_uppercase()) {
-                    out.missing.push((o.n, o.name(), t.to_ascii_uppercase()));
-                }
-            }
-            for c in o.op.creates() {
-                known.insert(c.to_ascii_uppercase());
-            }
+            // a multi-file operation's parts in order: a part may name what an earlier part made (round A2: the auto
+            // layout's vehicle copies, then their links)
             for part in o.op.parts() {
+                for t in part.targets() {
+                    if !known.contains(&t.to_ascii_uppercase()) {
+                        out.missing.push((o.n, o.name(), t.to_ascii_uppercase()));
+                    }
+                }
+                for c in part.creates() {
+                    known.insert(c.to_ascii_uppercase());
+                }
                 let gone = match part {
                     Op::Delete { guids } => guids.as_slice(),
                     Op::SetMode { to } => to.removed.as_slice(),

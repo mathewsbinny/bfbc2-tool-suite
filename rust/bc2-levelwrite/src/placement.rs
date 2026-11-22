@@ -305,6 +305,13 @@ impl<'a> Lv<'a> {
         }
         out
     }
+
+    /// The class of the vehicle a spawner makes for `team` (L1's `spawner_class`): its entry for that team, else its
+    /// first entry.
+    fn spawner_class(&self, vg: &str, team: &str) -> Option<&'static str> {
+        let vs = self.vehicles_of(vg);
+        vs.iter().find(|(t, _)| t == team).or_else(|| vs.first()).map(|x| x.1)
+    }
 }
 
 /// Every vehicle spawner of a partition with L1's classes of the vehicles it makes (round A1's site rules): guid,
@@ -809,6 +816,35 @@ fn conquest(lv: &Lv<'_>, a: &Areas, out: &mut Out) {
                 .about(lv.label(c));
         }
     }
+    // round A2: the vehicle pools (L1's `cq.vehicle_spawner` and `l1_a1.py`'s pools): every spawner of a vehicle
+    // other than the ambient backdrop by its nearest flag or base (flags first among equals); the spawners within
+    // 150 m of it are its pool, one per spawner
+    let anchors: Vec<&String> = flags.iter().chain(&hqs).collect();
+    let mut pools: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+    for v in lv.of("VehicleSpawnEntityData") {
+        let Some(p) = lv.pos(&v) else { continue };
+        if !lv.vehicles_of(&v).iter().any(|x| x.1 != "ambient") {
+            continue;
+        }
+        if let Some((k, d)) = anchors
+            .iter()
+            .enumerate()
+            .map(|(k, a)| (k, d2(pos(a), p)))
+            .min_by(|x, y| x.1.total_cmp(&y.1))
+            && d <= 150.0
+        {
+            pools.entry(k).or_default().push(v);
+        }
+    }
+    for (k, vs) in pools {
+        let Some(a) = anchors.get(k) else { continue };
+        let metric = if hqs.contains(a) {
+            "cq.hq_vehicle_pool"
+        } else {
+            "cq.flag_vehicle_pool"
+        };
+        out.rec(metric, vs.len() as f64, vs).about(lv.label(a));
+    }
     for t in lv.of("TicketCounterEntityData") {
         if let Some(v) = lv.ival(&t, "InitialTicketCount") {
             out.rec("cq.tickets", v, vec![t.clone()])
@@ -945,6 +981,8 @@ fn rush(lv: &Lv<'_>, a: &Areas, prefix: &'static str, out: &mut Out) {
             "attacker_area_kept",
             "defender_area_kept",
             "lives",
+            "attacker_vehicles",
+            "defender_vehicles",
         ];
         const RUSH: &[&str] = &[
             "rush.stage_count",
@@ -963,6 +1001,8 @@ fn rush(lv: &Lv<'_>, a: &Areas, prefix: &'static str, out: &mut Out) {
             "rush.attacker_area_kept",
             "rush.defender_area_kept",
             "rush.lives",
+            "rush.attacker_vehicles",
+            "rush.defender_vehicles",
         ];
         const SR: &[&str] = &[
             "sr.stage_count",
@@ -981,6 +1021,8 @@ fn rush(lv: &Lv<'_>, a: &Areas, prefix: &'static str, out: &mut Out) {
             "sr.attacker_area_kept",
             "sr.defender_area_kept",
             "sr.lives",
+            "sr.attacker_vehicles",
+            "sr.defender_vehicles",
         ];
         let i = NAMES.iter().position(|n| *n == name).unwrap_or(0);
         let t = if prefix == "rush" { RUSH } else { SR };
@@ -1065,6 +1107,19 @@ fn rush(lv: &Lv<'_>, a: &Areas, prefix: &'static str, out: &mut Out) {
                 nearest.insert(side, d);
             }
             side_pts.insert(side, pts.iter().map(|x| x.1).collect());
+            // round A2: the side's vehicles while the stage is played (L1's `<side>_vehicles`): the vehicle spawners
+            // of its active bases, one per spawner whose vehicle for the team is not the ambient backdrop
+            let veh: Vec<String> = mine
+                .iter()
+                .flat_map(|c| lv.cp_spawners(c).1)
+                .filter(|v| lv.spawner_class(v, team).is_some_and(|c| c != "ambient"))
+                .collect();
+            let metric = if side == "attacker" {
+                "attacker_vehicles"
+            } else {
+                "defender_vehicles"
+            };
+            out.rec(m(metric), veh.len() as f64, veh).at_stage(k);
             // the side's combat area while the stage is played
             let cas: Vec<String> = a
                 .cas

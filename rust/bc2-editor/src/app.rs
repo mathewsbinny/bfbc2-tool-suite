@@ -289,8 +289,13 @@ pub struct ViewState {
     /// Actions asked for by menus and panels, run by the app after the frame's panels.
     pub pending: Vec<Action>,
     // ---- round VW1
-    /// The level's overlays (effects, lights, sounds, gameplay areas), read when the look is first applied.
+    /// The level's overlays (effects, lights, sounds, gameplay areas), read when the look is first applied; with a
+    /// project, its gameplay areas as its log leaves them (round A2: [`crate::overlays::with_project`]).
     pub overlays: Option<crate::overlays::Overlays>,
+    /// The base level's own overlays, as [`crate::overlays::load`] read them (round A2).
+    pub overlays_base: Option<crate::overlays::Overlays>,
+    /// The project revision the overlays' gameplay areas were read at (round A2).
+    pub overlays_rev: Option<u64>,
     /// The player's-eye camera, while it is on.
     pub walk: Option<crate::walk::Walk>,
     /// What differs from another level, the Diff panel's filters and choice (round EX1).
@@ -1804,6 +1809,8 @@ impl EditorApp {
             preview: crate::preview::Preview::default(),
             preview_shown: PreviewShown::default(),
             overlays: None,
+            overlays_base: None,
+            overlays_rev: None,
             walk: None,
             diff: crate::compare::DiffState::default(),
             mode_view: crate::modeview::ModeView::default(),

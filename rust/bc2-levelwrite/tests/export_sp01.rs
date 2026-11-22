@@ -104,6 +104,7 @@ fn sp_01_exports_as_a_new_conquest_level() {
         // E3's export: the BFBC2 profile, the base's names and loading picture
         profile: Profile::Bfbc2,
         identity: None,
+        path_data: false,
     };
     let out = std::env::temp_dir().join(format!("bc2_levelwrite_export_{}", std::process::id()));
     let rec = export::build(&game, &p, "test", &spec, &out).unwrap();

@@ -47,6 +47,12 @@ pub const FLOOR: f64 = 0.6;
 /// How far below the ground a place may be before it is a bad spot: DICE's deepest spawn point is 4.6 m under the
 /// height field (under a cliff on `mp_008`).
 pub const UNDERGROUND: f64 = 6.0;
+/// The way-out flood fill's cell (metres, round A2).
+pub const DRIVE_CELL: f64 = 2.0;
+/// How far a vehicle drives down off a ledge from one cell to the next (metres).
+pub const DRIVE_DROP: f64 = 2.0;
+/// The least water a boat sails on (metres from the surface to what is under it).
+pub const SAIL_DEPTH: f64 = 0.5;
 
 /// What stands at a place, for a soldier or a vehicle.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -500,6 +506,223 @@ impl Site {
             r += 0.5;
         }
         limit
+    }
+
+    /// Whether static collision stands in a vehicle's body at (x, z) over a surface at `y` (0.6 to 2.5 m above it):
+    /// a crossing in that band or a solid at its middle and top.
+    fn in_the_way(&self, x: f64, z: f64, y: f64) -> bool {
+        self.column(x, z).iter().any(|c| c.0 > y + 0.6 && c.0 < y + 2.5)
+            || self.inside_solid([x, y + 1.2, z])
+            || self.inside_solid([x, y + 2.2, z])
+    }
+
+    /// The surface a vehicle on a surface at `from` meets at (x, z): the highest of the ground and the collision up
+    /// to 1.2 m above `from` and down to [`DRIVE_DROP`] below it (a ramp, a kerb, a deck); `None` outside the terrain
+    /// without collision there.
+    fn drive_surface(&self, x: f64, z: f64, from: f64) -> Option<f64> {
+        let top = from + 1.2;
+        let g = self.ground(x, z).filter(|g| *g <= top);
+        let c = self
+            .column(x, z)
+            .into_iter()
+            .map(|c| c.0)
+            .filter(|h| *h <= top && *h >= from - DRIVE_DROP)
+            .fold(None, |m: Option<f64>, h| Some(m.map_or(h, |m| m.max(h))));
+        match (g, c) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        }
+    }
+
+    /// The surface a vehicle spawner at `p` stands over: the highest of the ground up to 1.5 m above `p` (a spawner a
+    /// little in a dip) and the collision from 3 m below `p` to 0.5 m above it (DICE's spawners stand up to 2 m over
+    /// a deck or the ground); `p`'s own height where neither is.
+    #[must_use]
+    pub fn stand(&self, p: [f64; 3]) -> f64 {
+        let g = self.ground(p[0], p[2]).filter(|g| *g <= p[1] + 1.5);
+        let c = self
+            .column(p[0], p[2])
+            .into_iter()
+            .map(|c| c.0)
+            .filter(|h| *h <= p[1] + 0.5 && *h >= p[1] - 3.0)
+            .fold(None, |m: Option<f64>, h| Some(m.map_or(h, |m| m.max(h))));
+        match (g, c) {
+            (Some(a), Some(b)) => a.max(b),
+            (a, b) => a.or(b).unwrap_or(p[1]),
+        }
+    }
+
+    /// A land vehicle's way out (round A2, XVAL-PLACE-6): how far from `p` (metres in plan, up to `limit`) it can
+    /// drive. A flood fill on [`DRIVE_CELL`] cells from the spawner's own: a cell is driven onto when its surface (the
+    /// ground, or collision a vehicle drives up onto) is at most 1.2 m above and [`DRIVE_DROP`] below the cell it comes
+    /// from, nothing static stands in the vehicle's body over it (0.6 to 2.5 m above the surface), and the water over
+    /// it is no deeper than a soldier wades (1.2 m). Tracks and wheels are not told apart.
+    #[must_use]
+    pub fn way_out(&self, p: [f64; 3], limit: f64) -> f64 {
+        let n = (limit / DRIVE_CELL).ceil() as i64;
+        let side = (2 * n + 1) as usize;
+        let at = |i: i64, j: i64| ((j + n) as usize) * side + (i + n) as usize;
+        let mut height = vec![f64::NAN; side * side];
+        let start = self.stand(p);
+        if let Some(h) = height.get_mut(at(0, 0)) {
+            *h = start;
+        }
+        let mut queue = std::collections::VecDeque::from([(0i64, 0i64)]);
+        let mut best: f64 = 0.0;
+        while let Some((i, j)) = queue.pop_front() {
+            let from = height.get(at(i, j)).copied().unwrap_or(f64::NAN);
+            for (di, dj) in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)] {
+                let (a, b) = (i + di, j + dj);
+                if a.abs() > n || b.abs() > n {
+                    continue;
+                }
+                let (dx, dz) = (a as f64 * DRIVE_CELL, b as f64 * DRIVE_CELL);
+                let d = dx.hypot(dz);
+                if d > limit || !height.get(at(a, b)).is_some_and(|h| h.is_nan()) {
+                    continue;
+                }
+                let (x, z) = (p[0] + dx, p[2] + dz);
+                let Some(h) = self.drive_surface(x, z, from) else {
+                    continue;
+                };
+                let step = if di != 0 && dj != 0 {
+                    1.2 * std::f64::consts::SQRT_2
+                } else {
+                    1.2
+                };
+                if h - from > step
+                    || from - h > DRIVE_DROP
+                    || self.water(x, z).is_some_and(|w| w - h > 1.2)
+                    || self.in_the_way(x, z, h)
+                {
+                    continue;
+                }
+                if let Some(c) = height.get_mut(at(a, b)) {
+                    *c = h;
+                }
+                best = best.max(d);
+                if best >= limit {
+                    return limit;
+                }
+                queue.push_back((a, b));
+            }
+        }
+        best
+    }
+
+    /// A boat's water access (round A2, XVAL-PLACE-7): how far from `p` (metres in plan, up to `limit`) it can sail.
+    /// A flood fill on the water raster's 4 m cells from the boat's own: a cell is sailed onto when the water over
+    /// it is at least [`SAIL_DEPTH`] deep and nothing static stands at the surface (0.3 to 2 m above it: a pier, a
+    /// jetty's piles).
+    #[must_use]
+    pub fn water_reach(&self, p: [f64; 3], limit: f64) -> f64 {
+        let n = (limit / WATER_CELL).ceil() as i64;
+        let side = (2 * n + 1) as usize;
+        let at = |i: i64, j: i64| ((j + n) as usize) * side + (i + n) as usize;
+        let mut seen = vec![false; side * side];
+        if let Some(s) = seen.get_mut(at(0, 0)) {
+            *s = true;
+        }
+        let sail = |x: f64, z: f64| {
+            let Some(w) = self.water(x, z) else { return false };
+            let under = self
+                .support([x, w, z])
+                .or_else(|| self.ground(x, z))
+                .unwrap_or(w - 100.0);
+            w - under >= SAIL_DEPTH && !self.column(x, z).iter().any(|c| c.0 > w + 0.3 && c.0 < w + 2.0)
+        };
+        let mut queue = std::collections::VecDeque::from([(0i64, 0i64)]);
+        let mut best: f64 = 0.0;
+        while let Some((i, j)) = queue.pop_front() {
+            for (di, dj) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                let (a, b) = (i + di, j + dj);
+                if a.abs() > n || b.abs() > n || seen.get(at(a, b)).copied().unwrap_or(true) {
+                    continue;
+                }
+                let (dx, dz) = (a as f64 * WATER_CELL, b as f64 * WATER_CELL);
+                let d = dx.hypot(dz);
+                if d > limit {
+                    continue;
+                }
+                if let Some(s) = seen.get_mut(at(a, b)) {
+                    *s = true;
+                }
+                if !sail(p[0] + dx, p[2] + dz) {
+                    continue;
+                }
+                best = best.max(d);
+                if best >= limit {
+                    return limit;
+                }
+                queue.push_back((a, b));
+            }
+        }
+        best
+    }
+
+    /// An aircraft's open sky (round A2, XVAL-PLACE-8): the height of the lowest static collision above `p` (from 3 m
+    /// up; metres above `p`, up to `limit`) within `radius` of it in plan (its centre, then rings at half and the whole
+    /// radius on 16 bearings).
+    #[must_use]
+    pub fn open_sky(&self, p: [f64; 3], radius: f64, limit: f64) -> f64 {
+        let mut low = limit;
+        let mut look = |x: f64, z: f64| {
+            for c in self.column(x, z) {
+                let up = c.0 - p[1];
+                if up > 3.0 && up < low {
+                    low = up;
+                }
+            }
+        };
+        look(p[0], p[2]);
+        for ring in [radius / 2.0, radius] {
+            for k in 0..16 {
+                let a = f64::from(k) * std::f64::consts::TAU / 16.0;
+                look(p[0] + ring * a.cos(), p[2] + ring * a.sin());
+            }
+        }
+        low
+    }
+
+    /// A plane's take-off run (round A2, XVAL-PLACE-8): the longest straight run from `p` on 16 bearings (metres, up
+    /// to `limit`) and its bearing (radians from +x towards +z). A run goes on, every 2 m, while the surface under its
+    /// centre line and both wing tips (`half_width` to each side) stays within 1 m of the last, holds no water deeper
+    /// than 0.5 m and has no static collision crossing it from 0.6 to 5 m above (a wall's top, a roof; not a solid's
+    /// inside: one of OPFOR's WW2 planes stands inside a hangar's solid collision on `iwo_jima_s`).
+    #[must_use]
+    pub fn runway(&self, p: [f64; 3], half_width: f64, limit: f64) -> (f64, f64) {
+        let mut best = (0.0, 0.0);
+        for k in 0..16 {
+            let a = f64::from(k) * std::f64::consts::TAU / 16.0;
+            let (u, v) = (a.cos(), a.sin());
+            let mut last: [f64; 3] = [self.stand(p); 3];
+            let mut run = 0.0;
+            let mut s = 2.0;
+            'run: while s <= limit {
+                for (m, off) in [-half_width, 0.0, half_width].into_iter().enumerate() {
+                    let (x, z) = (p[0] + u * s - v * off, p[2] + v * s + u * off);
+                    let from = last.get(m).copied().unwrap_or(p[1]);
+                    let Some(h) = self.drive_surface(x, z, from) else {
+                        break 'run;
+                    };
+                    if (h - from).abs() > 1.0
+                        || self.water(x, z).is_some_and(|w| w - h > 0.5)
+                        || self.column(x, z).iter().any(|c| c.0 > h + 0.6 && c.0 < h + 5.0)
+                    {
+                        break 'run;
+                    }
+                    if let Some(l) = last.get_mut(m) {
+                        *l = h;
+                    }
+                }
+                run = s;
+                s += 2.0;
+            }
+            if run > best.0 {
+                best = (run, a);
+            }
+        }
+        best
     }
 
     /// The number of collision triangles held.

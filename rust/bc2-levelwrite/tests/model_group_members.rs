@@ -186,6 +186,7 @@ fn spec(level: &str, p: &MapProject, profile: Profile) -> ExportSpec {
         },
         profile,
         identity: None,
+        path_data: false,
     }
 }
 

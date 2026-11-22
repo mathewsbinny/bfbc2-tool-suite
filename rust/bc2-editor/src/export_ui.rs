@@ -446,6 +446,7 @@ pub fn default_spec(project: &MapProject, profiles: Option<&Profiles>) -> Export
         layer,
         profile,
         identity: Some(Identity::default()),
+        path_data: false,
     }
 }
 

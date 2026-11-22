@@ -123,6 +123,7 @@ fn atacama(game: &Game, dir: &Path) -> (PathBuf, ExportSpec) {
             picture: String::new(),
             languages,
         }),
+        path_data: false,
     };
     std::fs::write(
         export::spec_path_of(&path),

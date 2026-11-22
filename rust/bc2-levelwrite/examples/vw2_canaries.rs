@@ -167,6 +167,7 @@ fn build(game: &Game, p: &MapProject, c: &Case, projects: &Path, stage: &Path, l
             picture: String::new(),
             ..Identity::default()
         }),
+        path_data: false,
     };
     std::fs::write(
         export::spec_path_of(&path),

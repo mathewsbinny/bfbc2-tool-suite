@@ -86,6 +86,7 @@ fn spec_of(p: &MapProject, id: &str, browser: &str) -> ExportSpec {
             picture: String::new(),
             languages,
         }),
+        path_data: false,
     }
 }
 

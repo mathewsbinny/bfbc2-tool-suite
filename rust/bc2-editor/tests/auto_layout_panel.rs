@@ -157,7 +157,7 @@ fn the_auto_layout_is_proposed_drawn_accepted_and_validated() {
         // Accept: one move operation; then the Problems panel lists no error and no warning
         let palette = app.palette();
         app.view_mut().unwrap().accept_layout(&gpu, &palette);
-        assert!(app.view().unwrap().autolayout.proposal.is_none());
+        assert!(!app.view().unwrap().autolayout.holds());
         app.run(&gpu, &ctx, Action::ShowPanel(PanelKind::Problems));
         h.settle(&mut app, 4);
         let rows = {
