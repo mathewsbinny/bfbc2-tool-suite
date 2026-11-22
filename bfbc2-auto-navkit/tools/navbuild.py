@@ -311,6 +311,65 @@ class BuildSettings:
 DEFAULTS = BuildSettings()
 
 
+def _cfg_dict(cfg: BuildSettings) -> dict[str, Any]:
+    """A BuildSettings as the Rust core's build takes it (round NK5)."""
+    return dict(pitch=float(cfg.pitch), sector_samples=int(cfg.sector_samples), window=_window(cfg),
+                tile=int(cfg.tile), tiles=int(cfg.tiles), resolution=float(cfg.resolution),
+                link_step=float(cfg.link_step), radius=float(cfg.radius), dist_edge_max=float(cfg.dist_edge_max),
+                y_offset=float(cfg.y_offset), area_y_min=float(cfg.area_y_min), area_y_max=float(cfg.area_y_max),
+                border_node_spacing=float(cfg.border_node_spacing),
+                node_cover=tuple(float(c) if c else None for c in (cfg.node_cover.get('normal'),
+                                                                     cfg.node_cover.get('detailed'))),
+                order_nodes=bool(cfg.order_nodes), clip_to_reference=bool(cfg.clip_to_reference),
+                one_way_portals=str(cfg.one_way_portals), detail_features=bool(cfg.detail_features),
+                detail_step=(float(cfg.detail_step['normal']), float(cfg.detail_step['detailed'])),
+                detail_blocks_edges=bool(cfg.detail_blocks_edges),
+                tile_20m_sectors=sorted(int(s) for s in cfg.tile_20m_sectors) if cfg.tile_20m_sectors else None)
+
+
+def _switches() -> dict[str, Any]:
+    """This module's, navislands', navdetail's and navwalk's switches the stage reads, as the Rust core takes them
+    (read at each call: the tests switch them)."""
+    import navdetail
+    shadow = navislands.rule([])[0] if navislands.SHADOW_ISLANDS else None
+    return dict(area_link=AREA_LINK, link_rule=LINK_RULE, symmetric_portals=bool(SYMMETRIC_PORTALS),
+                edge_rule_grid_min=EDGE_SECTOR_RULE == 'grid_min', edge_sector_tiles=bool(EDGE_SECTOR_TILES),
+                max_area=_max_area(), gabriel=GABRIEL_EDGES, sort_nodes_by_id=bool(SORT_NODES_BY_ID),
+                border_owner=bool(BORDER_OWNER), order_node_min=float(ORDER_NODE_MIN),
+                order_min_island=int(ORDER_MIN_ISLAND or 0), detail_half_cells=bool(DETAIL_HALF_CELLS),
+                detail_in_detailed=bool(DETAIL_IN_DETAILED),
+                detail_f=(bool(DETAIL_F['normal']), bool(DETAIL_F['detailed'])),
+                detail_terrain_only=(bool(DETAIL_TERRAIN_ONLY['normal']), bool(DETAIL_TERRAIN_ONLY['detailed'])),
+                cut_corners=bool(navdetail.CUT_CORNERS), chain_turns=bool(navdetail.CHAIN_TURNS), shadow=shadow,
+                header=list(HEADER), roof_prune=bool(navwalk.ROOF_PRUNE),
+                objective_floor=bool(navwalk.OBJECTIVE_FLOOR))
+
+
+def _clock(stamp: time.struct_time) -> tuple[int, int]:
+    """A sector's (date, clock) words of a time.localtime() stamp."""
+    return ((stamp.tm_year % 100) * 10000 + (stamp.tm_mon - 1) * 100 + stamp.tm_mday,
+            stamp.tm_hour * 1000000 + stamp.tm_min * 10000 + stamp.tm_sec * 100)
+
+
+def _note_report(got: dict[str, Any]) -> None:
+    """The Rust build's counts in the report dicts (ORDER_IDS, ORDER_STATS, LADDER_STATS, DETAIL_STATS,
+    navislands.TERRAIN_IDS / STATS, navwalk.STEEP_STATS)."""
+    ORDER_IDS.update(got['order_ids'])
+    if got['order_added']:
+        ORDER_STATS['added'] = got['order_added']
+    if got['removed']:
+        ORDER_STATS.setdefault('removed', []).extend(got['removed'])
+    LADDER_STATS['linked'], LADDER_STATS['split'] = got['ladders']
+    d, f, moved, one_sided = got['detail']
+    DETAIL_STATS.update(d=d, f=f, outline_moved=moved, outline_one_sided=one_sided)
+    navislands.TERRAIN_IDS.update(got['terrain_ids'])
+    if 'shadow' in got:
+        islands, nodes, before = got['shadow']
+        navislands.STATS.update(islands=islands, nodes=nodes, before=before, after=before - islands)
+    for k, v in got['steep']:
+        navwalk.STEEP_STATS[k] = navwalk.STEEP_STATS.get(k, 0) + v
+
+
 def reset_stats() -> None:
     """Clears the per-build report counters and id sets: this module's, navislands' and navwalk's (build() at its
     start; ORDER_IDS also decides which order nodes write_file may drop)."""
@@ -764,27 +823,47 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
     the second pass: those sectors are built at pitch 0.2 (DICE's detailed zones) and merged with the normal build
     (merge_detailed). Without it the build is the normal one, unchanged.
     cfg: the build's settings (BuildSettings; the normal infantry build by default - the detailed pass uses
-    cfg.detailed())."""
-    require_native()                        # the grid walks need the Rust core: say so before reading anything
+    cfg.detailed()).
+    The whole build runs in the Rust core (round NK5: bc2_navbuild::build through bc2_native.navkit_build): the log
+    lines come through log as the build makes them; the report counts land in this module's (and navislands' and
+    navwalk's) report dicts as before."""
+    nat = require_native()                  # the build runs in the Rust core: say so before reading anything
     t0 = time.time()
-    common: dict[str, Any] = dict(tris_path=tris_path, step=step, log=log, dynamic_path=dynamic_path, narrow_path=narrow_path,
-                  stairs_path=stairs_path, exclude_path=exclude_path, exclude_foot_path=exclude_foot_path,
-                  edits=edits, water=water, max_water_depth=max_water_depth, bounds=bounds,
-                  order_points=order_points, t0=t0, ladders=ladders, area_orders=area_orders)
     reset_stats()                           # reports of this build only (navregress / the GUI build several)
-    a = stage(samples_path, high_path, xoff, zoff, seeds=seeds, **common, cfg=cfg)
-    graphs = merge_detailed(a, detailed, xoff, zoff, seeds, common, log, cfg) if detailed else a['graphs']
-    if ladders:
-        log(f'ladders: {len(ladders)}; links made {LADDER_STATS.get("linked", 0)} (counted per stage), ends in two '
-            f'sectors {LADDER_STATS.get("split", 0)}')
-    if cfg.detail_features:
-        log(f'detail features: {DETAIL_STATS.get("d", 0)} D lines, {DETAIL_STATS.get("f", 0)} F cells; '
-            f'{DETAIL_STATS.get("outline_moved", 0)} outline sides moved to them, '
-            f'{DETAIL_STATS.get("outline_one_sided", 0)} kept (outline on one cell only)')
-    else:
-        log('detail features: off (no D lines or F cells)')
-    # route islands that shadow a larger one lose their nodes (navislands.py: SHADOW_ISLANDS), in write_file
-    write_file(graphs, out_path, log, t0, cfg, list(seeds or []) + list(order_points or []) + list(area_orders or []))
+
+    def npy(p: str | None) -> np.ndarray | None:
+        return np.load(p) if p else None
+    wet = water is not None and max_water_depth is not None
+    wmesh = None
+    if wet and water is not None:
+        wmesh = ((np.ascontiguousarray(water[0], '<f8').tobytes(), np.ascontiguousarray(water[1], '<i8').tobytes())
+                 if water[0] is not None and len(water[1]) else (b'', b''))
+    job: dict[str, Any] = dict(
+        samples=samples_path, high=high_path, narrow=narrow_path, forbid=navwalk._tris(npy(tris_path)),
+        dynamic=navwalk._tris(npy(dynamic_path)), stairs=navwalk._tris(npy(stairs_path)),
+        exclude=navwalk._tris(npy(exclude_path)), exclude_foot=navwalk._tris(npy(exclude_foot_path)),
+        step=float(step), xoff=int(xoff), zoff=int(zoff), seeds=list(seeds or []), water=wmesh,
+        max_water_depth=float(max_water_depth) if wet and max_water_depth is not None else None,
+        bounds=[float(v) for v in bounds[:4]] if bounds is not None else None,
+        order_points=list(order_points) if order_points is not None else None,
+        area_orders=list(area_orders) if area_orders else None,
+        ladders=navwalk._ladders(ladders) if ladders is not None else None)
+    if edits:
+        import navedits
+        regions, hand_seeds, unseeds, counts = navedits.regions_of(edits)
+        job['edits'] = (regions, hand_seeds, unseeds, list(counts.items()))
+    if detailed:
+        job['detailed'] = (detailed['samples'], detailed.get('high'), sorted(detailed['sectors']))
+    stamp = time.localtime()
+    try:
+        got = nat.navkit_build(job, _cfg_dict(cfg), _switches(), navwalk._settings(40.0), _clock(stamp), out_path, log,
+                               t0)
+    except ValueError as e:
+        if str(e).startswith(('level arrays do not agree: no walkable ground', 'level arrays do not agree: ')) \
+                and ('no walkable ground' in str(e) or 'outside the 256 x 256 grid' in str(e)):
+            raise RuntimeError(str(e).split(': ', 1)[1]) from None
+        raise
+    _note_report(got)
 
 
 def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int, tris_path: str | None = None,

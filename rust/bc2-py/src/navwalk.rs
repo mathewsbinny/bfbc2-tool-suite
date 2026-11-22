@@ -28,28 +28,28 @@ use pyo3::types::{PyAny, PyByteArray, PyBytes, PyDict, PyList, PyTuple};
 
 use crate::navbuild::NavLevel;
 
-fn value_error(e: impl std::fmt::Display) -> PyErr {
+pub(crate) fn value_error(e: impl std::fmt::Display) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
 
-fn item<'py>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+pub(crate) fn item<'py>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
     Ok(d.get_item(key)?.filter(|v| !v.is_none()))
 }
 
-fn need<'py>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyAny>> {
+pub(crate) fn need<'py>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyAny>> {
     item(d, key)?.ok_or_else(|| value_error(format!("{key}: missing")))
 }
 
-fn get<'py, T: FromPyObjectOwned<'py>>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<T> {
+pub(crate) fn get<'py, T: FromPyObjectOwned<'py>>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<T> {
     need(d, key)?.extract::<T>().map_err(Into::into)
 }
 
-fn opt<'py, T: FromPyObjectOwned<'py>>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<Option<T>> {
+pub(crate) fn opt<'py, T: FromPyObjectOwned<'py>>(d: &Bound<'py, PyDict>, key: &str) -> PyResult<Option<T>> {
     item(d, key)?.map(|v| v.extract::<T>().map_err(Into::into)).transpose()
 }
 
 /// A `bytes` object's bytes.
-fn raw(v: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+pub(crate) fn raw(v: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
     Ok(v.cast::<PyBytes>()?.as_bytes().to_vec())
 }
 
@@ -63,7 +63,7 @@ fn bytes_of(d: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<u8>>> {
         .transpose()
 }
 
-fn le<const N: usize>(b: &[u8], what: &str) -> PyResult<Vec<[u8; N]>> {
+pub(crate) fn le<const N: usize>(b: &[u8], what: &str) -> PyResult<Vec<[u8; N]>> {
     let (whole, rest) = b.as_chunks::<N>();
     if !rest.is_empty() {
         return Err(value_error(format!("{what}: {} bytes, not a multiple of {N}", b.len())));
@@ -71,7 +71,7 @@ fn le<const N: usize>(b: &[u8], what: &str) -> PyResult<Vec<[u8; N]>> {
     Ok(whole.to_vec())
 }
 
-fn f64s(b: &[u8], f32_: bool, what: &str) -> PyResult<Vec<f64>> {
+pub(crate) fn f64s(b: &[u8], f32_: bool, what: &str) -> PyResult<Vec<f64>> {
     Ok(if f32_ {
         le::<4>(b, what)?
             .into_iter()
@@ -82,14 +82,14 @@ fn f64s(b: &[u8], f32_: bool, what: &str) -> PyResult<Vec<f64>> {
     })
 }
 
-fn usizes(b: &[u8], what: &str) -> PyResult<Vec<usize>> {
+pub(crate) fn usizes(b: &[u8], what: &str) -> PyResult<Vec<usize>> {
     le::<8>(b, what)?
         .into_iter()
         .map(|c| usize::try_from(i64::from_le_bytes(c)).map_err(|_| value_error(format!("{what}: a negative value"))))
         .collect()
 }
 
-fn flags(b: &[u8]) -> Vec<bool> {
+pub(crate) fn flags(b: &[u8]) -> Vec<bool> {
     b.iter().map(|&v| v != 0).collect()
 }
 
@@ -199,12 +199,12 @@ fn samples_dict<'py>(py: Python<'py>, s: &Samples) -> PyResult<Bound<'py, PyDict
 
 /// Points (x, y, z): any sequences of three numbers (JSON's lists, tuples; ints or floats as Python's arithmetic
 /// takes them).
-fn points(v: Option<Vec<[f64; 3]>>) -> Vec<P3> {
+pub(crate) fn points(v: Option<Vec<[f64; 3]>>) -> Vec<P3> {
     v.unwrap_or_default().into_iter().map(|[x, y, z]| (x, y, z)).collect()
 }
 
 /// Triangles: (float64 bytes, nine per triangle, the array was float32) or None.
-fn tris(d: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Tris>> {
+pub(crate) fn tris(d: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Tris>> {
     let Some(v) = item(d, key)? else { return Ok(None) };
     let (b, from_f32) = (raw(&v.get_item(0)?)?, v.get_item(1)?.extract::<bool>()?);
     let vals: Vec<f64> = le::<8>(&b, key)?.into_iter().map(f64::from_le_bytes).collect();
@@ -258,7 +258,7 @@ fn inputs(d: &Bound<'_, PyDict>) -> PyResult<WalkInputs> {
     })
 }
 
-fn settings(d: &Bound<'_, PyDict>) -> PyResult<WalkSettings> {
+pub(crate) fn settings(d: &Bound<'_, PyDict>) -> PyResult<WalkSettings> {
     let roof: (f64, f64, f64, f64) = get(d, "roof")?;
     Ok(WalkSettings {
         characters_absent: get(d, "characters_absent")?,
@@ -326,7 +326,7 @@ pub fn navkit_walkable<'py>(
     walked(py, w)
 }
 
-fn region(v: &Bound<'_, PyAny>) -> PyResult<Region> {
+pub(crate) fn region(v: &Bound<'_, PyAny>) -> PyResult<Region> {
     let kind: String = v.get_item(0)?.extract()?;
     match kind.as_str() {
         "box" => Ok(Region::Box(v.get_item(1)?.extract()?)),
@@ -338,13 +338,13 @@ fn region(v: &Bound<'_, PyAny>) -> PyResult<Region> {
     }
 }
 
-fn regions(v: &Bound<'_, PyList>) -> PyResult<Vec<(bool, Region)>> {
+pub(crate) fn regions(v: &Bound<'_, PyList>) -> PyResult<Vec<(bool, Region)>> {
     v.iter()
         .map(|o| Ok((o.get_item(0)?.extract::<bool>()?, region(&o.get_item(1)?)?)))
         .collect()
 }
 
-fn water(d: &Bound<'_, PyDict>) -> PyResult<Option<WaterMesh>> {
+pub(crate) fn water(d: &Bound<'_, PyDict>) -> PyResult<Option<WaterMesh>> {
     let Some(w) = item(d, "water")? else { return Ok(None) };
     let (v, t) = (raw(&w.get_item(0)?)?, raw(&w.get_item(1)?)?);
     let v: Vec<f64> = le::<8>(&v, "vertices")?.into_iter().map(f64::from_le_bytes).collect();

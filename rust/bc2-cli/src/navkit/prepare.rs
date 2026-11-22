@@ -376,9 +376,10 @@ fn terrain_find(folder: &str, name: &str) -> PyResult<Option<String>> {
     Ok(None)
 }
 
-/// `level.heightfield_of(root, lv, log)`: the terrain unpacked when its unpack is missing or from another bundle,
+/// `level.heightfield_of(root, lv, log)` (its terrain name returned, for `water_of`): the terrain unpacked when its
+/// unpack is missing or from another bundle,
 /// then read (its error raised).
-pub fn heightfield_of(py: &mut Py, root: &str, lv: &str, log: &mut dyn Log) -> PyResult<()> {
+pub fn heightfield_of(py: &mut Py, root: &str, lv: &str, log: &mut dyn Log) -> PyResult<String> {
     let mut part = None;
     for b in ["pkg", "dist"] {
         for f in pyos::glob(&join(root, &["work", "levels", lv, b, "levels", "*.dbx"])?)? {
@@ -474,5 +475,5 @@ pub fn heightfield_of(py: &mut Py, root: &str, lv: &str, log: &mut dyn Log) -> P
             return Err(Fail::Err(PyErr::new("ValueError", format!("{p}: {e}"))));
         }
     }
-    Ok(())
+    Ok(name)
 }
