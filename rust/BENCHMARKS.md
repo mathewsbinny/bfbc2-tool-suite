@@ -10260,3 +10260,42 @@ goldens and the byte-identical regression below. `parity_nk5_build.py` and `benc
   in chunks).
 - `navislands.py` and `navdetail.py` stay for their own callers (prune, features for the tests); the build reads the
   Rust defaults of their settings, so their module names no longer change a build.
+
+## CI1: GitHub's checks green (2026-11-22, branch `ci1`)
+
+GitHub's `checks` run (`python run_tests.py quick --no-game --ci-steps -j 2` on windows-latest) failed five entries
+on f4071e3. Their causes, found by reproducing the runner on the development PC: a fresh `git clone` on another drive
+(`subst Q:`) than an 8.3-short TEMP on C:, no Project OPFOR above it, no `OPFOR_` / `BFBC2_` / `BC2_` / `BF1943_`
+variables, no ffmpeg on PATH, CI's variables, and `OPENBLAS_CORETYPE=Haswell`. That simulation failed the same five
+entries with the same counts as the runner's annotations (routes 4950 of 10000, texture.check 1090 of 1200).
+
+| Entry | Root cause | Fix |
+|---|---|---|
+| green crates (`test_rust_skip.py`) | `os.path.relpath` across drives raises (checkout D:, stand-in workspace in TEMP on C:) | `test_rust._input_name`: falls back to the checkout |
+| O5 stockmp | validate's log records name the temporary folder: the PC's long path recorded, the runner's 8.3 `RUNNER~1` | `<temp>` in long and short spellings; goldens rewritten |
+| F2a texture.check | `np.corrcoef` is a BLAS dot: OpenBLAS's kernel (SkylakeX here, Haswell / Zen there) changes its last bits | exact correlation in the core; 135 + 744 answers re-recorded |
+| E3o routes | `Route.straight` was `np.linalg.norm` (a BLAS `ddot`), same cause | the estimate's formula (`navpath.distance`) |
+| O3 audio | ffmpeg missing on the runner | not this round's: PR1b-1c's Rust XMA2 decoder |
+
+The OpenBLAS kernel is the root cause, not the C runtime: NumPy 2.5's own float64 ufuncs dispatch only up to X86_V3 on
+Windows (no AVX-512 / SVML paths), and `np.exp` / `log` / `log10` / `sin` / `cos` / `arctan2` / `power` / `hypot` /
+`tanh` / `arccos` gave the same bits with AVX-512 disabled; `np.corrcoef` (random integer arrays) and `np.linalg.norm`
+of 200,000 random 3-vectors changed bits with `OPENBLAS_CORETYPE` (SkylakeX = this PC's default; Haswell = Zen;
+Prescott, Nehalem each different). The Rust module imports from the C runtime only `fma`, `pow`, `powf`, `atan2`,
+`atan`, `sin`, `cos` and `fmod` (its import table); `fma` (f64::mul_add without the `fma` target feature) defined
+NavKit's route estimate, now `libm::fma`. None of the others reached a failing entry.
+
+Re-recording: `texture.check_reference`'s replayed answers were rewritten only where the exact correlation differs
+from the recording, and each rewritten answer was first proven to be the old recording with NumPy's corrcoef put back
+(the worst, same and total unchanged): 135 of 1,192 quick answers, 744 of 8,582 game answers (a texture against
+itself: exact 1.0 where this PC's OpenBLAS gave a value a few units in the last place from it). The recorded routes
+did not change: the estimate's formula is np.linalg.norm's bits on the recording PC.
+
+### Tests
+
+- The runner simulation on the branch: 123 of 124, the one failure O3's audio group (182 lines; PR1b-1c's).
+- texture.check with `OPENBLAS_CORETYPE` default, Haswell and Prescott: 1,200 of 1,200, 0 wrong replays each; E3o's
+  routes 10,000 of 10,000 with default and Haswell; O5 stockmp 73 of 73; green crates with TEMP on another drive.
+- cargo fmt; clippy `--all-targets -D warnings` on bc2-convert, bc2-navbuild, bc2-py, bc2-cli and each of
+  bfbc2.exe's 17 tool groups alone; cargo test of those crates (texcheck's new `correlation_exact` among them);
+  ruff, mypy; `spec/trace.py --check` (XCONS-PAR-2 new).
