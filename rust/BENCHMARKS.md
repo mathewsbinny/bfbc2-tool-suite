@@ -10066,3 +10066,110 @@ all passing, 3 min 24 s (the material maps' Python decode about 30 s of it).
 `spec/COVERAGE.md` section 2 (queued as SPG2-rest2): the terrain rules' playtest, the undergrowth loader, the RE list
 (emitter processors, mounts, `OnlyTakeableByTeam`, the award evaluator, dirt build-up, the menus' loading roots), the
 other two readers' one-byte undergrowth field.
+
+## PR1b-2: the crate shape, in part (2026-11-22, branch `pr1b2`)
+
+Audit AU5 section 6's PR1b-2 (PR0 items 9-12; ARC-2, ARC-7, ARC-12, ALG-6, ALG-11, NAM-8) and PR1b-1's DBX merge plan.
+Every output is the same (WW2 rebuild, the export canaries, DbxEditGUI's recording, the corpus round trip). Version
+0.17.0: public Rust API moved or removed (CHANGELOG).
+
+### 1. The one DBX document
+
+PR1b-1's plan, steps 1, 2 and 4 (step 3 is left). `EditFile`'s rules are on `EditDbx`'s arena:
+
+- every value keeps its stored bytes, a text value's string-index varint too (`EditDbx::payload`; `raw()` keeps
+  dbxbin's meaning, empty for text). The dbxbin parse keeps them as well, so a non-shortest index now comes back as
+  stored (it was re-encoded; no DICE file has one: the corpus round trips were already identical);
+- `set_string` (DbxEdit's `replace` / `replaceprefix`): the table written anew, the intern index rebuilt lazily so
+  interning finds the first entry of the table as it is now;
+- DbxEdit's reader (`dbxedit::read`) builds the same arena under its rules: C# `int` string indexes checked where
+  read (`dbxedit::Table`), wrapping varints, C# `int` numbers sizes, nesting past 256 refused, a non-binary file kept
+  as its bytes, strings decoded as .NET does (U+FFFD for a malformed sequence; only seen once the table is written
+  anew). `dbxedit::serialize` checks DbxEdit's limits in file order, then `EditDbx::write`.
+- the commands (`editor`, `import`, `check`, `export`, `leveldiff`), the DBX inspector, its panel and Compare run on
+  `NodeId`s; the inspector's Import XML uses the open file's clone as its reference (no serialise and re-read), a
+  refused Apply puts the clone back.
+
+One varint (step 4): `bc2_formats::varint` (`put`, `read_u64`, `read_saturating`, `read_i32`); `dbx::cursor`,
+`dbx::edit`, `dbxedit`, `culltree` and `culltool` (twice) call it, each with its reader's rule for a varint the game
+never writes.
+
+| Proof | result |
+|---|---|
+| DbxEditGUI's recording (`dbxedit_parity::the_inspector_gives_dbxeditguis_answers`) | 19 of 19 files, **1,232 of 1,232 steps** |
+| every prepared level's binary `.dbx` through the inspector and back (`every_level_file_round_trips_through_the_inspector`) | **31,037** of 89,337 files, **0 differ** (43 s) |
+| the project partition's edits (`project_partition_edits_are_project_operations`) | ok |
+| levelwrite's whole-level tests and export canaries (quick + game tier, 38) | 37 ok; `model_group_members` needed `bc2_native` built in the worktree (passed once built) |
+| DbxEdit's robustness (proptest), the editor's DBX unit tests | ok |
+| DbxEdit.exe's recorded answers (`dbxedit:game`): 160 edit fingerprints; 1,592 corpus files, 12,464 command runs | all identical |
+
+### 2. `bc2-formats` split: `bc2-gamefs` and `bc2-tools`
+
+| crate | what |
+|---|---|
+| `bc2-formats` | the formats: bytes in, bytes out, files read; no file written, no cache, no system call |
+| `bc2-gamefs` (new) | `game` (`Game::Bfbc2`, `find_game`), `atomic`, `ledger` (`LedgerError`), `liveness` (`pid_alive`, `host_name`: the crate's only Win32), `sha256`, `bundles` (the bundle cache, the cached reads, `pack_path` / `pack_many`), `points` (the BF1943 restart points on disk), `meshindex`, `budget`, `workers` |
+| `bc2-tools` (new) | `fbrbtool` (FbrbTool's command line), `unpack_path` / `unpack_bytes`, `dbxedit` (DbxEdit's command line) |
+
+`bc2_formats::fbrb` keeps `read_path_uncached` / `extract_path_uncached` / `entries_path` and `fbrb::stream` (the
+chunk, gzip member, collector and pack pieces the cache and FbrbTool build on). `bc2_formats::bf1943` keeps the
+points' format and takes a `PointsStore` (the seam: the reader never writes a file). Every caller moved (paths only);
+the specification's citations re-cited by content (`spec/trace.py --emit`, 1,183 rules).
+
+The game layer for the multi-game goal: `Game` names the game (its executable, a copy's check); a later game is a
+variant and its answers. Nothing per-game was invented beyond what BFBC2 uses today.
+
+**One cache budget** (`bc2_gamefs::budget`): the table of 13 caches, folders, caps, scan, the folder pruning (stale
+temporary files and markers, the bundle cache's superseded points first, then least recently used, `keep`, the stamp
+checked again under the lock), clear, usage, the overall pruning. `bfbc2.exe caches` / `budget` call it (their two
+copies deleted; `pyos::files`' stat, scandir and delete are its); `bfbc2core.caches`' `prune`, `maybe_prune`,
+`prune_total` and `clear` call it through `bc2_native.caches_prune` / `caches_prune_total` / `caches_clear` (the
+Python is kept for a missing module). The caches group's recorded answers: 184 of 184 (the overall pruning's members need the project folder found as
+before: one fix during the round). `run_tests.py quick -j 2` after merging main: **134 of 134**.
+
+### 3. The census a check
+
+`rust\native_census.py --check` (quick tier, `native-census`): 264 exports, 0 without a caller. `xas_encode` (no
+caller) removed; the two classes only returned (`AptLines`, `NavStageGraphs`) are listed with why. `--record` keeps
+OPFOR's callers (8 names) in `rust\native_census.json` for a checkout without OPFOR.
+
+### 4. One worker pool and knob
+
+`BFBC2_WORKERS` (`bc2_gamefs::workers`): rayon's global pool built with it at the start of `bc2_native`, `bfbc2.exe`,
+the editor and `mapexport.exe` (else `RAYON_NUM_THREADS`, else the cores); `bfbc2core.workers(tool_env, default)`
+for the Python tools (pcbuild).
+
+The mesh index (ALG-6): each bundle on the pool (its header and one read of all its Dx9 databases), the parts
+merged in the bundles' order with the reference's first-wins rules and its failure order (an entry's failure counts
+only when the entry is new, as before).
+
+The editor's jobs on `Task` (ARC-7): the start screen's catalog, a level's load, its render meshes, the export's
+profiles, preview and run, NavKit's comparison read (8 of the 12 left by PR1b-0). Kept: the install's run (its
+answer a status and text, its DF1 test hands it a receiver), the preparation and the two pipe readers (they stream
+lines).
+
+### WW2 rebuild
+
+OPFOR main `2ffc684`, `OPFOR_TOOLKIT` a scratch folder whose `bfbc2-tool-suite` junctioned to this worktree (its fresh
+`bc2_native.pyd` and `binfbc2.exe`, version 0.17.0), `BFBC2_FBRB_CACHE` a scratch folder, `--jobs 2`: all 55 steps
+in 20.5 min (the 3 level chains side by side in 314 s; the machine shared with NKG1's game tier). `compare_oracle`:
+**10,852 of 10,852 identical** (differ 0, missing 0, extra 0); `qa_checks.py` passed. OPFOR's `SUITE_REQUIRES`
+(< 0.17.0) warned about the new version, as expected; OPFOR was not changed and nothing was installed. The reader
+(the bundle cache in `bc2-gamefs`), the BF1943 points store and the mesh index the rebuild reads through are this
+round's.
+
+### What is left (PR1b-2-rest)
+
+- **Merge step 3**: culltool's `Doc` (2,622 lines of the Python emulation) and the export's cull-tree walker on
+  `EditDbx`, proved by the Onslaught bundles' and the editor exports' cull trees byte for byte.
+- **bc2-cli's tool logic into libraries** (the rest of ARC-2, NAM-8): the many `find_opfor` copies, the groups that
+  return `Fail` / `PyErr` (levelwrite's culltool, bc2-menu); LevelDiff's command line (still
+  `bc2_formats::dbxedit::leveldiff::run`); rayon in bc2-cli's own CPU work.
+- **Content keys** for the culltree-row, HLSL, collision and shadercover caches (each format's version raised, with
+  the Python readers that share them), OPFOR's caches under the budget (PR1b-1c).
+- **Sounds decoded in process** (PR0 12, PR1b-1c's XMA2 decoder).
+- **Item 5, not started**: the mesh viewer's Python API through `bc2_native` (ARC-4: `meshview.Index` / `load_mesh` /
+  `render` on `bc2_convert::meshview`, OPFOR's 103 calls proved by the WW2 oracle, then `meshview.py` and the pickle
+  cache retired); the anim and model tools (`granny.py`'s curve_keys / sample / put, `decimate.py`, `shapes.py`,
+  `texwrite.py`'s packing).
+- The install run's thread on `Task`.

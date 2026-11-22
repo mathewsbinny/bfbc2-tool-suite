@@ -241,6 +241,8 @@ fn run(args: &[String]) -> Result<bool, String> {
 }
 
 fn main() -> ExitCode {
+    // the one worker pool (BFBC2_WORKERS)
+    bc2_gamefs::workers::init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 1 && args.first().map(String::as_str) == Some("--source-hash") {
         // `build_native.py --editor` passes the fingerprint as BC2_SOURCE_HASH (empty when built by cargo alone)

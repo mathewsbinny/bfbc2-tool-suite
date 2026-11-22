@@ -4,8 +4,8 @@
 //!
 //! | `DbxEdit.cs` | here |
 //! |---|---|
-//! | `Program` (`xml`, `roundtrip`, `edit`, `import`, `check`, `fixslots`) | [`run`], [`run_many`] ([`Outcome`]) |
-//! | `DbxFile`, `Element`, `Varint`, `AtomicFile` | [`EditFile`], [`Element`], [`read_varint`], [`write_atomic`] |
+//! | `Program` (`xml`, `roundtrip`, `edit`, `import`, `check`, `fixslots`) | `bc2_tools::dbxedit` (the command line, round PR1b-2) |
+//! | `DbxFile`, `Element`, `Varint`, `AtomicFile` | [`EditDbx`] read by [`read`], written by [`serialize`]; [`read_varint`]; `bc2_gamefs::atomic` |
 //! | `XmlExport.Convert` / `ValueText` | [`convert`], [`value_text`] |
 //! | `XmlImport`, `TypeBook` | [`import`], [`parse_xml`], [`ImportReport`] |
 //! | `Editor` | [`editor`] |
@@ -13,9 +13,11 @@
 //! | exceptions and `ToolLog.Explain` | [`Fault`] |
 //! | `LevelDiff.cs` (`bfbc2-diff-workbench`, retired in round EX1) | [`leveldiff`] (`bfbc2.exe leveldiff`, the editor's Diff panel) |
 //!
-//! Why a model of its own, not [`crate::dbx::DbxFile`]: DbxEdit writes back what an edit does not touch exactly as
-//! it was - the string table as stored (offsets, padding, duplicates) until a string is added or changed, the
-//! header's kept word, each container's flag byte, bytes after the tree - where `dbx::write` writes a fresh table.
+//! The document is the suite's one editable DBX document, [`crate::dbx::edit::EditDbx`] (round PR1b-2 merged the
+//! port's own tree into it), read under DbxEdit's rules ([`read`]): DbxEdit writes back what an edit does not touch
+//! exactly as it was - the string table as stored (offsets, padding, duplicates) until a string is added or changed,
+//! the header's kept word, each container's flag byte, every value's bytes, bytes after the tree - where `dbx::write`
+//! writes a fresh table.
 //!
 //! Where .NET Framework's answer differs from Rust's, the port takes .NET's ([`net`]): number parsing (`-0` is +0,
 //! 50 digits at most, `Infinity` / `NaN` spelled exactly), case-insensitive comparison, `Path.ChangeExtension`,
@@ -28,7 +30,6 @@
 //! stack and die).
 
 mod check;
-mod cli;
 pub mod editor;
 mod export;
 mod fault;
@@ -38,11 +39,11 @@ pub mod leveldiff;
 pub mod net;
 
 pub use check::{Finding, PlacedObject, SlotResult, fix_slots, level_check};
-pub use cli::{Outcome, expand_commands, run, run_many, write_atomic};
 pub use export::{convert, number, value_text};
 pub use fault::{Fault, FaultKind, Result};
 pub use file::{
-    CONTAINER, EditFile, Element, MAX_DEPTH, NUMBERS, TEXT, Table, read_varint, varint_bytes, write_varint,
+    CONTAINER, EditDbx, MAX_DEPTH, NUMBERS, NodeId, Parts, TEXT, Table, be_u32, empty, instance, instances, intern,
+    kids, partition_children, partition_children_mut, read, read_varint, serialize, varint_bytes, write_varint,
 };
 pub use import::{
     ImportReport, Node, TypeBook, encode_value, encode_value_rounded, import, parse_xml, prints_as_whole,

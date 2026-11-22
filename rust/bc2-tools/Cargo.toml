@@ -1,0 +1,21 @@
+[package]
+name = "bc2-tools"
+description = "The format tools' command lines as a library: FbrbTool's and DbxEdit's commands in process (their files, messages and exit codes), for bfbc2.exe and bc2_native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+bc2-formats.workspace = true
+bc2-gamefs.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

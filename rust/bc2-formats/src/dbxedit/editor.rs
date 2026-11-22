@@ -5,27 +5,35 @@
 use std::collections::{HashMap, HashSet};
 
 use super::fault::{Fault, Result};
-use super::file::{EditFile, Element, NUMBERS, TEXT, Table, read_varint, varint_bytes};
+use super::file::{
+    EditDbx, NUMBERS, NodeId, Parts, TEXT, Table, instance, instances, intern, kids, partition_children,
+    partition_children_mut, read_varint, varint_bytes,
+};
 use super::import::encode_value;
 use super::net;
 
+/// The text of string `i` (strings read by DbxEdit's reader are text; a string of other bytes is skipped).
+fn string_text(file: &EditDbx, i: usize) -> Option<&str> {
+    file.strings().get(i).and_then(|b| std::str::from_utf8(b).ok())
+}
+
 /// `replace=<old>|<new>`: every string exactly `from` becomes `to`. Returns the strings changed.
-pub fn replace(file: &mut EditFile, from: &str, to: &str) -> usize {
-    let hits: Vec<usize> = (0..file.table.strings.len())
-        .filter(|&i| file.table.strings.get(i).is_some_and(|s| s == from))
+pub fn replace(file: &mut EditDbx, from: &str, to: &str) -> usize {
+    let hits: Vec<usize> = (0..file.strings().len())
+        .filter(|&i| file.strings().get(i).is_some_and(|s| s.as_slice() == from.as_bytes()))
         .collect();
     for &i in &hits {
-        file.table.set(i, to.to_owned());
+        file.set_string(i, to.as_bytes().to_vec());
     }
     hits.len()
 }
 
 /// `replaceprefix=<old>|<new>[|<except>...]`: strings starting with `from` (any case), but none of `except`, get
 /// `to` as their start (lower-cased when the start they had was lower case).
-pub fn replace_prefix(file: &mut EditFile, from: &str, to: &str, except: &[String]) -> usize {
+pub fn replace_prefix(file: &mut EditDbx, from: &str, to: &str, except: &[String]) -> usize {
     let mut hits = 0;
-    for i in 0..file.table.strings.len() {
-        let Some(s) = file.table.strings.get(i) else { continue };
+    for i in 0..file.strings().len() {
+        let Some(s) = string_text(file, i) else { continue };
         let Some(head_len) = net::starts_with_ignore_case(s, from) else {
             continue;
         };
@@ -42,7 +50,7 @@ pub fn replace_prefix(file: &mut EditFile, from: &str, to: &str, except: &[Strin
             to.to_owned()
         };
         let new = format!("{start}{}", s.get(head_len..).unwrap_or(""));
-        file.table.set(i, new);
+        file.set_string(i, new.into_bytes());
         hits += 1;
     }
     hits
@@ -52,32 +60,60 @@ fn refers_to(target: &str, guid: &str) -> bool {
     net::same_ignore_case(target, guid) || net::ends_with_ignore_case(target, &format!("/{guid}"))
 }
 
-fn drop_in(t: &mut Table, list: &mut Vec<Element>, guid: &str, references: &mut usize) -> Result<usize> {
+/// The elements of a list: the roots (`None`) or a container's children.
+fn list(file: &EditDbx, parent: Option<NodeId>) -> Vec<NodeId> {
+    match parent {
+        None => file.roots().to_vec(),
+        Some(p) => kids(file, p).to_vec(),
+    }
+}
+
+fn remove_at(file: &mut EditDbx, parent: Option<NodeId>, i: usize) {
+    let l = match parent {
+        None => Some(file.roots_mut()),
+        Some(p) => file.children_mut(p).ok(),
+    };
+    if let Some(l) = l
+        && i < l.len()
+    {
+        l.remove(i);
+    }
+}
+
+fn drop_in(file: &mut EditDbx, parent: Option<NodeId>, guid: &str, references: &mut usize) -> Result<usize> {
     let mut removed = 0;
-    let mut i = list.len();
+    let items = list(file, parent);
+    let mut i = items.len();
     while i > 0 {
         i -= 1;
-        let Some(e) = list.get_mut(i) else { continue };
+        let Some(&e) = items.get(i) else { continue };
+        let t = Table(file);
         let tag = t.tag(e)?.to_owned();
         if tag == "instance" && t.get(e, "guid")?.is_some_and(|g| net::same_ignore_case(g, guid)) {
-            list.remove(i);
+            remove_at(file, parent, i);
             removed += 1;
             continue;
         }
         if t.get(e, "ref")?.is_some_and(|r| refers_to(r, guid)) {
             *references += 1;
             if tag == "item" {
-                list.remove(i);
+                remove_at(file, parent, i);
                 continue;
             }
-            for a in &mut e.attributes {
-                if t.s(a.0)? == "ref" {
-                    a.1 = t.intern("null");
+            for k in 0..file.attr_ids(e).len() {
+                let Some(&(name, _)) = file.attr_ids(e).get(k) else {
+                    continue;
+                };
+                if Table(file).s(name)? == "ref" {
+                    let null = intern(file, "null");
+                    if let Some(a) = file.attr_ids_mut(e).ok().and_then(|a| a.get_mut(k)) {
+                        a.1 = null;
+                    }
                 }
             }
         }
-        if let Some(children) = &mut e.children {
-            removed += drop_in(t, children, guid, references)?;
+        if file.is_container(e) {
+            removed += drop_in(file, Some(e), guid, references)?;
         }
     }
     Ok(removed)
@@ -88,23 +124,25 @@ fn drop_in(t: &mut Table, list: &mut Vec<Element>, guid: &str, references: &mut 
 ///
 /// # Errors
 /// A damaged string index.
-pub fn drop(file: &mut EditFile, guid: &str) -> Result<(usize, usize)> {
+pub fn drop(file: &mut EditDbx, guid: &str) -> Result<(usize, usize)> {
     let mut references = 0;
-    let removed = drop_in(&mut file.table, &mut file.top_level, guid, &mut references)?;
+    let removed = drop_in(file, None, guid, &mut references)?;
     Ok((removed, references))
 }
 
-fn drop_field_in(t: &Table, list: &mut Vec<Element>, name: &str) -> Result<usize> {
+fn drop_field_in(file: &mut EditDbx, parent: Option<NodeId>, name: &str) -> Result<usize> {
     let mut removed = 0;
-    let mut i = list.len();
+    let items = list(file, parent);
+    let mut i = items.len();
     while i > 0 {
         i -= 1;
-        let Some(e) = list.get_mut(i) else { continue };
+        let Some(&e) = items.get(i) else { continue };
+        let t = Table(file);
         if t.tag(e)? != "instance" && t.get(e, "name")? == Some(name) {
-            list.remove(i);
+            remove_at(file, parent, i);
             removed += 1;
-        } else if let Some(children) = &mut e.children {
-            removed += drop_field_in(t, children, name)?;
+        } else if file.is_container(e) {
+            removed += drop_field_in(file, Some(e), name)?;
         }
     }
     Ok(removed)
@@ -114,18 +152,21 @@ fn drop_field_in(t: &Table, list: &mut Vec<Element>, name: &str) -> Result<usize
 ///
 /// # Errors
 /// A damaged string index.
-pub fn drop_field(file: &mut EditFile, name: &str) -> Result<usize> {
-    drop_field_in(&file.table, &mut file.top_level, name)
+pub fn drop_field(file: &mut EditDbx, name: &str) -> Result<usize> {
+    drop_field_in(file, None, name)
 }
 
-fn set_byte_in(t: &Table, list: &mut [Element], name: &str, value: u8) -> Result<usize> {
+fn set_byte_in(file: &mut EditDbx, parent: Option<NodeId>, name: &str, value: u8) -> Result<usize> {
     let mut set = 0;
-    for e in list {
-        if let Some(children) = &mut e.children {
-            set += set_byte_in(t, children, name, value)?;
-        } else if e.kind != TEXT && e.kind != NUMBERS && e.payload.len() == 2 && t.get(e, "name")? == Some(name) {
-            let first = e.payload.first().copied().unwrap_or(0);
-            e.payload = vec![first, value];
+    for e in list(file, parent) {
+        if file.is_container(e) {
+            set += set_byte_in(file, Some(e), name, value)?;
+            continue;
+        }
+        let kind = file.kind(e);
+        if kind != TEXT && kind != NUMBERS && file.payload(e).len() == 2 && Table(file).get(e, "name")? == Some(name) {
+            let first = file.payload(e).first().copied().unwrap_or(0);
+            file.set_payload(e, vec![first, value]).map_err(|_| Fault::null())?;
             set += 1;
         }
     }
@@ -136,14 +177,14 @@ fn set_byte_in(t: &Table, list: &mut [Element], name: &str, value: u8) -> Result
 ///
 /// # Errors
 /// A damaged string index.
-pub fn set_byte(file: &mut EditFile, name: &str, value: u8) -> Result<usize> {
-    set_byte_in(&file.table, &mut file.top_level, name, value)
+pub fn set_byte(file: &mut EditDbx, name: &str, value: u8) -> Result<usize> {
+    set_byte_in(file, None, name, value)
 }
 
 /// The index of the first instance with this guid among the partition's children.
-fn instance_index(file: &EditFile, guid: &str) -> Result<Option<usize>> {
-    let t = &file.table;
-    for (i, e) in file.partition_children()?.iter().enumerate() {
+fn instance_index(file: &EditDbx, guid: &str) -> Result<Option<usize>> {
+    let t = Table(file);
+    for (i, &e) in partition_children(file)?.iter().enumerate() {
         if t.tag(e)? == "instance" && t.get(e, "guid")?.is_some_and(|g| net::same_ignore_case(g, guid)) {
             return Ok(Some(i));
         }
@@ -151,51 +192,34 @@ fn instance_index(file: &EditFile, guid: &str) -> Result<Option<usize>> {
     Ok(None)
 }
 
-fn partition_mut(file: &mut EditFile) -> Result<&mut Vec<Element>> {
-    if !file.is_binary {
-        return Err(Fault::null());
-    }
-    let p = file.top_level.first_mut().ok_or_else(Fault::list_index)?;
-    p.children.as_mut().ok_or_else(Fault::null)
-}
-
 /// `setfield=<guid>|<field>|<value>`: a text or numbers field of that instance set (numbers typed like the field's
 /// current value, as the import does). Returns whether the field was there.
 ///
 /// # Errors
 /// The value is not a number of the field's type, or a damaged file.
-pub fn set_field(file: &mut EditFile, guid: &str, field: &str, value: &str) -> Result<bool> {
+pub fn set_field(file: &mut EditDbx, guid: &str, field: &str, value: &str) -> Result<bool> {
     let Some(ii) = instance_index(file, guid)? else {
         return Ok(false);
     };
-    let found = {
-        let t = &file.table;
-        let inst = file.partition_children()?.get(ii).ok_or_else(Fault::null)?;
-        let Some(children) = &inst.children else {
-            return Ok(false);
-        };
-        let mut found = None;
-        for (ci, c) in children.iter().enumerate() {
-            if t.get(c, "name")? == Some(field) && (c.kind == TEXT || c.kind == NUMBERS) {
-                found = Some((ci, c.clone()));
-                break;
-            }
+    let inst = *partition_children(file)?.get(ii).ok_or_else(Fault::null)?;
+    let Some(children) = file.children(inst) else {
+        return Ok(false);
+    };
+    let t = Table(file);
+    let mut found = None;
+    for &c in children {
+        if t.get(c, "name")? == Some(field) && (file.kind(c) == TEXT || file.kind(c) == NUMBERS) {
+            found = Some(c);
+            break;
         }
-        found
-    };
-    let Some((ci, e)) = found else { return Ok(false) };
-    let payload = if e.kind == TEXT {
-        varint_bytes(file.table.intern(value))
-    } else {
-        encode_value(file, &e, value)?
-    };
-    if let Some(c) = partition_mut(file)?
-        .get_mut(ii)
-        .and_then(|i| i.children.as_mut())
-        .and_then(|k| k.get_mut(ci))
-    {
-        c.payload = payload;
     }
+    let Some(e) = found else { return Ok(false) };
+    let payload = if file.kind(e) == TEXT {
+        varint_bytes(intern(file, value) as i32)
+    } else {
+        encode_value(file, e, value)?
+    };
+    file.set_payload(e, payload).map_err(|_| Fault::null())?;
     Ok(true)
 }
 
@@ -203,12 +227,17 @@ pub fn set_field(file: &mut EditFile, guid: &str, field: &str, value: &str) -> R
 ///
 /// # Errors
 /// A file without a partition, or a damaged string index.
-pub fn set_partition_guid(file: &mut EditFile, guid: &str) -> Result<()> {
-    let t = &mut file.table;
-    let p = file.top_level.first_mut().ok_or_else(Fault::list_index)?;
-    for a in &mut p.attributes {
-        if t.s(a.0)? == "guid" {
-            a.1 = t.intern(guid);
+pub fn set_partition_guid(file: &mut EditDbx, guid: &str) -> Result<()> {
+    let p = *file.roots().first().ok_or_else(Fault::list_index)?;
+    for k in 0..file.attr_ids(p).len() {
+        let Some(&(name, _)) = file.attr_ids(p).get(k) else {
+            continue;
+        };
+        if Table(file).s(name)? == "guid" {
+            let v = intern(file, guid);
+            if let Some(a) = file.attr_ids_mut(p).ok().and_then(|a| a.get_mut(k)) {
+                a.1 = v;
+            }
         }
     }
     Ok(())
@@ -219,58 +248,55 @@ pub fn set_partition_guid(file: &mut EditFile, guid: &str) -> Result<()> {
 ///
 /// # Errors
 /// A damaged file (an instance that is not a container).
-pub fn add_item(file: &mut EditFile, guid: &str, array: &str, reference: &str, before: Option<&str>) -> Result<bool> {
+pub fn add_item(file: &mut EditDbx, guid: &str, array: &str, reference: &str, before: Option<&str>) -> Result<bool> {
     let Some(ii) = instance_index(file, guid)? else {
         return Ok(false);
     };
-    let (ai, shape, at) = {
-        let t = &file.table;
-        let inst = file.partition_children()?.get(ii).ok_or_else(Fault::null)?;
-        let children = inst.children.as_ref().ok_or_else(Fault::null)?;
+    let (arr, shape, at) = {
+        let t = Table(file);
+        let inst = *partition_children(file)?.get(ii).ok_or_else(Fault::null)?;
+        let children = file.children(inst).ok_or_else(Fault::null)?;
         let mut arr = None;
-        for (ai, c) in children.iter().enumerate() {
+        for &c in children {
             if t.tag(c)? == "array" && t.get(c, "name")? == Some(array) {
-                arr = Some((ai, c));
+                arr = Some(c);
                 break;
             }
         }
-        let Some((ai, a)) = arr else { return Ok(false) };
-        let Some(items) = &a.children else { return Ok(false) };
+        let Some(a) = arr else { return Ok(false) };
+        let Some(items) = file.children(a) else {
+            return Ok(false);
+        };
         let mut shape = None;
-        for c in items {
+        for &c in items {
             if t.tag(c)? == "item" {
-                shape = Some(c.clone());
+                shape = Some(c);
                 break;
             }
         }
         let Some(shape) = shape else { return Ok(false) };
         let mut at = items.len();
         if let Some(b) = before {
-            for (i, c) in items.iter().enumerate() {
+            for (i, &c) in items.iter().enumerate() {
                 if t.get(c, "ref")?.is_some_and(|r| net::same_ignore_case(r, b)) {
                     at = i;
                     break;
                 }
             }
         }
-        (ai, shape, at)
+        (a, shape, at)
     };
-    let name = file.table.intern("ref");
-    let value = file.table.intern(reference);
-    let item = Element {
-        tag: shape.tag,
-        kind: shape.kind,
-        attributes: vec![(name, value)],
-        container_byte: shape.container_byte,
-        children: shape.is_container().then(Vec::new),
-        payload: shape.payload,
-    };
-    if let Some(items) = partition_mut(file)?
-        .get_mut(ii)
-        .and_then(|i| i.children.as_mut())
-        .and_then(|k| k.get_mut(ai))
-        .and_then(|a| a.children.as_mut())
-    {
+    let name = intern(file, "ref");
+    let value = intern(file, reference);
+    let item = file.push(Parts {
+        tag: file.tag_id(shape),
+        kind: file.kind(shape),
+        attrs: vec![(name, value)],
+        cbyte: file.container_byte(shape),
+        children: file.is_container(shape).then(Vec::new),
+        payload: file.payload(shape).to_vec(),
+    });
+    if let Ok(items) = file.children_mut(arr) {
         items.insert(at.min(items.len()), item);
     }
     Ok(true)
@@ -278,67 +304,69 @@ pub fn add_item(file: &mut EditFile, guid: &str, array: &str, reference: &str, b
 
 /// Copies an element of another file into this one: strings interned in DbxEdit's order (tag, each attribute's name
 /// then value, a text value, then the children).
-fn import_element(t: &mut Table, source: &Table, e: &Element) -> Result<Element> {
-    let tag = t.intern(source.s(e.tag)?);
-    let mut attributes = Vec::with_capacity(e.attributes.len());
-    for &(k, v) in &e.attributes {
-        let name = t.intern(source.s(k)?);
-        attributes.push((name, t.intern(source.s(v)?)));
+fn import_element(file: &mut EditDbx, source: &EditDbx, e: NodeId) -> Result<NodeId> {
+    let s = Table(source);
+    let tag = intern(file, s.tag(e)?);
+    let mut attrs = Vec::with_capacity(source.attr_ids(e).len());
+    for &(k, v) in source.attr_ids(e) {
+        let name = intern(file, s.s(k)?);
+        attrs.push((name, intern(file, s.s(v)?)));
     }
-    let payload = if e.kind == TEXT {
+    let payload = if source.kind(e) == TEXT {
         let mut pos = 0;
-        varint_bytes(t.intern(source.s(read_varint(&e.payload, &mut pos)?)?))
+        let id = read_varint(source.payload(e), &mut pos)?;
+        varint_bytes(intern(file, s.s(id as u32)?) as i32)
     } else {
-        e.payload.clone()
+        source.payload(e).to_vec()
     };
-    let children = match &e.children {
-        Some(kids) => {
-            let mut out = Vec::with_capacity(kids.len());
-            for c in kids {
-                out.push(import_element(t, source, c)?);
+    let children = match source.children(e) {
+        Some(k) => {
+            let mut out = Vec::with_capacity(k.len());
+            for &c in k {
+                out.push(import_element(file, source, c)?);
             }
             Some(out)
         }
         None => None,
     };
-    Ok(Element {
+    Ok(file.push(Parts {
         tag,
-        kind: e.kind,
-        attributes,
-        container_byte: e.container_byte,
-        children,
+        kind: source.kind(e),
+        attrs,
+        cbyte: source.container_byte(e),
         payload,
-    })
+        children,
+    }))
 }
 
 /// The first element named `field` below `e` that is not an instance (each element checked before its children).
-fn find_field<'e>(t: &Table, e: &'e Element, field: &str) -> Result<Option<&'e Element>> {
-    let Some(kids) = &e.children else { return Ok(None) };
-    for c in kids {
+fn find_field(file: &EditDbx, e: NodeId, field: &str) -> Result<Option<NodeId>> {
+    let t = Table(file);
+    let Some(k) = file.children(e) else { return Ok(None) };
+    for &c in k {
         if t.tag(c)? != "instance" && t.get(c, "name")? == Some(field) {
             return Ok(Some(c));
         }
-        if let Some(d) = find_field(t, c, field)? {
+        if let Some(d) = find_field(file, c, field)? {
             return Ok(Some(d));
         }
     }
     Ok(None)
 }
 
-fn replace_field(t: &Table, e: &mut Element, field: &str, replacement: &mut Option<Element>) -> Result<bool> {
-    let Some(kids) = &mut e.children else { return Ok(false) };
-    for c in kids.iter_mut() {
+/// The first element named `field` below `e` (any kind), as (its parent, its index).
+fn field_slot(file: &EditDbx, e: NodeId, field: &str) -> Result<Option<(NodeId, usize)>> {
+    let t = Table(file);
+    let Some(k) = file.children(e) else { return Ok(None) };
+    for (i, &c) in k.iter().enumerate() {
         if t.get(c, "name")? == Some(field) {
-            if let Some(r) = replacement.take() {
-                *c = r;
-            }
-            return Ok(true);
+            return Ok(Some((e, i)));
         }
-        if replace_field(t, c, field, replacement)? {
-            return Ok(true);
+        if let Some(s) = field_slot(file, c, field)? {
+            return Ok(Some(s));
         }
     }
-    Ok(false)
+    Ok(None)
 }
 
 /// `copyfield=<src.dbx>|<src guid>|<field>|<guid>`: copies a field (with arrays) from another file's instance into
@@ -346,37 +374,32 @@ fn replace_field(t: &Table, e: &mut Element, field: &str, replacement: &mut Opti
 ///
 /// # Errors
 /// A damaged file.
-pub fn copy_field(file: &mut EditFile, source: &EditFile, source_guid: &str, field: &str, guid: &str) -> Result<bool> {
-    let Some(from) = source.instance(source_guid)? else {
+pub fn copy_field(file: &mut EditDbx, source: &EditDbx, source_guid: &str, field: &str, guid: &str) -> Result<bool> {
+    let Some(from) = instance(source, source_guid)? else {
         return Ok(false);
     };
     let Some(ti) = instance_index(file, guid)? else {
         return Ok(false);
     };
-    let Some(original) = find_field(&source.table, from, field)? else {
+    let Some(original) = find_field(source, from, field)? else {
         return Ok(false);
     };
-    let copy = import_element(&mut file.table, &source.table, original)?;
-    let t = &file.table;
-    let p = file.top_level.first_mut().ok_or_else(Fault::list_index)?;
-    let to = p
-        .children
-        .as_mut()
-        .and_then(|k| k.get_mut(ti))
-        .ok_or_else(Fault::null)?;
-    let mut slot = Some(copy);
-    if !replace_field(t, to, field, &mut slot)? {
-        let kids = to.children.as_mut().ok_or_else(Fault::null)?;
-        if let Some(c) = slot {
-            kids.push(c);
+    let copy = import_element(file, source, original)?;
+    let to = *partition_children(file)?.get(ti).ok_or_else(Fault::null)?;
+    match field_slot(file, to, field)? {
+        Some((parent, i)) => {
+            if let Some(slot) = file.children_mut(parent).ok().and_then(|k| k.get_mut(i)) {
+                *slot = copy;
+            }
         }
+        None => file.children_mut(to).map_err(|_| Fault::null())?.push(copy),
     }
     Ok(true)
 }
 
 /// Local references (36 characters, no `/`) below `e`, upper-cased, each once, in document order.
-fn local_references(t: &Table, e: &Element, found: &mut Vec<String>, seen: &mut HashSet<String>) -> Result<()> {
-    if let Some(r) = t.get(e, "ref")?
+fn local_references(file: &EditDbx, e: NodeId, found: &mut Vec<String>, seen: &mut HashSet<String>) -> Result<()> {
+    if let Some(r) = Table(file).get(e, "ref")?
         && r.encode_utf16().count() == 36
         && !r.contains('/')
     {
@@ -385,8 +408,8 @@ fn local_references(t: &Table, e: &Element, found: &mut Vec<String>, seen: &mut 
             found.push(up);
         }
     }
-    for c in e.kids() {
-        local_references(t, c, found, seen)?;
+    for &c in kids(file, e) {
+        local_references(file, c, found, seen)?;
     }
     Ok(())
 }
@@ -397,23 +420,23 @@ fn local_references(t: &Table, e: &Element, found: &mut Vec<String>, seen: &mut 
 ///
 /// # Errors
 /// A damaged file, or an instance without a guid.
-pub fn graft(file: &mut EditFile, source: &EditFile, guid: &str, before: Option<&str>) -> Result<usize> {
-    let mut at = file.partition_children()?.len();
+pub fn graft(file: &mut EditDbx, source: &EditDbx, guid: &str, before: Option<&str>) -> Result<usize> {
+    let mut at = partition_children(file)?.len();
     if let Some(b) = before
         && let Some(i) = instance_index(file, b)?
     {
         at = i;
     }
-    let mut available: HashMap<String, &Element> = HashMap::new();
-    for e in source.instances()? {
+    let mut available: HashMap<String, NodeId> = HashMap::new();
+    for e in instances(source)? {
         let e = e?;
-        let g = source.table.get(e, "guid")?.ok_or_else(Fault::null)?;
+        let g = Table(source).get(e, "guid")?.ok_or_else(Fault::null)?;
         available.insert(net::to_upper(g), e);
     }
     let mut present = HashSet::new();
-    for e in file.instances()? {
+    for e in instances(file)? {
         let e = e?;
-        present.insert(net::to_upper(file.table.get(e, "guid")?.ok_or_else(Fault::null)?));
+        present.insert(net::to_upper(Table(file).get(e, "guid")?.ok_or_else(Fault::null)?));
     }
     let mut pending = vec![net::to_upper(guid)];
     let mut copied = 0;
@@ -423,12 +446,12 @@ pub fn graft(file: &mut EditFile, source: &EditFile, guid: &str, before: Option<
         }
         let Some(&e) = available.get(&next) else { continue };
         present.insert(next);
-        let copy = import_element(&mut file.table, &source.table, e)?;
-        partition_mut(file)?.insert(at, copy);
+        let copy = import_element(file, source, e)?;
+        partition_children_mut(file)?.insert(at, copy);
         at += 1;
         copied += 1;
         let mut refs = Vec::new();
-        local_references(&source.table, e, &mut refs, &mut HashSet::new())?;
+        local_references(source, e, &mut refs, &mut HashSet::new())?;
         pending.extend(refs);
     }
     Ok(copied)

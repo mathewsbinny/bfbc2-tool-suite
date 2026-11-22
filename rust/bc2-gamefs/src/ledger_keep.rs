@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 
-use super::{Error, Ledger, Plan, Records, derived, norm_rel, s, sha_of, utc_now, valid_owner};
+use super::{Ledger, LedgerError, Plan, Records, derived, norm_rel, s, sha_of, utc_now, valid_owner};
 use crate::sha256;
 
 /// OPFOR's `_show` of a file value: `sha <12 hex>`, or `absent`.
@@ -35,7 +35,7 @@ impl Ledger {
     ///
     /// # Errors
     /// A damaged record, a bad path.
-    pub fn file_layers(&self, rel: &str) -> Result<Vec<(String, Value)>, Error> {
+    pub fn file_layers(&self, rel: &str) -> Result<Vec<(String, Value)>, LedgerError> {
         let rel = norm_rel(rel)?;
         let recs = self.records()?;
         let (layers, _) = Self::layers(&recs, &rel);
@@ -49,7 +49,7 @@ impl Ledger {
     ///
     /// # Errors
     /// A damaged record, a bad path.
-    pub fn slot_holders(&self, rel: &str) -> Result<Vec<(String, String)>, Error> {
+    pub fn slot_holders(&self, rel: &str) -> Result<Vec<(String, String)>, LedgerError> {
         let low = norm_rel(rel)?.to_lowercase();
         let recs = self.records()?;
         let mut out = Vec::new();
@@ -79,7 +79,7 @@ impl Ledger {
     /// in order) to the owner's record; its other contributions stay. Refused (nothing written) on any conflict.
     ///
     /// # Errors
-    /// [`Error::Refused`] with every conflict; a held lock; a write that failed (rolled back).
+    /// [`LedgerError::Refused`] with every conflict; a held lock; a write that failed (rolled back).
     pub fn install_keep(
         &mut self,
         owner: &str,
@@ -87,9 +87,9 @@ impl Ledger {
         is_derived: bool,
         note: &str,
         dry_run: bool,
-    ) -> Result<Plan, Error> {
+    ) -> Result<Plan, LedgerError> {
         if !valid_owner(owner) {
-            return Err(Error::Damaged(format!("not an owner name: {owner:?}")));
+            return Err(LedgerError::Damaged(format!("not an owner name: {owner:?}")));
         }
         let mut plan = Plan {
             owner: owner.to_owned(),
@@ -100,7 +100,7 @@ impl Ledger {
             self.lock(&mut plan.notes)?;
         }
         let r = self.keep_locked(owner, files, is_derived, note, dry_run, &mut plan);
-        if !dry_run && !matches!(r, Err(Error::Crashed)) {
+        if !dry_run && !matches!(r, Err(LedgerError::Crashed)) {
             self.unlock();
         }
         r.map(|()| plan)
@@ -115,7 +115,7 @@ impl Ledger {
         note: &str,
         dry_run: bool,
         plan: &mut Plan,
-    ) -> Result<(), Error> {
+    ) -> Result<(), LedgerError> {
         let mut recs = self.records()?;
         let old = recs.get(owner).cloned();
         let new: Vec<(String, &[u8])> = files
@@ -125,7 +125,7 @@ impl Ledger {
         let mut new_keys = BTreeSet::new();
         for (r, _) in &new {
             if !new_keys.insert(r.to_lowercase()) {
-                return Err(Error::Damaged(
+                return Err(LedgerError::Damaged(
                     "two contributions of one transaction to the same slot".to_owned(),
                 ));
             }
@@ -308,7 +308,7 @@ impl Ledger {
             work.insert(low, Some(data.to_vec()));
         }
         if !conflicts.is_empty() {
-            return Err(Error::Refused(conflicts));
+            return Err(LedgerError::Refused(conflicts));
         }
         // the files whose final bytes differ from the disk
         let mut writes: Vec<(String, Option<Vec<u8>>)> = Vec::new();
@@ -363,7 +363,7 @@ impl Ledger {
             targets.push(("ledger", super::owner_file(o)));
         }
         self.begin(owner, "install", &txn, &targets)?;
-        let r = (|| -> Result<(), Error> {
+        let r = (|| -> Result<(), LedgerError> {
             for (sha, data) in &blobs {
                 let p = self.blob_path(sha);
                 if !p.is_file() {
@@ -399,7 +399,7 @@ impl Ledger {
                 plan.applied = true;
                 Ok(())
             }
-            Err(Error::Crashed) => Err(Error::Crashed),
+            Err(LedgerError::Crashed) => Err(LedgerError::Crashed),
             Err(e) => Err(self.abort(&e)),
         }
     }
@@ -418,7 +418,7 @@ impl Ledger {
     /// (None: there was none). Only the owner's record is written (journalled).
     ///
     /// # Errors
-    /// [`Error::Refused`] when the owner does not hold rel or another install sits on it; a held lock; a write that
+    /// [`LedgerError::Refused`] when the owner does not hold rel or another install sits on it; a held lock; a write that
     /// failed (rolled back).
     pub fn restate(
         &mut self,
@@ -427,29 +427,37 @@ impl Ledger {
         keep_prior: bool,
         prior: Option<&[u8]>,
         why: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<(), LedgerError> {
         let rel = norm_rel(rel)?;
         let mut notes = Vec::new();
         self.lock(&mut notes)?;
         let r = self.restate_locked(owner, &rel, (!keep_prior).then_some(prior), why);
-        if !matches!(r, Err(Error::Crashed)) {
+        if !matches!(r, Err(LedgerError::Crashed)) {
             self.unlock();
         }
         r
     }
 
     #[allow(clippy::option_option, reason = "None: the prior kept; Some(None): there was none")]
-    fn restate_locked(&mut self, owner: &str, rel: &str, prior: Option<Option<&[u8]>>, why: &str) -> Result<(), Error> {
+    fn restate_locked(
+        &mut self,
+        owner: &str,
+        rel: &str,
+        prior: Option<Option<&[u8]>>,
+        why: &str,
+    ) -> Result<(), LedgerError> {
         let mut recs = self.records()?;
         let low = rel.to_lowercase();
         let idx = recs
             .get(owner)
             .and_then(|r| Self::contributions(r).iter().position(|c| is_file_on(c, &low)));
         let Some(i) = idx else {
-            return Err(Error::Refused(vec![format!("{rel}: {owner} has not installed it")]));
+            return Err(LedgerError::Refused(vec![format!(
+                "{rel}: {owner} has not installed it"
+            )]));
         };
         if self.above_of(&recs, owner, rel).is_some() {
-            return Err(Error::Refused(vec![format!(
+            return Err(LedgerError::Refused(vec![format!(
                 "{rel}: another install sits on {owner}'s write"
             )]));
         }
@@ -486,7 +494,7 @@ impl Ledger {
         }
         let txn = super::new_txn();
         self.begin(owner, "restate", &txn, &[("ledger", super::owner_file(owner))])?;
-        let r = (|| -> Result<(), Error> {
+        let r = (|| -> Result<(), LedgerError> {
             if let Some(b) = blob {
                 let bp = self.blob_path(&sha256::hex(b));
                 if !bp.is_file() {
@@ -504,7 +512,7 @@ impl Ledger {
                 self.gc(&recs);
                 Ok(())
             }
-            Err(Error::Crashed) => Err(Error::Crashed),
+            Err(LedgerError::Crashed) => Err(LedgerError::Crashed),
             Err(e) => Err(self.abort(&e)),
         }
     }
@@ -535,12 +543,6 @@ impl Ledger {
     pub fn lock_present(&self) -> bool {
         self.root.join(super::LOCK).is_file()
     }
-}
-
-/// This machine's host name (`socket.gethostname()`, as the ledger's and the rebuild's locks record it).
-#[must_use]
-pub fn host_name() -> Option<String> {
-    super::hostname()
 }
 
 fn is_on(c: &Value, low: &str) -> bool {

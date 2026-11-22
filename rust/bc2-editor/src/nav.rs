@@ -17,12 +17,11 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use bc2_formats::gameledger::{self, Ledger};
 use bc2_formats::terrain::Heightfield;
+use bc2_gamefs::ledger::{self as gameledger, Ledger};
 use bc2_levelwrite::navedit::{NavBase, NavEdit, NavRegion};
 use bc2_navbuild::astar::Graph;
 use bc2_navbuild::navtune::{self, Value};
@@ -684,10 +683,10 @@ pub fn write_side(path: &Path, text: &str) -> Result<(), EditorError> {
     if let Some(d) = path.parent() {
         std::fs::create_dir_all(d).map_err(|e| EditorError::Tool(format!("{}: {e}", d.display())))?;
     }
-    bc2_formats::atomic::write(path, &[text.as_bytes()]).map_err(|e| {
+    bc2_gamefs::atomic::write(path, &[text.as_bytes()]).map_err(|e| {
         EditorError::Tool(match e {
-            bc2_formats::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
-            bc2_formats::atomic::WriteError::Replace(e) => format!("{}: {e}", path.display()),
+            bc2_gamefs::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
+            bc2_gamefs::atomic::WriteError::Replace(e) => format!("{}: {e}", path.display()),
         })
     })
 }
@@ -1381,7 +1380,7 @@ pub struct NavState {
     pub found: (Option<PathBuf>, Option<PathBuf>),
     /// What was read, or why not; `None` while reading (or before).
     pub loaded: Option<Result<Loaded, EditorError>>,
-    rx: Option<Receiver<Result<Loaded, EditorError>>>,
+    rx: Option<Task<Loaded>>,
     /// The ground's colouring.
     pub colour: ColourMode,
     /// The layers hidden (by name).
@@ -1495,31 +1494,19 @@ impl NavState {
             self.hidden.remove("DICE ground");
         }
         let inputs = inputs(cand, dice);
-        let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            let _ = tx.send(read(&inputs));
-        });
-        self.rx = Some(rx);
+        self.rx = Some(Task::spawn("Reading the navigation data", move || read(&inputs)));
     }
 
     /// Takes the worker's answer when it is there; `true` when it arrived now.
     pub fn poll(&mut self) -> bool {
-        let Some(rx) = &self.rx else { return false };
-        match rx.try_recv() {
-            Ok(r) => {
-                self.loaded = Some(r);
-                self.rx = None;
-                self.cache.clear();
-                self.lines.clear();
-                true
-            }
-            Err(TryRecvError::Disconnected) => {
-                self.loaded = Some(Err(EditorError::Tool("reading the navigation data failed".into())));
-                self.rx = None;
-                true
-            }
-            Err(TryRecvError::Empty) => false,
-        }
+        let Some(r) = self.rx.as_ref().and_then(Task::poll) else {
+            return false;
+        };
+        self.loaded = Some(r);
+        self.rx = None;
+        self.cache.clear();
+        self.lines.clear();
+        true
     }
 
     /// Waits for the worker (tests).

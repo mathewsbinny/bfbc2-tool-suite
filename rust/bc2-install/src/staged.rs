@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use bc2_formats::sha256::{self, Sha256};
+use bc2_gamefs::sha256::{self, Sha256};
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -158,9 +158,9 @@ pub fn save(plan: &Plan) -> Result<(), String> {
     };
     let text = serde_json::to_string_pretty(&rec).map_err(|e| e.to_string())?;
     let out = Path::new(&plan.staged.path);
-    bc2_formats::atomic::write(out, &[text.as_bytes()]).map_err(|e| match e {
-        bc2_formats::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
-        bc2_formats::atomic::WriteError::Replace(e) => format!("{}: {e}", out.display()),
+    bc2_gamefs::atomic::write(out, &[text.as_bytes()]).map_err(|e| match e {
+        bc2_gamefs::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
+        bc2_gamefs::atomic::WriteError::Replace(e) => format!("{}: {e}", out.display()),
     })
 }
 

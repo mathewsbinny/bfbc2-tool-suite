@@ -540,11 +540,11 @@ pub fn write_text_utf8(path: &str, text: &str) -> Res<()> {
     fs::write(path, text.replace('\n', "\r\n")).map_err(|e| os_error(path, &e))
 }
 
-/// `atomicio.write_bytes(path, data)`: whole or not at all ([`bc2_formats::atomic`]).
+/// `atomicio.write_bytes(path, data)`: whole or not at all ([`bc2_gamefs::atomic`]).
 pub fn atomic_write(path: &str, data: &[u8]) -> Res<()> {
-    bc2_formats::atomic::write(Path::new(path), &[data]).map_err(|e| match e {
-        bc2_formats::atomic::WriteError::Temp(tmp, e) => os_error(&tmp.to_string_lossy(), &e),
-        bc2_formats::atomic::WriteError::Replace(e) => os_error(path, &e),
+    bc2_gamefs::atomic::write(Path::new(path), &[data]).map_err(|e| match e {
+        bc2_gamefs::atomic::WriteError::Temp(tmp, e) => os_error(&tmp.to_string_lossy(), &e),
+        bc2_gamefs::atomic::WriteError::Replace(e) => os_error(path, &e),
     })
 }
 

@@ -49,25 +49,14 @@ impl<'a> Cursor<'a> {
     /// An unsigned LEB128 varint (FORMAT.md 1). A value too large for 64 bits saturates at `u64::MAX`: the
     /// reference's unbounded integer is then only ever an index or a count that fails its own check.
     pub(crate) fn varint(&mut self) -> Result<u64> {
-        let mut value: u64 = 0;
-        let mut shift: u32 = 0;
-        let mut overflow = false;
-        loop {
-            let b = self.byte()?;
-            let part = u64::from(b & 0x7F);
-            if shift < 64 {
-                let shifted = part << shift;
-                if shifted >> shift != part {
-                    overflow = true;
-                }
-                value |= shifted;
-            } else if part != 0 {
-                overflow = true;
-            }
-            if b < 0x80 {
-                return Ok(if overflow { u64::MAX } else { value });
-            }
-            shift = shift.saturating_add(7);
+        if let Some((v, end)) = crate::varint::read_saturating(self.data, self.pos) {
+            self.pos = end;
+            Ok(v)
+        } else {
+            // the reading stopped at the first byte past the end
+            let offset = self.pos.max(self.data.len());
+            self.pos = offset;
+            Err(DbxError::UnexpectedEnd { offset })
         }
     }
 

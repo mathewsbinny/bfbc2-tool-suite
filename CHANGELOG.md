@@ -28,15 +28,21 @@ landed on `main`.
 
 ## [Unreleased]
 
-### Changed
-- NavKit's path data is closer to DICE's in structure (round NKG1): each sector's table bounds are the box of its
-  route nodes (KYN-SEC-2), no edge is written twice (KYN-EDGE-4), and border portals beyond a sector's square link to
-  the diagonal neighbour (KYN-LINK-1; 5,922 such link entries on the 15 regression levels, DICE 5,682). Every navparity
-  measure is unchanged; built files differ in bytes (`navbuild_golden.json` re-recorded). Edges only on owner border
-  copies are written behind `navbuild.OWNER_EDGES`, off: with NavKit's single border row they would cut routes into
-  the lower sector (KYRT-PATH-3).
+## [0.17.0] - 2026-11-22
 
 ### Added
+- **Two new Rust crates** (round PR1b-2, audit AU5 ARC-2): `bc2-gamefs`, the game layer over the formats - a game
+  copy found (`game::Game`, the seam for the later Frostbite games; `find_game`), every file written safely
+  (`atomic`), the install ledger (`ledger`), process liveness (`liveness`), the bundle cache with its cached reads
+  and the bundle writer (`bundles`), restart points on disk (`points`), the mesh index (`meshindex`), the caches'
+  budget (`budget`) and the worker pool (`workers`); and `bc2-tools`, FbrbTool's and DbxEdit's command lines as a
+  library (`bfbc2.exe fbrbtool` / `dbxedit` and `bc2_native` run it).
+- **One worker knob, `BFBC2_WORKERS`**: sizes the Rust core's one pool in `bc2_native`, `bfbc2.exe`, the map editor
+  and `mapexport.exe` (else `RAYON_NUM_THREADS`, else every core); `pcbuild`'s compiler threads take it when
+  `BFBC2_HLSL_WORKERS` is not set (`bfbc2core.workers`).
+- **The native census is a check** (`python rust\native_census.py --check`, `run_tests.py` quick, `native-census`):
+  an export of `bc2_native` that no tool, test or Project OPFOR file calls fails; `--record` keeps OPFOR's callers
+  (`rust\native_census.json`) for a checkout without OPFOR beside it.
 - **The bot AI specification's static RE, finished as far as it goes without the game** (round AIS-rest;
   specification only, no tool changed): the AI body - the proxy's three interfaces and its seat requests
   (BOT-CTL-6); who writes which slot of the AI input object (BOT-CTL-7: reload and fire as digital actions, the
@@ -67,6 +73,39 @@ landed on `main`.
 - **Every specification probe is a game-tier check**: `core/tests/test_spec_probes.py` (`run_tests.py game`) now also
   holds SPG's five probes' counts (materials, destruction, lighting, vehicles, weapons), the two new probes' and the
   terrain tails and material maps: 172 checks; 74 rules move to verified.
+
+### Changed
+- **One editable DBX document** (round PR1b-2, PR1b-1's decision): DbxEdit's model (`dbxedit::EditFile`) merged into
+  `bc2_formats::dbx::edit::EditDbx`, the arena of shared chunks; DbxEdit's commands, the DBX inspector, its panel and
+  the Compare panel run on it (`dbxedit::read` / `serialize` keep DbxEdit's reading and failure rules). Every output
+  the same: DbxEditGUI's recording 1,232 of 1,232 steps, 31,037 prepared-level files back byte for byte, the export
+  canaries. A text value's string index is now kept as the file stored it by the dbxbin reader too.
+- **One varint** (`bc2_formats::varint`): the six copies are its callers.
+- **The caches' budget, one implementation** (`bc2_gamefs::budget`): `bfbc2.exe caches` and `bfbc2core.caches`
+  (its prune, `maybe_prune`, `prune_total` and `clear`, through `bc2_native.caches_prune` / `caches_prune_total` /
+  `caches_clear`) prune with the same code; the Python stays for a missing module.
+- **The mesh index is built on all cores**, one read of a bundle for all its shader databases, merged in the
+  bundles' order (the same index).
+- **The map editor's background jobs run on one `Task` type**: the start screen's catalog, a level's load and its
+  render meshes, the export's profiles, preview and run, NavKit's comparison read (a worker that dies is an error
+  naming the job).
+- NavKit's path data is closer to DICE's in structure (round NKG1): each sector's table bounds are the box of its
+  route nodes (KYN-SEC-2), no edge is written twice (KYN-EDGE-4), and border portals beyond a sector's square link to
+  the diagonal neighbour (KYN-LINK-1; 5,922 such link entries on the 15 regression levels, DICE 5,682). Every navparity
+  measure is unchanged; built files differ in bytes (`navbuild_golden.json` re-recorded). Edges only on owner border
+  copies are written behind `navbuild.OWNER_EDGES`, off: with NavKit's single border row they would cut routes into
+  the lower sector (KYRT-PATH-3).
+
+### Removed
+- `bc2_formats::dbxedit::EditFile` and `dbxedit::Element` (the one document is `EditDbx`), `dbxedit::run` /
+  `run_many` / `Outcome` / `write_atomic` / `expand_commands` (now `bc2_tools::dbxedit`).
+- `bc2_formats::{atomic, gameledger, meshindex, sha256}` and `fbrb::cache` (now `bc2_gamefs::{atomic, ledger,
+  meshindex, sha256, bundles}`; `gameledger::Error` is `ledger::LedgerError`, `find_game` is `game::find_game`,
+  `pid_alive` / `host_name` are `liveness::`), `fbrb::{read_path, extract_path, read_many, extract_many, pack_path,
+  pack_many}` (now `bc2_gamefs::bundles::`; `bc2_formats::fbrb` keeps `read_path_uncached` / `extract_path_uncached`),
+  `fbrb::{tool, unpack_path, unpack_bytes, UnpackError, UnpackStats}` (now `bc2_tools::`).
+- `bc2_formats::bf1943::Payloads::read`'s folder argument: it takes a `PointsStore` (`bc2_gamefs::points::Folder`).
+- `bc2_native.xas_encode` (no caller; `xas_encode_many` does its work).
 
 ### Fixed
 - **CI's per-group clippy:** `bfbc2.exe`'s navtools and harness groups did not build alone since round NK6 (they

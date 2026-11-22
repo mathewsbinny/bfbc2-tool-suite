@@ -12,7 +12,7 @@
 use std::fs;
 
 use bc2_formats::dbx::edit::EditDbx;
-use bc2_formats::{fbrb, hpd};
+use bc2_formats::hpd;
 use bc2_pyrt::json::{self as pyjson, Value};
 use bc2_stockmp::install::{self, APPLIED, BACKUP, isfile, join};
 use bc2_stockmp::model::{Model, Pos};
@@ -38,10 +38,10 @@ pub(super) fn sha(path: &str) -> PyResult<String> {
 /// before the ledger (its backup; None where the install added it or it is missing).
 pub fn stock_file(p: &str) -> PyResult<Option<String>> {
     let path = std::path::Path::new(p);
-    if let Some(game) = bc2_formats::gameledger::find_game(path) {
-        let led = bc2_formats::gameledger::Ledger::new(&game);
+    if let Some(game) = bc2_gamefs::game::find_game(path) {
+        let led = bc2_gamefs::ledger::Ledger::new(&game);
         let rel = crate::pyos::relpath(p, &game.to_string_lossy())?;
-        let fail = |e: bc2_formats::gameledger::Error| Fail::Err(PyErr::new("LedgerError", e.to_string()));
+        let fail = |e: bc2_gamefs::ledger::LedgerError| Fail::Err(PyErr::new("LedgerError", e.to_string()));
         if let Some(o) = led
             .holders(&rel)
             .map_err(fail)?
@@ -87,7 +87,7 @@ pub(super) fn unpacked(bundle: &str, d: &str) -> PyResult<String> {
         }
     }
     let _ = fs::remove_dir_all(d);
-    if let Err(e) = fbrb::unpack_path(bundle, d) {
+    if let Err(e) = bc2_tools::unpack_path(bundle, d) {
         return Err(build_error(format!("failed: unpack {bundle} -> {d}: {e}")));
     }
     fs::write(&stamp, h.as_bytes()).map_err(|e| os_error(&stamp, &e))?;

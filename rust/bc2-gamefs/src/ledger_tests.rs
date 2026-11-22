@@ -103,12 +103,12 @@ impl Drop for Game {
     }
 }
 
-fn nav(g: &Game) -> Result<Plan, Error> {
+fn nav(g: &Game) -> Result<Plan, LedgerError> {
     g.led()
         .install("navkit:mp_005", &[(HPD.to_owned(), NAV.to_vec())], false, "", false)
 }
 
-fn smp(g: &Game) -> Result<Plan, Error> {
+fn smp(g: &Game) -> Result<Plan, LedgerError> {
     g.led()
         .install("stockmp:mp_005", &[(HPD.to_owned(), SMP.to_vec())], false, "", false)
 }
@@ -263,7 +263,7 @@ fn a_file_changed_outside_is_refused() {
 /// copy and the store are as before the interrupted operation, and running it again completes it.
 #[test]
 fn an_interruption_at_every_write_step() {
-    type Step = fn(&Game) -> Result<Plan, Error>;
+    type Step = fn(&Game) -> Result<Plan, LedgerError>;
     let seq: [Step; 4] = [
         nav,
         smp,
@@ -345,7 +345,7 @@ fn a_held_lock_refuses_and_a_stale_one_is_cleared() {
     let root = default_root(&g.0);
     fs::create_dir_all(&root).unwrap();
     fs::write(root.join(".lock"), format!("{{\"pid\": {}}}", std::process::id())).unwrap();
-    assert!(matches!(nav(&g), Err(Error::Locked(_))));
+    assert!(matches!(nav(&g), Err(LedgerError::Locked(_))));
     fs::write(root.join(".lock"), br#"{"pid": 4000000000}"#).unwrap();
     let p = nav(&g).unwrap();
     assert!(p.notes.iter().any(|n| n.contains("stale lock")), "{p:?}");

@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 bc2-formats.workspace = true
+bc2-gamefs.workspace = true
 # the install plan (OPFOR's decisions as data), the level records and staged.json
 serde.workspace = true
 serde_json.workspace = true

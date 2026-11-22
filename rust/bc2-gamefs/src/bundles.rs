@@ -1,5 +1,8 @@
-//! Repeated reads of the same bundles made cheap (round E3e): [`super::read_path`], [`super::read_many`],
-//! [`super::extract_path`] and [`super::extract_many`] go through here.
+//! A game copy's bundles read and written (round PR1b-2: moved here from `bc2_formats::fbrb`, which reads and writes
+//! bundle bytes): [`read_path`], [`read_many`], [`extract_path`], [`extract_many`] through the bundle cache, and
+//! [`pack_path`] / [`pack_many`] writing a bundle file safely.
+//!
+//! Repeated reads of the same bundles made cheap (round E3e): the cached reads go through here.
 //!
 //! A zipped payload is one gzip stream, so the bytes of an entry cost decompressing the payload from its start up to
 //! the entry; a tool that reads one entry at a time from the same large bundle decompressed it again for every read
@@ -12,7 +15,7 @@
 //!   bytes of them, the least recently used dropped first;
 //! - **on disk, shared by every process**: the restart points of a large bundle's payload (from
 //!   [`CacheConfig::disk_min`] compressed bytes) that has been read before (by any process: a marker file is left at
-//!   the first read), a `.points` file ([`crate::restart`], round PR1b-1-rest): a read seeks into the bundle's own
+//!   the first read), a `.points` file ([`bc2_formats::restart`], round PR1b-1-rest): a read seeks into the bundle's own
 //!   compressed bytes and inflates at most a span (1 MiB) per entry, the decoded spans kept within
 //!   [`CacheConfig::memory`]. A points file is about 3 % of the payload it serves (the whole decompressed payloads it
 //!   replaced, `.payload` files, filled the 16 GiB cap). The files live in [`CacheConfig::folder`],
@@ -43,23 +46,24 @@
 //! would not gets its bytes. A payload goes to disk only once its whole stream has been read with its checksum and
 //! length checked: every chunk is then valid, so any read of it is a copy (or [`FbrbError::PayloadEnds`] past its
 //! end), as the reference's would be. A bundle whose stream fails is never written; its reads keep the session's
-//! rules. Stored (unzipped) payloads need none of this: [`super::read_payload`] seeks to each entry. The points are
+//! rules. Stored (unzipped) payloads need none of this: [`fbrb::read_payload`] seeks to each entry. The points are
 //! made by a pass over the whole stream with zlib-rs's `Z_BLOCK` stops (the same inflater, the same header and
 //! trailer checks), so a stream either the reference or that pass refuses is never written.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufReader, Read, Seek, SeekFrom};
+use std::io::{self, BufReader, Read, Seek, SeekFrom, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use super::error::{FbrbError, Result};
-use super::gzip::Member;
-use super::header::{Entry, Header, read_header};
-use super::read::{CHUNK, Collector, read_full, read_payload};
-use crate::restart::{self, Index, Spans};
+use bc2_formats::fbrb::stream::{CHUNK, Collector, Member, read_full, zlib_header};
+use bc2_formats::fbrb::{
+    self, Entry, FbrbError, Header, PackError, PackResult, PackStats, Result, read_header, read_payload,
+};
+use bc2_formats::restart::{self, Index, Spans};
+use rayon::prelude::*;
 
 /// How many bundle headers a process keeps.
 pub const HEADERS: usize = 64;
@@ -710,28 +714,28 @@ impl Cache {
         self.state().charged
     }
 
-    /// [`super::read_path`] through this cache.
+    /// [`read_path`] through this cache.
     ///
     /// # Errors
-    /// As [`super::read`].
+    /// As [`fbrb::read`].
     pub fn read_path<S: AsRef<str>>(&self, path: &Path, names: &[S]) -> Result<Vec<Vec<u8>>> {
         let mut f = File::open(path)?;
         let Ok(id) = Identity::of(path, &f) else {
-            return super::read(&mut f, names);
+            return fbrb::read(&mut f, names);
         };
         let ix = self.header_of(&id, &mut f)?;
         let wanted = ix.lookup(names)?;
         self.payload(&id, &mut f, &ix.header, &wanted)
     }
 
-    /// [`super::extract_path`] through this cache.
+    /// [`extract_path`] through this cache.
     ///
     /// # Errors
-    /// As [`super::extract`].
+    /// As [`fbrb::extract`].
     pub fn extract_path(&self, path: &Path) -> Result<(Header, Vec<Vec<u8>>)> {
         let mut f = File::open(path)?;
         let Ok(id) = Identity::of(path, &f) else {
-            return super::extract(&mut f);
+            return fbrb::extract(&mut f);
         };
         let ix = self.header_of(&id, &mut f)?;
         let live: Vec<&Entry> = ix.header.entries.iter().filter(|e| !e.is_deleted()).collect();
@@ -1094,7 +1098,7 @@ fn index_payload(f: &mut File, payload_start: u64, sink: &mut impl FnMut(&[u8]))
     f.seek(SeekFrom::Start(payload_start)).ok()?;
     let mut head = vec![0u8; 1 << 16];
     let n = read_full(f, &mut head).ok()?;
-    let header_len = super::gzip::zlib_header(head.get(..n)?).ok()?? as u64;
+    let header_len = zlib_header(head.get(..n)?).ok()?? as u64;
     let base = payload_start + header_len;
     f.seek(SeekFrom::Start(base)).ok()?;
     let built = restart::build(&mut BufReader::with_capacity(CHUNK, &mut *f), restart::SPAN, sink).ok()?;
@@ -1130,14 +1134,83 @@ fn charge(st: &mut State, id: &Identity, session: &Arc<Mutex<Session>>, size: u6
     }
 }
 
-/// [`super::read_path`]: the entries named, through the process's cache.
-pub(crate) fn read_path<S: AsRef<str>>(path: &Path, names: &[S]) -> Result<Vec<Vec<u8>>> {
-    global().read_path(path, names)
+/// [`fbrb::read`] from the file at `path`, through the bundle cache (the header kept, the payload decompressed once
+/// per process or, for a large bundle read again, once for every process): the same bytes and errors as
+/// [`fbrb::read_path_uncached`].
+///
+/// # Errors
+/// As [`fbrb::read`].
+pub fn read_path<S: AsRef<str>>(path: impl AsRef<Path>, names: &[S]) -> Result<Vec<Vec<u8>>> {
+    global().read_path(path.as_ref(), names)
 }
 
-/// [`super::extract_path`]: every entry, through the process's cache.
-pub(crate) fn extract_path(path: &Path) -> Result<(Header, Vec<Vec<u8>>)> {
-    global().extract_path(path)
+/// [`fbrb::extract`] of the file at `path`, through the bundle cache (as [`read_path`]).
+///
+/// # Errors
+/// As [`fbrb::extract`].
+pub fn extract_path(path: impl AsRef<Path>) -> Result<(Header, Vec<Vec<u8>>)> {
+    global().extract_path(path.as_ref())
+}
+
+/// [`read_path`] of each `(bundle, names)`, in parallel (one bundle per task: a payload is one gzip stream).
+/// Results keep the input order.
+#[must_use]
+pub fn read_many<P: AsRef<Path> + Sync, S: AsRef<str> + Sync>(items: &[(P, Vec<S>)]) -> Vec<Result<Vec<Vec<u8>>>> {
+    items.par_iter().map(|(p, n)| read_path(p, n)).collect()
+}
+
+/// [`extract_path`] of each bundle, in parallel. Results keep the input order.
+#[must_use]
+pub fn extract_many<P: AsRef<Path> + Sync>(paths: &[P]) -> Vec<Result<(Header, Vec<Vec<u8>>)>> {
+    paths.par_iter().map(extract_path).collect()
+}
+
+/// The header of the bundle at `path` ([`fbrb::entries_path`]: only the header is read).
+///
+/// # Errors
+/// As [`fbrb::read_header`].
+pub fn entries_path(path: impl AsRef<Path>) -> Result<Header> {
+    fbrb::entries_path(path)
+}
+
+fn io_err(path: &Path) -> impl FnOnce(io::Error) -> PackError + '_ {
+    move |source| PackError::Io {
+        path: path.to_path_buf(),
+        source,
+    }
+}
+
+/// The bundle FbrbTool's `pack` makes of `dir` written to `out` as FbrbTool writes it: to a temporary file beside it
+/// ([`crate::atomic::temp_name`]: `<out>.tmp-<process id>-<n>`), flushed to disk, then moved over `out`, so a pack
+/// cut short never leaves a truncated bundle where the old one was. Streamed ([`fbrb::pack_rows_into`]): the payload is
+/// never held.
+///
+/// # Errors
+/// As [`fbrb::pack_dir`], and [`PackError::Io`] when the bundle cannot be written.
+pub fn pack_path(dir: impl AsRef<Path>, out: impl AsRef<Path>) -> PackResult<PackStats> {
+    let out = out.as_ref();
+    let (manifest, rows) = fbrb::stream::dir_rows(dir.as_ref())?;
+    let tmp = crate::atomic::temp_name(out);
+    let written = File::create(&tmp)
+        .map_err(io_err(out))
+        .and_then(|f| {
+            let mut w = io::BufWriter::with_capacity(1 << 20, f);
+            let stats = fbrb::pack_rows_into(&manifest, &rows, &mut w, out)?;
+            w.flush().map_err(io_err(out))?;
+            w.get_ref().sync_all().map_err(io_err(out))?;
+            Ok(stats)
+        })
+        .and_then(|stats| crate::atomic::replace(&tmp, out).map_err(io_err(out)).map(|()| stats));
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    written
+}
+
+/// [`pack_path`] of each `(folder, bundle)`, in parallel (one bundle per task). Results keep the input order.
+#[must_use]
+pub fn pack_many<D: AsRef<Path> + Sync, O: AsRef<Path> + Sync>(items: &[(D, O)]) -> Vec<PackResult<PackStats>> {
+    items.par_iter().map(|(d, o)| pack_path(d, o)).collect()
 }
 
 fn points_path(folder: &Path, key: &ContentKey) -> PathBuf {
@@ -1189,5 +1262,5 @@ fn trim(folder: &Path, cap: u64, keep: &Path) {
 }
 
 #[cfg(test)]
-#[path = "cache_tests.rs"]
+#[path = "bundles_tests.rs"]
 mod tests;

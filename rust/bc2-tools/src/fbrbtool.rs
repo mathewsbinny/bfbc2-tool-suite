@@ -5,15 +5,15 @@
 //! | `FbrbTool.cs` | here |
 //! |---|---|
 //! | `Main`, `ToolLog.Fail` / `Explain` | [`run`], [`run_many`] ([`Outcome`]) |
-//! | `Read` (`File.ReadAllBytes`, `Gunzip`: .NET's `GZipStream`) | `read_bundle` ([`super::netgzip`]) |
+//! | `Read` (`File.ReadAllBytes`, `Gunzip`: .NET's `GZipStream`) | `read_bundle` ([`bc2_formats::fbrb::netgzip`]) |
 //! | `Unpack`, `LayoutTokens`, `Safe` | `unpack`, `layout_tokens`, `safe` |
-//! | `Pack` | `pack` (the bytes by [`super::pack_rows`], the packer proven in round E1b) |
+//! | `Pack` | `pack` (the bytes by [`bc2_formats::fbrb::pack_rows`], the packer proven in round E1b) |
 //! | `List`, `BigExtract` | `list`, `big` |
 //!
 //! Every step fails where FbrbTool's fails, with the exception FbrbTool's would throw (.NET's message and
 //! `ToolLog.Explain`'s words): the header is read with C#'s 32-bit wrapping arithmetic and array bounds, entries are
 //! written in order, an entry whose data lies outside the payload leaves the empty file `File.Create` made. The
-//! difference: files are written beside their name and moved over it ([`crate::atomic::replace`]), so a run cut short
+//! difference: files are written beside their name and moved over it ([`bc2_gamefs::atomic::replace`]), so a run cut short
 //! never leaves a half-written file (FbrbTool's own writes of entries and the manifest are not atomic).
 //!
 //! Memory: a zipped payload is decompressed from the file as it is read (zlib; .NET's own reader runs only on a
@@ -27,12 +27,11 @@ use std::path::{Path, PathBuf};
 
 use rayon::prelude::*;
 
-use super::netgzip::{self, NetGzipError};
-use super::pack::{
-    Layout, Manifest, ManifestLine, Padding, SourceRow, StreamError, decode_text, lines, pack_rows_stream, token,
-};
-use super::unpack::UnpackStats;
-use crate::dbxedit::{Fault, FaultKind, net};
+use crate::unpack::UnpackStats;
+use bc2_formats::dbxedit::{Fault, FaultKind, net};
+use bc2_formats::fbrb::netgzip::{self, NetGzipError};
+use bc2_formats::fbrb::stream::{StreamError, lines, pack_rows_stream, token};
+use bc2_formats::fbrb::{Layout, Manifest, ManifestLine, Padding, SourceRow, decode_text};
 
 type Result<T, E = Fault> = std::result::Result<T, E>;
 
@@ -64,7 +63,7 @@ impl Outcome {
 const USAGE: &str = "usage: FbrbTool unpack <file.fbrb> <outdir> | pack <dir> <file.fbrb> | list <file.fbrb>";
 const TOO_LONG: &str = "The specified path, file name, or both are too long. The fully qualified file name must be less \
                         than 260 characters, and the directory name must be less than 248 characters.";
-const DELETED: &str = super::DELETED;
+const DELETED: &str = bc2_formats::fbrb::DELETED;
 
 /// FbrbTool's `ToolLog.Explain`: DbxEdit's, with a word for a path too long first.
 fn explain(f: &Fault) -> (String, &'static str) {
@@ -400,11 +399,11 @@ fn on_disk_name(target: &Path) -> PathBuf {
 }
 
 /// A file written beside `target` and moved over it. Every caller writes an unpacked entry or its manifest - outputs
-/// rebuilt from the bundle - so the data is not flushed to disk ([`crate::atomic::write_rebuildable`]: a flush costs
+/// rebuilt from the bundle - so the data is not flushed to disk ([`bc2_gamefs::atomic::write_rebuildable`]: a flush costs
 /// about a millisecond a file, and a bundle holds thousands). A failure is worded as `File.Create(target)` would
 /// have failed.
 fn write_atomic(target: &str, data: &[&[u8]]) -> Result<()> {
-    crate::atomic::write_rebuildable(&on_disk_name(Path::new(target)), data)
+    bc2_gamefs::atomic::write_rebuildable(&on_disk_name(Path::new(target)), data)
         .map_err(|e| Fault::io(e.io(), Path::new(target)))
 }
 
@@ -1112,7 +1111,9 @@ fn pack(dir: &str, fbrb: &str, o: &mut Outcome) -> Result<i32> {
     let manifest = Manifest { layout, lines: mlines };
     // written beside the bundle, then moved over it (the temporary name per process and write: <bundle>.tmp-<pid>-<n>);
     // the payload streamed into it as it is made (round S1), never held
-    let tmp = crate::atomic::temp_name(Path::new(fbrb)).to_string_lossy().into_owned();
+    let tmp = bc2_gamefs::atomic::temp_name(Path::new(fbrb))
+        .to_string_lossy()
+        .into_owned();
     check_chars(&tmp)?;
     let tmp_full = full_path(&tmp)?;
     let stats = pack_to_file(&manifest, &rows, &tmp_full)?;
@@ -1125,7 +1126,7 @@ fn pack(dir: &str, fbrb: &str, o: &mut Outcome) -> Result<i32> {
             "Cannot create a file when that file already exists.\n",
         ));
     }
-    if let Err(e) = crate::atomic::replace(Path::new(&tmp_full), Path::new(&target)) {
+    if let Err(e) = bc2_gamefs::atomic::replace(Path::new(&tmp_full), Path::new(&target)) {
         let _ = fs::remove_file(&tmp_full);
         return Err(Fault::io(&e, Path::new(fbrb)));
     }
@@ -1138,7 +1139,7 @@ fn pack(dir: &str, fbrb: &str, o: &mut Outcome) -> Result<i32> {
 
 /// The bundle streamed into the file `tmp_full` (made, written, flushed to disk); on any error the file is deleted:
 /// a packing error is reported as FbrbTool reported a failed pack, a write error with the file's name.
-fn pack_to_file(manifest: &Manifest, rows: &[SourceRow], tmp_full: &str) -> Result<super::pack::PackStats> {
+fn pack_to_file(manifest: &Manifest, rows: &[SourceRow], tmp_full: &str) -> Result<bc2_formats::fbrb::PackStats> {
     let written = File::create(tmp_full).map_err(StreamError::Write).and_then(|f| {
         let mut w = io::BufWriter::with_capacity(1 << 20, f);
         let stats = pack_rows_stream(manifest, rows, &mut w)?;
@@ -1184,7 +1185,7 @@ mod tests {
         let d = std::env::temp_dir().join(format!("bc2-fbrbtool-{}", std::process::id()));
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
-        let bundle = super::super::build(
+        let bundle = bc2_formats::fbrb::build(
             &[
                 ("Levels/A.dbx", "<non-resource>", b"{binary}abc"),
                 ("Gone", DELETED, b""),

@@ -29,7 +29,7 @@ use bc2_editor::dbxinspect::{DbxDoc, Source};
 use bc2_editor::headless::Headless;
 use bc2_editor::theme::ThemeId;
 use bc2_editor::{levels, render};
-use bc2_formats::dbxedit::{self as dx, CONTAINER, EditFile, Element, NUMBERS, TEXT};
+use bc2_formats::dbxedit::{self as dx, CONTAINER, EditDbx, NUMBERS, Parts, TEXT};
 use bc2_levelwrite::{FieldType, Op};
 
 const SIZE: [u32; 2] = [1500, 950];
@@ -52,8 +52,8 @@ fn temp(name: &str) -> PathBuf {
 /// A small binary `.dbx`: a partition, an instance with a name, two decimals, a denormal, a bool, a reference and a
 /// list, and a second instance.
 fn sample() -> Vec<u8> {
-    let mut f = EditFile::empty();
-    let t = &mut f.table;
+    let mut f = dx::empty();
+    let mut t = |s: &str| dx::intern(&mut f, s) as i32;
     let [partition, instance, field, array, item, guid, ty, id, name, r] = [
         "partition",
         "instance",
@@ -66,7 +66,7 @@ fn sample() -> Vec<u8> {
         "name",
         "ref",
     ]
-    .map(|s| t.intern(s));
+    .map(&mut t);
     let [g1, g2, gp, t1, t2, text] = [
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
@@ -75,9 +75,9 @@ fn sample() -> Vec<u8> {
         "Entity.SpawnEntityData",
         "objects/props/crate",
     ]
-    .map(|s| t.intern(s));
+    .map(&mut t);
     let [n_name, n_scale, n_tiny, n_on, n_link, n_list] =
-        ["Name", "Scale", "Tiny", "Enabled", "Link", "Objects"].map(|s| t.intern(s));
+        ["Name", "Scale", "Tiny", "Enabled", "Link", "Objects"].map(&mut t);
     let numbers = |vals: &[u32]| {
         let mut p = dx::varint_bytes(vals.len() as i32);
         p.extend(dx::varint_bytes(4));
@@ -86,44 +86,46 @@ fn sample() -> Vec<u8> {
         }
         p
     };
-    let value = |tag, attributes: Vec<(i32, i32)>, kind, payload| Element {
-        tag,
-        kind,
-        attributes,
-        payload,
-        ..Element::default()
+    let ids = |a: Vec<(i32, i32)>| a.into_iter().map(|(k, v)| (k as u32, v as u32)).collect();
+    let value = |f: &mut EditDbx, tag: i32, attributes, kind, payload| {
+        f.push(Parts {
+            tag: tag as u32,
+            kind,
+            attrs: ids(attributes),
+            payload,
+            ..Parts::default()
+        })
     };
-    let cont = |tag, attributes, children| Element {
-        tag,
-        kind: CONTAINER,
-        attributes,
-        children: Some(children),
-        ..Element::default()
+    let cont = |f: &mut EditDbx, tag: i32, attributes, children| {
+        f.push(Parts {
+            tag: tag as u32,
+            kind: CONTAINER,
+            attrs: ids(attributes),
+            children: Some(children),
+            ..Parts::default()
+        })
     };
-    let i1 = cont(
-        instance,
-        vec![(guid, g1), (ty, t1), (id, text)],
-        vec![
-            value(field, vec![(name, n_name)], TEXT, dx::varint_bytes(text)),
-            value(
-                field,
-                vec![(name, n_scale)],
-                NUMBERS,
-                numbers(&[1.5f32.to_bits(), 2.0f32.to_bits()]),
-            ),
-            value(field, vec![(name, n_tiny)], NUMBERS, numbers(&[0x0008_0000])),
-            value(field, vec![(name, n_on)], 6, vec![1, 0]),
-            value(field, vec![(name, n_link), (r, g2)], TEXT, dx::varint_bytes(0)),
-            cont(
-                array,
-                vec![(name, n_list)],
-                vec![value(item, vec![(r, g2)], TEXT, dx::varint_bytes(0))],
-            ),
-        ],
-    );
-    let i2 = cont(instance, vec![(guid, g2), (ty, t2)], vec![]);
-    f.top_level.push(cont(partition, vec![(guid, gp)], vec![i1, i2]));
-    f.serialize().unwrap()
+    let fs = &mut f;
+    let mut kids = vec![
+        value(fs, field, vec![(name, n_name)], TEXT, dx::varint_bytes(text)),
+        value(
+            fs,
+            field,
+            vec![(name, n_scale)],
+            NUMBERS,
+            numbers(&[1.5f32.to_bits(), 2.0f32.to_bits()]),
+        ),
+        value(fs, field, vec![(name, n_tiny)], NUMBERS, numbers(&[0x0008_0000])),
+        value(fs, field, vec![(name, n_on)], 6, vec![1, 0]),
+        value(fs, field, vec![(name, n_link), (r, g2)], TEXT, dx::varint_bytes(0)),
+    ];
+    let it = value(fs, item, vec![(r, g2)], TEXT, dx::varint_bytes(0));
+    kids.push(cont(fs, array, vec![(name, n_list)], vec![it]));
+    let i1 = cont(fs, instance, vec![(guid, g1), (ty, t1), (id, text)], kids);
+    let i2 = cont(fs, instance, vec![(guid, g2), (ty, t2)], vec![]);
+    let p = cont(fs, partition, vec![(guid, gp)], vec![i1, i2]);
+    fs.roots_mut().push(p);
+    dx::serialize(&f).unwrap()
 }
 
 fn click(h: &mut Headless, app: &mut EditorApp, label: &str) {
@@ -171,7 +173,7 @@ fn the_inspector_window_edits_a_file_as_dbxedit_does() {
     assert_eq!(app.dbx.value_edit, "1.5/2");
     app.dbx.value_edit = "0.25/3.14159265358979".into();
     click(&mut h, &mut app, "Apply");
-    let mut cli = EditFile::parse(sample()).unwrap();
+    let mut cli = dx::read(&sample()).unwrap();
     dx::editor::set_field(
         &mut cli,
         "11111111-1111-1111-1111-111111111111",
@@ -179,7 +181,7 @@ fn the_inspector_window_edits_a_file_as_dbxedit_does() {
         "0.25/3.14159265358979",
     )
     .unwrap();
-    let want = cli.serialize().unwrap();
+    let want = dx::serialize(&cli).unwrap();
     let d = app.dbx.doc.as_ref().unwrap();
     assert_eq!(d.bytes().unwrap(), want, "Apply gives dbxedit setfield's bytes");
     assert!(
@@ -233,10 +235,10 @@ fn the_inspector_window_edits_a_file_as_dbxedit_does() {
 fn field_path(d: &DbxDoc, guid: &str, field: &str) -> Option<Vec<usize>> {
     let i = d.instance_path(guid)?;
     let e = d.element(&i)?;
-    let k = e
-        .kids()
+    let k = d
+        .kids(e)
         .iter()
-        .position(|c| d.get(c, "name").as_deref() == Some(field))?;
+        .position(|&c| d.get(c, "name").as_deref() == Some(field))?;
     Some([i, vec![k]].concat())
 }
 
@@ -293,7 +295,7 @@ fn project_partition_edits_are_project_operations() {
         alone.source = Source::File(PathBuf::new());
         let attrs: Vec<String> = d.attributes(d.element(&p).unwrap()).into_iter().map(|a| a.1).collect();
         alone.apply_edit(&p, &attrs, text).unwrap();
-        let want = alone.element(&p).unwrap().payload.clone();
+        let want = alone.file.payload(alone.element(&p).unwrap()).to_vec();
         let ops = app.view().unwrap().doc.as_ref().unwrap().project.operations.len();
         app.dbx.select(Some(p.clone()));
         h.settle(&mut app, 2);
@@ -311,7 +313,7 @@ fn project_partition_edits_are_project_operations() {
         // the inspector follows the project; the partition holds the file's bits
         let now = app.dbx.doc.as_ref().unwrap();
         assert_eq!(
-            now.element(&p).unwrap().payload,
+            now.file.payload(now.element(&p).unwrap()),
             want,
             "{field} = {text}: the bits the file takes"
         );

@@ -62,7 +62,7 @@ fn every_bundle_extracts() {
     let bad: Vec<String> = pool.install(|| {
         files
             .par_iter()
-            .filter_map(|f| match fbrb::extract_path(f) {
+            .filter_map(|f| match fbrb::extract_path_uncached(f) {
                 Ok((h, data)) => {
                     entries.fetch_add(h.entries.len() as u64, Ordering::Relaxed);
                     let mut wrong = 0;

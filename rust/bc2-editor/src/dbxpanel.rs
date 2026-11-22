@@ -14,7 +14,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use bc2_formats::dbxedit::EditFile;
+use bc2_formats::dbxedit::{self as dx, EditDbx, NodeId, Table};
 use bc2_levelwrite::ops::FieldSet;
 use bc2_levelwrite::{FieldType, Op};
 use eframe::egui::{self, CornerRadius, Margin, RichText, Sense, Stroke, TextStyle, Vec2};
@@ -130,7 +130,7 @@ pub struct Prompt {
     /// For Copy field: the instance chosen (the list then holds its fields).
     pub instance: Option<String>,
     /// A file read for the command (graft, copy field).
-    pub other: Option<EditFile>,
+    pub other: Option<EditDbx>,
     /// What went wrong, in words.
     pub error: Option<String>,
 }
@@ -181,9 +181,9 @@ pub struct LevelLink<'a> {
 }
 
 /// The bytes of a `.dbx` file read from disk, parsed.
-fn read_dbx(path: &str) -> Result<EditFile, String> {
-    let f = EditFile::parse(std::fs::read(path).map_err(|e| format!("{path}: {e}"))?).map_err(|e| e.message)?;
-    if f.is_binary {
+fn read_dbx(path: &str) -> Result<EditDbx, String> {
+    let f = dx::read(&std::fs::read(path).map_err(|e| format!("{path}: {e}"))?).map_err(|e| e.message)?;
+    if f.is_binary() {
         Ok(f)
     } else {
         Err(format!("{path}: not a binary .dbx file."))
@@ -237,7 +237,7 @@ impl DbxPanel {
         };
         let name = doc.project.base.partition.clone();
         match DbxDoc::from_bytes(
-            bytes,
+            &bytes,
             Source::Project {
                 partition: name.clone(),
                 revision: doc.revision,
@@ -400,8 +400,8 @@ impl DbxPanel {
             None => "Open a binary .dbx file (Open, or drop it on the window).".into(),
             Some(d) => format!(
                 "{} instances, {} strings{}   {}",
-                d.file.instances().map_or(0, Iterator::count),
-                d.file.table.strings.len(),
+                dx::instances(&d.file).map_or(0, Iterator::count),
+                d.file.strings().len(),
                 if d.modified { " - modified" } else { "" },
                 d.path
             ),
@@ -552,21 +552,22 @@ impl DbxPanel {
             let mut out = Vec::new();
             if let Some(d) = &self.doc {
                 fn walk(
-                    l: &[bc2_formats::dbxedit::Element],
+                    f: &EditDbx,
+                    l: &[NodeId],
                     prefix: &mut Vec<usize>,
                     open: &HashSet<NodePath>,
                     out: &mut Vec<(NodePath, usize)>,
                 ) {
-                    for (i, e) in l.iter().enumerate() {
+                    for (i, &e) in l.iter().enumerate() {
                         prefix.push(i);
                         out.push((prefix.clone(), prefix.len() - 1));
-                        if e.is_container() && open.contains(prefix.as_slice()) {
-                            walk(e.kids(), prefix, open, out);
+                        if f.is_container(e) && open.contains(prefix.as_slice()) {
+                            walk(f, dx::kids(f, e), prefix, open, out);
                         }
                         prefix.pop();
                     }
                 }
-                walk(&d.file.top_level, &mut Vec::new(), &self.expanded, &mut out);
+                walk(&d.file, d.file.roots(), &mut Vec::new(), &self.expanded, &mut out);
             }
             self.rows = Some(out);
         }
@@ -1090,7 +1091,7 @@ impl DbxPanel {
                         .rect_filled(rect, CornerRadius::same(m.radius_sm as u8), p.surface_3);
                 }
                 let x = rect.left() + m.space_2 + *depth as f32 * 14.0;
-                if e.is_container() && !e.kids().is_empty() {
+                if d.is_container(e) && !d.kids(e).is_empty() {
                     let open = self.expanded.contains(path);
                     let ar = egui::Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(12.0, row_h));
                     // the disclosure triangle, drawn (the interface font has no arrow glyphs)
@@ -1135,7 +1136,7 @@ impl DbxPanel {
                 if resp.clicked() && toggle.is_none() {
                     pick = Some(path.clone());
                 }
-                if resp.double_clicked() && e.is_container() {
+                if resp.double_clicked() && d.is_container(e) {
                     toggle = Some(path.clone());
                 }
                 self.rects.push((format!("row {}", join(path)), rect));
@@ -1159,11 +1160,11 @@ impl DbxPanel {
             ui.label(RichText::new("Select an element of the tree to see and edit it.").color(p.ink_muted));
             return None;
         };
-        let e = d.element(&path).cloned()?;
-        let heading = d.heading(&e);
-        let names: Vec<String> = d.attributes(&e).into_iter().map(|a| a.0).collect();
-        let reference = d.get(&e, "ref").filter(|r| r != "null");
-        let hints = dbxinspect::denormal_hint(&d.file.table, &e);
+        let e = d.element(&path)?;
+        let heading = d.heading(e);
+        let names: Vec<String> = d.attributes(e).into_iter().map(|a| a.0).collect();
+        let reference = d.get(e, "ref").filter(|r| r != "null");
+        let hints = dbxinspect::denormal_hint(&d.file, e);
         let project = d.is_project();
         ui.label(
             RichText::new(heading)
@@ -1195,7 +1196,7 @@ impl DbxPanel {
             });
         ui.add_space(m.space_2);
         let mut op = None;
-        if !e.is_container() {
+        if !d.is_container(e) {
             ui.label(
                 RichText::new("VALUE (NUMBERS SEPARATED BY /)")
                     .text_style(TextStyle::Name("label".into()))
@@ -1299,9 +1300,9 @@ fn join(path: &[usize]) -> String {
 }
 
 /// Another file's instances for a list: (guid, `type   id   guid`).
-fn instances(f: &EditFile) -> Vec<(String, String)> {
-    let t = &f.table;
-    f.instances().map_or_else(
+fn instances(f: &EditDbx) -> Vec<(String, String)> {
+    let t = Table(f);
+    dx::instances(f).map_or_else(
         |_| Vec::new(),
         |it| {
             it.filter_map(Result::ok)
@@ -1318,13 +1319,13 @@ fn instances(f: &EditFile) -> Vec<(String, String)> {
 }
 
 /// An instance's field names (each once) for a list.
-fn fields_of(f: &EditFile, guid: &str) -> Vec<(String, String)> {
-    let t = &f.table;
+fn fields_of(f: &EditDbx, guid: &str) -> Vec<(String, String)> {
+    let t = Table(f);
     let mut seen = HashSet::new();
-    f.instance(guid).ok().flatten().map_or_else(Vec::new, |i| {
-        i.kids()
+    dx::instance(f, guid).ok().flatten().map_or_else(Vec::new, |i| {
+        dx::kids(f, i)
             .iter()
-            .filter_map(|c| t.get(c, "name").ok().flatten())
+            .filter_map(|&c| t.get(c, "name").ok().flatten())
             .filter(|n| seen.insert((*n).to_owned()))
             .map(|n| (n.to_owned(), n.to_owned()))
             .collect()

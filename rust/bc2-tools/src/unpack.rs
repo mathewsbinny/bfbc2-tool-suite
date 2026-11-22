@@ -2,7 +2,7 @@
 //! FbrbTool writes (FbrbTool.cs's `Unpack` and `LayoutTokens`; retired in round R4), the same bytes.
 //!
 //! Round E3j added it for the bundles every reader agrees on and left any other bundle to FbrbTool.exe; round E3k
-//! ported the rest of FbrbTool (its gzip reader, path rules, errors: [`super::tool`]), so every bundle is unpacked
+//! ported the rest of FbrbTool (its gzip reader, path rules, errors: [`crate::fbrbtool`]), so every bundle is unpacked
 //! here as FbrbTool unpacks it - an odd name where FbrbTool writes it, a damaged bundle with the files FbrbTool
 //! leaves and its error ([`UnpackError::Refused`]). [`unpack_path`] and [`unpack_bytes`] are that one engine (the
 //! command line's `unpack` is the same code, with FbrbTool's messages), each file written beside its name and moved
@@ -11,8 +11,8 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use super::tool;
-use crate::dbxedit::{Fault, FaultKind};
+use crate::fbrbtool as tool;
+use bc2_formats::dbxedit::{Fault, FaultKind};
 
 /// Why a bundle could not be unpacked: what FbrbTool reports for it.
 #[derive(Debug, thiserror::Error)]
@@ -84,7 +84,8 @@ mod tests {
     use std::fs;
 
     use super::*;
-    use crate::fbrb::{DELETED, build, pack_path};
+    use bc2_formats::fbrb::{DELETED, build};
+    use bc2_gamefs::bundles::pack_path;
 
     fn temp(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("bc2-unpack-{name}-{}", std::process::id()));

@@ -191,7 +191,7 @@ fn every_name_lands_in_a_staged_canary() {
     for l in &rec.bundle_manifest {
         assert!(l.starts_with(&format!("levels/{low}/")), "{l}");
     }
-    let level = fbrb::read_path(stage.join("level-00.fbrb"), &[&format!("Levels/{id}.dbx")]).unwrap();
+    let level = bc2_gamefs::bundles::read_path(stage.join("level-00.fbrb"), &[&format!("Levels/{id}.dbx")]).unwrap();
     let xml = bc2_formats::dbx::to_xml(&level[0]).unwrap();
     assert!(xml.contains(&format!("<field name=\"Name\">Levels/{id}</field>")));
     assert!(xml.contains(&format!("{id}_NAME")) && xml.contains(&format!("{id}_DESC")));
@@ -266,7 +266,7 @@ fn every_name_lands_in_a_staged_canary() {
             .filter(|n| names.iter().any(|x| x.eq_ignore_ascii_case(n)))
             .collect();
         let refs: Vec<&str> = live.iter().map(String::as_str).collect();
-        let data = fbrb::read_path(&out, &refs).unwrap();
+        let data = bc2_gamefs::bundles::read_path(&out, &refs).unwrap();
         let (mut normal, mut hist) = (Vec::new(), Vec::new());
         for (n, d) in live.iter().zip(data) {
             if n.to_ascii_lowercase().ends_with("_normal.bin") {

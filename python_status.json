@@ -2643,7 +2643,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 16,
+   "lines": 25,
    "note": "the package; __version__ from VERSION",
    "path": "core/bfbc2core/__init__.py",
    "retiring": "the last Python",
@@ -2679,7 +2679,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "tool entry point",
-   "lines": 905,
+   "lines": 931,
    "note": "the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate",
    "path": "core/bfbc2core/caches.py",
    "retiring": "PR1b-2",
@@ -2727,7 +2727,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 158,
+   "lines": 159,
    "note": "the registry of every environment variable the suite (Python and Rust) reads",
    "path": "core/bfbc2core/envvars.py",
    "retiring": "proposed: Tests in Rust",
@@ -3567,7 +3567,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1361,
+   "lines": 1364,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3867,7 +3867,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 86,
+   "lines": 130,
    "note": "who calls each bc2_native export (AU5 ARC-12)",
    "path": "rust/native_census.py",
    "retiring": "PR1b-2 (made a check)",
@@ -4473,18 +4473,18 @@
  "totals": {
   "all": {
    "files": 367,
-   "lines": 107779
+   "lines": 107862
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1417,
+    "lines": 1420,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1361,
+    "test": 1364,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4665,14 +4665,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 19791,
-    "live": 739,
+    "lines": 19827,
+    "live": 749,
     "partly": 0,
     "ported": 1897,
     "retired-pending": 0,
     "stays": 0,
     "test": 14767,
-    "twin": 2388
+    "twin": 2414
    },
    "design": {
     "files": 1,
@@ -4687,12 +4687,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5889,
+    "lines": 5933,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5622,
+    "stays": 5666,
     "test": 267,
     "twin": 0
    },
@@ -4722,7 +4722,7 @@
   "by_status": {
    "live": {
     "files": 21,
-    "lines": 6057
+    "lines": 6067
    },
    "partly": {
     "files": 20,
@@ -4738,15 +4738,15 @@
    },
    "stays": {
     "files": 58,
-    "lines": 10522
+    "lines": 10566
    },
    "test": {
     "files": 188,
-    "lines": 50280
+    "lines": 50283
    },
    "twin": {
     "files": 56,
-    "lines": 20741
+    "lines": 20767
    }
   }
  }
