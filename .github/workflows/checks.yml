@@ -44,6 +44,13 @@ jobs:
         with:
           python-version: '3.13'           # the development PC's Python (the module itself serves 3.12 and later)
 
+      - name: Time zone the goldens were recorded in
+        # the command lines' goldens hold local times (crashreader's report, navkit status's build time, the log
+        # folder's pruning by date), recorded on the development PC; the runner's UTC moved them 5 hours
+        run: |
+          tzutil /s "Eastern Standard Time"
+          tzutil /g
+
       - name: Rust toolchain (rust/rust-toolchain.toml)
         working-directory: rust
         run: |
