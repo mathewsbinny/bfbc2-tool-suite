@@ -521,7 +521,8 @@ mod bc2_native {
     // round F4: F3's leftovers
     #[pymodule_export]
     use super::culltree_audio_havok::{
-        HkPackfile, audio_convert, audio_decode, audio_xma_decode, culltree_strings, hkpack_open, navkit_asset_bodies, texqa_read,
+        HkPackfile, audio_convert, audio_decode, audio_xma_decode, culltree_strings, hkpack_open, navkit_asset_bodies,
+        texqa_read,
     };
 
     #[pymodule_export]
