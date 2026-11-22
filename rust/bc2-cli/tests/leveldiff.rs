@@ -178,7 +178,7 @@ fn real_level_pairs_as_leveldiff_exe_answered() {
             .find(|e| !e.is_deleted() && e.name.eq_ignore_ascii_case(f[4]))
             .map(|e| e.name.clone())
             .unwrap();
-        let data = bc2_formats::fbrb::read_path(&b, &[&entry]).unwrap();
+        let data = bc2_gamefs::bundles::read_path(&b, &[&entry]).unwrap();
         std::fs::write(pairs.join(f[1]), &data[0]).unwrap();
         have.insert(f[1].to_owned());
     }

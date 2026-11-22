@@ -53,10 +53,6 @@ pub fn bf1943_reader() -> &'static str {
     clippy::too_many_arguments,
     reason = "the payload's identity and the range, as Source holds them"
 )]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "PyO3 extracts an optional path argument as an owned PathBuf"
-)]
 pub fn bf1943_read(
     py: Python<'_>,
     path: PathBuf,
@@ -76,7 +72,11 @@ pub fn bf1943_read(
         payload_len,
     };
     let budgets = Budgets::from_env();
-    let got = py.detach(|| bf1943::global().read(&r, offset, size, folder.as_deref(), budgets));
+    let store = folder.map(bc2_gamefs::points::Folder);
+    let got = py.detach(|| {
+        let store = store.as_ref().map(|s| s as &dyn bf1943::PointsStore);
+        bf1943::global().read(&r, offset, size, store, budgets)
+    });
     let (data, info) = got.map_err(|e| match e {
         ReadError::Io(e) => PyOSError::new_err(e.to_string()),
         ReadError::Damaged => PyValueError::new_err(("damaged", e.to_string())),

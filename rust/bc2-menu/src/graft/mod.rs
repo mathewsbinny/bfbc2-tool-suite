@@ -1409,7 +1409,7 @@ pub fn load_members(spec: &str) -> PyResult<(String, Members)> {
         let Some(real) = names.get(&entry.to_lowercase()) else {
             return Err(apt_err(format!("no {entry} in {bundle}")));
         };
-        let data = bc2_formats::fbrb::read_path(bundle, &[real.to_lowercase()])
+        let data = bc2_gamefs::bundles::read_path(bundle, &[real.to_lowercase()])
             .map_err(|_| Fail::Python)?
             .into_iter()
             .next()

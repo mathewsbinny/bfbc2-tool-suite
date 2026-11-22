@@ -8,7 +8,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use bc2_convert::meshview::cache;
-use bc2_formats::{atomic, meshindex};
+use bc2_gamefs::{atomic, meshindex};
 use bc2_pyrt::pickle::{self, Value};
 use bc2_pyrt::py::{abspath, dirname, isdir, join, suite_root};
 
@@ -106,7 +106,7 @@ fn cached(path: &str, sig: &[(String, u64, i128)]) -> Option<Index> {
     Some(ix)
 }
 
-/// `meshview.Index(root)`: from its cache when it is this game copy's, else built here (`bc2_formats::meshindex`,
+/// `meshview.Index(root)`: from its cache when it is this game copy's, else built here (`bc2_gamefs::meshindex`,
 /// under the cache's lock, "indexing the game copy (once; cached) ..." on stderr) and written to the cache as the
 /// reference writes it (its pickle, byte for byte). [`Fail::Python`]: a bundle's `os.stat` fails, or the build meets
 /// what the reference would leave out or fail on (an unreadable bundle or database), or the cache cannot be written -

@@ -189,7 +189,7 @@ pub fn entries(path: &str) -> PyResult<Vec<fbrb::Entry>> {
 /// `fbrb.read(path, names)`: the data of each name, in order.
 pub fn read_entries(path: &str, names: &[String]) -> PyResult<Vec<Vec<u8>>> {
     let low: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
-    fbrb::read_path(path, &low).map_err(|_| Fail::Python)
+    bc2_gamefs::bundles::read_path(path, &low).map_err(|_| Fail::Python)
 }
 
 fn char_slice(s: &str, from: usize, to_end_minus: usize) -> String {

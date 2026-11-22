@@ -128,7 +128,9 @@ pub(crate) fn gunzip_all(data: &[u8]) -> Result<Vec<u8>> {
 
 /// The length of the gzip member header at the start of `data` as zlib's inflate reads it (`Ok(None)`: not all of
 /// it is there yet).
-pub(crate) fn zlib_header(data: &[u8]) -> Result<Option<usize>> {
+/// # Errors
+/// A header zlib refuses.
+pub fn zlib_header(data: &[u8]) -> Result<Option<usize>> {
     match data.get(..2) {
         None => return Ok(None),
         Some(m) if m != [0x1F, 0x8B] => return Err(gzip_err("incorrect header check")),
@@ -184,7 +186,7 @@ enum State {
 
 /// One gzip member decompressed as it is fed, as `zlib.decompressobj(16 + zlib.MAX_WBITS)` does: each
 /// [`Member::feed`] decompresses everything its input allows; what follows the member is ignored.
-pub(crate) struct Member {
+pub struct Member {
     state: State,
     pending: Vec<u8>,
     inflater: Decompress,
@@ -192,8 +194,16 @@ pub(crate) struct Member {
     scratch: Vec<u8>,
 }
 
+impl Default for Member {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Member {
-    pub(crate) fn new() -> Self {
+    /// A member not read yet.
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             state: State::Header,
             pending: Vec::new(),
@@ -204,12 +214,16 @@ impl Member {
     }
 
     /// Whether the member and its checked trailer have been read.
-    pub(crate) fn done(&self) -> bool {
+    #[must_use]
+    pub fn done(&self) -> bool {
         self.state == State::Done
     }
 
     /// Decompresses `input`, giving the output to `sink` in order.
-    pub(crate) fn feed(&mut self, mut input: &[u8], sink: &mut impl FnMut(&[u8])) -> Result<()> {
+    ///
+    /// # Errors
+    /// A damaged stream (zlib's error, a header, checksum or length that is wrong).
+    pub fn feed(&mut self, mut input: &[u8], sink: &mut impl FnMut(&[u8])) -> Result<()> {
         if self.state == State::Header {
             // a header split across inputs waits for the rest (zlib keeps its state the same way)
             self.pending.extend_from_slice(input);

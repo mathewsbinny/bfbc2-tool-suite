@@ -53,7 +53,7 @@ pub fn default_root(game: &Path) -> PathBuf {
 
 /// A ledger operation that did not happen (or did not finish).
 #[derive(Debug)]
-pub enum Error {
+pub enum LedgerError {
     /// Checks failed: nothing was written. Each line says why, in plain words.
     Refused(Vec<String>),
     /// Another operation holds the lock (or a stale lock could not be cleared).
@@ -66,7 +66,7 @@ pub enum Error {
     Crashed,
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for LedgerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Refused(c) => write!(f, "{}", c.join("; ")),
@@ -76,14 +76,14 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for LedgerError {}
 
 /// What a test hook does at a write step.
 #[derive(Debug)]
 pub enum Interrupt {
     /// The write fails with this error (the commit rolls back).
     Fail(io::Error),
-    /// The process "dies": the operation returns [`Error::Crashed`] at once, leaving the journal and the lock.
+    /// The process "dies": the operation returns [`LedgerError::Crashed`] at once, leaving the journal and the lock.
     Crash,
 }
 
@@ -120,10 +120,10 @@ pub struct Adopt {
 ///
 /// # Errors
 /// Not a path inside the game copy.
-pub fn norm_rel(rel: &str) -> Result<String, Error> {
+pub fn norm_rel(rel: &str) -> Result<String, LedgerError> {
     let r = rel.replace('\\', "/");
     let r = r.trim_matches('/');
-    let bad = || Error::Damaged(format!("not a path inside the game copy: {rel:?}"));
+    let bad = || LedgerError::Damaged(format!("not a path inside the game copy: {rel:?}"));
     let b = r.as_bytes();
     if r.is_empty() || rel.starts_with('/') || rel.starts_with('\\') || (b.len() >= 2 && b.get(1) == Some(&b':')) {
         return Err(bad());
@@ -160,19 +160,6 @@ pub fn owner_file(owner: &str) -> String {
     format!("{}.json", owner.replace(':', "~"))
 }
 
-/// The game copy a file is in: the nearest folder above it holding `opfor\ledger` (None: no ledger there).
-#[must_use]
-pub fn find_game(path: &Path) -> Option<PathBuf> {
-    let mut d = path.parent();
-    while let Some(a) = d {
-        if default_root(a).is_dir() {
-            return Some(a.to_path_buf());
-        }
-        d = a.parent();
-    }
-    None
-}
-
 /// The legacy install markers beside a file (`<name>.opfor-*`, from before the ledger), as suffixes (`.opfor-orig`).
 #[must_use]
 pub fn legacy_markers(path: &Path) -> Vec<String> {
@@ -196,8 +183,8 @@ pub fn legacy_markers(path: &Path) -> Vec<String> {
 
 // ------------------------------------------------------------------------------------------------- helpers
 
-fn ioe(path: &Path, e: &io::Error) -> Error {
-    Error::Io(format!("{}: {e}", path.display()))
+fn ioe(path: &Path, e: &io::Error) -> LedgerError {
+    LedgerError::Io(format!("{}: {e}", path.display()))
 }
 
 /// The UTC time as `YYYY-MM-DDTHH:MM:SSZ` (and the compact form for transaction ids).
@@ -229,7 +216,7 @@ fn new_txn() -> String {
     format!("{}-{}", utc_now().1, tag.get(..8).unwrap_or_default())
 }
 
-fn read_opt(p: &Path) -> Result<Option<Vec<u8>>, Error> {
+fn read_opt(p: &Path) -> Result<Option<Vec<u8>>, LedgerError> {
     match fs::read(p) {
         Ok(d) => Ok(Some(d)),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -272,71 +259,7 @@ fn remove_file(path: &Path) -> io::Result<()> {
     })
 }
 
-fn hostname() -> Option<String> {
-    #[cfg(windows)]
-    {
-        win::hostname()
-    }
-    #[cfg(not(windows))]
-    {
-        std::env::var("HOSTNAME").ok()
-    }
-}
-
-/// Whether a process with this id runs on this machine.
-#[must_use]
-pub fn pid_alive(pid: i64) -> bool {
-    if pid == i64::from(std::process::id()) {
-        return true;
-    }
-    let Ok(pid) = u32::try_from(pid) else {
-        return false;
-    };
-    if pid == 0 {
-        return false;
-    }
-    #[cfg(windows)]
-    {
-        win::pid_alive(pid)
-    }
-    #[cfg(not(windows))]
-    {
-        Path::new(&format!("/proc/{pid}")).exists()
-    }
-}
-
-#[cfg(windows)]
-#[allow(
-    unsafe_code,
-    reason = "Win32 calls: a buffer passed with its length; a process handle checked and closed"
-)]
-mod win {
-    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError};
-    use windows_sys::Win32::System::SystemInformation::{ComputerNameDnsHostname, GetComputerNameExW};
-    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
-
-    pub fn hostname() -> Option<String> {
-        let mut buf = [0u16; 256];
-        let mut len: u32 = 256;
-        // SAFETY: the buffer and its length are passed together; the call writes at most `len` u16s.
-        let ok = unsafe { GetComputerNameExW(ComputerNameDnsHostname, buf.as_mut_ptr(), &raw mut len) } != 0;
-        ok.then(|| String::from_utf16_lossy(buf.get(..len as usize).unwrap_or_default()))
-    }
-
-    pub fn pid_alive(pid: u32) -> bool {
-        // SAFETY: OpenProcess returns a handle or null; a non-null handle is used and closed once.
-        unsafe {
-            let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-            if h.is_null() {
-                return GetLastError() == 5; // access denied: it exists (another user's)
-            }
-            let mut code: u32 = 0;
-            let ok = GetExitCodeProcess(h, &raw mut code) != 0;
-            CloseHandle(h);
-            ok && code == 259 // STILL_ACTIVE
-        }
-    }
-}
+use crate::liveness::pid_alive;
 
 fn s<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
     v.get(k).and_then(Value::as_str)
@@ -409,7 +332,7 @@ impl Ledger {
         self.hook = hook;
     }
 
-    fn step(&mut self, label: &str) -> Result<(), Error> {
+    fn step(&mut self, label: &str) -> Result<(), LedgerError> {
         self.steps += 1;
         if self.crash_at == Some(self.steps) {
             eprintln!("BC2_LEDGER_CRASH_AT={}: stopped before {label}", self.steps);
@@ -418,8 +341,8 @@ impl Ledger {
         if let Some(h) = self.hook.as_mut() {
             match h(label) {
                 Ok(()) => {}
-                Err(Interrupt::Fail(e)) => return Err(Error::Io(format!("{label}: {e}"))),
-                Err(Interrupt::Crash) => return Err(Error::Crashed),
+                Err(Interrupt::Fail(e)) => return Err(LedgerError::Io(format!("{label}: {e}"))),
+                Err(Interrupt::Crash) => return Err(LedgerError::Crashed),
             }
         }
         Ok(())
@@ -451,8 +374,8 @@ impl Ledger {
     /// Every owner's record, by owner.
     ///
     /// # Errors
-    /// A record that cannot be read ([`Error::Damaged`], naming the file).
-    pub fn records(&self) -> Result<Records, Error> {
+    /// A record that cannot be read ([`LedgerError::Damaged`], naming the file).
+    pub fn records(&self) -> Result<Records, LedgerError> {
         let mut out = Records::new();
         let rd = match fs::read_dir(&self.root) {
             Ok(rd) => rd,
@@ -468,7 +391,7 @@ impl Ledger {
         for f in names {
             let p = self.root.join(&f);
             let bad = |why: &str| {
-                Error::Damaged(format!(
+                LedgerError::Damaged(format!(
                     "damaged ledger record: {} ({why}) - restore it from a backup, or drop it with Project OPFOR's \
                      ledger forget",
                     p.display()
@@ -559,7 +482,7 @@ impl Ledger {
     ///
     /// # Errors
     /// A damaged record, a bad path.
-    pub fn holders(&self, rel: &str) -> Result<Vec<String>, Error> {
+    pub fn holders(&self, rel: &str) -> Result<Vec<String>, LedgerError> {
         let rel = norm_rel(rel)?;
         let recs = self.records()?;
         let (layers, _) = Self::layers(&recs, &rel);
@@ -570,7 +493,7 @@ impl Ledger {
     ///
     /// # Errors
     /// A damaged record.
-    pub fn owner_files(&self, owner: &str) -> Result<Vec<String>, Error> {
+    pub fn owner_files(&self, owner: &str) -> Result<Vec<String>, LedgerError> {
         let recs = self.records()?;
         Ok(recs.get(owner).map_or_else(Vec::new, |r| {
             Self::contributions(r)
@@ -585,7 +508,7 @@ impl Ledger {
     ///
     /// # Errors
     /// A damaged record, a bad path.
-    pub fn original(&self, rel: &str) -> Result<Option<PathBuf>, Error> {
+    pub fn original(&self, rel: &str) -> Result<Option<PathBuf>, LedgerError> {
         let rel = norm_rel(rel)?;
         let recs = self.records()?;
         let (layers, _) = Self::layers(&recs, &rel);
@@ -608,7 +531,7 @@ impl Ledger {
     ///
     /// # Errors
     /// A damaged record, a bad path.
-    pub fn before(&self, owner: &str, rel: &str) -> Result<Option<Option<PathBuf>>, Error> {
+    pub fn before(&self, owner: &str, rel: &str) -> Result<Option<Option<PathBuf>>, LedgerError> {
         let rel = norm_rel(rel)?;
         let recs = self.records()?;
         let (layers, _) = Self::layers(&recs, &rel);
@@ -623,7 +546,7 @@ impl Ledger {
     ///
     /// # Errors
     /// A damaged record.
-    pub fn status(&self) -> Result<Vec<String>, Error> {
+    pub fn status(&self) -> Result<Vec<String>, LedgerError> {
         let mut out = Vec::new();
         if self.root.join(JOURNAL).is_file() || self.root.join(DIRTY).is_file() {
             out.push(format!(
@@ -689,7 +612,7 @@ impl Ledger {
         let Some(pid) = info.get("pid").and_then(Value::as_i64) else {
             return info.get("age").and_then(Value::as_f64).unwrap_or(0.0) > 60.0;
         };
-        if let (Some(h), Some(me)) = (s(info, "host"), hostname())
+        if let (Some(h), Some(me)) = (s(info, "host"), crate::liveness::host_name())
             && !h.is_empty()
             && !h.eq_ignore_ascii_case(&me)
         {
@@ -700,7 +623,7 @@ impl Ledger {
 
     /// Takes the lock; a stale one (its process gone) is cleared first, and an interrupted commit's journal rolled
     /// back (the notes say what was).
-    fn lock(&mut self, notes: &mut Vec<String>) -> Result<(), Error> {
+    fn lock(&mut self, notes: &mut Vec<String>) -> Result<(), LedgerError> {
         fs::create_dir_all(&self.root).map_err(|e| ioe(&self.root, &e))?;
         let p = self.root.join(LOCK);
         for _ in 0..2 {
@@ -722,7 +645,7 @@ impl Ledger {
                 Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
                     let info = self.lock_info().unwrap_or_else(|| json!({}));
                     if !Self::lock_stale(&info) {
-                        return Err(Error::Locked(format!(
+                        return Err(LedgerError::Locked(format!(
                             "{}: held by pid {} since {}: another install / revert is running - try again when it \
                              has finished",
                             p.display(),
@@ -739,7 +662,7 @@ impl Ledger {
                 Err(e) => return Err(ioe(&p, &e)),
             }
         }
-        Err(Error::Locked(format!("{}: could not be taken", p.display())))
+        Err(LedgerError::Locked(format!("{}: could not be taken", p.display())))
     }
 
     fn unlock(&self) {
@@ -748,22 +671,22 @@ impl Ledger {
 
     // ---------------------------------------------------------------------------------------------- journal
 
-    fn target_path(&self, base: &str, rel: &str) -> Result<PathBuf, Error> {
+    fn target_path(&self, base: &str, rel: &str) -> Result<PathBuf, LedgerError> {
         let rel = norm_rel(rel)?;
         let top = match base {
             "game" => &self.game,
             "ledger" => &self.root,
-            _ => return Err(Error::Damaged(format!("journal target base {base:?}"))),
+            _ => return Err(LedgerError::Damaged(format!("journal target base {base:?}"))),
         };
         Ok(rel.split('/').fold(top.clone(), |p, part| p.join(part)))
     }
 
-    fn store_write(path: &Path, data: &[u8]) -> Result<(), Error> {
+    fn store_write(path: &Path, data: &[u8]) -> Result<(), LedgerError> {
         write_atomic(path, data).map_err(|e| ioe(path, &e))
     }
 
     /// The journal: every target's pre-image recorded (fsync'd) before the first write.
-    fn begin(&mut self, owner: &str, action: &str, txn: &str, targets: &[(&str, String)]) -> Result<(), Error> {
+    fn begin(&mut self, owner: &str, action: &str, txn: &str, targets: &[(&str, String)]) -> Result<(), LedgerError> {
         self.step("journal")?;
         let d = self.root.join(JOURNAL_DIR);
         if d.is_dir() {
@@ -802,13 +725,13 @@ impl Ledger {
         let _ = remove_file(&self.root.join(DIRTY));
     }
 
-    fn rollback(&self, j: &Value) -> Result<Vec<String>, Error> {
+    fn rollback(&self, j: &Value) -> Result<Vec<String>, LedgerError> {
         let d = self.root.join(JOURNAL_DIR);
         let mut done = Vec::new();
         let mut errors = Vec::new();
         let targets = j.get("targets").and_then(Value::as_array).cloned().unwrap_or_default();
         for t in targets.iter().rev() {
-            let r = (|| -> Result<Option<String>, Error> {
+            let r = (|| -> Result<Option<String>, LedgerError> {
                 let (base, rel) = (s(t, "base").unwrap_or_default(), s(t, "path").unwrap_or_default());
                 let p = self.target_path(base, rel)?;
                 let mut tmp = p.as_os_str().to_owned();
@@ -830,7 +753,7 @@ impl Ledger {
                         let bp = d.join(format!("{sha}.bin"));
                         let data = fs::read(&bp).map_err(|e| ioe(&bp, &e))?;
                         if sha256::hex(&data) != sha {
-                            return Err(Error::Damaged(format!(
+                            return Err(LedgerError::Damaged(format!(
                                 "{}: the saved pre-image is damaged",
                                 bp.display()
                             )));
@@ -849,12 +772,12 @@ impl Ledger {
         if errors.is_empty() {
             Ok(done)
         } else {
-            Err(Error::Io(errors.join("; ")))
+            Err(LedgerError::Io(errors.join("; ")))
         }
     }
 
     /// Under the lock: an interrupted commit's journal rolled back (resumable), and its notes.
-    fn recover_locked(&self, notes: &mut Vec<String>) -> Result<(), Error> {
+    fn recover_locked(&self, notes: &mut Vec<String>) -> Result<(), LedgerError> {
         let jp = self.root.join(JOURNAL);
         let dirty = self.root.join(DIRTY).is_file();
         if !jp.is_file() {
@@ -868,7 +791,7 @@ impl Ledger {
             .and_then(|d| serde_json::from_slice(&d).ok())
             .filter(|j: &Value| s(j, "format") == Some(JOURNAL_FORMAT))
             .ok_or_else(|| {
-                Error::Damaged(format!(
+                LedgerError::Damaged(format!(
                     "{}: damaged journal: the files of the interrupted commit cannot be rolled back automatically - \
                      restore the game files, then delete the journal",
                     jp.display()
@@ -895,7 +818,7 @@ impl Ledger {
                     &self.root.join(DIRTY),
                     format!("{} recover: {e}\n", utc_now().0).as_bytes(),
                 );
-                Err(Error::Io(format!(
+                Err(LedgerError::Io(format!(
                     "an interrupted commit could not be rolled back ({e}) - free the files (close the game) and \
                      run recover again"
                 )))
@@ -908,7 +831,7 @@ impl Ledger {
     ///
     /// # Errors
     /// The lock is held, or a file still cannot be written.
-    pub fn recover(&mut self, force: bool) -> Result<Vec<String>, Error> {
+    pub fn recover(&mut self, force: bool) -> Result<Vec<String>, LedgerError> {
         if force {
             let _ = remove_file(&self.root.join(LOCK));
         }
@@ -923,7 +846,7 @@ impl Ledger {
 
     // ---------------------------------------------------------------------------------------------- engine
 
-    fn current(&self, work: &mut BTreeMap<String, Option<Vec<u8>>>, rel: &str) -> Result<Option<Vec<u8>>, Error> {
+    fn current(&self, work: &mut BTreeMap<String, Option<Vec<u8>>>, rel: &str) -> Result<Option<Vec<u8>>, LedgerError> {
         let k = rel.to_lowercase();
         if let Some(v) = work.get(&k) {
             return Ok(v.clone());
@@ -945,7 +868,7 @@ impl Ledger {
         dirty: &mut BTreeSet<String>,
         conflicts: &mut Vec<String>,
         notes: &mut Vec<String>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), LedgerError> {
         let rel = s(c, "file").unwrap_or_default().to_owned();
         if s(c, "kind") != Some("file") {
             conflicts.push(format!(
@@ -1020,7 +943,7 @@ impl Ledger {
     /// layer under it cannot be taken out alone). `dry_run`: the checks and the plan, nothing written.
     ///
     /// # Errors
-    /// [`Error::Refused`] with every conflict (nothing written); a held lock; a write that failed (rolled back).
+    /// [`LedgerError::Refused`] with every conflict (nothing written); a held lock; a write that failed (rolled back).
     pub fn install(
         &mut self,
         owner: &str,
@@ -1028,7 +951,7 @@ impl Ledger {
         derived: bool,
         note: &str,
         dry_run: bool,
-    ) -> Result<Plan, Error> {
+    ) -> Result<Plan, LedgerError> {
         self.commit(owner, Some(files), derived, note, dry_run)
     }
 
@@ -1037,7 +960,7 @@ impl Ledger {
     ///
     /// # Errors
     /// As [`Ledger::install`].
-    pub fn uninstall(&mut self, owner: &str, dry_run: bool) -> Result<Plan, Error> {
+    pub fn uninstall(&mut self, owner: &str, dry_run: bool) -> Result<Plan, LedgerError> {
         self.commit(owner, None, false, "", dry_run)
     }
 
@@ -1048,9 +971,9 @@ impl Ledger {
         is_derived: bool,
         note: &str,
         dry_run: bool,
-    ) -> Result<Plan, Error> {
+    ) -> Result<Plan, LedgerError> {
         if !valid_owner(owner) {
-            return Err(Error::Damaged(format!("not an owner name: {owner:?}")));
+            return Err(LedgerError::Damaged(format!("not an owner name: {owner:?}")));
         }
         let mut plan = Plan {
             owner: owner.to_owned(),
@@ -1064,7 +987,7 @@ impl Ledger {
                 .push("an interrupted commit's journal is there: it is rolled back first".to_owned());
         }
         let r = self.commit_locked(owner, files, is_derived, note, dry_run, &mut plan);
-        if !dry_run && !matches!(r, Err(Error::Crashed)) {
+        if !dry_run && !matches!(r, Err(LedgerError::Crashed)) {
             self.unlock();
         }
         r.map(|()| plan)
@@ -1079,7 +1002,7 @@ impl Ledger {
         note: &str,
         dry_run: bool,
         plan: &mut Plan,
-    ) -> Result<(), Error> {
+    ) -> Result<(), LedgerError> {
         let mut recs = self.records()?;
         let old = recs.get(owner).cloned();
         if files.is_none() && old.is_none() {
@@ -1103,7 +1026,7 @@ impl Ledger {
         let mut seen = BTreeSet::new();
         for (r, _) in &new_rels {
             if !seen.insert(r.to_lowercase()) {
-                return Err(Error::Damaged(format!("{r}: given twice")));
+                return Err(LedgerError::Damaged(format!("{r}: given twice")));
             }
         }
         // the owner's old contributions to files not in the new set: taken out
@@ -1203,7 +1126,7 @@ impl Ledger {
             writes.insert(rel.to_lowercase(), (rel.clone(), Some(data.to_vec())));
         }
         if !conflicts.is_empty() {
-            return Err(Error::Refused(conflicts));
+            return Err(LedgerError::Refused(conflicts));
         }
         let old_note = old.as_ref().and_then(|r| s(r, "note")).unwrap_or_default();
         if files.is_some() && old.is_some() && unchanged && dirty.is_empty() && note == old_note {
@@ -1237,7 +1160,7 @@ impl Ledger {
             targets.push(("ledger", owner_file(o)));
         }
         self.begin(owner, &plan.action, &txn, &targets)?;
-        let r = (|| -> Result<(), Error> {
+        let r = (|| -> Result<(), LedgerError> {
             for (sha, data) in &blobs {
                 let p = self.blob_path(sha);
                 if !p.is_file() {
@@ -1277,26 +1200,26 @@ impl Ledger {
                 plan.applied = true;
                 Ok(())
             }
-            Err(Error::Crashed) => Err(Error::Crashed),
+            Err(LedgerError::Crashed) => Err(LedgerError::Crashed),
             Err(e) => Err(self.abort(&e)),
         }
     }
 
     /// A failed commit: rolled back from the journal; the error to return.
-    fn abort(&self, e: &Error) -> Error {
+    fn abort(&self, e: &LedgerError) -> LedgerError {
         let jp = self.root.join(JOURNAL);
         let j: Option<Value> = fs::read(&jp).ok().and_then(|d| serde_json::from_slice(&d).ok());
         match j.map(|j| self.rollback(&j)) {
             Some(Ok(_)) | None => {
                 self.clear_journal();
-                Error::Io(format!("{e} - nothing changed: every file written was put back"))
+                LedgerError::Io(format!("{e} - nothing changed: every file written was put back"))
             }
             Some(Err(r)) => {
                 let _ = Self::store_write(
                     &self.root.join(DIRTY),
                     format!("{} {e}\nrollback: {r}\n", utc_now().0).as_bytes(),
                 );
-                Error::Io(format!(
+                LedgerError::Io(format!(
                     "{e}, and its rollback failed too ({r}): the game copy is half-written. Free the files (close \
                      the game), then run recover (bfbc2 gameledger recover <game>)"
                 ))
@@ -1304,7 +1227,7 @@ impl Ledger {
         }
     }
 
-    fn write_record(&self, owner: &str, rec: Option<&Value>) -> Result<(), Error> {
+    fn write_record(&self, owner: &str, rec: Option<&Value>) -> Result<(), LedgerError> {
         let p = self.root.join(owner_file(owner));
         let empty = rec.is_none_or(|r| Self::contributions(r).is_empty());
         if empty {
@@ -1315,7 +1238,7 @@ impl Ledger {
         let mut ser =
             serde_json::Serializer::with_formatter(&mut buf, serde_json::ser::PrettyFormatter::with_indent(b" "));
         serde::Serialize::serialize(rec.unwrap_or(&Value::Null), &mut ser)
-            .map_err(|e| Error::Io(format!("{}: {e}", p.display())))?;
+            .map_err(|e| LedgerError::Io(format!("{}: {e}", p.display())))?;
         buf.push(b'\n');
         Self::store_write(&p, &buf)
     }
@@ -1350,9 +1273,9 @@ impl Ledger {
     ///
     /// # Errors
     /// As [`Ledger::install`].
-    pub fn adopt(&mut self, owner: &str, entries: &[Adopt], remove: &[String]) -> Result<Plan, Error> {
+    pub fn adopt(&mut self, owner: &str, entries: &[Adopt], remove: &[String]) -> Result<Plan, LedgerError> {
         if !valid_owner(owner) {
-            return Err(Error::Damaged(format!("not an owner name: {owner:?}")));
+            return Err(LedgerError::Damaged(format!("not an owner name: {owner:?}")));
         }
         let mut plan = Plan {
             owner: owner.to_owned(),
@@ -1361,7 +1284,7 @@ impl Ledger {
         };
         self.lock(&mut plan.notes)?;
         let r = self.adopt_locked(owner, entries, remove, &mut plan);
-        if !matches!(r, Err(Error::Crashed)) {
+        if !matches!(r, Err(LedgerError::Crashed)) {
             self.unlock();
         }
         r.map(|()| plan)
@@ -1373,7 +1296,7 @@ impl Ledger {
         entries: &[Adopt],
         remove: &[String],
         plan: &mut Plan,
-    ) -> Result<(), Error> {
+    ) -> Result<(), LedgerError> {
         let mut recs = self.records()?;
         let mut conflicts = Vec::new();
         let mut cs: Vec<Value> = recs
@@ -1405,7 +1328,7 @@ impl Ledger {
             plan.writes.push(format!("adopt {rel}"));
         }
         if !conflicts.is_empty() {
-            return Err(Error::Refused(conflicts));
+            return Err(LedgerError::Refused(conflicts));
         }
         let txn = new_txn();
         let rec = json!({ "format": FORMAT, "owner": owner, "txn": txn, "installed": utc_now().0,
@@ -1415,7 +1338,7 @@ impl Ledger {
         targets.extend(removes.iter().map(|r| ("game", r.clone())));
         plan.writes.extend(removes.iter().map(|r| format!("remove {r}")));
         self.begin(owner, "adopt", &txn, &targets)?;
-        let r = (|| -> Result<(), Error> {
+        let r = (|| -> Result<(), LedgerError> {
             for (sha, data) in &blobs {
                 let p = self.blob_path(sha);
                 if !p.is_file() {
@@ -1440,7 +1363,7 @@ impl Ledger {
                 plan.applied = true;
                 Ok(())
             }
-            Err(Error::Crashed) => Err(Error::Crashed),
+            Err(LedgerError::Crashed) => Err(LedgerError::Crashed),
             Err(e) => Err(self.abort(&e)),
         }
     }
@@ -1486,9 +1409,9 @@ impl Ledger {
     /// its record).
     ///
     /// # Errors
-    /// [`Error::Refused`]; as [`Ledger::adopt`].
+    /// [`LedgerError::Refused`]; as [`Ledger::adopt`].
     #[allow(clippy::too_many_lines, reason = "one rule per marker family and state, in words")]
-    pub fn adopt_legacy(&mut self, owner: &str, rels: &[String], family: Legacy) -> Result<Option<Plan>, Error> {
+    pub fn adopt_legacy(&mut self, owner: &str, rels: &[String], family: Legacy) -> Result<Option<Plan>, LedgerError> {
         let mut entries = Vec::new();
         let mut remove = Vec::new();
         let mut conflicts = Vec::new();
@@ -1594,7 +1517,7 @@ impl Ledger {
             }
         }
         if !conflicts.is_empty() {
-            return Err(Error::Refused(conflicts));
+            return Err(LedgerError::Refused(conflicts));
         }
         if remove.is_empty() {
             return Ok(None);
@@ -1604,10 +1527,9 @@ impl Ledger {
 }
 
 #[cfg(test)]
-#[path = "gameledger_tests.rs"]
+#[path = "ledger_tests.rs"]
 mod tests;
 
 // round OR1: Project OPFOR's stage operations (install with the owner's other files kept, restate)
-#[path = "gameledger_keep.rs"]
+#[path = "ledger_keep.rs"]
 mod keep;
-pub use keep::host_name;

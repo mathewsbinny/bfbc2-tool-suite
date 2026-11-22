@@ -62,7 +62,7 @@ outside its bundle must keep the type with it: FbrbTool's manifest records it (F
 of unpacked folders take it from there (texqa's texture search reads the manifest's type) or test the layout's own
 consistency instead.
 
-Evidence: [code: rust/bc2-cli/src/texqa/run.rs:263-277] [code: rust/bc2-formats/src/fbrb/tool.rs:902-907] [inferred: the type catalogue's layouts (texture, mesh, Havok, Wave ...) begin with counts and sizes, not identifiers; only the Havok packfile inside its wrapper, the BIGF archive of a SwfMovie and the RES wrapper have magic numbers]
+Evidence: [code: rust/bc2-cli/src/texqa/run.rs:263-277] [code: rust/bc2-tools/src/fbrbtool.rs:901-906] [inferred: the type catalogue's layouts (texture, mesh, Havok, Wave ...) begin with counts and sizes, not identifiers; only the Havok packfile inside its wrapper, the BIGF archive of a SwfMovie and the RES wrapper have magic numbers]
 
 ### RES-TYPE-3: Byte order follows the platform
 

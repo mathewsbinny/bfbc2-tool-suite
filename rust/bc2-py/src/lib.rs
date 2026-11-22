@@ -350,7 +350,7 @@ fn fbrb_read<'py>(
     lowered: Vec<String>,
 ) -> PyResult<Bound<'py, PyList>> {
     let data = py
-        .detach(|| fbrb::read_path(path, &lowered))
+        .detach(|| bc2_gamefs::bundles::read_path(path, &lowered))
         .map_err(|e| fbrb_error(e, path, &keys))?;
     bytes_list(py, &data)
 }
@@ -375,7 +375,7 @@ fn fbrb_read_many(py: Python<'_>, items: Vec<(String, Vec<String>, Vec<String>)>
         &jobs,
         |_| window::WINDOW_BYTES,
         threads(),
-        |(p, n)| fbrb::read_path(p, n),
+        |(p, n)| bc2_gamefs::bundles::read_path(p, n),
         |r| {
             let (path, keys, _) = names
                 .next()

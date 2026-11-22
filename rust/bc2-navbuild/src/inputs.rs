@@ -66,7 +66,7 @@ pub type ToolRun<'a> = &'a dyn Fn(&[String]) -> i32;
 /// [`ToolRun`] without a log.
 #[must_use]
 pub fn quiet_tool(args: &[String]) -> i32 {
-    bc2_formats::fbrb::tool::run(args, None).code
+    bc2_tools::fbrbtool::run(args, None).code
 }
 
 /// OPFOR's folders as `navkit.Project` names them (no check that a game copy is there: the caller's).
@@ -169,10 +169,10 @@ impl Root {
 /// owner holds the file there, else by the markers of before the ledger (the earliest OPFOR backup).
 pub fn original_file(p: &str) -> Res<Option<String>> {
     let path = Path::new(p);
-    if let Some(game) = bc2_formats::gameledger::find_game(path) {
-        let led = bc2_formats::gameledger::Ledger::new(&game);
+    if let Some(game) = bc2_gamefs::game::find_game(path) {
+        let led = bc2_gamefs::ledger::Ledger::new(&game);
         let rel = os::relpath(p, &game.to_string_lossy())?;
-        let fail = |e: bc2_formats::gameledger::Error| raise("LedgerError", e.to_string());
+        let fail = |e: bc2_gamefs::ledger::LedgerError| raise("LedgerError", e.to_string());
         if !led.holders(&rel).map_err(fail)?.is_empty() {
             return Ok(led
                 .original(&rel)
@@ -508,7 +508,7 @@ fn detailed_sectors(r: &Root, lv: &str, s: &Value) -> Res<Vec<(i64, i64)>> {
         ("why", why),
     ]);
     // atomicio.write_json(cache, ...): json.dump's text (indent None), whole or not at all
-    bc2_formats::atomic::write(Path::new(&cache), &[pyjson::dumps(&doc, None).as_bytes()])
+    bc2_gamefs::atomic::write(Path::new(&cache), &[pyjson::dumps(&doc, None).as_bytes()])
         .map_err(|e| raise("OSError", e.to_string()))?;
     Ok(chosen)
 }

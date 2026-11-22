@@ -13,7 +13,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use bc2_formats::gameledger::Ledger;
+use bc2_gamefs::ledger::Ledger;
 use bc2_install::plan::Plan;
 use bc2_install::run::Run;
 use serde_json::{Value, json};

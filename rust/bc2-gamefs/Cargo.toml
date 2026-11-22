@@ -1,0 +1,31 @@
+[package]
+name = "bc2-gamefs"
+description = "The game layer over the file formats: a game copy found and written safely (atomic writes, the install ledger, process liveness), the bundle cache and the caches' budget, the mesh index of a game copy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+bc2-formats.workspace = true
+thiserror.workspace = true
+rayon.workspace = true
+flate2.workspace = true
+# the bundle cache's restart points (inflate with Z_BLOCK)
+libz-rs-sys.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# the bundle cache's content keys
+sha1_smol.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# process liveness and the host name (the install ledger's lock, the map project's lock)
+windows-sys.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

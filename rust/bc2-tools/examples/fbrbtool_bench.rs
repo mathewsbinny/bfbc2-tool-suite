@@ -11,7 +11,7 @@ fn main() {
             let _ = std::fs::remove_dir_all(&args[2]);
         }
         let t = std::time::Instant::now();
-        let o = bc2_formats::fbrb::tool::run(&args, None);
+        let o = bc2_tools::fbrbtool::run(&args, None);
         times.push(t.elapsed().as_secs_f64() * 1000.0);
         assert_eq!(o.code, 0, "{o:?}");
     }

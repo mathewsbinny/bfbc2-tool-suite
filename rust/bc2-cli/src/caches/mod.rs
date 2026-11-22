@@ -152,7 +152,7 @@ fn prune(top: &str, cap_bytes: u64, s: &Spec) -> PyResult<Done> {
         // round QW1: the bundle cache's superseded payloads (a bundle rewritten at the same path) go first, whatever
         // the cap; caches.py's prune does the same through the same bc2_formats function
         let gone: HashSet<String> = if s.name == "fbrb" {
-            bc2_formats::fbrb::cache::superseded(std::path::Path::new(top))
+            bc2_gamefs::bundles::superseded(std::path::Path::new(top))
                 .iter()
                 .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
                 .collect()

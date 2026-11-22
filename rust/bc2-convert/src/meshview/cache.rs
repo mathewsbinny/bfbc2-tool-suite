@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::LazyLock;
 
-use bc2_formats::meshindex;
+use bc2_gamefs::meshindex;
 use bc2_pyrt::pickle::{self, Value};
 use bc2_pyrt::pickle_write;
 use bc2_pyrt::py::join;
@@ -273,13 +273,13 @@ pub fn tables(ix: &meshindex::MeshIndex, bundles: &[String]) -> Tables {
     }
 }
 
-/// `atomicio.write_bytes(path, data)`: [`bc2_formats::atomic::write`] with the folder made first.
+/// `atomicio.write_bytes(path, data)`: [`bc2_gamefs::atomic::write`] with the folder made first.
 fn write_atomic(path: &str, data: &[u8]) -> std::io::Result<()> {
     let path = std::path::Path::new(path);
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    Ok(bc2_formats::atomic::write(path, &[data])?)
+    Ok(bc2_gamefs::atomic::write(path, &[data])?)
 }
 
 /// The index of the game copy at `root` (its signature's bundles): from the cache when current, else built in Rust
@@ -296,7 +296,7 @@ pub fn load(root: &str, say: &mut dyn FnMut(&str)) -> Result<Tables, String> {
     if let Some(t) = read(&path, &sig) {
         return Ok(t);
     }
-    bc2_formats::atomic::locked(std::path::Path::new(&format!("{path}.lock")), || {
+    bc2_gamefs::atomic::locked(std::path::Path::new(&format!("{path}.lock")), || {
         if let Some(t) = read(&path, &sig) {
             return Ok(t);
         }

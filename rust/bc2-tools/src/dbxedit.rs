@@ -7,13 +7,9 @@ use std::path::Path;
 
 use rayon::prelude::*;
 
-use super::check::{fix_slots, level_check};
-use super::editor;
-use super::export::convert;
-use super::fault::{Fault, FaultKind, Result};
-use super::file::{EditDbx, instance, read, serialize};
-use super::import::import;
-use super::net;
+use bc2_formats::dbxedit::{
+    EditDbx, Fault, FaultKind, Result, convert, editor, fix_slots, import, instance, level_check, net, read, serialize,
+};
 
 /// What a run of a command printed, its exit code, and the lines DbxEdit would have logged.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -55,16 +51,16 @@ impl Outcome {
     }
 }
 
-/// `AtomicFile.WriteAllBytes`: [`crate::atomic::write`] (beside the target as `<path>.tmp-<process>-<n>`, flushed,
+/// `AtomicFile.WriteAllBytes`: [`bc2_gamefs::atomic::write`] (beside the target as `<path>.tmp-<process>-<n>`, flushed,
 /// then moved over it, waiting out a moment's lock on the target).
 ///
 /// # Errors
 /// The I/O error as .NET words it: with the temporary file's name when it could not be written, the target's when
 /// the move failed.
 pub fn write_atomic(path: &str, data: &[u8]) -> Result<()> {
-    crate::atomic::write(Path::new(path), &[data]).map_err(|e| match &e {
-        crate::atomic::WriteError::Temp(tmp, io) => Fault::io(io, tmp),
-        crate::atomic::WriteError::Replace(io) => Fault::io(io, Path::new(path)),
+    bc2_gamefs::atomic::write(Path::new(path), &[data]).map_err(|e| match &e {
+        bc2_gamefs::atomic::WriteError::Temp(tmp, io) => Fault::io(io, tmp),
+        bc2_gamefs::atomic::WriteError::Replace(io) => Fault::io(io, Path::new(path)),
     })
 }
 

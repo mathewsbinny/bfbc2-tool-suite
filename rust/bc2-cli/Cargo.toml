@@ -14,6 +14,8 @@ path = "src/main.rs"
 
 [dependencies]
 bc2-formats.workspace = true
+bc2-tools.workspace = true
+bc2-gamefs.workspace = true
 # round OR1: the game-copy installer (`bfbc2 install`)
 bc2-install.workspace = true
 serde_json.workspace = true

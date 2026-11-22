@@ -9,8 +9,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::fbrb;
-use crate::shaderdb::{self, query};
+use bc2_formats::fbrb;
+use bc2_formats::shaderdb::{self, query};
 
 /// The index: each table in the reference's dict order (first insertion).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -108,7 +108,7 @@ pub fn build(bundles: &[String]) -> Result<MeshIndex, String> {
             if !picks_one(&dx9, name) {
                 return Err(format!("{b}:{name}: not one database by that name"));
             }
-            let data = fbrb::read_path(b, &[name])
+            let data = crate::bundles::read_path(b, &[name])
                 .map_err(|e| format!("{b}:{name}: {e}"))?
                 .into_iter()
                 .next()

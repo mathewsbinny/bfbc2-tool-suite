@@ -19,7 +19,7 @@ pub mod render;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use bc2_formats::{dbx, fbrb, meshdata};
+use bc2_formats::{dbx, meshdata};
 use regex::Regex;
 
 use crate::{meshconv, texcheck};
@@ -122,7 +122,7 @@ impl Index {
     #[must_use]
     pub fn read(&self, name: &str) -> Option<Vec<u8>> {
         let (b, n) = self.locate(name)?;
-        fbrb::read_path(b, &[n]).ok()?.into_iter().next()
+        bc2_gamefs::bundles::read_path(b, &[n]).ok()?.into_iter().next()
     }
 
     /// Several entries, each bundle read once for all of its names (on all cores): `None` for a name no stock
@@ -146,7 +146,7 @@ impl Index {
             .iter()
             .map(|(b, v)| (b.clone(), v.iter().map(|(_, e)| e.clone()).collect()))
             .collect();
-        for ((_, wanted), got) in by.iter().zip(fbrb::read_many(&items)) {
+        for ((_, wanted), got) in by.iter().zip(bc2_gamefs::bundles::read_many(&items)) {
             match got {
                 Ok(datas) => {
                     for ((n, _), d) in wanted.iter().zip(datas) {

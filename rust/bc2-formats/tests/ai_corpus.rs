@@ -55,7 +55,7 @@ fn bundles(dir: &Path) -> Vec<PathBuf> {
 fn common_entries(game: &Path, common: &str, prefix: &str) -> BTreeMap<String, Vec<u8>> {
     let mut out = BTreeMap::new();
     for b in bundles(&game.join("Dist").join("win32").join("levels").join(common)) {
-        let (h, data) = fbrb::extract_path(&b).expect("a common bundle");
+        let (h, data) = fbrb::extract_path_uncached(&b).expect("a common bundle");
         for (e, d) in h.entries.iter().zip(data) {
             let n = e.name.to_ascii_lowercase();
             if !e.is_deleted() && n.starts_with(prefix) && n.ends_with(".dbx") {
@@ -74,7 +74,7 @@ fn level_partition(game: &Path, level: &str) -> Option<Vec<u8>> {
         game.join("Dist").join("win32").join("levels").join(level),
     ] {
         for b in bundles(&dir) {
-            let Ok((h, data)) = fbrb::extract_path(&b) else {
+            let Ok((h, data)) = fbrb::extract_path_uncached(&b) else {
                 continue;
             };
             for (e, d) in h.entries.iter().zip(data) {

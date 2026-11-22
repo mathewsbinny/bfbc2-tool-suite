@@ -1,6 +1,6 @@
 //! `pipeline.build` (round O5): every level-00 bundle of the level unpacked into the work folder, its level partition
 //! authored (`bc2_stockmp::author`, round E4a), the `SectorOffsets` assets made from the donor's (`sector_asset`) and the
-//! AI template's partitions added (`_add_entries`), the bundles packed (`bc2_formats::fbrb::pack_many`), the path
+//! AI template's partitions added (`_add_entries`), the bundles packed (`bc2_gamefs::bundles::pack_many`), the path
 //! data staged, `out.partial\` swapped in and `build_report.json` written - the same files, report and printed lines.
 //!
 //! Handed to the Python (before anything is printed): a configuration or level the authoring port refuses, a bundle
@@ -17,7 +17,7 @@
 use std::fs;
 
 use bc2_formats::dbx::edit::{EditDbx, numbers_of};
-use bc2_formats::{fbrb, hpd};
+use bc2_formats::hpd;
 use bc2_pyrt::json::{self as pyjson, Value};
 use bc2_stockmp::author::{self, Config, Fields, OrderCfg, SpawnerCfg, StageCfg, Val};
 use bc2_stockmp::guid::new_guid;
@@ -581,7 +581,7 @@ pub fn build(py: &mut Py, paths: &Paths, c: &Value, problems: &[String]) -> PyRe
         ))?;
         rmtree(&dst);
         // build_folder: unpacked in process (a bundle it refuses: the Python copies its cached unpack)
-        if fbrb::unpack_path(&bundle, &dst).is_err() {
+        if bc2_tools::unpack_path(&bundle, &dst).is_err() {
             return Err(Fail::Python);
         }
         let Some(entry) = entry else {
@@ -628,7 +628,7 @@ pub fn build(py: &mut Py, paths: &Paths, c: &Value, problems: &[String]) -> PyRe
         packs.push((v.to_owned(), dst, out, var, text, counts.0));
     }
     let items: Vec<(&str, &str)> = packs.iter().map(|(_, d, o, ..)| (d.as_str(), o.as_str())).collect();
-    for r in fbrb::pack_many(&items) {
+    for r in bc2_gamefs::bundles::pack_many(&items) {
         if r.is_err() {
             return Err(Fail::Python);
         }

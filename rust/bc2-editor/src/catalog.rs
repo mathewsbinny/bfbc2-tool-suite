@@ -484,7 +484,7 @@ fn store(dir: &Path, c: &Catalog, bundles: Vec<Stamp>, levels: Vec<String>) -> s
         modes: c.modes.clone().into_iter().collect(),
     };
     let data = serde_json::to_vec_pretty(&r).map_err(std::io::Error::other)?;
-    Ok(bc2_formats::atomic::write(&dir.join(RECORD), &[&data])?)
+    Ok(bc2_gamefs::atomic::write(&dir.join(RECORD), &[&data])?)
 }
 
 #[cfg(test)]

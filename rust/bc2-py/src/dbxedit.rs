@@ -1,7 +1,7 @@
 //! DbxEdit's commands in process (`bc2_formats::dbxedit`), for `core/bfbc2core/dbxedit.py`: a command line in, its
 //! exit code, output and log lines out, run with the interpreter released; a batch on all cores.
 
-use bc2_formats::dbxedit::{self, Outcome};
+use bc2_tools::dbxedit::{self, Outcome};
 use pyo3::prelude::*;
 
 /// `(exit code, stdout, stderr, [(level, message), ...])`.

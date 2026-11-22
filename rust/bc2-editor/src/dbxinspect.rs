@@ -161,7 +161,7 @@ impl DbxDoc {
     /// # Errors
     /// The bundle or entry cannot be read, or the entry is not a binary `.dbx`.
     pub fn open_bundle_entry(bundle: &Path, entry: &str) -> Result<Self, String> {
-        let data = bc2_formats::fbrb::read_path(bundle, &[entry])
+        let data = bc2_gamefs::bundles::read_path(bundle, &[entry])
             .map_err(|e| format!("{}: {entry}: {e}", bundle.display()))?
             .into_iter()
             .next()
@@ -936,7 +936,7 @@ impl DbxDoc {
             }
         }
         self.backed_up = true;
-        dx::write_atomic(&t, &self.bytes()?).map_err(|e| e.message)?;
+        bc2_tools::dbxedit::write_atomic(&t, &self.bytes()?).map_err(|e| e.message)?;
         self.log.push(format!("saved {t}"));
         self.path = t;
         self.source = Source::File(target.to_path_buf());
@@ -963,10 +963,10 @@ impl DbxDoc {
         let bytes = self.bytes()?;
         let _ = std::fs::remove_dir_all(scratch);
         let r = (|| {
-            bc2_formats::fbrb::unpack_path(&bundle, scratch).map_err(|e| e.to_string())?;
+            bc2_tools::unpack_path(&bundle, scratch).map_err(|e| e.to_string())?;
             let file = bc2_formats::fbrb::entry_path(scratch, &entry).map_err(|e| e.to_string())?;
             std::fs::write(&file, &bytes).map_err(|e| format!("{}: {e}", file.display()))?;
-            bc2_formats::fbrb::pack_path(scratch, out).map_err(|e| e.to_string())
+            bc2_gamefs::bundles::pack_path(scratch, out).map_err(|e| e.to_string())
         })();
         let _ = std::fs::remove_dir_all(scratch);
         let stats = r?;

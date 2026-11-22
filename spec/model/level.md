@@ -135,7 +135,7 @@ Status: **verified**
 Terrain, model groups, forests and the static environment map that are not in `Objects` are not loaded (missing
 terrain or buildings in game). DbxEdit's `check` warns about them.
 
-[code: rust/bc2-formats/src/dbxedit/check.rs:250-255] [code: rust/bc2-formats/src/dbxedit/check.rs:370-412]
+[code: rust/bc2-formats/src/dbxedit/check.rs:253-258] [code: rust/bc2-formats/src/dbxedit/check.rs:370-412]
 [test: core/tests/test_dbxedit.py::cases] [doc: bfbc2-dbx-tools/FORMAT.md:171-172]
 
 ### LEVEL-OBJ-4: A new instance gets an Objects item
@@ -191,7 +191,7 @@ A placed object's (`ReferenceObjectData`) `Enumeration` is a one-value 4-byte nu
 cull trees (the trees `LevelData` names). It is `EnumOffset` + the object's first leaf in the exclusive tree, and the
 object owns consecutive leaves from there. 0 means the object is not in the trees (dynamic props).
 
-[code: rust/bc2-formats/src/dbxedit/check.rs:64-68] [code: rust/bc2-levelwrite/src/culltree.rs:5-10]
+[code: rust/bc2-formats/src/dbxedit/check.rs:64-69] [code: rust/bc2-levelwrite/src/culltree.rs:5-10]
 [test: core/tests/test_dbxedit.py::cases]
 [data: 32 level partitions: 66,633 placed objects, 7,986 with slot 0]
 
@@ -213,7 +213,7 @@ Slots are only meaningful against the cull trees they were built for. Moving a l
 cull trees requires every object to take the slot of the same object in that level: by GUID, else by blueprint and
 position to 0.1 m, else the nearest unused same-blueprint object within 50 m, else 0 (DbxEdit `fixslots`).
 
-[code: rust/bc2-formats/src/dbxedit/check.rs:142-218] [test: core/tests/test_dbxedit.py::cases]
+[code: rust/bc2-formats/src/dbxedit/check.rs:143-221] [test: core/tests/test_dbxedit.py::cases]
 [doc: bfbc2-dbx-tools/FORMAT.md:182-189]
 
 ### LEVEL-ENT-1: Teams are enumerations
@@ -272,7 +272,7 @@ A `null` `PhysicsData` or `MeshEntityType` on a model group, group member, fores
 model-group set-up at 0x00AF7144. Terrain is exempt: its `PhysicsData` is `null` in every level, its collision comes
 from the height field.
 
-[exe: BFBC2Game.exe 0x00AF7144] [code: rust/bc2-formats/src/dbxedit/check.rs:244-256]
+[exe: BFBC2Game.exe 0x00AF7144] [code: rust/bc2-formats/src/dbxedit/check.rs:247-259]
 [test: core/tests/test_dbxedit.py::cases] [data: 32 of 32 TerrainEntityData with PhysicsData null]
 
 ### LEVEL-MG-4: The group's part counts must match the member's physics

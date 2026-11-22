@@ -11,7 +11,7 @@ use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use bc2_formats::gameledger::{host_name, pid_alive};
+use bc2_gamefs::liveness::{host_name, pid_alive};
 use serde_json::{Value, json};
 
 /// The lock's file name in `work\ww2\_rebuild`.

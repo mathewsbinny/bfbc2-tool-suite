@@ -422,7 +422,7 @@ fn resolve(spec: &str, dx: Option<u32>, opfor: Option<&str>) -> PyResult<(Vec<u8
     let entry = entry.filter(|e| !e.is_empty());
     let dx = dx.or_else(|| dx_from_name(entry.as_deref().unwrap_or(""))).unwrap_or(9);
     let name = pick_database(&bundle, dx, entry.as_deref())?;
-    let data = fbrb::read_path(&bundle, &[name.to_ascii_lowercase()])
+    let data = bc2_gamefs::bundles::read_path(&bundle, &[name.to_ascii_lowercase()])
         .map_err(|_| Fail::Python)?
         .pop()
         .ok_or(Fail::Python)?;

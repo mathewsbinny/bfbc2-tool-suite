@@ -359,7 +359,7 @@ impl Install {
 }
 
 /// Writes a file whole (round DF1, audit AU4-BUG-14): [`bc2_levelwrite::project::write_bytes`] (its folder made,
-/// then [`bc2_formats::atomic::write`]: beside it first, synced, moved over it, the move tried again while a scanner
+/// then [`bc2_gamefs::atomic::write`]: beside it first, synced, moved over it, the move tried again while a scanner
 /// holds the file); a write cut short leaves the old file.
 ///
 /// # Errors

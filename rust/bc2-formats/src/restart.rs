@@ -11,7 +11,7 @@
 //! refused, never returned as other bytes.
 //!
 //! An [`Index`] is a few percent of the payload (a window per point, stored deflated) and is written to disk by its
-//! users ([`Index::to_bytes`]): the bundle cache's `.points` files ([`crate::fbrb::cache`]) and the BF1943 source's
+//! users ([`Index::to_bytes`]): the bundle cache's `.points` files (`bc2_gamefs::bundles`) and the BF1943 source's
 //! ([`crate::bf1943`]). [`Spans`] keeps decoded spans in memory, the least recently used dropped first within a byte
 //! budget.
 //!

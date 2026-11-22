@@ -16,8 +16,9 @@ use std::rc::Rc;
 use std::sync::LazyLock;
 use std::time::UNIX_EPOCH;
 
-use bc2_formats::gameledger::{Error as LedgerError, Ledger};
-use bc2_formats::{dbx, fbrb, sha256};
+use bc2_formats::{dbx, fbrb};
+use bc2_gamefs::ledger::{Ledger, LedgerError};
+use bc2_gamefs::sha256;
 use regex::Regex;
 
 use crate::marks::Guard;
@@ -82,19 +83,19 @@ fn sha(p: &str) -> Result<String, Stop> {
     sha256::file(p).map_err(|e| format!("{p}: {e}"))
 }
 
-/// `cc.write_atomic`: [`bc2_formats::atomic::write`] (a temporary file beside it, flushed, renamed over it, retried
+/// `cc.write_atomic`: [`bc2_gamefs::atomic::write`] (a temporary file beside it, flushed, renamed over it, retried
 /// while another process holds it).
 fn write_atomic(dst: &Path, data: &[u8]) -> Result<(), Stop> {
-    bc2_formats::atomic::write(dst, &[data]).map_err(|e| format!("{}: {}", dst.display(), e.io()))
+    bc2_gamefs::atomic::write(dst, &[data]).map_err(|e| format!("{}: {}", dst.display(), e.io()))
 }
 
-/// `cc.copy_atomic`: the copy made beside `dst` ([`bc2_formats::atomic::temp_name`]), flushed, renamed over it.
+/// `cc.copy_atomic`: the copy made beside `dst` ([`bc2_gamefs::atomic::temp_name`]), flushed, renamed over it.
 fn copy_atomic(src: &Path, dst: &Path) -> Result<(), Stop> {
-    let tmp = bc2_formats::atomic::temp_name(dst);
+    let tmp = bc2_gamefs::atomic::temp_name(dst);
     let r = (|| -> std::io::Result<()> {
         fs::copy(src, &tmp)?;
         fs::OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
-        bc2_formats::atomic::replace(&tmp, dst)
+        bc2_gamefs::atomic::replace(&tmp, dst)
     })();
     if r.is_err() {
         let _ = fs::remove_file(&tmp);
@@ -206,7 +207,7 @@ impl<'a> Run<'a> {
         let r = Path::new(path)
             .strip_prefix(&self.game)
             .map_err(|_| format!("{path}: not inside the game copy {}", self.game.display()))?;
-        bc2_formats::gameledger::norm_rel(&r.to_string_lossy()).map_err(|e| e.to_string())
+        bc2_gamefs::ledger::norm_rel(&r.to_string_lossy()).map_err(|e| e.to_string())
     }
 
     /// `Stages._ready`: an interrupted commit rolled back first (once a run), then the files' old markers refused.
@@ -535,7 +536,10 @@ impl<'a> Run<'a> {
             "verify startup: {d} description, {sc} shared_config, {s2} size2 picture assets"
         ));
         let xml_of = |name: &str| -> Option<String> {
-            let data = fbrb::read_path(&v.startup, &[name]).ok()?.into_iter().next()?;
+            let data = bc2_gamefs::bundles::read_path(&v.startup, &[name])
+                .ok()?
+                .into_iter()
+                .next()?;
             dbx::to_xml(&data).ok()
         };
         match st_all

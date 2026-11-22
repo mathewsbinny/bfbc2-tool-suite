@@ -118,7 +118,7 @@ pub fn packed_check(bundle: &str, build_dir: &str) -> R<(usize, usize)> {
     }
     let lowered: Vec<String> = live.iter().map(|n| n.to_lowercase()).collect();
     let data =
-        bc2_formats::fbrb::read_path(Path::new(bundle), &lowered).map_err(|_| Refuse("the bundle is not read"))?;
+        bc2_gamefs::bundles::read_path(Path::new(bundle), &lowered).map_err(|_| Refuse("the bundle is not read"))?;
     let mut files: HashMap<&str, &[u8]> = HashMap::with_capacity(keys.len());
     for (k, d) in keys.iter().zip(&data) {
         if files.insert(k.as_str(), d.as_slice()).is_some() {
