@@ -27,7 +27,7 @@ use bc2_levelwrite::{Op, Profile};
 use crate::export_rules::{Cq, Lb, at, rf, text};
 
 /// A closed box (12 triangles) from `lo` to `hi`.
-fn cube(lo: [f64; 3], hi: [f64; 3]) -> Vec<[[f64; 3]; 3]> {
+pub(crate) fn cube(lo: [f64; 3], hi: [f64; 3]) -> Vec<[[f64; 3]; 3]> {
     let v = |i: usize| {
         [
             if i & 1 == 0 { lo[0] } else { hi[0] },
@@ -50,7 +50,7 @@ fn cube(lo: [f64; 3], hi: [f64; 3]) -> Vec<[[f64; 3]; 3]> {
 
 /// A 2,048 m terrain: the west (x below -100) a lake bed 2 m down under water at 3 m, the east land at 4 m rising
 /// gently; a town of 400 small buildings (closed boxes) east of the centre; a rock at (60, 0, 0).
-fn ground() -> (Heightfield, WaterMesh, Vec<Vec<[[f64; 3]; 3]>>, Vec<([f64; 3], f64)>) {
+pub(crate) fn ground() -> (Heightfield, WaterMesh, Vec<Vec<[[f64; 3]; 3]>>, Vec<([f64; 3], f64)>) {
     let n = 257u32;
     let (lo, hi) = (-1024.0f32, 1024.0f32);
     let cell = f64::from(hi - lo) / f64::from(n);
@@ -100,13 +100,13 @@ fn ground() -> (Heightfield, WaterMesh, Vec<Vec<[[f64; 3]; 3]>>, Vec<([f64; 3], 
     (hf, water, solids, objects)
 }
 
-fn site() -> Site {
+pub(crate) fn site() -> Site {
     let (hf, water, solids, objects) = ground();
     Site::new(Some(hf), Some(&water), &solids, &objects)
 }
 
 /// The clean Conquest layout moved by (dx, dz), its heights on the ground.
-fn conquest_at(site: &Site, d: [f32; 2]) -> LevelWriter {
+pub(crate) fn conquest_at(site: &Site, d: [f32; 2]) -> LevelWriter {
     // DICE-like spawn places around a flag: 30 to 55 m out (DICE's farthest 37-137 m)
     let mut cq = Cq::clean();
     let spawns = vec![

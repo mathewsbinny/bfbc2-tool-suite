@@ -56,3 +56,48 @@ fn canary_projects_load_as_version_1() {
     assert!(n > 0, "no projects in {}", dir.to_string_lossy());
     println!("{n} canary projects load as version 1");
 }
+
+#[test]
+// spec: XLAY-AUTO-3
+fn version_7_projects_load_as_8_and_pins_need_8() {
+    let _gate = crate::gate();
+    // a version-7 project (round SG1's format: no pins) loads as it is, as the current version
+    let bytes = crate::export_rules::Cq::clean().bytes();
+    let mut p = crate::export_rules::project(&bytes, bc2_levelwrite::Profile::Bfbc2);
+    p.push(
+        bc2_levelwrite::Op::Lock {
+            guids: vec!["AAAAAAAA-0000-0000-0000-000000000002".into()],
+            locked: true,
+        },
+        "",
+    );
+    let mut v7: serde_json::Value = serde_json::from_str(&p.to_json().unwrap()).unwrap();
+    v7["version"] = serde_json::Value::from(7);
+    v7["min_reader"] = serde_json::Value::from(1);
+    let old = MapProject::from_json(&v7.to_string()).unwrap();
+    assert_eq!(VERSION, 8);
+    assert_eq!(old.version, VERSION);
+    assert_eq!(old.operations, p.operations);
+    assert_eq!(old.reader_needed(), 1);
+    // a pin (round A2) needs version 8; it is the project's organisation, never the partition's
+    p.push(
+        bc2_levelwrite::Op::Pin {
+            guids: vec!["aaaaaaaa-0000-0000-0000-000000000002".into()],
+            pinned: true,
+        },
+        "",
+    );
+    assert_eq!(p.reader_needed(), 8);
+    let last = &p.operations.last().unwrap().op;
+    assert!(!last.edits_partition());
+    assert_eq!(last.describe(), "Pin 1 object for the auto layout");
+    let org = bc2_levelwrite::ops::Organisation::of(&p.operations);
+    assert!(org.pinned.contains("AAAAAAAA-0000-0000-0000-000000000002"));
+    let again = MapProject::from_json(&p.to_json().unwrap()).unwrap();
+    assert_eq!(again.operations, p.operations);
+    let text = p.to_json().unwrap();
+    assert!(text.contains("\"op\": \"pin\""), "{text}");
+    // an editor of version 7 is told the file is newer
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["min_reader"].as_u64(), Some(8));
+}

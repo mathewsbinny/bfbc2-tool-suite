@@ -376,8 +376,27 @@ impl ViewState {
         look.meshes = meshes;
         look.overlay = lines;
         // round VW1: the overlays the display's toggles turn on (read once; they replace the outlines they cover)
-        if self.overlays.is_none() {
-            self.overlays = Some(crate::overlays::load(self.scene(), &self.bases));
+        if self.overlays_base.is_none() {
+            let base = crate::overlays::load(self.scene(), &self.bases);
+            self.overlays = Some(base.clone());
+            self.overlays_base = Some(base);
+            self.overlays_rev = None;
+        }
+        // round A2: a project's gameplay areas as its log leaves them (a mode layer brought in, an auto layout
+        // accepted), read again at each revision that edits the partition
+        if let (Some(d), Some(base)) = (self.doc.as_ref(), self.overlays_base.as_ref())
+            && self.overlays_rev != Some(d.revision)
+        {
+            let edited = d.project.operations.iter().any(|o| o.op.edits_partition());
+            self.overlays = if edited {
+                d.writer()
+                    .and_then(|w| w.write().ok())
+                    .and_then(|bytes| crate::overlays::with_project(base, self.scene(), &bytes))
+                    .or_else(|| Some(base.clone()))
+            } else {
+                Some(base.clone())
+            };
+            self.overlays_rev = Some(d.revision);
         }
         if let Some(o) = &self.overlays {
             look.skip_shapes = o.covered.iter().copied().collect();

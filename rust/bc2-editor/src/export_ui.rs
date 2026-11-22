@@ -446,6 +446,7 @@ pub fn default_spec(project: &MapProject, profiles: Option<&Profiles>) -> Export
         layer,
         profile,
         identity: Some(Identity::default()),
+        path_data: false,
     }
 }
 
@@ -1465,6 +1466,12 @@ pub fn window(
                         }
                     }
                     ui.separator();
+                    // round A2: the export's path-data step (opt-in)
+                    ui.checkbox(&mut spec.path_data, "Stage the level's path data for bots").on_hover_text(
+                        "Stages NavKit's build of the base level (or DICE's file) with the level, checked by the \
+                         export; refused when the project changes the level's collision or has navigation edits \
+                         (sampling the edited level is NavKit's next step)",
+                    );
                     let mut problems =
                         checks_for(spec, game.as_ref(), saved, profiles.as_ref(), project_target.is_some());
                     if let Some((t, l)) = &w.taken {
