@@ -222,8 +222,10 @@ vertices of 28 bytes (5 x f32, 4 x f16); I x u32 indices. An empty block is 16 b
 Status: **verified** · Variants: PC, Xbox 360
 
 A patch shader: its patch mask shader entry name, its undergrowth mask shader name (may be empty), u32 layer
-count (2-6), u32 tiled-mask count, u32 g groups, each u32 k meshes of (mesh name, u8 0, shader name, 12 x f32,
-u8 1, u8 0).
+count (1-8), u32 tiled-mask count (0-4), u32 g groups, each u32 k undergrowth meshes of (mesh name, a second string,
+a shader name, 12 x f32, u8 1, u8 0). The second string is empty on every DICE terrain but NAM_MP_003, whose 30
+entries name `<mesh>/<guid>` there: the suite's reader skips one byte for it (the empty string) and so refuses
+NAM_MP_003's visual terrain (VEG-UG-2). The shader name is empty on 1,978 of 3,069 entries.
 
 A layer is either **tiled** (it reads a mask-atlas tile; the tiled count says how many) or a **rule** layer (base,
 slope, destruction, sea floor: computed, no tile).
@@ -231,6 +233,7 @@ slope, destruction, sea floor: computed, no tile).
 [code: rust/bc2-render/src/terrain.rs:206-224]
 [test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
 [doc: rust/bc2-render/src/terrain.rs:1-15]
+[data: spec/probes/terrain.py, 2026-11-22: 30 DICE visual terrains, 1,515 patch shaders, 3,069 undergrowth entries, every one ending 01 00; second string set on 30 (NAM_MP_003), shader name on 1,091]
 
 ### TERR-VT-4: Patch maps
 
@@ -247,12 +250,14 @@ One patch map per terrain block:
 | shader map | u32 S, then S x S u8: each cell's patch shader index |
 | names | the block's height field name, the mask-tile atlas name |
 
-Cells run row by row with rows along z. A cell's tiled-mask count equals its non-zero flags. W is 128 or 64 for a
-main block, 8 (Xbox 360) or 4 (PC) for a sub-terrain.
+Cells run row by row with rows along z. A cell's non-zero flags equal its patch shader's tiled-mask count, except
+that a cell drawn by a rule-only shader may keep one leftover flag (TEDIT-VT-1). W is 128 or 64 for a main block,
+4, 8 or 16 (PC; 8 on the Xbox 360) for a sub-terrain; the shader map's side S equals W on every DICE map.
 
 [code: rust/bc2-render/src/terrain.rs:225-268]
 [test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
 [data: MP_005: header (66, 1, 15, 7, 128); its 16,384 cells' tiled counts equal their non-zero flags]
+[data: spec/probes/terrain.py, 2026-11-22: 318 DICE patch maps; (W, S) = (128, 128) x 19, (64, 64) x 11, (16, 16) x 12, (8, 8) x 84, (4, 4) x 192; 358,282 of 367,872 cells' non-zero flags equal the tiled count, the rest rule-only cells with one flag]
 
 ### TERR-VT-5: Tiled layers must match the mask atlas's layout
 
@@ -271,8 +276,9 @@ resolution bytes and `heightmapWorldScaleY` (always 500, set by the engine) were
 
 Status: **verified** · Variants: PC
 
-A cell's mask flag is the number of cells its atlas tile spans on a side, 8 or 4 (never another value), and the
-cells that name a tile form one block of flag x flag cells aligned to multiples of the flag in the patch map: a cell
+A cell's mask flag is the number of cells its atlas tile spans on a side (8 or 4 on the three levels the test reads;
+2 to 64 over DICE's 30 terrains: TEDIT-ATL-2), and the cells that name a tile form one block of flag x flag cells
+aligned to multiples of the flag in the patch map (on 8 terrains one shared tile is named by several blocks): a cell
 reads the part of the tile its place in the block gives (its column `x mod flag`, its row `z mod flag`, each a
 `1 / flag` of the tile's 64 inner pixels), so a mask runs on from cell to cell without a seam. Stretching the whole
 tile over each cell (the suite's reading until round R5d) repeats the block's mask in every cell and draws ragged
@@ -281,6 +287,7 @@ edges at each cell's border (OPFOR's WW2 shores).
 [test: rust/bc2-render/tests/r5d.rs::mask_tiles_span_aligned_blocks_and_read_on_across_cells]
 [code: rust/bc2-render/src/terrain.rs:776-793]
 [data: DICE's MP_009: 757 tiled masks in 51 tiles' blocks, MP_005: 1,033 in 59; OPFOR's Wake Island: 998 in 78 (flags 8 and 4); no tile named outside its block]
+[data: spec/probes/terrain.py, 2026-11-22: flags over DICE's 30 terrains 2 x 5,367, 4 x 11,712, 8 x 56,352, 16 x 13,750, 32 x 4,864, 64 x 2,558]
 
 ### TERR-VT-6: PC and Xbox 360 visual terrain differ only where DICE edited the PC
 

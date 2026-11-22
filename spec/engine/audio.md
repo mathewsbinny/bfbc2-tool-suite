@@ -47,7 +47,7 @@ such an entry (round QW2).
 
 [exe: BFBC2Game.exe 0x49EDF4, the loader reading streamed wave data as a partition]
 [doc: opfor:src/tools/ww2/wake_install.py:177-181] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369]
-[code: rust/bc2-levelwrite/src/export.rs:2551-2555] [test: rust/bc2-levelwrite/src/export.rs::streamed_waves_named]
+[code: rust/bc2-levelwrite/src/export.rs:2682-2687] [code: rust/bc2-levelwrite/src/export.rs:2759-2764] [test: rust/bc2-levelwrite/src/export.rs::streamed_waves_named]
 
 ### SND-OD-1: On-demand waves play only from their own bundle's partitions
 

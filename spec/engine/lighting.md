@@ -230,10 +230,13 @@ DICE's one multiplayer night (ONS_MP_002 on the Xbox 360) lights its street lamp
 `em_sp02_cs_14_01_fire_p`, `ActAsPointLight` true, colour (0.996, 0.354, 0.004), radius 10 m, intensity 26, fade start
 = end = 100 m (a hard cut), pivot 0, `MaxCount` 2, 0.1 m flame quads (effectively invisible); the effect's
 `MaxInstanceCount` 30, `CullDistance` 0. The PC copies are SP_02's and ONS_MP_005GR's; the game copy's Package
-ONS_MP_002 (Napisal's port) lacks all 53 lamp lights.
+ONS_MP_002 lacks all 53 lamp lights. That level is OPFOR's console port (its stage markers, `gamemodes/onslaught`),
+not Napisal's as WX1 wrote: Napisal's backed-up port carries the 53 lamp effects; the console port's first stage drops
+them (ONS-PORT-3).
 
 [data: research round WX1 (2026-11-21): the Xbox ONS_MP_002 partition under OPFOR's work\xbox_dlc\ons_all\x_002, its 53 GameEffectEntityData named Lightpost<n>; the Package port's level partition: none]
 [data: spec/probes/lighting.py emitters: one template of colour (0.996, 0.354, 0.004) among the 35 point-light templates]
+[data: round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition (2,861 instances): 0 lamp effects, 2 GameEffectEntityData, OPFOR's stage markers beside it; Napisal's backed-up ONS_MP_002 (4,320 instances): 53 references to the lamp effect]
 
 ### LIGHT-PT-4: DICE places a lamp's light 2.4 m below and 1.6 m in front of its bulb
 
