@@ -99,6 +99,7 @@ pub mod query;
 pub mod render;
 pub mod strip_ui;
 pub mod theme;
+pub mod validation;
 pub mod viewmodes;
 pub mod walk;
 pub mod weather_ui;

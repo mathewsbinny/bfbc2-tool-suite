@@ -174,6 +174,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/stockmp.md](transforms/stockmp.md) | the stock-map AI layer: build, checks, install, revert |
 | [transforms/export.md](transforms/export.md) | map export: preconditions, closure, registration, names, the stage's check |
 | [transforms/install.md](transforms/install.md) | install and revert: the stage protocol, byte-for-byte restore, the ledger |
+| [transforms/validation.md](transforms/validation.md) | the export's rule registry: every way an exported level fails or is refused, checked live, by the build and by the stage's check; DICE's placement tendencies (L1) as warnings |
 | [transforms/projectlog.md](transforms/projectlog.md) | the editor's project log: undo / redo, GUIDs, apply |
 
 [rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it.

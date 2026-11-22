@@ -44,10 +44,13 @@ pub mod mpconvert;
 pub mod names;
 pub mod navedit;
 pub mod ops;
+pub mod placement;
 pub mod profile;
 pub mod project;
+pub mod rules;
 pub mod schema;
 pub mod shaders;
+pub mod validate;
 pub mod weather;
 pub mod write;
 

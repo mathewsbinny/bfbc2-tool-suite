@@ -51,6 +51,7 @@ mod inspectui;
 mod modes;
 mod navui;
 mod previewui;
+mod problemsui;
 mod tools;
 
 pub use crate::workspace::Workspace;
@@ -242,6 +243,8 @@ pub struct ViewState {
     search: String,
     /// Notes from loading (no terrain unpack ...).
     pub notes: Vec<String>,
+    /// The export's rules checked live on the project (round V1: the Problems panel).
+    pub live: crate::validation::Live,
     load_seconds: f64,
     /// The selection changed in the view: the outliner shows its row.
     reveal: bool,
@@ -1766,6 +1769,7 @@ impl EditorApp {
             viewports: HashMap::from([(Projection::Perspective, Viewport::new(camera))]),
             search: String::new(),
             notes,
+            live: crate::validation::Live::default(),
             load_seconds: secs,
             reveal: false,
             labels: true,
@@ -4048,50 +4052,6 @@ impl Tabs<'_> {
                     self.all_fields(ui, e.index);
                 });
         });
-    }
-
-    fn problems(&self, ui: &mut egui::Ui) {
-        let p = &self.palette;
-        let m = &self.metrics;
-        self.header(ui, "Problems", "");
-        egui::Frame::new()
-            .inner_margin(Margin::same(m.space_3 as i8))
-            .show(ui, |ui| {
-                let doc_problems: &[crate::error::Problem] =
-                    self.view.doc.as_ref().map_or(&[], |d| d.problems.as_slice());
-                let autosave = self.view.doc.as_ref().and_then(|d| d.autosave_error.clone());
-                if self.view.notes.is_empty() && doc_problems.is_empty() && autosave.is_none() {
-                    ui.label(
-                        RichText::new(if self.view.doc.is_some() {
-                            "No problems: every edit applies to the level partition."
-                        } else {
-                            "No problems. A read-only map has nothing to check."
-                        })
-                        .color(p.ink_muted),
-                    );
-                }
-                for n in doc_problems {
-                    let (word, colour) = match n.severity {
-                        crate::error::Severity::Error => ("Error", p.status_error),
-                        crate::error::Severity::Warning => ("Warning", p.status_warn),
-                        crate::error::Severity::Note => ("Information", p.status_info),
-                    };
-                    status_line(ui, p, word, colour, &n.text);
-                }
-                if let Some(a) = autosave {
-                    status_line(
-                        ui,
-                        p,
-                        "Warning",
-                        p.status_warn,
-                        &format!("The autosave could not be written ({a}). Save the project to keep your changes."),
-                    );
-                }
-                for n in &self.view.notes {
-                    status_line(ui, p, "Information", p.status_info, n);
-                }
-            });
-        let _ = self.tokens;
     }
 }
 
