@@ -9191,3 +9191,132 @@ override), building in process with the project's spawns and objectives as seeds
 stock-MP AI layer for a staged level (`stockmp` by a stock level's name: HasAI, PathfindingTypes, SectorOffsets, AI
 spawners and orders), and OPFOR's `mapedit_install.py` installing `path_data`. A later Rush stage's vehicles wait for
 the stage events (E4). In-game behaviour (vehicles spawning, bots on the staged path data) is unproven until a playtest.
+## NK5: NavKit's build in Rust (2026-11-22, branch `nk5`)
+
+NK1's plan, the last stage of the build: everything `navbuild.build` did after walkability, and the driver around it.
+A NavKit build now runs in Rust from the sample files to the path-data file; `bfbc2.exe navkit build`, `all` and
+`apply` on a NavKit base answer without the Python.
+
+### What moved
+
+| Python (now a twin or a thin call) | Rust | where it runs |
+|---|---|---|
+| `navbuild.stage` after walkability: sector discovery and the 256 x 256 check, the specs (edge-sector tiles), the areas' order and layers, `area_of`, the border-node runs and ids, the carried seam nodes, the one-way pieces (`drop` / `keep` / `restore`), `detail_pass`'s glue (the cells by grid position, `eligible` from the portal sides, the broken outline sides taken out, `level.blocked`, `half_cells`), the meshes' assembly (area values, tile items, rectangle, bounds, the neighbour links), the graph jobs, the ids, `note_nodes` and the order and ladder counts | `bc2_navbuild::stage::stage` | `bc2_native.navkit_build` (`navbuild.build`, a thin call); `bfbc2.exe navkit build / all / apply` |
+| `navbuild.merge_detailed`: the seed points (a's kept ground in the detailed sectors: no Python tuples now), the carried nodes, stage b, the links across mixed seams, the dropped seam nodes, the merge | `stage::detailed_seeds`, `carried_nodes`, `merge`; `build::build_graphs` | the same |
+| `navbuild.build`'s log lines and `write_file`'s glue (anchors, the shadow islands' line, the order nodes, the clock words) | `bc2_navbuild::build` (`build`, `file_bytes`, `write_out`) | the same |
+| `navvehicle.stage_on_grid` / `write` (`navbuild.stage(grid=...)`, `write_file`) | `build::grid_ground`, `stage::stage`, `build::file_bytes` | `bc2_native.navkit_stage_grid` / `navkit_write_stage` |
+| `navkit.build`, `build_inputs` (`detailed_sectors` with its cache key, `stale_detailed_samples`, `source_stamps`), navregress's `level_water` / `reference_bounds` / `order_points_of` / `area_orders_of` / `ladders_of`, `np.load` of the triangle files, `navedits.regions_of` | `rust/bc2-cli/src/navkit/build.rs`, `bc2_navbuild::build::read_tris_npy` | `bfbc2.exe navkit build`, `apply` on a NavKit base (`apply.rs`), `all` (prepare, the sampling as a `navkit.py sample` child, build, check) |
+
+The run and the floods' level stay in Rust from walkability on, as NK4 set up: `walk::stage`'s level becomes the
+stage's (`Level::with_keep_terrain`), the sample run is dropped once its grid and terrain flags are read, and no array
+crosses to Python.
+
+### Python's order and floats
+
+No order or float decision was needed: 15 of 15 levels are byte-identical with the same log lines. What the Python
+left to dicts and sets, and how the port keeps it:
+
+- the areas' order: `sorted` by (tile x, tile z, lowest height), stable (the floats compared as Python compares them);
+- an area's cells in the detail pass: a dict by (i, j), first place and last value (`trace::Ordered`);
+- the border runs: the window's order, the active runs in their list order (the first that links takes the surface);
+- the carried nodes' ground: `min` over (small area, distance, surface) tuples; `math.hypot` as CPython's
+  (`pymath::hypot`), `round()` half to even;
+- `merge_detailed` iterated a Python set of sectors only to fill per-sector lists and sets: no order reaches the file;
+- the broken sides (a set) are only tested for membership and counted;
+- the node ids are given in the sectors' sorted order, as before.
+
+### Parity
+
+- **Every regression level, against the old Python** (`rust/parity_nk5_build.py`: `navregress.build_level` with a
+  checkout of `eee12ba` - the Python stage - and with this branch, one level at a time, the build clock fixed;
+  `compare`): **15 of 15 identical** - the path data's SHA-1 and size and every log line (seconds and the output path
+  blanked). The 4 golden builds (sp_009, sp_004_b, sp_008_b, ons_mp_004) **as recorded**.
+- **XNAV-BLD-3**: the files are the Python's bytes, so every navparity measure is unchanged by construction; no
+  regression reference changes.
+- **`bfbc2.exe navkit build` and `apply` on a NavKit base** (a scratch script: the old checkout's `navkit.py` against
+  this branch's `bin\bfbc2.exe` on sp_009 and sp_004_b, the level's `work\navkit` files restored after; an apply with
+  a region edit, a seed and a note): stdout the same line for line (seconds blanked), the built and the applied files
+  the same once each sector's build date and time are zeroed, the apply reports the same.
+- **NK1's apply parity**: **33 of 33 identical** (`rust/parity_nk1_apply.py`: the 18 DICE files and the 15 regression
+  builds; the DICE base's edit stage is untouched, its code only split so the NavKit base shares its tail).
+- **The tiers** (after merging main with A2): `run_tests.py quick -j 2` 133 of 133 (O2 among them); NavKit's game
+  tier 13 of 13 (`apply`, `traversal`, `links`, `navbuild-native`, `vehicle-level`, `navwater-mesh`, `navtools-native`,
+  `navdata`, `hpdtool-meshtrip`, `collision-backends`, `navmesh-cells-routes-native`, `navregress:small`,
+  `cli-navkit-prepare-harness-texqa:live`); the editor's AI-workspace game tests (`gr2::ai_workspace_on_ons_mp_004`,
+  `gr2::edit_build_install_restore_on_a_scratch_copy`: its Build now runs the Rust build through `bfbc2.exe`): pass.
+- Tests: `stage_tests.rs` (6: Python's `repr` / `format(g)`, navwalk's trigonometric constants bit for bit, the
+  `.npy` reader, the detailed settings, a whole stage on a synthetic two-sector ground read back as a file, the
+  no-ground refusal); `test_navbuild_native.py`, `test_vehicle.py`, `test_apply.py`, `test_tool_edges.py`,
+  `test_navkit_offline.py`, `test_detail_features.py`, `test_water_rule.py`, `test_reference_clip.py`,
+  `test_navsample_offline.py`, `test_navislands.py`, `test_column_sectors.py`: pass.
+
+### Time and memory
+
+Each level's whole build, old and new (one process each, one at a time; other agents' work beside them; peak = the
+process's peak private bytes, sampled every 10 ms; the detailed pass's columns are the largest private bytes between
+its log lines: its walkability, then its stage).
+
+The build peak is the regression's: each row is `navregress.build_level` of one level in its own process (the build that made NavKit regression's 15 GB peak), so navregress's peak per level falls the same way, 11.8 -> 6.9 GB at most (navparity's measures after each build were not part of the capture). Measured without `OPENBLAS_NUM_THREADS=1`: about 0.5 GB of each figure is NumPy's import in the Python process.
+
+| level | build, old -> new (s) | build peak, old -> new (MB) | detailed pass: walkability, stage, old -> new (MB) |
+|---|---:|---:|---:|
+| ons_mp_002 | 9.1 -> **6.6** | 3,912 -> **2,543** | 2,474, 3,899 -> 2,411, 2,500 |
+| ons_mp_004 | 4.8 -> **3.3** | 2,929 -> **1,926** | 1,464, 2,909 -> 1,357, 1,917 |
+| sp_003_b | 16.0 -> **9.6** | 5,607 -> **3,051** | 3,948, 5,594 -> 3,051, 2,908 |
+| sp_004_b | 5.8 -> 8.7 (beside a cargo build) | 3,516 -> **2,019** | 1,859, 3,481 -> 1,727, 1,939 |
+| sp_005 | 31.4 -> **19.7** | 10,088 -> **5,280** | 6,389, 10,088 -> 5,280, 4,643 |
+| sp_005_b | 20.4 -> **13.5** | 8,074 -> **4,242** | 5,319, 8,032 -> 4,242, 3,821 |
+| sp_006 | 38.6 -> **19.1** | 11,760 -> **6,379** | 7,824, 11,714 -> 6,379, 5,189 |
+| sp_007 | 26.8 -> **16.3** | 9,599 -> **6,876** | 7,452, 9,598 -> 6,876, 4,695 |
+| sp_008 | 9.4 -> **6.5** | 4,905 -> **3,238** | 3,357, 4,890 -> 3,238, 2,670 |
+| sp_008_b | 6.8 -> **4.8** | 3,775 -> **2,383** | 2,471, 3,766 -> 2,383, 2,276 |
+| sp_009 | 1.4 -> **1.2** | 1,245 -> **945** | 886, 1,235 -> 861, 931 |
+| sp_01 | 12.1 -> **8.2** | 5,525 -> **3,514** | 3,902, 5,525 -> 3,514, 2,930 |
+| sp_02 | 10.5 -> **6.9** | 5,461 -> **3,465** | 3,837, 5,455 -> 3,465, 2,624 |
+| sp_03 | 21.8 -> **15.6** | 7,880 -> **5,467** | 6,246, 7,880 -> 5,467, 3,984 |
+| sp_04 | 19.5 -> **11.1** | 8,667 -> **4,829** | 5,648, 8,660 -> 4,829, 3,893 |
+
+| | old (Python stage) | new (Rust) | |
+|---|---:|---:|---:|
+| whole builds, 15 levels | 234 s | **151 s** | 1.6x |
+| the largest build peak | 11.8 GB (sp_006) | **6.9 GB** (sp_007) | 1.7x less |
+| the detailed pass's stage (areas, one-way portals, detail, graphs), largest | 11.7 GB (sp_006) | **5.2 GB** (sp_006) | 2.3x less |
+
+**Where the peaks come from now.** The stage's own peak (the areas and the one-way portals' tracing, every sector's
+side kinds held at once on 16 threads) is no longer any level's build peak. On every level but ons_mp_002 the peak is
+the detailed pass's walkability (NK4's `walk::stage` at pitch 0.2: the run, the high run, the masks, the floods'
+level), with stage a's result held beside it (1.3-1.7 GB on the largest levels: its level, cells, meshes and graphs,
+which the merge's links read). The NK4 plan's per-sector streaming was not needed to get the build to 6.9 GB; it is
+the next step if a level grows past the budget (below).
+
+### Retired
+
+Nothing yet: `navbuild.stage`, `merge_detailed`, `detail_pass`, `half_cells`, `restore_one_way`, `drop_one_way` and
+`write_file` stay as twins the tests and the NK2-NK4 parity scripts read; no build calls them. No command line went
+and nothing outside NavKit imports these modules (Project OPFOR has no caller of navbuild, navkit build / apply or
+navvehicle), so `VERSION` stays (RELEASING.md).
+
+### What is left (NK5-rest)
+
+1. **The editor's AI workspace in process.** Its Build button runs `bfbc2.exe navkit apply` as a child (`nav.rs`,
+   `start_navkit`), which is Rust now. In process it needs `build_inputs` as a library (today `bc2-cli`'s, on `pyjson`
+   / `pyos`: a `bc2_navbuild::inputs` with Python-exact JSON numbers, the detailed choice through
+   `bc2_scene::collision`, the terrain unpack through `bc2_formats::fbrb::tool`) and, for a side file with graph edits
+   or traversals, `graphedit` without `bc2-pyrt` (the editor has none since PR1a: its `Value` and Python's `round`);
+   then a `Task<T>` with the build's lines streamed and a cancel flag.
+2. **Retiring `navbuild.py`.** Its callers are thin now: `navregress.build_level` and `navsample_offline` call
+   `navbuild.build` (Rust), `navvehicle.stage_on_grid` / `write` call `navkit_stage_grid` / `navkit_write_stage`,
+   `navwater_mesh` and `navvehicle` call `water_tops` (Rust since NK4); `hpdcheck.py` and
+   `bfbc2-navigation-studio/overlay.py` only name its constants in comments; `rust/bench_navkit.py` builds through
+   `navregress`. What keeps the file: `BuildSettings` and the switches the bindings read (to a small settings module
+   or into the bindings), and the twins the tests read - `test_navbuild_native.py` (E3h's recorded whole stages
+   through `navbuild.stage`), `test_detail_features.py` (`detail_pass`, `line_walkable`), `test_portal_symmetry.py`,
+   `test_bridge_union.py`, `test_area_link.py` (`trace`, `trace_edges`, `trace_emit`, `build_areas`, `Level`),
+   `test_navislands.py`, `test_tool_edges.py`, `test_column_sectors.py`, and `rust/parity_nk2_file.py`,
+   `parity_nk3_detail.py`, `parity_nk4_walk.py`. Each needs its checks moved to Rust tests (`stage_tests.rs` has the
+   start) or onto `navkit_build` / `navkit_stage_grid`; then the file and its twins go (RETIRED.md rule 4) and the PYI
+   rows change.
+**For A2-rest** (the export's path data built in process): `bc2_navbuild::build::build(&Inputs, out, &BuildSettings, &Switches, &WalkSettings, (date, clock), &mut dyn stage::Log)` builds a level in process; `Inputs.seeds` (soldier spawns), `order_points` and `area_orders` are plain point lists, so the project's spawns and objectives go in as seeds and anchors; `build_graphs` + `file_bytes` give the bytes without a file. What it lacks is `build_inputs` as a library (item 1).
+
+3. **Memory**, if a level grows past the budget: stage a reduced to what the merge reads (the normal sectors' area
+   maps, tiles and border runs) before stage b, and stage b's tracing in chunks of sectors.

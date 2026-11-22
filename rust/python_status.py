@@ -95,8 +95,8 @@ TABLE: tuple[Row, ...] = (
     # --- bfbc2-auto-navkit (NK4 / NK5 in progress)
     R(f'{NAV}/navkit.py', TOOL, 'partly', 'bfbc2 navkit (bc2-cli navkit: driver, prepare, apply)',
       'hub, navkitGUI.pyw, navparity, navregress, harness; tests 23', 'NK5',
-      'Rust answers levels, prepare, check, compare, status, install, restore and apply on a DICE base; left: build, '
-      'all and apply on a NavKit base (navbuild), sample (starts the game)'),
+      'Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a '
+      'NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions'),
     R(f'{NAV}/tools/detailed.py', TOOL, 'partly', 'bfbc2 detailed (bc2-cli navtools::detailed)',
       'navkit.py, navregress, navsample_offline, sample_all; tests 4', 'NK5',
       'the choice is Rust (O5); left: --score (evaluation only) and the library calls of build_inputs'),
@@ -123,9 +123,10 @@ TABLE: tuple[Row, ...] = (
       'the command line and the scan are Rust; the Python walk stays as fallback where the core refuses'),
     R(f'{NAV}/tools/navboundary.py', TOOL, 'live', '', 'tests 3', 'proposed: NKG1',
       "a cell-by-cell boundary diagnostic against DICE's path data; no Rust measure does it"),
-    R(f'{NAV}/tools/navbuild.py', LIB, 'partly', 'bc2_navbuild (graphfile, detail, rules, parity)',
-      'navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh, overlay; tests 12', 'NK5',
-      'graphs to file (NK2), D / F (NK3) and walkability (NK4) are Rust; left: stage, merge_detailed, build_inputs'),
+    R(f'{NAV}/tools/navbuild.py', LIB, 'twin', 'bc2_navbuild::build / ::stage (navkit_build, navkit_stage_grid)',
+      'navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh; tests 12', 'NK5-rest',
+      'build is a thin call (NK5: the whole build in Rust); left: the stage / merge_detailed / detail_pass twins the '
+      'tests read, BuildSettings and the switches the bindings read (rust/BENCHMARKS.md "NK5", "What is left")'),
     R(f'{NAV}/tools/navcompare.py', TOOL, 'twin', 'bfbc2 navcompare (bc2-cli navkit::navcompare)',
       'navkit.py, navparity; tests 3', 'NK5', 'the command line is Rust; compare() is a library of navparity'),
     R(f'{NAV}/tools/navdetail.py', LIB, 'ported', 'bc2_navbuild::detail (navkit_detail_features)',
@@ -153,7 +154,7 @@ TABLE: tuple[Row, ...] = (
       'Rust answers argument errors and "no reference run"; left: run (the measures over many levels)'),
     R(f'{NAV}/tools/navregress.py', TOOL, 'live', 'bfbc2 navregress (arguments only)',
       'navkit.py, navboundary, navdf, navsample_offline, navvehicle, harness; tests 9', 'NK5',
-      'the regression builds run navbuild; level_water / reference_bounds / order_points_of move with NK5'),
+      'the regression builds call navbuild.build (Rust since NK5); left: the run, its inputs and measures in Python'),
     R(f'{NAV}/tools/navsample.py', TOOL, 'partly', 'bc2_navbuild navsample (navkit_navsample_parse, _v3)',
       'navkit.py, navbuild, detailed, navparity, navsample_offline, navvehicle; tests 8', 'NK4',
       'load is Rust (versions 1-3; version 3 streamed, NK4); left: flood / compare and the info / compare command line'),
@@ -161,7 +162,8 @@ TABLE: tuple[Row, ...] = (
       'tests 6; A2 plans it in process', 'proposed: after NK5 (A2)',
       'file_bytes and the raster in Rust; left: asset_bodies (NumPy hulls), the level geometry, the command line'),
     R(f'{NAV}/tools/navvehicle.py', TOOL, 'partly', 'bc2_navbuild vehicle (navkit_obstacle_distance)',
-      'navdomains; tests 5', 'NK5', 'obstacle distance in Rust (E4e); left: stage_on_grid runs navbuild.stage'),
+      'navdomains; tests 5', 'NK5-rest', 'obstacle distance (E4e) and stage_on_grid / write (NK5: navkit_stage_grid) '
+      'in Rust; left: the flood, the seeds and the command line'),
     R(f'{NAV}/tools/navwalk.py', LIB, 'partly', 'bc2_navbuild::walk, ::rules (navkit_walkable, navkit_walk_stage)',
       'navbuild, navislands, navvehicle, navwater_mesh, level; tests 10', 'NK5',
       "walkable, coarse and the rules are Rust (NK4); left: score's command line, step_fits for navbuild.Level"),
@@ -645,6 +647,8 @@ TABLE: tuple[Row, ...] = (
       'NK3 parity against a pre-NK3 checkout'),
     R('rust/parity_nk4_walk.py', BENCH, 'stays', '', 'by hand', 'stays',
       "NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes)"),
+    R('rust/parity_nk5_build.py', BENCH, 'stays', '', 'by hand', 'stays',
+      "round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory)"),
     R('rust/python_status.py', DEV, 'stays', '', 'by hand; tests/test_repo.py', 'stays',
       'this inventory'),
 
