@@ -20,39 +20,7 @@ fn index_error() -> Fail {
     Fail::Err(PyErr::new("IndexError", "list index out of range"))
 }
 
-/// `game_running()`: `tasklist` names BFBC2Game.exe. A `tasklist` that does not answer in 30 s (the service host
-/// busy, as during the game's crash dump) counts as the game running: a refusal, never a hang (AU4-BUG-20).
-pub(crate) fn game_running() -> bool {
-    let mut c = std::process::Command::new("tasklist");
-    c.args(["/FI", "IMAGENAME eq BFBC2Game.exe", "/NH"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt as _;
-        c.creation_flags(0x0800_0000);
-    }
-    let Ok(mut child) = c.spawn() else {
-        return false;
-    };
-    let start = std::time::Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if start.elapsed() < std::time::Duration::from_secs(30) => {
-                std::thread::sleep(std::time::Duration::from_millis(20));
-            }
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return true;
-            }
-        }
-    }
-    child
-        .wait_with_output()
-        .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("BFBC2Game.exe"))
-}
+use bc2_gamefs::liveness::game_running;
 
 fn traversal_path(folder: &str, lv: &str) -> PyResult<String> {
     join2(folder, &format!("{lv}.traversal.json"))
