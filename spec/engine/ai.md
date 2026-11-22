@@ -170,16 +170,18 @@ suite's AI layer adds its own spawners and marks the stock ones `SSHumanPlayer` 
 [data: SSAiPlayer with SpawnDelay 15: Arica Harbor CQ 8 of 8, White Pass CQ 7 of 7, Nelson Bay Rush 11 of 13, Atacama CQ 7 of 8 (all enabled, Template null)]
 [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:597-600] [doc: opfor:STOCK_MP_AI_PLAN.md:320-327]
 
-### AI-NEED-5: Kills of bots score nothing offline
+### AI-NEED-5: Kills of bots score nothing offline without the scoring patch
 
 Status: **observed** · Variants: PC
 
 The server's player-killed handler (0x86DC90, from the game-event dispatcher 0x870070, event type 3) returns at once
-when the victim is not a player, so the kill scoring (0x86C070, `PointSystemParams.KillScore`) and its award
-(0x86BE20) never run for a bot's death: bots killed offline give no score. Whether bots count for capturing and for
-tickets is not known.
+only for a null victim; a bot is a server player, so its death reaches the kill scoring (0x86C070,
+`PointSystemParams.KillScore`) like a human's. What stops the scoring offline is the server's scoring flag (+0x2A),
+which stays clear with fewer than 4 clients: nobody scores, humans included (BOT-SCO-3). With OPFOR's patch
+(MOD-PATCH-1) a human's kill of a bot scores; the bots themselves never earn score and their deaths are not counted
+(BOT-SCO-2). Whether bots count for capturing and for tickets is not known (BOT-GS-3).
 
-[exe: BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for no victim player) -> kill scoring 0x86C070 -> award 0x86BE20]
+[exe: BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for a null victim at 0x86DCAE; scoring flag test 0x86DD97) -> kill scoring 0x86C070 (returns for an AI killer at 0x86C12D) -> award 0x86BE20]
 [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:579-581]
 
 ### AI-NAV-1: A bot reaches only what the route graph connects to the main network
@@ -250,8 +252,8 @@ the original path data).
 
 - Whether the stock `SSAiPlayer` spawners spawn bots when the AI runs on a stock map (AI-NEED-4), and whether bots
   use objectives without orders.
-- Whether bots count for capturing (`MinNrToTakeControl`) and for tickets, and where bot kills could be scored
-  (AI-NEED-5).
+- Whether bots count for capturing (`MinNrToTakeControl`) and for tickets (AI-NEED-5, BOT-GS-3); where bots' own
+  scores are skipped is BOT-SCO-2.
 - The gate `*(*(0x01566B18 + 0x20) + 0x1C)` that sends the server's level load to another branch (0x571F10) before the
   AI's start.
 - The per-type load in the path-data world set-up (AI-START-3 is inferred), and what the second search stage's list of
