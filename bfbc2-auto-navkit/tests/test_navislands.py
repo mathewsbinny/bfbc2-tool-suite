@@ -1,13 +1,14 @@
-r"""NavKit's shadow-island rule (navislands.py, SHADOW_ISLANDS) on route graphs built here (no game data): a small route
-island next to a large one loses its edges (and, through navbuild.finalize_graph, its nodes); one with an anchor
-(spawn / AI order on its floor), one far away or far above, and a large one stay; border ids join sectors; with
-SHADOW_OBJECTS_ONLY a pocket on terrain stays (note_nodes records the terrain nodes); the switch off leaves the graphs
-as they were.
+r"""NavKit's shadow-island rule (navislands.py, SHADOW_ISLANDS; in the Rust core since round NK2) on route graphs built
+here (no game data): a small route island next to a large one loses its edges (and, in the file navbuild.write_file
+writes, its nodes); one with an anchor (spawn / AI order on its floor), one far away or far above, and a large one
+stay; border ids join sectors; with SHADOW_OBJECTS_ONLY a pocket on terrain stays (note_nodes records the terrain
+nodes); the switch off leaves the graphs as they were.
 
   python test_navislands.py
 """
 import os
 import sys
+import tempfile
 from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +18,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
+import hpdtool  # noqa: E402
 import navbuild  # noqa: E402
 import navislands  # noqa: E402
 
@@ -85,15 +87,22 @@ def main(argv):
     k = kept_ids(out)
     check(not ({501, 502, b | 2} & k), 'a pocket spanning two sectors (joined by a border id) is dropped in both')
     check(b | 1 in k and 1 in k and 30 in k, 'the main island joined through a border id stays')
-    root, size, _pos = navislands.components(two)
-    check(sorted(size.values()) == [3, 31], 'border ids count once: islands of 31 and 3 nodes')
+    check(navislands.STATS.get('before') == 2 and navislands.STATS.get('nodes') == 3,
+          'border ids count once: 2 route islands, the pocket of 3 nodes')
 
-    # finalize: the pocket's nodes are gone from the sector's node table
-    linked = kept_ids(out)
-    nodes, edges = navbuild.finalize_graph(out[0][3], out[0][4], linked, out[0][5])
+    # the file: the pocket's nodes are gone from the sector's node table (write_file runs the rule itself)
+    with tempfile.TemporaryDirectory() as tmp:
+        p = os.path.join(tmp, 'two.hpd')
+        logged: list[str] = []
+        mesh = b'KynogonRuntimeMesh' + bytes(2)
+        navbuild.write_file([(*g[:2], mesh, *g[3:]) for g in two], p, logged.append, 0.0, anchors=[])
+        f = hpdtool.read(p)
+    nodes, edges = f.sectors[0].nodes, f.sectors[0].edges
     ids = {n.id for n in nodes}
-    check(501 not in ids and (b | 2) not in ids and 1 in ids, 'finalize_graph drops the pocket nodes (no edges)')
+    check(501 not in ids and (b | 2) not in ids and 1 in ids, 'write_file drops the pocket nodes (no edges)')
     check(all(e.src < len(nodes) and e.dst < len(nodes) for e in edges), 'edges index the remaining nodes')
+    check(any(ln.startswith('shadow islands: 1 of 2 route islands (3 nodes)') for ln in logged),
+          'write_file logs the rule: 1 of 2 islands, 3 nodes')
 
     # SHADOW_OBJECTS_ONLY: a pocket on terrain (an island DICE seeds as well) stays; note_nodes records terrain nodes
     from types import SimpleNamespace

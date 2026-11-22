@@ -5,12 +5,11 @@ anchor rather than a place players appear (reported as a reading, not proven).""
 import math
 
 import numpy as np
-
 from l1_level import load
 from l1_levels import levels
 
 ds, nalt, alt_d, zero_alt, owndist = [], [], [], 0, []
-for lv, era, mode, _ in levels():
+for lv, _era, mode, _ in levels():
     if mode == 'AS':
         continue
     L = load(lv)

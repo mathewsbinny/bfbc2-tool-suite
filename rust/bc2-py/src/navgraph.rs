@@ -566,3 +566,143 @@ pub fn navkit_area_cells(
         })
         .collect()
 }
+
+/// The sectors a [`sector_links`] resolver looks in: each one's index in its store and its areas' (tile x, tile z,
+/// layer).
+pub type Scope = std::collections::HashMap<(i64, i64), (usize, Vec<[u32; 3]>)>;
+
+/// A [`Scope`] made once for a stage's `sector_links` calls (`navbuild.link_scope`): `NavLinkScope({sector: (index
+/// in the store, [(tile x, tile z, layer)])})`.
+#[pyclass(frozen)]
+pub struct NavLinkScope {
+    pub scope: Scope,
+}
+
+#[pymethods]
+impl NavLinkScope {
+    #[new]
+    fn new(scope: Scope) -> Self {
+        NavLinkScope { scope }
+    }
+
+    fn __len__(&self) -> usize {
+        self.scope.len()
+    }
+
+    fn __contains__(&self, sector: (i64, i64)) -> bool {
+        self.scope.contains_key(&sector)
+    }
+}
+
+/// The other grid of a mixed seam (`cross_grid_resolver`): its level and store, the sectors looked in there, this
+/// stage's pitch, that grid's pitch and its samples' minimum x and z.
+pub struct Across<'a> {
+    pub level: &'a Level,
+    pub store: &'a NavAreas,
+    pub scope: &'a Scope,
+    pub p_here: f64,
+    pub p_there: f64,
+    pub min_x: f64,
+    pub min_z: f64,
+}
+
+/// The sector [`sector_links`] links: its place in `store`, its grid origin `(gi0, gj0, ox, oz)`, its areas' border
+/// portals and same-sector portal counts.
+pub struct Here {
+    pub x: i64,
+    pub y: i64,
+    pub n: usize,
+    pub origin: (i64, i64, f64, f64),
+    pub borders: Vec<bc2_navbuild::graphfile::Border>,
+    pub portals: Vec<usize>,
+}
+
+/// `navbuild.sector_links(X, Y, areas, mesh_areas, resolve)` with the stage's resolvers: an other sector in `same`
+/// is looked up on this grid (`same_grid_resolver`: the surface `level.neighbour` links the border cell to, in that
+/// sector's areas), one not there through `across` when given (`cross_grid_resolver`: the cell just across the
+/// border in world coordinates on the other grid, its kept surface nearest in height within 0.8 m in the other
+/// sector's areas).
+pub fn sector_links(
+    py: Python<'_>,
+    level: &Level,
+    store: &NavAreas,
+    here: &Here,
+    rule: Rule,
+    same: &Scope,
+    across: Option<&Across<'_>>,
+) -> PyResult<Vec<bc2_formats::kymesh::NeighbourLink>> {
+    let (gi0, gj0, ox, oz) = here.origin;
+    let mut err = None;
+    let links = bc2_navbuild::graphfile::sector_links(here.x, here.y, &here.borders, &here.portals, |other, border| {
+        let found = (|| -> PyResult<Option<[u32; 3]>> {
+            let tile = |scope: &Scope, area: Option<usize>| {
+                area.and_then(|area| scope.get(&other).and_then(|(_, t)| t.get(area)).copied())
+            };
+            let (ci, cj) = border.inner_cell();
+            if let Some((n_other, _)) = same.get(&other) {
+                let Some(inner) = store.first_cell(here.n, border.area, ci, cj)? else {
+                    return Ok(None);
+                };
+                let inner = surface(level, i64::try_from(inner).map_err(value_error)?)?;
+                let Some(across_k) = level.neighbour(inner, gi0 + ci, gj0 + cj, border.di, border.dj, None, rule)
+                else {
+                    return Ok(None);
+                };
+                let area = store.area_at(py, *n_other, i64::try_from(across_k).map_err(value_error)?)?;
+                return Ok(tile(same, area));
+            }
+            let Some(acr) = across else { return Ok(None) };
+            let Some((n_other, _)) = acr.scope.get(&other) else {
+                return Ok(None);
+            };
+            let Some(inner) = store.first_cell(here.n, border.area, ci, cj)? else {
+                return Ok(None);
+            };
+            let step = acr.p_here.max(acr.p_there);
+            // Python's int * float: the int made a float first (grid indices: exact)
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "grid indices and steps of -1..1: exact as floats"
+            )]
+            let (wx, wz) = (
+                ox + ci as f64 * acr.p_here + border.di as f64 * step,
+                oz + cj as f64 * acr.p_here + border.dj as f64 * step,
+            );
+            let wy = level.y(inner);
+            #[expect(clippy::cast_possible_truncation, reason = "int(round(...)) of a grid index")]
+            let (gi, gj) = (
+                ((wx - acr.min_x) / acr.p_there).round_ties_even() as i64,
+                ((wz - acr.min_z) / acr.p_there).round_ties_even() as i64,
+            );
+            let mut best: Option<(f64, usize)> = None;
+            for m in acr.level.surfaces(gi, gj) {
+                let dy = (acr.level.y(m) - wy).abs();
+                if dy <= 0.8
+                    && best.is_none_or(|(d, _)| dy < d)
+                    && acr
+                        .store
+                        .area_at(py, *n_other, i64::try_from(m).map_err(value_error)?)?
+                        .is_some()
+                {
+                    best = Some((dy, m));
+                }
+            }
+            let Some((_, nearest)) = best else { return Ok(None) };
+            let area = acr
+                .store
+                .area_at(py, *n_other, i64::try_from(nearest).map_err(value_error)?)?;
+            Ok(tile(acr.scope, area))
+        })();
+        match found {
+            Ok(h) => h,
+            Err(e) => {
+                err.get_or_insert(e);
+                None
+            }
+        }
+    });
+    match err {
+        Some(e) => Err(e),
+        None => Ok(links),
+    }
+}

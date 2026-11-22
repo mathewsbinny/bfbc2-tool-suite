@@ -79,6 +79,7 @@ mod meshdata;
 mod meshindex;
 mod navapply;
 mod navbuild;
+mod navfile;
 mod navgraph;
 mod navpath;
 mod navtools;
@@ -467,7 +468,7 @@ mod bc2_native {
     };
 
     #[pymodule_export]
-    use super::navgraph::{NavAreas, navkit_area_cells, navkit_round3};
+    use super::navgraph::{NavAreas, NavLinkScope, navkit_area_cells, navkit_round3};
 
     #[pymodule_export]
     use super::xenos::{
@@ -532,6 +533,11 @@ mod bc2_native {
     // round NK1: navkit apply's edit stage (navlinks.py / navtraversal.py retired)
     #[pymodule_export]
     use super::navapply::{navkit_graph_edits, navkit_traversal};
+
+    // round NK2: a build's graphs to its file (navislands.prune, prune_order_nodes, finalize_graph, write_file's
+    // assembly retired; sector_links is NavLevel.sector_links)
+    #[pymodule_export]
+    use super::navfile::{navkit_shadow_islands, navkit_write_graphs};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

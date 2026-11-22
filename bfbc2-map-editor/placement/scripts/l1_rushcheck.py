@@ -9,7 +9,8 @@ for r in doc['records']:
     if r['mode'] in ('Rush', 'SR'):
         by[r['level']].append(r)
 for lv, rs in by.items():
-    get = lambda m: [r for r in rs if r['metric'].endswith(m)]  # noqa: E731
+    def get(m, rs=rs):
+        return [r for r in rs if r['metric'].endswith(m)]
     sc = get('.stage_count')[0]
     mps = get('.mcoms_per_stage')[0]['value']
     ab = [(r['stage'], r.get('names')) for r in get('.attacker_bases')]

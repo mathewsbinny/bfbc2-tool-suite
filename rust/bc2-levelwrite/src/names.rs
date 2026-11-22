@@ -135,6 +135,8 @@ pub enum Field {
 /// A broken rule, in words.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Problem {
+    /// The rule it breaks (round V1: [`crate::rules`], `XVAL-NAME-*`).
+    pub code: &'static str,
     /// The name it is about.
     pub field: Field,
     /// What is wrong and what to do.
@@ -370,19 +372,21 @@ pub fn check(
     langs: Option<&Languages>,
 ) -> Vec<Problem> {
     let mut out = Vec::new();
-    let mut say = |field: Field, message: String| out.push(Problem { field, message });
+    let mut say = |code: &'static str, field: Field, message: String| out.push(Problem { code, field, message });
     let id = names.id();
     let low = id.to_ascii_lowercase();
     // the level id
     let mut id_ok = true;
     if id.is_empty() {
         say(
+            "XVAL-NAME-1",
             Field::Level,
             "Give the level an id: the name the game loads it by (Levels/<id>), its folder and its files.".into(),
         );
         id_ok = false;
     } else if let Some(c) = id.chars().find(|c| !(c.is_ascii_alphanumeric() || *c == '_')) {
         say(
+            "XVAL-NAME-1",
             Field::Level,
             format!(
                 "The level id may hold only the letters A-Z, digits and _ (it is a file and folder name in the game's \
@@ -392,6 +396,7 @@ pub fn check(
         id_ok = false;
     } else if !(MIN_ID..=MAX_ID).contains(&id.len()) {
         say(
+            "XVAL-NAME-1",
             Field::Level,
             format!(
                 "The level id must be {MIN_ID} to {MAX_ID} characters long (it has {}).",
@@ -401,6 +406,7 @@ pub fn check(
         id_ok = false;
     } else if !id.starts_with(|c: char| c.is_ascii_alphabetic()) {
         say(
+            "XVAL-NAME-1",
             Field::Level,
             "The level id must start with a letter, as every level of the game does.".into(),
         );
@@ -409,6 +415,7 @@ pub fn check(
     if id_ok && let Some(at) = id.find("_NAME") {
         let prefix = id.get(..at).unwrap_or("").to_ascii_lowercase();
         say(
+            "XVAL-NAME-2",
             Field::Level,
             format!(
                 "The level id must not hold _NAME: the loading screen cuts the name key {id}_NAME at its first _NAME \
@@ -421,6 +428,7 @@ pub fn check(
         let ours = |p: &String| project.is_some_and(|me| me.eq_ignore_ascii_case(p));
         if let Some(why) = t.levels.get(&low) {
             say(
+                "XVAL-NAME-3",
                 Field::Level,
                 format!(
                     "{id} is a level of the game copy ({why}): an export never replaces a level of the game. Choose \
@@ -429,6 +437,7 @@ pub fn check(
             );
         } else if let Some(p) = t.exports.get(&low).filter(|p| !ours(p)) {
             say(
+                "XVAL-NAME-3",
                 Field::Level,
                 format!(
                     "{id} is installed already, exported by another project ({p}). Choose another id, or uninstall \
@@ -437,6 +446,7 @@ pub fn check(
             );
         } else if names.own && !t.exports.contains_key(&low) && t.pictures.contains(&low) {
             say(
+                "XVAL-NAME-3",
                 Field::Level,
                 format!(
                     "The game already has a loading picture called {low} (another map's): this level's own picture \
@@ -452,6 +462,7 @@ pub fn check(
             for k in [nk, dk] {
                 if let Some(text) = l.text_of(&k) {
                     say(
+                        "XVAL-NAME-3",
                         Field::Level,
                         format!(
                             "{k} is already a text of the game ({text:?}): a level with the id {id} would change it \
@@ -466,6 +477,7 @@ pub fn check(
     let folder = names.folder.trim();
     if !folder.is_empty() && folder != low {
         say(
+            "XVAL-NAME-4",
             Field::Folder,
             format!(
                 "The folder must be the level id in lower case ({low}): the game finds a level's bundles in \
@@ -477,12 +489,14 @@ pub fn check(
     let b = names.browser.as_str();
     if b.trim().is_empty() {
         say(
+            "XVAL-NAME-5",
             Field::Browser,
             "Give the map a name for the launcher and the server browser (maps.ini).".into(),
         );
     } else {
         if let Some(c) = not_ascii(b) {
             say(
+                "XVAL-NAME-5",
                 Field::Browser,
                 format!(
                     "The server-browser name may hold only plain ASCII (letters, digits, punctuation and spaces; \
@@ -492,12 +506,14 @@ pub fn check(
         }
         if b.trim() != b {
             say(
+                "XVAL-NAME-5",
                 Field::Browser,
                 "The server-browser name must not start or end with a space (maps.ini drops them).".into(),
             );
         }
         if b.contains('"') {
             say(
+                "XVAL-NAME-5",
                 Field::Browser,
                 "The server-browser name must not hold \" (maps.ini reads a quoted value without its quotes).".into(),
             );
@@ -505,6 +521,7 @@ pub fn check(
         let row = format!("OPFOR - {b} ({mode})");
         if row.len() > BROWSER_ROW {
             say(
+                "XVAL-NAME-5",
                 Field::Browser,
                 format!(
                     "The server-browser name is too long: its row \"OPFOR - <name> ({mode})\" would be cut at \
@@ -518,6 +535,7 @@ pub fn check(
             && !sec.eq_ignore_ascii_case(&id)
         {
             say(
+                "XVAL-NAME-6",
                 Field::Browser,
                 format!(
                     "The server browser already lists a map called {:?} (maps.ini section [{sec}]): the rows would \
@@ -532,6 +550,7 @@ pub fn check(
         let langs_known: Vec<String> = langs.map_or_default(Languages::names);
         if names.name.trim().is_empty() && names.browser.trim().is_empty() {
             say(
+                "XVAL-NAME-7",
                 Field::Name(None),
                 "Give the map its on-screen name (the menus, the loading screen and the server browser's map \
                  column show it)."
@@ -541,6 +560,7 @@ pub fn check(
         for lang in names.languages.keys() {
             if !langs_known.is_empty() && !langs_known.contains(lang) {
                 say(
+                    "XVAL-NAME-7",
                     Field::Name(Some(lang.clone())),
                     format!(
                         "The game copy has no {} texts (it has {}).",
@@ -584,6 +604,7 @@ pub fn check(
                 if text.chars().count() > max {
                     if checked.insert((format!("{who} long"), own_text)) {
                         say(
+                            "XVAL-NAME-7",
                             field.clone(),
                             format!(
                                 "{who} must be at most {max} characters (it has {}).",
@@ -599,6 +620,7 @@ pub fn check(
                 };
                 if let Some(c) = enc {
                     say(
+                        "XVAL-NAME-7",
                         field,
                         format!(
                             "{who} holds {c:?}, which the game's {} texts have no letter for (it would not show). \

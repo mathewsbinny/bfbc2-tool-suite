@@ -45,6 +45,7 @@ mod group_members;
 mod inspect_parity;
 mod inspector_parity;
 mod nav_parity;
+mod problems_panel;
 mod real_level_editing;
 mod render;
 mod simplified_view;

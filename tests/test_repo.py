@@ -152,10 +152,12 @@ NOT_ROUND_LOWER = {'bc2', 'ww2', 'l8', 'dx9', 'x86', 'd3d', 'sp01', 'x360'}     
 
 
 def lower_codes(name: str) -> list[str]:
-    """The round codes in a lower-case name (an id, a file or module name): e3o, gr4, f2a ...; a format version
-    (v1, v6) is none."""
-    return [c for c in ROUND_LOWER.findall(name.lower().replace('_', '-'))
-            if c not in NOT_ROUND_LOWER and not re.fullmatch(r'v[0-9]+', c)]
+    """The round codes in a lower-case name (an id, a file or module name): e3o, gr4, f2a, v1_rules ...; a name that
+    is only a format version (the project files v1.mapedit.json ... v6) is none."""
+    low = name.lower()
+    if re.fullmatch(r'v[0-9]+', low):
+        return []
+    return [c for c in ROUND_LOWER.findall(low.replace('_', '-')) if c not in NOT_ROUND_LOWER]
 
 
 def round_coded_entries() -> list[str]:
