@@ -76,8 +76,8 @@ over the file with retries, the temporary removed on any failure (audit AU4 DS-2
 [code: rust/bc2-editor/src/edit.rs:775-800]
 [test: rust/bc2-levelwrite/src/journal.rs::a_journal_cut_anywhere_gives_its_last_whole_line]
 [test: rust/bc2-levelwrite/src/journal.rs::written_resumed_and_compacted]
-[test: rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed]
-[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal]
+[test: rust/bc2-levelwrite/tests/journal_kill.rs::journal_survives_its_writer_killed]
+[test: rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal]
 
 ### XLOG-DELTA-1: Brush strokes are tiles beside the project, named by sha1
 
@@ -95,7 +95,7 @@ redo cost only the tiles touched. The export does not write rasters yet (round E
 [code: rust/bc2-editor/src/edit.rs:800-870]
 [test: rust/bc2-levelwrite/src/delta.rs::rasters_tiles_and_strokes] [test: rust/bc2-levelwrite/src/delta.rs::tiles_in_a_folder]
 [test: rust/bc2-levelwrite/src/files.rs::strokes_apply_from_their_tiles]
-[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal] [test: rust/bc2-editor/tests/op1.rs::stroke_budgets]
+[test: rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal] [test: rust/bc2-editor/tests/editor_core.rs::stroke_budgets]
 
 ### XLOG-LOG-4: One editor per project; a save never overwrites another writer's file
 
@@ -148,7 +148,7 @@ kinds applies to the same partition bytes as before and to no other file.
 [code: rust/bc2-levelwrite/src/files.rs:20-360] [code: rust/bc2-levelwrite/src/ops.rs:410-460]
 [code: rust/bc2-levelwrite/src/write.rs:1180-1220] [code: rust/bc2-editor/src/edit.rs:360-410]
 [test: rust/bc2-levelwrite/src/files.rs::multi_file_operations_apply_whole_or_not_at_all]
-[test: rust/bc2-editor/tests/op1.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all]
+[test: rust/bc2-editor/tests/editor_core.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all]
 
 ### XLOG-FILE-2: A base file is recorded when first edited; the export writes the edited group files
 
@@ -163,7 +163,7 @@ words; a project that edits only the partition exports byte for byte as before.
 
 [code: rust/bc2-levelwrite/src/project.rs:766-785] [code: rust/bc2-levelwrite/src/export.rs:585-595]
 [code: rust/bc2-levelwrite/src/export.rs:1015-1060] [code: rust/bc2-levelwrite/src/export.rs:1185-1225]
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members]
 
 ### XLOG-MEM-1: Static group members are named by identity, never by place
 
@@ -181,7 +181,7 @@ in the partition; an operation naming no member is written as it always was.
 
 [code: rust/bc2-levelwrite/src/members.rs:36-86] [code: rust/bc2-editor/src/memberedit.rs:1-30]
 [test: rust/bc2-levelwrite/src/members.rs::identities_read_back]
-[test: rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects]
+[test: rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects]
 
 ### XLOG-MEM-2: A member's delete and add keep DICE's layout; the last of a kind stays
 
@@ -198,7 +198,7 @@ of DICE's 23,780 member transforms read on six levels is scaled, and a kind's co
 
 [code: rust/bc2-levelwrite/src/members.rs:405-575]
 [test: rust/bc2-levelwrite/src/members.rs::members_are_deleted_and_added_in_dices_layout]
-[test: rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects]
+[test: rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects]
 [data: 23,780 of 23,780 member transforms of six levels (four WW2 and BFBC2 groups' kinds) with unit rows]
 
 ### XLOG-MEM-3: The export makes the member edits whole: leaves, the client tree, the physics
@@ -218,7 +218,7 @@ member's leaf is reused by the first add and the second gets leaf L + 1, the oth
 an export without the member edits. A log without member edits runs none of this.
 
 [code: rust/bc2-levelwrite/src/groupexport.rs:1-30] [code: rust/bc2-levelwrite/src/culltree.rs:448-500]
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members]
 
 ## 2. Apply
 

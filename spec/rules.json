@@ -2499,7 +2499,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-render/tests/r5e.rs::block_windows_are_the_material_registers"
+     "ref": "rust/bc2-render/tests/deep_sea_materials.rs::block_windows_are_the_material_registers"
     },
     {
      "kind": "test",
@@ -2795,7 +2795,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-render/tests/r5e.rs::the_ww2_open_sea_is_drawn"
+     "ref": "rust/bc2-render/tests/deep_sea_materials.rs::the_ww2_open_sea_is_drawn"
     },
     {
      "kind": "code",
@@ -6805,7 +6805,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -11959,7 +11959,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -11975,7 +11975,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -11991,7 +11991,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -15062,11 +15062,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed"
+     "ref": "rust/bc2-levelwrite/tests/journal_kill.rs::journal_survives_its_writer_killed"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
     }
    ]
   },
@@ -15102,11 +15102,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::stroke_budgets"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::stroke_budgets"
     }
    ]
   },
@@ -15194,7 +15194,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all"
     }
    ]
   },
@@ -15222,7 +15222,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },
@@ -15246,7 +15246,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+     "ref": "rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects"
     }
    ]
   },
@@ -15266,7 +15266,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+     "ref": "rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects"
     },
     {
      "kind": "data",
@@ -15290,7 +15290,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },

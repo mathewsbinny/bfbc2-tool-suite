@@ -336,6 +336,7 @@ fn edit_build_install_restore_on_a_scratch_copy() {
         f64::midpoint(na[1], nb[1]),
         f64::midpoint(na[2], nb[2]),
     ];
+    #[allow(clippy::iter_over_hash_type, reason = "every viewport is focused alike")]
     for vp in app.view_mut().unwrap().viewports.values_mut() {
         vp.camera.focus(mid, Some(60.0));
     }
