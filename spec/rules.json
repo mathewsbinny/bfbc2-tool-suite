@@ -1758,7 +1758,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3022-3126"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3023-3127"
     },
     {
      "kind": "doc",
@@ -3855,7 +3855,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/aptscan.rs:195-205"
+     "ref": "rust/bc2-formats/src/aptscan.rs:199-209"
     },
     {
      "kind": "doc",
@@ -3943,7 +3943,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/aptscan.rs:170-180"
+     "ref": "rust/bc2-formats/src/aptscan.rs:170-184"
     },
     {
      "kind": "doc",
@@ -3968,7 +3968,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/aptscan.rs:292"
+     "ref": "rust/bc2-formats/src/aptscan.rs:296"
     },
     {
      "kind": "doc",
@@ -4580,7 +4580,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:982-996"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:967-981"
     },
     {
      "kind": "doc",
@@ -6107,7 +6107,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:277-296"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:276-295"
     },
     {
      "kind": "test",
@@ -6143,7 +6143,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:917-922"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:902-907"
     }
    ]
   },
@@ -6307,11 +6307,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:755-772"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:740-757"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:800-810"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:785-795"
     },
     {
      "kind": "code",
@@ -6343,7 +6343,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:777-787"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:762-772"
     },
     {
      "kind": "test",
@@ -6363,7 +6363,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:790-795"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:775-780"
     },
     {
      "kind": "test",
@@ -6387,7 +6387,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:909-926"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:894-911"
     },
     {
      "kind": "code",
@@ -6693,7 +6693,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:933-962"
+     "ref": "rust/bc2-convert/src/havokport.rs:934-963"
     },
     {
      "kind": "code",
@@ -6747,11 +6747,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:975-1011"
+     "ref": "rust/bc2-convert/src/havokport.rs:976-1012"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:1014-1033"
+     "ref": "rust/bc2-convert/src/havokport.rs:1015-1034"
     },
     {
      "kind": "test",
@@ -6776,11 +6776,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:560-600"
+     "ref": "rust/bc2-convert/src/havokport.rs:561-601"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:604-631"
+     "ref": "rust/bc2-convert/src/havokport.rs:605-632"
     },
     {
      "kind": "data",
@@ -6821,7 +6821,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:1036-1059"
+     "ref": "rust/bc2-convert/src/havokport.rs:1037-1060"
     },
     {
      "kind": "test",
@@ -6874,7 +6874,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:512-521"
+     "ref": "rust/bc2-convert/src/havokport.rs:513-522"
     },
     {
      "kind": "test",
@@ -7081,7 +7081,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:662-718"
+     "ref": "rust/bc2-convert/src/havokport.rs:663-719"
     },
     {
      "kind": "test",
@@ -7122,7 +7122,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:512-535"
+     "ref": "rust/bc2-convert/src/havokport.rs:513-536"
     },
     {
      "kind": "test",
@@ -8992,7 +8992,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:917-922"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:902-907"
     },
     {
      "kind": "inferred",
@@ -9435,7 +9435,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/meshconv.rs:383-440"
+     "ref": "rust/bc2-convert/src/meshconv.rs:383-444"
     },
     {
      "kind": "test",
@@ -9672,7 +9672,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3046-3103"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3047-3104"
     },
     {
      "kind": "test",
@@ -12651,11 +12651,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:730-743"
+     "ref": "rust/bc2-install/src/run.rs:714-727"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:434-470"
+     "ref": "rust/bc2-install/src/run.rs:418-454"
     },
     {
      "kind": "doc",
@@ -13518,7 +13518,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2915-3043"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2916-3044"
     },
     {
      "kind": "test",
@@ -13690,7 +13690,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:109-127"
+     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:95-113"
     },
     {
      "kind": "test",
@@ -13746,7 +13746,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:62-84"
+     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:58-70"
     },
     {
      "kind": "test",
@@ -13954,7 +13954,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3160-3272"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3161-3273"
     },
     {
      "kind": "test",
@@ -14038,11 +14038,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:949-1335"
+     "ref": "rust/bc2-formats/src/gameledger.rs:940-1326"
     },
     {
      "kind": "code",
-     "ref": "core/bfbc2core/gameledger.py:560-760"
+     "ref": "core/bfbc2core/gameledger.py:555-755"
     },
     {
      "kind": "test",
@@ -14078,11 +14078,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:257-280"
+     "ref": "rust/bc2-formats/src/gameledger.rs:260-270"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:715-947"
+     "ref": "rust/bc2-formats/src/gameledger.rs:705-938"
     },
     {
      "kind": "test",
@@ -14106,11 +14106,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:1504-1617"
+     "ref": "rust/bc2-formats/src/gameledger.rs:1495-1608"
     },
     {
      "kind": "code",
-     "ref": "core/bfbc2core/gameledger.py:856-918"
+     "ref": "core/bfbc2core/gameledger.py:851-913"
     },
     {
      "kind": "test",
@@ -14470,7 +14470,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:641-775"
+     "ref": "rust/bc2-install/src/run.rs:625-759"
     },
     {
      "kind": "code",
@@ -14510,7 +14510,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:823-905"
+     "ref": "rust/bc2-install/src/run.rs:807-889"
     },
     {
      "kind": "data",
@@ -14538,7 +14538,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:229-258"
+     "ref": "rust/bc2-install/src/run.rs:213-242"
     },
     {
      "kind": "code",
@@ -14734,11 +14734,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:277-297"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:276-296"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:602-649"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:587-634"
     },
     {
      "kind": "test",
@@ -14766,7 +14766,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:817-933"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:802-918"
     },
     {
      "kind": "test",
@@ -14874,11 +14874,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:923-944"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:924-944"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/atomic.rs:29-31"
+     "ref": "rust/bc2-formats/src/atomic.rs:227-229"
     },
     {
      "kind": "test",
@@ -15046,7 +15046,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:880-960"
+     "ref": "rust/bc2-levelwrite/src/project.rs:880-959"
     },
     {
      "kind": "code",
@@ -15182,7 +15182,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1180-1220"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1184-1224"
     },
     {
      "kind": "code",
@@ -15302,7 +15302,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1011-1060"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1015-1064"
     },
     {
      "kind": "code",
@@ -15366,7 +15366,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:635-798"
+     "ref": "rust/bc2-levelwrite/src/write.rs:639-802"
     },
     {
      "kind": "test",
@@ -15410,7 +15410,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1115-1135"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1119-1139"
     },
     {
      "kind": "test",
@@ -15426,7 +15426,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-editor/src/app/tools.rs:1313-1342"
+     "ref": "rust/bc2-editor/src/app/tools.rs:1314-1343"
     },
     {
      "kind": "test",

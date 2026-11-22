@@ -1,6 +1,6 @@
 [package]
 name = "bc2-cli"
-description = "The BFBC2 Tool Suite's command lines in Rust (round O1): one binary, bfbc2, with the tools as subcommands"
+description = "The BFBC2 Tool Suite's command lines in Rust: one binary, bfbc2, with the tools as subcommands"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

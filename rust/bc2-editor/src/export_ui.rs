@@ -524,7 +524,7 @@ pub fn checks_for(
     if !target {
         if !MODES.iter().any(|m| m.0 == spec.mode) {
             out.push(format!(
-                "The {} mode needs the project's target: choose the era and mode above and Set target (round E3d)",
+                "The {} mode needs the project's target: choose the era and mode above and Set target",
                 spec.mode
             ));
         }
@@ -1371,7 +1371,7 @@ pub fn window(
                             ui.end_row();
                             ui.label("Announcer");
                             ui.label(announcer_text(d))
-                                .on_hover_text("The announcer's voice-over, as the donor's set has it (round E3c)");
+                                .on_hover_text("The announcer's voice-over, as the donor's set has it");
                             ui.end_row();
                         }
                         if let Some(s) = set {

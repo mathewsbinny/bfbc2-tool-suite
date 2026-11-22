@@ -172,7 +172,7 @@ keep their case (364,121 live entries mixed case, 80,165 lower case) but compare
 names that differ only in case. A name must not be empty, rooted or lead out of its folder; the suite refuses such a
 name when unpacking.
 
-Evidence: [data: 444,286 live entries: all `/`-separated, none with a backslash; 1,086 of 1,086 bundles without a case-insensitive duplicate] [code: rust/bc2-formats/src/fbrb/header.rs:65-71] [code: rust/bc2-formats/src/fbrb/tool.rs:277-296] [test: rust/bc2-formats/src/fbrb/pack.rs::safe_names]
+Evidence: [data: 444,286 live entries: all `/`-separated, none with a backslash; 1,086 of 1,086 bundles without a case-insensitive duplicate] [code: rust/bc2-formats/src/fbrb/header.rs:65-71] [code: rust/bc2-formats/src/fbrb/tool.rs:276-295] [test: rust/bc2-formats/src/fbrb/pack.rs::safe_names]
 
 ### FBRB-ENT-3: Types
 
@@ -191,7 +191,7 @@ Status: **observed**
 A live entry's flags are `0x00010000`, a marker's 0. No other value occurs. The suite keeps the flags as they are
 (FbrbTool's manifest records them in hex) and does not interpret them.
 
-Evidence: [data: 0x00010000 on 444,286 live entries, 0 on 296,376 markers, no other value] [code: rust/bc2-formats/src/fbrb/tool.rs:917-922]
+Evidence: [data: 0x00010000 on 444,286 live entries, 0 on 296,376 markers, no other value] [code: rust/bc2-formats/src/fbrb/tool.rs:902-907]
 
 ### FBRB-ENT-5: size2
 
@@ -289,7 +289,7 @@ In a padded stored payload every live entry after the first starts either on the
 gap byte is `0xBF`. Markers take no padding. The suite recognises a layout only when every pair of consecutive live
 entries follows it.
 
-Evidence: [code: rust/bc2-formats/src/fbrb/tool.rs:755-772] [code: rust/bc2-formats/src/fbrb/tool.rs:800-810] [code: rust/bc2-formats/src/fbrb/pack.rs:191-205] [test: rust/bc2-formats/src/fbrb/tool.rs::layout_tokens_of_padded_payloads] [test: rust/bc2-formats/src/fbrb/pack.rs::padded_layouts] [data: stored bundles: 4 align4096 (2 Dist, 2 Package), 2 gap64 (Package)]
+Evidence: [code: rust/bc2-formats/src/fbrb/tool.rs:740-757] [code: rust/bc2-formats/src/fbrb/tool.rs:785-795] [code: rust/bc2-formats/src/fbrb/pack.rs:191-205] [test: rust/bc2-formats/src/fbrb/tool.rs::layout_tokens_of_padded_payloads] [test: rust/bc2-formats/src/fbrb/pack.rs::padded_layouts] [data: stored bundles: 4 align4096 (2 Dist, 2 Package), 2 gap64 (Package)]
 
 ### FBRB-LAY-3: Header region alignment
 
@@ -299,7 +299,7 @@ In a padded bundle the header region (8 + *H*) is padded with zeros after the gz
 of 4 (the manifest's `hdr=`); zipped bundles are not padded, though 312 of them happen to end their header on a
 multiple of 4.
 
-Evidence: [code: rust/bc2-formats/src/fbrb/pack.rs:263-266] [code: rust/bc2-formats/src/fbrb/tool.rs:777-787] [test: rust/bc2-formats/src/fbrb/pack.rs::padded_layouts] [data: stored bundles: 4 with hdr 4096, 3 with hdr 4, 4 unpadded]
+Evidence: [code: rust/bc2-formats/src/fbrb/pack.rs:263-266] [code: rust/bc2-formats/src/fbrb/tool.rs:762-772] [test: rust/bc2-formats/src/fbrb/pack.rs::padded_layouts] [data: stored bundles: 4 with hdr 4096, 3 with hdr 4, 4 unpadded]
 
 ### FBRB-LAY-4: plen=size2 and size2=minus64
 
@@ -309,7 +309,7 @@ The async `ondemand_*` bundles also set the payload length field to the last liv
 (`plen=size2`), and give every live entry size2 = size - 64 (`size2=minus64`: their entries are RES-wrapped,
 RES-WRAP-1).
 
-Evidence: [code: rust/bc2-formats/src/fbrb/tool.rs:790-795] [test: rust/bc2-formats/src/fbrb/tool.rs::layout_tokens_of_padded_payloads] [test: rust/bc2-formats/src/fbrb/pack.rs::size2_rules] [data: 3 stored bundles with plen=size2; 1,293 entries with size2 = size - 64, all in Dist and Package async ondemand bundles]
+Evidence: [code: rust/bc2-formats/src/fbrb/tool.rs:775-780] [test: rust/bc2-formats/src/fbrb/tool.rs::layout_tokens_of_padded_payloads] [test: rust/bc2-formats/src/fbrb/pack.rs::size2_rules] [data: 3 stored bundles with plen=size2; 1,293 entries with size2 = size - 64, all in Dist and Package async ondemand bundles]
 
 ## 6. The suite's unpacked form
 
@@ -326,7 +326,7 @@ comments; older manifests without the size column still pack while size2 holds) 
 then pack gives the original bytes for every bundle FbrbTool wrote and for DICE's padded layouts, and the same header
 and payload for DICE's zipped bundles (only the gzip members' bytes differ, FBRB-HDR-4).
 
-Evidence: [code: rust/bc2-formats/src/fbrb/tool.rs:909-926] [code: rust/bc2-formats/src/fbrb/pack.rs:708] [test: rust/bc2-formats/src/fbrb/pack.rs::manifest_tokens] [test: rust/bc2-formats/src/fbrb/pack.rs::numbers_as_dotnet_parses_them] [test: rust/bc2-formats/src/fbrb/unpack.rs::unpacks_and_packs_back] [test: core/tests/test_fbrb.py::roundtrip] [test: core/tests/test_fbrb_pack_native.py::run_bundles] [doc: bfbc2-fbrb-tool/README.md:25-41]
+Evidence: [code: rust/bc2-formats/src/fbrb/tool.rs:894-911] [code: rust/bc2-formats/src/fbrb/pack.rs:708] [test: rust/bc2-formats/src/fbrb/pack.rs::manifest_tokens] [test: rust/bc2-formats/src/fbrb/pack.rs::numbers_as_dotnet_parses_them] [test: rust/bc2-formats/src/fbrb/unpack.rs::unpacks_and_packs_back] [test: core/tests/test_fbrb.py::roundtrip] [test: core/tests/test_fbrb_pack_native.py::run_bundles] [doc: bfbc2-fbrb-tool/README.md:25-41]
 
 ### FBRB-MAN-2: Writing a bundle
 

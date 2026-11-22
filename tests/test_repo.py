@@ -222,6 +222,28 @@ def round_coded_rust() -> list[str]:
     return out
 
 
+ROUND_PHRASE = re.compile(r'\b[Rr]ound [A-Z]{1,2}[0-9]{1,2}[a-z]?\b')
+
+
+def round_codes_shown_to_users() -> list[str]:
+    """Round PR1a (audit AU5 NAM-2): what a user reads - bfbc2.exe's usage and the crates' descriptions - names
+    things by what they do, not by the round that wrote them (rounds are history: CHANGELOG.md, BENCHMARKS.md)."""
+    out = []
+    main_rs = os.path.join(SUITE, 'rust', 'bc2-cli', 'src', 'main.rs')
+    with open(main_rs, encoding='utf-8') as f:
+        text = f.read()
+    usage = text[text.index('const USAGE'):text.index('";', text.index('const USAGE'))]
+    out += [f'bfbc2.exe usage: "{m}"' for m in ROUND_PHRASE.findall(usage)]
+    for crate in sorted(os.listdir(os.path.join(SUITE, 'rust'))):
+        toml = os.path.join(SUITE, 'rust', crate, 'Cargo.toml')
+        if os.path.isfile(toml):
+            with open(toml, encoding='utf-8') as f:
+                desc = re.search(r'^description\s*=\s*"(.*)"', f.read(), re.M)
+            if desc and ROUND_PHRASE.search(desc.group(1)):
+                out.append(f'{crate}/Cargo.toml description: "{ROUND_PHRASE.search(desc.group(1)).group(0)}"')
+    return out
+
+
 # Determinism (round PR1a, PR0 item 2, queued post-Rust item 4): a JSON file or text the suite writes has its keys in
 # a fixed order. New json.dump / json.dumps calls in the suite's (non-test) Python pass sort_keys=True (or use
 # bfbc2core.atomicio.dumps_stable). The calls below were written before the rule: their key order is the order the
@@ -278,6 +300,7 @@ def main(argv: list[str]) -> int:
                     untiered_test_files()))
     results.append(('no new runner entry named by a round code (O4:, F2a, E3o ...); every entry has a stable id',
                     round_coded_entries()))
+    results.append(("no round code in bfbc2.exe's usage or the crates' descriptions", round_codes_shown_to_users()))
     results.append(('JSON written with its keys in a fixed order (sort_keys=True; older calls kept in JSON_ORDER_KEPT)',
                     unsorted_json_writes()))
     results.append(('no new Rust test file, test data or module named by a round code (gr4.rs, mod f2a ...)',
