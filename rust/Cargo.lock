@@ -414,6 +414,7 @@ dependencies = [
  "bc2-convert",
  "bc2-formats",
  "bc2-harness",
+ "bc2-install",
  "bc2-levelwrite",
  "bc2-menu",
  "bc2-navbuild",
@@ -423,6 +424,7 @@ dependencies = [
  "embed-resource",
  "flate2",
  "regex",
+ "serde_json",
  "sha1_smol",
  "windows-sys 0.61.2",
 ]
@@ -492,6 +494,17 @@ dependencies = [
  "memchr",
  "rayon",
  "regex",
+]
+
+[[package]]
+name = "bc2-install"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

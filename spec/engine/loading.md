@@ -67,7 +67,7 @@ Coral Sea without it in the shared startup patch crashed at load at 0x74EAB3 (LE
 the mode partition goes into the startup patch whenever an installed level runs it.
 
 [exe: BFBC2Game.exe 0x74EAB3, Coral Sea's load, play test 2026-11-14]
-[doc: opfor:src/tools/ww2/wake_install.py:3899-3903] [doc: opfor:research/WW2_PORT_PLAN.md:418-420]
+[doc: opfor:src/tools/ww2/wake_install.py:3677-3681] [doc: opfor:research/WW2_PORT_PLAN.md:418-420]
 
 ## 3. The level checksum
 
