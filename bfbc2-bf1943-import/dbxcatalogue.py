@@ -313,6 +313,8 @@ def _cached(path: str, sig: Any) -> Catalogue | None:
             c = pickle.load(fh)
         if c['version'] == CACHE_VERSION and c['sig'] == sig:
             cat: Catalogue = c['catalogue']
+            from bfbc2core import caches
+            caches.touch(path)                                  # used: the 'dbxcatalogue' cache's LRU clock (PR1b-1c)
             return cat
     except Exception:                                           # noqa: BLE001 - missing, old or corrupt: rebuilt
         pass
@@ -337,6 +339,8 @@ def _build_and_cache(ix: Any, exe: str | None, log: Any, sig: Any, path: str | N
         data = pickle.dumps({'version': CACHE_VERSION, 'sig': sig, 'catalogue': cat}, protocol=pickle.HIGHEST_PROTOCOL)
         try:
             atomicio.write_bytes(path, data)                    # its own .tmp-<pid>, replaced whole
+            from bfbc2core import caches
+            caches.maybe_prune('dbxcatalogue', os.path.dirname(path))   # under its cap and the budget (PR1b-1c)
         except PermissionError as ex:                           # Windows: another process is reading the old file
             say(f'catalogue: built but not cached this time ({ex})')
     return cat

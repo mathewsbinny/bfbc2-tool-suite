@@ -1,8 +1,9 @@
 r"""Round O3's audio group: the command lines test_cli_o3.py replays for audio.py (bfbc2-console-convert: an Xbox 360
 Wave resource, BFBC2's or Battlefield 1943's, as BFBC2's PC Wave).
 
-cases(): the quick tier's (synthetic Waves made in code: EA-XMA streams of made-up XMA2 packets, which ffmpeg's xma2
-decoder turns into deterministic samples or its own errors; no game data). opfor_calls(opfor): the --game tier's
+cases(): the quick tier's (synthetic Waves made in code: EA-XMA streams of made-up XMA2 packets, which the in-process
+XMA2 decoder - ffmpeg's xma2 decoder ported, round PR1b-1c, XMA-DEC-1 - turns into deterministic samples; no game data,
+no ffmpeg: recorded again in PR1b-1c with no ffmpeg on PATH, as GitHub's runner has none). opfor_calls(opfor): the --game tier's
 (Project OPFOR does not run audio.py as a process - it imports audio.convert - so the replay is the command line on
 real Xbox Waves of its console extracts, copied to the case folder).
 """
@@ -216,13 +217,14 @@ def cases() -> list[Case]:
         ['bf1943', '{d}\\bf_stream', '{d}\\out.res', '--stream', '1={d}\\bf_stream.sns'])
     add('bf1943 given a bfbc2 wave', _files('mono'), ['bf1943', '{d}\\mono', '{d}\\out.res'])
     add('bfbc2 given a bf1943 wave', _files('bf_mem'), ['bfbc2', '{d}\\bf_mem', '{d}\\out.res'])
-    # ffmpeg: not found (PATH without it, no $FFMPEG; the WinGet folder is under the run's own LOCALAPPDATA), $FFMPEG
-    # naming nothing
+    # no ffmpeg (round PR1b-1c: EA-XMA is decoded in process, so these convert as the others do; until then they were
+    # audio.py's "ffmpeg not found" / ffmpeg's errors): a PATH without it and no $FFMPEG (the WinGet folder is under the
+    # run's own LOCALAPPDATA), $FFMPEG naming nothing, $FFMPEG naming another program
     pydir = os.path.dirname(sys.executable)
-    add('ffmpeg not found', _files('mono'), ['bfbc2', '{d}\\mono', '{d}\\out.res'], {'PATH': pydir})
-    add('ffmpeg not found no xma', _files('xas'), ['bfbc2', '{d}\\xas', '{d}\\out.res'], {'PATH': pydir})
-    add('ffmpeg env missing', _files('mono'), ['bfbc2', '{d}\\mono', '{d}\\out.res'], {'FFMPEG': '{d}\\nope.exe'})
-    add('ffmpeg env not ffmpeg', dict(_files('mono'), **{'fake.cmd': '@exit /b 3\r\n'}),
+    add('no ffmpeg on PATH', _files('mono'), ['bfbc2', '{d}\\mono', '{d}\\out.res'], {'PATH': pydir})
+    add('no ffmpeg on PATH, no xma', _files('xas'), ['bfbc2', '{d}\\xas', '{d}\\out.res'], {'PATH': pydir})
+    add('FFMPEG names nothing', _files('mono'), ['bfbc2', '{d}\\mono', '{d}\\out.res'], {'FFMPEG': '{d}\\nope.exe'})
+    add('FFMPEG names another program', dict(_files('mono'), **{'fake.cmd': '@exit /b 3\r\n'}),
         ['bfbc2', '{d}\\mono', '{d}\\out.res'], {'FFMPEG': '{d}\\fake.cmd'})
     picked = ['help', 'bad source', 'bfbc2 stereo', 'bfbc2 xas', 'output name outside cp1252', 'no input',
               'output name emoji', 'bfbc2 short']

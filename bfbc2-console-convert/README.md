@@ -24,7 +24,7 @@ O4) take the same arguments and give the same output, files and exit codes; dama
 | meshes (MeshData) and mesh sets (rigid, composite, skinned, tree) | done (`mesh.py`, `meshset.py`; used by OPFOR's `console_markv.py`); triangle strips (part record k = 5) unrolled into lists | Mark V converted and loading on PC; every console MeshData and mesh set of the Onslaught builds parses (FORMAT.md 3-4); all 92 BFBC2 PC tree sets round-trip byte-identical |
 | soot meshes (scorch overlays) | done (`soot.py`) | 30 of 30 BFBC2 twins byte for byte; BF1943's 404 of 406 (the warehouse's 16-byte vertices refused) |
 | a mesh part as arrays (`mesh.decode`), console layouts (`mesh.console_layouts`) | done (used by OPFOR's WW2 `attachments.py` for Battlefield 1943's rifle parts) | 103 BFBC2 mesh parts decode alike from the Xbox and PC copies; every BF1943 rifle part decodes in range |
-| sounds (Wave: EA-XMA -> EA-XAS) | done (`audio.py`, below; needs ffmpeg for decoding) | 35,811 BFBC2 twins' wrappers; converted Xbox files match their PC twins' structure; Battlefield 1943's sounds convert |
+| sounds (Wave: EA-XMA -> EA-XAS) | done (`audio.py`, below; EA-XMA decoded in the Rust core since PR1b-1c, no ffmpeg) | 35,811 BFBC2 twins' wrappers; converted Xbox files match their PC twins' structure; Battlefield 1943's sounds convert |
 
 `mesh.decode(meshdata, layout, part, big_endian)` gives one part's positions, normals, tangents, binormals, UVs,
 weights and bones (the part's palette applied) and its triangles, for its own vertex window - from a console mesh
@@ -133,10 +133,12 @@ Also `audio.read_wave(bytes, 'bfbc2-xbox' | 'bfbc2-pc' | 'bf1943')` (the Frostbi
 intro / loop / outro segments), `audio.decode(bytes, source, streams)` (int16 samples and the rate),
 `audio.encode_xas(pcm, rate)` / `audio.decode_xas(stream)` (EA-XAS v1 in the suite's Rust core, which they need -
 the NumPy codec was retired on 2026-11-18, its results recorded in `tests\audio_golden.json`; DICE's block layout
-here). Since round F4 (2026-11-20) `audio.convert` / `decode` run in Rust whole, the ffmpeg glue included
-(`convert_many` converts side by side without the interpreter's lock), the Python kept as the fallback. EA-XMA is
-decoded by ffmpeg (decoding only, through a pipe: each XMA stream wrapped as an XMA2 RIFF WAVE); ffmpeg is found on
-PATH, in `$FFMPEG` or in the WinGet Gyan.FFmpeg package. The formats are in audio.py's docstring.
+here). Since round F4 (2026-11-20) `audio.convert` / `decode` run in Rust whole (`convert_many` converts side by
+side without the interpreter's lock), the Python kept as the fallback. Since round PR1b-1c EA-XMA is decoded in
+process by `rust/bc2-xma` (FFmpeg's xma2 decoder ported: `ffmpeg -cpuflags 0`'s samples to the bit on every XMA
+stream of BFBC2's Xbox copy and Battlefield 1943; spec rule XMA-DEC-1), so converting needs no ffmpeg. ffmpeg (on
+PATH, in `$FFMPEG` or the WinGet Gyan.FFmpeg package; run with `-cpuflags 0`) is only the tests' reference
+(`convert_reference(..., ffmpeg=True)`). The formats are in audio.py's docstring.
 
 Proven (`tests\test_audio.py`, about 2 minutes):
 

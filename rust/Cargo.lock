@@ -437,6 +437,7 @@ version = "0.1.0"
 dependencies = [
  "bc2-formats",
  "bc2-gamefs",
+ "bc2-xma",
  "memchr",
  "proptest",
  "rayon",
@@ -587,6 +588,7 @@ dependencies = [
  "bc2-shader",
  "bc2-stockmp",
  "bc2-tools",
+ "bc2-xma",
  "bumpalo",
  "iced-x86",
  "pyo3",
@@ -650,6 +652,13 @@ dependencies = [
  "bc2-gamefs",
  "proptest",
  "rayon",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bc2-xma"
+version = "0.1.0"
+dependencies = [
  "thiserror 2.0.21",
 ]
 

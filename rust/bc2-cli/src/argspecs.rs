@@ -17,7 +17,7 @@ pub static SPECS: &[Spec] = &[
         description: Some(Text::Fill(&["The", " ", "suite's", " ", "on-", "disk", " ", "caches,", " ", "the", " ", "project", " ", "caches", " ", "in", " ", "Project", " ", "OPFOR", " ", "BFBC2's", " ", "work\\", " ", "folder", " ", "and", " ", "the", " ", "logs:", " ", "list", " ", "them,", " ", "prune", " ", "them", " ", "to", " ", "their", " ", "caps,", " ", "or", " ", "clear", " ", "them."])),
         sections: &[
             Section { heading: Some("positional arguments"), text: None, items: &[
-                Item { invocation: "name", help: Help::Chunks(&["caches", " ", "to", " ", "act", " ", "on:", " ", "hlsl,", " ", "fbrb,", " ", "collision,", " ", "effectport,", " ", "culltree,", " ", "bf1943source,", " ", "shadercover,", " ", "renderqa,", " ", "navstudio,", " ", "harness,", " ", "navwater,", " ", "editor,", " ", "meshview,", " ", "logs"]), subs: &[] },
+                Item { invocation: "name", help: Help::Chunks(&["caches", " ", "to", " ", "act", " ", "on:", " ", "hlsl,", " ", "fbrb,", " ", "collision,", " ", "effectport,", " ", "culltree,", " ", "bf1943source,", " ", "shadercover,", " ", "renderqa,", " ", "navstudio,", " ", "harness,", " ", "navwater,", " ", "editor,", " ", "meshview,", " ", "dbxcatalogue,", " ", "ww2qa,", " ", "ww2install,", " ", "logs"]), subs: &[] },
             ] },
             Section { heading: Some("options"), text: None, items: &[
                 Item { invocation: "-h, --help", help: Help::Chunks(&["show", " ", "this", " ", "help", " ", "message", " ", "and", " ", "exit"]), subs: &[] },

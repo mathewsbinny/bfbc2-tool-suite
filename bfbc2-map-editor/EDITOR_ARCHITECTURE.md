@@ -309,7 +309,8 @@ operation (a stale proposal - the project changed since - cannot be accepted).
 formats (bytes, and files read) and nothing else; `bc2-gamefs` is the game layer over it - which game a copy is
 (`game::Game`), every file written (`atomic`), the install ledger, process liveness, the bundle cache, the caches'
 budget, the mesh index and the one worker pool (`workers`, `BFBC2_WORKERS`); `bc2-tools` holds the format tools'
-command lines (FbrbTool, DbxEdit). The editor reads and edits DBX through one document, `bc2_formats::dbx::edit::EditDbx`
+command lines (FbrbTool, DbxEdit); `bc2-xma` decodes the Xbox 360's XMA2 sounds (FFmpeg's decoder ported, round
+PR1b-1c; under FFmpeg's LGPL). The editor reads and edits DBX through one document, `bc2_formats::dbx::edit::EditDbx`
 (DbxEdit's rules through `dbxedit::read` / `serialize` in the DBX inspector), and runs its background jobs as `Task`s.
 
 The editor must be very fast and use parallelism. The user chose a **hybrid Rust core**:

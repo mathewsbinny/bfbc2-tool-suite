@@ -468,7 +468,8 @@ folder and the logs: list them, prune them to their caps, or clear them.
 positional arguments:
   name             caches to act on: hlsl, fbrb, collision, effectport,
                    culltree, bf1943source, shadercover, renderqa, navstudio,
-                   harness, navwater, editor, meshview, logs
+                   harness, navwater, editor, meshview, dbxcatalogue, ww2qa,
+                   ww2install, logs
 
 options:
   -h, --help       show this help message and exit

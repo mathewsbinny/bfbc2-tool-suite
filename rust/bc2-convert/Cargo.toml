@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 bc2-formats.workspace = true
 bc2-gamefs.workspace = true
+bc2-xma.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
 regex.workspace = true

@@ -10987,6 +10987,43 @@
    ]
   },
   {
+   "id": "XMA-DEC-1",
+   "title": "Decoding EA-XMA: FFmpeg's xma2 decoder, its C path the reference",
+   "file": "spec/formats/audio.md",
+   "status": "verified",
+   "variants": "Xbox 360, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "4,657 XMA streams (BFBC2 Xbox 1,847, BF1943 2,810), 1,039,009,766 samples: identical to ffmpeg 9.0.2 -cpuflags 0 on every stream; against its default (SIMD) run 364 streams identical, 169,447 samples (0.016 %) differ, each by 1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/mdct.rs::imdct_matches_the_definition"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/lib.rs::random_packets_do_not_panic"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/lib.rs::s16_rounds_half_to_even_and_saturates"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-xma/src/lib.rs::packet_size_follows_the_pcm_rule"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-xma/src/wmapro.rs:1-40"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-xma/src/lib.rs:180-240"
+    }
+   ]
+  },
+  {
    "id": "XAS-FRM-1",
    "title": "Frames: 128 samples of one channel in 76 bytes, frame-major",
    "file": "spec/formats/audio.md",
@@ -20872,7 +20909,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/wavport.rs:205-254"
+     "ref": "rust/bc2-convert/src/wavport.rs:147-190"
     },
     {
      "kind": "code",

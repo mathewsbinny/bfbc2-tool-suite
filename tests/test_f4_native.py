@@ -5,7 +5,7 @@ changed.
 
   culltree  culltree.Doc's string table                            (bfbc2-culltree/culltree.py)
   disasm    xenos.disasm's header                                  (bfbc2-shader-tools/xenos.py)
-  audio     audio.convert / decode, the ffmpeg glue                (bfbc2-console-convert/audio.py)
+  audio     audio.convert / decode (EA-XMA in process, PR1b-1c)    (bfbc2-console-convert/audio.py)
   hkpack    hkpack.Packfile as a handle, read_object / read_value  (bfbc2-auto-navkit/tools/hkpack.py)
   bodies    navsample_offline.asset_bodies (the hulls)             (bfbc2-auto-navkit/tools/navsample_offline.py)
   texqa     texqa.read_pc / read_xbox                              (bfbc2-console-convert/texqa.py)
@@ -292,19 +292,13 @@ def area_audio(c: Checks) -> None:
     rng = random.Random(0xF4C3)
     ref_convert = ref_of((audio,), audio.convert)
     ref_decode = ref_of((audio,), audio.decode)
-    try:
-        ff = audio.ffmpeg_path()
-    except audio.AudioError as e:
-        print(f'no ffmpeg ({e}): EA-XMA sounds are handed to the Python')
-        ff = None
-
     def nat_conv(b: Any, src: Any, streams: Any = None, w14: Any = 0) -> Any:
         sl = audio._stream_list(streams) if type(b) is bytes and type(src) is str else None
-        return N.audio_convert(b, src, sl, w14, ff) if sl is not None else None
+        return N.audio_convert(b, src, sl, w14) if sl is not None else None
 
     def nat_dec(b: Any, src: Any, streams: Any = None) -> Any:
         sl = audio._stream_list(streams) if type(b) is bytes and type(src) is str else None
-        return N.audio_decode(b, src, sl, ff) if sl is not None else None
+        return N.audio_decode(b, src, sl) if sl is not None else None
     nc = nat_of('audio_convert', nat_conv)
     nd = nat_of('audio_decode', nat_dec)
     root = f3.opfor_root()
@@ -360,7 +354,7 @@ def area_audio(c: Checks) -> None:
                     nw += 1
                     if source == 'bfbc2':
                         if j % 3:
-                            continue                             # a third of the BFBC2 Xbox sounds (ffmpeg's time)
+                            continue                             # a third of the BFBC2 Xbox sounds
                         t.both(f'{rel(p, root)}/{name}', rel(p, root), size, audio.convert, ref_convert, nc, b,
                                source, None, real=True)
                     else:

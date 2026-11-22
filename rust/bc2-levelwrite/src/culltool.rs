@@ -1767,19 +1767,24 @@ fn same(a: &str) -> String {
     abspath(a).replace('/', "\\").to_lowercase()
 }
 
-/// A file's `(st_size, st_mtime_ns)` (`culltree._stat`).
+/// A file's content key (`culltree._stat`, round PR1b-1c): its size and the first 128 bits of its SHA-256 (little-endian,
+/// signed: a Python int in the cache's pickle). Rows are reused while the level file and its tree hold the same bytes,
+/// whatever their times say (a copy, a restore, a touch); until PR1b-1c `(st_size, st_mtime_ns)`.
 pub type Stat = (u64, i128);
 
-/// `os.stat(path)`'s size and `st_mtime_ns` (before 1970: seconds and nanoseconds both truncated toward zero, as
-/// Python splits a FILETIME).
-pub fn stat_ns(path: &str) -> io::Result<Stat> {
-    let m = std::fs::metadata(path)?;
-    let t = m.modified()?;
-    let ns = match t.duration_since(std::time::UNIX_EPOCH) {
-        Ok(d) => i128::from(d.as_secs()) * 1_000_000_000 + i128::from(d.subsec_nanos()),
-        Err(e) => -(i128::from(e.duration().as_secs()) * 1_000_000_000 + i128::from(e.duration().subsec_nanos())),
-    };
-    Ok((m.len(), ns))
+/// [`Stat`] of the file at `path`: read whole and hashed (SHA-256 on the CPU's SHA extensions, as Python's
+/// `hashlib` is).
+///
+/// # Errors
+/// The file cannot be read.
+pub fn content_stat(path: &str) -> io::Result<Stat> {
+    let size = std::fs::metadata(path)?.len();
+    let hex = bc2_gamefs::sha256::file(path)?;
+    let mut b = [0u8; 16];
+    for (i, x) in b.iter_mut().enumerate() {
+        *x = u8::from_str_radix(hex.get(2 * i..2 * i + 2).unwrap_or("00"), 16).unwrap_or(0);
+    }
+    Ok((size, i128::from_le_bytes(b)))
 }
 
 /// One reference tree in a cache entry: its stat, and its rows or the `CullTreeError` text its read or `collect`
@@ -1906,7 +1911,7 @@ enum Pre {
 /// has them - the tree's rows. The entry is written back when it is new or gained a tree.
 fn pre(p: &str, store: Option<&dyn RowStore>, skip: &[String]) -> Pre {
     let label = splitext(&basename(p)).0;
-    let st = match stat_ns(p) {
+    let st = match content_stat(p) {
         Ok(s) => s,
         Err(e) => {
             // `Level(p)` raises as ref_pairs' read does, else the stat's own error
@@ -1960,7 +1965,7 @@ fn pre(p: &str, store: Option<&dyn RowStore>, skip: &[String]) -> Pre {
         .map_err(|e| CullError::io(&tp, e));
     let mut out = None;
     if size.is_ok() {
-        match stat_ns(&tp) {
+        match content_stat(&tp) {
             Err(e) => out = Some(TreeOut::Raise(CullError::io(&tp, e))),
             Ok(tst) => {
                 let hit = entry.trees.iter().position(|(k, t)| *k == key && t.stat == tst);
@@ -2078,7 +2083,7 @@ pub fn ref_rows(
         let label = splitext(&basename(p)).0;
         let r = tree_rows(&objs.objects, tp, &label);
         if let Some(s) = store
-            && let Ok(tst) = stat_ns(tp)
+            && let Ok(tst) = content_stat(tp)
             && let Some(t) = r.kept(tst)
         {
             let mut e = s.get(p, *st).unwrap_or_else(|| Entry {

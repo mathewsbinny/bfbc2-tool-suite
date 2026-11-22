@@ -803,13 +803,14 @@ def ref_pairs(refs: Sequence[str], ref_dirs: Iterable[str], log: Log,
 
 
 # ref_rows (round E3m): ref_pairs' choices, with each reference level's collect() rows kept on disk per level file
-# and tree file (size and modification time) and this module's code, so a second add or verify against the same
-# --ref-dir reads no reference level again (console_cull's add on Onslaught MP_005 against work\levels: 89 level
+# and tree file (by content since round PR1b-1c: size and SHA-256, _stat; before, size and modification time) and
+# this module's code, so a second add or verify against the same
+# --ref-dir parses no reference level again (console_cull's add on Onslaught MP_005 against work\levels: 89 level
 # partitions and 46 trees parsed, 66 of its 128 s, 2.4 GB). The rows hold no objects (None where collect() puts the
 # Placed: only the target level's objects are ever compared by identity). REFERENCE (BFBC2_CULLTREE_REFERENCE=1)
 # runs ref_pairs and shape_for without its memo, as before; BFBC2_CULLTREE_CACHE: the cache folder, or 0 for none.
 REFERENCE = os.environ.get('BFBC2_CULLTREE_REFERENCE', '') not in ('', '0')
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 _CODE_ID: str | None = None
 
 
@@ -842,13 +843,21 @@ def _code_id() -> str:
 
 
 def _stat(path: str) -> tuple[int, int]:
-    st = os.stat(path)
-    return st.st_size, st.st_mtime_ns
+    """A file's content key: its size and the first 128 bits of its SHA-256 (a signed little-endian int), as
+    bfbc2.exe's culltool computes it (bc2_levelwrite::culltool::content_stat): the rows are reused while the files
+    hold the same bytes, whatever their times say."""
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        size = os.fstat(f.fileno()).st_size
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return size, int.from_bytes(h.digest()[:16], 'little', signed=True)
 
 
 class _RowCache:
-    """One pickle per reference level file: {'code', 'level': (size, mtime), 'ref': its tree reference or
-    'notlevel': True, 'trees': {tree path: {'stat': (size, mtime), 'rows' or 'error'}}}."""
+    """One pickle per reference level file: {'code', 'level': (size, key), 'ref': its tree reference or
+    'notlevel': True, 'trees': {tree path: {'stat': (size, key), 'rows' or 'error'}}} (_stat's keys)."""
 
     def __init__(self, folder: str | None) -> None:
         self.folder = folder

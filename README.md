@@ -7,6 +7,11 @@ Version: see `VERSION` and `CHANGELOG.md`. What is being worked on and what come
 are merged and versions released: `RELEASING.md`. Which Python is left and what retires it, file by file:
 `PYTHON_STATUS.md` (ROADMAP.md, "Python left").
 
+**Licence.** The suite is under the MIT licence (`LICENSE`), with one exception: `rust/bc2-xma`, the XMA2 sound
+decoder, is a translation of FFmpeg's decoder and is under FFmpeg's licence, the GNU Lesser General Public License
+2.1 or later (`rust/bc2-xma/LICENSE`, its `README.md`; the user's choice, 2026-11-22). It is linked into the Rust
+core (`bc2_native`) and `bfbc2.exe`; its source is that folder.
+
 ## Getting started
 
 1. Install Python 3.12 or newer (`pyproject.toml` targets 3.12: bf1943-import uses its f-string syntax), then the
@@ -348,10 +353,10 @@ NavKit's walkability rules (`headroom`, `stair_slope`, `narrow_lips`, landings, 
 
 `bfbc2-console-convert/audio.py`'s EA-XAS codec runs in Rust (round E3a: `xas_encode_frames`, `xas_decode_frames`,
 `encode_xas` and the new `encode_xas_many`, all its sounds encoded at once; its NumPy reference retired 2026-11-18,
-see "Without a fallback" below). The new `audio.convert_many` converts many Waves side by side (ffmpeg's EA-XMA
-decodes in threads, the encoder without the interpreter). Since round F4 (2026-11-20) `audio.convert` / `decode`
-run in Rust whole, the ffmpeg glue included (`convert_many` without the interpreter's lock), the Python kept as the
-fallback.
+see "Without a fallback" below). The new `audio.convert_many` converts many Waves side by side. Since round F4 (2026-11-20)
+`audio.convert` / `decode` run in Rust whole (`convert_many` without the interpreter's lock), the Python kept as the
+fallback; since round PR1b-1c EA-XMA is decoded in process (`rust/bc2-xma`, FFmpeg's xma2 decoder ported, under
+FFmpeg's LGPL), so no ffmpeg is needed.
 So does `bfbc2-shader-tools`' shader translator (round E3f): `xenos.parse_shader` decodes in Rust (its tree's microcode attributes made on their first read), `xenos_hlsl.translate` translates in Rust (the program kept from the decode while the tree's microcode is unread, else the tree handed over), and the new `xenos.parse_many` / `xenos_hlsl.translate_many` take many programs at once on all cores; `parse_shader_python` is the decoder's reference (`xenos.use_native`, `xenos.backend()`); the translation has no Python since 2026-11-18.
 
 **Round F4** (2026-11-20, `rust/BENCHMARKS.md` "F4": F3's leftovers, each identical to its Python, which stays the

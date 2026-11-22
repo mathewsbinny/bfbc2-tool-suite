@@ -207,6 +207,28 @@ pub const SPECS: &[Spec] = &[
         "BFBC2_MESHVIEW_CACHE_MB",
         256.0,
     ),
+    // round PR1b-1c: dbxcatalogue's catalogue, Project OPFOR's WW2 QA pickles and its install's indexes
+    project(
+        "dbxcatalogue",
+        &["dbx_catalogue.pkl"],
+        &["work", "tools_out"],
+        "BFBC2_DBXCATALOGUE_CACHE_MB",
+        256.0,
+    ),
+    project(
+        "ww2qa",
+        &[".pkl"],
+        &["work", "ww2", "_qa", "cache"],
+        "BFBC2_WW2QA_CACHE_MB",
+        4096.0,
+    ),
+    project(
+        "ww2install",
+        &["install_index.pkl", "install_templates.pkl", "install_dbnames.pkl"],
+        &["work", "ww2"],
+        "BFBC2_WW2INSTALL_CACHE_MB",
+        256.0,
+    ),
 ];
 
 /// The cache of this name.
@@ -871,7 +893,8 @@ mod tests {
     #[test]
     fn the_table() {
         let names: Vec<&str> = SPECS.iter().map(|s| s.name).collect();
-        assert_eq!(names.len(), 13);
+        assert_eq!(names.len(), 16);
+        assert_eq!(spec("ww2qa").unwrap().project, ["work", "ww2", "_qa", "cache"]);
         assert_eq!(spec("fbrb").unwrap().markers, [".seen"]);
         assert!(spec("hlsl").unwrap().off_without_localappdata);
         assert_eq!(spec("meshview").unwrap().project, ["work", "tools_out"]);
