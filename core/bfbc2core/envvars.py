@@ -111,6 +111,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_TEST_STAND_IN_EXE': ('test', "1: bfbc2.exe's menu tools read an exe stand-in kept without its MZ / PE "
                                 'signatures (SI) as the program (round AV1: O2 writes no synthetic program '
                                 'Microsoft Defender could block)'),
+    'BC2_INSTALL_CRASH_AT': ('test', "bfbc2 install stops the process (exit 9) before its n-th write step of the run (a "
+                             'level bundle, a record, a marker or a ledger step), as a kill would (round OR1)'),
     'BC2_LEDGER_CRASH_AT': ('test', "the install ledger stops the process (exit 9) before its n-th write step, as a "
                             'kill would (round DF2)'),
     'BC2_EDITOR_SHOTS': ('test', "the editor tests save their screenshots there"),

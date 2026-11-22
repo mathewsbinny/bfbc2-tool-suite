@@ -1,0 +1,22 @@
+[package]
+name = "bc2-install"
+description = "The game-copy installer on the install ledger: Project OPFOR's WW2 install (round OR1, OPFOR in Rust stage 1)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+bc2-formats.workspace = true
+# the install plan (OPFOR's decisions as data), the level records and staged.json
+serde.workspace = true
+serde_json.workspace = true
+# the registration and ini rules (Python's re, the same patterns), the backup guard's marks
+regex.workspace = true
+# the staged files' digests and the fingerprint's walk on all cores
+rayon.workspace = true
+
+[lints]
+workspace = true
