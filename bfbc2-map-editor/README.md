@@ -114,7 +114,16 @@ comes from, recorded in the project; the terrain itself is generated in a later 
   errors first, then warnings and notes, each with its rule's code (hover for its message and spec citations) and
   a **Go to** link that selects the object and frames it. A placement finding quotes DICE's range ("Stage 3 is 40 m
   from stage 2; DICE's Rush stages are 93-316 m apart"); it is advice, never an error. `mapexport validate
-  <project> --game <game>` prints the same list.
+  <project> --game <game>` prints the same list. Round A1 added the ground: spawn points over water, inside rocks or
+  under the ground, a vehicle spawner without room for its vehicle or out of its domain, gameplay objects outside
+  every combat area, and - once the AI workspace has read the level's path data - spawns and objectives the bots
+  cannot reach from the main route network.
+- **Auto layout** (round A1, the Gameplay workspace's panel; Commands: Show auto layout): with an export target chosen,
+  **Propose layout** lays the mode's layer (DICE's own layout from the target's donor) out on the level - turned,
+  scaled and placed where the ground, water, rocks and buildings suit it, fitted spot by spot and held against DICE's
+  statistics. The proposal is drawn over the views and listed with its findings and each statistic against DICE's
+  range; **Accept** makes it one move operation (an undo takes it back), **Discard** drops it. A seed gives other
+  proposals; the same seed the same one.
 - **Select:** click (with its group), Ctrl or Shift + click adds or removes, drag a box on empty ground (Select tool,
   or any tool off the gizmo). Alt + left drag orbits (pans in the top / front / side views) while editing.
 - **Gizmo** (toolbar at the top of each view; **Q** select, **W** move, **E** rotate, **R** ruler, **X** world or

@@ -7677,3 +7677,151 @@ Conquest and MP_005 as Conquest, a member deleted, one moved, two added) pass ev
 lines each, and `validate::project` raises no error (Wake: 1 finding below error, MP_005: none; `validate::project`
 now reads the base's group files as the export does). Deleting every member of a group's smallest kind is refused as
 `XVAL-GRP-1: ...` on both (Wake's heattank, MP_005's invwall_nohealth; `rules::apply_code`).
+
+## A1: the auto layout of a mode's gameplay, the site and path rules (2026-11-21, branch `a1`)
+
+Round A1 (ROADMAP "A1", after V1 and L1): an optional auto layout of a mode's gameplay in DICE's style, offered in
+the editor as a proposal; V1's leftovers on the ground (spawns over water or in rocks, a vehicle spawner's room and
+domain, objects outside the combat area) and spawns with no path, as rules of V1's registry. The export's path-data
+step (part 2 of the round) did not fit: its plan is below and in the ROADMAP as A2.
+
+### The site (`bc2_levelwrite::site`)
+
+The base level's ground as the rules and the auto layout read it: the height field (`Heightfield::height`, the game's
+diagonal split), the water mesh on 4 m cells (the highest surface over each cell's centre), every static object's
+collision in world space indexed on 8 m cells (the scene's `world_triangles`: placed objects and static group
+members; triangles wider than 160 m in plan are ground sheets, left out) and the level's art (static objects within
+48 m, a destructible one counting four times, as a share of the busiest places). A place is **buried** in an object
+when a vertical line through it crosses that object's triangles an odd number of times above and below it (crossings
+at one height counted once: a line through an edge); vegetation never buries. The editor makes the site once per
+project from its base scene (`validation::site_of`; the height field and water from the game copy's bundles,
+`export::ground_of`, when the views have no terrain unpack): 0.2-1.9 s on the stock levels (1.0-5.4 million collision
+triangles), release.
+
+### The site and path rules, calibrated on DICE's levels
+
+Each threshold lies past what DICE's own objects do. `examples/a1_calibrate.rs` runs the rules on every object of the
+21 stock multiplayer levels of `game\Dist` the editor opens with collision (mp_001 to mp_012sr: 1,168 spawn points, 504
+vehicle spawners, 125 capture points), with what each object measures:
+
+| measured on DICE's objects | value | the rule's bound |
+|---|---|---|
+| spawn points over water deeper than 1.2 m (surface to the ground or the pier under it) | 0 | XVAL-PLACE-2: deeper than 1.2 m |
+| spawn points buried in collision (depth up to the surface above) | 47, 0.01-3.58 m (floors, containers, barrier blocks, boulders); one 8.3 m in a bush's box | buried deeper than 4 m; vegetation left out |
+| spawn points under the height field | deepest 4.59 m (under a cliff on `mp_008`) | deeper than 6 m |
+| vehicle room, the tightest spawner per class (static collision 0.5-3 m above it, every 0.5 m on 16 bearings) | tank 3.5 m, car 2 m, heli 5.5 m, boat 1 m, IFV and quad 0.5 m | tank 3, car 1.5, heli 5, boat, IFV, quad 0.5 m |
+| boats: water under them | 21 of 21 over water, 0.4-1.9 m deep | a boat on dry land |
+| land and sea vehicle spawners outside every combat area | up to 142 m (`mp_006cq`'s tanks, `mp_007`'s IFVs); helicopters and the ambient aircraft farther | more than 150 m; aircraft not held |
+| spawn points outside every combat area | one, less than 1 m (`mp_008`) | more than 1 m |
+| capture points outside every combat area | Rush, Squad Rush and Squad Deathmatch bases and squads (8) | not held (L1-CQ-013 / 014 hold flags and HQs to their team's area) |
+| **the site rules on DICE's 21 levels** | **0 findings** (before the calibration: 202) | |
+
+The rules report only what the edits moved or made (what the base has at the same place is DICE's), live in the
+editor and, without collision (the ground and water from the game copy), in `mapexport validate`:
+
+| rule | what | severity |
+|---|---|---|
+| XVAL-PLACE-2 | a spawn point over water, buried in a static object's collision (naming the object), under the ground or outside the terrain | warning |
+| XVAL-PLACE-3 | a vehicle spawner without its vehicle's room, or out of its domain (a land vehicle over deep water, a boat on dry land, any buried, a land or sea vehicle outside the terrain) | warning |
+| XVAL-PLACE-4 | an M-COM, a spawn point or a land or sea vehicle spawner outside every combat area | warning |
+| XVAL-PLACE-5 | a spawn point, flag or M-COM with no route node within 15 m in plan and 4 m in height, or whose nearest node is on an island cut off from the main network (GR2's islands) | warning |
+
+XVAL-PLACE-5 reads the route graph of the path data the AI workspace has read (NavKit's build, else DICE's file:
+`validation::routes_of`, `site::Routes` on 15 m buckets); the Problems panel checks it from then on. The registry:
+**112 rules, 51 errors, 59 warnings, 2 notes** (V1's 108 and these four). New spec rules: GAME-SPAWN-3, GAME-VEH-1
+(`engine/gameplay.md`, observed on the calibration), AI-NAV-1 (`engine/ai.md`), XVAL-PLACE-2 to 5 and XLAY-AUTO-1
+(`transforms/validation.md`).
+
+### The auto layout (`bc2_levelwrite::autolayout`)
+
+The project's mode layer is DICE's own layout (the target's donor: its flags, bases, M-COMs, spawns, combat areas and
+event logic, E3d's `modelayer`). The auto layout keeps its shape and fits it to the level (module doc): the whole layer
+turned (24 bearings), scaled (0.9-1.1 of the donor's own distances, the target's first-guess scale undone) and placed
+on a 24 m grid of centres where the level has art; scored on the ground (flags, bases, M-COMs and spawn points on open
+land not in water, collision or past 35 degrees; the combat outlines over the terrain; the combat areas' land and art;
+the art at the objectives); the best 48 refined, the best 8 fitted spot by spot (a flag, base or M-COM with its
+cluster up to 40 m, a spawn point alone up to 16 m, heights following the ground) and measured with V1's
+`placement::measure` against L1's rules, `l1_a1_params.json` and the site rules. The proposal is a list of moves; the
+editor commits it as one move operation when it is accepted. Deterministic: SplitMix64 for the seed, no hash or thread
+order reaches it (the editor test proposes twice, once per theme: equal).
+
+**The proof** (`examples/a1_layout.rs`, release): 16 stock levels of every mode (BFBC2 and Vietnam), each a project
+whose target takes its own gameplay out: the target's donor is each other stock level of the era and mode in turn
+(never the level's own map), the auto layout proposes on the level's site (its own gameplay layer left out of it),
+the proposal is pushed as one move and validated (`validate::project` and the site rules with collision); per level
+the donor is chosen without DICE's own layout (fewest warnings, then statistics outside DICE's ranges, then notes,
+then the ground score). Then compared with DICE's own layout of the level: each of DICE's anchors matched to the
+proposal's (Conquest flags by the least total distance, HQs by team, Rush stages in order, Squad Deathmatch the spawns'
+centre), the combat areas' intersection over union, the share of the proposal's gameplay points inside DICE's area.
+
+| level | mode | donor chosen | errors / warnings / notes | statistics inside DICE's ranges | turn, scale | objects moved (clusters, points fitted) | DICE's anchors matched: n (mean m) | combat area IoU | proposal inside DICE's area | s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| MP_001 | CQ | MP_006CQ | 0 / 0 / 0 | 27 of 27 | 0 deg, 0.99 | 252 (5, 1) | 5 (245) | 0.41 | 71 % | 2.5 |
+| MP_003 | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 211 deg, 0.87 | 270 (3, 0) | 5 (186) | 0.41 | 38 % | 1.9 |
+| MP_005 | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 15 deg, 0.90 | 270 (1, 0) | 5 (335) | 0.22 | 100 % | 2.4 |
+| MP_006CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 191 deg, 0.91 | 270 (2, 0) | 5 (85) | 0.55 | 78 % | 1.8 |
+| MP_009CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 192 deg, 1.00 | 270 (1, 0) | 5 (265) | 0.24 | 32 % | 2.6 |
+| NAM_MP_002CQ | CQ | NAM_MP_005CQ | 0 / 0 / 0 | 30 of 30 | 175 deg, 0.86 | 253 (3, 0) | 5 (155) | 0.32 | 70 % | 3.0 |
+| MP_005GR | Rush | MP_008 | 0 / 0 / 0 | 31 of 31 | 305 deg, 1.00 | 882 (3, 0) | 3 (115) | 0.26 | 100 % | 27.5 |
+| MP_009GR | Rush | MP_004 | 0 / 0 / 0 | 31 of 31 | 20 deg, 0.90 | 572 (4, 0) | 3 (244) | 0.32 | 88 % | 8.0 |
+| MP_012GR | Rush | MP_004 | 0 / 0 / 0 | 31 of 31 | 150 deg, 0.91 | 572 (2, 0) | 3 (147) | 0.28 | 56 % | 11.8 |
+| NAM_MP_005R | Rush | NAM_MP_003R | 0 / 0 / 0 | 31 of 31 | 15 deg, 0.99 | 391 (4, 2) | 3 (240) | 0.57 | 84 % | 5.1 |
+| MP_002SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 344 deg, 1.00 | 182 (2, 0) | 2 (99) | 0.61 | 100 % | 3.7 |
+| MP_005SR | SR | MP_003SR | 0 / 0 / 0 | 15 of 15 | 197 deg, 1.00 | 232 (0, 0) | 2 (166) | 0.29 | 69 % | 5.5 |
+| MP_012SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 165 deg, 1.00 | 182 (0, 0) | 2 (143) | 0.47 | 95 % | 4.4 |
+| MP_004SDM | SDM | MP_SP_005SDM | 0 / 0 / 1 | 4 of 5 | 135 deg, 1.00 | 214 (1, 0) | 1 (9) | 0.52 | 57 % | 2.7 |
+| MP_007SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 298 deg, 1.00 | 152 (0, 0) | 1 (85) | 0.30 | 75 % | 2.5 |
+| MP_009SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 208 deg, 1.00 | 152 (0, 0) | 1 (395) | 0.00 | 0 % | 2.2 |
+
+**16 of 16 levels: 0 errors and 0 warnings; 382 of 385 statistics inside DICE's ranges** (the 3 outside: Squad Deathmatch's vehicle count, below); 3 notes, all that one. Against DICE's own layout of each level the proposals differ, as a layout from another map's DICE layout would: DICE's anchors are matched 182 m away on average (median 161 m, from 9 to 395 m), the combat areas overlap with an intersection over union of 0.36 on average (median 0.32, from 0.00 to 0.61), and 70 % of the proposals' flags, bases, M-COMs and spawn points fall inside DICE's combat area (from 0 to 100 %). The closest: `MP_006CQ` (85 m, IoU 0.55), the Squad Rush levels `MP_002SR` and `MP_012SR` (IoU 0.61 and 0.47, 100 and 95 % inside), `MP_004SDM` (9 m); the farthest: `MP_009SDM` (its art drew the layout to the town 395 m from DICE's squads). The seconds are a donor's whole run (the project made, the target chosen, the proposal, its validation), release; the proposal alone is 0.7-0.9 s in the editor on `MP_003`. Seed 7 gives other proposals with the same verdicts (0 errors, 0 warnings and every statistic inside DICE's ranges on the 11 levels it finished in the round's time; one note).
+
+Squad Deathmatch's one value outside DICE's range is its vehicle count: the mode layer brings no vehicle spawner (E3d
+leaves the donor's vehicles to E4), so the layout has 0 where DICE's have 1 (L1-SD-006, a note); the auto layout only
+moves what the layer has.
+
+**The editor** (`rust/bc2-editor/tests/a1.rs`, game tier): Laguna Alta (`MP_003`) with Panama Canal's Conquest
+layer; the Gameplay workspace's Auto layout panel proposes on its worker (0.7-0.9 s, debug build), the views draw the
+proposal (rings and pins at the new flags, bases and M-COMs, the lines from where they stand, the spawn points, the
+new combat outlines) while the project is unchanged (its revision and log), Accept commits one move operation (the
+History names it with the proposal's words), the Problems panel lists no error and no warning, and an undo puts every
+object back. Screenshots (Dark, Light; `BC2_EDITOR_SHOTS`): `a1_proposal_dark.png`, `a1_proposal_light.png`,
+`a1_validation_dark.png`, `a1_validation_light.png`.
+
+**Synthetic** (`rust/bc2-levelwrite/tests/a1_layout.rs`, no game data): a 2,048 m terrain with a lake, a town of
+400 buildings and a rock; the site rules raised by a layout broken once per case (a spawn point in the lake, one in the
+rock, a tank over the lake, one inside a building, one 1.5 m from a wall, a spawn point 100 m outside the area) and
+silent on the clean layout and on DICE's own objects where the base has them; the auto layout moves a Conquest layout
+standing half in the lake onto the town (no bad spot, no warning, every statistic inside DICE's ranges, 0.1 s); the
+path rule on a route graph with an island around one flag names exactly that flag's cluster, and every object when no
+node is near.
+
+**With path data** (`--routes`, the AI workspace's case): the Onslaught level `ONS_MP_004` (its installed path data: 8,843 route nodes) as a project with a BFBC2 Conquest target. DICE's own spawns, flags and M-COMs on it: 0 off the main network (XVAL-PLACE-5 silent). Without the routes the proposals left 0 to 47 objects off the main network per donor (7 for the donor chosen); with them (`autolayout::propose_with`: every spawn and objective also on the main network in the search, the fit and the check) the chosen proposal (`MP_005`'s layer) has **0 objects off the main network, 0 errors, 0 warnings, 0 notes, 30 of 30 statistics inside DICE's ranges**, its anchors 62 m from DICE's on average.
+
+### Part 2, the export's path-data step: the plan (A2)
+
+What the round did of it: the path rule (XVAL-PLACE-5) on the routes the AI workspace reads, and the site rules that
+keep spawns and objectives where NavKit's walkability finds ground. What it did not: an export that builds the level's
+path data and its AI layer for the changed layout. Why: NavKit's build for a level without DICE's path data needs the
+level sampled - in the game (OPFOR's `[dev] navsample`: no game launch in these rounds) or by
+`navsample_offline.py` (Python and NumPy, not part of `navkit build`; the regression builds peak far past this
+round's memory budget) - and `navkit build` itself is Python around the Rust core until NK2-NK5; and the stock-MP AI
+layer (`bfbc2.exe stockmp`) is made for a stock level by its name, not for a staged one. The plan, in order:
+
+1. **Inputs.** The export's stage (its level bundle with the edited partition and group files) and the base level's
+   prepared folder (`work\levels\<base>`, `navkit prepare`).
+2. **Sampling without the game.** `navsample_offline` with the stage's partition and group files in place of the
+   base's (a partition override), in Rust once NK4 ports `navsample.load` and the walkability glue; the objective
+   floors and seeds from the project's layout, not the base's.
+3. **Build and edits.** `navkit build` on those samples (in process once NK5 lands; `bfbc2.exe navkit build` before
+   that), then the project's navigation edits (`navkit apply`, Rust since NK1 on a DICE base).
+4. **The bot module.** `stockmp generate / build` on the staged partition under the export's level id (a
+   `--partition` / `--level` input): HasAI, PathfindingTypes, the SectorOffsets of the new path data, AI spawners at the
+   project's spawns, orders at its flags and M-COMs, Rush's stage wiring; the level bundle repacked by the stage writer.
+5. **Staging and checks.** `Output\win32\ai\levels\<id>\infantry\pathdata.hpd` (and `vehicle\`) recorded in the stage
+   (`StageRecord`), `mapexport check` lines for them (present, parse, sorted sector nodes: AI-CRASH-4, SectorOffsets
+   matching), XVAL-PLACE-5 as a stage line on the staged path data, the install ledger covering the AI files.
+6. **The AI workspace** reads a stage's path data (the stage's folder beside `work\navkit`), islands and spawns as
+   today.
+7. **Proof.** The six VW2 canaries and SG1's member-edit export (Wake Island, MP_005): path data built and staged,
+   every check line passing, every spawn and objective on the main network, the AI layer's orders covering each
+   objective; in-game behaviour unproven until a playtest.
