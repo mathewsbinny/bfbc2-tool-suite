@@ -363,12 +363,13 @@ Status: **verified** · Variants: BF1943
 `dbxport` applies the conversion of WPN-WW2-2 to a BF1943 weapon partition (one under `objects/weapons/`): firearm
 bullets (faster than 100 m/s) at 600 m/s from 300-599 and drop -9.81 from 0; finite magazines and pickups from the
 template where BF1943 had -1 and 0 / 0; auto-aim off; press to zoom unless the template holds; sprint look 1 from
-0.5; `AlwaysAimHead` true only where the template's is; `wabsShg` -> `wabsRif`, else the paired donor's body set;
+0.5; `AlwaysAimHead` true only where the template's is; `wabsShg` -> `wabsRif` unless the weapon is a shotgun
+(WPN-WW2-8), else the paired donor's body set;
 the template's camera recoil; hand grenades thrown at 20 (from 24) with gravity -8 (from -9). BF1943's rate of fire,
 magazine size, reload and zoom FOVs are kept. The Rust port does the same.
 
-[code: bfbc2-bf1943-import/dbxport.py:647-664] [code: bfbc2-bf1943-import/dbxport.py:2110-2198]
-[code: rust/bc2-convert/src/dbxport/port.rs:1474-1720]
+[code: bfbc2-bf1943-import/dbxport.py:647-665] [code: bfbc2-bf1943-import/dbxport.py:2111-2200]
+[code: rust/bc2-convert/src/dbxport/port.rs:1474-1727]
 [test: bfbc2-bf1943-import/tests/test_dbxport_rules.py::main] [test: bfbc2-bf1943-import/tests/test_dbxport_native.py::main]
 
 ### WPN-WW2-4: AlwaysAimHead true is not a universal convention
@@ -380,7 +381,7 @@ its BF1943 SMGs (the Thompson twice, the Nambu 100) have false, so a ported bolt
 does; the port sets true only where the template has true (WPN-WW2-3).
 
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: wcSniper AlwaysAimHead false 32 of 32; beach/ firearms true 5, false 3 (thompson, thompson_assault, nambu100)]
-[code: bfbc2-bf1943-import/dbxport.py:2189-2198]
+[code: bfbc2-bf1943-import/dbxport.py:2191-2200]
 
 ### WPN-WW2-5: Bolt-action rifles take the M24's class values
 
@@ -424,14 +425,22 @@ convention holds in multiplayer although DICE's campaign data carries 9999 (WPN-
 
 ### WPN-WW2-8: wabsShg is DICE's shotgun body set
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
-DICE uses `wabsShg` on 20 of its 42 shotgun weapons and on no other class; BF1943 used it on its knife. The port's
-rule `wabsShg` -> `wabsRif` (WPN-WW2-3) is right for the knife but would move a ported BF1943 shotgun off DICE's
-shotgun body set; the WW2 shotgun (M1897) is a copy of DICE's partitions and does not pass through it.
+DICE uses `wabsShg` on 20 of its 42 shotgun weapons and on no other class: all of them pump-actions
+(`fltSingleFireWithBoltAction`: the 870 MCS, the Neostead, the TOZ-194, the Vietnam 870), while its semi-automatic and
+automatic shotguns (Saiga, USAS-12) and the pump-action SPAS-12 take `wabsRif`. BF1943 used `wabsShg` on one weapon,
+its Shin-gunto knife (`wcKnife`), and has no shotgun. The port moves `wabsShg` to `wabsRif` only on a weapon whose
+`WeaponClass` is not `wcShotgun`, so a ported shotgun keeps DICE's shotgun body set (or takes its paired donor's); the
+knife's port is unchanged. The WW2 M1897 (a copy of DICE's 870 partitions, not ported) carries `wabsShg` as a
+pump-action as DICE's do. Every WW2 sniper (Type 38, K98, Springfield, their bayonet and iron variants, the scoped
+Garand and Type 5) has `AlwaysAimHead` false, as DICE's 32 do (WPN-WW2-4).
 
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: AnimBaseSet wabsShg on 20 player weapons, all wcShotgun; 1 AI clone]
-[code: bfbc2-bf1943-import/dbxport.py:2182-2183] [doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:14-19]
+[data: a read of the game copy, 2026-11-22: wcShotgun wabsShg x21 all fltSingleFireWithBoltAction (20 players, 1 AI clone); wabsRif x23 (fltAutomaticFire 9, fltSingleFire 6, fltSingleFireWithBoltAction 8: the SPAS-12); OPFOR's bundles: us_shg_m1897 x3 wcShotgun wabsShg fltSingleFireWithBoltAction, 11 WW2 wcSniper weapons AlwaysAimHead false 11 of 11]
+[data: a read of BF1943's Xbox 360 bundles, 2026-11-22: SoldierWeaponData wabsShg x1 (jap_shingunto_knife, wcKnife); no wcShotgun]
+[code: bfbc2-bf1943-import/dbxport.py:2180-2190] [code: rust/bc2-convert/src/dbxport/port.rs:1670-1697]
+[test: bfbc2-bf1943-import/tests/test_dbxport_rules.py::main] [test: bfbc2-bf1943-import/tests/test_dbxport_native.py::main]
 
 ## Open questions
 
