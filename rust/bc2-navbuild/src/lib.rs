@@ -42,6 +42,7 @@ use thiserror::Error;
 pub mod astar;
 pub mod domains;
 pub mod graph;
+#[cfg(feature = "graphedit")]
 pub mod graphedit;
 pub mod graphfile;
 pub mod hulls;
@@ -1090,9 +1091,9 @@ impl<S: std::hash::BuildHasher> CellMap for HashMap<usize, (i64, i64), S> {
 mod tests;
 
 #[cfg(test)]
-#[path = "e3c_tests.rs"]
-mod e3c_tests;
+#[path = "graph_route_tests.rs"]
+mod graph_route_tests;
 
 #[cfg(test)]
-#[path = "e3h_tests.rs"]
-mod e3h_tests;
+#[path = "sector_flood_tests.rs"]
+mod sector_flood_tests;

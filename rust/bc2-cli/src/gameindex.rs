@@ -4,18 +4,16 @@
 //! (minutes, once; it writes the cache): the command line is handed to it ([`Fail::Python`]).
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::rc::Rc;
 
 use bc2_convert::meshview::cache;
-use bc2_formats::meshindex;
+use bc2_formats::{atomic, meshindex};
 use bc2_pyrt::pickle::{self, Value};
 use bc2_pyrt::py::{abspath, dirname, isdir, join, suite_root};
 
 use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, Py, PyErr, PyResult};
-
-/// `meshview.CACHE_VERSION`
-const CACHE_VERSION: i64 = 3;
 
 /// `shaderdb.find_opfor(given)`: given, `OPFOR_ROOT`, then `project-opfor-bfbc2` beside the suite (only there); the
 /// first with a `game` folder, absolute. Err: `shaderdb.ShaderDbError`.
@@ -80,17 +78,14 @@ impl Index {
     }
 }
 
-/// The index's cache file: `<root>\work\tools_out\meshview_index.pkl`.
-fn cache_path(root: &str) -> String {
-    join(root, &["work", "tools_out", "meshview_index.pkl"])
-}
-
 /// `Index._cached(path, sig)`: the index from the cache when it is this game copy's; None when missing, old or
 /// damaged (the reference builds it then).
 fn cached(path: &str, sig: &[(String, u64, i128)]) -> Option<Index> {
     let data = std::fs::read(path).ok()?;
     let cache = pickle::loads(&data).ok()?;
-    if cache.get("version").and_then(|v| v.as_int()) != Some(CACHE_VERSION) || !same_sig(cache.get("sig"), sig) {
+    if cache.get("version").and_then(|v| v.as_int()) != Some(cache::CACHE_VERSION)
+        || !cache::same_sig(cache.get("sig"), sig)
+    {
         return None;
     }
     let table = cache.get("data").and_then(|d| d.get("where"))?;
@@ -123,11 +118,11 @@ pub fn load(py: &mut Py, root: &str) -> PyResult<Index> {
         let st = fsx::stat(b).map_err(|_| Fail::Python)?;
         sig.push((b.clone(), st.size, st.mtime_ns));
     }
-    let path = cache_path(root);
+    let path = cache::cache_path(root);
     if let Some(ix) = cached(&path, &sig) {
         return Ok(ix);
     }
-    fsx::locked(&format!("{path}.lock"), || -> PyResult<Index> {
+    atomic::locked(Path::new(&format!("{path}.lock")), || -> PyResult<Index> {
         if let Some(ix) = cached(&path, &sig) {
             return Ok(ix);
         }
@@ -136,9 +131,9 @@ pub fn load(py: &mut Py, root: &str) -> PyResult<Index> {
         if built.databases > 0 {
             crate::budget::after_bundle_read();
         }
-        let data = cache_bytes(&built, &sig).ok_or(Fail::Python)?;
+        let data = cache::cache_bytes(&built, &sig).ok_or(Fail::Python)?;
         std::fs::create_dir_all(dirname(&path)).map_err(|_| Fail::Python)?;
-        write_atomic(&path, &data).map_err(|_| Fail::Python)?;
+        atomic::write(Path::new(&path), &[&data]).map_err(|_| Fail::Python)?;
         let paths: Vec<Rc<str>> = bundles.iter().map(|b| Rc::from(b.as_str())).collect();
         let mut rows = Vec::with_capacity(built.where_.len());
         for (key, bi, name) in &built.where_ {
@@ -148,30 +143,4 @@ pub fn load(py: &mut Py, root: &str) -> PyResult<Index> {
         Ok(Index::new(rows))
     })
     .map_err(|_| Fail::Python)?
-}
-
-/// `atomicio.write_bytes(path, data)`: beside the file (`<path>.tmp-<pid>`), flushed to disk, then moved over it.
-fn write_atomic(path: &str, data: &[u8]) -> std::io::Result<()> {
-    use std::io::Write as _;
-    let tmp = format!("{path}.tmp-{}", std::process::id());
-    let r = (|| {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(data)?;
-        f.sync_all()?;
-        drop(f);
-        fsx::replace(&tmp, path)
-    })();
-    if r.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    r
-}
-
-/// `Index._write`'s pickle ([`cache::cache_bytes`]).
-fn cache_bytes(ix: &meshindex::MeshIndex, sig: &[(String, u64, i128)]) -> Option<Vec<u8>> {
-    cache::cache_bytes(ix, sig)
-}
-
-fn same_sig(v: Option<Value>, sig: &[(String, u64, i128)]) -> bool {
-    cache::same_sig(v, sig)
 }

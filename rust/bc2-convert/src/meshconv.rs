@@ -416,6 +416,10 @@ pub fn console_layouts(db: &[u8]) -> Vec<(Vec<u8>, Vec<u8>)> {
     }
     let mut found: std::collections::HashMap<&[u8], &[u8]> = std::collections::HashMap::new();
     let mut searched: std::collections::HashSet<&[u8]> = std::collections::HashSet::new();
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "collected into a map keyed by GUID; the output follows `order`"
+    )]
     for g in guid.values() {
         if !searched.insert(g) {
             continue;

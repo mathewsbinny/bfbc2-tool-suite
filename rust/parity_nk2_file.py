@@ -43,6 +43,11 @@ class _Counters(ctypes.Structure):
                 ('PagefileUsage', ctypes.c_size_t), ('PeakPagefileUsage', ctypes.c_size_t)]
 
 
+def _dumps(obj):
+    """A result line as JSON with its keys in a fixed order (the suite's determinism rule)."""
+    return json.dumps(obj, sort_keys=True)
+
+
 def memory():
     """(working set, peak working set) of this process, MB."""
     c = _Counters()
@@ -202,7 +207,7 @@ def level_child(old, new, opfor, lv, scratch):
     for p in (out, out + '.old'):
         if os.path.isfile(p):
             os.remove(p)
-    print(json.dumps(res), flush=True)
+    print(_dumps(res), flush=True)
 
 
 def run_child(kind, suite, stage_in):
@@ -233,7 +238,7 @@ def run_child(kind, suite, stage_in):
     _ws1, peak1 = memory()
     data = open(out, 'rb').read()
     os.remove(out)
-    print(json.dumps({'s': took, 'loaded_mb': ws0, 'peak_mb': peak1, 'peak_before_mb': peak0,
+    print(_dumps({'s': took, 'loaded_mb': ws0, 'peak_mb': peak1, 'peak_before_mb': peak0,
                       'sha1': hashlib.sha1(data).hexdigest()}), flush=True)
 
 
@@ -266,7 +271,7 @@ def build_child(suite, opfor, lv, scratch):
     _ws, peak = memory()
     data = open(out, 'rb').read()
     os.remove(out)
-    print(json.dumps({'build_s': took, 'links_s': spent[0], 'peak_mb': peak, 'sha1': hashlib.sha1(data).hexdigest()}),
+    print(_dumps({'build_s': took, 'links_s': spent[0], 'peak_mb': peak, 'sha1': hashlib.sha1(data).hexdigest()}),
           flush=True)
 
 
@@ -306,9 +311,9 @@ def main():
             r[f'build_{kind}'] = child_json([sys.executable, me, '--build', suite, opfor, lv, scratch])
         r['builds_same'] = r['build_old'].get('sha1') is not None and r['build_old'].get('sha1') == r['build_new'].get('sha1') == r.get('sha1')
         results.append(r)
-        print(json.dumps({k: v for k, v in r.items() if k != 'logs'}), flush=True)
+        print(_dumps({k: v for k, v in r.items() if k != 'logs'}), flush=True)
         with open(out_json, 'w', encoding='utf-8', newline='\n') as f:
-            json.dump(results, f, indent=1)
+            json.dump(results, f, indent=1, sort_keys=True)
     os.rmdir(scratch)
     bad = [r['level'] for r in results if not (r.get('file_same') and r.get('log_same') and not r.get('links_differ')
                                                and r.get('order_removed_same') and r.get('island_stats_same')

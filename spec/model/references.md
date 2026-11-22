@@ -45,7 +45,7 @@ Every comparison of GUIDs ignores case: instance GUIDs are stored upper case and
 (REF-FORM-2), so a case-sensitive comparison finds nothing.
 
 [code: rust/bc2-formats/src/dbx/model.rs:185-190] [code: rust/bc2-formats/src/dbxedit/editor.rs:51-53]
-[code: rust/bc2-levelwrite/src/export.rs:1372-1377] [test: rust/bc2-formats/src/dbx/model.rs::lookups]
+[code: rust/bc2-levelwrite/src/export.rs:1403-1408] [test: rust/bc2-formats/src/dbx/model.rs::lookups]
 
 ### INST-GUID-5: New GUIDs the suite makes
 
@@ -97,7 +97,7 @@ Status: **implemented**
 A reference is an element (a `field` or an `item`) with a `ref` attribute. The element is text with empty text;
 the attribute's value is the target. Tools find references by the attribute name `ref`, wherever it is.
 
-[code: rust/bc2-levelwrite/src/export.rs:1358-1370] [code: rust/bc2-formats/src/dbxedit/check.rs:310-316]
+[code: rust/bc2-levelwrite/src/export.rs:1389-1401] [code: rust/bc2-formats/src/dbxedit/check.rs:310-316]
 [data: level corpus: 5,907,174 field and 2,015,781 item elements with ref, all kind 2 with empty text]
 
 ### REF-FORM-2: Three forms
@@ -125,7 +125,7 @@ character. The partition path is everything before the **last** `/`, the GUID ev
 slashes of their own: `objects/vehicles/m1a2/m1a2/<guid>`).
 
 [code: rust/bc2-formats/src/dbxedit/check.rs:315] [code: rust/bc2-formats/src/dbxedit/check.rs:345-347]
-[code: rust/bc2-levelwrite/src/export.rs:1560-1572] [test: core/tests/test_dbxedit.py::cases]
+[code: rust/bc2-levelwrite/src/export.rs:1591-1603] [test: core/tests/test_dbxedit.py::cases]
 
 ### REF-FORM-4: The partition path is the entry name
 
@@ -135,7 +135,7 @@ An external reference's partition path is the bundle entry name of the target pa
 without case: `levels/mp_005/foo/<guid>` names the entry `Levels/MP_005/Foo.dbx`. There is no other partition
 name; a partition does not name itself (TYPE-ATTR-1).
 
-[code: rust/bc2-levelwrite/src/export.rs:1579-1584] [code: rust/bc2-scene/src/scene.rs:674-710]
+[code: rust/bc2-levelwrite/src/export.rs:1610-1615] [code: rust/bc2-scene/src/scene.rs:674-710]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 
 ## 4. Resolution
@@ -158,7 +158,7 @@ the referring level loads, in their precedence order (PREC-ORD): the first bundl
 decides, and a `*deleted*` marker first hides the name. The suite's export check proves this for every reference of
 a new level (8,578 references into 777 partitions on SP_01).
 
-[code: rust/bc2-levelwrite/src/export.rs:1541-1600] [code: rust/bc2-levelwrite/src/export.rs:254-273]
+[code: rust/bc2-levelwrite/src/export.rs:1572-1631] [code: rust/bc2-levelwrite/src/export.rs:254-273]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:892-896]
 
@@ -171,7 +171,7 @@ DICE's own partitions contain external references to partitions that no bundle o
 the stock source partition has the same reference.
 
 [data: level corpus: 89,974 external references name a partition path outside the 41 level bundles (they may resolve in ingame, loader, startup or async bundles, or nowhere); SP_01 export: 2 partitions no bundle of the game copy has, both named by DICE's own source]
-[code: rust/bc2-levelwrite/src/export.rs:1600-1640] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:894-896]
+[code: rust/bc2-levelwrite/src/export.rs:1631-1671] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:894-896]
 
 ### REF-RES-4: Two-step blueprint references
 
@@ -207,7 +207,7 @@ instance with GUID G is removed; an `item` whose `ref` is G or ends in `/G` (any
 any other element with such a `ref` gets `null` in every `ref` attribute it has. Before that, the level writer
 removes every event connection whose `Source` or `Target` names G (LEVEL-EVT-3).
 
-[code: rust/bc2-formats/src/dbxedit/editor.rs:51-86] [code: rust/bc2-levelwrite/src/write.rs:219-238]
+[code: rust/bc2-formats/src/dbxedit/editor.rs:51-86] [code: rust/bc2-levelwrite/src/write.rs:225-244]
 [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set] [test: core/tests/test_dbxedit.py::cases]
 [doc: bfbc2-dbx-tools/FORMAT.md:95-98]
 

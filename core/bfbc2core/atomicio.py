@@ -1,6 +1,7 @@
 """Whole-file writes that never leave a half-written target: the data goes to a temporary file in the target's own
 folder (the same volume, so the rename is atomic), is flushed to disk, and replaces the target with os.replace.
-An interrupted write (a crash, a full disk, a kill) leaves the old file as it was and at most a stray *.tmp-<pid>.
+An interrupted write (a crash, a full disk, a kill) leaves the old file as it was and at most a stray *.tmp-<pid>-<n>.
+The Python twin of bc2-formats' atomic module (the Rust tools' one writer).
 
 Used for every write into the game copy and for the caches and settings the tools read back (suite deep scan
 2026-11-15: C1, C2, C3, C6).
@@ -8,12 +9,13 @@ Used for every write into the game copy and for the caches and settings the tool
 from __future__ import annotations
 
 import contextlib
+import itertools
 import json
 import os
 import shutil
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 
@@ -51,8 +53,45 @@ def locked(path: str, poll: float = 0.2) -> Iterator[None]:
         os.close(fd)
 
 
+_WRITES = itertools.count()
+
+
 def _tmp(path: str) -> str:
-    return f'{path}.tmp-{os.getpid()}'
+    """<path>.tmp-<pid>-<n>: per process and per write, so two threads writing one path never share a temporary file
+    (round PR1a; bc2-formats' atomic::temp_name names them the same way)."""
+    return f'{path}.tmp-{os.getpid()}-{next(_WRITES)}'
+
+
+def temp_writer(target_name: str, name: str) -> int | None:
+    """The writing process of a temporary file named for target_name (<name>.tmp-<pid>-<n>, or the older
+    <name>.tmp-<pid>); None for any other name. As atomic::temp_writer."""
+    if not name.startswith(target_name + '.tmp-'):
+        return None
+    pid, dash, n = name[len(target_name) + len('.tmp-'):].partition('-')
+
+    def digits(s: str) -> bool:
+        return s.isascii() and s.isdigit()
+    if not digits(pid) or (dash and not digits(n)):
+        return None
+    return int(pid)
+
+
+def remove_dead_temps(target: str, alive: Callable[[int], bool]) -> int:
+    """Removes the temporary files beside target whose writing process alive() says has ended (names matched without
+    case); returns how many. As atomic::remove_dead_temps."""
+    d, name = os.path.split(target)
+    try:
+        names = os.listdir(d or '.')
+    except OSError:
+        return 0
+    n = 0
+    for f in names:
+        pid = temp_writer(name.lower(), f.lower())
+        if pid is not None and not alive(pid):
+            with contextlib.suppress(OSError):
+                os.remove(os.path.join(d, f))
+                n += 1
+    return n
 
 
 TRIES = 11      # replace's tries; the waits between them grow by 50 ms (about 2.75 s in all)
@@ -108,6 +147,12 @@ def write_text(path: str, text: str, encoding: str = 'utf-8', newline: str | Non
     elif newline:
         text = text.replace('\n', newline)
     write_bytes(path, text.encode(encoding))
+
+
+def dumps_stable(obj: Any, **kw: Any) -> str:
+    """json.dumps(obj, sort_keys=True, ...): the suite's JSON text with its keys in a fixed order (round PR1a: new
+    JSON writes sort their keys; tests\\test_repo.py's JSON_ORDER_KEPT lists the older ones kept in insertion order)."""
+    return json.dumps(obj, sort_keys=True, **kw)
 
 
 def write_json(path: str, obj: Any, **kw: Any) -> None:

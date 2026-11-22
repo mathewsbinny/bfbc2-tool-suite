@@ -211,7 +211,7 @@ def main(argv):
             if r[k] is not None:
                 r[k] = [None if abs(x) == INF else x for x in r[k]]
     with open(os.path.join(os.path.dirname(dst), 'l1_rules.json'), 'w', encoding='utf-8') as fh:
-        json.dump(js, fh, indent=1)
+        json.dump(js, fh, indent=1, sort_keys=True)
     print('wrote', dst)
 
 

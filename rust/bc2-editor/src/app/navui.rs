@@ -485,6 +485,10 @@ impl ViewState {
                     }
                 }
             }
+            #[allow(
+                clippy::iter_over_hash_type,
+                reason = "reference layers drawn as points of distinct colours (no output is written)"
+            )]
             for (layer, pts) in &filled {
                 let (size, colour) = match *layer {
                     l if l.contains("AI spawners") => (1.4, palette.view_ref_ai),
@@ -1390,6 +1394,7 @@ impl Tabs<'_> {
     }
 
     fn fly_to(&mut self, at: V3, distance: f64) {
+        #[allow(clippy::iter_over_hash_type, reason = "every viewport is focused alike")]
         for vp in self.view.viewports.values_mut() {
             vp.camera.focus(at, Some(distance));
             vp.dirty = true;

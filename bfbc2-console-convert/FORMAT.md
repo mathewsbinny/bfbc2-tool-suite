@@ -17,7 +17,7 @@ Console values are big-endian, PC values little-endian; "bytes" are copied as th
 |---|---|
 | part count *n* | u32 |
 | part count again | u32 |
-| part hashes | *n* × u32 |
+| part words (blueprints: the part names' hashes; model groups: each part's owning instance's leaf, spec HAVOK-RUN-3) | *n* × u32 |
 | vector count *a* | u16 |
 | vectors | *a* × 3 floats |
 | box count *c* | u16 |

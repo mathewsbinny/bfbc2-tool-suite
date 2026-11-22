@@ -1,5 +1,5 @@
 //! The DBX inspector against DbxEditGUI, before it was retired (round GR4): DbxEditGUI's own answers on real files of
-//! the game copy (`tests/data/dbxeditgui_gr4.json.gz`, recorded by the round's recorder driving the window - its
+//! the game copy (`tests/data/dbxeditgui_answers.json.gz`, recorded by the round's recorder driving the window - its
 //! `MainWindow` through reflection, its prompts answered - and kept as digests and messages, no game data), replayed
 //! step by step on [`DbxDoc`]: the tree (every element's label, heading, attributes and value), each Apply (the
 //! file's bytes after it, the edit script's line, the output's lines, the message of a value refused), Undo, Save
@@ -37,7 +37,7 @@ fn recorded() -> Value {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("data")
-        .join("dbxeditgui_gr4.json.gz");
+        .join("dbxeditgui_answers.json.gz");
     let mut s = String::new();
     flate2::read::GzDecoder::new(std::fs::File::open(&path).unwrap())
         .read_to_string(&mut s)

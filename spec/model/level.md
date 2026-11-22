@@ -66,7 +66,7 @@ Status: **implemented**
 `LevelData.Name` is `Levels/<LV>`; a level under a new name sets it, the primary instance's `id` and the
 description's `LevelName` to the new name.
 
-[code: rust/bc2-levelwrite/src/mpconvert.rs:1062-1075] [code: rust/bc2-levelwrite/src/export.rs:880-881]
+[code: rust/bc2-levelwrite/src/mpconvert.rs:1062-1075] [code: rust/bc2-levelwrite/src/export.rs:885-886]
 [test: rust/bc2-levelwrite/src/mpconvert.rs::names_follow_the_level_and_case]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:839-840]
 
@@ -145,7 +145,7 @@ Status: **verified**
 A copy of a listed instance is listed too: the level writer adds an `Objects` item for each duplicated or placed
 instance whose original has one, and removes the item of a deleted instance (REF-DEL-1).
 
-[code: rust/bc2-levelwrite/src/write.rs:346-410] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
+[code: rust/bc2-levelwrite/src/write.rs:352-416] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 [test: rust/bc2-levelwrite/src/write.rs::deep_duplicate_and_place]
 
 ## 4. Event connections
@@ -160,7 +160,7 @@ and `Target` (references), `SourceEvent` and `TargetEvent` (complexes, each a `N
 number): "when Source fires SourceEvent, send TargetEvent to Target".
 
 [data: 28 level partitions: EventConnections only on LevelData (28), 26,892 connections, every one with the members Source, Target, SourceEvent, TargetEvent; all 53,784 event complexes are Name (text), Id (numbers)]
-[code: rust/bc2-levelwrite/src/write.rs:194-212]
+[code: rust/bc2-levelwrite/src/write.rs:200-218]
 
 ### LEVEL-EVT-2: Connection ends
 
@@ -179,7 +179,7 @@ Removing an instance removes every connection whose `Source` or `Target` names i
 would otherwise leave the connection with a `null` end); copying an instance copies its connections with the ends
 re-pointed.
 
-[code: rust/bc2-levelwrite/src/write.rs:219-238] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
+[code: rust/bc2-levelwrite/src/write.rs:225-244] [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set]
 
 ## 5. Placed objects and cull slots
 
@@ -295,7 +295,7 @@ A group's member types (`MemberDatas`, in order) lay out its group file: the `As
 and `Enums` items run member type by member type, `InstanceCount` items each, so the file has exactly the members
 the types count. Each type has at least one instance and one `SpawnDatas` record per instance, in the file's order.
 
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules]
 [data: 131 of 131 groups of 31 levels (BFBC2 Dist and Package, Vietnam, BFBC1, the four WW2 levels; 107,103 members): Assets = the types' InstanceCount sum, Transforms 16 per item, one SpawnDatas record per instance, InstanceCount > 0]
 
 ### LEVEL-MG-6: Physics parts and network ids are cumulative; the count fields are ends
@@ -307,7 +307,7 @@ is the **end** of its own (`FirstPhysicsPart + PhysicsPartCountPerInstance x Ins
 groups number network ids the same way (`FirstNetworkId`, `NetworkIdCount` the end, `NetworkIdCountPerInstance`).
 Deleting or adding an instance therefore renumbers every later type of its group.
 
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules]
 [data: 131 of 131 groups cumulative from 0, 47 of 47 static groups' network ids]
 
 ### LEVEL-MG-7: A member's leaf is its Enums item and its SpawnDatas Enumeration
@@ -318,7 +318,7 @@ The group file's `Enums` holds each member's leaf of the client cull tree, the s
 records' `Enumeration` in order; over a level's groups the leaves are 1 .. L, each once, where L is the client
 tree's leaf count (CULL-SLOT-1).
 
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules]
 [data: 16 levels: 60,723 members, leaves 1 - L each once, L the client tree's leaf count in 16 of 16]
 
 ### LEVEL-MG-8: A group's collision is per member type, placed at each instance

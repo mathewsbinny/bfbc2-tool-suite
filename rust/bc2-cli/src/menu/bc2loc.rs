@@ -12,8 +12,8 @@ use std::fmt::Write as _;
 use bc2_formats::loc;
 
 use super::common::{
-    self as mc, MOVIE_SETS, OMap, PeImage, basename, bundle_layers, bundle_movies, entries, find_exe, find_opfor,
-    isfile, join, menu_err, movie_from_members, out_dir, parse_bigf, read_entries, resolve, write_text,
+    self as mc, MOVIE_SETS, OMap, basename, bundle_layers, bundle_movies, entries, find_exe, find_opfor, isfile, join,
+    menu_err, movie_from_members, out_dir, parse_bigf, read_entries, resolve, write_text,
 };
 use crate::pyfmt::{docstring, str_repr};
 use crate::pyproc::{self, Fail, Py, PyErr, PyResult};
@@ -292,7 +292,7 @@ fn movie_constants_all(root: Option<&str>) -> PyResult<BTreeSet<String>> {
 /// `key_names(loc, root)`: {hash: key name}.
 fn key_names(loc: &LocFile, root: Option<&str>) -> PyResult<HashMap<u32, String>> {
     let mut cands: BTreeSet<String> = BTreeSet::new();
-    match find_exe(root, None).and_then(|p| PeImage::open(&p)) {
+    match find_exe(root, None).and_then(|p| super::open_exe(&p)) {
         Ok(img) => cands.extend(
             img.strings(2)
                 .into_iter()

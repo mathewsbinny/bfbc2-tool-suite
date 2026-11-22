@@ -1,6 +1,6 @@
 [package]
 name = "bc2-editor"
-description = "The BFBC2 Tool Suite's map editor application: the window, the map view (round G1), editing a map (round E2)"
+description = "The BFBC2 Tool Suite's map editor application: the window, the map view, editing a map"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -24,10 +24,10 @@ bc2-navbuild.workspace = true
 sha1_smol.workspace = true
 # the game-accurate view (round R5)
 bc2-render.workspace = true
-# the PC texture decoder (the start screen's pictures read from the game copy: catalog.rs)
-bc2-convert.workspace = true
-# the asset preview's mesh index cache (the mesh viewer's pickle, read and written; round GR3)
-bc2-pyrt.workspace = true
+# the PC texture decoder (the start screen's pictures read from the game copy: catalog.rs); the asset preview's mesh
+# index cache (the mesh viewer's pickle, read and written; round GR3) is its pickle-cache feature. Round PR1a: the
+# editor itself no longer depends on bc2-pyrt (audit AU5 ARC-1)
+bc2-convert = { workspace = true, features = ["pickle-cache"] }
 eframe.workspace = true
 egui_dock.workspace = true
 serde.workspace = true

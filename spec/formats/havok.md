@@ -54,7 +54,7 @@ PC little-endian, Xbox 360 big-endian:
 |---|---|
 | part count n | u32 |
 | part count again | u32 (equal to n) |
-| part hashes | n x u32 |
+| part words | n x u32 (what they hold depends on the resource: below) |
 | vector count a | u16 |
 | vectors | a x 3 x f32 |
 | box count c | u16 |
@@ -68,7 +68,11 @@ PC little-endian, Xbox 360 big-endian:
 The part run's length is not stored: it ends where "1, k, k hashes" ends exactly at the packfile. Readers search
 for that position; it is unique in every file seen.
 
-[code: rust/bc2-convert/src/havokport.rs:933-962]
+The n part words are not always hashes. In a blueprint's physics resource they are the part names' hashes (`h = h *
+33 ^ byte` from 5381 over the lower-case name: `bc2_formats::havok::part_hash`, read as `havok::Parts.hashes`); in a
+model group's `_HavokAsset.res` they are each physics part's owning instance's leaf (HAVOK-RUN-3), not hashes.
+
+[code: rust/bc2-convert/src/havokport.rs:934-963]
 [code: rust/bc2-convert/src/havok.rs:745-794]
 [test: tests/test_converter_units.py::part_materials]
 [test: bfbc2-console-convert/tests/test_havok.py::main]
@@ -96,8 +100,8 @@ materials the parts use), `u8 t` (the highest index), then, when d is not 1, one
 the material list (HAVOK-MAT-1). With d = 1 every part uses index t and the run is 4 bytes; otherwise 4 + n bytes.
 The indices used must be exactly d distinct values, the highest t, and t must be below k.
 
-[code: rust/bc2-convert/src/havokport.rs:975-1011]
-[code: rust/bc2-convert/src/havokport.rs:1014-1033]
+[code: rust/bc2-convert/src/havokport.rs:976-1012]
+[code: rust/bc2-convert/src/havokport.rs:1015-1034]
 [test: tests/test_converter_units.py::part_materials]
 [test: bfbc2-bf1943-import/tests/test_havokport.py::material_slots]
 [data: game copy: 3,599 runs in this form (every `_Havok.res`), 2,652 with d = 1, 947 one byte per part, every one of the stated length]
@@ -111,8 +115,8 @@ ascending end positions whose last equals k2 (all little-endian on the PC; BF194
 swapped by the port). Bytes the suite does not decode follow up to the material tail. The suite reads the table's
 shape only; it refuses to read or write part indices in this form.
 
-[code: rust/bc2-convert/src/havokport.rs:560-600]
-[code: rust/bc2-convert/src/havokport.rs:604-631]
+[code: rust/bc2-convert/src/havokport.rs:561-601]
+[code: rust/bc2-convert/src/havokport.rs:605-632]
 [data: game copy: 529 runs whose first u16 is not 0; all 529 are `_HavokAsset.res` files and all 529 have a valid little-endian table (m not equal to n); the undecoded bytes after the table are 8 - 8,506 bytes]
 
 ### HAVOK-RUN-3: The model groups' wrapper decoded
@@ -130,7 +134,7 @@ the boxes, the table, the material list and the packfile stay.
 
 [code: rust/bc2-levelwrite/src/members.rs:575-790]
 [test: rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays]
-[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[test: rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules]
 [data: 131 of 131 groups of 31 levels: part words = the owners' leaves per part, m = the member types, ends = the cumulative per-instance parts, c = k2 = the last end, run d / t then n bytes or none; 78 of 78 long runs the same bytes per instance of a type]
 
 ### HAVOK-MAT-1: The material list
@@ -141,7 +145,7 @@ The wrapper's tail hashes are the resource's physics material list, one u32 hash
 in step with two other lists: the HavokAsset partition's `MaterialMappings` and the packfile's `HavokMaterials`
 object. The part run indexes this list; a list may only grow at its end (existing indices keep their material).
 
-[code: rust/bc2-convert/src/havokport.rs:1036-1059]
+[code: rust/bc2-convert/src/havokport.rs:1037-1060]
 [test: tests/test_converter_units.py::part_materials]
 [test: bfbc2-bf1943-import/tests/test_havokport.py::material_slots]
 [data: on every object HavokAsset BFBC2 ships, HavokMaterials equals MaterialMappings and the part run names PartInfoDatas' materials]
@@ -186,7 +190,7 @@ Status: **verified** · Variants: PC, Xbox 360
 | 56 | 8 | flags, padding | |
 
 [code: rust/bc2-formats/src/havok.rs:218-230]
-[code: rust/bc2-convert/src/havokport.rs:512-521]
+[code: rust/bc2-convert/src/havokport.rs:513-522]
 [test: rust/bc2-formats/src/havok.rs::classes_are_read]
 [data: game copy: 4,128 of 4,128 PC packfiles: user tag 0, version 5, layout `04 01 00 01`, 3 sections, `Havok-5.5.0-r1`]
 
@@ -355,7 +359,7 @@ convex vertices), centre.w = 1 + lanes . child centre, half.w = |lanes| . child 
 subpart's lo / hi over its children, widened by the box stored so far; centre = (hi + lo) / 2, half = (hi - lo) / 2,
 subpart by subpart in file order. A shape with triangle subparts gets no w from this rule.
 
-[code: rust/bc2-convert/src/havokport.rs:662-718]
+[code: rust/bc2-convert/src/havokport.rs:663-719]
 [test: tests/test_converter_units.py::havok_model_group]
 [test: bfbc2-bf1943-import/tests/test_havokport.py::model_group_w]
 [data: bit-identical to DICE's on all 299 model-group shapes of BFBC2's levels; translation.w 1.0 on all 277,950 subparts with children]
@@ -384,7 +388,7 @@ version 5.
 [code: rust/bc2-convert/src/havokport.rs:174-190]
 [code: rust/bc2-convert/src/havokport.rs:250-261]
 [code: rust/bc2-convert/src/havokport.rs:394-395]
-[code: rust/bc2-convert/src/havokport.rs:512-535]
+[code: rust/bc2-convert/src/havokport.rs:513-536]
 [test: bfbc2-bf1943-import/tests/test_havokport.py::compare]
 [data: BF1943's Kurogane converted pairs BFBC2's own Kurogane object for object (62 objects) and field for field (floats within 0.1 %) but for values rebuilt at load and MOPP lengths DICE rebuilt]
 
@@ -453,11 +457,10 @@ hits, and the trees are as tight as DICE's.
 
 ## Open questions
 
-- The hash function of the wrapper's part hashes and material hashes (the suite copies and compares them, never
-  computes one): needed to add a material or a part that has no hash yet.
+- The hash function of the wrapper's material hashes (the suite copies and compares them, never computes one):
+  needed to add a material that has no hash yet. (Closed for the part words: blueprints hash the part names with
+  `bc2_formats::havok::part_hash`, model groups hold the owners' leaves: HAVOK-WRAP-1, HAVOK-RUN-3.)
 - The wrapper's vectors (a x 3 f32) and boxes (c x 6 f32): presumably per-part pivots and bounds; not decoded.
-- The material-table form of the part run (model groups): what the m u16 end positions and the bytes after the table
-  mean (per-instance, per-part materials?); the suite cannot edit model-group part materials until it is decoded.
 - MATERIAL_SLOTS_RE's one LIKELY row: the hit material on plain placed objects (part or face), to be settled by the
   playtest probe.
 - The header's flags word at 56 and the exports / imports tables (empty in every file the suite has walked).

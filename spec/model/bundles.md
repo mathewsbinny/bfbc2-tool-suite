@@ -15,7 +15,7 @@ Each `.dbx` entry of a bundle is one partition (its entry type `<non-resource>`)
 `.dbx`, with `/` separators (`Levels/MP_005`, `Objects/Vehicles/M1A2/M1A2`), compared without case: entry names mix
 case, references use lower case (REF-FORM-2).
 
-[code: rust/bc2-levelwrite/src/export.rs:1579-1584] [code: rust/bc2-levelwrite/src/export.rs:48]
+[code: rust/bc2-levelwrite/src/export.rs:1610-1615] [code: rust/bc2-levelwrite/src/export.rs:48]
 [data: the game copy's 1,086 bundles: 156,533 .dbx entries, all of type non-resource; entry names in the mp_0* level bundles 22,541 lower case, 3,024 mixed]
 
 ### PART-NAME-2: Resources belong to partitions by name
@@ -148,7 +148,7 @@ When a new level loads a base level's bundle, it inherits that bundle's markers.
 the base hid (SP_01's level bundle hides `mp_common`'s neutral flag and spawn camera) must be copied into the new
 level's own bundle, which comes before the base's in the stack.
 
-[code: rust/bc2-levelwrite/src/export.rs:1062-1075] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:846-847]
+[code: rust/bc2-levelwrite/src/export.rs:1085-1101] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:846-847]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 
 ## 4. Precedence

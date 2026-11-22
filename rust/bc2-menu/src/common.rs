@@ -687,28 +687,17 @@ pub struct PeImage {
     pub h: pe::raw::Header,
 }
 
-/// The variable that lets [`PeImage::open`] read a test's exe stand-in kept on disk without its signatures (round AV1).
-pub const STAND_IN_VAR: &str = "BFBC2_TEST_STAND_IN_EXE";
-
-/// What a stand-in has in place of `MZ` and of `PE\0\0` (round AV1).
+/// What a test's exe stand-in has in place of `MZ` and of `PE\0\0` (round AV1).
 const STAND_IN_MZ: &[u8; 2] = b"SI";
 const STAND_IN_PE: &[u8; 4] = b"SI\0\0";
 
-/// Round AV1: a test's exe stand-in made into the program it stands for, else the bytes as read. O2's build-795745
-/// stand-in is a synthetic 32-bit PE, and Microsoft Defender's machine-learning scan blocked every read of each layout
-/// tried (Trojan:Win32/Bearfoos.A!ml; round QW2's passed for hours, then was flagged too). The test keeps it on disk
-/// with `SI` for `MZ` and `SI\0\0` for `PE\0\0`, which no scanner takes for a program, and sets
-/// `BFBC2_TEST_STAND_IN_EXE=1`; only then, and only for a file with both marks, are the signatures put back here.
-fn stand_in(b: Vec<u8>) -> Vec<u8> {
-    if std::env::var_os(STAND_IN_VAR).is_some_and(|v| v == "1") {
-        restore_stand_in(b)
-    } else {
-        b
-    }
-}
-
-/// A stand-in's signatures put back; any other bytes as they are.
-fn restore_stand_in(mut b: Vec<u8>) -> Vec<u8> {
+/// Round AV1: a test's exe stand-in made into the program it stands for; any other bytes as they are. O2's
+/// build-795745 stand-in is a synthetic 32-bit PE, and Microsoft Defender's machine-learning scan blocked every read
+/// of each layout tried (Trojan:Win32/Bearfoos.A!ml); the test keeps it on disk with `SI` for `MZ` and `SI\0\0` for
+/// `PE\0\0`, which no scanner takes for a program. Only a file with both marks is changed. [`PeImage::open`] never
+/// calls this (audit AU5 ARC-10): `bfbc2.exe`'s test switch does, before [`PeImage::from_bytes`].
+#[must_use]
+pub fn restore_stand_in(mut b: Vec<u8>) -> Vec<u8> {
     if b.get(..2) != Some(&STAND_IN_MZ[..]) {
         return b;
     }
@@ -732,8 +721,13 @@ fn restore_stand_in(mut b: Vec<u8>) -> Vec<u8> {
 }
 
 impl PeImage {
+    /// `PEImage(path)`: the file read and parsed.
     pub fn open(path: &str) -> PyResult<Self> {
-        let b = stand_in(pyproc::read_file(path)?);
+        Self::from_bytes(path, pyproc::read_file(path)?)
+    }
+
+    /// `PEImage(path)` of bytes already read (`path` names them in messages).
+    pub fn from_bytes(path: &str, b: Vec<u8>) -> PyResult<Self> {
         let h = match pe::raw::parse(&b) {
             Ok(h) => h,
             Err(pe::raw::RawError::NotExe) => {

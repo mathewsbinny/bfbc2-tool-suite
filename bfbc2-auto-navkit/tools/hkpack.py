@@ -28,40 +28,32 @@ VEC = {T_VECTOR4: 4, T_QUATERNION: 4, T_MATRIX3: 12, T_ROTATION: 12, T_QSTRANSFO
        T_TRANSFORM: 16}
 
 
-_NATIVE: list = []
+def _registry():
+    """bfbc2core.native with this module's piece registered (the suite's one native-backend switch), or None when
+    the suite's core folder cannot be imported."""
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import native
+    except ImportError:
+        return None
+    native.register_backend('hkpack', 'hkpack_parse')
+    return native
 
 
 def _native():
-    """The Rust core with hkpack_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
-    if not _NATIVE:
-        m = None
-        try:
-            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            import suite_paths
-            suite_paths.use('core')
-            from bfbc2core import dbx as _dbx
-            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
-                m = _dbx._import_native()
-        except ImportError:
-            m = None
-        _NATIVE.append(m if m is not None and hasattr(m, 'hkpack_parse') else None)
-    return _NATIVE[0]
+    """The Rust core with hkpack_parse, or None: not built, or BFBC2_PURE_PYTHON set (bfbc2core.native.backend)."""
+    reg = _registry()
+    return None if reg is None else reg.backend('hkpack')
 
 
 def use_native(on):
     """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
-    _NATIVE.clear()
-    if not on:
-        _NATIVE.append(None)
-        return False
-    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-    try:
-        return _native() is not None
-    finally:
-        if saved is not None:
-            os.environ['BFBC2_PURE_PYTHON'] = saved
+    reg = _registry()
+    return False if reg is None else reg.use_backend('hkpack', on)
 
 
 # Round F4: the packfile behind a handle (bc2_native.HkPackfile): its dicts (sections, ptr, objects, by_offset,

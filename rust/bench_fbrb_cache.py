@@ -81,7 +81,7 @@ def worker(game: str, mode: str, first: int, last: int) -> None:
         sums.append(h.hexdigest())
     s = time.perf_counter() - t
     print(json.dumps({'s': s, 'read_s': reading, 'sums': sums, 'stats': fbrb.cache_stats(),
-                      'peak_mb': round(peak_mb())}))
+                      'peak_mb': round(peak_mb())}, sort_keys=True))
 
 
 def child(game: str, mode: str, first: int, last: int, cache: str) -> dict:
@@ -132,7 +132,7 @@ def make(game: str, captured: list[str]) -> None:
     rng.shuffle(build)
     out = [('level_build', b, n) for _, b, n in build]
     out += [('wake_translate', b, [n]) for b, n in rng.sample(tex, 30)]
-    lines = ',\n'.join(json.dumps(r) for r in out)
+    lines = ',\n'.join(json.dumps(r, sort_keys=True) for r in out)
     open(REPLAY, 'w', encoding='utf-8', newline='\n').write(f'[\n{lines}\n]\n')
     print(f'{len(out)} reads of {len({b for _, b, _ in out})} bundles -> {REPLAY}')
 

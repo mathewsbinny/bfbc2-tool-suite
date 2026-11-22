@@ -98,8 +98,10 @@ pub fn index(opfor: &Path) -> Result<Arc<Index>, String> {
     if let Some(ix) = slot.as_ref() {
         return Ok(Arc::clone(ix));
     }
-    let root = bc2_pyrt::py::abspath(&opfor.to_string_lossy());
-    let ix = Arc::new(Index::load(&root, &mut |_| {})?);
+    // os.path.abspath as the Python mesh viewer takes it (Windows' GetFullPathNameW, which std::path::absolute calls):
+    // the cache's signature holds the bundle paths made from this root
+    let root = std::path::absolute(opfor).map_err(|e| format!("{}: {e}", opfor.display()))?;
+    let ix = Arc::new(Index::load(&root.to_string_lossy(), &mut |_| {})?);
     *slot = Some(Arc::clone(&ix));
     Ok(ix)
 }

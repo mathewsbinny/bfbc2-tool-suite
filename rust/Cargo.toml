@@ -108,6 +108,10 @@ panic = "warn"
 indexing_slicing = "warn"
 dbg_macro = "warn"
 print_stdout = "warn"
+# Determinism (round PR1a, PR0 item 2): a loop over a HashMap / HashSet runs in the per-process random hash order;
+# where that order can reach an output (a file, a report, a list shown) iterate a sorted view instead, and say at
+# each remaining loop why its order cannot matter (#[allow(clippy::iter_over_hash_type, reason = "...")]).
+iter_over_hash_type = "warn"
 
 [profile.release]
 lto = "thin"

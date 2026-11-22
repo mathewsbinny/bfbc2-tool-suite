@@ -99,7 +99,7 @@ def run_import(src, out, times):
         b, rec = don.convert(k)
         out[f'import-thumbs:{k}'] = sha(b or b'') + ' ' + json.dumps(rec, sort_keys=True)
     t = time.perf_counter()
-    out['import:check'] = json.dumps(bi.check(src, log=lambda s: None))
+    out['import:check'] = json.dumps(bi.check(src, log=lambda s: None), sort_keys=True)
     times['import: check'] = time.perf_counter() - t
 
 
