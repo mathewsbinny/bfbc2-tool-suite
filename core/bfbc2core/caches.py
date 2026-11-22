@@ -12,7 +12,7 @@ least recently used files deleted first, and a command to see and clear them (ro
 
 (from the suite's core\ folder; or python core\bfbc2core\caches.py ...). Names: hlsl, fbrb, collision, effectport,
 culltree, bf1943source (round E3r), shadercover (round S1); the project caches navstudio, harness, navwater, editor
-(round G3); logs. Every cache is only a cache: a deleted file is read
+(round G3), meshview (round PR1b-1: work\tools_out\meshview_index.pkl); logs. Every cache is only a cache: a deleted file is read
 or computed again on its next use, never an error, so clearing or pruning is safe while tools run.
 
 The overall budget (round D1, 2026-11-19): besides each cache's own cap, all the caches together - the suite's
@@ -145,6 +145,10 @@ PROJECT_CACHES: dict[str, Spec] = {s.name: s for s in (
     Spec('editor', '', EDITOR, 'BFBC2_EDITOR_CACHE_MB', MB, 2048,
          "the map editor's copies of game\\Package levels (Vietnam, Pacific War ...)",
          project=('work', 'editor', 'levels')),
+    # meshview.Index's game-copy index (bfbc2-mesh-viewer/meshview.py, bc2_convert::meshview, the editor's Asset
+    # preview, bfbc2.exe meshview): one file, made again (minutes) when it is gone (round PR1b-1, audit AU5 ARC-4)
+    Spec('meshview', '', ('meshview_index.pkl',), 'BFBC2_MESHVIEW_CACHE_MB', MB, 256,
+         "the mesh viewer's index of the game copy's meshes (meshview.Index)", project=('work', 'tools_out')),
 )}
 
 
