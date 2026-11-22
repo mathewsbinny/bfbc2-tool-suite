@@ -39,9 +39,11 @@ const ART_RADIUS: f64 = 48.0;
 /// left out of the solids.
 const SHEET: f64 = 160.0;
 /// How deep a place may be inside an object's collision before it is a bad spot (metres up to the object's surface):
-/// DICE's own spawn points are up to 3.6 m into a building's or a boulder's collision on the stock levels measured,
-/// which the game pushes a soldier out of.
-pub const BURIED: f64 = 4.0;
+/// DICE's own spawn points are up to 4.2 m into a rock's or a boulder's collision on the stock levels measured
+/// (`nam_mp_005r`), which the game pushes a soldier out of.
+pub const BURIED: f64 = 4.5;
+/// How far below a place an object's surface counts as the floor it stands on (an interior, not a solid).
+pub const FLOOR: f64 = 0.6;
 /// How far below the ground a place may be before it is a bad spot: DICE's deepest spawn point is 4.6 m under the
 /// height field (under a cliff on `mp_008`).
 pub const UNDERGROUND: f64 = 6.0;
@@ -274,6 +276,12 @@ impl Site {
         self.art = dens.into_iter().map(|v| (v / p95).min(1.0)).collect();
     }
 
+    /// Whether the site has a water mesh (a level without one has no water the rules can see).
+    #[must_use]
+    pub fn has_water(&self) -> bool {
+        self.water.iter().any(|v| !v.is_nan())
+    }
+
     /// Whether the site has a terrain.
     #[must_use]
     pub fn has_terrain(&self) -> bool {
@@ -352,7 +360,14 @@ impl Site {
             hs.dedup_by(|a, b| (*a - *b).abs() < 1e-4);
             let above: Vec<f64> = hs.iter().copied().filter(|h| *h > p[1]).collect();
             let below = hs.len() - above.len();
-            if above.len() % 2 == 1 && below % 2 == 1 {
+            // standing on the object's own floor (a surface of it up to 0.6 m below): an interior - a hangar, a
+            // container, a barrier's top - not a solid (a closed shell is crossed as a solid is)
+            let floor = hs
+                .iter()
+                .copied()
+                .filter(|h| *h <= p[1])
+                .fold(f64::NEG_INFINITY, f64::max);
+            if above.len() % 2 == 1 && below % 2 == 1 && p[1] - floor > FLOOR {
                 let d = above.first().copied().unwrap_or(p[1]) - p[1];
                 if best.is_none_or(|b| d > b.1) {
                     best = Some((o, d));
@@ -655,6 +670,9 @@ mod tests {
         };
         let s = Site::new(None, Some(&water), &[rock, roof], &[([15.0, 0.0, 15.0], 1.0)]);
         assert!(s.inside_solid([15.0, 1.0, 15.0]));
+        // buried 5 m below the box's top; standing on its floor (0.1 m above it) is an interior, not buried
+        assert!(s.buried([15.0, 1.0, 15.0]).is_some_and(|b| (b.1 - 5.0).abs() < 1e-6));
+        assert!(s.buried([15.0, -1.9, 15.0]).is_none());
         assert!(!s.inside_solid([15.0, 7.0, 15.0]));
         assert!(
             !s.inside_solid([38.0, 1.0, 32.0]),

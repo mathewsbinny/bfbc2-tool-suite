@@ -4,12 +4,14 @@
 //!
 //! ```text
 //! cargo run --release -p bc2-editor --example a1_calibrate -- [<level>...] [--opfor <folder>]
+//! cargo run --release -p bc2-editor --example a1_calibrate -- --project <file.mapedit.json>
 //! ```
 #![allow(
     clippy::print_stdout,
     clippy::unwrap_used,
     clippy::many_single_char_names,
-    clippy::collapsible_if
+    clippy::collapsible_if,
+    clippy::too_many_lines
 )]
 
 use std::collections::{BTreeMap, HashSet};
@@ -23,6 +25,27 @@ fn main() {
     let value = |k: &str| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).cloned();
     let root = levels::find_opfor(value("--opfor").as_deref().map(std::path::Path::new)).unwrap();
     let game = Game::open(&root.join("game")).unwrap();
+    // a project instead: the site rules with collision on what its log moved or made
+    if let Some(pf) = value("--project") {
+        let p = bc2_levelwrite::MapProject::load(std::path::Path::new(&pf)).unwrap();
+        let lv = p.base.level.to_ascii_lowercase();
+        let (cur, base) = export::current(&game, &p).unwrap();
+        let found = levels::load_options(&root, &lv).unwrap();
+        let scene = bc2_scene::scene::load(&found.options).unwrap();
+        let skip: HashSet<String> = bc2_levelwrite::modelayer::layer(&base);
+        let site = if scene.heightfield.is_some() {
+            bc2_levelwrite::site::from_scene(&scene, &skip)
+        } else {
+            let (hf, water) = export::ground_of(&game, &lv, &base).unwrap();
+            bc2_levelwrite::site::with_ground(&scene, &skip, hf, water.as_ref())
+        };
+        let f = bc2_levelwrite::validate::site_rules(&cur, Some(&base), &site);
+        println!("{pf}: {} findings with collision", f.len());
+        for x in &f {
+            println!("    {}", x.line());
+        }
+        return;
+    }
     let mut wanted: Vec<String> = args.iter().filter(|a| !a.starts_with("--")).cloned().collect();
     if let Some(o) = value("--opfor") {
         wanted.retain(|a| *a != o);

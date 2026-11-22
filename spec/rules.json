@@ -1498,11 +1498,11 @@
    "evidence": [
     {
      "kind": "data",
-     "ref": "A1: 1,168 spawn points of 21 stock multiplayer levels (mp_001 to mp_012sr) against their height field, water mesh and static collision: 0 over water deeper than 1.2 m, 0 outside the terrain, deepest under the ground 4.6 m, 47 inside collision by 0.01 to 3.58 m (8.3 m inside a bush's collision box)"
+     "ref": "A1: 1,475 spawn points of 27 levels (mp_001 to mp_012sr of game Dist; mp_005gr, nam_mp_002cq, nam_mp_005r, and OPFOR's WW2 ports wake_island_s, guadal_canal, iwo_jima_s) against their height field, water mesh and static collision: 0 over water deeper than 1.2 m, 0 outside the terrain, deepest under the ground 4.6 m, 13 buried 0.01 to 4.24 m"
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:7701-7717"
+     "ref": "rust/BENCHMARKS.md:7701-7720"
     }
    ]
   },
@@ -1514,11 +1514,11 @@
    "evidence": [
     {
      "kind": "data",
-     "ref": "A1: 504 vehicle spawners of 21 stock multiplayer levels by L1's vehicle class (172 emplacements, 91 ambient, 47 quads, 42 tanks, 42 IFVs, 40 helicopters, 33 UAV stations, 21 boats, 11 cars): the tightest room per class as above, every boat over water"
+     "ref": "A1: 707 vehicle spawners of the same 27 levels by L1's vehicle class (247 emplacements, 111 ambient, 64 tanks, 54 helicopters, 52 quads, 48 boats, 42 IFVs, 37 cars, 36 UAV stations, 15 planes): the tightest room per class as above"
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:7701-7717"
+     "ref": "rust/BENCHMARKS.md:7701-7720"
     }
    ]
   },
@@ -16943,11 +16943,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:490"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:491"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/site.rs:446"
+     "ref": "rust/bc2-levelwrite/src/site.rs:461"
     },
     {
      "kind": "test",
@@ -16971,7 +16971,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/site.rs:468"
+     "ref": "rust/bc2-levelwrite/src/site.rs:483"
     },
     {
      "kind": "test",
@@ -16991,7 +16991,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:415"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:414"
     },
     {
      "kind": "test",
@@ -17011,11 +17011,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:628"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:631"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/site.rs:536"
+     "ref": "rust/bc2-levelwrite/src/site.rs:551"
     },
     {
      "kind": "test",
