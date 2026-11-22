@@ -1,6 +1,6 @@
-//! Bindings for `bc2-navbuild`: `navbuild.Level` builds a `NavLevel` from its arrays and calls it for its grid
-//! walks (`bfbc2-auto-navkit/tools/navbuild.py`; their Python was retired on 2026-11-17, so a `ValueError` here
-//! reaches the caller); `NavGrid` and the cell picking serve the walkability rules and `build_areas`, whose Python
+//! Bindings for `bc2-navbuild`: a `NavLevel` from a level's arrays, for its grid walks (navbuild.py's `Level`
+//! until round NK5-rest; now the tests' and the tools' calls; their Python was retired on 2026-11-17, so a
+//! `ValueError` here reaches the caller); `NavGrid` and the cell picking serve the walkability rules and `build_areas`, whose Python
 //! still runs instead on a `ValueError`.
 
 use std::collections::HashSet;
@@ -663,6 +663,43 @@ impl NavLevel {
     /// than `step` apart in height): `[[area index]]`.
     fn detail_candidates(&self, py: Python<'_>, store: &NavAreas, step: f64) -> PyResult<Vec<Vec<usize>>> {
         navgraph::detail_candidates(py, &self.level, store, step)
+    }
+
+    /// `drop_one_way(per_area, one_way, keep)` (round NK5-rest: the stage's own): the one-way candidates
+    /// `(src, target, key, along)` not in `keep` become outline on their source area; the rows come back as
+    /// `trace_edges` gives them.
+    #[expect(
+        clippy::unused_self,
+        reason = "a method of the level, beside its trace_edges and detail_pass"
+    )]
+    fn drop_one_way<'py>(
+        &self,
+        py: Python<'py>,
+        per_area: &Bound<'py, PyList>,
+        one_way: &Bound<'py, PyList>,
+        keep: Vec<usize>,
+    ) -> PyResult<Bound<'py, PyList>> {
+        navtrace::drop_one_way_py(py, per_area, one_way, &keep)
+    }
+
+    /// One sector's detail pass (round NK5-rest: the stage's own, `bc2_navbuild::stage::detail_pass`) on its
+    /// areas' cells and edge rows, the sector's origin `(gi0, gj0, ox, oz)`, `cfg` / `switches` overrides of the
+    /// Rust defaults: `(rows, per area (D lines, F records), D sides, (d, f, moved, one_sided))`.
+    #[pyo3(signature = (areas, per_area, origin, cfg=None, switches=None))]
+    fn detail_pass<'py>(
+        &self,
+        py: Python<'py>,
+        areas: Vec<Vec<(i64, i64, i64)>>,
+        per_area: &Bound<'py, PyList>,
+        origin: (i64, i64, f64, f64),
+        cfg: Option<&Bound<'py, PyDict>>,
+        switches: Option<&Bound<'py, PyDict>>,
+    ) -> PyResult<crate::navstage::DetailAnswer<'py>> {
+        let cells = areas
+            .iter()
+            .map(|a| navtrace::cells_of(&self.level, a))
+            .collect::<PyResult<Vec<Vec<Cell>>>>()?;
+        crate::navstage::detail_pass_py(py, &self.level, &cells, per_area, origin, cfg, switches)
     }
 
     /// `trace_emit` for several sectors of `store` at once, in parallel: `jobs` = `[(sector, per_area, gi0, gj0,

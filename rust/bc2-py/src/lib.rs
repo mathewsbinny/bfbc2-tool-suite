@@ -579,9 +579,12 @@ mod bc2_native {
         navkit_water_tops,
     };
 
-    // round NK5: the whole build (the stage, merge_detailed, detail_pass's glue, the meshes' assembly retired)
+    // round NK5: the whole build (the stage, merge_detailed, detail_pass's glue, the meshes' assembly retired);
+    // NK5-rest: the settings' defaults in Rust (navbuild.py retired), a whole stage's answer for the tests
     #[pymodule_export]
-    use super::navstage::{NavStageGraphs, navkit_build, navkit_stage_grid, navkit_write_stage};
+    use super::navstage::{
+        NavStageGraphs, navkit_build, navkit_settings, navkit_stage_answer, navkit_stage_grid, navkit_write_stage,
+    };
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
