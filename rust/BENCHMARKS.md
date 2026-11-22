@@ -8531,3 +8531,59 @@ layer (`bfbc2.exe stockmp`) is made for a stock level by its name, not for a sta
 7. **Proof.** The six VW2 canaries and SG1's member-edit export (Wake Island, MP_005): path data built and staged,
    every check line passing, every spawn and objective on the main network, the AI layer's orders covering each
    objective; in-game behaviour unproven until a playtest.
+
+## SPG: the specification's gap pass (2026-11-22, branch `spg`)
+
+A spec-writing round: no tool behaviour changed, no Rust built. `spec/COVERAGE.md` maps 36 BFBC2 systems to their
+tools, the queued rounds and the rules; the missing specs were written in the order the next rounds need them
+(VW2c / VW2e night conversion, E5 occlusion paint, VW3 weather editor first). Nothing written to `game\`; the game
+never launched.
+
+### Coverage, before and after
+
+| | rules | files | covered | thin | none |
+|---|---:|---:|---:|---:|---:|
+| before | 769 | 46 | 15 | 13 | 8 |
+| after | 933 | 54 | 24 | 12 | 0 |
+
+New files and rules (verified / implemented / observed / inferred): `engine/lighting.md` 26 (1 / 2 / 19 / 4),
+`weather.md` 12 (2 / 0 / 9 / 1), `effects.md` 11 (3 / 1 / 5 / 2), `weapons.md` 34 (3 / 2 / 27 / 2), `vehicles.md` 22
+(1 / 4 / 16 / 1), `materials.md` 30 (1 / 5 / 17 / 7), `destruction.md` 22 (3 / 1 / 16 / 2), `persistence.md` 7
+(0 / 2 / 5 / 0).
+
+### The probes (`spec/probes/`, read-only, on the game copy)
+
+| probe | reads | time |
+|---|---|---:|
+| `lighting.py` | 501 level bundles (444 DICE's): level partitions, 4,285 effect / emitter partitions, every ITexture name and IrradianceVolume, the weather partitions | about 6 min |
+| `weapons.py` | 1,021 DICE bundles, 1,130 weapon partitions | 5 s |
+| `vehicles.py` | 531 vehicle partitions, 74 stock level partitions | 30 s |
+| `materials.py` | 74 material grids, 1,183 physics assets | 30 s |
+| `destruction.py` | 1,262 blueprints, 74 level partitions | 20 s |
+
+The worktree has no `bc2_native` build; the probes ran with `PYTHONPATH` naming the main checkout's
+`core\bfbc2core` (its module's source hash matches).
+
+### Findings that change planned work
+
+- **`PointLightEntityData` exists** (68 on the Vietnam levels: radius 4 - 20 m, fade 10 - 50 m, shadow-map flags):
+  research WX0's "no light entities" and the editor's overlay comment are wrong; the Lights overlay shows only
+  `ActAsPointLight` emitters (35 of 2,882 templates). VW2e-2 should add them.
+- **One point light per draw** and an **effect instance cap of 30 against DICE's 53 night lamps**: both open (RE).
+- **DICE's patched balance is the Package copy**: the M24 is 100 -> 75 over 5 - 25 m in Dist, 100 -> 50 over 10 -
+  36 m in Package; 325 of 351 weapon partitions with both copies differ. Any reader that takes Dist first gets launch
+  values (OPFOR's donors read Package first: WPN-PATCH-2).
+- **AlwaysAimHead true** in the WW2 balance ruling holds per class only: DICE has false on all 32 snipers (WPN-WW2-4).
+  `dbxport` maps every `wabsShg` to `wabsRif`, though DICE uses `wabsShg` on 20 of 42 shotguns (WPN-WW2-8).
+- **The material hash is the name's 33-xor hash** (5,746 of 5,746 materials, 1,183 of 1,183 files): a new material
+  needs no donor file. Material indices differ per level grid (114 of 121 materials): a port must use materials the
+  target grid holds.
+- **Destroyed meshes are parts of the same physics file** (3,423 of 3,431 `MeshName`s), and 1,837 of 2,583
+  static-group member types are destructible.
+- **`ApplyFog` is false in all of DICE's states**; the weather editor's ranges are WTH-STATE-3.
+
+### Left
+
+`spec/COVERAGE.md` section 2 (queued as SPG2): terrain writing, vegetation, the shader translation, the game
+module's patch points, animation and characters, decals, the rest of persistence, BF1943 as a source, Onslaught,
+the effects' processor chain, streaming.
