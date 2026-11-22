@@ -54,6 +54,25 @@ landed on `main`.
   `navbuild.build` and `navvehicle.stage_on_grid` / `write` are thin calls of the module. Every regression level's
   file and log lines are the same bytes as before (15 of 15; the 4 golden builds as recorded); whole builds 234 ->
   151 s over the 15 levels, the largest build's peak memory 11.8 -> 6.9 GB.
+- **The map editor builds NavKit in process** (round NK6): the AI workspace's **Build with these edits** runs NavKit's
+  apply in the editor (`bc2_navbuild::apply` on a worker, its lines shown as they come) with a **Cancel the build**
+  button; the files and lines are the `bfbc2.exe navkit apply` child's byte for byte (15 of 15 regression levels, NK1's
+  33 apply files, 3 NavKit-base applies with region, seed and graph edits).
+- **The export's path data built for the edited level** (round NK6): the path-data step builds the level with NavKit
+  in process - the project's spawns and objectives as the build's seeds and objective floors, its navigation edits
+  applied (traversal annotations staged beside the file) - and a project that moves static objects or edits static
+  group members is sampled offline on its stage first (`navsample_offline.py stage`, into
+  `work\navkit_stage\<level>`). On the auto layout's proposals for MP_002 and MP_005 every spawn, flag and M-COM is on
+  the staged path data's main route network (XVAL-PLACE-5). Project OPFOR's export install puts the staged path data
+  in the game copy through the install ledger.
+
+### Changed
+- **NavKit's level driver is a library** (round NK6): `bc2_navbuild::inputs` (the build's inputs, the detailed
+  sectors and their cache, the terrain unpack, DICE's extent, `original_file`) and `bc2_navbuild::apply` serve the
+  command line, the editor and the export; `graphedit` no longer depends on `bc2-pyrt` (`bc2_navbuild::pyjson`).
+  `bfbc2.exe navkit build` reads the objectives of a level prepared before `area_orders.json` from its XML instead of
+  handing the run to the Python. `bc2_levelwrite::pathdata::ready` returns the step's plan (`Plan`: build, sample,
+  copy).
 
 ## [0.15.0] - 2026-11-22
 

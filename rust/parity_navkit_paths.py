@@ -92,7 +92,8 @@ def undated(data: bytes | None) -> str | None:
 
 def junction(link: str, target: str) -> None:
     os.makedirs(os.path.dirname(link), exist_ok=True)
-    subprocess.run(['cmd', '/c', 'mklink', '/J', link, target], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(['cmd', '/c', 'mklink', '/J', os.path.normpath(link), os.path.normpath(target)], check=True,
+                   stdout=subprocess.DEVNULL)
 
 
 def unjunction(root: str) -> None:
@@ -332,6 +333,14 @@ def navapply_mode(opfor: str, out: str, levels: list[str]) -> int:
                 files = {'out': undated(got['out']),
                          **{k: (None if v is None else norm_text(v.decode('utf-8', 'replace'), root))
                             for k, v in got.items() if k != 'out'}}
+                # the annotations name the file they were made for by its SHA-1, which carries the build's date:
+                # checked against this run's own file, then blanked
+                tk = f'{lv}.traversal.json'
+                if files.get(tk) and got['out'] is not None:
+                    want = hashlib.sha1(got['out']).hexdigest()
+                    t = files[tk] or ''
+                    files['traversal_names_its_file'] = str(f'"pathdata_sha1": "{want}"' in t)
+                    files[tk] = re.sub(r'"pathdata_sha1": "[0-9a-f]{40}"', '"pathdata_sha1": "<sha1>"', t)
                 res[who] = (code, norm_text(text, root), files, took)
             finally:
                 unjunction(root)

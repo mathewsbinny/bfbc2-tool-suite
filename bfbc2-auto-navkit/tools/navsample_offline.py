@@ -21,7 +21,7 @@ Usage:
                                its combat areas) + sample 0.8 + 0.2 + build + check (stockmp on one level)
   navsample_offline.py stage   <stage folder>         an export's stage (the path-data step, round NK6): the staged
                                level prepared from its bundle, sampled at 0.8 m and over its detailed sectors at 0.2 m,
-                               into <stage>\\navkit (the base level prepared first)
+                               into <work>\\navkit_stage\\<level> (the base level prepared first)
   navsample_offline.py stockmp [level ...] [--steps prepare,sample,build,check]
                                the stock MP maps (STOCK_MP), one after another; work\\navkit_offline\\stockmp.json
 
@@ -1486,11 +1486,12 @@ def check_level(root, lv, path, log=print):
 
 
 # --- an export's stage --------------------------------------------------------------------------------------------
-def stage_tree(stage):
-    """The stage's NavKit folder (the export's path-data step reads it): <stage>\\navkit, an OPFOR-like tree whose
-    work\\levels\\<level> is the staged level prepared, work\\navkit\\<level>\\navkit.json its settings and
-    work\\navsample its samples."""
-    return os.path.join(stage, 'navkit')
+def stage_tree(root, lv):
+    """A staged level's NavKit folder (the export's path-data step reads it), in OPFOR's work folder - a short path,
+    so the unpacked bundle's names stay under Windows' 260 characters: <root>\\work\\navkit_stage\\<level>, an
+    OPFOR-like tree whose work\\levels\\<level> is the staged level prepared, work\\navkit\\<level>\\navkit.json its
+    settings and work\\navsample its samples."""
+    return os.path.join(root, 'work', 'navkit_stage', lv.lower())
 
 
 def stage_level(root, stage, log=print, bodies=None, level=None, base=None):
@@ -1498,8 +1499,8 @@ def stage_level(root, stage, log=print, bodies=None, level=None, base=None):
     prepared as navkit.py prepare does (unpacked and converted; objects, group members, spawns, orders, ladders and
     the triangle lists from the staged partition and its group files, the base level's unpacks for the blueprints),
     the base level's settings (box, heights, sector offsets) and terrain, then both capsule runs at 0.8 m and - over
-    the detailed sectors the stage's own samples and objects choose - at 0.2 m, written into stage_tree(stage). The
-    base level must be prepared (navkit.py prepare <base>). level / base: the staged level's id and its base level
+    the detailed sectors the stage's own samples and objects choose - at 0.2 m, written into stage_tree(root,
+    level). The base level must be prepared (navkit.py prepare <base>). level / base: the staged level's id and its base level
     (the export passes them: its stage.json is written after the step); else read from stage.json. Returns the
     samples' folder."""
     import shutil
@@ -1514,7 +1515,7 @@ def stage_level(root, stage, log=print, bodies=None, level=None, base=None):
     pr = navkit.Project(root)
     Lb = pr.level_work(base)
     sb = navkit.ensure_settings(pr, base)
-    tree = stage_tree(stage)
+    tree = stage_tree(pr.root, lv)
     W = os.path.join(tree, 'work')
     L = os.path.join(W, 'levels', lv)
     bundle = os.path.join(stage, 'level-00.fbrb')
