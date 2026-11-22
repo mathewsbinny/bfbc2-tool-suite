@@ -281,18 +281,42 @@ fn an_export_deletes_moves_and_adds_members() {
         let root = keep.clone().unwrap_or_else(|| tmp.clone());
         let stage = root.join(name.to_ascii_lowercase()).join("stage");
         let plain_stage = tmp.join(format!("{}_plain", name.to_ascii_lowercase())).join("stage");
-        // round A2 (XLAY-PATH-1): with member edits the base's path data is not the level's: the path-data step
-        // refuses before anything is built, naming them
+        // round A2 (XLAY-PATH-1): with member edits the base's path data is not the level's. Round NK6: where the
+        // base level is prepared for NavKit the step samples the stage offline and builds its path data (XVAL-AI-1
+        // passes on it); else it refuses before anything is built, naming the member edits and the missing prepare
         let with_path = ExportSpec {
             path_data: true,
             ..spec(name, &p, profile)
         };
-        let e = export::build(&game, &p, "test", &with_path, &tmp.join("path_refused")).unwrap_err();
-        println!("{name}: {e}");
-        assert!(
-            e.to_string().contains("XVAL-AI-1") && e.to_string().contains("static group member"),
-            "{e}"
-        );
+        let path_stage = root.join(format!("{}_path", name.to_ascii_lowercase())).join("stage");
+        match export::build(&game, &p, "test", &with_path, &path_stage) {
+            Ok(rec) => {
+                let pd = rec.path_data.as_ref().expect("the path data recorded");
+                println!("{name}: path data staged: {}", pd.source);
+                assert!(pd.source.contains("offline sampler on the stage"), "{}", pd.source);
+                let r = export::check(&game, &path_stage).unwrap();
+                for (ok, l) in r.checks.iter().filter(|c| c.1.contains("path data")) {
+                    println!("{} {l}", if *ok { "ok    " } else { "FAILED" });
+                }
+                assert!(
+                    r.checks
+                        .iter()
+                        .filter(|c| c.1.contains("pathdata.hpd: the path data recorded"))
+                        .all(|c| c.0),
+                    "{:#?}",
+                    r.checks
+                );
+            }
+            Err(e) => {
+                println!("{name}: {e}");
+                assert!(
+                    e.to_string().contains("XVAL-AI-1")
+                        && e.to_string().contains("static group member")
+                        && e.to_string().contains("not prepared"),
+                    "{e}"
+                );
+            }
+        }
         let rec = export::build(&game, &p, "test", &spec(name, &p, profile), &stage).unwrap();
         let built = t0.elapsed().as_secs_f64();
         let r = export::check(&game, &stage).unwrap();

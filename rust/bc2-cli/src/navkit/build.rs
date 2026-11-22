@@ -30,6 +30,7 @@ pub fn root(pr: &Project) -> Root {
         root: pr.root.clone(),
         game: pr.game.clone(),
         work: pr.work.clone(),
+        samples_dir: None,
     }
 }
 

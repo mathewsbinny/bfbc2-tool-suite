@@ -19,6 +19,9 @@ Usage:
   navsample_offline.py check   <level>                  hpdcheck + roundtrip + ordercheck on that build
   navsample_offline.py all     <level>                  prepare (offline; a map without path data: the box from
                                its combat areas) + sample 0.8 + 0.2 + build + check (stockmp on one level)
+  navsample_offline.py stage   <stage folder>         an export's stage (the path-data step, round NK6): the staged
+                               level prepared from its bundle, sampled at 0.8 m and over its detailed sectors at 0.2 m,
+                               into <stage>\\navkit (the base level prepared first)
   navsample_offline.py stockmp [level ...] [--steps prepare,sample,build,check]
                                the stock MP maps (STOCK_MP), one after another; work\\navkit_offline\\stockmp.json
 
@@ -1482,6 +1485,108 @@ def check_level(root, lv, path, log=print):
     return res
 
 
+# --- an export's stage --------------------------------------------------------------------------------------------
+def stage_tree(stage):
+    """The stage's NavKit folder (the export's path-data step reads it): <stage>\\navkit, an OPFOR-like tree whose
+    work\\levels\\<level> is the staged level prepared, work\\navkit\\<level>\\navkit.json its settings and
+    work\\navsample its samples."""
+    return os.path.join(stage, 'navkit')
+
+
+def stage_level(root, stage, log=print, bodies=None, level=None, base=None):
+    """The offline sampler on an export's stage (the export's path-data step, round NK6): the staged level's bundle
+    prepared as navkit.py prepare does (unpacked and converted; objects, group members, spawns, orders, ladders and
+    the triangle lists from the staged partition and its group files, the base level's unpacks for the blueprints),
+    the base level's settings (box, heights, sector offsets) and terrain, then both capsule runs at 0.8 m and - over
+    the detailed sectors the stage's own samples and objects choose - at 0.2 m, written into stage_tree(stage). The
+    base level must be prepared (navkit.py prepare <base>). level / base: the staged level's id and its base level
+    (the export passes them: its stage.json is written after the step); else read from stage.json. Returns the
+    samples' folder."""
+    import shutil
+
+    import ladders
+    import levelobjects
+    import navkit
+    if not (level and base):
+        rec = json.load(open(os.path.join(stage, 'stage.json'), encoding='utf-8'))
+        level, base = rec['level'], rec['base']
+    lv, base = level.lower(), base.lower()
+    pr = navkit.Project(root)
+    Lb = pr.level_work(base)
+    sb = navkit.ensure_settings(pr, base)
+    tree = stage_tree(stage)
+    W = os.path.join(tree, 'work')
+    L = os.path.join(W, 'levels', lv)
+    bundle = os.path.join(stage, 'level-00.fbrb')
+    if not os.path.isfile(bundle):
+        raise navkit.NavKitError(f'{stage}: no staged level-00.fbrb')
+    log(f'== offline sample of the stage {lv} (base {base})')
+    pr.unpack(bundle, os.path.join(L, 'dist'), log)
+    os.makedirs(os.path.join(L, 'pkg'), exist_ok=True)
+    part = navkit.level_partition_name(L, lv)
+    # the base's static-group files the stage does not carry (an export writes only the groups it edits)
+    bpart = sb['level']
+    src = os.path.join(Lb, 'dist', 'levels', bpart)
+    dst = os.path.join(L, 'dist', 'levels', part)
+    if os.path.isdir(src):
+        os.makedirs(dst, exist_ok=True)
+        for f in sorted(os.listdir(src)):
+            if f.lower().endswith('_havokasset.xml') and not os.path.isfile(os.path.join(dst, f)):
+                shutil.copyfile(os.path.join(src, f), os.path.join(dst, f))
+    extra = [os.path.join(Lb, 'pkg'), os.path.join(Lb, 'dist')] + common_bases(root)[::-1]
+    extra = [b for b in extra if os.path.isdir(b)]
+    log('  extracting objects, collision and spawn points ...')
+    if levelobjects.main(['levelobjects', L, part] + extra):
+        raise navkit.NavKitError(f'{lv}: levelobjects failed on the stage')
+    lad = ladders.extract(L, extra)
+    open(os.path.join(L, 'ladders.json'), 'w', encoding='utf-8').write(json.dumps(lad, indent=1))
+    st = dict(sb, level=part, box_source=f'the base level {base}', offsets_source=f'the base level {base}')
+    d = os.path.join(W, 'navkit', lv)
+    os.makedirs(d, exist_ok=True)
+    json.dump(st, open(os.path.join(d, 'navkit.json'), 'w'), indent=1)
+    # the base's terrain (an export does not sculpt it yet): its unpack copied, so the height field and water read
+    tb = os.path.join(Lb, 'terrain')
+    tt = os.path.join(L, 'terrain')
+    if os.path.isdir(tb) and not os.path.isdir(tt):
+        shutil.copytree(tb, tt)
+    from bfbc2core import level as levelmod
+    geom = level_geometry(L, extra, log=log, box=st['box'])
+    geom = geom.bodies(bodies or BODIES)
+    if INTACT_ONLY:
+        geom = geom.intact()
+    hf = levelmod.heightfield_of(tree, lv, log=log)
+    out = os.path.join(W, 'navsample')
+    os.makedirs(out, exist_ok=True)
+
+    def run(pitch, box, rects=None):
+        grid = Grid.from_box(pitch, box, st['y'], rects)
+        log(f'  pitch {pitch}: {grid.nx} x {grid.nz} columns')
+        res = sample_grid(grid, geom, hf, log=log, bottoms=tuple(CAP_BOTTOMS.values()))
+        ps = '' if abs(pitch - 0.8) < 1e-6 else f'_p{int(round(pitch * 10)):02d}'
+        paths = []
+        for suf, b in CAP_BOTTOMS.items():
+            p = os.path.join(out, f'{lv}_navkit{suf}{ps}.bin')
+            write(p, res[b])
+            paths.append(p)
+            log(f'  wrote {p}')
+        return paths
+    p08 = run(0.8, st['box'])
+    import detailed
+    ids, _why = detailed.choose(L, common_bases(root)[::-1], p08[0], st['xoff'], st['zoff'])
+    for suf in ('', '_hi'):
+        old = os.path.join(out, f'{lv}_navkit{suf}_p02.bin')
+        if os.path.isfile(old):
+            os.remove(old)
+    if ids:
+        rects = [[(i + st['xoff']) * 100 - 1.0, (j + st['zoff']) * 100 - 1.0, (i + st['xoff']) * 100 + 101.0,
+                  (j + st['zoff']) * 100 + 101.0] for i, j in ids]
+        box = [min(r[0] for r in rects), min(r[1] for r in rects), max(r[2] for r in rects), max(r[3] for r in rects)]
+        run(0.2, box, rects)
+    else:
+        log(f'  {lv}: no detailed sectors - no 0.2 m runs')
+    return out
+
+
 def _opt(args, name, conv=str):
     if name in args:
         i = args.index(name)
@@ -1515,6 +1620,10 @@ def main(argv):
         steps = _opt(args, '--steps') or ','.join(ALL_STEPS)
         sel = [a.lower() for a in args[1:]] or None
         stock_mp(root, sel, steps=tuple(steps.split(',')))
+        return 0
+    if cmd == 'stage':
+        level, base = _opt(args, '--level'), _opt(args, '--base')
+        stage_level(root, args[1], bodies=bodies, level=level, base=base)
         return 0
     lv = args[1].lower()
     if cmd == 'sample':
