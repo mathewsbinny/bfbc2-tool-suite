@@ -14,7 +14,8 @@ use std::fmt;
 use super::export::{four_byte_text, is_whole_number_field, value_text};
 use super::fault::{Fault, Result};
 use super::file::{
-    CONTAINER, EditFile, Element, MAX_DEPTH, NUMBERS, TEXT, Table, be_u32, read_varint, varint_bytes, write_varint,
+    CONTAINER, EditDbx, MAX_DEPTH, NUMBERS, NodeId, Parts, TEXT, Table, be_u32, empty, intern, read_varint,
+    varint_bytes, write_varint,
 };
 use super::net;
 
@@ -344,21 +345,23 @@ impl TypeBook {
     ///
     /// # Errors
     /// A damaged string index or value.
-    pub fn learn(&mut self, f: &EditFile) -> Result<()> {
+    pub fn learn(&mut self, f: &EditDbx) -> Result<()> {
         let mut buf = String::new();
-        for e in &f.top_level {
-            self.learn_element(&f.table, e, &mut buf)?;
+        for &e in f.roots() {
+            self.learn_element(f, e, &mut buf)?;
         }
         Ok(())
     }
 
-    fn learn_element(&mut self, t: &Table, e: &Element, buf: &mut String) -> Result<()> {
-        let k = key(buf, t.tag(e)?, t.first_value(e)?);
+    fn learn_element(&mut self, f: &EditDbx, e: NodeId, buf: &mut String) -> Result<()> {
+        let table = Table(f);
+        let kind = i32::from(f.kind(e));
+        let k = key(buf, table.tag(e)?, table.first_value(e)?);
         if !self.entries.contains_key(k) {
             self.entries.insert(
                 k.to_owned(),
                 Entry {
-                    kind: e.kind,
+                    kind,
                     size: 0,
                     first_byte: 1,
                     floats: 0,
@@ -371,23 +374,24 @@ impl TypeBook {
         let Some(entry) = self.entries.get_mut(buf.as_str()) else {
             return Ok(());
         };
-        if let Some(children) = &e.children {
-            entry.container_byte = e.container_byte;
-            for c in children {
-                self.learn_element(t, c, buf)?;
+        if let Some(children) = f.children(e) {
+            entry.container_byte = f.container_byte(e);
+            for &c in children {
+                self.learn_element(f, c, buf)?;
             }
             return Ok(());
         }
-        if e.kind == NUMBERS {
+        let payload = f.payload(e);
+        if kind == i32::from(NUMBERS) {
             let mut pos = 0;
-            let n = read_varint(&e.payload, &mut pos)?;
-            let size = read_varint(&e.payload, &mut pos)?;
+            let n = read_varint(payload, &mut pos)?;
+            let size = read_varint(payload, &mut pos)?;
             if n > 0 || entry.size == 0 {
                 entry.size = size;
             }
             if size == 4 {
                 for _ in 0..n.max(0) {
-                    let bits = be_u32(&e.payload, pos)?;
+                    let bits = be_u32(payload, pos)?;
                     pos += 4;
                     if !prints_as_whole(bits, "") {
                         entry.floats += 1;
@@ -397,9 +401,9 @@ impl TypeBook {
                     }
                 }
             }
-        } else if e.kind != TEXT {
-            entry.first_byte = i32::from(*e.payload.first().ok_or_else(Fault::index)?);
-            entry.byte_kind = e.kind;
+        } else if kind != i32::from(TEXT) {
+            entry.first_byte = i32::from(*payload.first().ok_or_else(Fault::index)?);
+            entry.byte_kind = kind;
         }
         Ok(())
     }
@@ -428,7 +432,7 @@ pub struct ImportReport {
 
 /// The import in progress: the file built (the reference's copy, or a new file) and the types.
 struct Importer<'a> {
-    file: &'a mut EditFile,
+    file: &'a mut EditDbx,
     types: &'a TypeBook,
     report: ImportReport,
     key_buf: String,
@@ -508,21 +512,22 @@ impl fmt::Display for Place<'_> {
 
 impl Importer<'_> {
     /// `KeyOf` of a reference element into `key` (its strings checked by [`Importer::check_strings`]).
-    fn key_of_into(&self, key: &mut String, e: &Element) {
-        let t = &self.file.table;
-        let attrs = e
-            .attributes
+    fn key_of_into(&self, key: &mut String, e: NodeId) {
+        let t = Table(self.file);
+        let attrs = self
+            .file
+            .attr_ids(e)
             .iter()
             .map(|&(k, v)| (t.s(k).unwrap_or(""), t.s(v).unwrap_or("")));
         sibling_key_into(key, t.tag(e).unwrap_or(""), attrs);
     }
 
     /// The strings of the reference elements' keys exist (DbxEdit reads every key before it aligns).
-    fn check_strings(&self, olds: &[Element]) -> Result<()> {
-        let t = &self.file.table;
-        for e in olds {
+    fn check_strings(&self, olds: &[NodeId]) -> Result<()> {
+        let t = Table(self.file);
+        for &e in olds {
             t.tag(e)?;
-            for &(k, v) in &e.attributes {
+            for &(k, v) in self.file.attr_ids(e) {
                 t.s(k)?;
                 t.s(v)?;
             }
@@ -536,19 +541,19 @@ impl Importer<'_> {
             .push(format!("line {}: {path}: no type known, taken as {what}", x.line));
     }
 
-    fn build(&mut self, x: &Node, old: Option<&Element>, path: &Place<'_>) -> Result<Element> {
+    fn build(&mut self, x: &Node, old: Option<NodeId>, path: &Place<'_>) -> Result<NodeId> {
         let tag = match old {
-            Some(o) => o.tag,
-            None => self.file.table.intern(&x.tag),
+            Some(o) => self.file.tag_id(o),
+            None => intern(self.file, &x.tag),
         };
-        let mut e = Element {
+        let mut e = Parts {
             tag,
-            ..Element::default()
+            ..Parts::default()
         };
         for (i, (k, v)) in x.attributes.iter().enumerate() {
-            let reuse = match old.and_then(|o| o.attributes.get(i)) {
-                Some(&(ok, ov)) => {
-                    let t = &self.file.table;
+            let reuse = match old.and_then(|o| self.file.attr_ids(o).get(i).copied()) {
+                Some((ok, ov)) => {
+                    let t = Table(self.file);
                     (t.s(ok)? == k && norm_attribute(t.s(ov)?) == norm_attribute(v)).then_some((ok, ov))
                 }
                 None => None,
@@ -556,10 +561,10 @@ impl Importer<'_> {
             let pair = if let Some(p) = reuse {
                 p
             } else {
-                let name = self.file.table.intern(k);
-                (name, self.file.table.intern(v))
+                let name = intern(self.file, k);
+                (name, intern(self.file, v))
             };
-            e.attributes.push(pair);
+            e.attrs.push(pair);
         }
         let learned = self.types.find(&mut self.key_buf, &x.tag, x.first_value()).cloned();
         let kind = self.kind_of(x, old, learned.as_ref(), path);
@@ -572,25 +577,25 @@ impl Importer<'_> {
                     x.text.trim()
                 )));
             }
-            e.container_byte = match (old, &learned) {
-                (Some(o), _) if o.is_container() => o.container_byte,
-                (_, Some(l)) if l.kind == CONTAINER => l.container_byte,
+            e.cbyte = match (old, &learned) {
+                (Some(o), _) if self.file.is_container(o) => self.file.container_byte(o),
+                (_, Some(l)) if l.kind == i32::from(CONTAINER) => l.container_byte,
                 _ => 0,
             };
             let no_kids = Vec::new();
             let children = x.children.as_ref().unwrap_or(&no_kids);
-            let old_children: &[Element] = old.filter(|o| o.is_container()).map_or(&[], Element::kids);
-            let pairs = self.align(children, old_children)?;
+            let old_children: Vec<NodeId> = old.and_then(|o| self.file.children(o)).unwrap_or_default().to_vec();
+            let pairs = self.align(children, &old_children)?;
             let mut built = Vec::with_capacity(children.len());
             for (c, m) in children.iter().zip(pairs) {
                 let child_path = Place::Child(path, c);
-                built.push(self.build(c, m.and_then(|i| old_children.get(i)), &child_path)?);
+                built.push(self.build(c, m.and_then(|i| old_children.get(i).copied()), &child_path)?);
             }
             e.children = Some(built);
             if old.is_none() {
                 self.report.added += 1;
             }
-            return Ok(e);
+            return Ok(self.file.push(e));
         }
         if x.children.is_some() {
             return Err(Fault::invalid(format!(
@@ -599,12 +604,12 @@ impl Importer<'_> {
             )));
         }
         if let Some(o) = old
-            && o.kind == kind
-            && norm(&value_text(&self.file.table, o)?) == norm(&x.text)
+            && self.file.kind(o) == kind
+            && norm(&value_text(self.file, o)?) == norm(&x.text)
         {
-            e.payload.clone_from(&o.payload);
+            e.payload = self.file.payload(o).to_vec();
             self.report.kept += 1;
-            return Ok(e);
+            return Ok(self.file.push(e));
         }
         e.payload = self.encode(kind, x, old, learned.as_ref(), path)?;
         if old.is_some() {
@@ -612,7 +617,7 @@ impl Importer<'_> {
         } else {
             self.report.added += 1;
         }
-        Ok(e)
+        Ok(self.file.push(e))
     }
 
     /// `Align`: each XML child's reference child (its index), the next unused one with the same key, in order.
@@ -621,7 +626,7 @@ impl Importer<'_> {
     /// before it) and the first candidate the queues would give, so a match there is theirs. The queues are made
     /// only when that fails (an element added, removed or moved); entries left behind by the shortcut are before
     /// `next` and dropped as the queues drop used ones.
-    fn align(&mut self, xs: &[Node], olds: &[Element]) -> Result<Vec<Option<usize>>> {
+    fn align(&mut self, xs: &[Node], olds: &[NodeId]) -> Result<Vec<Option<usize>>> {
         self.check_strings(olds)?;
         let mut queues: Option<HashMap<String, VecDeque<usize>>> = None;
         let (mut kx, mut ko) = (std::mem::take(&mut self.key_x), std::mem::take(&mut self.key_o));
@@ -634,7 +639,7 @@ impl Importer<'_> {
                 x.attributes.iter().map(|(a, b)| (a.as_str(), b.as_str())),
             );
             let mut found = None;
-            if let Some(o) = olds.get(next) {
+            if let Some(&o) = olds.get(next) {
                 self.key_of_into(&mut ko, o);
                 if ko == kx {
                     found = Some(next);
@@ -644,7 +649,7 @@ impl Importer<'_> {
                 let q = queues.get_or_insert_with(|| {
                     let mut m: HashMap<String, VecDeque<usize>> = HashMap::new();
                     let mut k = String::new();
-                    for (i, o) in olds.iter().enumerate() {
+                    for (i, &o) in olds.iter().enumerate() {
                         self.key_of_into(&mut k, o);
                         m.entry(k.clone()).or_default().push_back(i);
                     }
@@ -669,12 +674,12 @@ impl Importer<'_> {
         Ok(result)
     }
 
-    fn kind_of(&mut self, x: &Node, old: Option<&Element>, learned: Option<&Entry>, path: &Place<'_>) -> i32 {
+    fn kind_of(&mut self, x: &Node, old: Option<NodeId>, learned: Option<&Entry>, path: &Place<'_>) -> u8 {
         if x.children.is_some() {
             return CONTAINER;
         }
         if let Some(o) = old {
-            return o.kind;
+            return self.file.kind(o);
         }
         if x.self_closing {
             return TEXT;
@@ -687,10 +692,10 @@ impl Importer<'_> {
         }
         if let Some(l) = learned {
             if l.byte_kind >= 0 && (x.text == "true" || x.text == "false") {
-                return l.byte_kind;
+                return l.byte_kind as u8;
             }
-            if l.kind >= 0 && l.kind != CONTAINER {
-                return l.kind;
+            if l.kind >= 0 && l.kind != i32::from(CONTAINER) {
+                return l.kind as u8;
             }
         }
         if x.text == "true" || x.text == "false" {
@@ -707,19 +712,19 @@ impl Importer<'_> {
 
     fn encode(
         &mut self,
-        kind: i32,
+        kind: u8,
         x: &Node,
-        old: Option<&Element>,
+        old: Option<NodeId>,
         learned: Option<&Entry>,
         path: &Place<'_>,
     ) -> Result<Vec<u8>> {
         let text = &x.text;
         if kind == TEXT {
-            return Ok(varint_bytes(self.file.table.intern(text)));
+            return Ok(varint_bytes(intern(self.file, text) as i32));
         }
         if kind != NUMBERS {
-            let first = match old {
-                Some(o) if o.payload.len() == 2 => o.payload.first().copied().unwrap_or(1),
+            let first = match old.map(|o| self.file.payload(o)) {
+                Some(p) if p.len() == 2 => p.first().copied().unwrap_or(1),
                 _ => learned.map_or(1, |l| l.first_byte as u8),
             };
             let t = text.trim();
@@ -739,9 +744,11 @@ impl Importer<'_> {
             trimmed.split('/').collect()
         };
         let (mut old_count, mut old_size, mut old_at) = (0, 0, 0usize);
-        if let Some(o) = old.filter(|o| o.kind == NUMBERS) {
-            old_count = read_varint(&o.payload, &mut old_at)?;
-            old_size = read_varint(&o.payload, &mut old_at)?;
+        let old = old.filter(|&o| self.file.kind(o) == NUMBERS);
+        let old_payload = old.map(|o| self.file.payload(o).to_vec());
+        if let Some(p) = &old_payload {
+            old_count = read_varint(p, &mut old_at)?;
+            old_size = read_varint(p, &mut old_at)?;
         }
         let size = if old_size > 0 {
             old_size
@@ -758,8 +765,8 @@ impl Importer<'_> {
             let token = token.trim();
             match size {
                 4 => {
-                    let old_bits = match old {
-                        Some(o) if (i as i64) < i64::from(old_count) => Some(be_u32(&o.payload, old_at + 4 * i)?),
+                    let old_bits = match &old_payload {
+                        Some(p) if (i as i64) < i64::from(old_count) => Some(be_u32(p, old_at + 4 * i)?),
                         _ => None,
                     };
                     let bits = self.four_bytes(token, x.first_value(), old_bits, learned, x, path)?;
@@ -853,9 +860,9 @@ impl Importer<'_> {
 pub fn import(
     text: impl FnOnce() -> Result<String>,
     xml_path: &str,
-    reference: Option<&EditFile>,
-    type_files: &[EditFile],
-) -> Result<(EditFile, ImportReport)> {
+    reference: Option<&EditDbx>,
+    type_files: &[EditDbx],
+) -> Result<(EditDbx, ImportReport)> {
     let mut types = TypeBook::default();
     if let Some(r) = reference {
         types.learn(r)?;
@@ -865,12 +872,12 @@ pub fn import(
     }
     let mut target = match reference {
         Some(r) => r.clone(),
-        None => EditFile::empty(),
+        None => empty(),
     };
     let root = parse_xml(&text()?, xml_path)?;
-    let old_top = std::mem::take(&mut target.top_level);
+    let old_top = std::mem::take(target.roots_mut());
     let old = match old_top.first() {
-        Some(o) if target.table.tag(o)? == root.tag => Some(o),
+        Some(&o) if Table(&target).tag(o)? == root.tag => Some(o),
         _ => None,
     };
     let mut imp = Importer {
@@ -883,7 +890,7 @@ pub fn import(
     };
     let top = imp.build(&root, old, &Place::Root(&root))?;
     let report = imp.report;
-    target.top_level = vec![top];
+    *target.roots_mut() = vec![top];
     Ok((target, report))
 }
 
@@ -892,7 +899,7 @@ pub fn import(
 ///
 /// # Errors
 /// The text is not a value of the element's type.
-pub fn encode_value(file: &mut EditFile, e: &Element, text: &str) -> Result<Vec<u8>> {
+pub fn encode_value(file: &mut EditDbx, e: NodeId, text: &str) -> Result<Vec<u8>> {
     encode_value_rounded(file, e, text).map(|(bytes, _)| bytes)
 }
 
@@ -901,18 +908,20 @@ pub fn encode_value(file: &mut EditFile, e: &Element, text: &str) -> Result<Vec<
 ///
 /// # Errors
 /// The text is not a value of the element's type.
-pub fn encode_value_rounded(file: &mut EditFile, e: &Element, text: &str) -> Result<(Vec<u8>, bool)> {
-    let mut attributes = Vec::with_capacity(e.attributes.len());
-    for &(k, v) in &e.attributes {
-        attributes.push((file.table.s(k)?.to_owned(), file.table.s(v)?.to_owned()));
+pub fn encode_value_rounded(file: &mut EditDbx, e: NodeId, text: &str) -> Result<(Vec<u8>, bool)> {
+    let t = Table(file);
+    let mut attributes = Vec::with_capacity(file.attr_ids(e).len());
+    for &(k, v) in file.attr_ids(e) {
+        attributes.push((t.s(k)?.to_owned(), t.s(v)?.to_owned()));
     }
     let x = Node {
-        tag: file.table.tag(e)?.to_owned(),
+        tag: t.tag(e)?.to_owned(),
         text: text.to_owned(),
         attributes,
         ..Node::default()
     };
     let path = format!("{}[{}]", x.tag, x.first_value());
+    let kind = file.kind(e);
     let types = TypeBook::default();
     let mut imp = Importer {
         file,
@@ -922,7 +931,7 @@ pub fn encode_value_rounded(file: &mut EditFile, e: &Element, text: &str) -> Res
         key_x: String::new(),
         key_o: String::new(),
     };
-    let bytes = imp.encode(e.kind, &x, Some(e), None, &Place::Text(&path))?;
+    let bytes = imp.encode(kind, &x, Some(e), None, &Place::Text(&path))?;
     Ok((bytes, imp.report.rounded > 0))
 }
 

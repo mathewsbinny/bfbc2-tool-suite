@@ -13,6 +13,13 @@
 //! table, a value cut short by the end of the file, a varint past 32 bits) [`EditDbx::parse`] refuses at once: the
 //! caller then leaves the file to the Python reference, which fails or not by its own rules.
 //!
+//! It is also the one editable document of the suite (round PR1b-2: `DbxEdit.cs`' own model, the GR4 port's
+//! `EditFile`, merged into it). DbxEdit's reader ([`crate::dbxedit::read`]) builds the same arena under DbxEdit's
+//! rules instead of refusing: string indexes kept as the file gives them (checked only where a command reads them),
+//! varints read as C#'s 32-bit `int`, numbers sized by C#'s `int` product, a file that is not binary kept as its bytes
+//! ([`EditDbx::is_binary`]). Either way every value keeps its bytes as stored - a text value's string index varint
+//! too, until the value is set - and a string replaced in place ([`EditDbx::set_string`]) writes the table anew.
+//!
 //! ```
 //! use bc2_formats::dbx::edit::EditDbx;
 //! use bc2_formats::dbx::{self, DbxFile, Element};
@@ -66,7 +73,8 @@ enum Raw {
     Own(Vec<u8>),
 }
 
-/// One element (`dbxbin.Element`).
+/// One element (`dbxbin.Element`). A value's bytes as stored are in `raw`: a text value's string index varint (its
+/// index is `text`), a numbers element's count and size varints and values, any other value's two bytes.
 #[derive(Debug, Clone)]
 struct ENode {
     tag: u32,
@@ -77,6 +85,25 @@ struct ENode {
     cbyte: u8,
     children: Option<Vec<NodeId>>,
 }
+
+/// What a new element is made of ([`EditDbx::push`]): string indexes as stored, the value's bytes as stored.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Parts {
+    /// The tag's string index.
+    pub tag: u32,
+    /// The kind (the high four bits of the head byte).
+    pub kind: u8,
+    /// `(name, value)` string indexes.
+    pub attrs: Vec<(u32, u32)>,
+    /// A container's flag byte.
+    pub cbyte: u8,
+    /// The value's bytes as stored ([`EditDbx::payload`]; a text value's index varint); empty for a container.
+    pub payload: Vec<u8>,
+    /// A container's children (`None`: a value).
+    pub children: Option<Vec<NodeId>>,
+}
+
+pub use crate::varint::read_i32 as varint_i32;
 
 /// An element and its subtree copied out of a file, its strings as bytes (what [`EditDbx::copy_from`] inserts).
 #[derive(Debug, Clone)]
@@ -154,6 +181,12 @@ pub struct EditDbx {
     /// The original string area (offsets and strings) as a range of `data`, written back while no string was added.
     area: Option<(usize, usize)>,
     n_orig: usize,
+    /// A string was replaced in place ([`EditDbx::set_string`]): the area is written anew.
+    strings_changed: bool,
+    /// The index no longer names each string's first entry (a string was replaced); rebuilt by the next intern.
+    index_stale: bool,
+    /// Not a binary file (DbxEdit's reader only): `data` is the file, there is no tree.
+    not_binary: bool,
     nodes: Nodes,
     roots: Vec<NodeId>,
     trailing: Vec<u8>,
@@ -166,23 +199,19 @@ fn be_u32(data: &[u8], at: usize) -> EditResult<u32> {
         .ok_or_else(|| EditError::new("the header runs past the end"))
 }
 
-/// `dbxbin._varint`: a varint at `pos`; refused past the end or past 32 bits.
+/// `dbxbin._varint`: a varint at `pos`; refused past the end, or past 32 bits (a value over 32 bits, or a seventh
+/// byte, which the shortest form never needs and a write would not give back).
 fn varint(data: &[u8], pos: &mut usize) -> EditResult<u32> {
-    let mut value: u64 = 0;
-    let mut shift = 0u32;
-    loop {
-        let b = *data
-            .get(*pos)
-            .ok_or_else(|| EditError::new("a varint runs past the end"))?;
-        *pos += 1;
-        if shift > 35 {
-            return Err(EditError::new("a varint past 32 bits"));
+    let start = *pos;
+    let past_32 = || EditError::new("a varint past 32 bits");
+    match crate::varint::read_saturating(data, start) {
+        Some((v, end)) if end - start <= 6 => {
+            *pos = end;
+            u32::try_from(v).map_err(|_| past_32())
         }
-        value |= u64::from(b & 0x7F) << shift;
-        if b < 0x80 {
-            return u32::try_from(value).map_err(|_| EditError::new("a varint past 32 bits"));
-        }
-        shift += 7;
+        Some(_) => Err(past_32()),
+        None if data.len().saturating_sub(start) >= 7 => Err(past_32()),
+        None => Err(EditError::new("a varint runs past the end")),
     }
 }
 
@@ -260,6 +289,9 @@ impl EditDbx {
             index: Arc::new(index),
             area: Some((24, 24 + area)),
             n_orig: count,
+            strings_changed: false,
+            index_stale: false,
+            not_binary: false,
             nodes: Nodes::with_capacity((n - 24 - area) / 5),
             roots: Vec::new(),
             trailing: Vec::new(),
@@ -306,7 +338,9 @@ impl EditDbx {
                 pos += 1;
                 e.children = Some(Vec::new());
             } else if kind == TEXT {
+                let start = pos;
                 e.text = check(varint(data, &mut pos)?)?;
+                e.raw = Raw::At(start as u32, (pos - start) as u32);
             } else if kind == NUMBERS {
                 let start = pos;
                 let c = varint(data, &mut pos)?;
@@ -348,6 +382,14 @@ impl EditDbx {
 
     /// `Dbx.intern`: the first index of `s`, appended to the table when it is new.
     pub fn intern(&mut self, s: &[u8]) -> u32 {
+        if self.index_stale {
+            let mut index = HashMap::with_capacity(self.strings.len());
+            for (i, t) in self.strings.iter().enumerate() {
+                index.entry(t.clone()).or_insert(i as u32);
+            }
+            self.index = Arc::new(index);
+            self.index_stale = false;
+        }
         if let Some(&i) = self.index.get(s) {
             return i;
         }
@@ -367,6 +409,28 @@ impl EditDbx {
     #[must_use]
     pub fn s(&self, id: u32) -> &[u8] {
         self.strings.get(id as usize).map_or(&[][..], Vec::as_slice)
+    }
+
+    /// String `id`, or `None` for an index the table does not have (DbxEdit's reader keeps such indexes).
+    #[must_use]
+    pub fn string(&self, id: u32) -> Option<&[u8]> {
+        self.strings.get(id as usize).map(Vec::as_slice)
+    }
+
+    /// Entry `i` of the table replaced by `s` (DbxEdit's `replace` / `replaceprefix`): the string area is then written
+    /// anew, and interning finds the first entry of the table as it is now. An index past the table does nothing.
+    pub fn set_string(&mut self, i: usize, s: Vec<u8>) {
+        if let Some(slot) = Arc::make_mut(&mut self.strings).get_mut(i) {
+            *slot = s;
+            self.strings_changed = true;
+            self.index_stale = true;
+        }
+    }
+
+    /// Whether the string table will be written anew (a string was added or replaced).
+    #[must_use]
+    pub fn strings_changed(&self) -> bool {
+        self.strings_changed || self.area.is_none() || self.strings.len() != self.n_orig
     }
 
     // -- elements
@@ -435,11 +499,174 @@ impl EditDbx {
     /// containers and text.
     #[must_use]
     pub fn raw(&self, n: NodeId) -> &[u8] {
+        match self.node(n) {
+            Some(e) if e.kind == TEXT => &[],
+            _ => self.payload(n),
+        }
+    }
+
+    /// A value's bytes as stored (DbxEdit's `Element.Payload`): [`EditDbx::raw`], and for a text value its string
+    /// index's varint (as the file stored it, until the value is set). Empty for a container.
+    #[must_use]
+    pub fn payload(&self, n: NodeId) -> &[u8] {
         match self.node(n).map(|e| &e.raw) {
             Some(Raw::At(s, l)) => self.data.get(*s as usize..(*s + *l) as usize).unwrap_or_default(),
             Some(Raw::Own(v)) => v,
             None => &[],
         }
+    }
+
+    /// A text value's string index as stored (C#'s `int` bits under DbxEdit's reader; `None` for any kind but text).
+    #[must_use]
+    pub fn text_id(&self, n: NodeId) -> Option<u32> {
+        self.node(n).filter(|e| e.kind == TEXT).map(|e| e.text)
+    }
+
+    /// The tag's string index as stored.
+    #[must_use]
+    pub fn tag_id(&self, n: NodeId) -> u32 {
+        self.node(n).map_or(0, |e| e.tag)
+    }
+
+    /// The `(name, value)` string indexes as stored.
+    #[must_use]
+    pub fn attr_ids(&self, n: NodeId) -> &[(u32, u32)] {
+        self.node(n).map_or(&[][..], |e| e.attrs.as_slice())
+    }
+
+    /// The `(name, value)` string indexes, to change in place.
+    ///
+    /// # Errors
+    /// No such element.
+    pub fn attr_ids_mut(&mut self, n: NodeId) -> EditResult<&mut Vec<(u32, u32)>> {
+        Ok(&mut self.node_mut(n)?.attrs)
+    }
+
+    /// A container's flag byte (0 for anything else).
+    #[must_use]
+    pub fn container_byte(&self, n: NodeId) -> u8 {
+        self.node(n).map_or(0, |e| e.cbyte)
+    }
+
+    /// Whether it has children (a container's list, empty or not).
+    #[must_use]
+    pub fn is_container(&self, n: NodeId) -> bool {
+        self.children(n).is_some()
+    }
+
+    /// A value's stored bytes set as they are ([`EditDbx::payload`]); for a text value the bytes are its index's
+    /// varint, read as C#'s `int` (index 0 where the varint is cut short; the bytes are written as given).
+    ///
+    /// # Errors
+    /// No such element.
+    pub fn set_payload(&mut self, n: NodeId, payload: Vec<u8>) -> EditResult<()> {
+        let e = self.node_mut(n)?;
+        if e.kind == TEXT {
+            e.text = varint_i32(&payload, &mut 0).unwrap_or(0) as u32;
+        }
+        e.raw = Raw::Own(payload);
+        Ok(())
+    }
+
+    /// A new element of `parts` (string indexes as given, not checked), not attached anywhere yet.
+    pub fn push(&mut self, parts: Parts) -> NodeId {
+        let text = if parts.kind == TEXT {
+            varint_i32(&parts.payload, &mut 0).unwrap_or(0) as u32
+        } else {
+            0
+        };
+        let id = self.nodes.len() as NodeId;
+        self.nodes.push(ENode {
+            tag: parts.tag,
+            kind: parts.kind,
+            attrs: parts.attrs,
+            text,
+            raw: Raw::Own(parts.payload),
+            cbyte: parts.cbyte,
+            children: parts.children,
+        });
+        id
+    }
+
+    /// An element read from the file (DbxEdit's reader; see [`EditDbx::from_file`]): `parts` without a payload, the
+    /// value's stored bytes `value` (start, length) a range of the file, `text` a text value's index.
+    pub(crate) fn push_read(&mut self, parts: Parts, value: (u32, u32), text: u32) -> NodeId {
+        let id = self.nodes.len() as NodeId;
+        self.nodes.push(ENode {
+            tag: parts.tag,
+            kind: parts.kind,
+            attrs: parts.attrs,
+            text,
+            raw: if parts.children.is_some() {
+                Raw::Own(Vec::new())
+            } else {
+                Raw::At(value.0, value.1)
+            },
+            cbyte: parts.cbyte,
+            children: parts.children,
+        });
+        id
+    }
+
+    /// A container's children set (DbxEdit's reader, once they are read).
+    pub(crate) fn set_children(&mut self, n: NodeId, children: Vec<NodeId>) {
+        if let Some(e) = self.nodes.get_mut(n as usize) {
+            e.children = Some(children);
+        }
+    }
+
+    /// The bytes after the tree (its closing 0 and whatever follows).
+    #[must_use]
+    pub fn trailing(&self) -> &[u8] {
+        &self.trailing
+    }
+
+    /// Whether the file was binary (always, but for a file DbxEdit's reader kept as it was: [`EditDbx::not_binary`]).
+    #[must_use]
+    pub fn is_binary(&self) -> bool {
+        !self.not_binary
+    }
+
+    /// The bytes the document was read from (empty for a new one).
+    #[must_use]
+    pub fn original(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// A file that is not a binary `.dbx`, kept as its bytes (DbxEdit's reader: a command on it then fails where
+    /// DbxEdit's does). Written, it gives an empty binary file, as DbxEdit's `Serialize` does.
+    #[must_use]
+    pub fn not_binary(data: &[u8]) -> Self {
+        Self {
+            data: Arc::from(data),
+            not_binary: true,
+            ..Self::default()
+        }
+    }
+
+    /// The document of a binary file whose header and strings DbxEdit's reader has read: `area` the string area's
+    /// range of `data` (offsets and strings), written back while no string is added or replaced; the tree is pushed
+    /// next ([`EditDbx::push_read`], [`EditDbx::roots_mut`], [`EditDbx::set_trailing`]).
+    pub(crate) fn from_file(data: &[u8], header: u32, strings: Vec<Vec<u8>>, area: (usize, usize)) -> Self {
+        let mut index = HashMap::with_capacity(strings.len());
+        for (i, s) in strings.iter().enumerate() {
+            index.entry(s.clone()).or_insert(i as u32);
+        }
+        Self {
+            data: Arc::from(data),
+            header,
+            n_orig: strings.len(),
+            strings: Arc::new(strings),
+            index: Arc::new(index),
+            area: Some(area),
+            nodes: Nodes::with_capacity(data.len().saturating_sub(area.1) / 5),
+            ..Self::default()
+        }
+    }
+
+    /// The bytes after the tree, set.
+    pub(crate) fn set_trailing(&mut self, trailing: Vec<u8>) {
+        self.trailing = trailing;
     }
 
     /// `Element.children` (`None` for anything but a container).
@@ -571,7 +798,9 @@ impl EditDbx {
             return Err(EditError::new("not text"));
         }
         let t = self.intern(value);
-        self.node_mut(n)?.text = t;
+        let e = self.node_mut(n)?;
+        e.text = t;
+        e.raw = Raw::Own(varint_bytes(t));
         Ok(())
     }
 
@@ -659,7 +888,7 @@ impl EditDbx {
         let e = self.node_mut(n)?;
         e.kind = TEXT;
         e.children = None;
-        e.raw = Raw::Own(Vec::new());
+        e.raw = Raw::Own(varint_bytes(t));
         e.text = t;
         Ok(())
     }
@@ -672,6 +901,7 @@ impl EditDbx {
         let e = self.node_mut(n)?;
         e.kind = CONTAINER;
         e.children = Some(Vec::new());
+        e.raw = Raw::Own(Vec::new());
         e.cbyte = 0;
         Ok(())
     }
@@ -700,7 +930,11 @@ impl EditDbx {
             kind: s.kind,
             attrs,
             text,
-            raw: Raw::Own(s.raw.clone()),
+            raw: Raw::Own(if s.kind == TEXT {
+                varint_bytes(text)
+            } else {
+                s.raw.clone()
+            }),
             cbyte: s.cbyte,
             children: None,
         });
@@ -737,10 +971,10 @@ impl EditDbx {
             kind,
             attrs,
             text,
-            raw: Raw::Own(if matches!(kind, CONTAINER | TEXT) {
-                Vec::new()
-            } else {
-                raw
+            raw: Raw::Own(match kind {
+                CONTAINER => Vec::new(),
+                TEXT => varint_bytes(text),
+                _ => raw,
             }),
             cbyte: 0,
             children: (kind == CONTAINER).then(Vec::new),
@@ -778,10 +1012,8 @@ impl EditDbx {
                 if e.kind == CONTAINER {
                     tree.push(e.cbyte);
                     stack.push((n, 0));
-                } else if e.kind == TEXT {
-                    put_varint(&mut tree, u64::from(e.text));
                 } else {
-                    tree.extend_from_slice(self.raw(n));
+                    tree.extend_from_slice(self.payload(n));
                 }
             } else {
                 match e.children.as_deref().and_then(|c| c.get(at)) {
@@ -795,7 +1027,7 @@ impl EditDbx {
         }
         let fresh;
         let (area, count): (&[u8], usize) = match self.area {
-            Some((a, b)) if self.strings.len() == self.n_orig => (self.data.get(a..b).unwrap_or_default(), self.n_orig),
+            Some((a, b)) if !self.strings_changed() => (self.data.get(a..b).unwrap_or_default(), self.n_orig),
             _ => {
                 let mut offs = Vec::with_capacity(4 * self.strings.len());
                 let mut blob = Vec::new();

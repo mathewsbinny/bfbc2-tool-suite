@@ -18,7 +18,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use bc2_formats::dbxedit::leveldiff::{self, Change, Options};
-use bc2_formats::dbxedit::{EditFile, PlacedObject};
+use bc2_formats::dbxedit::{self as dx, EditDbx, PlacedObject, Table};
 use bc2_levelwrite::export::{self, StageRecord};
 use bc2_levelwrite::{LevelWriter, modelayer, mpconvert};
 use bc2_scene::scene::Scene;
@@ -244,11 +244,12 @@ pub struct Marks {
 }
 
 /// A placed object's full blueprint path (lower case, without its guid) by its partition child index.
-fn blueprint_path(f: &EditFile, index: usize) -> Option<String> {
-    let i = f.partition_children().ok()?.get(index)?;
-    for c in i.kids() {
-        if f.table.get(c, "name").ok()? == Some("ReferencedObject") {
-            let r = f.table.get(c, "ref").ok()??.to_ascii_lowercase();
+fn blueprint_path(f: &EditDbx, index: usize) -> Option<String> {
+    let i = *dx::partition_children(f).ok()?.get(index)?;
+    let t = Table(f);
+    for &c in dx::kids(f, i) {
+        if t.get(c, "name").ok()? == Some("ReferencedObject") {
+            let r = t.get(c, "ref").ok()??.to_ascii_lowercase();
             return Some(r.rsplit_once('/').map_or(r.clone(), |(head, _)| head.to_owned()));
         }
     }
@@ -275,9 +276,9 @@ impl DiffView {
         closure: &HashSet<String>,
     ) -> Result<Self, EditorError> {
         let t = Instant::now();
-        let fa = EditFile::parse(a.to_vec()).map_err(|e| EditorError::Level(e.to_string()))?;
-        let fb = EditFile::parse(b.to_vec()).map_err(|e| EditorError::Level(e.to_string()))?;
-        if !fa.is_binary || !fb.is_binary {
+        let fa = dx::read(a).map_err(|e| EditorError::Level(e.to_string()))?;
+        let fb = dx::read(b).map_err(|e| EditorError::Level(e.to_string()))?;
+        if !fa.is_binary() || !fb.is_binary() {
             return Err(EditorError::Level("both partitions must be binary .dbx".into()));
         }
         let d = leveldiff::diff(&fa, &fb, &Options::default()).map_err(|e| EditorError::Level(e.to_string()))?;
@@ -286,7 +287,7 @@ impl DiffView {
         let in_layer = |g: Option<&String>| {
             g.is_some_and(|g| la.contains(&g.to_ascii_uppercase()) || lb.contains(&g.to_ascii_uppercase()))
         };
-        let placed = |f: &EditFile| -> std::collections::HashMap<usize, PlacedObject> {
+        let placed = |f: &EditDbx| -> std::collections::HashMap<usize, PlacedObject> {
             PlacedObject::all(f)
                 .unwrap_or_default()
                 .into_iter()
@@ -294,7 +295,7 @@ impl DiffView {
                 .collect()
         };
         let (pa, pb) = (placed(&fa), placed(&fb));
-        let pos = |f: &EditFile, p: &std::collections::HashMap<usize, PlacedObject>, k: usize| {
+        let pos = |f: &EditDbx, p: &std::collections::HashMap<usize, PlacedObject>, k: usize| {
             p.get(&k)
                 .map(|o| [o.x, o.y, o.z])
                 .or_else(|| leveldiff::position_of(f, k))

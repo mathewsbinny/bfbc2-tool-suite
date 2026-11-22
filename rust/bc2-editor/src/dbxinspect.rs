@@ -1,6 +1,6 @@
 //! The DBX inspector's model (round GR4: `DbxEditGUI` folded into the map editor; its window is
 //! [`crate::dbxpanel`]): any binary `.dbx` - a loose file, an entry of a bundle, or the open project's level
-//! partition - as DbxEdit holds it ([`bc2_formats::dbxedit::EditFile`]: whatever an edit does not touch is written
+//! partition - as DbxEdit holds it ([`bc2_formats::dbxedit::EditDbx`] read by DbxEdit's rules: whatever an edit does not touch is written
 //! back byte for byte), its tree, and every edit `DbxEditGUI` made, each through the same `dbxedit` code its command
 //! line runs, with `DbxEditGUI`'s messages and edit script lines:
 //!
@@ -26,7 +26,7 @@
 
 use std::path::{Path, PathBuf};
 
-use bc2_formats::dbxedit::{self as dx, CONTAINER, EditFile, Element, NUMBERS, TEXT, Table, editor};
+use bc2_formats::dbxedit::{self as dx, CONTAINER, EditDbx, NUMBERS, NodeId, TEXT, Table, editor};
 use bc2_levelwrite::{FieldType, FieldValue};
 
 /// An element's place: its index in the top level, then in each container down to it.
@@ -61,7 +61,7 @@ pub const UNDO_BUDGET: usize = 256 << 20;
 #[derive(Debug, Clone)]
 pub struct DbxDoc {
     /// The file as DbxEdit holds it.
-    pub file: EditFile,
+    pub file: EditDbx,
     /// Where it came from.
     pub source: Source,
     /// The path the window names it by (and saves to): the file, the bundle's entry, the partition.
@@ -110,19 +110,17 @@ fn utf16_prefix(s: &str, n: usize) -> String {
 /// print (the denormal trap: DbxEdit's XML shows 7.3e-40 as 524288, its bits), with that decimal: each
 /// `(index, bits, decimal)`, from 65,536 up. Empty for fields of whole numbers (hashes, ids) and anything else.
 #[must_use]
-pub fn denormal_hint(t: &Table, e: &Element) -> Vec<(usize, u32, f32)> {
-    if e.kind != NUMBERS {
+pub fn denormal_hint(d: &EditDbx, e: NodeId) -> Vec<(usize, u32, f32)> {
+    if d.kind(e) != NUMBERS {
         return Vec::new();
     }
-    let field = t.first_value(e).unwrap_or("");
+    let field = Table(d).first_value(e).unwrap_or("");
+    let payload = d.payload(e);
     if bc2_formats::dbx::WHOLE_NUMBER_FIELDS.contains(&field) {
         return Vec::new();
     }
     let mut pos = 0;
-    let (Ok(n), Ok(size)) = (
-        dx::read_varint(&e.payload, &mut pos),
-        dx::read_varint(&e.payload, &mut pos),
-    ) else {
+    let (Ok(n), Ok(size)) = (dx::read_varint(payload, &mut pos), dx::read_varint(payload, &mut pos)) else {
         return Vec::new();
     };
     if size != 4 || n <= 0 {
@@ -130,8 +128,7 @@ pub fn denormal_hint(t: &Table, e: &Element) -> Vec<(usize, u32, f32)> {
     }
     let mut out = Vec::new();
     for i in 0..n as usize {
-        let Some(bits) = e
-            .payload
+        let Some(bits) = payload
             .get(pos + 4 * i..pos + 4 * i + 4)
             .and_then(|b| <[u8; 4]>::try_from(b).ok())
             .map(u32::from_be_bytes)
@@ -154,7 +151,7 @@ impl DbxDoc {
     pub fn open(path: &Path) -> Result<Self, String> {
         let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let name = path.display().to_string();
-        let mut d = Self::from_bytes(data, Source::File(path.to_path_buf()), &name)?;
+        let mut d = Self::from_bytes(&data, Source::File(path.to_path_buf()), &name)?;
         d.log.push(format!("opened {name}"));
         Ok(d)
     }
@@ -171,7 +168,7 @@ impl DbxDoc {
             .ok_or_else(|| format!("{}: no entry {entry}", bundle.display()))?;
         let name = format!("{}|{entry}", bundle.display());
         let mut d = Self::from_bytes(
-            data,
+            &data,
             Source::Bundle {
                 bundle: bundle.to_path_buf(),
                 entry: entry.to_owned(),
@@ -186,9 +183,9 @@ impl DbxDoc {
     ///
     /// # Errors
     /// Damaged, or not a binary `.dbx`.
-    pub fn from_bytes(data: Vec<u8>, source: Source, name: &str) -> Result<Self, String> {
-        let file = EditFile::parse(data).map_err(|e| format!("{name}: {}", e.message))?;
-        if !file.is_binary {
+    pub fn from_bytes(data: &[u8], source: Source, name: &str) -> Result<Self, String> {
+        let file = dx::read(data).map_err(|e| format!("{name}: {}", e.message))?;
+        if !file.is_binary() {
             return Err(format!(
                 "{name}\n\nis not a binary .dbx file (it may be plain XML already)."
             ));
@@ -242,55 +239,59 @@ impl DbxDoc {
         self.undo.len()
     }
 
-    fn t(&self) -> &Table {
-        &self.file.table
+    fn t(&self) -> Table<'_> {
+        Table(&self.file)
     }
 
     /// The element at `path`.
     #[must_use]
-    pub fn element(&self, path: &[usize]) -> Option<&Element> {
+    pub fn element(&self, path: &[usize]) -> Option<NodeId> {
         let (first, rest) = path.split_first()?;
-        let mut e = self.file.top_level.get(*first)?;
+        let mut e = *self.file.roots().get(*first)?;
         for &i in rest {
-            e = e.children.as_ref()?.get(i)?;
+            e = *self.file.children(e)?.get(i)?;
         }
         Some(e)
     }
 
-    fn element_mut(&mut self, path: &[usize]) -> Option<&mut Element> {
-        let (first, rest) = path.split_first()?;
-        let mut e = self.file.top_level.get_mut(*first)?;
-        for &i in rest {
-            e = e.children.as_mut()?.get_mut(i)?;
-        }
-        Some(e)
+    /// An element's children (none for a value).
+    #[must_use]
+    pub fn kids(&self, e: NodeId) -> &[NodeId] {
+        dx::kids(&self.file, e)
+    }
+
+    /// Whether an element has children.
+    #[must_use]
+    pub fn is_container(&self, e: NodeId) -> bool {
+        self.file.is_container(e)
     }
 
     /// An attribute of an element (`Get`), `None` when it has none or the file is damaged there.
     #[must_use]
-    pub fn get(&self, e: &Element, name: &str) -> Option<String> {
+    pub fn get(&self, e: NodeId, name: &str) -> Option<String> {
         self.t().get(e, name).ok().flatten().map(str::to_owned)
     }
 
     /// An element's tag.
     #[must_use]
-    pub fn tag(&self, e: &Element) -> String {
+    pub fn tag(&self, e: NodeId) -> String {
         self.t().tag(e).unwrap_or("").to_owned()
     }
 
     /// An element's value as the XML writes it (`ValueText`; empty for a container or a damaged value).
     #[must_use]
-    pub fn value(&self, e: &Element) -> String {
-        if e.is_container() {
+    pub fn value(&self, e: NodeId) -> String {
+        if self.file.is_container(e) {
             return String::new();
         }
-        dx::value_text(self.t(), e).unwrap_or_default()
+        dx::value_text(&self.file, e).unwrap_or_default()
     }
 
     /// An element's attributes, `(name, value)`.
     #[must_use]
-    pub fn attributes(&self, e: &Element) -> Vec<(String, String)> {
-        e.attributes
+    pub fn attributes(&self, e: NodeId) -> Vec<(String, String)> {
+        self.file
+            .attr_ids(e)
             .iter()
             .map(|&(k, v)| {
                 (
@@ -304,7 +305,7 @@ impl DbxDoc {
     /// The tree's row of an element (`DbxEditGUI`'s `Label`): the partition and its guid, an instance's short type and
     /// id (or guid), a reference `name -> ref`, a container `name  [count]`, a value `name = value` (90 characters).
     #[must_use]
-    pub fn label(&self, e: &Element) -> String {
+    pub fn label(&self, e: NodeId) -> String {
         let tag = self.tag(e);
         if tag == "partition" {
             return format!("partition {}", self.get(e, "guid").unwrap_or_default());
@@ -319,8 +320,8 @@ impl DbxDoc {
         if let Some(r) = self.get(e, "ref") {
             return format!("{head} -> {r}");
         }
-        if e.is_container() {
-            return format!("{head}  [{}]", e.kids().len());
+        if self.is_container(e) {
+            return format!("{head}  [{}]", self.kids(e).len());
         }
         let mut v = self.value(e);
         if v.encode_utf16().count() > 90 {
@@ -331,15 +332,15 @@ impl DbxDoc {
 
     /// The value pane's heading: the tag and the kind (`container`, `text`, `N numbers of S bytes`, `bool / byte`).
     #[must_use]
-    pub fn heading(&self, e: &Element) -> String {
-        let kind = if e.is_container() {
+    pub fn heading(&self, e: NodeId) -> String {
+        let kind = if self.is_container(e) {
             "container".to_owned()
-        } else if e.kind == TEXT {
+        } else if self.file.kind(e) == TEXT {
             "text".to_owned()
-        } else if e.kind == NUMBERS {
+        } else if self.file.kind(e) == NUMBERS {
             let mut p = 0;
-            let n = dx::read_varint(&e.payload, &mut p).unwrap_or(0);
-            let size = dx::read_varint(&e.payload, &mut p).unwrap_or(0);
+            let n = dx::read_varint(self.file.payload(e), &mut p).unwrap_or(0);
+            let size = dx::read_varint(self.file.payload(e), &mut p).unwrap_or(0);
             format!("{n} number{} of {size} bytes", if n == 1 { "" } else { "s" })
         } else {
             "bool / byte".to_owned()
@@ -367,10 +368,10 @@ impl DbxDoc {
     /// The path of the instance with this guid (`Instance(guid)`: the partition's first, any case).
     #[must_use]
     pub fn instance_path(&self, guid: &str) -> Option<NodePath> {
-        let p = self.file.top_level.first()?;
-        p.kids()
+        let p = *self.file.roots().first()?;
+        self.kids(p)
             .iter()
-            .position(|e| {
+            .position(|&e| {
                 self.tag(e) == "instance" && self.get(e, "guid").is_some_and(|g| dx::net::same_ignore_case(&g, guid))
             })
             .map(|i| vec![0, i])
@@ -412,11 +413,11 @@ impl DbxDoc {
     /// # Errors
     /// An element with more than 15 attributes, nesting too deep.
     pub fn bytes(&self) -> Result<Vec<u8>, String> {
-        self.file.serialize().map_err(|e| e.message)
+        dx::serialize(&self.file).map_err(|e| e.message)
     }
 
-    fn restore(&mut self, bytes: Vec<u8>) {
-        if let Ok(f) = EditFile::parse(bytes) {
+    fn restore(&mut self, bytes: &[u8]) {
+        if let Ok(f) = dx::read(bytes) {
             self.file = f;
         }
     }
@@ -427,7 +428,7 @@ impl DbxDoc {
             self.log.push("Nothing to undo.".into());
             return;
         };
-        self.restore(b);
+        self.restore(&b);
         self.script.pop();
         // an edit whose step was let go is still in the file
         self.modified = !self.undo.is_empty() || self.undo_dropped;
@@ -446,7 +447,7 @@ impl DbxDoc {
         let before = self.file.clone();
         match self.apply_inner(path, attrs, value) {
             Ok(Some(rounded)) => {
-                match before.serialize() {
+                match dx::serialize(&before) {
                     Ok(b) => self.push_undo(b),
                     Err(e) => {
                         self.file = before;
@@ -454,26 +455,28 @@ impl DbxDoc {
                     }
                 }
                 self.modified = true;
-                let e = self.element(path).cloned().unwrap_or_default();
+                let Some(e) = self.element(path) else {
+                    return Ok(Applied::Changed);
+                };
                 if let Some(v) = rounded {
                     self.log.push(format!("Rounded to the nearest 4-byte value: {v}"));
                 }
                 let inst = self.instance_of(path);
-                let name = self.get(&e, "name");
+                let name = self.get(e, "name");
                 let direct = inst
                     .as_ref()
                     .is_some_and(|i| i.len() + 1 == path.len() && i.as_slice() != path);
                 let line = match (&inst, name) {
-                    (Some(i), Some(n)) if direct && !e.is_container() => {
+                    (Some(i), Some(n)) if direct && !self.is_container(e) => {
                         let guid = self.element(i).and_then(|x| self.get(x, "guid")).unwrap_or_default();
-                        format!("setfield={guid}|{n}|{}", self.value(&e))
+                        format!("setfield={guid}|{n}|{}", self.value(e))
                     }
                     _ => {
                         let where_ = inst
                             .as_ref()
                             .and_then(|i| self.element(i))
                             .map_or_else(|| "partition".to_owned(), |x| self.get(x, "guid").unwrap_or_default());
-                        format!("# edited {} in {where_} (no command form)", self.label(&e))
+                        format!("# edited {} in {where_} (no command form)", self.label(e))
                     }
                 };
                 self.script.push(line);
@@ -481,7 +484,7 @@ impl DbxDoc {
             }
             Ok(None) => Ok(Applied::Unchanged),
             Err(e) => {
-                self.restore(before.serialize().map_err(|e| e.message)?);
+                self.file = before;
                 Err(e)
             }
         }
@@ -490,34 +493,32 @@ impl DbxDoc {
     /// `Ok(None)` nothing differed; `Ok(Some(rounded))` changed, with the rounded value's text when one was.
     #[allow(clippy::option_option, reason = "changed or not, then rounded or not")]
     fn apply_inner(&mut self, path: &[usize], attrs: &[String], value: &str) -> Result<Option<Option<String>>, String> {
-        let mut e = self.element(path).cloned().ok_or("no such element")?;
+        // edited in place: the caller puts the file back as it was when the edit fails
+        let e = self.element(path).ok_or("no such element")?;
         let mut changed = false;
         for (i, a) in attrs.iter().enumerate() {
-            let Some(slot) = e.attributes.get(i).copied() else {
+            let Some(slot) = self.file.attr_ids(e).get(i).copied() else {
                 break;
             };
             if self.t().s(slot.1).ok() != Some(a.as_str()) {
-                let id = self.file.table.intern(a);
-                if let Some(s) = e.attributes.get_mut(i) {
+                let id = dx::intern(&mut self.file, a);
+                if let Some(s) = self.file.attr_ids_mut(e).ok().and_then(|l| l.get_mut(i)) {
                     s.1 = id;
                 }
                 changed = true;
             }
         }
         let mut rounded = None;
-        if !e.is_container() && value != dx::value_text(self.t(), &e).unwrap_or_default() {
-            let (payload, r) = dx::encode_value_rounded(&mut self.file, &e, value).map_err(|f| f.message)?;
-            e.payload = payload;
+        if !self.is_container(e) && value != dx::value_text(&self.file, e).unwrap_or_default() {
+            let (payload, r) = dx::encode_value_rounded(&mut self.file, e, value).map_err(|f| f.message)?;
+            self.file.set_payload(e, payload).map_err(|f| f.0)?;
             changed = true;
             if r {
-                rounded = Some(dx::value_text(self.t(), &e).unwrap_or_default());
+                rounded = Some(dx::value_text(&self.file, e).unwrap_or_default());
             }
         }
         if !changed {
             return Ok(None);
-        }
-        if let Some(slot) = self.element_mut(path) {
-            *slot = e;
         }
         Ok(Some(rounded))
     }
@@ -564,7 +565,7 @@ impl DbxDoc {
     pub fn graft(
         &mut self,
         source_path: &str,
-        source: &EditFile,
+        source: &EditDbx,
         guid: &str,
         at: Option<&[usize]>,
     ) -> Result<Option<NodePath>, String> {
@@ -596,7 +597,7 @@ impl DbxDoc {
         &mut self,
         at: &[usize],
         source_path: &str,
-        source: &EditFile,
+        source: &EditDbx,
         source_guid: &str,
         field: &str,
     ) -> Result<(), String> {
@@ -748,9 +749,9 @@ impl DbxDoc {
     #[must_use]
     pub fn partition_guid_now(&self) -> String {
         self.file
-            .top_level
+            .roots()
             .first()
-            .and_then(|p| self.get(p, "guid"))
+            .and_then(|&p| self.get(p, "guid"))
             .unwrap_or_default()
     }
 
@@ -774,7 +775,7 @@ impl DbxDoc {
     ///
     /// # Errors
     /// A damaged file.
-    pub fn check_level(&mut self, slots: Option<(&str, &EditFile)>) -> Result<(), String> {
+    pub fn check_level(&mut self, slots: Option<(&str, &EditDbx)>) -> Result<(), String> {
         let results = dx::level_check(&self.file, slots.map(|s| s.1), &[]).map_err(|e| e.message)?;
         self.log.push(String::new());
         self.log.push(format!(
@@ -807,7 +808,7 @@ impl DbxDoc {
     ///
     /// # Errors
     /// A damaged file.
-    pub fn fix_slots(&mut self, from_path: &str, from: &EditFile) -> Result<(), String> {
+    pub fn fix_slots(&mut self, from_path: &str, from: &EditDbx) -> Result<(), String> {
         self.snapshot()?;
         let r = dx::fix_slots(&mut self.file, from).map_err(|e| e.message)?;
         if r.changed == 0 {
@@ -835,7 +836,7 @@ impl DbxDoc {
             return found;
         }
         let mut path = Vec::new();
-        for (i, e) in self.file.top_level.iter().enumerate() {
+        for (i, &e) in self.file.roots().iter().enumerate() {
             path.push(i);
             self.search(e, text, &mut path, &mut found);
             path.pop();
@@ -848,17 +849,19 @@ impl DbxDoc {
         found
     }
 
-    fn search(&self, e: &Element, s: &str, path: &mut Vec<usize>, into: &mut Vec<NodePath>) {
+    fn search(&self, e: NodeId, s: &str, path: &mut Vec<usize>, into: &mut Vec<NodePath>) {
         let t = self.t();
         let hit = contains_ignore_case(t.tag(e).unwrap_or(""), s)
-            || e.attributes
+            || self
+                .file
+                .attr_ids(e)
                 .iter()
                 .any(|&(_, v)| contains_ignore_case(t.s(v).unwrap_or(""), s))
-            || (!e.is_container() && contains_ignore_case(&self.value(e), s));
+            || (!self.is_container(e) && contains_ignore_case(&self.value(e), s));
         if hit {
             into.push(path.clone());
         }
-        for (i, c) in e.kids().iter().enumerate() {
+        for (i, &c) in self.kids(e).iter().enumerate() {
             path.push(i);
             self.search(c, s, path, into);
             path.pop();
@@ -882,7 +885,8 @@ impl DbxDoc {
     /// The XML cannot be read or a value does not fit its type (the file stays as it was).
     pub fn import_xml(&mut self, xml: &Path) -> Result<(), String> {
         let xml_path = xml.display().to_string();
-        let reference = EditFile::parse(self.bytes()?).map_err(|e| e.message)?;
+        // the open file as it is now (a clone shares its elements: nothing is copied or read again)
+        let reference = self.file.clone();
         let (result, report) = dx::import(
             || Ok(dx::net::decode_text(&dx::net::read_bytes(&xml_path)?)),
             &xml_path,
@@ -890,9 +894,9 @@ impl DbxDoc {
             &[],
         )
         .map_err(|e| e.message)?;
-        let bytes = result.serialize().map_err(|e| e.message)?;
+        let bytes = dx::serialize(&result).map_err(|e| e.message)?;
         self.snapshot()?;
-        self.restore(bytes);
+        self.restore(&bytes);
         self.script.push(format!("# imported {xml_path}"));
         self.log.push(format!(
             "import {xml_path}: {} unchanged, {} changed, {} new, {} removed{}",
@@ -1021,16 +1025,16 @@ impl DbxDoc {
     /// Every element's path, in tree order.
     #[must_use]
     pub fn all_paths(&self) -> Vec<NodePath> {
-        fn walk(l: &[Element], prefix: &mut Vec<usize>, out: &mut Vec<NodePath>) {
-            for (i, e) in l.iter().enumerate() {
+        fn walk(f: &EditDbx, l: &[NodeId], prefix: &mut Vec<usize>, out: &mut Vec<NodePath>) {
+            for (i, &e) in l.iter().enumerate() {
                 prefix.push(i);
                 out.push(prefix.clone());
-                walk(e.kids(), prefix, out);
+                walk(f, dx::kids(f, e), prefix, out);
                 prefix.pop();
             }
         }
         let mut out = Vec::new();
-        walk(&self.file.top_level, &mut Vec::new(), &mut out);
+        walk(&self.file, self.file.roots(), &mut Vec::new(), &mut out);
         out
     }
 }
@@ -1063,7 +1067,7 @@ pub fn project_field(
         2 => {
             let parent = doc.element(path.get(..path.len() - 1).unwrap_or_default());
             let p = parent
-                .filter(|p| doc.tag(p) != "array")
+                .filter(|p| doc.tag(*p) != "array")
                 .and_then(|p| doc.get(p, "name"));
             let n = doc.element(path).and_then(|e| doc.get(e, "name"));
             p.zip(n).map(|(p, n)| format!("{p}.{n}"))
@@ -1091,22 +1095,22 @@ pub fn project_field(
     }
     let e = scratch.element(path).ok_or("no such element")?;
     let old = doc.element(path).ok_or("no such element")?;
-    if e.attributes.len() != old.attributes.len()
-        || e.attributes
+    let (ea, oa) = (scratch.file.attr_ids(e), doc.file.attr_ids(old));
+    if ea.len() != oa.len()
+        || ea
             .iter()
-            .zip(&old.attributes)
+            .zip(oa)
             .any(|(a, b)| scratch.t().s(a.0).ok() != doc.t().s(b.0).ok())
     {
         return Err("attributes cannot change through the project".into());
     }
-    let changed_attr: Vec<String> = e
-        .attributes
+    let changed_attr: Vec<String> = ea
         .iter()
-        .zip(&old.attributes)
+        .zip(oa)
         .filter(|(a, b)| scratch.t().s(a.1).ok() != doc.t().s(b.1).ok())
         .map(|(a, _)| scratch.t().s(a.0).unwrap_or("").to_owned())
         .collect();
-    let v = field_value(&ty, &scratch.file.table, e, &changed_attr)?;
+    let v = field_value(&ty, &scratch.file, e, &changed_attr)?;
     Ok(Some((guid, field, v)))
 }
 
@@ -1123,16 +1127,17 @@ fn exact_single(bits: u32) -> Result<f64, String> {
 }
 
 /// The 4-byte numbers of an element (the count, then each one's bits).
-fn fours(e: &Element) -> Option<Vec<u32>> {
+fn fours(d: &EditDbx, e: NodeId) -> Option<Vec<u32>> {
+    let payload = d.payload(e);
     let mut p = 0;
-    let n = dx::read_varint(&e.payload, &mut p).ok()?;
-    let size = dx::read_varint(&e.payload, &mut p).ok()?;
+    let n = dx::read_varint(payload, &mut p).ok()?;
+    let size = dx::read_varint(payload, &mut p).ok()?;
     if size != 4 && n != 0 {
         return None;
     }
     (0..n.max(0) as usize)
         .map(|i| {
-            e.payload
+            payload
                 .get(p + 4 * i..p + 4 * i + 4)
                 .and_then(|b| <[u8; 4]>::try_from(b).ok())
                 .map(u32::from_be_bytes)
@@ -1142,7 +1147,9 @@ fn fours(e: &Element) -> Option<Vec<u32>> {
 
 /// An edited element as a [`FieldValue`] of type `ty` that sets exactly its bits; `attrs` the attributes the edit
 /// changed (only a reference's `ref` can change).
-fn field_value(ty: &FieldType, t: &Table, e: &Element, attrs: &[String]) -> Result<FieldValue, String> {
+fn field_value(ty: &FieldType, d: &EditDbx, e: NodeId, attrs: &[String]) -> Result<FieldValue, String> {
+    let t = Table(d);
+    let kind = d.kind(e);
     let refused = || format!("a {} field does not take this value exactly", ty.name());
     if let FieldType::Ref = ty {
         return match attrs {
@@ -1154,25 +1161,25 @@ fn field_value(ty: &FieldType, t: &Table, e: &Element, attrs: &[String]) -> Resu
         return Err("attributes cannot change through the project".into());
     }
     match ty {
-        FieldType::Text if e.kind == TEXT => Ok(FieldValue::Text(dx::value_text(t, e).map_err(|f| f.message)?)),
-        FieldType::Bool | FieldType::Byte if e.kind != TEXT && e.kind != NUMBERS && e.kind != CONTAINER => {
-            let v = *e.payload.get(1).ok_or_else(refused)?;
+        FieldType::Text if kind == TEXT => Ok(FieldValue::Text(dx::value_text(d, e).map_err(|f| f.message)?)),
+        FieldType::Bool | FieldType::Byte if kind != TEXT && kind != NUMBERS && kind != CONTAINER => {
+            let v = *d.payload(e).get(1).ok_or_else(refused)?;
             match ty {
                 FieldType::Bool if v <= 1 => Ok(FieldValue::Bool(v == 1)),
                 FieldType::Byte => Ok(FieldValue::Byte(v)),
                 _ => Err(format!("{v} is not true or false")),
             }
         }
-        FieldType::Int if e.kind == NUMBERS => match fours(e).as_deref() {
+        FieldType::Int if kind == NUMBERS => match fours(d, e).as_deref() {
             Some([b]) => Ok(FieldValue::Int(i64::from(*b as i32))),
             _ => Err(refused()),
         },
-        FieldType::Float if e.kind == NUMBERS => match fours(e).as_deref() {
+        FieldType::Float if kind == NUMBERS => match fours(d, e).as_deref() {
             Some([b]) => Ok(FieldValue::Float(exact_single(*b)?)),
             _ => Err(refused()),
         },
-        FieldType::Vector { count, whole } if e.kind == NUMBERS => {
-            let v = fours(e).ok_or_else(refused)?;
+        FieldType::Vector { count, whole } if kind == NUMBERS => {
+            let v = fours(d, e).ok_or_else(refused)?;
             if v.len() != *count {
                 return Err(format!("{} values where the field has {count}", v.len()));
             }
@@ -1188,8 +1195,8 @@ fn field_value(ty: &FieldType, t: &Table, e: &Element, attrs: &[String]) -> Resu
                     .collect::<Result<_, _>>()?,
             ))
         }
-        FieldType::UnknownNumber { count } if e.kind == NUMBERS => {
-            let v = fours(e).ok_or_else(refused)?;
+        FieldType::UnknownNumber { count } if kind == NUMBERS => {
+            let v = fours(d, e).ok_or_else(refused)?;
             if v.len() == *count && v.iter().all(|&b| b == 0) {
                 Ok(if *count == 1 {
                     FieldValue::Int(0)
@@ -1216,38 +1223,32 @@ mod tests {
     /// A small file: a partition with two instances, a text, numbers (a decimal, a denormal), a bool, a reference,
     /// an array of references.
     pub(crate) fn sample() -> Vec<u8> {
-        let mut f = EditFile::empty();
-        let t = &mut f.table;
+        let mut f = dx::empty();
+        let mut t = |s: &str| dx::intern(&mut f, s) as i32;
         let (partition, instance, field, array, item, complex) = (
-            t.intern("partition"),
-            t.intern("instance"),
-            t.intern("field"),
-            t.intern("array"),
-            t.intern("item"),
-            t.intern("complex"),
+            t("partition"),
+            t("instance"),
+            t("field"),
+            t("array"),
+            t("item"),
+            t("complex"),
         );
-        let (guid, ty, id, name, r) = (
-            t.intern("guid"),
-            t.intern("type"),
-            t.intern("id"),
-            t.intern("name"),
-            t.intern("ref"),
-        );
-        let g1 = t.intern("11111111-1111-1111-1111-111111111111");
-        let g2 = t.intern("22222222-2222-2222-2222-222222222222");
-        let gp = t.intern("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA");
-        let (t1, t2) = (t.intern("Entity.Thing"), t.intern("Entity.Other"));
+        let (guid, ty, id, name, r) = (t("guid"), t("type"), t("id"), t("name"), t("ref"));
+        let g1 = t("11111111-1111-1111-1111-111111111111");
+        let g2 = t("22222222-2222-2222-2222-222222222222");
+        let gp = t("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA");
+        let (t1, t2) = (t("Entity.Thing"), t("Entity.Other"));
         let (n_name, n_scale, n_tiny, n_on, n_link, n_list, n_pos, n_x) = (
-            t.intern("Name"),
-            t.intern("Scale"),
-            t.intern("Tiny"),
-            t.intern("Enabled"),
-            t.intern("Link"),
-            t.intern("Objects"),
-            t.intern("Pos"),
-            t.intern("X"),
+            t("Name"),
+            t("Scale"),
+            t("Tiny"),
+            t("Enabled"),
+            t("Link"),
+            t("Objects"),
+            t("Pos"),
+            t("X"),
         );
-        let text = t.intern("crate");
+        let text = t("crate");
         let numbers = |vals: &[u32]| {
             let mut p = dx::varint_bytes(vals.len() as i32);
             p.extend(dx::varint_bytes(4));
@@ -1256,53 +1257,54 @@ mod tests {
             }
             p
         };
-        let value = |tag, attrs: Vec<(i32, i32)>, kind, payload| Element {
-            tag,
-            kind,
-            attributes: attrs,
-            payload,
-            ..Element::default()
+        let ids = |attrs: Vec<(i32, i32)>| attrs.into_iter().map(|(k, v)| (k as u32, v as u32)).collect();
+        let value = |f: &mut EditDbx, tag: i32, attrs, kind, payload| {
+            f.push(dx::Parts {
+                tag: tag as u32,
+                kind,
+                attrs: ids(attrs),
+                payload,
+                ..dx::Parts::default()
+            })
         };
-        let cont = |tag, attrs, children| Element {
-            tag,
-            kind: CONTAINER,
-            attributes: attrs,
-            children: Some(children),
-            ..Element::default()
+        let cont = |f: &mut EditDbx, tag: i32, attrs, children| {
+            f.push(dx::Parts {
+                tag: tag as u32,
+                kind: CONTAINER,
+                attrs: ids(attrs),
+                children: Some(children),
+                ..dx::Parts::default()
+            })
         };
-        let i1 = cont(
-            instance,
-            vec![(guid, g1), (ty, t1), (id, text)],
-            vec![
-                value(field, vec![(name, n_name)], TEXT, dx::varint_bytes(text)),
-                value(
-                    field,
-                    vec![(name, n_scale)],
-                    NUMBERS,
-                    numbers(&[1.5f32.to_bits(), 2.0f32.to_bits()]),
-                ),
-                value(field, vec![(name, n_tiny)], NUMBERS, numbers(&[0x0008_0000])),
-                value(field, vec![(name, n_on)], 6, vec![1, 0]),
-                value(field, vec![(name, n_link), (r, g2)], TEXT, dx::varint_bytes(0)),
-                cont(
-                    array,
-                    vec![(name, n_list)],
-                    vec![value(item, vec![(r, g2)], TEXT, dx::varint_bytes(0))],
-                ),
-                cont(
-                    complex,
-                    vec![(name, n_pos)],
-                    vec![value(field, vec![(name, n_x)], NUMBERS, numbers(&[3.0f32.to_bits()]))],
-                ),
-            ],
-        );
-        let i2 = cont(instance, vec![(guid, g2), (ty, t2)], vec![]);
-        f.top_level.push(cont(partition, vec![(guid, gp)], vec![i1, i2]));
-        f.serialize().unwrap()
+        let fs = &mut f;
+        let kids = vec![
+            value(fs, field, vec![(name, n_name)], TEXT, dx::varint_bytes(text)),
+            value(
+                fs,
+                field,
+                vec![(name, n_scale)],
+                NUMBERS,
+                numbers(&[1.5f32.to_bits(), 2.0f32.to_bits()]),
+            ),
+            value(fs, field, vec![(name, n_tiny)], NUMBERS, numbers(&[0x0008_0000])),
+            value(fs, field, vec![(name, n_on)], 6, vec![1, 0]),
+            value(fs, field, vec![(name, n_link), (r, g2)], TEXT, dx::varint_bytes(0)),
+        ];
+        let it = value(fs, item, vec![(r, g2)], TEXT, dx::varint_bytes(0));
+        let arr = cont(fs, array, vec![(name, n_list)], vec![it]);
+        let x = value(fs, field, vec![(name, n_x)], NUMBERS, numbers(&[3.0f32.to_bits()]));
+        let pos = cont(fs, complex, vec![(name, n_pos)], vec![x]);
+        let mut kids = kids;
+        kids.extend([arr, pos]);
+        let i1 = cont(fs, instance, vec![(guid, g1), (ty, t1), (id, text)], kids);
+        let i2 = cont(fs, instance, vec![(guid, g2), (ty, t2)], vec![]);
+        let p = cont(fs, partition, vec![(guid, gp)], vec![i1, i2]);
+        fs.roots_mut().push(p);
+        dx::serialize(&f).unwrap()
     }
 
     fn doc() -> DbxDoc {
-        DbxDoc::from_bytes(sample(), Source::File(PathBuf::from("x.dbx")), "x.dbx").unwrap()
+        DbxDoc::from_bytes(&sample(), Source::File(PathBuf::from("x.dbx")), "x.dbx").unwrap()
     }
 
     #[test]
@@ -1326,10 +1328,10 @@ mod tests {
             "field  (1 number of 4 bytes)"
         );
         assert_eq!(d.heading(d.element(&[0, 0, 3]).unwrap()), "field  (bool / byte)");
-        let hint = denormal_hint(d.t(), d.element(&[0, 0, 2]).unwrap());
+        let hint = denormal_hint(&d.file, d.element(&[0, 0, 2]).unwrap());
         assert_eq!(hint.len(), 1);
         assert_eq!(hint[0].1, 0x0008_0000);
-        assert_eq!(denormal_hint(d.t(), d.element(&[0, 0, 1]).unwrap()), vec![]);
+        assert_eq!(denormal_hint(&d.file, d.element(&[0, 0, 1]).unwrap()), vec![]);
     }
 
     #[test]
@@ -1387,7 +1389,7 @@ mod tests {
         assert!(d.apply_edit(&[0, 0, 1], &a, "abc").is_err());
         assert_eq!(d.bytes().unwrap(), before);
         // the same edit through the command line's setfield gives the same bytes
-        let mut cli = EditFile::parse(original.clone()).unwrap();
+        let mut cli = dx::read(&original).unwrap();
         editor::set_field(
             &mut cli,
             "11111111-1111-1111-1111-111111111111",
@@ -1395,7 +1397,7 @@ mod tests {
             "3.14159265358979/2",
         )
         .unwrap();
-        assert_eq!(cli.serialize().unwrap(), d.bytes().unwrap());
+        assert_eq!(dx::serialize(&cli).unwrap(), d.bytes().unwrap());
         // a field of a structure: no command form
         let a = attrs(&d, &[0, 0, 6, 0]);
         d.apply_edit(&[0, 0, 6, 0], &a, "4").unwrap();
@@ -1423,7 +1425,7 @@ mod tests {
         d.set_byte("Enabled", "true").unwrap();
         assert_eq!(d.log.last().unwrap(), "set Enabled = true: 1 field(s)");
         d.add_item(&[0, 0, 5], "11111111-1111-1111-1111-111111111111").unwrap();
-        assert_eq!(d.element(&[0, 0, 5]).unwrap().kids().len(), 2);
+        assert_eq!(d.kids(d.element(&[0, 0, 5]).unwrap()).len(), 2);
         d.partition_guid("BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB").unwrap();
         d.drop_instance(&[0, 1]).unwrap();
         assert_eq!(

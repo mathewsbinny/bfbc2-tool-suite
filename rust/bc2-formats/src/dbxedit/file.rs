@@ -1,21 +1,21 @@
-//! `DbxEdit.cs`' own model of a binary `.dbx` (its `DbxFile`, `Element`, `Varint`): the string table as stored
-//! (kept byte for byte, offsets and padding included, until a string is added or changed), the header's kept value,
-//! each container's flag byte, every value's bytes as stored, and whatever follows the tree. Anything an edit does not
+//! `DbxEdit.cs`' reading and writing rules on the suite's one editable document ([`EditDbx`], round PR1b-2: the
+//! GR4 port's own tree, `EditFile`, merged into it). DbxEdit's reader keeps the string table as stored (offsets and
+//! padding included, written back byte for byte until a string is added or changed), the header's kept value, each
+//! container's flag byte, every value's bytes as stored, and whatever follows the tree. Anything an edit does not
 //! change is written back byte for byte.
 //!
-//! String indexes are kept as the file gives them (`i32`, possibly out of range in a damaged file): DbxEdit checks
-//! them only where it reads the string, so a command fails exactly where DbxEdit's would.
+//! String indexes are kept as the file gives them (C#'s `int` bits, possibly out of range in a damaged file): DbxEdit
+//! checks them only where it reads the string ([`Table`]), so a command fails exactly where DbxEdit's would. Strings
+//! are text as .NET decodes them (UTF-8, a malformed sequence replaced by U+FFFD), which only shows once the table is
+//! written anew; until then the stored bytes are written back.
 
-use std::collections::HashMap;
+use std::borrow::Cow;
+
+use crate::dbx::edit::varint_i32;
+pub use crate::dbx::edit::{EditDbx, NodeId, Parts};
+pub use crate::dbx::{CONTAINER, NUMBERS, TEXT};
 
 use super::fault::{Fault, Result};
-
-/// A container (children).
-pub const CONTAINER: i32 = 0xA;
-/// A text value or reference (a string index).
-pub const TEXT: i32 = 2;
-/// Big-endian numbers.
-pub const NUMBERS: i32 = 7;
 
 /// The deepest nesting read or written (real files nest about 10 deep; DbxEdit would overflow its stack).
 pub const MAX_DEPTH: usize = 256;
@@ -25,27 +25,12 @@ pub const MAX_DEPTH: usize = 256;
 /// # Errors
 /// A read past the end of `data`.
 pub fn read_varint(data: &[u8], pos: &mut usize) -> Result<i32> {
-    let mut value: i32 = 0;
-    let mut shift: u32 = 0;
-    loop {
-        let b = *data.get(*pos).ok_or_else(Fault::index)?;
-        *pos += 1;
-        value |= i32::from(b & 0x7F).wrapping_shl(shift);
-        if b < 0x80 {
-            return Ok(value);
-        }
-        shift = shift.wrapping_add(7);
-    }
+    varint_i32(data, pos).ok_or_else(Fault::index)
 }
 
 /// `Varint.Write`: a negative value takes five bytes.
 pub fn write_varint(out: &mut Vec<u8>, value: i32) {
-    let mut v = value as u32;
-    while v >= 0x80 {
-        out.push((v & 0x7F) as u8 | 0x80);
-        v >>= 7;
-    }
-    out.push(v as u8);
+    crate::dbx::put_varint(out, u64::from(value as u32));
 }
 
 /// `Varint.Bytes`.
@@ -67,112 +52,171 @@ pub fn be_u32(data: &[u8], at: usize) -> Result<u32> {
         .ok_or_else(Fault::index)
 }
 
-/// One element (FORMAT.md section 2). Containers have `children`; every other kind keeps its value bytes exactly as
-/// stored (`payload`).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Element {
-    /// The tag's string index.
-    pub tag: i32,
-    /// The kind (the high four bits of the head byte).
-    pub kind: i32,
-    /// `(name, value)` string indexes.
-    pub attributes: Vec<(i32, i32)>,
-    /// A container's flag byte.
-    pub container_byte: u8,
-    /// A container's children (`None`: a value).
-    pub children: Option<Vec<Element>>,
-    /// A value's bytes as stored (empty for a container).
-    pub payload: Vec<u8>,
+/// A new, empty file as DbxEdit makes one: string 0 the empty string, header value 0, no trailing bytes.
+#[must_use]
+pub fn empty() -> EditDbx {
+    let mut d = EditDbx::new();
+    d.intern(b"");
+    d
 }
 
-impl Element {
-    /// Whether it has children.
-    #[must_use]
-    pub fn is_container(&self) -> bool {
-        self.children.is_some()
+/// Reads `data` as DbxEdit's `new DbxFile(data)`: a file that is not binary (`{binary}` and more than the 24-byte
+/// header) is kept as its bytes, with no tree.
+///
+/// # Errors
+/// What DbxEdit's reader throws on a damaged file (a read past the end, a negative size).
+pub fn read(data: &[u8]) -> Result<EditDbx> {
+    if !(data.len() > 24 && data.starts_with(b"{binary}")) {
+        return Ok(EditDbx::not_binary(data));
     }
-
-    /// The children, or none.
-    #[must_use]
-    pub fn kids(&self) -> &[Element] {
-        self.children.as_deref().unwrap_or(&[])
+    let area_size = be_u32(data, 16)?;
+    let count = be_u32(data, 20)?;
+    let kept = be_u32(data, 12)?;
+    let mut offsets = Vec::new();
+    for i in 0..u64::from(count) {
+        let at = usize::try_from(24 + 4 * i).map_err(|_| Fault::index())?;
+        offsets.push(be_u32(data, at)?);
     }
+    let strings_at = 24i64 + 4 * i64::from(count as i32);
+    let payload_at = 24i64 + i64::from(area_size as i32);
+    let mut strings = Vec::with_capacity(offsets.len());
+    for &o in &offsets {
+        let from = strings_at + i64::from(o as i32);
+        let start = usize::try_from(from).map_err(|_| Fault::index())?;
+        let tail = data.get(start..).ok_or_else(Fault::index)?;
+        let len = tail.iter().position(|&b| b == 0).ok_or_else(Fault::index)?;
+        let bytes = tail.get(..len).unwrap_or_default();
+        strings.push(match String::from_utf8_lossy(bytes) {
+            Cow::Borrowed(_) => bytes.to_vec(),
+            Cow::Owned(s) => s.into_bytes(),
+        });
+    }
+    if payload_at < strings_at {
+        return Err(Fault::overflow());
+    }
+    if data.get(strings_at as usize..payload_at as usize).is_none() {
+        return Err(Fault::array_copy());
+    }
+    let mut d = EditDbx::from_file(data, kept, strings, (24, payload_at as usize));
+    let mut pos = usize::try_from(payload_at).map_err(|_| Fault::index())?;
+    let mut roots = Vec::new();
+    while pos < data.len() {
+        let tag = read_varint(data, &mut pos)?;
+        if tag == 0 {
+            pos -= 1;
+            break;
+        }
+        roots.push(read_element(&mut d, data, &mut pos, tag, 0)?);
+    }
+    *d.roots_mut() = roots;
+    d.set_trailing(data.get(pos..).ok_or_else(Fault::overflow)?.to_vec());
+    Ok(d)
 }
 
-/// The string table, with an index of each string's first entry once lookups are many.
-#[derive(Debug, Clone, Default)]
-pub struct Table {
-    /// The strings in file order (duplicates included).
-    pub strings: Vec<String>,
-    /// Whether a string was added or changed (the string area is then written anew).
-    pub changed: bool,
-    index: Option<HashMap<String, i32>>,
-    lookups: u32,
+fn read_element(d: &mut EditDbx, data: &[u8], pos: &mut usize, tag: i32, depth: usize) -> Result<NodeId> {
+    if depth > MAX_DEPTH {
+        return Err(Fault::invalid(format!("elements nested more than {MAX_DEPTH} deep")));
+    }
+    let head = *data.get(*pos).ok_or_else(Fault::index)?;
+    *pos += 1;
+    let kind = head >> 4;
+    let mut attrs = Vec::with_capacity(usize::from(head & 0xF));
+    for _ in 0..(head & 0xF) {
+        let name = read_varint(data, pos)?;
+        attrs.push((name as u32, read_varint(data, pos)? as u32));
+    }
+    let mut parts = Parts {
+        tag: tag as u32,
+        kind,
+        attrs,
+        ..Parts::default()
+    };
+    if kind == CONTAINER {
+        parts.cbyte = *data.get(*pos).ok_or_else(Fault::index)?;
+        *pos += 1;
+        parts.children = Some(Vec::new());
+        let id = d.push_read(parts, (0, 0), 0);
+        let mut children = Vec::new();
+        loop {
+            let child = read_varint(data, pos)?;
+            if child == 0 {
+                break;
+            }
+            children.push(read_element(d, data, pos, child, depth + 1)?);
+        }
+        d.set_children(id, children);
+        return Ok(id);
+    }
+    let value_at = *pos;
+    let mut text = 0;
+    let end: i64 = if kind == TEXT {
+        text = read_varint(data, pos)? as u32;
+        *pos as i64
+    } else if kind == NUMBERS {
+        let n = read_varint(data, pos)?;
+        let size = read_varint(data, pos)?;
+        *pos as i64 + i64::from(n.wrapping_mul(size))
+    } else {
+        *pos as i64 + 2
+    };
+    if end < value_at as i64 {
+        return Err(Fault::overflow());
+    }
+    if data.get(value_at..end as usize).is_none() {
+        return Err(Fault::array_copy());
+    }
+    *pos = end as usize;
+    Ok(d.push_read(parts, (value_at as u32, (end as usize - value_at) as u32), text))
 }
 
-impl Table {
-    /// A table of these strings, unchanged.
-    #[must_use]
-    pub fn new(strings: Vec<String>) -> Self {
-        Self {
-            strings,
-            ..Self::default()
+/// `Serialize()`: the header, the string table (as stored unless it changed), the tree, the trailer.
+///
+/// # Errors
+/// An element with more than 15 attributes, or nesting past [`MAX_DEPTH`] (DbxEdit's order: the first such element
+/// in the file's order).
+pub fn serialize(d: &EditDbx) -> Result<Vec<u8>> {
+    let mut stack: Vec<(NodeId, usize)> = d.roots().iter().rev().map(|&r| (r, 0)).collect();
+    while let Some((n, depth)) = stack.pop() {
+        if depth > MAX_DEPTH {
+            return Err(Fault::invalid(format!("elements nested more than {MAX_DEPTH} deep")));
+        }
+        let attrs = d.attr_ids(n).len();
+        if attrs > 15 {
+            return Err(Fault::invalid(format!(
+                "an element with {attrs} attributes (15 at most fit)"
+            )));
+        }
+        if d.kind(n) == CONTAINER {
+            let kids = d.children(n).ok_or_else(Fault::null)?;
+            stack.extend(kids.iter().rev().map(|&c| (c, depth + 1)));
         }
     }
+    d.write().map_err(|e| Fault::invalid(e.0))
+}
 
+/// The string table as DbxEdit reads it: each string checked where it is read.
+#[derive(Debug, Clone, Copy)]
+pub struct Table<'d>(pub &'d EditDbx);
+
+impl<'d> Table<'d> {
     /// `Table[id]`.
     ///
     /// # Errors
     /// An index the table does not have (`ArgumentOutOfRangeException`).
-    pub fn s(&self, id: i32) -> Result<&str> {
-        usize::try_from(id)
-            .ok()
-            .and_then(|i| self.strings.get(i))
-            .map(String::as_str)
-            .ok_or_else(Fault::list_index)
-    }
-
-    /// `Intern`: the first identical entry, or a new one at the end.
-    pub fn intern(&mut self, s: &str) -> i32 {
-        self.lookups += 1;
-        if self.index.is_none() && self.lookups > 16 {
-            let mut index = HashMap::with_capacity(self.strings.len());
-            for (i, t) in self.strings.iter().enumerate() {
-                index.entry(t.clone()).or_insert(i as i32);
-            }
-            self.index = Some(index);
+    pub fn s(self, id: u32) -> Result<&'d str> {
+        if (id as i32) < 0 {
+            return Err(Fault::list_index());
         }
-        let found = match &self.index {
-            Some(index) => index.get(s).copied(),
-            None => self.strings.iter().position(|t| t == s).map(|i| i as i32),
-        };
-        if let Some(i) = found {
-            return i;
-        }
-        self.strings.push(s.to_owned());
-        self.changed = true;
-        let i = (self.strings.len() - 1) as i32;
-        if let Some(index) = &mut self.index {
-            index.insert(s.to_owned(), i);
-        }
-        i
-    }
-
-    /// Entry `i` set to `s` (a replace).
-    pub fn set(&mut self, i: usize, s: String) {
-        if let Some(slot) = self.strings.get_mut(i) {
-            *slot = s;
-            self.changed = true;
-            self.index = None;
-        }
+        let b = self.0.string(id).ok_or_else(Fault::list_index)?;
+        std::str::from_utf8(b).map_err(|_| Fault::invalid("a string that is not UTF-8"))
     }
 
     /// `Get(e, name)`: the value of the first attribute named `name`.
     ///
     /// # Errors
     /// A string index the table does not have, met before the attribute.
-    pub fn get(&self, e: &Element, name: &str) -> Result<Option<&str>> {
-        for &(k, v) in &e.attributes {
+    pub fn get(self, e: NodeId, name: &str) -> Result<Option<&'d str>> {
+        for &(k, v) in self.0.attr_ids(e) {
             if self.s(k)? == name {
                 return Ok(Some(self.s(v)?));
             }
@@ -184,277 +228,96 @@ impl Table {
     ///
     /// # Errors
     /// A tag index the table does not have.
-    pub fn tag(&self, e: &Element) -> Result<&str> {
-        self.s(e.tag)
+    pub fn tag(self, e: NodeId) -> Result<&'d str> {
+        self.s(self.0.tag_id(e))
     }
 
     /// The value of the first attribute, or `""` (`FirstValue`, the field a value is typed by).
     ///
     /// # Errors
     /// A string index the table does not have.
-    pub fn first_value(&self, e: &Element) -> Result<&str> {
-        match e.attributes.first() {
+    pub fn first_value(self, e: NodeId) -> Result<&'d str> {
+        match self.0.attr_ids(e).first() {
             Some(&(_, v)) => self.s(v),
             None => Ok(""),
         }
     }
-}
 
-/// A parsed `.dbx` as DbxEdit holds it.
-#[derive(Debug, Clone, Default)]
-pub struct EditFile {
-    /// The bytes it was read from.
-    pub original: Vec<u8>,
-    /// Whether it is a binary `.dbx` (`{binary}` and more than the 24-byte header); nothing else is read otherwise.
-    pub is_binary: bool,
-    /// The string table.
-    pub table: Table,
-    /// The root elements (the partition first).
-    pub top_level: Vec<Element>,
-    /// The header's word at offset 12, kept as it was.
-    pub kept_header_value: u32,
-    original_offsets: Vec<u32>,
-    original_string_area: Vec<u8>,
-    /// The closing 0 of the tree and anything after it.
-    pub trailer: Vec<u8>,
-}
-
-impl EditFile {
-    /// A new, empty file: string 0 the empty string, header value 0, no trailing bytes.
+    /// The number of strings.
     #[must_use]
-    pub fn empty() -> Self {
-        Self {
-            is_binary: true,
-            table: Table {
-                strings: vec![String::new()],
-                changed: true,
-                ..Table::default()
-            },
-            ..Self::default()
-        }
+    pub fn len(self) -> usize {
+        self.0.strings().len()
     }
 
-    /// Reads `data` as DbxEdit's `new DbxFile(data)`.
-    ///
-    /// # Errors
-    /// What DbxEdit's reader throws on a damaged file (a read past the end, a negative size).
-    pub fn parse(data: Vec<u8>) -> Result<Self> {
-        let is_binary = data.len() > 24 && data.starts_with(b"{binary}");
-        if !is_binary {
-            return Ok(Self {
-                original: data,
-                ..Self::default()
-            });
-        }
-        let area_size = be_u32(&data, 16)?;
-        let count = be_u32(&data, 20)?;
-        let kept = be_u32(&data, 12)?;
-        let mut offsets = Vec::new();
-        for i in 0..u64::from(count) {
-            let at = usize::try_from(24 + 4 * i).map_err(|_| Fault::index())?;
-            offsets.push(be_u32(&data, at)?);
-        }
-        let strings_at = 24i64 + 4 * i64::from(count as i32);
-        let payload_at = 24i64 + i64::from(area_size as i32);
-        let mut strings = Vec::with_capacity(offsets.len());
-        for &o in &offsets {
-            let from = strings_at + i64::from(o as i32);
-            let start = usize::try_from(from).map_err(|_| Fault::index())?;
-            let tail = data.get(start..).ok_or_else(Fault::index)?;
-            let len = tail.iter().position(|&b| b == 0).ok_or_else(Fault::index)?;
-            strings.push(String::from_utf8_lossy(tail.get(..len).unwrap_or_default()).into_owned());
-        }
-        if payload_at < strings_at {
-            return Err(Fault::overflow());
-        }
-        let area = data
-            .get(strings_at as usize..payload_at as usize)
-            .ok_or_else(Fault::array_copy)?
-            .to_vec();
-        let mut top = Vec::new();
-        let mut pos = usize::try_from(payload_at).map_err(|_| Fault::index())?;
-        while pos < data.len() {
-            let tag = read_varint(&data, &mut pos)?;
-            if tag == 0 {
-                pos -= 1;
-                break;
-            }
-            top.push(read_element(&data, &mut pos, tag, 0)?);
-        }
-        let trailer = data.get(pos..).ok_or_else(Fault::overflow)?.to_vec();
-        Ok(Self {
-            is_binary,
-            table: Table::new(strings),
-            top_level: top,
-            kept_header_value: kept,
-            original_offsets: offsets,
-            original_string_area: area,
-            trailer,
-            original: data,
-        })
-    }
-
-    /// `Serialize()`: the header, the string table (as stored unless it changed), the tree, the trailer.
-    ///
-    /// # Errors
-    /// An element with more than 15 attributes, or nesting past [`MAX_DEPTH`].
-    pub fn serialize(&self) -> Result<Vec<u8>> {
-        let mut fresh_area = Vec::new();
-        let mut fresh_offsets = Vec::new();
-        let (area, offsets): (&[u8], &[u32]) = if self.table.changed {
-            fresh_offsets.reserve(self.table.strings.len());
-            for s in &self.table.strings {
-                fresh_offsets.push(fresh_area.len() as u32);
-                fresh_area.extend_from_slice(s.as_bytes());
-                fresh_area.push(0);
-            }
-            (&fresh_area, &fresh_offsets)
-        } else {
-            (&self.original_string_area, &self.original_offsets)
-        };
-        let mut tree = Vec::with_capacity(self.original.len());
-        for e in &self.top_level {
-            write_element(&mut tree, e, 0)?;
-        }
-        tree.extend_from_slice(&self.trailer);
-        let area_size = (4 * self.table.strings.len() + area.len()) as u32;
-        let mut out = Vec::with_capacity(24 + area_size as usize + tree.len());
-        out.extend_from_slice(b"{binary}");
-        for w in [
-            area_size.wrapping_add(24),
-            self.kept_header_value,
-            area_size,
-            self.table.strings.len() as u32,
-        ] {
-            out.extend_from_slice(&w.to_be_bytes());
-        }
-        for o in offsets {
-            out.extend_from_slice(&o.to_be_bytes());
-        }
-        out.extend_from_slice(area);
-        out.extend_from_slice(&tree);
-        Ok(out)
-    }
-
-    /// The partition's children (`TopLevel[0].Children`).
-    ///
-    /// # Errors
-    /// A file without a partition (not binary, or empty), or a partition that is not a container.
-    pub fn partition_children(&self) -> Result<&[Element]> {
-        if !self.is_binary {
-            return Err(Fault::null());
-        }
-        let p = self.top_level.first().ok_or_else(Fault::list_index)?;
-        p.children.as_deref().ok_or_else(Fault::null)
-    }
-
-    /// `Instances()`: the partition's `instance` children, read lazily as DbxEdit's LINQ query is (a damaged tag
-    /// fails only when reached).
-    ///
-    /// # Errors
-    /// As [`EditFile::partition_children`].
-    pub fn instances(&self) -> Result<impl Iterator<Item = Result<&Element>>> {
-        let t = &self.table;
-        Ok(self.partition_children()?.iter().filter_map(move |e| match t.tag(e) {
-            Ok("instance") => Some(Ok(e)),
-            Ok(_) => None,
-            Err(f) => Some(Err(f)),
-        }))
-    }
-
-    /// `Instance(guid)`: the first instance whose guid is `guid` (any case).
-    ///
-    /// # Errors
-    /// As [`EditFile::instances`], or a damaged attribute met on the way.
-    pub fn instance(&self, guid: &str) -> Result<Option<&Element>> {
-        for i in self.instances()? {
-            let i = i?;
-            if self
-                .table
-                .get(i, "guid")?
-                .is_some_and(|g| super::net::same_ignore_case(g, guid))
-            {
-                return Ok(Some(i));
-            }
-        }
-        Ok(None)
+    /// Whether the table is empty.
+    #[must_use]
+    pub fn is_empty(self) -> bool {
+        self.0.strings().is_empty()
     }
 }
 
-fn read_element(data: &[u8], pos: &mut usize, tag: i32, depth: usize) -> Result<Element> {
-    if depth > MAX_DEPTH {
-        return Err(Fault::invalid(format!("elements nested more than {MAX_DEPTH} deep")));
-    }
-    let head = *data.get(*pos).ok_or_else(Fault::index)?;
-    *pos += 1;
-    let mut e = Element {
-        tag,
-        kind: i32::from(head >> 4),
-        ..Element::default()
-    };
-    for _ in 0..(head & 0xF) {
-        let name = read_varint(data, pos)?;
-        e.attributes.push((name, read_varint(data, pos)?));
-    }
-    if e.kind == CONTAINER {
-        e.container_byte = *data.get(*pos).ok_or_else(Fault::index)?;
-        *pos += 1;
-        let mut children = Vec::new();
-        loop {
-            let child = read_varint(data, pos)?;
-            if child == 0 {
-                break;
-            }
-            children.push(read_element(data, pos, child, depth + 1)?);
-        }
-        e.children = Some(children);
-        return Ok(e);
-    }
-    let value_at = *pos;
-    let end: i64 = if e.kind == TEXT {
-        read_varint(data, pos)?;
-        *pos as i64
-    } else if e.kind == NUMBERS {
-        let n = read_varint(data, pos)?;
-        let size = read_varint(data, pos)?;
-        *pos as i64 + i64::from(n.wrapping_mul(size))
-    } else {
-        *pos as i64 + 2
-    };
-    if end < value_at as i64 {
-        return Err(Fault::overflow());
-    }
-    e.payload = data.get(value_at..end as usize).ok_or_else(Fault::array_copy)?.to_vec();
-    *pos = end as usize;
-    Ok(e)
+/// `Intern`: the first identical entry, or a new one at the end.
+pub fn intern(d: &mut EditDbx, s: &str) -> u32 {
+    d.intern(s.as_bytes())
 }
 
-fn write_element(out: &mut Vec<u8>, e: &Element, depth: usize) -> Result<()> {
-    if depth > MAX_DEPTH {
-        return Err(Fault::invalid(format!("elements nested more than {MAX_DEPTH} deep")));
+/// The partition's children (`TopLevel[0].Children`).
+///
+/// # Errors
+/// A file without a partition (not binary, or empty), or a partition that is not a container.
+pub fn partition_children(d: &EditDbx) -> Result<&[NodeId]> {
+    if !d.is_binary() {
+        return Err(Fault::null());
     }
-    write_varint(out, e.tag);
-    if e.attributes.len() > 15 {
-        return Err(Fault::invalid(format!(
-            "an element with {} attributes (15 at most fit)",
-            e.attributes.len()
-        )));
+    let p = *d.roots().first().ok_or_else(Fault::list_index)?;
+    d.children(p).ok_or_else(Fault::null)
+}
+
+/// The partition's children, to change.
+///
+/// # Errors
+/// As [`partition_children`].
+pub fn partition_children_mut(d: &mut EditDbx) -> Result<&mut Vec<NodeId>> {
+    if !d.is_binary() {
+        return Err(Fault::null());
     }
-    out.push(((e.kind << 4) | e.attributes.len() as i32) as u8);
-    for &(k, v) in &e.attributes {
-        write_varint(out, k);
-        write_varint(out, v);
+    let p = *d.roots().first().ok_or_else(Fault::list_index)?;
+    d.children_mut(p).map_err(|_| Fault::null())
+}
+
+/// `Instances()`: the partition's `instance` children, read lazily as DbxEdit's LINQ query is (a damaged tag fails
+/// only when reached).
+///
+/// # Errors
+/// As [`partition_children`].
+pub fn instances(d: &EditDbx) -> Result<impl Iterator<Item = Result<NodeId>> + '_> {
+    let t = Table(d);
+    Ok(partition_children(d)?.iter().filter_map(move |&e| match t.tag(e) {
+        Ok("instance") => Some(Ok(e)),
+        Ok(_) => None,
+        Err(f) => Some(Err(f)),
+    }))
+}
+
+/// `Instance(guid)`: the first instance whose guid is `guid` (any case).
+///
+/// # Errors
+/// As [`instances`], or a damaged attribute met on the way.
+pub fn instance(d: &EditDbx, guid: &str) -> Result<Option<NodeId>> {
+    let t = Table(d);
+    for i in instances(d)? {
+        let i = i?;
+        if t.get(i, "guid")?.is_some_and(|g| super::net::same_ignore_case(g, guid)) {
+            return Ok(Some(i));
+        }
     }
-    if e.kind != CONTAINER {
-        out.extend_from_slice(&e.payload);
-        return Ok(());
-    }
-    out.push(e.container_byte);
-    for c in e.children.as_deref().ok_or_else(Fault::null)? {
-        write_element(out, c, depth + 1)?;
-    }
-    out.push(0);
-    Ok(())
+    Ok(None)
+}
+
+/// The children of `e`, or none (`Element.Children ?? []`).
+#[must_use]
+pub fn kids(d: &EditDbx, e: NodeId) -> &[NodeId] {
+    d.children(e).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -489,63 +352,90 @@ mod tests {
 
     #[test]
     fn empty_file_round_trips() {
-        let f = EditFile::empty();
-        let b = f.serialize().unwrap();
-        let back = EditFile::parse(b.clone()).unwrap();
-        assert!(back.is_binary && back.top_level.is_empty());
-        assert_eq!(back.serialize().unwrap(), b);
-        let mut g = EditFile::empty();
-        let tag = g.table.intern("partition");
-        g.top_level.push(Element {
+        let f = empty();
+        let b = serialize(&f).unwrap();
+        let back = read(&b).unwrap();
+        assert!(back.is_binary() && back.roots().is_empty());
+        assert_eq!(serialize(&back).unwrap(), b);
+        let mut g = empty();
+        let tag = intern(&mut g, "partition");
+        let p = g.push(Parts {
             tag,
             kind: CONTAINER,
             children: Some(vec![]),
-            ..Element::default()
+            ..Parts::default()
         });
-        let b = g.serialize().unwrap();
-        let back = EditFile::parse(b.clone()).unwrap();
-        assert!(back.is_binary && !back.table.changed);
-        assert_eq!(back.serialize().unwrap(), b);
-        assert_eq!(back.partition_children().unwrap().len(), 0);
-        assert!(back.instance("x").unwrap().is_none());
+        g.roots_mut().push(p);
+        let b = serialize(&g).unwrap();
+        let back = read(&b).unwrap();
+        assert!(back.is_binary() && !back.strings_changed());
+        assert_eq!(serialize(&back).unwrap(), b);
+        assert_eq!(partition_children(&back).unwrap().len(), 0);
+        assert!(instance(&back, "x").unwrap().is_none());
     }
 
     #[test]
     fn damaged_files_fail() {
-        let mut g = EditFile::empty();
-        let tag = g.table.intern("p");
-        g.top_level.push(Element {
+        let mut g = empty();
+        let tag = intern(&mut g, "p");
+        let p = g.push(Parts {
             tag,
             kind: 6,
             payload: vec![1, 1],
-            ..Element::default()
+            ..Parts::default()
         });
-        let b = g.serialize().unwrap();
+        g.roots_mut().push(p);
+        let b = serialize(&g).unwrap();
         for cut in 25..b.len() {
-            let _ = EditFile::parse(b[..cut].to_vec());
+            let _ = read(&b[..cut]);
         }
-        assert!(EditFile::parse(b[..b.len() - 1].to_vec()).is_err());
-        assert!(!EditFile::parse(b"short".to_vec()).unwrap().is_binary);
-        assert!(
-            EditFile::parse(b"short".to_vec())
-                .unwrap()
-                .partition_children()
-                .is_err()
-        );
+        assert!(read(&b[..b.len() - 1]).is_err());
+        assert!(!read(b"short").unwrap().is_binary());
+        assert!(partition_children(&read(b"short").unwrap()).is_err());
     }
 
     #[test]
     fn interning_reuses_the_first_entry() {
-        let mut t = Table::new(vec![String::new(), "a".into(), "a".into()]);
-        assert_eq!(t.intern("a"), 1);
-        assert!(!t.changed);
+        let mut d = empty();
+        assert_eq!(intern(&mut d, "a"), 1);
+        let b = serialize(&d).unwrap();
+        let mut t = read(&b).unwrap();
+        assert!(!t.strings_changed());
+        assert_eq!(intern(&mut t, "a"), 1);
+        assert!(!t.strings_changed());
+        t.set_string(0, b"a".to_vec());
+        assert!(t.strings_changed());
+        assert_eq!(intern(&mut t, "a"), 0);
         for i in 0..40 {
-            t.intern(&format!("s{i}"));
+            intern(&mut t, &format!("s{i}"));
         }
-        assert_eq!(t.intern("a"), 1);
-        assert_eq!(t.intern("s3"), 6);
-        t.set(1, "b".into());
-        assert_eq!(t.intern("a"), 2);
-        assert!(t.s(-1).is_err() && t.s(999).is_err());
+        assert_eq!(intern(&mut t, "s3"), 5);
+        t.set_string(0, b"b".to_vec());
+        assert_eq!(intern(&mut t, "a"), 1);
+        let tb = Table(&t);
+        assert!(tb.s(u32::MAX).is_err() && tb.s(999).is_err());
+    }
+
+    #[test]
+    fn stored_text_varints_are_kept() {
+        // a text value whose index is stored in two bytes (0x81 0x00 = 1) comes back as stored
+        let mut g = empty();
+        let tag = intern(&mut g, "field");
+        let v = intern(&mut g, "x");
+        let e = g.push(Parts {
+            tag,
+            kind: TEXT,
+            payload: vec![0x80 | v as u8, 0x00],
+            ..Parts::default()
+        });
+        g.roots_mut().push(e);
+        let b = serialize(&g).unwrap();
+        let back = read(&b).unwrap();
+        assert_eq!(serialize(&back).unwrap(), b);
+        let e = back.roots()[0];
+        assert_eq!(back.text_id(e), Some(v));
+        assert_eq!(back.payload(e), [0x80 | v as u8, 0x00]);
+        let strict = EditDbx::parse(&b).unwrap();
+        assert_eq!(strict.write().unwrap(), b);
     }
 }

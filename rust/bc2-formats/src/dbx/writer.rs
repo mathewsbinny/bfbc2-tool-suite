@@ -20,16 +20,8 @@ use super::strings::MAGIC;
 /// bc2_formats::dbx::put_varint(&mut out, 300);
 /// assert_eq!(out, [0xAC, 0x02]);
 /// ```
-pub fn put_varint(out: &mut Vec<u8>, mut v: u64) {
-    loop {
-        let b = (v & 0x7F) as u8;
-        v >>= 7;
-        if v == 0 {
-            out.push(b);
-            return;
-        }
-        out.push(b | 0x80);
-    }
+pub fn put_varint(out: &mut Vec<u8>, v: u64) {
+    crate::varint::put(out, v);
 }
 
 /// `FxHash` (rustc's hasher): the string table's lookups are most of a write, and its keys are not attacker-chosen
