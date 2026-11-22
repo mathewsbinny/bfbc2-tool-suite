@@ -753,7 +753,7 @@ impl<'a> Run<'a> {
             }
             fs::create_dir_all(&level.work).map_err(|e| format!("{}: {e}", level.work))?;
             let out = Path::new(&level.work).join("report.txt");
-            fs::write(&out, rep.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))?;
+            fs::write(&out, text_mode(&(rep.join("\n") + "\n"))).map_err(|e| format!("{}: {e}", out.display()))?;
         }
         self.say("shared bundles and registration (one patch for every level):");
         for line in shared_lines.iter().chain(&reg) {
@@ -789,7 +789,7 @@ impl<'a> Run<'a> {
         if let Some(d) = out.parent() {
             fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
         }
-        fs::write(out, lines.join("\n") + "\n").map_err(|e| format!("{}: {e}", out.display()))
+        fs::write(out, text_mode(&(lines.join("\n") + "\n"))).map_err(|e| format!("{}: {e}", out.display()))
     }
 
     // ------------------------------------------------------------------------------------------- revert
@@ -899,6 +899,16 @@ impl<'a> Run<'a> {
             self.say(&format!("removed {rel}"));
         }
         Ok(0)
+    }
+}
+
+/// A text file as Python's `open(path, 'w')` writes it on Windows (text mode: every line end CRLF) - the plan's
+/// `report.txt` and `registration_all.txt` are in the install oracle (round OR1: written with LF they differed).
+fn text_mode(text: &str) -> String {
+    if cfg!(windows) {
+        text.replace('\n', "\r\n")
+    } else {
+        text.to_owned()
     }
 }
 
