@@ -1288,7 +1288,8 @@ def _safe(mesh: str) -> str:
 def truth_index(root: str, cache: str | None = None) -> dict[str, list[str]]:
     """{mesh (lower case): [level names]} - the BFBC2 levels whose Dx11 database has entries for the mesh (stock
     levels only: Onslaught / OPFOR levels and any level an OPFOR install step put into the game copy left out).
-    Cached in the suite's build\\ folder."""
+    Cached in bfbc2core.caches' 'renderqa' cache (BFBC2_RENDERQA_CACHE; 0: off), under the caches' budget (round
+    PR1b-1-rest; it was the suite's build\\ folder, outside every cap)."""
     bundles = {}
     for lv, b in S.level_bundles(root).items():
         folder = os.path.dirname(b)
@@ -1297,8 +1298,12 @@ def truth_index(root: str, cache: str | None = None) -> dict[str, list[str]]:
             continue
         bundles[lv] = b
     sig = sorted((lv, b, os.path.getsize(b), int(os.path.getmtime(b))) for lv, b in bundles.items())
-    path = cache or os.path.join(BUILD, 'renderqa_truth.pkl')
+    from bfbc2core import atomicio, caches
+    cache_dir = caches.folder('renderqa')
+    path = cache or (os.path.join(cache_dir, 'renderqa_truth.pkl') if cache_dir else None)
     try:
+        if path is None:
+            raise FileNotFoundError('the renderqa cache is off')
         with open(path, 'rb') as fh:
             c = pickle.load(fh)
         if c['sig'] == sig:
@@ -1322,9 +1327,12 @@ def truth_index(root: str, cache: str | None = None) -> dict[str, list[str]]:
                 continue
             for m in db.mesh_names():
                 index.setdefault(m, []).append(lv)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'wb') as fh:
-        pickle.dump({'sig': sig, 'index': index}, fh)
+    if path is not None:
+        with contextlib.suppress(OSError):                  # only a cache: made again on the next run
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            atomicio.write_bytes(path, pickle.dumps({'sig': sig, 'index': index}))
+            if not cache:
+                caches.maybe_prune('renderqa', os.path.dirname(path))
     return index
 
 

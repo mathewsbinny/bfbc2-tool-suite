@@ -8,13 +8,14 @@
 //! the index (a bundle checked, one gone, no index yet), the command line is handed to the Python, which writes it -
 //! its pickle is the Python's own bytes. With `BF1943_SOURCE_INDEX=0` no index is read or written.
 //!
-//! **The reader.** `fbrb1943.py` is the BF1943 tool suite's, found as `bf1943import.fbrb1943` finds it; this port is
-//! of the version whose SHA-1 is [`READER_SHA1`]. Another version (or `BF1943_SOURCE_WHOLE`, the reference reader) is
-//! handed to the Python.
+//! **The reader** is the suite's one BF1943 bundle reader, `bc2_formats::bf1943` (round PR1b-1-rest): its
+//! `check` is `fbrb1943.Bundle`'s verdict for the version whose SHA-1 is [`READER_SHA1`] (`fbrb1943.py` is found as
+//! `bf1943import.fbrb1943` finds it; another version, or `BF1943_SOURCE_WHOLE`, the reference reader, is handed to the
+//! Python), and an entry's bytes come through its restart points ([`Source::data`]).
 
 #![allow(
     clippy::indexing_slicing,
-    reason = "fbrb1943.Bundle's reads: every index after its bound is checked, as the reader checks them"
+    reason = "the index rows' six fields, their count checked first"
 )]
 
 use std::collections::HashMap;
@@ -26,8 +27,8 @@ use crate::pyos;
 use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, PyErr, PyResult};
 
-/// `fbrb1943.py`'s SHA-1 (bf1943-tool-suite e56d878): the reader this port follows.
-pub const READER_SHA1: &str = "ad8238401cd380f834b2b1ae30606a8ca4783db3";
+pub use bc2_formats::bf1943::{Entry, READER_SHA1, check};
+
 /// `bf1943import.INDEX_VERSION`
 const INDEX_VERSION: i64 = 1;
 
@@ -42,16 +43,6 @@ pub fn import_error(message: impl Into<String>) -> Fail {
     Fail::Err(e)
 }
 
-/// A directory entry (`fbrb1943.Bundle.entries`' dicts).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Entry {
-    pub name: String,
-    pub kind: String,
-    pub flags: u32,
-    pub offset: u32,
-    pub size: u32,
-}
-
 /// What `Source` keeps of a bundle (`_BundleInfo`).
 #[derive(Debug, Clone)]
 pub struct Bundle {
@@ -60,6 +51,9 @@ pub struct Bundle {
     pub compressed: bool,
     pub payload_at: u64,
     pub payload_len: u64,
+    /// The file's size and modification time (ns) at the open.
+    pub size: u64,
+    pub mtime_ns: i128,
 }
 
 /// `bf1943import.Source(folder)`.
@@ -69,147 +63,6 @@ pub struct Source {
     pub bundles: Vec<(String, Bundle)>,
     /// lower-case name -> (bundle index, entry index)
     pub entries: HashMap<String, (usize, usize)>,
-    payload: Option<(usize, Vec<u8>)>,
-}
-
-/// `gzip.decompress(data)` (Python 3.13: every member, zero padding between members stripped), or None where it
-/// raises.
-pub fn gunzip(mut data: &[u8]) -> Option<Vec<u8>> {
-    let mut out = Vec::new();
-    loop {
-        if data.is_empty() {
-            return Some(out);
-        }
-        if data.len() < 2 || data[..2] != [0x1f, 0x8b] {
-            return None;
-        }
-        let head = data.get(..10)?;
-        if head[2] != 8 {
-            return None;
-        }
-        let flag = head[3];
-        let mut p = 10usize;
-        if flag & 4 != 0 {
-            let n = usize::from(u16::from_le_bytes(data.get(p..p + 2)?.try_into().ok()?));
-            p += 2;
-            // _read_exact of the extra field
-            data.get(p..p + n)?;
-            p += n;
-        }
-        for bit in [8u8, 16] {
-            if flag & bit != 0 {
-                let z = data.get(p..)?.iter().position(|&c| c == 0)?;
-                p += z + 1;
-            }
-        }
-        if flag & 2 != 0 {
-            data.get(p..p + 2)?;
-            p += 2;
-        }
-        let body = data.get(p..)?;
-        let mut d = flate2::Decompress::new(false);
-        let mut member = Vec::new();
-        loop {
-            member.reserve(1 << 20);
-            let before = d.total_in();
-            let st = d
-                .decompress_vec(
-                    body.get(usize::try_from(before).ok()?..)?,
-                    &mut member,
-                    flate2::FlushDecompress::None,
-                )
-                .ok()?;
-            if st == flate2::Status::StreamEnd {
-                break;
-            }
-            if d.total_in() == before && member.len() < member.capacity() {
-                return None; // the stream ends before its end marker
-            }
-        }
-        let rest = body.get(usize::try_from(d.total_in()).ok()?..)?;
-        let tail = rest.get(..8)?;
-        let crc = u32::from_le_bytes(tail[..4].try_into().ok()?);
-        let len = u32::from_le_bytes(tail[4..8].try_into().ok()?);
-        let mut h = flate2::Crc::new();
-        h.update(&member);
-        if crc != h.sum() || len != (member.len() as u64 & 0xFFFF_FFFF) as u32 {
-            return None;
-        }
-        out.extend_from_slice(&member);
-        let after = &rest[8..];
-        let skip = after.iter().position(|&c| c != 0).unwrap_or(after.len());
-        data = &after[skip..];
-    }
-}
-
-fn be(b: &[u8], at: usize) -> Option<u32> {
-    b.get(at..at + 4)?.try_into().ok().map(u32::from_be_bytes)
-}
-
-/// `fbrb1943.Bundle(raw)`'s verdict: (entries, compressed, payload start, payload length, the payload), None where
-/// it raises `ValueError` (the bundle is refused).
-pub fn check(raw: &[u8]) -> Option<(Vec<Entry>, bool, u64, Vec<u8>)> {
-    if raw.get(..4) != Some(b"FbRB".as_slice()) || raw.len() < 8 {
-        return None;
-    }
-    let cut = be(raw, 4)? as usize;
-    if 8 + cut > raw.len() {
-        return None;
-    }
-    let dir = gunzip(&raw[8..8 + cut])?;
-    if dir.len() < 12 || be(&dir, 0)? != 2 {
-        return None;
-    }
-    let strlen = be(&dir, 4)? as usize;
-    if 12 + strlen > dir.len() {
-        return None;
-    }
-    let count = be(&dir, 8 + strlen)? as usize;
-    let entries_at = 12 + strlen;
-    let tail_at = entries_at.checked_add(count.checked_mul(24)?)?;
-    if tail_at + 5 != dir.len() {
-        return None;
-    }
-    let compressed = dir[tail_at] != 0;
-    let body = &raw[8 + cut..];
-    let payload = if compressed { gunzip(body)? } else { body.to_vec() };
-    if be(&dir, tail_at + 1)? as usize != payload.len() {
-        return None;
-    }
-    // cstr: a NUL inside the table (directory.find(0, 8 + offset, entries_at - 4)), ASCII
-    let cstr = |offset: u32| -> Option<String> {
-        let start = 8 + offset as usize;
-        let end = entries_at - 4;
-        let z = dir.get(start..end)?.iter().position(|&c| c == 0)?;
-        let s = &dir[start..start + z];
-        if !s.is_ascii() {
-            return None;
-        }
-        Some(String::from_utf8_lossy(s).into_owned())
-    };
-    let mut entries = Vec::with_capacity(count);
-    let mut pos: u64 = 0;
-    for k in 0..count {
-        let at = entries_at + 24 * k;
-        let w = |i: usize| be(&dir, at + 4 * i);
-        let (name, flags, offset, size, size2, kind) = (w(0)?, w(1)?, w(2)?, w(3)?, w(4)?, w(5)?);
-        let e = Entry {
-            name: cstr(name)?,
-            kind: cstr(kind)?,
-            flags,
-            offset,
-            size,
-        };
-        if u64::from(e.offset) != pos || size != size2 {
-            return None;
-        }
-        pos += u64::from(size);
-        entries.push(e);
-    }
-    if pos != payload.len() as u64 {
-        return None;
-    }
-    Some((entries, compressed, 8 + cut as u64, payload))
 }
 
 /// `bf1943import.default_source()`: `BF1943_XENON`, else Project Rising Sun's workspace beside the suite.
@@ -392,7 +245,6 @@ impl Source {
             folder: abs.clone(),
             bundles: Vec::new(),
             entries: HashMap::new(),
-            payload: None,
         };
         for (rel, path) in &files {
             let st = fsx::stat(path).ok();
@@ -403,9 +255,7 @@ impl Source {
                     let raw = std::fs::read(path).map_err(|_| Fail::Python)?;
                     let (size, mtime) = st.map_or((-1, -1), |s| (i128::from(s.size), s.mtime_ns));
                     match check(&raw) {
-                        Some((entries, compressed, at, payload)) => {
-                            (size, mtime, Some(entries), compressed, at, payload.len() as u64)
-                        }
+                        Some(c) => (size, mtime, Some(c.entries), c.compressed, c.payload_at, c.payload_len),
                         None => (size, mtime, None, false, 0, 0),
                     }
                 }
@@ -413,7 +263,7 @@ impl Source {
             if st.is_some() {
                 fresh_keys.push(rel);
             }
-            let (_, _, entries, compressed, payload_at, payload_len) = row;
+            let (size, mtime_ns, entries, compressed, payload_at, payload_len) = row;
             let Some(entries) = entries else { continue };
             let bi = src.bundles.len();
             for (ei, e) in entries.iter().enumerate() {
@@ -427,6 +277,8 @@ impl Source {
                     compressed,
                     payload_at,
                     payload_len,
+                    size: u64::try_from(size).unwrap_or(0),
+                    mtime_ns,
                 },
             ));
         }
@@ -462,12 +314,17 @@ impl Source {
         Some((rel.as_str(), b.entries.get(ei)?))
     }
 
-    /// `Source.data(key)`: the entry's bytes (its bundle's payload decoded once and kept until another bundle is
-    /// read). None where the Python's read would raise (the file changed or cannot be read).
-    pub fn data(&mut self, key: &str) -> Option<Vec<u8>> {
+    /// `Source.data(key)`: the entry's bytes (a compressed payload's through the process's restart points,
+    /// `bc2_formats::bf1943`, kept on disk beside the index). None where the Python's read would raise (the file
+    /// changed or cannot be read).
+    pub fn data(&self, key: &str) -> Option<Vec<u8>> {
         let &(bi, ei) = self.entries.get(key)?;
         let (_, b) = self.bundles.get(bi)?;
-        let e = b.entries.get(ei)?.clone();
+        let e = b.entries.get(ei)?;
+        let st = fsx::stat(&b.path).ok()?;
+        if st.size != b.size || st.mtime_ns != b.mtime_ns {
+            return None;
+        }
         if !b.compressed {
             let mut f = std::fs::File::open(&b.path).ok()?;
             std::io::Seek::seek(&mut f, std::io::SeekFrom::Start(b.payload_at + u64::from(e.offset))).ok()?;
@@ -475,45 +332,23 @@ impl Source {
             f.take(u64::from(e.size)).read_to_end(&mut out).ok()?;
             return (out.len() == e.size as usize).then_some(out);
         }
-        if self.payload.as_ref().is_none_or(|(k, _)| *k != bi) {
-            self.payload = None;
-            let raw = std::fs::read(&b.path).ok()?;
-            let body = raw.get(usize::try_from(b.payload_at).ok()?..)?;
-            let p = gunzip(body)?;
-            if p.len() as u64 != b.payload_len {
-                return None;
-            }
-            self.payload = Some((bi, p));
-        }
-        let (_, p) = self.payload.as_ref()?;
-        let start = e.offset as usize;
-        Some(p.get(start..start + e.size as usize)?.to_vec())
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
-mod tests {
-    use super::*;
-    use std::io::Write as _;
-
-    fn gz(data: &[u8]) -> Vec<u8> {
-        let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-        e.write_all(data).unwrap();
-        e.finish().unwrap()
-    }
-
-    #[test]
-    fn gzip_as_python() {
-        assert_eq!(gunzip(b"").unwrap(), b"");
-        let mut two = gz(b"hello ");
-        two.extend([0, 0, 0]);
-        two.extend(gz(b"world"));
-        assert_eq!(gunzip(&two).unwrap(), b"hello world");
-        let one = gz(b"abc");
-        assert!(gunzip(&one[..one.len() - 3]).is_none());
-        let mut bad = one.clone();
-        bad.push(1);
-        assert!(gunzip(&bad).is_none());
+        let r = bc2_formats::bf1943::PayloadRef {
+            path: b.path.clone().into(),
+            size: b.size,
+            mtime_ns: b.mtime_ns,
+            payload_at: b.payload_at,
+            payload_len: b.payload_len,
+        };
+        let folder = index_dir().map(std::path::PathBuf::from);
+        bc2_formats::bf1943::global()
+            .read(
+                &r,
+                u64::from(e.offset),
+                u64::from(e.size),
+                folder.as_deref(),
+                bc2_formats::bf1943::Budgets::from_env(),
+            )
+            .ok()
+            .map(|(d, _)| d)
     }
 }

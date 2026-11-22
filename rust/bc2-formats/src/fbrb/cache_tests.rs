@@ -75,7 +75,15 @@ fn items() -> Vec<(String, &'static str, Vec<u8>)> {
 }
 
 fn bundle(zipped: bool) -> Vec<u8> {
-    let it = items();
+    variant(zipped, 0)
+}
+
+/// [`bundle`] with the first byte of one entry changed by `v` (another payload: another content key).
+fn variant(zipped: bool, v: u8) -> Vec<u8> {
+    let mut it = items();
+    if let Some(b) = it[0].2.first_mut() {
+        *b = b.wrapping_add(v);
+    }
     let refs: Vec<(&str, &str, &[u8])> = it.iter().map(|(n, t, d)| (n.as_str(), *t, d.as_slice())).collect();
     build(&refs, zipped)
 }
@@ -161,14 +169,15 @@ fn disk_cache_matches_and_is_shared() {
         check_all(&first, &p);
         let s = first.stats();
         assert_eq!(s.written, 1, "{s:?}");
-        assert!(s.disk_hits > 0, "{s:?}");
+        // the points made are kept in the process: the later reads are answered through them
+        assert!(s.memory_hits > 0, "{s:?}");
         assert_eq!(disk_usage(&folder).1, 1);
-        // another process: every read from disk, nothing decompressed
+        // another process: every read through the points file, nothing decompressed (the file read once)
         let second = Cache::new(config(memory, Some(&folder)));
         check_all(&second, &p);
         let s = second.stats();
-        assert_eq!((s.decompressed_bytes, s.written), (0, 0), "{s:?}");
-        assert_eq!(s.disk_hits, s.reads);
+        assert_eq!((s.decompressed_bytes, s.written, s.disk_hits), (0, 0, 1), "{s:?}");
+        assert_eq!(s.disk_hits + s.memory_hits, s.reads);
     }
 }
 
@@ -247,7 +256,7 @@ fn superseded_payloads() {
         }
     };
     let files = || -> Vec<PathBuf> {
-        let mut v: Vec<PathBuf> = payload_files(&folder).into_iter().map(|f| f.0).collect();
+        let mut v: Vec<PathBuf> = cache_files(&folder).into_iter().map(|f| f.0).collect();
         v.sort();
         v
     };
@@ -256,7 +265,7 @@ fn superseded_payloads() {
     assert_eq!(first.len(), 1);
     let kept = dir.0.join("old.keep");
     fs::copy(&first[0], &kept).unwrap();
-    fs::write(&p, bundle(true)).unwrap();
+    fs::write(&p, variant(true, 1)).unwrap();
     File::options()
         .write(true)
         .open(&p)
@@ -272,7 +281,7 @@ fn superseded_payloads() {
     );
     assert_ne!(second, first);
     assert_eq!(superseded(&folder), Vec::<PathBuf>::new());
-    fs::write(folder.join("junk-0000000000000000.payload"), b"not a payload").unwrap();
+    fs::write(folder.join("0000000000000000.points"), b"not a points file").unwrap();
     fs::copy(&kept, &first[0]).unwrap();
     File::options()
         .write(true)
@@ -283,8 +292,15 @@ fn superseded_payloads() {
     assert_eq!(
         superseded(&folder),
         first,
-        "an old payload left behind is listed, the current one and junk not"
+        "old points left behind are listed, the current ones and junk not"
     );
+    // a whole payload of the retired format is always listed
+    let legacy = folder.join("level_x-0000000000000000.payload");
+    fs::write(&legacy, b"BC2FBPL1...").unwrap();
+    let mut with_legacy = [first.clone(), vec![legacy.clone()]].concat();
+    with_legacy.sort();
+    assert_eq!(superseded(&folder), with_legacy);
+    fs::remove_file(&legacy).unwrap();
     fs::remove_file(&p).unwrap();
     let mut both = [first, second].concat();
     both.sort();
@@ -306,7 +322,7 @@ fn damaged_cache_files_are_ignored() {
         .unwrap()
         .flatten()
         .map(|e| e.path())
-        .find(|p| p.extension().is_some_and(|x| x == "payload"))
+        .find(|p| p.extension().is_some_and(|x| x == "points"))
         .unwrap();
     let whole = fs::read(&file).unwrap();
     for cut in [whole.len() - 1, 30, 4] {
@@ -421,9 +437,9 @@ fn the_disk_cache_keeps_to_its_size() {
     c.disk_cap = 1;
     let cache = Cache::new(c);
     let mut paths = Vec::new();
-    for i in 0..3 {
+    for i in 0..3u8 {
         let p = dir.0.join(format!("b{i}.fbrb"));
-        fs::write(&p, bundle(true)).unwrap();
+        fs::write(&p, variant(true, i)).unwrap();
         cache.read_path(&p, &["levels/part01.dbx"]).unwrap();
         cache.read_path(&p, &["levels/part01.dbx"]).unwrap();
         paths.push(p);
@@ -465,4 +481,45 @@ fn identity_names_a_file() {
     assert!(stem.contains("level-00_fbrb") && stem.len() > 17, "{stem}");
     let b = Identity { len: 2, ..a.clone() };
     assert_ne!(a.stem(), b.stem());
+}
+
+/// Audit AU5 ALG-5: a payload past the memory budget, no disk cache. Each read used to decompress it from its start;
+/// now the first such read makes the restart points in the process and every later one inflates spans of them.
+#[test]
+fn a_payload_past_the_budget_is_decompressed_once() {
+    let dir = TempDir::new("pastbudget");
+    let p = dir.0.join("b.fbrb");
+    fs::write(&p, bundle(true)).unwrap();
+    let payload = items().iter().map(|i| i.2.len() as u64).sum::<u64>();
+    let cache = Cache::new(config(1 << 20, None));
+    check_all(&cache, &p);
+    let s = cache.stats();
+    // the sessions' reads below the budget, one whole pass, and spans: far less than a pass per read
+    assert!(s.decompressed_bytes <= payload + (2 << 20), "{s:?}");
+    assert!(s.memory_hits > 10, "{s:?}");
+    // nothing kept at all: the reference's reads
+    let off = Cache::new(config(0, None));
+    check_all(&off, &p);
+    assert!(off.stats().decompressed_bytes > 4 * payload, "{:?}", off.stats());
+}
+
+/// Points made in memory at a large bundle's first read (past the budget, not yet seen) go to disk at its next
+/// read, so a later process finds them.
+#[test]
+fn points_made_in_memory_reach_the_disk() {
+    let dir = TempDir::new("persist");
+    let folder = dir.0.join("cache");
+    let p = dir.0.join("b.fbrb");
+    fs::write(&p, bundle(true)).unwrap();
+    let names = ["levels/part22.dbx"];
+    let want = read_path_uncached(&p, &names).unwrap();
+    let first = Cache::new(config(1 << 20, Some(&folder)));
+    for _ in 0..3 {
+        assert_eq!(first.read_path(&p, &names).unwrap(), want);
+    }
+    assert_eq!(first.stats().written, 1, "{:?}", first.stats());
+    let second = Cache::new(config(1 << 20, Some(&folder)));
+    assert_eq!(second.read_path(&p, &names).unwrap(), want);
+    let s = second.stats();
+    assert_eq!((s.disk_hits, s.decompressed_bytes), (1, 0), "{s:?}");
 }

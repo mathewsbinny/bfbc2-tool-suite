@@ -9649,3 +9649,123 @@ playtest.
   re-export replacing installed path data, `navkit install` and `mapedit-ai` on the same level.
 - NK5-rest 3 (memory past the budget) and A2-rest's other items (a later Rush stage's vehicles, engine limits, the
   level's memory, Xbox 360 meshes in a stage, L1-HT-001) as listed before.
+
+## PR1b-1-rest: restart points, one BF1943 reader, the export's reads (2026-11-22, branch `pr1b1r`)
+
+The rest of PR1b-1 (above, "What is left"): items 1-3 done, item 4 in part, items 5 and 6 not started (left as
+round PR1b-1c, below). Every output is the same: the WW2 rebuild 10,852 of 10,852, the export canary's stage byte
+for byte, the bundle replay's 731 digests. Measured on the development PC (16 threads, 15 GB) while NK6's and then
+NKG1's NavKit build series ran beside it, so the times carry that load (both sides of each table were measured
+under it, minutes apart).
+
+### The restart points (`bc2_formats::restart`)
+
+A deflate stream can only be decoded from a block boundary with the 32 KiB of output behind it. `restart::build`
+decompresses a stream once with zlib-rs's `Z_BLOCK` stops (through `libz-rs-sys`, the C interface of the inflater
+`flate2` already uses; `flate2` has no `Z_BLOCK`, `data_type` or `inflatePrime`) and records, at the first block
+boundary after every 1 MiB of output, the compressed bytes used, the unused bits of the last one (`data_type & 7`),
+the output so far and the window (`inflateGetDictionary`, kept deflated). `decode_span` primes a raw inflater with
+those bits (`inflatePrime`), gives it the window (`inflateSetDictionary`) and inflates to the next point: zlib's
+`zran.c`. Each point keeps the CRC-32 of its span and every decode checks it, so changed or damaged bytes are
+refused (the reader then falls back to decompressing as the reference does), never answered as other bytes.
+`read_ranges` decodes the spans a read needs on the worker threads, each with its own handle on the file. Tests:
+every span and range against the whole stream (stored, fixed, dynamic blocks; points mid-byte), a byte changed
+inside a span refused, the index's bytes round-tripped and damaged ones refused.
+
+### Item 3: points on disk instead of whole payloads (`fbrb::cache`)
+
+The disk tier wrote each large bundle's whole decompressed payload (`.payload`); it now writes a `.points` file
+keyed by the bundle's content (length, payload start, SHA-1 of the first 64 KiB, the gzip trailer), so a level's
+`Dist` and `Package` copies share one. The points are made by a second pass over the stream with the same inflater
+and the same header and trailer checks, and only for a stream whose trailer checks: a stream the reference refuses
+is never written, as before. `.payload` files are no longer read; `superseded` (`bfbc2 caches --prune`) lists them.
+
+`rust\bench_fbrb_cache.py` (OPFOR's WW2 level-build reads replayed: 731 reads of 87 bundles; main's module against
+this branch's, the same digests in every run):
+
+| run | before: time, peak | after: time, peak | disk |
+|---|---:|---:|---:|
+| cold (one process, an empty cache) | 59.3 s, 339 MB | 29.2 s, 604 MB | 8.09 GiB of payloads -> 0.10 GiB of points |
+| warm (a new process, that cache) | 11.8 s, 190 MB | 12.4 s, 529 MB | |
+| memory only (disk cache off) | 150.6 s, 355 MB (68.9 GiB inflated) | 46.5 s, 548 MB (28.0 GiB) | |
+
+The real cache folder held 16 GiB of payloads (at its cap); the WW2 rebuild's whole cache, as points, was 145 MB
+(109 files). The peak is higher by the decoded spans (up to `BFBC2_FBRB_MEMORY_MB`, 128 MB) and the parsed points
+(their packed windows, within the same budget), and the spans of one read decoded side by side. A first try that
+kept the windows inflated in memory and decoded spans one at a time made the warm run 24 s: the points of the 87
+bundles (416 MB of windows) did not fit the budget and were parsed again and again.
+
+### Item 2 (ALG-5): one decompression per bundle per export
+
+The export's walks read the large stock bundles step after step; a payload over the in-process budget (128 MB:
+`mp_common`, `sp_01`, `ww2_common` ...) was decompressed from its start at every read when no disk file served it
+(`BFBC2_FBRB_CACHE=0`, a first read, a cache turned off). Now such a read makes the payload's points in memory with
+one pass, and every later read in the process inflates spans of them; the points go to disk at the bundle's next
+read when the disk cache is on. The reach and the closure still walk separately (the reads they repeat are spans
+kept in memory); one walk is left for PR1b-1c.
+
+`mapexport build` of the cross-set canary (`rust\bc2-levelwrite\examples\export_canary.rs`: XF1's test project,
+SP_01 as WW2 Conquest with Guadalcanal's radar bunker), main's `mapexport.exe` against this branch's, through
+`rust\bench_memory.py --command`:
+
+| run | before | after |
+|---|---:|---:|
+| `BFBC2_FBRB_CACHE=0` | 79.5 s, peak 896 MB | 34.8 s, peak 1,160 MB |
+| cold (an empty disk cache) | 56.1 s, 878 MB | 29.6 s, 963 MB |
+| warm (that cache) | 23.9 s, 432 MB | 16.9 s, 688 MB |
+| the disk cache afterwards | 7.5 GB | 115 MB |
+
+All six stages are byte for byte the same (the 8 bundles and files; `stage.json` and `report.txt` differ only in
+their timing lines: "shaders: the reach and the merges in 25.4 s" -> 4.3 s).
+
+### Item 1: one BF1943 bundle reader (`bc2_formats::bf1943`)
+
+`bc2-cli`'s `bf1943src.rs` (O5's port of `fbrb1943.Bundle`'s check and `gzip.decompress`) moved into
+`bc2_formats::bf1943`, with `Payloads`: an entry of a compressed payload read through restart points, made once by
+any process and kept on disk by the payload's content (`cache\bf1943source\*.points`, beside the source index)
+and in the process (`BF1943_RESTARTS_MB`, the decoded spans within `BF1943_SOURCE_MEMORY_MB`). A payload that is
+not one plain gzip member as zlib reads it is decompressed whole on each read, `bf1943import.Source`'s rule.
+`bfbc2 bf1943import` keeps only the Python-index and open logic and reads through it.
+
+`bf1943import.Source` is on it through `bc2_native` (`bf1943_check` for the reader version it follows, `bf1943_read`,
+`bf1943_restarts` / `bf1943_restarts_clear` behind `RESTARTS.held()` / `clear()`; registered backend
+`bf1943source`): the index rows are the same dicts in the same key order, so the index pickle is the same bytes.
+The Python reader stays as the reference (`BFBC2_PURE_PYTHON=1`); `test_bf1943import.py` runs its old checks on the
+Python and new ones on the Rust: every entry in a random order against `WholeSource`, a two-member payload, a
+stored one, a refused one, the points shared by a second `Source`, read from disk by a later process, none kept with
+`BF1943_RESTARTS_MB=0`, four `Source`s on four threads, a bundle changed in place (same size and time) refused by
+the span's CRC-32.
+
+**WW2 rebuild** (OPFOR main, `OPFOR_TOOLKIT` a scratch folder whose `bfbc2-tool-suite` junctioned to this worktree,
+`BFBC2_FBRB_CACHE` a scratch folder, `--jobs 2`): all 55 steps in 13.5 min (the 3 level chains side by side in
+276 s). `compare_oracle`: **10,852 of 10,852 identical** (differ 0, missing 0, extra 0); `qa_checks.py` passed. The
+peaks are PR1b-1's (level builds 4.16-4.25 GB commit, material_grid 3.79 GB).
+
+### Item 4: the cache budget, in part
+
+- the bundle cache's and the BF1943 source's points are keyed by content (above);
+- `renderqa_truth.pkl` moved from the suite's `build\` folder (outside every cap) into a cache of its own,
+  `renderqa` (`BFBC2_RENDERQA_CACHE`, cap `BFBC2_RENDERQA_CACHE_MB`, 64 MB), in `caches.CACHES` and `budget::SPECS`:
+  listed, pruned, cleared and counted in the overall budget (the old file in `build\` is left for the user to
+  delete);
+- the caches' tables count `.points` (fbrb, bf1943source). `cli_o3_caches_golden.json`, `argfmt_golden.json` and
+  `abbrev_golden.json` re-recorded from the Python (the help's list of names and the listing's rows), `argspecs.rs`
+  regenerated; `bfbc2.exe` matches them.
+
+OPFOR's pickles, for OPFOR (read-only here): `work\ww2\_qa\cache` (qa_checks' `stock_*` / `bundle_*` pickles,
+2.1 GB in 148 files, no cap), `work\ww2\install_index.pkl` (61 MB), `install_templates.pkl` (14 MB),
+`install_dbnames.pkl` (8 MB); and the suite's own `work\tools_out\dbx_catalogue.pkl` (70 MB, `dbxcatalogue.py`),
+which could be a project cache as `meshview_index.pkl` is.
+
+### What is left (PR1b-1c)
+
+- **Item 4's single implementation**: `caches.py`'s pruning calling the Rust (`budget` / `caches` out of `bc2-cli`
+  into PR1b-2's library crate; today they lean on `bc2-cli`'s `pyos` / `pylog` helpers); content keys for the
+  culltree-row, HLSL, collision and shadercover caches (BLAKE3 of their inputs, each cache's format version raised);
+  the OPFOR caches above and `dbx_catalogue.pkl` under the budget.
+- **Item 5, sounds in Rust**: an XMA2 decoder (ffmpeg's `wmaprodec.c` / `xma` path: WMA Pro frames, the MDCT, the
+  float output) matched to ffmpeg's PCM on the WW2 and console sound sets, then `audio.py`'s one ffmpeg per sound
+  replaced. Not started: matching ffmpeg's float MDCT sample for sample is its own round.
+- **Item 6**: `dbxparity.py` / `portparity.py` ported (their `--predict` passes need the Python `Porter`'s pools and
+  `dbxcatalogue`'s pickle; `portparity` needs `meshport`'s Porter).
+- **ALG-5's one walk**: the export's reach and closure walked once.
