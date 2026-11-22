@@ -37,7 +37,7 @@ independent tools applied and reverted gives every file back byte for byte. Ever
 other owners' records of other kinds are kept as they are, and a whole-file install over a file another owner holds
 slots in is refused.
 
-[code: rust/bc2-formats/src/gameledger.rs:949-1335] [code: core/bfbc2core/gameledger.py:560-760]
+[code: rust/bc2-formats/src/gameledger.rs:940-1326] [code: core/bfbc2core/gameledger.py:555-755]
 [test: rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file] [test: rust/bc2-formats/src/gameledger_tests.rs::every_order_of_two_tools]
 [test: rust/bc2-formats/src/gameledger_tests.rs::a_derived_layer_refuses_its_base_leaving] [test: rust/bc2-formats/src/gameledger_tests.rs::opfors_records_are_kept]
 [test: core/tests/test_gameledger.py::python_twin] [test: core/tests/test_gameledger.py::cross]
@@ -52,7 +52,7 @@ over it, the move retried while another process holds the target for a moment; t
 A failed write rolls the commit back at once; a killed process leaves the journal and a stale lock, and the next
 operation (or `bfbc2 gameledger recover`) rolls it back first, so the command can simply be run again.
 
-[code: rust/bc2-formats/src/gameledger.rs:257-280] [code: rust/bc2-formats/src/gameledger.rs:715-947]
+[code: rust/bc2-formats/src/gameledger.rs:260-270] [code: rust/bc2-formats/src/gameledger.rs:705-938]
 [test: rust/bc2-formats/src/gameledger_tests.rs::an_interruption_at_every_write_step] [test: core/tests/test_gameledger.py::interruptions]
 [test: core/tests/test_gameledger.py::cross]
 
@@ -65,7 +65,7 @@ stock-MP's `.opfor-stockmp-*`) adopts them into the ledger in one journalled com
 prior) and removes them; another tool's markers, or markers that do not describe one finished install, are refused
 in plain words before anything is written (OPFOR's migration moves the rest).
 
-[code: rust/bc2-formats/src/gameledger.rs:1504-1617] [code: core/bfbc2core/gameledger.py:856-918]
+[code: rust/bc2-formats/src/gameledger.rs:1495-1608] [code: core/bfbc2core/gameledger.py:851-913]
 [test: rust/bc2-formats/src/gameledger_tests.rs::legacy_markers_are_adopted] [test: core/tests/test_gameledger.py::legacy]
 
 ### XINST-OPF-1: OPFOR's stages are layers of the ledger, built on the file below
@@ -281,7 +281,7 @@ ww2_common, the DLL's markers, the shared bundles (one commit each), opfor.ini a
 (package.mft, bundleManifest) last; then each level verified. An interrupted commit is rolled back before any file
 is read.
 
-[code: rust/bc2-install/src/run.rs:641-775] [code: rust/bc2-install/src/marks.rs:312-354]
+[code: rust/bc2-install/src/run.rs:625-759] [code: rust/bc2-install/src/marks.rs:312-354]
 [test: rust/bc2-install/tests/main.rs::plan_apply_revert_on_a_fake_game] [test: rust/bc2-install/tests/main.rs::a_failed_gate_writes_nothing]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup]
@@ -299,7 +299,7 @@ and this one ran revert, apply of the real staging and revert: every file identi
 two markers name their own bundle's write time), every ledger record identical but its id and time, the printed
 lines identical, and each copy after the second revert byte for byte the one before the apply.
 
-[code: rust/bc2-formats/src/gameledger_keep.rs:83-440] [code: rust/bc2-install/src/run.rs:823-905]
+[code: rust/bc2-formats/src/gameledger_keep.rs:83-440] [code: rust/bc2-install/src/run.rs:807-889]
 [data: round OR1 scratch proof, 2026-11-21: 37 / 74 / 37 files and 5-6 records identical per step (rust/BENCHMARKS.md OR1)]
 [test: rust/bc2-install/tests/main.rs::install_keep_orders_and_restate]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_revert_gives_the_files_back]
@@ -314,7 +314,7 @@ ledger journal, blob, file or record), as a kill would; the next run rolls the i
 with the same files and records as a run never interrupted, for apply and revert alike. The run holds the WW2
 rebuild's lock (`work\ww2\_rebuild\rebuild.lock`): a rebuild and an install never run at once.
 
-[code: rust/bc2-install/src/run.rs:229-258] [code: rust/bc2-install/src/lock.rs:60-139]
+[code: rust/bc2-install/src/run.rs:213-242] [code: rust/bc2-install/src/lock.rs:60-139]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_a_kill_at_every_write_step_recovers]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock]
 

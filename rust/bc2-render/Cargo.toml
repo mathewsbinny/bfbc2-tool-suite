@@ -1,6 +1,6 @@
 [package]
 name = "bc2-render"
-description = "The map editor's game-accurate view (round R5): a level's meshes and terrain drawn with DICE's own compiled Direct3D 11 shaders, as BFBC2's Dx11 renderer draws them"
+description = "The map editor's game-accurate view: a level's meshes and terrain drawn with DICE's own compiled Direct3D 11 shaders, as BFBC2's Dx11 renderer draws them"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -170,7 +170,7 @@ An install copies the level's bundles in, patches the shared bundles (startup's 
 menus), and writes `package.mft` and `bundleManifest` **last**, so that at no point a level is registered whose
 bundles are not there; a revert takes the registration out first.
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:344-368] [code: rust/bc2-install/src/run.rs:730-743] [code: rust/bc2-install/src/run.rs:434-470]
+[code: opfor:src/tools/mapedit/mapedit_install.py:344-368] [code: rust/bc2-install/src/run.rs:714-727] [code: rust/bc2-install/src/run.rs:418-454]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:900-916]
 
 ### REG-NEW-5: The menus need the startup bundle too

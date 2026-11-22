@@ -101,7 +101,7 @@ blueprint, and compares the object's leaves in the staged tree with the source's
 stands (centres within 0.5 m, radii within 0.5 m plus 5 %, the keys' rounding: CULL-SPH-1). An object the base does
 not have may stand at slot 0 only when the export recorded that no level slots its blueprint and the base does not.
 
-[code: rust/bc2-levelwrite/src/export.rs:2915-3043]
+[code: rust/bc2-levelwrite/src/export.rs:2916-3044]
 [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XCULL-RES-2: The stage's cull check

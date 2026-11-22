@@ -1,6 +1,6 @@
 [package]
 name = "bc2-pyrt"
-description = "What the suite's Python command lines show of the Python runtime, for their Rust ports (round O3): exceptions and their texts, repr / format of values, ntpath"
+description = "What the suite's Python command lines show of the Python runtime, for their Rust ports: exceptions and their texts, repr / format of values, ntpath"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

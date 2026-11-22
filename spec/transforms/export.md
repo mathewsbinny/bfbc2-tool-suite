@@ -132,7 +132,7 @@ map-list picture `Awards/images/Levels/<lv>`, made from the user's picture in th
 720; DXT5 512 x 256 with the picture in the alpha's box) and added to `ondemand_awards-00`. The patched overlay and
 awards bundles differ from their sources only in the level's keys and entries.
 
-[code: rust/bc2-levelwrite/src/export.rs:3160-3272] [test: rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches]
+[code: rust/bc2-levelwrite/src/export.rs:3161-3273] [test: rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches]
 [test: rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form] [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
 
 ### XEXP-RO-1: The game copy is read only

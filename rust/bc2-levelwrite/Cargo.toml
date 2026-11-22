@@ -1,6 +1,6 @@
 [package]
 name = "bc2-levelwrite"
-description = "The map editor's level writer and map project (round E2): the operation log and its edits on a level partition"
+description = "The map editor's level writer and map project: the operation log and its edits on a level partition"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

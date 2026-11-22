@@ -1,6 +1,6 @@
 [package]
 name = "bc2-install"
-description = "The game-copy installer on the install ledger: Project OPFOR's WW2 install (round OR1, OPFOR in Rust stage 1)"
+description = "The game-copy installer on the install ledger: Project OPFOR's WW2 install"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

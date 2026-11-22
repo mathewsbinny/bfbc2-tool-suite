@@ -213,17 +213,18 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      fbrbtool unpack|pack|list|big ...   FbrbTool's commands (bfbc2-fbrb-tool\\fbrbtool.py)\n  \
      dbxedit xml|edit|import|check|roundtrip|fixslots ...   DbxEdit's commands (bfbc2-dbx-tools\\dbxedit.py)\n  \
      leveldiff <a.dbx> <b.dbx> [options]   two .dbx files compared instance by instance (LevelDiff's)\n  \
-     gameledger status|holders|original|recover <game> ...   the game copy's install ledger (round DF2)\n  \
-     install plan|apply|revert|marks <plan.json> ...   the game-copy installer: Project OPFOR's WW2 install (round OR1)\n  \
+     gameledger status|holders|original|recover <game> ...   the game copy's install ledger\n  \
+     install plan|apply|revert|marks <plan.json> ...   the game-copy installer: Project OPFOR's WW2 install\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
      exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
      hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
-     caches, stockmp, aptgraft, audio, dbxcatalogue, dbxparity, portparity, meshview, culltree ...   round O3\n  \
+     caches, stockmp, aptgraft, audio, meshview, culltree ...   the caches, stock-MP AI, APT grafting, sounds, meshes, cull trees\n  \
      navkit, prepare_level, levelobjects, ladders, ordercheck, navcompare ...   NavKit's driver, prepare and tools\n  \
      graphstats, hpdcheck, hpdview, detailed, navparity, navregress, sample_all ...   NavKit's other tools\n  \
-     harness, texqa ...   round O4: the map and bot test harness, the texture QA\n  \
-     shaderdb, renderqa, xdiff ...   round O5: the shader tools\n  \
-     apt, stfs, xiso, bf1943import ...   round O5: the console readers, the BF1943 importer\n  \
+     harness, texqa ...   the map and bot test harness, the texture QA\n  \
+     shaderdb, renderqa, xdiff ...   the shader tools\n  \
+     dbxcatalogue, dbxparity, portparity ...   the BF1943 importer's catalogue and parity checks\n  \
+     apt, stfs, xiso, bf1943import ...   the console readers, the BF1943 importer\n  \
      --source-hash   the Rust sources' fingerprint this binary was built from\n  \
      --version   the suite's version\n";
 

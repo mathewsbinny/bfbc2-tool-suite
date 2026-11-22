@@ -1,6 +1,6 @@
 [package]
 name = "bc2-editor"
-description = "The BFBC2 Tool Suite's map editor application: the window, the map view (round G1), editing a map (round E2)"
+description = "The BFBC2 Tool Suite's map editor application: the window, the map view, editing a map"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
