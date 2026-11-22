@@ -96,6 +96,7 @@ mod shaders;
 mod stockmp;
 mod texcheck;
 mod wave;
+mod window;
 mod writers;
 mod xenos;
 
@@ -210,14 +211,17 @@ fn dbx_parse_many<'py>(
     file_cls: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyList>> {
     let slices = byte_slices(&items);
-    let parsed = py.detach(|| dbx::parse_tree_all(&slices));
     let out = PyList::empty(py);
-    for r in parsed {
-        match r {
-            Ok(t) => out.append(Builder::new(py, element_cls, &t).file(file_cls, &t)?)?,
-            Err(e) => out.append(value_error(&e).into_value(py))?,
-        }
-    }
+    window::map(
+        py,
+        &slices,
+        |s| s.len(),
+        |s| dbx::parse_tree(s),
+        |r| match r {
+            Ok(t) => out.append(Builder::new(py, element_cls, &t).file(file_cls, &t)?),
+            Err(e) => out.append(value_error(&e).into_value(py)),
+        },
+    )?;
     Ok(out)
 }
 
@@ -229,14 +233,17 @@ fn dbx_parse_many<'py>(
 )]
 fn dbx_to_xml_many<'py>(py: Python<'py>, items: Vec<Bound<'py, PyBytes>>) -> PyResult<Bound<'py, PyList>> {
     let slices = byte_slices(&items);
-    let xml = py.detach(|| dbx::to_xml_all(&slices));
     let out = PyList::empty(py);
-    for r in xml {
-        match r {
-            Ok(s) => out.append(s)?,
-            Err(e) => out.append(value_error(&e).into_value(py))?,
-        }
-    }
+    window::map(
+        py,
+        &slices,
+        |s| s.len(),
+        |s| dbx::to_xml(s),
+        |r| match r {
+            Ok(s) => out.append(s),
+            Err(e) => out.append(value_error(&e).into_value(py)),
+        },
+    )?;
     Ok(out)
 }
 
@@ -356,14 +363,25 @@ fn fbrb_read_many(py: Python<'_>, items: Vec<(String, Vec<String>, Vec<String>)>
         .iter()
         .map(|(p, _, low)| (p.as_str(), low.iter().map(String::as_str).collect()))
         .collect();
-    let results = py.detach(|| fbrb::read_many(&jobs));
     let out = PyList::empty(py);
-    for (r, (path, keys, _)) in results.into_iter().zip(&items) {
-        match r {
-            Ok(data) => out.append(bytes_list(py, &data)?)?,
-            Err(e) => out.append(fbrb_error(e, path, keys).into_value(py))?,
-        }
-    }
+    let mut names = items.iter();
+    // One bundle per core at a time: a bundle's entries are the large thing here (round PR1b-1).
+    window::map_min(
+        py,
+        &jobs,
+        |_| window::WINDOW_BYTES,
+        threads(),
+        |(p, n)| fbrb::read_path(p, n),
+        |r| {
+            let (path, keys, _) = names
+                .next()
+                .ok_or_else(|| PyValueError::new_err("fbrb_read_many: results past the items"))?;
+            match r {
+                Ok(data) => out.append(bytes_list(py, &data)?),
+                Err(e) => out.append(fbrb_error(e, path, keys).into_value(py)),
+            }
+        },
+    )?;
     Ok(out)
 }
 

@@ -166,6 +166,17 @@ pub const SPECS: &[Spec] = &[
         default_cap: 2048.0,
         markers: &[],
     },
+    Spec {
+        name: "meshview",
+        env: "",
+        suffixes: &["meshview_index.pkl"],
+        off_without_localappdata: false,
+        project: &["work", "tools_out"],
+        cap_env: "BFBC2_MESHVIEW_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 256.0,
+        markers: &[],
+    },
 ];
 
 fn local_app_data() -> Option<String> {

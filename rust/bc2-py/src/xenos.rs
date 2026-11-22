@@ -583,18 +583,18 @@ pub fn xenos_parse_many<'py>(
     obj_cls: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyList>> {
     let jobs: Vec<(&[u8], Option<bool>)> = items.iter().map(|(b, p)| (b.as_bytes(), *p)).collect();
-    let decoded: Vec<Result<Shader, xenos::XenosError>> = py.detach(|| {
-        use rayon::prelude::*;
-        jobs.par_iter().map(|(b, p)| xenos::parse(b, *p)).collect()
-    });
     let b = Builder::new(obj_cls)?;
     let out = PyList::empty(py);
-    for r in decoded {
-        match r {
-            Ok(sh) => out.append(parsed(&b, sh)?)?,
-            Err(_) => out.append(py.None())?,
-        }
-    }
+    crate::window::map(
+        py,
+        &jobs,
+        |(b, _)| b.len(),
+        |(b, p)| xenos::parse(b, *p),
+        |r| match r {
+            Ok(sh) => out.append(parsed(&b, sh)?),
+            Err(_) => out.append(py.None()),
+        },
+    )?;
     Ok(out)
 }
 
