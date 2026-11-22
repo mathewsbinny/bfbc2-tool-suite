@@ -10315,6 +10315,21 @@ renamed (`no ffmpeg on PATH`, `FFMPEG names nothing` ...): they convert now. `te
 ("now" answers) recorded again from the new decoder after the proof above; with ffmpeg present its `--game` also
 checks each conversion against `convert_reference` on ffmpeg's C path.
 
+**WW2 rebuild** (OPFOR main 7347817 with branch `pr1b1c` - its two cache-budget calls - checked out detached,
+`OPFOR_TOOLKIT` a scratch folder whose `bfbc2-tool-suite` is junctioned to this worktree, `BFBC2_FBRB_CACHE` a scratch
+folder, `--jobs 2`, while other rounds' builds ran): all 55 steps in 31.2 min, `qa_checks.py` passed.
+`compare_oracle` against the recorded oracle: 10,548 of 10,852 identical, 304 differ, 0 missing, 0 extra. The 10,051
+files that are not sound Waves: all identical. The 304 that differ are all `*_wave.res` Waves, and every one of the
+rebuild's 801 Waves has the SHA-1 of a conversion proved equal to `convert_reference` on ffmpeg's C path (above). The
+oracle's sound Waves were recorded again (OPFOR, coordinator's ruling 2026-11-22: the old ones came from ffmpeg's
+CPU-dependent SIMD run; the old oracle kept as `data\ww2_rebuild_oracle_2026-11-22_ffmpeg-simd.json`): 10,852 of 10,852
+identical since. The install oracle (`wake_install --plan`'s staging, 21,197 files) likewise: a `--plan` with main's
+suite, the rebuild's Waves put back to their old bytes, reproduced it 21,197 of 21,197; against that staging this
+branch's differs in 1,044 Waves and the 24 bundles and reports holding them - the 35 bundles' 92,255 entries the same
+but 1,056 Wave entries (each the C-path conversion), the reports only in the bundles' byte counts - and those 1,068
+were recorded again (old oracle kept, dated, `ffmpeg-simd`). `game\` was sha256-identical (1,582 files) before and
+after each of the three `--plan` runs.
+
 ### Item 3: content keys and the last pickles under the budget
 
 | cache | key before | key now |
