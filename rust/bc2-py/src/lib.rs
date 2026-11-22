@@ -96,6 +96,7 @@ mod pathdata;
 mod pefile;
 mod scene;
 mod shaderdb_handle;
+mod shaderdb_merge;
 mod shaderdb_open;
 mod shaders;
 mod stockmp;
@@ -442,6 +443,8 @@ mod bc2_native {
         ShaderDbHandle, shaderdb_block_constants, shaderdb_block_engine_textures, shaderdb_block_textures,
         shaderdb_texture_kind,
     };
+    #[pymodule_export]
+    use super::shaderdb_merge::ShaderMerger;
     #[pymodule_export]
     use super::shaderdb_open::{shaderdb_dx_in_name, shaderdb_open, shaderdb_pick};
     #[pymodule_export]
