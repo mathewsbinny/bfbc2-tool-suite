@@ -8143,3 +8143,40 @@ PR1a's rules ran over what V1 and NK2 added while the round was under way.
   before).
 - **The spec.** The merged spec's citations were remapped from the side each line came from (main's or PR1a's) to the
   merged files, and `rules.json` was re-emitted: 769 rules.
+## NKS: the Kynapse specification (2026-11-22, branch `nks`)
+
+A specification round: no tool's behaviour changed. Three spec files (`spec/formats/kynapse.md`,
+`spec/engine/kynapse_runtime.md`, `spec/transforms/kynapse_generation.md`), 52 rules: 14 verified, 38 observed.
+
+**Method.**
+- **Data.** `rust/bc2-formats/examples/kynapse_probe.rs` reads every DICE path-data file of the game copy: 35 files,
+  3,120 sectors, 188,988 areas, 596,069 nodes, 1,694,066 edges. It takes 2.4 s (release), and it does the same for
+  NavKit's builds named on its command line (the 15 regression builds: 2,494 sectors, about 6 s).
+- **Corpus tests.** `rust/bc2-formats/tests/kynapse_corpus.rs` holds 9 game-tier tests: 2.6 s in the dev profile and
+  6.2 s in release with two threads.
+- **The executable.** It was read statically with a small capstone disassembler (scratch only, no file of the suite).
+  Key claims were spot-checked against the disassembly: the tile lookup, the point-to-sector lookup, the header checks,
+  the sector-kind count, the cost word's static bit and the computed step cost.
+
+**Findings that change what NavKit should do:**
+
+| Finding | Rule | NavKit today (probe) |
+|---|---|---|
+| resolution = 1 / tile size (40 / 20 / 50 m), tile = trunc((p - rect min) x resolution) | KYN-TILE-1, KYRT-TILE-1 | holds |
+| the table's bounds are the route-node box; the loader merges sectors with equal bounds | KYN-SEC-2, KYRT-LOAD-2 | writes the rectangle and height range |
+| the table's "reserved" word is the sector kind (non-zero shifts the block by a byte) | KYN-SEC-1 | 0, as DICE |
+| node ids are unique over the whole file, ordinary and border from one counter | KYN-NODE-1 | holds |
+| ordinary edges reach at most DistEdgeMax across; border edges twice that | KYN-EDGE-1 | holds |
+| 13 % of DICE's edges are one-way | KYN-EDGE-3 | 0 % one-way; 6,916 duplicate edges |
+| DICE's nodes are off the sampling grid (96 %) | KYG-NODE-1 | 100 % on cell centres |
+| border ids shared by 3-4 sectors: 9,426 | KYG-NODE-2 | 288 |
+| C portals: axis, diagonal and "up"; links to diagonal neighbours | KYN-C-1, KYG-LINK-1 | axis only |
+| link objects name the neighbour's own tile and item; all 55,008 resolve | KYN-LINK-1 | all resolve |
+| the search computes step costs from node positions; the cost word's bit 31 marks a static edge | KYRT-PATH-1, KYN-EDGE-2 | bit 31 set |
+| the runtime picks a point's area by the tile item's heights, not the area header's | KYRT-AREA-1 | the two equal, as DICE |
+| A records are read (with B, by a nearest-segment search) | KYRT-IGN-1 | none written, as DICE |
+| a tile's trailing word gives the last area's size for the C links | KYRT-LINK-1 | DICE's layout (KYM-ORD-1) |
+
+The NavKit gap list, in priority order: detailed sectors, node placement, edges, area division, the rectangle, D / F,
+C portal kinds and diagonal links, table bounds, lookup-list ties. The detail is in `kynapse_generation.md`. What is
+left is queued as NKS-rest in the ROADMAP.

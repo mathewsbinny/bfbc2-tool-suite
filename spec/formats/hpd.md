@@ -93,8 +93,8 @@ The table has *n* entries of 48 bytes (`<I6f5I`) at 0x9C:
 | Offset | Type | Field |
 |---|---|---|
 | 0 | u32 | sector id, grid coordinates `0xXXYY` (x in the high byte, z in the low byte; 0x0101 = 257) |
-| 4 | 6 x f32 | bounds: min x, max x, min y, max y, min z, max z (world space, Y up) |
-| 28 | u32 | reserved: 0 |
+| 4 | 6 x f32 | bounds: min x, max x, min y, max y, min z, max z (world space, Y up): the box of the sector's route nodes (KYN-SEC-2) |
+| 28 | u32 | the sector kind: 0 (KYN-SEC-1) |
 | 32 | u32 | block size in bytes |
 | 36 | u32 | block offset, from the start of the block area (0x9C + 48*n*) |
 | 40 | u32 | build date `YYMMDD`, the month **zero-based** (100007 = 2010-01-07) |
@@ -550,16 +550,13 @@ off on destroyed objects (`PdtWhenDestroyed`).
 
 ## Open questions
 
-- The tie-break order of the three sorted lookup lists in node fields *b* / *c* (HPD-NODE-6).
-- Why some border ids have no owner copy and others two or more (HPD-NODE-5), and whether the runtime cares.
-- The meaning of the header words besides the count (HPD-HDR-2), and of the resolution field (0.02 / 0.025 / 0.05).
-- How the runtime gets the tile size (40 m vs 20 m): the header has no tile-size field (KYM-HDR-1).
-- The link object's header: 83 % match the mirrored tile, the rest are neighbours with a different tile grid - to
-  confirm (KYM-LINK-1).
-- DICE's area division: the conditional midline cut (on one axis, the longer side) has no known trigger; the vehicle
-  files' D / F rule; which sectors are detailed beyond the `NeedsDetailedPathfinding` flag.
-- Whether the runtime needs a file's sector ids to match the `SectorOffsets` asset, and why one ONS_MP_002 sector
-  resolved at offsets 0, 0 (HPD-USE-2).
-- The generator's rectangle (DICE's ground stops 6-24 m inside the sampled extent, a straight cut not in the shipped
-  data).
-- What A records are (KYM-AREA-2) and whether the end slot's bytes matter (never read).
+Round NKS turned this section's questions into tracked items, each answered with evidence or kept open with what would
+settle it: `formats/kynapse.md` section 6 (OQ1-OQ9). Answered there: the header words and the resolution field
+(KYN-FILE-1, KYN-TILE-1), the tile size (KYN-TILE-1), the link object's header (KYN-LINK-1), A records and the end
+slot (KYRT-IGN-1, KYRT-LOAD-3). Still open:
+
+- the lookup lists' tie-break (HPD-NODE-6; KYG-NODE-3 narrows it);
+- border ids with no owner or two (HPD-NODE-5; counts in KYG-NODE-2);
+- DICE's area division, the vehicle D / F rule and the detailed sectors (KYG-AREA-2, KYG-DF-2, KYG-DET-1);
+- the ONS_MP_002 sector that resolved at offsets 0, 0 (HPD-USE-2; KYRT-SEC-1 gives the lookup);
+- the generator's rectangle (KYG-RECT-1).

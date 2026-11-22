@@ -28,6 +28,16 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **The Kynapse specification** (round NKS): navigation meshing as BFBC2 ships and runs it, in three new spec files -
+  `spec/formats/kynapse.md` (what path data means: worlds per pathfinding type, sector kinds and bounds, the resolution
+  field as one over the tile size, areas, portals, links, node ids, edges, D / F by type, units and frames),
+  `spec/engine/kynapse_runtime.md` (what `BFBC2Game.exe` does with it, from reverse engineering) and
+  `spec/transforms/kynapse_generation.md` (DICE's generator as rules measured on its 35 files, with where NavKit
+  deviates today and the gaps in priority order). `formats/hpd.md`'s open questions are tracked items, five answered.
+  A game-tier corpus test checks the verified rules on DICE's files; `cargo run --example kynapse_probe` measures
+  DICE's files or NavKit's builds.
+
 ## [0.14.0] - 2026-11-21
 
 ### Added

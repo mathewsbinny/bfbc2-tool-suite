@@ -242,5 +242,6 @@ the original path data).
   AI's start.
 - The per-type load in the path-data world set-up (AI-START-3 is inferred), and what the second search stage's list of
   reached nodes is filled from (AI-KY-3).
-- Why a go-to needs a route node near the order position (HPD-RT-1), and how the runtime picks its tile size.
+- Why a go-to needs a route node near the order position (HPD-RT-1). (The tile size is the mesh's resolution field:
+  KYN-TILE-1, KYRT-TILE-1; the runtime's loading and searching is `engine/kynapse_runtime.md`.)
 - The flying AI's data (`HasFlyingAI`): what 0x59A140 loads; no stock MP level and only Napisal's ONS_MP_005GR set it.
