@@ -177,6 +177,8 @@ class Gen:
             f.append(E('field', N, [('name', 'SprintLookSpeedMultiplier')], '', num_raw([r.choice([0.5, 1.0])], '>f')))
         elif short == 'SoldierWeaponData':
             f.append(E('field', T, [('name', 'AnimBaseSet')], r.choice(['wabsShg', 'wabsHg', 'wabsRif'])))
+            if r.random() < 0.6:                                # a shotgun keeps wabsShg (spec WPN-WW2-8)
+                f.append(E('field', T, [('name', 'WeaponClass')], r.choice(['wcShotgun', 'wcKnife', 'wcSniper'])))
             f.append(E('array', C, [('name', 'WeaponStates')], '', b'', [
                 E('complex', C, [], '', b'', [E('field', 6, [('name', 'AlwaysAimHead')], '', bytes([0, r.choice([0, 1])]))])
                 for _ in range(r.randint(1, 3))]))

@@ -5841,15 +5841,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-bf1943-import/dbxport.py:647-664"
+     "ref": "bfbc2-bf1943-import/dbxport.py:647-665"
     },
     {
      "kind": "code",
-     "ref": "bfbc2-bf1943-import/dbxport.py:2110-2198"
+     "ref": "bfbc2-bf1943-import/dbxport.py:2111-2200"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/dbxport/port.rs:1474-1720"
+     "ref": "rust/bc2-convert/src/dbxport/port.rs:1474-1727"
     },
     {
      "kind": "test",
@@ -5874,7 +5874,7 @@
     },
     {
      "kind": "code",
-     "ref": "bfbc2-bf1943-import/dbxport.py:2189-2198"
+     "ref": "bfbc2-bf1943-import/dbxport.py:2191-2200"
     }
    ]
   },
@@ -5945,7 +5945,7 @@
    "id": "WPN-WW2-8",
    "title": "wabsShg is DICE's shotgun body set",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
     {
@@ -5953,12 +5953,28 @@
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AnimBaseSet wabsShg on 20 player weapons, all wcShotgun; 1 AI clone"
     },
     {
-     "kind": "code",
-     "ref": "bfbc2-bf1943-import/dbxport.py:2182-2183"
+     "kind": "data",
+     "ref": "a read of the game copy, 2026-11-22: wcShotgun wabsShg x21 all fltSingleFireWithBoltAction (20 players, 1 AI clone); wabsRif x23 (fltAutomaticFire 9, fltSingleFire 6, fltSingleFireWithBoltAction 8: the SPAS-12); OPFOR's bundles: us_shg_m1897 x3 wcShotgun wabsShg fltSingleFireWithBoltAction, 11 WW2 wcSniper weapons AlwaysAimHead false 11 of 11"
     },
     {
-     "kind": "doc",
-     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:14-19"
+     "kind": "data",
+     "ref": "a read of BF1943's Xbox 360 bundles, 2026-11-22: SoldierWeaponData wabsShg x1 (jap_shingunto_knife, wcKnife); no wcShotgun"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/dbxport.py:2180-2190"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/dbxport/port.rs:1670-1697"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_rules.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_native.py::main"
     }
    ]
   },
