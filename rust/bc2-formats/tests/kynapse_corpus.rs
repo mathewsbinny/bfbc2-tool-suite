@@ -321,3 +321,27 @@ fn infantry_f_records_by_direction_and_twinned() {
         }
     });
 }
+
+// spec: KYG-EDGE-2, KYN-EDGE-2
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn edge_costs_are_the_f32_length_in_sixteenths() {
+    let mut edges = 0u64;
+    each(|f, h, _| {
+        for s in &h.sectors {
+            for e in &s.edges {
+                let (a, b) = (&s.nodes[e.src as usize].pos, &s.nodes[e.dst as usize].pos);
+                let l = ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt();
+                edges += 1;
+                assert_eq!(
+                    e.tag,
+                    0x8000_0000 | (l * 16.0).floor() as u32,
+                    "{}: sector {:#x}",
+                    f.name,
+                    s.id
+                );
+            }
+        }
+    });
+    println!("{edges} edge costs exact");
+}

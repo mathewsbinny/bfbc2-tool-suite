@@ -8152,7 +8152,7 @@ A specification round: no tool's behaviour changed. Three spec files (`spec/form
 - **Data.** `rust/bc2-formats/examples/kynapse_probe.rs` reads every DICE path-data file of the game copy: 35 files,
   3,120 sectors, 188,988 areas, 596,069 nodes, 1,694,066 edges. It takes 2.4 s (release), and it does the same for
   NavKit's builds named on its command line (the 15 regression builds: 2,494 sectors, about 6 s).
-- **Corpus tests.** `rust/bc2-formats/tests/kynapse_corpus.rs` holds 8 game-tier tests: 2.6 s in the dev profile and
+- **Corpus tests.** `rust/bc2-formats/tests/kynapse_corpus.rs` holds 9 game-tier tests: 2.6 s in the dev profile and
   6.2 s in release with two threads.
 - **The executable.** It was read statically with a small capstone disassembler (scratch only, no file of the suite).
   Key claims were spot-checked against the disassembly: the tile lookup, the point-to-sector lookup, the header checks,

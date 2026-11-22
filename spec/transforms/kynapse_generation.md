@@ -275,7 +275,7 @@ Status: **verified**
 
 The cost word is `0x80000000 | floor(L x 16)` with L the f32 3-D distance of the stored f32 positions (KYN-EDGE-2).
 
-[test: bfbc2-auto-navkit/tools/hpdcheck.py::check]
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::edge_costs_are_the_f32_length_in_sixteenths]
 [data: 1,694,066 of 1,694,066 edges with L computed in f32]
 
 NavKit today (probe): 1,900,944 exact and 18 off by one unit (an f64 length rounded); `navparity:costs` 95.91 %
