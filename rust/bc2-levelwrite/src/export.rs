@@ -808,6 +808,35 @@ fn heightfield(game: &Game, lv: &str, partition: &LevelWriter) -> Result<Option<
     Ok(bc2_formats::terrain::parse(&data).ok())
 }
 
+/// A level's ground from the game copy (round A1's site where the editor has no unpacked terrain): its main height
+/// field and its water mesh (`<terrain>.water.mesh.res`); `None` for what it has not.
+///
+/// # Errors
+/// A bundle does not read.
+pub fn ground_of(
+    game: &Game,
+    lv: &str,
+    partition: &LevelWriter,
+) -> Result<(
+    Option<bc2_formats::terrain::Heightfield>,
+    Option<bc2_formats::water::WaterMesh>,
+)> {
+    let lv = lv.to_ascii_lowercase();
+    let hf = heightfield(game, &lv, partition)?;
+    let Some(name) = heightfield_name(partition) else {
+        return Ok((hf, None));
+    };
+    let water = name.replace(".heightfield-000.res", ".water.mesh.res");
+    let mut bundles = game.loaded(&lv, "terrain");
+    bundles.extend(game.loaded(&lv, "level"));
+    let live = game.live(&bundles)?;
+    let mesh = match live.get(&water) {
+        Some(f) => bc2_formats::water::parse_mesh(&read_found(&[f])?.pop().unwrap_or_default()).ok(),
+        None => None,
+    };
+    Ok((hf, mesh))
+}
+
 /// The entry of a level's main height field (`terrains/sp_01/sp_01.heightfield-000.res`, lower case), from its
 /// `TerrainEntityData`'s terrain reference; `None` when it has none.
 #[must_use]
