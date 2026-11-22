@@ -46,6 +46,15 @@ landed on `main`.
   a null victim, so with OPFOR's offline-scoring patch a human's kill of a bot scores; what blocked it offline was the
   4-client scoring flag. AI-NEED-5, PERS-SCORE-1 and the open-question lists now say so (BOT-SCO-3); a playtest still
   has to confirm it.
+- **More of DICE's Kynapse generator decoded** (round NKS-rest2; specification and probes only, no tool changed): the
+  generator's rectangle is the box of the level's soldier and vehicle spawns grown by 25 m (KYG-RECT-1, verified on
+  the 13 campaign levels by a new game-tier test, `rust/bc2-scene/tests/kynapse_rect.rs`); some route nodes come in
+  pairs exactly one step of GraphAccuracy + 0.35 m apart along an axis (KYG-NODE-4, verified by a new test in
+  `kynapse_corpus.rs`); every point of DICE's ground sees a node within half of DistEdgeMax (KYG-NODE-5, 96.5 % coarse,
+  98.3 % detailed, 95.2 % vehicle). Node placement is not from the Havok collision, detailed sectors follow no
+  level-data rule (best 92 %: designer zones), and the midline cut and the spanner's unexplained pairs are narrowed
+  further. Two new probes: `rust/bc2-formats/examples/kynapse_rules.rs` (DICE's files) and
+  `rust/bc2-scene/examples/kynapse_geom.rs` (DICE's files against the levels' collision, height field and entities).
 
 ## [0.16.0] - 2026-11-22
 
