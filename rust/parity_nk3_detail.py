@@ -26,6 +26,12 @@ regression level (navregress.build_level: Project OPFOR BFBC2's in-game samples,
       DICE's own F records on every infantry path-data file of the game copy (read only): the shapes the order
       rules decide never occur there (KYM-DF-2)
 
+Since round NK5-rest (navbuild.py retired) this script runs against pinned checkouts only: both suites must be
+checkouts that still have bfbc2-auto-navkit\tools\navbuild.py - the old one as above, the new one from that round's
+own commit up to bda5b8d (the last with navbuild.py: `git worktree add <folder> bda5b8d`). Its hooks reach into
+navbuild.py's Python stage, which the build no longer has; the current build's bytes are held to the same results by
+tests\navbuild_golden.json and NavKit's regression (rust/BENCHMARKS.md "NK5-rest").
+
 Levels: the 15 regression builds of work\navkit\regress (navregress's levels) when none are named.
 """
 import ctypes
@@ -65,6 +71,16 @@ def memory():
     psapi.GetProcessMemoryInfo.argtypes = [ctypes.wintypes.HANDLE, ctypes.POINTER(_Counters), ctypes.wintypes.DWORD]
     psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb)
     return c.WorkingSetSize / 2 ** 20, c.PeakWorkingSetSize / 2 ** 20
+
+
+LAST_WITH_NAVBUILD = 'bda5b8d'      # the suite's last commit with navbuild.py (round NK5-rest retired it)
+
+
+def need_navbuild(suite: str) -> None:
+    """Refuses a suite checkout without navbuild.py: this script's hooks need its Python stage (a pinned checkout)."""
+    if not os.path.isfile(os.path.join(suite, 'bfbc2-auto-navkit', 'tools', 'navbuild.py')):
+        raise SystemExit(f'{suite} has no bfbc2-auto-navkit\\tools\\navbuild.py (retired in round NK5-rest): run '
+                         f'this parity against a checkout at {LAST_WITH_NAVBUILD} or earlier')
 
 
 def use_suite(suite):
@@ -121,6 +137,7 @@ class Recorder:
 # ------------------------------------------------------------------------------------------------ capture
 
 def capture_child(suite, opfor, lv, scratch):
+    need_navbuild(suite)
     use_suite(suite)
     import navbuild
     import navdetail

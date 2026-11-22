@@ -1,5 +1,5 @@
 """NavKit: the level's ladders, for ladder links in the path data (navwalk.walkable seeds the far end of a ladder whose
-near end is walkable; navbuild links a node at each end).
+near end is walkable; the build links a node at each end).
 
 Ladders are objects (LadderEntityData): a soldier who walks into one, facing it, climbs it - the AI too (a friendly
 bot followed the user up a ladder on Atacama, 2026-10-21). DICE's path data has no ladder links (no route edge on

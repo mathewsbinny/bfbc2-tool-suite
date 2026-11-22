@@ -10173,3 +10173,90 @@ round's.
   cache retired); the anim and model tools (`granny.py`'s curve_keys / sample / put, `decimate.py`, `shapes.py`,
   `texwrite.py`'s packing).
 - The install run's thread on `Task`.
+
+## NK5-rest: navbuild.py retired (2026-11-22, branch `nk5r`)
+
+NK5's and NK6's "What is left" item: `bfbc2-auto-navkit/tools/navbuild.py` (1,486 lines) goes, now that the whole
+build runs in Rust. Nothing was written to `game\`; the game never launched.
+
+### What moved
+
+| was (navbuild.py) | now |
+|---|---|
+| `BuildSettings` (a frozen dataclass), `DEFAULTS`, `grid_settings`, `_cfg_dict` | the Rust defaults, `bc2_navbuild::stage::BuildSettings::default()` / `at_pitch` / `detailed`; the bindings (`navkit_build`, `navkit_stage_grid`, `navkit_write_stage`) take a dict of **overrides** or `None` (a `pitch` key first moves the grid, then single fields; an unknown key is refused); `bc2_native.navkit_settings()` lists the defaults |
+| the module switches (`AREA_LINK`, `LINK_RULE`, `SYMMETRIC_PORTALS`, `EDGE_SECTOR_*`, `GABRIEL_EDGES`, `SORT_NODES_BY_ID`, `BORDER_OWNER`, `OWNER_EDGES`, `NODE_BOUNDS`, `DIAGONAL_LINKS`, `ORDER_*`, `DETAIL_*`, `HEADER`, `_switches`) and the ones it read from navislands / navdetail | `bc2_navbuild::stage::Switches::default()` (overrides as above); navwalk passes only its own two (`roof_prune`, `objective_floor`: the stage's log line) |
+| `build` (the thin call), `water_tops`, `outside_bounds`, `deep_water`, `MAX_WATER_DEPTH`, `_clock` | `navwalk.build`, `water_tops`, `outside_bounds`, `deep_water`, `MAX_WATER_DEPTH`, `clock_words` (navkit.py's hand-off `build` / `apply`, navregress, navsample_offline, navvehicle, navwater_mesh call them) |
+| `navkit.py --no-detail`: `replace(DEFAULTS, detail_features=False)` | `{'detail_features': False}` |
+| `navvehicle.vehicle_settings()`: a `BuildSettings` | the same settings as overrides (pitch 1, 50-sample tiles, the vehicle radius ...) |
+| the Python stage, `merge_detailed`, `detail_pass`, `half_cells`, `drop_one_way`, `restore_one_way`, `write_file`, `Level`, `trace*`, `build_graph`, `link_scope` / `sector_links` and the rest of the glue | deleted (the build has run `bc2_navbuild::stage` since NK5); the tests' calls of the Rust core are in `test_navbuild_native.py` itself; `NavLevel.drop_one_way` / `detail_pass` (the Rust stage's own, now `pub`) and `navkit_stage_answer` (a whole stage with everything it made) give the tests the Rust stage's answers |
+| the command line `python navbuild.py <samples> <forbid> <XOffset> <ZOffset> <out.hpd> ...` | removed: `navkit.py build` / `bfbc2.exe navkit build` (version **0.17.0**, RELEASING.md "A merge that removes something") |
+
+Project OPFOR imports none of it (no caller of navbuild, navwalk, navvehicle or the bindings), so its
+`SUITE_REQUIRES` only follows the new version.
+
+### The tests
+
+| test | now |
+|---|---|
+| `test_column_sectors.py` | Rust `column_sectors_as_dice_places_them` (every 10 m from -3,000 to 3,000 at 0.8 and 0.2, SP_008's line column) |
+| `test_area_link.py` | Rust `area_link_rule` (`Level::connected` raw / slope / terrain, `components`) |
+| `test_portal_symmetry.py` | Rust `portal_symmetry_and_one_way_pieces` (side by side, stacked 'keep' / 'drop', 'restore' through `restore_one_way`, a shared surface across sectors) |
+| `test_bridge_union.py` | Rust `bridge_outlines_are_closed` (600 random patterns, their own generator: 300+ with bridges, 50+ overlapping; a lone bridge's diagonals and sides) |
+| `test_detail_features.py` | navdetail's checks stay Python; the detail pass's (sides out of the outline in pairs, the detailed settings) and the route lines' D-side checks are Rust (`the_detail_pass_moves_outline_sides_in_pairs`, `route_lines_do_not_step_across_a_d_side`) |
+| `test_tool_edges.py` | the settings' checks are Rust (`the_default_settings_are_the_normal_grid`); `--no-detail`'s overrides checked in Python |
+| `test_navislands.py` | the file through `navkit_write_graphs` (the build's writer) directly |
+| `test_navbuild_native.py` | on the bindings: E2a 331 and E3c 456 of the retired Python's recorded answers, **unchanged** (E3c's tracing now through the Rust stage's `drop_one_way` and detail pass); the 10 whole stages through `navkit_stage_answer` |
+| `test_reference_clip.py`, `test_water_rule.py`, `test_navkit_offline.py`, `test_review_fixes.py`, `test_native_required.py` | navwalk's names |
+
+**The whole stages.** The old digests hashed navbuild.py's stage result with Python's dict insertion orders (the
+border nodes' sectors in the order the stage first met them, `DETAIL_STATS`' keys in the order a pass first counted
+them), which the Rust stage does not keep. They are recorded again in a canonical form (sectors sorted, counts as
+numbers), from **navbuild.py's own stage** - an archive of `bda5b8d` run with this branch's module (whose old
+bindings still take full dicts) - and the Rust stage gives the same on **10 of 10** (every part: meshes, areas,
+graphs, border nodes, ids, dropped nodes, order nodes, D / F counts, D sides), with the diagonal-neighbour links off
+as that stage built them. `navbuild_golden.json`: `retired.stage` (10) new, `retired.e3h` 39 -> 29.
+
+**The NK2-NK4 parity scripts** (`parity_nk2_file.py`, `parity_nk3_detail.py`, `parity_nk4_walk.py`) hook into
+navbuild.py's Python stage, so they stay runnable against **pinned checkouts**: both suites at `bda5b8d` or earlier
+(the last with navbuild.py); they refuse a checkout without it. The current build is held to their results by the
+goldens and the byte-identical regression below. `parity_nk5_build.py` and `bench_navkit.py` run unchanged
+(navregress builds through `navwalk.build`).
+
+### Parity
+
+- **15 of 15 regression levels byte-identical** to main's build (navregress.build_level with the golden clock, each
+  in its own process, against OPFOR's `work\navkit\regress\<level>.hpd` - NKG1's reference run - with each sector's
+  build date and time zeroed); **the 4 golden builds as recorded** (sp_009, sp_004_b, sp_008_b, ons_mp_004).
+
+| level | s | | level | s | | level | s |
+|---|---:|---|---|---:|---|---|---:|
+| ons_mp_002 | 5.5 | | sp_005_b | 12.9 | | sp_009 | 1.5 |
+| ons_mp_004 | 3.5 | | sp_006 | 19.1 | | sp_01 | 8.7 |
+| sp_003_b | 9.1 | | sp_007 | 16.0 | | sp_02 | 6.8 |
+| sp_004_b | 3.9 | | sp_008 | 6.6 | | sp_03 | 13.7 |
+| sp_005 | 16.4 | | sp_008_b | 5.3 | | sp_04 | 12.8 |
+
+- **NK1's apply: 33 of 33 identical** (`rust/parity_nk1_apply.py`, an archive of 4a515a4 against this branch's
+  `bin\bfbc2.exe`).
+- XNAV-BLD-3: the files are main's bytes, so every navparity measure is unchanged by construction.
+
+### Tests
+
+- `cargo test` of bc2-navbuild (93, the 7 new among them) and bc2-py; clippy `--all-targets --all-features -D warnings`
+  on bc2-navbuild and bc2-py (and bc2-cli, bc2-levelwrite on the changed crate); `fmt`; ruff and mypy (every folder).
+- Release builds: `rust\build_native.py` (the module, `bfbc2.exe`) and `--editor` (`bfbc2-editor.exe`, `mapexport.exe`).
+- NavKit's game tier (`run_tests.py game --only navkit -j 1`): 35 of 37 at first - the two O4 entries failed only on
+  usage texts this round changed (navkit.py's `--no-detail` line, hpdcheck's and ladders.py's docstrings, which the
+  Rust command lines print); `cli_o4_navkit_golden.json` / `cli_o4_navtools_golden.json` re-recorded from the Python
+  (`test_cli_o4.py --record`: only those usage lines changed), then `--live --game` for both groups: all pass (37 of
+  37). `navbuild-native:game` (sp_009, sp_004_b as recorded), `navregress:small`, `apply`, `links`, `vehicle-level`,
+  `navwater-mesh`, `navtools-native` among them.
+- `run_tests.py quick -j 2`: 129 of 129 (133 less the four entries ported to Rust), O2 among them.
+- `spec/trace.py --check`: ok.
+
+### What is left
+
+- NK5-rest2 (ROADMAP): memory past the budget, if a level grows (stage a reduced before stage b, stage b's tracing
+  in chunks).
+- `navislands.py` and `navdetail.py` stay for their own callers (prune, features for the tests); the build reads the
+  Rust defaults of their settings, so their module names no longer change a build.

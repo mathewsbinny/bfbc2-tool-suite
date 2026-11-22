@@ -12,6 +12,13 @@ whole levels' path data (the build clock fixed). They are the oracle now; navreg
 independent check of what NavKit builds. navsample.load's records keep their Python reader (a file format's reader:
 kept for good), compared with the Rust core's here.
 
+Round NK5-rest retired navbuild.py: its thin calls of the Rust core live here now ("the Rust core's calls"), its Python
+drop_one_way and detail pass are the Rust stage's (NavLevel.drop_one_way / detail_pass: the same recorded answers), and
+the whole stages are the Rust stage's (navkit_stage_answer) against the 'stage' answers, recorded from navbuild.py's
+stage (the retired Python's recorded answers' own path) on the same levels in a canonical form (dicts sorted, the
+counts as numbers) before navbuild.py went, with the diagonal-neighbour links off as that stage built them
+(rust/BENCHMARKS.md "NK5-rest").
+
   python test_navbuild_native.py            quick: the grid walks on 24 + 16 seeded random multi-layer levels and
                                             the E2a / E3c / E3h answers against the recording; arrays and numbers of
                                             other types cast as the core takes them; CPython's float functions the
@@ -37,7 +44,7 @@ import struct
 import sys
 import tempfile
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -50,11 +57,11 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
-import navbuild as nb  # noqa: E402
+import kymesh  # noqa: E402
 import navwalk  # noqa: E402
 
 GOLDEN = os.path.join(HERE, 'navbuild_golden.json')
-# the moment every sector of a recorded build says it was built (navbuild.write_file: time.localtime())
+# the moment every sector of a recorded build says it was built (navwalk.build: time.localtime())
 FIXED_CLOCK = time.struct_time((2026, 11, 17, 12, 0, 0, 1, 321, 0))
 FAILS: list[str] = []
 
@@ -63,6 +70,205 @@ def check(cond: bool, msg: str) -> None:
     if not cond:
         FAILS.append(msg)
         print('FAIL', msg)
+
+
+# ------------------------------------------------------------------------------------------------ the Rust core's calls
+# navbuild.py's thin wrappers of the Rust core's NavLevel, kept here for the recorded answers (round NK5-rest retired
+# navbuild.py: the build's settings are the Rust defaults, its stage, drop_one_way and detail pass the Rust stage's
+# own - NavLevel.drop_one_way / detail_pass and navkit_stage_answer give them to Python for these checks)
+
+LINK_RULE = 'slope'                         # the build's link_rule (bc2_native.navkit_settings()'s switches)
+AREA_LINK = 'terrain'                       # ... and area_link
+BISECT = {'on': False, 'max_area': 25}      # build_areas' bisection (switch max_area; off in the build)
+DETAILED_PITCH = 0.2
+
+
+@dataclass(frozen=True)
+class Cfg:
+    """The build settings these checks vary (the Rust defaults: BuildSettings::default(), at_pitch as the Rust's)."""
+    pitch: float = 0.8
+    window: range = range(-1, 127)
+    tile: int = 50
+    tiles: int = 3
+    link_step: float = 0.6
+    y_offset: float = 0.95
+    dist_edge_max: float = 15.0
+    node_cover: tuple[float | None, float | None] = (None, 4.0)
+    order_nodes: bool = True
+
+    def at_pitch(self, p: float) -> 'Cfg':
+        n = int(round(100 / p))
+        detailed = abs(p - DETAILED_PITCH) < 1e-6
+        return replace(self, pitch=p, window=range(-1, n + 2), tiles=6 if detailed else 3,
+                       tile=int(round((20 if detailed else 40) / p)), link_step=0.3 if detailed else 0.6)
+
+    def overrides(self) -> dict[str, Any]:
+        """These settings as overrides of the Rust defaults."""
+        return dict(pitch=float(self.pitch), window=(self.window.start, self.window.stop), tile=int(self.tile),
+                    tiles=int(self.tiles), link_step=float(self.link_step), y_offset=float(self.y_offset),
+                    dist_edge_max=float(self.dist_edge_max), node_cover=self.node_cover,
+                    order_nodes=bool(self.order_nodes))
+
+
+DEFAULTS = Cfg()
+
+
+def require_native() -> Any:
+    return navwalk.require_native()
+
+
+class Level:
+    """Kept walkable surfaces on the sample grid, in the Rust core (NavLevel), as navbuild.Level held them."""
+
+    def __init__(self, s: Any, keep: np.ndarray, step: float, gx: np.ndarray | None = None,
+                 gz: np.ndarray | None = None, stair: np.ndarray | None = None, cfg: Cfg = DEFAULTS) -> None:
+        self.s, self.keep, self.step, self.cfg = s, keep, step, cfg
+        self.stair = stair if stair is not None else np.zeros(len(s.y), bool)
+        self.y = s.y.astype(float)
+        ny = np.maximum(s.normal[:, 1], 0.05)
+        self.gx = gx if gx is not None else -s.normal[:, 0] / ny
+        self.gz = gz if gz is not None else -s.normal[:, 2] / ny
+        self.col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+        self.terrain = (s.hit[:, 0] == navwalk.TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(s.y), bool)
+        self.blocked: set[tuple[int, int]] = set()
+        self._native: Any = None
+
+    def native(self) -> Any:
+        if self._native is None:
+            walk, gx, gz, stair = navwalk.grid_arrays(self.keep, self.gx, self.gz, self.stair)
+            self._native = require_native().NavLevel(
+                int(self.s.nx), int(self.s.nz), np.ascontiguousarray(self.s.start, '<i8').tobytes(), walk.tobytes(),
+                np.ascontiguousarray(self.y, '<f8').tobytes(), gx.tobytes(), gx.dtype == np.float32, gz.tobytes(),
+                gz.dtype == np.float32, stair.tobytes(), np.ascontiguousarray(self.terrain, bool).tobytes(),
+                float(self.cfg.pitch), float(self.step), float(self.cfg.link_step))
+        return self._native
+
+    def neighbour(self, k: int, gi: int, gj: int, di: int, dj: int, rule: str | None = None) -> int | None:
+        return cast(int | None, self.native().neighbour(int(k), int(gi), int(gj), int(di), int(dj), rule or LINK_RULE))
+
+
+def _window(cfg: Cfg) -> tuple[int, int]:
+    return int(cfg.window.start), int(cfg.window.stop)
+
+
+def _max_area() -> int | None:
+    return int(BISECT['max_area']) if BISECT['on'] else None
+
+
+def build_areas(level: Level, gi0: int, gj0: int, start: Any = (-1, -1), tile: int | None = None,
+                tiles: int | None = None, cfg: Cfg = DEFAULTS) -> list[dict[str, Any]]:
+    got = level.native().build_areas(int(gi0), int(gj0), _window(cfg), (int(start[0]), int(start[1])),
+                                     int(cfg.tile if tile is None else tile), int(cfg.tiles if tiles is None else tiles),
+                                     _max_area(), AREA_LINK)
+    return [{'tile': t, 'cells': c} for t, c in got]
+
+
+def _build_areas_many(level: Level, specs: Any, cfg: Cfg) -> list[Any]:
+    got = level.native().build_areas_many(
+        [(int(sp[0]), int(sp[1]), _window(cfg), (int(sp[4][0]), int(sp[4][1])), int(sp[5]), int(sp[6]))
+         for sp in specs], _max_area(), AREA_LINK, store=False)
+    return [([{'tile': t, 'cells': c} for t, c, _lo, _hi in sector], [(lo, hi) for _t, _c, lo, hi in sector])
+            for sector in got]
+
+
+def components(level: Level, members: dict[int, tuple[int, int]], gi0: int, gj0: int) -> Any:
+    return level.native().components([(int(k), int(i), int(j)) for k, (i, j) in members.items()], int(gi0), int(gj0),
+                                     AREA_LINK)
+
+
+def trace_edges(level: Level, areas: Any, area_of: dict[int, int], gi0: int, gj0: int, cfg: Cfg = DEFAULTS) -> Any:
+    return level.native().trace_edges([a['cells'] for a in areas], area_of, int(gi0), int(gj0), _window(cfg),
+                                      float(cfg.y_offset), LINK_RULE, True)
+
+
+def _trace_edges_many(level: Level, sectors: Any, cfg: Cfg) -> dict[Any, Any]:
+    got = level.native().trace_edges_many(
+        [([a['cells'] for a in inf['areas']], int(inf['origin'][0]), int(inf['origin'][1])) for _sec, inf in sectors],
+        _window(cfg), float(cfg.y_offset), LINK_RULE, True)
+    return {sec: (per_area, one_way) for (sec, _inf), (per_area, one_way) in zip(sectors, got)}
+
+
+def drop_one_way(level: Level, per_area: Any, one_way: Any, keep: Any) -> Any:
+    """The rows with the one-way candidates not in keep made outline (the Rust stage's drop_one_way)."""
+    return level.native().drop_one_way(list(per_area), list(one_way), sorted(n for n in range(len(one_way))
+                                                                               if n in keep))
+
+
+def detail_pass(level: Level, areas: Any, per_area: Any, ox: float, oz: float, gi0: int, gj0: int,
+                cfg: Cfg) -> tuple[Any, list[Any]]:
+    """The Rust stage's detail pass of one sector: (rows, per area (D lines, F records)); level.blocked its D sides."""
+    rows, feats, blocked, _counts = level.native().detail_pass(
+        [a['cells'] for a in areas], list(per_area), (int(gi0), int(gj0), float(ox), float(oz)),
+        {'pitch': float(cfg.pitch)})
+    level.blocked = set(blocked)
+    return rows, [(lines, [kymesh.Cell(d, pts) for d, pts in fcells]) for lines, fcells in feats]
+
+
+def _emitted(got: Any) -> list[Any]:
+    return [([kymesh.Portal(p0, p1, t) for p0, p1, t in portals],
+             [(kymesh.BorderPortal(p0, p1, d), first, last, line) for p0, p1, d, first, last, line in borders],
+             outline) for portals, borders, outline in got]
+
+
+def trace_emit(level: Level, areas: Any, per_area: Any, gi0: int, gj0: int, ox: float, oz: float,
+               cfg: Cfg = DEFAULTS) -> list[Any]:
+    return _emitted(level.native().trace_emit([a['cells'] for a in areas], list(per_area), int(gi0), int(gj0),
+                                              (float(ox), float(oz)), float(cfg.pitch), float(cfg.y_offset), LINK_RULE))
+
+
+def line_walkable(level: Level, k0: int, a: tuple[int, int], b: tuple[int, int], gi0: int, gj0: int, k1: int) -> bool:
+    nat = level.native()
+    nat.set_blocked([(int(x), int(y)) for x, y in level.blocked])
+    return cast(bool, nat.line_walkable(int(k0), (int(a[0]), int(a[1])), (int(b[0]), int(b[1])), int(gi0), int(gj0),
+                                        int(k1), LINK_RULE))
+
+
+def build_graph(level: Level, areas: Any, area_of: dict[int, int], traced: Any, borders: Any, gi0: int, gj0: int,
+                ox: float, oz: float, new_id: Any, orders: Any = (), ladders: Any = (),
+                cfg: Cfg = DEFAULTS) -> tuple[list[Any], list[Any]]:
+    """A sector's route graph in the Rust core (bc2_navbuild::sector), its new nodes given ids by new_id."""
+    detailed = abs(cfg.pitch - DETAILED_PITCH) < 1e-6
+    cover = cfg.node_cover[1 if detailed else 0]
+    s = level.s
+    gcfg = (float(cfg.pitch), float(cfg.y_offset), _window(cfg), float(cfg.dist_edge_max), LINK_RULE,
+            float(cover) if cover else None, detailed, bool(cfg.order_nodes), 3.0, (float(s.min_x), float(s.min_z)))
+    mids = [[(float((p.p0[0] + p.p1[0]) / 2), float((p.p0[2] + p.p1[2]) / 2)) for p in portals if not p.target < ai]
+            for ai, (portals, _b, _o) in enumerate(traced)]
+    job = (0, int(gi0), int(gj0), (float(ox), float(oz)), mids,
+           [(tuple(float(v) for v in pos), int(k)) for _nid, pos, k in borders],
+           [tuple(float(v) for v in p) for p in orders], [(int(a), int(b)) for a, b in ladders],
+           [(int(a), int(b)) for a, b in level.blocked])
+    nat = level.native()
+    nodes, pairs, _order_at = nat.graph_many(nat.areas_from([[a['cells'] for a in areas]]), [job], gcfg)[0]
+    pts = [(new_id(), pos, k, i, j) if b < 0 else (borders[b][0], borders[b][1], k, i, j)
+           for b, pos, k, i, j in nodes]
+    return pts, pairs
+
+
+def add_cover_nodes(level: Level, areas: Any, pts: list[Any], add: Any, ox: float, oz: float, cover: float,
+                    cfg: Cfg = DEFAULTS) -> None:
+    level.native().cover_nodes([a['cells'] for a in areas], pts, add, (float(ox), float(oz)), float(cfg.pitch),
+                               float(cfg.y_offset), float(cover))
+
+
+def gabriel_prune(pts: Any, pairs: Any) -> list[Any]:
+    pairs = [(int(a), int(b), float(d)) for a, b, d in pairs]
+    return [pairs[n] for n in require_native().navkit_gabriel([tuple(float(v) for v in p[1]) for p in pts], pairs)]
+
+
+def check_defaults() -> None:
+    """The settings these checks use are the Rust defaults (bc2_native.navkit_settings())."""
+    cfg, sw = require_native().navkit_settings()
+    d = DEFAULTS
+    check((cfg['pitch'], tuple(cfg['window']), cfg['tile'], cfg['tiles'], cfg['link_step'], cfg['y_offset'],
+           cfg['dist_edge_max'], tuple(cfg['node_cover']), cfg['order_nodes']) ==
+          (d.pitch, _window(d), d.tile, d.tiles, d.link_step, d.y_offset, d.dist_edge_max, d.node_cover, d.order_nodes),
+          f'the checks\' settings are the Rust defaults ({cfg})')
+    check((sw['link_rule'], sw['area_link'], sw['max_area'], sw['order_node_min'], sw['gabriel']) ==
+          (LINK_RULE, AREA_LINK, None, 3.0, 'detailed'), f'the checks\' switches are the Rust defaults ({sw})')
+    dd = d.at_pitch(DETAILED_PITCH)
+    check((dd.window, dd.tile, dd.tiles, dd.link_step) == (range(-1, 502), 100, 6, 0.3), 'the detailed grid')
+
 
 
 # ------------------------------------------------------------------------------------------------ recorded answers
@@ -94,7 +300,7 @@ def digest(v: Any) -> str:
     return hashlib.sha1(json.dumps(canon(v), separators=(',', ':')).encode()).hexdigest()
 
 
-def grid(rng: random.Random, nx: int, nz: int, f32: bool, pitch: float = 0.8) -> nb.Level:
+def grid(rng: random.Random, nx: int, nz: int, f32: bool, pitch: float = 0.8) -> Level:
     """A random level: 0-3 surfaces per column on a few floors, rough heights, random keep / stair / terrain."""
     start, ys, nrm, hit = [0], [], [], []
     for _j in range(nz):
@@ -114,16 +320,16 @@ def grid(rng: random.Random, nx: int, nz: int, f32: bool, pitch: float = 0.8) ->
     keep = np.array([rng.random() < 0.85 for _ in range(count)], bool)
     stair = np.array([rng.random() < 0.1 for _ in range(count)], bool)
     if f32:
-        return nb.Level(s, keep, 0.28, stair=stair, cfg=nb.DEFAULTS.at_pitch(pitch))
+        return Level(s, keep, 0.28, stair=stair, cfg=DEFAULTS.at_pitch(pitch))
     gx = np.array([rng.uniform(-0.8, 0.8) for _ in range(count)], np.float64)
     gz = np.array([rng.uniform(-0.8, 0.8) for _ in range(count)], np.float64)
-    return nb.Level(s, keep, 0.28, gx, gz, stair, cfg=nb.DEFAULTS.at_pitch(pitch))
+    return Level(s, keep, 0.28, gx, gz, stair, cfg=DEFAULTS.at_pitch(pitch))
 
 
-def search(lv: nb.Level, starts: list[int], other: set[int], cells: dict[int, tuple[int, int]]) -> Any:
+def search(lv: Level, starts: list[int], other: set[int], cells: dict[int, tuple[int, int]]) -> Any:
     """build_graph's route-group search (NavLevel.search) over the level's window."""
     window = lv.cfg.window
-    return lv.native().search(starts, other, cells, (window.start, window.stop), 0, 0, nb.LINK_RULE)
+    return lv.native().search(starts, other, cells, (window.start, window.stop), 0, 0, LINK_RULE)
 
 
 def walks(rng: random.Random) -> dict[str, Any]:
@@ -147,12 +353,12 @@ def walks(rng: random.Random) -> dict[str, Any]:
                         ns.append(lv.neighbour(k, gi, gj, di, dj, rule=rule))
         got['neighbour'] = ns
         # areas (components), traced sides, lines and searches over each sector-like window
-        areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
+        areas = build_areas(lv, 0, 0, cfg=lv.cfg)
         got['build_areas'] = areas
         members = {k: (int(col[k] % s.nx), int(col[k] // s.nx)) for k in range(len(s.y)) if lv.keep[k]}
-        got['components'] = nb.components(lv, members, 0, 0)
+        got['components'] = components(lv, members, 0, 0)
         area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
-        got['trace_edges'] = nb.trace_edges(lv, areas, area_of, 0, 0, lv.cfg)
+        got['trace_edges'] = trace_edges(lv, areas, area_of, 0, 0, lv.cfg)
         kept = [k for k in range(len(s.y)) if lv.keep[k]]
         if kept:
             cell = {k: (int(col[k] % s.nx), int(col[k] // s.nx)) for k in kept}
@@ -162,7 +368,7 @@ def walks(rng: random.Random) -> dict[str, Any]:
                 for _ in range(60):
                     k0, k1 = rng.choice(kept), rng.choice(kept)
                     pa, pb = cell[k0], (rng.randint(-1, s.nx), rng.randint(-1, s.nz))
-                    lines.append((k0, pa, pb, k1, nb.line_walkable(lv, k0, pa, pb, 0, 0, k1)))
+                    lines.append((k0, pa, pb, k1, line_walkable(lv, k0, pa, pb, 0, 0, k1)))
             got['line_walkable'] = lines
             # the search, as build_graph runs it: groups of nodes on surfaces, union-find, cell map
             nodes = rng.sample(kept, min(len(kept), 6))
@@ -240,7 +446,8 @@ def twin(section: str, name: str, got: Any) -> None:
 
 
 def quick(golden: dict[str, Any], record: bool) -> None:
-    nb.require_native()
+    require_native()
+    check_defaults()
     MODE['record'] = record
     WANT.update(golden.get('retired', {}))
     rng = random.Random(943)
@@ -285,7 +492,7 @@ def others(rng: random.Random) -> None:
     check(cast(Any, lv).neighbour(np.int64(0), np.int64(0), np.int64(0), 1, 0) == lv.neighbour(0, 0, 0, 1, 0),
           'numpy integers')
     odd: Any = grid(rng, 5, 5, False)
-    ref: Any = nb.Level(odd.s, odd.keep, 0.28, odd.gx.astype(np.float16).astype(np.float64), odd.gz, odd.stair,
+    ref: Any = Level(odd.s, odd.keep, 0.28, odd.gx.astype(np.float16).astype(np.float64), odd.gz, odd.stair,
                         cfg=odd.cfg)
     odd.gx = odd.gx.astype(np.float16)                                     # widened to float64
     odd.keep = odd.keep.astype(np.uint8)                                   # a value's truth
@@ -448,18 +655,18 @@ def areas_and_picks(rng: random.Random) -> int:
     """build_areas (tiles, components, bisection) against the recording; the sector graph's centre and portal cell
     picks (navkit_centre_cells, navkit_nearest_cells) against the rule written out here."""
     calls = 0
-    saved = (nb.BISECT_AREAS, nb.MAX_AREA)
+    saved = dict(BISECT)
     try:
         for case in range(12):
             lv = grid(rng, rng.randint(5, 14), rng.randint(5, 14), case % 2 == 0, 0.8 if case % 3 else 0.2)
-            nb.BISECT_AREAS, nb.MAX_AREA = case % 3 != 0, rng.choice([1, 2, 3, 5, 25])
+            BISECT['on'], BISECT['max_area'] = case % 3 != 0, rng.choice([1, 2, 3, 5, 25])
             for start, tile, tiles in (((-1, -1), 3, 3), ((0, 0), 4, 2), ((2, -1), 1, 6), ((0, 3), 100, 1)):
-                twin('e2a', f'build_areas case {case} start {start} tile {tile} bisect {nb.BISECT_AREAS}',
-                     nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=lv.cfg))
+                twin('e2a', f'build_areas case {case} start {start} tile {tile} bisect {BISECT['on']}',
+                     build_areas(lv, 0, 0, start, tile, tiles, cfg=lv.cfg))
                 calls += 1
-            areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
+            areas = build_areas(lv, 0, 0, cfg=lv.cfg)
             big = [x for x in areas if len(x['cells']) >= 4]
-            got = nb.require_native().navkit_centre_cells([x['cells'] for x in big])
+            got = require_native().navkit_centre_cells([x['cells'] for x in big])
             want: list[int] = []
             for x in big:
                 ci = sum(c[0] for c in x['cells']) / len(x['cells'])
@@ -474,7 +681,7 @@ def areas_and_picks(rng: random.Random) -> int:
                 mids = [(ox + (i0 + rng.choice([-0.5, 0.5, 1.5, 3.0])) * lv.cfg.pitch,
                          oz + (j0 + rng.choice([-0.5, 0.0, 2.5])) * lv.cfg.pitch) for _ in range(rng.randint(0, 3))]
                 ends.append((ai, mids))
-            got2 = nb.require_native().navkit_nearest_cells([(areas[ai]['cells'] if mids else [], mids)
+            got2 = require_native().navkit_nearest_cells([(areas[ai]['cells'] if mids else [], mids)
                                                              for ai, mids in ends], ox, oz, lv.cfg.pitch)
             want2: list[list[int]] = []
             for ai, mids in ends:
@@ -486,7 +693,7 @@ def areas_and_picks(rng: random.Random) -> int:
             check(got2 == want2, f'portal cells case {case}')
             calls += 2
     finally:
-        nb.BISECT_AREAS, nb.MAX_AREA = saved
+        BISECT.update(saved)
     return calls
 
 
@@ -516,7 +723,7 @@ def ordered(v: Any) -> Any:
     raise TypeError(f'ordered: {type(v).__name__}')
 
 
-def ramps(rng: random.Random, nx: int, nz: int, pitch: float) -> nb.Level:
+def ramps(rng: random.Random, nx: int, nz: int, pitch: float) -> Level:
     """A random level for the tracing: ground on ramps (steps up to 0.95 m a cell, normals to match, so the slope rule
     links cells the detail step breaks), holes, thin second layers (one-way candidates) and decks 2.5 m over part of
     it."""
@@ -543,55 +750,53 @@ def ramps(rng: random.Random, nx: int, nz: int, pitch: float) -> nb.Level:
     s: Any = SimpleNamespace(nx=nx, nz=nz, pitch=pitch, min_x=0.0, min_z=0.0, start=np.array(start, np.int64),
                              y=np.array(ys, np.float32), normal=np.array(nrm, np.float32).reshape(-1, 3),
                              hit=np.array(hit, np.uint32).reshape(-1, 3), flags=np.zeros(count, np.uint8))
-    return nb.Level(s, np.array([rng.random() < 0.95 for _ in range(count)], bool), 0.28,
-                    stair=np.array([rng.random() < 0.03 for _ in range(count)], bool), cfg=nb.DEFAULTS.at_pitch(pitch))
+    return Level(s, np.array([rng.random() < 0.95 for _ in range(count)], bool), 0.28,
+                    stair=np.array([rng.random() < 0.03 for _ in range(count)], bool), cfg=DEFAULTS.at_pitch(pitch))
 
 
-def windowed(rng: random.Random, lv: nb.Level) -> nb.BuildSettings:
+def windowed(rng: random.Random, lv: Level) -> Cfg:
     """lv's settings with a window over part of its grid (border portals where it ends)."""
     s = lv.s
     return replace(lv.cfg, window=range(-1, rng.randint(2, max(3, min(s.nx, s.nz) + 1))))
 
 
-def trace_chain(lv: nb.Level, cfg: nb.BuildSettings, gi0: int, gj0: int, ox: float, oz: float, keep: set[int],
+def trace_chain(lv: Level, cfg: Cfg, gi0: int, gj0: int, ox: float, oz: float, keep: set[int],
                 many: bool, tiling: tuple[tuple[int, int], int, int]) -> Any:
     """stage's tracing of one sector: areas (tiling: start, samples per tile, tiles), trace_edges (or
-    _trace_edges_many), drop_one_way, detail_pass, trace_emit - on whichever backend is switched on."""
+    _trace_edges_many), drop_one_way, detail_pass, trace_emit."""
     start, tile, tiles = tiling
-    areas = nb.build_areas(lv, gi0, gj0, start, tile, tiles, cfg=cfg)
+    areas = build_areas(lv, gi0, gj0, start, tile, tiles, cfg=cfg)
     areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(lv.y[c[2]] for c in a['cells'])))
     area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
     if many:
-        got = nb._trace_edges_many(lv, [((0, 0), {'areas': areas, 'origin': (gi0, gj0, ox, oz)})], cfg)
+        got = _trace_edges_many(lv, [((0, 0), {'areas': areas, 'origin': (gi0, gj0, ox, oz)})], cfg)
         check(got is not None, 'trace_edges_many: native')
-        per_area, one_way = got[(0, 0)] if got else nb.trace_edges(lv, areas, area_of, gi0, gj0, cfg)
+        per_area, one_way = got[(0, 0)] if got else trace_edges(lv, areas, area_of, gi0, gj0, cfg)
     else:
-        per_area, one_way = nb.trace_edges(lv, areas, area_of, gi0, gj0, cfg)
+        per_area, one_way = trace_edges(lv, areas, area_of, gi0, gj0, cfg)
     traced = ordered((per_area, one_way))
-    nb.drop_one_way(per_area, one_way, {n for n in range(len(one_way)) if n in keep})
-    lv.blocked = set()
-    details = nb.detail_pass(lv, areas, per_area, ox, oz, gi0, gj0, cfg)
+    per_area = drop_one_way(lv, per_area, one_way, keep)
+    per_area, details = detail_pass(lv, areas, per_area, ox, oz, gi0, gj0, cfg)
     before = ordered(per_area)
-    emitted = nb.trace_emit(lv, areas, per_area, gi0, gj0, ox, oz, cfg)
+    emitted = trace_emit(lv, areas, per_area, gi0, gj0, ox, oz, cfg)
     return traced, before, ordered(details), sorted(lv.blocked), ordered(emitted)
 
 
-def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tiling: Any, rng_seed: int,
+def sector_graph(lv: Level, cfg: Cfg, ox: float, oz: float, tiling: Any, rng_seed: int,
                  ladders: int = 0) -> Any:
     """stage's graph of one sector on whichever backend is switched on: areas, tracing, the D sides, border nodes on
     the window's edge columns, build_graph (cover nodes, pairs, Gabriel, groups joined, order nodes)."""
     rng = random.Random(rng_seed)
     start, tile, tiles = tiling
-    areas = nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=cfg)
+    areas = build_areas(lv, 0, 0, start, tile, tiles, cfg=cfg)
     areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(lv.y[c[2]] for c in a['cells'])))
     for n, a in enumerate(areas):
         a['layer'] = n
     area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
-    per_area, one_way = nb.trace_edges(lv, areas, area_of, 0, 0, cfg)
-    nb.drop_one_way(per_area, one_way, set())
-    lv.blocked = set()
-    nb.detail_pass(lv, areas, per_area, ox, oz, 0, 0, cfg)
-    traced = nb.trace_emit(lv, areas, per_area, 0, 0, ox, oz, cfg)
+    per_area, one_way = trace_edges(lv, areas, area_of, 0, 0, cfg)
+    per_area = drop_one_way(lv, per_area, one_way, set())
+    per_area, _details = detail_pass(lv, areas, per_area, ox, oz, 0, 0, cfg)
+    traced = trace_emit(lv, areas, per_area, 0, 0, ox, oz, cfg)
     cells = [c for a in areas for c in a['cells']]
     borders = []
     for n in range(rng.randint(0, 6) if cells else 0):
@@ -605,7 +810,7 @@ def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tili
         ids[0] += 1
         return ids[0]
     lads = [(rng.choice(cells)[2], rng.choice(cells)[2]) for _ in range(ladders if cells else 0)]
-    pts, pairs = nb.build_graph(lv, areas, area_of, traced, borders, 0, 0, ox, oz, new_id, orders, lads, cfg)
+    pts, pairs = build_graph(lv, areas, area_of, traced, borders, 0, 0, ox, oz, new_id, orders, lads, cfg)
     return ordered(pts), ordered(pairs)
 
 
@@ -657,7 +862,7 @@ def e3c(rng: random.Random) -> int:
         lv = ramps(rng, rng.randint(6, 20), rng.randint(6, 20), 0.8 if case % 2 else 0.2) if case % 3 else             grid(rng, rng.randint(6, 20), rng.randint(6, 20), case % 2 == 0)
         specs = [(gi, gj, 0.0, 0.0, rng.choice([(-1, -1), (0, 0), (0, -1)]), rng.choice([3, 4, 50]),
                   rng.choice([1, 3, 6])) for gi, gj in ((0, 0), (2, 1), (-1, 3), (5, 0))]
-        many = nb._build_areas_many(lv, specs, lv.cfg)
+        many = _build_areas_many(lv, specs, lv.cfg)
         twin('e3c', f'build_areas_many case {case}', ordered(many))
         calls += 1
     # soldiers' surroundings (near_characters): random characters, reaches and height bands
@@ -729,7 +934,7 @@ def e3c(rng: random.Random) -> int:
     for case in range(24):
         pitch = 0.8 if case % 2 else 0.2
         lv = grid(rng, rng.randint(5, 16), rng.randint(5, 16), case % 3 == 0, pitch)
-        areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
+        areas = build_areas(lv, 0, 0, cfg=lv.cfg)
         ox, oz = rng.choice([0.0, -910.4000244140625, 300.0]), rng.choice([0.0, 12.8])
         cells = [c for x in areas for c in x['cells']]
         first: list[Any] = []
@@ -739,7 +944,7 @@ def e3c(rng: random.Random) -> int:
                           ck, ci, cj))
         cover = rng.choice([4.0, 1.0, 0.5, 2.3, 3])
 
-        def run(cover: float = cover, first: list[Any] = first, lv: nb.Level = lv, areas: list[Any] = areas,
+        def run(cover: float = cover, first: list[Any] = first, lv: Level = lv, areas: list[Any] = areas,
                 ox: float = ox, oz: float = oz) -> Any:
             pts = list(first)
             taken = {p[2] for p in pts}
@@ -753,7 +958,7 @@ def e3c(rng: random.Random) -> int:
                 taken.add(k)
                 taken_pos.add(key)
                 pts.append((1000 + len(pts), pos, k, i, j))
-            nb.add_cover_nodes(lv, areas, pts, add, ox, oz, cover, lv.cfg)
+            add_cover_nodes(lv, areas, pts, add, ox, oz, cover, lv.cfg)
             return ordered(pts)
         twin('e3c', f'add_cover_nodes case {case} (cover {cover})', run())
         calls += 1
@@ -766,84 +971,62 @@ def e3c(rng: random.Random) -> int:
             pts[1] = pts[0]
         pairs = [(a_, b_, math.dist(pts[a_][1], pts[b_][1])) for a_ in range(n) for b_ in range(a_ + 1, n)
                  if math.dist(pts[a_][1], pts[b_][1]) <= 15.0 and rng.random() < 0.6]
-        twin('e3c', f'gabriel_prune case {case}', nb.gabriel_prune(pts, pairs))
+        twin('e3c', f'gabriel_prune case {case}', gabriel_prune(pts, pairs))
         calls += 1
     return calls
 
 
-class _Counting:
-    """A NavLevel whose E3h calls are counted (every stage must take the stage-wide Rust paths)."""
-    seen: dict[str, int] = {}
-
-    def __init__(self, nat: Any) -> None:
-        self._nat = nat
-
-    def __getattr__(self, name: str) -> Any:
-        f = getattr(self._nat, name)
-        if name in ('graph_many', 'trace_edges_stored', 'trace_emit_many', 'detail_candidates', 'build_areas_many'):
-            def counted(*a: Any, **k: Any) -> Any:
-                _Counting.seen[name] = _Counting.seen.get(name, 0) + 1
-                return f(*a, **k)
-            return counted
-        return f
+def stage_grid(lv: Level) -> tuple[Any, ...]:
+    """lv as a ready walkability grid (its keep, gradients and stairs) for the Rust stage."""
+    walk, gx, gz, stair = navwalk.grid_arrays(lv.keep, lv.gx, lv.gz, lv.stair)
+    s = lv.s
+    return (int(s.nx), int(s.nz), float(s.min_x), float(s.min_z), float(s.pitch),
+            np.ascontiguousarray(s.start, '<i8').tobytes(), np.ascontiguousarray(lv.y, '<f8').tobytes(), walk.tobytes(),
+            (gx.tobytes(), gx.dtype == np.float32), (gz.tobytes(), gz.dtype == np.float32), stair.tobytes(),
+            np.ascontiguousarray(lv.terrain, bool).tobytes())
 
 
-def whole_stage(lv: nb.Level, cfg: nb.BuildSettings, orders: list[Any]) -> Any:
-    """navbuild.stage on lv's grid (its keep, gradients and stairs as the walkability grid) on whichever backend is
-    switched on: every sector's areas, border nodes, meshes (written), route graph, and the build's counters."""
-    for d in (nb.ORDER_IDS, nb.ORDER_STATS, nb.LADDER_STATS, nb.DETAIL_STATS):
-        d.clear()
-    a = nb.stage(None, None, 0, 0, log=lambda *_a, **_k: None, cfg=cfg, order_points=orders,
-                 grid=(lv.s, lv.keep, lv.gx, lv.gz, lv.stair))
-    import kymesh
-    meshes = {sec: hashlib.sha1(kymesh.write_mesh(m)).hexdigest() for sec, m in a["meshes"].items()}
-    info = {sec: ([(x['tile'], x['layer'], x['cells']) for x in inf['areas']], dict(inf['area_of']), inf['origin'])
-            for sec, inf in a['info'].items()}
-    graphs = [(sid, b, pts, pairs, o) for sid, b, _m, pts, pairs, o in a['graphs']]
-    return ordered((meshes, info, graphs, dict(a['border_nodes']), a['next_id'], a['dropped'], sorted(nb.ORDER_IDS),
-                    dict(nb.ORDER_STATS), dict(nb.DETAIL_STATS), sorted(a['level'].blocked)))
+def stage_answer(lv: Level, cfg: Cfg, orders: list[Any]) -> Any:
+    """The Rust stage on lv's grid, in the canonical form its answers are recorded in: per sector (sorted) its mesh's
+    SHA-1, its areas (tile, layer, cells) and origin; the graphs; the border nodes of every sector that has some; the
+    next id, the dropped carried nodes, the order nodes' ids and count, the D / F counts (d, f, outline moved, one-sided)
+    and the last sector's D sides. The diagonal-neighbour links off, as navbuild.py's stage built the recorded ones."""
+    a = require_native().navkit_stage_answer(stage_grid(lv), 0, 0, 0.28, cfg.overrides(), {'diagonal_links': False},
+                                             [tuple(float(v) for v in p) for p in orders])
+    meshes = [(sec, hashlib.sha1(m).hexdigest()) for sec, m in a['meshes']]
+    border = [(sec, nodes) for sec, nodes in a['border_nodes'] if nodes]
+    return (meshes, a['info'], a['graphs'], border, a['next_id'], sorted(a['dropped']), a['order_ids'],
+            a['order_added'], tuple(a['detail']), a['blocked'][-1] if a['blocked'] else [])
 
 
 def e3h(rng: random.Random) -> int:
-    """Round E3h's pieces against the answers recorded from their retired Python twin: whole stages (the areas and
-    edge rows kept in the Rust core, drop_one_way and the detail filter there, trace_emit and every sector's route graph
-    in parallel) on random levels over the corner of four sectors, at the normal and the detailed pitch, the E3h calls
-    counted; sector graphs with ladders; walkable's unseeds; navdiff.area_cells; round(v, 3) against CPython's."""
+    """Round E3h's pieces against the answers recorded from their retired Python twin: whole stages (the Rust
+    stage, against the 'stage' answers) on random levels over the corner of four sectors, at the normal and the
+    detailed pitch; sector graphs with ladders; walkable's unseeds; navdiff.area_cells; round(v, 3) against
+    CPython's."""
     calls = 0
-    real_native = nb.Level.native
-
-    def counting_native(self: nb.Level) -> Any:
-        nat = real_native(self)
-        return nat if isinstance(nat, _Counting) else _Counting(nat)
-    _Counting.seen.clear()
     sizes = dict(sectors=0, areas=0, nodes=0, details=0)
-    nb.Level.native = counting_native         # type: ignore[method-assign]
-    try:
-        for case in range(10):
-            pitch = 0.2 if case % 2 else 0.8
-            n = rng.randint(14, 40)
-            lv = ramps(rng, n, n, pitch) if case % 3 else grid(rng, n, n, case % 4 == 0, pitch)
-            # the grid straddles the corner of four sectors (x, z = 100 m)
-            lv.s.min_x = 100.0 - rng.randint(3, n - 3) * pitch
-            lv.s.min_z = 100.0 - rng.randint(3, n - 3) * pitch
-            cfg = nb.DEFAULTS.at_pitch(pitch)
-            kept = np.nonzero(lv.keep)[0]
-            orders = []
-            for k in rng.sample(kept.tolist(), min(4, len(kept))):
-                c = int(lv.col_of[k])
-                orders.append((lv.s.min_x + (c % lv.s.nx) * pitch, float(lv.y[k]), lv.s.min_z + (c // lv.s.nx) * pitch))
-            a = whole_stage(lv, cfg, orders)
-            sizes['details'] += nb.DETAIL_STATS.get('d', 0) + nb.DETAIL_STATS.get('f', 0)
-            twin('e3h', f'stage case {case} (pitch {pitch}, {n} x {n})', a)
-            sizes['sectors'] += len(a[0][1])
-            sizes['areas'] += sum(len(v[0]) for _k, v in a[1][1])
-            sizes['nodes'] += sum(len(g[2]) for g in a[2])
-            calls += 1
-    finally:
-        nb.Level.native = real_native         # type: ignore[method-assign]
-    want = ('build_areas_many', 'trace_edges_stored', 'detail_candidates', 'trace_emit_many', 'graph_many')
-    check(all(_Counting.seen.get(m, 0) >= 5 for m in want), f'stage: the E3h paths ran: {_Counting.seen}')
-    print(f'E3h stages: {sizes}, calls {_Counting.seen}')
+    for case in range(10):
+        pitch = 0.2 if case % 2 else 0.8
+        n = rng.randint(14, 40)
+        lv = ramps(rng, n, n, pitch) if case % 3 else grid(rng, n, n, case % 4 == 0, pitch)
+        # the grid straddles the corner of four sectors (x, z = 100 m)
+        lv.s.min_x = 100.0 - rng.randint(3, n - 3) * pitch
+        lv.s.min_z = 100.0 - rng.randint(3, n - 3) * pitch
+        cfg = DEFAULTS.at_pitch(pitch)
+        kept = np.nonzero(lv.keep)[0]
+        orders = []
+        for k in rng.sample(kept.tolist(), min(4, len(kept))):
+            c = int(lv.col_of[k])
+            orders.append((lv.s.min_x + (c % lv.s.nx) * pitch, float(lv.y[k]), lv.s.min_z + (c // lv.s.nx) * pitch))
+        a = stage_answer(lv, cfg, orders)
+        sizes['details'] += a[8][0] + a[8][1]
+        twin('stage', f'stage case {case} (pitch {pitch}, {n} x {n})', ordered(a))
+        sizes['sectors'] += len(a[0])
+        sizes['areas'] += sum(len(v[1]) for v in a[1])
+        sizes['nodes'] += sum(len(g[2]) for g in a[2])
+        calls += 1
+    print(f'stages: {sizes}')
     # sector graphs with ladder links (and their new nodes)
     for case in range(12):
         pitch = 0.2 if case % 2 else 0.8
@@ -901,7 +1084,7 @@ def e3h(rng: random.Random) -> int:
     vals = [rng.uniform(-2000, 2000) for _ in range(60000)] + [k / 16 for k in range(-40000, 40000)]
     vals += [rng.randint(-2500, 2500) * 0.2 + rng.choice([0.0, 0.95, -0.05]) for _ in range(40000)]
     vals += [-0.0, 0.0, 0.0004, -0.0004, 1e-300, 5e-324, 2.675, 1.0005]
-    got = np.frombuffer(nb.require_native().navkit_round3(np.array(vals, '<f8').tobytes()), '<f8')
+    got = np.frombuffer(require_native().navkit_round3(np.array(vals, '<f8').tobytes()), '<f8')
     want_r = np.array([round(v, 3) for v in vals], '<f8')
     check(np.array_equal(got.view('<u8'), want_r.view('<u8')), 'round(v, 3): bit for bit as CPython')
     return calls + 1

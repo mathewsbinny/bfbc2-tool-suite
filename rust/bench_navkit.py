@@ -5,10 +5,9 @@ in-game samples (Project OPFOR BFBC2's, read only), into a temporary folder.
                                      default: sp_004_b; --profile: under cProfile, the stats saved and the N
                                      (default 25) functions with the most time of their own printed
 
-navbuild / navwalk / navsample on the Rust core (bc2_navbuild): Level's grid walks, the floods, walkable's rules,
-build_areas, the tracing, the roof rule, the sample records, build_graph whole for every sector at once, a stage's
-areas and edge rows kept in the core, the floods' union-find, the unseeds. The Python backend (E2a's, E3c's and E3h's
-twins, --backend python) was retired with them on 2026-11-18 (round R1; rust/BENCHMARKS.md "Retired Python").
+The whole build runs in the Rust core (bc2_navbuild::build through navwalk.build, round NK5; navbuild.py, its
+Python glue and twins, retired in round NK5-rest): the time is the Rust build's, plus the Python's reading of the
+level's inputs (navregress.build_level).
 
 Prints the time and the sha1 of the path data. The files carry each sector's build time, so two builds' sha1 differ;
 tests\test_navbuild_native.py --game compares a build's file with the recorded one (the clock fixed).
@@ -27,9 +26,9 @@ sys.path.insert(0, SUITE)
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit', 'navkit-tools')
-import navbuild  # noqa: E402
 import navkit  # noqa: E402
 import navregress  # noqa: E402
+import navwalk  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
@@ -45,7 +44,7 @@ def main(argv: list[str]) -> int:
     prof = opt('--profile')
     top = int(opt('--top', '25') or 25)
     levels = args or ['sp_004_b']
-    navbuild.require_native()
+    navwalk.require_native()
     root = navkit.find_opfor(None)
     with tempfile.TemporaryDirectory() as tmp:
         for lv in levels:

@@ -12,7 +12,7 @@ Links, route edges and traversal annotations are not walkability: navkit apply h
 
 The masks are the Rust core's (bc2_navbuild::walk::edit_masks, round NK4: matplotlib's Path.contains_points ported
 as its crossing test, points on the outline as matplotlib answers them); their NumPy / matplotlib Python was retired
-after the parity run (rust/BENCHMARKS.md "NK4"). navbuild.stage hands the regions (regions_of) to the core with the
+after the parity run (rust/BENCHMARKS.md "NK4"). navwalk.build hands the regions (regions_of) to the core with the
 sample file.
 """
 from typing import Any

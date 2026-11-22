@@ -1,6 +1,6 @@
 r"""NavKit's shadow-island rule (navislands.py, SHADOW_ISLANDS; in the Rust core since round NK2) on route graphs built
-here (no game data): a small route island next to a large one loses its edges (and, in the file navbuild.write_file
-writes, its nodes); one with an anchor (spawn / AI order on its floor), one far away or far above, and a large one
+here (no game data): a small route island next to a large one loses its edges (and, in the file the Rust writer
+writes - bc2_native.navkit_write_graphs, the build's - its nodes); one with an anchor (spawn / AI order on its floor), one far away or far above, and a large one
 stay; border ids join sectors; with SHADOW_OBJECTS_ONLY a pocket on terrain stays (note_nodes records the terrain
 nodes); the switch off leaves the graphs as they were.
 
@@ -19,7 +19,6 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
 import hpdtool  # noqa: E402
-import navbuild  # noqa: E402
 import navislands  # noqa: E402
 
 Y = navislands.Y_OFFSET
@@ -90,12 +89,22 @@ def main(argv):
     check(navislands.STATS.get('before') == 2 and navislands.STATS.get('nodes') == 3,
           'border ids count once: 2 route islands, the pocket of 3 nodes')
 
-    # the file: the pocket's nodes are gone from the sector's node table (write_file runs the rule itself)
+    # the file: the pocket's nodes are gone from the sector's node table (the writer runs the rule itself: the
+    # build's writer, as navbuild.write_file called it until round NK5-rest)
+    suite_paths.use('core')
+    from bfbc2core import native
+    nat = native.require('the shadow-island test', 'navkit_write_graphs')
     with tempfile.TemporaryDirectory() as tmp:
         p = os.path.join(tmp, 'two.hpd')
         logged: list[str] = []
         mesh = b'KynogonRuntimeMesh' + bytes(2)
-        navbuild.write_file([(*g[:2], mesh, *g[3:]) for g in two], p, logged.append, 0.0, anchors=[])
+        _cfg, sw = nat.navkit_settings()
+        data, island, _removed, _n, _e = nat.navkit_write_graphs(
+            [(*g[:2], mesh, *g[3:]) for g in two], navislands.rule([]), None,
+            (bool(sw['sort_nodes_by_id']), bool(sw['border_owner']), 15.0), list(sw['header']), 0, 0)
+        navislands.report(island, logged.append)
+        with open(p, 'wb') as f_:
+            f_.write(data)
         f = hpdtool.read(p)
     nodes, edges = f.sectors[0].nodes, f.sectors[0].edges
     ids = {n.id for n in nodes}

@@ -1,11 +1,13 @@
-//! Bindings for round NK5's `bc2_navbuild::build` / `stage`: NavKit's whole build in Rust (`navbuild.build`, a thin
-//! call now) and a stage on a ready walkability grid (`navvehicle.stage_on_grid`) with its file
-//! (`navbuild.write_file`). The Python stage, `merge_detailed`, `detail_pass`'s glue and the meshes' assembly were
-//! retired.
+//! Bindings for round NK5's `bc2_navbuild::build` / `stage`: NavKit's whole build in Rust (`navwalk.build`, a thin
+//! call) and a stage on a ready walkability grid (`navvehicle.stage_on_grid`) with its file. The Python stage,
+//! `merge_detailed`, `detail_pass`'s glue and the meshes' assembly were retired (NK5), navbuild.py itself in NK5-rest;
+//! a whole stage's answer and one sector's detail pass are given to Python for the tests (`navkit_stage_answer`,
+//! `NavLevel.detail_pass`).
 //!
-//! The settings come as dicts the Python makes from its modules at each call (`navbuild._cfg_dict`,
-//! `navbuild._switches`, `navwalk._settings`): the tests switch the modules' names. The log is the caller's callable,
-//! called with each line as the build makes it.
+//! The build's settings and switches are the Rust defaults (`BuildSettings::default()`, `Switches::default()`;
+//! `navkit_settings` lists them): a caller passes a dict of what it changes, or `None` (round NK5-rest retired
+//! navbuild.py, which held them). The walkability settings come from `navwalk._settings` at each call. The log is the
+//! caller's callable, called with each line as the build makes it.
 
 #![allow(
     clippy::similar_names,
@@ -31,71 +33,183 @@ fn rule(name: &str) -> PyResult<Rule> {
     Rule::from_name(name).ok_or_else(|| value_error(format!("unknown link rule {name:?}")))
 }
 
-/// `navbuild._cfg_dict(cfg)`: a `BuildSettings`.
-fn cfg_of(d: &Bound<'_, PyDict>) -> PyResult<BuildSettings> {
-    let (cover_n, cover_d): (Option<f64>, Option<f64>) = get(d, "node_cover")?;
-    let (step_n, step_d): (f64, f64) = get(d, "detail_step")?;
-    let one_way: String = get(d, "one_way_portals")?;
-    let t20: Option<Vec<u32>> = opt(d, "tile_20m_sectors")?;
-    Ok(BuildSettings {
-        pitch: get(d, "pitch")?,
-        sector_samples: get(d, "sector_samples")?,
-        window: get(d, "window")?,
-        tile: get(d, "tile")?,
-        tiles: get(d, "tiles")?,
-        resolution: get(d, "resolution")?,
-        link_step: get(d, "link_step")?,
-        radius: get(d, "radius")?,
-        dist_edge_max: get(d, "dist_edge_max")?,
-        y_offset: get(d, "y_offset")?,
-        area_y_min: get(d, "area_y_min")?,
-        area_y_max: get(d, "area_y_max")?,
-        border_node_spacing: get(d, "border_node_spacing")?,
-        node_cover_normal: cover_n,
-        node_cover_detailed: cover_d,
-        order_nodes: get(d, "order_nodes")?,
-        clip_to_reference: get(d, "clip_to_reference")?,
-        one_way_portals: OneWayRule::from_name(&one_way)
-            .ok_or_else(|| value_error(format!("one_way_portals {one_way:?}")))?,
-        detail_features: get(d, "detail_features")?,
-        detail_step_normal: step_n,
-        detail_step_detailed: step_d,
-        detail_blocks_edges: get(d, "detail_blocks_edges")?,
-        tile_20m_sectors: t20.map(|v| v.into_iter().collect()),
-    })
+fn has(d: &Bound<'_, PyDict>, key: &str) -> PyResult<bool> {
+    d.contains(key)
 }
 
-/// `navbuild._switches()`: the modules' switches.
-fn switches_of(d: &Bound<'_, PyDict>) -> PyResult<Switches> {
-    let gabriel: Option<String> = opt(d, "gabriel")?;
-    let shadow: Option<(usize, f64, f64, f64, f64, f64, bool)> = opt(d, "shadow")?;
-    let header: Vec<u32> = get(d, "header")?;
-    Ok(Switches {
-        area_link: rule(&get::<String>(d, "area_link")?)?,
-        link_rule: rule(&get::<String>(d, "link_rule")?)?,
-        symmetric_portals: get(d, "symmetric_portals")?,
-        edge_rule_grid_min: get(d, "edge_rule_grid_min")?,
-        edge_sector_tiles: get(d, "edge_sector_tiles")?,
-        max_area: opt(d, "max_area")?,
-        gabriel: match gabriel.as_deref() {
+/// The keys [`cfg_of`] takes.
+const CFG_KEYS: [&str; 21] = [
+    "pitch",
+    "sector_samples",
+    "window",
+    "tile",
+    "tiles",
+    "resolution",
+    "link_step",
+    "radius",
+    "dist_edge_max",
+    "y_offset",
+    "area_y_min",
+    "area_y_max",
+    "border_node_spacing",
+    "node_cover",
+    "order_nodes",
+    "clip_to_reference",
+    "one_way_portals",
+    "detail_features",
+    "detail_step",
+    "detail_blocks_edges",
+    "tile_20m_sectors",
+];
+
+/// The keys [`switches_of`] takes.
+const SWITCH_KEYS: [&str; 24] = [
+    "area_link",
+    "link_rule",
+    "symmetric_portals",
+    "edge_rule_grid_min",
+    "edge_sector_tiles",
+    "max_area",
+    "gabriel",
+    "sort_nodes_by_id",
+    "border_owner",
+    "owner_edges",
+    "node_bounds",
+    "diagonal_links",
+    "order_node_min",
+    "order_min_island",
+    "detail_half_cells",
+    "detail_in_detailed",
+    "detail_f",
+    "detail_terrain_only",
+    "cut_corners",
+    "chain_turns",
+    "shadow",
+    "header",
+    "roof_prune",
+    "objective_floor",
+];
+
+/// Refuses a key the settings do not have (a misspelt override would otherwise be ignored).
+fn known(d: &Bound<'_, PyDict>, keys: &[&str], what: &str) -> PyResult<()> {
+    for k in d.keys() {
+        let k: String = k.extract()?;
+        if !keys.contains(&k.as_str()) {
+            return Err(value_error(format!("unknown {what} {k:?}")));
+        }
+    }
+    Ok(())
+}
+
+/// A build's settings: the Rust defaults (`BuildSettings::default()`, the normal infantry build at pitch 0.8) with
+/// the dict's keys over them. A `pitch` key first moves the grid to that pitch (`BuildSettings::at_pitch`), then the
+/// other keys replace single fields (`navvehicle.vehicle_settings`, `navkit.py --no-detail`). `None`: the defaults.
+pub(crate) fn cfg_of(d: Option<&Bound<'_, PyDict>>) -> PyResult<BuildSettings> {
+    let mut c = BuildSettings::default();
+    let Some(d) = d else { return Ok(c) };
+    known(d, &CFG_KEYS, "build setting")?;
+    if let Some(p) = opt::<f64>(d, "pitch")? {
+        c = c.at_pitch(p);
+    }
+    macro_rules! take {
+        ($($f:ident),*) => {$(
+            if let Some(v) = opt(d, stringify!($f))? {
+                c.$f = v;
+            }
+        )*};
+    }
+    take!(
+        sector_samples,
+        window,
+        tile,
+        tiles,
+        resolution,
+        link_step,
+        radius,
+        dist_edge_max,
+        y_offset,
+        area_y_min,
+        area_y_max,
+        border_node_spacing,
+        order_nodes,
+        clip_to_reference,
+        detail_features,
+        detail_blocks_edges
+    );
+    if has(d, "node_cover")? {
+        let (n, dd): (Option<f64>, Option<f64>) = get(d, "node_cover")?;
+        c.node_cover_normal = n;
+        c.node_cover_detailed = dd;
+    }
+    if let Some((n, dd)) = opt::<(f64, f64)>(d, "detail_step")? {
+        c.detail_step_normal = n;
+        c.detail_step_detailed = dd;
+    }
+    if let Some(one_way) = opt::<String>(d, "one_way_portals")? {
+        c.one_way_portals =
+            OneWayRule::from_name(&one_way).ok_or_else(|| value_error(format!("one_way_portals {one_way:?}")))?;
+    }
+    if has(d, "tile_20m_sectors")? {
+        let t20: Option<Vec<u32>> = opt(d, "tile_20m_sectors")?;
+        c.tile_20m_sectors = t20.map(|v| v.into_iter().collect());
+    }
+    Ok(c)
+}
+
+/// The switches: the Rust defaults (`Switches::default()`, the shipped values) with the dict's keys over them;
+/// `None`: the defaults.
+pub(crate) fn switches_of(d: Option<&Bound<'_, PyDict>>) -> PyResult<Switches> {
+    let mut w = Switches::default();
+    let Some(d) = d else { return Ok(w) };
+    known(d, &SWITCH_KEYS, "switch")?;
+    if let Some(r) = opt::<String>(d, "area_link")? {
+        w.area_link = rule(&r)?;
+    }
+    if let Some(r) = opt::<String>(d, "link_rule")? {
+        w.link_rule = rule(&r)?;
+    }
+    macro_rules! take {
+        ($($f:ident),*) => {$(
+            if let Some(v) = opt(d, stringify!($f))? {
+                w.$f = v;
+            }
+        )*};
+    }
+    take!(
+        symmetric_portals,
+        edge_rule_grid_min,
+        edge_sector_tiles,
+        sort_nodes_by_id,
+        border_owner,
+        owner_edges,
+        node_bounds,
+        diagonal_links,
+        order_node_min,
+        order_min_island,
+        detail_half_cells,
+        detail_in_detailed,
+        detail_f,
+        detail_terrain_only,
+        cut_corners,
+        chain_turns,
+        roof_prune,
+        objective_floor
+    );
+    if has(d, "max_area")? {
+        w.max_area = opt(d, "max_area")?;
+    }
+    if has(d, "gabriel")? {
+        let gabriel: Option<String> = opt(d, "gabriel")?;
+        w.gabriel = match gabriel.as_deref() {
             Some("detailed") => Gabriel::Detailed,
             Some("all") => Gabriel::All,
-            _ => Gabriel::Off,
-        },
-        sort_nodes_by_id: get(d, "sort_nodes_by_id")?,
-        border_owner: get(d, "border_owner")?,
-        owner_edges: opt(d, "owner_edges")?.unwrap_or(false),
-        node_bounds: opt(d, "node_bounds")?.unwrap_or(true),
-        diagonal_links: opt(d, "diagonal_links")?.unwrap_or(true),
-        order_node_min: get(d, "order_node_min")?,
-        order_min_island: get(d, "order_min_island")?,
-        detail_half_cells: get(d, "detail_half_cells")?,
-        detail_in_detailed: get(d, "detail_in_detailed")?,
-        detail_f: get(d, "detail_f")?,
-        detail_terrain_only: get(d, "detail_terrain_only")?,
-        cut_corners: get(d, "cut_corners")?,
-        chain_turns: get(d, "chain_turns")?,
-        shadow: shadow.map(
+            None => Gabriel::Off,
+            Some(o) => return Err(value_error(format!("gabriel {o:?}"))),
+        };
+    }
+    if has(d, "shadow")? {
+        let shadow: Option<(usize, f64, f64, f64, f64, f64, bool)> = opt(d, "shadow")?;
+        w.shadow = shadow.map(
             |(min_nodes, xz, dy, anchor_xz, anchor_dy, y_offset, objects_only)| Shadow {
                 min_nodes,
                 xz,
@@ -105,11 +219,91 @@ fn switches_of(d: &Bound<'_, PyDict>) -> PyResult<Switches> {
                 y_offset,
                 objects_only,
             },
-        ),
-        header: header.try_into().map_err(|_| value_error("36 header words needed"))?,
-        roof_prune: get(d, "roof_prune")?,
-        objective_floor: get(d, "objective_floor")?,
-    })
+        );
+    }
+    if let Some(header) = opt::<Vec<u32>>(d, "header")? {
+        w.header = header.try_into().map_err(|_| value_error("36 header words needed"))?;
+    }
+    Ok(w)
+}
+
+/// `navkit_settings()`: the Rust defaults as dicts `(cfg, switches)` in the keys the builds' overrides take (what
+/// navbuild.py's `BuildSettings` and module switches held until NK5-rest).
+#[pyfunction]
+pub fn navkit_settings(py: Python<'_>) -> PyResult<(Bound<'_, PyDict>, Bound<'_, PyDict>)> {
+    let c = BuildSettings::default();
+    let d = PyDict::new(py);
+    d.set_item("pitch", c.pitch)?;
+    d.set_item("sector_samples", c.sector_samples)?;
+    d.set_item("window", c.window)?;
+    d.set_item("tile", c.tile)?;
+    d.set_item("tiles", c.tiles)?;
+    d.set_item("resolution", c.resolution)?;
+    d.set_item("link_step", c.link_step)?;
+    d.set_item("radius", c.radius)?;
+    d.set_item("dist_edge_max", c.dist_edge_max)?;
+    d.set_item("y_offset", c.y_offset)?;
+    d.set_item("area_y_min", c.area_y_min)?;
+    d.set_item("area_y_max", c.area_y_max)?;
+    d.set_item("border_node_spacing", c.border_node_spacing)?;
+    d.set_item("node_cover", (c.node_cover_normal, c.node_cover_detailed))?;
+    d.set_item("order_nodes", c.order_nodes)?;
+    d.set_item("clip_to_reference", c.clip_to_reference)?;
+    d.set_item("one_way_portals", c.one_way_portals.name())?;
+    d.set_item("detail_features", c.detail_features)?;
+    d.set_item("detail_step", (c.detail_step_normal, c.detail_step_detailed))?;
+    d.set_item("detail_blocks_edges", c.detail_blocks_edges)?;
+    d.set_item(
+        "tile_20m_sectors",
+        c.tile_20m_sectors.map(|s| s.into_iter().collect::<Vec<u32>>()),
+    )?;
+    let w = Switches::default();
+    let s = PyDict::new(py);
+    s.set_item("area_link", w.area_link.name())?;
+    s.set_item("link_rule", w.link_rule.name())?;
+    s.set_item("symmetric_portals", w.symmetric_portals)?;
+    s.set_item("edge_rule_grid_min", w.edge_rule_grid_min)?;
+    s.set_item("edge_sector_tiles", w.edge_sector_tiles)?;
+    s.set_item("max_area", w.max_area)?;
+    s.set_item(
+        "gabriel",
+        match w.gabriel {
+            Gabriel::Detailed => Some("detailed"),
+            Gabriel::All => Some("all"),
+            Gabriel::Off => None,
+        },
+    )?;
+    s.set_item("sort_nodes_by_id", w.sort_nodes_by_id)?;
+    s.set_item("border_owner", w.border_owner)?;
+    s.set_item("owner_edges", w.owner_edges)?;
+    s.set_item("node_bounds", w.node_bounds)?;
+    s.set_item("diagonal_links", w.diagonal_links)?;
+    s.set_item("order_node_min", w.order_node_min)?;
+    s.set_item("order_min_island", w.order_min_island)?;
+    s.set_item("detail_half_cells", w.detail_half_cells)?;
+    s.set_item("detail_in_detailed", w.detail_in_detailed)?;
+    s.set_item("detail_f", w.detail_f)?;
+    s.set_item("detail_terrain_only", w.detail_terrain_only)?;
+    s.set_item("cut_corners", w.cut_corners)?;
+    s.set_item("chain_turns", w.chain_turns)?;
+    s.set_item(
+        "shadow",
+        w.shadow.map(|h| {
+            (
+                h.min_nodes,
+                h.xz,
+                h.dy,
+                h.anchor_xz,
+                h.anchor_dy,
+                h.y_offset,
+                h.objects_only,
+            )
+        }),
+    )?;
+    s.set_item("header", w.header.to_vec())?;
+    s.set_item("roof_prune", w.roof_prune)?;
+    s.set_item("objective_floor", w.objective_floor)?;
+    Ok((d, s))
 }
 
 fn path(d: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<PathBuf>> {
@@ -251,8 +445,8 @@ fn report_dict<'py>(py: Python<'py>, r: &Report) -> PyResult<Bound<'py, PyDict>>
 pub fn navkit_build<'py>(
     py: Python<'py>,
     job: &Bound<'py, PyDict>,
-    cfg: &Bound<'py, PyDict>,
-    switches: &Bound<'py, PyDict>,
+    cfg: Option<&Bound<'py, PyDict>>,
+    switches: Option<&Bound<'py, PyDict>>,
     walk_cfg: &Bound<'py, PyDict>,
     clock: (u32, u32),
     out: &str,
@@ -295,37 +489,26 @@ impl NavStageGraphs {
     }
 }
 
-/// `navbuild.stage(None, None, xoff, zoff, step=step, cfg=cfg, grid=(s, keep, gx, gz, stair))`: the grid as
-/// `(nx, nz, min_x, min_z, pitch, start int64 bytes, y float64 bytes, keep, (gx, f32), (gz, f32), stair, terrain)`.
-#[pyfunction]
-#[expect(clippy::too_many_arguments, reason = "the stage's inputs, settings and log")]
-#[expect(clippy::type_complexity, reason = "the grid's arrays as a tuple")]
-pub fn navkit_stage_grid<'py>(
-    py: Python<'py>,
-    grid: (
-        usize,
-        usize,
-        f64,
-        f64,
-        f64,
-        Bound<'py, PyBytes>,
-        Bound<'py, PyBytes>,
-        Bound<'py, PyBytes>,
-        (Bound<'py, PyBytes>, bool),
-        (Bound<'py, PyBytes>, bool),
-        Bound<'py, PyBytes>,
-        Bound<'py, PyBytes>,
-    ),
-    xoff: i64,
-    zoff: i64,
-    step: f64,
-    cfg: &Bound<'py, PyDict>,
-    switches: &Bound<'py, PyDict>,
-    log: &Bound<'py, PyAny>,
-    t0: f64,
-) -> PyResult<NavStageGraphs> {
+/// A ready walkability grid as the Python hands it: `(nx, nz, min_x, min_z, pitch, start int64 bytes, y float64
+/// bytes, keep, (gx, f32), (gz, f32), stair, terrain)`.
+type PyGrid<'py> = (
+    usize,
+    usize,
+    f64,
+    f64,
+    f64,
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    (Bound<'py, PyBytes>, bool),
+    (Bound<'py, PyBytes>, bool),
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+);
+
+/// The stage's ground from a [`PyGrid`].
+fn ground_of(grid: PyGrid<'_>, step: f64, cfg: &BuildSettings) -> PyResult<stage::Ground> {
     let (nx, nz, min_x, min_z, pitch, start, y, keep, (gx, gx32), (gz, gz32), stair, terrain) = grid;
-    let (cfg, sw) = (cfg_of(cfg)?, switches_of(switches)?);
     let floats = |b: &[u8], f32_: bool| -> PyResult<Floats> {
         Ok(if f32_ {
             Floats::F32(
@@ -338,7 +521,7 @@ pub fn navkit_stage_grid<'py>(
             Floats::F64(f64s(b, false, "gradients")?)
         })
     };
-    let ground = build::grid_ground(
+    build::grid_ground(
         GridInfo {
             nx,
             nz,
@@ -354,9 +537,28 @@ pub fn navkit_stage_grid<'py>(
         flags(stair.as_bytes()),
         flags(terrain.as_bytes()),
         step,
-        &cfg,
+        cfg,
     )
-    .map_err(value_error)?;
+    .map_err(value_error)
+}
+
+/// A stage on a ready walkability grid (`navvehicle.stage_on_grid`): its graphs kept in the core for
+/// `navkit_write_stage`. `cfg` / `switches`: overrides of the Rust defaults (`None`: the defaults).
+#[pyfunction]
+#[expect(clippy::too_many_arguments, reason = "the stage's inputs, settings and log")]
+pub fn navkit_stage_grid<'py>(
+    py: Python<'py>,
+    grid: PyGrid<'py>,
+    xoff: i64,
+    zoff: i64,
+    step: f64,
+    cfg: Option<&Bound<'py, PyDict>>,
+    switches: Option<&Bound<'py, PyDict>>,
+    log: &Bound<'py, PyAny>,
+    t0: f64,
+) -> PyResult<NavStageGraphs> {
+    let (cfg, sw) = (cfg_of(cfg)?, switches_of(switches)?);
+    let ground = ground_of(grid, step, &cfg)?;
     let args = StageArgs {
         xoff,
         zoff,
@@ -374,6 +576,159 @@ pub fn navkit_stage_grid<'py>(
     })
 }
 
+/// A whole stage on a ready grid with everything it made, for the tests (`test_navbuild_native.py`'s whole stages,
+/// round NK5-rest: what navbuild.py's Python `stage` returned): a dict of `meshes` (per sector the mesh's bytes),
+/// `info` (per sector its areas `[(tile, layer, cells)]` and origin), `graphs` (`[(sid, bounds, pts, pairs,
+/// origin)]`), `border_nodes`, `next_id`, `dropped`, `order_ids`, `order_added`, `detail` (`(d, f, moved,
+/// one_sided)`) and `blocked` (per sector its D sides, sorted). The sectors in their sorted order.
+#[pyfunction]
+#[expect(clippy::too_many_arguments, reason = "the stage's inputs and settings")]
+pub fn navkit_stage_answer<'py>(
+    py: Python<'py>,
+    grid: PyGrid<'py>,
+    xoff: i64,
+    zoff: i64,
+    step: f64,
+    cfg: Option<&Bound<'py, PyDict>>,
+    switches: Option<&Bound<'py, PyDict>>,
+    order_points: Vec<(f64, f64, f64)>,
+) -> PyResult<Bound<'py, PyDict>> {
+    struct Quiet;
+    impl Log for Quiet {
+        fn line(&mut self, _text: &str) {}
+        fn seconds(&self) -> f64 {
+            0.0
+        }
+    }
+    let (cfg, sw) = (cfg_of(cfg)?, switches_of(switches)?);
+    let ground = ground_of(grid, step, &cfg)?;
+    let args = StageArgs {
+        xoff,
+        zoff,
+        id_start: 1,
+        order_points,
+        ..StageArgs::default()
+    };
+    let mut stats = stage::BuildStats::default();
+    let st = py
+        .detach(|| stage::stage(ground, &args, &cfg, &sw, &mut stats, &mut Quiet))
+        .map_err(value_error)?;
+    let d = PyDict::new(py);
+    let meshes = PyList::empty(py);
+    let info = PyList::empty(py);
+    for (inf, g) in st.sectors.iter().zip(&st.graphs) {
+        let bytes = bc2_formats::kymesh::write(&g.mesh).map_err(|e| value_error(format!("{e:?}")))?;
+        meshes.append((inf.xy, PyBytes::new(py, &bytes)))?;
+        let areas = PyList::empty(py);
+        for (t, cells) in inf.tiles.iter().zip(&inf.cells) {
+            areas.append(((t[0], t[1]), t[2], cells.clone()))?;
+        }
+        info.append((inf.xy, areas, inf.origin))?;
+    }
+    d.set_item("meshes", meshes)?;
+    d.set_item("info", info)?;
+    let graphs = PyList::empty(py);
+    for g in &st.graphs {
+        graphs.append((g.sid, g.bounds.to_vec(), g.nodes.clone(), g.pairs.clone(), g.origin))?;
+    }
+    d.set_item("graphs", graphs)?;
+    let border: Vec<((i64, i64), Vec<BorderNodeTuple>)> = st
+        .border_nodes
+        .iter()
+        .map(|(sec, v)| (*sec, v.iter().map(|&(id, p, k)| (id, p, k)).collect()))
+        .collect();
+    d.set_item("border_nodes", border)?;
+    d.set_item("next_id", st.next_id)?;
+    d.set_item("dropped", st.dropped.iter().copied().collect::<Vec<u32>>())?;
+    let mut ids: Vec<u32> = stats.order_ids.iter().copied().collect();
+    ids.sort_unstable();
+    d.set_item("order_ids", ids)?;
+    d.set_item("order_added", stats.order_added)?;
+    d.set_item(
+        "detail",
+        (
+            stats.detail_d,
+            stats.detail_f,
+            stats.outline_moved,
+            stats.outline_one_sided,
+        ),
+    )?;
+    let blocked: Vec<Vec<(usize, usize)>> = st
+        .blocked
+        .iter()
+        .map(|b| {
+            let mut v: Vec<(usize, usize)> = b.iter().copied().collect();
+            v.sort_unstable();
+            v
+        })
+        .collect();
+    d.set_item("blocked", blocked)?;
+    Ok(d)
+}
+
+/// A border node as the Python's tuple `(id, pos, surface)`.
+type BorderNodeTuple = (u32, (f64, f64, f64), usize);
+
+/// One sector's detail pass on the Python's edge rows (`navbuild.detail_pass`, round NK5-rest: the stage's own,
+/// `bc2_navbuild::stage::detail_pass`): `(rows after it, per area (D lines, F records as (direction, points)), its D
+/// sides sorted, (d, f, moved, one_sided))`. `cfg` / `switches`: overrides of the Rust defaults.
+pub fn detail_pass_py<'py>(
+    py: Python<'py>,
+    level: &bc2_navbuild::Level,
+    cells: &[Vec<bc2_navbuild::Cell>],
+    per_area: &Bound<'py, PyList>,
+    origin: (i64, i64, f64, f64),
+    cfg: Option<&Bound<'py, PyDict>>,
+    switches: Option<&Bound<'py, PyDict>>,
+) -> PyResult<DetailAnswer<'py>> {
+    let (cfg, sw) = (cfg_of(cfg)?, switches_of(switches)?);
+    let mut rows = crate::navtrace::edges_from_py(per_area)?;
+    if rows.len() != cells.len() {
+        return Err(value_error("one row set per area needed"));
+    }
+    let det = if cfg.detail_features {
+        stage::detail_pass(level, cells, &mut rows, origin, &cfg, &sw)
+    } else {
+        stage::Detailed {
+            features: vec![(Vec::new(), Vec::new()); cells.len()],
+            blocked: HashSet::new(),
+            d: 0,
+            f: 0,
+            moved: 0,
+            one_sided: 0,
+        }
+    };
+    let pt = |p: [f64; 3]| (p[0], p[1], p[2]);
+    let features: Vec<DetailFeatures> = det
+        .features
+        .iter()
+        .map(|(lines, fcells)| {
+            (
+                lines.iter().map(|l| l.iter().copied().map(pt).collect()).collect(),
+                fcells
+                    .iter()
+                    .map(|c| (pt(c.direction), c.points.iter().copied().map(pt).collect()))
+                    .collect(),
+            )
+        })
+        .collect();
+    let mut blocked: Vec<(usize, usize)> = det.blocked.iter().copied().collect();
+    blocked.sort_unstable();
+    let rows = crate::navtrace::edges_to_py(py, &rows, &[])?.0;
+    Ok((rows, features, blocked, (det.d, det.f, det.moved, det.one_sided)))
+}
+
+/// One area's D lines and F records as the Python takes them.
+type DetailFeatures = (Vec<Vec<(f64, f64, f64)>>, Vec<((f64, f64, f64), Vec<(f64, f64, f64)>)>);
+
+/// [`detail_pass_py`]'s answer.
+pub type DetailAnswer<'py> = (
+    Bound<'py, PyList>,
+    Vec<DetailFeatures>,
+    Vec<(usize, usize)>,
+    (usize, usize, usize, usize),
+);
+
 /// `navbuild.write_file(graphs, out, log, t0, cfg)` for a stage kept in the core (no anchors: no shadow islands;
 /// `orders`: its order nodes pruned in small islands).
 #[pyfunction]
@@ -382,8 +737,8 @@ pub fn navkit_write_stage<'py>(
     py: Python<'py>,
     stage_graphs: &NavStageGraphs,
     out: &str,
-    cfg: &Bound<'py, PyDict>,
-    switches: &Bound<'py, PyDict>,
+    cfg: Option<&Bound<'py, PyDict>>,
+    switches: Option<&Bound<'py, PyDict>>,
     clock: (u32, u32),
     orders: bool,
     log: &Bound<'py, PyAny>,

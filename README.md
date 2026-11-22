@@ -209,7 +209,7 @@ and PE readers, `navsample.load`, `hpdtool.mesh_layout` / `mesh_coverage`, `audi
 
 **What needs it** (since 2026-11-17): **texture conversion** (`bfbc2-console-convert/texture.py`'s `convert`: the
 console converter, the BF1943 importer's textures, meshes and effects, OPFOR's WW2 and Onslaught pipelines) and
-**NavKit's grid walks** (`navbuild.py` / `navwalk.py`: every NavKit build and apply, the AI workspace's
+**NavKit's grid walks** (`navwalk.py`, the build itself since NK5 - `navbuild.py` retired in NK5-rest: every NavKit build and apply, the AI workspace's
 rebuilds included). Their Python twins were retired after the full test tier had passed on the Rust (140 of 140,
 2026-11-17), as `EDITOR_ARCHITECTURE.md` 3.8 rules for ported logic. Since 2026-11-18 (the full tier 173 of 173)
 also **the Xbox 360 shader translation** (`bfbc2-shader-tools/xenos_hlsl.py`'s `translate` / `translate_many`:
