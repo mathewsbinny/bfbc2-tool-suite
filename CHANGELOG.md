@@ -42,9 +42,32 @@ landed on `main`.
   and vehicles - 49 rules, each finding quoting DICE's range ("Stage 3 is 40 m from stage 2; DICE's Rush stages are
   93-316 m apart"). Warnings and notes only, never errors; no stock level raises a warning.
 - New export checks: a deleted marker hiding a sound (0xFF2AC2), the terrain bundle the base's own (black tiled
-  cells), Xbox 360 textures or Havok physics in a stage, an edited static group losing members (0xAB4E58), the
+  cells), Xbox 360 textures or Havok physics in a stage, an edited static group losing a kind or gaining one (0xAB4E58; SG1's layout lines carry the same rule), the
   40 km/h road sign drawn with another level's entries (0x98BD6E), a note that the server and every client need
   the install; the build refuses an object moved or placed beyond +-2048 m in words.
+- **Static group members are editable in the map editor** (round SG1). Most of a WW2 map's objects (Wake Island:
+  2,999 group members against 1,329 placed objects: its buildings, fences, trees and props) live in model groups; they
+  are now selected, moved and turned with the gizmo or the properties' numbers, deleted, duplicated and pasted like
+  any object, and the asset browser's new **Place into** list adds an object of a kind a group holds to that group
+  (any other kind is placed as a loose object, and the editor says why). Members keep their names across deletes and
+  adds (`<group>#<k>` for the base's, `#+<n>` for added ones), every edit is one History step, and the last member of
+  a kind in its group is refused in words. The export writes the group files, the group's physics and the client cull
+  tree in DICE's layout: a moved member keeps its cull leaf, moved with it; an added one takes a deleted member's
+  leaf or a new one. `mapexport check` now holds every model group of a level to the rules all 131 of DICE's groups
+  keep.
+- **Project format 7** (round SG1): member deletes and adds. Version-6 projects load as they are and are written
+  with `min_reader` 6 until they hold one.
+- **`bfbc2 install`: the game-copy installer** (round OR1, "OPFOR in Rust" stage 1; new crate `rust/bc2-install`).
+  Project OPFOR's WW2 install (`wake_install.py --plan / --apply / --apply-staged / --revert`,
+  `ww2_level_install.py`) builds the staging in Python as before, then writes an install plan (its decisions as
+  data) and runs `bfbc2 install plan | apply | revert | marks`: the backup guard, each level's bundles and record,
+  ww2_common, the DLL's markers, the shared bundles and ini files through the install ledger, the registration last,
+  the verification, the opt-out and `--apply-staged`'s record and input fingerprint, with the records, files and
+  printed lines of OPFOR's Python installer (proved on scratch copies of the game's affected files). It takes the WW2
+  rebuild's lock (`work\ww2\_rebuild\rebuild.lock`, exit code 3 while a rebuild or another install holds it) and
+  rolls an interrupted commit back before it reads anything; `BC2_INSTALL_CRASH_AT=<n>` (tests) stops it before its
+  n-th write step. The ledger (`bc2_formats::gameledger`) gained OPFOR's stage operations: `install_keep` (an
+  install keeping the owner's other files, in OPFOR's record order), `restate`, `file_layers`, `slot_holders`.
 
 ### Changed
 - Every `mapexport check` line names its rule (`ok     XVAL-REG-1  registration: ...`), and every refusal of

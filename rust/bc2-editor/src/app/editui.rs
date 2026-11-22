@@ -575,6 +575,13 @@ impl ViewState {
             } else {
                 Op::Move { items: moved }
             };
+            if let Some(why) = d.refusal(&op) {
+                // round SG1: refused before it enters the log; the scene back as the log has it
+                d.rebuild();
+                self.message = format!("Not done: {why}");
+                self.refresh(gpu, palette);
+                return;
+            }
             d.commit(op, label);
             self.message = d.project.operations.last().map_or_else(String::new, Operation::name);
         }
@@ -584,6 +591,12 @@ impl ViewState {
     /// Commits an operation and refreshes the views.
     pub(super) fn commit(&mut self, gpu: &GpuCtx, palette: &Palette, op: Op, label: &str) {
         let Some(d) = self.doc.as_mut() else { return };
+        // round SG1: an operation that would not apply (the last member of a kind in its group deleted ...) is
+        // refused in words and never enters the log
+        if let Some(why) = d.refusal(&op) {
+            self.message = format!("Not done: {why}");
+            return;
+        }
         d.commit(op, label);
         self.message = d.project.operations.last().map_or_else(String::new, Operation::name);
         self.refresh(gpu, palette);
@@ -660,11 +673,13 @@ impl ViewState {
                         })
                     })
                     .collect();
-                let copies: Vec<String> = items.iter().map(|i| i.guid.clone()).collect();
+                let n = self.doc.as_ref().and_then(Doc::last_n);
                 self.commit(gpu, palette, Op::Duplicate { items }, "");
-                // the copies are selected, to be moved
-                if let Some(d) = &self.doc {
-                    let ks: Vec<usize> = copies.iter().filter_map(|g| d.index(g)).collect();
+                // the copies are selected, to be moved (a static group member's copy is named by the group: SG1)
+                if let Some(d) = &self.doc
+                    && d.last_n() != n
+                {
+                    let ks: Vec<usize> = d.created_by_last().iter().filter_map(|g| d.index(g)).collect();
                     self.set_selection(gpu, ks, true);
                 }
             }
@@ -1232,6 +1247,11 @@ impl Tabs<'_> {
         if let Some(why) = d.why_not(k) {
             ui.label(RichText::new(format!("Not editable: {why}.")).color(p.ink_muted));
             return;
+        }
+        // round SG1: a static group member says which group and which member it is
+        if let Some(about) = crate::memberedit::describe(d, k) {
+            ui.label(RichText::new(about).color(p.ink_muted));
+            ui.add_space(m.space_1);
         }
         let Some(mat) = e.matrix else { return };
         // position and yaw as numbers: previewed while dragged, one operation when let go

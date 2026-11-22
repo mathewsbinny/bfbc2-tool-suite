@@ -115,6 +115,24 @@ shape only; it refuses to read or write part indices in this form.
 [code: rust/bc2-convert/src/havokport.rs:604-631]
 [data: game copy: 529 runs whose first u16 is not 0; all 529 are `_HavokAsset.res` files and all 529 have a valid little-endian table (m not equal to n); the undecoded bytes after the table are 8 - 8,506 bytes]
 
+### HAVOK-RUN-3: The model groups' wrapper decoded
+
+Status: **verified** · Variants: PC
+
+Round SG1. In a model group's `_HavokAsset.res` the wrapper's fields mean, against its group's member types
+(LEVEL-MG-5): the n part words are **not hashes** but each physics part's owning instance's leaf (`Enums`),
+repeated per part, n the parts of all instances; there are no vectors; the c boxes and the table's k2 words are one
+per **type part** (each member type's parts of one instance, in type order; k2 = c); the m end positions are the
+cumulative parts per instance of the m member types. The undecoded bytes are the index-form run of HAVOK-RUN-1 over
+the n instance parts: `d`, `t`, then one material byte per part when d is not 1, and every instance of a type has the
+same bytes. A group laid out again (instances deleted or added, of kinds it holds) needs only these lists made again;
+the boxes, the table, the material list and the packfile stay.
+
+[code: rust/bc2-levelwrite/src/members.rs:575-790]
+[test: rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays]
+[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[data: 131 of 131 groups of 31 levels: part words = the owners' leaves per part, m = the member types, ends = the cumulative per-instance parts, c = k2 = the last end, run d / t then n bytes or none; 78 of 78 long runs the same bytes per instance of a type]
+
 ### HAVOK-MAT-1: The material list
 
 Status: **observed**

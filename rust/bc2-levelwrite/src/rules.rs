@@ -663,12 +663,15 @@ const XVAL: &[Row] = &[
     (
         "XVAL-GRP-1",
         Error,
-        "An edited static group keeps its members",
-        "A static group's physics lists one entry per member and part: an edited group file must keep each \
-         member's blueprint and the member count, or the load crashes at 0xAB4E58.",
-        &["LEVEL-MG-4", "LOAD-MG-1"],
-        &[Stage],
-        "V1",
+        "An edited static group keeps DICE's layout and its kinds",
+        "A static group's physics lists one entry per member and part (0xAB4E58 when they disagree). Members may be \
+         moved, deleted and added (round SG1): they are laid out again as DICE lays groups out (members, leaves, \
+         cumulative parts and network ids, physics), every kind a group holds keeps a member (the last one of a kind \
+         is never deleted: move it instead) and no group gains a kind it did not hold (an added member is a copy of \
+         one of its group's; another object is placed loose).",
+        &["LEVEL-MG-4", "LEVEL-MG-5", "LEVEL-MG-8", "XLOG-MEM-2", "LOAD-MG-1"],
+        &[Build, Stage],
+        "V1, SG1",
     ),
     // ---- the level partition's own consistency (DbxEditGUI's Level > Check, in the DBX inspector since GR4)
     (
@@ -856,6 +859,19 @@ pub fn dbx_check_code(message: &str) -> &'static str {
         "XVAL-REF-3"
     } else {
         "XVAL-REF-1"
+    }
+}
+
+/// The rule of an operation that did not apply, by its words: SG1's static group refusals (the last member of a kind,
+/// an added member not numbered as one) are XVAL-GRP-1, anything else XVAL-EDIT-3.
+#[must_use]
+pub fn apply_code(message: &str) -> &'static str {
+    if message.contains("a group keeps at least one of each kind")
+        || message.contains("an added member is numbered as one")
+    {
+        "XVAL-GRP-1"
+    } else {
+        "XVAL-EDIT-3"
     }
 }
 
