@@ -1776,7 +1776,7 @@ browser's **Meshes** mode, then retired the page. The picture command line stays
 
 | Feature | In the editor? | Plan |
 |---|---|---|
-| An index of the game copy's bundles and every level's Dx9 shader database, cached (`work\tools_out\meshview_index.pkl`) | **Added in GR3**: the same index, read from the same cache (`bc2_convert::meshview::cache`: the pickle read in Rust; a stale or missing one built with `bc2_formats::meshindex` and written byte for byte as the Python writes it, under the same lock) | - |
+| An index of the game copy's bundles and every level's Dx9 shader database, cached (`work\tools_out\meshview_index.bin`; a pickle until PR1b-2-rest) | **Added in GR3**: the same index, read from the same cache (`bc2_convert::meshview::cache`: the pickle read in Rust; a stale or missing one built with `bc2_formats::meshindex` and written byte for byte as the Python writes it, under the same lock) | - |
 | `find <text>`: mesh names containing a text | **Added in GR3**: the asset browser's Meshes mode (the same list as `meshview.py find`, `Index::find`); click previews, Shift+click compares | `find` stays a command line too |
 | A mesh's parts with their colour textures (`load_mesh`: layouts from the databases, the blueprint's surfaces, the colour texture by name) | **Added in GR3**: `bc2_convert::meshview::load_mesh`, identical to the Python on every recorded mesh (below) | - |
 | Orbit, pan, zoom (three.js `OrbitControls`) | **Added in GR3**: drag turns, right or middle drag moves, the wheel zooms; Perspective or orthographic; Frame resets | - |

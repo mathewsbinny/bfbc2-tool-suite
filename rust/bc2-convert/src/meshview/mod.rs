@@ -12,7 +12,6 @@
 
 #![allow(clippy::many_single_char_names, reason = "pixel and colour names: x, y, r, g, b")]
 
-#[cfg(feature = "pickle-cache")]
 pub mod cache;
 pub mod render;
 
@@ -45,7 +44,7 @@ fn is(r: &LazyLock<Option<Regex>>, s: &str) -> bool {
     r.as_ref().is_some_and(|r| r.is_match(s))
 }
 
-/// The index cache's three tables, in their dicts' order (`meshview_index.pkl`'s `data`).
+/// The index's three tables, in their dicts' order.
 #[derive(Debug, Default, Clone)]
 pub struct Tables {
     /// (entry name lower case, bundle, entry name as the bundle holds it).
@@ -92,8 +91,7 @@ impl Index {
     ///
     /// # Errors
     /// As [`cache::load`].
-    #[cfg(feature = "pickle-cache")]
-    pub fn load(root: &str, say: &mut dyn FnMut(&str)) -> Result<Self, String> {
+    pub fn load(root: &str, say: &mut dyn FnMut(&str)) -> Result<Self, bc2_gamefs::meshindex::LoadError> {
         cache::load(root, say).map(Self::from_tables)
     }
 

@@ -6,9 +6,11 @@
 //! |---|---|
 //! | FbrbTool (`unpack`, `pack`, `list`, `big`) | [`fbrbtool`]; [`unpack_path`] / [`unpack_bytes`], its unpack engine as a library call |
 //! | DbxEdit (`xml`, `roundtrip`, `edit`, `import`, `check`, `fixslots`) | [`dbxedit`] |
+//! | LevelDiff (two `.dbx` files compared; round PR1b-2-rest) | [`leveldiff`] |
 
 pub mod dbxedit;
 pub mod fbrbtool;
+pub mod leveldiff;
 mod unpack;
 
 pub use unpack::{UnpackError, UnpackStats, unpack_bytes, unpack_path};

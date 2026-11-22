@@ -261,18 +261,15 @@ fn not_found(text: &str, path: &str) -> Fail {
 /// `shaderdb.find_opfor(given)`: given, `OPFOR_ROOT`, then the `project-opfor-bfbc2` folder beside the suite; the
 /// first with a `game` folder, made absolute.
 pub fn find_opfor(given: Option<&str>) -> PyResult<String> {
-    let suite = pyos::abspath(&suite_root().to_string_lossy())?;
-    let beside = pyos::join2(&pyos::dirname(&suite)?, "project-opfor-bfbc2")?;
-    let env = std::env::var("OPFOR_ROOT").ok();
-    for c in [given.map(str::to_owned), env, Some(beside)].into_iter().flatten() {
-        if !c.is_empty() && pyos::isdir(&pyos::join2(&c, "game")?) {
-            return pyos::abspath(&c);
-        }
-    }
-    Err(shader_error(
-        "Project OPFOR BFBC2 not found (no game copy): put the suite next to the project-opfor-bfbc2 folder, set \
-         OPFOR_ROOT, or give --opfor",
-    ))
+    let suite = suite_root();
+    bc2_gamefs::game::find_opfor(given, true, bc2_gamefs::game::Beside::Only(&suite))
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|_| {
+            shader_error(
+                "Project OPFOR BFBC2 not found (no game copy): put the suite next to the project-opfor-bfbc2 folder, \
+                 set OPFOR_ROOT, or give --opfor",
+            )
+        })
 }
 
 /// `level_bundles(root)`: {level folder (lower case): its `level-00.fbrb`}, Package over Dist, sorted by name.

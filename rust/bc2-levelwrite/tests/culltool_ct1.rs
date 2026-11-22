@@ -49,7 +49,7 @@ fn level_streamed(p: &str) -> String {
     }
 }
 
-fn tree_text(r: Result<CullTree, bc2_pyrt::err::Fail>) -> String {
+fn tree_text(r: Result<CullTree, bc2_levelwrite::culltool::CullError>) -> String {
     match r {
         Ok(t) => {
             let mut leaves: Vec<_> = t.leaf_node.iter().map(|(k, v)| (*k, *v)).collect();

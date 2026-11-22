@@ -8,8 +8,11 @@ changed.
   audio     audio.convert / decode, the ffmpeg glue                (bfbc2-console-convert/audio.py)
   hkpack    hkpack.Packfile as a handle, read_object / read_value  (bfbc2-auto-navkit/tools/hkpack.py)
   bodies    navsample_offline.asset_bodies (the hulls)             (bfbc2-auto-navkit/tools/navsample_offline.py)
-  meshview  meshview.load_mesh's part reader                       (bfbc2-mesh-viewer/meshview.py)
   texqa     texqa.read_pc / read_xbox                              (bfbc2-console-convert/texqa.py)
+
+(meshview, load_mesh's part reader, left in round PR1b-2-rest: load_mesh is the Rust port's whole, its Python
+retired; the port is held to the retired Python by the editor's gr3 tests' recording and the round's parity run on the
+real game copy, rust/BENCHMARKS.md "PR1b-2-rest".)
 
 Compared as tests\test_f3_native.py compares (its canon / outcome / goldens): every result or the same error, and
 how many inputs the Rust core answered and how many it handed to the Python (a real input handed back is listed).
@@ -624,88 +627,6 @@ def area_bodies(c: Checks) -> None:
     g.save()
 
 
-# ------------------------------------------------------------------------------------------------ meshview
-
-class _Ix:
-    """A meshview.Index's parts with the meshes' data read beforehand (one pass per bundle)."""
-
-    def __init__(self, ix: Any, data: dict[str, bytes]) -> None:
-        self.parts = ix.parts
-        self.data = data
-
-    def read(self, name: str) -> bytes | None:
-        return self.data.get(name.lower())
-
-
-def area_meshview(c: Checks) -> None:
-    import meshview
-    import shaderdb
-    g = Golden('meshview')
-    t = Tally(g)
-    rng = random.Random(0xF4F6)
-    root = f3.opfor_root()
-    if not root:
-        print('no OPFOR folder: nothing to compare')
-        return
-    cache = os.path.join(SCRATCH, 'f4_meshview_index.pkl')
-    src = os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
-    # a cache every run shares on purpose (signed by the game copy; meshview.Index builds a stale one under a lock):
-    # copied whole before it is named, so a run beside never reads half a copy
-    if not os.path.isfile(cache) and os.path.isfile(src):
-        from bfbc2core import atomicio
-        atomicio.copy_file(src, cache)
-    ix = meshview.Index(shaderdb.find_opfor(None), cache)
-    saved = meshview.mesh_surfaces
-    meshview.mesh_surfaces = lambda _ix, _name: {}
-
-    def load(fake: Any, name: str) -> Any:
-        return meshview.load_mesh(fake, name)
-
-    parts = {'rust': 0, 'python': 0}
-    real_part = getattr(N, 'meshview_part', None)
-
-    def counted(*a: Any) -> Any:
-        got = real_part(*a) if real_part is not None else None
-        parts['rust' if got is not None else 'python'] += 1
-        return got
-    if real_part is not None:
-        N.meshview_part = counted
-
-    def nat(fake: Any, name: str) -> Any:
-        return None if fake.read(f'{name}_lod0_data.res') is None else True
-
-    ref = ref_of((meshview,), load)
-    names = sorted(n for n in ix.where if n.endswith('_lod0_data.res'))
-    if not GAME:
-        names = names[:: max(1, len(names) // 60)][:60]
-    by_bundle: dict[str, list[str]] = {}
-    for n in names:
-        by_bundle.setdefault(ix.where[n][0], []).append(n)
-    try:
-        for b, ns in sorted(by_bundle.items()):
-            from bfbc2core import fbrb
-            got = fbrb.read(b, [ix.where[n][1] for n in ns])
-            data = {n: got[ix.where[n][1]] for n in ns if ix.where[n][1] in got}
-            fake = _Ix(ix, data)
-            group = 'quick' if not GAME else rel(b, root)
-            for n in ns:
-                mesh = n[:-len('_lod0_data.res')]
-                t.both(mesh, group, 0 if not GAME else len(ns), load, ref, nat_of('meshview_part', nat), fake, mesh,
-                       real=True)
-                if not GAME and n in data:
-                    for j in range(5):
-                        dmg = _Ix(ix, {n: damaged(data[n], rng)})
-                        t.both(f'{mesh} damaged {j}', 'quick:damaged', 0, load, ref, None, dmg, mesh)
-    finally:
-        meshview.mesh_surfaces = saved
-        if real_part is not None:
-            N.meshview_part = real_part
-    print(f'meshes: {len(names):,}; parts read (the Rust way and the reference way): {parts}')
-    print(f'meshview timing: Rust {t.t_nat:.2f} s, Python {t.t_ref:.2f} s')
-    t.report(c, 'meshview.load_mesh parts', False)
-    g.save()
-
-
 # ------------------------------------------------------------------------------------------------ texqa
 
 def area_texqa(c: Checks) -> None:
@@ -778,7 +699,7 @@ def main() -> int:
     stdout_utf8()
     c = Checks()
     for name, fn in (('culltree', area_culltree), ('disasm', area_disasm), ('hkpack', area_hkpack),
-                     ('bodies', area_bodies), ('texqa', area_texqa), ('meshview', area_meshview),
+                     ('bodies', area_bodies), ('texqa', area_texqa),
                      ('audio', area_audio)):
         if wanted(name):
             t0 = time.perf_counter()

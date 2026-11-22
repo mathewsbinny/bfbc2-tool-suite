@@ -28,9 +28,8 @@ sha1_smol.workspace = true
 # the game-accurate view (round R5)
 bc2-render.workspace = true
 # the PC texture decoder (the start screen's pictures read from the game copy: catalog.rs); the asset preview's mesh
-# index cache (the mesh viewer's pickle, read and written; round GR3) is its pickle-cache feature. Round PR1a: the
-# editor itself no longer depends on bc2-pyrt (audit AU5 ARC-1)
-bc2-convert = { workspace = true, features = ["pickle-cache"] }
+# index and its cache (round GR3; the cache bc2_gamefs::meshindex's own format since round PR1b-2-rest)
+bc2-convert.workspace = true
 eframe.workspace = true
 egui_dock.workspace = true
 serde.workspace = true

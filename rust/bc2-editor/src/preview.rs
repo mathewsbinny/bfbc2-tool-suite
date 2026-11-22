@@ -10,7 +10,7 @@
 //! measurements, the selected part in the viewport's selection colour, several meshes stacked for comparison, and
 //! Save picture.
 //!
-//! Reading happens on a worker thread; the index is read once per process (from `work\tools_out\meshview_index.pkl`,
+//! Reading happens on a worker thread; the index is read once per process (from `work\tools_out\meshview_index.bin`,
 //! or built and cached when the game copy changed).
 
 #![allow(clippy::indexing_slicing, reason = "[f32; 3] vectors indexed by their axes (0..3)")]
@@ -101,7 +101,7 @@ pub fn index(opfor: &Path) -> Result<Arc<Index>, String> {
     // os.path.abspath as the Python mesh viewer takes it (Windows' GetFullPathNameW, which std::path::absolute calls):
     // the cache's signature holds the bundle paths made from this root
     let root = std::path::absolute(opfor).map_err(|e| format!("{}: {e}", opfor.display()))?;
-    let ix = Arc::new(Index::load(&root.to_string_lossy(), &mut |_| {})?);
+    let ix = Arc::new(Index::load(&root.to_string_lossy(), &mut |_| {}).map_err(|e| e.to_string())?);
     *slot = Some(Arc::clone(&ix));
     Ok(ix)
 }

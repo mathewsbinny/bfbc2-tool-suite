@@ -6,7 +6,6 @@
   "fbrb_cache_configure",
   "fbrb_cache_stats",
   "fbrb_cache_superseded",
-  "meshview_index",
   "water_mesh"
  ]
 }

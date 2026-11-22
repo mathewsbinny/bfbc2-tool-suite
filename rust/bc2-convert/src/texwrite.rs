@@ -554,6 +554,84 @@ pub fn l8_down(px: &[u8], h: usize, w: usize) -> Option<Vec<u8>> {
     Some(out)
 }
 
+// ------------------------------------------------------------------------------------------------- packing
+
+/// The ITexture header's size: version 3, type 0, format, flags, width, height, depth 0, the level count, 15 level
+/// sizes (the console converter's `FORMAT.md` section 2).
+pub const HEADER: usize = 92;
+
+/// `texwrite.resource(fmt, flags, w, h, data)` (and `texture`'s last step, round PR1b-2-rest): the header and the
+/// levels as they are, largest first; `None` for more than 15 levels.
+#[must_use]
+pub fn resource(fmt: u32, flags: u32, w: u32, h: u32, levels: &[&[u8]]) -> Option<Vec<u8>> {
+    if levels.len() > 15 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(HEADER + levels.iter().map(|l| l.len()).sum::<usize>());
+    for v in [3, 0, fmt, flags, w, h, 0, u32::try_from(levels.len()).ok()?] {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    for k in 0..15 {
+        let n = levels.get(k).map_or(0, |l| l.len());
+        out.extend_from_slice(&u32::try_from(n).ok()?.to_le_bytes());
+    }
+    for l in levels {
+        out.extend_from_slice(l);
+    }
+    Some(out)
+}
+
+/// `texwrite.wrapped(res, kind)`: the on-demand bundles' form - `RES\x02`, the type name, zeros to 56 bytes, the
+/// payload's size twice (u32), the payload. `None`: a size past u32.
+#[must_use]
+pub fn wrapped(res: &[u8], kind: &[u8]) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(64 + res.len());
+    out.extend_from_slice(b"RES\x02");
+    out.extend_from_slice(kind);
+    out.resize(out.len().max(56), 0);
+    let n = u32::try_from(res.len()).ok()?.to_le_bytes();
+    out.extend_from_slice(&n);
+    out.extend_from_slice(&n);
+    out.extend_from_slice(res);
+    Some(out)
+}
+
+/// `texwrite.l8_bytes(level)`: an 8-bit level's bytes as DICE stores them - a row under 4 texels padded to 4 bytes
+/// with zeros (mp_005's 2 x 2 level is 8 bytes); `px` is `h` x `w` bytes.
+#[must_use]
+pub fn l8_bytes(px: &[u8], h: usize, w: usize) -> Option<Vec<u8>> {
+    if px.len() != h.checked_mul(w)? {
+        return None;
+    }
+    if w >= 4 {
+        return Some(px.to_vec());
+    }
+    let mut out = vec![0u8; h * 4];
+    for (r, row) in px.chunks(w.max(1)).take(h).enumerate() {
+        out.get_mut(r * 4..r * 4 + row.len())?.copy_from_slice(row);
+    }
+    Some(out)
+}
+
+#[cfg(test)]
+mod packing_tests {
+    use super::*;
+
+    #[test]
+    fn packed_as_the_python_packs() {
+        let r = resource(0, 1, 4, 4, &[&[1u8; 8][..]]).unwrap_or_default();
+        assert_eq!(r.len(), HEADER + 8);
+        assert_eq!(&r[..12], &[3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(&r[28..36], &[1, 0, 0, 0, 8, 0, 0, 0]);
+        assert!(resource(0, 1, 4, 4, &[&[][..]; 16]).is_none());
+        let w = wrapped(b"abc", b"ITexture").unwrap_or_default();
+        assert_eq!((&w[..12], w.len()), (&b"RES\x02ITexture"[..], 56 + 8 + 3));
+        assert_eq!(&w[56..64], &[3, 0, 0, 0, 3, 0, 0, 0]);
+        assert_eq!(l8_bytes(&[1, 2, 3, 4], 2, 2), Some(vec![1, 2, 0, 0, 3, 4, 0, 0]));
+        assert_eq!(l8_bytes(&[9; 8], 2, 4), Some(vec![9; 8]));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -695,6 +695,12 @@ pub struct Curve {
     pub knots: Option<Vec<f64>>,
     /// `OneOverKnotScaleTrunc` (`curve_keys` divides the knots by it).
     pub trunc: Option<i64>,
+    /// `KnotsControls` as numbers (a float format's too: `D3I1K32fC32f`).
+    pub kc: Option<Vec<f64>>,
+    /// `ScaleOffsetTableEntries` (the quantized orientations' selectors).
+    pub selectors: Option<i64>,
+    /// `OneOverKnotScale` (the quantized orientations' knot scale).
+    pub knot_scale: Option<f64>,
 }
 
 fn ends(s: &[u8], tails: &[&[u8]]) -> bool {
@@ -956,4 +962,226 @@ pub fn orientation_plan(c: &Curve, quats: &[[f64; 4]]) -> Option<(Vec<Put>, Stri
         values: vec![0.0],
     });
     Some((puts, format!("{n} orientation keys written")))
+}
+
+// ------------------------------------------------------------------------------------------------- curve_keys
+
+/// `granny.SCALE_TABLE`: the quantized orientation curves' scales, by selector.
+pub const SCALE_TABLE: [f64; 16] = [
+    1.414_213_5,
+    0.707_106_77,
+    0.353_553_38,
+    0.353_553_38,
+    0.353_553_38,
+    0.176_776_69,
+    0.176_776_69,
+    0.176_776_69,
+    -1.414_213_5,
+    -0.707_106_77,
+    -0.353_553_38,
+    -0.353_553_38,
+    -0.353_553_38,
+    -0.176_776_69,
+    -0.176_776_69,
+    -0.176_776_69,
+];
+
+/// `granny.OFFSET_TABLE`: their offsets.
+pub const OFFSET_TABLE: [f64; 16] = [
+    -0.707_106_77,
+    -0.353_553_38,
+    -0.530_330_06,
+    -0.176_776_69,
+    0.176_776_69,
+    -0.176_776_69,
+    -0.088_388_346,
+    0.0,
+    0.707_106_77,
+    0.353_553_38,
+    0.530_330_06,
+    0.176_776_69,
+    -0.176_776_69,
+    0.176_776_69,
+    0.088_388_346,
+    -0.0,
+];
+
+/// A key of a curve: its time and its values (3 for a position, 4 for a quaternion x, y, z, w).
+pub type Key = (f64, Vec<f64>);
+
+/// Why a curve's keys cannot be read.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CurveError {
+    /// A format the reader does not know (`curve format {t} is not read`).
+    #[error("curve format {0} is not read")]
+    Format(String),
+    /// A field the format needs is missing or short, or a knot scale is zero (the reference's `KeyError`,
+    /// `IndexError` or `ZeroDivisionError`).
+    #[error("curve {0}: {1}")]
+    Field(String, &'static str),
+}
+
+/// `granny._trunc_scale(v)`: the float32 whose upper 16 bits are `v`'s lower 16.
+fn trunc_scale(v: i64) -> f64 {
+    f64::from(f32::from_bits(((v & 0xFFFF) as u32) << 16))
+}
+
+/// `granny._quat(a, b, c, scales, offsets, top)`.
+fn quat(a: i64, b: i64, c: i64, scales: &[f64; 4], offsets: &[f64; 4], top: i64) -> Vec<f64> {
+    let bits = i64::from(64 - top.leading_zeros());
+    let i1 = (((b & top) >> (bits - 2)) | ((c & top) >> (bits - 1))) as usize & 3;
+    let (i2, i3, i4) = ((i1 + 1) & 3, (i1 + 2) & 3, (i1 + 3) & 3);
+    let mask = top - 1;
+    let mut q = [0.0f64; 4];
+    q[i2] = (a & mask) as f64 * scales[i2] + offsets[i2];
+    q[i3] = (b & mask) as f64 * scales[i3] + offsets[i3];
+    q[i4] = (c & mask) as f64 * scales[i4] + offsets[i4];
+    let r = 1.0 - q[i2] * q[i2] - q[i3] * q[i3] - q[i4] * q[i4];
+    let sign = if a & top != 0 { -1.0 } else { 1.0 };
+    q[i1] = py_max(0.0, r).sqrt() * sign;
+    q.to_vec()
+}
+
+/// `granny.curve_keys(cd)`: `[(time, values)]` of a curve (empty for an identity curve, or none: `c` = `None`).
+///
+/// # Errors
+/// A format the reference does not read, or a field it needs missing (the reference's own exception then).
+#[expect(clippy::too_many_lines, reason = "the reference's function, format by format")]
+pub fn curve_keys(c: Option<&Curve>) -> Result<Vec<Key>, CurveError> {
+    let Some(c) = c else { return Ok(Vec::new()) };
+    let t = c.kind.as_slice();
+    let name = || c.kind.iter().map(|&b| char::from(b)).collect::<String>();
+    let field = |what: &'static str| CurveError::Field(name(), what);
+    if t.ends_with(b"DaIdentity") {
+        return Ok(Vec::new());
+    }
+    if t.ends_with(b"Constant32f") {
+        return Ok(vec![(0.0, c.controls.clone().ok_or_else(|| field("no Controls"))?)]);
+    }
+    if t.ends_with(b"DaK32fC32f") {
+        let k = c.knots.as_ref().ok_or_else(|| field("no Knots"))?;
+        let ctl = c.controls.as_ref().ok_or_else(|| field("no Controls"))?;
+        if k.is_empty() {
+            return Ok(Vec::new());
+        }
+        let dim = ctl.len() / k.len();
+        return Ok(k
+            .iter()
+            .enumerate()
+            .map(|(i, &ki)| (ki, ctl.get(i * dim..(i + 1) * dim).unwrap_or_default().to_vec()))
+            .collect());
+    }
+    let kc = || c.kc.as_ref().ok_or_else(|| field("no KnotsControls"));
+    let three = |v: &Option<Vec<f64>>, what: &'static str| -> Result<[f64; 3], CurveError> {
+        let v = v.as_ref().ok_or_else(|| field(what))?;
+        Ok([
+            *v.first().ok_or_else(|| field(what))?,
+            *v.get(1).ok_or_else(|| field(what))?,
+            *v.get(2).ok_or_else(|| field(what))?,
+        ])
+    };
+    let at = |kc: &[f64], i: usize| kc.get(i).copied().ok_or_else(|| field("KnotsControls too short"));
+    if ends(t, &[b"D3K16uC16u", b"D3K8uC8u"]) {
+        let kc = kc()?;
+        let n = kc.len() / 4;
+        let s = trunc_scale(c.trunc.ok_or_else(|| field("no OneOverKnotScaleTrunc"))?);
+        let (sc, of) = (three(&c.scales, "ControlScales")?, three(&c.offsets, "ControlOffsets")?);
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            if s == 0.0 {
+                return Err(field("a zero knot scale"));
+            }
+            let mut v = Vec::with_capacity(3);
+            for j in 0..3 {
+                v.push(at(kc, n + 3 * i + j)? * sc[j] + of[j]);
+            }
+            out.push((at(kc, i)? / s, v));
+        }
+        return Ok(out);
+    }
+    if ends(t, &[b"D3I1K8uC8u", b"D3I1K16uC16u", b"D3I1K32fC32f"]) {
+        let kc = kc()?;
+        let n = kc.len() / 2;
+        // float knots (K32f) are times already unless the header scales them too
+        let s = c.trunc.map_or(1.0, trunc_scale);
+        let (sc, of) = (three(&c.scales, "ControlScales")?, three(&c.offsets, "ControlOffsets")?);
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            if s == 0.0 {
+                return Err(field("a zero knot scale"));
+            }
+            let x = at(kc, n + i)?;
+            out.push((at(kc, i)? / s, (0..3).map(|j| x * sc[j] + of[j]).collect()));
+        }
+        return Ok(out);
+    }
+    if ends(t, &[b"D4nK16uC15u", b"D4nK8uC7u"]) {
+        let kc = c
+            .knots_controls
+            .as_ref()
+            .ok_or_else(|| field("no KnotsControls (integers)"))?;
+        let n = kc.len() / 4;
+        let wide = t.ends_with(b"D4nK16uC15u");
+        let (top, unit) = if wide {
+            (0x8000, 1.0 / 32767.0)
+        } else {
+            (0x80, 1.0 / 127.0)
+        };
+        let sel = c.selectors.ok_or_else(|| field("no ScaleOffsetTableEntries"))?;
+        let scales: [f64; 4] = std::array::from_fn(|k| SCALE_TABLE[((sel >> (4 * k)) & 15) as usize] * unit);
+        let offsets: [f64; 4] = std::array::from_fn(|k| OFFSET_TABLE[((sel >> (4 * k)) & 15) as usize]);
+        let s = c.knot_scale.ok_or_else(|| field("no OneOverKnotScale"))?;
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            if s == 0.0 {
+                return Err(field("a zero knot scale"));
+            }
+            let g = |j: usize| kc.get(j).copied().ok_or_else(|| field("KnotsControls too short"));
+            let q = quat(
+                g(n + 3 * i)?,
+                g(n + 3 * i + 1)?,
+                g(n + 3 * i + 2)?,
+                &scales,
+                &offsets,
+                top,
+            );
+            out.push((g(i)? as f64 / s, q));
+        }
+        return Ok(out);
+    }
+    Err(CurveError::Format(name()))
+}
+
+/// `granny.sample(keys, t, default)`: the curve's value at `t` - the first key's before or at it, linear between
+/// keys (a quaternion: the nearer of q and -q, then made unit length), the last key's after; `default` for no keys.
+#[must_use]
+pub fn sample(keys: &[Key], t: f64, default: &[f64]) -> Vec<f64> {
+    let Some(first) = keys.first() else {
+        return default.to_vec();
+    };
+    if t <= first.0 || keys.len() == 1 {
+        return first.1.clone();
+    }
+    for w in keys.windows(2) {
+        let [(t0, v0), (t1, v1)] = w else { continue };
+        if t <= *t1 {
+            let f = if t1 > t0 { (t - t0) / (t1 - t0) } else { 0.0 };
+            if v0.len() == 4 {
+                let flip = py_sum(v0.iter().zip(v1).map(|(a, b)| a * b)) < 0.0;
+                let q: Vec<f64> = v0
+                    .iter()
+                    .zip(v1)
+                    .map(|(&a, &b)| {
+                        let b = if flip { -b } else { b };
+                        a + (b - a) * f
+                    })
+                    .collect();
+                let n = py_sum(q.iter().map(|x| x * x)).sqrt();
+                let n = if n == 0.0 { 1.0 } else { n };
+                return q.iter().map(|x| x / n).collect();
+            }
+            return v0.iter().zip(v1).map(|(&a, &b)| a + (b - a) * f).collect();
+        }
+    }
+    keys.last().map_or_else(|| default.to_vec(), |k| k.1.clone())
 }

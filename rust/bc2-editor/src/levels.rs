@@ -18,10 +18,7 @@ use crate::error::EditorError;
 use crate::factions::{self, Profile};
 use crate::package;
 
-/// Project OPFOR BFBC2's folder name, beside the suite.
-pub const OPFOR_DIR: &str = "project-opfor-bfbc2";
-/// The environment variable naming Project OPFOR BFBC2's folder.
-pub const OPFOR_ENV: &str = "OPFOR_ROOT";
+pub use bc2_gamefs::game::{OPFOR_DIR, OPFOR_ENV, walk_up};
 
 /// The suite's root folder as this crate was built in it (`rust\bc2-editor\..\..`).
 #[must_use]
@@ -30,51 +27,39 @@ pub fn suite_root() -> PathBuf {
     here.parent().and_then(Path::parent).unwrap_or(here).to_path_buf()
 }
 
-/// `<start>\<name>`, then `<each folder above start>\<name>` (`paths.walk_up`).
-#[must_use]
-pub fn walk_up(start: &Path, name: &str) -> Vec<PathBuf> {
-    start.ancestors().map(|d| d.join(name)).collect()
+/// The folders the editor starts looking from: the suite, then its own folder ([`bc2_gamefs::game::Beside::Above`]).
+fn starts() -> Vec<PathBuf> {
+    let mut s = vec![suite_root()];
+    s.extend(
+        std::env::current_exe()
+            .ok()
+            .and_then(|e| e.parent().map(Path::to_path_buf)),
+    );
+    s
 }
 
 /// The folders tried for Project OPFOR BFBC2, in order: `given`, `OPFOR_ROOT`, then the suite and every folder above
-/// it (`paths.opfor_candidates`), then the editor's own folder and those above it.
+/// it (`paths.opfor_candidates`), then the editor's own folder and those above it
+/// ([`bc2_gamefs::game::opfor_candidates`]).
 #[must_use]
 pub fn opfor_candidates(given: Option<&Path>) -> Vec<PathBuf> {
-    let mut out: Vec<PathBuf> = given.map(Path::to_path_buf).into_iter().collect();
-    if let Some(v) = std::env::var_os(OPFOR_ENV).filter(|v| !v.is_empty()) {
-        out.push(PathBuf::from(v));
-    }
-    out.extend(walk_up(&suite_root(), OPFOR_DIR));
-    if let Some(exe_dir) = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(Path::to_path_buf))
-    {
-        for c in walk_up(&exe_dir, OPFOR_DIR) {
-            if !out.contains(&c) {
-                out.push(c);
-            }
-        }
-    }
-    out
+    let given = given.map(|g| g.to_string_lossy().into_owned());
+    let starts = starts();
+    let starts: Vec<&Path> = starts.iter().map(PathBuf::as_path).collect();
+    bc2_gamefs::game::opfor_candidates(given.as_deref(), true, bc2_gamefs::game::Beside::Above(&starts))
 }
 
-/// Project OPFOR BFBC2's folder: the first candidate with a `game` folder.
+/// Project OPFOR BFBC2's folder: the first candidate with a `game` folder ([`bc2_gamefs::game::find_opfor`]).
 ///
 /// # Errors
 ///
 /// None has one: the message names every folder tried, as `paths.GameCopyNotFound`'s does.
 pub fn find_opfor(given: Option<&Path>) -> Result<PathBuf, EditorError> {
-    let looked = opfor_candidates(given);
-    for c in &looked {
-        if c.join("game").is_dir() {
-            return Ok(std::path::absolute(c).unwrap_or_else(|_| c.clone()));
-        }
-    }
-    let list: Vec<String> = looked.iter().map(|p| p.display().to_string()).collect();
-    Err(EditorError::Level(format!(
-        "Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT (looked for a game\\ folder in: {})",
-        list.join(", ")
-    )))
+    let given = given.map(|g| g.to_string_lossy().into_owned());
+    let starts = starts();
+    let starts: Vec<&Path> = starts.iter().map(PathBuf::as_path).collect();
+    bc2_gamefs::game::find_opfor(given.as_deref(), true, bc2_gamefs::game::Beside::Above(&starts))
+        .map_err(|e| EditorError::Level(e.to_string()))
 }
 
 /// A level of the game copy, as the start screen lists it.

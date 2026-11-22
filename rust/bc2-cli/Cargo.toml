@@ -20,8 +20,8 @@ bc2-gamefs.workspace = true
 bc2-install.workspace = true
 serde_json.workspace = true
 bc2-harness.workspace = true
-# the mesh index cache (gameindex; shared with meshview.py) is behind bc2-convert's pickle-cache feature
-bc2-convert = { workspace = true, features = ["pickle-cache"] }
+# the mesh index and its cache (gameindex; shared with meshview.py through bc2_native and the editor)
+bc2-convert.workspace = true
 regex.workspace = true
 bc2-pyrt.workspace = true
 bc2-menu.workspace = true

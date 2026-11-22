@@ -68,16 +68,25 @@ pub fn light() -> [f64; 3] {
 /// top. `None` for a model without positions.
 #[must_use]
 pub fn stack_models(models: &[&[Part]]) -> Vec<[f32; 3]> {
+    let pts: Vec<Vec<[f32; 3]>> = models
+        .iter()
+        .map(|parts| parts.iter().flat_map(|p| p.positions.iter().copied()).collect())
+        .collect();
+    let refs: Vec<&[[f32; 3]]> = pts.iter().map(Vec::as_slice).collect();
+    stack_points(&refs)
+}
+
+/// [`stack_models`] of each model's positions: float32 bounds, the gap NumPy's float32 plus a Python float.
+#[must_use]
+pub fn stack_points(models: &[&[[f32; 3]]]) -> Vec<[f32; 3]> {
     let mut out = Vec::with_capacity(models.len());
     let mut y = 0.0f32;
-    for parts in models {
+    for pts in models {
         let (mut lo, mut hi) = ([f32::INFINITY; 3], [f32::NEG_INFINITY; 3]);
-        for p in *parts {
-            for v in &p.positions {
-                for k in 0..3 {
-                    lo[k] = lo[k].min(v[k]);
-                    hi[k] = hi[k].max(v[k]);
-                }
+        for v in *pts {
+            for k in 0..3 {
+                lo[k] = lo[k].min(v[k]);
+                hi[k] = hi[k].max(v[k]);
             }
         }
         let mut off: [f32; 3] = std::array::from_fn(|k| -(lo[k] + hi[k]) / 2.0);
@@ -301,9 +310,17 @@ fn fill_band(band: &mut Band<'_>, w: i64, h: i64, part: &Part, pos: &[[f32; 3]],
                 e1[2] * e2[0] - e1[0] * e2[2],
                 e1[0] * e2[1] - e1[1] * e2[0],
             ];
-            let nl = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+            // np.linalg.norm of the float32 normal: OpenBLAS' sdot (each float32 square added in a double, the sum
+            // made float32), then sqrtf; `nrm @ light`: its ddot (a fused multiply-add after the first product).
+            // Round PR1b-2-rest, from the retired NumPy's answers on 19,045 real triangles (all equal; the plain
+            // float32 sum missed 1,070 lengths and the plain dot 5,968, a picture's pixels one level off).
+            let sq = f64::from(n[0] * n[0]) + f64::from(n[1] * n[1]) + f64::from(n[2] * n[2]);
+            let nl = (sq as f32).sqrt();
             if nl > 0.0 {
-                let d = f64::from(n[0]) * light[0] + f64::from(n[1]) * light[1] + f64::from(n[2]) * light[2];
+                let d =
+                    f64::from(n[2]).mul_add(light[2], f64::from(n[1]).mul_add(light[1], f64::from(n[0]) * light[0]));
+                // `0.35 + 0.65 * abs(float(nrm @ light) / nl)`: all float32 (the Python floats are NumPy 2's weak
+                // scalars beside the float32 length)
                 0.35f32 + 0.65f32 * ((d as f32) / nl).abs()
             } else {
                 1.0

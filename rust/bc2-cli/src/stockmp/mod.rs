@@ -57,34 +57,10 @@ fn opt<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
 /// `paths.find_opfor(None, start=SUITE)`: `OPFOR_ROOT`, then `project-opfor-bfbc2` in the suite folder and each
 /// folder above it; the first with a `game` folder, absolute.
 fn find_opfor() -> PyResult<String> {
-    let mut cands: Vec<String> = Vec::new();
-    if let Ok(v) = std::env::var("OPFOR_ROOT")
-        && !v.is_empty()
-    {
-        cands.push(v);
-    }
-    let mut d = bc2_pyrt::py::abspath(&suite_root().to_string_lossy());
-    cands.push(join(&d, "project-opfor-bfbc2"));
-    loop {
-        let up = bc2_pyrt::py::dirname(&d);
-        if up == d {
-            break;
-        }
-        d = up;
-        cands.push(join(&d, "project-opfor-bfbc2"));
-    }
-    for c in &cands {
-        if bc2_pyrt::py::isdir(&join(c, "game")) {
-            return Ok(bc2_pyrt::py::abspath(c));
-        }
-    }
-    Err(Fail::Err(PyErr::new(
-        "GameCopyNotFound",
-        format!(
-            "Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT (looked for a game\\ folder in: {})",
-            cands.join(", ")
-        ),
-    )))
+    let suite = suite_root();
+    bc2_gamefs::game::find_opfor(None, true, bc2_gamefs::game::Beside::Above(&[suite.as_path()]))
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| Fail::Err(PyErr::new("GameCopyNotFound", e.to_string())))
 }
 
 /// `pipeline.Paths(lv, opfor, work, variant)`.

@@ -20,7 +20,7 @@
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, TryRecvError, channel};
+use std::sync::mpsc::Receiver;
 
 use bc2_levelwrite::awards::Rgb;
 use bc2_levelwrite::export::{self, ExportSpec, Game, Identity};
@@ -157,11 +157,6 @@ pub const WAIT_EXPORT: &str = "An export is running: wait for it (it rebuilds th
 /// Why Export cannot run while the project is not the open view (the export's preview shows the stage).
 pub const NO_PROJECT: &str = "The project is not shown: close the preview first (the export builds the open project)";
 
-/// What a worker that ended without an answer says (round DF1, audit AU4-BUG-4): its panic's text when it panicked.
-fn stopped(what: &str) -> String {
-    format!("{what}: the worker stopped unexpectedly (an internal error; see the console)")
-}
-
 /// Runs a worker's body, a panic turned into an error line (round DF1, audit AU4-BUG-4).
 ///
 /// # Errors
@@ -219,8 +214,8 @@ enum InstallRun {
     /// None yet.
     #[default]
     Idle,
-    /// Running on a worker.
-    Running(Receiver<(bool, String)>),
+    /// Running on a worker (round PR1b-2-rest: a [`Task`]).
+    Running(Task<(bool, String)>),
     /// Ended: whether it succeeded (a confirmation asked without a run counts as ready).
     Ended(bool),
 }
@@ -272,12 +267,8 @@ impl Install {
         self.open = true;
         step.clone_into(&mut self.step);
         self.text = vec![format!("> {}", cmd.join(" "))];
-        let (tx, rx) = channel();
-        self.run = InstallRun::Running(rx);
         let dir = opfor.to_path_buf();
-        std::thread::spawn(move || {
-            let _ = tx.send(run_logged(&cmd, &dir));
-        });
+        self.run = InstallRun::Running(Task::spawn_value("The install", move || run_logged(&cmd, &dir)));
     }
 
     /// Runs the plan for a stage (`--plan <stage>`), keeping the stage and its `stage.json` for Install now.
@@ -327,26 +318,23 @@ impl Install {
 
     /// The run's end, when it came (a worker that ended without an answer is a failed run, round DF1).
     pub fn poll(&mut self) {
-        let InstallRun::Running(rx) = &self.run else { return };
-        match rx.try_recv() {
-            Ok(r) => self.take(r),
-            Err(TryRecvError::Empty) => {}
-            Err(TryRecvError::Disconnected) => self.take((false, stopped("The install"))),
+        let InstallRun::Running(task) = &self.run else { return };
+        if let Some(r) = task.poll() {
+            self.take(r.unwrap_or_else(|e| (false, e.to_string())));
         }
     }
 
     /// Waits for the run (the headless screenshots).
     pub fn settle(&mut self) {
-        if let InstallRun::Running(rx) = std::mem::take(&mut self.run) {
-            let r = rx.recv().unwrap_or_else(|_| (false, stopped("The install")));
-            self.take(r);
+        if let InstallRun::Running(task) = std::mem::take(&mut self.run) {
+            self.take(task.wait().unwrap_or_else(|e| (false, e.to_string())));
         }
     }
 
     /// Hands a worker's receiver to the dialog (tests: a worker that ends without an answer).
     #[doc(hidden)]
-    pub fn running_from(&mut self, rx: Receiver<(bool, String)>) {
-        self.run = InstallRun::Running(rx);
+    pub fn running_from(&mut self, rx: Receiver<Result<(bool, String), EditorError>>) {
+        self.run = InstallRun::Running(Task::from_receiver("The install", rx));
     }
 }
 

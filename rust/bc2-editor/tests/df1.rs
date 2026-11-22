@@ -161,7 +161,7 @@ fn export_and_install_wait_for_each_other_and_a_dead_worker_is_reported() {
     assert_eq!(app.busy_work(), None);
     assert!(app.close_requested(), "nothing runs: the window may close");
     // an install runs: Export waits, in words; closing asks first
-    let (tx, rx) = channel::<(bool, String)>();
+    let (tx, rx) = channel::<Result<(bool, String), EditorError>>();
     app.export.install.running_from(rx);
     h.settle(&mut app, 1);
     assert_eq!(app.export.why_not.as_deref(), Some(WAIT_INSTALL));

@@ -178,8 +178,8 @@ class Files:
             if not self.root:
                 raise RenderQaError('no game copy (Project OPFOR BFBC2 folder) to read stock files from')
             import meshview
-            cache = self._cache or os.path.join(BUILD, 'meshview_index.pkl')
-            seed = os.path.join(self.root, 'work', 'tools_out', 'meshview_index.pkl')
+            cache = self._cache or os.path.join(BUILD, meshview.CACHE_NAME)
+            seed = os.path.join(self.root, 'work', 'tools_out', meshview.CACHE_NAME)
             if not os.path.isfile(cache) and os.path.isfile(seed):
                 os.makedirs(os.path.dirname(cache), exist_ok=True)
                 shutil.copyfile(seed, cache)            # the mesh viewer's index, if current, saves the indexing

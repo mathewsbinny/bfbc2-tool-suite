@@ -26,7 +26,6 @@ dxt5_reference, alpha1_reference, alpha5_reference, l8_down_reference); BFBC2_PU
 runs it only.
 """
 import os
-import struct
 import sys
 from typing import Any
 
@@ -77,6 +76,21 @@ def _encode(levels: list[tuple[int, int, int, bytes]], dxt5_: bool) -> list[byte
     cov = np.frombuffer(job.covariances(), np.float64).reshape(-1, 3, 3)
     axes = np.linalg.eigh(cov)[1][:, :, -1]
     return job.finish(np.ascontiguousarray(axes).tobytes())
+
+
+def _packer() -> Any:
+    """The Rust core for the packing (round PR1b-2-rest: bc2_convert::texwrite::resource / wrapped / l8_bytes, always
+    the core's: NativeMissing, saying how to get it, without it)."""
+    m = _native()
+    if m is not None:
+        return m
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('texwrite.py (the ITexture packing)', 'texwrite_resource')
 
 
 def _u8_picture(img: Any) -> bool:
@@ -339,10 +353,8 @@ def texture(img, kind='color', mips=True):
         if len(lv) > 15:
             raise TexWriteError(f'{w} x {h}: more than 15 levels')
         data = [dxt5_reference(x) if kind == 'dxt5' else dxt1_reference(x) for x in lv]
-    sizes = [len(d) for d in data] + [0] * (15 - len(data))
     fmt = {'color': COLOR, 'normal': NORMAL, 'dxt5': DXT5}[kind]
-    head = struct.pack('<8I', 3, 0, fmt, 0 if normal else 1, w, h, 0, len(data))
-    return head + struct.pack('<15I', *sizes) + b''.join(data)
+    return resource(fmt, 0 if normal else 1, w, h, data)
 
 
 L8, BC5 = 10, 20
@@ -351,10 +363,10 @@ L8, BC5 = 10, 20
 def resource(fmt, flags, w, h, data):
     """A PC ITexture resource from its levels as they are (bytes each, largest first): the 92-byte header (version 3,
     type 0, depth 0) and the levels after it - for textures composed level by level (emitteratlas.py's atlases)."""
-    if len(data) > 15:
+    got = _packer().texwrite_resource(fmt, flags, w, h, [bytes(d) for d in data])
+    if got is None:
         raise TexWriteError(f'{w} x {h}: more than 15 levels')
-    sizes = [len(d) for d in data] + [0] * (15 - len(data))
-    return struct.pack('<8I', 3, 0, fmt, flags, w, h, 0, len(data)) + struct.pack('<15I', *sizes) + b''.join(data)
+    return got
 
 
 def l8_down(level):
@@ -378,13 +390,9 @@ def l8_down_reference(level):
 
 def l8_bytes(level):
     """An 8-bit level's bytes as DICE stores them: rows padded to 4 bytes (mp_005's 2 x 2 level is 8 bytes)."""
-    a = np.asarray(level, np.uint8)
+    a = np.ascontiguousarray(level, np.uint8)
     h, w = a.shape
-    if w >= 4:
-        return a.tobytes()
-    out = np.zeros((h, 4), np.uint8)
-    out[:, :w] = a
-    return out.tobytes()
+    return _packer().texwrite_l8_bytes(a.tobytes(), h, w)
 
 
 def atlas_levels(shorter):
@@ -399,5 +407,7 @@ def atlas_levels(shorter):
 def wrapped(res, kind='ITexture'):
     """A resource in the on-demand bundles' form (every entry of async\\ondemand_awards-00.fbrb has it): 'RES\\x02',
     the type name zero-padded to 56 bytes in all, the payload's size twice (u32), the payload."""
-    head = b'RES\x02' + kind.encode('ascii')
-    return head + b'\0' * (56 - len(head)) + struct.pack('<2I', len(res), len(res)) + res
+    got = _packer().texwrite_wrapped(bytes(res), kind.encode('ascii').decode('latin-1'))
+    if got is None:
+        raise TexWriteError('a resource of 4 GB or more cannot be wrapped')
+    return got

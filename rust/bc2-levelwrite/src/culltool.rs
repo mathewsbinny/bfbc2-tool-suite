@@ -7,9 +7,11 @@
 //! `bfbc2.exe culltree` (bc2-cli's `cull` group) is the command line on it; the map editor's export keeps its own
 //! [`crate::culltree`] (an object's shape from its own leaves).
 //!
-//! Errors are the Python's exceptions ([`bc2_pyrt::err::Fail`]): `CullTreeError` with its text, the `OSError` of
-//! `open()`, and [`Fail::Python`] where the reference raises an exception of its own on a damaged file (an index or
-//! `struct` error): the command line then runs the reference.
+//! Errors are typed ([`CullError`], round PR1b-2-rest): the reference's `CullTreeError` with its text, a file's I/O
+//! error with its path, and [`CullError::Damaged`] where the reference raises an exception of its own on a damaged
+//! file (an index or `struct` error). `bfbc2.exe culltree` turns them into the Python's exceptions (the `From` impl
+//! below: the `OSError` of `open()`, and the hand-off to the reference for a damaged file). Before, they were the
+//! Python emulation's `Fail` itself.
 //!
 //! Round CT1: the reference levels are streamed ([`scan_level`]: one instance at a time, not the whole document)
 //! and only their rows are kept; the rows are kept between runs in `culltree.py`'s own row cache ([`RowStore`],
@@ -42,7 +44,7 @@ use std::io;
 use std::sync::Arc;
 
 use bc2_formats::culltree as raw;
-use bc2_pyrt::err::{Fail, PyErr, PyResult};
+use bc2_pyrt::err::{Fail, PyErr};
 use bc2_pyrt::fmt::float_repr;
 use bc2_pyrt::py::{OMap, abspath, basename, dirname, isdir, isfile, join, splitext};
 use rayon::prelude::*;
@@ -56,16 +58,86 @@ pub const RADIUS_SCALE: f64 = 4.0;
 pub const STACK_SLOTS: usize = 128;
 pub const LEVEL_MARK: &[u8] = b"ExclusiveStaticCullTree";
 
-/// `CullTreeError(msg)`.
-pub fn cte(msg: impl Into<String>) -> Fail {
-    Fail::Err(PyErr::new("CullTreeError", msg))
+/// What went wrong in the model (see the module): typed, so the library's callers need no Python emulation.
+#[derive(Debug, thiserror::Error)]
+pub enum CullError {
+    /// The reference's `CullTreeError`: its text.
+    #[error("{0}")]
+    CullTree(String),
+    /// A file could not be read, written or looked at (`open()`'s or `os.stat`'s `OSError`).
+    #[error("{path}: {source}")]
+    Io {
+        /// The file.
+        path: String,
+        /// The error.
+        source: io::Error,
+    },
+    /// A folder could not be made (`os.makedirs`'s error).
+    #[error("{dir}: {source}")]
+    Mkdir {
+        /// The folder.
+        dir: String,
+        /// The error.
+        source: io::Error,
+    },
+    /// A damaged file the reference fails on with an exception of its own (an index or `struct` error).
+    #[error("a damaged file (the reference fails on it with an exception of its own)")]
+    Damaged,
+    /// The caller's `log` failed (the caller holds why).
+    #[error("the log's sink failed")]
+    Sink,
 }
 
-const PY: Fail = Fail::Python;
+impl CullError {
+    /// A file's I/O error.
+    pub fn io(path: &str, source: io::Error) -> Self {
+        Self::Io {
+            path: path.to_owned(),
+            source,
+        }
+    }
+
+    /// A `CullTreeError`.
+    pub fn is_cull_tree(&self) -> bool {
+        matches!(self, Self::CullTree(_))
+    }
+}
+
+/// The Python's exception for it (`bfbc2.exe culltree`): `CullTreeError`, the `OSError` (`FileExistsError` for a
+/// folder in the way, as `os.makedirs` says it), or the hand-off to the reference.
+impl From<CullError> for Fail {
+    fn from(e: CullError) -> Self {
+        match e {
+            CullError::CullTree(m) => Fail::Err(PyErr::new("CullTreeError", m)),
+            CullError::Io { path, source } => bc2_pyrt::err::os_error(&path, &source),
+            CullError::Mkdir { dir, source } if source.kind() == io::ErrorKind::AlreadyExists => Fail::Err(PyErr {
+                kind: "FileExistsError".to_owned(),
+                msg: format!(
+                    "[WinError 183] Cannot create a file when that file already exists: {}",
+                    bc2_pyrt::fmt::str_repr(&dir)
+                ),
+                filename: Some(dir),
+                what_to_do: None,
+            }),
+            CullError::Mkdir { dir, source } => bc2_pyrt::err::os_error(&dir, &source),
+            CullError::Damaged | CullError::Sink => Fail::Python,
+        }
+    }
+}
+
+/// The model's results.
+pub type CullResult<T> = Result<T, CullError>;
+
+/// `CullTreeError(msg)`.
+pub fn cte(msg: impl Into<String>) -> CullError {
+    CullError::CullTree(msg.into())
+}
+
+const PY: CullError = CullError::Damaged;
 
 /// `open(path, 'rb').read()`.
-fn read(path: &str) -> PyResult<Vec<u8>> {
-    std::fs::read(path).map_err(|e| bc2_pyrt::err::os_error(path, &e))
+fn read(path: &str) -> CullResult<Vec<u8>> {
+    std::fs::read(path).map_err(|e| CullError::io(path, e))
 }
 
 /// Python's `max(a, b, ...)`: the first of the largest (an item replaces it only when greater).
@@ -82,7 +154,7 @@ pub fn py_max(v: &[f64]) -> f64 {
 // ------------------------------------------------------------------------------------------------ binary DBX
 
 /// A varint ([`bc2_formats::varint::read_u64`]); one past 64 bits is a big integer only Python reads.
-fn varint(data: &[u8], pos: usize) -> PyResult<(u64, usize)> {
+fn varint(data: &[u8], pos: usize) -> CullResult<(u64, usize)> {
     bc2_formats::varint::read_u64(data, pos).map_err(|_| PY)
 }
 
@@ -107,7 +179,7 @@ impl El {
     }
 
     /// `attr(name)` against the document's strings (an index past them: the reference's `IndexError`).
-    pub fn attr<'a>(&self, s: &'a [String], name: &str) -> PyResult<Option<&'a str>> {
+    pub fn attr<'a>(&self, s: &'a [String], name: &str) -> CullResult<Option<&'a str>> {
         for &(k, v) in &self.attrs {
             let key = s.get(usize::try_from(k).map_err(|_| PY)?).ok_or(PY)?;
             if key == name {
@@ -117,12 +189,12 @@ impl El {
         Ok(None)
     }
 
-    pub fn name<'a>(&self, s: &'a [String]) -> PyResult<Option<&'a str>> {
+    pub fn name<'a>(&self, s: &'a [String]) -> CullResult<Option<&'a str>> {
         self.attr(s, "name")
     }
 
     /// `child(name)`: the first child of that name, its index.
-    pub fn child(&self, s: &[String], name: &str) -> PyResult<Option<usize>> {
+    pub fn child(&self, s: &[String], name: &str) -> CullResult<Option<usize>> {
         for (i, c) in self.children.iter().flatten().enumerate() {
             if c.name(s)? == Some(name) {
                 return Ok(Some(i));
@@ -132,7 +204,7 @@ impl El {
     }
 
     /// `numbers()`: (size, values), each value sliced as Python slices (short at the end).
-    pub fn numbers(&self) -> PyResult<(u64, Vec<Vec<u8>>)> {
+    pub fn numbers(&self) -> CullResult<(u64, Vec<Vec<u8>>)> {
         let (count, p) = varint(&self.value, 0)?;
         let (size, p) = varint(&self.value, p)?;
         if count > 1 << 24 || size > 1 << 32 {
@@ -149,7 +221,7 @@ impl El {
     }
 
     /// `set_numbers(size, values)`.
-    pub fn set_numbers(&mut self, size: u64, values: &[Vec<u8>]) -> PyResult<()> {
+    pub fn set_numbers(&mut self, size: u64, values: &[Vec<u8>]) -> CullResult<()> {
         let mut out = Vec::new();
         put_varint(values.len() as u64, &mut out);
         put_varint(size, &mut out);
@@ -175,13 +247,13 @@ pub struct Doc {
     trailer: Vec<u8>,
 }
 
-fn be32(d: &[u8], at: usize) -> PyResult<u32> {
+fn be32(d: &[u8], at: usize) -> CullResult<u32> {
     let b = d.get(at..at + 4).ok_or(PY)?;
     Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
 }
 
 /// The header and string table of a binary DBX file: (string area, strings, where the elements start).
-fn header(data: &[u8], name: &str) -> PyResult<(Vec<String>, usize)> {
+fn header(data: &[u8], name: &str) -> CullResult<(Vec<String>, usize)> {
     if data.len() <= 24 || !data.starts_with(MAGIC) {
         return Err(cte(format!("{name} is not a binary .dbx file")));
     }
@@ -202,7 +274,7 @@ fn header(data: &[u8], name: &str) -> PyResult<(Vec<String>, usize)> {
 }
 
 impl Doc {
-    pub fn parse(data: &[u8], name: &str) -> PyResult<Self> {
+    pub fn parse(data: &[u8], name: &str) -> CullResult<Self> {
         let (strings, pos) = header(data, name)?;
         let head12 = data[12..16].to_vec();
         let string_area = data[24.min(data.len())..pos.min(data.len())].to_vec();
@@ -244,7 +316,7 @@ impl Doc {
         })
     }
 
-    pub fn read(path: &str) -> PyResult<Self> {
+    pub fn read(path: &str) -> CullResult<Self> {
         Self::parse(&read(path)?, &basename(path))
     }
 
@@ -290,14 +362,14 @@ impl Doc {
     }
 
     /// `write(path)`: its folder made, the file written.
-    pub fn write(&self, path: &str) -> PyResult<()> {
+    pub fn write(&self, path: &str) -> CullResult<()> {
         let dir = dirname(&abspath(path));
-        std::fs::create_dir_all(&dir).map_err(|e| mkdir_error(&dir, &e))?;
-        std::fs::write(path, self.tobytes()).map_err(|e| bc2_pyrt::err::os_error(path, &e))
+        std::fs::create_dir_all(&dir).map_err(|e| mkdir_error(&dir, e))?;
+        std::fs::write(path, self.tobytes()).map_err(|e| CullError::io(path, e))
     }
 
     /// `instances`: the root's children tagged `instance` (their indices).
-    pub fn instances(&self) -> PyResult<Vec<usize>> {
+    pub fn instances(&self) -> CullResult<Vec<usize>> {
         let root = self.roots.first().ok_or(PY)?;
         let mut out = Vec::new();
         for (i, e) in root.children.iter().flatten().enumerate() {
@@ -335,23 +407,15 @@ fn unreachable_mut() -> &'static mut El {
     panic!("an instance index of a root without children")
 }
 
-/// `os.makedirs`'s error, as the reference reports it (else the reference's own).
-pub fn mkdir_error(dir: &str, e: &io::Error) -> Fail {
-    if e.kind() == io::ErrorKind::AlreadyExists {
-        return Fail::Err(PyErr {
-            kind: "FileExistsError".to_owned(),
-            msg: format!(
-                "[WinError 183] Cannot create a file when that file already exists: {}",
-                bc2_pyrt::fmt::str_repr(dir)
-            ),
-            filename: Some(dir.to_owned()),
-            what_to_do: None,
-        });
+/// `os.makedirs`'s error (reported as the reference reports it: the `From` impl).
+pub fn mkdir_error(dir: &str, e: io::Error) -> CullError {
+    CullError::Mkdir {
+        dir: dir.to_owned(),
+        source: e,
     }
-    bc2_pyrt::err::os_error(dir, e)
 }
 
-fn int4(e: &El) -> PyResult<i64> {
+fn int4(e: &El) -> CullResult<i64> {
     let (size, v) = e.numbers()?;
     if size != 4 || v.len() != 1 {
         return Err(cte("internal: not a single 4-byte number"));
@@ -360,7 +424,7 @@ fn int4(e: &El) -> PyResult<i64> {
     Ok(i64::from(i32::from_be_bytes(b)))
 }
 
-fn floats(e: &El) -> PyResult<Vec<f64>> {
+fn floats(e: &El) -> CullResult<Vec<f64>> {
     let (size, v) = e.numbers()?;
     if size != 4 {
         return Ok(Vec::new());
@@ -432,7 +496,7 @@ fn tuple_repr(c: Vec3) -> String {
 }
 
 /// `int(round(x))` (half to even; NaN and infinities raise in the reference).
-fn py_round(x: f64) -> PyResult<i64> {
+fn py_round(x: f64) -> CullResult<i64> {
     if !x.is_finite() || x.abs() > 9e15 {
         return Err(PY);
     }
@@ -440,7 +504,7 @@ fn py_round(x: f64) -> PyResult<i64> {
 }
 
 /// `encode(sphere, contain)`: keys whose decoded sphere holds the sphere and every one in `contain`.
-pub fn encode(s: &Sphere, contain: &[Sphere]) -> PyResult<[i64; 4]> {
+pub fn encode(s: &Sphere, contain: &[Sphere]) -> CullResult<[i64; 4]> {
     let mut keys = [0i64; 3];
     for i in 0..3 {
         keys[i] = py_round(s.c[i] * CENTER_SCALE)?;
@@ -539,7 +603,7 @@ impl Arena {
         self.nodes[n].data.max
     }
 
-    fn kids(&self, n: Id) -> PyResult<(Id, Id)> {
+    fn kids(&self, n: Id) -> CullResult<(Id, Id)> {
         match (self.nodes[n].left, self.nodes[n].right) {
             (Some(l), Some(r)) => Ok((l, r)),
             _ => Err(PY),
@@ -600,7 +664,7 @@ impl Arena {
 }
 
 /// `build(nodes)`: the preorder list as a linked tree, every Right offset checked: (root, used node count).
-pub fn build(arena: &mut Arena, nodes: &[NodeData]) -> PyResult<(Id, usize)> {
+pub fn build(arena: &mut Arena, nodes: &[NodeData]) -> CullResult<(Id, usize)> {
     if nodes.is_empty() || nodes[0].right == 0 {
         return Err(cte("the tree is empty"));
     }
@@ -665,10 +729,10 @@ const NODE_FIELDS: [&str; 6] = ["Right", "Max", "SphereKeyX", "SphereKeyY", "Sph
 
 /// A streamed `Nodes` array of a root child ([`CullTree::read_only`]): (its index among the child's children, the
 /// nodes up to the first that fails, that failure).
-type Streamed = (usize, Vec<NodeData>, Option<Fail>);
+type Streamed = (usize, Vec<NodeData>, Option<CullError>);
 
 /// The cull tree instance's `Nodes` and `EnumOffset` fields: (the array's index among its children, `EnumOffset`).
-fn fields(s: &[String], e: &El, base: &str) -> PyResult<(usize, i64)> {
+fn fields(s: &[String], e: &El, base: &str) -> CullResult<(usize, i64)> {
     let array = e.child(s, "Nodes")?;
     let eo = e.child(s, "EnumOffset")?;
     let (Some(array), Some(eo)) = (array, eo) else {
@@ -678,19 +742,19 @@ fn fields(s: &[String], e: &El, base: &str) -> PyResult<(usize, i64)> {
     Ok((array, int4(&kids[eo])?))
 }
 
-fn node_of(s: &[String], c: &El) -> PyResult<NodeData> {
+fn node_of(s: &[String], c: &El) -> CullResult<NodeData> {
     let mut v: HashMap<Option<String>, Vec<u8>> = HashMap::new();
     for f in c.children.iter().flatten() {
         let (_size, vals) = f.numbers()?;
         let first = vals.into_iter().next().ok_or(PY)?;
         v.insert(f.name(s)?.map(str::to_owned), first);
     }
-    let get = |k: &str| -> PyResult<Vec<u8>> {
+    let get = |k: &str| -> CullResult<Vec<u8>> {
         v.get(&Some(k.to_owned()))
             .cloned()
             .ok_or_else(|| cte(format!("a cull tree node has no field '{k}'")))
     };
-    let four = |b: Vec<u8>| -> PyResult<[u8; 4]> { b.as_slice().try_into().map_err(|_| PY) };
+    let four = |b: Vec<u8>| -> CullResult<[u8; 4]> { b.as_slice().try_into().map_err(|_| PY) };
     let right = i64::from(i32::from_be_bytes(four(get("Right")?)?));
     let max = f64::from(f32::from_be_bytes(four(get("Max")?)?));
     let mut keys = [0i64; 4];
@@ -703,7 +767,7 @@ fn node_of(s: &[String], c: &El) -> PyResult<NodeData> {
 }
 
 impl CullTree {
-    pub fn read(path: &str) -> PyResult<Self> {
+    pub fn read(path: &str) -> CullResult<Self> {
         let doc = Doc::read(path)?;
         let base = basename(path);
         let s = &doc.strings;
@@ -730,7 +794,7 @@ impl CullTree {
     /// `CullTree(path)` for a tree that is only read (round CT1: the reference levels' trees, a written tree read
     /// back): the same nodes, values and errors as [`CullTree::read`], the file streamed - its nodes taken as they
     /// are read instead of the whole document kept. Its document is empty: it cannot be written.
-    pub fn read_only(path: &str) -> PyResult<Self> {
+    pub fn read_only(path: &str) -> CullResult<Self> {
         use std::cell::RefCell;
         let data = read(path)?;
         let base = basename(path);
@@ -824,7 +888,7 @@ impl CullTree {
         array: usize,
         enum_offset: i64,
         nodes: Vec<NodeData>,
-    ) -> PyResult<Self> {
+    ) -> CullResult<Self> {
         let base = basename(path);
         let mut used = nodes.len();
         while used > 0 && nodes[used - 1] == NodeData::ZERO {
@@ -896,7 +960,7 @@ impl CullTree {
     }
 
     /// `write(path)`: the nodes from the first one's fields (values replaced, big-endian, same sizes), 256 spare.
-    pub fn write(&mut self, path: &str) -> PyResult<()> {
+    pub fn write(&mut self, path: &str) -> CullResult<()> {
         let mut flat = self.arena.flatten(self.root);
         flat.extend(std::iter::repeat_n(NodeData::ZERO, SPARE));
         let s = self.doc.strings.clone();
@@ -967,7 +1031,7 @@ impl Placed {
         out
     }
 
-    pub fn to_local(&self, w: Vec3) -> PyResult<Vec3> {
+    pub fn to_local(&self, w: Vec3) -> CullResult<Vec3> {
         let m = &self.m;
         let inv = inv3([
             [m[0][0], m[0][1], m[0][2]],
@@ -989,7 +1053,7 @@ impl Placed {
     }
 }
 
-fn inv3(r: [[f64; 3]; 3]) -> PyResult<[[f64; 3]; 3]> {
+fn inv3(r: [[f64; 3]; 3]) -> CullResult<[[f64; 3]; 3]> {
     let [a, b, c] = r;
     let det =
         a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
@@ -1032,7 +1096,7 @@ fn scan_instance(
     i: usize,
     objects: &mut Vec<Placed>,
     tree_refs: &mut HashMap<String, String>,
-) -> PyResult<()> {
+) -> CullResult<()> {
     for f in ["ExclusiveStaticCullTree", "ClientStaticCullTree"] {
         if let Some(c) = e.child(s, f)? {
             let kid = &e.children.as_ref().ok_or(PY)?[c];
@@ -1084,7 +1148,7 @@ fn scan_instance(
     Ok(())
 }
 
-fn no_objects(path: &str) -> Fail {
+fn no_objects(path: &str) -> CullError {
     cte(format!(
         "{} has no placed objects (Entity.ReferenceObjectData): not a level partition",
         basename(path)
@@ -1092,7 +1156,7 @@ fn no_objects(path: &str) -> Fail {
 }
 
 impl Level {
-    pub fn read(path: &str) -> PyResult<Self> {
+    pub fn read(path: &str) -> CullResult<Self> {
         let doc = Doc::read(path)?;
         let s = &doc.strings;
         let mut objects = Vec::new();
@@ -1124,7 +1188,7 @@ impl Level {
     }
 
     /// `set_enum(o, value)`.
-    pub fn set_enum(&mut self, o: usize, value: i64) -> PyResult<()> {
+    pub fn set_enum(&mut self, o: usize, value: i64) -> CullResult<()> {
         let v = i32::try_from(value).map_err(|_| PY)?;
         let (i, c) = self.objects[o].el;
         let el = &mut self.doc.instance_mut(i).children.as_mut().ok_or(PY)?[c];
@@ -1295,7 +1359,7 @@ fn stream_root(data: &[u8], start: usize, sink: &mut Sink) -> Result<bool, raw::
 
 /// `Level(path)`'s objects and tree references (the same values and the same errors as [`Level::read`]), the file
 /// streamed: the first root's children are read and dropped one by one instead of the whole document kept.
-pub fn scan_level(path: &str) -> PyResult<Objects> {
+pub fn scan_level(path: &str) -> CullResult<Objects> {
     let data = read(path)?;
     let name = basename(path);
     let (strings, pos) = header(&data, &name)?;
@@ -1304,7 +1368,7 @@ pub fn scan_level(path: &str) -> PyResult<Objects> {
     // Level.__init__'s order: the document read whole (its element errors first), `instances` (every root child's
     // tag looked up), then each instance in turn, then the check for objects
     let mut bad_tag = false;
-    let mut first: Option<Fail> = None;
+    let mut first: Option<CullError> = None;
     let mut child = |i, el: El| match usize::try_from(el.tag).ok().and_then(|t| strings.get(t)) {
         None => bad_tag = true,
         Some(t) if t == "instance" && !bad_tag && first.is_none() => {
@@ -1465,12 +1529,12 @@ fn median(vals: &mut [f64]) -> f64 {
 }
 
 /// The target pair's rows (`collect([(tree, level, label)])`).
-pub fn collect_target(tree: &CullTree, level: &Level, label: &str, found: &mut Found) -> PyResult<()> {
+pub fn collect_target(tree: &CullTree, level: &Level, label: &str, found: &mut Found) -> CullResult<()> {
     collect_in(tree, &level.objects, label, found)
 }
 
 /// [`collect_target`] over a level's objects.
-pub fn collect_in(tree: &CullTree, objects: &[Placed], label: &str, found: &mut Found) -> PyResult<()> {
+pub fn collect_in(tree: &CullTree, objects: &[Placed], label: &str, found: &mut Found) -> CullResult<()> {
     let label: Arc<str> = Arc::from(label);
     for (o, lv) in leaves_in(tree, objects) {
         let obj = &objects[o];
@@ -1621,7 +1685,7 @@ pub fn shape_in(blueprint: &str, found: &Found) -> Option<Shape> {
 
 /// `level_partitions(folder)`: every .dbx under the folder (sorted) that is not a tree or a description and holds
 /// `ExclusiveStaticCullTree`.
-pub fn level_partitions(folder: &str) -> PyResult<Vec<String>> {
+pub fn level_partitions(folder: &str) -> CullResult<Vec<String>> {
     level_partitions_in(folder, None)
 }
 
@@ -1632,7 +1696,7 @@ pub type Listed = (String, u64, i128, bool);
 /// [`level_partitions`], the search's answers kept in `store` (round CT1): a file whose size and modification time
 /// in the folder listing are those it had when it was searched is not read again. A file that cannot be read is
 /// never kept (it is read, and raises, every time).
-pub fn level_partitions_in(folder: &str, store: Option<&dyn RowStore>) -> PyResult<Vec<String>> {
+pub fn level_partitions_in(folder: &str, store: Option<&dyn RowStore>) -> CullResult<Vec<String>> {
     let rels = raw::dbx_files_stat(std::path::Path::new(folder));
     // (full path, path below the folder, listed stat)
     let mut files = Vec::with_capacity(rels.len());
@@ -1695,7 +1759,8 @@ pub fn level_partitions_in(folder: &str, store: Option<&dyn RowStore>) -> PyResu
 /// A reference level's rows (`RefRows`), or (reference mode) the error its `collect()` raises later.
 pub struct RefLevel {
     pub label: String,
-    pub rows: PyResult<Found>,
+    /// The rows, or the `CullTreeError` text of the tree's `collect`.
+    pub rows: Result<Found, String>,
 }
 
 fn same(a: &str) -> String {
@@ -1764,9 +1829,9 @@ pub trait RowStore: Sync {
 enum TreeOut {
     Rows(Found),
     /// a `CullTreeError` of the tree's read (true) or of `collect` (false)
-    Note(PyErr, bool),
+    Note(String, bool),
     /// any other exception: raised
-    Raise(Fail),
+    Raise(CullError),
 }
 
 impl TreeOut {
@@ -1779,7 +1844,7 @@ impl TreeOut {
             }),
             Self::Note(e, _) => Some(TreeEntry {
                 stat,
-                rows: Err(e.msg.clone()),
+                rows: Err(e.clone()),
             }),
             Self::Raise(_) => None,
         }
@@ -1788,20 +1853,20 @@ impl TreeOut {
     fn of(t: TreeEntry) -> Self {
         match t.rows {
             Ok(f) => Self::Rows(f),
-            Err(m) => Self::Note(PyErr::new("CullTreeError", m), true),
+            Err(m) => Self::Note(m, true),
         }
     }
 }
 
-fn is_cte(e: &Fail) -> bool {
-    matches!(e, Fail::Err(x) if x.kind == "CullTreeError")
+fn is_cte(e: &CullError) -> bool {
+    e.is_cull_tree()
 }
 
 /// The tree read and the level's rows collected in it, the objects left out (`collect([(tree, lv, label)])`).
 fn tree_rows(objects: &[Placed], tp: &str, label: &str) -> TreeOut {
     let tree = match CullTree::read_only(tp) {
         Ok(t) => t,
-        Err(Fail::Err(e)) if e.kind == "CullTreeError" => return TreeOut::Note(e, true),
+        Err(CullError::CullTree(e)) => return TreeOut::Note(e, true),
         Err(e) => return TreeOut::Raise(e),
     };
     let mut found = Found::default();
@@ -1814,14 +1879,14 @@ fn tree_rows(objects: &[Placed], tp: &str, label: &str) -> TreeOut {
             }
             TreeOut::Rows(found)
         }
-        Err(Fail::Err(e)) if e.kind == "CullTreeError" => TreeOut::Note(e, false),
+        Err(CullError::CullTree(e)) => TreeOut::Note(e, false),
         Err(e) => TreeOut::Raise(e),
     }
 }
 
 /// One reference level file read (or found in the cache), before the ordered pass chooses it.
 enum Pre {
-    Raise(Fail),
+    Raise(CullError),
     NotLevel,
     /// its exclusive tree is not found beside it
     NoTree,
@@ -1830,7 +1895,7 @@ enum Pre {
     Tree {
         st: Stat,
         tp: String,
-        size: PyResult<u64>,
+        size: CullResult<u64>,
         /// the tree's rows: from the cache, or read with the level (None: to be read if chosen)
         out: Option<TreeOut>,
     },
@@ -1847,7 +1912,7 @@ fn pre(p: &str, store: Option<&dyn RowStore>, skip: &[String]) -> Pre {
             // `Level(p)` raises as ref_pairs' read does, else the stat's own error
             return Pre::Raise(match scan_level(p) {
                 Err(f) => f,
-                Ok(_) => bc2_pyrt::err::os_error(p, &e),
+                Ok(_) => CullError::io(p, e),
             });
         }
     };
@@ -1892,11 +1957,11 @@ fn pre(p: &str, store: Option<&dyn RowStore>, skip: &[String]) -> Pre {
     }
     let size = std::fs::metadata(&tp)
         .map(|m| m.len())
-        .map_err(|e| bc2_pyrt::err::os_error(&tp, &e));
+        .map_err(|e| CullError::io(&tp, e));
     let mut out = None;
     if size.is_ok() {
         match stat_ns(&tp) {
-            Err(e) => out = Some(TreeOut::Raise(bc2_pyrt::err::os_error(&tp, &e))),
+            Err(e) => out = Some(TreeOut::Raise(CullError::io(&tp, e))),
             Ok(tst) => {
                 let hit = entry.trees.iter().position(|(k, t)| *k == key && t.stat == tst);
                 if let Some(i) = hit {
@@ -1924,7 +1989,7 @@ const PRE_THREADS: usize = 8;
 enum Event {
     Note(String),
     Tree(usize),
-    Raise(Fail),
+    Raise(CullError),
 }
 
 /// `ref_rows(refs, ref_dirs, log, target)` (with `reference`: `ref_pairs`, as `BFBC2_CULLTREE_REFERENCE=1` runs,
@@ -1940,15 +2005,15 @@ enum Event {
 pub fn ref_rows(
     refs: &[String],
     ref_dirs: &[String],
-    log: &mut dyn FnMut(&str) -> PyResult<()>,
+    log: &mut dyn FnMut(&str) -> CullResult<()>,
     target: Option<(&str, &str)>,
     reference: bool,
     store: Option<&dyn RowStore>,
-) -> PyResult<Vec<RefLevel>> {
+) -> CullResult<Vec<RefLevel>> {
     let store = if reference { None } else { store };
     let mut paths: Vec<String> = refs.to_vec();
     // the folders listed together (each one's files are searched on all cores too); the first error in their order
-    let lists: Vec<PyResult<Vec<String>>> = ref_dirs.par_iter().map(|d| level_partitions_in(d, store)).collect();
+    let lists: Vec<CullResult<Vec<String>>> = ref_dirs.par_iter().map(|d| level_partitions_in(d, store)).collect();
     for l in lists {
         paths.extend(l?);
     }
@@ -2040,11 +2105,8 @@ pub fn ref_rows(
         let label = splitext(&basename(p)).0;
         match rows.take().ok_or(PY)? {
             TreeOut::Rows(f) => out.push(RefLevel { label, rows: Ok(f) }),
-            TreeOut::Note(e, false) if reference => out.push(RefLevel {
-                label,
-                rows: Err(Fail::Err(e)),
-            }),
-            TreeOut::Note(e, _) => log(&format!("note: {tp}: {}; not used", e.msg))?,
+            TreeOut::Note(e, false) if reference => out.push(RefLevel { label, rows: Err(e) }),
+            TreeOut::Note(e, _) => log(&format!("note: {tp}: {e}; not used"))?,
             TreeOut::Raise(e) => return Err(e),
         }
     }
@@ -2052,11 +2114,11 @@ pub fn ref_rows(
 }
 
 /// `collect(pairs)`: the target's rows, then each reference level's.
-pub fn collect(tree: &CullTree, level: &Level, refs: &[RefLevel]) -> PyResult<Found> {
+pub fn collect(tree: &CullTree, level: &Level, refs: &[RefLevel]) -> CullResult<Found> {
     let mut found = Found::default();
     collect_target(tree, level, "level", &mut found)?;
     for r in refs {
-        let rows = r.rows.as_ref().map_err(Clone::clone)?;
+        let rows = r.rows.as_ref().map_err(|m| cte(m.clone()))?;
         for (bp, rows) in &rows.items {
             found.entry_or(bp.clone(), Vec::new).extend(rows.iter().cloned());
         }
@@ -2067,7 +2129,7 @@ pub fn collect(tree: &CullTree, level: &Level, refs: &[RefLevel]) -> PyResult<Fo
 // ------------------------------------------------------------------------------------------------ add
 
 /// `insert(tree, sub, sph)`: the subtree placed where the tree's spheres already hold it; the new internal node.
-pub fn insert(tree: &mut CullTree, sub: Id, sph: &Sphere) -> PyResult<Id> {
+pub fn insert(tree: &mut CullTree, sub: Id, sph: &Sphere) -> CullResult<Id> {
     let a = &mut tree.arena;
     let root = tree.root;
     let mut path = vec![root];
@@ -2132,7 +2194,7 @@ pub fn insert(tree: &mut CullTree, sub: Id, sph: &Sphere) -> PyResult<Id> {
 }
 
 /// `make_subtree(placed, first_leaf)`: (its top node, its sphere).
-pub fn make_subtree(a: &mut Arena, placed: &[(Sphere, f64)], first: i64) -> PyResult<(Id, Sphere)> {
+pub fn make_subtree(a: &mut Arena, placed: &[(Sphere, f64)], first: i64) -> CullResult<(Id, Sphere)> {
     let mut leaves = Vec::new();
     for (j, (s, mx)) in placed.iter().enumerate() {
         let keys = encode(s, &[])?;
@@ -2144,7 +2206,7 @@ pub fn make_subtree(a: &mut Arena, placed: &[(Sphere, f64)], first: i64) -> PyRe
         };
         leaves.push(a.push(data, None, None, Some(idx)));
     }
-    fn join_nodes(a: &mut Arena, ns: &[Id]) -> PyResult<Id> {
+    fn join_nodes(a: &mut Arena, ns: &[Id]) -> CullResult<Id> {
         if ns.len() == 1 {
             return Ok(ns[0]);
         }
@@ -2190,8 +2252,8 @@ pub fn add(
     level: &mut Level,
     objects: &[usize],
     found: &Found,
-    log: &mut dyn FnMut(&str) -> PyResult<()>,
-) -> PyResult<Vec<Added>> {
+    log: &mut dyn FnMut(&str) -> CullResult<()>,
+) -> CullResult<Vec<Added>> {
     let mut done = Vec::new();
     for &o in objects {
         let obj = level.objects[o].clone();

@@ -10260,3 +10260,111 @@ goldens and the byte-identical regression below. `parity_nk5_build.py` and `benc
   in chunks).
 - `navislands.py` and `navdetail.py` stay for their own callers (prune, features for the tests); the build reads the
   Rust defaults of their settings, so their module names no longer change a build.
+
+## PR1b-2-rest: the mesh viewer on its Rust port, typed errors, the anim and model tools in part (2026-11-22, branch `pr1b2r`)
+
+What PR1b-2 left ("PR1b-2", "What is left"), less sounds in process and the cache content keys / OPFOR's caches
+(round PR1b-1c's). Version **0.18.0** (removals: the pickle cache, `meshview.py`'s Python index / reader / renderer,
+`bc2-convert`'s `pickle-cache` feature, `granny.py`'s curve reader, LevelDiff's command line moved; CHANGELOG).
+Nothing was written to OPFOR's `game\`; the game never launched.
+
+### 1. The mesh viewer's Python API through `bc2_native` (audit AU5 ARC-4)
+
+| was (`meshview.py`) | now |
+|---|---|
+| `Index._build` / `_build_reference` / `_add_database`, the pickle `work\tools_out\meshview_index.pkl` (`CACHE_VERSION` 3) | `bc2_native.meshview_open(bundles, cache, say)` -> `MeshViewIndex` (`bc2_gamefs::meshindex::load`): the cache `meshview_index.bin` (magic `BC2MESHIX`, version 4, the bundles' signature, the four tables, the databases read, a SHA-1 of it all), built under its lock on all cores, not cached when something was left out; `where` / `parts` / `entries` the same dicts, made on first use (`MeshViewIndex.tables()`); `Index.locate` / `partitions_of` in Rust |
+| `load_mesh`, `_read_part` (+ `meshview_part`), `_values`, `_texture`, `mesh_surfaces` | `MeshViewIndex.load_mesh` / `mesh_surfaces` (`bc2_convert::meshview`); the dicts' arrays made from its bytes (writable copies, as before) |
+| `stack_models`, `render` (NumPy, triangle by triangle) | `bc2_native.meshview_stack` / `meshview_render` (`bc2_convert::meshview::render`) |
+| kept in Python | `_bundles` (OPFOR's step tracker sees the walk and the bundle list in `meshview_open`'s arguments), `read` / `read_many` with the partition cache (they read through `fbrb`, already Rust), `page()` (Project OPFOR's WW2 preview pages: `attachments.py`, `scopes.py`), the command line |
+
+`bc2_gamefs::meshindex::build` now leaves out what it cannot read and names it (`skipped`): the Python reference
+skipped an unreadable bundle or database but raised on a damaged database record; neither happens on DICE's files.
+`bfbc2.exe meshview` / `dbxcatalogue` build a missing index in Rust too (they handed that to the Python).
+
+**Parity on the real game copy** (a scratch script: the retired `meshview.py` archived from `8ce3cd9`, its pickle
+read as OPFOR's tools had it, against the new module; the new index built into a scratch cache):
+
+| what | result |
+|---|---|
+| the index (`where`, `parts`, `entries`: 166,054 / 26,846 / 9,776 rows) | the same items in the same order |
+| `load_mesh` of 405 meshes (5 fixed - the Garand, the Type 5, the M18, a soldier, the M1A2 - and 400 sampled with a seed), LODs 0 and 1 | **1,347 of 1,347 parts identical** (names, surfaces, textures, every array's dtype, shape and bytes, the images); `mesh_surfaces` the same |
+| `stack_models` of 120 groups of 1-3 meshes | identical offsets |
+| `render` side / top / front at 300 / 400 / 640 | **360 of 360 pictures identical** after the fix below |
+| time | index from its cache 0.3 s (the pickle 0.2 s), built 2.1 s; `load_mesh` 12.1 s vs 33.2 s; `render` 8.6 s vs 196.2 s for 360 pictures |
+
+The renderer's shading was one level off on some triangles (9 of 360 parity pictures, 1 to 28 pixels each): the facing's length
+is NumPy's `np.linalg.norm` of a float32 vector - OpenBLAS' `sdot`, each float32 square added in a double - and its
+dot with the light `ddot` with fused multiply-adds; the port summed in float32 and multiplied plainly. Found on
+19,045 real triangles (all equal now; the float32 sum missed 1,070 lengths, the plain dot 5,968); the editor's asset
+preview draws with the same code. A part whose positions are float64 (OPFOR builds some) is drawn in float32 now:
+59 of 120 such test pictures differ from NumPy's float64 drawing (previews only; none is a build output).
+
+Removed: `tests/test_f4_native.py`'s `meshview` area and its golden (the part reader it compared is the port's
+whole). `core/tests/cli_o3_meshview.py` writes the `.bin` from the format (an independent writer of it);
+`cli_o3_meshview` / `cli_o3_bf1943` goldens re-recorded from the Python command lines (only the cache file changed):
+98 of 98 and the bf1943 group as recorded.
+
+### 2. Typed errors, LevelDiff, one OPFOR finder
+
+- `bc2_levelwrite::culltool`: `CullError` (`CullTree`, `Io`, `Mkdir`, `Damaged`, `Sink` for a caller's log that
+  failed) and `CullResult` in place of the Python emulation's `Fail`; `From<CullError> for Fail` gives bfbc2.exe's
+  culltree the same exceptions. The cull group: **190 of 190** as recorded.
+- LevelDiff's command line (`Run`, `parse_args`, `run`, `USAGE`) in `bc2_tools::leveldiff` (the JSON through
+  `bc2_gamefs::atomic`); the comparison stays in `bc2_formats::dbxedit::leveldiff` (the editor's Diff panel).
+- `bc2_gamefs::game::find_opfor` / `opfor_candidates` / `walk_up` (`Beside::Only`, `Beside::Above`,
+  `OpforNotFound`): bc2-cli's gameindex, shader, navshared (navkit / navtools / harness), stockmp, bc2-menu and the
+  editor call it (six copies gone); each keeps its own message where the Python's differed.
+
+### 3. The anim and model tools
+
+- `granny.curve_keys` / `sample`: `bc2_convert::granny_edit::curve_keys` / `sample` (`bc2_native.granny_curve_keys`,
+  `granny_sample`); `_trunc_scale`, `_quat`, `bits_of` removed. `bfbc2-anim-tools/tests/test_granny_curves.py`
+  keeps the retired Python as the reference: built curves of every format (3,607 curves, 42,192 samples) and, with
+  `--game`, the WW2 tools' animations and every 8th other one of the game copy: see Tests.
+- `texwrite.py`'s packing (`resource`, `texture`'s header, `wrapped`, `l8_bytes`): `bc2_convert::texwrite::resource`
+  / `wrapped` / `l8_bytes`. The DXT encoders' principal axes stay `numpy.linalg.eigh`'s (OpenBLAS, processor
+  dependent: round F2a).
+
+### 4. The editor's install run on `Task`
+
+`export_ui::Install`'s run is a `Task<(bool, String)>` (its DF1 test hands it a receiver of `Result`s); a panic
+reads "The install: internal error (...)". The last of PR1b-0's hand-made workers but the two pipe readers.
+
+### WW2 rebuild
+
+OPFOR main `031d80e` (OPFOR_ROOT that checkout, `OPFOR_TOOLKIT` a scratch folder whose `bfbc2-tool-suite` junctioned
+to this worktree - its fresh `bc2_native.pyd` and `bfbc2.exe`, version 0.18.0 - and `operation-rising-sun` /
+`bf1943-tool-suite` to the real ones; `BFBC2_FBRB_CACHE` a scratch folder), `--jobs 2`: all 55 steps in 39.5 min
+(the 3 level chains side by side in 477 s; the machine shared with a cargo test build). `compare_oracle`: **10,852 of
+10,852 identical** (differ 0, missing 0, extra 0); `qa_checks.py` passed. Every WW2 tool's `meshview.Index`,
+`load_mesh`, `render` / `stack_models`, `granny.curve_keys` / `sample` and `texwrite` packing ran on this round's
+Rust. OPFOR's `SUITE_REQUIRES` (< 0.18.0) warned, as expected (OPFOR branch `pr1b2r` moves it to 0.18.0 - 0.19.0).
+
+### Tests
+
+- `cargo fmt`; `cargo clippy --all-targets -D warnings` on bc2-gamefs, bc2-convert, bc2-tools, bc2-formats,
+  bc2-levelwrite, bc2-menu, bc2-py, bc2-cli, bc2-editor; CI's per-group clippy of `bfbc2.exe` (all 17 groups in
+  `[features] default`, each alone): clean.
+- `cargo test` of those crates (but bc2-py): 30 test binaries, all pass (`meshindex`' cache round trip and damage,
+  `game`'s finder, `texwrite`'s packing, the editor's DF1 install test on `Task`).
+- `run_tests.py quick -j 2`: 129 of 130 at first - the repository rules wanted `test_granny_curves.py` in a tier
+  (added: `granny-curves`, `granny-curves:game`); then both pass (131 entries).
+- `test_cli_o3.py`: the meshview group 98 of 98 and the bf1943 group as re-recorded from the Python command lines
+  (only the cache file changed: `REKEY` takes the `.bin`'s SHA-1 trailer out, which hashes the case folder's paths);
+  the cull group 190 of 190 and the caches group as recorded (unchanged).
+- Game tier by hand: `test_meshview.py` (the Garand's parts, the soldier's coordinates, the picture), `test_granny.py`
+  (shifts, big-endian), `test_granny_curves.py --game` (GRANNY_GAME), `test_texwrite.py`, `test_model_f2a_native.py`
+  (6 of 6), `test_f4_native.py` (7 of 7), `test_deep_scan_fixes.py` (the unreadable bundle said, not cached).
+- `rust\native_census.py --check`: 273 exports, 0 without a caller (recorded again: OPFOR no longer calls
+  `meshview_index`); `python_status.py` regenerated; `spec/trace.py --check` ok (stockmp's citation moved with the
+  finder); ruff and mypy on the changed Python.
+
+### What is left (PR1b-2-rest2)
+
+- **Merge step 3**: culltool's `Doc` and the export's cull-tree walker on `EditDbx` (not started: 2,600 lines of the
+  Python emulation's codec to re-seat, proved by the Onslaught bundles' and the editor exports' cull trees).
+- **bc2-menu's typed errors** (220 uses of the Python emulation's `Fail` in the menu tools' library and aptgraft).
+- **rayon in bc2-cli's own CPU work** (not measured this round).
+- **`decimate.py`, `shapes.py`**: their quadric costs and tangents are NumPy matrix products through OpenBLAS; the
+  bits must be matched first (as the renderer's were here), with a parity test on OPFOR's weapon LODs.
+- **`Granny.put`**: a write into the Python reader's buffer; it moves when the Granny object is Rust's.

@@ -15,14 +15,17 @@ their vertex and index ranges; each part's vertex layout is in the shader databa
 shader, and the database entry '<mesh>/<shader>' names the shader's textures (the colour map is drawn). Positions are
 the parts' rest positions (skinned meshes: the pose they were modelled in). Nothing in the game copy is written.
 """
+# Round PR1b-2-rest (audit AU5 ARC-4): the index, load_mesh, mesh_surfaces, stack_models and render are the Rust
+# port's (bc2_native: MeshViewIndex, meshview_stack, meshview_render; rust/bc2-convert/src/meshview), this module the
+# NumPy arrays and dicts its callers take. The index's cache is work\tools_out\meshview_index.bin (bc2_gamefs'
+# format; the pickle meshview_index.pkl retired). page() stays Python: Project OPFOR BFBC2's WW2 previews write it.
 import base64
 import collections
 import io
 import os
-import pickle
 import re
-import struct
 import sys
+from typing import Any
 
 import numpy as np
 
@@ -33,20 +36,24 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('core', 'shader-tools', 'console-convert')
-import mesh as meshdata  # noqa: E402
+suite_paths.use('core', 'shader-tools')
 import shaderdb  # noqa: E402
-import texture  # noqa: E402
-from bfbc2core import atomicio, dbx, fbrb  # noqa: E402
+from bfbc2core import fbrb  # noqa: E402
 
-SIZE = dict(meshdata.SIZE)
-COLOUR = re.compile(r'(?i)_(d|dm|cm|c|col|color|colour|diff|diffuse|alb)$')
-NOT_COLOUR = re.compile(r'(?i)^textures/(sky|_general|_mask)/|dirtmask|_(n|nm|s|spec|m|mask|ao|cube|env)$')
-CACHE_VERSION = 3
+CACHE_NAME = 'meshview_index.bin'
 
 
 class ViewError(Exception):
     pass
+
+
+def _native() -> Any:
+    from bfbc2core import native
+    return native.require("the mesh viewer (meshview.py: the index, load_mesh, render)", 'meshview_open')
+
+
+def _say(text: str) -> None:
+    print(text, file=sys.stderr)
 
 
 # ------------------------------------------------------------------------------------------------ game copy index
@@ -70,16 +77,6 @@ def _bundles(root):
                 if f.lower().endswith('.fbrb'):
                     out.append((rel, os.path.join(dp, f)))
     return out
-
-
-def _native_index(bundles):
-    """bc2_native.meshview_index(bundles) when the Rust core is built (and BFBC2_PURE_PYTHON is not set), else None."""
-    if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0'):
-        return None
-    from bfbc2core import native
-    n = native.load()
-    fn = getattr(n, 'meshview_index', None) if n is not None else None
-    return fn(bundles) if fn is not None else None
 
 
 class Partitions:
@@ -134,119 +131,40 @@ PARTITIONS = Partitions()
 
 class Index:
     """Which bundle holds each entry (first stock bundle), and every level's Dx9 shader database facts: part name ->
-    vertex layout record, entry name -> texture names. Cached in work\\tools_out\\meshview_index.pkl, rebuilt when a
-    bundle changes."""
-    where: dict[str, tuple[str, str]]          # entry name (lower case) -> (bundle, entry name)
-    parts: dict[str, bytes]                    # part name -> vertex layout record (after its GUID)
-    entries: dict[str, list[str]]              # shader database entry name -> texture names
+    vertex layout record, entry name -> texture names - the Rust port's (bc2_native.meshview_open). Cached in
+    work\\tools_out\\meshview_index.bin, rebuilt when a bundle changes; an index with an unreadable bundle or database
+    left out is said and not cached. where / parts / entries are the dicts, made when first asked."""
 
     def __init__(self, root, cache=None):
-        """cache: the index file (default work\\tools_out\\meshview_index.pkl in the OPFOR folder; renderqa.py keeps
+        """cache: the index file (default work\\tools_out\\meshview_index.bin in the OPFOR folder; renderqa.py keeps
         its own, so that it writes nothing into the project it checks)."""
         self.root = root
-        bundles = _bundles(root)
-        # the full modification time (deep scan S5: whole seconds missed a same-size rewrite within the second)
-        sig = [(b, os.stat(b).st_size, os.stat(b).st_mtime_ns) for _, b in bundles]
-        path = cache or os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
-        if self._cached(path, sig):
-            return
-        # one process builds a missing index at a time; one that waited reads what the other wrote (tools or tests
-        # side by side: each built it for minutes, and a write over a file another was reading failed; 2026-11-17)
-        with atomicio.locked(path + '.lock'):
-            if not self._cached(path, sig):
-                self._build(bundles, sig, path)
+        path = cache or os.path.join(root, 'work', 'tools_out', CACHE_NAME)
+        # one process builds a missing index at a time (under the cache's lock); one that waited reads what the other
+        # wrote (tools or tests side by side: each built it for minutes, 2026-11-17)
+        self._ix = _native().meshview_open([b for _lv, b in _bundles(root)], path, _say)
+        if self._ix.databases:
+            fbrb._budget()                                  # as after a read of the bundles' databases
 
-    def _cached(self, path, sig):
-        """Takes the index from the cache file when it is this game copy's; False when missing, old or damaged."""
-        try:
-            with open(path, 'rb') as fh:
-                c = pickle.load(fh)
-            if c['version'] == CACHE_VERSION and c['sig'] == sig:
-                self.__dict__.update(c['data'])
-                return True
-        except Exception:                                       # noqa: BLE001 - missing, old, corrupt or foreign: rebuilt
-            pass
-        return False
+    def _tables(self) -> None:
+        self.__dict__['where'], self.__dict__['parts'], self.__dict__['entries'] = self._ix.tables()
 
-    def _build(self, bundles, sig, path):
-        print('indexing the game copy (once; cached) ...', file=sys.stderr)
-        # round O3: the tables built in the Rust core (bc2_native.meshview_index, the same objects shared, so the
-        # cache is this method's byte for byte); None where a bundle or database would be left out or the build would
-        # raise: the reference below runs and says so. BFBC2_PURE_PYTHON=1: the reference only.
-        got = _native_index([b for _lv, b in bundles])
-        if got is not None:
-            self.where, self.parts, self.entries, read = got
-            if read:
-                fbrb._budget()                                  # as after the reference's fbrb.read of a database
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            try:
-                self._write(path, sig)
-            except PermissionError as ex:                       # Windows: another process is reading the old file
-                print(f'index: built but not cached this time ({ex})', file=sys.stderr)
-            return
-        self._build_reference(bundles, sig, path)
+    def __getattr__(self, name: str) -> Any:
+        """where (entry name lower case -> (bundle, entry name)), parts (part name -> vertex layout record after its
+        GUID) and entries (shader database entry name -> texture names), made from the index on first use."""
+        if name in ('where', 'parts', 'entries') and '_ix' in self.__dict__:
+            self._tables()
+            return self.__dict__[name]
+        raise AttributeError(name)
 
-    def _build_reference(self, bundles, sig, path):
-        """_build in Python (the reference)."""
-        self.where, self.parts, self.entries = {}, {}, {}
-        skipped: list[str] = []
-        for _lv, b in bundles:
-            try:
-                ents = fbrb.entries(b)
-            except Exception as ex:                             # noqa: BLE001 - an unreadable bundle is skipped
-                skipped.append(f'{b} ({type(ex).__name__}: {ex})')
-                continue
-            for e in ents:
-                if not e.deleted:
-                    self.where.setdefault(e.name.lower(), (b, e.name))
-            # every Dx9 database of the bundle, each by its name (startup-00 holds two: the UI's and the menu
-            # background's - asked for the bundle alone, shaderdb.load refuses to pick, and that bundle was skipped)
-            for dbname in [e.name for e in ents if e.type.lower() == 'dx9shaderdatabase' and not e.deleted]:
-                try:
-                    db, _ = shaderdb.load(f'{b}:{dbname}', 9)
-                except Exception as ex:                         # noqa: BLE001 - a database it cannot read
-                    skipped.append(f'{b}:{dbname} ({type(ex).__name__}: {ex})')
-                    continue
-                self._add_database(db)
-        if skipped:
-            # an incomplete index is not cached (suite deep scan 2026-11-15, C3: a bundle locked for a moment was
-            # left out of a cache every later run trusted until some bundle changed) - it is said and built again
-            print(f'index: {len(skipped)} unreadable, left out of this run\'s index and not cached:\n  '
-                  + '\n  '.join(skipped), file=sys.stderr)
-            return
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        try:
-            self._write(path, sig)
-        except PermissionError as ex:                           # Windows: another process is reading the old file
-            print(f'index: built but not cached this time ({ex})', file=sys.stderr)
-
-    def _write(self, path, sig):
-        atomicio.write_bytes(path, pickle.dumps({'version': CACHE_VERSION, 'sig': sig,
-                                                 'data': {'where': self.where, 'parts': self.parts,
-                                                          'entries': self.entries}}))
-
-    def _add_database(self, db):
-        """A Dx9 database's facts, the first bundle's where names repeat."""
-        layouts = {r[:16]: r[16:] for r in db.layouts}
-        for n, g in db.parts:
-            if g in layouts:
-                self.parts.setdefault(n.lower(), layouts[g])
-        groups = db.entry_programs()
-        for n, g in db.entries:
-            if n.lower() in self.entries:
-                continue
-            tex = []
-            for pi in groups.get(g, []):
-                _, _, a, c = db.program_refs(pi)
-                for blk in (db.params[a], db.params[c]):
-                    for s in re.findall(rb'[A-Za-z0-9_/\.\- ]{6,}', blk):
-                        s = s.decode()
-                        if '/' in s and s not in tex:
-                            tex.append(s)
-            self.entries[n.lower()] = tex
+    def locate(self, name: str) -> tuple[str, str] | None:
+        """(bundle, entry name as the bundle holds it) of an entry (any case), or None."""
+        if 'where' in self.__dict__:
+            return self.__dict__['where'].get(name.lower())
+        return self._ix.locate(name)
 
     def read(self, name):
-        hit = self.where.get(name.lower())
+        hit = self.locate(name)
         if not hit:
             return None
         if hit[1].lower().endswith('.dbx'):
@@ -266,7 +184,7 @@ class Index:
         out: dict[str, bytes | None] = {}
         by: dict[str, list[tuple[str, str]]] = {}
         for n in names:
-            hit = self.where.get(n.lower())
+            hit = self.locate(n)
             if hit and hit[1].lower().endswith('.dbx') and not whole_bundles:
                 cached = PARTITIONS.peek(hit[0], hit[1])
                 if cached is not None:
@@ -286,154 +204,55 @@ class Index:
 
     def _partitions_of(self, bundle):
         """The .dbx entry names the index finds in bundle (Partitions reads them in one pass)."""
-        by = self.__dict__.get('_by_bundle')
-        if by is None:
-            by = {}
-            for b, n in self.where.values():
-                if n.lower().endswith('.dbx'):
-                    by.setdefault(b, []).append(n)
-            self._by_bundle = by
-        return by.get(bundle, [])
+        return self._ix.partitions_of(bundle)
+
+
+def _native_index(ix) -> Any:
+    """The Rust index behind a meshview.Index (load_mesh and mesh_surfaces need it)."""
+    n = getattr(ix, '_ix', None) if isinstance(ix, Index) else None
+    if n is None:
+        raise TypeError(f'a meshview.Index is needed, not {type(ix).__name__}')
+    return n
 
 
 # ------------------------------------------------------------------------------------------------ reading a mesh
 
 def mesh_surfaces(ix, name):
-    """{surface name (lower): shader asset path} from the mesh blueprint."""
-    out = {}
-    b = ix.read(name + '.dbx')
-    if b is not None:
-        x = dbx.to_xml(b)
-        for m in re.finditer(r'<field name="Name">([^<]*)</field>\s*<field ref="([^"]+)/[0-9a-fA-F-]{36}" name="Shader"', x):
-            out[m.group(1).lower()] = m.group(2)
-    if not out:                     # no blueprint: the database's entries for the mesh, by the shader's last name
-        pre = name.lower() + '/'
-        for e in ix.entries:
-            if e.startswith(pre):
-                out[e[len(pre):].rsplit('/', 1)[-1]] = e[len(pre):]
-    return out
+    """{surface name (lower): shader asset path} from the mesh blueprint; without one, the database's entries for the
+    mesh, by the shader's last name."""
+    return dict(_native_index(ix).mesh_surfaces(name))
 
 
 _surfaces = mesh_surfaces  # the earlier private name, kept for callers that still use it
 
 
-def _texture(ix, mesh_name, shader):
-    """(texture name, RGB array) of the colour map of entry '<mesh>/<shader>', or (None, None)."""
-    tex = ix.entries.get(f'{mesh_name}/{shader}'.lower(), [])
-    pick = [t for t in tex if COLOUR.search(t) and not NOT_COLOUR.search(t)]
-    pick += [t for t in tex if not NOT_COLOUR.search(t) and t not in pick]
-    for t in pick:
-        b = ix.read(t + '.res')
-        if b is None:
-            continue
-        try:
-            _, _, fmt = struct.unpack_from('<3I', b, 0)
-            lv = texture.levels(b)
-            _, _, w, h, data = lv[0]
-            if fmt not in texture.FORMATS:
-                continue
-            return t, texture.decode(data, w, h, fmt).clip(0, 255).astype(np.uint8)
-        except Exception:                                       # noqa: BLE001 - a texture it cannot decode
-            continue
-    return None, None
-
-
-def _values(raw, fmt, count):
-    if fmt == 0x03:
-        return np.frombuffer(raw, '<f4').reshape(count, -1)[:, :3]
-    if fmt == 0x04:
-        return np.frombuffer(raw, '<f4').reshape(count, -1)[:, :4]
-    if fmt in (0x05, 0x06, 0x07, 0x08):
-        return np.frombuffer(raw, '<f2').reshape(count, -1).astype(np.float32)
-    return None
-
-
-_PART_NATIVE: list[bool] = []
-
-
-def use_native(on):
-    """load_mesh's part reader in the Rust core (on, when built) or in Python (off) for this process."""
-    _PART_NATIVE[:] = [bool(on)]
-
-
-def _read_part(b, vbase, ibase, wide, p, els, stride, uv):
-    """(indices less their lowest (m, 3) int64, {usage: values}) of one part: its vertex block from its lowest to its
-    highest index, each usage's first element (stream 0; the texture coordinates' element uv for usage 0) as
-    _values reads it. In the Rust core when it is built (round F4: bc2_native.meshview_part), else
-    _read_part_reference; a part it does not take is the Python's."""
-    on = _PART_NATIVE[0] if _PART_NATIVE else os.environ.get('BFBC2_PURE_PYTHON', '') in ('', '0')
-    fn = None
-    if on:
-        from bfbc2core import native
-        m = native.load()
-        fn = getattr(m, 'meshview_part', None) if m is not None else None
-    got = None
-    vals = (vbase, ibase, p['first_index'], p['triangles'], p['vertex_offset'], stride)
-    if fn is not None and type(b) is bytes and all(type(v) is int and 0 <= v < 1 << 63 for v in vals) \
-            and (uv is None or type(uv) is int and uv >= 0) \
-            and all(type(e) is tuple and len(e) == 4 and all(type(x) is int for x in e) and 0 <= e[0] < 1 << 32
-                    and -(1 << 63) <= e[1] < 1 << 63 and 0 <= e[2] < 1 << 63 and -(1 << 63) <= e[3] < 1 << 63
-                    for e in els):
-        got = fn(b, vbase, ibase, bool(wide), p['first_index'], p['triangles'], p['vertex_offset'], list(els), stride,
-                 uv)
-    if got is None:
-        return _read_part_reference(b, vbase, ibase, wide, p, els, stride, uv)
-    _lo, n, cols, idx = got
-    attr = {u: np.frombuffer(v, np.float32).reshape(n, c) for u, (v, c) in cols.items()}
-    return np.frombuffer(idx, np.int64).reshape(-1, 3), attr
-
-
-def _read_part_reference(b, vbase, ibase, wide, p, els, stride, uv):
-    """The Python (the reference)."""
-    isz = 4 if wide else 2
-    idx = np.frombuffer(b, '<u4' if wide else '<u2', p['triangles'] * 3, ibase + p['first_index'] * isz).astype(np.int64)
-    lo, hi = int(idx.min()), int(idx.max())
-    n = hi - lo + 1
-    start = vbase + p['vertex_offset'] + lo * stride
-    block = np.frombuffer(b, np.uint8, n * stride, start).reshape(n, stride)
-    attr = {}
-    for i, (f, usage, off, stream) in enumerate(els):
-        if stream != 0 or f not in SIZE or (usage == 0 and i != uv):
-            continue
-        raw = np.ascontiguousarray(block[:, off:off + SIZE[f]]).tobytes()
-        v = _values(raw, f, n)
-        if v is not None and usage not in attr:
-            attr[usage] = v
-    return (idx - lo).reshape(-1, 3), attr
+def _array(b: bytes, dtype: Any, cols: int) -> np.ndarray:
+    """A writable (n, cols) array of the bytes (the callers change parts in place)."""
+    return np.frombuffer(b, dtype).reshape(-1, cols).copy()
 
 
 def load_mesh(ix, name, lod=0):
-    """[{name, surface, positions (n,3), normals, uvs, indices (m,3), texture name, image}] of the mesh's LOD."""
-    data_name = f'{name}_lod{lod}_data.res'
-    b = ix.read(data_name)
-    if b is None:
-        raise ViewError(f'{data_name}: in no stock bundle (meshview.py find <text> lists mesh names)')
-    m = meshdata.parse(b, False)
-    surfaces = mesh_surfaces(ix, name)
-    vbase = m['data']
-    ibase = vbase + m['vertex_bytes']
-    wide = m['wide_indices'] or False
+    """[{name, surface, positions (n,3), normals, uvs, indices (m,3), texture name, image}] of the mesh's LOD
+    (positions, normals and uvs float32, indices int64, the image (h, w, 3) uint8). Depth-only copies (_zonly) are
+    left out; a part without a vertex layout in any level's shader database, or without positions, is skipped and
+    said."""
+    try:
+        parts, notes = _native_index(ix).load_mesh(name, lod)
+    except ValueError as e:
+        raise ViewError(str(e)) from None
+    for n in notes:
+        print(n, file=sys.stderr)
     out = []
-    for p in m['parts']:
-        pname = p['name'].decode('latin-1')
-        if pname.lower().endswith('_zonly'):                     # depth-only copies: nothing to see
-            continue
-        rec = ix.parts.get(f'{name}_lod{lod}/{pname}/standard'.lower())
-        if rec is None:
-            print(f'  {pname}: no vertex layout in any level\'s shader database - skipped', file=sys.stderr)
-            continue
-        els, stride = meshdata.elements(rec)
-        uv = meshdata.texcoord_element(els)                 # not simply the first usage-0 element (soldiers)
-        indices, attr = _read_part(b, vbase, ibase, wide, p, els, stride, uv)
-        if 1 not in attr:
-            print(f'  {pname}: no position element - skipped', file=sys.stderr)
-            continue
-        surf = max((s for s in surfaces if pname.lower().endswith(s)), key=len, default=None)
-        tname, img = _texture(ix, name, surfaces[surf]) if surf else (None, None)
-        out.append({'name': pname, 'surface': surf, 'positions': attr[1][:, :3].astype(np.float32),
-                    'normals': attr[4][:, :3].astype(np.float32) if 4 in attr else None,
-                    'uvs': attr[0][:, :2].astype(np.float32) if 0 in attr else None,
-                    'indices': indices, 'texture': tname, 'image': img})
+    for pname, surf, (pos, n), nrm, uv, idx, tname, img in parts:
+        out.append({'name': pname, 'surface': surf, 'positions': _array(pos, '<f4', 3),
+                    'normals': _array(nrm, '<f4', 3) if nrm is not None else None,
+                    'uvs': _array(uv, '<f4', 2) if uv is not None else None,
+                    'indices': np.frombuffer(idx, '<u4').astype(np.int64).reshape(-1, 3),
+                    'texture': tname,
+                    'image': np.frombuffer(img[2], np.uint8).reshape(img[1], img[0], 3).copy() if img is not None
+                    else None})
+        if n != len(out[-1]['positions']):
+            raise ViewError(f'{name}: {pname}: {n} vertices read, {len(out[-1]["positions"])} given')
     return out
 
 
@@ -446,93 +265,51 @@ def _png(img):
     return buf.getvalue()
 
 
-def _long_axis(laid):
-    pts = np.concatenate([p['positions'] + off for _, parts, off in laid for p in parts])
-    return 0 if np.ptp(pts[:, 0]) >= np.ptp(pts[:, 2]) else 2
+def _f32(a: Any) -> bytes:
+    return np.ascontiguousarray(a, dtype='<f4').tobytes()
 
 
 def stack_models(models):
-    """The models one above the other (y), each centred on its own bounds: [(model name, parts, offset)]."""
-    out, y = [], 0.0
-    for name, parts in models:
-        pts = np.concatenate([p['positions'] for p in parts])
-        lo, hi = pts.min(0), pts.max(0)
-        off = -(lo + hi) / 2
-        off[1] = y - hi[1]
-        out.append((name, parts, off.astype(np.float32)))
-        y -= (hi[1] - lo[1]) + max(0.02, 0.15 * float(np.max(hi - lo)))
-    return out
+    """The models one above the other (y), each centred on its own bounds: [(model name, parts, offset)] (offset a
+    float32 (3,) array; positions drawn as float32)."""
+    models = list(models)
+    offs = _native().meshview_stack([b''.join(_f32(np.asarray(p['positions'])[:, :3]) for p in parts)
+                                     for _, parts in models])
+    return [(name, parts, np.array(off, np.float32)) for (name, parts), off in zip(models, offs)]
 
 
 _layout = stack_models  # the earlier private name, kept for callers that still use it
 
 
+def _render_part(p: dict) -> tuple:
+    """A part for bc2_native.meshview_render: float32 positions, whether it has normals, float32 uvs, uint32
+    indices, the colour image as (w, h, rgb bytes)."""
+    pos = np.asarray(p['positions'])[:, :3]
+    idx = np.asarray(p['indices']).reshape(-1, 3)
+    if len(idx) and (idx.min() < 0 or idx.max() >= len(pos)):
+        raise IndexError(f'{p.get("name", "a part")}: an index past its {len(pos)} vertices')
+    uv, tex = p.get('uvs'), p.get('image')
+    image = None
+    if tex is not None:
+        tex = np.asarray(tex)
+        if tex.dtype != np.uint8:
+            tex = np.clip(tex, 0, 255).astype(np.uint8)
+        tex = np.ascontiguousarray(tex[..., :3])
+        image = (tex.shape[1], tex.shape[0], tex.tobytes())
+    return (_f32(pos), p.get('normals') is not None, _f32(np.asarray(uv)[:, :2]) if uv is not None else None,
+            np.ascontiguousarray(idx, dtype='<u4').tobytes(), image)
+
+
 def render(laid, size=1200, view='side'):
-    """A z-buffered picture (RGB array) of the laid-out models: textured, lit by the normals. side: the models'
-    long horizontal axis across, up up; top: from above; front: along the long axis."""
-    la = _long_axis(laid)
-    other = 2 - la
-    axes = {'side': (la, 1, other, 1), 'top': (la, other, 1, -1), 'front': (other, 1, la, -1)}[view]
-    tris = []
-    for _, parts, off in laid:
-        for p in parts:
-            pos = p['positions'] + off
-            tris.append((pos, p))
-    allp = np.concatenate([t[0][np.unique(t[1]['indices'])] for t in tris])     # the vertices triangles use
-    a, bax, dax, sgn = axes
-    lo = np.array([allp[:, a].min(), allp[:, bax].min()])
-    hi = np.array([allp[:, a].max(), allp[:, bax].max()])
-    scale = (size - 40) / max(float(np.max(hi - lo)), 1e-6)
-    w = size
-    h = int((hi[1] - lo[1]) * scale) + 40
-    img = np.full((h, w, 3), 40, np.uint8)
-    zb = np.full((h, w), np.inf)
-    light = np.array([0.4, 0.8, 0.45]) / np.linalg.norm([0.4, 0.8, 0.45])
-    for pos, p in tris:
-        sx = (pos[:, a] - lo[0]) * scale + 20
-        sy = h - ((pos[:, bax] - lo[1]) * scale + 20)
-        sz = -sgn * pos[:, dax]
-        uv = p['uvs']
-        tex = p['image']
-        for t in p['indices']:
-            x0, x1, x2 = sx[t]
-            y0, y1, y2 = sy[t]
-            area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
-            if abs(area) < 1e-9:
-                continue
-            xa, xb = int(max(min(x0, x1, x2), 0)), int(min(max(x0, x1, x2), w - 1)) + 1
-            ya, yb = int(max(min(y0, y1, y2), 0)), int(min(max(y0, y1, y2), h - 1)) + 1
-            if xa >= xb or ya >= yb:
-                continue
-            gx, gy = np.meshgrid(np.arange(xa, xb) + 0.5, np.arange(ya, yb) + 0.5)
-            w0 = ((x1 - gx) * (y2 - gy) - (x2 - gx) * (y1 - gy)) / area
-            w1 = ((x2 - gx) * (y0 - gy) - (x0 - gx) * (y2 - gy)) / area
-            w2 = 1 - w0 - w1
-            inside = (w0 >= 0) & (w1 >= 0) & (w2 >= 0)
-            if not inside.any():
-                continue
-            z = w0 * sz[t[0]] + w1 * sz[t[1]] + w2 * sz[t[2]]
-            sub = zb[ya:yb, xa:xb]
-            hit = inside & (z < sub)
-            if not hit.any():
-                continue
-            sub[hit] = z[hit]
-            if p['normals'] is not None:
-                nrm = np.cross(pos[t[1]] - pos[t[0]], pos[t[2]] - pos[t[0]])
-                nl = np.linalg.norm(nrm)
-                shade = 0.35 + 0.65 * abs(float(nrm @ light) / nl) if nl > 0 else 1.0
-            else:
-                shade = 1.0
-            if tex is not None and uv is not None:
-                u = w0 * uv[t[0], 0] + w1 * uv[t[1], 0] + w2 * uv[t[2], 0]
-                v = w0 * uv[t[0], 1] + w1 * uv[t[1], 1] + w2 * uv[t[2], 1]
-                tx = (np.mod(u, 1.0) * (tex.shape[1] - 1)).astype(int)
-                ty = (np.mod(v, 1.0) * (tex.shape[0] - 1)).astype(int)
-                col = tex[ty[hit], tx[hit]].astype(np.float32)
-            else:
-                col = np.array([[170, 170, 170]], np.float32)
-            img[ya:yb, xa:xb][hit] = np.clip(col * shade, 0, 255).astype(np.uint8)
-    return img
+    """A z-buffered picture (RGB array) of the laid-out models: textured, lit by the triangles' facing (parts with
+    normals). side: the models' long horizontal axis across, up up; top: from above; front: along the long axis.
+    Drawn by the Rust port (bc2_convert::meshview::render) in float32 positions, as NumPy drew float32 parts."""
+    if view not in ('side', 'top', 'front'):
+        raise KeyError(view)
+    jobs = [([float(v) for v in np.asarray(off, np.float32)[:3]], [_render_part(p) for p in parts])
+            for _, parts, off in laid]
+    w, h, rgb = _native().meshview_render(jobs, int(size), view)
+    return np.frombuffer(rgb, np.uint8).reshape(h, w, 3).copy()
 
 
 PAGE = """<!doctype html>
@@ -647,7 +424,7 @@ def main(argv):
     models = []
     for a in args:
         name = _clean(a)
-        hit = ix.where.get(f'{name}_lod{lod}_data.res'.lower())
+        hit = ix.locate(f'{name}_lod{lod}_data.res')
         name = hit[1][:-len(f'_lod{lod}_data.res')] if hit else name
         parts = load_mesh(ix, name, lod)
         if not parts:
@@ -671,6 +448,6 @@ def main(argv):
 if __name__ == '__main__':
     try:
         sys.exit(main(sys.argv))
-    except (ViewError, shaderdb.ShaderDbError, meshdata.ConvertError) as e:
+    except (ViewError, shaderdb.ShaderDbError) as e:
         print(f'error: {e}', file=sys.stderr)
         sys.exit(1)
