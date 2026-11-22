@@ -18,7 +18,7 @@ and OPFOR's Wake Island build (`opfor:research/EMITTER_ATLAS.md`). Nothing here 
 
 ### FX-CLS-1: An effect is an EffectAsset; an emitter is an EmitterDocument
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 An effect partition's primary instance is an `Entity.EffectAsset` whose object is an `EffectEntityData`; its
 components are `EmitterEntityData` (each naming an emitter partition through `Emitter`, at its own `Transform` in the
@@ -29,6 +29,7 @@ Distinct partitions over the game copy: 2,882 emitter documents, 998 effect asse
 templates beside them (the effects' sounds), and a few meshes and blueprints (5 rigid meshes: factory and background
 smoke).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py emitters on the game copy, 2026-11-22: 4,285 partitions; primary classes EmitterDocument 2,882, EffectAsset 998, WaveAsset 322, SoundTemplate 69, RigidMeshAsset 5, ObjectBlueprint 5, MeshShaderSetAsset 3; 2,882 EmitterTemplateData]
 [code: rust/bc2-editor/src/overlays.rs:568-600]
 
@@ -131,13 +132,14 @@ target's atlas where it has room), and register the new partitions in the level'
 
 ### FX-PLACE-1: Effects are placed with GameEffectEntityData
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 A level places an effect with a `GameEffectEntityData` (in its level partition or a sub-blueprint) naming the effect
 blueprint: 13,083 placements in 82 of the game copy's 83 level partitions. `IsCameraProximityTriggered` true (3,024 in
 62 levels: rain and snow grids, dust, ambient smoke and insects) makes the effect play only while the camera is near
 it; false (DICE's night lamps) plays it everywhere.
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py lights on the game copy, 2026-11-22: 13,083 placed GameEffectEntityData in 82 level partitions; 3,024 camera-proximity in 62]
 
 ### FX-PLACE-2: A weather grid is many camera-proximity area effects
@@ -153,12 +155,13 @@ multiplayer level) until a playtest measures the cost.
 
 ### FX-PLACE-3: Emitters can act as point lights
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 35 of the 2,882 emitter templates act as point lights (LIGHT-PT-2): 25 light-source effects (`fx/misc/lightsource/`),
 3 muzzle flashes, detonations and ambient fires; 8 of the 35 are `Emissive`. `MaxCount` (live particles) on them is 1 -
 201 (6 x 22).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py emitters on the game copy, 2026-11-22: 35 point-light templates by folder; Emissive true x 8; MaxCount 1 .. 201]
 
 ## 5. The processor chain
