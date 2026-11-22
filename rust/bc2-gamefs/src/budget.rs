@@ -206,6 +206,28 @@ pub const SPECS: &[Spec] = &[
         "BFBC2_MESHVIEW_CACHE_MB",
         256.0,
     ),
+    // round PR1b-1c: dbxcatalogue's catalogue, Project OPFOR's WW2 QA pickles and its install's indexes
+    project(
+        "dbxcatalogue",
+        &["dbx_catalogue.pkl"],
+        &["work", "tools_out"],
+        "BFBC2_DBXCATALOGUE_CACHE_MB",
+        256.0,
+    ),
+    project(
+        "ww2qa",
+        &[".pkl"],
+        &["work", "ww2", "_qa", "cache"],
+        "BFBC2_WW2QA_CACHE_MB",
+        4096.0,
+    ),
+    project(
+        "ww2install",
+        &["install_index.pkl", "install_templates.pkl", "install_dbnames.pkl"],
+        &["work", "ww2"],
+        "BFBC2_WW2INSTALL_CACHE_MB",
+        256.0,
+    ),
 ];
 
 /// The cache of this name.

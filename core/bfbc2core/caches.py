@@ -153,6 +153,18 @@ PROJECT_CACHES: dict[str, Spec] = {s.name: s for s in (
     # preview, bfbc2.exe meshview): one file, made again (minutes) when it is gone (round PR1b-1, audit AU5 ARC-4)
     Spec('meshview', '', ('meshview_index.pkl',), 'BFBC2_MESHVIEW_CACHE_MB', MB, 256,
          "the mesh viewer's index of the game copy's meshes (meshview.Index)", project=('work', 'tools_out')),
+    # round PR1b-1c: the last pickles outside the budget. dbxcatalogue's catalogue of the game copy (one file, made
+    # again in minutes; beside meshview's index in tools_out), Project OPFOR's WW2 QA pickles (qa_checks.py: the
+    # stock and bundle indexes it reads again run after run, 2.1 GB in 148 files) and its install's indexes
+    # (wake_install.py: the BF1943 index, the templates, the database names)
+    Spec('dbxcatalogue', '', ('dbx_catalogue.pkl',), 'BFBC2_DBXCATALOGUE_CACHE_MB', MB, 256,
+         "BFBC2's DBX catalogue of the game copy (dbxcatalogue.load)", project=('work', 'tools_out')),
+    Spec('ww2qa', '', ('.pkl',), 'BFBC2_WW2QA_CACHE_MB', MB, 4096,
+         "Project OPFOR's WW2 QA indexes of the stock and built bundles (qa_checks.py)",
+         project=('work', 'ww2', '_qa', 'cache')),
+    Spec('ww2install', '', ('install_index.pkl', 'install_templates.pkl', 'install_dbnames.pkl'),
+         'BFBC2_WW2INSTALL_CACHE_MB', MB, 256,
+         "Project OPFOR's WW2 install indexes (wake_install.py)", project=('work', 'ww2')),
 )}
 
 

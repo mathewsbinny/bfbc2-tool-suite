@@ -28,6 +28,34 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **An XMA2 decoder in Rust** (round PR1b-1c, `rust/bc2-xma`): FFmpeg's `xma2` decoder ported, so the Xbox 360's
+  EA-XMA sounds (BFBC2's console files, Battlefield 1943's) decode in process. It gives `ffmpeg -cpuflags 0`'s
+  samples to the bit on all 4,657 XMA streams of both sound sets (spec rule XMA-DEC-1). The crate is under FFmpeg's
+  licence, LGPL-2.1-or-later (its `README.md`). `audio.xma_decode` / `bc2_native.audio_xma_decode` expose it.
+- Three project caches under the budget (`python -m bfbc2core.caches`, `bfbc2 caches`): `dbxcatalogue`
+  (`work\tools_out\dbx_catalogue.pkl`, `BFBC2_DBXCATALOGUE_CACHE_MB`, 256), `ww2qa` (Project OPFOR's
+  `work\ww2\_qa\cache`, `BFBC2_WW2QA_CACHE_MB`, 4096) and `ww2install` (its `work\ww2\install_*.pkl`,
+  `BFBC2_WW2INSTALL_CACHE_MB`, 256).
+
+### Changed
+- **Converting sounds needs no ffmpeg** (`audio.convert`, `audio.decode`, `convert_many`, `bfbc2 audio`, Project
+  OPFOR's WW2 sound port). Their samples are ffmpeg's C path's; ffmpeg's default run used CPU-dependent SIMD
+  transforms that differ from it in the last bit of about one sample in 6,000, so a converted Wave can differ in a
+  few bytes from one made with ffmpeg before. `audio.py` runs ffmpeg (with `-cpuflags 0`) only as the tests'
+  reference (`decode_xma` / `decode_reference` / `convert_reference` with `ffmpeg=True`). `AudioError`'s advice no
+  longer mentions ffmpeg.
+- The cull-tree row cache and the shader-coverage index are keyed by content (round PR1b-1c): a reference level and
+  its tree by their size and SHA-256 (`culltree` `CACHE_VERSION` 2), a level bundle by its SHA-256
+  (`shaderdb.COVER_VERSION` 2), so a copied, restored or touched file keeps its entries and a file rewritten with the
+  same size and time no longer keeps stale ones. Every entry is made again once.
+- `mapexport build`: the level's closure and its shader reach walk the level's partitions once (round PR1b-1c,
+  ALG-5); the outputs are the same bytes.
+
+### Removed
+- `bc2_convert::wavport::Ffmpeg` and the `ffmpeg` argument of `bc2_native.audio_convert` / `audio_decode` (and their
+  `'ffmpeg'` answer): the decoder runs in process.
+
 ## [0.17.0] - 2026-11-22
 
 ### Removed

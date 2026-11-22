@@ -90,6 +90,29 @@ fn named(d: &EditDbx) -> Vec<String> {
     out
 }
 
+/// What [`reach`] takes of a partition: the partitions it names (in walk order, repeats kept) and the mesh it gives
+/// entries ([`mesh_name`]). The export's closure parses every partition it walks once and keeps this ([`Memo`]), so
+/// the reach that follows reads and parses only what the closure did not walk (round PR1b-1c, ALG-5: one walk).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Parsed {
+    /// [`named`]'s answer.
+    pub named: Vec<String>,
+    /// [`mesh_name`]'s answer.
+    pub mesh: Option<String>,
+}
+
+/// Partitions already parsed, by lower-case name: each holds the bytes [`reach`] would read for that name.
+pub type Memo = HashMap<String, Parsed>;
+
+/// [`Parsed`] of partition `name` (lower case) from its parse (`None`: it does not parse, so it names nothing).
+#[must_use]
+pub fn parsed(name: &str, d: Option<&EditDbx>) -> Parsed {
+    d.map_or_else(Parsed::default, |d| Parsed {
+        named: named(d),
+        mesh: mesh_name(name, d),
+    })
+}
+
 /// Reads partitions for [`reach`]: each name's bytes (`None`: no such entry), in the order asked.
 pub type GetMany<'a> = dyn FnMut(&[String]) -> crate::export::Result<Vec<Option<Vec<u8>>>> + 'a;
 
@@ -105,21 +128,33 @@ pub type GetMany<'a> = dyn FnMut(&[String]) -> crate::export::Result<Vec<Option<
 ///
 /// # Errors
 /// A bundle does not read.
-pub fn reach(start: impl IntoIterator<Item = String>, get: &mut GetMany<'_>) -> crate::export::Result<Reached> {
+pub fn reach(
+    start: impl IntoIterator<Item = String>,
+    get: &mut GetMany<'_>,
+    memo: &Memo,
+) -> crate::export::Result<Reached> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut step: Vec<String> = start.into_iter().filter(|n| seen.insert(n.clone())).collect();
     let mut out = Reached::new();
     while !step.is_empty() {
         step.sort_unstable();
-        let got = get(&step)?;
+        // the step's partitions the closure did not parse, read together
+        let unread: Vec<String> = step.iter().filter(|n| !memo.contains_key(*n)).cloned().collect();
+        let mut got = if unread.is_empty() { Vec::new() } else { get(&unread)? }.into_iter();
         let mut next = Vec::new();
-        for (n, data) in step.iter().zip(got) {
-            let Some(data) = data else { continue };
-            let Ok(d) = EditDbx::parse(&data) else { continue };
-            if let Some(m) = mesh_name(n, &d) {
-                out.entry(m).or_insert_with(|| n.clone());
+        for n in &step {
+            let fresh;
+            let p = if let Some(p) = memo.get(n) {
+                p
+            } else {
+                let Some(data) = got.next().flatten() else { continue };
+                fresh = parsed(n, EditDbx::parse(&data).ok().as_ref());
+                &fresh
+            };
+            if let Some(m) = &p.mesh {
+                out.entry(m.clone()).or_insert_with(|| n.clone());
             }
-            next.extend(named(&d).into_iter().filter(|x| seen.insert(x.clone())));
+            next.extend(p.named.iter().filter(|x| seen.insert((*x).clone())).cloned());
         }
         step = next;
     }
@@ -153,20 +188,25 @@ fn read_live<S: std::hash::BuildHasher>(
 pub fn reach_staged<S: std::hash::BuildHasher>(
     ours: &[StagedEntry],
     live: &HashMap<String, Found, S>,
+    memo: &Memo,
 ) -> crate::export::Result<Reached> {
     let own: HashMap<String, &StagedEntry> = ours.iter().map(|e| (e.name.to_ascii_lowercase(), e)).collect();
     let start: Vec<String> = own.keys().filter(|k| is_dbx(k)).cloned().collect();
-    reach(start, &mut |names: &[String]| {
-        let theirs: Vec<&String> = names.iter().filter(|n| !own.contains_key(n.as_str())).collect();
-        let mut read = read_live(live, &theirs)?.into_iter();
-        Ok(names
-            .iter()
-            .map(|n| match own.get(n.as_str()) {
-                Some(e) => Some(e.data.clone()),
-                None => read.next().flatten(),
-            })
-            .collect())
-    })
+    reach(
+        start,
+        &mut |names: &[String]| {
+            let theirs: Vec<&String> = names.iter().filter(|n| !own.contains_key(n.as_str())).collect();
+            let mut read = read_live(live, &theirs)?.into_iter();
+            Ok(names
+                .iter()
+                .map(|n| match own.get(n.as_str()) {
+                    Some(e) => Some(e.data.clone()),
+                    None => read.next().flatten(),
+                })
+                .collect())
+        },
+        memo,
+    )
 }
 
 /// Whether an entry is one of a level's own shader databases (`levels/<lv>/shaders/<file>`), and its file name.
@@ -391,9 +431,11 @@ pub fn stock_reach(game: &Game, lv: &str) -> crate::export::Result<Reached> {
     let live = game.live(&loaded)?;
     let own = game.live(&game.level_bundles(lv, "level"))?;
     let start: Vec<String> = own.keys().filter(|k| is_dbx(k)).cloned().collect();
-    reach(start, &mut |names: &[String]| {
-        read_live(&live, &names.iter().collect::<Vec<_>>())
-    })
+    reach(
+        start,
+        &mut |names: &[String]| read_live(&live, &names.iter().collect::<Vec<_>>()),
+        &Memo::new(),
+    )
 }
 
 /// The meshes of a stock level's reach ([`stock_reach`]) its own database of `file` has no entry for (DICE's own:

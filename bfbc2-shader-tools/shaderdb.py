@@ -1679,7 +1679,7 @@ def coverage_reference(db: ShaderDb, meshes: Iterable[str]) -> dict[str, int]:
 # for each stock level's database, {every leading '/'-joined part of an entry's lower-case name: the entries under
 # it} - coverage(db, meshes) is then {m: prefixes.get(m, 0)}, for any meshes, without the database.
 
-COVER_VERSION = 1           # the index's layout and rules: a change makes every entry stale
+COVER_VERSION = 2           # the index's layout, rules and key (2: by content, round PR1b-1c): a change makes every entry stale
 
 
 def cover_prefixes(db: ShaderDb) -> dict[str, int]:
@@ -1705,12 +1705,30 @@ def cover_cache_dir() -> str | None:
     return caches.folder('shadercover')
 
 
-def _cover_key(bundle: str, dx: int) -> tuple[str, str]:
-    """(file name, key) of a level bundle's index entry: the bundle's identity (path, size, modification time), the
-    Dx and COVER_VERSION, hashed."""
+_COVER_DIGESTS: dict[tuple[str, int, int], str] = {}
+
+
+def _bundle_digest(bundle: str) -> str:
+    """The SHA-256 of a bundle's bytes, once per process for a file whose size and time stay as they were."""
     st = os.stat(bundle)
-    key = repr((COVER_VERSION, os.path.normcase(os.path.abspath(bundle)), st.st_size, st.st_mtime_ns, dx))
-    return hashlib.sha1(key.encode('utf-8')).hexdigest()[:24] + '.pkl', key
+    k = (os.path.normcase(os.path.abspath(bundle)), st.st_size, st.st_mtime_ns)
+    if k not in _COVER_DIGESTS:
+        h = hashlib.sha256()
+        with open(bundle, 'rb') as f:
+            for chunk in iter(lambda: f.read(1 << 20), b''):
+                h.update(chunk)
+        _COVER_DIGESTS[k] = h.hexdigest()
+    return _COVER_DIGESTS[k]
+
+
+def _cover_key(bundle: str, dx: int) -> tuple[str, str]:
+    """(file name, key) of a level bundle's index entry: the file name by the bundle's path, the key by its content
+    (its SHA-256, round PR1b-1c: before, its size and modification time), the Dx and COVER_VERSION. A bundle copied,
+    restored or touched with the same bytes keeps its entry; one rewritten in place within the same second with the
+    same size no longer keeps a stale one."""
+    key = repr((COVER_VERSION, _bundle_digest(bundle), dx))
+    name = repr((COVER_VERSION, os.path.normcase(os.path.abspath(bundle)), dx))
+    return hashlib.sha1(name.encode('utf-8')).hexdigest()[:24] + '.pkl', key
 
 
 def _cover_load(folder: str | None, bundle: str, dx: int) -> dict[str, Any] | None:

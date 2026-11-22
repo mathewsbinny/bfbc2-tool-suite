@@ -347,10 +347,10 @@ NavKit's walkability rules (`headroom`, `stair_slope`, `narrow_lips`, landings, 
 
 `bfbc2-console-convert/audio.py`'s EA-XAS codec runs in Rust (round E3a: `xas_encode_frames`, `xas_decode_frames`,
 `encode_xas` and the new `encode_xas_many`, all its sounds encoded at once; its NumPy reference retired 2026-11-18,
-see "Without a fallback" below). The new `audio.convert_many` converts many Waves side by side (ffmpeg's EA-XMA
-decodes in threads, the encoder without the interpreter). Since round F4 (2026-11-20) `audio.convert` / `decode`
-run in Rust whole, the ffmpeg glue included (`convert_many` without the interpreter's lock), the Python kept as the
-fallback.
+see "Without a fallback" below). The new `audio.convert_many` converts many Waves side by side. Since round F4 (2026-11-20)
+`audio.convert` / `decode` run in Rust whole (`convert_many` without the interpreter's lock), the Python kept as the
+fallback; since round PR1b-1c EA-XMA is decoded in process (`rust/bc2-xma`, FFmpeg's xma2 decoder ported, under
+FFmpeg's LGPL), so no ffmpeg is needed.
 So does `bfbc2-shader-tools`' shader translator (round E3f): `xenos.parse_shader` decodes in Rust (its tree's microcode attributes made on their first read), `xenos_hlsl.translate` translates in Rust (the program kept from the decode while the tree's microcode is unread, else the tree handed over), and the new `xenos.parse_many` / `xenos_hlsl.translate_many` take many programs at once on all cores; `parse_shader_python` is the decoder's reference (`xenos.use_native`, `xenos.backend()`); the translation has no Python since 2026-11-18.
 
 **Round F4** (2026-11-20, `rust/BENCHMARKS.md` "F4": F3's leftovers, each identical to its Python, which stays the

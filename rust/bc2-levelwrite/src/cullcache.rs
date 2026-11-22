@@ -1,8 +1,9 @@
 //! `culltree.py`'s reference row cache (`_RowCache`, round E3m) read and written by `bfbc2.exe culltree` (round CT1,
 //! `rust/BENCHMARKS.md` "CT1"): one pickle per reference level file, named by the SHA-1 of its
 //! `normcase(abspath(path))` (24 hex digits), holding
-//! `{'code', 'path', 'level': (size, mtime_ns), 'trees': {tree: {'stat': (size, mtime_ns), 'rows' or 'error'}},
-//! 'ref' or 'notlevel'}`. The rows are `{blueprint: [(label, leaf count, [((x, y, z), w, Max)], None)]}`.
+//! `{'code', 'path', 'level': (size, key), 'trees': {tree: {'stat': (size, key), 'rows' or 'error'}},
+//! 'ref' or 'notlevel'}` (key: the first 128 bits of the file's SHA-256, round PR1b-1c; until then `st_mtime_ns`).
+//! The rows are `{blueprint: [(label, leaf count, [((x, y, z), w, Max)], None)]}`.
 //!
 //! The Python and the Rust share the entries: `code` is `culltree.py`'s own (`CACHE_VERSION` and a digest of the
 //! file), which `bfbc2.exe` computes from the copy of `culltree.py` it was built with, so an entry is used only by

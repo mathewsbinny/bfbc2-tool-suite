@@ -1577,7 +1577,8 @@ pub fn build(
             sources.push(b);
         }
     }
-    let cl = closure(game, &block_loaded, &base_loaded, &level_all, &sources, true)?;
+    let mut memo = crate::shaders::Memo::new();
+    let cl = closure(game, &block_loaded, &base_loaded, &level_all, &sources, true, &mut memo)?;
     report.push(format!(
         "closure: {} partitions of the level's own and its base's bundles walked; {} entries copied into the level's \
          bundle (what the bundles it loads hide or lack); {} references to partitions in no bundle at all (DICE's own)",
@@ -1593,7 +1594,7 @@ pub fn build(
     // its own databases (SHDB-LVL-1), and a part with no program crashes the renderer (0x98BD6E, RNDR-DRAW-6)
     let t_shaders = std::time::Instant::now();
     let live_block = game.live(&block_loaded)?;
-    let reached = crate::shaders::reach_staged(&level_all, &live_block)?;
+    let reached = crate::shaders::reach_staged(&level_all, &live_block, &memo)?;
     let mut prefer = vec![donor_lv.clone(), base.clone()];
     for c in &closure_record {
         if let Some(l) = c
@@ -1956,8 +1957,13 @@ fn all_level_bundles(game: &Game) -> Vec<PathBuf> {
 
 /// The partition names a partition's references name (`<path>.dbx`, lower case).
 fn ref_partitions(data: &[u8]) -> Vec<String> {
-    EditDbx::parse(data).map_or_default(|d| {
-        let mut v: Vec<String> = refs_of(&d)
+    ref_partitions_of(EditDbx::parse(data).ok().as_ref())
+}
+
+/// [`ref_partitions`] from a partition's parse (`None`: it does not parse, so it names nothing).
+fn ref_partitions_of(d: Option<&EditDbx>) -> Vec<String> {
+    d.map_or_default(|d| {
+        let mut v: Vec<String> = refs_of(d)
             .into_iter()
             .filter_map(|r| {
                 r.rsplit_once('/')
@@ -1997,7 +2003,11 @@ struct Closure {
 /// BFBC2 profile, an object placed from another level's or set's bundle) - is copied (`copy`) with its resources
 /// (`<stem>.res`, `<stem>_*.res`) from the first of `sources` that has it (each read alone), else from any level
 /// bundle of the game copy (the shared ones first), and its references are followed too. Without `copy` (the check)
-/// they are listed as unresolved. A partition that only the base's own partitions name and that the base's own
+/// they are listed as unresolved.
+///
+/// Every partition it walks is parsed once, and what the shader reach takes of it kept in `memo` (round PR1b-1c,
+/// ALG-5): the reach after it then reads and parses only the partitions the closure does not walk (the shared
+/// bundles'), so the level's partitions are walked once for both. A partition that only the base's own partitions name and that the base's own
 /// bundles (`base_loaded`: what the stock base level loads) lack too is DICE's dangling reference: the stock level
 /// loads with it, so it is listed with the others in no bundle, never copied from an unrelated level. A copy's own
 /// references are looked for first in the bundle it came from.
@@ -2012,6 +2022,7 @@ fn closure(
     ours: &[StagedEntry],
     sources: &[PathBuf],
     copy: bool,
+    memo: &mut crate::shaders::Memo,
 ) -> Result<Closure> {
     let (live, hidden) = live_and_hidden(game, loaded)?;
     let base_live = game.live(base_loaded)?;
@@ -2021,6 +2032,17 @@ fn closure(
         .collect::<Result<_>>()?;
     let mut everywhere: Option<Vec<(PathBuf, HashMap<String, Found>)>> = None;
     let mut have: HashSet<String> = ours.iter().map(|e| e.name.to_ascii_lowercase()).collect();
+    // a name the level's own entries hold twice: the reach takes the last, the closure walks both (not kept)
+    let mut twice: HashSet<String> = HashSet::new();
+    {
+        let mut once = HashSet::new();
+        for e in ours {
+            let low = e.name.to_ascii_lowercase();
+            if !once.insert(low.clone()) {
+                twice.insert(low);
+            }
+        }
+    }
     let mut out = Closure::default();
     let mut todo: Vec<(Vec<u8>, String, Origin)> = ours
         .iter()
@@ -2032,7 +2054,13 @@ fn closure(
         // one round: every partition the round's partitions name (a walked base partition's naming counts least)
         let mut wanted: BTreeMap<String, (String, Origin)> = BTreeMap::new();
         for (data, by, origin) in todo.drain(..) {
-            for n in ref_partitions(&data) {
+            let d = EditDbx::parse(&data).ok();
+            let low = by.to_ascii_lowercase();
+            if !twice.contains(&low) {
+                let p = crate::shaders::parsed(&low, d.as_ref());
+                memo.insert(low, p);
+            }
+            for n in ref_partitions_of(d.as_ref()) {
                 if have.contains(&n) || seen.contains(&n) {
                     continue;
                 }
@@ -3017,7 +3045,15 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     block_loaded.extend(game.startup());
     let mut base_loaded = game.loaded(&rec.base, "level");
     base_loaded.extend(game.startup());
-    let cl = closure(game, &block_loaded, &base_loaded, &own_entries, &[], false)?;
+    let cl = closure(
+        game,
+        &block_loaded,
+        &base_loaded,
+        &own_entries,
+        &[],
+        false,
+        &mut crate::shaders::Memo::new(),
+    )?;
     r.add(
         "XVAL-REF-5",
         cl.unresolved.is_empty(),
@@ -3624,7 +3660,7 @@ fn check_shaders(
     live: &HashMap<String, Found>,
     r: &mut CheckReport,
 ) -> Result<()> {
-    let reached = crate::shaders::reach_staged(own, live)?;
+    let reached = crate::shaders::reach_staged(own, live, &crate::shaders::Memo::new())?;
     let base_reach = crate::shaders::stock_reach(game, &rec.base)?;
     for e in own {
         let Some(file) = crate::shaders::database_file(&e.name, &e.type_name) else {
