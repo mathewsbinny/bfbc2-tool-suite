@@ -29,6 +29,19 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **The rest of the specification's gap pass** (round SPG2): 118 rules in nine new spec files and two extended ones -
+  `spec/transforms/terrain_edit.md` (what a terrain sculpt, paint or new terrain must write: heights and their range,
+  the patch map cells, the mask-tile atlas and its layouts, the donor rules, what the game computes; for E5 / E7),
+  `spec/engine/vegetation.md` (forests, middlegrowth and the terrain's undergrowth; for E6), `spec/transforms/shaders.md`
+  (BF1943's Xenos shaders translated for Dx10 / 11, the merge, Dx9's differences), `spec/engine/module.md` (every one
+  of the 221 addresses OPFOR's game module patches or calls in `BFBC2Game.exe` build 795745, and how it checks them),
+  `spec/engine/animation.md`, `spec/engine/decals.md`, `spec/engine/onslaught.md`, `spec/engine/streaming.md`,
+  `spec/formats/bf1943.md`; `spec/engine/persistence.md` (the `Persistence/*.dbx` classes, BFBC2's and BF1943's ranks
+  and awards) and `spec/engine/effects.md` (the emitters' processor chain). Two read-only probes
+  (`spec/probes/terrain.py`, `spec/probes/effects_chain.py`) and the first game-tier check of probe counts,
+  `core/tests/test_spec_probes.py` (`run_tests.py game`, entry `spec-probes:game`), which verifies 14 rules.
+  Corrected in place from DICE's 30 terrains: TERR-VT-3, TERR-VT-4, TERR-VT-7, RNDR-TERR-5; LIGHT-PT-3's attribution
+  of the game copy's ONS_MP_002 (OPFOR's console port, not Napisal's).
 - **The bot AI specification** (round AIS): what a bot AI decision-and-control implementation needs in BFBC2, in
   two new spec files - `spec/engine/bot_ai.md` (41 rules: the server's AI frame and its time-sliced sensing / decision /
   behaviour passes, the per-player AI proxy and the bot object, goals / behaviours / plans / squad behaviours; the
