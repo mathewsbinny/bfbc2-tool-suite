@@ -40,6 +40,7 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 pub mod astar;
+pub mod detail;
 pub mod domains;
 pub mod graph;
 pub mod graphedit;

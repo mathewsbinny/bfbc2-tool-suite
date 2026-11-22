@@ -7943,6 +7943,38 @@
    ]
   },
   {
+   "id": "KYM-DF-2",
+   "title": "F polygons where DICE's data decides nothing (NavKit's generator)",
+   "file": "spec/formats/hpd.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/detail.rs:529-585"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/detail.rs:653-715"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::a_loop_starting_at_a_pinch_takes_the_least_edge"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::nearest_f_cells_toward_the_side"
+    },
+    {
+     "kind": "data",
+     "ref": "18 DICE infantry files: 195,813 of 195,813 normal-pitch F vertices at cell corners; 44,380 of 44,380 F records closed, counter-clockwise, no repeated vertex, no two records of one direction in an area sharing a vertex"
+    },
+    {
+     "kind": "data",
+     "ref": "NavKit's 15 regression builds, 27,193 detail calls: 0 loops starting at a pinch; 17 vertices with tied nearest F cells of different heights"
+    }
+   ]
+  },
+  {
    "id": "KYM-LINK-1",
    "title": "Neighbour links",
    "file": "spec/formats/hpd.md",
