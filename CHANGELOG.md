@@ -28,8 +28,33 @@ landed on `main`.
 
 ## [Unreleased]
 
-### Changed
+## [0.17.0] - 2026-11-22
 
+### Removed
+- **`bfbc2-auto-navkit/tools/navbuild.py`** (round NK5-rest), with its command line (`python navbuild.py <samples.bin>
+  <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd> ...`): NavKit's whole build is the Rust core's since round NK5, and
+  `navkit.py build` / `apply` / `all` (or `bfbc2.exe navkit build`) build a level from its prepared inputs. Its thin
+  calls moved to `navwalk.py` (`navwalk.build`, `water_tops`, `outside_bounds`, `deep_water`); its `BuildSettings`
+  and module switches are the Rust defaults (`bc2_navbuild::stage::BuildSettings` / `Switches`), which a caller
+  overrides with a dict (`navkit.py --no-detail`: `{'detail_features': False}`; `navvehicle.vehicle_settings()`);
+  `bc2_native.navkit_settings()` lists them. Its Python stage, `merge_detailed`, `detail_pass`, `drop_one_way`,
+  `restore_one_way` and `half_cells` twins went with it. No other project imported it (Project OPFOR has no caller).
+  Every regression level builds the same bytes.
+- Four NavKit tests became Rust tests (`rust/bc2-navbuild/src/stage_tests.rs`): `test_column_sectors.py`,
+  `test_area_link.py`, `test_portal_symmetry.py` and `test_bridge_union.py` (their runner entries `column-sectors`,
+  `area-link`, `portal-symmetry`, `bridge-union` with them); the detail pass's and route lines' checks of
+  `test_detail_features.py` and the settings' checks of `test_tool_edges.py` too.
+
+### Changed
+- `bc2_native.navkit_build`, `navkit_stage_grid` and `navkit_write_stage` take the build's settings and switches as
+  overrides of the Rust defaults (`None`: the defaults), and refuse an unknown key; new: `navkit_settings`,
+  `navkit_stage_answer` (a whole stage's answer, for the tests) and `NavLevel.drop_one_way` / `detail_pass` (the Rust
+  stage's own, for the tests). `test_navbuild_native.py` checks the Rust stage's whole stages against answers recorded
+  from navbuild.py's stage before it went (the same on all 10), and its E3c tracing through the Rust stage's
+  `drop_one_way` and detail pass against the retired Python's recording (456 of 456, unchanged).
+- Rounds NK2-NK4's parity scripts (`rust/parity_nk2_file.py`, `parity_nk3_detail.py`, `parity_nk4_walk.py`) hook into
+  navbuild.py's stage, so they run against pinned checkouts (at `bda5b8d`, the last with navbuild.py, or earlier) and
+  refuse a checkout without it.
 - NavKit's path data is closer to DICE's in structure (round NKG1): each sector's table bounds are the box of its
   route nodes (KYN-SEC-2), no edge is written twice (KYN-EDGE-4), and border portals beyond a sector's square link to
   the diagonal neighbour (KYN-LINK-1; 5,922 such link entries on the 15 regression levels, DICE 5,682). Every navparity
