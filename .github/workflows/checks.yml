@@ -81,7 +81,7 @@ jobs:
         working-directory: rust
         # round QW2 (audit AU2 A18): the groups are meant to build alone (bc2-cli/Cargo.toml [features])
         run: |
-          foreach ($g in @('menu','crash','nav','caches','stockmp','graft','audio','bf1943','meshview','cull','navkit','navtools','harness','texqa','shader','readers','import')) {
+          foreach ($g in @('menu','crash','nav','caches','stockmp','graft','audio','bf1943','meshview','cull','navkit','navtools','harness','texqa','shader','readers','import','mods')) {
             cargo clippy -p bc2-cli --no-default-features --features $g -- -D warnings
             if ($LASTEXITCODE) { Write-Error "the $g group does not build alone"; exit $LASTEXITCODE }
           }

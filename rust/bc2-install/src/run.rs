@@ -38,7 +38,7 @@ pub type Code = u8;
 pub type Stop = String;
 
 /// `stages.LEGACY`: the markers of the protocol before the install ledger.
-static LEGACY: LazyLock<Regex> = LazyLock::new(|| {
+pub(crate) static LEGACY: LazyLock<Regex> = LazyLock::new(|| {
     #[allow(clippy::expect_used, reason = "a constant pattern, checked by the tests")]
     Regex::new(r"(?i)\.opfor-(orig|new|last|[a-z0-9_.-]+-(orig|applied|new|prev|prevlast))$").expect("valid")
 });
