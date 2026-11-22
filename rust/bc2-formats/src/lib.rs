@@ -73,6 +73,7 @@ pub mod sha256;
 pub mod shaderdb;
 pub mod stfs;
 pub mod terrain;
+pub mod varint;
 pub mod water;
 pub mod wave;
 pub mod xiso;

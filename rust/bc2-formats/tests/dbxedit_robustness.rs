@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, missing_docs)]
 
 use bc2_formats::dbx::{self, DbxFile, Element};
-use bc2_formats::dbxedit::{self, EditFile, editor};
+use bc2_formats::dbxedit::{self, editor};
 use proptest::prelude::*;
 
 /// A small partition built with the `dbx` writer: instances with text, numbers, bools, references and an array.
@@ -34,22 +34,22 @@ fn built(names: &[String], numbers: &[u32]) -> Vec<u8> {
 }
 
 fn every_command(data: &[u8]) {
-    if let Ok(mut f) = EditFile::parse(data.to_vec()) {
-        let _ = f.serialize();
+    if let Ok(mut f) = dbxedit::read(data) {
+        let _ = dbxedit::serialize(&f);
         let _ = dbxedit::level_check(&f, Some(&f.clone()), &[]);
         let _ = editor::drop(&mut f, "00000000-0000-0000-0000-000000000000");
         let _ = editor::set_field(&mut f, "00000001-0000-0000-0000-000000000000", "Values", "1.5/2");
         let _ = editor::add_item(&mut f, "00000000-0000-0000-0000-000000000000", "Objects", "x", None);
         let _ = editor::replace_prefix(&mut f, "a", "B", &[]);
         let _ = editor::drop_field(&mut f, "Enabled");
-        let _ = f.serialize();
+        let _ = dbxedit::serialize(&f);
     }
     if let Ok(xml) = dbxedit::convert(data) {
-        let reference = EditFile::parse(data.to_vec()).ok();
+        let reference = dbxedit::read(data).ok();
         let _ = dbxedit::import(
             || Ok(xml.clone()),
             "x.xml",
-            reference.as_ref().filter(|r| r.is_binary),
+            reference.as_ref().filter(|r| r.is_binary()),
             &[],
         );
     }
@@ -85,12 +85,12 @@ proptest! {
         numbers in prop::collection::vec(any::<u32>(), 0..5),
     ) {
         let data = built(&names, &numbers);
-        let f = EditFile::parse(data.clone()).unwrap();
-        prop_assert_eq!(f.serialize().unwrap(), data.clone());
+        let f = dbxedit::read(&data).unwrap();
+        prop_assert_eq!(dbxedit::serialize(&f).unwrap(), data.clone());
         let xml = dbxedit::convert(&data).unwrap();
         prop_assert_eq!(&xml, &dbx::to_xml(&data).unwrap());
         let (back, report) = dbxedit::import(|| Ok(xml.clone()), "x.xml", Some(&f), &[]).unwrap();
-        prop_assert_eq!(back.serialize().unwrap(), data);
+        prop_assert_eq!(dbxedit::serialize(&back).unwrap(), data);
         prop_assert_eq!(report.changed + report.added + report.removed, 0);
     }
 

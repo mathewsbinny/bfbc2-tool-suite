@@ -97,23 +97,15 @@ pub struct Elements {
     pub end: usize,
 }
 
-fn varint(data: &[u8], mut pos: usize) -> Result<(u64, usize), ElementError> {
-    let start = pos;
-    let mut v = 0u64;
-    let mut shift = 0u32;
-    loop {
-        let b = *data.get(pos).ok_or(ElementError::Truncated(start))?;
-        pos += 1;
-        let low = u64::from(b & 0x7f);
-        if shift > 63 || (shift > 0 && low >> (64 - shift) != 0) {
-            return Err(ElementError::Varint(start));
-        }
-        v |= low << shift;
-        if b < 0x80 {
-            return Ok((v, pos));
-        }
-        shift += 7;
-    }
+/// A varint of the element stream ([`crate::varint::read_u64`]: past 64 bits is an error).
+///
+/// # Errors
+/// The data ends inside it, or it is past 64 bits.
+pub fn varint(data: &[u8], pos: usize) -> Result<(u64, usize), ElementError> {
+    crate::varint::read_u64(data, pos).map_err(|e| match e {
+        crate::varint::VarintError::Truncated(s) => ElementError::Truncated(s),
+        crate::varint::VarintError::TooLong(s) => ElementError::Varint(s),
+    })
 }
 
 /// Reads the element stream from `start` (24 + the string area's size) as `culltree.Doc` does.

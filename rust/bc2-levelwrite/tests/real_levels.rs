@@ -31,7 +31,7 @@ use std::path::{Path, PathBuf};
 
 use bc2_formats::dbx::edit::EditDbx;
 use bc2_formats::dbx::{self, CONTAINER};
-use bc2_formats::dbxedit::{EditFile, editor};
+use bc2_formats::dbxedit::{self as dx, editor};
 use bc2_levelwrite::diff::{Change, diff};
 use bc2_levelwrite::ops::{Duplicated, FieldSet, Moved};
 use bc2_levelwrite::write::refers_to;
@@ -401,12 +401,12 @@ fn edits_on_real_levels() {
         {
             let mut ours = LevelWriter::parse(&base).unwrap();
             ours.delete(&del_plain).unwrap();
-            let mut de = EditFile::parse(base.clone()).unwrap();
+            let mut de = dx::read(&base).unwrap();
             let (n, _) = editor::drop(&mut de, &del_plain).unwrap();
             assert_eq!(n, 1);
             assert_eq!(
                 ours.write().unwrap(),
-                de.serialize().unwrap(),
+                dx::serialize(&de).unwrap(),
                 "{name}: delete = DbxEdit drop"
             );
             refs.push("delete (no connections) = DbxEdit drop");
@@ -414,9 +414,9 @@ fn edits_on_real_levels() {
         if let Some(g) = &del_conn {
             let mut ours = LevelWriter::parse(&base).unwrap();
             let r = ours.delete(g).unwrap();
-            let mut de = EditFile::parse(base.clone()).unwrap();
+            let mut de = dx::read(&base).unwrap();
             editor::drop(&mut de, g).unwrap();
-            let theirs = EditDbx::parse(&de.serialize().unwrap()).unwrap();
+            let theirs = EditDbx::parse(&dx::serialize(&de).unwrap()).unwrap();
             let mine = EditDbx::parse(&ours.write().unwrap()).unwrap();
             assert_eq!(
                 diff(&theirs, &mine),
@@ -435,11 +435,11 @@ fn edits_on_real_levels() {
             };
             let mut ours = LevelWriter::parse(&base).unwrap();
             ours.set_field(&schema, g, f, v).unwrap();
-            let mut de = EditFile::parse(base.clone()).unwrap();
+            let mut de = dx::read(&base).unwrap();
             assert!(editor::set_field(&mut de, g, f, &dbxedit_text).unwrap());
             assert_eq!(
                 ours.write().unwrap(),
-                de.serialize().unwrap(),
+                dx::serialize(&de).unwrap(),
                 "{name}: set {f} = DbxEdit setfield"
             );
             refs.push(match v {
