@@ -134,7 +134,7 @@ NavKit driver, its Rust twin, the map editor) answer alike.
 
 [code: bfbc2-auto-navkit/navkit.py:77-108] [code: rust/bc2-navbuild/src/inputs.rs:168-234]
 [code: rust/bc2-editor/src/navdata.rs:1479-1494]
-[test: core/tests/test_gameledger.py::python_twin] [test: rust/bc2-formats/src/gameledger_tests.rs::ds1_sequence_keeps_dices_file]
+[test: core/tests/test_gameledger.py::python_twin] [test: rust/bc2-gamefs/src/ledger_tests.rs::ds1_sequence_keeps_dices_file]
 
 ## Parity target
 

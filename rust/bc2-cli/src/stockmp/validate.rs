@@ -19,12 +19,12 @@
 use std::fs;
 
 use bc2_formats::dbx::{self, parse_tree};
-use bc2_formats::dbxedit;
 use bc2_pyrt::json::{self as pyjson, Value};
 use bc2_stockmp::checks::{self, Shown};
 use bc2_stockmp::files;
 use bc2_stockmp::guid::new_guid;
 use bc2_stockmp::install::join;
+use bc2_tools::dbxedit;
 use regex::Regex;
 
 use super::Paths;

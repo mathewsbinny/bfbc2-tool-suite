@@ -722,7 +722,7 @@ pub fn stage_with(
         if let Some(dir) = out.parent() {
             std::fs::create_dir_all(dir).map_err(|e| vec![format!("{}: {e}", dir.display())])?;
         }
-        bc2_formats::atomic::write(&out, &[bytes]).map_err(|e| vec![format!("{}: {e:?}", out.display())])?;
+        bc2_gamefs::atomic::write(&out, &[bytes]).map_err(|e| vec![format!("{}: {e:?}", out.display())])?;
         files.push(crate::export::StagedFile {
             path: rel,
             install,

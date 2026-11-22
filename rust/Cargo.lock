@@ -413,6 +413,7 @@ version = "0.1.0"
 dependencies = [
  "bc2-convert",
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-harness",
  "bc2-install",
  "bc2-levelwrite",
@@ -421,6 +422,7 @@ dependencies = [
  "bc2-pyrt",
  "bc2-scene",
  "bc2-stockmp",
+ "bc2-tools",
  "embed-resource",
  "flate2",
  "regex",
@@ -434,6 +436,7 @@ name = "bc2-convert"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-pyrt",
  "memchr",
  "proptest",
@@ -449,10 +452,12 @@ version = "0.1.0"
 dependencies = [
  "bc2-convert",
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-levelwrite",
  "bc2-navbuild",
  "bc2-render",
  "bc2-scene",
+ "bc2-tools",
  "bytemuck",
  "eframe",
  "egui_dock",
@@ -476,10 +481,23 @@ dependencies = [
  "memchr",
  "proptest",
  "rayon",
+ "sha1_smol",
+ "stats_alloc",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bc2-gamefs"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "flate2",
+ "libz-rs-sys",
+ "proptest",
+ "rayon",
  "serde",
  "serde_json",
  "sha1_smol",
- "stats_alloc",
  "thiserror 2.0.21",
  "windows-sys 0.61.2",
 ]
@@ -501,6 +519,7 @@ name = "bc2-install"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-gamefs",
  "rayon",
  "regex",
  "serde",
@@ -513,9 +532,11 @@ version = "0.1.0"
 dependencies = [
  "bc2-convert",
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-navbuild",
  "bc2-pyrt",
  "bc2-scene",
+ "bc2-tools",
  "embed-resource",
  "png",
  "rayon",
@@ -532,6 +553,7 @@ name = "bc2-menu"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-pyrt",
 ]
 
@@ -540,8 +562,10 @@ name = "bc2-navbuild"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-scene",
  "bc2-shader",
+ "bc2-tools",
  "proptest",
  "rayon",
  "sha1_smol",
@@ -555,12 +579,14 @@ version = "0.1.0"
 dependencies = [
  "bc2-convert",
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-harness",
  "bc2-navbuild",
  "bc2-pyrt",
  "bc2-scene",
  "bc2-shader",
  "bc2-stockmp",
+ "bc2-tools",
  "iced-x86",
  "pyo3",
  "rayon",
@@ -575,6 +601,7 @@ name = "bc2-render"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-gamefs",
  "bc2-scene",
  "png",
  "rayon",
@@ -587,6 +614,7 @@ name = "bc2-scene"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-gamefs",
  "proptest",
  "rayon",
  "thiserror 2.0.21",
@@ -606,9 +634,21 @@ name = "bc2-stockmp"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-gamefs",
  "rayon",
  "serde_json",
  "sha1_smol",
+]
+
+[[package]]
+name = "bc2-tools"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "bc2-gamefs",
+ "proptest",
+ "rayon",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

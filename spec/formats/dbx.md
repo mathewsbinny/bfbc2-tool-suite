@@ -57,7 +57,7 @@ Status: **observed**
 The word at 8 is 24 + *A*, the body's offset. The suite's reader does not read it - it starts the body at 24 + *A*
 from the word at 16 - and both writers write it as 24 + *A*.
 
-Evidence: [data: word 8 = 24 + word 16 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/strings.rs:32-54] [code: rust/bc2-formats/src/dbx/writer.rs:215-222] [code: rust/bc2-formats/src/dbxedit/file.rs:319-330]
+Evidence: [data: word 8 = 24 + word 16 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/strings.rs:32-54] [code: rust/bc2-formats/src/dbx/writer.rs:207-214] [code: rust/bc2-formats/src/dbxedit/file.rs:255-255]
 
 ### DBX-HDR-4: The kept word
 
@@ -66,7 +66,7 @@ Status: **observed**
 The word at 12 is 0 in every file. Its meaning is unknown; DbxEdit keeps it as it is and the suite's own writer
 writes 0.
 
-Evidence: [data: 0 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbxedit/file.rs:214-215] [code: rust/bc2-formats/src/dbx/writer.rs:217]
+Evidence: [data: 0 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbxedit/file.rs:246-246] [code: rust/bc2-formats/src/dbx/writer.rs:209]
 
 ## 2. String table
 
@@ -87,7 +87,7 @@ Status: **observed**
 String 0 is the empty string in every file. It must be: a tag index of 0 closes the open container (DBX-ELEM-2), so
 string 0 cannot name an element, and a writer starts its table with `""`.
 
-Evidence: [data: 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/writer.rs:94-98] [code: rust/bc2-formats/src/dbxedit/file.rs:223-239]
+Evidence: [data: 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/writer.rs:86-90] [code: rust/bc2-formats/src/dbxedit/file.rs:246-254]
 
 ### DBX-STR-3: DICE's tables are packed but not deduplicated
 
@@ -134,7 +134,7 @@ Varints are unsigned LEB128. DICE's files always use the shortest form; the suit
 The reader takes any length; a value past 64 bits saturates and then fails as an index or count. (DbxEdit's own model
 reads a varint as a C# 32-bit `int`, shifts wrapping, as DbxEdit.cs did.)
 
-Evidence: [code: rust/bc2-formats/src/dbx/cursor.rs:49-72] [code: rust/bc2-formats/src/dbx/writer.rs:23-33] [code: rust/bc2-formats/src/dbxedit/file.rs:27-40] [test: rust/bc2-formats/src/dbx/writer.rs::varints] [test: rust/bc2-formats/src/dbxedit/file.rs::varints_as_dbxedit] [data: no varint of the 156,533 files has a redundant trailing group]
+Evidence: [code: rust/bc2-formats/src/dbx/cursor.rs:49-72] [code: rust/bc2-formats/src/dbx/writer.rs:23-25] [code: rust/bc2-formats/src/dbxedit/file.rs:27-40] [test: rust/bc2-formats/src/dbx/writer.rs::varints] [test: rust/bc2-formats/src/dbxedit/file.rs::varints_as_dbxedit] [data: no varint of the 156,533 files has a redundant trailing group]
 
 ### DBX-ELEM-1: The head byte
 
@@ -144,7 +144,7 @@ The head byte's high nibble is the kind, its low nibble the attribute count (so 
 refuses an element with more than 15 attributes, a kind above 15, or the empty tag. In the game an element has 0 to
 3 attributes.
 
-Evidence: [code: rust/bc2-formats/src/dbx/tree.rs:136-143] [code: rust/bc2-formats/src/dbx/writer.rs:133-142] [test: rust/bc2-formats/src/dbx/writer.rs::refuses_unwritable_elements] [data: attribute counts over 81.3 million elements: 0 3,349,462; 1 60,398,557; 2 17,231,281; 3 313,065]
+Evidence: [code: rust/bc2-formats/src/dbx/tree.rs:136-143] [code: rust/bc2-formats/src/dbx/writer.rs:125-134] [test: rust/bc2-formats/src/dbx/writer.rs::refuses_unwritable_elements] [data: attribute counts over 81.3 million elements: 0 3,349,462; 1 60,398,557; 2 17,231,281; 3 313,065]
 
 ### DBX-ELEM-2: Containers and the closing zero
 
@@ -163,7 +163,7 @@ Status: **verified**
 The body holds one root element, the `partition` container; a 0 where a tag would start at the top level ends the
 tree, and bytes after it are kept by DbxEdit as a trailer. DICE's files end exactly at the partition's closing 0.
 
-Evidence: [code: rust/bc2-formats/src/dbx/tree.rs:127-129] [code: rust/bc2-formats/src/dbxedit/file.rs:319] [test: rust/bc2-formats/src/dbx/reader.rs::stops_at_a_zero_tag_with_nothing_open] [data: one root, `partition`, in 156,533 of 156,533 files; no bytes after the tree in any]
+Evidence: [code: rust/bc2-formats/src/dbx/tree.rs:127-129] [code: rust/bc2-formats/src/dbxedit/file.rs:255] [test: rust/bc2-formats/src/dbx/reader.rs::stops_at_a_zero_tag_with_nothing_open] [data: one root, `partition`, in 156,533 of 156,533 files; no bytes after the tree in any]
 
 ### DBX-ELEM-4: Text values
 
@@ -292,7 +292,7 @@ first uses it (tag, attribute names and values, text), each once; header word 12
 not DICE's string order (DBX-STR-3), so its bytes differ from a game file's, but `parse(write(f))` gives `f`'s tree
 back for any tree it accepts.
 
-Evidence: [code: rust/bc2-formats/src/dbx/writer.rs:1-7] [code: rust/bc2-formats/src/dbx/writer.rs:104-115] [code: rust/bc2-formats/src/dbx/writer.rs:211-227] [test: rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree] [test: rust/bc2-formats/tests/robustness.rs::write_then_read_keeps_the_tree] [test: rust/bc2-formats/tests/writers.rs::writer_calls_agree] [test: core/tests/test_dbx_write_native.py::edge_trees]
+Evidence: [code: rust/bc2-formats/src/dbx/writer.rs:1-7] [code: rust/bc2-formats/src/dbx/writer.rs:96-107] [code: rust/bc2-formats/src/dbx/writer.rs:203-219] [test: rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree] [test: rust/bc2-formats/tests/robustness.rs::write_then_read_keeps_the_tree] [test: rust/bc2-formats/tests/writers.rs::writer_calls_agree] [test: core/tests/test_dbx_write_native.py::edge_trees]
 
 ### DBX-WR-2: The byte-keeping writers
 
@@ -304,7 +304,7 @@ word, each container's byte, every value's bytes, and the trailer. When the tabl
 string in table order (unused ones included) with its zero, offsets from the start of the string bytes. A string an
 edit needs reuses the first identical entry or is appended.
 
-Evidence: [code: rust/bc2-formats/src/dbxedit/file.rs:301-336] [code: rust/bc2-formats/src/dbxedit/file.rs:136-160] [test: rust/bc2-formats/src/dbxedit/file.rs::empty_file_round_trips] [test: rust/bc2-formats/src/dbxedit/file.rs::interning_reuses_the_first_entry] [test: rust/bc2-formats/src/dbx/edit.rs::unchanged_files_come_back] [test: core/tests/test_dbx_write_native.py::check_dbxedit] [doc: bfbc2-dbx-tools/FORMAT.md:73-84]
+Evidence: [code: rust/bc2-formats/src/dbxedit/file.rs:255-255] [code: rust/bc2-formats/src/dbxedit/file.rs:208-211] [test: rust/bc2-formats/src/dbxedit/file.rs::empty_file_round_trips] [test: rust/bc2-formats/src/dbxedit/file.rs::interning_reuses_the_first_entry] [test: rust/bc2-formats/src/dbx/edit.rs::unchanged_files_come_back] [test: core/tests/test_dbx_write_native.py::check_dbxedit] [doc: bfbc2-dbx-tools/FORMAT.md:73-84]
 
 ### DBX-WR-3: What the game requires of a written file
 
@@ -340,7 +340,7 @@ Status: **verified**
 A file imported without a reference gets header word 12 = 0, container bytes 0, scalar first bytes 1 and no trailer:
 the values every game file has (DBX-HDR-4, DBX-ELEM-2, DBX-ELEM-5, DBX-ELEM-3).
 
-Evidence: [code: rust/bc2-formats/src/dbxedit/file.rs:223-239] [test: rust/bc2-formats/src/dbxedit/file.rs::empty_file_round_trips] [doc: bfbc2-dbx-tools/FORMAT.md:157]
+Evidence: [code: rust/bc2-formats/src/dbxedit/file.rs:246-254] [test: rust/bc2-formats/src/dbxedit/file.rs::empty_file_round_trips] [doc: bfbc2-dbx-tools/FORMAT.md:157]
 
 ## Worked example
 

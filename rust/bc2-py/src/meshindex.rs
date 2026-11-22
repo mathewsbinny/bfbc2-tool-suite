@@ -1,9 +1,9 @@
-//! Round O3: `meshview.Index._build`'s tables in the Rust core (`bc2_formats::meshindex`), for the Python shim
+//! Round O3: `meshview.Index._build`'s tables in the Rust core (`bc2_gamefs::meshindex`), for the Python shim
 //! (`bfbc2-mesh-viewer\meshview.py`). The objects the reference shares are shared here too (each bundle path is the
 //! caller's own `str`, a layout record one `bytes` for every part using it, the one empty `bytes`), so the cache the
 //! caller pickles is the reference's byte for byte.
 
-use bc2_formats::meshindex;
+use bc2_gamefs::meshindex;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 

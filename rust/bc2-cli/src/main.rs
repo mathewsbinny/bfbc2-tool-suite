@@ -196,7 +196,7 @@ use bc2_pyrt::json as pyjson;
 
 use std::process::ExitCode;
 
-use bc2_formats::{dbxedit, fbrb};
+use bc2_tools::dbxedit;
 
 /// The fingerprint of the Rust sources this binary was built from (`build_native.py` passes it as it does to the
 /// module; empty when built by cargo alone).
@@ -243,7 +243,7 @@ type Runner = fn(&[String], Option<&str>) -> Run;
 fn tool(name: &str) -> Option<(&'static str, Runner)> {
     match name {
         "fbrbtool" => Some(("fbrbtool", |a, l| {
-            let o = fbrb::tool::run(a, l);
+            let o = bc2_tools::fbrbtool::run(a, l);
             Run {
                 code: o.code,
                 stdout: o.stdout,

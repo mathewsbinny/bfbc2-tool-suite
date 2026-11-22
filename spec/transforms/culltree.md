@@ -23,7 +23,7 @@ instance in the tree's own level or in the reference levels to take its shape (i
 object) from; it names the object and the fix (add a `--ref` level that has one). A shape resting on fewer than three
 instances with no other level agreeing is used and reported as a warning.
 
-[code: rust/bc2-levelwrite/src/culltool.rs:2226-2287] [test: bfbc2-culltree/tests/test_culltree.py::main]
+[code: rust/bc2-levelwrite/src/culltool.rs:2188-2249] [test: bfbc2-culltree/tests/test_culltree.py::main]
 
 ### XCULL-ADD-2: Result: the tree keeps its invariants, the level changes only in slots
 
@@ -34,7 +34,7 @@ After `add`, the tree holds the objects' new leaves at the end of the numbering,
 sphere contains them and its `Right` and `Max` are updated, the 256 spare nodes follow, and the level partition
 differs from the input only in those `Enumeration` values (CULL-ADD-1).
 
-[code: rust/bc2-levelwrite/src/culltool.rs:2108-2224] [test: bfbc2-culltree/tests/test_culltree.py::main] [test: bfbc2-culltree/tests/test_culltree_native.py::built_add]
+[code: rust/bc2-levelwrite/src/culltool.rs:2070-2186] [test: bfbc2-culltree/tests/test_culltree.py::main] [test: bfbc2-culltree/tests/test_culltree_native.py::built_add]
 
 ### XCULL-ADD-3: The Rust core gives the retired Python tool's files
 

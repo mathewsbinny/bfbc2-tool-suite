@@ -404,7 +404,7 @@ impl ProjectLock {
         let text = std::fs::read_to_string(lock_path(project)).ok()?;
         let f: LockFile = serde_json::from_str(&text).ok()?;
         if f.pc == author() {
-            if f.pid == i64::from(std::process::id()) || !bc2_formats::gameledger::pid_alive(f.pid) {
+            if f.pid == i64::from(std::process::id()) || !bc2_gamefs::liveness::pid_alive(f.pid) {
                 return None;
             }
             return Some(format!("on this PC, process {}, since {}", f.pid, f.since));
@@ -954,7 +954,7 @@ fn write_whole(path: &Path, text: &str) -> std::io::Result<()> {
 }
 
 /// Writes a file whole or not at all (round OP1, audit AU4 DS-20 / BUG-12): its folder made, then
-/// [`bc2_formats::atomic::write`] - a temporary file beside it, flushed to the disk (`sync_all`, so a power cut
+/// [`bc2_gamefs::atomic::write`] - a temporary file beside it, flushed to the disk (`sync_all`, so a power cut
 /// cannot leave the new name on empty data), moved over the file, the move tried again while another process holds
 /// the file for a moment (a virus scanner, a sync client). On any failure the temporary file is removed.
 ///
@@ -964,7 +964,7 @@ pub fn write_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
     }
-    Ok(bc2_formats::atomic::write(path, &[bytes])?)
+    Ok(bc2_gamefs::atomic::write(path, &[bytes])?)
 }
 
 #[cfg(test)]

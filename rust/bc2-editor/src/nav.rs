@@ -21,8 +21,8 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use bc2_formats::gameledger::{self, Ledger};
 use bc2_formats::terrain::Heightfield;
+use bc2_gamefs::ledger::{self as gameledger, Ledger};
 use bc2_levelwrite::navedit::{NavBase, NavEdit, NavRegion};
 use bc2_navbuild::astar::Graph;
 use bc2_navbuild::navtune::{self, Value};
@@ -684,10 +684,10 @@ pub fn write_side(path: &Path, text: &str) -> Result<(), EditorError> {
     if let Some(d) = path.parent() {
         std::fs::create_dir_all(d).map_err(|e| EditorError::Tool(format!("{}: {e}", d.display())))?;
     }
-    bc2_formats::atomic::write(path, &[text.as_bytes()]).map_err(|e| {
+    bc2_gamefs::atomic::write(path, &[text.as_bytes()]).map_err(|e| {
         EditorError::Tool(match e {
-            bc2_formats::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
-            bc2_formats::atomic::WriteError::Replace(e) => format!("{}: {e}", path.display()),
+            bc2_gamefs::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
+            bc2_gamefs::atomic::WriteError::Replace(e) => format!("{}: {e}", path.display()),
         })
     })
 }

@@ -479,7 +479,7 @@ pub fn build(
 /// # Errors
 /// A write error in words.
 pub fn write_out(out: &Path, data: &[u8], report: &Report, log: &mut dyn Log) -> Result<(), NavError> {
-    bc2_formats::atomic::write(out, &[data]).map_err(|e| NavError::Build(format!("{}: {e}", out.display())))?;
+    bc2_gamefs::atomic::write(out, &[data]).map_err(|e| NavError::Build(format!("{}: {e}", out.display())))?;
     log.line(&format!(
         "wrote {}: {} sectors, {} nodes, {} edges, {} bytes ({:.0} s)",
         out.display(),

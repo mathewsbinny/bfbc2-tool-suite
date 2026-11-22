@@ -10,19 +10,18 @@
 //! |---|---|
 //! | `entries(path)` | [`entries_path`] ([`read_header`] on any reader) |
 //! | `names(path)` | [`Header::names`] |
-//! | `read(path, names)` | [`read_path`] ([`read`] on any reader), [`read_many`] for many bundles on all cores |
+//! | `read(path, names)` | [`read_path_uncached`] ([`read`] on any reader); `bc2_gamefs::bundles::read_path` / `read_many` through the bundle cache |
 //! | `build(items, zipped)` | [`build`] (a test writer) |
-//! | `pack(folder, out)` (FbrbTool's `pack`) | [`pack_path`], [`pack_dir`], [`pack_many`] (streamed: the payload is never held); [`pack_rows_into`] to any writer; [`pack`] from entries in memory |
-//! | `unpack(bundle, out)` (FbrbTool's `unpack`) | [`unpack_path`], [`unpack_bytes`] (every bundle as FbrbTool unpacks it: [`tool`]'s engine) |
+//! | `pack(folder, out)` (FbrbTool's `pack`) | [`pack_dir`]; [`pack_rows_into`] to any writer (streamed: the payload is never held); [`pack`] from entries in memory; `bc2_gamefs::bundles::pack_path` / `pack_many` to a file |
+//! | `unpack(bundle, out)` (FbrbTool's `unpack`) | `bc2_tools::unpack_path` (FbrbTool's engine, `bc2_tools::fbrbtool`) |
 //! | `Entry`, `Entry.deleted`, `DELETED` | [`Entry`], [`Entry::is_deleted`], [`DELETED`] |
 //! | `ValueError` / `KeyError` / `OSError` | [`FbrbError`] |
 //!
-//! FbrbTool's command line in process ([`tool`], round E3k: `unpack`, `pack`, `list`, `big`, FbrbTool's files, messages
-//! and exit codes), its gzip streams read as .NET's `GZipStream` reads them ([`netgzip`]).
+//! FbrbTool's command line is `bc2_tools::fbrbtool` (round PR1b-2; its gzip streams read as .NET's `GZipStream` reads
+//! them: [`netgzip`]). The bundle cache (round E3e) is `bc2_gamefs::bundles`, built on [`stream`]: the payload's
+//! chunks, gzip member and entry collector.
 //!
-//! New here: [`extract`] / [`extract_path`] / [`extract_many`], every entry's data at once; the bundle cache
-//! ([`cache`], round E3e): the path functions keep headers and decompressed payloads, in the process and on disk, so a
-//! bundle read again is not decompressed again ([`read_path_uncached`] / [`extract_path_uncached`] read without it).
+//! New here: [`extract`] / [`extract_path_uncached`], every entry's data at once.
 //!
 //! The two gzip streams are read by the rules of the reference's two standard-library readers (`gzip.decompress`
 //! for the header, `zlib.decompressobj` fed 1 MiB at a time for the payload: see the `gzip` module), so the same
@@ -42,28 +41,29 @@
 //! ```
 
 mod build;
-pub mod cache;
 mod error;
 mod gzip;
 mod header;
 pub mod netgzip;
 mod pack;
 mod read;
-pub mod tool;
-mod unpack;
 
 pub use build::build;
 pub use error::{FbrbError, Result};
 pub use header::{DELETED, Entry, Header, MAGIC, parse_header_fields, read_header};
 pub use pack::{
     Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, SourceRow, decode_text,
-    entry_path, pack, pack_dir, pack_many, pack_path, pack_rows, pack_rows_into, parse_manifest,
+    entry_path, pack, pack_dir, pack_rows, pack_rows_into, parse_manifest,
 };
-pub use read::{
-    entries_path, extract, extract_many, extract_path, extract_path_uncached, read, read_many, read_path,
-    read_path_uncached, read_payload, stream_payload,
-};
-pub use unpack::{UnpackError, UnpackStats, unpack_bytes, unpack_path};
+pub use read::{entries_path, extract, extract_path_uncached, read, read_path_uncached, read_payload, stream_payload};
+
+/// The payload's stream pieces the bundle cache (`bc2_gamefs::bundles`) builds on: the chunk the reference reads, the
+/// gzip member fed chunk by chunk, the entries collected as the payload streams past.
+pub mod stream {
+    pub use super::gzip::{Member, zlib_header};
+    pub use super::pack::{StreamError, dir_rows, lines, pack_rows_stream, token};
+    pub use super::read::{CHUNK, Collector, read_full};
+}
 
 /// The length of the gzip member header at the start of `data` as zlib's inflate reads it (`zlib.decompressobj(31)`:
 /// reserved flags refused, the header checksum checked); `Ok(None)` when not all of it is there.

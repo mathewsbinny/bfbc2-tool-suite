@@ -367,7 +367,7 @@ fn main() {
     }
     if let Some(out) = value("--json") {
         let text = serde_json::to_string_pretty(&report).unwrap();
-        bc2_formats::atomic::write(&PathBuf::from(out), &[text.as_bytes()]).unwrap();
+        bc2_gamefs::atomic::write(&PathBuf::from(out), &[text.as_bytes()]).unwrap();
     }
     let _ = Mode::Conquest;
 }

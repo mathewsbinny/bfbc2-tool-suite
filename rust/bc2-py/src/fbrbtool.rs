@@ -1,7 +1,7 @@
 //! FbrbTool's commands in process (`bc2_formats::fbrbtool`), for `core/bfbc2core/fbrbtool.py`: a command line in, its
 //! exit code, output and log lines out, run with the interpreter released; a batch on all cores.
 
-use bc2_formats::fbrb::tool::{self, Outcome};
+use bc2_tools::fbrbtool::{self as tool, Outcome};
 use pyo3::prelude::*;
 
 /// `(exit code, stdout, stderr, [(level, message), ...])`.

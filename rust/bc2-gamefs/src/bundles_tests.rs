@@ -6,10 +6,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use rayon::prelude::*;
-
 use super::*;
-use crate::fbrb::{build, read_header, read_path_uncached};
+use bc2_formats::fbrb::{build, read_header, read_path_uncached};
 
 /// A folder of its own for each test (tests run side by side).
 struct TempDir(PathBuf);
@@ -68,7 +66,7 @@ fn items() -> Vec<(String, &'static str, Vec<u8>)> {
         };
         v.push((format!("Levels/Part{i:02}.dbx"), "<non-resource>", data));
     }
-    v.insert(5, ("Gone.dbx".into(), crate::fbrb::DELETED, vec![]));
+    v.insert(5, ("Gone.dbx".into(), fbrb::DELETED, vec![]));
     v.insert(9, ("Empty.txt".into(), "Text", vec![]));
     v.push(("Levels/Part03.dbx".into(), "<non-resource>", b"the later one".to_vec()));
     v
@@ -421,7 +419,7 @@ fn extract_through_the_cache() {
     for zipped in [true, false] {
         let p = dir.0.join(format!("b{zipped}.fbrb"));
         fs::write(&p, bundle(zipped)).unwrap();
-        let want = crate::fbrb::extract_path_uncached(&p).unwrap();
+        let want = fbrb::extract_path_uncached(&p).unwrap();
         let cache = Cache::new(config(u64::MAX, Some(&folder)));
         for _ in 0..3 {
             assert_eq!(cache.extract_path(&p).unwrap(), want);
@@ -522,4 +520,72 @@ fn points_made_in_memory_reach_the_disk() {
     assert_eq!(second.read_path(&p, &names).unwrap(), want);
     let s = second.stats();
     assert_eq!((s.disk_hits, s.decompressed_bytes), (1, 0), "{s:?}");
+}
+
+mod packing {
+    use std::fs;
+    use std::io::Cursor;
+
+    use bc2_formats::fbrb::{PackError, PackStats, extract, pack_dir};
+
+    use super::super::{pack_many, pack_path};
+
+    #[test]
+    fn packs_a_folder() {
+        let d = std::env::temp_dir().join(format!("bc2-gamefs-pack-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(d.join("Levels")).unwrap();
+        fs::write(d.join("Levels").join("a.dbx"), b"hello").unwrap();
+        fs::write(d.join("b.res"), vec![9u8; 100]).unwrap();
+        fs::write(
+            d.join("fbrb.manifest"),
+            "\u{feff}# fbrb.manifest zipped=1\r\nLevels/a.dbx|<non-resource>|00010000|5|5\r\nGone|*deleted*|00000000|0|0\r\nb.res|R|00010000|7|100\r\n",
+        )
+        .unwrap();
+        let out = d.join("out.fbrb");
+        fs::write(&out, b"old").unwrap();
+        let stats = pack_path(&d, &out).unwrap();
+        assert_eq!(
+            stats,
+            PackStats {
+                entries: 3,
+                payload_len: 105
+            }
+        );
+        let (h, data) = extract(&mut Cursor::new(fs::read(&out).unwrap())).unwrap();
+        assert_eq!(h.entries[2].size2, 7);
+        assert_eq!(data[0], b"hello");
+        assert!(h.entries[1].is_deleted());
+        let many = pack_many(&[(&d, d.join("again.fbrb"))]);
+        assert_eq!(many[0].as_ref().unwrap().entries, 3);
+        assert_eq!(fs::read(d.join("again.fbrb")).unwrap(), fs::read(&out).unwrap());
+
+        // errors: a missing file, a missing manifest, an unsafe name, an unwritable bundle
+        fs::write(d.join("fbrb.manifest"), "# zipped=1\nmissing|T|0|1|1\n").unwrap();
+        assert!(matches!(pack_dir(&d), Err(PackError::Io { .. })));
+        fs::write(d.join("fbrb.manifest"), "# zipped=1\n../x|T|0|1|1\n").unwrap();
+        assert!(matches!(pack_dir(&d), Err(PackError::UnsafeName(_))));
+        fs::write(d.join("fbrb.manifest"), "# zipped=1\nb.res|T|0|1|1\n").unwrap();
+        let e = pack_path(&d, d.join("no").join("such").join("x.fbrb")).unwrap_err();
+        assert!(matches!(e, PackError::Io { .. }) && e.to_string().contains("x.fbrb"));
+        assert!(matches!(pack_dir(d.join("nothing")), Err(PackError::Io { .. })));
+        // a folder whose file is gone: the error, and no temporary file beside the bundle
+        fs::write(
+            d.join("fbrb.manifest"),
+            "# zipped=1
+b.res|R|00010000|7|100
+missing.res|R|0|1|1
+",
+        )
+        .unwrap();
+        // pack_path of a folder whose file is gone: the error, and no temporary file beside the bundle
+        assert!(pack_path(&d, d.join("gone.fbrb")).is_err());
+        let left: Vec<_> = fs::read_dir(&d)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
+            .collect();
+        assert!(left.is_empty());
+        let _ = fs::remove_dir_all(&d);
+    }
 }

@@ -44,7 +44,7 @@ Status: **implemented**
 Every comparison of GUIDs ignores case: instance GUIDs are stored upper case and local references lower case
 (REF-FORM-2), so a case-sensitive comparison finds nothing.
 
-[code: rust/bc2-formats/src/dbx/model.rs:185-190] [code: rust/bc2-formats/src/dbxedit/editor.rs:51-53]
+[code: rust/bc2-formats/src/dbx/model.rs:185-190] [code: rust/bc2-formats/src/dbxedit/editor.rs:59-61]
 [code: rust/bc2-levelwrite/src/export.rs:1403-1408] [test: rust/bc2-formats/src/dbx/model.rs::lookups]
 
 ### INST-GUID-5: New GUIDs the suite makes
@@ -207,7 +207,7 @@ instance with GUID G is removed; an `item` whose `ref` is G or ends in `/G` (any
 any other element with such a `ref` gets `null` in every `ref` attribute it has. Before that, the level writer
 removes every event connection whose `Source` or `Target` names G (LEVEL-EVT-3).
 
-[code: rust/bc2-formats/src/dbxedit/editor.rs:51-86] [code: rust/bc2-levelwrite/src/write.rs:225-244]
+[code: rust/bc2-formats/src/dbxedit/editor.rs:59-94] [code: rust/bc2-levelwrite/src/write.rs:225-244]
 [test: rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set] [test: core/tests/test_dbxedit.py::cases]
 [doc: bfbc2-dbx-tools/FORMAT.md:95-98]
 

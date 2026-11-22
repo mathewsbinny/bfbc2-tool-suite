@@ -4,8 +4,8 @@
 //!
 //! | `DbxEdit.cs` | here |
 //! |---|---|
-//! | `Program` (`xml`, `roundtrip`, `edit`, `import`, `check`, `fixslots`) | [`run`], [`run_many`] ([`Outcome`]) |
-//! | `DbxFile`, `Element`, `Varint`, `AtomicFile` | [`EditDbx`] read by [`read`], written by [`serialize`]; [`read_varint`], [`write_atomic`] |
+//! | `Program` (`xml`, `roundtrip`, `edit`, `import`, `check`, `fixslots`) | `bc2_tools::dbxedit` (the command line, round PR1b-2) |
+//! | `DbxFile`, `Element`, `Varint`, `AtomicFile` | [`EditDbx`] read by [`read`], written by [`serialize`]; [`read_varint`]; `bc2_gamefs::atomic` |
 //! | `XmlExport.Convert` / `ValueText` | [`convert`], [`value_text`] |
 //! | `XmlImport`, `TypeBook` | [`import`], [`parse_xml`], [`ImportReport`] |
 //! | `Editor` | [`editor`] |
@@ -30,7 +30,6 @@
 //! stack and die).
 
 mod check;
-mod cli;
 pub mod editor;
 mod export;
 mod fault;
@@ -40,7 +39,6 @@ pub mod leveldiff;
 pub mod net;
 
 pub use check::{Finding, PlacedObject, SlotResult, fix_slots, level_check};
-pub use cli::{Outcome, expand_commands, run, run_many, write_atomic};
 pub use export::{convert, number, value_text};
 pub use fault::{Fault, FaultKind, Result};
 pub use file::{

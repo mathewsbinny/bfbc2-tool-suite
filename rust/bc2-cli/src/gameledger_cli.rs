@@ -1,4 +1,4 @@
-//! `bfbc2 gameledger`: the game copy's install ledger (round DF2, [`bc2_formats::gameledger`]) seen from the command
+//! `bfbc2 gameledger`: the game copy's install ledger (round DF2, [`bc2_gamefs::ledger`]) seen from the command
 //! line - what each tool installed, DICE's original of a file, and the recovery of an interrupted install.
 //!
 //! ```text
@@ -13,7 +13,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use bc2_formats::gameledger::Ledger;
+use bc2_gamefs::ledger::Ledger;
 
 /// A line on stdout (a failed write - a closed pipe - is not an error of the command).
 macro_rules! say {

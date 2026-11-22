@@ -3,7 +3,8 @@
 
 use std::path::PathBuf;
 
-use bc2_formats::fbrb::{self, cache};
+use bc2_formats::fbrb;
+use bc2_gamefs::bundles as cache;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 

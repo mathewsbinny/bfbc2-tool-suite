@@ -240,7 +240,7 @@ fn archive_logs(top: &str, files: &[Seen]) -> io::Result<Option<String>> {
             let name = bc2_pyrt::py::basename(&f.path);
             zip.add(&name, &data, st.mtime, readonly(&f.path));
         }
-        Ok(bc2_formats::atomic::write(
+        Ok(bc2_gamefs::atomic::write(
             std::path::Path::new(&path),
             &[&zip.finish()],
         )?)

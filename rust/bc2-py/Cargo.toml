@@ -14,6 +14,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bc2-formats.workspace = true
+bc2-tools.workspace = true
+bc2-gamefs.workspace = true
 bc2-scene.workspace = true
 bc2-convert.workspace = true
 # navkit.py's apply edits (navapply.rs) are bc2-navbuild's graphedit feature

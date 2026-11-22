@@ -47,7 +47,7 @@ Warning (round OP1); checked live in the editor and by `mapexport validate`. The
 the edits were made on (a game patch or a rebuilt level). The edits are kept; check that each still does what you
 meant. Rests on XLOG-BASE-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:147] [code: rust/bc2-levelwrite/src/validate.rs:336]
+[code: rust/bc2-levelwrite/src/rules.rs:147] [code: rust/bc2-levelwrite/src/validate.rs:43]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals]
 
 ### XVAL-EDIT-2: An operation names an object the level does not have
@@ -113,7 +113,7 @@ Error (round E3d); checked live in the editor and by `mapexport validate`; by `m
 needs bots (NavKit path data and the AI layer) and Air Superiority is BF1943's: the export refuses both. Rests on
 GAME-MODE-8.
 
-[code: rust/bc2-levelwrite/src/rules.rs:208] [code: rust/bc2-levelwrite/src/export.rs:962] [code: rust/bc2-levelwrite/src/validate.rs:78]
+[code: rust/bc2-levelwrite/src/rules.rs:208] [code: rust/bc2-levelwrite/src/export.rs:487] [code: rust/bc2-levelwrite/src/validate.rs:78]
 [test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals]
 
 ### XVAL-MODE-2: The donor is a level of the era's mode
@@ -124,7 +124,7 @@ Error (round E3b); checked by `mapexport build` (a refusal); by `mapexport check
 stock level of the chosen era and mode; another level's layer would name kits, factions and game mode data the era
 does not load. Rests on XEXP-PRE-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:218] [code: rust/bc2-levelwrite/src/export.rs:969]
+[code: rust/bc2-levelwrite/src/rules.rs:218] [code: rust/bc2-levelwrite/src/export.rs:161]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
 ### XVAL-MODE-3: The mode layer is complete
@@ -199,7 +199,7 @@ Note (round V1); checked by `mapexport check`. Install the level on the server a
 bundles in bundleManifest and package.mft, or the level checksums differ (and a server without them crashes computing
 its checksum). Rests on CSUM-CHK-4, CSUM-CHK-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:288] [code: rust/bc2-levelwrite/src/export.rs:3202]
+[code: rust/bc2-levelwrite/src/rules.rs:288] [code: rust/bc2-levelwrite/src/export.rs:62]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
 ### XVAL-REG-5: The announcer's registration is the donor's
@@ -220,7 +220,7 @@ Error (round EX1); checked live in the editor and by `mapexport validate`; by `m
 `mapexport check`. The level id is a file, folder and localisation key: 3 to 40 of A-Z, 0-9 and _, starting with a
 letter. Rests on XEXP-PRE-1, LVL-ID-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:309] [code: rust/bc2-levelwrite/src/export.rs:3998] [code: rust/bc2-levelwrite/src/names.rs:382]
+[code: rust/bc2-levelwrite/src/rules.rs:309] [code: rust/bc2-levelwrite/src/export.rs:555] [code: rust/bc2-levelwrite/src/names.rs:382]
 [test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
 ### XVAL-NAME-2: No _NAME in the level id
@@ -306,7 +306,7 @@ Error (round E3b); checked by `mapexport check`. With its own name the level's d
 keys, every text is stored in each language's encoding, and its pictures are in their templates' form. Rests on XEXP-
 ID-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:386] [code: rust/bc2-levelwrite/src/export.rs:4076]
+[code: rust/bc2-levelwrite/src/rules.rs:386] [code: rust/bc2-levelwrite/src/export.rs:2657]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
 ### XVAL-FILE-1: The staged files are the ones recorded
@@ -326,7 +326,7 @@ Status: **verified**
 Error (round E3); checked by `mapexport check`. A partition that does not parse is a null the loader passes on: the
 load crashes (0x49EDF4). Rests on LOAD-PART-1, XEXP-CHK-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:406] [code: rust/bc2-levelwrite/src/export.rs:2717]
+[code: rust/bc2-levelwrite/src/rules.rs:406] [code: rust/bc2-levelwrite/src/export.rs:62]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
 ### XVAL-REF-1: Local references name an instance of their partition
@@ -376,7 +376,7 @@ Status: **verified**
 Error (round E3d); checked by `mapexport check`. Every partition the level reaches must resolve in the bundles it
 loads; the export copies what does not, and never registers it. Rests on XEXP-CLO-1, REF-RES-5.
 
-[code: rust/bc2-levelwrite/src/rules.rs:453] [code: rust/bc2-levelwrite/src/export.rs:2963]
+[code: rust/bc2-levelwrite/src/rules.rs:453] [code: rust/bc2-levelwrite/src/export.rs:1039]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
 ### XVAL-LVL-1: LevelData.Name is the level's path
@@ -506,7 +506,7 @@ Status: **verified**
 Error (round XF1); checked by `mapexport check`. A new object left at slot 0 is see-through and indestructible: only
 objects no level slots may stay without a slot. Rests on CULL-SLOT-3.
 
-[code: rust/bc2-levelwrite/src/rules.rs:579] [code: rust/bc2-levelwrite/src/export.rs:3537]
+[code: rust/bc2-levelwrite/src/rules.rs:579] [code: rust/bc2-levelwrite/src/export.rs:279]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XVAL-CULL-4: Objects stay within +-2048 m
@@ -549,7 +549,7 @@ Status: **verified**
 Error (round QW2); checked by `mapexport check`. Streamed wave data in a level bundle is read as a partition and the
 load crashes (0x49EDF4). Rests on SND-STRM-1, SND-WAVE-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:621] [code: rust/bc2-levelwrite/src/export.rs:2732]
+[code: rust/bc2-levelwrite/src/rules.rs:621] [code: rust/bc2-levelwrite/src/export.rs:2515]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/src/export.rs::streamed_waves_named]
 
 ### XVAL-SND-2: No deleted marker hides a sound
@@ -582,7 +582,7 @@ Error (round V1); checked by `mapexport check`. Xbox 360 textures (big-endian he
 (layout rules 04 00 00 01) are not the PC's: convert them first (bfbc2-console-convert) or the game reads garbage.
 Rests on XCONS-TEX-1, XCONS-HK-1, TEX-HDR-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:653] [code: rust/bc2-levelwrite/src/export.rs:3247]
+[code: rust/bc2-levelwrite/src/rules.rs:653] [code: rust/bc2-levelwrite/src/export.rs:197]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/tests/export_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named]
 
 ### XVAL-GRP-1: An edited static group keeps DICE's layout and its kinds
@@ -762,7 +762,7 @@ check holds each staged file to the one recorded, to Kynapse path data and to ev
 (HPD-NODE-2: unsorted nodes crash the game when it leaves the level, AI-CRASH-4). Rests on HPD-NODE-2, AI-CRASH-4,
 AI-NEED-2.
 
-[code: rust/bc2-levelwrite/src/pathdata.rs:276] [code: rust/bc2-levelwrite/src/pathdata.rs:221] [code: rust/bc2-levelwrite/src/rules.rs:725]
+[code: rust/bc2-levelwrite/src/pathdata.rs:94] [code: rust/bc2-levelwrite/src/pathdata.rs:221] [code: rust/bc2-levelwrite/src/rules.rs:725]
 [test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_path_data_step_finds_refuses_stages_and_checks]
 
 ## 3. DICE's placement tendencies (L1)

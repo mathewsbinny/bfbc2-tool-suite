@@ -112,23 +112,23 @@ pub fn delete_if_unchanged(path: &str, size: u64, mtime_ns: i128, check: bool) -
     }
 }
 
-/// `atomicio.locked(path)` ([`bc2_formats::atomic::locked`]).
+/// `atomicio.locked(path)` ([`bc2_gamefs::atomic::locked`]).
 pub fn locked<T>(path: &str, f: impl FnOnce() -> T) -> io::Result<T> {
-    bc2_formats::atomic::locked(std::path::Path::new(path), f)
+    bc2_gamefs::atomic::locked(std::path::Path::new(path), f)
 }
 
-/// `atomicio.replace(tmp, path)` ([`bc2_formats::atomic::replace`]: 11 tries, waits growing by 50 ms, while another
+/// `atomicio.replace(tmp, path)` ([`bc2_gamefs::atomic::replace`]: 11 tries, waits growing by 50 ms, while another
 /// process holds the target for a moment).
 pub fn replace(tmp: &str, path: &str) -> io::Result<()> {
-    bc2_formats::atomic::replace(std::path::Path::new(tmp), std::path::Path::new(path))
+    bc2_gamefs::atomic::replace(std::path::Path::new(tmp), std::path::Path::new(path))
 }
 
-/// `atomicio.write_bytes(path, data)` ([`bc2_formats::atomic::write`]): beside the target as `<path>.tmp-<pid>-<n>`,
+/// `atomicio.write_bytes(path, data)` ([`bc2_gamefs::atomic::write`]): beside the target as `<path>.tmp-<pid>-<n>`,
 /// flushed to disk, moved over it. The error names the temporary file when it could not be written, else the target.
 pub fn write_atomic(path: &str, data: &[u8]) -> Result<(), (String, io::Error)> {
-    bc2_formats::atomic::write(std::path::Path::new(path), &[data]).map_err(|e| match e {
-        bc2_formats::atomic::WriteError::Temp(tmp, e) => (tmp.to_string_lossy().into_owned(), e),
-        bc2_formats::atomic::WriteError::Replace(e) => (path.to_owned(), e),
+    bc2_gamefs::atomic::write(std::path::Path::new(path), &[data]).map_err(|e| match e {
+        bc2_gamefs::atomic::WriteError::Temp(tmp, e) => (tmp.to_string_lossy().into_owned(), e),
+        bc2_gamefs::atomic::WriteError::Replace(e) => (path.to_owned(), e),
     })
 }
 

@@ -156,6 +156,6 @@ fn main() {
     println!("findings of XVAL-PLACE-6 to 8 on DICE's spawners: {findings:?}");
     if let Some(out) = value("--json") {
         let text = serde_json::to_string_pretty(&rows).unwrap();
-        bc2_formats::atomic::write(std::path::Path::new(&out), &[text.as_bytes()]).unwrap();
+        bc2_gamefs::atomic::write(std::path::Path::new(&out), &[text.as_bytes()]).unwrap();
     }
 }

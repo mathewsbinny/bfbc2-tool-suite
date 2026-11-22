@@ -33,7 +33,6 @@ use std::io::{self, Read as _, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
-use rayon::prelude::*;
 use thiserror::Error;
 
 use super::header::{DELETED, MAGIC};
@@ -273,8 +272,10 @@ fn header_part<'a>(
 
 /// Why writing a bundle stopped: the packing's own error (a file that cannot be read or changed size), or the
 /// output's.
-pub(crate) enum StreamError {
+pub enum StreamError {
+    /// The packing's own error.
     Pack(PackError),
+    /// The output's.
     Write(io::Error),
 }
 
@@ -629,7 +630,8 @@ fn net_hex(s: &str) -> Option<u32> {
 }
 
 /// The value of `key=` in a line of space-separated tokens (FbrbTool's `Token`).
-pub(crate) fn token<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+#[must_use]
+pub fn token<'a>(line: &'a str, key: &str) -> Option<&'a str> {
     line.split(' ')
         .find_map(|t| t.strip_prefix(key).and_then(|r| r.strip_prefix('=')))
 }
@@ -678,7 +680,8 @@ pub fn decode_text(bytes: &[u8]) -> String {
 }
 
 /// Lines as `StreamReader.ReadLine` splits them: at CR LF, LF or CR; no empty line after a final line end.
-pub(crate) fn lines(text: &str) -> Vec<&str> {
+#[must_use]
+pub fn lines(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut rest = text;
     while !rest.is_empty() {
@@ -804,7 +807,10 @@ pub fn pack_dir(dir: impl AsRef<Path>) -> PackResult<(Vec<u8>, PackStats)> {
 }
 
 /// `dir`'s manifest and the rows [`pack_rows`] takes for it (each file checked, its size2 decided).
-fn dir_rows(dir: &Path) -> PackResult<(Manifest, Vec<SourceRow>)> {
+///
+/// # Errors
+/// The manifest or a listed file cannot be read, or the manifest is not valid.
+pub fn dir_rows(dir: &Path) -> PackResult<(Manifest, Vec<SourceRow>)> {
     let mpath = dir.join("fbrb.manifest");
     let manifest = parse_manifest(&decode_text(&fs::read(&mpath).map_err(io_err(&mpath))?))?;
     let layout = manifest.layout;
@@ -875,7 +881,10 @@ pub fn pack_rows_into(
 }
 
 /// [`pack_rows_into`], a write error told apart from the packing's (FbrbTool's command line reports them apart).
-pub(crate) fn pack_rows_stream(
+///
+/// # Errors
+/// [`StreamError::Pack`] for the packing's own error, [`StreamError::Write`] for the output's.
+pub fn pack_rows_stream(
     manifest: &Manifest,
     rows: &[SourceRow],
     out: &mut dyn Write,
@@ -912,39 +921,6 @@ fn read_exactly(src: &Path, dst: &mut [u8]) -> PackResult<()> {
         });
     }
     Ok(())
-}
-
-/// The bundle FbrbTool's `pack` makes of `dir` written to `out` as FbrbTool writes it: to a temporary file beside it
-/// ([`crate::atomic::temp_name`]: `<out>.tmp-<process id>-<n>`), flushed to disk, then moved over `out`, so a pack
-/// cut short never leaves a truncated bundle where the old one was. Streamed ([`pack_rows_into`]): the payload is
-/// never held.
-///
-/// # Errors
-/// As [`pack_dir`], and [`PackError::Io`] when the bundle cannot be written.
-pub fn pack_path(dir: impl AsRef<Path>, out: impl AsRef<Path>) -> PackResult<PackStats> {
-    let out = out.as_ref();
-    let (manifest, rows) = dir_rows(dir.as_ref())?;
-    let tmp = crate::atomic::temp_name(out);
-    let written = fs::File::create(&tmp)
-        .map_err(io_err(out))
-        .and_then(|f| {
-            let mut w = io::BufWriter::with_capacity(1 << 20, f);
-            let stats = pack_rows_into(&manifest, &rows, &mut w, out)?;
-            w.flush().map_err(io_err(out))?;
-            w.get_ref().sync_all().map_err(io_err(out))?;
-            Ok(stats)
-        })
-        .and_then(|stats| crate::atomic::replace(&tmp, out).map_err(io_err(out)).map(|()| stats));
-    if written.is_err() {
-        let _ = fs::remove_file(&tmp);
-    }
-    written
-}
-
-/// [`pack_path`] of each `(folder, bundle)`, in parallel (one bundle per task). Results keep the input order.
-#[must_use]
-pub fn pack_many<D: AsRef<Path> + Sync, O: AsRef<Path> + Sync>(items: &[(D, O)]) -> Vec<PackResult<PackStats>> {
-    items.par_iter().map(|(d, o)| pack_path(d, o)).collect()
 }
 
 #[cfg(test)]
@@ -1195,9 +1171,10 @@ mod tests {
             if layout.zipped {
                 assert_eq!(stats.payload_len as usize, sizes.iter().sum::<usize>());
             }
-            let out = d.join("out.fbrb");
-            pack_path(&d, &out).unwrap();
-            assert!(fs::read(&out).unwrap() == want, "{first}");
+            let (m, r) = dir_rows(&d).unwrap();
+            let mut streamed = Vec::new();
+            pack_rows_into(&m, &r, &mut streamed, Path::new("out.fbrb")).unwrap();
+            assert!(streamed == want, "{first}");
         }
         // rows made, then the file changed: shorter, longer
         let (manifest, mut rows) = dir_rows(&d).unwrap();
@@ -1220,15 +1197,6 @@ mod tests {
             e.to_string().contains("x.fbrb") && e.to_string().contains("disk full"),
             "{e}"
         );
-        // pack_path of a folder whose file is gone: the error, and no temporary file beside the bundle
-        fs::remove_file(d.join("e5.res")).unwrap();
-        assert!(pack_path(&d, d.join("gone.fbrb")).is_err());
-        let left: Vec<_> = fs::read_dir(&d)
-            .unwrap()
-            .filter_map(Result::ok)
-            .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
-            .collect();
-        assert!(left.is_empty());
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -1256,47 +1224,6 @@ mod tests {
         assert_eq!(h.entries[1].type_name, "T");
         // the gzip header is .NET's
         assert_eq!(&b[8..18], &[0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 4, 0]);
-    }
-
-    #[test]
-    fn packs_a_folder() {
-        let d = temp("dir");
-        fs::create_dir_all(d.join("Levels")).unwrap();
-        fs::write(d.join("Levels").join("a.dbx"), b"hello").unwrap();
-        fs::write(d.join("b.res"), vec![9u8; 100]).unwrap();
-        fs::write(
-            d.join("fbrb.manifest"),
-            "\u{feff}# fbrb.manifest zipped=1\r\nLevels/a.dbx|<non-resource>|00010000|5|5\r\nGone|*deleted*|00000000|0|0\r\nb.res|R|00010000|7|100\r\n",
-        )
-        .unwrap();
-        let out = d.join("out.fbrb");
-        fs::write(&out, b"old").unwrap();
-        let stats = pack_path(&d, &out).unwrap();
-        assert_eq!(
-            stats,
-            PackStats {
-                entries: 3,
-                payload_len: 105
-            }
-        );
-        let (h, data) = extract(&mut Cursor::new(fs::read(&out).unwrap())).unwrap();
-        assert_eq!(h.entries[2].size2, 7);
-        assert_eq!(data[0], b"hello");
-        assert!(h.entries[1].is_deleted());
-        let many = pack_many(&[(&d, d.join("again.fbrb"))]);
-        assert_eq!(many[0].as_ref().unwrap().entries, 3);
-        assert_eq!(fs::read(d.join("again.fbrb")).unwrap(), fs::read(&out).unwrap());
-
-        // errors: a missing file, a missing manifest, an unsafe name, an unwritable bundle
-        fs::write(d.join("fbrb.manifest"), "# zipped=1\nmissing|T|0|1|1\n").unwrap();
-        assert!(matches!(pack_dir(&d), Err(PackError::Io { .. })));
-        fs::write(d.join("fbrb.manifest"), "# zipped=1\n../x|T|0|1|1\n").unwrap();
-        assert!(matches!(pack_dir(&d), Err(PackError::UnsafeName(_))));
-        fs::write(d.join("fbrb.manifest"), "# zipped=1\nb.res|T|0|1|1\n").unwrap();
-        let e = pack_path(&d, d.join("no").join("such").join("x.fbrb")).unwrap_err();
-        assert!(matches!(e, PackError::Io { .. }) && e.to_string().contains("x.fbrb"));
-        assert!(matches!(pack_dir(d.join("nothing")), Err(PackError::Io { .. })));
-        let _ = fs::remove_dir_all(&d);
     }
 
     #[test]
