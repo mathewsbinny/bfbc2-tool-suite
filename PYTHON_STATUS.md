@@ -26,18 +26,18 @@ rounds NK4 and NK5.
 |---|---:|---:|
 | live | 21 | 6,048 |
 | partly | 20 | 17,024 |
-| twin | 56 | 20,723 |
+| twin | 56 | 20,726 |
 | ported | 21 | 2,571 |
 | retired-pending | 3 | 310 |
 | stays | 54 | 8,794 |
 | test | 188 | 49,976 |
-| **all** | **363** | **105,446** |
+| **all** | **363** | **105,449** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | `(root)` | 2 | 1,413 | 52 |  |  |  |  |  | 1,361 |
 | `bfbc2-anim-tools` | 7 | 2,462 |  | 1,108 |  | 106 |  |  | 1,248 |
-| `bfbc2-auto-navkit` | 61 | 16,322 | 1,815 | 4,424 | 4,077 | 272 |  |  | 5,734 |
+| `bfbc2-auto-navkit` | 61 | 16,325 | 1,815 | 4,424 | 4,080 | 272 |  |  | 5,734 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
 | `bfbc2-bf1943-import` | 26 | 10,748 | 1,017 | 1,519 | 3,273 | 56 |  |  | 4,883 |
 | `bfbc2-console-convert` | 24 | 6,531 |  | 1,812 | 1,254 | 36 |  |  | 3,429 |
@@ -85,7 +85,7 @@ Lines by status in the folder table.
 
 ## `bfbc2-auto-navkit`
 
-61 files, 16,322 lines.
+61 files, 16,325 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -108,7 +108,7 @@ Lines by status in the folder table.
 | `bfbc2-auto-navkit/tools/kymesh.py` | 320 | library | twin | bc2_navbuild / bc2_formats kymesh (kymesh_parse, write) | navkit.py, navbuild, navdetail, hpdtool, detailed, hpdcheck; tests 10 | NK5 | parse_mesh_reference kept "for good" as the format reference (E3o); write_mesh_reference for refused objects |
 | `bfbc2-auto-navkit/tools/ladders.py` | 51 | tool entry point | twin | bfbc2 ladders (bc2-cli navkit::ladders); embedded | navkit.py, navregress, navwalk; tests 3 | NK5 | the command line is Rust; extract() feeds navwalk's ladder re-floods |
 | `bfbc2-auto-navkit/tools/levelobjects.py` | 221 | tool entry point | twin | bfbc2 levelobjects; bc2_scene::collision (navkit_level_scan); embedded | navkit.py, navbuild, navregress, navsample_offline, navwalk, ladders; tests 5 | NK5 | the command line and the scan are Rust; the Python walk stays as fallback where the core refuses |
-| `bfbc2-auto-navkit/tools/navbuild.py` | 1328 | library | twin | bc2_navbuild::build / ::stage (navkit_build, navkit_stage_grid) | navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh; tests 12 | NK5-rest | build is a thin call (NK5: the whole build in Rust); left: the stage / merge_detailed / detail_pass twins the tests read, BuildSettings and the switches the bindings read (rust/BENCHMARKS.md "NK5", "What is left") |
+| `bfbc2-auto-navkit/tools/navbuild.py` | 1331 | library | twin | bc2_navbuild::build / ::stage (navkit_build, navkit_stage_grid) | navkit.py, navregress, navsample_offline, navvehicle, navwater_mesh; tests 12 | NK5-rest | build is a thin call (NK5: the whole build in Rust); left: the stage / merge_detailed / detail_pass twins the tests read, BuildSettings and the switches the bindings read (rust/BENCHMARKS.md "NK5", "What is left") |
 | `bfbc2-auto-navkit/tools/navcompare.py` | 86 | tool entry point | twin | bfbc2 navcompare (bc2-cli navkit::navcompare); embedded | navkit.py, navparity; tests 3 | NK5 | the command line is Rust; compare() is a library of navparity |
 | `bfbc2-auto-navkit/tools/navdf.py` | 240 | tool entry point | twin | bc2_navbuild::parity (compare_sectors) | navparity, navregress; tests 1 | proposed: NKG1 | D / F parity measure; the comparison runs in Rust when built, the Python as reference |
 | `bfbc2-auto-navkit/tools/navdiff.py` | 385 | tool entry point | twin | bc2_navbuild::parity (navkit_area_cells) | navdf, navparity, navsample_offline, navvehicle, navwater, navdata; tests 7 | proposed: NKG1 | area cells in Rust (E3h); the layers' comparison and the PNGs are Python |

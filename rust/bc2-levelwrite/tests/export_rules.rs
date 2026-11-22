@@ -276,6 +276,11 @@ impl Cq {
     }
 
     pub(crate) fn bytes(&self) -> Vec<u8> {
+        self.builder().bytes()
+    }
+
+    /// The layout's instances, before the partition is made (more can be added).
+    pub(crate) fn builder(&self) -> Lb {
         let mut b = Lb::new();
         for (k, (team, p)) in [("Team1", self.hq[0]), ("Team2", self.hq[1])].into_iter().enumerate() {
             let pts: Vec<[f32; 3]> = (0..self.hq_spawns)
@@ -327,7 +332,7 @@ impl Cq {
                 b.area("TeamNeutral", false, true, &self.area);
             }
         }
-        b.bytes()
+        b
     }
 }
 
@@ -1107,8 +1112,9 @@ fn each_edit_rule_has_a_broken_project_that_raises_it() {
         if ["XVAL-EDIT-1", "XVAL-EDIT-2", "XVAL-EDIT-3"].contains(&r.code.as_str()) {
             continue;
         }
-        // round A1's site and path rules read a site and a route graph: tests/auto_layout.rs breaks a layout for each
-        if ["XVAL-PLACE-2", "XVAL-PLACE-3", "XVAL-PLACE-4", "XVAL-PLACE-5"].contains(&r.code.as_str()) {
+        // the site, vehicle and path rules (rounds A1, A2) read a site and a route graph: tests/auto_layout.rs breaks
+        // a layout for each
+        if r.code.starts_with("XVAL-PLACE-") && r.code != "XVAL-PLACE-1" {
             continue;
         }
         assert!(

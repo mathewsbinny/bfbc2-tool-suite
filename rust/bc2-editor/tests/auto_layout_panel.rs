@@ -157,7 +157,7 @@ fn the_auto_layout_is_proposed_drawn_accepted_and_validated() {
         // Accept: one move operation; then the Problems panel lists no error and no warning
         let palette = app.palette();
         app.view_mut().unwrap().accept_layout(&gpu, &palette);
-        assert!(app.view().unwrap().autolayout.proposal.is_none());
+        assert!(!app.view().unwrap().autolayout.holds());
         app.run(&gpu, &ctx, Action::ShowPanel(PanelKind::Problems));
         h.settle(&mut app, 4);
         let rows = {
@@ -180,6 +180,155 @@ fn the_auto_layout_is_proposed_drawn_accepted_and_validated() {
         let w = d.writer().unwrap();
         let m = &prop.moves[0];
         assert_eq!(w.transform(&m.guid), Some(m.from), "back where it stood");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+#[ignore = "game tier: a real level in the editor; run_tests.py game runs it (tests/test_rust.py run --game)"]
+// spec: XLAY-AUTO-2, XLAY-AUTO-3, XVAL-PLACE-6, XVAL-PLACE-7, XVAL-PLACE-8
+fn several_proposals_side_by_side_with_vehicles_and_the_areas_after_accept() {
+    let _gate = crate::gate();
+    let Ok(root) = levels::find_opfor(None) else {
+        println!("skipped: no game copy");
+        return;
+    };
+    let Ok(mut h) = Headless::new(SIZE) else {
+        println!("skipped: no graphics adapter");
+        return;
+    };
+    let game = Game::open(&root.join("game")).unwrap();
+    let dir = std::env::temp_dir().join(format!("bc2_editor_proposals_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = laguna(&game, &dir);
+    for theme in ThemeId::ALL {
+        let mut app = EditorApp::new(None, None).unwrap();
+        app.theme = theme;
+        h.settle(&mut app, 2);
+        let gpu = h.gpu.clone();
+        if let Err(e) = app.open_level_blocking_then(&gpu, "mp_003", Then::Open(path.clone(), None)) {
+            println!("skipped mp_003: {e}");
+            return;
+        }
+        app.export.strip.open = false;
+        let ctx = h.ctx.clone();
+        app.run(&gpu, &ctx, Action::SetWorkspace(Workspace::Gameplay));
+        app.run(&gpu, &ctx, Action::ShowPanel(PanelKind::AutoLayout));
+        h.settle(&mut app, 3);
+        // three proposals, as the panel's Propose makes them
+        let t = std::time::Instant::now();
+        {
+            let v = app.view_mut().unwrap();
+            let d = v.doc.as_ref().unwrap();
+            v.live.refresh(d);
+            let site = v.live.site().expect("the base level's site");
+            v.autolayout.seed = 0;
+            v.autolayout.count = 3;
+            v.autolayout.start(d, site, None);
+        }
+        while app.view().unwrap().autolayout.busy() {
+            h.settle(&mut app, 1);
+            assert!(t.elapsed().as_secs() < 300, "the proposals take too long");
+        }
+        h.settle(&mut app, 3);
+        let all = {
+            let v = app.view().unwrap();
+            v.autolayout.all(v.doc.as_ref().unwrap()).to_vec()
+        };
+        assert_eq!(all.len(), 3, "three proposals side by side");
+        for (k, p) in all.iter().enumerate() {
+            println!(
+                "proposals {theme:?} {k}: {} ({:.1} s)",
+                p.describe(),
+                t.elapsed().as_secs_f64()
+            );
+            for n in &p.vehicles.notes {
+                println!("    {n}");
+            }
+            assert!(!p.vehicles.vehicles.is_empty(), "each with its vehicles");
+        }
+        let best = &all[0];
+        assert_eq!(best.counts().0, 0, "{:#?}", best.findings);
+        // the second shown in the views, then the best accepted
+        app.view_mut().unwrap().autolayout.shown = 1;
+        {
+            let v = app.view_mut().unwrap();
+            let y = v
+                .live
+                .site()
+                .and_then(|s| s.ground(all[1].centre[0], all[1].centre[1]))
+                .unwrap_or(0.0);
+            v.labels = false;
+            v.viewports.get_mut(&Projection::Perspective).unwrap().camera = Camera {
+                target: [all[1].centre[0], y, all[1].centre[1]],
+                yaw: 0.6,
+                pitch: 0.75,
+                distance: 650.0,
+                fov: 60.0,
+                projection: Projection::Perspective,
+            };
+            v.redraw();
+        }
+        let palette = app.palette();
+        app.view_mut().unwrap().nav_refresh(&gpu, &palette);
+        h.settle(&mut app, 3);
+        shot(&format!("auto_layout_proposals_{}.png", theme.key()), &mut h);
+        app.view_mut().unwrap().autolayout.shown = 0;
+        app.view_mut().unwrap().accept_layout(&gpu, &palette);
+        h.settle(&mut app, 4);
+        // the areas follow the accepted layout: an overlay item at every capture point where it now stands
+        let v = app.view().unwrap();
+        let d = v.doc.as_ref().unwrap();
+        let w = d.writer().unwrap();
+        let o = v.overlays.as_ref().expect("the overlays");
+        let cps = bc2_levelwrite::mpconvert::capture_points(w);
+        assert!(cps.len() > 1, "{} capture points", cps.len());
+        for c in &cps {
+            let near = o.items.iter().any(|i| {
+                i.overlay == bc2_editor::overlays::Overlay::CaptureAreas
+                    && (i.at[0] - f64::from(c.at[0])).hypot(i.at[2] - f64::from(c.at[2])) < 1.0
+            });
+            assert!(near, "{} has its capture area where it stands", c.name);
+        }
+        let combat = o
+            .items
+            .iter()
+            .filter(|i| i.overlay == bc2_editor::overlays::Overlay::CombatAreas)
+            .count();
+        assert!(combat > 0, "the layer's combat areas are drawn");
+        println!(
+            "areas {theme:?}: {} capture points, {combat} combat areas drawn after Accept",
+            cps.len()
+        );
+        // the accepted vehicles are in the partition, joined to their capture points
+        for x in &best.vehicles.vehicles {
+            assert!(
+                bc2_levelwrite::gameplay::spawners(w, &x.owner).contains(&x.guid),
+                "{} joins {}",
+                x.guid,
+                x.owner
+            );
+        }
+        {
+            let v = app.view_mut().unwrap();
+            let y = v
+                .live
+                .site()
+                .and_then(|s| s.ground(best.centre[0], best.centre[1]))
+                .unwrap_or(0.0);
+            v.viewports.get_mut(&Projection::Perspective).unwrap().camera = Camera {
+                target: [best.centre[0], y, best.centre[1]],
+                yaw: 0.6,
+                pitch: 0.75,
+                distance: 650.0,
+                fov: 60.0,
+                projection: Projection::Perspective,
+            };
+            v.redraw();
+        }
+        h.settle(&mut app, 3);
+        shot(&format!("auto_layout_areas_{}.png", theme.key()), &mut h);
     }
     let _ = std::fs::remove_dir_all(&dir);
 }

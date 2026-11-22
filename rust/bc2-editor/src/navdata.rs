@@ -1444,7 +1444,8 @@ pub fn sector_offsets(level_dir: &Path) -> Option<(i64, i64)> {
 }
 
 /// Path data's default files for a level (the Studio's `default_files`): NavKit's newest build (the newest of
-/// `work\navkit\<lv>\pathdata.hpd`, `work\navkit\regress\<lv>.hpd`, `work\navbuild\<lv>_W.hpd`) and DICE's original
+/// `work\navkit\<lv>\pathdata.hpd`, `work\navkit\regress\<lv>.hpd`, `work\navbuild\<lv>_W.hpd`, round A2's
+/// `work\navkit_offline\<lv>\pathdata.hpd`) and DICE's original
 /// (the game copy's installed file, or the earliest OPFOR backup when an OPFOR file is installed).
 #[must_use]
 pub fn default_files(opfor: &Path, lv: &str) -> (Option<PathBuf>, Option<PathBuf>) {
@@ -1454,6 +1455,8 @@ pub fn default_files(opfor: &Path, lv: &str) -> (Option<PathBuf>, Option<PathBuf
         work.join("navkit").join(&lv).join("pathdata.hpd"),
         work.join("navkit").join("regress").join(format!("{lv}.hpd")),
         work.join("navbuild").join(format!("{lv}_W.hpd")),
+        // round A2: the offline sampler's build (the export's path-data step stages these too)
+        work.join("navkit_offline").join(&lv).join("pathdata.hpd"),
     ];
     let newest = builds
         .into_iter()

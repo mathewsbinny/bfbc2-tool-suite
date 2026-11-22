@@ -713,6 +713,58 @@ leave, and bots cannot attack or defend an objective there. Rests on AI-NEED-2, 
 [code: rust/bc2-levelwrite/src/rules.rs:767] [code: rust/bc2-levelwrite/src/validate.rs:632] [code: rust/bc2-levelwrite/src/site.rs:551]
 [test: rust/bc2-levelwrite/tests/auto_layout.rs::path_rules_want_spawns_and_objectives_on_the_main_network]
 
+Round A2 also checks it at the stage (`mapexport check`) on the path data the export's path-data step staged
+(XLAY-PATH-1).
+
+### XVAL-PLACE-6: A land vehicle has a drivable way out
+
+Status: **verified**
+
+Warning (round A2); checked live in the editor. A tank, IFV, car or quad bike spawner the edits moved or made that its
+vehicle cannot drive 20 m away from (a flood fill on 2 m cells: a step up to 1.2 m, a drop up to 2 m, nothing static
+0.6 to 2.5 m above the surface, water up to 1.2 m deep): it spawns and stays. DICE's land vehicles all drive 40 m or
+more (GAME-VEH-2); on the 27 levels measured the rule finds nothing. Rests on GAME-VEH-1, GAME-VEH-2.
+
+[code: rust/bc2-levelwrite/src/vehicles.rs:177] [code: rust/bc2-levelwrite/src/site.rs:561] [code: rust/bc2-levelwrite/src/validate.rs:574]
+[test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::vehicle_rules_raise_on_shut_in_vehicles_and_not_in_the_open]
+
+### XVAL-PLACE-7: A boat has water access
+
+Status: **verified**
+
+Warning (round A2); checked live in the editor. A boat spawner the edits moved or made whose water reaches less than
+24 m of open water at least 0.5 m deep with nothing static at the surface (a pond, a pier's piles), judged where the
+level's water mesh lies near the ground (as XVAL-PLACE-3): it cannot sail out. DICE's boats reach 30.5 m or more.
+Rests on GAME-VEH-1, GAME-VEH-2.
+
+[code: rust/bc2-levelwrite/src/vehicles.rs:177] [code: rust/bc2-levelwrite/src/site.rs:618]
+[test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::vehicle_rules_raise_on_shut_in_vehicles_and_not_in_the_open]
+
+### XVAL-PLACE-8: An aircraft has an open launch area
+
+Status: **verified**
+
+Warning (round A2); checked live in the editor. A helicopter spawner the edits moved or made with static collision
+less than 12 m over it within 3.5 m, or a plane spawner without a straight take-off run of 30 m (its span 10 m: no
+step over 1 m, no water, nothing crossing 0.6 to 5 m up) on any of 16 bearings: it cannot take off. DICE's helipads
+are open to 60 m, its WW2 planes have runs of 34 m or more. Rests on GAME-VEH-1, GAME-VEH-2.
+
+[code: rust/bc2-levelwrite/src/vehicles.rs:177] [code: rust/bc2-levelwrite/src/site.rs:667] [code: rust/bc2-levelwrite/src/site.rs:693]
+[test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::vehicle_rules_raise_on_shut_in_vehicles_and_not_in_the_open]
+
+### XVAL-AI-1: The staged path data is the level's and loads
+
+Status: **verified**
+
+Error (round A2); a refusal of `mapexport build` with the path-data step, a line of `mapexport check`. The step stages
+path data only where the base's is the level's (the project edits no collision and has no navigation edits), and the
+check holds each staged file to the one recorded, to Kynapse path data and to every sector's nodes sorted by id
+(HPD-NODE-2: unsorted nodes crash the game when it leaves the level, AI-CRASH-4). Rests on HPD-NODE-2, AI-CRASH-4,
+AI-NEED-2.
+
+[code: rust/bc2-levelwrite/src/pathdata.rs:276] [code: rust/bc2-levelwrite/src/pathdata.rs:221] [code: rust/bc2-levelwrite/src/rules.rs:725]
+[test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_path_data_step_finds_refuses_stages_and_checks]
+
 ## 3. DICE's placement tendencies (L1)
 
 Round L1 measured how DICE laid out gameplay on the 64 stock multiplayer levels of Conquest, Rush, Squad Rush and
@@ -796,6 +848,57 @@ the fewest statistics outside DICE's ranges (`l1_a1_params.json`), then the fewe
 It is a list of moves the editor shows and commits as one move operation only when the user accepts it. The same
 partition, site and seed give the same proposal.
 
-[code: rust/bc2-levelwrite/src/autolayout.rs:1021-1030]
+[code: rust/bc2-levelwrite/src/autolayout.rs:1191]
 [test: rust/bc2-levelwrite/tests/auto_layout.rs::the_auto_layout_moves_a_layout_out_of_the_lake_onto_the_town]
 [test: rust/bc2-editor/tests/auto_layout_panel.rs::the_auto_layout_is_proposed_drawn_accepted_and_validated]
+
+### XLAY-AUTO-2: The auto layout places the layer's vehicles by class, in DICE's counts
+
+Status: **verified**
+
+Round A2. On the laid-out layer, `bc2_levelwrite::vehicles::plan` gives each capture point DICE's count of vehicles
+per mode (GAME-VEH-2: a Conquest base 4, 8 on WW2; a flag 2; Rush's stage-1 attackers' base 3, defenders' 2; Squad
+Rush none; Squad Deathmatch one IFV at the layer's neutral capture point). The vehicles are the level's own spawners
+that no capture point of the layer owns and that spawn by themselves - DICE's for this level - by team (a flag: a
+neutral spawner, else one of each team) and class in DICE's order, each moved once, then copies of them. Each stands
+on a spot of rings 12 to 88 m out (boats to 148 m, aircraft from 20 m): its domain, its room (XVAL-PLACE-3), able to
+leave (XVAL-PLACE-6 to 8), inside a combat area, its capture point the nearest within 150 m (L1's pool), 6 m or more
+from other vehicles and 4 m from soldier spawns, facing the layout's centre (a plane its run). Each joins its capture
+point's `Spawners`. The proposal carries moves, copies and links as one operation of the log (one move when there are
+no vehicles), measured again with them; what could not be placed is named. A later Rush stage's vehicles are not
+placed (DICE enables them by the stage's events, which the layout does not make).
+
+[code: rust/bc2-levelwrite/src/vehicles.rs:501] [code: rust/bc2-levelwrite/src/vehicles.rs:230] [code: rust/bc2-levelwrite/src/autolayout.rs:185]
+[test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_auto_layout_places_vehicles_proposes_several_and_keeps_pins]
+[test: rust/bc2-editor/tests/auto_layout_panel.rs::several_proposals_side_by_side_with_vehicles_and_the_areas_after_accept]
+
+### XLAY-AUTO-3: Several proposals; pinned objects stay where they stand
+
+Status: **verified**
+
+Round A2. `autolayout::propose_all` returns the best `k` fitted candidates (distinct places or turns), each with its
+vehicles and statistics; the editor shows them side by side and draws one at a time. The objects the user pinned
+(`Op::Pin`, the project's organisation, format version 8) stay where they stand: with a pinned flag, base or M-COM the
+layer is turned and scaled about the pins (its centre where they stand best, a pin left off its place costing 0.2 a
+metre) and its own spawns and markers follow it; a pinned spawn point or vehicle spawner is not moved and a pinned
+vehicle counts for its capture point. A version-7 project loads as it is.
+
+[code: rust/bc2-levelwrite/src/autolayout.rs:1191] [code: rust/bc2-levelwrite/src/autolayout.rs:606] [code: rust/bc2-levelwrite/src/ops.rs:304]
+[test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_auto_layout_places_vehicles_proposes_several_and_keeps_pins]
+[test: rust/bc2-levelwrite/tests/project_versions.rs::version_7_projects_load_as_8_and_pins_need_8]
+
+### XLAY-PATH-1: The export's path-data step stages the base's build only where it is the level's
+
+Status: **implemented**
+
+Round A2 (opt-in, `ExportSpec.path_data`). The step stages the newest path data of the project's base level -
+NavKit's build from in-game samples, else from the offline sampler, else DICE's own file - as
+`ai/infantry/pathdata.hpd` (and `ai/vehicle/` when there is one; installed under `Output/win32/ai/levels/<id>/`),
+recorded in `stage.json`'s `path_data`. It refuses in words when the project edits the level's collision (a static
+object moved, added or deleted, a static group member edited, the terrain sculpted: the level must be sampled again),
+when the project has navigation edits (NavKit's apply on a NavKit base is Python), or when the base has none. The
+check: XVAL-AI-1 and XVAL-PLACE-5 on the staged file. Not yet (NavKit's port): sampling and building the edited level
+in process with the project's objectives as seeds, its navigation edits, the stock-MP AI layer for the staged level.
+
+[code: rust/bc2-levelwrite/src/pathdata.rs:120] [code: rust/bc2-levelwrite/src/pathdata.rs:221] [code: rust/bc2-levelwrite/src/pathdata.rs:60]
+[test: rust/bc2-levelwrite/tests/auto_layout_vehicles.rs::the_path_data_step_finds_refuses_stages_and_checks]

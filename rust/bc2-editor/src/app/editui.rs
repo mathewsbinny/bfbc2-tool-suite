@@ -382,6 +382,10 @@ fn rows(m: &M) -> bc2_levelwrite::Rows {
 impl ViewState {
     /// The views and the outliner again after the project changed (an edit, an undo, a layer hidden).
     pub(super) fn refresh(&mut self, gpu: &GpuCtx, palette: &Palette) {
+        // round A2: the overlays' gameplay areas follow the project (an edit, an undo)
+        if self.overlays_rev.is_some() && self.doc.as_ref().is_some_and(|d| self.overlays_rev != Some(d.revision)) {
+            self.apply_look(palette);
+        }
         if self.update_mode_view() {
             self.mode_view.outliner_stale = true;
         }

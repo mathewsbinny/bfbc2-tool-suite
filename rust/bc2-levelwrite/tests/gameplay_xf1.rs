@@ -100,7 +100,7 @@ fn typed_gameplay_operations_on_valparaiso() {
     let e = gameplay::link_spawner(&mut w, &point, &spawners[0], true).unwrap_err();
     assert!(e.to_string().contains("already"), "{e}");
     let e = gameplay::link_spawner(&mut w, &point, &counter, true).unwrap_err();
-    assert!(e.to_string().contains("not a soldier spawner"), "{e}");
+    assert!(e.to_string().contains("not a soldier or vehicle spawner"), "{e}");
     let e = gameplay::link_spawner(&mut w, &counter, &spawners[0], true).unwrap_err();
     assert!(e.to_string().contains("not a capture point"), "{e}");
     let t0 = gameplay::tickets_of(&w, &schema, &counter).unwrap();
