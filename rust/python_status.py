@@ -620,6 +620,8 @@ TABLE: tuple[Row, ...] = (
     R('rust/bench_fbrb.py', BENCH, 'stays', '', 'by hand', 'stays', 'bundle reader timings'),
     R('rust/bench_fbrb_cache.py', BENCH, 'stays', '', 'by hand', 'stays', 'E3e bundle cache timings'),
     R('rust/bench_granny.py', BENCH, 'stays', '', 'by hand', 'stays', 'E3i timings'),
+    R('rust/bench_memory.py', BENCH, 'stays', '', 'by hand', 'stays',
+      "the batch readers' peak memory; any command's process-tree peak (--command)"),
     R('rust/bench_harness.py', BENCH, 'stays', '', 'by hand', 'stays', 'E4f timings against the references'),
     R('rust/bench_level.py', BENCH, 'stays', '', 'by hand', 'stays', 'level loader timings'),
     R('rust/bench_navkit.py', BENCH, 'stays', '', 'by hand', 'NK5', 'one NavKit build (navregress.build_level)'),
