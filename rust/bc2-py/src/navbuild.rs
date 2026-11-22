@@ -368,6 +368,17 @@ pub struct NavLevel {
     flooded: std::sync::Mutex<Option<Vec<bool>>>,
 }
 
+impl NavLevel {
+    /// The level the Rust core made (round NK4: walkability's floods' level).
+    pub(crate) fn from_level(level: Level) -> Self {
+        NavLevel {
+            level,
+            blocked: std::sync::RwLock::default(),
+            flooded: std::sync::Mutex::default(),
+        }
+    }
+}
+
 /// A surface index, or a `ValueError` for one outside the level.
 fn surface(l: &Level, k: i64) -> PyResult<usize> {
     l.surface(k).map_err(value_error)

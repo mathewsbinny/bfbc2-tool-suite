@@ -211,51 +211,34 @@ def _max_area() -> int | None:
 
 def water_tops(s: navsample.Samples, vertices: np.ndarray | None, triangles: np.ndarray) -> np.ndarray:
     """The water surface height over every sample column (-inf where there is no water). The columns are a regular
-    grid, so each water triangle only visits the columns its bounding box covers."""
-    nx, nz, p = s.nx, s.nz, s.pitch
-    top = np.full((nz, nx), -np.inf)
+    grid, so each water triangle only visits the columns its bounding box covers. In the Rust core (round NK4:
+    bc2_navbuild::walk::water_tops); s: anything with nx, nz, pitch, min_x, min_z."""
     if vertices is None or not len(triangles):
-        return top.ravel()
-    tri = np.asarray(vertices, dtype=np.float64)[np.asarray(triangles)]
-    for (ax, ay, az), (bx, by, bz), (cx, cy, cz) in tri:
-        i0 = max(0, int(math.floor((min(ax, bx, cx) - s.min_x) / p)))
-        i1 = min(nx - 1, int(math.ceil((max(ax, bx, cx) - s.min_x) / p)))
-        j0 = max(0, int(math.floor((min(az, bz, cz) - s.min_z) / p)))
-        j1 = min(nz - 1, int(math.ceil((max(az, bz, cz) - s.min_z) / p)))
-        if i0 > i1 or j0 > j1:
-            continue
-        d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz)
-        if abs(d) < 1e-12:
-            continue
-        X = s.min_x + np.arange(i0, i1 + 1) * p
-        Z = s.min_z + np.arange(j0, j1 + 1) * p
-        X, Z = np.meshgrid(X, Z)
-        l1 = ((bz - cz) * (X - cx) + (cx - bx) * (Z - cz)) / d
-        l2 = ((cz - az) * (X - cx) + (ax - cx) * (Z - cz)) / d
-        l3 = 1 - l1 - l2
-        inside = (l1 >= -1e-9) & (l2 >= -1e-9) & (l3 >= -1e-9)
-        if inside.any():
-            h = np.where(inside, l1 * ay + l2 * by + l3 * cy, -np.inf)
-            sub = top[j0:j1 + 1, i0:i1 + 1]
-            np.maximum(sub, h, out=sub)
-    return top.ravel()
+        return np.full(int(s.nx) * int(s.nz), -np.inf)
+    got = require_native().navkit_water_tops(
+        int(s.nx), int(s.nz), float(s.pitch), float(s.min_x), float(s.min_z),
+        np.ascontiguousarray(vertices, '<f8').tobytes(), np.ascontiguousarray(triangles, '<i8').tobytes())
+    return np.frombuffer(got, '<f8').copy()
 
 
 def outside_bounds(s: navsample.Samples, bounds: Sequence[float]) -> np.ndarray:
-    """Surfaces whose column lies outside bounds (minX, minZ, maxX, maxZ) - bool per surface (CLIP_TO_REFERENCE)."""
-    col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
-    x, z = s.min_x + (col % s.nx) * s.pitch, s.min_z + (col // s.nx) * s.pitch
-    e = 1e-3                                             # edges inclusive (float noise of the sample grid)
-    return (x < bounds[0] - e) | (x > bounds[2] + e) | (z < bounds[1] - e) | (z > bounds[3] + e)
+    """Surfaces whose column lies outside bounds (minX, minZ, maxX, maxZ) - bool per surface (CLIP_TO_REFERENCE); in
+    the Rust core."""
+    got = require_native().navkit_outside_bounds(navwalk.run_dict(s, normals=False), [float(v) for v in bounds[:4]])
+    return np.frombuffer(got, np.bool_).copy()
 
 
 def deep_water(s: navsample.Samples, water: tuple[np.ndarray, np.ndarray] | None, limit: float = MAX_WATER_DEPTH) -> np.ndarray:
-    """Surfaces more than limit metres under the level's water (bool per surface). water: (vertices, triangles)."""
+    """Surfaces more than limit metres under the level's water (bool per surface). water: (vertices, triangles). In
+    the Rust core."""
     if water is None:
         return np.zeros(len(s.y), dtype=bool)
     top = water_tops(s, water[0], water[1])
-    col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
-    return (top[col] - s.y.astype(np.float64)) > limit
+    got = require_native().navkit_deep_water(navwalk.run_dict(s, normals=False),
+                                             np.ascontiguousarray(top, '<f8').tobytes(), float(limit))
+    return np.frombuffer(got, np.bool_).copy()
+
+
 AREA_Y_MIN = 0.0                # area height range relative to its ground: DICE's convention (see build())
 AREA_Y_MAX = 1.52
 Y_OFFSET = 0.95                 # outline / node height above the ground (EntityHeight / 2)
@@ -827,53 +810,60 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     require_native()                        # the grid walks need the Rust core: say so before reading anything
     t0 = t0 or time.time()
     walk_grid: list[Any] = []                # walkable's NavLevel (its floods'), for the Level's
+    kept_ends: list[tuple[int | None, int | None]] | None = None    # the ladders' kept ends (the Rust core's)
     if grid is not None:
         s, keep, gx, gz, stair = grid
     else:
-        f, _ = navsample.load(cast(str, samples_path))     # read when there is no grid
-        s = navwalk.coarse(f) if abs(f.pitch - cfg.pitch) > 1e-3 else f
-        hand: dict[str, Any] = {}
+        # walkability end to end in the Rust core (round NK4: bc2_navbuild::walk::stage): the sample file read and
+        # made coarse when its pitch is not the stage's, the hand edits' regions, the water and extent rules, the high
+        # and narrow runs, walkable; the run comes back as navsample.Samples over the core's bytes
         soldiers = list(seeds or [])                 # the level's soldier spawn points (navwalk.CHARACTERS_ABSENT)
+        regions, unseeds, counts = None, None, {}
         if edits:
             import navedits
-            e = navedits.edits_for(s, edits)
-            hand = {'force_walkable': e['force_walkable'] if e['surfaces_walkable'] else None,
-                    'force_unwalkable': e['force_unwalkable'] if e['surfaces_unwalkable'] else None,
-                    'unseeds': e['unseeds']}
-            seeds = list(seeds or []) + e['seeds']
-            log(f'hand edits: {e["counts"]}; surfaces forced walkable {e["surfaces_walkable"]}, unwalkable {e["surfaces_unwalkable"]}')
-        if water is not None and max_water_depth is not None:
-            deep = deep_water(s, water, max_water_depth)
-            if deep.any():
-                fw, fu = hand.get('force_walkable'), hand.get('force_unwalkable')
-                if fw is not None:
-                    deep &= ~fw                      # a hand edit forcing ground walkable wins over the water rule
-                hand['force_unwalkable'] = deep if fu is None else (fu | deep)
-            log(f'water: {int(deep.sum())} surfaces more than {max_water_depth} m under water left out')
-        if bounds is not None and cfg.clip_to_reference:
-            outside = outside_bounds(s, bounds)
-            fw, fu = hand.get('force_walkable'), hand.get('force_unwalkable')
-            if fw is not None:
-                outside &= ~fw                       # a hand edit forcing ground walkable wins here too
-            hand['force_unwalkable'] = outside if fu is None else (fu | outside)
+            regions, hand_seeds, unseeds, counts = navedits.regions_of(edits)
+            seeds = list(seeds or []) + hand_seeds
+        clip = bounds is not None and cfg.clip_to_reference
+        wet = water is not None and max_water_depth is not None
+        if wet and water is not None and water[0] is not None and len(water[1]):
+            wmesh = (np.ascontiguousarray(water[0], '<f8').tobytes(), np.ascontiguousarray(water[1], '<i8').tobytes())
+        else:
+            wmesh = (b'', b'')                       # no triangles: nothing under water
+        files = dict(samples=samples_path, high=high_path, narrow=narrow_path, pitch=float(cfg.pitch),
+                     coarse_pitch=float(navwalk.PITCH), edits=regions, water=wmesh if wet else None,
+                     max_water_depth=float(max_water_depth) if wet and max_water_depth is not None else None,
+                     bounds=[float(v) for v in bounds[:4]] if clip and bounds is not None else None)
+
+        def npy(p: str | None) -> np.ndarray | None:
+            return np.load(p) if p else None
+        args = navwalk.walk_inputs(
+            npy(tris_path), step, dynamic_tris=npy(dynamic_path), stair_tris=npy(stairs_path),
+            exclude_tris=npy(exclude_path), exclude_footprint_tris=npy(exclude_foot_path),
+            extra_seeds=list(seeds or []) + list(seed_points or []), unseeds=unseeds, soldier_points=soldiers,
+            ladders=ladders,
+            # roof pruning anchors: soldier spawns, AI order positions, and (stage b) the ground the normal build
+            # kept - stage b drops only roofs that build did not have
+            anchors=list(seeds or []) + list(order_points or []) + list(seed_points or []),
+            objective_points=area_orders)
+        try:
+            got = require_native().navkit_walk_stage(files, args, navwalk._settings(40.0))
+        except ValueError:
+            for p in (samples_path, high_path, narrow_path):
+                if p:
+                    navsample.load(p)                # a file the core does not read: navsample.load says why
+            raise
+        run, (n_edit, n_water, n_out) = got[0], got[1]
+        del files, args
+        s = navwalk.samples_of(run)
+        if edits:
+            log(f'hand edits: {counts}; surfaces forced walkable {n_edit[0]}, unwalkable {n_edit[1]}')
+        if wet:
+            log(f'water: {n_water} surfaces more than {max_water_depth} m under water left out')
+        if clip and bounds is not None:
             log(f'reference extent x {bounds[0]:.1f}..{bounds[2]:.1f}, z {bounds[1]:.1f}..{bounds[3]:.1f}: '
-                f'{int(outside.sum())} surfaces outside left out')
-        tris = np.load(tris_path) if tris_path else None
-        dyn = np.load(dynamic_path) if dynamic_path else None
-        hi = navsample.load(high_path)[0] if high_path else None
-        narrow = navsample.load(narrow_path)[0] if narrow_path else None
-        st = np.load(stairs_path) if stairs_path else None
-        ex = np.load(exclude_path) if exclude_path else None
-        exf = np.load(exclude_foot_path) if exclude_foot_path else None
-        keep, gx, gz, stair = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
-                                        return_stairs=True,
-                                        narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf,
-                                        extra_seeds=list(seeds or []) + list(seed_points or []), soldier_points=soldiers,
-                                        ladders=ladders, **hand,
-                                        # roof pruning anchors: soldier spawns, AI order positions, and (stage b) the ground
-                                        # the normal build kept - stage b drops only roofs that build did not have
-                                        anchors=list(seeds or []) + list(order_points or []) + list(seed_points or []),
-                                        objective_points=area_orders, grid_out=walk_grid)
+                f'{n_out} surfaces outside left out')
+        keep, gx, gz, stair = navwalk.walk_answer(got[2:], True, True, walk_grid)
+        kept_ends = got[7][3]
     level = Level(s, keep, step, gx, gz, stair, cfg)
     if walk_grid:
         # the level in the Rust core from walkable's (the same samples, gradients and stairs; round E3h); on a
@@ -890,8 +880,8 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     navwalk.OBJECTIVE_STATS.clear()
     # ladder links: the kept surfaces at each ladder's foot and top (navwalk.ladder_ends)
     ladder_pairs = []
-    for lad in (ladders or ()):
-        f_, t_ = navwalk.ladder_ends(s, keep, keep, lad)
+    ends = kept_ends if kept_ends is not None else [navwalk.ladder_ends(s, keep, keep, lad) for lad in (ladders or ())]
+    for f_, t_ in ends:
         if f_ is not None and t_ is not None:
             ladder_pairs.append((int(f_), int(t_)))
 

@@ -8752,3 +8752,151 @@ New rules (verified / implemented / observed / inferred): `transforms/terrain_ed
 ### Left
 
 `spec/COVERAGE.md` section 2 (queued as SPG2-rest).
+
+## NK4: NavKit's walkability end to end (2026-11-22, branch `nk4`)
+
+NK1's plan, stage 3 of the build: everything `navbuild.stage` did from the sample file to the kept surfaces. The
+build's largest memory peaks came from this stage (PR1b's "NavKit regression's 15 GB"): the pitch-0.2 runs of the
+detailed pass (100-650 MB files, up to 30 M surfaces) went through NumPy's masks, gradients and loops.
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navbuild.stage`'s walkability (`navsample.load`, `coarse`, `navedits.edits_for`, `deep_water`, `outside_bounds`, the forced flags folded together, the high and narrow runs, `walkable`, the ladders' kept ends) | `bc2_navbuild::walk::stage` | `bc2_native.navkit_walk_stage`, called once per stage by `navbuild.stage` |
+| `navwalk.walkable`'s NumPy glue: the masks (clear, characters, slope, terrain), the gradients and their `np.where`s, the steep-terrain and lip rules' wiring, the stairs and landings, `raised_bars`, the narrow capsule, the forbidden and dynamic objects, the headroom band, `DYNAMIC_FLOOR`, the edge seeds (`round(x % SECTOR, 1)`), the seed picks, the floods, the ladders' re-floods, the unseeds, the roof islands with their anchors | `walk::walkable` | `navwalk.walkable` (a thin call: `navkit_walkable`) |
+| `navwalk.near_points`, `ladder_ends`, `objective_floor`, `coarse` | `walk::near_points`, `ladder_ends`, `objective_floor`, `Samples::coarse` | `navwalk.near_points` / `ladder_ends` / `coarse` (thin calls); `objective_floor` inside `walkable` |
+| `navedits.region_mask` (NumPy and matplotlib's `Path.contains_points`), `edits_for`'s masks | `walk::region_mask_at`, `edit_masks`, `points_in_polygon` | `navedits.region_mask` / `edits_for` (thin calls); `navedits.regions_of` parses a side file's operations |
+| `navbuild.water_tops`, `deep_water`, `outside_bounds` | `walk::water_tops`, `deep_water`, `outside_bounds` | the same names (thin calls; `navvehicle` and `navwater_mesh` call `water_tops`) |
+| `navsample.load` of a version 3 file: the whole file in memory, then the arrays | `walk::Samples::load_v3`: the counts from the trailer, then the records a block at a time | `navsample.load` (`navkit_navsample_stream`); versions 1 / 2 and damaged files as before |
+
+The rules `walkable` calls were ported before (E2a, E3c, E3h: `rules::Grid`, `Level::flood`, `graph::roof_drop`);
+NK4 ports the glue between them, so a stage hands the core the file names and the inputs once and gets back the
+run, the kept flags, the gradients, the stair flags, the floods' `NavLevel`, the statistics and the counts the stage
+logs. `rules::Grid` now shares its arrays (`Arc`) with the floods' level (`Level::on_grid`): the heights, column
+starts and surface columns are held once.
+
+What stays Python until NK5: `navbuild.Level` (its `y`, `col_of`, `terrain` from the run), the rest of `stage`, and
+the module settings, read at each call (`navwalk._settings`: the tests switch them).
+
+### Python's order and floats
+
+Nothing a set or dict iterates reaches the answer: `anchor_k` (the roof islands' anchors), the sector-line columns
+`per_i` / `per_j` and the ladders' `done` are only tested for membership (the roof rule marks an island anchored; the
+order of the anchors does not matter, `graph::roof_drop`); the hand edits' counts are the side file's operations in
+order. No NumPy reduction over many floats: the sums count flags (exact), `np.median` of the objective floor's
+heights takes the mean of at most two, `np.unique` sorts. So no order rule was needed.
+
+The floats are the Python's, bit for bit (the arrays below):
+
+- **NumPy 2's comparisons (NEP 50).** A Python float compared with a `float32` array or scalar is cast to `float32`
+  first: the normals' slope tests (`normal[:, 1] >= cos(radians(slope)) - 0.01`, the 55-degree steep limit, the
+  lips' 15-degree flat test) and the ladder ends' height bands (`y0 <= s.y[k] <= y1` on the run's `float32`
+  heights); likewise `on_objects`' bounding-box filter on `float32` triangles. Measured: for a sample file's normals
+  (k / 127 as `float32`) the `float32` limit and the `float64` one decide the same for all 255 values at all three
+  limits, so the cast decides nothing there. The ladder bands are NavKit's own rule (DICE's path data has no ladder
+  links; parity treats them as outside), so they keep the run's precision as a spec rule (XNAV-BLD-4) rather than a
+  DICE question.
+- **Dtypes.** The gradients are `float32` from the normals (`-n.x / max(n.y, 0.05)` in `float32`) until a rule
+  replaces some (`np.where` with `float64` slopes: `float64`); a build always runs the stair rule, so its gradients
+  are `float64` (as before).
+- **Python's arithmetic.** `round()` half to even for column indices, `%` with the divisor's sign and `round(x, 1)`
+  (the correctly rounded decimal) for the sector lines, `math.hypot` (CPython's), `min` / `max` taking the first of
+  equals, tuples ordered `(not kept, distance)` for the ladder ends; the trigonometric constants are computed in
+  Python (the C library's `cos` / `tan`, as before) and passed in.
+- **matplotlib's crossing test.** A polygon region's points on its outline are in or out as matplotlib 3.11 decides
+  (`_path.h`'s `point_in_path_impl`: half-open edges, the closing edge back to the first vertex). The port follows it
+  and is checked against matplotlib: 400 random polygons, half with vertices on a 0.5 m lattice so sample points fall
+  on edges and vertices, some self-crossing, on a 0.25 m point lattice: 0 differ (`test_navedits.py`). Polygons with
+  fewer than 3 vertices contain nothing, as matplotlib's.
+
+One behaviour is not the Python's: a version 1 run (no hit words) has `hit` None. `navsample.load` gave an empty
+`(0, 3)` array, on which `walkable` and `navbuild.Level` failed (a broadcast error), so no build could use such a run
+before; now it builds with every surface counted as terrain, as a run without hit words always was in `coarse`.
+
+### Parity
+
+- **Every regression level, against the old Python** (`rust/parity_nk4_walk.py capture`: each level's whole build
+  through `navregress.build_level`, the build clock fixed, once with a checkout of `30f19b0` - the Python before NK4
+  - and once with this branch, one level at a time, the two interleaved; `compare`): **15 of 15 identical**: per
+  stage (the normal pass and the detailed pass, 30 stages) the run as `navbuild.Level` gets it (`start`, `y`,
+  `normal`, `flags`, `hit`, pitch, grid) and `keep`, `gx`, `gz`, `stair` with their dtypes, as SHA-1s; `STEEP_STATS`;
+  every log line (the seconds blanked); and the path data's SHA-1. The 4 golden builds (sp_009, sp_004_b, sp_008_b,
+  ons_mp_004) as recorded.
+- **XNAV-BLD-3**: the files are byte-identical to the Python's, so every navparity measure is unchanged by
+  construction; no regression reference changes.
+- **NK1's apply parity**: 33 of 33 (`rust/parity_nk1_apply.py`; the apply's edit stage is untouched).
+- **The quick tier's recorded answers** (`test_navbuild_native.py`: E2a's 331 answers - `walkable` with every rule
+  on random runs, in `float32` and `float64`, among them -, E3c's 456, E3h's 39 whole stages): all as recorded.
+  `test_navedits`, `test_water_rule`, `test_reference_clip`, `test_headroom`, `test_lips`, `test_roof_prune`,
+  `test_objective_floor`, `test_characters`, `test_dynamic_props`, `test_apply`: pass. Rust: `walk_tests.rs`, 7.
+
+### Time and memory
+
+Each level's whole build, old and new interleaved (one process each, one at a time; other agents' builds beside
+them). Walkability: from the stage's start to `navbuild.Level` (old: `navsample.load` ... `walkable`; new: the one
+call). Memory is the process's private bytes (committed memory, sampled every 10 ms; the working set understates a
+peak when Windows trims pages under load); "above its start" is the stage's peak less what the process held when the
+stage began (the normal pass's results).
+
+| level | surfaces 0.8 / 0.2 | walkability 0.8, old -> new (s) | walkability 0.2, old -> new (s) | walkability 0.2 peak above its start, old -> new (MB) | build peak, old -> new (MB) |
+|---|---:|---:|---:|---:|---:|
+| ons_mp_002 | 0.8 M / 9.6 M | 0.83 -> **0.45** | 6.77 -> **2.66** | 3,559 -> **1,659** | 4,419 -> **3,920** |
+| ons_mp_004 | 0.5 M / 5.1 M | 0.30 -> **0.13** | 2.59 -> **1.19** | 1,811 -> **750** | 3,140 -> **2,856** |
+| sp_003_b | 5.0 M / 11.2 M | 2.58 -> **1.36** | 8.48 -> **3.62** | 4,315 -> **1,919** | 6,337 -> **5,545** |
+| sp_004_b | 0.5 M / 7.7 M | 0.30 -> **0.21** | 4.24 -> **1.85** | 2,753 -> **1,114** | 3,703 -> **3,396** |
+| sp_005 | 4.3 M / 23.4 M | 2.03 -> **1.52** | 24.23 -> **8.26** | 10,081 -> **4,222** | 12,253 -> **10,181** |
+| sp_005_b | 4.3 M / 18.8 M | 2.00 -> **1.13** | 14.32 -> **5.18** | 7,906 -> **3,193** | 9,989 -> **8,169** |
+| sp_006 | 5.9 M / 26.4 M | 3.65 -> **2.13** | 39.71 -> **8.87** | 12,507 -> **5,139** | 15,204 -> **11,862** |
+| sp_007 | 4.4 M / 30.2 M | 3.27 -> **1.82** | 35.30 -> **11.14** | 12,774 -> **5,622** | 14,627 -> **9,652** |
+| sp_008 | 0.9 M / 17.6 M | 0.81 -> **0.49** | 10.14 -> **4.56** | 6,200 -> **2,550** | 7,005 -> **4,828** |
+| sp_008_b | 0.6 M / 13.0 M | 0.34 -> **0.22** | 7.83 -> **2.78** | 4,374 -> **1,764** | 5,082 -> **3,796** |
+| sp_009 | 0.1 M / 1.7 M | 0.05 -> **0.03** | 0.84 -> **0.36** | 808 -> **332** | 1,365 -> **1,252** |
+| sp_01 | 2.4 M / 16.0 M | 1.32 -> **1.09** | 10.76 -> **5.99** | 6,122 -> **2,653** | 7,367 -> **5,610** |
+| sp_02 | 1.8 M / 17.1 M | 1.09 -> **0.48** | 14.51 -> **4.37** | 6,930 -> **2,741** | 8,036 -> **5,324** |
+| sp_03 | 4.8 M / 22.1 M | 2.73 -> **1.70** | 18.07 -> **7.40** | 9,258 -> **4,224** | 11,271 -> **7,945** |
+| sp_04 | 3.4 M / 22.3 M | 1.30 -> **0.79** | 13.95 -> **6.56** | 9,487 -> **3,931** | 11,181 -> **8,739** |
+
+| | old Python | Rust | |
+|---|---:|---:|---:|
+| walkability, 30 stages | 234.3 s | **88.3 s** | 2.7x |
+| the detailed pass's walkability, largest (sp_006, 26.4 M surfaces) | 39.7 s | **8.9 s** | 4.5x |
+| the walkability's own peak, largest (sp_007, 30.2 M surfaces) | 12.8 GB | **5.6 GB** | 2.3x less |
+| the whole build's peak, largest (sp_006) | 15.2 GB | **11.9 GB** | |
+| whole builds, 15 levels | 483 s | **310 s** | |
+
+**Where the peaks come from.** Before NK4 the detailed pass's walkability was the build's peak on 12 of 15 levels
+(all but the three smallest). Its own peak is now 2.2-2.5 times lower, and on no level the build's peak, which is
+now later in the detailed pass: the stage's areas, tracing and one-way portals, which NK5 moves (sp_04: the
+walkability call 5.1 GB, the areas 6.2 GB, the one-way portals 6.6 GB, in working set). A stage's walkability now
+holds: the run (33 bytes a surface and 8 a column: heights as `float64`, normals, flags, hit words), the high run's
+heights and flags (9 a surface), the floods' level (the shared heights and columns, the gradients as `float64`, three
+flags), the masks (a byte a surface each) and one `stair_slope` answer at a time (24 a surface); a version 3 file is
+read a block of records at a time, never whole (before: the file's bytes beside the arrays, twice - the run and the
+high run). The NumPy version held many `float64` / bool temporaries of every mask expression at once.
+
+### Retired
+
+`navwalk.walkable`'s body (its NumPy glue), `near_points`, `ladder_ends`, `objective_floor`, `coarse`'s loop and
+`_column_picks`; `navedits.region_mask`'s NumPy / matplotlib body and `edits_for`'s mask loop; `navbuild.water_tops`',
+`deep_water`'s and `outside_bounds`' bodies and `stage`'s walkability block. Python twins inside a living tool
+(RETIRED.md rule 4: recorded here and in CHANGELOG, not as RETIRED.md rows); the last commit with them is `30f19b0`.
+The functions stay as thin calls with the same arguments and answers; no command line went, and nothing outside
+NavKit imports them (Project OPFOR has no caller of navwalk, navedits or navbuild), so `VERSION` stays (RELEASING.md).
+navedits no longer imports matplotlib.
+
+### What is left: NK5
+
+NK5 as NK1-NK3 planned it: the stage (sector discovery, specs, border-node runs, carried seam nodes, the one-way
+drop, the detail loop with `detail_pass`'s glue, graph jobs and ids, the meshes' assembly), `merge_detailed`, the
+driver's `build_inputs`; then `navkit build` / `all` / `apply` on a NavKit base in Rust, the editor's AI workspace in
+process, `navbuild.py` retired after its other callers move. For NK5 from here:
+
+- `walk::stage` already returns the run and the floods' `Level` in Rust: NK5's stage can keep them there
+  (`navbuild.Level`'s `y` / `col_of` / `terrain` and the `NavLevel` rebuilt with `with_walk` are copies the core
+  already holds), and the run need not cross to Python at all (today it does, as `navsample.Samples` over the core's
+  bytes, for `Level`, `column_sectors`, `merge_detailed`'s seed points and navvehicle).
+- The build's peak is now the detailed pass's areas and one-way portals (above): NK5 should measure them the same way
+  (`parity_nk4_walk.py`'s sampler).
+- `merge_detailed` passes stage a's kept ground in the detailed sectors as Python tuples (0.26-0.85 M seed points);
+  in Rust it is a mask.
