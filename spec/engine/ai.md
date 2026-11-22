@@ -182,6 +182,20 @@ tickets is not known.
 [exe: BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for no victim player) -> kill scoring 0x86C070 -> award 0x86BE20]
 [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:579-581]
 
+### AI-NAV-1: A bot reaches only what the route graph connects to the main network
+
+Status: **inferred** · Variants: PC
+
+A route request is answered on the path data's route graph (AI-KY-3, HPD-USE-1); the graph falls into islands, the
+largest of which carries nearly every route (the AI workspace numbers them, island 0 the main network). A spawn point
+whose nearest route node lies on another island, or with no node near it, leaves its bots nowhere to go, and an
+objective there is out of the bots' reach. The export's XVAL-PLACE-5 checks the edited spawns, flags and M-COMs
+against the path data the AI workspace reads (a node within 15 m in plan and 4 m in height, as the workspace joins
+spawns to the graph).
+
+[inferred: Kynapse answers a go-to from the graph of the path data's sectors (AI-KY-3); points not connected to the requester's node have no route; GR2's island and spawn tables show DICE's own campaign files with islands besides the main network]
+[doc: rust/BENCHMARKS.md:5684-5692]
+
 ## 4. Crashes and hangs
 
 ### AI-CRASH-1: The AI's sphere query walks the static cull tree (0x56C4E0)
