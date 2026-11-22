@@ -145,6 +145,12 @@ Terms as the specification uses them. The rule that defines a term in full is na
 | level catalogue | the UI manager's table of levels built from the description partitions (MENU-CAT-1) |
 | working AI level | a level on which bots were seen to move and fight in a play test (AI-NEED-2) |
 | Flat data mode | Kynapse's mode in which a go-to computes its path inside the call (AI-KY-3) |
+| AI player | a server player with the AI flag (+0xD84), made by an AI spawner's spawn; a bot (BOT-CTL-1) |
+| AI proxy | the AI's per-player object (0xC0 bytes), for humans and bots alike (BOT-RT-5) |
+| AI input object | the proxy's input writer: an EntryInputState pushed into the player's input handler each frame (BOT-CTL-2) |
+| EIA | an `EntryInputAction` (EiaThrottle 0 ... EiaUndefined 49): one input of an EntryInputState (BOT-CTL-3) |
+| order | an `*OrderEntityData` of the level telling named AI soldiers what to do once issued (AIO-CLS-1, AIO-EVT-1) |
+| readiness | a bot's alertness: patrol, ready or combat; it picks sensing limits and reaction times (AIO-RDY-4, BOT-PER-1) |
 | draw class | opaque, tested (alpha test, alpha to coverage or a discard) or blended; it sets the draw order (RNDR-ORD-1) |
 | depth pass | `psUnprojectDepthBuffer`, turning scene depth into view distances before the first draw that reads them (RNDR-ORD-3) |
 | EnvironmentMain | the weather pass drawing the sky, haze and fog over the scene by depth (RNDR-WTHR-3) |

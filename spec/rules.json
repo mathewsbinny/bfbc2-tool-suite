@@ -682,6 +682,659 @@
    ]
   },
   {
+   "id": "BOT-RT-1",
+   "title": "The AI's singletons",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe AI set-up 0x5B4840 (allocations 0x4A8 / 0x9C / 0x24 / 0x160, globals 0x018903EC, 0x018903A8, 0x0189427C, 0x0189037C; listener registration through 0x547BF0 +0x18 vtable +8); per-player loop over 0x532270 (+0x58) calling 0x5AB6C0(6, player)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:208-221"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-2",
+   "title": "The server's AI frame",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe AI update 0x59E190 (thiscall(this, dt)): `this+0x18` skip flag, `this+0x19` busy flag, setting Server.IsAiEnabled via 0x4F4C40; callees 0x599E70, 0xEBF3B0, 0x59A040, 0x595190, 0xEBF460"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/probes.cpp:128"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-3",
+   "title": "The AI step's subsystems, in order",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe AI step 0xEBF3B0 (thiscall(double* last, dt)): 0xEAA1F0, 0xEFD2E0, 0xE6DCE0, 0xEBC4F0, 0xF2CDA0(dt), 0xEB7270, 0xEBF120, 0xEBD0A0; Kynapse update 0xF2CDA0 -> 0x109D970(world +0x10, dt)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-4",
+   "title": "Sensing, decisions and behaviours run time-sliced per bot",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe scheduler 0xE6DCE0; passes 0xE6D660 / 0xE6D8B0 / 0xE6DA70 with their list names (strings 0x014A5278, 0x014A52A0), budgets read from [[0x018903E8"
+    },
+    {
+     "kind": "data",
+     "ref": "AI/Settings TimingConstantData and 4 BotPriorityConfigData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-5",
+   "title": "Every player has an AI proxy; a human's is a Kynapse obstacle",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe player hook 0x5AB6C0 (array at this+4 indexed by player[0x55"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-6",
+   "title": "The bot object",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe bot debug print 0xEEF450 (strings \" Bot id: \" 0x014A7E64, \"Squad: \", \" - Squad leader\" 0x014A7E50, \"Readiness: \" 0x014A7E44, \"Position: \"); Kynapse bot entity 0xF27900 (\"Entity_\", thunk 0x109EAC0, registration 0x109DFF0)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:202-203"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-7",
+   "title": "Goals, behaviours, plans and squad behaviours",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe creator registries: goals 0x01C08AB4..0x01C08D0C and 0x01C09BAC..0x01C09C3C (IGoal::IGoalCreator), behaviours 0x01C098C4..0x01C09B94 (IBehaviour::IBehaviourCreator), squad behaviours 0x01C0A4A4..0x01C0A4BC and 0x01C0AA0C..0x01C0AACC (ISquadBehaviour::ISquadBehaviourCreator)"
+    },
+    {
+     "kind": "data",
+     "ref": "AI/Behaviours AIVehicleBehaviourData Behaviours.Plan values (ai_probe)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:192-201"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-8",
+   "title": "Urgencies choose the goal",
+   "file": "spec/engine/bot_ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the data's shape (urgency weights per goal name, Idle at 0.01 everywhere) and the decision pass of BOT-RT-4; no formula read"
+    },
+    {
+     "kind": "data",
+     "ref": "AI/Behaviours: 44 BehaviourData, UrgencyModifiers 180 entries, modifier 0..3 (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-1",
+   "title": "An AI soldier belongs to a server player with the AI flag",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe spawner spawn 0x72D160 (player 0x573750, team 0x54F2A0, AI flag 0x532190 -> mov [ecx+0xD84"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-2",
+   "title": "The AI drives its soldier through an input handler, like a remote human",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe AI input object 0x5A7F00 (handler 0x623390 / 0x531C20, push 0x6234B0(this+0x28)); vtable 0x014198A8 slot 7 0x586F30 (0x57DB70 copy, 0x612B60 time, 0x6234B0 push)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:160-195"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-3",
+   "title": "The AI input object's actions",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtable 0x014198A8 slots 0-19 (Ghidra vtable listing); action table 0x01505158 (u32 x 13: 0, 1, 2, 4, 5, 6, 8, 12, 14, 15, 27, 29, 49); EntryInputActionEnum field table 0x01C27C58 (records of 0x18 bytes, name at +0, value at +0x18)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-4",
+   "title": "Two ways to plug a bot module in",
+   "file": "spec/engine/bot_ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from BOT-CTL-2 (the server applies a handler's state whatever filled it), BOT-CTL-3 (what DICE's AI writes and what it does not) and the input path of the landing-gear study (every digital EIA a client sends reaches the server)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:263-266"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-5",
+   "title": "Bots are the server's; the in-process client sees replicated soldiers",
+   "file": "spec/engine/bot_ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from AI-START-1, BOT-RT-2, NET-SES-2..NET-SES-4 and the server-only creation of AI players (BOT-CTL-1); the replication of an AI player's soldier to the local client was seen in every Onslaught play test (bots visible, fighting) but its code path was not read"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
+    }
+   ]
+  },
+  {
+   "id": "BOT-PER-1",
+   "title": "Sensing templates: limits per readiness",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "14 SensingTemplateData of sp_common (ai_probe ranges); the grunt template's values"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:39-41"
+    }
+   ]
+  },
+  {
+   "id": "BOT-PER-2",
+   "title": "The sensing constants",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Settings SensingConstantData and SoundEnvironmentConstantData (sp_common = mp_common)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-PER-3",
+   "title": "Line of sight is a ray query of the AI manager",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe Senses::isVisible(Pos) 0xE82D70 (manager vtable +0x10), testVisionLines 0xE8CE80 (manager vtable +0x28 region test, then 0xE82F50); strings 0x014A5820..0x014A59B0"
+    }
+   ]
+  },
+  {
+   "id": "BOT-PER-4",
+   "title": "Target memory",
+   "file": "spec/engine/bot_ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the state writes 2 / 3 in 0xE8CE80 against the template's forget times; the states' names are not in the executable"
+    },
+    {
+     "kind": "data",
+     "ref": "AI/Settings TargetEvaluationConstantData"
+    }
+   ]
+  },
+  {
+   "id": "BOT-PER-5",
+   "title": "Target selection weights",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BehaviourTemplateData (14), WeaponData (47), TargetEvaluationConstantData, SoldierSpawnEntityData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CMB-1",
+   "title": "The accuracy model's knobs",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "WeaponData, BehaviourTemplateData, DifficultyData, CombatConstantData, DebugConstantData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CMB-2",
+   "title": "Bursts, reloading, suppression, melee",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BehaviourTemplateData, WeaponData, CombatConstantData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CMB-3",
+   "title": "Firing and aiming reach the soldier two ways",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe AI input aim 0x586E30 -> 0x6A6460 (other callers of 0x6A6460: the soldier's own aim code 0x6A6720, 0x6AAF60, 0x6ABC30)"
+    },
+    {
+     "kind": "data",
+     "ref": "SoldierControlConstantData (ai_probe)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:494-500"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CMB-4",
+   "title": "DICE's AI uses no class gadgets",
+   "file": "spec/engine/bot_ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the action table 0x01505158 and the four creator registries (BOT-RT-7) having no such entry"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CMB-5",
+   "title": "Cover",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "CoverConstantData, BehaviourTemplateData (ai_probe)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:202-204"
+    }
+   ]
+  },
+  {
+   "id": "BOT-MOV-1",
+   "title": "Kynapse's agents follow the path; DICE's code moves the soldier",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe Kynapse world set-up 0xF1B980 (class-name strings 0x014A9470..0x014A9D4C referenced from it)"
+    },
+    {
+     "kind": "data",
+     "ref": "AI/Settings NavigationConstantData"
+    }
+   ]
+  },
+  {
+   "id": "BOT-MOV-2",
+   "title": "Speeds, acceleration and stance",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "SoldierControlConstantData, CombatConstantData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-MOV-3",
+   "title": "Stuck bots teleport",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "NavigationConstantData, FollowConstantData (ai_probe)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe BotManager::evacuateImmortalsFromArea 0xE610B0 (string 0x014A4BB4)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-MOV-4",
+   "title": "No ladders, no breaches; costs for water and roads",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "NavigationConstantData (ai_probe); AIVehicleBehaviourData plans"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:2084-2088"
+    }
+   ]
+  },
+  {
+   "id": "BOT-MOV-5",
+   "title": "Formations and following",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Formations FormationData (6), AI/Settings FollowConstantData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-VEH-1",
+   "title": "Equipment types: what a bot may do in each",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Behaviours 15 AIVehicleBehaviourData (Navigation NTGround 7, NTHelicopter 3, NTNone 5), AI/Settings control constants (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-VEH-2",
+   "title": "A vehicle's AI description",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Vehicles ObjectData 41, ArmamentData 24, MobilityData 10, TurretData 20, AIAimingConstraintsData 6; AI/Settings KynapseConstantData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-VEH-3",
+   "title": "DICE seats bots at spawn; it never boards",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "SoldierSpawnEntityData Vehicle / VehiclePos, PatrolOrderEntityData, BehaviourTemplateData (ai_probe)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:2164-2170"
+    }
+   ]
+  },
+  {
+   "id": "BOT-VEH-4",
+   "title": "Helicopters fly without path data",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Settings NavigationConstantData, HelicopterControlConstantData, DifficultyData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SQD-1",
+   "title": "Squads in the level data",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe SquadEntityData (301 campaign, 40 Onslaught), SoldierSpawnEntityData.Squad (454)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SQD-2",
+   "title": "Squad types and behaviours",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Squads SquadTypeData (3) (ai_probe)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe squad behaviour creators 0x01C0AA0C..0x01C0AACC"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SQD-3",
+   "title": "No revive, resupply or objective sharing",
+   "file": "spec/engine/bot_ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the registries (BOT-RT-7), the order data (AIO-ASN-1) and the timing parts' names"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-1",
+   "title": "DICE's AI reads no mode state",
+   "file": "spec/engine/bot_ai.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from AIO-MODE-1 and the gameplay rules; the capture point data offsets are OPFOR's captureprobe reading"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:582-583"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/captureprobe.cpp:3-12"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-2",
+   "title": "Positions, players and kills",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xEEF450 / 0xE8CE80 (vtable +4, +0x30 translation), 0x5AB6C0 (+0x154), 0x531C30 (+0xC38), 0x870070"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:104-115"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:37-38"
+    }
+   ]
+  },
+  {
+   "id": "BOT-DIF-1",
+   "title": "One set of AI partitions for campaign and multiplayer",
+   "file": "spec/engine/bot_ai.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::ai_partitions_are_shared_by_both_commons"
+    }
+   ]
+  },
+  {
+   "id": "BOT-DIF-2",
+   "title": "Three difficulty modes",
+   "file": "spec/engine/bot_ai.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::difficulty_has_three_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "AI/Difficulty DifficultyData (ai_probe), identical on Xbox 360 per OPFOR's console research"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1833-1836"
+    }
+   ]
+  },
+  {
+   "id": "BOT-DIF-3",
+   "title": "The per-template and per-spawner knobs",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BehaviourTemplateData (14), SensingTemplateData (14), SoldierSpawnTemplateData (18), SoldierSpawnEntityData (ai_probe)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:218-231"
+    }
+   ]
+  },
+  {
+   "id": "BOT-DIF-4",
+   "title": "Offline multiplayer runs the AI at Normal",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's live run of Levels/SP_005 through the offline multiplayer path, probe \"AI: init (arg1 = difficulty)\" = 1"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:225-227"
+    }
+   ]
+  },
+  {
    "id": "GAME-MODE-1",
    "title": "A mode is a GameModeData partition and the level's entities",
    "file": "spec/engine/gameplay.md",
@@ -11743,6 +12396,262 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/xmlinst.rs:10-21"
+    }
+   ]
+  },
+  {
+   "id": "AIO-CLS-1",
+   "title": "Fifteen order classes",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe type-name strings 0x0146ADC0..0x0146B070, type-info records 0x01C02434..0x01C025BC (stride 0x18), base name \">@OrderEntityData\" at 0x01419C56"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241"
+    }
+   ]
+  },
+  {
+   "id": "AIO-CLS-2",
+   "title": "What DICE's campaign uses",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe over 13 campaign levels (Package copies) and 5 Onslaught levels of the game copy, 2026-11-22"
+    }
+   ]
+  },
+  {
+   "id": "AIO-FLD-1",
+   "title": "The fields every order has",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe field tallies over 4,657 campaign orders; the enumerators listed are every value seen"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241"
+    }
+   ]
+  },
+  {
+   "id": "AIO-FLD-2",
+   "title": "The fields of each order class",
+   "file": "spec/model/ai_orders.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::campaign_order_shapes_and_events"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe field and array tallies over the 13 campaign levels"
+    }
+   ]
+  },
+  {
+   "id": "AIO-FLD-3",
+   "title": "An order's area is a geometry entity",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"order Area targets by type\", campaign and Onslaught"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:307-309"
+    }
+   ]
+  },
+  {
+   "id": "AIO-ASN-1",
+   "title": "Orders name spawners and squads",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe: enabled SSAiPlayer spawners 1,497, named 1,340 (campaign); 275 / 246 (Onslaught); Soldiers 0..7, Squads 0..4 per Area order"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:279-291"
+    }
+   ]
+  },
+  {
+   "id": "AIO-ASN-2",
+   "title": "The spawner fields an AI soldier takes",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe SoldierSpawnEntityData tallies over 1,556 campaign spawners"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:229-235"
+    }
+   ]
+  },
+  {
+   "id": "AIO-EVT-1",
+   "title": "An order runs when its IssueOrder event fires",
+   "file": "spec/model/ai_orders.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::campaign_order_shapes_and_events"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe \"events into AI entities\": IssueOrder per class Patrol 1,180, Area 982, Interlude 275, ShootAtObject 235, SearchAndDestroy 89, Cancel 54, FollowClosestHuman 50, FireAtArea 32, Change 28, AimAt 15, JoinSquad 3"
+    }
+   ]
+  },
+  {
+   "id": "AIO-EVT-2",
+   "title": "What issues an order",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"IssueOrder sources\", campaign and Onslaught"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:303-306"
+    }
+   ]
+  },
+  {
+   "id": "AIO-EVT-3",
+   "title": "Orders report issue, completion and failure",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"events out of AI entities\", campaign"
+    }
+   ]
+  },
+  {
+   "id": "AIO-EVT-4",
+   "title": "Spawner events that script soldiers",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"events into / out of AI entities\", campaign and Onslaught"
+    }
+   ]
+  },
+  {
+   "id": "AIO-RDY-1",
+   "title": "One OrderReadiness per order type",
+   "file": "spec/model/ai_orders.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::order_readiness_per_order_type"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe OrderReadiness: 11 instances, OrderType 11 distinct, Initial = Minimum"
+    }
+   ]
+  },
+  {
+   "id": "AIO-RDY-2",
+   "title": "A squad picks its behaviour by weight",
+   "file": "spec/model/ai_orders.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the data's shape (per-behaviour default weights, per-order additive modifiers named after the squad behaviours, the 0.01 Idle entries) and the time-sliced decision pass of BOT-RT-4; the summation and the arg-max were not traced in the executable"
+    }
+   ]
+  },
+  {
+   "id": "AIO-RDY-3",
+   "title": "IsUrgent drops the order's combat allowance",
+   "file": "spec/model/ai_orders.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the set's name and contents against IsUrgent's use; not traced in the executable"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe IsUrgent tallies per class"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:307-309"
+    }
+   ]
+  },
+  {
+   "id": "AIO-RDY-4",
+   "title": "Readiness levels and their reaction times",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Settings AISettingsData.ReadinessLevels (sp_common = mp_common); ai_probe SquadEntityData.BaseReadiness"
+    }
+   ]
+  },
+  {
+   "id": "AIO-MODE-1",
+   "title": "Orders know no game mode",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe creator registries 0x01C08AB4..0x01C08D0C (goals), 0x01C098C4..0x01C09C3C (behaviours, goals), 0x01C0A4A4..0x01C0AACC (squad behaviours); order type names 0x0146ADC0..0x0146B070"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe IssueOrder sources: CapturePointEntityData.OnCaptured 3 (Onslaught), MultipleTriggerEntityData.OnTrigger 32 (Onslaught) / 69 (campaign), MissionObjectiveEntityData.OnSuccess 1 (campaign)"
     }
    ]
   },

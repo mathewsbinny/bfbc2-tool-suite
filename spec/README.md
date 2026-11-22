@@ -155,12 +155,14 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [model/bundles.md](model/bundles.md) | partitions and bundles, `*deleted*` markers, bundle precedence |
 | [model/level.md](model/level.md) | the level: LevelData, its description, layers, Objects, event connections, model groups |
 | [model/registration.md](model/registration.md) | `package.mft`, `bundleManifest`, the level checksum |
+| [model/ai_orders.md](model/ai_orders.md) | AI orders: the fifteen order classes and their fields, whom an order commands, issuing and chaining, the readiness and urgency data, why no order knows a game mode |
 | **Engine subsystems (layer 3)** | |
 | [engine/loading.md](engine/loading.md) | the load's session states, the startup bundle, the level checksum (Md5Buffer), partitions and references at load, model groups |
 | [engine/levels.md](engine/levels.md) | level ids, mode levels, the level data at run time, what a description declares |
 | [engine/gameplay.md](engine/gameplay.md) | modes and mode layers, Conquest, tickets, Rush stages, Squad Deathmatch, spawns, combat areas, DICE's measured conventions (the L1 study) |
 | [engine/ai.md](engine/ai.md) | the AI's start, the Kynapse runtime, what a level needs for bots, AI crashes |
 | [engine/kynapse_runtime.md](engine/kynapse_runtime.md) | the Kynapse runtime from the executable: configuration, loading, point to sector / tile / area / node, search costs, straight moves, sector links, dynamic edges, what it ignores, crashes |
+| [engine/bot_ai.md](engine/bot_ai.md) | bot AI: the AI frame and its time-sliced passes, the bot and player proxy, goals / behaviours / squad behaviours, the control boundary (the AI player, its input object, the actions it sends), perception, combat, movement, vehicles, squads, the game state a bot reads, difficulty; the implementation interface for OPFOR's bot module and the RE still needed |
 | [engine/rendering.md](engine/rendering.md) | the Direct3D 11 renderer: shader databases, draws, order, terrain, water, weather, post-process, shadows |
 | [engine/audio.md](engine/audio.md) | waves, streaming and on-demand audio, the announcer per content set, voice-over events |
 | [engine/network.md](engine/network.md) | the in-process host (`hostMultiplayerLocal`), the transport, the join, the server browser |
@@ -195,6 +197,16 @@ Round NKS's specification of navigation meshing as BFBC2 ships and runs it, in f
 
 The corpus rules are checked by `rust/bc2-formats/tests/kynapse_corpus.rs` (game tier) and measured by
 `rust/bc2-formats/examples/kynapse_probe.rs`, which also takes NavKit's builds on its command line for the gap counts.
+
+## Bot AI
+
+Round AIS's specification of what a bot AI decision-and-control implementation needs (2026-11-22):
+[engine/bot_ai.md](engine/bot_ai.md) (`BOT-*`: the runtime, the control boundary, perception, combat, movement,
+vehicles, squads, game state, difficulty; its last sections are the implementation interface for OPFOR's bot module
+and the reverse engineering still needed, in priority order) and [model/ai_orders.md](model/ai_orders.md) (`AIO-*`:
+the order data). DICE's campaign is the ground truth; the data rules are measured by
+`rust/bc2-formats/examples/ai_probe.rs` and checked by `rust/bc2-formats/tests/ai_corpus.rs` (game tier). The AI's
+start and what a level needs stay in [engine/ai.md](engine/ai.md).
 
 ## The plan
 
