@@ -14,9 +14,11 @@ XMA-DEC-1 in `spec/formats/audio.md`; the measurements in `rust/BENCHMARKS.md`, 
 This crate is a translation of FFmpeg's code and tables (`wmaprodec.c`, `wmaprodata.h`, `wma.c`, `vlc.c`,
 `libavutil/tx_template.c`, `float_dsp.c`, `sinewin_tablegen.h`, `wavdec.c`, `pcm.c`, `decode.c`), whose authors hold
 their copyright (Baptiste Coudurier, Benjamin Larsson, Ulion, Sascha Sommer, Lynne and the other FFmpeg
-developers). It is therefore licensed under FFmpeg's licence, the **GNU Lesser General Public License, version 2.1 or
-(at your option) any later version** (`license = "LGPL-2.1-or-later"` in its `Cargo.toml`), not under the suite's MIT
-licence. The rest of the suite links it as a library; its source is this folder.
+developers). It is therefore licensed under FFmpeg's licence, the **GNU Lesser General Public License, version 2.1
+or (at your option) any later version** (`license = "LGPL-2.1-or-later"` in its `Cargo.toml`; the user's choice,
+2026-11-22), not under the suite's MIT licence. The licence's text is `LICENSE` beside this file. The rest of the
+suite (MIT, the repository's `LICENSE`) links it as a library into `bc2_native` and `bfbc2.exe`; its source is this
+folder.
 
 FFmpeg is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
 of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details:

@@ -7,6 +7,11 @@ Version: see `VERSION` and `CHANGELOG.md`. What is being worked on and what come
 are merged and versions released: `RELEASING.md`. Which Python is left and what retires it, file by file:
 `PYTHON_STATUS.md` (ROADMAP.md, "Python left").
 
+**Licence.** The suite is under the MIT licence (`LICENSE`), with one exception: `rust/bc2-xma`, the XMA2 sound
+decoder, is a translation of FFmpeg's decoder and is under FFmpeg's licence, the GNU Lesser General Public License
+2.1 or later (`rust/bc2-xma/LICENSE`, its `README.md`; the user's choice, 2026-11-22). It is linked into the Rust
+core (`bc2_native`) and `bfbc2.exe`; its source is that folder.
+
 ## Getting started
 
 1. Install Python 3.12 or newer (`pyproject.toml` targets 3.12: bf1943-import uses its f-string syntax), then the
@@ -757,9 +762,9 @@ game copy, replaced when its inputs change, and deleted by deleting the file or 
 
 | What | Where | Key | Written by | Eviction | Typical size |
 |---|---|---|---|---|---|
-| mesh viewer index | `work\tools_out\meshview_index.pkl` | the game copy's bundles (signature), `CACHE_VERSION` | `meshview.Index` (built under a lock) | one file, rebuilt when stale | 33 MB |
+| mesh viewer index | `work\tools_out\meshview_index.bin` (PR1b-2-rest; was `.pkl`) | the game copy's bundles (signature), format version 4, a SHA-1 of the file | `bc2_gamefs::meshindex` (built under a lock; `meshview.Index`, `bfbc2.exe`, the editor) | one file, rebuilt when stale | 33 MB |
 | DBX catalogue | `work\tools_out\dbx_catalogue.pkl` | as the mesh viewer index | `dbxcatalogue` | one file, rebuilt when stale | 70 MB |
-| renderqa | suite `build\meshview_index.pkl`, `build\renderqa_truth.pkl` | as the mesh viewer index | `renderqa` | one file each | 33 MB, 0.2 MB |
+| renderqa | suite `build\meshview_index.bin`, `build\renderqa_truth.pkl` | as the mesh viewer index | `renderqa` | one file each | 33 MB, 0.2 MB |
 | terrain unpack | `work\levels\<lv>\terrain\` (with its stamp) | the terrain bundle's size and time | `level.heightfield_of` (under a lock) | one per level, replaced when stale | 4-50 MB per level (37 levels here) |
 | path data cells | `work\navstudio\cache`, `work\harness\cache\navdata`, `work\navwater\cache` (`<key>.npz`, `<key>.navdata.pkl`) | the file's path, size and time, the height source, `CACHE_VERSION` and the code | `navdata.load(cache_dir=)` | LRU to the caps above (E3q) | 1.3 GB, 2.1 GB (the whole harness cache), 274 MB |
 | harness bundle entries | `work\harness\cache\bundles\<stat key>\` | the bundle's size and time | `testharness.levelinfo` | none | about 30 MB |

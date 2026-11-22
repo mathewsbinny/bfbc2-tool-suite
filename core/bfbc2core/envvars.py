@@ -38,7 +38,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_EDITOR_CACHE_MB': ('cache', "the map editor's prepared-level cache's cap in MB"),
     'BFBC2_HARNESS_CACHE_MB': ('cache', "the test harness's project cache cap (OPFOR work\\harness\\cache) in MB"),
     'BFBC2_NAVSTUDIO_CACHE_MB': ('cache', "the navigation data project cache cap (OPFOR work\\navstudio\\cache) in MB"),
-    'BFBC2_MESHVIEW_CACHE_MB': ('cache', "the mesh viewer's index project cache cap (OPFOR work\\tools_out\\meshview_index.pkl) in MB"),
+    'BFBC2_MESHVIEW_CACHE_MB': ('cache', "the mesh viewer's index project cache cap (OPFOR work\\tools_out\\meshview_index.bin) in MB"),
     'BFBC2_DBXCATALOGUE_CACHE_MB': ('cache', "the DBX catalogue project cache cap (OPFOR work\\tools_out\\dbx_catalogue.pkl) in MB"),
     'BFBC2_WW2QA_CACHE_MB': ('cache', "Project OPFOR's WW2 QA cache cap (work\\ww2\\_qa\\cache) in MB"),
     'BFBC2_WW2INSTALL_CACHE_MB': ('cache', "Project OPFOR's WW2 install indexes' cap (work\\ww2\\install_*.pkl) in MB"),

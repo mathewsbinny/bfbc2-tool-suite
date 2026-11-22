@@ -88,6 +88,7 @@ TABLE: tuple[Row, ...] = (
       'array_at, the *_reference twins'),
     T('bfbc2-anim-tools/tests/test_aimanim.py'),
     T('bfbc2-anim-tools/tests/test_granny.py'),
+    T('bfbc2-anim-tools/tests/test_granny_curves.py'),
     T('bfbc2-anim-tools/tests/test_granny_f2a_native.py'),
     T('bfbc2-anim-tools/tests/test_granny_native.py'),
     T('bfbc2-anim-tools/tests/test_granny_port.py'),
@@ -410,9 +411,13 @@ TABLE: tuple[Row, ...] = (
     # --- bfbc2-mesh-viewer
     R('bfbc2-mesh-viewer/meshview.py', TOOL, 'partly', 'bc2_convert::meshview; bfbc2 meshview; the editor\'s preview',
       '25 suite modules (shaderdb, bf1943import, texqa ...); tests 31; OPFOR 47', 'PR1b-2',
-      "the index and drawing are Rust (GR3); left: Index as OPFOR's in-process API (ARC-4), page() for OPFOR's previews"),
+      "PR1b-2-rest: Index / load_mesh / mesh_surfaces / stack_models / render on the Rust port through bc2_native "
+      "(MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); left in Python: the NumPy "
+      "arrays and dicts, _bundles (OPFOR's step tracker sees its walk), the partition cache of read(), page() (OPFOR's "
+      "WW2 preview pages)"),
     R('bfbc2-mesh-viewer/tests/record_preview_parity.py', HELPER, 'stays', '', 'by hand (gr3.rs reads its output)',
-      'PR1b-2', "recorded meshview's answers for the editor's asset preview (GR3)"),
+      'PR1b-2', "recorded meshview's answers for the editor's asset preview (GR3); the recording is the retired Python's "
+      "(since PR1b-2-rest meshview.py is the Rust port: running it again records the port)"),
     T('bfbc2-mesh-viewer/tests/test_meshview.py'),
     T('bfbc2-mesh-viewer/tests/test_meshview_index.py'),
 

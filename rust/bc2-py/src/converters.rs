@@ -468,6 +468,42 @@ pub fn texwrite_l8_down<'py>(
     texwrite::l8_down(px.as_bytes(), h, w).map(|v| PyBytes::new(py, &v))
 }
 
+/// `texwrite.resource(fmt, flags, w, h, levels)`: the ITexture resource, or `None` for more than 15 levels (round
+/// PR1b-2-rest: the packing in Rust).
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn texwrite_resource<'py>(
+    py: Python<'py>,
+    fmt: u32,
+    flags: u32,
+    w: u32,
+    h: u32,
+    levels: Vec<Bound<'py, PyBytes>>,
+) -> Option<Bound<'py, PyBytes>> {
+    let ls: Vec<&[u8]> = levels.iter().map(|l| l.as_bytes()).collect();
+    texwrite::resource(fmt, flags, w, h, &ls).map(|v| PyBytes::new(py, &v))
+}
+
+/// `texwrite.wrapped(res, kind)`: the on-demand bundles' form of a resource.
+#[pyfunction]
+pub fn texwrite_wrapped<'py>(py: Python<'py>, res: &Bound<'py, PyBytes>, kind: &str) -> Option<Bound<'py, PyBytes>> {
+    texwrite::wrapped(res.as_bytes(), kind.as_bytes()).map(|v| PyBytes::new(py, &v))
+}
+
+/// `texwrite.l8_bytes(level)` of an `h` x `w` uint8 level, or `None` for a size that is not `h` x `w`.
+#[pyfunction]
+pub fn texwrite_l8_bytes<'py>(
+    py: Python<'py>,
+    px: &Bound<'py, PyBytes>,
+    h: usize,
+    w: usize,
+) -> Option<Bound<'py, PyBytes>> {
+    texwrite::l8_bytes(px.as_bytes(), h, w).map(|v| PyBytes::new(py, &v))
+}
+
 // ------------------------------------------------------------------------------------------------ skinmesh
 
 fn elements(layout: &[u8]) -> Option<(Vec<meshconv::Element>, usize)> {
@@ -766,6 +802,15 @@ fn curve(d: &Bound<'_, PyAny>) -> Option<Curve> {
         knots_controls: ints,
         knots: floats_of(d, "Knots")?,
         trunc,
+        kc: floats_of(d, "KnotsControls")?,
+        selectors: match d.get_item("ScaleOffsetTableEntries").ok()? {
+            None => None,
+            Some(v) => Some(v.extract::<i64>().ok()?),
+        },
+        knot_scale: match d.get_item("OneOverKnotScale").ok()? {
+            None => None,
+            Some(v) => Some(v.extract::<f64>().ok()?),
+        },
     })
 }
 
@@ -783,6 +828,45 @@ fn puts<'py>(py: Python<'py>, p: &[Put], msg: &str) -> PyResult<Bound<'py, PyTup
         out.append((x.name, x.element, x.fmt, vals))?;
     }
     PyTuple::new(py, [out.into_any(), msg.into_pyobject(py)?.into_any()])
+}
+
+/// `granny.curve_keys(cd)`: `[(time, values)]`, or `None` where the reference raises (a format it does not read or
+/// a field missing: the error's text as `(None, text)`); `cd` empty or `None`: `[]`.
+#[pyfunction]
+pub fn granny_curve_keys<'py>(py: Python<'py>, cd: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    if cd.is_none() || !cd.is_truthy()? {
+        return Ok(PyList::empty(py).into_any());
+    }
+    let Some(c) = curve(cd) else {
+        return Ok((py.None(), "a curve the reader cannot take")
+            .into_pyobject(py)?
+            .into_any());
+    };
+    match granny_edit::curve_keys(Some(&c)) {
+        Ok(keys) => {
+            let out = PyList::empty(py);
+            for (t, v) in keys {
+                out.append((t, PyTuple::new(py, v)?))?;
+            }
+            Ok(out.into_any())
+        }
+        Err(e) => Ok((py.None(), e.to_string()).into_pyobject(py)?.into_any()),
+    }
+}
+
+/// `granny.sample(keys, t, default)` of float keys `[(time, values)]`: the values as a tuple.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn granny_sample(
+    py: Python<'_>,
+    keys: Vec<(f64, Vec<f64>)>,
+    t: f64,
+    default: Vec<f64>,
+) -> PyResult<Bound<'_, PyTuple>> {
+    PyTuple::new(py, granny_edit::sample(&keys, t, &default))
 }
 
 /// `granny.shift_position`'s puts `[(member, element offset or None, fmt, values)]` and report, or `None`.

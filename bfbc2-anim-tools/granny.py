@@ -394,66 +394,17 @@ OFFSET_TABLE = [-0.70710677, -0.35355338, -0.53033006, -0.17677669, 0.17677669, 
                 0.70710677, 0.35355338, 0.53033006, 0.17677669, -0.17677669, 0.17677669, 0.088388346, -0.0]
 
 
-def _trunc_scale(v):
-    return struct.unpack('<f', struct.pack('<I', (v & 0xFFFF) << 16))[0]
-
-
-def _quat(a, b, c, scales, offsets, top):
-    i1 = ((b & top) >> (bits_of(top) - 2)) | ((c & top) >> (bits_of(top) - 1))      # 2 bits: the dropped component
-    i2, i3, i4 = (i1 + 1) & 3, (i1 + 2) & 3, (i1 + 3) & 3
-    mask = top - 1
-    q = [0.0] * 4
-    q[i2] = (a & mask) * scales[i2] + offsets[i2]
-    q[i3] = (b & mask) * scales[i3] + offsets[i3]
-    q[i4] = (c & mask) * scales[i4] + offsets[i4]
-    q[i1] = math.sqrt(max(0.0, 1 - q[i2] ** 2 - q[i3] ** 2 - q[i4] ** 2)) * (-1 if a & top else 1)
-    return tuple(q)
-
-
-def bits_of(top):
-    return top.bit_length()
-
-
 def curve_keys(cd):
-    """[(time, values)] of a CurveData variant (dict with __type__), or [] for identity / none."""
+    """[(time, values)] of a CurveData variant (dict with __type__), or [] for identity / none. Read by the Rust core
+    (round PR1b-2-rest: bc2_convert::granny_edit::curve_keys; the Python retired, proven equal on built and real
+    curves: bfbc2-anim-tools/tests/test_granny_curves.py)."""
     if not cd:
         return []
-    t = cd.get('__type__', '')
-    if t.endswith('DaIdentity'):
-        return []
-    if t.endswith('Constant32f'):
-        return [(0.0, tuple(cd['Controls']))]
-    if t.endswith('DaK32fC32f'):
-        k, c = cd['Knots'], cd['Controls']
-        if not k:
-            return []
-        dim = len(c) // len(k)
-        return [(k[i], tuple(c[i * dim:(i + 1) * dim])) for i in range(len(k))]
-    if t.endswith('D3K16uC16u') or t.endswith('D3K8uC8u'):
-        kc = cd['KnotsControls']
-        n = len(kc) // 4
-        s = _trunc_scale(cd['OneOverKnotScaleTrunc'])
-        sc, of = cd['ControlScales'], cd['ControlOffsets']
-        return [(kc[i] / s, tuple(kc[n + 3 * i + j] * sc[j] + of[j] for j in range(3))) for i in range(n)]
-    if t.endswith(('D3I1K8uC8u', 'D3I1K16uC16u', 'D3I1K32fC32f')):
-        kc = cd['KnotsControls']
-        n = len(kc) // 2
-        # float knots (K32f) are times already unless the header scales them too
-        s = _trunc_scale(cd['OneOverKnotScaleTrunc']) if 'OneOverKnotScaleTrunc' in cd else 1.0
-        sc, of = cd['ControlScales'], cd['ControlOffsets']
-        return [(kc[i] / s, tuple(kc[n + i] * sc[j] + of[j] for j in range(3))) for i in range(n)]
-    if t.endswith('D4nK16uC15u') or t.endswith('D4nK8uC7u'):
-        kc = cd['KnotsControls']
-        n = len(kc) // 4
-        wide = t.endswith('D4nK16uC15u')
-        top, unit = (0x8000, 1 / 32767) if wide else (0x80, 1 / 127)
-        sel = cd['ScaleOffsetTableEntries']
-        scales = [SCALE_TABLE[(sel >> (4 * k)) & 15] * unit for k in range(4)]
-        offsets = [OFFSET_TABLE[(sel >> (4 * k)) & 15] for k in range(4)]
-        s = cd['OneOverKnotScale']
-        return [(kc[i] / s, _quat(kc[n + 3 * i], kc[n + 3 * i + 1], kc[n + 3 * i + 2], scales, offsets, top))
-                for i in range(n)]
-    raise GrannyError(f'curve format {t} is not read')
+    got = require().granny_curve_keys(cd)
+    if isinstance(got, tuple):
+        raise GrannyError(got[1] if got[1].startswith('curve format') else
+                          f"curve format {cd.get('__type__', '')}: {got[1]}")
+    return got
 
 
 def _apply(g, curve, puts):
@@ -599,22 +550,12 @@ def set_orientations_reference(g, curve, quats):
 
 
 def sample(keys, t, default):
+    """The curve's value at t: the first key's before it, linear between keys (a quaternion: the nearer of q and -q,
+    made unit length again), the last key's after; default when there are no keys. The Rust core's (round
+    PR1b-2-rest: bc2_convert::granny_edit::sample)."""
     if not keys:
         return default
-    if t <= keys[0][0] or len(keys) == 1:
-        return keys[0][1]
-    for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
-        if t <= t1:
-            f = (t - t0) / (t1 - t0) if t1 > t0 else 0
-            if len(v0) == 4:
-                # quaternions: the nearer of q and -q (the same rotation), then back to unit length
-                if sum(a * b for a, b in zip(v0, v1)) < 0:
-                    v1 = tuple(-x for x in v1)
-                q = [a + (b - a) * f for a, b in zip(v0, v1)]
-                n = math.sqrt(sum(x * x for x in q)) or 1.0
-                return tuple(x / n for x in q)
-            return tuple(a + (b - a) * f for a, b in zip(v0, v1))
-    return keys[-1][1]
+    return require().granny_sample(keys, t, [])
 
 
 # ------------------------------------------------------------------------------------------------ Xbox 360 -> PC

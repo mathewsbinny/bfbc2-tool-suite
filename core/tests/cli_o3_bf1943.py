@@ -29,6 +29,7 @@ NORMS = [(r'(executable names \()\d+( s\))', r'\1N\2'),
          (r'(catalogue: \d+/\d+ bundles, \d+ partitions, )\d+ s', r'\1N s')]
 # the catalogue cache holds a SHA-1 over paths in the case folder: compared by size (its bytes are the inputs')
 LOOSE = [r'^opfor/work/tools_out/dbx_catalogue\.pkl$']
+REKEY = mv.REKEY                   # the index's .bin as the meshview group compares it
 
 
 def _catalogue_module() -> Any:
@@ -141,13 +142,7 @@ def current(opfor: str) -> bool:
         return False
     dc = _catalogue_module()
     try:
-        with open(os.path.join(opfor, 'work', 'tools_out', 'meshview_index.pkl'), 'rb') as f:
-            where = pickle.load(f)['data']['where']
-
-        class Ix:
-            pass
-        ix = Ix()
-        ix.where = where                                     # type: ignore[attr-defined]
+        ix = mv._meshview().Index(opfor)                     # its cache is current: read, nothing written
         sig = dc._signature(ix, os.path.join(opfor, 'game', 'BFBC2Game.exe'))
         with open(os.path.join(opfor, 'work', 'tools_out', 'dbx_catalogue.pkl'), 'rb') as f:
             c = pickle.load(f)

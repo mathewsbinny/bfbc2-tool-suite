@@ -2,7 +2,8 @@ r"""meshview.py's game-copy index without the game (quick tier): the bundles it 
 bundles, Package before Dist; Onslaught, OPFOR's and installed levels left out), the cache reused while every
 bundle is unchanged, rebuilt when a bundle changes, and a corrupt or foreign cache file rebuilt rather than a crash.
 Bundles here are empty bundles made by the test, so the index is empty but its cache is real; an unreadable bundle
-is said and its index not cached (suite deep scan 2026-11-15, C3).
+is said and its index not cached (suite deep scan 2026-11-15, C3). The cache is meshview_index.bin (round
+PR1b-2-rest: bc2_gamefs::meshindex's format, the index built in Rust; the pickle retired).
 
   python test_meshview_index.py
 """
@@ -10,7 +11,6 @@ import contextlib
 import gzip
 import io
 import os
-import pickle
 import shutil
 import struct
 import sys
@@ -61,7 +61,7 @@ def partitions(root: str, check: Callable[..., None]) -> None:
     for lv, its in items.items():
         touch(os.path.join(g, lv, 'level-00.fbrb'), fbrb.build(its))
     with contextlib.redirect_stderr(io.StringIO()):
-        ix = meshview.Index(root, cache=os.path.join(root, 'ix2.pkl'))
+        ix = meshview.Index(root, cache=os.path.join(root, 'ix2.bin'))
     reads: list[int] = []
     real = fbrb.read
 
@@ -126,7 +126,8 @@ def main(argv: list[str]) -> int:
             with contextlib.redirect_stderr(err):
                 ix = meshview.Index(root)
             return ix, 'indexing the game copy' in err.getvalue()
-        cache = os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
+        cache = os.path.join(root, 'work', 'tools_out', 'meshview_index.bin')
+        check(not os.path.exists(os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')), 'no pickle')
         rebuilt: bool | str                         # or the error a cache read raised
         ix, rebuilt = build()
         check(rebuilt and os.path.isfile(cache) and ix.where == {} and ix.parts == {} and ix.entries == {},
@@ -145,14 +146,15 @@ def main(argv: list[str]) -> int:
         touch(os.path.join(g, 'Package', 'async', 'weapons.fbrb'), bundle(1))
         ix, rebuilt = build()
         with open(cache, 'wb') as f:
-            pickle.dump(['a foreign', 'pickle'], f)
+            f.write(b'\x80\x04a foreign pickle')
         try:
             ix, rebuilt = build()
         except Exception as e:                          # noqa: BLE001 - the old cache reader raised TypeError
             rebuilt = f'{type(e).__name__}: {e}'
         check(rebuilt is True, 'a foreign cache file: rebuilt (it was a TypeError)', str(rebuilt))
+        good = open(cache, 'rb').read()
         with open(cache, 'wb') as f:
-            f.write(b'\x80\x04corrupt')
+            f.write(good[:-21] + bytes([good[-21] ^ 1]) + good[-20:])
         try:
             ix, rebuilt = build()
         except Exception as e:                          # noqa: BLE001

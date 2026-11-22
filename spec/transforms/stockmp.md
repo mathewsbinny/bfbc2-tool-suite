@@ -82,7 +82,7 @@ so Dist, Package and the path data are never from different builds (audit AU4 DS
 markers from before the ledger, found only in the level's own folders (audit AU4 DS-9), are adopted first; inconsistent
 ones (a changed file, an interrupted commit, a backup without its record) are refused in words.
 
-[code: bfbc2-stockmp-ai/stockmplib.py:102-127] [code: rust/bc2-cli/src/stockmp/mod.rs:309-436]
+[code: bfbc2-stockmp-ai/stockmplib.py:102-127] [code: rust/bc2-cli/src/stockmp/mod.rs:285-412]
 [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick] [test: tests/test_deep_scan_fixes.py::stockmp_rollback]
 [test: core/tests/test_gameledger.py::cross]
 
@@ -96,7 +96,7 @@ taken out from under it. A file changed outside the ledger is not reverted, and 
 rolled back by the next command, which can then run it again (audit AU4 DS-6). A file the install added is never taken for
 a stock file afterwards.
 
-[code: bfbc2-stockmp-ai/stockmplib.py:130-195] [code: rust/bc2-cli/src/stockmp/mod.rs:309-436]
+[code: bfbc2-stockmp-ai/stockmplib.py:130-195] [code: rust/bc2-cli/src/stockmp/mod.rs:285-412]
 [test: bfbc2-stockmp-ai/tests/test_stockmp.py::quick] [test: core/tests/test_gameledger.py::cross]
 
 ## Open questions
