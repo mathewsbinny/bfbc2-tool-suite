@@ -10294,6 +10294,8 @@ did not change: the estimate's formula is np.linalg.norm's bits on the recording
 ### Tests
 
 - The runner simulation on the branch: 123 of 124, the one failure O3's audio group (182 lines; PR1b-1c's).
+- `run_tests.py quick -j 2` in the worktree: 129 of 130; the one failure `dbx-write-native`'s DbxEdit round trip
+  reading a work\ww2 file another round's WW2 rebuild was rewriting at the time (the entry passes alone).
 - texture.check with `OPENBLAS_CORETYPE` default, Haswell and Prescott: 1,200 of 1,200, 0 wrong replays each; E3o's
   routes 10,000 of 10,000 with default and Haswell; O5 stockmp 73 of 73; green crates with TEMP on another drive.
 - cargo fmt; clippy `--all-targets -D warnings` on bc2-convert, bc2-navbuild, bc2-py, bc2-cli and each of
