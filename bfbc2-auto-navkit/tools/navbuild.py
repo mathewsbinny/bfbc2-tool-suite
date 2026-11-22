@@ -18,7 +18,8 @@ Pipeline (research/KYNAPSE_SPEC.md sections 3 and 4):
   6. graph: one node per area (sample nearest the area centre) and per portal run; border nodes on the
      overlap lines, shared by both sectors (same id and position); edges between nodes up to DistEdgeMax
      apart whose straight line stays on connected walkable samples; cost = 0x80000000 | floor(d * 16)
-  7. write with kymesh.write_mesh / hpdtool.write
+  7. the file (write_file, in the Rust core: the shadow islands, the order nodes, the node and edge tables, the
+     runtime meshes and the path-data file)
   (4b, between 4 and 5) detail features (DETAIL_FEATURES, navdetail.py): sides between two cells of one area whose
      heights differ by more than DETAIL_STEP become D lines, cells with both sides along an axis so broken become
      F cells (DICE's rule, KYNAPSE_SPEC.md 4.5) - and are taken out of the outline
@@ -50,7 +51,6 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
-import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import navislands  # noqa: E402
 import navsample  # noqa: E402
@@ -65,7 +65,6 @@ type Traced = tuple[list[kymesh.Portal], list[Any], list[list[Vec3]]]   # (porta
 type RouteNode = tuple[int, Vec3, int, int, int]   # a route node: (id, pos, surface, local i, local j)
 type RoutePair = tuple[int, int, float]         # a route edge: (node index, node index, length)
 type Graph = tuple[int, tuple[float, ...], kymesh.Mesh, list[RouteNode], list[RoutePair], tuple[float, float]]
-type Resolver = Callable[[tuple[int, int], AreaInfo, Any], tuple[int, int, int] | None]
 type Log = Callable[..., object]
 type Points = Sequence[Sequence[float]]         # world points (x, y, z)
 
@@ -128,15 +127,15 @@ GABRIEL_EDGES = 'detailed'      # prune the route graph's walkable pairs to the 
                                 # 'detailed' = in pitch-0.2 sectors, 'all', or None. DICE's detailed-sector edges are 71 %
                                 # Gabriel (RNG 50 %), 2.7 edges per node; NavKit's all-visible-pairs rule gave 15.9 per node
                                 # there (174,024 edges against DICE's 24,710; ONS_MP_002, 2026-10-21)
-SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
-BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
+SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (write_file)
+BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (write_file)
 ORDER_NODES = True              # a route node at AI order positions far from any node (build_graph; needs the level's
                                 # order_points.json from levelobjects.py) - sp_004_b play test 2026-10-20: 0 failures. Was off until
                                 # the sp_004_b play test confirms it (2026-10-20)
 ORDER_NODE_MIN = 3.0            # ... when the nearest node on the same floor is farther than this (m)
-ORDER_STATS: dict[str, Any] = {}                # nodes added, and those removed by prune_order_nodes (for reports)
+ORDER_STATS: dict[str, Any] = {}                # nodes added, and those removed by write_file's pruning (for reports)
 ORDER_IDS: set[int] = set()               # ids of the order nodes of the current build
-ORDER_MIN_ISLAND = 25           # an order node in a route island with fewer nodes is dropped (prune_order_nodes): such
+ORDER_MIN_ISLAND = 25           # an order node in a route island with fewer nodes is dropped (write_file): such
                                 # pockets took the nearest-node matches next to the main networks (sp_009: connectivity
                                 # 66.99 without order nodes, 62.58 with all, 67.45 with this rule; sp_004_b keeps its
                                 # stairs-top nodes and gains 0.26 connectivity / 0.6 AI pairwise). A size, not "the main
@@ -331,7 +330,7 @@ DEFAULTS = BuildSettings()
 
 def reset_stats() -> None:
     """Clears the per-build report counters and id sets: this module's, navislands' and navwalk's (build() at its
-    start; ORDER_IDS also decides which order nodes prune_order_nodes may drop)."""
+    start; ORDER_IDS also decides which order nodes write_file may drop)."""
     for d in (ORDER_IDS, ORDER_STATS, LADDER_STATS, DETAIL_STATS, navislands.TERRAIN_IDS, navwalk.ROOF_STATS,
               navwalk.OBJECTIVE_STATS, navwalk.STEEP_STATS):
         d.clear()
@@ -802,9 +801,8 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
             f'{DETAIL_STATS.get("outline_one_sided", 0)} kept (outline on one cell only)')
     else:
         log('detail features: off (no D lines or F cells)')
-    # route islands that shadow a larger one lose their nodes (navislands.py: SHADOW_ISLANDS)
-    graphs = navislands.prune(graphs, list(seeds or []) + list(order_points or []) + list(area_orders or []), log)
-    write_file(graphs, out_path, log, t0, cfg)
+    # route islands that shadow a larger one lose their nodes (navislands.py: SHADOW_ISLANDS), in write_file
+    write_file(graphs, out_path, log, t0, cfg, list(seeds or []) + list(order_points or []) + list(area_orders or []))
 
 
 def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int, tris_path: str | None = None,
@@ -949,7 +947,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
         # cost half a second on sp_004_b; it is made only if something iterates it)
         inf['area_of'] = _AreaOf(store, n, inf['areas'])
         for ai, a in enumerate(inf['areas']):
-            a['_at'] = (store, n, ai)                # border_cell's lookups
+            a['_at'] = (store, n, ai)                # the area in the Rust core
     at_of = {sec: n for n, sec in enumerate(sectors)}    # a sector's index in store (info is in the same order)
     log(f'{sum(len(v["areas"]) for v in info.values())} areas ({time.time() - t0:.0f} s)')
 
@@ -1088,6 +1086,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     emitted = _trace_emit_many(level, store, [(at_of[sec], None if edge_sets is None else edge_sets[sec][0],
                                                *inf['origin']) for sec, inf in sorted(info.items())], cfg)
     graphs, meshes, jobs = [], {}, []
+    scope = link_scope(info)                         # the sectors sector_links looks in: all of this stage's
     for n_sec, ((X, Y), inf) in enumerate(sorted(info.items())):
         gi0, gj0, ox, oz = inf['origin']
         areas, area_of = inf['areas'], inf['area_of']
@@ -1108,7 +1107,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
                                           portals, [b[0] for b in borders], d_lines, outline, f_cells))
             a['borders'] = borders
             tiles[a['tile'][0] * ntiles + a['tile'][1]].append(kymesh.TileItem(ai, lo, hi))
-        mesh_links = sector_links(X, Y, areas, mesh_areas, same_grid_resolver(level, info, X, Y))
+        mesh_links = sector_links(X, Y, inf, mesh_areas, level, scope)
         # the runtime's tile grid starts at the rectangle's minimum (DICE: tile lines 39.6 m past it on 3,748 sector
         # axes) - so an edge sector, whose tiles start at its own edge, starts its rectangle there too (DICE 0x101:
         # -800.0 instead of -800.8). The maximum side keeps the 1.1-pitch margin (DICE drops it at the grid's maximum).
@@ -1141,89 +1140,47 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
             'dropped': dropped, 'pitch': cfg.pitch, 'meshes': meshes, 'sectors': set(info)}
 
 
-def sector_links(X: int, Y: int, areas: Sequence[AreaInfo], mesh_areas: Sequence[kymesh.Area],
-                 resolve: Callable[..., tuple[int, int, int] | None]) -> list[kymesh.NeighbourLink]:
-    """The neighbour links of a sector: for every border portal (C), the area across it - resolve(other, area,
-    border) gives its (tile x, tile z, layer) in the other sector, or None."""
-    links: defaultdict[tuple[int, int], defaultdict[tuple[int, int, int], list[tuple[int, int]]]]
-    links = defaultdict(lambda: defaultdict(list))
-    for ai, a in enumerate(areas):
-        for ci, b in enumerate(a['borders']):
-            bp = b[0]
-            di, dj = int(bp.direction[0]), int(bp.direction[2])
-            other = (X + di, Y + dj)
-            hit = resolve(other, a, b)
-            if hit is None:
-                continue
-            rel = 0x50 + len(mesh_areas[ai].portals) * 0x20 + ci * 0x2C
-            links[other][hit].append((ai, rel))
-    mesh_links = []
-    for other in sorted(links):
-        oid = ((other[0] & 0xFF) << 8) | (other[1] & 0xFF)
-        mesh_links.append(kymesh.NeighbourLink(oid, [kymesh.LinkObject(h, refs) for h, refs in sorted(links[other].items())]))
-    return mesh_links
+def _store_of(inf: dict[str, Any]) -> tuple[Any, int]:
+    """A stage sector's areas in the Rust core: (its stage's NavAreas, the sector's index there)."""
+    at = inf['area_of']
+    if not isinstance(at, _AreaOf):
+        raise ValueError("sector_links: the sector's areas are not in the Rust core (a stage's info)")
+    return at._store, at._n
 
 
-def border_cell(a: AreaInfo, b: tuple[Any, ...]) -> tuple[int, int, int | None, int, int]:
-    """(i, j, k) of the area's cell just inside a border portal (the middle of its run), and the step (di, dj)."""
-    bp, t0_, t1_, line = b
-    di, dj = int(bp.direction[0]), int(bp.direction[2])
-    tmid = (t0_ + t1_) // 2
-    i, j = (int(line + 0.5 * di), tmid) if di else (tmid, int(line + 0.5 * dj))
-    at = a.get('_at')
-    if at is not None:                               # the area in the Rust core (stage, round E3h)
-        k = at[0].first_cell(at[1], at[2], i - di, j - dj)
-    else:
-        k = next((c[2] for c in a['cells'] if (c[0], c[1]) == (i - di, j - dj)), None)
-    return i - di, j - dj, k, di, dj
+def link_scope(info: Mapping[tuple[int, int], dict[str, Any]]) -> Any:
+    """The sectors sector_links looks in, made once for a stage's calls (a NavLinkScope in the Rust core): {sector:
+    (its index in the stage's store, [(tile x, tile z, layer)] of its areas)}."""
+    return require_native().NavLinkScope(
+        {sec: (_store_of(inf)[1], [(*a['tile'], a['layer']) for a in inf['areas']])
+         for sec, inf in info.items()})
 
 
-def same_grid_resolver(level: Level, info: dict[tuple[int, int], dict[str, Any]], X: int, Y: int) -> Resolver:
-    """resolve for sector_links within one stage: the connected surface across, in the other sector's areas."""
-    gi0, gj0, _ox, _oz = info[(X, Y)]['origin']
-
-    def resolve(other: tuple[int, int], a: AreaInfo, b: tuple[Any, ...]) -> tuple[int, int, int] | None:
-        if other not in info:
-            return None
-        i, j, k_here, di, dj = border_cell(a, b)
-        if k_here is None:
-            return None
-        n = level.neighbour(k_here, gi0 + i, gj0 + j, di, dj)
-        oth = info[other]
-        if n is None or n not in oth['area_of']:
-            return None
-        ta = oth['areas'][oth['area_of'][n]]
-        return (ta['tile'][0], ta['tile'][1], ta['layer'])
-    return resolve
+def link_across(there: dict[str, Any], here_pitch: float) -> tuple[Any, ...] | None:
+    """The other grid of a mixed seam (a stage result: its level, store and sectors; merge_detailed) as sector_links
+    takes it, made once for the stage's calls; None when it has no sectors."""
+    if not there['info']:
+        return None
+    olv = there['level']
+    return (olv.native(), _store_of(next(iter(there['info'].values())))[0], link_scope(there['info']),
+            float(here_pitch), float(there['pitch']), float(olv.s.min_x), float(olv.s.min_z))
 
 
-def cross_grid_resolver(here: dict[str, Any], there: dict[str, Any], X: int, Y: int) -> Resolver:
-    """resolve for sector_links across two stages (a detailed sector next to a normal one): the cell just across
-    the border, in world coordinates, looked up on the other stage's grid - its kept surface nearest in height
-    (within 0.8 m) that belongs to the other sector's areas."""
-    lv, inf = here['level'], here['info'][(X, Y)]
-    _gi0, _gj0, ox, oz = inf['origin']
-    p_here, olv, p_there = here['pitch'], there['level'], there['pitch']
-    os_ = olv.s
-
-    def resolve(other: tuple[int, int], a: AreaInfo, b: tuple[Any, ...]) -> tuple[int, int, int] | None:
-        if other not in there['info']:
-            return None
-        i, j, k_here, di, dj = border_cell(a, b)
-        if k_here is None:
-            return None
-        x = ox + i * p_here + di * max(p_here, p_there)
-        z = oz + j * p_here + dj * max(p_here, p_there)
-        y = lv.y[k_here]
-        oth = there['info'][other]
-        gi, gj = int(round((x - os_.min_x) / p_there)), int(round((z - os_.min_z) / p_there))
-        cand = [k for k in olv.surfaces(gi, gj) if k in oth['area_of'] and abs(olv.y[k] - y) <= 0.8]
-        if not cand:
-            return None
-        n = min(cand, key=lambda k: abs(olv.y[k] - y))
-        ta = oth['areas'][oth['area_of'][n]]
-        return (ta['tile'][0], ta['tile'][1], ta['layer'])
-    return resolve
+def sector_links(X: int, Y: int, inf: dict[str, Any], mesh_areas: Sequence[kymesh.Area], level: Level, same: Any,
+                 across: tuple[Any, ...] | None = None) -> list[kymesh.NeighbourLink]:
+    """The neighbour links of sector (X, Y) (its stage info inf; its areas' 'borders' set): for every border portal
+    (C), the area across it, in the Rust core (round NK2: NavLevel.sector_links). An other sector in same (link_scope
+    of the sectors on this grid) is looked up on this grid: the surface level.neighbour links the portal's border cell
+    to, in that sector's areas. One not there is looked up on across's grid when given (link_across: the other grid
+    of a mixed seam): the cell just across the border in world coordinates, its kept surface nearest in height
+    (within 0.8 m) in that sector's areas."""
+    store, n = _store_of(inf)
+    borders = [(ai, ci, int(b[0].direction[0]), int(b[0].direction[2]), int(b[1]), int(b[2]), float(b[3]))
+               for ai, a in enumerate(inf['areas']) for ci, b in enumerate(a['borders'])]
+    gi0, gj0, ox, oz = inf['origin']
+    got = level.native().sector_links(store, (int(X), int(Y), n, (int(gi0), int(gj0), float(ox), float(oz)), borders,
+                                              [len(m.portals) for m in mesh_areas]), LINK_RULE, same, across)
+    return [kymesh.NeighbourLink(sid, [kymesh.LinkObject(h, refs) for h, refs in objects]) for sid, objects in got]
 
 
 def merge_detailed(a: dict[str, Any], detailed: dict[str, Any], xoff: int, zoff: int, seeds: Points | None,
@@ -1278,13 +1235,10 @@ def merge_detailed(a: dict[str, Any], detailed: dict[str, Any], xoff: int, zoff:
     b_det = {sec: g for sec, g in zip(sorted(b['sectors']), b['graphs'])}
     a_view = dict(a, info={s_: i for s_, i in a['info'].items() if s_ not in dset})
     for here, there, mine in ((b, a_view, b_det), (a, b, a_norm)):
+        same = link_scope({s_: i for s_, i in here['info'].items() if s_ in mine})
+        across = link_across(there, here['pitch'])
         for (X, Y), g in mine.items():
-            areas, mesh = here['info'][(X, Y)]['areas'], g[2]
-            same = same_grid_resolver(here['level'], {s_: i for s_, i in here['info'].items()
-                                                      if s_ in mine}, X, Y)
-            cross = cross_grid_resolver(here, there, X, Y)
-            mesh.links = sector_links(X, Y, areas, mesh.areas,
-                                      lambda other, ar, bd, s=same, c=cross, mine=mine: s(other, ar, bd) if other in mine else c(other, ar, bd))
+            g[2].links = sector_links(X, Y, here['info'][(X, Y)], g[2].areas, here['level'], same, across)
     merged = []
     for sec in sorted(set(a_norm) | set(b_det)):
         sid, bnd, mesh, pts_, pairs, origin = a_norm[sec] if sec in a_norm else b_det[sec]
@@ -1297,23 +1251,43 @@ def merge_detailed(a: dict[str, Any], detailed: dict[str, Any], xoff: int, zoff:
     return merged
 
 
-def write_file(graphs: Sequence[Graph], out_path: str, log: Log, t0: float, cfg: BuildSettings = DEFAULTS) -> None:
-    """Order-node pruning, final node / edge tables, and the file."""
-    hpd_sectors = []
+def write_file(graphs: Sequence[Graph], out_path: str, log: Log, t0: float, cfg: BuildSettings = DEFAULTS,
+               anchors: Points | None = None) -> None:
+    """The graphs to the file, in the Rust core (round NK2: bc2_navbuild::graphfile through
+    bc2_native.navkit_write_graphs): with anchors (a build's soldier spawns, AI order and objective positions), the
+    route islands that shadow a larger one lose their edges first (navislands.SHADOW_ISLANDS; navislands.prune's
+    rule and its log line); then the order nodes in small islands (prune_order_nodes' rule: ORDER_IDS,
+    ORDER_MIN_ISLAND; ORDER_STATS['removed']); each sector's nodes and edges (finalize_graph's: nodes without an edge
+    in any sector dropped, SORT_NODES_BY_ID, BORDER_OWNER, costs from the float32 positions, the sorted-list indices);
+    every sector built at the moment time.localtime() gives; the file."""
     stamp = time.localtime()
     date = (stamp.tm_year % 100) * 10000 + (stamp.tm_mon - 1) * 100 + stamp.tm_mday
     clock = stamp.tm_hour * 1000000 + stamp.tm_min * 10000 + stamp.tm_sec * 100
-    if ORDER_IDS and ORDER_MIN_ISLAND:
-        graphs = prune_order_nodes(graphs)
-    linked = {pts[i][0] for _sid, _b, _m, pts, pairs, _o in graphs for a_, b_, _d in pairs for i in (a_, b_)}
-    for sid, bounds, mesh, pts, pairs, origin in graphs:
-        nodes, edges = finalize_graph(pts, pairs, linked, origin, cfg)
-        hpd_sectors.append(hpdtool.Sector(sid, bounds, 0, date, clock, nodes, edges, kymesh.write_mesh(mesh)))
-    out = hpdtool.HpdFile(HEADER, hpd_sectors)
-    data = hpdtool.write(out)
-    open(out_path, 'wb').write(data)
-    log(f'wrote {out_path}: {len(hpd_sectors)} sectors, {sum(len(x.nodes) for x in hpd_sectors)} nodes, '
-        f'{sum(len(x.edges) for x in hpd_sectors)} edges, {len(data)} bytes ({time.time() - t0:.0f} s)')
+    shadow = None
+    if anchors is not None:
+        navislands.STATS.clear()
+        if navislands.SHADOW_ISLANDS:
+            shadow = navislands.rule(anchors)
+    orders = (ORDER_IDS, ORDER_MIN_ISLAND) if ORDER_IDS and ORDER_MIN_ISLAND else None
+    args = (shadow, orders, (bool(SORT_NODES_BY_ID), bool(BORDER_OWNER), float(cfg.dist_edge_max)), list(HEADER), date,
+            clock)
+    suite_paths.use('core')
+    from bfbc2core import native
+    nat = native.require("NavKit's path-data writer (navbuild.write_file)", 'navkit_write_graphs')
+    got = nat.navkit_write_graphs(list(graphs), *args)
+    if got is None:
+        # a mesh the Rust writer leaves to kymesh.write_mesh's reference (a NaN in it): every record written there
+        got = nat.navkit_write_graphs([(g[0], g[1], g[2] if isinstance(g[2], bytes) else kymesh.write_mesh(g[2]), *g[3:])
+                                       for g in graphs], *args)
+    data, island, removed, n_nodes, n_edges = got
+    if island is not None:
+        navislands.report(island, log)
+    if removed:
+        ORDER_STATS.setdefault('removed', []).extend(removed)
+    with open(out_path, 'wb') as f:
+        f.write(data)
+    log(f'wrote {out_path}: {len(graphs)} sectors, {n_nodes} nodes, {n_edges} edges, {len(data)} bytes '
+        f'({time.time() - t0:.0f} s)')
 
 
 def line_walkable(level: Level, k0: int, a: tuple[int, int], b: tuple[int, int], gi0: int, gj0: int, k1: int) -> bool:
@@ -1409,97 +1383,6 @@ def gabriel_prune(pts: Sequence[RouteNode], pairs: Iterable[RoutePair]) -> list[
     own)."""
     pairs = [(int(a), int(b), float(d)) for a, b, d in pairs]
     return [pairs[n] for n in require_native().navkit_gabriel([tuple(float(v) for v in p[1]) for p in pts], pairs)]
-
-
-def prune_order_nodes(graphs: Sequence[Graph]) -> Sequence[Graph]:
-    """Order nodes in a route island under ORDER_MIN_ISLAND nodes lose their edges (finalize_graph then
-    drops them as unlinked); other nodes are untouched. An order node that joins a small pocket becomes the
-    nearest node for points next to the main network, and the runtime takes the nearest node (sp_009: the order
-    nodes cut connectivity 4.4 points through such pockets; 2026-10-20). Components over all sectors (border ids
-    join them). Records the removed ones in ORDER_STATS['removed'] as (id, position, component size)."""
-    parent: dict[int, int] = {}
-
-    def find(x: int) -> int:
-        parent.setdefault(x, x)
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-    for _sid, _b, _m, pts, pairs, _o in graphs:
-        for p in pts:
-            find(p[0])
-        for a_, b_, _d in pairs:
-            ra, rb = find(pts[a_][0]), find(pts[b_][0])
-            if ra != rb:
-                parent[ra] = rb
-    size: defaultdict[int, int] = defaultdict(int)
-    for x in list(parent):
-        size[find(x)] += 1
-    if not size:
-        return graphs
-    drop = {i for i in ORDER_IDS if size[find(i)] < ORDER_MIN_ISLAND}
-    seen = set()
-    for _sid, _b, _m, pts, _pairs, _o in graphs:
-        for p in pts:
-            if p[0] in drop and p[0] not in seen:
-                seen.add(p[0])
-                ORDER_STATS.setdefault('removed', []).append((p[0], tuple(round(v, 2) for v in p[1]), size[find(p[0])]))
-    return [(sid, b, m, pts, [q for q in pairs if pts[q[0]][0] not in drop and pts[q[1]][0] not in drop], o)
-            for sid, b, m, pts, pairs, o in graphs]
-
-
-def finalize_graph(pts: Sequence[RouteNode], pairs: Iterable[RoutePair], linked_ids: Container[int],
-                   origin: tuple[float, float] | None = None,
-                   cfg: BuildSettings = DEFAULTS) -> tuple[list[hpdtool.Node], list[hpdtool.Edge]]:
-    """Nodes and edges of a sector. Nodes without an edge in any sector (lone nodes on slivers and tiny islands
-    the group joining cannot reach; border ids count edges of both sectors) are dropped - DICE's data has none."""
-    keep = [idx for idx, p in enumerate(pts) if p[0] in linked_ids]
-    if SORT_NODES_BY_ID:
-        # DICE writes a sector's nodes sorted by id as an unsigned 32-bit value - ordinary nodes, then border nodes
-        # (flag 80000000h) - in 40 of 40 sp_004_b sectors (masked to 31 bits: 0 of 40); the runtime binary-searches
-        # these arrays for a path's start / destination ids (0x0108D5E0 / 0x0108D550). NavKit interleaved border
-        # nodes (0 of 40 sorted) - 2026-10-20
-        keep.sort(key=lambda idx: pts[idx][0] & 0xFFFFFFFF)
-    new = {old: q for q, old in enumerate(keep)}
-    out_edges = defaultdict(list)
-    for a_, b_, d in pairs:
-        if a_ in new and b_ in new:
-            # the cost from the positions as stored (32-bit floats), as every DICE edge is: from the unrounded
-            # positions, 138 of sp_004_b's 60,142 costs came out one unit off
-            d = math.dist(*(tuple(float(np.float32(v)) for v in pts[i][1]) for i in (a_, b_)))
-            cost = 0x80000000 | int(math.floor(d * 16))
-            out_edges[new[a_]].append((cost, new[b_]))
-            out_edges[new[b_]].append((cost, new[a_]))
-    nodes: list[hpdtool.Node]
-    edges: list[hpdtool.Edge]
-    nodes, edges = [], []
-    for q, idx in enumerate(keep):
-        nid, pos = pts[idx][0], pts[idx][1]
-        nodes.append(hpdtool.Node(nid, pos, 0x80000000, cfg.dist_edge_max if q == 0 else 0.0, 0, 0, 0))
-    for idx in range(len(nodes)):
-        first = len(edges)
-        for cost, dst in sorted(out_edges[idx], key=lambda e: e[1]):
-            edges.append(hpdtool.Edge(cost, idx, dst))
-        nodes[idx].a = first + 1 if out_edges[idx] else 0     # DICE: 0 = no outgoing edges
-    def foreign(nd: hpdtool.Node) -> bool:
-        # bit 16 of c: a border node's copy in a sector that does not own it. DICE: one copy per border id is the
-        # owner (bit clear) - the sector whose 100 m square holds the node (1,379 of 1,445 sp_004_b ids), the
-        # others set; ordinary nodes never. NavKit set the bit on every border copy, so no border node had an
-        # owner (2026-10-20)
-        if not nd.id & 0x80000000:
-            return False
-        if not BORDER_OWNER or origin is None:
-            return True
-        ox, oz = origin
-        return not (ox <= nd.pos[0] < ox + 100 and oz <= nd.pos[2] < oz + 100)
-    n = len(nodes)
-    by_x = sorted(range(n), key=lambda q: nodes[q].pos[0])
-    by_y = sorted(range(n), key=lambda q: nodes[q].pos[1])
-    by_z = sorted(range(n), key=lambda q: nodes[q].pos[2])
-    for q in range(n):
-        nodes[q].b = by_x[q] | (by_y[q] << 16)
-        nodes[q].c = by_z[q] | (0x10000 if foreign(nodes[q]) else 0)
-    return nodes, edges
 
 
 def main(argv: list[str]) -> int:
