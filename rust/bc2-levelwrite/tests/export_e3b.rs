@@ -193,6 +193,7 @@ fn a_vietnam_export_with_its_own_name_and_picture() {
         if low.starts_with("localization/bin/language_") && low.ends_with("_normal.bin") {
             let (t0, t1) = (texts(a0), texts(a1));
             assert_eq!(t1.len(), t0.len() + 2, "{}", e0.name);
+            #[allow(clippy::iter_over_hash_type, reason = "an assertion per text")]
             for (h, t) in &t0 {
                 assert_eq!(t1.get(h), Some(t), "{}: a text changed", e0.name);
             }
