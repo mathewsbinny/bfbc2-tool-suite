@@ -199,6 +199,8 @@ pub enum PanelKind {
     Diff,
     /// The asset preview (round GR3: the mesh viewer folded in).
     Preview,
+    /// The Gameplay workspace's auto layout (round A1).
+    AutoLayout,
 }
 
 /// The Terrain and Vegetation workspaces' brushes (registered; their tools come in later rounds).
@@ -606,6 +608,12 @@ pub fn registry() -> Vec<Entry> {
             "Show problems",
             None,
             "What did not load or apply, and why",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::AutoLayout),
+            "Show auto layout",
+            None,
+            "Proposes a layout of the target mode's flags, bases, M-COMs, spawns and combat areas on the level's              ground in DICE's style; nothing changes until you accept it",
         ),
         e(
             Action::ResetLayout,

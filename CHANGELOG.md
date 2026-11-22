@@ -47,6 +47,28 @@ landed on `main`.
   deviates today and the gaps in priority order). `formats/hpd.md`'s open questions are tracked items, five answered.
   A game-tier corpus test checks the verified rules on DICE's files; `cargo run --example kynapse_probe` measures
   DICE's files or NavKit's builds.
+- **Auto layout** (round A1): the Gameplay workspace's Auto layout panel proposes where the target mode's flags,
+  bases, M-COMs, spawns and combat areas go on the level, in DICE's style - the mode's layer (DICE's own layout,
+  from the target's donor) turned, scaled and placed where the level's ground, water, rocks and buildings suit it,
+  then held against DICE's statistics from the stock maps. The proposal is drawn over the views with its findings and
+  statistics; nothing changes until you accept it, and an undo takes it back. A seed gives other proposals; the same
+  seed gives the same one.
+- **Placement checks on the ground** (round A1), live in the Problems panel: spawn points over water, inside rocks or
+  walls or under the ground (XVAL-PLACE-2), a vehicle spawner without room for its vehicle or out of its domain - a
+  tank in the sea, a boat on land (XVAL-PLACE-3), gameplay objects outside every combat area (XVAL-PLACE-4), and,
+  once the AI workspace has read the level's path data, spawns, flags and M-COMs the bots cannot reach from the main
+  route network (XVAL-PLACE-5). Each bound lies past what DICE's own maps do. `mapexport validate` checks the first
+  three on the level's height field and water.
+- **The specification's coverage matrix** (`spec/COVERAGE.md`, round SPG): every BFBC2 system against the suite's and
+  Project OPFOR BFBC2's tools, the queued rounds and the spec rules that cover it, with what is left in priority order.
+- **Eight engine specifications** (`spec/engine/`, 164 rules): `lighting.md` (baked occlusion, irradiance volumes,
+  reflection cubes, the outdoor light, point lights and `PointLightEntityData`, the moon and god rays, DICE's night
+  recipe), `weather.md` (the weather system's classes, DICE's 355 states and their value ranges, rain and snow
+  effects), `effects.md` (effects, emitters and the per-level emitter atlases), `weapons.md`, `vehicles.md`,
+  `materials.md` (the material grid, part and face materials, penetration, impact effects, grime and camouflage),
+  `destruction.md` and `persistence.md`; the wrapper's material hash is now known (the name's 33-xor hash).
+- **Read-only probes** (`spec/probes/`): the scripts that measured DICE's data for these rules (lighting, weapons,
+  vehicles, materials, destruction); they print counts and ranges only.
 
 ## [0.14.0] - 2026-11-21
 
@@ -130,6 +152,14 @@ landed on `main`.
   development PC, and the 4 golden builds of `test_navbuild_native.py`), the stage 2.4 times faster over those levels (1.4-3 times per level) with a third less memory. The rest of the
   build (walkability, areas, tracing, D lines and F cells, the stage's glue) is still the Python driving the Rust
   core (rounds NK3-NK5).
+- **NavKit's D lines and F cells are made in Rust** (round NK3): `navdetail` (each area's broken sides, D lines
+  and F cells) runs in the Rust core (`bc2_navbuild::detail`). On every call of the 15 regression builds it gives
+  the old Python's answers, except where the Python left a choice to its sets' iteration order. Those choices are
+  now a spec rule (KYM-DF-2), for shapes DICE's own files never contain. An F polygon vertex in an empty 45-degree
+  bridge cell, with no cell beside it on its record's side, takes the mean height of the nearest F cells toward that
+  side. The Python took whichever nearest cell its set gave first. This moves 13 F vertex heights in 7 regression
+  builds by 0.01-0.69 m; nothing else in any file changes. The 4 golden builds are unchanged. The detail step is
+  5.9 times faster within a build (17.6 -> 3.0 s over the 15 levels).
 
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
@@ -153,6 +183,11 @@ landed on `main`.
   `same_grid_resolver` and `cross_grid_resolver`; `navbuild.sector_links` now takes the stage's sector and a
   `link_scope` (the resolvers are the Rust core's), `write_file` the build's anchors. No command line or option
   went; nothing outside NavKit used them.
+- NavKit's Python for the detail features (round NK3): `navdetail.broken_sides`, `f_cell_sets`, `d_sides`,
+  `_unit`, `corner_cuts`, `_cut`, `d_lines`, `_components`, `_quarters`, `_loops`, `_turn`, `_simplify`,
+  `_f_point`, `SIDES` and `F_DIRECTION`. `navdetail.detail_features` and `f_cells` stay as calls into the Rust core. The new
+  `navdetail.features` also gives the D sides and the F cells of each axis, which `navbuild.detail_pass` reads. No
+  command line or option went, and nothing outside NavKit used them.
 
 ## [0.13.0] - 2026-11-21
 

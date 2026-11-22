@@ -336,7 +336,9 @@ Bursts: template `MinAttackBursts` / `MaxAttackBursts` (1-99), weapon `BurstLimi
 200 m and `SuppressMinLOFDistance`. Melee: template `MeleeStartDistance` 2.5 m, `MeleeDelay` 0.35 s, `MeleeDamage`
 50-120, `MeleePushForce`, `MeleeAnimationId` 7 - the template, not the knife, sets a bot's melee damage (inferred from
 the field). Alternate attacks (grenade, launcher): weapon `CanAltAttack` (6 of 47), template `AltAttackProbability`
-(0-1), `RPGSkill` (`AccurateWithTracer`, `AlwaysAccurate`), `ExplosiveObjectChance`.
+(0-1), `RPGSkill` (`AccurateWithTracer`, `AlwaysAccurate`), `ExplosiveObjectChance`. The AI's weapons are clones of the player
+weapons with their own data: every AI clone zooms while the button is held (WPN-ZOOM-2), so a bot that zooms holds
+`EiaZoom` for as long as it aims through the sights.
 
 [data: BehaviourTemplateData, WeaponData, CombatConstantData (ai_probe)]
 
@@ -348,7 +350,8 @@ Firing is input: `EiaFire` / `EiaAltFire` / `EiaZoom` / `EiaReload` through the 
 not: the object's slot 4 sets the soldier's yaw and pitch directly (0x6A6460), turned at the rates of
 `SoldierControlConstants` (turning 90-150°/s, head 10-60°/s, `PitchSpeed` 60, `TurnAngularAcceleration` 720,
 `AimMinPrecisionTolerance` 0.1, `AimControlMode` `AcmDependsOnReadinessAndAimState`). The aim-assist code (the gate at
-0x57A3C6 in 0x579DC0, `Game.AutoAimEnabled`) is a human player's.
+0x57A3C6 in 0x579DC0, `Game.AutoAimEnabled`) is a human player's, and no weapon firing, player's or AI clone's, has
+`UseAutoAiming` (WPN-AIM-1): a bot's accuracy is BOT-CMB-1's model alone.
 
 [exe: BFBC2Game.exe AI input aim 0x586E30 -> 0x6A6460 (other callers of 0x6A6460: the soldier's own aim code 0x6A6720, 0x6AAF60, 0x6ABC30)]
 [data: SoldierControlConstantData (ai_probe)]
@@ -474,7 +477,7 @@ Status: **observed** · Variants: PC
 `AI/Vehicles` gives 41 `ObjectData`: `EquipmentType` (a BOT-VEH-1 type), `Armament` (`ArmamentData`: `ThreatLength`
 0-3, `IsAntiAircraft`, `TurretData` with `PitchP` / `YawP` 0.5-10 and fake shooting distances), `Mobility`
 (`MobilityData`: `MaxSpeed` 5.5-60, `Use3DWaypoints` on 2), `StrengthType`, `ReuseTime`, `Forbidden`,
-`ForbiddenForHuman`, `HasExposedSoldier`, `InterludeOnly` and `InvalidForAI`; and six `AIAimingConstraintsData` (yaw
+`ForbiddenForHuman`, `HasExposedSoldier`, `InterludeOnly` and `InvalidForAI` (the seats themselves are the vehicle's entry components, VEH-SEAT-1); and six `AIAimingConstraintsData` (yaw
 ±65-180°, pitch -60 to 80°). `KynapseConstants.MaxMobileVehicles` 16 caps the moving vehicles Kynapse tracks. How a
 vehicle blueprint names its `ObjectData` is not read.
 
@@ -488,7 +491,9 @@ A campaign bot is put in a vehicle by its spawner (`Vehicle` and `VehiclePos`, s
 driven by `PatrolOrder` (`VehicleThrottle` 0.2-1, `DefaultSpeed`); `LeaveVehicleOnSearchAndDestroyOrder` (8 of 14
 templates) and the `StationaryBailDistance` 55 m make it leave. No goal or behaviour walks to a vehicle and enters it,
 and `EiaChangeVehicle` / `EiaChangeEntry` are not AI actions (BOT-CTL-3): entering a free vehicle, changing seats and
-choosing a role are OPFOR's to build (with the input actions, which the server takes from any player). Napisal's AI
+choosing a role are OPFOR's to build (with the input actions, which the server takes from any player). A seat's
+index is its `EntryOrderNumber` (VEH-SEAT-1, 0 the driver) and its controls are the input mapping the seat names
+(VEH-SEAT-2): a bot module in a seat writes the EIAs that mapping's concepts produce. Napisal's AI
 boats and helicopters on Isla Inocentes are seated the same way; the patrol boat's `Navigation` is `NTNone`.
 
 [data: SoldierSpawnEntityData Vehicle / VehiclePos, PatrolOrderEntityData, BehaviourTemplateData (ai_probe)]

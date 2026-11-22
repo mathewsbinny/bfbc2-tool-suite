@@ -8214,3 +8214,410 @@ A specification round: no tool's behaviour changed. Three spec files (`spec/form
 The NavKit gap list, in priority order: detailed sectors, node placement, edges, area division, the rectangle, D / F,
 C portal kinds and diagonal links, table bounds, lookup-list ties. The detail is in `kynapse_generation.md`. What is
 left is queued as NKS-rest in the ROADMAP.
+
+## NK3: NavKit's build, D lines and F cells (2026-11-22, branch `nk3`)
+
+NK1's plan, stage 2 of the build: `navdetail`, an area's broken sides, D lines and F cells (KYM-DF-1). NK1 and NK2
+found that the Python's set iteration order reaches this output. The round had two steps. First, prove the port
+against the Python. Then decide, per the DICE-fidelity rule, what the order-decided output should be.
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navdetail.broken_sides`, `f_cell_sets`, `d_sides`, `corner_cuts`, `d_lines` (unit sides, chains, corner cuts), `_components`, `_quarters`, `_loops`, `_simplify`, `f_cells`, `_f_point` | `bc2_navbuild::detail` (`detail_features`, `features`, `f_records`) | `bc2_native.navkit_detail_features` / `navkit_detail_f_cells` through `navdetail.features` / `detail_features` / `f_cells` |
+| `navbuild.detail_pass`'s second pass over the broken sides for the D sides (`f_cell_sets` + `d_sides` again) | the D sides in the same answer (`Features.d_sides`) | `navbuild.detail_pass` |
+
+`navdetail.py` keeps its interface: `eligible(i, j, di, dj)` and `breakable(a, b)` are still the caller's callables.
+The core asks them only about sides that step more than the link step, in the reference's order. The cells' dict and
+the half cells' dict are read in their order. `CUT_CORNERS` and `CHAIN_TURNS` are read per call. What stays Python
+until NK5: `detail_pass` itself (the cells' dict from `level.y`, `eligible`'s portal keys, the outline sides moved to
+D, `level.blocked`). Half of the detail step's remaining time is that dict.
+
+### What Python's set order did
+
+Every call of every regression build was recorded and replayed (`rust/parity_nk3_detail.py`: `capture`, then
+`order`). The recording holds the area's cells in their dict order, the half cells, and what `eligible` and
+`breakable` answered. That is 27,193 calls with 16.6 M cells. The Python left two choices to its sets' iteration
+order. CPython hashes int tuples without randomisation, so the order is the same on every run, but it is arbitrary.
+The other set uses do not reach the output: every iteration feeds a sort, a membership test or a sum of at most two
+values, and a sum of two values does not depend on their order.
+
+1. **A loop of an F group's boundary that starts at a pinch** (`_loops`: two edges leave the start vertex, and
+   `pop(0)` takes whichever the quarters' set inserted first). This happens only for a group's second loop (a hole,
+   or a second piece). Found on **0** of the 27,193 calls.
+2. **The nearest F cell's tie** (`_f_point`'s last fallback, `min(fset, key=distance)`). This applies to a vertex
+   with no area cell on the record's side and no F cell touching it: the centre of an empty cell where 45-degree
+   bridges meet. Three F cells around it are equally near. Found at **17** vertices on 10 levels, always with the
+   tied cells at different heights.
+
+Neither order changes when the cells' dict is reversed (the `reversed` probe: same answers on all calls), so
+reproducing the Python's choices would mean emulating CPython's tuple hash and set probing for these sets.
+
+**DICE's data** (`parity_nk3_detail.py dice`: the 18 DICE infantry files of the game copy, read only):
+
+- 44,380 of 44,380 F records are closed and counter-clockwise, with no repeated vertex.
+- No two records of one direction in an area share a vertex.
+- 195,813 of 195,813 normal-pitch F vertices are cell corners; none is at a cell centre.
+
+So DICE never produces either shape: no holes, no pinches, no vertex at an empty cell's centre. Its data cannot
+pick a rule.
+
+**The decision** (the coordinator agreed, 2026-11-22): spec rule **KYM-DF-2** (`spec/formats/hpd.md`). It is
+deterministic, and it is derived from DICE's own convention that an F record's corner heights come from the cells on
+its side.
+
+1. A loop starting at a pinch leaves along the edge whose end vertex is least (x, then z). At a pinch on the way it
+   takes the sharpest right turn, as before.
+2. Such a vertex takes the **mean height of the nearest F cells that lie furthest toward the record's side**. The
+   Python took whichever nearest cell its set gave first. It could take a cell on the record's opposite side.
+
+The rule decides only cases DICE never produces.
+
+### Parity
+
+- **The port** (`parity_nk3_detail.py compare`: the old checkout's `navdetail.py` and this checkout's Rust, each in
+  its own process, on every recorded call). The Rust gives the old Python's answers bit for bit (floats as bits,
+  -0.0 apart from 0.0) on **27,176 of 27,193 calls**. The other **17** are exactly the calls whose answers the order
+  decided. On those, the Rust gives the old Python's own answer once the Python's two choices are replaced by the
+  spec's rule (`loops_spec`, `f_point_spec`). That holds on **27,193 of 27,193** calls: 15 of 15 levels as
+  expected. The Python also gives its recorded answer on all 27,193 calls replayed (the replay is faithful).
+- **The whole builds** (`capture` with each checkout, the build clock fixed, files kept):
+  - 8 levels are **byte-identical** to the old build: ons_mp_004, sp_004_b, sp_008_b, sp_009 (the **4 golden
+    builds, as recorded**), sp_01, sp_007, sp_02 and sp_03.
+  - On sp_007, sp_02 and sp_03 the one changed vertex lies in a normal-pitch sector that the level's detailed zone
+    replaces (`merge_detailed`: sectors 0x0911, 0x0703, 0x0C06 at pitch 0.2), so it is not written.
+  - 7 levels differ, and **every differing byte is explained** (`parity_nk3_detail.py filediff`). The header,
+    every sector's fields, nodes and edges, and every mesh field are equal. Only F record point heights differ: 13
+    vertices, 30 bytes in all (the same `float32`s, 1-4 bytes each).
+  - sp_006's fifth vertex also lies in a replaced sector (0x1108).
+- **The 17 values** (heights with the 0.95 m offset; for written vertices, the files' `float32`s; area / record /
+  point index in the sector's mesh):
+
+| level | sector | area / record / point | record | vertex (x, z) | tied F cells | Python took | old y | new y | change |
+|---|---|---|---|---|---|---|---:|---:|---:|
+| ons_mp_002 | 0x0502 | 23 / 7 / 10 | +z | (292.8, -474.4) | (115, 32), (116, 31), (117, 32) | (115, 32) | 65.8034 | 65.9464 | +0.1430 |
+| sp_003_b | 0x0C06 | 40 / 1 / 11 | -x | (327.2, -432.0) | (34, 84), (34, 86), (35, 85) | (34, 84) | 187.2975 | 187.1257 | -0.1718 |
+| sp_005 | 0x0A05 | 14 / 10 / 4 | +x | (43.2, -341.6) | (53, 73), (54, 72), (54, 74) | (54, 74) | 199.0039 | 198.9950 | -0.0089 |
+| sp_005 | 0x0A0C | 104 / 11 / 6 | +z | (69.6, 391.2) | (86, 114), (87, 113), (88, 114) | (87, 113) | 273.3969 | 272.7541 | -0.6428 |
+| sp_005 | 0x0B0B | 70 / 0 / 10 | -x | (172.0, 257.6) | (90, 71), (90, 73), (91, 72) | (91, 72) | 189.1686 | 189.8559 | +0.6873 |
+| sp_005_b | 0x020F | 72 / 0 / 3 | -x | (-431.2, 682.4) | (86, 102), (86, 104), (87, 103) | (86, 102) | 323.3802 | 323.1239 | -0.2563 |
+| sp_005_b | 0x0D04 | 69 / 2 / 7 | +z | (644.0, -442.4) | (54, 72), (55, 71), (56, 72) | (56, 72) | 217.5252 | 217.4724 | -0.0528 |
+| sp_006 | 0x0312 | 6 / 9 / 10 | +x | (-689.6, 848.0) | (12, 60), (13, 59), (13, 61) | (13, 59) | 234.9392 | 235.0250 | +0.0858 |
+| sp_006 | 0x0313 | 181 / 0 / 3 | -x | (-616.8, 984.0) | (104, 104), (104, 106), (105, 105) | (104, 106) | 223.4036 | 223.3761 | -0.0275 |
+| sp_006 | 0x0E13 | 5 / 1 / 9 | -x | (448.8, 921.6) | (61, 26), (61, 28), (62, 27) | (62, 27) | 124.6782 | 124.0620 | -0.6162 |
+| sp_006 | 0x1108 (detailed zone) | not written | -x | (755.2, -185.6) | (69, 17), (69, 19), (70, 18) | (69, 17) | 107.2985 | 106.8850 | -0.4135 |
+| sp_006 | 0x120A | 21 / 7 / 4 | +x | (850.4, 64.8) | (62, 81), (63, 80), (63, 82) | (63, 80) | 163.8825 | 164.0486 | +0.1661 |
+| sp_007 | 0x0911 (detailed zone) | not written | -z | (-36.0, 891.2) | (79, 114), (80, 115), (81, 114) | (79, 114) | 257.3235 | 257.3434 | +0.0199 |
+| sp_008 | 0x0302 | 15 / 5 / 8 | +z | (-759.2, 196.8) | (50, 121), (51, 120), (52, 121) | (51, 120) | 148.2292 | 148.8641 | +0.6349 |
+| sp_02 | 0x0703 (detailed zone) | not written | -x | (23.2, -264.0) | (29, 44), (29, 46), (30, 45) | (29, 46) | 206.4756 | 206.4417 | -0.0339 |
+| sp_03 | 0x0C06 (detailed zone) | not written | -x | (327.2, -432.0) | (34, 84), (34, 86), (35, 85) | (34, 84) | 187.8239 | 187.6591 | -0.1648 |
+| sp_04 | 0x0106 | 86 / 7 / 3 | -z | (-211.2, -312.0) | (110, 110), (111, 111), (112, 110) | (110, 110) | 344.1512 | 344.1973 | +0.0461 |
+
+The tied cells are local (i, j) on the sector's sample grid; the vertex is the centre of the empty cell they
+surround. Example: on ons_mp_002, the +z record's vertex has no cell on its +z side, (116, 33). Of the three tied
+cells, (115, 32) and (117, 32) lie furthest toward +z. The new height is their mean; the Python took (115, 32) alone.
+
+- **XNAV-BLD-3** (builds may only get closer to DICE's). OPFOR's `work\navkit\regress` files were left as they
+  are. On the 10 affected levels, one level at a time, the old and the new build each went through navregress's
+  checks: hpdcheck's structure, navparity's measures against DICE's file, and navregress's `compare` with the saved
+  reference run "regression" at its 0.05 tolerance (scratch `xnav.py`, which writes nothing into OPFOR).
+  - On every level all navparity measures are **identical** between the old and the new build, D / F included: an
+    F vertex that moves at most 0.69 m stays within navdf's 1 m height match. No row value differs at all.
+  - **No measure is worse** than the reference on any of the 10 levels, old or new, and hpdcheck finds no structure
+    problem.
+  - The new builds' measures:
+
+| level | ground | areas | nodes | connectivity | AI coverage | D precision / recall | F precision / recall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ons_mp_002 | 98.38 | 1.16 | 0.13 | 100.00 | 100.0 | 49.73 / 10.35 | 25.53 / 19.23 |
+| sp_003_b | 97.41 | 0.84 | 1.47 | 93.68 | 96.5 | 50.10 / 31.25 | 31.77 / 46.94 |
+| sp_005 | 98.12 | 1.94 | 1.01 | 99.42 | 99.7 | 53.88 / 28.49 | 31.50 / 31.15 |
+| sp_005_b | 98.02 | 0.87 | 1.04 | 99.36 | 99.6 | 54.86 / 25.97 | 29.99 / 29.92 |
+| sp_006 | 99.18 | 5.77 | 0.33 | 99.46 | 98.1 | 45.56 / 28.89 | 31.93 / 48.97 |
+| sp_007 | 97.61 | 0.90 | 0.78 | 98.43 | 99.2 | 53.29 / 20.88 | 24.33 / 24.24 |
+| sp_008 | 97.63 | 1.20 | 0.54 | 98.63 | 99.3 | 57.95 / 13.63 | 40.99 / 18.03 |
+| sp_02 | 98.95 | 3.11 | 0.41 | 99.49 | 98.5 | 40.43 / 21.86 | 26.67 / 37.45 |
+| sp_03 | 97.53 | 1.18 | 1.23 | 98.46 | 99.4 | 50.28 / 28.48 | 27.41 / 38.66 |
+| sp_04 | 98.56 | 3.07 | 0.52 | 99.61 | 98.9 | 49.54 / 27.96 | 35.62 / 34.78 |
+
+  A navregress run would rewrite those 7 levels' `work\navkit\regress` files with the new bytes and report
+  them as "ok" with no measure change. It compares measures, not bytes, so it flags nothing here.
+- **NK1's apply parity**: 33 of 33 (`rust/parity_nk1_apply.py`, the old checkout against this one: the 18 DICE
+  files and the 15 regression builds). The apply's edit stage is untouched.
+- **`test_detail_features.py`**: all pass, with the random areas also checking the F cell sets the core returns.
+  **`test_navbuild_native.py`'s quick tier** (E2a / E3c / E3h recorded answers, whole stages with D and F): all
+  pass. Rust unit tests: `detail_tests.rs`, 8.
+
+### Time and memory
+
+Replaying the recorded calls (each checkout in its own process; peak = the process's peak working set above its
+working set once the calls were loaded):
+
+| | old Python | Rust |
+|---|---:|---:|
+| all 15 levels, 27,193 calls | 11.8 s | **3.3 s** (3.6x; most of it the dicts and lists crossing into and out of the core, and the `eligible` callbacks) |
+| sp_006 (2,945 calls) | 1.86 s, 61 MB | **0.42 s, 64 MB** |
+| sp_005 (3,240 calls) | 1.66 s, 54 MB | **0.40 s, 56 MB** |
+
+Inside the whole builds (each checkout's own build, alone, the build clock fixed; other agents' work beside them):
+
+| | old | new |
+|---|---:|---:|
+| `detail_features`, 15 levels | 17.6 s | **3.0 s** (5.9x) |
+| `detail_pass` (with its cells' dicts and outline edits), 15 levels | 38.1 s | **17.1 s** |
+| whole builds, 15 levels | 547 s | 356 s (the machine's load moved this more than the stage did) |
+
+The builds' peaks (2.7-9.4 GB) come from the stages before this one. The detail step's own memory is the replay's
+peak above: tens of MB either way.
+
+### Retired
+
+`navdetail.broken_sides`, `f_cell_sets`, `d_sides`, `_unit`, `corner_cuts`, `_cut`, `d_lines`, `_components`,
+`_quarters`, `_loops`, `_turn`, `_simplify`, `_f_point`, `SIDES` and `F_DIRECTION` are Python twins inside a living
+tool (RETIRED.md rule 4: recorded here and in CHANGELOG, not as RETIRED.md rows). The last commit with them is
+`8433e3a`. No command line went, and nothing outside NavKit imported them (Project OPFOR has no caller of navdetail),
+so `VERSION` stays (RELEASING.md).
+
+### What is left: NK4-NK5
+
+- NK4 (walkability end to end) and NK5 (the stage, `merge_detailed`, the driver) stand as NK1 and NK2 planned them.
+- NK5 now also takes `detail_pass`'s glue: the cells' dict from `level.y`, `eligible` from the portal keys, the
+  outline sides moved to D and `level.blocked`. With the store's areas in the core, the detail pass of a whole stage
+  can run in parallel in Rust, with no dict built and no callback. That is half of the 17 s above.
+- KYM-DF-2 also notes a fidelity gap left for later (PY1 or a NavKit parity round). NavKit's F groups can hold
+  holes, pinches and vertices at empty cells' centres, and DICE's never do: its 44,380 records are all simple loops
+  through cell corners. So DICE groups F cells differently, maybe 4-connected, or without the 45-degree bridges.
+  Measuring that on DICE's areas is a content question, not a port's.
+
+## A1: the auto layout of a mode's gameplay, the site and path rules (2026-11-21, branch `a1`)
+
+Round A1 (ROADMAP "A1", after V1 and L1): an optional auto layout of a mode's gameplay in DICE's style, offered in
+the editor as a proposal; V1's leftovers on the ground (spawns over water or in rocks, a vehicle spawner's room and
+domain, objects outside the combat area) and spawns with no path, as rules of V1's registry. The export's path-data
+step (part 2 of the round) did not fit: its plan is below and in the ROADMAP as A2.
+
+### The site (`bc2_levelwrite::site`)
+
+The base level's ground as the rules and the auto layout read it: the height field (`Heightfield::height`, the game's
+diagonal split), the water mesh on 4 m cells (the highest surface over each cell's centre), every static object's
+collision in world space indexed on 8 m cells (the scene's `world_triangles`: placed objects and static group
+members; triangles wider than 160 m in plan are ground sheets, left out) and the level's art (static objects within
+48 m, a destructible one counting four times, as a share of the busiest places). A place is **buried** in an object
+when a vertical line through it crosses that object's triangles an odd number of times above and below it (crossings
+at one height counted once: a line through an edge); vegetation never buries. The editor makes the site once per
+project from its base scene (`validation::site_of`; the height field and water from the game copy's bundles,
+`export::ground_of`, when the views have no terrain unpack): 0.2-1.9 s on the stock levels (1.0-5.4 million collision
+triangles), release.
+
+### The site and path rules, calibrated on DICE's levels
+
+Each threshold lies past what DICE's own objects do. `examples/a1_calibrate.rs` runs the rules on every object of 27
+levels the editor opens with collision - the 21 stock multiplayer levels of `game\Dist` (mp_001 to mp_012sr) and six
+of `game\Package` (`mp_005gr`, Vietnam's `nam_mp_002cq` and `nam_mp_005r`, OPFOR's WW2 ports `wake_island_s`,
+`guadal_canal`, `iwo_jima_s`; `coral_sea`, Air Superiority, left out: the export does not offer the mode, and its
+carrier spawns stand outside the ground its terrain holds): 1,475 spawn points, 707 vehicle spawners, 165 capture
+points - with what each object measures:
+
+| measured on DICE's objects | value | the rule's bound |
+|---|---|---|
+| spawn points over water deeper than 1.2 m (surface to the ground or the pier under it) | 0 | XVAL-PLACE-2: deeper than 1.2 m |
+| spawn points buried in collision (depth up to the surface above) | 13, 0.01-4.24 m (boulders, `nam_mp_005r`'s rock); before the interior rule (a point standing on the object's own surface up to 0.6 m below it: a hangar, a container, a barrier's top) 47 more, up to a hangar's 5.4 m on `iwo_jima_s`; one 8.3 m in a bush's box | buried deeper than 4.5 m; interiors and vegetation left out |
+| spawn points under the height field | deepest 4.59 m (under a cliff on `mp_008`) | deeper than 6 m |
+| vehicle room, the tightest spawner per class (static collision 0.5-3 m above it, every 0.5 m on 16 bearings) | tank 2.5 m (`iwo_jima_s`), car 1 m, heli 4 m (`nam_mp_005r`), boat 1 m, IFV and quad 0.5 m | tank 2, heli 3.5, car, boat, IFV, quad 0.5 m |
+| boats: water under them | 44 of 48 over water, 0.4-28 m deep; `nam_mp_005r`'s 4 river boats on rivers the water mesh does not hold (its surface 86-104 m below them) | a boat on dry land, judged where the water mesh lies within 10 m below the ground |
+| land and sea vehicle spawners outside every combat area | up to 142 m (`mp_006cq`'s tanks, `mp_007`'s IFVs); helicopters and the ambient aircraft farther | more than 150 m; aircraft not held |
+| spawn points outside every combat area | one, less than 1 m (`mp_008`) | more than 1 m |
+| capture points outside every combat area | Rush, Squad Rush and Squad Deathmatch bases and squads (8) | not held (L1-CQ-013 / 014 hold flags and HQs to their team's area) |
+| **the site rules on the 27 levels** | **0 findings** (before the calibration: 202 on the 21 Dist levels) | |
+
+The rules also found what the target's first guess left on two of V1's export canaries (`mapexport validate` on
+their projects, and with collision `a1_calibrate --project`): Arica at dawn's Conquest layer has 18 spawn points in
+the harbour (water 1.4-56.2 m deep), Wake Island with Iwo Jima's state 22 in the sea (1.3-30.8 m) - the first guess fits
+the
+donor layer's box into the base's combat area without looking at the ground; the four Atacama canaries have none.
+The auto layout is what moves such a layer onto land.
+
+The rules report only what the edits moved or made (what the base has at the same place is DICE's), live in the
+editor and, without collision (the ground and water from the game copy), in `mapexport validate`:
+
+| rule | what | severity |
+|---|---|---|
+| XVAL-PLACE-2 | a spawn point over water, buried in a static object's collision (naming the object), under the ground or outside the terrain | warning |
+| XVAL-PLACE-3 | a vehicle spawner without its vehicle's room, or out of its domain (a land vehicle over deep water, a boat on dry land, any buried, a land or sea vehicle outside the terrain) | warning |
+| XVAL-PLACE-4 | an M-COM, a spawn point or a land or sea vehicle spawner outside every combat area | warning |
+| XVAL-PLACE-5 | a spawn point, flag or M-COM with no route node within 15 m in plan and 4 m in height, or whose nearest node is on an island cut off from the main network (GR2's islands) | warning |
+
+XVAL-PLACE-5 reads the route graph of the path data the AI workspace has read (NavKit's build, else DICE's file:
+`validation::routes_of`, `site::Routes` on 15 m buckets); the Problems panel checks it from then on. The registry:
+**112 rules, 51 errors, 59 warnings, 2 notes** (V1's 108 and these four). New spec rules: GAME-SPAWN-3, GAME-VEH-1
+(`engine/gameplay.md`, observed on the calibration), AI-NAV-1 (`engine/ai.md`), XVAL-PLACE-2 to 5 and XLAY-AUTO-1
+(`transforms/validation.md`).
+
+### The auto layout (`bc2_levelwrite::autolayout`)
+
+The project's mode layer is DICE's own layout (the target's donor: its flags, bases, M-COMs, spawns, combat areas and
+event logic, E3d's `modelayer`). The auto layout keeps its shape and fits it to the level (module doc): the whole layer
+turned (24 bearings), scaled (0.9-1.1 of the donor's own distances, the target's first-guess scale undone) and placed
+on a 24 m grid of centres where the level has art; scored on the ground (flags, bases, M-COMs and spawn points on open
+land not in water, collision or past 35 degrees; the combat outlines over the terrain; the combat areas' land and art;
+the art at the objectives); the best 48 refined, the best 8 fitted spot by spot (a flag, base or M-COM with its
+cluster up to 40 m, a spawn point alone up to 16 m, heights following the ground) and measured with V1's
+`placement::measure` against L1's rules, `l1_a1_params.json` and the site rules. The proposal is a list of moves; the
+editor commits it as one move operation when it is accepted. Deterministic: SplitMix64 for the seed, no hash or thread
+order reaches it (the editor test proposes twice, once per theme: equal).
+
+**The proof** (`examples/a1_layout.rs`, release): 16 stock levels of every mode (BFBC2 and Vietnam), each a project
+whose target takes its own gameplay out: the target's donor is each other stock level of the era and mode in turn
+(never the level's own map), the auto layout proposes on the level's site (its own gameplay layer left out of it),
+the proposal is pushed as one move and validated (`validate::project` and the site rules with collision); per level
+the donor is chosen without DICE's own layout (fewest warnings, then statistics outside DICE's ranges, then notes,
+then the ground score). Then compared with DICE's own layout of the level: each of DICE's anchors matched to the
+proposal's (Conquest flags by the least total distance, HQs by team, Rush stages in order, Squad Deathmatch the spawns'
+centre), the combat areas' intersection over union, the share of the proposal's gameplay points inside DICE's area.
+
+| level | mode | donor chosen | errors / warnings / notes | statistics inside DICE's ranges | turn, scale | objects moved (clusters, points fitted) | DICE's anchors matched: n (mean m) | combat area IoU | proposal inside DICE's area | s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| MP_001 | CQ | MP_005 | 0 / 0 / 0 | 30 of 30 | 355 deg, 0.86 | 263 (0, 0) | 5 (299) | 0.36 | 76 % | 2.2 |
+| MP_003 | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 205 deg, 0.85 | 270 (2, 0) | 5 (187) | 0.39 | 41 % | 1.6 |
+| MP_005 | CQ | MP_009CQ | 0 / 0 / 0 | 30 of 30 | 350 deg, 1.00 | 200 (2, 0) | 5 (282) | 0.23 | 100 % | 1.9 |
+| MP_006CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 25 deg, 0.94 | 270 (2, 0) | 5 (242) | 0.45 | 70 % | 1.6 |
+| MP_009CQ | CQ | MP_001 | 0 / 0 / 0 | 36 of 36 | 0 deg, 0.85 | 270 (2, 0) | 5 (128) | 0.29 | 51 % | 1.7 |
+| NAM_MP_002CQ | CQ | NAM_MP_005CQ | 0 / 0 / 0 | 30 of 30 | 139 deg, 0.89 | 253 (3, 3) | 5 (116) | 0.41 | 61 % | 2.8 |
+| MP_005GR | Rush | MP_008 | 0 / 0 / 0 | 31 of 31 | 124 deg, 0.97 | 882 (3, 0) | 3 (280) | 0.25 | 100 % | 6.8 |
+| MP_009GR | Rush | MP_004 | 0 / 0 / 0 | 31 of 31 | 30 deg, 0.85 | 572 (5, 0) | 3 (241) | 0.33 | 87 % | 10.4 |
+| MP_012GR | Rush | MP_008 | 0 / 0 / 0 | 31 of 31 | 83 deg, 0.91 | 882 (2, 0) | 3 (176) | 0.36 | 88 % | 5.2 |
+| NAM_MP_005R | Rush | NAM_MP_003R | 0 / 0 / 1 | 31 of 31 | 348 deg, 0.90 | 391 (5, 0) | 3 (240) | 0.48 | 94 % | 4.3 |
+| MP_002SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 349 deg, 1.00 | 182 (0, 0) | 2 (78) | 0.58 | 100 % | 2.5 |
+| MP_005SR | SR | MP_003SR | 0 / 0 / 0 | 15 of 15 | 335 deg, 0.96 | 232 (1, 0) | 2 (173) | 0.17 | 35 % | 2.4 |
+| MP_012SR | SR | MP_001SR | 0 / 0 / 0 | 15 of 15 | 166 deg, 1.00 | 182 (1, 0) | 2 (142) | 0.49 | 100 % | 1.9 |
+| MP_004SDM | SDM | MP_SP_005SDM | 0 / 0 / 1 | 4 of 5 | 135 deg, 1.00 | 214 (1, 0) | 1 (9) | 0.52 | 57 % | 1.7 |
+| MP_007SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 115 deg, 1.00 | 152 (0, 0) | 1 (65) | 0.36 | 83 % | 1.6 |
+| MP_009SDM | SDM | MP_004SDM | 0 / 0 / 1 | 4 of 5 | 0 deg, 1.00 | 152 (0, 0) | 1 (415) | 0.00 | 0 % | 2.1 |
+
+**16 of 16 levels: 0 errors and 0 warnings; 379 of 382 statistics inside DICE's ranges** (the 3 outside: Squad
+Deathmatch's vehicle count, below); 4 notes - those three and, on `NAM_MP_005R`, a stage's two M-COMs 63 m apart in
+height on its hills (L1-RU-014; `l1_a1_params.json` has no statistic for it). Against DICE's own layout of each level
+the proposals differ, as a layout from another map's DICE layout would: DICE's anchors are matched 192 m away on average
+(median 182 m, from 9 to 415 m), the combat areas overlap with an intersection over union of 0.35 on average (median
+0.36, from 0.00 to 0.58), and 71 % of the proposals' flags, bases, M-COMs and spawn points fall inside DICE's combat
+area (from 0 to 100 %). The closest: the Squad Rush levels `MP_002SR` and `MP_012SR` (IoU 0.58 and 0.49, 100 % inside),
+`MP_004SDM` (9 m), `NAM_MP_005R` (IoU 0.48, 94 % inside); the farthest: `MP_009SDM` (its art drew the layout to the town
+415 m from DICE's squads). The seconds are a donor's whole run (the project made, the target chosen, the proposal, its
+validation), release; the proposal alone is 0.8-0.9 s in the editor on `MP_003`. Seed 7 (before the calibration's last
+widening) gave other proposals with the same verdicts on the 11 levels it finished in the round's time (0 errors, 0
+warnings, every statistic inside DICE's ranges, one note).
+
+Squad Deathmatch's one value outside DICE's range is its vehicle count: the mode layer brings no vehicle spawner (E3d
+leaves the donor's vehicles to E4), so the layout has 0 where DICE's have 1 (L1-SD-006, a note); the auto layout only
+moves what the layer has.
+
+**The editor** (`rust/bc2-editor/tests/auto_layout_panel.rs`, game tier): Laguna Alta (`MP_003`) with Panama Canal's Conquest
+layer; the Gameplay workspace's Auto layout panel proposes on its worker (0.7-0.9 s, debug build), the views draw the
+proposal (rings and pins at the new flags, bases and M-COMs, the lines from where they stand, the spawn points, the
+new combat outlines) while the project is unchanged (its revision and log), Accept commits one move operation (the
+History names it with the proposal's words), the Problems panel lists no error and no warning, and an undo puts every
+object back. Screenshots (Dark, Light; `BC2_EDITOR_SHOTS`): `a1_proposal_dark.png`, `a1_proposal_light.png`,
+`a1_validation_dark.png`, `a1_validation_light.png`.
+
+**Synthetic** (`rust/bc2-levelwrite/tests/auto_layout.rs`, no game data): a 2,048 m terrain with a lake, a town of
+400 buildings and a rock; the site rules raised by a layout broken once per case (a spawn point in the lake, one in the
+rock, a tank over the lake, one inside a building, one 1.5 m from a wall, a spawn point 100 m outside the area) and
+silent on the clean layout and on DICE's own objects where the base has them; the auto layout moves a Conquest layout
+standing half in the lake onto the town (no bad spot, no warning, every statistic inside DICE's ranges, 0.1 s); the
+path rule on a route graph with an island around one flag names exactly that flag's cluster, and every object when no
+node is near.
+
+**With path data** (`--routes`, the AI workspace's case): the Onslaught level `ONS_MP_004` (its installed path data:
+8,843 route nodes) as a project with a BFBC2 Conquest target. DICE's own spawns, flags and M-COMs on it: 0 off the main
+network (XVAL-PLACE-5 silent). Without the routes the proposals left 0 to 47 objects off the main network per donor (7
+for the donor then chosen);
+with them (`autolayout::propose_with`: every spawn and objective also on the main network in the search, the fit and
+the check) 7 of 9 donors' proposals have none off it, and the chosen one (`MP_005`'s layer) has **0 objects off the
+main network, 0 errors, 0 warnings, 0 notes, 30 of 30 statistics inside DICE's ranges**, its anchors 75 m from DICE's
+on average (combat area IoU 0.34).
+
+### Part 2, the export's path-data step: the plan (A2)
+
+What the round did of it: the path rule (XVAL-PLACE-5) on the routes the AI workspace reads, and the site rules that
+keep spawns and objectives where NavKit's walkability finds ground. What it did not: an export that builds the level's
+path data and its AI layer for the changed layout. Why: NavKit's build for a level without DICE's path data needs the
+level sampled - in the game (OPFOR's `[dev] navsample`: no game launch in these rounds) or by
+`navsample_offline.py` (Python and NumPy, not part of `navkit build`; the regression builds peak far past this
+round's memory budget) - and `navkit build` itself is Python around the Rust core until NK2-NK5; and the stock-MP AI
+layer (`bfbc2.exe stockmp`) is made for a stock level by its name, not for a staged one. The plan, in order:
+
+1. **Inputs.** The export's stage (its level bundle with the edited partition and group files) and the base level's
+   prepared folder (`work\levels\<base>`, `navkit prepare`).
+2. **Sampling without the game.** `navsample_offline` with the stage's partition and group files in place of the
+   base's (a partition override), in Rust once NK4 ports `navsample.load` and the walkability glue; the objective
+   floors and seeds from the project's layout, not the base's.
+3. **Build and edits.** `navkit build` on those samples (in process once NK5 lands; `bfbc2.exe navkit build` before
+   that), then the project's navigation edits (`navkit apply`, Rust since NK1 on a DICE base).
+4. **The bot module.** `stockmp generate / build` on the staged partition under the export's level id (a
+   `--partition` / `--level` input): HasAI, PathfindingTypes, the SectorOffsets of the new path data, AI spawners at the
+   project's spawns, orders at its flags and M-COMs, Rush's stage wiring; the level bundle repacked by the stage writer.
+5. **Staging and checks.** `Output\win32\ai\levels\<id>\infantry\pathdata.hpd` (and `vehicle\`) recorded in the stage
+   (`StageRecord`), `mapexport check` lines for them (present, parse, sorted sector nodes: AI-CRASH-4, SectorOffsets
+   matching), XVAL-PLACE-5 as a stage line on the staged path data, the install ledger covering the AI files.
+6. **The AI workspace** reads a stage's path data (the stage's folder beside `work\navkit`), islands and spawns as
+   today.
+7. **Proof.** The six VW2 canaries and SG1's member-edit export (Wake Island, MP_005): path data built and staged,
+   every check line passing, every spawn and objective on the main network, the AI layer's orders covering each
+   objective; in-game behaviour unproven until a playtest.
+
+## SPG: the specification's gap pass (2026-11-22, branch `spg`)
+
+A spec-writing round: no tool behaviour changed, no Rust built. `spec/COVERAGE.md` maps 36 BFBC2 systems to their
+tools, the queued rounds and the rules; the missing specs were written in the order the next rounds need them
+(VW2c / VW2e night conversion, E5 occlusion paint, VW3 weather editor first). Nothing written to `game\`; the game
+never launched.
+
+### Coverage, before and after
+
+| | rules | files | covered | thin | none |
+|---|---:|---:|---:|---:|---:|
+| before | 769 | 46 | 15 | 13 | 8 |
+| after | 933 | 54 | 24 | 12 | 0 |
+
+New files and rules (verified / implemented / observed / inferred): `engine/lighting.md` 26 (1 / 2 / 19 / 4),
+`weather.md` 12 (2 / 0 / 9 / 1), `effects.md` 11 (3 / 1 / 5 / 2), `weapons.md` 34 (3 / 2 / 27 / 2), `vehicles.md` 22
+(1 / 4 / 16 / 1), `materials.md` 30 (1 / 5 / 17 / 7), `destruction.md` 22 (3 / 1 / 16 / 2), `persistence.md` 7
+(0 / 2 / 5 / 0).
+
+### The probes (`spec/probes/`, read-only, on the game copy)
+
+| probe | reads | time |
+|---|---|---:|
+| `lighting.py` | 501 level bundles (444 DICE's): level partitions, 4,285 effect / emitter partitions, every ITexture name and IrradianceVolume, the weather partitions | about 6 min |
+| `weapons.py` | 1,021 DICE bundles, 1,130 weapon partitions | 5 s |
+| `vehicles.py` | 531 vehicle partitions, 74 stock level partitions | 30 s |
+| `materials.py` | 74 material grids, 1,183 physics assets | 30 s |
+| `destruction.py` | 1,262 blueprints, 74 level partitions | 20 s |
+
+The worktree has no `bc2_native` build; the probes ran with `PYTHONPATH` naming the main checkout's
+`core\bfbc2core` (its module's source hash matches).
+
+### Findings that change planned work
+
+- **`PointLightEntityData` exists** (68 on the Vietnam levels: radius 4 - 20 m, fade 10 - 50 m, shadow-map flags):
+  research WX0's "no light entities" and the editor's overlay comment are wrong; the Lights overlay shows only
+  `ActAsPointLight` emitters (35 of 2,882 templates). VW2e-2 should add them.
+- **One point light per draw** and an **effect instance cap of 30 against DICE's 53 night lamps**: both open (RE).
+- **DICE's patched balance is the Package copy**: the M24 is 100 -> 75 over 5 - 25 m in Dist, 100 -> 50 over 10 -
+  36 m in Package; 325 of 351 weapon partitions with both copies differ. Any reader that takes Dist first gets launch
+  values (OPFOR's donors read Package first: WPN-PATCH-2).
+- **AlwaysAimHead true** in the WW2 balance ruling holds per class only: DICE has false on all 32 snipers (WPN-WW2-4).
+  `dbxport` maps every `wabsShg` to `wabsRif`, though DICE uses `wabsShg` on 20 of 42 shotguns (WPN-WW2-8).
+- **The material hash is the name's 33-xor hash** (5,746 of 5,746 materials, 1,183 of 1,183 files): a new material
+  needs no donor file. Material indices differ per level grid (114 of 121 materials): a port must use materials the
+  target grid holds.
+- **Destroyed meshes are parts of the same physics file** (3,423 of 3,431 `MeshName`s), and 1,837 of 2,583
+  static-group member types are destructible.
+- **`ApplyFog` is false in all of DICE's states**; the weather editor's ranges are WTH-STATE-3.
+
+### Left
+
+`spec/COVERAGE.md` section 2 (queued as SPG2): terrain writing, vegetation, the shader translation, the game
+module's patch points, animation and characters, decals, the rest of persistence, BF1943 as a source, Onslaught,
+the effects' processor chain, streaming.

@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 
 mod asset_browser;
 mod asset_preview_parity;
+mod auto_layout_panel;
 mod dbx_inspector_window;
 mod dbxedit_parity;
 mod df1;
