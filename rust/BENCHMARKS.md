@@ -10743,3 +10743,61 @@ saved, not the step's time.
   files against the Python's.
 - **The collision alias cache** stays keyed by file stamps (decided above); the culltree folder listing
   (`list-<sha1>.pkl`, bfbc2.exe's own) likewise: it exists to skip reading files whose size and time are unchanged.
+
+## E4: the map editor's gameplay tools (2026-11-22, branch `e4`)
+
+Round E4 (ROADMAP item 7): flags, spawn points and M-COMs added, carried and deleted with their units, teams and the
+round's rules, on the editor's tool trait; operations `place-unit`, `link-point`, `set-rules` (project format 9).
+Nothing was written to `game\`; the game never launched.
+
+### What the data says (measured on the game copy, read only)
+
+- **A flag's unit is its own** (GAME-CQ-10): on 19 Conquest levels of every set, none of 67 flags' units (what moves
+  with it plus what only its references and events reach) shares an instance with another capture point's; 246 team
+  filters sit in them. A first check by event pattern found no shared announcer glue: each flag has its own two team
+  filters per team, its own capture messages (`HUD_MP_CQ_TOOK_BASE_<letter>`) and voice-over entities. So a new flag is
+  a copy of a whole unit, and "copy only the connections inside the copy" (E2b's placement) would have left it mute.
+- **Rush stage counters count their M-COMs** (GAME-RUSH-10): 221 counters on 31 Rush and Squad Rush levels, every
+  `TriggerAmount` equal to the M-COMs whose `onDestroyed` reaches it (91 of 91 first on OPFOR's XML dumps).
+- **No server preset sets tickets** (GAME-RULES-1): the executable's `Server.*` settings are hardcore, friendly fire,
+  kill cam, minimap, spotting, crosshair, third-person vehicle cameras, autobalance; the round's rules live in the
+  mode layer's counters and flags, so the "preset options" are DICE's own values (Conquest 200 / 250 / 350 tickets,
+  20 / 25 s; WW2 130, 10 s; Rush 100 or 75 against 1,500; Squad Rush 20 against 1,000; Squad Deathmatch 50).
+
+### Proofs
+
+- Valparaiso (`MP_001`): flag C's unit (31 instances) copied 60 m off - every one of the template unit's 15 event
+  connections has its copy (members mapped, shared ends kept), no connection more; deleted again, the instances and
+  connections are the level's. Port Valdez Rush (`MP_012GR`): an M-COM added to stage 1 (unit: two interactions, an
+  award, three delay triggers, marker, alarm, six messages, seven voice-over lines), the stage's counters count 3, the
+  play order unchanged; taken out, the level's instances again. Every partition written and read back byte for byte.
+- The export: Operation Aurora (`SP_01`) as BFBC2 Conquest with a flag E, a spawn point on its spawner and the rules
+  250 tickets / 25 s, built by `export::build` in 24-26 s and held by `export::check`; the staged `Levels/...dbx`
+  reads back byte for byte with 5 flags (letters B, D, A, C, E), the point and the rules. This export first failed:
+  the base's schema (a campaign level) has no evidence for the grafted layer's numbers (`Index` refused but 0); a
+  field set now takes the type of the instance's own nonzero value there (XLOG-APP-5's rule, applied to it).
+- In the editor (headless, demo level, both themes): the tool's click adds a flag (one operation, selected, its zone
+  drawn), Delete takes its unit, Ctrl+Z brings it back, Carry moves the flag with its ring and marker, Esc drops it, a
+  spawn point with no spawner is refused in words (`tests/gameplay_tools.rs`; screenshots `gameplay_flag_<theme>`,
+  `gameplay_panel_<theme>` with `BC2_EDITOR_SHOTS`, kept in the session's scratch folder).
+- Synthetic level (no game data, CI): `the_tools_on_a_synthetic_level` - unit, wiring to a shared voice-over line,
+  carried spawn points, delete, rules, version 8 -> 9.
+
+### The object grid for rays (PR1b-0's leftover): not built
+
+The Gameplay tool casts one ray per frame for its ghost and one per click. PR1b-0 measured a pick at 0.64 ms on
+SP_01 (5,924 collision meshes): under a millisecond a frame, so a grid of the objects' spheres (which needs an edit
+generation on `Scene`) buys nothing visible for E4. It stays a candidate for E5's brushes, which cast many rays a
+frame.
+
+### What is left (E4-rest)
+
+- A whole Rush stage added or taken out (its counters, bases, combat areas and the enable chain); the tools refuse a
+  stage's last M-COM.
+- A new flag's own texts: its capture messages keep the template's `HUD_MP_CQ_TOOK_BASE_<letter>` keys and its spawns'
+  names the template's; letters past the level's need loc keys.
+- Soldier spawners added to a flag or base by the tool (the asset browser's tile places one; `link-spawner` links it).
+- PR1b-0's leftovers: the AI workspace's nine `NavTool`s and placing from the content browser onto `ViewTool`; the
+  other 12 workers onto `Task`.
+- Unproven until a playtest: whether the game spawns at, captures and announces a copied flag (and shows a fifth
+  letter), whether an added M-COM arms and ends its stage, and the rules' effect on a round.

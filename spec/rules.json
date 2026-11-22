@@ -2982,6 +2982,30 @@
    ]
   },
   {
+   "id": "GAME-CQ-10",
+   "title": "A flag's unit is its own",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4: 19 Conquest levels of every set, 67 flags: no unit shares an instance with another capture point's; 246 team filters in the units; Valparaiso's flag C (MP_01_Factory): 31 instances - its box, marker, spawner, 10 spawn points, 4 team filters, 4 messages, 4 voice-over entities and their lines, one vehicle spawner"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::every_conquest_flag_has_a_unit_of_its_own"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::a_flag_added_wired_and_deleted_on_valparaiso"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:435-450"
+    }
+   ]
+  },
+  {
    "id": "GAME-TKT-1",
    "title": "Conquest tickets",
    "file": "spec/engine/gameplay.md",
@@ -3254,6 +3278,50 @@
     {
      "kind": "doc",
      "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-163"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-10",
+   "title": "A stage's counters count its M-COMs",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4: 31 Rush and Squad Rush levels of every set, 221 stage counters, all equal"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::every_rush_stage_counter_counts_its_mcoms"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::an_mcom_added_to_a_rush_stage_and_taken_out"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:479-500"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RULES-1",
+   "title": "The round's rules and DICE's values for them",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings: Server.IsHardcore, Server.FriendlyFireEnabled, Server.KillCam, Server.Minimap, Server.MinimapSpotting, Server.ThreeDSpotting, Server.Crosshair, Server.ThirdPersonVehicleCameras; no ticket or round-length setting"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::round_rules_stock_set_and_refused"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:656-760"
     }
    ]
   },
@@ -23776,6 +23844,58 @@
     {
      "kind": "test",
      "ref": "rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-GAME-1",
+   "title": "A gameplay object is added and deleted with its unit, wired as its template",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:938-1347"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:935-975"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/tool.rs:347-500"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::the_tools_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::a_spawn_point_added_and_deleted"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::aurora_conquest_with_the_tools_edits_exports"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-GAME-2",
+   "title": "The tools in the editor: one operation, one undo step",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/gameplay.rs:295-530"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/app/gameplayui.rs:1-60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/gameplay_tools.rs::gameplay_tools_through_the_interface"
     }
    ]
   },

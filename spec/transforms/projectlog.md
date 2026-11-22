@@ -306,7 +306,52 @@ sub-objects (a ring point moved, the marker renamed) leaves the original's insta
 
 [code: rust/bc2-editor/src/app/tools.rs:1314-1343] [test: rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate]
 
+## 4. The gameplay tools (round E4)
+
+### XLOG-GAME-1: A gameplay object is added and deleted with its unit, wired as its template
+
+Status: **verified**
+
+A flag, spawner or M-COM's unit is the object, what moves with it and what it owns through references and its events
+(GAME-CQ-10). `place-unit` (project format 9) copies a template's unit to a new place - each member carried with the
+root, the root turned as its template - and copies every event connection from or to any member with both ends
+remapped, so the copy is wired to the level's shared logic (a Rush stage's counters, shared voice-over) as the
+template is. A new flag copies the level's smallest flag, takes the next letter (its name, its marker's `Sid`), the
+chosen team and the highest `Index` plus one; a new M-COM copies its stage's first and every counter of the stage
+counts it (GAME-RUSH-10); a new spawn point copies one of the spawner's and `link-point` puts it in the spawner's
+`AlternativeSpawnPoints`. Each is one operation. A delete takes the unit less what another object's unit holds, and
+refuses a team's last base, the level's last Conquest flag and a stage's last M-COM. Carry moves a unit's members as
+far as its root, each keeping its height above the ground. On Valparaiso a flag added then deleted gives back every
+instance and connection; on Port Valdez an M-COM added keeps the play order; Aurora as Conquest with a new flag, spawn
+point and rules exports through the export's own path and passes its stage check, the staged partition reading back
+byte for byte. A number field of a grafted layer the base's schema has no evidence for takes the type its own value
+shows (the same rule, XLOG-APP-5).
+
+[code: rust/bc2-levelwrite/src/gameplay.rs:938-1347] [code: rust/bc2-levelwrite/src/write.rs:935-975]
+[code: rust/bc2-editor/src/tool.rs:347-500]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::the_tools_on_a_synthetic_level]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::a_spawn_point_added_and_deleted]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::aurora_conquest_with_the_tools_edits_exports]
+
+### XLOG-GAME-2: The tools in the editor: one operation, one undo step
+
+Status: **verified**
+
+The Gameplay workspace's tool (`ViewTool`) adds a flag, spawn point or M-COM where the pointer meets the ground and
+selects it, or carries a unit by a click and puts it down at the next (Esc drops it); Delete there takes the
+selection with its units; the Gameplay panel lists the capture points and Rush stages, sets the selection's team and
+applies the round's rules (`set-rules`, only the values changed). Each is one operation of the log, undone in one
+step; the views follow (new entities, their zones, team colours).
+
+[code: rust/bc2-editor/src/gameplay.rs:295-530] [code: rust/bc2-editor/src/app/gameplayui.rs:1-60]
+[test: rust/bc2-editor/tests/gameplay_tools.rs::gameplay_tools_through_the_interface]
+
 ## Open questions
+
+- The gameplay tools (round E4) in game: whether the HUD shows a fifth letter's flag (its capture messages keep the
+  template's `HUD_MP_CQ_TOOK_BASE_<letter>` keys: new letters need their own texts), whether a copied flag's
+  `Index` matters, whether an M-COM added to a stage arms, alarms and ends its stage, and the rules' effect on a round
+  (in-game tests paused, 2026-11-20).
 
 - Static group members (round SG1, XLOG-MEM-1 - XLOG-MEM-3): whether the game accepts a member type with no
   instance (the editor refuses the last of a kind until it is known), whether a member whose leaf sits far from its

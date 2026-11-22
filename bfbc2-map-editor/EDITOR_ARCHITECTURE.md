@@ -162,6 +162,20 @@ and team-area polygons, ceilings, spectator cameras and markers. The WW2 pipelin
 shows what the mode needs (Conquest flags, Rush stages, Air Superiority). The needs come from data-driven mode
 definitions, so custom modes work the same way as built-in ones (section 6, ruling 4).
 
+**Built in round E4 (2026-11-22).** A gameplay object's **unit** (`bc2_levelwrite::gameplay::unit`, spec GAME-CQ-10)
+is the object, what moves with it (`modelayer::cluster`: a flag's zone, marker, spawners and spawn points; an M-COM's
+interactions, marker, alarm and objective props) and what it owns through references and its events
+(`LevelWriter::ownership_with_events`: a flag's team filters, capture messages and voice-over). The tools add a copy
+of a template's unit wired to the shared logic as the template is (`place-unit`: every connection of a member copied,
+both ends remapped), delete a unit less what another unit holds, and carry a unit (members keep their height above
+the ground). A new flag copies the smallest flag, takes the next letter (name, marker `Sid`), the picker's team and
+the next `Index`; a new M-COM copies its stage's first and the stage's counters count it (GAME-RUSH-10); a spawn point
+is placed and linked (`link-point`). The round's rules (`gameplay::Rules`, GAME-RULES-1) are the layer's own values -
+the game has no server option for tickets - with DICE's values as the choices and DICE's per mode and era as the
+default; `set-rules` writes only what changed. In the editor: `tool::GameplayTool` (`gizmo::Tool::Gameplay`, its kind
+chosen in the Gameplay panel, `app/gameplayui.rs`), Delete in the Gameplay workspace (`gameplay::delete_op`). Left:
+E4-rest (ROADMAP).
+
 ### 3.4a The AI workspace (the user, 2026-11-16)
 
 The editor has a switchable **AI workspace** for the bot side of a map. It works on any map, whether being built
