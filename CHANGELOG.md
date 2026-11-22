@@ -79,6 +79,12 @@ landed on `main`.
   of the development PC byte-identical), 7-8 times faster and in a tenth of the memory. A NavKit base still rebuilds
   the level through `navkit.py` (its build is Python), whose edit stage now runs in the same Rust core. The map
   editor's AI workspace runs it as before.
+- **NavKit's build writes its path data in Rust** (round NK2): the build's last stage - the shadow-island rule, the
+  order nodes' pruning, each sector's node and edge tables, the neighbour links of the runtime meshes and the file -
+  runs in the Rust core (`bc2_navbuild::graphfile`). The same files byte for byte (all 15 regression levels of the
+  development PC, and the 4 golden builds of `test_navbuild_native.py`), the stage 2.4 times faster over those levels (1.4-3 times per level) with a third less memory. The rest of the
+  build (walkability, areas, tracing, D lines and F cells, the stage's glue) is still the Python driving the Rust
+  core (rounds NK3-NK5).
 
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
@@ -92,6 +98,11 @@ landed on `main`.
 - `bfbc2-auto-navkit/tools/navlinks.py` and `navtraversal.py` (round NK1): navkit apply's links, route edges and
   traversal annotations are the Rust core's (`navkit.graph_edits` / `write_traversal` call it). No command line or
   option went; nothing outside NavKit imported them.
+- NavKit's Python for a build's last stage (round NK2): `navislands.components` / `shadowing` (`navislands.prune`
+  stays, a call into the Rust core), `navbuild.prune_order_nodes`, `finalize_graph`, `border_cell`,
+  `same_grid_resolver` and `cross_grid_resolver`; `navbuild.sector_links` now takes the stage's sector and a
+  `link_scope` (the resolvers are the Rust core's), `write_file` the build's anchors. No command line or option
+  went; nothing outside NavKit used them.
 
 ## [0.13.0] - 2026-11-21
 
