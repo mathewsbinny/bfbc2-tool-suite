@@ -413,6 +413,8 @@ pub fn file_bytes(
             sort_by_id: sw.sort_nodes_by_id,
             border_owner: sw.border_owner,
             dist_edge_max: cfg.dist_edge_max,
+            owner_edges: sw.owner_edges,
+            node_bounds: sw.node_bounds,
         },
         header: sw.header,
         date: clock.0,

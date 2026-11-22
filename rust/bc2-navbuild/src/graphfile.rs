@@ -398,7 +398,8 @@ pub fn prune_order_nodes<S: BuildHasher>(
     removed
 }
 
-/// How [`finalize`] lays a sector's nodes out (`SORT_NODES_BY_ID`, `BORDER_OWNER`, the build's `dist_edge_max`).
+/// How [`finalize`] lays a sector's nodes out (`SORT_NODES_BY_ID`, `BORDER_OWNER`, the build's `dist_edge_max`) and
+/// which edges and bounds [`write_file`] writes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Layout {
     /// A sector's nodes sorted by unsigned id (ordinary nodes, then border nodes).
@@ -407,6 +408,11 @@ pub struct Layout {
     pub border_owner: bool,
     /// The first node's value.
     pub dist_edge_max: f64,
+    /// A border copy the sector does not own carries no edges (HPD-NODE-5: the owner's copy holds the node's edges),
+    /// so an edge into it has none back in this sector (KYN-EDGE-3). Only with `border_owner` and a sector origin.
+    pub owner_edges: bool,
+    /// The sector table's bounds are the box of the sector's written nodes (KYN-SEC-2), not the build's bounds.
+    pub node_bounds: bool,
 }
 
 impl Default for Layout {
@@ -415,8 +421,58 @@ impl Default for Layout {
             sort_by_id: true,
             border_owner: true,
             dist_edge_max: 15.0,
+            owner_edges: true,
+            node_bounds: true,
         }
     }
+}
+
+/// Whether the sector owns its copy of a node at `pos` (`id`'s bit 31: a border node): an ordinary node always; a
+/// border copy when the sector's 100 m square (from `origin`) holds the node, or never without `BORDER_OWNER` or an
+/// origin (HPD-NODE-5).
+fn owns(id: u32, pos: [f64; 3], origin: Option<(f64, f64)>, layout: &Layout) -> bool {
+    if id & 0x8000_0000 == 0 {
+        return true;
+    }
+    match (layout.border_owner, origin) {
+        (true, Some((ox, oz))) => ox <= pos[0] && pos[0] < ox + 100.0 && oz <= pos[2] && pos[2] < oz + 100.0,
+        _ => false,
+    }
+}
+
+/// A sector's route edges as the file holds them, (source, target) node indices into its `nodes`: each pair both
+/// ways, once (DICE writes no (source, target) twice: KYN-EDGE-3), without the edges out of the border copies the
+/// sector does not own when `owner_edges` holds (with `border_owner` and an origin).
+#[must_use]
+pub fn arcs(g: &SectorGraph, layout: &Layout) -> Vec<(usize, usize)> {
+    let owner_rule = layout.owner_edges && layout.border_owner && g.origin.is_some();
+    let from_here = |i: usize| !owner_rule || g.nodes.get(i).is_some_and(|p| owns(p.id, p.pos, g.origin, layout));
+    let mut seen = HashSet::new();
+    let mut out = Vec::with_capacity(2 * g.pairs.len());
+    for &(a, b) in &g.pairs {
+        for (s, d) in [(a, b), (b, a)] {
+            if from_here(s) && seen.insert((s, d)) {
+                out.push((s, d));
+            }
+        }
+    }
+    out
+}
+
+/// The ids of the nodes some written edge ([`arcs`]) of some sector names: the nodes the file keeps.
+#[must_use]
+pub fn linked_arc_ids(graphs: &[SectorGraph], layout: &Layout) -> HashSet<u32> {
+    let mut out = HashSet::new();
+    for g in graphs {
+        for (a, b) in arcs(g, layout) {
+            for i in [a, b] {
+                if let Some(p) = g.nodes.get(i) {
+                    out.insert(p.id);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// A finite value as the file's `float32` (`struct.pack('<f')`: round to nearest; one past `float32`'s range is
@@ -439,7 +495,7 @@ fn u32_of(v: u64, what: &str) -> Result<u32, GraphError> {
 }
 
 /// `navbuild.finalize_graph(pts, pairs, linked_ids, origin, cfg)`: the sector's nodes with an edge in some sector
-/// (`linked`), with their edges, as the file holds them.
+/// (`linked`), with their edges ([`arcs`]), as the file holds them.
 ///
 /// # Errors
 /// [`GraphError::Index`] for a pair past the nodes; [`GraphError::Refused`] for a value the file cannot hold.
@@ -468,7 +524,7 @@ pub fn finalize<S: BuildHasher>(
         Ok((c(p[0])?, c(p[1])?, c(p[2])?))
     };
     let mut out_edges: Vec<Vec<(u32, usize)>> = vec![Vec::new(); keep.len()];
-    for &(a, b) in &g.pairs {
+    for (a, b) in arcs(g, layout) {
         let (na, nb) = (
             new.get(a).copied().unwrap_or(usize::MAX),
             new.get(b).copied().unwrap_or(usize::MAX),
@@ -489,9 +545,6 @@ pub fn finalize<S: BuildHasher>(
         let cost = u32_of(0x8000_0000 | f as u64, "an edge cost")?;
         if let Some(v) = out_edges.get_mut(na) {
             v.push((cost, nb));
-        }
-        if let Some(v) = out_edges.get_mut(nb) {
-            v.push((cost, na));
         }
     }
     let mut nodes = Vec::with_capacity(keep.len());
@@ -554,14 +607,7 @@ fn sorted_fields(
     let (by_x, by_y, by_z) = (by(0), by(1), by(2));
     for (q, nd) in nodes.iter_mut().enumerate() {
         let rank = |v: &[usize]| v.get(q).copied().unwrap_or(0) as u64;
-        let foreign = nd.id & 0x8000_0000 != 0
-            && match (layout.border_owner, origin) {
-                (true, Some((ox, oz))) => {
-                    let p = full.get(q).copied().unwrap_or([0.0; 3]);
-                    !(ox <= p[0] && p[0] < ox + 100.0 && oz <= p[2] && p[2] < oz + 100.0)
-                }
-                _ => true,
-            };
+        let foreign = !owns(nd.id, full.get(q).copied().unwrap_or([0.0; 3]), origin, layout);
         nd.b = u32_of(rank(&by_x) | (rank(&by_y) << 16), "a node's sorted-index field b")?;
         nd.c = u32_of(
             rank(&by_z) | if foreign { 0x10000 } else { 0 },
@@ -603,6 +649,9 @@ pub struct Written {
     pub nodes: usize,
     /// See `nodes`.
     pub edges: usize,
+    /// Sectors whose table bounds stayed the build's: no node written, or a node box an earlier sector has (the
+    /// loader would take the later one for a duplicate: KYN-SEC-2).
+    pub build_bounds: usize,
 }
 
 /// The build's `navislands.prune` (when `shadow` is set) and `write_file`: the graphs pruned, each sector finalized,
@@ -634,13 +683,21 @@ pub fn write_file(graphs: &[SectorGraph], meshes: &[Vec<u8>], s: &FileSettings) 
         Some((ids, min)) if !ids.is_empty() && *min > 0 => prune_order_nodes(&mut graphs, ids, *min),
         _ => Vec::new(),
     };
-    let linked = linked_ids(&graphs);
+    let linked = linked_arc_ids(&graphs, &s.layout);
     let mut sectors = Vec::with_capacity(graphs.len());
+    let mut boxes: HashSet<[u32; 6]> = HashSet::new();
+    let mut build_bounds = 0;
     for (g, mesh) in graphs.iter().zip(meshes) {
         let (nodes, edges) = finalize(g, &linked, &s.layout)?;
         let mut bounds = [0f32; 6];
         for (b, &v) in bounds.iter_mut().zip(&g.bounds) {
             *b = f32_of(v, "a sector bound")?;
+        }
+        if s.layout.node_bounds {
+            match node_box(&nodes) {
+                Some(nb) if boxes.insert(nb.map(f32::to_bits)) => bounds = nb,
+                _ => build_bounds += 1,
+            }
         }
         sectors.push(Sector {
             id: g.sid,
@@ -667,7 +724,24 @@ pub fn write_file(graphs: &[SectorGraph], meshes: &[Vec<u8>], s: &FileSettings) 
         removed,
         nodes: n_nodes,
         edges: n_edges,
+        build_bounds,
     })
+}
+
+/// The box of the nodes' stored positions (min x, max x, min y, max y, min z, max z), or `None` without nodes.
+fn node_box(nodes: &[Node]) -> Option<[f32; 6]> {
+    let [x, y, z] = nodes.first()?.pos;
+    Some(nodes.iter().fold([x, x, y, y, z, z], |b, n| {
+        let [x, y, z] = n.pos;
+        [
+            b[0].min(x),
+            b[1].max(x),
+            b[2].min(y),
+            b[3].max(y),
+            b[4].min(z),
+            b[5].max(z),
+        ]
+    }))
 }
 
 /// A border portal as [`sector_links`] reads it: its area, its index among the area's border portals, the
@@ -683,6 +757,9 @@ pub struct Border {
     pub di: i64,
     /// z step out of the sector.
     pub dj: i64,
+    /// The step along the border into a diagonal neighbour (-1, 0, 1): a piece of the run beyond the sector
+    /// square's line (KYN-LINK-1), 0 for the axis neighbour.
+    pub along: i64,
     /// First cell index along the border.
     pub t0: i64,
     /// One past the last.
@@ -692,6 +769,17 @@ pub struct Border {
 }
 
 impl Border {
+    /// The neighbour sector the portal leads into from sector (x, y): across its side, and `along` the border into a
+    /// diagonal neighbour.
+    #[must_use]
+    pub fn neighbour(&self, x: i64, y: i64) -> (i64, i64) {
+        if self.di == 0 {
+            (x + self.along, y + self.dj)
+        } else {
+            (x + self.di, y + self.along)
+        }
+    }
+
     /// `navbuild.border_cell`'s cell just inside the portal (the middle of its run): (i, j) local to the sector.
     #[must_use]
     #[expect(
@@ -726,8 +814,17 @@ pub fn sector_links(
 ) -> Vec<NeighbourLink> {
     let mut links: BTreeMap<(i64, i64), LinkObjects> = BTreeMap::new();
     for b in borders {
-        let other = (x + b.di, y + b.dj);
-        let Some(hit) = resolve(other, b) else { continue };
+        // a piece beyond the square links to the diagonal neighbour, or, where that has no area across, to the axis
+        // neighbour whose rectangle also holds it
+        let diagonal = b.neighbour(x, y);
+        let axis = (x + b.di, y + b.dj);
+        let Some((other, hit)) = resolve(diagonal, b).map(|h| (diagonal, h)).or_else(|| {
+            (diagonal != axis)
+                .then(|| resolve(axis, b).map(|h| (axis, h)))
+                .flatten()
+        }) else {
+            continue;
+        };
         let rel = 0x50 + portals.get(b.area).copied().unwrap_or(0) as u64 * 0x20 + b.index as u64 * 0x2C;
         links
             .entry(other)
@@ -874,7 +971,8 @@ mod tests {
                 node(B | 9, [50.0, 0.5, 0.0]),
                 node(4, [0.0, 0.0, 0.0]),
             ],
-            pairs: vec![(0, 2), (2, 1), (0, 3)],
+            // (2, 0) repeats (0, 2) the other way: one edge each way
+            pairs: vec![(0, 2), (2, 1), (0, 3), (2, 0)],
             origin: Some((0.0, 0.0)),
         };
         let linked = linked_ids(std::slice::from_ref(&g));
@@ -882,10 +980,19 @@ mod tests {
         assert_eq!(n.iter().map(|x| x.id).collect::<Vec<_>>(), vec![2, 7, B | 3, B | 9]);
         assert_eq!(n[0].value, 15.0);
         assert!(n[1..].iter().all(|x| x.value == 0.0));
-        // edges grouped by source, by destination within; a = first edge + 1
+        // edges grouped by source, by destination within; a = first edge + 1; none out of the foreign copy B | 3
+        // (index 2), whose edges are its owner's: the edge into it has none back
         let pairs: Vec<(u32, u32)> = edges.iter().map(|x| (x.src, x.dst)).collect();
+        assert_eq!(pairs, vec![(0, 1), (0, 2), (1, 0), (1, 3), (3, 1)]);
+        assert_eq!(n.iter().map(|x| x.a).collect::<Vec<_>>(), vec![1, 3, 0, 5]);
+        // without OWNER_EDGES every pair both ways, still once
+        let both = Layout {
+            owner_edges: false,
+            ..Layout::default()
+        };
+        let (_, e2) = finalize(&g, &linked, &both).unwrap();
+        let pairs: Vec<(u32, u32)> = e2.iter().map(|x| (x.src, x.dst)).collect();
         assert_eq!(pairs, vec![(0, 1), (0, 2), (1, 0), (1, 3), (2, 0), (3, 1)]);
-        assert_eq!(n.iter().map(|x| x.a).collect::<Vec<_>>(), vec![1, 3, 5, 6]);
         // the cost from the float32 positions: 2.5 m across, 1 m up
         let d = dist3((12.5, 2.0, 10.0), (10.0, 1.0, 10.0));
         assert_eq!(u64::from(edges[0].tag), 0x8000_0000 | (d * 16.0).floor() as u64);
@@ -904,6 +1011,65 @@ mod tests {
         let (n, _) = finalize(&g, &linked, &unsorted).unwrap();
         assert_eq!(n.iter().map(|x| x.id).collect::<Vec<_>>(), vec![7, B | 3, 2, B | 9]);
         assert_eq!(n.iter().map(|x| x.c >> 16).collect::<Vec<_>>(), vec![0, 1, 0, 1]);
+    }
+
+    #[test]
+    fn bounds_are_the_node_box_and_foreign_only_pairs_keep_no_node() {
+        let node = |id, pos| RouteNode { id, pos };
+        let mesh = b"KynogonRuntimeMesh  rest".to_vec();
+        // sector 0x0101 (square 0..100): two ordinary nodes, a border node it owns, and a pair between two border
+        // copies it does not own (both in the next square): that pair has no edge, its nodes no other one
+        let a = SectorGraph {
+            sid: 0x0101,
+            bounds: [-0.8, 100.88, 0.0, 9.0, -0.8, 100.88],
+            nodes: vec![
+                node(1, [10.0, 1.0, 20.0]),
+                node(2, [30.0, 3.0, 40.0]),
+                node(B | 5, [99.2, 2.0, 50.0]),
+                node(B | 6, [100.8, 2.0, 60.0]),
+                node(B | 7, [100.8, 2.0, 62.0]),
+            ],
+            pairs: vec![(0, 1), (1, 2), (3, 4)],
+            origin: Some((0.0, 0.0)),
+        };
+        // sector 0x0201 (square 100..200): its own node and the border node 5 (foreign here)
+        let b = SectorGraph {
+            sid: 0x0201,
+            bounds: [99.2, 200.88, 0.0, 9.0, -0.8, 100.88],
+            nodes: vec![node(3, [150.0, 4.0, 50.0]), node(B | 5, [99.2, 2.0, 50.0])],
+            pairs: vec![(0, 1)],
+            origin: Some((100.0, 0.0)),
+        };
+        // sector 0x0301: no pair, so no node written: it keeps the build's bounds
+        let c = SectorGraph {
+            sid: 0x0301,
+            bounds: [199.2, 300.88, 0.0, 9.0, -0.8, 100.88],
+            nodes: vec![node(4, [250.0, 1.0, 50.0])],
+            pairs: Vec::new(),
+            origin: Some((200.0, 0.0)),
+        };
+        let s = FileSettings {
+            shadow: None,
+            orders: None,
+            layout: Layout::default(),
+            header: [0; hpd::HEADER_WORDS],
+            date: 0,
+            clock: 0,
+        };
+        let w = write_file(&[a, b, c], &[mesh.clone(), mesh.clone(), mesh], &s).unwrap();
+        assert_eq!(w.build_bounds, 1);
+        let f = hpd::parse(&w.data).unwrap();
+        let ids = |k: usize| f.sectors[k].nodes.iter().map(|n| n.id).collect::<Vec<_>>();
+        assert_eq!(ids(0), vec![1, 2, B | 5]);
+        assert_eq!(ids(1), vec![3, B | 5]);
+        assert!(ids(2).is_empty());
+        assert_eq!(f.sectors[0].bounds, [10.0, 99.2, 1.0, 3.0, 20.0, 50.0]);
+        assert_eq!(f.sectors[1].bounds, [99.2, 150.0, 2.0, 4.0, 50.0, 50.0]);
+        assert_eq!(f.sectors[2].bounds, [199.2, 300.88, 0.0, 9.0, -0.8, 100.88]);
+        // in 0x0201 the edge into the foreign copy of 5 has none back; 5's edges are in 0x0101
+        let e = |k: usize| f.sectors[k].edges.iter().map(|e| (e.src, e.dst)).collect::<Vec<_>>();
+        assert_eq!(e(1), vec![(0, 1)]);
+        assert_eq!(e(0), vec![(0, 1), (1, 0), (1, 2), (2, 1)]);
     }
 
     #[test]
@@ -965,6 +1131,7 @@ mod tests {
     #[test]
     fn sector_links_group_sort_and_place_their_references() {
         let border = |area, index, di, dj| Border {
+            along: 0,
             area,
             index,
             di,

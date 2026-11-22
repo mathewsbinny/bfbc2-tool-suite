@@ -255,6 +255,13 @@ pub struct Switches {
     pub sort_nodes_by_id: bool,
     /// `BORDER_OWNER`.
     pub border_owner: bool,
+    /// Edges only out of the border copies a sector owns (`graphfile::Layout::owner_edges`; HPD-NODE-5, KYN-EDGE-3).
+    pub owner_edges: bool,
+    /// The sector table's bounds as the box of the sector's nodes (`graphfile::Layout::node_bounds`; KYN-SEC-2).
+    pub node_bounds: bool,
+    /// A border portal's run cut at the sector square's lines, its pieces beyond them linked to the diagonal
+    /// neighbour whose square holds them (KYN-LINK-1).
+    pub diagonal_links: bool,
     /// `ORDER_NODE_MIN`.
     pub order_node_min: f64,
     /// `ORDER_MIN_ISLAND`.
@@ -308,6 +315,9 @@ impl Default for Switches {
             gabriel: Gabriel::Detailed,
             sort_nodes_by_id: true,
             border_owner: true,
+            owner_edges: true,
+            node_bounds: true,
+            diagonal_links: true,
             order_node_min: 3.0,
             order_min_island: 25,
             detail_half_cells: false,
@@ -455,6 +465,9 @@ pub struct Stage {
     pub dropped: BTreeSet<u32>,
     /// The stage's pitch.
     pub pitch: f64,
+    /// The sector square's samples across when its border runs are cut at the square's lines and their pieces beyond
+    /// link to the diagonal neighbours (`Switches::diagonal_links`).
+    pub diagonal_square: Option<i64>,
 }
 
 impl Stage {
@@ -924,6 +937,15 @@ pub fn sector_links(
                 index: ci,
                 di: b.dir.0,
                 dj: b.dir.1,
+                along: here.diagonal_square.map_or(0, |sq| {
+                    if b.last < 0 {
+                        -1
+                    } else if b.first >= sq {
+                        1
+                    } else {
+                        0
+                    }
+                }),
                 t0: b.first,
                 t1: b.last,
                 line: b.line,
@@ -1316,7 +1338,14 @@ pub fn stage(
                 y_offset: cfg.y_offset,
                 rule: sw.link_rule,
             };
-            trace::trace_emit(level, &inf.cells, r, tc, inf.origin.2, inf.origin.3, cfg.pitch)
+            trace::trace_emit_cut(
+                level,
+                &inf.cells,
+                r,
+                tc,
+                (inf.origin.2, inf.origin.3, cfg.pitch),
+                sw.diagonal_links.then_some(cfg.sector_samples),
+            )
         })
         .collect();
     for (inf, em) in infos.iter_mut().zip(&emitted) {
@@ -1334,6 +1363,7 @@ pub fn stage(
         next_id,
         dropped,
         pitch: cfg.pitch,
+        diagonal_square: sw.diagonal_links.then_some(cfg.sector_samples),
     };
     let scope: Scope = st.sectors.iter().enumerate().map(|(n, s)| (s.xy, n)).collect();
     let mut meshes = Vec::with_capacity(st.sectors.len());
