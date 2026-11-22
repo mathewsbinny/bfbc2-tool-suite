@@ -242,14 +242,14 @@
   },
   {
    "id": "AI-NEED-5",
-   "title": "Kills of bots score nothing offline",
+   "title": "Kills of bots score nothing offline without the scoring patch",
    "file": "spec/engine/ai.md",
    "status": "observed",
    "variants": "PC",
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for no victim player) -> kill scoring 0x86C070 -> award 0x86BE20"
+     "ref": "BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for a null victim at 0x86DCAE; scoring flag test 0x86DD97) -> kill scoring 0x86C070 (returns for an AI killer at 0x86C12D) -> award 0x86BE20"
     },
     {
      "kind": "doc",
@@ -1105,7 +1105,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe bot debug print 0xEEF450 (strings \" Bot id: \" 0x014A7E64, \"Squad: \", \" - Squad leader\" 0x014A7E50, \"Readiness: \" 0x014A7E44, \"Position: \"); Kynapse bot entity 0xF27900 (\"Entity_\", thunk 0x109EAC0, registration 0x109DFF0)"
+     "ref": "BFBC2Game.exe bot debug print 0xEEF450 (strings \" Bot id: \" 0x014A7E64, \"Squad: \", \" - Squad leader\" 0x014A7E50, \"Readiness: \" 0x014A7E44, \"Position: \"); Kynapse bot entity 0xF27900 (\"Entity_\", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)"
     },
     {
      "kind": "doc",
@@ -1131,6 +1131,19 @@
     {
      "kind": "doc",
      "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:192-201"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-9",
+   "title": "The registries' creators and the behaviour objects",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe registration calls `push 0; push create; push parent; push record; mov ecx, creator; call 0x500660` (86 found by a byte scan of the type records whose name holds \" :: \"), e.g. 0x137CB00 for BehaviourChangePose; creator vtable 0x014A7398 slot 4 0xED27A0 (alloc 0x20, instance vtable 0x014A6848); SoldierControl creator vtable 0x014A590C slot 4 0xE87390 -> constructor 0xE775D0 (instance vtable 0x014A560C, slot 4 0xE84CE0)"
     }
    ]
   },
@@ -1233,6 +1246,49 @@
     {
      "kind": "doc",
      "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-6",
+   "title": "The AI body: the proxy and its three interfaces",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe proxy constructor 0x5AB5A0 (+0xC = new 0x5A7F00(player), +8 = 0xC-byte object vtable 0x014197B8 with +4 = player, base 0xE7B320 zeroes +4..+0x18); proxy vtable 0x01419AA0 slots 1-29 (slot 1 0x57D770 -> player vtable +0x1C = 0x531BF0 `lea eax,[ecx+0xC2C"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-7",
+   "title": "Who writes which input slot",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xEBF470 (dt from the AI clock `*(0x018903C8)` vtable +4) -> 0xE6A8C0 (input slot 7 at 0xE6A914 / 0xE6A97F, slot 1 at 0xE6A954); 0xEC6650 `push edx; push 0xB; call [vtable+8"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the scan's pattern (object from a +0xC field, then its vtable, then the slot) covers the sites listed; actions 1 and 7-10 have no site under it"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-8",
+   "title": "Stance, weapon slot, sprint, vehicle weapons and seats are set directly",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe BehaviourChangePose start 0xEC4F60 (`[proxy+8"
     }
    ]
   },
@@ -1501,6 +1557,10 @@
      "ref": "SoldierSpawnEntityData Vehicle / VehiclePos, PatrolOrderEntityData, BehaviourTemplateData (ai_probe)"
     },
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe proxy request pump 0x595190 (+0x24 -> 0x58DEC0 -> 0x5725E0; +0x28 -> 0x56D480(1)); proxy slot 23 0x57DAD0 `mov byte [ecx+0x28"
+    },
+    {
      "kind": "doc",
      "ref": "opfor:DEVELOPMENT_NOTES.md:2164-2170"
     }
@@ -1516,6 +1576,23 @@
     {
      "kind": "data",
      "ref": "AI/Settings NavigationConstantData, HelicopterControlConstantData, DifficultyData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-VEH-5",
+   "title": "The vehicle controls write analog input levels",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe control instance vtables 0x014A48FC (car), 0x014A5640 (tank), 0x014A567C (turret), 0x014A5738 (helicopter), slot 4 each = 0xE53130 / 0xE78480 / 0xE78A50 / 0xE91040; the analog write sites of BOT-CTL-7; 0xE91040 -> 0xE8EB30 (0xE9122F, 0xE9125D), 0xE8ED90 (0xE9128F), 0xE90830 (after 0xE91273) -> 0xE8F0B0 (0xE90AF0), 0xE8F250 (0xE90B00)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the turret's roll-as-yaw against the seats' input mappings, which were not compared"
     }
    ]
   },
@@ -1605,6 +1682,88 @@
    ]
   },
   {
+   "id": "BOT-GS-3",
+   "title": "A capture point's owner and progress",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7169D0 (base 0x7159B0, vtable 0x01429470); 0x725630 (+0x98 / +0x9C, data +0x9C, `0x68F1E0(+0x7C, 0x7D1F6304)`, message `(0x11, 0x17)`, 0x842F30('ROUN', 'CPTA')); 0x711AA0 (data +0xA0, `0x68F1E0(+0x7C, 0xAA8A2040)`, message `(0x11, 0x18)`, 'CPLO', +0x7C = arg 4); event-name hash at 0x10013E0 (djb2 with xor: h = 5381, h = h * 33 ^ c)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-4",
+   "title": "Tickets, life counters and mission objectives are server entities with their own classes",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe constructors 0x66E190 (0x68FB90 x 4 with the hashes), 0x67A030, 0x6740D0 (server object `+0x18` vtable +8 with 0x10); name functions 0x66A250, 0x6695D0, 0x669AF0 (vtable slots at 0x0141FEF8, 0x0142042C, 0x0141FDC4)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-1",
+   "title": "The kill handler's AI tests gate stat events, not the kill score",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86DC90: null victim test 0x86DCA2 / 0x86DCAE; scoring flag `cmp byte [ebp+0x2A"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-2",
+   "title": "Bots never earn score and keep no scoring record",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86C070 (`[param_1+8"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-3",
+   "title": "Scoring offline: what the patch changes",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x865D70 (flag +0x2A set to 1 unless `+0x2A == 0 && server +0x2C && 0x53F430() < 4`), 0x86DD97 (the handler's flag test); the patch sites 0x865F36, 0x86FD12, 0x842E6A, 0x842E9A, 0x83B591"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-4",
+   "title": "A bot's name and its scoreboard row",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x531BF0 `lea eax,[ecx+0xC2C"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the client scoreboard's row source"
+    }
+   ]
+  },
+  {
    "id": "BOT-DIF-1",
    "title": "One set of AI partitions for campaign and multiplayer",
    "file": "spec/engine/bot_ai.md",
@@ -1657,11 +1816,19 @@
   },
   {
    "id": "BOT-DIF-4",
-   "title": "Offline multiplayer runs the AI at Normal",
+   "title": "A multiplayer session's AI difficulty is the session's, Normal by default",
    "file": "spec/engine/bot_ai.md",
    "status": "observed",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe session constructor 0x561C10 (`mov dword [esi+0xC8"
+    },
+    {
+     "kind": "inferred",
+     "ref": "that the start parameters' +0x20 becomes the start object's +0x90 (the server create was not followed)"
+    },
     {
      "kind": "data",
      "ref": "OPFOR's live run of Levels/SP_005 through the offline multiplayer path, probe \"AI: init (arg1 = difficulty)\" = 1"
@@ -6231,7 +6398,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add"
+     "ref": "0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add; 0x86DCAE (null victim), 0x86C12D (AI killer), 0x865D7F (no record for an AI player), 0x86A7EE (no award to an AI player)"
     },
     {
      "kind": "doc",
@@ -17257,6 +17424,19 @@
    ]
   },
   {
+   "id": "AIO-RT-1",
+   "title": "One server class runs every order; IssueOrder is an event hash",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtable 0x014199C8 (slot 6 0x58DD20 `cmp dword [edi+0xC"
+    }
+   ]
+  },
+  {
    "id": "AIO-RDY-1",
    "title": "One OrderReadiness per order type",
    "file": "spec/model/ai_orders.md",
@@ -20734,9 +20914,9 @@
   },
   {
    "id": "KYG-RECT-1",
-   "title": "Ground stops at a rectangle that is not in the shipped data",
+   "title": "Ground stops at the spawns' box grown by 25 m",
    "file": "spec/transforms/kynapse_generation.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -20745,6 +20925,18 @@
     {
      "kind": "data",
      "ref": "round NKS-rest (`kynapse_fit`): the vehicle file's ground box lies within 2.5 m of the infantry file's on 13 of 68 sides (17 levels) and 2.6-1,094 m inside it on the other 55, so the vehicle ground (seeded from vehicle spawns) shows no shared level-wide rectangle; on sp_04 all four sides lie 2.3-10.8 m apart"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/tests/kynapse_rect.rs::ground_stops_25_m_beyond_the_spawns"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `rect` fit, 17 prepared levels): the infantry ground's sides against the spawns' box + 25 m, inset per side: sp_007 0.11 / 0.49 / 0.39 / 0.83 m, sp_02 0.20 / 0.50 / 0.41 / 0.19, sp_01 0.48 / 0.33 / 0.53 / 0.76, sp_003_b 0.63 / 0.80 / 0.79 / 0.22; the 45 sides at the box 0.110-0.908 m; vehicle sides at the box sp_003_b 2.33, sp_005_b 2.54, sp_007 2.33, sp_008 2.60 / 2.37, sp_008_b 3.09, sp_04 3.07"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2, other boxes against the 68 infantry sides (17 levels): the ground lies more than 2 m outside the combat areas' box on 27 sides and outside the placed objects' box on 19; the height field's box ends more than 25 m beyond the ground on 66 sides and inside it on 2; with soldier spawns alone (+ 25 m) the ground passes the box (by more than 0.2 m) on 36 of the 132 sides of the 33 files, with vehicle spawns alone on 34, with both on 2 (Onslaught)"
     },
     {
      "kind": "doc",
@@ -20819,6 +21011,10 @@
      "ref": "features that do not separate cut from uncut (round NKS-rest): the cells' share of the tile (uncut areas from 0 to 100 %, 954 coarse at a full tile; cuts from 1 %), the record size (cut 1-32 KB, uncut 0-14 KB, overlapping), the outline points, the tile (574 uncut straddlers in the 787 coarse tiles with a cut), and a hole crossing the midline (2,635 such holes in uncut coarse areas)"
     },
     {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `midline` and `holes` fits): crossings of the midline (stretches where the ground lies on both sides, sampled every half pitch) for coarse cut groups 1 / 2 / 3 / 4 / 5+ = 148 / 241 / 228 / 164 / 283 and for uncut areas 24,108 / 5,409 / 2,656 / 1,231 / 1,050; the gaps between stretches: cut 2,743 without ground and 29 holding another area's ground, uncut 19,192 and 159; holes of single areas (sample points no area holds, enclosed): coarse 99,997 within a quarter tile, 1,492 across the x midline, 1,582 across z, 147 across both (98 % without ground); detailed 36,821 / 2,406 / 2,498 / 675; joined cut groups: 641 of 1,064 coarse hold a hole across a midline, 416 holes in quarters only, 7 none"
+    },
+    {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:517-531"
     }
@@ -20855,6 +21051,14 @@
      "ref": "round NKS-rest: the 571 detailed sectors form 42 blocks of side-adjacent sectors (1-6 per file); only 14 blocks (30 sectors) are rectangles of the file's sectors, the others hold coarse sectors inside their box; so the detailed ground is not one designer box per block"
     },
     {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `detailed` fit; 544 detailed of 2,561 sectors, ONS_MP_005 not prepared): best single thresholds, share right: placed objects with collision >= 28 91.8 %, collision triangles >= 16,300 90.1 %, DICE ground on objects >= 1 sample 87.6 %, AI spawns >= 1 87.1 %, AI orders >= 1 86.5 %, stacked ground 84.8 %, vehicle spawns 84.5 %, objectives 81.5 %, ladders 81.3 %, capture points 79.7 %; best two-feature rule 92.2 % (objects in the 3 x 3 block >= 66 and in the sector >= 12); per level the best \"ground on objects\" threshold ranges from 1 to 2,757 m2"
+    },
+    {
+     "kind": "inferred",
+     "ref": "no level-data rule reaches 93 % and the blocks are not rectangles, so the detailed sectors come from generator input that is not shipped (designer zones); a sector is detailed as a whole (KYN-SEC-4)"
+    },
+    {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:532-542"
     },
@@ -20883,8 +21087,16 @@
      "ref": "vehicle files: 7,324 of 18,590 areas hold one node and 9,939 none; a lone node lies within 0.7 m of its area's cell centroid in 6,557 of 7,324, spread evenly over 0-0.7 m (anywhere in the central 1 m cell)"
     },
     {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `clearance` fit, 17 prepared levels): ordinary nodes against the collision clipped to the height band, nearest distance: coarse 186,858 of 195,699 with none within 3 m (control 186,840), 0.35-0.45 m 162 (control 195); detailed 61,312 of 143,040 none within 3 m (control 61,553), 0.35-0.45 m 3,134 (control 2,714), 0.40-0.60 m 9,145 (control 4,980); vehicle 3,778 of 9,383 none (control 3,814)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `cover` fit): the centroid of a node's share of the ground against the node, for ordinary nodes 10 m or more inside their square: median 0.65 m coarse (144,583 nodes), 0.55 m detailed (100,368), 1.5 m vehicle"
+    },
+    {
      "kind": "inferred",
-     "ref": "positions on no grid, no lattice and no outline feature point to the generator placing nodes from geometry the stored mesh does not keep (its own sample cloud or the collision), not from the stored outline"
+     "ref": "positions on no grid, no lattice, no outline feature and no collision feature point to the generator placing nodes from its own sample cloud by a procedure that leaves the KYG-NODE-4 / KYG-NODE-5 traces (axis steps of GraphAccuracy + 0.35 m; coverage within DistEdgeMax / 2), not from the stored outline or the Havok shapes"
     },
     {
      "kind": "doc",
@@ -20929,6 +21141,42 @@
     {
      "kind": "inferred",
      "ref": "equal f32 coordinates whose order follows no rule on the stored values points to a sort on the generator's unrounded coordinates before they were stored as f32"
+    }
+   ]
+  },
+  {
+   "id": "KYG-NODE-4",
+   "title": "Step pairs: nodes one step of GraphAccuracy + 0.35 m apart along an axis",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `spacing` fit): pairs sharing x or z exactly, by gap: coarse 6,578 at 3.350 m (+- 2 mm; the next gap within 20 % 82), detailed 226 at 0.850 m (next 4), vehicle 44 at 15.350 m (next 2); coarse 753 at 6.700 m and 759 at 5.025 m; ordinary nodes joined to another by x and z offsets that are both whole half-steps: coarse 14,956 of 197,599 (12,166 in pairs, 2,313 in threes), detailed 4,176 of 147,130, vehicle 98 of 10,310"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2, the axis gaps of the cell grid (multiples of half the pitch: 0.8, 1.2, 1.6, 2.4, 3.2, 4.0 m coarse) come from the 4 % of nodes on cell centres (KYG-NODE-1)"
+    }
+   ]
+  },
+  {
+   "id": "KYG-NODE-5",
+   "title": "The ground sees a node within DistEdgeMax / 2",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `cover` fit): every sample point of DICE's areas (0.8 m apart; 1 m on vehicle files), the nearest node of the sector at the area's height it sees: coarse 96.53 % within 7.5 m (88.6 % within 6 m, 96.97 % within 8 m) of 19,096,684 points, 1.83 % none within 30 m; detailed 98.31 % within 7.5 m (92.0 % within 6 m, 98.79 % within 8 m) of 5,735,964; vehicle 95.2 % within 25 m (81.0 % within 15 m) of 1,415,580, 2.7 % none within 30 m"
+    },
+    {
+     "kind": "data",
+     "ref": "the same within the sectors' own squares (margins left out): coarse 96.94 % within 8 m, detailed 98.80 %, vehicle 95.5 % within 25 m: the tail is not the margins"
     }
    ]
   },
@@ -20993,6 +21241,14 @@
     {
      "kind": "data",
      "ref": "vehicle edges cross the stored outline in 3,676 of 11,891 ordinary pairs, so the vehicle generator's reach test is not the stored outline"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `pairs` fit; pairs in sight of the outline and D lines): coarse edges 252,373 and misses (no edge, no route of at most 1.2 x) 52,338; the cell test passed by 244,196 edges and 50,067 misses; an end on a step pair: edges 22,808, misses 16,807; both ends with at most 4 edges: edges 99,269, misses 35,933; detailed misses 50,691 (step-pair end 1,168, cell test passed 46,565); vehicle misses 3,842 (cells off the mesh on 4 or more: 3,271; edges 822 of 8,086)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a greedy spanner's skipped pairs keep their short route, so misses need a later step that removed nodes or edges or added nodes outside the pass; the numbering gaps and the misses' concentration on step-pair and low-degree nodes point to it"
     }
    ]
   },
@@ -21037,6 +21293,10 @@
     {
      "kind": "data",
      "ref": "vehicle D 8,597 lines (1,612 with 3+ points; 2,746 of 10,515 segments diagonal), F 2,162 records (897 diagonal); 881 areas with F, 311 balanced"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2, OPFOR's sample files (`work\\navsample`, `work\\navsample_offline`, `work\\navkit`): pitch 0.8 or 0.2 with capsule radius 0.4 in all but 4 (radius 0.2, 0.25, 0.3); no vehicle-shaped run"
     },
     {
      "kind": "doc",

@@ -216,7 +216,12 @@ Round NKS's specification of navigation meshing as BFBC2 ships and runs it, in f
 The corpus rules are checked by `rust/bc2-formats/tests/kynapse_corpus.rs` (game tier) and measured by
 `rust/bc2-formats/examples/kynapse_probe.rs`, which also takes NavKit's builds on its command line for the gap counts.
 `rust/bc2-formats/examples/kynapse_fit.rs` holds round NKS-rest's per-feature fits of the generator rules (the midline
-cut, node placement, edge pairs and one-way edges, detailed blocks, the rectangle) over the 35 files.
+cut, node placement, edge pairs and one-way edges, detailed blocks, the rectangle) over the 35 files;
+`rust/bc2-formats/examples/kynapse_rules.rs` round NKS-rest2's (node coverage and step pairs, the midline's crossings
+and holes, the spanner's unexplained pairs), and `rust/bc2-scene/examples/kynapse_geom.rs` the fits against the
+levels' own data (nodes against the collision, detailed sectors against the level data, the rectangle against the
+spawns). The rectangle rule's game-tier test is `rust/bc2-scene/tests/kynapse_rect.rs` (it needs the prepared
+campaign levels).
 
 ## Bot AI
 
@@ -350,6 +355,6 @@ to 1,051 in 59 files before it):
   rule-only cells' leftover flag), TERR-VT-7 (flags 2 - 64, a shared tile on 8 terrains), RNDR-TERR-5 (14 of 30 height
   ranges are not 500 m), LIGHT-PT-3 (the game copy's ONS_MP_002 is OPFOR's console port, not Napisal's), SND-STRM-1's
   moved citation.
-- **Open, recorded as such**: PERS-SCORE-1 contradicts AI-NEED-5 (whether bots' deaths score with the scoring patch);
-  the main height-field tail (E7); the material map; the undergrowth numbers; the processor semantics; the mount
+- **Open, recorded as such**: PERS-SCORE-1 against AI-NEED-5 (settled statically by round AIS-rest, BOT-SCO-3; a
+  playtest confirms); the main height-field tail (E7); the material map; the undergrowth numbers; the processor semantics; the mount
   functions.
