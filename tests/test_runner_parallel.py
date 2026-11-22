@@ -66,7 +66,7 @@ import run_tests
 spec = json.loads({spec!r})
 run_tests.TIMES_FILE = spec['times']
 run_tests.SEED_FILE = spec['times'] + '.none'
-run_tests.tests = lambda: [(n, 'quick', [sys.executable, '-c', spec['code'], spec['log'], n, str(s), str(c)])
+run_tests.tests = lambda: [(n, n, 'quick', [sys.executable, '-c', spec['code'], spec['log'], n, str(s), str(c)])
                            for n, s, c, _ in spec['stands']]
 run_tests.NEEDS = {{n: run_tests.need(**{{k: v for k, v in d.items() if k != 'res'}}, **d.get('res', {{}}))
                    for n, _s, _c, d in spec['stands'] if d is not None}}
@@ -164,10 +164,11 @@ def scheduler():
     when = {j.name: (s, e) for s, e, j in plan}
     check(not overlap(when['big'], when['small']) and set(when) == {'big', 'small'},
           'a test needing more memory than the budget runs, alone', str(when))
-    names = {n for n, _t, _a in run_tests.tests()}
-    stale = sorted(set(run_tests.NEEDS) - names)
-    check(not stale, 'every NEEDS entry names a test in tests() (a renamed test would otherwise run alone)', str(stale))
-    undeclared = sorted(names - set(run_tests.NEEDS))
+    ids = {sid for sid, _n, _t, _a in run_tests.tests()}
+    stale = sorted(set(run_tests.NEEDS) - ids)
+    check(not stale, 'every NEEDS entry is the id of a test in tests() (a removed test would otherwise linger)',
+          str(stale))
+    undeclared = sorted(ids - set(run_tests.NEEDS))
     if undeclared:
         print(f'note: {len(undeclared)} test(s) not in NEEDS (they run alone): ' + '; '.join(undeclared))
 
@@ -213,17 +214,18 @@ def qw1(tmp):
     spec = {'times': os.path.join(tmp, 'times_skip.json')}
     child = ('import sys\nsys.path.insert(0, %r)\nimport run_tests\n'
              'run_tests.TIMES_FILE = %r\nrun_tests.SEED_FILE = %r\n'
-             'run_tests.tests = lambda: [(n, "quick", [sys.executable, "-c", %r, n]) for n in ("plain", "partly", "nothing")]\n'
+             'run_tests.tests = lambda: [(n, n.upper(), "quick", [sys.executable, "-c", %r, n]) for n in ("plain", "partly", "nothing")]\n'
              'run_tests.NEEDS = {n: run_tests.need() for n in ("plain", "partly", "nothing")}\n'
              'sys.exit(run_tests.main(["run_tests.py", "quick", "-j", "1"]))\n'
              % (SUITE, spec['times'], spec['times'] + '.none', code))
     r = subprocess.run([sys.executable, '-c', child], capture_output=True, text=True, timeout=120)
     out = r.stdout
     check(r.returncode == 0 and '2 of 3 passed' in out and '1 skipped (ran nothing' in out
-          and '1 of them with parts skipped' in out and 'skip nothing' in out.replace('  ', ' '),
+          and '1 of them with parts skipped' in out and 'skip NOTHING' in out.replace('  ', ' '),
           'the total: 2 of 3 passed, 1 skipped, 1 with parts skipped; the skipped test\'s line says skip', out[-700:])
     kept = json.load(open(spec['times'], encoding='utf-8'))
-    check(set(kept) == {'plain', 'partly'}, 'a skipped test\'s duration is not kept', str(kept))
+    check(set(kept) == {'plain', 'partly'}, 'a skipped test\'s duration is not kept; the kept ones by stable id, not '
+          'display name (round PR1a)', str(kept))
     names = {'a', 'b'}
     got = run_tests.prune_times({'a': {'when': '2026-01-01'}, 'gone old': {'when': '2026-01-01'},
                                  'gone new': {'when': '2026-01-20'}, 'gone undated': {}}, names, today='2026-01-25')
@@ -231,11 +233,38 @@ def qw1(tmp):
     saved = run_tests.NEEDS
     try:
         run_tests.NEEDS = {'t': run_tests.need(mem=1), 'u': run_tests.need(mem=2)}
-        jobs = run_tests.make_jobs([('t', 'quick', []), ('u', 'quick', [])], {'t': (10.0, 3000), 'u': (5.0, 100)})
+        jobs = run_tests.make_jobs([('t', 'T', 'quick', []), ('u', 'U', 'quick', [])],
+                                   {'T': (10.0, 3000), 'U': (5.0, 100)})
         check([j.mem for j in jobs] == [3.0, 2], 'a recorded peak above the declaration raises it, never lowers it',
               str([j.mem for j in jobs]))
     finally:
         run_tests.NEEDS = saved
+
+
+def stable_ids(tmp):
+    """Round PR1a (PR0 item 1, audit AU5): the kept durations and NEEDS follow a test's stable id, not its display
+    name, so a reworded name keeps them; a file keyed by display names (kept before the ids) is still read."""
+    saved = run_tests.tests, run_tests.TIMES_FILE, run_tests.SEED_FILE
+    try:
+        run_tests.tests = lambda: [('x-id', 'the new wording', 'quick', []), ('y-id', 'y', 'quick', [])]
+        run_tests.TIMES_FILE = os.path.join(tmp, 'ids_times.json')
+        run_tests.SEED_FILE = os.path.join(tmp, 'ids_seed.json')
+        json.dump({'x-id': 7.0, 'y': 3.0}, open(run_tests.SEED_FILE, 'w', encoding='utf-8'))
+        json.dump({'y-id': {'s': 4.0, 'peak_mb': 10, 'when': '2026-11-21'}}, open(run_tests.TIMES_FILE, 'w',
+                                                                               encoding='utf-8'))
+        got, _ = run_tests.known_times({'the new wording', 'y'})
+        check(got == {'the new wording': (7.0, None), 'y': (4.0, 10)},
+              'durations are found by id under a new display name, and by an old file\'s display-name key',
+              str(got))
+        run_tests.keep_times([('the new wording', 9.0, 20)])
+        kept = json.load(open(run_tests.TIMES_FILE, encoding='utf-8'))
+        check(set(kept) == {'x-id', 'y-id'} and kept['x-id']['s'] == 9.0, 'a run keeps its durations by id',
+              str(kept))
+    finally:
+        run_tests.tests, run_tests.TIMES_FILE, run_tests.SEED_FILE = saved
+    ids = [sid for sid, _n, _t, _a in run_tests.tests()]
+    check(len(ids) == len(set(ids)), 'every entry of tests() has its own id',
+          str(sorted({i for i in ids if ids.count(i) > 1})))
     env = dict(os.environ)
     env.pop('MPLCONFIGDIR', None)
     code = ('import os, sys; sys.path.insert(0, sys.argv[1]); import run_tests; '
@@ -286,8 +315,8 @@ SPAWNER = ('import subprocess, sys, time; pidfile, secs = sys.argv[1], float(sys
 
 DF4_CHILD = ('import sys\nsys.path.insert(0, %r)\nimport run_tests\n'
              'run_tests.TIMES_FILE = %r\nrun_tests.SEED_FILE = %r\n'
-             'run_tests.tests = lambda: [("spawner", "quick", [sys.executable, "-c", %r, %r, %r]), '
-             '("plain", "quick", [sys.executable, "-c", "print(1)"])]\n'
+             'run_tests.tests = lambda: [("spawner", "spawner", "quick", [sys.executable, "-c", %r, %r, %r]), '
+             '("plain", "plain", "quick", [sys.executable, "-c", "print(1)"])]\n'
              'run_tests.NEEDS = {n: run_tests.need() for n in ("spawner", "plain")}\n'
              'sys.exit(run_tests.main(["run_tests.py", "quick", *%r]))\n')
 
@@ -413,6 +442,7 @@ def main():
         log_reader(tmp)
         lock(tmp)
         qw1(tmp)
+        stable_ids(tmp)
         df4(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -97,6 +97,10 @@ pub fn cull_view(scene: &Scene, bases: &[PathBuf]) -> CullView {
             by_slot.entry(slot).or_default().push(k);
         }
     }
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "both lists are sorted next; the count is a sum"
+    )]
     for (slot, ks) in by_slot {
         if slot == 0 {
             out.unslotted.extend(ks);

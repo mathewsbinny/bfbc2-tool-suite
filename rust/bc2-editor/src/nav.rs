@@ -564,9 +564,12 @@ pub fn write_side(path: &Path, text: &str) -> Result<(), EditorError> {
     if let Some(d) = path.parent() {
         std::fs::create_dir_all(d).map_err(|e| EditorError::Tool(format!("{}: {e}", d.display())))?;
     }
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, text).map_err(|e| EditorError::Tool(format!("{}: {e}", tmp.display())))?;
-    std::fs::rename(&tmp, path).map_err(|e| EditorError::Tool(format!("{}: {e}", path.display())))
+    bc2_formats::atomic::write(path, &[text.as_bytes()]).map_err(|e| {
+        EditorError::Tool(match e {
+            bc2_formats::atomic::WriteError::Temp(tmp, e) => format!("{}: {e}", tmp.display()),
+            bc2_formats::atomic::WriteError::Replace(e) => format!("{}: {e}", path.display()),
+        })
+    })
 }
 
 /// Reads a side file: its base and edits (`navtune.load`: the format, the version, each edit's problems).

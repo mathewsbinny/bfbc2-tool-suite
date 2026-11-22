@@ -114,7 +114,7 @@ fn journal_survives_its_writer_killed() {
         let auto = autosave_path(&dir.join("Killed.mapedit.json"));
         let mut child = std::process::Command::new(&exe)
             .args([
-                "op1_journal::journal_writer_child",
+                "journal_kill::journal_writer_child",
                 "--exact",
                 "--nocapture",
                 "--test-threads",

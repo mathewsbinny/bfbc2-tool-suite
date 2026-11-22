@@ -291,6 +291,56 @@ def status() -> str:
     return str(_state['status'])
 
 
+# --- the native-backend registry (round PR1a, queued post-Rust item 5) ---------------------------------------------
+# One switch for every optional Rust piece that still has a Python twin, in place of the copies of _native() /
+# use_native() each module kept (24 use_native definitions in 2026-11-21's count). A module registers its piece once
+# and asks backend(name) for the module (or None: run the Python). BFBC2_PURE_PYTHON=1 turns every registered piece
+# off; a piece's own switch variable (BFBC2_<TOOL>_PYTHON) turns off that tool's; use_backend(name, on) sets it for
+# this process, whatever the variables say. Moved onto it so far: hkpack, kymesh (rust/BENCHMARKS.md "PR1a" lists the
+# others still on their own copies; each moves when its module is next touched, or when its twin retires).
+PURE_PYTHON_ENV = 'BFBC2_PURE_PYTHON'
+_BACKENDS: dict[str, dict[str, Any]] = {}
+
+
+def register_backend(name: str, needs: str, switch: str | None = None) -> None:
+    """Registers an optional Rust piece: `needs` is the bc2_native attribute that must be there (a module built
+    before the piece has none), `switch` its tool's own BFBC2_<TOOL>_PYTHON variable, if any. Registering again
+    keeps the process's use_backend choice."""
+    b = _BACKENDS.setdefault(name, {'forced': None, 'cached': None})
+    b['needs'], b['switch'] = needs, switch
+
+
+def _off(var: str | None) -> bool:
+    return bool(var) and os.environ.get(var or '', '') not in ('', '0')
+
+
+def backend(name: str) -> ModuleType | None:
+    """The Rust core for the registered piece `name`, or None: the module is missing or stale, it lacks the piece's
+    function, or the piece is switched off (use_backend, else BFBC2_PURE_PYTHON or the piece's own variable). The
+    variables are read on the first call in a process, as each module's own copy did."""
+    b = _BACKENDS[name]
+    if b['forced'] is False:
+        return None
+    if b['cached'] is None:
+        off = b['forced'] is None and (_off(PURE_PYTHON_ENV) or _off(b['switch']))
+        m = None if off else load()
+        b['cached'] = (m if m is not None and hasattr(m, b['needs']) else None,)
+    return b['cached'][0]
+
+
+def use_backend(name: str, on: bool | None) -> bool:
+    """The piece `name` on (when the module is built and has it, whatever the variables say) or off for this
+    process, or None: back to the variables; True when the Rust core runs it."""
+    b = _BACKENDS[name]
+    b['forced'], b['cached'] = (None if on is None else bool(on)), None
+    return backend(name) is not None
+
+
+def backends() -> dict[str, dict[str, Any]]:
+    """The registered pieces: name -> needs, switch, forced (None: by the variables)."""
+    return {n: {'needs': b['needs'], 'switch': b['switch'], 'forced': b['forced']} for n, b in sorted(_BACKENDS.items())}
+
+
 def _fix() -> str:
     py = os.path.basename(sys.executable).removesuffix('.exe') or 'python'
     return (f'Get the right one with "{py} {BUILD} --download" (the prebuilt module and bfbc2.exe for this '

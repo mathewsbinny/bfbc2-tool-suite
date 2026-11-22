@@ -101,7 +101,7 @@ blueprint, and compares the object's leaves in the staged tree with the source's
 stands (centres within 0.5 m, radii within 0.5 m plus 5 %, the keys' rounding: CULL-SPH-1). An object the base does
 not have may stand at slot 0 only when the export recorded that no level slots its blueprint and the base does not.
 
-[code: rust/bc2-levelwrite/src/export.rs:2915-3043]
+[code: rust/bc2-levelwrite/src/export.rs:2998-3382]
 [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XCULL-RES-2: The stage's cull check
@@ -112,7 +112,7 @@ A staged export passes its cull check only when the exclusive tree reads as one 
 objects share a slot and every slot names a leaf of the tree (CULL-SLOT-3). On the first Aurora export the two moved
 objects got slots 8,248 and 8,250 (leaves 4,612 -> 4,615) and no slot was shared.
 
-[code: rust/bc2-levelwrite/src/export.rs:2548-2594] [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
+[code: rust/bc2-levelwrite/src/export.rs:2608-2654] [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:982]
 
 ## Open questions

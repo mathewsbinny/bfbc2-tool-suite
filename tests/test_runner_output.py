@@ -23,7 +23,7 @@ CHILD = f'''
 import sys
 sys.path.insert(0, {SUITE!r})
 import run_tests
-run_tests.tests = lambda: [('stand-in failing test', 'quick', [sys.executable, '-c', {WRITER!r}])]
+run_tests.tests = lambda: [('stand-in-failing', 'stand-in failing test', 'quick', [sys.executable, '-c', {WRITER!r}])]
 sys.exit(run_tests.main(['run_tests.py', 'quick']))
 '''
 

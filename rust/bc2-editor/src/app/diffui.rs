@@ -395,6 +395,10 @@ impl EditorApp {
     pub fn switch_preview(&mut self) {
         let Some(p) = self.preview.shown_mut() else { return };
         let Mode::View(v) = &mut self.mode else { return };
+        #[allow(
+            clippy::iter_over_hash_type,
+            reason = "each viewport's camera copied to its own twin"
+        )]
         for (proj, vp) in &v.viewports {
             if let Some(o) = p.other.viewports.get_mut(proj) {
                 o.camera = vp.camera;
@@ -568,6 +572,7 @@ impl ViewState {
             }
             None => {
                 if let Some(p) = r.position(side) {
+                    #[allow(clippy::iter_over_hash_type, reason = "every viewport is focused alike")]
                     for vp in self.viewports.values_mut() {
                         vp.camera.focus(
                             [f64::from(p[0]), f64::from(p[1]), f64::from(p[2])],

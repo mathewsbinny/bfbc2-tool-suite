@@ -22,7 +22,7 @@ sys.path.insert(0, {SUITE!r})
 import run_tests
 marker = sys.argv[1]
 writer = 'import sys; open(sys.argv[1], "w").close()'
-run_tests.tests = lambda: [('stand-in test', 'quick', [sys.executable, '-c', writer, marker])]
+run_tests.tests = lambda: [('stand-in', 'stand-in test', 'quick', [sys.executable, '-c', writer, marker])]
 run_tests.warm_matplotlib = lambda: None
 run_tests.keep_times = lambda results: None      # the stand-in's time is not kept with the real tests'
 sys.exit(run_tests.main(['run_tests.py', *sys.argv[2:]]))

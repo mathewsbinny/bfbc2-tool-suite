@@ -22,9 +22,8 @@
 use std::borrow::Cow;
 use std::fmt::Write as _;
 use std::fs::{self, File};
-use std::io::{self, Read, Seek, SeekFrom, Write as _};
+use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use rayon::prelude::*;
 
@@ -385,8 +384,6 @@ fn read_all(path: &str) -> Result<Vec<u8>> {
     Ok(v)
 }
 
-static WRITES: AtomicU64 = AtomicU64::new(0);
-
 /// `target` spelled as the file already there is (Windows matches names without case): `File.Create` keeps an
 /// existing file's name, where a move onto another spelling would rename it (`pack`'s `File.Replace` takes the new
 /// spelling: it moves onto `target` as given).
@@ -402,25 +399,13 @@ fn on_disk_name(target: &Path) -> PathBuf {
     }
 }
 
-/// A file written beside `target` and moved over it.
+/// A file written beside `target` and moved over it. Every caller writes an unpacked entry or its manifest - outputs
+/// rebuilt from the bundle - so the data is not flushed to disk ([`crate::atomic::write_rebuildable`]: a flush costs
+/// about a millisecond a file, and a bundle holds thousands). A failure is worded as `File.Create(target)` would
+/// have failed.
 fn write_atomic(target: &str, data: &[&[u8]]) -> Result<()> {
-    let n = WRITES.fetch_add(1, Ordering::Relaxed);
-    let tmp = format!("{target}.tmp-{}-{n}", std::process::id());
-    let written = File::create(&tmp).and_then(|mut f| {
-        for d in data {
-            f.write_all(d)?;
-        }
-        Ok(())
-    });
-    if let Err(e) = written {
-        let _ = fs::remove_file(&tmp);
-        // as File.Create(target) would have failed
-        return Err(Fault::io(&e, Path::new(target)));
-    }
-    crate::atomic::replace(Path::new(&tmp), &on_disk_name(Path::new(target))).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
-        Fault::io(&e, Path::new(target))
-    })
+    crate::atomic::write_rebuildable(&on_disk_name(Path::new(target)), data)
+        .map_err(|e| Fault::io(e.io(), Path::new(target)))
 }
 
 /// `File.Create(target)` then `FileStream.Write(data, offset, count)`: the checks of `Write` after the empty file is
@@ -1125,9 +1110,9 @@ fn pack(dir: &str, fbrb: &str, o: &mut Outcome) -> Result<i32> {
         rows.push(SourceRow { src, len, size2 });
     }
     let manifest = Manifest { layout, lines: mlines };
-    // written beside the bundle, then moved over it (FbrbTool's name for the temporary file: <bundle>.tmp-<pid>);
+    // written beside the bundle, then moved over it (the temporary name per process and write: <bundle>.tmp-<pid>-<n>);
     // the payload streamed into it as it is made (round S1), never held
-    let tmp = format!("{fbrb}.tmp-{}", std::process::id());
+    let tmp = crate::atomic::temp_name(Path::new(fbrb)).to_string_lossy().into_owned();
     check_chars(&tmp)?;
     let tmp_full = full_path(&tmp)?;
     let stats = pack_to_file(&manifest, &rows, &tmp_full)?;

@@ -37,7 +37,8 @@ use crate::{atomic, sha256};
 pub const FORMAT: &str = "opfor-ledger/1";
 /// The journal format.
 pub const JOURNAL_FORMAT: &str = "opfor-ledger-txn/1";
-/// The temporary name a file is written to beside its target.
+/// The fixed temporary name older versions wrote a file to beside its target (now [`atomic::temp_name`]'s
+/// per-process name): never taken for a legacy marker, and removed by a recovery as a dead writer's.
 pub const TMP: &str = ".opfor-ledger-tmp";
 const LOCK: &str = ".lock";
 const JOURNAL: &str = ".txn.json";
@@ -250,8 +251,10 @@ fn retry(mut f: impl FnMut() -> io::Result<()>) -> io::Result<()> {
     }
 }
 
-/// `data` to `path`: written to `<path>.opfor-ledger-tmp`, flushed to disk, then moved over `path` (retried while
-/// the target is held). The live file is never moved aside; a failure leaves it as it was.
+/// `data` to `path` with [`atomic::write`] (its folder made first): a per-process temporary name beside it, flushed
+/// to disk, then moved over `path` (retried while the target is held). The live file is never moved aside; a
+/// failure leaves it as it was. (Older versions used the fixed `<path>` + [`TMP`], which two writers of one path
+/// would have shared.)
 ///
 /// # Errors
 /// The write or the move failed (the temporary file is removed).
@@ -259,20 +262,7 @@ pub fn write_atomic(path: &Path, data: &[u8]) -> io::Result<()> {
     if let Some(d) = path.parent() {
         fs::create_dir_all(d)?;
     }
-    let mut tmp = path.as_os_str().to_owned();
-    tmp.push(TMP);
-    let tmp = PathBuf::from(tmp);
-    let r = (|| {
-        let mut f = fs::File::create(&tmp)?;
-        f.write_all(data)?;
-        f.sync_all()?;
-        drop(f);
-        atomic::replace(&tmp, path)
-    })();
-    if r.is_err() {
-        let _ = fs::remove_file(&tmp);
-    }
-    r
+    atomic::write(path, &[data]).map_err(io::Error::from)
 }
 
 fn remove_file(path: &Path) -> io::Result<()> {
@@ -824,6 +814,7 @@ impl Ledger {
                 let mut tmp = p.as_os_str().to_owned();
                 tmp.push(TMP);
                 let _ = fs::remove_file(PathBuf::from(tmp));
+                atomic::remove_dead_temps(&p, |pid| pid_alive(i64::from(pid)));
                 match t.get("pre").and_then(|p| sha_of(p).map(str::to_owned)) {
                     None => {
                         if p.is_file() {

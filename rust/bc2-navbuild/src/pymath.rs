@@ -105,6 +105,17 @@ fn norm(v: &[f64]) -> f64 {
     vector_norm(v, max)
 }
 
+/// Python's `round(x, n)` on a float: the correctly rounded `n`-decimal value of `x` (the formatted decimal read
+/// back, as CPython's `float.__round__` does with its own correctly rounded `dtoa`); a NaN or an infinity as it is.
+/// The same as `bc2_pyrt::fmt::round_to`, kept here so the build does not link the Python-runtime emulation.
+#[must_use]
+pub fn round_to(x: f64, n: usize) -> f64 {
+    if !x.is_finite() {
+        return x;
+    }
+    format!("{x:.n$}").parse().unwrap_or(x)
+}
+
 /// `math.hypot(x, y)`.
 #[must_use]
 pub fn hypot(x: f64, y: f64) -> f64 {

@@ -358,30 +358,14 @@ impl Install {
     }
 }
 
-/// Writes a file whole (round DF1, audit AU4-BUG-14): beside it first, synced, then moved over it (the move tried
-/// again while a scanner holds the file); a write cut short leaves the old file.
+/// Writes a file whole (round DF1, audit AU4-BUG-14): [`bc2_levelwrite::project::write_bytes`] (its folder made,
+/// then [`bc2_formats::atomic::write`]: beside it first, synced, moved over it, the move tried again while a scanner
+/// holds the file); a write cut short leaves the old file.
 ///
 /// # Errors
 /// The folder, the write or the move failed (the temporary file is removed).
 pub fn write_whole(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    use std::io::Write as _;
-    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
-        std::fs::create_dir_all(dir)?;
-    }
-    let mut tmp = path.as_os_str().to_owned();
-    tmp.push(format!(".tmp-{}", std::process::id()));
-    let tmp = PathBuf::from(tmp);
-    let r = (|| {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(bytes)?;
-        f.sync_all()?;
-        drop(f);
-        bc2_formats::atomic::replace(&tmp, path)
-    })();
-    if r.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    r
+    bc2_levelwrite::project::write_bytes(path, bytes)
 }
 
 /// The settings file beside a project.
@@ -540,7 +524,7 @@ pub fn checks_for(
     if !target {
         if !MODES.iter().any(|m| m.0 == spec.mode) {
             out.push(format!(
-                "The {} mode needs the project's target: choose the era and mode above and Set target (round E3d)",
+                "The {} mode needs the project's target: choose the era and mode above and Set target",
                 spec.mode
             ));
         }
@@ -1386,7 +1370,7 @@ pub fn window(
                             ui.end_row();
                             ui.label("Announcer");
                             ui.label(announcer_text(d))
-                                .on_hover_text("The announcer's voice-over, as the donor's set has it (round E3c)");
+                                .on_hover_text("The announcer's voice-over, as the donor's set has it");
                             ui.end_row();
                         }
                         if let Some(s) = set {

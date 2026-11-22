@@ -14,22 +14,22 @@
 
 use std::sync::{Condvar, Mutex, PoisonError};
 
-mod a1_layout;
+mod auto_layout;
 mod culltool_ct1;
 mod df1;
 mod export_e3b;
 mod export_e3c;
 mod export_e3d;
 mod export_ex1;
+mod export_rules;
+mod export_rules_stage;
 mod export_sp01;
 mod export_xf1;
 mod gameplay_xf1;
-mod groups_sg1;
-mod op1_journal;
+mod journal_kill;
+mod model_group_members;
 mod project_versions;
 mod real_levels;
-mod v1_rules;
-mod v1_stage;
 mod vw2;
 
 /// At most this many of the binary's tests run at the same time.

@@ -295,7 +295,8 @@ fn main() {
         }
     }
     if let Some(out) = value("--json") {
-        std::fs::write(PathBuf::from(out), serde_json::to_string_pretty(&report).unwrap()).unwrap();
+        let text = serde_json::to_string_pretty(&report).unwrap();
+        bc2_formats::atomic::write(&PathBuf::from(out), &[text.as_bytes()]).unwrap();
     }
     let _ = Mode::Conquest;
 }

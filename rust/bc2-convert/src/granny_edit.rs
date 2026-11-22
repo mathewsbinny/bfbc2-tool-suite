@@ -373,6 +373,7 @@ impl<'a, 'g> Graft<'a, 'g> {
             body.extend_from_slice(s);
         }
         let mut by_sec: Vec<Vec<(u32, u32, u32)>> = vec![Vec::new(); count];
+        #[allow(clippy::iter_over_hash_type, reason = "each section's list is sorted next")]
         for (&(s, o), &(ts, to)) in &self.reloc {
             by_sec.get_mut(s as usize)?.push((o, ts, to));
         }

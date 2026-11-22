@@ -168,7 +168,7 @@ patch and road shaders that declare the block's constants one by one at the reco
 R5e, so the WW2 water never received its `g_depthScaleFactors` (RNDR-DRAW-4): its depth factors 0, its water depth 0,
 its alpha 0 everywhere (RNDR-WATER-3).
 
-[test: rust/bc2-render/tests/r5e.rs::block_windows_are_the_material_registers]
+[test: rust/bc2-render/tests/deep_sea_materials.rs::block_windows_are_the_material_registers]
 [test: rust/bc2-render/src/frame.rs::a_shader_without_constants_takes_the_material_in_its_block_window]
 [test: rust/bc2-formats/src/shaderdb/query.rs::material_registers]
 [code: rust/bc2-render/src/frame.rs:181-228] [code: rust/bc2-formats/src/shaderdb/query.rs:151-162]
@@ -337,7 +337,7 @@ sea is opaque deep blue past about 55 m of water, with the sun's highlight and t
 view until round R5e showed the black `Wake_Grey` floor (RNDR-TERR-3) to the horizon, and the green lagoon it showed
 after round R5d was the terrain's sea floor, not the water.
 
-[test: rust/bc2-render/tests/r5e.rs::the_ww2_open_sea_is_drawn]
+[test: rust/bc2-render/tests/deep_sea_materials.rs::the_ww2_open_sea_is_drawn]
 [code: rust/bc2-render/src/water.rs:193-226]
 [data: Wake Island 600 m out: 53.5 % near-black pixels before round R5e, 0.0 % after; a deep-sea pixel (0, 0, 0, 0) -> (0.034, 0.110, 0.220, 1.0) HDR; Guadalcanal and Iwo Jima 1,200 m out: 48.6 % and 56.7 % of the view darker than 40 / 255 -> 0.0 %]
 [data: the Wake water's pixel shader disassembled (`entry_probe`, `fxc /dumpbin`): `o0 = (colour x a, a)`; `t` from `texture_DepthBuffer` and `cb0[13]`]

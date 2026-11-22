@@ -11,7 +11,10 @@ r"""The repository's own rules, checked before anything is pushed (no game data 
   file left off that list silently never runs);
 - every tracked test_*.py is run by a tier of run_tests.py, or named in UNTIERED_ALLOWED with the reason (round TS1,
   audit AU3 TS-8);
-- no runner entry named by a round code (O4:, F2a, E3o ...) beyond the 60 named so before round TS1's rule (audit AU3 TS-14).
+- no runner entry named by a round code (O4:, F2a, E3o ...) beyond the 60 named so before round TS1's rule (audit AU3 TS-14),
+  keyed by the entries' stable ids (round PR1a), every id well formed, unique and free of round codes;
+- no Rust test file, test data or module (tests/ and src/) named by a round code beyond those grandfathered by path
+  (round PR1a, audit AU5 NAM-1).
 
   python tests\test_repo.py
 """
@@ -107,7 +110,7 @@ def untiered_test_files() -> list[str]:
     sys.path.insert(0, SUITE)
     import run_tests
     named = set()
-    for _name, _tier, args in run_tests.tests():
+    for _id, _name, _tier, args in run_tests.tests():
         argv = args(os.path.join(SUITE, 'no such folder')) if callable(args) else args
         named |= {os.path.normcase(os.path.abspath(a)) for a in argv if isinstance(a, str) and a.endswith('.py')}
     out = []
@@ -120,32 +123,177 @@ def untiered_test_files() -> list[str]:
 
 
 # Round codes in names (audit AU3 TS-14 / TS-13): a runner entry is named by what it tests, not the round that wrote
-# it (O4:, F2a, E3o ...). The 60 entries named so before round TS1's rule landed (sha1 of the name, first 10 hex
-# digits; DF2's install ledger entry merged while TS1 ran) stay until PR1c renames them; a new one fails.
+# it (O4:, F2a, E3o ...). Since round PR1a the entries are keyed by stable id (run_tests.tests(): (id, name, tier,
+# argv)); the 60 entries whose display names carried a round code before round TS1's rule landed are grandfathered
+# by id until PR1c rewords them; a new one fails. An id itself never carries a round code.
 ROUND = re.compile(r'(?<![A-Za-z0-9_])[A-Z]{1,2}[0-9]{1,2}[a-z]?(?![A-Za-z0-9_])')
 NOT_ROUND = {'BC2', 'WW2', 'L8'}            # the game, the war, a texture format
 ROUND_CODED_ENTRIES = frozenset({
-    '02aa7430b9', '0b39cb78d7', '0dc7c911af', '162a4d28cb', '1bf943b5c6', '21868d8850', '27828863ee', '279aa2fe3c',
-    '2f809a8616', '33a7edec34', '36bc4e759d', '3eeeb9c5b3', '4314d9c213', '4370e48fcd', '51d8fe9d62', '5211a212dc',
-    '532c2dd425', '5438edfee8', '554403a9a2', '645b821c2e', '662afc5c05', '6c666ea9c7', '75d1fc2d3a', '76aa64a49e',
-    '76ed5933ac', '79ee3659ab', '7b034a0d88', '7feaec2c83', '8bc7b31bb6', '8c928af5bb', '8feda28914', '934f4b2f13',
-    '93d7cb5d83', '95b68e96b4', '98eb46b82c', '9a3f9fce82', '9d7482bf87', '9dcd365005', 'a815aafbd5', 'b23216f4f6',
-    'b94241399d', 'bdc20c65ea', 'c58ba4223d', 'c936d93036', 'cdeea98d79', 'd1249880b6', 'd2090a6c35', 'd3a5526e55',
-    'd5798a540a', 'dc88e0f1a2', 'e31d19e216', 'e8cf6e9959', 'f100455992', 'f12d3dcd38', 'f13913f516', 'f48930e395',
-    'f5f448bde0', 'f6b979f075', 'f90182a684', '70d789971a',
+    'aim-pathmesh-audio-native', 'aim-pathmesh-audio-native:game', 'apt-decode-graft-native',
+    'apt-decode-graft-native:game', 'apt-model-check-refs-native', 'apt-model-check-refs-native:game', 'bc2loc-native',
+    'bc2loc-native:game', 'cli-caches-stockmp-graft-meshview-cull', 'cli-caches-stockmp-graft-meshview-cull:live',
+    'cli-menu-crash-navkit-convert', 'cli-menu-crash-navkit-convert:live', 'cli-navkit-prepare-harness-texqa',
+    'cli-navkit-prepare-harness-texqa:live', 'cli-prepare-level:game', 'cli-readers-shaders-import-stockmp',
+    'cli-readers-shaders-import-stockmp:live', 'console-convert-native', 'console-convert-native:game',
+    'console-readers-native', 'console-readers-native:game', 'culltree-rows-cache', 'culltree-rows-cache:game',
+    'culltree-strings-disasm-native', 'culltree-strings-disasm-native:game', 'dbxcatalogue-native',
+    'dbxcatalogue-native:game', 'emitteratlas-native', 'emitteratlas-native:game', 'gameledger', 'granny-write-native',
+    'granny-write-native:game', 'havok-classes-native', 'havok-classes-native:game', 'havokport-native',
+    'havokport-native:game', 'meshdata-native', 'meshdata-native:game', 'model-tools-native', 'model-tools-native:game',
+    'navbuild-native', 'navmesh-cells-routes-native', 'navmesh-cells-routes-native:game', 'navtools-native',
+    'navtools-native:game', 'navtune-native', 'pathdata-native', 'pathdata-native:game', 'pe-native', 'pe-native:game',
+    'ports-native', 'ports-native:game', 'shaderdb-open-native', 'shaderdb-open-native:game', 'texture-helpers-native',
+    'texture-helpers-native:game', 'wave-native', 'wave-native:game', 'xmlinst-native', 'xmlinst-native:game',
 })
+# a stable id: lower-case words joined by '-', an optional ':variant'; the lower-case form of the round pattern
+ENTRY_ID = re.compile(r'[a-z0-9][a-z0-9-]*(:[a-z0-9][a-z0-9-]*)?')
+ROUND_LOWER = re.compile(r'(?<![a-z0-9])[a-z]{1,2}[0-9]{1,2}[a-z]?(?![a-z0-9])')
+NOT_ROUND_LOWER = {'bc2', 'ww2', 'l8', 'dx9', 'x86', 'd3d', 'sp01', 'x360'}      # the game, the war, formats, a level
+
+
+def lower_codes(name: str) -> list[str]:
+    """The round codes in a lower-case name (an id, a file or module name): e3o, gr4, f2a, v1_rules ...; a name that
+    is only a format version (the project files v1.mapedit.json ... v6) is none."""
+    low = name.lower()
+    if re.fullmatch(r'v[0-9]+', low):
+        return []
+    return [c for c in ROUND_LOWER.findall(low.replace('_', '-')) if c not in NOT_ROUND_LOWER]
 
 
 def round_coded_entries() -> list[str]:
-    """Runner entries named with a round code that were not so named before round TS1."""
-    import hashlib
+    """Runner entries named with a round code that were not so named before round TS1; ids that are malformed,
+    repeated or round-coded."""
     sys.path.insert(0, SUITE)
     import run_tests
-    out = []
-    for name, _tier, _args in run_tests.tests():
+    out, seen = [], set()
+    for sid, name, _tier, _args in run_tests.tests():
+        if not ENTRY_ID.fullmatch(sid) or sid in seen or lower_codes(sid):
+            out.append(f'{sid}: an id is unique, lower case words joined by "-" with an optional ":variant", and '
+                       'names what the entry tests, never a round')
+        seen.add(sid)
         codes = [c for c in ROUND.findall(name) if c not in NOT_ROUND]
-        if codes and hashlib.sha1(name.encode()).hexdigest()[:10] not in ROUND_CODED_ENTRIES:
-            out.append(f'{name[:80]}: named by round {", ".join(codes)}; name it by what it tests')
+        if codes and sid not in ROUND_CODED_ENTRIES:
+            out.append(f'{name[:80]} [{sid}]: named by round {", ".join(codes)}; name it by what it tests')
+    stale = sorted(ROUND_CODED_ENTRIES - seen)
+    out += [f'{s}: in ROUND_CODED_ENTRIES but no entry has that id (take it out)' for s in stale]
+    return out
+
+
+# Round PR1a (audit AU5 NAM-1): the same rule for the Rust side - test files (tests/*.rs), `mod` names (tests/ and
+# src/) and test data (tests/data/...). Those named by round before the rule are grandfathered by path until PR1c
+# renames them; the seven added after round TS1 and the round-named production modules were renamed in PR1a.
+ROUND_CODED_RUST = frozenset({
+    'rust/bc2-editor/tests/df1.rs', 'rust/bc2-editor/tests/e2b.rs', 'rust/bc2-editor/tests/ex1.rs',
+    'rust/bc2-editor/tests/g2.rs', 'rust/bc2-editor/tests/g3.rs', 'rust/bc2-editor/tests/g4.rs',
+    'rust/bc2-editor/tests/game_view_r5d.rs', 'rust/bc2-editor/tests/gr1.rs', 'rust/bc2-editor/tests/gr2.rs',
+    'rust/bc2-editor/tests/vw2.rs', 'rust/bc2-editor/tests/xf1.rs', 'rust/bc2-levelwrite/tests/culltool_ct1.rs',
+    'rust/bc2-levelwrite/tests/df1.rs', 'rust/bc2-levelwrite/tests/export_e3b.rs',
+    'rust/bc2-levelwrite/tests/export_e3c.rs', 'rust/bc2-levelwrite/tests/export_e3d.rs',
+    'rust/bc2-levelwrite/tests/export_ex1.rs', 'rust/bc2-levelwrite/tests/export_xf1.rs',
+    'rust/bc2-levelwrite/tests/gameplay_xf1.rs', 'rust/bc2-levelwrite/tests/vw2.rs', 'rust/bc2-render/tests/r5d.rs',
+})
+
+
+def round_coded_rust() -> list[str]:
+    """Tracked Rust test files, test data and modules (a `mod x;` under src/ or tests/, which names its file) named
+    by a round code, other than ROUND_CODED_RUST's."""
+    out = []
+    tracked = git('ls-files', 'rust').splitlines()
+    for t in tracked:
+        parts = t.split('/')
+        if len(parts) < 3 or not t.startswith('rust/bc2-') or t in ROUND_CODED_RUST:
+            continue
+        in_tests = parts[2] == 'tests'
+        rust_src = parts[2] in ('src', 'tests') and t.endswith('.rs')
+        if not (in_tests or rust_src):
+            continue
+        stem = parts[-1].split('.')[0]
+        codes = lower_codes(stem)
+        if codes:
+            out.append(f'{t}: named by round {", ".join(codes)}; name it by what it holds')
+    for t in tracked:
+        if t.startswith('rust/bc2-') and t.endswith('.rs') and t.split('/')[2] in ('src', 'tests'):
+            with open(os.path.join(SUITE, t), encoding='utf-8', errors='replace') as f:
+                text = f.read()
+            here = t.rsplit('/', 1)[0]
+            for name in MOD_LINE.findall(PATH_ATTR.sub('', text)):
+                if lower_codes(name) and f'{here}/{name}.rs' not in ROUND_CODED_RUST:
+                    out.append(f'{t}: mod {name} is named by round {", ".join(lower_codes(name))}')
+    stale = sorted(p for p in ROUND_CODED_RUST if p not in tracked)
+    out += [f'{p}: in ROUND_CODED_RUST but not tracked (take it out)' for p in stale]
+    return out
+
+
+ROUND_PHRASE = re.compile(r'\b[Rr]ound [A-Z]{1,2}[0-9]{1,2}[a-z]?\b')
+
+
+def round_codes_shown_to_users() -> list[str]:
+    """Round PR1a (audit AU5 NAM-2): what a user reads - bfbc2.exe's usage and the crates' descriptions - names
+    things by what they do, not by the round that wrote them (rounds are history: CHANGELOG.md, BENCHMARKS.md)."""
+    out = []
+    main_rs = os.path.join(SUITE, 'rust', 'bc2-cli', 'src', 'main.rs')
+    with open(main_rs, encoding='utf-8') as f:
+        text = f.read()
+    usage = text[text.index('const USAGE'):text.index('";', text.index('const USAGE'))]
+    out += [f'bfbc2.exe usage: "{m}"' for m in ROUND_PHRASE.findall(usage)]
+    for crate in sorted(os.listdir(os.path.join(SUITE, 'rust'))):
+        toml = os.path.join(SUITE, 'rust', crate, 'Cargo.toml')
+        if os.path.isfile(toml):
+            with open(toml, encoding='utf-8') as f:
+                desc = re.search(r'^description\s*=\s*"(.*)"', f.read(), re.M)
+            found = ROUND_PHRASE.search(desc.group(1)) if desc else None
+            if found:
+                out.append(f'{crate}/Cargo.toml description: "{found.group(0)}"')
+    return out
+
+
+# Determinism (round PR1a, PR0 item 2, queued post-Rust item 4): a JSON file or text the suite writes has its keys in
+# a fixed order. New json.dump / json.dumps calls in the suite's (non-test) Python pass sort_keys=True (or use
+# bfbc2core.atomicio.dumps_stable). The calls below were written before the rule: their key order is the order the
+# code builds each dict in (insertion order, the same on every run and under every PYTHONHASHSEED: the two-seed
+# check in rust/BENCHMARKS.md "PR1a"), and the Rust ports and OPFOR read or compare their bytes, so sorting them would
+# change outputs; they keep their order until their Python twin retires (round PY1). A file may not gain one.
+JSON_ORDER_KEPT = {
+    'bfbc2-auto-navkit/navkit.py': 3, 'bfbc2-auto-navkit/tools/ladders.py': 1,
+    'bfbc2-auto-navkit/tools/levelobjects.py': 5, 'bfbc2-auto-navkit/tools/navboundary.py': 1,
+    'bfbc2-auto-navkit/tools/navcompare.py': 1, 'bfbc2-auto-navkit/tools/navdiff.py': 1,
+    'bfbc2-auto-navkit/tools/navdomains.py': 1, 'bfbc2-auto-navkit/tools/navparity.py': 1,
+    'bfbc2-auto-navkit/tools/navregress.py': 2, 'bfbc2-auto-navkit/tools/navsample_offline.py': 5,
+    'bfbc2-auto-navkit/tools/navvehicle.py': 4, 'bfbc2-auto-navkit/tools/navwater.py': 1,
+    'bfbc2-auto-navkit/tools/navwater_mesh.py': 3, 'bfbc2-automated-map-and-bot-test-harness/harness.py': 1,
+    'bfbc2-automated-map-and-bot-test-harness/testharness/levelinfo.py': 2,
+    'bfbc2-automated-map-and-bot-test-harness/testharness/runs.py': 1, 'bfbc2-bf1943-import/bf1943import.py': 1,
+    'bfbc2-bf1943-import/dbxparity.py': 1, 'bfbc2-bf1943-import/portparity.py': 1,
+    'bfbc2-console-convert/texqa.py': 4, 'bfbc2-mesh-viewer/meshview.py': 1, 'bfbc2-navigation-studio/overlay.py': 1,
+    'bfbc2-shader-tools/renderqa.py': 1, 'bfbc2-shader-tools/xdiff.py': 1, 'bfbc2-stockmp-ai/config.py': 2,
+    'bfbc2-stockmp-ai/pipeline.py': 1, 'bfbc2-stockmp-ai/validate.py': 1, 'core/bfbc2core/atomicio.py': 1,
+    'core/bfbc2core/gameledger.py': 3, 'core/bfbc2core/navdata.py': 1, 'spec/trace.py': 2,
+}
+
+
+def unsorted_json_writes() -> list[str]:
+    """json.dump / json.dumps calls without sort_keys in the suite's non-test Python beyond JSON_ORDER_KEPT's."""
+    import ast
+    import collections
+    found: collections.Counter = collections.Counter()
+    for t in git('ls-files', '*.py').splitlines():
+        parts = t.split('/')
+        if 'tests' in parts or parts[-1].startswith('test_'):
+            continue
+        try:
+            with open(os.path.join(SUITE, t), encoding='utf-8-sig') as f:
+                tree = ast.parse(f.read())
+        except (OSError, SyntaxError):
+            continue                                # the compile rule reports a file that does not parse
+        for n in ast.walk(tree):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in ('dump', 'dumps')
+                    and isinstance(n.func.value, ast.Name) and n.func.value.id == 'json'
+                    and not any(k.arg == 'sort_keys' for k in n.keywords)):
+                found[t] += 1
+    out = [f'{t}: {n} json.dump(s) call(s) without sort_keys (kept: {JSON_ORDER_KEPT.get(t, 0)}); pass '
+           'sort_keys=True' for t, n in sorted(found.items()) if n > JSON_ORDER_KEPT.get(t, 0)]
+    out += [f'{t}: JSON_ORDER_KEPT says {k}, the file has {found.get(t, 0)} (lower it)'
+            for t, k in sorted(JSON_ORDER_KEPT.items()) if found.get(t, 0) < k]
     return out
 
 
@@ -153,7 +301,13 @@ def main(argv: list[str]) -> int:
     results = []
     results.append(('every test_*.py runs in a tier of run_tests.py (or is allowed out with its reason)',
                     untiered_test_files()))
-    results.append(('no new runner entry named by a round code (O4:, F2a, E3o ...)', round_coded_entries()))
+    results.append(('no new runner entry named by a round code (O4:, F2a, E3o ...); every entry has a stable id',
+                    round_coded_entries()))
+    results.append(("no round code in bfbc2.exe's usage or the crates' descriptions", round_codes_shown_to_users()))
+    results.append(('JSON written with its keys in a fixed order (sort_keys=True; older calls kept in JSON_ORDER_KEPT)',
+                    unsorted_json_writes()))
+    results.append(('no new Rust test file, test data or module named by a round code (gr4.rs, mod f2a ...)',
+                    round_coded_rust()))
     results.append(('every tests/*.rs of a crate with autotests = false is a module of its test binary (and the '
                     'check finds one that is not)',
                     registration_self_check() + unregistered_test_files(os.path.join(SUITE, 'rust'))))

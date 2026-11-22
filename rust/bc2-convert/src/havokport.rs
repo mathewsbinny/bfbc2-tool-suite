@@ -418,6 +418,7 @@ pub fn restructure(b: &[u8], template: &[u8], classes: &Layouts, table: Option<&
     }
     // class-name strings in the data (a root container's variants name their class): renamed, appended
     let mut renames: HashMap<&str, String> = HashMap::new();
+    #[allow(clippy::iter_over_hash_type, reason = "collected into a map keyed by name")]
     for n in names.values() {
         if let Some(r) = classes.rename(n)
             && r != *n

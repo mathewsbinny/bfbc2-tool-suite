@@ -1768,7 +1768,7 @@ the mesh viewer's does: an OPFOR-built asset (a WW2 level's) says so.
 
 How the preview draws: on the CPU, with the mesh viewer's own triangle loop ported (`bc2_convert::meshview::render`:
 float32 screen positions, float64 weights and depths, NumPy 2's promotion rules), so the presets need no tolerance;
-the orbit camera projects the vertices and runs the same loop. Proof (`tests/gr3.rs`, quick tier, about 3 s): the
+the orbit camera projects the vertices and runs the same loop. Proof (`tests/asset_preview_parity.rs`, quick tier, about 3 s): the
 mesh viewer's answers recorded by `bfbc2-mesh-viewer/tests/record_preview_parity.py` (digests only,
 `tests/data/meshview_parity.json.gz`) on 8 meshes and all their levels of detail - a rifle, a guard tower, a barrack,
 a palm, the M1A2, a soldier, an ammo crate, a parrot: 18 levels of detail, 94 parts (names, surfaces, textures,
@@ -1798,14 +1798,14 @@ for byte.
 | Its log (`ToolLog`, a file a day) and crash window | Not carried over: the editor's own error handling; an error shows in the window | - |
 
 What the inspector does was compared with what DbxEditGUI did before it went (`tests/dbxedit_parity.rs` against
-`tests/data/dbxeditgui_gr4.json.gz`, recorded by the round's recorder driving DbxEditGUI's window through reflection,
+`tests/data/dbxeditgui_answers.json.gz`, recorded by the round's recorder driving DbxEditGUI's window through reflection,
 its prompts answered; digests only): on 19 real files (MP_005, MP_005SR and SP_01's level partitions, a description,
 a terrain, and files with denormals, 8- and 2-byte numbers, bytes, lists) 1,232 steps - the tree, 618 Applies (513
 changed, 41 unchanged, 64 refused with DbxEditGUI's message; 39 denormals typed as decimals, 125 rounded), Undo,
 Save and the `.bak`, the edit script, 114 finds, 194 menu commands, 57 grafts, 57 field copies, the level check, the
 check against MP_005SR's cull trees, fix slots, XML export and import of an edited export, Save as - every file's
 bytes, line and message identical. `every_level_file_round_trips_through_the_inspector` writes back every unique
-`.dbx` of the prepared levels (31,037) and imports each one's XML back, byte for byte. `tests/gr4.rs` drives the
+`.dbx` of the prepared levels (31,037) and imports each one's XML back, byte for byte. `tests/dbx_inspector_window.rs` drives the
 window headless (Apply gives `dbxedit edit setfield=`'s bytes) and the project route on MP_005.
 
 ### 9.5 LevelDiff (`bfbc2-diff-workbench/level-diff/LevelDiff.cs`, a folder deleted in EX1): retired in EX1
