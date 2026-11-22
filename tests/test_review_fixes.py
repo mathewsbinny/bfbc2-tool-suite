@@ -39,8 +39,8 @@ class Stop(Exception):
 
 
 def navkit_apply(c, work):
-    import navbuild
     import navkit
+    import navwalk
     from bfbc2core import navtune
     seen = {}
 
@@ -65,22 +65,22 @@ def navkit_apply(c, work):
         raise Stop
     side = os.path.join(work, 'lv.navtune.json')
     open(side, 'w').write('{}')
-    saved = navkit.build_inputs, navbuild.build, navtune.load
-    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, fake_build, fake_load
+    saved = navkit.build_inputs, navwalk.build, navtune.load
+    navkit.build_inputs, navwalk.build, navtune.load = fake_inputs, fake_build, fake_load
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             navkit._apply(Pr(), 'lv', side, None, lambda *a: None)
     except Stop:
         pass
     finally:
-        navkit.build_inputs, navbuild.build, navtune.load = saved
+        navkit.build_inputs, navwalk.build, navtune.load = saved
     c.check(seen.get('detailed') == {'sectors': {1}} and seen.get('ladders') == [{'a': 1}] and 'edits' in seen,
             'navkit apply: built with the normal build\'s inputs (detailed zones, ladders) plus the edits', str(seen.keys()))
 
     # a failed apply without --out still keeps its report beside the default output
     def failing_build(*a, **kw):
         raise navkit.NavKitError('the build failed here')
-    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, failing_build, fake_load
+    navkit.build_inputs, navwalk.build, navtune.load = fake_inputs, failing_build, fake_load
     report = os.path.join(work, 'pathdata.hpd.report.txt')
     try:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -88,7 +88,7 @@ def navkit_apply(c, work):
     except navkit.NavKitError:
         pass
     finally:
-        navkit.build_inputs, navbuild.build, navtune.load = saved
+        navkit.build_inputs, navwalk.build, navtune.load = saved
     c.check(os.path.isfile(report) and 'error: the build failed here' in open(report, encoding='utf-8').read(),
             'navkit apply: a failure without --out still writes <output>.report.txt with the error')
 

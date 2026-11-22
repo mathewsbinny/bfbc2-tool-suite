@@ -38,13 +38,13 @@ import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import ladders  # noqa: E402
 import levelobjects  # noqa: E402
-import navbuild  # noqa: E402
 import navcompare  # noqa: E402
 import navkit  # noqa: E402
 import navparity  # noqa: E402
 import navregress  # noqa: E402
 import navsample  # noqa: E402
 import navvehicle  # noqa: E402
+import navwalk  # noqa: E402
 from bfbc2core import gameledger, navtune  # noqa: E402
 
 hpdtool_write = hpdtool.write
@@ -466,14 +466,14 @@ def main(argv):
                   'build_inputs: both 0.2 m runs - the detailed zones; the build\'s log indented', str(blog[-2:]))
             built = []
 
-            def fake_build(samples, forbid, xoff, zoff, out, edits=None, cfg=None, **kw_):
-                built.append((out, edits, cfg))
+            def fake_build(samples, forbid, xoff, zoff, out, edits=None, settings=None, **kw_):
+                built.append((out, edits, settings))
                 write(out, EMPTY_HPD)
-            P.set(navbuild, 'build', fake_build)
+            P.set(navwalk, 'build', fake_build)
             stale_trav = write(navkit.traversal_path(pr.out_dir('sp_01'), 'sp_01'), '{}')
             navkit.build(pr, 'sp_01', log=blog.append)
             ours = os.path.join(pr.out_dir('sp_01'), 'pathdata.hpd')
-            check(built[-1] == (ours, None, navbuild.DEFAULTS) and not os.path.isfile(stale_trav) and 'built in' in blog[-1],
+            check(built[-1] == (ours, None, None) and not os.path.isfile(stale_trav) and 'built in' in blog[-1],
                   'build: into work\\navkit\\<lv>\\pathdata.hpd with the default settings; the old traversal annotations removed')
 
             # --- check / compare ------------------------------------------------------------------------
@@ -627,7 +627,7 @@ def main(argv):
                   'apply on a NavKit base: built with the walkability edits, traversals written, installed (--install)', str(alog[-3:]))
             navkit.restore(pr, 'sp_01', log=alog.append)
             # a failing build: the report has what was done and the error
-            P.set(navbuild, 'build', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('the build broke')))
+            P.set(navwalk, 'build', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('the build broke')))
             other = os.path.join(tmp, 'elsewhere', 'out.hpd')
             os.makedirs(os.path.dirname(other))
             try:
@@ -639,7 +639,7 @@ def main(argv):
             check(err == 'the build broke' and '== apply sp_01' in rep and rep.rstrip().endswith('error: the build broke'),
                   'apply: a failure leaves the report of what was done and the error (and is raised)', rep)
             # a result that does not read back
-            P.set(navbuild, 'build', fake_build)
+            P.set(navwalk, 'build', fake_build)
             P.set(hpdtool, 'write', lambda f: b'not the same bytes')
             msg = raises(navkit.apply, pr, 'sp_01', log=alog.append)
             check(msg is not None and 'does not read back exactly' in msg, 'apply: a file that does not read back exactly is not usable', str(msg))

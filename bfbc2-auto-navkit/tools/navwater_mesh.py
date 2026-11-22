@@ -132,10 +132,10 @@ def make_grid(box, pitch):
 
 def surface_heights(grid, vertices, triangles):
     """The water surface over each cell centre ((nz, nx), NaN where none); the highest where pieces overlap.
-    navbuild.water_tops on a column grid with the cells' layout."""
-    import navbuild
+    navwalk.water_tops on a column grid with the cells' layout."""
+    import navwalk
     s: Any = SimpleNamespace(nx=grid.nx, nz=grid.nz, pitch=grid.pitch, min_x=grid.x0, min_z=grid.z0)   # the Samples fields read
-    top = navbuild.water_tops(s, vertices, triangles).reshape(grid.nz, grid.nx)
+    top = navwalk.water_tops(s, vertices, triangles).reshape(grid.nz, grid.nx)
     return np.where(np.isfinite(top), top, np.nan)
 
 

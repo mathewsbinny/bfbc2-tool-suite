@@ -93,7 +93,7 @@ jobs:
         if: steps.fp.outputs.published != 'true'
         run: |
           foreach ($t in 'tests/test_native_required.py', 'bfbc2-console-convert/tests/test_texture_native.py',
-                         'bfbc2-auto-navkit/tests/test_navbuild_native.py', 'bfbc2-auto-navkit/tests/test_area_link.py',
+                         'bfbc2-auto-navkit/tests/test_navbuild_native.py',
                          'bfbc2-auto-navkit/tests/test_detail_features.py') {
             Write-Output "== $t"
             python $t

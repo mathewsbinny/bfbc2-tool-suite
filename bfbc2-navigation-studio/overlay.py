@@ -38,7 +38,7 @@ from bfbc2core import atomicio, navdata, xmlinst  # noqa: E402
 
 R_GATHER = 15.0          # the runtime's node gather radius (DistEdgeMax)
 SAME_FLOOR = 2.5         # a node / point pair is on the same floor within this height (node y - 0.95 m)
-SMALL_ISLAND = 25        # islands under this many nodes (navbuild.ORDER_MIN_ISLAND)
+SMALL_ISLAND = 25        # islands under this many nodes (the build's order_min_island)
 SLIVER_CELLS = 5         # areas under this many cells, with no portal or border portal
 LONELY_NODE = 12.0       # a route node whose nearest same-floor node is farther than this
 OBJECTIVES = ('mpobjective', 'communicationstation')

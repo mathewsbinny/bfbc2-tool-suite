@@ -5,6 +5,7 @@ r"""Edge cases of NavKit's smaller tools, on data built here (no game data):
 - navkit's detailed-sector cache (work\navkit\<lv>\detailed.json): reused while the samples and the sector offsets
   are the same, chosen again when the offsets change (a new --box);
 - navdiff's sector pictures (pngs): one PNG per sector, of the expected size;
+- navkit.py --no-detail: build / apply get the build setting detail_features off (the Rust defaults otherwise);
 - the GUI's reader thread: output and the result through the queue only; Cancel ends the step's process tree.
 
   python test_tool_edges.py
@@ -108,55 +109,8 @@ def main(argv):
         check(size is not None and 400 <= size[0] <= 1200 and 400 <= size[1] <= 1200,
               'navdiff: one PNG per sector, of a plausible size (8 x 8 inches at 110 dpi, trimmed)', str(size))
 
-        # navbuild's settings: a value passed through the build (no module settings rewritten)
-        import dataclasses
-
-        import navbuild
-        d = navbuild.DEFAULTS
-        check((d.pitch, d.sector_samples, d.window, d.tile, d.tiles, d.resolution, d.link_step, d.kind) ==
-              (0.8, 125, range(-1, 127), 50, 3, 0.025, 0.6, 'normal'),
-              'navbuild: the default settings are the normal pitch-0.8 grid', str(d))
-        dd = d.detailed()
-        check((dd.pitch, dd.sector_samples, dd.window, dd.tile, dd.tiles, dd.resolution, dd.link_step, dd.kind) ==
-              (0.2, 500, range(-1, 502), 100, 6, 0.05, navbuild.DETAILED_LINK_STEP, 'detailed') and
-              dataclasses.replace(dd, **navbuild.grid_settings(0.8)) == d,
-              'navbuild: the detailed variant is the pitch-0.2 grid (the old set_pitch(0.2)), the rest unchanged', str(dd))
-        nd = dataclasses.replace(d, detail_features=False)
-        check(not nd.detail_features and d.detail_features and navbuild.BuildSettings() == navbuild.DEFAULTS,
-              'navbuild: replace gives a changed copy, the defaults stay')
-        try:
-            d.__setattr__('pitch', 0.2)
-            frozen = False
-        except dataclasses.FrozenInstanceError:
-            frozen = True
-        check(frozen and not hasattr(navbuild, 'set_pitch') and not hasattr(navbuild, 'saved_settings'),
-              'navbuild: the settings are frozen; set_pitch / saved_settings are gone')
-        # the detailed pass gets the detailed settings; a stage that fails leaves nothing behind
-        a = {'sectors': {(0, 0)}, 'border_nodes': {}, 'next_id': 0,
-             'level': SimpleNamespace(s=SimpleNamespace(min_x=0.0, min_z=0.0, nx=1, pitch=0.8), keep=np.zeros(0, bool),
-                                      col_of=np.zeros(0, int), y=np.zeros(0))}
-        real_stage = navbuild.stage
-        got = {}
-
-        def failing_stage(*a_, **k_):
-            got.update(k_)
-            raise RuntimeError('the detailed stage failed')
-        navbuild.stage = failing_stage
-        try:
-            navbuild.merge_detailed(a, {'sectors': {(0, 0)}, 'samples': 'none'}, 0, 0, [], {}, lambda *m: None, nd)
-        except RuntimeError:
-            pass
-        finally:
-            navbuild.stage = real_stage
-        check(got.get('cfg') == nd.detailed() and not got['cfg'].detail_features and navbuild.DEFAULTS.pitch == 0.8,
-              'navbuild: merge_detailed runs stage b with cfg.detailed() (the other settings kept)',
-              str(got.get('cfg')))
-        navbuild.ORDER_STATS['added'] = 3
-        navbuild.navwalk.STEEP_STATS['lips'] = 2
-        navbuild.reset_stats()
-        check(not navbuild.ORDER_STATS and not navbuild.navwalk.STEEP_STATS and not hasattr(navbuild, 'REPAIR_STATS'),
-              'navbuild: reset_stats clears every per-build counter (REPAIR_STATS, never read, is gone)')
-        # navkit.py --no-detail: build / apply get settings with detail features off; navbuild's defaults untouched
+        # navkit.py --no-detail: build / apply get the setting detail_features off (the build's settings are the
+        # Rust defaults since round NK5-rest: rust/bc2-navbuild/src/stage_tests.rs checks them)        # navkit.py --no-detail: build / apply get settings with detail features off; navbuild's defaults untouched
         seen = []
         real_project, real_build, real_apply = navkit.Project, navkit.build, navkit.apply
 
@@ -175,9 +129,9 @@ def main(argv):
             navkit.main(['navkit.py', 'build', 'lv'])
         finally:
             nk.Project, nk.build, nk.apply = real_project, real_build, real_apply
-        check([(w, c is not None and not c.detail_features) for w, c in seen[:2]] == [('build', True), ('apply', True)]
-              and seen[2] == ('build', None) and navbuild.DEFAULTS.detail_features,
-              'navkit --no-detail: build / apply get BuildSettings with detail features off, the defaults stay on',
+        check([(w, c == {'detail_features': False}) for w, c in seen[:2]] == [('build', True), ('apply', True)]
+              and seen[2] == ('build', None),
+              'navkit --no-detail: build / apply get the setting detail_features off, otherwise the Rust defaults',
               str(seen))
 
         # the GUI's reader thread hands everything over through the queue; Cancel ends the step and its children
