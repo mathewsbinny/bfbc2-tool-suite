@@ -387,7 +387,7 @@ fn navigation_as_the_studio_showed_it() {
         let inputs = nav::Inputs {
             navkit: cand,
             dice,
-            heightfield: sc.heightfield.clone(),
+            heightfield: sc.heightfield.as_deref().cloned(),
             partition: sc.file(0).map(|(_, d)| d.to_vec()),
             spawns: spawns.iter().map(|(_, p)| *p).collect(),
         };

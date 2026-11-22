@@ -292,21 +292,51 @@ pub struct Scene {
     pub shapes: Vec<Shape>,
     /// Collision (with geometry).
     pub collision: Option<Collision>,
-    /// The terrain height field (with geometry, when it was read).
-    pub heightfield: Option<Heightfield>,
-    /// The height field's mesh at the stride asked for: vertices and triangles.
-    pub terrain: Option<TerrainMesh>,
+    /// The terrain height field (with geometry, when it was read); shared by the scene's clones (an undo's scene is
+    /// a clone of the base's).
+    pub heightfield: Option<Arc<Heightfield>>,
+    /// The height field's mesh at the stride asked for: vertices and triangles; shared by the scene's clones, and
+    /// the key of its ray grid ([`crate::raygrid::RayCache`]). An edit replaces it (a new `Arc`).
+    pub terrain: Option<Arc<TerrainMesh>>,
     /// The water (with geometry, when the level has a water mesh and it was read).
     pub water: Option<Water>,
     /// What could not be read, as `Level.notes`.
     pub notes: Vec<String>,
-    files: Vec<(PathBuf, Vec<u8>)>,
+    /// The partitions as read: shared by the scene's clones (never edited).
+    files: Arc<Vec<(PathBuf, Vec<u8>)>>,
     changed: BTreeSet<usize>,
-    /// The ray structures (round HG1: [`crate::raygrid`]), built when a ray first needs them.
+    /// The ray structures (round HG1: [`crate::raygrid`]), built when a ray first needs them; shared by the scene's
+    /// clones (each structure is kept with what it was built from).
     rays: crate::raygrid::RayCache,
 }
 
 impl Scene {
+    /// A clone of the scene with `entities` and `shapes` in place of its own, which are not copied (an undo's
+    /// scene: the base's, with a checkpoint's entities). Each entity with a transform that differs from this
+    /// scene's is marked changed, as [`Scene::set_transform`] marks it.
+    #[must_use]
+    pub fn with_entities(&self, entities: Vec<Entity>, shapes: Vec<Shape>) -> Self {
+        let mut changed = self.changed.clone();
+        for (k, e) in entities.iter().enumerate() {
+            if e.matrix.is_some() && self.entities.get(k).is_some_and(|b| b.matrix != e.matrix) {
+                changed.insert(k);
+            }
+        }
+        Self {
+            name: self.name.clone(),
+            entities,
+            shapes,
+            collision: self.collision.clone(),
+            heightfield: self.heightfield.clone(),
+            terrain: self.terrain.clone(),
+            water: self.water.clone(),
+            notes: self.notes.clone(),
+            files: Arc::clone(&self.files),
+            changed,
+            rays: self.rays.clone(),
+        }
+    }
+
     /// The partitions the entities come from (the level partition, then the group files): path and bytes.
     #[must_use]
     pub fn file(&self, k: usize) -> Option<(&Path, &[u8])> {
@@ -369,14 +399,25 @@ impl Scene {
             .blueprints
             .get(e.blueprint.as_deref()?)?
             .as_ref()?;
-        let place = |v: [f32; 3]| -> [f64; 3] {
-            std::array::from_fn(|c| {
-                let col = |r: usize| m.get(r * 4 + c).copied().unwrap_or(0.0);
-                f64::from(v[0]) * col(0) + f64::from(v[1]) * col(1) + f64::from(v[2]) * col(2) + col(3)
-            })
-        };
-        Some(t.iter().map(|tri| tri.map(place)).collect())
+        Some(t.iter().map(|tri| tri.map(|v| place(&m, v))).collect())
     }
+
+    /// The blueprints' collision shapes (radius and run bounds, [`crate::raygrid::Shape`]), each measured once per
+    /// triangle list; locked while the answer is held (a ray's walk over the placed objects).
+    #[must_use]
+    pub fn collision_shapes(&self) -> crate::raygrid::Shapes<'_> {
+        self.rays.shapes()
+    }
+}
+
+/// A blueprint's local point placed by an entity's transform (row by row: three axes, then the position), as
+/// [`Scene::world_triangles`] places each corner.
+#[must_use]
+pub fn place(m: &[f64; 16], v: [f32; 3]) -> [f64; 3] {
+    std::array::from_fn(|c| {
+        let col = |r: usize| m.get(r * 4 + c).copied().unwrap_or(0.0);
+        f64::from(v[0]) * col(0) + f64::from(v[1]) * col(1) + f64::from(v[2]) * col(2) + col(3)
+    })
 }
 
 // ------------------------------------------------------------------------------------------------ reading
@@ -967,7 +1008,7 @@ pub fn load(options: &LoadOptions) -> Result<Scene> {
         name: options.name.clone(),
         entities,
         shapes,
-        files,
+        files: Arc::new(files),
         ..Scene::default()
     };
     let (index, terrain, water) = geometry;
@@ -983,8 +1024,8 @@ pub fn load(options: &LoadOptions) -> Result<Scene> {
     }
     match terrain {
         Some(Ok((hf, mesh))) => {
-            scene.heightfield = Some(hf);
-            scene.terrain = Some(mesh);
+            scene.heightfield = Some(Arc::new(hf));
+            scene.terrain = Some(Arc::new(mesh));
         }
         Some(Err(note)) => scene.notes.push(note),
         None => {}

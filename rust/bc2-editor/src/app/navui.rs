@@ -234,7 +234,7 @@ impl ViewState {
         let shown = |k: usize| self.doc.as_ref().is_none_or(|d| d.shown(k));
         let scene = self.scene();
         let spawns = spawns_of(scene, &shown);
-        let hf = scene.heightfield.clone();
+        let hf = scene.heightfield.as_deref().cloned();
         let partition = self
             .doc
             .as_ref()
@@ -303,7 +303,7 @@ impl ViewState {
         }
         self.nav_ensure();
         let theme = format!("{:?}", palette.view_nav_main);
-        let hf = self.scene().heightfield.clone();
+        let hf = self.scene().heightfield.as_deref().cloned();
         let n = &mut self.navs;
         let mut used: Vec<String> = Vec::new();
         if let Some(Ok(d)) = &n.loaded {
