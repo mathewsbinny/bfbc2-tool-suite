@@ -149,6 +149,8 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py')]),
         ('shaderdb-native', 'Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_native.py')]),
+        ('shaderdb-merge', "Rust shader merge (bc2_native.ShaderMerger) against the retired Python Merger's recorded answers (built, damaged, 240 random cases)", 'quick',
+         [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_merge.py')]),
         ('shaderdb-queries', 'Rust shader database handle and queries against shaderdb.py (never made, made, changed lists; blocks, checks, writer, mp_008cq)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_queries.py')]),
         ('xenos-native', 'Rust shader translator: decoder against xenos.py, translations against the recorded Python (built programs, damaged blobs, random microcode, dispatch, hand-built trees)', 'quick',
@@ -372,6 +374,8 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_unpack_native.py'), '--game']),
         ('geometry-native:game', "terrain, water and Havok readers (Rust) on every bundle of the game copy, the collision index of every prepared level, against the retired Python readers' recorded answers", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py'), '--game']),
+        ('shaderdb-merge:game', "Rust shader merge against the retired Python Merger's recorded answers on the game copy (ONS_MP_008 + mp_008cq, Dx9 / 10 / 11)", 'game',
+         [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_merge.py'), '--game']),
         ('shaderdb-native:game', 'Rust shader databases on every database of the game copy, the Xbox and BF1943 levels and work; the WW2 merges', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_native.py'), '--game']),
         ('shaderdb-queries:game', 'Rust shader database queries on every database of the game copy, the Xbox and BF1943 levels and work', 'game',
@@ -552,6 +556,7 @@ NEEDS = {
     'geometry-native': need(),
     'shaderdb-native': need(cpu=4, mem=1),
     'shaderdb-queries': need(mem=0.6),
+    'shaderdb-merge': need(mem=0.5),
     'xenos-native': need(mem=0.3),
     'culltree-native': need(cpu=2),
     'granny-native': need(mem=1.2),
@@ -697,6 +702,7 @@ NEEDS = {
     'fbrb-unpack-native:game': need(cpu=2, mem=2),
     'geometry-native:game': need(cpu=3, mem=2),
     'shaderdb-native:game': need(cpu=8, mem=3),
+    'shaderdb-merge:game': need(mem=1),
     'shaderdb-queries:game': need(cpu=3, mem=1.5),   # 2 workers
     'xenos-native:game': need(cpu=3, mem=1),          # 2 workers of ~360 MB
     'culltree-native:game': need(cpu=3, mem=3),

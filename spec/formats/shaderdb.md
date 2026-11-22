@@ -285,9 +285,30 @@ fragment and vertex layout by content, so an added entry draws as in its source;
 listed. The check refuses a mesh the level reaches without entries unless the stock base reaches it without them too
 or no database has it.
 
-[code: rust/bc2-levelwrite/src/shaders.rs:218-316] [code: rust/bc2-formats/src/shaderdb/merge.rs:165-200]
+[code: rust/bc2-levelwrite/src/shaders.rs:218-316] [code: rust/bc2-formats/src/shaderdb/merge.rs:275-306]
 [code: rust/bc2-levelwrite/src/export.rs:3385-3447]
 [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
+
+### SHDB-LVL-3: A cloned entry is the donor's under a new name
+
+Status: **implemented** · Variants: PC, Xbox 360
+
+A mesh the databases never drew (a converted or ported mesh, a weapon variant) takes a donor entry again under its
+own name: the entry's GUID is MD5 of the new name (SHDB-NAME rules), each of its programs gets the id MD5(new name +
+the donor program's id) - a program id never repeats - and a key naming the new entry, with the donor key's fragment,
+layout and flags; the programs' shaders, tables, fragments and vertex layouts are shared by content, and their
+parameter blocks are copies with texture names replaced in place (a whole name at the start of its 0x80-byte field,
+padded with zeros; all renames at once). A rename the entry does not use, a new name longer than its field, a
+program, fragment or layout the files do not hold refuses the clone and nothing is added. A mesh part's layout is
+registered by name (`<mesh>_lod<N>/<part>/<technique>`), the layout copied from the donor when the file lacks it.
+How OPFOR's WW2 and Onslaught ports give their meshes entries (21 call sites); the files they make match the WW2
+oracle.
+
+[code: rust/bc2-formats/src/shaderdb/merge.rs:123-201] [code: rust/bc2-formats/src/shaderdb/merge.rs:697-863]
+[code: rust/bc2-formats/src/shaderdb/merge.rs:918-950]
+[test: rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_renames_ids_keys_and_textures]
+[test: rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_refusals_add_nothing]
+[test: bfbc2-shader-tools/tests/test_shaderdb_merge.py::main]
 
 ## Render state
 
