@@ -41,6 +41,17 @@ landed on `main`.
   keep.
 - **Project format 7** (round SG1): member deletes and adds. Version-6 projects load as they are and are written
   with `min_reader` 6 until they hold one.
+- **`bfbc2 install`: the game-copy installer** (round OR1, "OPFOR in Rust" stage 1; new crate `rust/bc2-install`).
+  Project OPFOR's WW2 install (`wake_install.py --plan / --apply / --apply-staged / --revert`,
+  `ww2_level_install.py`) builds the staging in Python as before, then writes an install plan (its decisions as
+  data) and runs `bfbc2 install plan | apply | revert | marks`: the backup guard, each level's bundles and record,
+  ww2_common, the DLL's markers, the shared bundles and ini files through the install ledger, the registration last,
+  the verification, the opt-out and `--apply-staged`'s record and input fingerprint, with the records, files and
+  printed lines of OPFOR's Python installer (proved on scratch copies of the game's affected files). It takes the WW2
+  rebuild's lock (`work\ww2\_rebuild\rebuild.lock`, exit code 3 while a rebuild or another install holds it) and
+  rolls an interrupted commit back before it reads anything; `BC2_INSTALL_CRASH_AT=<n>` (tests) stops it before its
+  n-th write step. The ledger (`bc2_formats::gameledger`) gained OPFOR's stage operations: `install_keep` (an
+  install keeping the owner's other files, in OPFOR's record order), `restate`, `file_layers`, `slot_holders`.
 
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the

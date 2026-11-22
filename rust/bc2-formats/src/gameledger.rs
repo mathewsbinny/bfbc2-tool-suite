@@ -1615,3 +1615,8 @@ impl Ledger {
 #[cfg(test)]
 #[path = "gameledger_tests.rs"]
 mod tests;
+
+// round OR1: Project OPFOR's stage operations (install with the owner's other files kept, restate)
+#[path = "gameledger_keep.rs"]
+mod keep;
+pub use keep::host_name;
