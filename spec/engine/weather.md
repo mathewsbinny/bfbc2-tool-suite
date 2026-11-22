@@ -66,7 +66,7 @@ gets the same resource (RNDR-WTHR-8). The two other resources under `weather/` a
 
 ### WTH-STATE-1: 28 systems, 355 states, 457 slots
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 DICE's systems list 457 state slots over 355 distinct state partitions (systems share states: `weather/default/states/default`
 is slot 0 of nine systems), 2 to 53 per system. Every system, setting and state is used by some level: there is no
@@ -74,6 +74,7 @@ orphan. Systems are shared between a map's mode levels (MP_005's serves MP_005, 
 ONS_MP_005GR) and OPFOR's `weather/wake_island/weathersystem_wake` (5 states) serves all four WW2 levels, each
 choosing its state by its own settings.
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py weather: 28 systems, 457 states listed, 2 .. 53 per system]
 [data: research round WX0: every system used by at least one of 83 levels; the shared systems as listed]
 

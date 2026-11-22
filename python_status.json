@@ -3507,8 +3507,8 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 223,
-   "note": "The specification's probe counts as checks (round SPG2): the stable facts `spec/probes/terrain.py` and `spe...",
+   "lines": 397,
+   "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/p...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -3963,7 +3963,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 833,
+   "lines": 837,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -3971,14 +3971,14 @@
    "status": "stays"
   },
   {
-   "callers": "by hand",
+   "callers": "core/tests/test_spec_probes.py (game)",
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
    "lines": 304,
    "note": "read-only probe for spec/engine/destruction.md",
    "path": "spec/probes/destruction.py",
-   "retiring": "proposed: SPG2 (game-tier checks)",
+   "retiring": "stays",
    "rust": "",
    "status": "stays"
   },
@@ -3995,26 +3995,14 @@
    "status": "stays"
   },
   {
-   "callers": "by hand",
+   "callers": "core/tests/test_spec_probes.py (game)",
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 342,
-   "note": "read-only probe for the lighting, weather and effects specs",
-   "path": "spec/probes/lighting.py",
-   "retiring": "proposed: SPG2 (game-tier checks)",
-   "rust": "",
-   "status": "stays"
-  },
-  {
-   "callers": "by hand",
-   "embedded_by": [],
-   "folder": "spec",
-   "kind": "build or dev script",
-   "lines": 365,
-   "note": "read-only probe for spec/engine/materials.md",
-   "path": "spec/probes/materials.py",
-   "retiring": "proposed: SPG2 (game-tier checks)",
+   "lines": 524,
+   "note": "read-only probe for spec/engine/materials.md section 5 (grime, dirt, camouflage); checked in the game tier",
+   "path": "spec/probes/grime.py",
+   "retiring": "stays",
    "rust": "",
    "status": "stays"
   },
@@ -4023,7 +4011,43 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 385,
+   "lines": 342,
+   "note": "read-only probe for the lighting, weather and effects specs",
+   "path": "spec/probes/lighting.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 365,
+   "note": "read-only probe for spec/engine/materials.md",
+   "path": "spec/probes/materials.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 479,
+   "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
+   "path": "spec/probes/menus.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 564,
    "note": "read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier",
    "path": "spec/probes/terrain.py",
    "retiring": "stays",
@@ -4031,26 +4055,26 @@
    "status": "stays"
   },
   {
-   "callers": "by hand",
+   "callers": "core/tests/test_spec_probes.py (game)",
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
    "lines": 359,
    "note": "read-only probe for spec/engine/vehicles.md",
    "path": "spec/probes/vehicles.py",
-   "retiring": "proposed: SPG2 (game-tier checks)",
+   "retiring": "stays",
    "rust": "",
    "status": "stays"
   },
   {
-   "callers": "by hand; tests 1",
+   "callers": "core/tests/test_spec_probes.py (game)",
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
    "lines": 456,
    "note": "read-only probe for spec/engine/weapons.md",
    "path": "spec/probes/weapons.py",
-   "retiring": "proposed: SPG2 (game-tier checks)",
+   "retiring": "stays",
    "rust": "",
    "status": "stays"
   },
@@ -4448,8 +4472,8 @@
  ],
  "totals": {
   "all": {
-   "files": 365,
-   "lines": 106288
+   "files": 367,
+   "lines": 107648
   },
   "by_folder": {
    "(root)": {
@@ -4641,13 +4665,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19617,
+    "lines": 19791,
     "live": 739,
     "partly": 0,
     "ported": 1897,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14593,
+    "test": 14767,
     "twin": 2388
    },
    "design": {
@@ -4663,23 +4687,23 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5885,
+    "lines": 5889,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5618,
+    "stays": 5622,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 8,
-    "lines": 2728,
+    "files": 10,
+    "lines": 3910,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 2728,
+    "stays": 3910,
     "test": 0,
     "twin": 0
    },
@@ -4713,12 +4737,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 56,
-    "lines": 9336
+    "files": 58,
+    "lines": 10522
    },
    "test": {
     "files": 188,
-    "lines": 50106
+    "lines": 50280
    },
    "twin": {
     "files": 56,
