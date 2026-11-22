@@ -261,6 +261,7 @@ fn run(game: &Game, c: &Case, projects: &Path, stages: &Path) -> bool {
             picture: String::new(),
             ..Identity::default()
         }),
+        path_data: false,
     };
     std::fs::write(
         export::spec_path_of(&path),

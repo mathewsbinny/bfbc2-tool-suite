@@ -346,7 +346,10 @@ fn members_are_edited_like_objects() {
     d.save().unwrap();
     let text = std::fs::read_to_string(&path).unwrap();
     let v: serde_json::Value = serde_json::from_str(&text).unwrap();
-    assert_eq!((v["version"].as_u64(), v["min_reader"].as_u64()), (Some(7), Some(7)));
+    assert_eq!(
+        (v["version"].as_u64(), v["min_reader"].as_u64()),
+        (Some(u64::from(bc2_levelwrite::project::VERSION)), Some(7))
+    );
     let again = Doc::with(MapProject::load(&path).unwrap(), path.clone(), sc);
     for e in &d.scene.entities {
         assert_eq!(again.scene.entities[e.index].matrix, e.matrix);

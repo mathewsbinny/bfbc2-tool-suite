@@ -113,6 +113,11 @@ pub struct ExportSpec {
     /// `None` (older export files): the base level's names and loading picture.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity: Option<Identity>,
+    /// The export's path-data step (round A2, opt-in: [`crate::pathdata`]): the level's path data staged with it
+    /// (`ai/infantry/pathdata.hpd`), checked by `mapexport check`. The build refuses in words when the base's path data
+    /// is not the level's (its collision edited, navigation edits) or there is none.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub path_data: bool,
 }
 
 /// The level's own name and pictures (round E3b): the menus, the server browser and the loading screen show the
@@ -704,6 +709,9 @@ pub struct StageRecord {
     /// The weather the export gave the level (round VW2); `None`: the base's own, untouched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weather: Option<crate::weather::WeatherRecord>,
+    /// The level's path data staged with it (round A2: the export's path-data step, [`crate::pathdata`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path_data: Option<crate::pathdata::PathDataRecord>,
 }
 
 /// An object the export gave new cull leaves (round XF1): its blueprint, its slot and the shape's source
@@ -1760,7 +1768,22 @@ pub fn build(
         unslotted: unslotted_record,
         shaders: shader_record,
         weather: weather_record,
+        path_data: None,
     };
+    let mut rec = rec;
+    // round A2: the opt-in path-data step (refused in words when the base's path data is not the level's)
+    if spec.path_data {
+        let opfor = game.root.parent().unwrap_or(&game.root);
+        let cur = LevelWriter::parse(&applied.bytes)?;
+        let pd = crate::pathdata::stage(opfor, project, &cur, &base_w, out, &lv)
+            .map_err(|why| crate::rules::refusal("XVAL-AI-1", format!("path data: {}", why.join("; "))))?;
+        rec.report.push(format!(
+            "path data: {} staged ({})",
+            pd.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>().join(", "),
+            pd.source
+        ));
+        rec.path_data = Some(pd);
+    }
     write_record(out, &rec)?;
     Ok(rec)
 }
@@ -3137,6 +3160,13 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     // reaches without them too and those no level's database has
     check_shaders(game, &rec, &own_entries, &live, &mut r)?;
     check_v1(game, stage, &rec, &mut r)?;
+    // round A2: the path data staged with the level
+    if let Some(pd) = &rec.path_data {
+        let staged = lvl.map(|(_, d)| LevelWriter { d: d.clone() });
+        for (code, ok, what) in crate::pathdata::check(stage, pd, staged.as_ref()) {
+            r.add(code, ok, what);
+        }
+    }
     Ok(r)
 }
 
@@ -4611,6 +4641,7 @@ mod tests {
             },
             profile: Profile::Bfbc2,
             identity: None,
+            path_data: false,
         };
         assert!(spec.level_id().is_err());
         // an E3 export file (no profile, no identity) reads as BFBC2 with the base's names

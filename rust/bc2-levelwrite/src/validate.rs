@@ -537,7 +537,8 @@ pub fn site_rules(w: &LevelWriter, base: Option<&LevelWriter>, site: &crate::sit
         }
         let p = r[3].map(f64::from);
         let spot = site.spot(p);
-        for c in classes {
+        let before = out.len();
+        for c in classes.iter().copied() {
             let Some((room, domain)) = vehicle_room(c) else {
                 continue;
             };
@@ -569,6 +570,19 @@ pub fn site_rules(w: &LevelWriter, base: Option<&LevelWriter>, site: &crate::sit
                 );
                 break;
             }
+        }
+        // round A2: with its room and domain, a vehicle can still be shut in (XVAL-PLACE-6 to 8)
+        if out.len() == before
+            && let Some((c, _)) = classes.iter().find_map(|c| crate::vehicles::leave(c).map(|l| (*c, l)))
+            && let Some((code, why)) = crate::vehicles::cannot_leave(site, c, p)
+        {
+            out.push(
+                Finding::new(
+                    code,
+                    format!("The vehicle spawner {g} ({c}): {why}: its vehicle cannot leave where it spawns."),
+                )
+                .naming(vec![g.clone()]),
+            );
         }
     }
     // inside a combat area: (guid, rows, what, how far outside is allowed)

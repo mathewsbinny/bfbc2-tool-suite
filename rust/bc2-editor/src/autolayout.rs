@@ -6,6 +6,10 @@
 //! The proposal is made on a worker thread from a copy of the project's partition and the base level's site (the
 //! Problems panel's, [`crate::validation::Live::site`]); a proposal made at another revision of the document than the
 //! current one is stale and cannot be accepted.
+//!
+//! Round A2: the proposals come several at a time (the best distinct places or turns of the layer, side by side in the
+//! panel, each with its statistics; one drawn in the views at a time), each with its vehicles; the objects the user
+//! pinned ([`bc2_levelwrite::ops::Op::Pin`], the project's organisation) stay where they stand.
 
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
@@ -24,9 +28,13 @@ use crate::theme::Palette;
 pub struct AutoLayout {
     /// The seed the next proposal uses.
     pub seed: u64,
-    job: Option<(u64, Receiver<Result<Proposal, String>>)>,
-    /// The last proposal and the document revision it was made at.
-    pub proposal: Option<(u64, Proposal)>,
+    job: Option<(u64, Receiver<Result<Vec<Proposal>, String>>)>,
+    /// The last proposals (best first) and the document revision they were made at.
+    pub proposals: Option<(u64, Vec<Proposal>)>,
+    /// The proposal drawn in the views and offered for Accept (an index into the proposals).
+    pub shown: usize,
+    /// How many proposals the next Propose makes (1 to 4; 0 is taken as 3).
+    pub count: usize,
     /// What happened last, in words.
     pub message: String,
     /// How long the last proposal took (seconds).
@@ -69,9 +77,11 @@ impl AutoLayout {
             return;
         };
         let w = w.clone();
+        let pins = doc.org.pinned.clone();
+        let k = if self.count == 0 { 3 } else { self.count.min(4) };
         let (tx, rx) = channel();
         std::thread::spawn(move || {
-            let r = autolayout::propose_with(&w, &site, routes.as_deref(), ask).map_err(|e| e.to_string());
+            let r = autolayout::propose_all(&w, &site, routes.as_deref(), ask, &pins, k).map_err(|e| e.to_string());
             let _ = tx.send(r);
         });
         self.job = Some((doc.revision, rx));
@@ -88,13 +98,20 @@ impl AutoLayout {
                 self.job = None;
                 self.seconds = self.started.take().map_or(0.0, |t| t.elapsed().as_secs_f64());
                 match r {
-                    Ok(p) => {
-                        self.message = format!("{} ({:.1} s)", p.describe(), self.seconds);
-                        self.proposal = Some((rev, p));
+                    Ok(ps) => {
+                        self.message = format!(
+                            "{} proposal{} in {:.1} s; the best: {}",
+                            ps.len(),
+                            if ps.len() == 1 { "" } else { "s" },
+                            self.seconds,
+                            ps.first().map_or_else(String::new, Proposal::describe)
+                        );
+                        self.shown = 0;
+                        self.proposals = Some((rev, ps));
                     }
                     Err(e) => {
                         self.message = format!("No layout proposed: {e}");
-                        self.proposal = None;
+                        self.proposals = None;
                     }
                 }
                 true
@@ -108,25 +125,39 @@ impl AutoLayout {
         }
     }
 
-    /// The proposal when it was made on the document as it is now.
+    /// The proposal shown, when it was made on the document as it is now.
     #[must_use]
     pub fn current(&self, doc: &Doc) -> Option<&Proposal> {
-        self.proposal
-            .as_ref()
-            .filter(|(rev, _)| *rev == doc.revision)
-            .map(|x| &x.1)
+        self.all(doc).get(self.shown)
     }
 
-    /// Forgets the proposal (discarded or accepted).
+    /// Every proposal of the last Propose, when they were made on the document as it is now (else none).
+    #[must_use]
+    pub fn all(&self, doc: &Doc) -> &[Proposal] {
+        self.proposals
+            .as_ref()
+            .filter(|(rev, _)| *rev == doc.revision)
+            .map_or(&[], |x| x.1.as_slice())
+    }
+
+    /// Whether proposals are held (current or stale).
+    #[must_use]
+    pub fn holds(&self) -> bool {
+        self.proposals.is_some()
+    }
+
+    /// Forgets the proposals (discarded or accepted).
     pub fn clear(&mut self) {
-        self.proposal = None;
+        self.proposals = None;
+        self.shown = 0;
     }
 
     /// The proposal drawn over the views: where each moved flag, base, M-COM and spawn point would stand (a ring),
     /// a line from where it stands now, and the combat areas' new outlines (the outline points in order).
     #[must_use]
     pub fn lines(&self, doc: Option<&Doc>, p: &Palette) -> Vec<(Segment, Color32)> {
-        let (Some(d), Some((_, prop))) = (doc, self.proposal.as_ref()) else {
+        let Some(d) = doc else { return Vec::new() };
+        let Some(prop) = self.proposals.as_ref().and_then(|x| x.1.get(self.shown)) else {
             return Vec::new();
         };
         let Some(w) = d.writer() else { return Vec::new() };
@@ -156,6 +187,37 @@ impl AutoLayout {
         };
         let by_guid: std::collections::HashMap<&str, [f32; 3]> =
             prop.moves.iter().map(|m| (m.guid.as_str(), lift(m.to[3]))).collect();
+        // round A2: the vehicles - a ring of their room's size, a line to the capture point they join, the way they face
+        let v = &prop.vehicles;
+        let vehicle_rows = v
+            .moves
+            .iter()
+            .map(|m| (m.guid.as_str(), m.to))
+            .chain(v.places.iter().map(|x| (x.guid.as_str(), x.transform)));
+        for (g, rows) in vehicle_rows {
+            let at = lift(rows[3]);
+            let Some(veh) = v.vehicles.iter().find(|x| x.guid.eq_ignore_ascii_case(g)) else {
+                continue;
+            };
+            let r = match veh.class.as_str() {
+                "heli" | "plane" => 7.0,
+                "tank" | "ifv" | "ifv_aa" => 4.0,
+                _ => 2.5,
+            };
+            ring(at, r, p.status_ok, &mut out);
+            let f = rows[2];
+            out.push((
+                [at, [at[0] + f[0] * r * 1.6, at[1], at[2] + f[2] * r * 1.6]],
+                p.status_ok,
+            ));
+            let cp = by_guid
+                .get(veh.owner.as_str())
+                .copied()
+                .or_else(|| w.transform(&veh.owner).map(|x| lift(x[3])));
+            if let Some(c) = cp {
+                out.push(([at, c], p.ink_muted));
+            }
+        }
         for m in &prop.moves {
             let to = lift(m.to[3]);
             match kind(&m.guid).as_str() {
