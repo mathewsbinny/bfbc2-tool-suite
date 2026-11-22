@@ -315,6 +315,8 @@ fn exit(code: i32) -> ExitCode {
 }
 
 fn main() -> ExitCode {
+    // the one worker pool (BFBC2_WORKERS)
+    bc2_gamefs::workers::init();
     let args: Vec<String> = std::env::args_os()
         .skip(1)
         .map(|a| a.to_string_lossy().into_owned())

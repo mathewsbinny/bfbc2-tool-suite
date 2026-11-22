@@ -316,9 +316,9 @@ def _compile_store(key: bytes, job: CompileJob) -> bytes:
 
 
 def workers() -> int:
-    """Compile threads: BFBC2_HLSL_WORKERS, else the CPU threads."""
-    env = os.environ.get('BFBC2_HLSL_WORKERS', '')
-    return max(1, int(env)) if env.isdigit() else max(1, os.cpu_count() or 1)
+    """Compile threads: BFBC2_HLSL_WORKERS, else BFBC2_WORKERS, else the CPU threads."""
+    from bfbc2core import workers as suite_workers
+    return suite_workers('BFBC2_HLSL_WORKERS', os.cpu_count() or 1)
 
 
 def _executor() -> cf.ThreadPoolExecutor:

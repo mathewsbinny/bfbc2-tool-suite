@@ -9,9 +9,11 @@
 //! | [`ledger`] | the game copy's install ledger (`opfor-ledger/1`): installs and reverts in any order |
 //! | [`liveness`] | whether a process runs (the ledger's and the map project's locks), the host name |
 //! | [`bundles`] | the bundle cache: reads of the same bundles made cheap, in the process and on disk |
+//! | [`budget`] | the caches' budget: every cache's folder and cap, the pruning (one implementation) |
 //! | [`points`] | restart points kept on disk by content (the BF1943 source's payloads) |
 //! | [`meshindex`] | the index of a game copy's meshes and shaders |
 //! | [`sha256`] | SHA-256 (the ledger's file identities) |
+//! | [`workers`] | the one worker knob (`BFBC2_WORKERS`) and the process's pool |
 //!
 //! The multi-game goal (MOH 2010, BFBC1, BF3, MOH Warfighter, BF4 after BFBC2): what differs per game - its
 //! executable, its archive and resource formats, where its files live - is reached through [`game::Game`]; the
@@ -19,6 +21,7 @@
 #![deny(unsafe_code)]
 
 pub mod atomic;
+pub mod budget;
 pub mod bundles;
 pub mod game;
 pub mod ledger;
@@ -26,3 +29,4 @@ pub mod liveness;
 pub mod meshindex;
 pub mod points;
 pub mod sha256;
+pub mod workers;

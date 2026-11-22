@@ -4,7 +4,9 @@
 //! (an error, never a hang). Each job used to make its channel, its thread and its dead-worker check by hand.
 //!
 //! What a site does with the answer (its project generation check, its messages) stays at the site. A job that streams
-//! lines while it runs (a tool's output read from its pipes: `prepare`) keeps its own threads.
+//! lines while it runs (a tool's output read from its pipes: `prepare`, NavKit's build) keeps its own threads. Round
+//! PR1b-2 moved the rest onto it: the start screen's catalog, a level's load and its game-accurate view, the export's
+//! profiles, preview and run, the install's run, NavKit's comparison read.
 
 use std::sync::mpsc::{Receiver, RecvTimeoutError, TryRecvError, channel};
 use std::time::Duration;
@@ -51,6 +53,23 @@ impl<T: Send + 'static> Task<T> {
 }
 
 impl<T> Task<T> {
+    /// A job whose answer comes on `rx` (a worker made elsewhere; tests: one that ends without an answer).
+    #[must_use]
+    pub fn from_receiver(what: &str, rx: Receiver<Result<T, EditorError>>) -> Self {
+        Self {
+            rx,
+            what: what.to_owned(),
+        }
+    }
+
+    /// A job already answered (an answer waited for, handed back to the poller).
+    #[must_use]
+    pub fn answered(what: &str, answer: Result<T, EditorError>) -> Self {
+        let (tx, rx) = channel();
+        let _ = tx.send(answer);
+        Self::from_receiver(what, rx)
+    }
+
     /// The answer when it came (`None`: still running); a worker that ended without one is an error.
     #[must_use]
     pub fn poll(&self) -> Option<Result<T, EditorError>> {

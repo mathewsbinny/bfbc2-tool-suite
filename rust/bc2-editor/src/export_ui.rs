@@ -34,6 +34,7 @@ use eframe::egui;
 use crate::edit::Doc;
 use crate::error::EditorError;
 use crate::strip_ui::StripWindow;
+use crate::task::Task;
 
 /// The mode an export file without a project target builds (E3's graft at export time), and its stock donor when the
 /// profiles are not read yet. A project with a target (round E3d) takes any mode its era's stock levels have.
@@ -76,9 +77,9 @@ pub struct ExportWindow {
     pub strip: StripWindow,
     /// The game copy's content profiles for the form's mode (read on a worker).
     pub profiles: Option<Result<Profiles, EditorError>>,
-    running: Option<Receiver<Result<Vec<String>, EditorError>>>,
-    scanning: Option<Receiver<Result<Profiles, EditorError>>>,
-    previewing: Option<Receiver<Result<PreviewData, EditorError>>>,
+    running: Option<Task<Vec<String>>>,
+    scanning: Option<Task<Profiles>>,
+    previewing: Option<Task<PreviewData>>,
     preview: Option<Preview>,
     preview_error: Option<String>,
     /// The target the form shows (round E3d): era, mode, donor; "Set target" makes it the project's.
@@ -176,15 +177,6 @@ pub fn guarded<T>(what: &str, f: impl FnOnce() -> Result<T, EditorError>) -> Res
                 .unwrap_or_else(|| "no message".to_owned());
             Err(EditorError::Tool(format!("{what}: internal error ({text})")))
         }
-    }
-}
-
-/// A worker's answer, if it came: `Some(Err)` when the worker ended without one (it panicked).
-fn answer<T>(rx: &Receiver<Result<T, EditorError>>, what: &str) -> Option<Result<T, EditorError>> {
-    match rx.try_recv() {
-        Ok(r) => Some(r),
-        Err(TryRecvError::Empty) => None,
-        Err(TryRecvError::Disconnected) => Some(Err(EditorError::Worker(stopped(what)))),
     }
 }
 
@@ -706,7 +698,7 @@ impl ExportWindow {
     /// Hands an export worker's receiver to the window (tests: a worker that ends without an answer).
     #[doc(hidden)]
     pub fn running_from(&mut self, rx: Receiver<Result<Vec<String>, EditorError>>) {
-        self.running = Some(rx);
+        self.running = Some(Task::from_receiver("The export", rx));
     }
 
     /// The mode the form's target names (`conquest` before one is chosen).
@@ -724,16 +716,11 @@ impl ExportWindow {
     fn scan(&mut self) {
         let Some(opfor) = self.opfor.clone() else { return };
         let mode = self.target_mode();
-        let (tx, rx) = channel();
-        self.scanning = Some(rx);
-        std::thread::spawn(move || {
-            let r = guarded("Reading the content profiles", || {
-                Game::open(&opfor.join("game"))
-                    .and_then(|g| bc2_levelwrite::profile::scan(&g, &mode))
-                    .map_err(|e| EditorError::Tool(e.to_string()))
-            });
-            let _ = tx.send(r);
-        });
+        self.scanning = Some(Task::spawn("Reading the content profiles", move || {
+            Game::open(&opfor.join("game"))
+                .and_then(|g| bc2_levelwrite::profile::scan(&g, &mode))
+                .map_err(|e| EditorError::Tool(e.to_string()))
+        }));
     }
 
     /// Makes the preview pictures on a worker (the export's own code: `export::pictures`).
@@ -746,11 +733,10 @@ impl ExportWindow {
             .as_ref()
             .map_or_else(String::new, |i| i.picture.trim().to_owned());
         let base = base.to_owned();
-        let (tx, rx) = channel();
-        self.previewing = Some(rx);
         self.preview_error = None;
-        std::thread::spawn(move || {
-            let run = || -> Result<PreviewData, EditorError> {
+        self.previewing = Some(Task::spawn(
+            "The preview pictures",
+            move || -> Result<PreviewData, EditorError> {
                 let game = Game::open(&opfor.join("game")).map_err(|e| EditorError::Tool(e.to_string()))?;
                 let donor = spec.layer.donor.to_ascii_lowercase();
                 let dk = export::description_key(&game, &donor).map_err(|e| EditorError::Tool(e.to_string()))?;
@@ -767,9 +753,8 @@ impl ExportWindow {
                     level: level.made.decoded,
                     key: format!("{picture}|{donor}"),
                 })
-            };
-            let _ = tx.send(guarded("The preview pictures", run));
-        });
+            },
+        ));
     }
 
     fn start(&mut self) {
@@ -793,12 +778,11 @@ impl ExportWindow {
             }
             Err(e) => notes.push(format!("note: the export settings were not saved ({e})")),
         }
-        let (tx, rx) = channel();
-        self.running = Some(rx);
         self.log = vec!["Exporting...".into()];
         self.log.extend(notes.iter().cloned());
-        std::thread::spawn(move || {
-            let run = move || -> Result<Vec<String>, EditorError> {
+        self.running = Some(Task::spawn(
+            "The export",
+            move || -> Result<Vec<String>, EditorError> {
                 let game = Game::open(&opfor.join("game")).map_err(|e| EditorError::Tool(e.to_string()))?;
                 let p = MapProject::load(&project).map_err(|e| EditorError::Tool(e.to_string()))?;
                 spec.level_id().map_err(|e| EditorError::Tool(e.to_string()))?;
@@ -823,26 +807,21 @@ impl ExportWindow {
                 });
                 out.extend(notes);
                 Ok(out)
-            };
-            let _ = tx.send(guarded("The export", run));
-        });
+            },
+        ));
     }
 
     /// The workers' answers that came (round DF1, audit AU4-BUG-4: a worker that ended without one - it panicked -
     /// is reported and its wait ended, never polled forever).
     pub fn poll(&mut self, ctx: &egui::Context) {
-        if let Some(r) = self.running.as_ref().and_then(|rx| answer(rx, "The export")) {
+        if let Some(r) = self.running.as_ref().and_then(Task::poll) {
             self.log = match r {
                 Ok(lines) => lines,
                 Err(e) => vec![format!("Not exported: {e}")],
             };
             self.running = None;
         }
-        if let Some(r) = self
-            .scanning
-            .as_ref()
-            .and_then(|rx| answer(rx, "Reading the content profiles"))
-        {
+        if let Some(r) = self.scanning.as_ref().and_then(Task::poll) {
             self.scanning = None;
             let project = self.project().map(Path::to_path_buf);
             // a first form made before the profiles were read takes the profile's default donor
@@ -854,11 +833,7 @@ impl ExportWindow {
             }
             self.profiles = Some(r);
         }
-        if let Some(r) = self
-            .previewing
-            .as_ref()
-            .and_then(|rx| answer(rx, "The preview pictures"))
-        {
+        if let Some(r) = self.previewing.as_ref().and_then(Task::poll) {
             self.previewing = None;
             match r {
                 Ok(data) => {
@@ -884,16 +859,13 @@ impl ExportWindow {
 
     /// Waits for the workers (the headless screenshots): the profiles and the preview read.
     pub fn settle(&mut self, ctx: &egui::Context, base: &str) {
-        if let Some(rx) = self.scanning.take() {
-            let r = rx.recv().unwrap_or_else(|e| Err(EditorError::Tool(e.to_string())));
-            self.profiles = Some(r);
+        if let Some(t) = self.scanning.take() {
+            self.profiles = Some(t.wait());
         }
         self.start_preview(base);
-        if let Some(rx) = self.previewing.take() {
-            let r = rx.recv().unwrap_or_else(|e| Err(EditorError::Tool(e.to_string())));
-            let (tx, rx2) = channel();
-            let _ = tx.send(r);
-            self.previewing = Some(rx2);
+        if let Some(t) = self.previewing.take() {
+            let r = t.wait();
+            self.previewing = Some(Task::answered("The preview pictures", r));
             self.poll(ctx);
         }
     }

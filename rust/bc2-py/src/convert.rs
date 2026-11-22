@@ -2,8 +2,8 @@
 //! and `convert_many` are `texture_convert` and `texture_convert_many`, a `ValueError` becoming its `ConvertError`
 //! with the same message (its Python converter was retired on 2026-11-17).
 //!
-//! `bfbc2-console-convert/audio.py`'s EA-XAS encoder and decoder are `xas_encode`, `xas_encode_many` and
-//! `xas_decode_frames`.
+//! `bfbc2-console-convert/audio.py`'s EA-XAS encoder and decoder are `xas_encode_many` (the single-file `xas_encode`, no
+//! caller left, went in round PR1b-2) and `xas_decode_frames`.
 //!
 //! Round E3g: `mesh.py`'s vertex loop is `mesh_vertices` and `havok.py`'s `Packfile.convert` is
 //! `havok_convert_packfile` (on a `HavokClasses`, the class layouts converted once); round E3o: `havok.verify`'s
@@ -60,23 +60,9 @@ fn i16_samples(b: &[u8]) -> PyResult<Vec<i16>> {
     Ok(pairs.iter().map(|p| i16::from_le_bytes(*p)).collect())
 }
 
-/// `audio.xas_encode_frames`: the frames (frame-major, 76 bytes per frame and channel) of `pcm`, little-endian
-/// int16 samples interleaved over `channels`.
-#[pyfunction]
-pub fn xas_encode<'py>(
-    py: Python<'py>,
-    pcm: &Bound<'py, PyBytes>,
-    channels: usize,
-) -> PyResult<Bound<'py, PyByteArray>> {
-    let samples = i16_samples(pcm.as_bytes())?;
-    let out = py
-        .detach(|| audio::encode(&samples, channels))
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    Ok(PyByteArray::new(py, &out))
-}
-
-/// `xas_encode` of many `(pcm, channels)` on all cores: each result the frames or the `ValueError`, returned,
-/// not raised.
+/// `audio.xas_encode_frames` of many `(pcm, channels)` on all cores (`pcm` little-endian int16 samples interleaved
+/// over `channels`): each result the frames (frame-major, 76 bytes per frame and channel) or the `ValueError`,
+/// returned, not raised.
 #[pyfunction]
 #[expect(
     clippy::needless_pass_by_value,

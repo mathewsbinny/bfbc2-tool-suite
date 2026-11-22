@@ -1,6 +1,8 @@
 r"""Who calls each function and class the Rust core's Python module exports (bc2_native; audit AU5 ARC-12).
 
     python rust\native_census.py [--opfor <folder>] [--markdown] [--unused]
+    python rust\native_census.py --check [--opfor <folder>]
+    python rust\native_census.py --record [--opfor <folder>]
 
 The exports are read from rust\bc2-py\src\lib.rs (its `#[pymodule_export] use super::<file>::{...}` lists). Each
 name is looked up, as a whole word, in the suite's tracked Python - tools and tests counted apart - and in Project
@@ -10,9 +12,15 @@ the census is for is telling which exports a retiring round can drop.
 
   --markdown  a table per bc2-py source file (name, tool callers, test callers, OPFOR callers)
   --unused    only the names no tool of the suite or OPFOR calls
+  --check     the check (round PR1b-2, run_tests.py quick): an export nothing calls - no tool or test of the suite,
+              no file of OPFOR's - fails (a class only returned, never named, is listed in RETURNED with why).
+              Without OPFOR's checkout the names OPFOR called when the census was last recorded count
+              (rust\native_census.json, --record); with it, a name OPFOR called then and calls no more is said.
+  --record    rewrites rust\native_census.json: the exports OPFOR's files name (sorted)
 
-Exit code 0 always: a report, not a check (the check, an export with no caller failing, comes when the twins retire).
+Exit code 0 for the reports; --check exits 1 on an export without a caller.
 """
+import json
 import os
 import re
 import subprocess
@@ -20,6 +28,12 @@ import sys
 
 SUITE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB = os.path.join(SUITE, 'rust', 'bc2-py', 'src', 'lib.rs')
+RECORD = os.path.join(SUITE, 'rust', 'native_census.json')
+# classes the module returns and Python never names (no caller by name is right for them)
+RETURNED = {
+    'AptLines': 'apt_decode(records=True) returns it (the dump kept in Rust until a line is asked for)',
+    'NavStageGraphs': "navstage_graphs returns it (the stage's graphs, read by index)",
+}
 EXPORT = re.compile(r'#\[pymodule_export\]\s*use\s+super::(\w+)::(?:\{([^}]*)\}|(\w+))\s*;', re.S)
 
 
@@ -73,6 +87,27 @@ def words(paths: list[str]) -> dict[str, set[str]]:
     return out
 
 
+def check(rows: list[tuple[str, str, int, int, int]], root: str | None) -> int:
+    recorded: list[str] = []
+    if os.path.isfile(RECORD):
+        with open(RECORD, encoding='utf-8') as f:
+            recorded = json.load(f).get('opfor', [])
+    bad = []
+    for src, n, t, te, o in rows:
+        opfor = o > 0 if root else n in recorded
+        if not (t or te or opfor or n in RETURNED):
+            bad.append(f'{n} ({src}.rs): no tool, test or OPFOR file calls it - drop the export, or name it in RETURNED')
+    if root:
+        gone = sorted(set(recorded) - {n for _s, n, _t, _te, o in rows if o})
+        if gone:
+            print(f'note: OPFOR no longer calls {", ".join(gone)} (python rust\\native_census.py --record)')
+    for b in bad:
+        print(f'FAIL {b}')
+    print(f'{"FAIL" if bad else "ok  "} {len(rows)} exports, {len(bad)} without a caller'
+          f' (OPFOR: {root or "the record, " + str(len(recorded)) + " names"})')
+    return 1 if bad else 0
+
+
 def main(argv: list[str]) -> int:
     ex = exports()
     suite = python_files(SUITE, True)
@@ -82,6 +117,17 @@ def main(argv: list[str]) -> int:
     opfor = words(python_files(root, False)) if root else {}
     rows = [(src, n, len(tools.get(n, ())), len(tests.get(n, ())), len(opfor.get(n, ()))) for src, n in ex]
     unused = [r for r in rows if r[2] == 0 and r[4] == 0]
+    if '--check' in argv:
+        return check(rows, root)
+    if '--record' in argv:
+        if not root:
+            print('FAIL OPFOR not found: nothing recorded')
+            return 1
+        with open(RECORD, 'w', encoding='utf-8', newline='\n') as f:
+            json.dump({'opfor': sorted({n for _s, n, _t, _te, o in rows if o})}, f, indent=1, sort_keys=True)
+            f.write('\n')
+        print(f'ok   {RECORD}')
+        return 0
     if '--unused' in argv:
         for src, n, _t, te, _o in unused:
             print(f'{n}  ({src}.rs; {te} test file(s))')
