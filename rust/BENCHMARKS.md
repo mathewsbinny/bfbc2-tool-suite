@@ -10513,7 +10513,7 @@ did not change: the estimate's formula is np.linalg.norm's bits on the recording
 ## PR1b-2-rest: the mesh viewer on its Rust port, typed errors, the anim and model tools in part (2026-11-22, branch `pr1b2r`)
 
 What PR1b-2 left ("PR1b-2", "What is left"), less sounds in process and the cache content keys / OPFOR's caches
-(round PR1b-1c's). Version **0.18.0** (removals: the pickle cache, `meshview.py`'s Python index / reader / renderer,
+(round PR1b-1c's). Version **0.19.0** (0.18.0 went to rounds OR3a and MM1, merged first; removals: the pickle cache, `meshview.py`'s Python index / reader / renderer,
 `bc2-convert`'s `pickle-cache` feature, `granny.py`'s curve reader, LevelDiff's command line moved; CHANGELOG).
 Nothing was written to OPFOR's `game\`; the game never launched.
 
