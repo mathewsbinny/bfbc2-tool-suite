@@ -383,7 +383,7 @@ the pieces below. Each piece is a rule written down in the module docstring and 
   - EIA spellings;
   - seat-hint texts;
   - bone indices on BFBC2's skeleton (`BoneTables`);
-  - DICE's conventions for the soldiers' weapons (`objects/weapons/` only), scored by `dbxparity.py --predict`.
+  - DICE's conventions for the soldiers' weapons (`objects/weapons/` only), scored by `dbxparity --predict` (`bfbc2 dbxparity`).
 - **Structured reports.** `port` returns `(bytes, Report)`. The Report is the old text lines (callers that read lines
   keep working) built from `records` (`Record(path, action, old, new, source, step, note, partition)`); callers read
   those instead of parsing text. effectport's report is a `Report` too, holding every partition's records. This is

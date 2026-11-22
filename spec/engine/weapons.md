@@ -460,4 +460,4 @@ Garand and Type 5) has `AlwaysAimHead` false, as DICE's 32 do (WPN-WW2-4).
 - **The AI clones.** Their 300 m/s, hold zoom and -1 magazines are measured; how the AI chooses a clone over the
   player weapon is in the AI data (`engine/ai.md`), not checked here.
 - **BF1943's side of the conversion.** WPN-WW2-2's BF1943 column is OPFOR's audit of BF1943's partitions
-  (`dbxparity.py --predict`); this file's probe measures only the BFBC2 side.
+  (`bfbc2 dbxparity --predict`); this file's probe measures only the BFBC2 side.

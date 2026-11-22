@@ -42,8 +42,33 @@ class _Captured(SystemExit):                     # a SystemExit: the tools' erro
         self.parser = parser
 
 
+def _retired_parity(prog: str, description: str, predict: bool) -> argparse.ArgumentParser:
+    """The parser dbxparity.py / portparity.py built (round PR1b-1d retired them; their last commit, 0434c22, has
+    them): `names` (*), `-o` (default <tool>.txt) and dbxparity's `--predict`."""
+    ap = argparse.ArgumentParser(prog=prog, description=description)
+    ap.add_argument('names', nargs='*')
+    ap.add_argument('-o', default=prog.replace('.py', '.txt'))
+    if predict:
+        ap.add_argument('--predict', action='store_true', help='score dbxport\'s value passes and DICE\'s conventions')
+    return ap
+
+
+# retired command lines whose texts bfbc2.exe still formats: their parsers as the deleted scripts built them
+RETIRED_PARSERS = {
+    'dbxparity': lambda: _retired_parity(
+        'dbxparity.py', 'dbxparity.py - BF1943\'s data partitions against DICE\'s own versions, field by field: the '
+        'ground truth for dbxport.', True),
+    'portparity': lambda: _retired_parity(
+        'portparity.py', 'portparity.py - how close our Battlefield 1943 conversions come to DICE\'s own. BFBC2 ships '
+        'PC versions of many', False),
+}
+
+
 def capture(tool: str) -> argparse.ArgumentParser:
-    """The parser `tool`'s main() builds (the tool run as bfbc2.exe hands it to Python: python <tool>.py)."""
+    """The parser `tool`'s main() builds (the tool run as bfbc2.exe hands it to Python: python <tool>.py); a retired
+    tool's as its script built it (RETIRED_PARSERS)."""
+    if tool in RETIRED_PARSERS:
+        return RETIRED_PARSERS[tool]()
     script = native.CLI_TOOLS[tool]
     saved = (argparse.ArgumentParser.parse_args, argparse.ArgumentParser.parse_known_args, sys.argv[:], sys.path[:])
 

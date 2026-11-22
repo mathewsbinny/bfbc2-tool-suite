@@ -12,8 +12,10 @@ python bf1943import.py check                       every animation and skeleton 
 
 Needs Python 3.12+ and the suite's Rust core. Without Python: `bin\bfbc2.exe bf1943import ...` (the suite's `bin\`,
 round O5) answers `list`, the help and the errors before work in Rust and hands `import` / `check` to the Python;
-`bfbc2.exe dbxcatalogue`, `dbxparity` and `portparity` (round O3) likewise answer from a current cache or the help
-and hand the real runs over (the suite's README, "bfbc2.exe"). The importer's own Rust switch is `importcore.py`
+`bfbc2.exe dbxcatalogue` (round O3) likewise answers from a current cache and hands the cache's build over (the
+suite's README, "bfbc2.exe"). The parity checks are `bfbc2.exe dbxparity` and `bfbc2.exe portparity` alone (round
+PR1b-1d retired `dbxparity.py` and `portparity.py`; `dbxparitylib.py` keeps the field flattening and the fair pools
+other code imports). The importer's own Rust switch is `importcore.py`
 (`BFBC2_IMPORTER_PYTHON=1` runs the Python).
 
 Filters are parts of a resource name (any case; all must match), e.g. `import M1Garand_Bayonet/` or
@@ -58,9 +60,11 @@ same base set instead. It is off unless asked for: measured leave-one-out on the
 beat the deploy's last frame. The Garand from the M24 is 9.1 / 15.1 degrees standing, against 0.1 / 7.3; it is
 exact only where the donor is the same animation (Vietnam's Garand, Thompson, M1911, TNT).
 
-## Parity with DICE's own conversions (`portparity.py`)
+## Parity with DICE's own conversions (`bfbc2 portparity`)
 
-`python portparity.py [name part ...] [-o report.txt]` converts every model BFBC2 also ships in a PC version (148:
+`bin\bfbc2.exe portparity [name part ...] [-o report.txt]` (round PR1b-1d: in Rust,
+`rust\bc2-cli\src\bf1943\portparity.rs` on `bc2_convert::meshport::Porter`; the retired `portparity.py`'s reports byte
+for byte) converts every model BFBC2 also ships in a PC version (148:
 the campaign prologue's Zero and Corsair, props, trees, weapons, soldiers) with `meshport` and `texture.convert`, and
 compares the result with DICE's, element by element. Per part: identical, precision (normal frames within 0.25 deg -
 DICE built its PC normals from the source art, so about 0.1 deg is the Xbox data's own rounding), differs (the
@@ -81,7 +85,7 @@ objects/ui/uibackground, has no layout in BF1943's shader databases).
 emitter documents (BF1943 keeps them per level: `levels/<level>/emitters/...`, the partition inside named
 `emitters/...`), their textures (converted; BFBC2's own kept where it has the name) - sounds and other partitions
 BFBC2 has stay references. Each partition goes through dbxport on BFBC2 templates that cover every Emitter.* type
-(DICE's small detonation and the emitter documents found to hold the rest). Checked first with `dbxparity.py` on
+(DICE's small detonation and the emitter documents found to hold the rest). Checked first with `dbxparity` on
 the 70 effect partitions both games have: no enum, kind, nested or renamed field; of the 26 fields BFBC2 added, the
 varying ones take DICE's usual value (`DEFAULTS`: SpawnProbability 1, no post effect), which the port checks.
 Used for the Bofors' flak burst (effect_aa_detonationblast: 3 emitters, 6 textures) and the Sherman's shell
@@ -297,7 +301,7 @@ In short:
 - `port` returns `(bytes, Report)`: the old text lines, and `report.records` (`Record(path, action, old, new, source,
   step, note, partition)`) for callers to read instead of parsing text.
 
-`python dbxparity.py --predict` scores the passes and conventions on the weapon and vehicle partitions both games
+`bfbc2 dbxparity --predict` scores the passes and conventions on the weapon and vehicle partitions both games
 ship. It uses fair pools (`FAIR_POOLS`), and the catalogue's class defaults never come from the partition's own
 instances. For each value it gives the baseline, the prediction and DICE's counterpart. That is how the conventions
 were scoped to the soldiers' weapons: before, 9 of 18 gravity values were right and the Zero's four were wrong.
@@ -336,8 +340,9 @@ take the template's value, BF1943-only fields are left out, every change reporte
 `bfbc2core.dbx.write` (new in the core: a binary DBX writer; 300 BFBC2 partitions parse back to the same tree, and
 DbxEdit reads its output and writes it back unchanged).
 
-**Checked against DICE (`dbxparity.py`, 2026-11-08).** BFBC2 ships many BF1943 partitions under the same names with
-the same instance GUIDs; `python dbxparity.py [name part ...] [-o report.txt]` compares every field of every instance
+**Checked against DICE (`dbxparity`, 2026-11-08).** BFBC2 ships many BF1943 partitions under the same names with
+the same instance GUIDs; `bin\bfbc2.exe dbxparity [name part ...] [-o report.txt]` (in Rust since round PR1b-1d,
+`rust\bc2-cli\src\bf1943\dbxparity.rs`) compares every field of every instance
 both games have and classifies the differences (enum: a number where DICE has a name; kind; nested: a field DICE keeps
 one level deeper; renamed: a BF1943-only field whose value DICE holds under another name; value; bf1943-only;
 dice-only). What it found is now in dbxport:

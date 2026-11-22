@@ -303,7 +303,7 @@ def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: 
 
 
 RETIRED = native.RETIRED_CLI       # round RT1 (RT3 more): their .py is gone; bfbc2.exe answers alone
-RETIRED_MARK = re.compile(r'was retired in\s+round RT\d+')     # the round is the tool's (native.RETIRED_ROUND)
+RETIRED_MARK = re.compile(r'was retired in\s+round [\w-]+')   # the round is the tool's (native.RETIRED_ROUND)
 
 
 def retired_check(tool: str, golden: dict[str, Any] | None, got: dict[str, Any], who: str) -> str:

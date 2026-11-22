@@ -192,9 +192,21 @@ fn load_index(p: &str, reader_sig: &str, folder_nc: &str) -> Option<HashMap<Stri
 }
 
 impl Source {
-    /// `Source(folder)`; `suite`: the suite folder (`paths.SUITE`).
+    /// `Source(folder)`; `suite`: the suite folder (`paths.SUITE`). Where the open would write the index, the
+    /// command line is handed to the Python (its pickle is the Python's own bytes).
     pub fn open(folder: &str, suite: &str) -> PyResult<Self> {
-        if std::env::var("BF1943_SOURCE_WHOLE").is_ok_and(|v| !v.is_empty() && v != "0") {
+        Self::open_with(folder, suite, true)
+    }
+
+    /// `Source(folder)` for a command line that has no Python to hand to (round PR1b-1d: the parity tools): the
+    /// same entries and bytes; where the Python would write its index, the index is left as it is (the next
+    /// Python open writes it) and the bundles checked here are read as checked.
+    pub fn open_reading(folder: &str, suite: &str) -> PyResult<Self> {
+        Self::open_with(folder, suite, false)
+    }
+
+    fn open_with(folder: &str, suite: &str, hand_off: bool) -> PyResult<Self> {
+        if hand_off && std::env::var("BF1943_SOURCE_WHOLE").is_ok_and(|v| !v.is_empty() && v != "0") {
             return Err(Fail::Python); // WholeSource, the reference
         }
         if !pyos::isdir(folder) {
@@ -286,7 +298,8 @@ impl Source {
             return Err(import_error(format!("{folder}: no BF1943 bundles in it")));
         }
         // the index would be written (fresh != index): the Python writes its own pickle
-        if index_path.is_some()
+        if hand_off
+            && index_path.is_some()
             && (checked || fresh_keys.len() != index.len() || fresh_keys.iter().any(|k| !index.contains_key(*k)))
         {
             return Err(Fail::Python);

@@ -84,23 +84,32 @@ def main() -> int:
     if os.path.isfile(GOLDEN) and not RECORD:
         with open(GOLDEN, encoding='utf-8') as f:
             golden = json.load(f)
+    kept = golden
+    if RECORD and os.path.isfile(GOLDEN):
+        with open(GOLDEN, encoding='utf-8') as f:
+            kept = json.load(f)
     # the trace in a folder of this run's own (was SCRATCH/argfmt_trace.txt: two worktrees' runs at once deleted each
     # other's trace before it was read, a FileNotFoundError)
     tmp = tempfile.mkdtemp(prefix='argfmt_', dir=SCRATCH)
     try:
-        return compare(exe, golden, os.path.join(tmp, 'trace.txt'))
+        return compare(exe, golden, os.path.join(tmp, 'trace.txt'), kept)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def compare(exe: str | None, golden: dict[str, dict[str, object]], trace: str) -> int:
+def compare(exe: str | None, golden: dict[str, dict[str, object]], trace: str,
+            kept: dict[str, dict[str, object]]) -> int:
+    """kept: the recording of the retired tools' lines (no Python to record them from any more)."""
     failed = 0
     rec: dict[str, dict[str, object]] = {}
     for tool, args in CASES:
         script = native.CLI_TOOLS[tool]
         for w in WIDTHS:
             k = key(tool, args, w)
-            if LIVE:
+            if LIVE and tool in native.RETIRED_CLI:
+                if k in kept:                        # no Python command line any more: its recording stays
+                    rec[k] = kept[k]
+            elif LIVE:
                 py = run([sys.executable, script, *args], w)
                 rec[k] = py
                 if not RECORD and golden.get(k) != py:

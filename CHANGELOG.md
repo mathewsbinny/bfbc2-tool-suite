@@ -28,6 +28,24 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-22
+
+### Changed
+- **`bfbc2 dbxparity` and `bfbc2 portparity` run in Rust** (round PR1b-1d): BF1943's partitions against DICE's own field
+  by field (and `--predict`, dbxport's passes scored on fair pools), and the importer's model conversions against
+  DICE's PC files, without Python. Their reports, JSON and console lines are the Python tools' byte for byte on
+  the user's BF1943 and game copy; `--predict` builds the DBX catalogue in process (it neither reads nor writes
+  `work\tools_out\dbx_catalogue.pkl`), and a stale BF1943 source index is read as the Python read it but not
+  written (the next Python open writes it). Every argparse form of their command lines is answered in Rust
+  (`--`, attached values, positionals around options). A `float2` vertex element is compared as two singles (the
+  Python read three; no compared part has one: spec rule XWW2-PAR-3).
+
+### Removed
+- `bfbc2-bf1943-import\dbxparity.py` and `portparity.py` (their command lines and `dbxparity.compare` / `predict`):
+  `bfbc2 dbxparity|portparity` answer alone (`RETIRED.md`). The library is `bfbc2-bf1943-import\dbxparitylib.py`
+  (`instances`, `flatten`, `FAIR_POOLS`, `family`, `fair_pool`, `fair_catalogue`); Project OPFOR's WW2 QA imports it
+  from 0.21.0 on.
+
 ## [0.20.0] - 2026-11-22
 
 ### Added

@@ -715,6 +715,289 @@ pub fn relayout(b: &[u8], old: &[&[u8]], new: &[&[u8]]) -> Res<Vec<u8>> {
     relayout_finish(b, m, new, &done)
 }
 
+/// `pair_by_kind(ec, ep, leftovers=True)`: the console element for each PC element (the k-th of a kind the k-th).
+fn pair_by_kind(ec: &[Element], ep: &[Element]) -> Option<Vec<usize>> {
+    let mut pools: Vec<((u8, u8, u8), std::collections::VecDeque<usize>)> = Vec::new();
+    for (i, &(f, u, _, s)) in ec.iter().enumerate() {
+        let k = (pc_format(f), u, s);
+        match pools.iter_mut().find(|(x, _)| *x == k) {
+            Some((_, v)) => v.push_back(i),
+            None => pools.push((k, std::collections::VecDeque::from([i]))),
+        }
+    }
+    let mut out = Vec::with_capacity(ep.len());
+    for &(f, u, _, s) in ep {
+        let pool = pools.iter_mut().find(|(x, _)| *x == (f, u, s))?;
+        out.push(pool.1.pop_front()?);
+    }
+    Some(out)
+}
+
+/// Python's `repr` of an element tuple.
+fn element_repr(e: Element) -> String {
+    format!("({}, {}, {}, {})", e.0, e.1, e.2, e.3)
+}
+
+/// `_not_converted(name, pairs, sp)`: why the vertices do not convert (`name`: the part name's `repr`).
+fn not_converted(name: &str, pairs: &[(Element, Element)], sp: usize) -> String {
+    for ((fc, ..), (fp, _, op, _)) in pairs {
+        let known = size(*fc).is_some() && size(*fp).is_some();
+        let made =
+            (fc == fp && crate::mesh::swap_width(*fc).is_some()) || matches!((fc, fp), (0x2B, 0x08) | (0x0D, 0x08));
+        if !known || !made {
+            return format!("vertex element format {fc:#04x} -> {fp:#04x} is not converted");
+        }
+        let zp = size(*fp).unwrap_or(0);
+        if usize::from(*op) + zp > sp {
+            return format!(
+                "part {name}: a {zp}-byte element at {op} of its {sp}-byte PC vertex reaches past the vertex"
+            );
+        }
+    }
+    format!("part {name}: its vertices reach past the end of the mesh data")
+}
+
+/// Converted vertices of one console region appended to `vb` (`convert`'s `emit`): their start.
+#[allow(clippy::too_many_arguments, reason = "the reference's emit arguments")]
+fn emit(
+    b: &[u8],
+    vb: &mut Vec<u8>,
+    name: &str,
+    pairs: &[(Element, Element)],
+    (sc, sp, colour): (usize, usize, bool),
+    src: usize,
+    first: usize,
+    count: usize,
+) -> Res<usize> {
+    let start = vb.len();
+    let ps: Vec<crate::mesh::Pair> = pairs
+        .iter()
+        .map(|(c, p)| crate::mesh::Pair {
+            fc: c.0,
+            oc: usize::from(c.2),
+            fp: p.0,
+            op: usize::from(p.2),
+        })
+        .collect();
+    let got = crate::mesh::convert_vertices(b, src, sc, sp, first, count, &ps, colour)
+        .ok_or_else(|| Refusal::Error(not_converted(name, pairs, sp)))?;
+    vb.extend_from_slice(&got);
+    Ok(start)
+}
+
+/// A part's plan: (element pairs, console stride, PC stride, colour, its key: vertex offset, PC layout, the console
+/// elements kept).
+type Plan = (
+    Vec<(Element, Element)>,
+    usize,
+    usize,
+    bool,
+    (usize, Vec<u8>, Vec<usize>),
+);
+
+/// `mesh.convert(b, layouts, reorder='drop', bones=bones)`: console `MeshData` to the PC's, each part's vertices from
+/// its console layout record body into its PC one (the elements paired by kind, console elements the PC layout has no
+/// place for left out), `bones` (`{old: new}`) renumbering the parts' palettes; strips unrolled into lists, indices
+/// narrowed to 16 bits. [`Refusal::Error`] with the reference's `ConvertError` message; [`Refusal::Reference`] where
+/// the header does not read (the reference's `Refused`) or the reference would fail otherwise (a zero stride, an
+/// index run past the data).
+///
+/// # Errors
+/// See above.
+#[allow(clippy::too_many_lines, reason = "mesh.convert, step for step")]
+pub fn convert<S: std::hash::BuildHasher>(
+    b: &[u8],
+    layouts: &[(&[u8], &[u8])],
+    bones: Option<&std::collections::HashMap<u32, u32, S>>,
+) -> Res<Vec<u8>> {
+    use std::collections::HashMap;
+    let mut m = meshdata::parse_mesh(b, true).map_err(|_| Refusal::Reference)?;
+    if layouts.len() != m.parts.len() {
+        return fail(format!("{} parts, {} layout pairs", m.parts.len(), layouts.len()));
+    }
+    if let Some(bones) = bones {
+        for p in &mut m.parts {
+            let missing: Vec<String> = p
+                .bones
+                .iter()
+                .filter(|x| !bones.contains_key(&u32::from(**x)))
+                .map(ToString::to_string)
+                .collect();
+            if !missing.is_empty() {
+                return fail(format!(
+                    "part {}: bones [{}] have no counterpart in the target skeleton",
+                    bytes_repr(&p.name),
+                    missing.join(", ")
+                ));
+            }
+            let mut mapped = Vec::with_capacity(p.bones.len());
+            for x in &p.bones {
+                let v = bones.get(&u32::from(*x)).copied().unwrap_or(0);
+                mapped.push(u16::try_from(v).map_err(|_| Refusal::Reference)?);
+            }
+            p.bones = mapped;
+        }
+    }
+    let wide = m.sizes[2] != 0;
+    let idx_size = if wide { 4 } else { 2 };
+    let (vbytes, ibytes) = (m.sizes[0] as usize, m.sizes[1] as usize);
+    let mut offsets: Vec<usize> = m.parts.iter().map(|p| p.counts[3] as usize).collect();
+    offsets.push(vbytes);
+    offsets.sort_unstable();
+    offsets.dedup();
+    let at = m.data + vbytes;
+    let count = ibytes / idx_size;
+    let raw_idx = b.get(at..at + count * idx_size).ok_or(Refusal::Reference)?;
+    let idx_all: Vec<i64> = if wide {
+        raw_idx
+            .chunks_exact(4)
+            .map(|c| i64::from(u32::from_be_bytes([c[0], c[1], c[2], c[3]])))
+            .collect()
+    } else {
+        raw_idx
+            .chunks_exact(2)
+            .map(|c| i64::from(u16::from_be_bytes([c[0], c[1]])))
+            .collect()
+    };
+    let mut plans: Vec<Plan> = Vec::with_capacity(m.parts.len());
+    for (p, (lc, lp)) in m.parts.iter().zip(layouts) {
+        let name = bytes_repr(&p.name);
+        let (ec, sc) = elements(lc).ok_or(Refusal::Reference)?;
+        let (ep, sp) = elements(lp).ok_or(Refusal::Reference)?;
+        let Some(keep) = pair_by_kind(&ec, &ep) else {
+            return fail(format!(
+                "part {name}: the console and PC layouts do not hold the same elements"
+            ));
+        };
+        if keep.len() != ep.len() {
+            return fail(format!(
+                "part {name}: {} console elements for {} PC elements",
+                keep.len(),
+                ep.len()
+            ));
+        }
+        let mut pairs = Vec::with_capacity(ep.len());
+        for (&i, &e) in keep.iter().zip(&ep) {
+            let c = ec[i];
+            if pc_format(c.0) != e.0 || c.1 != e.1 || c.3 != e.3 {
+                return fail(format!(
+                    "part {name}: element {i} {} does not become {}",
+                    element_repr(c),
+                    element_repr(e)
+                ));
+            }
+            pairs.push((c, e));
+        }
+        if usize::from(p.bytes[0]) != sc {
+            return fail(format!(
+                "part {name}: stride {}, its console layout says {sc}",
+                p.bytes[0]
+            ));
+        }
+        let key = (p.counts[3] as usize, lp.to_vec(), keep);
+        plans.push((pairs, sc, sp, ec.iter().any(|e| e.0 == 0x0D), key));
+    }
+    // the (PC layout, elements kept) pairs each console region is given
+    let mut layouts_at: HashMap<usize, Vec<(Vec<u8>, Vec<usize>)>> = HashMap::new();
+    for (p, plan) in m.parts.iter().zip(&plans) {
+        let v = layouts_at.entry(p.counts[3] as usize).or_default();
+        let k = (plan.4.1.clone(), plan.4.2.clone());
+        if !v.contains(&k) {
+            v.push(k);
+        }
+    }
+    let one_layout = |off: usize| layouts_at.get(&off).is_some_and(|v| v.len() == 1);
+    let mut vb: Vec<u8> = Vec::new();
+    let mut shared: HashMap<(usize, Vec<u8>, Vec<usize>), usize> = HashMap::new();
+    let mut windows: HashMap<(usize, Vec<u8>, Vec<usize>), Vec<(i64, i64, usize)>> = HashMap::new();
+    let mut new_offset: Vec<i64> = vec![0; m.parts.len()];
+    let single: Vec<usize> = (0..m.parts.len())
+        .filter(|&i| one_layout(m.parts[i].counts[3] as usize))
+        .collect();
+    let mut others: Vec<usize> = (0..m.parts.len()).filter(|i| !single.contains(i)).collect();
+    others.sort_by_key(|&i| std::cmp::Reverse(m.parts[i].counts[1]));
+    for n in single.iter().chain(&others).copied() {
+        let p = &m.parts[n];
+        let (pairs, sc, sp, colour, key) = &plans[n];
+        let strides = (*sc, *sp, *colour);
+        let (sc, sp) = (*sc, *sp);
+        let name = bytes_repr(&p.name);
+        let vo = p.counts[3] as usize;
+        let src = m.data + vo;
+        let nxt = offsets.iter().copied().find(|&o| o > vo).unwrap_or(vo);
+        if sc == 0 {
+            return Err(Refusal::Reference); // the reference's ZeroDivisionError
+        }
+        if !(nxt - vo).is_multiple_of(sc) {
+            return fail(format!(
+                "part {name}: {} vertex bytes, not a whole number of {sc}-byte vertices",
+                nxt - vo
+            ));
+        }
+        let region = ((nxt - vo) / sc) as i64;
+        let first = p.counts[2] as usize;
+        let end = (first as u64 + index_count(p.counts[0], p.bytes[1])).min(idx_all.len() as u64) as usize;
+        let used = idx_all.get(first.min(end)..end).unwrap_or_default();
+        let lo = used.iter().copied().min().unwrap_or(0);
+        let verts = i64::from(p.counts[1]);
+        if used.iter().copied().max().is_some_and(|hi| hi >= lo + verts) || lo + verts > region {
+            return fail(format!(
+                "part {name}: its indices leave the window of its {verts} vertices"
+            ));
+        }
+        if one_layout(vo) {
+            let off = if let Some(&s) = shared.get(key) {
+                s
+            } else {
+                let s = emit(b, &mut vb, &name, pairs, strides, src, 0, region as usize)?;
+                shared.insert(key.clone(), s);
+                s
+            };
+            new_offset[n] = off as i64;
+            continue;
+        }
+        let hit = windows.get(key).and_then(|w| {
+            w.iter()
+                .find(|(clo, chi, _)| *clo <= lo && lo + verts <= *chi)
+                .map(|(clo, _, s)| (*clo, *s))
+        });
+        let hit = if let Some(h) = hit {
+            h
+        } else {
+            let s = emit(b, &mut vb, &name, pairs, strides, src, lo as usize, verts as usize)?;
+            windows.entry(key.clone()).or_default().push((lo, lo + verts, s));
+            (lo, s)
+        };
+        new_offset[n] = hit.1 as i64 - hit.0 * sp as i64;
+        if new_offset[n] < 0 {
+            return fail(format!("part {name}: its window would start before the vertex data"));
+        }
+    }
+    for ((p, plan), off) in m.parts.iter_mut().zip(&plans).zip(&new_offset) {
+        p.bytes[0] = u8::try_from(plan.2).map_err(|_| Refusal::Reference)?;
+        p.counts[3] = u32::try_from(*off).map_err(|_| Refusal::Reference)?;
+    }
+    let mut ind = idx_all;
+    for p in &mut m.parts {
+        if p.bytes[1] == STRIP {
+            let first = p.counts[2] as usize;
+            let end = (first as u64 + index_count(p.counts[0], p.bytes[1])).min(ind.len() as u64) as usize;
+            let tri = strip_to_list(ind.get(first.min(end)..end).unwrap_or_default());
+            p.counts[2] = u32::try_from(ind.len()).map_err(|_| Refusal::Reference)?;
+            p.counts[0] = u32::try_from(tri.len() / 3).map_err(|_| Refusal::Reference)?;
+            p.bytes[1] = 3;
+            ind.extend(tri);
+        }
+    }
+    let hi = ind.iter().copied().max().unwrap_or(0);
+    if hi > 0xFFFF {
+        return fail(format!("index {hi}: the PC mesh data has 16-bit indices only"));
+    }
+    let ib: Vec<u8> = ind.iter().flat_map(|&i| (i as u16).to_le_bytes()).collect();
+    m.sizes[2] = 0;
+    meshdata::write_mesh(&m, &vb, &ib).map_err(|_| Refusal::Reference)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -730,5 +1013,81 @@ mod tests {
     fn strips() {
         assert_eq!(strip_to_list(&[0, 1, 2, 3]), vec![0, 1, 2, 2, 1, 3]);
         assert_eq!(strip_to_list(&[0, 0, 1, 2]), vec![1, 0, 2]);
+    }
+
+    /// A console (big-endian) MeshData of one part: four float3 positions, a strip of four indices (k = 5) or a
+    /// list of six, palette `bones`.
+    fn console_mesh(k: u8, bones: &[u16]) -> Vec<u8> {
+        let idx: &[u16] = if k == STRIP { &[0, 1, 2, 3] } else { &[0, 1, 2, 2, 1, 3] };
+        let tris: u32 = 2;
+        let mut b = Vec::new();
+        b.extend_from_slice(&7u32.to_be_bytes());
+        b.extend_from_slice(&[0, 0, 1]);
+        b.extend_from_slice(b"Body\0");
+        for c in [tris, 4, 0, 0] {
+            b.extend_from_slice(&c.to_be_bytes());
+        }
+        b.extend_from_slice(&[12, k, 0, bones.len() as u8]);
+        b.extend_from_slice(&(bones.len() as u16).to_be_bytes());
+        for x in bones {
+            b.extend_from_slice(&x.to_be_bytes());
+        }
+        for _ in 0..4 {
+            b.extend_from_slice(&0u32.to_be_bytes());
+        }
+        for s in [48u32, 2 * idx.len() as u32, 0] {
+            b.extend_from_slice(&s.to_be_bytes());
+        }
+        for v in 0..12 {
+            b.extend_from_slice(&(v as f32).to_be_bytes());
+        }
+        for i in idx {
+            b.extend_from_slice(&i.to_be_bytes());
+        }
+        b
+    }
+
+    fn position_layout() -> Vec<u8> {
+        let mut l = vec![0u8; 0x49];
+        l[..4].copy_from_slice(&[3, 1, 0, 0]);
+        l[64] = 1;
+        l[69] = 12;
+        l
+    }
+
+    #[test]
+    #[allow(clippy::expect_used, reason = "a test's own built inputs")]
+    fn converts_as_mesh_convert() {
+        let l = position_layout();
+        let pc = convert::<std::collections::hash_map::RandomState>(&console_mesh(3, &[]), &[(&l, &l)], None)
+            .expect("converts");
+        let m = meshdata::parse_mesh(&pc, false).expect("a PC mesh");
+        assert_eq!((m.sizes, m.parts[0].counts), ([48, 12, 0], [2, 4, 0, 0]));
+        assert_eq!(&pc[m.data + 4..m.data + 8], &1f32.to_le_bytes());
+        // a strip: its list appended after the console's indices, the part pointing at it
+        let pc = convert::<std::collections::hash_map::RandomState>(&console_mesh(STRIP, &[]), &[(&l, &l)], None)
+            .expect("converts");
+        let m = meshdata::parse_mesh(&pc, false).expect("a PC mesh");
+        assert_eq!((m.parts[0].counts, m.parts[0].bytes[1]), ([2, 4, 4, 0], 3));
+        let ib = &pc[m.data + 48..];
+        let ind: Vec<u16> = ib.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        assert_eq!(ind, vec![0, 1, 2, 3, 0, 1, 2, 2, 1, 3]);
+        // palettes renumbered; a bone the map lacks is the reference's error
+        let map: std::collections::HashMap<u32, u32> = [(5, 9), (6, 1)].into_iter().collect();
+        let pc = convert(&console_mesh(3, &[5, 6]), &[(&l, &l)], Some(&map)).expect("converts");
+        assert_eq!(
+            meshdata::parse_mesh(&pc, false).expect("a PC mesh").parts[0].bones,
+            vec![9, 1]
+        );
+        assert_eq!(
+            convert(&console_mesh(3, &[5, 7]), &[(&l, &l)], Some(&map)),
+            Err(Refusal::Error(
+                "part b'Body': bones [7] have no counterpart in the target skeleton".into()
+            ))
+        );
+        assert_eq!(
+            convert::<std::collections::hash_map::RandomState>(&console_mesh(3, &[]), &[], None),
+            Err(Refusal::Error("1 parts, 0 layout pairs".into()))
+        );
     }
 }

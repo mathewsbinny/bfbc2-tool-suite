@@ -347,6 +347,8 @@ pub const RETIRED: &[(&str, &str)] = &[
     ("culltree", "RT3"),
     ("stockmp", "RT3"),
     ("crashreader", "RT3"),
+    ("dbxparity", "PR1b-1d"),
+    ("portparity", "PR1b-1d"),
 ];
 
 /// The round that retired `tool`'s Python command line, if it was.

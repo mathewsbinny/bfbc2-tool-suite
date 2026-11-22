@@ -265,7 +265,6 @@ JSON_ORDER_KEPT = {
     'bfbc2-auto-navkit/tools/navwater_mesh.py': 3, 'bfbc2-automated-map-and-bot-test-harness/harness.py': 1,
     'bfbc2-automated-map-and-bot-test-harness/testharness/levelinfo.py': 2,
     'bfbc2-automated-map-and-bot-test-harness/testharness/runs.py': 1, 'bfbc2-bf1943-import/bf1943import.py': 1,
-    'bfbc2-bf1943-import/dbxparity.py': 1, 'bfbc2-bf1943-import/portparity.py': 1,
     'bfbc2-console-convert/texqa.py': 4, 'bfbc2-mesh-viewer/meshview.py': 1, 'bfbc2-navigation-studio/overlay.py': 1,
     'bfbc2-shader-tools/renderqa.py': 1, 'bfbc2-shader-tools/xdiff.py': 1, 'bfbc2-stockmp-ai/config.py': 2,
     'bfbc2-stockmp-ai/pipeline.py': 1, 'bfbc2-stockmp-ai/validate.py': 1, 'core/bfbc2core/atomicio.py': 1,
