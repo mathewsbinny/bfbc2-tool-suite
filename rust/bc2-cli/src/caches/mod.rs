@@ -20,11 +20,12 @@ use std::collections::HashSet;
 use std::fmt::Write as _;
 
 use crate::argfmt::Long;
-use crate::budget::{self, MARKER_AGE, MB, SPECS, Spec};
-use crate::logs::{self, Done, Seen};
+use crate::budget::{self, MB, SPECS, Spec};
+use crate::logs::{self, Done};
 use crate::pylog;
-use crate::pyos::files::{self as fsx, Entry};
+use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, Tool, suite_root};
+use bc2_gamefs::budget as gb;
 use bc2_pyrt::py::{abspath, basename, dirname, isdir, isfile, join};
 
 /// The group's tools.
@@ -35,10 +36,7 @@ pub const TOOLS: &[Tool] = &[Tool {
     run,
 }];
 
-const LOCK: &str = ".prune.lock";
 const STAMP: &str = ".pruned";
-/// `STALE_TMP`: a temporary file not written to for this long is a dead writer's
-const STALE_TMP: f64 = 3600.0;
 const LOGS: &str = "logs";
 const TARGET_RECENT: f64 = 86_400.0;
 const CARGO_MARKS: [&str; 2] = ["CACHEDIR.TAG", ".rustc_info.json"];
@@ -74,133 +72,10 @@ fn folder(s: &Spec, opfor: Option<&str>) -> Option<String> {
     }
 }
 
-/// `caches._Scan`.
-#[derive(Default)]
-struct Scan {
-    entries: Vec<Seen>,
-    temps: Vec<Seen>,
-    markers: Vec<Seen>,
-}
-
-fn seen(e: Entry, st: fsx::Stat) -> Seen {
-    Seen {
-        path: e.path,
-        size: st.size,
-        mtime_ns: st.mtime_ns,
-        used: st.atime.max(st.mtime),
-    }
-}
-
-/// `caches._scan(top, suffixes, markers)`.
-fn scan(top: &str, suffixes: &[&str], markers: &[&str]) -> Scan {
-    let mut out = Scan::default();
-    let mut stack = vec![top.to_owned()];
-    while let Some(d) = stack.pop() {
-        let Ok(entries) = fsx::scandir(&d) else { continue };
-        for e in entries {
-            if e.link {
-                continue;
-            }
-            if e.dir {
-                stack.push(e.path);
-                continue;
-            }
-            if e.name.starts_with('.') || !e.file {
-                continue;
-            }
-            let Some(st) = e.stat else { continue };
-            let name = e.name.clone();
-            if budget::is_temp(&name) {
-                out.temps.push(seen(e, st));
-            } else if suffixes.iter().any(|s| name.ends_with(s)) {
-                out.entries.push(seen(e, st));
-            } else if !markers.is_empty() && markers.iter().any(|m| name.ends_with(m)) {
-                out.markers.push(seen(e, st));
-            }
-        }
-    }
-    out
-}
-
-/// `_drop_stale(scan, now, marker_age, r)`.
-fn drop_stale(temps: &[Seen], markers: &[Seen], now: f64, marker_age: f64, r: &mut Done) {
-    let all = temps
-        .iter()
-        .map(|t| (t, STALE_TMP))
-        .chain(markers.iter().map(|m| (m, marker_age)));
-    for (f, age) in all {
-        if now - (f.mtime_ns as f64) / 1e9 > age && f.delete_if_unchanged(true) == Some(true) {
-            r.stale += 1;
-        }
-    }
-}
-
-fn by_use(a: &Seen, b: &Seen) -> std::cmp::Ordering {
-    a.used.total_cmp(&b.used).then_with(|| a.path.cmp(&b.path))
-}
-
-/// `prune(top, cap, suffixes, markers=, marker_age=)`: under the folder's lock, then its `.pruned` stamp.
+/// `prune(top, cap, suffixes, markers=, marker_age=)`: under the folder's lock, then its `.pruned` stamp
+/// ([`bc2_gamefs::budget::prune`]).
 fn prune(top: &str, cap_bytes: u64, s: &Spec) -> PyResult<Done> {
-    if !isdir(top) {
-        return Ok(Done::default());
-    }
-    fsx::locked(&join(top, &[LOCK]), || {
-        let mut r = Done::default();
-        let sc = scan(top, s.suffixes, s.markers);
-        drop_stale(&sc.temps, &sc.markers, fsx::now(), MARKER_AGE, &mut r);
-        let mut total: u64 = sc.entries.iter().map(|f| f.size).sum();
-        // round QW1: the bundle cache's superseded payloads (a bundle rewritten at the same path) go first, whatever
-        // the cap; caches.py's prune does the same through the same bc2_formats function
-        let gone: HashSet<String> = if s.name == "fbrb" {
-            bc2_gamefs::bundles::superseded(std::path::Path::new(top))
-                .iter()
-                .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-                .collect()
-        } else {
-            HashSet::new()
-        };
-        let mut order: Vec<&Seen> = Vec::new();
-        for f in &sc.entries {
-            if !gone.contains(&basename(&f.path)) {
-                order.push(f);
-                continue;
-            }
-            match f.delete_if_unchanged(true) {
-                Some(false) => {
-                    r.busy += 1;
-                    order.push(f);
-                }
-                gone_now => {
-                    total -= f.size;
-                    if gone_now == Some(true) {
-                        r.deleted_bytes += f.size;
-                        r.deleted_files += 1;
-                    }
-                }
-            }
-        }
-        order.sort_by(|a, b| by_use(a, b));
-        for f in order {
-            if total <= cap_bytes {
-                break;
-            }
-            match f.delete_if_unchanged(true) {
-                Some(false) => r.busy += 1,
-                gone => {
-                    total -= f.size;
-                    if gone == Some(true) {
-                        r.deleted_bytes += f.size;
-                        r.deleted_files += 1;
-                    }
-                }
-            }
-        }
-        r.kept_bytes = total;
-        r.kept_files = sc.entries.len() as u64 - r.deleted_files;
-        let _ = fsx::touch_marker(&join(top, &[STAMP]));
-        r
-    })
-    .map_err(|_| Fail::Python)
+    gb::prune(top, cap_bytes, s).map_err(|_| Fail::Python)
 }
 
 /// `maybe_prune(name, top)` after a tool wrote to its cache (round CT1: culltree's row cache): the folder pruned to
@@ -223,109 +98,19 @@ pub fn maybe_prune(name: &str, top: &str) {
     budget::after_bundle_read();
 }
 
-/// `clear(top, suffixes, markers)`.
+/// `clear(top, suffixes, markers)` ([`bc2_gamefs::budget::clear`]).
 fn clear(top: &str, s: &Spec) -> PyResult<Done> {
-    if !isdir(top) {
-        return Ok(Done::default());
-    }
-    fsx::locked(&join(top, &[LOCK]), || {
-        let mut r = Done::default();
-        let sc = scan(top, s.suffixes, s.markers);
-        drop_stale(&sc.temps, &[], fsx::now(), 0.0, &mut r);
-        for f in &sc.markers {
-            let _ = f.delete_if_unchanged(false);
-        }
-        for f in &sc.entries {
-            match f.delete_if_unchanged(false) {
-                Some(false) => {
-                    r.busy += 1;
-                    r.kept_bytes += f.size;
-                    r.kept_files += 1;
-                }
-                Some(true) => {
-                    r.deleted_bytes += f.size;
-                    r.deleted_files += 1;
-                }
-                None => {}
-            }
-        }
-        r
-    })
-    .map_err(|_| Fail::Python)
+    gb::clear(top, s).map_err(|_| Fail::Python)
 }
 
 /// `usage(top, suffixes, markers)`: (bytes of entries, entries, bytes of temporary files and markers).
 fn usage(top: &str, s: &Spec) -> (u64, usize, u64) {
-    if !isdir(top) {
-        return (0, 0, 0);
-    }
-    let sc = scan(top, s.suffixes, s.markers);
-    let sum = |v: &[Seen]| v.iter().map(|f| f.size).sum::<u64>();
-    (sum(&sc.entries), sc.entries.len(), sum(&sc.temps) + sum(&sc.markers))
-}
-
-/// `members(opfor)`: (spec, folder) of every cache the budget counts, a folder named twice counted once.
-fn members(opfor: Option<&str>) -> Vec<(&'static Spec, String)> {
-    let mut out = Vec::new();
-    let mut keys = HashSet::new();
-    for s in SPECS {
-        let Some(top) = folder(s, opfor) else { continue };
-        if !isdir(&top) {
-            continue;
-        }
-        if keys.insert(fsx::normcase(&abspath(&top))) {
-            out.push((s, top));
-        }
-    }
-    out
+    gb::usage(top, s)
 }
 
 /// `prune_total(opfor=opfor)`: {name: what it did there}, in the members' order.
 fn prune_total(opfor: Option<&str>) -> PyResult<Vec<(&'static str, Done)>> {
-    let cap_bytes = total_cap();
-    let root = budget::cache_root();
-    std::fs::create_dir_all(&root).map_err(|_| Fail::Python)?;
-    fsx::locked(&join(&root, &[budget::TOTAL_LOCK]), || {
-        let mut files: Vec<(Seen, usize)> = Vec::new();
-        let mut out: Vec<(&'static str, Done)> = Vec::new();
-        for (s, top) in members(opfor) {
-            let k = out.len();
-            files.extend(scan(&top, s.suffixes, &[]).entries.into_iter().map(|f| (f, k)));
-            out.push((s.name, Done::default()));
-        }
-        let mut total: u64 = files.iter().map(|f| f.0.size).sum();
-        let mut order: Vec<&(Seen, usize)> = files.iter().collect();
-        order.sort_by(|a, b| by_use(&a.0, &b.0));
-        for (f, k) in order {
-            if total <= cap_bytes {
-                break;
-            }
-            let Some(r) = out.get_mut(*k).map(|o| &mut o.1) else {
-                continue;
-            };
-            match f.delete_if_unchanged(true) {
-                Some(false) => r.busy += 1,
-                gone => {
-                    total -= f.size;
-                    if gone == Some(true) {
-                        r.deleted_bytes += f.size;
-                        r.deleted_files += 1;
-                    }
-                }
-            }
-        }
-        for (f, k) in &files {
-            if std::path::Path::new(&f.path).exists()
-                && let Some(o) = out.get_mut(*k)
-            {
-                o.1.kept_bytes += f.size;
-                o.1.kept_files += 1;
-            }
-        }
-        let _ = fsx::touch_marker(&join(&root, &[budget::TOTAL_STAMP]));
-        out
-    })
-    .map_err(|_| Fail::Python)
+    gb::prune_total(total_cap(), opfor).map_err(|_| Fail::Python)
 }
 
 // ------------------------------------------------------------------------------------------------ the folders

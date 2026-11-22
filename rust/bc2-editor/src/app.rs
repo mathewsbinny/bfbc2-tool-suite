@@ -13,7 +13,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Instant;
 
 use bc2_levelwrite::ops::{FieldSet, LAYER_COLOURS, Moved};
@@ -41,6 +40,7 @@ use crate::model::{self, Kind, Outliner};
 use crate::prepare::{self, Job, Outcome, Plan};
 use crate::query;
 use crate::render::{self, Gpu, SceneGpu, Target};
+use crate::task::Task;
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
 mod autolayoutui;
@@ -267,7 +267,7 @@ pub struct ViewState {
     /// Which faction each team is (the labels), from the level's data.
     pub teams: Teams,
     /// The level's render meshes being read for the simplified view (round SV1), until they arrive.
-    visuals_rx: Option<Receiver<Result<bc2_render::simple::Simple, bc2_render::RenderError>>>,
+    visuals_rx: Option<Task<Result<bc2_render::simple::Simple, bc2_render::RenderError>>>,
     // ---- round E2b
     /// The Objects workspace's category filter (also the content browser's).
     pub filter: Option<crate::workspace::Category>,
@@ -546,7 +546,7 @@ enum Mode {
     },
     Loading {
         lv: String,
-        rx: Receiver<Loaded>,
+        rx: Task<LoadedOk>,
         since: Instant,
         then: Then,
     },
@@ -654,7 +654,7 @@ pub struct StartScreen {
 pub struct CatalogState {
     /// The start screen's pictures, thumbnails and modes from the game copy, and the thread reading them.
     catalog: Option<Catalog>,
-    catalog_rx: Option<Receiver<Catalog>>,
+    catalog_rx: Option<Task<Catalog>>,
     /// The catalog's pictures made into textures, by key.
     pictures: HashMap<String, egui::TextureHandle>,
 }
@@ -725,12 +725,8 @@ impl EditorApp {
         let levels = opfor.as_ref().map_or_else(|_| Vec::new(), |r| levels::list_levels(r));
         // the start screen's pictures, thumbnails and modes, read (or taken from their cache) on a thread
         let catalog_rx = opfor.as_ref().ok().map(|root| {
-            let (tx, rx) = std::sync::mpsc::channel();
             let (root, names): (PathBuf, Vec<String>) = (root.clone(), levels.iter().map(|l| l.lv.clone()).collect());
-            std::thread::spawn(move || {
-                let _ = tx.send(catalog::load(&root, &names));
-            });
-            rx
+            Task::spawn_value("Reading the levels' pictures", move || catalog::load(&root, &names))
         });
         let (theme, dock, bookmarks, recent, folder, displays) = match saved {
             Some(s) => (s.theme, s.dock, s.bookmarks, s.recent, s.project_folder, s.displays),
@@ -969,15 +965,15 @@ impl EditorApp {
     }
 
     fn poll_catalog(&mut self) {
-        if let Some(rx) = &self.catalog_state.catalog_rx {
-            match rx.try_recv() {
-                Ok(c) => {
+        if let Some(t) = &self.catalog_state.catalog_rx {
+            match t.poll() {
+                Some(Ok(c)) => {
                     self.catalog_state.catalog = Some(c);
                     self.catalog_state.catalog_rx = None;
                     self.catalog_state.pictures.clear();
                 }
-                Err(TryRecvError::Disconnected) => self.catalog_state.catalog_rx = None,
-                Err(TryRecvError::Empty) => {}
+                Some(Err(_)) => self.catalog_state.catalog_rx = None,
+                None => {}
             }
         }
     }
@@ -1475,11 +1471,8 @@ impl EditorApp {
 
     fn load_level(&mut self, lv: &str, then: Then) {
         let Ok(root) = self.opfor.clone() else { return };
-        let (tx, rx) = std::sync::mpsc::channel();
         let name = lv.to_owned();
-        std::thread::spawn(move || {
-            let _ = tx.send(load(&root, &name));
-        });
+        let rx = Task::spawn("Loading the level", move || load(&root, &name));
         self.error = None;
         self.mode = Mode::Loading {
             lv: lv.to_owned(),
@@ -1632,7 +1625,6 @@ impl EditorApp {
         // the simplified view's render meshes (round SV1), read beside the open view: collision until they arrive
         let visuals_rx = match &self.opfor {
             Ok(root) if lv != "demo" && std::env::var_os(COLLISION_VIEW_ENV).is_none() => {
-                let (tx, rx) = std::sync::mpsc::channel();
                 let (root, lv, name, placed) = (
                     root.clone(),
                     lv.to_owned(),
@@ -1640,10 +1632,9 @@ impl EditorApp {
                     crate::gameview::placed(&scene),
                 );
                 let package = crate::gameview::is_package(&root, &lv);
-                std::thread::spawn(move || {
-                    let _ = tx.send(bc2_render::simple::Simple::load(&root, &lv, &name, &placed, package));
-                });
-                Some(rx)
+                Some(Task::spawn_value("Reading the level's render meshes", move || {
+                    bc2_render::simple::Simple::load(&root, &lv, &name, &placed, package)
+                }))
             }
             _ => None,
         };
@@ -2144,8 +2135,8 @@ impl EditorApp {
         let Mode::Loading { lv, rx, then, .. } = &self.mode else {
             return;
         };
-        match rx.try_recv() {
-            Ok(Ok(loaded)) => {
+        match rx.poll() {
+            Some(Ok(loaded)) => {
                 let (lv, then) = (lv.clone(), then.clone());
                 self.show_scene(gpu, &lv, loaded, then);
                 if let Ok(root) = &self.opfor {
@@ -2154,15 +2145,11 @@ impl EditorApp {
                 }
                 ctx.request_repaint();
             }
-            Ok(Err(e)) => {
+            Some(Err(e)) => {
                 self.error = Some(e.to_string());
                 self.mode = Mode::Start;
             }
-            Err(TryRecvError::Empty) => {}
-            Err(TryRecvError::Disconnected) => {
-                self.error = Some("The level's loader stopped unexpectedly.".into());
-                self.mode = Mode::Start;
-            }
+            None => {}
         }
     }
 
@@ -3112,19 +3099,15 @@ impl ViewState {
     /// Takes the level's render meshes into the simplified view when they have been read (`wait`: waits for them);
     /// whether the view changed. A level whose meshes cannot be read keeps its collision (a note says why).
     pub fn take_visuals(&mut self, gpu: &GpuCtx, palette: &Palette, wait: bool) -> bool {
-        let Some(rx) = &self.visuals_rx else { return false };
-        let got = if wait {
-            rx.recv().map_err(|_| TryRecvError::Disconnected)
-        } else {
-            rx.try_recv()
-        };
+        let Some(t) = &self.visuals_rx else { return false };
+        let got = if wait { Some(t.wait()) } else { t.poll() };
         let simple = match got {
-            Err(TryRecvError::Empty) => return false,
-            Err(TryRecvError::Disconnected) => {
+            None => return false,
+            Some(Err(_)) => {
                 self.visuals_rx = None;
                 return false;
             }
-            Ok(s) => s,
+            Some(Ok(s)) => s,
         };
         self.visuals_rx = None;
         match simple {

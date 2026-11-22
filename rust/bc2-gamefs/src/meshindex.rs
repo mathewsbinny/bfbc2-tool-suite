@@ -72,112 +72,182 @@ fn picks_one(dbs: &[&str], name: &str) -> bool {
         == 1
 }
 
+/// One database's part of the index, its names not yet checked against the bundles before it.
+#[derive(Debug, Default)]
+struct DbPart {
+    /// the layout records in order (each one object)
+    layouts: Vec<Vec<u8>>,
+    /// (part name lower case, index into `layouts`), first of each name in the database
+    parts: Vec<(String, usize)>,
+    /// (entry name lower case, its texture names or why the reference would fail on it), first of each name
+    entries: Vec<(String, Result<Vec<String>, String>)>,
+}
+
+/// One bundle's part: its live entries in order, then each Dx9 database's part (stopping at the first error, as the
+/// reference's build stops there).
+#[derive(Debug, Default)]
+struct BundlePart {
+    names: Vec<String>,
+    databases: Vec<Result<DbPart, String>>,
+}
+
+/// A bundle's part of the index: its header, every Dx9 database read with one read of the bundle, each parsed.
+fn bundle_part(b: &str) -> Result<BundlePart, String> {
+    let h = fbrb::entries_path(b).map_err(|e| format!("{b}: {e}"))?;
+    let live: Vec<&fbrb::Entry> = h.entries.iter().filter(|e| !e.is_deleted()).collect();
+    let mut part = BundlePart {
+        names: live.iter().map(|e| e.name.clone()).collect(),
+        databases: Vec::new(),
+    };
+    // the databases picked by name (`shaderdb.pick_database`'s list) and those read (the reference's two filters)
+    let dx9: Vec<&str> = live
+        .iter()
+        .filter(|e| e.type_name.ends_with("ShaderDatabase") && e.type_name.to_lowercase() == "dx9shaderdatabase")
+        .map(|e| e.name.as_str())
+        .collect();
+    let names: Vec<&str> = live
+        .iter()
+        .filter(|e| e.type_name.to_lowercase() == "dx9shaderdatabase")
+        .map(|e| e.name.as_str())
+        .collect();
+    // read up to the first name that does not pick one database (the reference stops there)
+    let picked = names.iter().take_while(|n| picks_one(&dx9, n)).count();
+    let unpicked = names
+        .get(picked)
+        .map(|bad| format!("{b}:{bad}: not one database by that name"));
+    let wanted = names.get(..picked).unwrap_or_default();
+    let datas = if wanted.is_empty() {
+        Vec::new()
+    } else {
+        match crate::bundles::read_path(b, wanted) {
+            Ok(d) => d,
+            Err(e) => {
+                part.databases
+                    .push(Err(format!("{b}:{}: {e}", wanted.first().copied().unwrap_or(""))));
+                return Ok(part);
+            }
+        }
+    };
+    for (name, data) in wanted.iter().zip(&datas) {
+        let db = if data.len() < 9 {
+            Err(format!("{b}:{name}: too short"))
+        } else {
+            let be = shaderdb::is_big_endian(data);
+            shaderdb::parse(data, 9, be)
+                .map_err(|e| format!("{b}:{name}: {e}"))
+                .map(|db| db_part(&db, be))
+        };
+        let failed = db.is_err();
+        part.databases.push(db);
+        if failed {
+            return Ok(part);
+        }
+    }
+    if let Some(e) = unpicked {
+        part.databases.push(Err(e));
+    }
+    Ok(part)
+}
+
 /// The index of the bundles, in order; Err (in words) where the reference's index would differ from a complete one
 /// or the reference would raise: the caller hands the build to the Python.
+///
+/// Each bundle is read on its own worker (one read of the bundle for all its databases; audit AU5 ALG-6: one reopen
+/// per database, one bundle at a time, before), and the parts are merged in the bundles' order with the reference's
+/// first-wins rules, so the index is the one the serial walk made.
 ///
 /// # Errors
 /// A bundle or database the reference would skip, or a record it would fail on.
 pub fn build(bundles: &[String]) -> Result<MeshIndex, String> {
+    use rayon::prelude::*;
+    let parts: Vec<Result<BundlePart, String>> = bundles.par_iter().map(|b| bundle_part(b)).collect();
     let mut ix = MeshIndex::default();
     let mut seen: HashSet<String> = HashSet::new();
     let mut parts_seen: HashSet<String> = HashSet::new();
     let mut entries_seen: HashSet<String> = HashSet::new();
-    for (bi, b) in bundles.iter().enumerate() {
-        let h = fbrb::entries_path(b).map_err(|e| format!("{b}: {e}"))?;
-        for e in &h.entries {
-            if e.is_deleted() {
-                continue;
-            }
-            let key = e.name.to_lowercase();
+    for (bi, part) in parts.into_iter().enumerate() {
+        let part = part?;
+        for name in part.names {
+            let key = name.to_lowercase();
             if seen.insert(key.clone()) {
-                ix.where_.push((key, bi, e.name.clone()));
+                ix.where_.push((key, bi, name));
             }
         }
-        let live: Vec<&fbrb::Entry> = h.entries.iter().filter(|e| !e.is_deleted()).collect();
-        let dx9: Vec<&str> = live
-            .iter()
-            .filter(|e| e.type_name.ends_with("ShaderDatabase") && e.type_name.to_lowercase() == "dx9shaderdatabase")
-            .map(|e| e.name.as_str())
-            .collect();
-        let names: Vec<&str> = live
-            .iter()
-            .filter(|e| e.type_name.to_lowercase() == "dx9shaderdatabase")
-            .map(|e| e.name.as_str())
-            .collect();
-        for name in names {
-            if !picks_one(&dx9, name) {
-                return Err(format!("{b}:{name}: not one database by that name"));
-            }
-            let data = crate::bundles::read_path(b, &[name])
-                .map_err(|e| format!("{b}:{name}: {e}"))?
-                .into_iter()
-                .next()
-                .ok_or_else(|| format!("{b}:{name}: not read"))?;
-            if data.len() < 9 {
-                return Err(format!("{b}:{name}: too short"));
-            }
+        for db in part.databases {
             ix.databases += 1;
-            let be = shaderdb::is_big_endian(&data);
-            let db = shaderdb::parse(&data, 9, be).map_err(|e| format!("{b}:{name}: {e}"))?;
-            add_database(&mut ix, &db, be, &mut parts_seen, &mut entries_seen)?;
+            let db = db?;
+            let base = ix.layouts.len();
+            ix.layouts.extend(db.layouts);
+            for (key, id) in db.parts {
+                if parts_seen.insert(key.clone()) {
+                    ix.parts.push((key, base + id));
+                }
+            }
+            for (key, tex) in db.entries {
+                if entries_seen.contains(&key) {
+                    continue;
+                }
+                let tex = tex?;
+                entries_seen.insert(key.clone());
+                ix.entries.push((key, tex));
+            }
         }
     }
     Ok(ix)
 }
 
-/// `Index._add_database(db)`.
-fn add_database(
-    ix: &mut MeshIndex,
-    db: &shaderdb::ShaderDb<'_>,
-    be: bool,
-    parts_seen: &mut HashSet<String>,
-    entries_seen: &mut HashSet<String>,
-) -> Result<(), String> {
+/// `Index._add_database(db)` for one database alone (its names checked against the earlier ones when merged).
+fn db_part(db: &shaderdb::ShaderDb<'_>, be: bool) -> DbPart {
+    let mut out = DbPart::default();
     // {r[:16]: r[16:]}: the last record of a GUID wins; each record one object
     let mut layouts: HashMap<&[u8], usize> = HashMap::new();
     for r in &db.layouts {
         let (g, rest) = r.split_at(r.len().min(16));
-        let id = ix.layouts.len();
-        ix.layouts.push(rest.to_vec());
+        let id = out.layouts.len();
+        out.layouts.push(rest.to_vec());
         layouts.insert(g, id);
     }
+    let mut parts_seen: HashSet<String> = HashSet::new();
     for p in &db.parts {
         if let Some(&id) = layouts.get(p.guid) {
             let key = lower(&p.name);
             if parts_seen.insert(key.clone()) {
-                ix.parts.push((key, id));
+                out.parts.push((key, id));
             }
         }
     }
     let groups: HashMap<&[u8], &Vec<u16>> = db.groups.iter().map(|(g, idx)| (*g, idx)).collect();
+    let mut entries_seen: HashSet<String> = HashSet::new();
     for e in &db.entries {
         let key = lower(&e.name);
-        if entries_seen.contains(&key) {
+        if !entries_seen.insert(key.clone()) {
             continue;
         }
-        let mut tex: Vec<String> = Vec::new();
-        for &pi in groups.get(e.guid).map_or(&[][..], |v| v.as_slice()) {
-            let prog = db
-                .programs
-                .get(usize::from(pi))
-                .ok_or("a program index past its section")?;
-            let [_, _, a, c] = query::program_refs(prog, be).ok_or("a program record too short")?;
-            for blk in [a, c] {
-                let blk = db
-                    .params
-                    .get(blk as usize)
-                    .ok_or("a parameter block index past its section")?;
-                for s in texture_runs(blk) {
-                    if s.contains('/') && !tex.contains(&s) {
-                        tex.push(s);
+        let tex = (|| -> Result<Vec<String>, String> {
+            let mut tex: Vec<String> = Vec::new();
+            for &pi in groups.get(e.guid).map_or(&[][..], |v| v.as_slice()) {
+                let prog = db
+                    .programs
+                    .get(usize::from(pi))
+                    .ok_or("a program index past its section")?;
+                let [_, _, a, c] = query::program_refs(prog, be).ok_or("a program record too short")?;
+                for blk in [a, c] {
+                    let blk = db
+                        .params
+                        .get(blk as usize)
+                        .ok_or("a parameter block index past its section")?;
+                    for s in texture_runs(blk) {
+                        if s.contains('/') && !tex.contains(&s) {
+                            tex.push(s);
+                        }
                     }
                 }
             }
-        }
-        entries_seen.insert(key.clone());
-        ix.entries.push((key, tex));
+            Ok(tex)
+        })();
+        out.entries.push((key, tex));
     }
-    Ok(())
+    out
 }
 
 #[cfg(test)]

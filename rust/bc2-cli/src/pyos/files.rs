@@ -2,115 +2,12 @@
 //! (`st_size`, `st_mtime_ns`, the float `st_mtime` / `st_atime`), `os.utime`, `os.remove` that tells "gone" from
 //! "in use", `atomicio.locked` (the same lock between Python and Rust processes) and `atomicio.replace`'s tries.
 
-use std::fs::{self, File, FileTimes, OpenOptions};
 use std::io;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-/// `os.stat` / `DirEntry.stat()`'s fields the caches use.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Stat {
-    pub size: u64,
-    /// `st_mtime_ns`
-    pub mtime_ns: i128,
-    /// `st_mtime`, `st_atime`: seconds as Python's floats (`sec + nsec * 1e-9`)
-    pub mtime: f64,
-    pub atime: f64,
-}
-
-/// (seconds, nanoseconds) the a time as Python's `FILE_TIME_to_time_t_nsec` splits it.
-fn split(t: SystemTime) -> (i64, i64) {
-    match t.duration_since(UNIX_EPOCH) {
-        Ok(d) => (d.as_secs() as i64, i64::from(d.subsec_nanos())),
-        Err(e) => {
-            // before 1970: C's division truncates toward zero (seconds and nanoseconds both negative)
-            let d = e.duration();
-            (-(d.as_secs() as i64), -i64::from(d.subsec_nanos()))
-        }
-    }
-}
-
-#[allow(clippy::cast_precision_loss, reason = "the float Python makes of the seconds")]
-fn float_time(t: SystemTime) -> f64 {
-    let (s, ns) = split(t);
-    s as f64 + ns as f64 * 1e-9
-}
-
-impl Stat {
-    pub fn the(m: &fs::Metadata) -> Self {
-        let mt = m.modified().unwrap_or(UNIX_EPOCH);
-        let at = m.accessed().unwrap_or(mt);
-        let (s, ns) = split(mt);
-        Self {
-            size: m.len(),
-            mtime_ns: i128::from(s) * 1_000_000_000 + i128::from(ns),
-            mtime: float_time(mt),
-            atime: float_time(at),
-        }
-    }
-}
-
-/// `os.stat(path)` (links followed).
-pub fn stat(path: &str) -> io::Result<Stat> {
-    fs::metadata(path).map(|m| Stat::the(&m))
-}
-
-/// `time.time()`.
-pub fn now() -> f64 {
-    float_time(SystemTime::now())
-}
-
-/// `os.utime(path)`: its access and modification times set to now.
-pub fn utime_now(path: &str) -> io::Result<()> {
-    let now = SystemTime::now();
-    let f = open_attrs(path)?;
-    f.set_times(FileTimes::new().set_accessed(now).set_modified(now))
-}
-
-#[cfg(windows)]
-fn open_attrs(path: &str) -> io::Result<File> {
-    use std::os::windows::fs::OpenOptionsExt;
-    // FILE_WRITE_ATTRIBUTES, as Python's utime opens the file
-    OpenOptions::new().access_mode(0x100).open(path)
-}
-
-#[cfg(not(windows))]
-fn open_attrs(path: &str) -> io::Result<File> {
-    OpenOptions::new().write(true).open(path)
-}
-
-/// `with open(path, 'wb'): pass` then `os.utime(path)`: an empty marker file stamped now.
-pub fn touch_marker(path: &str) -> io::Result<()> {
-    File::create(path)?;
-    utime_now(path)
-}
-
-/// `os.remove(path)`: Ok(true) removed, Ok(false) gone already (`FileNotFoundError`), Err otherwise (in use without
-/// delete sharing, ...).
-pub fn remove(path: &str) -> io::Result<bool> {
-    match fs::remove_file(path) {
-        Ok(()) => Ok(true),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
-        Err(e) => Err(e),
-    }
-}
-
-/// `caches._delete_if_unchanged`: deletes the file if it still has the size and time the scan saw (any time when
-/// not `check`): Some(true) deleted, Some(false) kept (in use, or changed), None gone before.
-pub fn delete_if_unchanged(path: &str, size: u64, mtime_ns: i128, check: bool) -> Option<bool> {
-    if check {
-        match stat(path) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return None,
-            Err(_) => return Some(false),
-            Ok(st) if st.size != size || st.mtime_ns != mtime_ns => return Some(false),
-            Ok(_) => {}
-        }
-    }
-    match remove(path) {
-        Ok(true) => Some(true),
-        Ok(false) => None,
-        Err(_) => Some(false),
-    }
-}
+/// `os.stat` / `os.scandir` / `os.utime` / `os.remove` and `caches._delete_if_unchanged` as the suite's Python sees
+/// them: the caches' budget's own ([`bc2_gamefs::budget`], round PR1b-2: one implementation for the budget and these
+/// command lines).
+pub use bc2_gamefs::budget::{Stat, delete_if_unchanged, now, scandir, stat, utime_now};
 
 /// `atomicio.locked(path)` ([`bc2_gamefs::atomic::locked`]).
 pub fn locked<T>(path: &str, f: impl FnOnce() -> T) -> io::Result<T> {
@@ -130,42 +27,6 @@ pub fn write_atomic(path: &str, data: &[u8]) -> Result<(), (String, io::Error)> 
         bc2_gamefs::atomic::WriteError::Temp(tmp, e) => (tmp.to_string_lossy().into_owned(), e),
         bc2_gamefs::atomic::WriteError::Replace(e) => (path.to_owned(), e),
     })
-}
-
-/// A directory entry as `os.scandir` gives it: its path (`os.path.join(top, name)`), name, kind and stat (the
-/// directory listing's own data, links not followed).
-pub struct Entry {
-    pub path: String,
-    pub name: String,
-    /// a symbolic link or junction (`is_symlink() or is_junction()`): never followed
-    pub link: bool,
-    pub dir: bool,
-    pub file: bool,
-    pub stat: Option<Stat>,
-}
-
-/// `list(os.scandir(top))` in the listing's order; Err when the folder cannot be listed.
-pub fn scandir(top: &str) -> io::Result<Vec<Entry>> {
-    let mut out = Vec::new();
-    for e in fs::read_dir(top)? {
-        let Ok(e) = e else { continue };
-        let name = e.file_name().to_string_lossy().into_owned();
-        let path = bc2_pyrt::py::join(top, &[&name]);
-        let (link, dir, file) = match e.file_type() {
-            Ok(t) => (t.is_symlink(), t.is_dir(), t.is_file()),
-            Err(_) => (false, false, false),
-        };
-        let stat = e.metadata().ok().map(|m| Stat::the(&m));
-        out.push(Entry {
-            path,
-            name,
-            link,
-            dir: dir && !link,
-            file: file && !link,
-            stat,
-        });
-    }
-    Ok(out)
 }
 
 /// `os.path.normcase` (Windows): lower case, `/` as `\` - pyos's own (round O5: the two copies were the same).

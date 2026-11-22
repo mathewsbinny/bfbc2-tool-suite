@@ -25,16 +25,8 @@ pub const LOG_TOOL_ENV: &str = "BFBC2_LOG_TOOL_MB";
 pub const LOG_FILE_ENV: &str = "BFBC2_LOG_FILE_MB";
 const LOG_ARCHIVE_ENV: &str = "BFBC2_LOG_ARCHIVE_MB";
 
-/// `caches.Result`: what a prune or clear did.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Done {
-    pub kept_bytes: u64,
-    pub kept_files: u64,
-    pub deleted_bytes: u64,
-    pub deleted_files: u64,
-    pub busy: u64,
-    pub stale: u64,
-}
+/// `caches.Result`: what a prune or clear did (the caches' budget's own).
+pub use bc2_gamefs::budget::Done;
 
 /// `caches._File`: a file as the scan saw it.
 #[derive(Debug, Clone)]
@@ -42,17 +34,14 @@ pub struct Seen {
     pub path: String,
     pub size: u64,
     pub mtime_ns: i128,
-    /// `_File.used`: the later of its access and modification times (logs: the modification time)
-    pub used: f64,
 }
 
 impl Seen {
-    fn from(path: String, st: &Stat, used: f64) -> Self {
+    fn from(path: String, st: &Stat) -> Self {
         Self {
             path,
             size: st.size,
             mtime_ns: st.mtime_ns,
-            used,
         }
     }
 
@@ -82,7 +71,7 @@ pub fn log_files(top: &str) -> Vec<(Seen, String, String)> {
         let Some(st) = e.stat else { continue };
         let tool = m.name("tool").map_or("", |t| t.as_str()).to_owned();
         let date = m.name("date").map_or("", |t| t.as_str()).to_owned();
-        out.push((Seen::from(e.path, &st, st.mtime), tool, date));
+        out.push((Seen::from(e.path, &st), tool, date));
     }
     out
 }

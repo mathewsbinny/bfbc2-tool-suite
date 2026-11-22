@@ -62,8 +62,9 @@ import os
 import re
 import sys
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 if __package__ in (None, ''):                       # run as a file: python core\bfbc2core\caches.py
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -334,6 +335,17 @@ def superseded_payloads(top: str) -> set[str]:
     return {os.path.basename(p) for p in find(top)}
 
 
+def _budget(name: str) -> Callable[..., Any] | None:
+    """The caches' budget in the Rust core (round PR1b-2: bc2_gamefs::budget, the one implementation, also
+    bfbc2.exe's): bc2_native's `name`, or None without the module (or with one older than this function)."""
+    m = native.load()
+    return getattr(m, name, None) if m is not None else None
+
+
+def _result(t: Sequence[int]) -> Result:
+    return Result(*(int(v) for v in t))
+
+
 def _prune_unlocked(top: str, cap_bytes: int, suffixes: Sequence[str], markers: Sequence[str],
                     marker_age: float, keep: Iterable[str], superseded: bool = False) -> Result:
     r = Result()
@@ -382,6 +394,11 @@ def prune(top: str, cap_bytes: int, suffixes: Sequence[str], *, markers: Sequenc
     payloads first, whatever the cap (superseded_payloads). Under the folder's lock; a missing folder is empty."""
     if not os.path.isdir(top):
         return Result()
+    rust = _budget('caches_prune')
+    if rust is not None:
+        got = rust(top, int(cap_bytes), list(suffixes), list(markers), float(marker_age), [str(k) for k in keep],
+                   superseded)
+        return _result(got) if got is not None else Result()
     with atomicio.locked(os.path.join(top, LOCK)):
         r = _prune_unlocked(top, cap_bytes, suffixes, markers, marker_age, keep, superseded)
         with contextlib.suppress(OSError):
@@ -417,6 +434,13 @@ def maybe_prune(name: str, top: str | None = None, every: float = PRUNE_EVERY) -
         if recent():
             return None
         s = _spec(name)
+        rust = _budget('caches_prune')
+        if rust is not None:
+            got = rust(top, cap(name), list(s.suffixes), list(s.markers), float(s.marker_age), [], False, every)
+            if got is None:                         # another process pruned it while this one waited
+                return None
+            maybe_prune_total(every=every)
+            return _result(got)
         with atomicio.locked(os.path.join(top, LOCK)):
             if recent():                            # another process pruned it while this one waited
                 return None
@@ -469,6 +493,9 @@ def prune_total(cap_bytes: int | None = None, opfor: str | None = None) -> dict[
     recently used entries of any cache deleted first, with the per-cache rules (only the cache's own kind of entry,
     unchanged since the scan, not held open). Under the cache root's lock. {name: what it did there}."""
     cap_bytes = total_cap() if cap_bytes is None else cap_bytes
+    rust = _budget('caches_prune_total')
+    if rust is not None:
+        return {n: _result(t) for n, t in rust(int(cap_bytes), project_root(opfor))}
     root = cache_root()
     os.makedirs(root, exist_ok=True)
     out: dict[str, Result] = {}
@@ -523,6 +550,9 @@ def clear(top: str, suffixes: Sequence[str], markers: Sequence[str] = ()) -> Res
     the folder's lock. Files of other kinds are left alone."""
     if not os.path.isdir(top):
         return Result()
+    rust = _budget('caches_clear')
+    if rust is not None:
+        return _result(rust(top, list(suffixes), list(markers)))
     r = Result()
     with atomicio.locked(os.path.join(top, LOCK)):
         scan = _scan(top, suffixes, markers)

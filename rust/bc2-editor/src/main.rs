@@ -316,6 +316,8 @@ impl eframe::App for Window {
 }
 
 fn main() -> ExitCode {
+    // the one worker pool (BFBC2_WORKERS): the readers' and the editor's CPU work
+    bc2_gamefs::workers::init();
     if std::env::args().nth(1).as_deref() == Some("--source-hash") {
         // the fingerprint of the Rust sources this binary was built from (`build_native.py --editor` passes it as
         // BC2_SOURCE_HASH; empty when built by cargo alone): `bfbc2core.native.binary` uses the binary only while
