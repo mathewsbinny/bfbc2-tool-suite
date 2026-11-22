@@ -49,7 +49,7 @@ pub const PATCH_LAYOUT_NO_TILES: [u8; 16] = [
 pub const PATCH_STRIDE: u32 = 20;
 
 /// A patch shader of the `VisualTerrain`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatchShader {
     /// Its entry (`Terrains/MP_005/MP_005/PatchMaskShaders/Dunes_Asphalt_Destruction`).
     pub name: String,
@@ -63,18 +63,20 @@ pub struct PatchShader {
     pub meshes: Vec<Vec<UndergrowthMesh>>,
 }
 
-/// One undergrowth mesh entry of a patch shader (VEG-UG-2).
-#[derive(Debug, Clone, PartialEq)]
+/// One undergrowth mesh entry of a patch shader (VEG-UG-2). Two entries are equal when their bytes are: the numbers
+/// compare by their bits.
+#[derive(Debug, Clone)]
 pub struct UndergrowthMesh {
-    /// The mesh set (`vegetation/undergrowth/...`).
+    /// The mesh set (`vegetation/undergrowth/...`): `TerrainUndergrowthType.Mesh`.
     pub mesh: String,
-    /// The mesh's asset reference, `<mesh>/<guid>`: empty on every DICE terrain but `NAM_MP_003`.
+    /// A reference `<mesh>/<guid>`, presumably `TerrainUndergrowthType.MeshShaderSet` (VEG-UG-3): empty on every
+    /// DICE terrain but `NAM_MP_003`.
     pub asset: String,
-    /// A shader entry, or empty.
+    /// The cache shader entry (`Terrains/<T>/Shaders/..._Cache`, `TerrainUndergrowthType.CacheShader`), or empty.
     pub shader: String,
-    /// The 12 numbers (VEG-UG-3).
+    /// The 12 numbers (VEG-UG-3: density, variation, mask range, scales, wind, view distance).
     pub values: [f32; 12],
-    /// The two bytes that end the entry (01 00 on every DICE entry).
+    /// The two bytes that end the entry (01 00 on every DICE entry; two of the type's three flags, VEG-UG-3).
     pub tail: [u8; 2],
 }
 
@@ -156,6 +158,15 @@ pub struct VisualTerrain {
     /// One per terrain block.
     pub maps: Vec<PatchMap>,
 }
+
+impl PartialEq for UndergrowthMesh {
+    fn eq(&self, other: &Self) -> bool {
+        (&self.mesh, &self.asset, &self.shader, self.tail) == (&other.mesh, &other.asset, &other.shader, other.tail)
+            && self.values.map(f32::to_bits) == other.values.map(f32::to_bits)
+    }
+}
+
+impl Eq for UndergrowthMesh {}
 
 struct Walk<'a> {
     b: &'a [u8],
