@@ -242,14 +242,14 @@
   },
   {
    "id": "AI-NEED-5",
-   "title": "Kills of bots score nothing offline",
+   "title": "Kills of bots score nothing offline without the scoring patch",
    "file": "spec/engine/ai.md",
    "status": "observed",
    "variants": "PC",
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for no victim player) -> kill scoring 0x86C070 -> award 0x86BE20"
+     "ref": "BFBC2Game.exe game-event dispatcher 0x870070 (type at +0x88, 3 = player killed) -> 0x86DC90 (returns for a null victim at 0x86DCAE; scoring flag test 0x86DD97) -> kill scoring 0x86C070 (returns for an AI killer at 0x86C12D) -> award 0x86BE20"
     },
     {
      "kind": "doc",
@@ -1105,7 +1105,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe bot debug print 0xEEF450 (strings \" Bot id: \" 0x014A7E64, \"Squad: \", \" - Squad leader\" 0x014A7E50, \"Readiness: \" 0x014A7E44, \"Position: \"); Kynapse bot entity 0xF27900 (\"Entity_\", thunk 0x109EAC0, registration 0x109DFF0)"
+     "ref": "BFBC2Game.exe bot debug print 0xEEF450 (strings \" Bot id: \" 0x014A7E64, \"Squad: \", \" - Squad leader\" 0x014A7E50, \"Readiness: \" 0x014A7E44, \"Position: \"); Kynapse bot entity 0xF27900 (\"Entity_\", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)"
     },
     {
      "kind": "doc",
@@ -1131,6 +1131,19 @@
     {
      "kind": "doc",
      "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:192-201"
+    }
+   ]
+  },
+  {
+   "id": "BOT-RT-9",
+   "title": "The registries' creators and the behaviour objects",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe registration calls `push 0; push create; push parent; push record; mov ecx, creator; call 0x500660` (86 found by a byte scan of the type records whose name holds \" :: \"), e.g. 0x137CB00 for BehaviourChangePose; creator vtable 0x014A7398 slot 4 0xED27A0 (alloc 0x20, instance vtable 0x014A6848); SoldierControl creator vtable 0x014A590C slot 4 0xE87390 -> constructor 0xE775D0 (instance vtable 0x014A560C, slot 4 0xE84CE0)"
     }
    ]
   },
@@ -1233,6 +1246,49 @@
     {
      "kind": "doc",
      "ref": "opfor:research/WW2_LANDING_GEAR_RE2_2026-11-14.md:244-247"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-6",
+   "title": "The AI body: the proxy and its three interfaces",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe proxy constructor 0x5AB5A0 (+0xC = new 0x5A7F00(player), +8 = 0xC-byte object vtable 0x014197B8 with +4 = player, base 0xE7B320 zeroes +4..+0x18); proxy vtable 0x01419AA0 slots 1-29 (slot 1 0x57D770 -> player vtable +0x1C = 0x531BF0 `lea eax,[ecx+0xC2C"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-7",
+   "title": "Who writes which input slot",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xEBF470 (dt from the AI clock `*(0x018903C8)` vtable +4) -> 0xE6A8C0 (input slot 7 at 0xE6A914 / 0xE6A97F, slot 1 at 0xE6A954); 0xEC6650 `push edx; push 0xB; call [vtable+8"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the scan's pattern (object from a +0xC field, then its vtable, then the slot) covers the sites listed; actions 1 and 7-10 have no site under it"
+    }
+   ]
+  },
+  {
+   "id": "BOT-CTL-8",
+   "title": "Stance, weapon slot, sprint, vehicle weapons and seats are set directly",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe BehaviourChangePose start 0xEC4F60 (`[proxy+8"
     }
    ]
   },
@@ -1501,6 +1557,10 @@
      "ref": "SoldierSpawnEntityData Vehicle / VehiclePos, PatrolOrderEntityData, BehaviourTemplateData (ai_probe)"
     },
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe proxy request pump 0x595190 (+0x24 -> 0x58DEC0 -> 0x5725E0; +0x28 -> 0x56D480(1)); proxy slot 23 0x57DAD0 `mov byte [ecx+0x28"
+    },
+    {
      "kind": "doc",
      "ref": "opfor:DEVELOPMENT_NOTES.md:2164-2170"
     }
@@ -1516,6 +1576,23 @@
     {
      "kind": "data",
      "ref": "AI/Settings NavigationConstantData, HelicopterControlConstantData, DifficultyData (ai_probe)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-VEH-5",
+   "title": "The vehicle controls write analog input levels",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe control instance vtables 0x014A48FC (car), 0x014A5640 (tank), 0x014A567C (turret), 0x014A5738 (helicopter), slot 4 each = 0xE53130 / 0xE78480 / 0xE78A50 / 0xE91040; the analog write sites of BOT-CTL-7; 0xE91040 -> 0xE8EB30 (0xE9122F, 0xE9125D), 0xE8ED90 (0xE9128F), 0xE90830 (after 0xE91273) -> 0xE8F0B0 (0xE90AF0), 0xE8F250 (0xE90B00)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the turret's roll-as-yaw against the seats' input mappings, which were not compared"
     }
    ]
   },
@@ -1605,6 +1682,88 @@
    ]
   },
   {
+   "id": "BOT-GS-3",
+   "title": "A capture point's owner and progress",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7169D0 (base 0x7159B0, vtable 0x01429470); 0x725630 (+0x98 / +0x9C, data +0x9C, `0x68F1E0(+0x7C, 0x7D1F6304)`, message `(0x11, 0x17)`, 0x842F30('ROUN', 'CPTA')); 0x711AA0 (data +0xA0, `0x68F1E0(+0x7C, 0xAA8A2040)`, message `(0x11, 0x18)`, 'CPLO', +0x7C = arg 4); event-name hash at 0x10013E0 (djb2 with xor: h = 5381, h = h * 33 ^ c)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-4",
+   "title": "Tickets, life counters and mission objectives are server entities with their own classes",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe constructors 0x66E190 (0x68FB90 x 4 with the hashes), 0x67A030, 0x6740D0 (server object `+0x18` vtable +8 with 0x10); name functions 0x66A250, 0x6695D0, 0x669AF0 (vtable slots at 0x0141FEF8, 0x0142042C, 0x0141FDC4)"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-1",
+   "title": "The kill handler's AI tests gate stat events, not the kill score",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86DC90: null victim test 0x86DCA2 / 0x86DCAE; scoring flag `cmp byte [ebp+0x2A"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-2",
+   "title": "Bots never earn score and keep no scoring record",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86C070 (`[param_1+8"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-3",
+   "title": "Scoring offline: what the patch changes",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x865D70 (flag +0x2A set to 1 unless `+0x2A == 0 && server +0x2C && 0x53F430() < 4`), 0x86DD97 (the handler's flag test); the patch sites 0x865F36, 0x86FD12, 0x842E6A, 0x842E9A, 0x83B591"
+    }
+   ]
+  },
+  {
+   "id": "BOT-SCO-4",
+   "title": "A bot's name and its scoreboard row",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x531BF0 `lea eax,[ecx+0xC2C"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the client scoreboard's row source"
+    }
+   ]
+  },
+  {
    "id": "BOT-DIF-1",
    "title": "One set of AI partitions for campaign and multiplayer",
    "file": "spec/engine/bot_ai.md",
@@ -1657,11 +1816,19 @@
   },
   {
    "id": "BOT-DIF-4",
-   "title": "Offline multiplayer runs the AI at Normal",
+   "title": "A multiplayer session's AI difficulty is the session's, Normal by default",
    "file": "spec/engine/bot_ai.md",
    "status": "observed",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe session constructor 0x561C10 (`mov dword [esi+0xC8"
+    },
+    {
+     "kind": "inferred",
+     "ref": "that the start parameters' +0x20 becomes the start object's +0x90 (the server create was not followed)"
+    },
     {
      "kind": "data",
      "ref": "OPFOR's live run of Levels/SP_005 through the offline multiplayer path, probe \"AI: init (arg1 = difficulty)\" = 1"
@@ -6231,7 +6398,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add"
+     "ref": "0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add; 0x86DCAE (null victim), 0x86C12D (AI killer), 0x865D7F (no record for an AI player), 0x86A7EE (no award to an AI player)"
     },
     {
      "kind": "doc",
@@ -17237,6 +17404,19 @@
     {
      "kind": "data",
      "ref": "ai_probe \"events into / out of AI entities\", campaign and Onslaught"
+    }
+   ]
+  },
+  {
+   "id": "AIO-RT-1",
+   "title": "One server class runs every order; IssueOrder is an event hash",
+   "file": "spec/model/ai_orders.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtable 0x014199C8 (slot 6 0x58DD20 `cmp dword [edi+0xC"
     }
    ]
   },

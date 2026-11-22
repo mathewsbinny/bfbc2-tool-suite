@@ -76,8 +76,8 @@ game-tier check (`core/tests/test_spec_probes.py`, `run_tests.py game`: 14 rules
 2. **The suite's undergrowth reader** misreads NAM_MP_003's visual terrain (VEG-UG-2): a reader fix for the round that
    next touches `bc2-render/src/terrain.rs` (QW-sized).
 3. **RE still needed**: the undergrowth numbers' meanings (VEG-UG-3), the emitter processors' semantics (FX-PROC-2),
-   the mount functions (STRM-MNT-1), the `OnlyTakeableByTeam` reader (ONS-CAP-1), the award evaluator and whether bots'
-   deaths are scored (PERS-SCORE-1 against AI-NEED-5: a kill-probe playtest), the compiled anim tree's layout
+   the mount functions (STRM-MNT-1), the `OnlyTakeableByTeam` reader (ONS-CAP-1), the award evaluator (whether bots'
+   deaths are scored was settled statically by AIS-rest, BOT-SCO-3; a kill-probe playtest confirms), the compiled anim tree's layout
    (ANIM-TREE-3).
 4. **Grime / camouflage** (MAT-TEX) and **the menus' action-script runtime** stay thin.
 5. **More probe counts as checks**: SPG's five probes (lighting, weapons, vehicles, materials, destruction) still back
