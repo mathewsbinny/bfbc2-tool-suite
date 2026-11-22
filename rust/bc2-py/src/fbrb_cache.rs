@@ -1,4 +1,4 @@
-//! The bundle cache's controls (round E3e: `bc2_formats::fbrb::cache`), for `bfbc2core.fbrb`: the configuration,
+//! The bundle cache's controls (round E3e: `bc2_gamefs::bundles`, `bc2_formats::fbrb::cache` until round PR1b-2), for `bfbc2core.fbrb`: the configuration,
 //! what the cache did, and a read without it (the tests' reference).
 
 use std::path::PathBuf;

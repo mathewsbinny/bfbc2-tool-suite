@@ -175,6 +175,23 @@ and `OnAllKilled` 4. Squads take `KillAll` (and on Onslaught `Enable`, `Disable`
 
 [data: ai_probe "events into / out of AI entities", campaign and Onslaught]
 
+### AIO-RT-1: One server class runs every order; IssueOrder is an event hash
+
+Status: **observed** · Variants: PC
+
+All fifteen order data classes run as one server entity class (`ServerOrderEntity`, vtable 0x014199C8, which 0x594740
+and 0x599970 write). Its event handler (slot 6, 0x58DD20) first passes the event to the base handler 0xFFE580; then,
+when the order is enabled (+0x26 bit 3) and the event's hash (+0xC) is 0xD2199312 - "IssueOrder" under the engine's
+event-name hash, djb2 with xor (h = 5381, then h = h * 33 ^ c, as 0x10013E0 computes it) - it either marks the order
+pending (+0x78 = 1) and asks for updates (0x627640(5, 1)) when the data's `IssueOrderDelay` (+0xBC) is above 0, or
+issues at once through its slot 52 (0x5A5490). Completion (0x599BC0) and failure (0x599C30) fire `OnComplete`
+(0x25B1196D) and `OnFailed` (0x5EEF6327) through 0x01002950. A bot module can therefore issue any order of the level
+from the DLL by calling that handler with an event of hash 0xD2199312, or 0x5A5490 directly, on the server thread;
+`Enable` (0x8BA423E4) and `Disable` (0xF90216B1) are hashed the same way. How 0x5A5490 hands the order to its soldiers
+and squads was not read (RE item 5 of `bot_ai.md`).
+
+[exe: BFBC2Game.exe vtable 0x014199C8 (slot 6 0x58DD20 `cmp dword [edi+0xC], 0xD2199312` at 0x58DD38; slot 52 0x5A5490); data +0xBC tested at 0x58DD44; constructors referencing the vtable at 0x594749 / 0x5999A6; 0x599BC0 `0x1002950(0x25B1196D, 0, 1)`; the OnFailed hash at 0x599C5D; hash loop 0x10013F8..0x1001416 (`mov eax, 0x1505; shl 5; add; xor`)]
+
 ## 5. Priority
 
 ### AIO-RDY-1: One OrderReadiness per order type
@@ -258,8 +275,8 @@ through the level's event graph: on the Onslaught levels `CapturePoint.OnCapture
 
 ## Open questions
 
-- How an order's `Area` and `AreaType` turn into a destination and a stopping rule in the runtime (the order classes'
-  runtime counterparts and their `IssueOrder` handlers were not traced).
+- How an order's `Area` and `AreaType` turn into a destination and a stopping rule in the runtime (the runtime class
+  and its `IssueOrder` handler are AIO-RT-1; the issue itself, 0x5A5490, was not traced).
 - Whether AIO-RDY-2's weighting is a sum and an arg-max, and when a squad re-decides (the decision pass's period,
   BOT-RT-4).
 - What `Enumeration`, `AnimationIndex` and `IdleAnimation` select (animations of `AI/Animations`).

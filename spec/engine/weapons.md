@@ -21,7 +21,7 @@ angles in degrees, rates in rounds per minute. Nothing here was measured in game
 
 ### WPN-CLS-1: Weapon, firing, projectile, sway, aiming
 
-Status: **observed**
+Status: **verified**
 
 A weapon is a partition whose `SoldierWeaponAsset` names a `SoldierWeaponData` (its primary object). The data names
 its firing, `WeaponFiring` -> a `WeaponFiringData` (in a partition `<weapon>_firing`); that names `PrimaryFire` -> a
@@ -31,6 +31,7 @@ its firing, `WeaponFiring` -> a `WeaponFiringData` (in a partition `<weapon>_fir
 names an `ExplosionEntityData`. The weapon's `AimingController` names a `SoldierAimingSimulationData`, whose
 `ZoomLevels` list `ZoomLevelData` instances in order. A firing may be shared: a weapon's variants name the same one.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: 359 SoldierWeaponData and 359 SoldierWeaponAsset, 280 SoldierAimingSimulationData, 574 ZoomLevelData, 180 WeaponFiringData and 180 FiringFunctionData, 117 BulletEntityData, 77 GunSwayData in 1,130 partitions; every weapon's WeaponFiring and PrimaryFire resolve (359 of 359), its projectile on 358]
 
 ### WPN-CLS-2: WeaponClass, and no pistol class
@@ -60,7 +61,7 @@ launchers (6 of 6), `wabsHgr` on grenades, mines and explosives, `wabsHg` on the
 
 ### WPN-PATCH-1: DICE's balance patches are Package copies
 
-Status: **observed**
+Status: **verified**
 
 DICE re-balanced the weapons after release by shipping changed copies of their partitions in the Package level
 bundles (and `mp2_common`), not by editing `mp_common` in Dist. Where a partition has a Package copy the game reads it
@@ -68,6 +69,7 @@ bundles (and `mp2_common`), not by editing `mp_common` in Dist. Where a partitio
 5-25 m, its patched copy 100 -> 50 over 10-36 m; the power tool's 5 a hit became 6.5. Every Package copy of a firing
 is the same content in every bundle that holds it.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: 351 weapon partitions have a Package and a Dist copy, 325 of them differ (XML form); 159 firing partitions: 130 have Package copies, each name 1 content over all its Package copies; 93 of the 159 have 2 contents over all copies; of 68 distinct player firings with both copies, the Package one changes the falloff start on assault 8 of 10, SMG 12 of 13, LMG 7 of 7, shotgun 11 of 14 (falloff end 13 of 14); end damage and both falloff distances on sniper 5 of 8; the damage on the power tool 1 of 1]
 
 ### WPN-PATCH-2: Readers take the Package copy first
@@ -331,7 +333,7 @@ in other weapon assets (2 each on 46, 3 on 2): assault 12, shotgun 12, sniper 8,
 
 ### WPN-WW2-1: DICE's BF1943 weapons, mostly the campaign's
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 BFBC2 ships BF1943 weapon partitions under BF1943's names and GUIDs (OPFOR's audit counts 109 over every folder). In
 `objects/weapons/handheld/beach/` there are 76 partitions and 14 weapons: the M1911, the M1 Garand (two) and the
@@ -339,6 +341,7 @@ Thompson assault version only in multiplayer bundles, the Thompson in both, and 
 rifle grenade, the Nambu pistol and Nambu 100, the Shin Gunto, the Type 97 and US hand grenades, the expack, the
 Japanese M18).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: 76 partitions under beach/; 14 SoldierWeaponData there: mp 4, mp+sp 1, sp 9]
 [doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:12-23]
 

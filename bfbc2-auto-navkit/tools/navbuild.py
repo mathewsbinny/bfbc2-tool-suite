@@ -129,6 +129,13 @@ GABRIEL_EDGES = 'detailed'      # prune the route graph's walkable pairs to the 
                                 # there (174,024 edges against DICE's 24,710; ONS_MP_002, 2026-10-21)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (write_file)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (write_file)
+OWNER_EDGES = False             # a border copy the sector does not own carries no edges (HPD-NODE-5, KYG-EDGE-4): off
+                                # while NavKit's one border row lies in the higher sector - the runtime walks every
+                                # copy's edges (KYRT-PATH-3), and the non-owner copies' are the only ones into the
+                                # lower sector (as on: strongly connected share sp_004_b 100 -> 6.5 %)
+NODE_BOUNDS = True              # the sector table's bounds are the box of the sector's nodes (KYN-SEC-2)
+DIAGONAL_LINKS = True           # border portal runs cut at the square's lines, the pieces beyond linked to the diagonal
+                                # neighbour (KYN-LINK-1)
 ORDER_NODES = True              # a route node at AI order positions far from any node (build_graph; needs the level's
                                 # order_points.json from levelobjects.py) - sp_004_b play test 2026-10-20: 0 failures. Was off until
                                 # the sp_004_b play test confirms it (2026-10-20)
@@ -335,7 +342,8 @@ def _switches() -> dict[str, Any]:
     return dict(area_link=AREA_LINK, link_rule=LINK_RULE, symmetric_portals=bool(SYMMETRIC_PORTALS),
                 edge_rule_grid_min=EDGE_SECTOR_RULE == 'grid_min', edge_sector_tiles=bool(EDGE_SECTOR_TILES),
                 max_area=_max_area(), gabriel=GABRIEL_EDGES, sort_nodes_by_id=bool(SORT_NODES_BY_ID),
-                border_owner=bool(BORDER_OWNER), order_node_min=float(ORDER_NODE_MIN),
+                border_owner=bool(BORDER_OWNER), owner_edges=bool(OWNER_EDGES), node_bounds=bool(NODE_BOUNDS), diagonal_links=bool(DIAGONAL_LINKS),
+                order_node_min=float(ORDER_NODE_MIN),
                 order_min_island=int(ORDER_MIN_ISLAND or 0), detail_half_cells=bool(DETAIL_HALF_CELLS),
                 detail_in_detailed=bool(DETAIL_IN_DETAILED),
                 detail_f=(bool(DETAIL_F['normal']), bool(DETAIL_F['detailed'])),

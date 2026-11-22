@@ -404,6 +404,198 @@ def partitions(bundles: list[Path]) -> None:
     print(f'TreeMeshSet resources: {tree_res}; undergrowth mesh sets (in an undergrowth folder): {dict(ug_res)}')
 
 
+def pyramid_sides(n: int) -> list[int]:
+    """TERR-HF-11: the lower-envelope grids' sides, the coarsest first: 2, 3, 5, ..., n / 8 + 1."""
+    sides = []
+    k = n // 8
+    while k >= 1:
+        sides.append(k + 1)
+        k //= 2
+    return sides[::-1]
+
+
+def minmax_tree(h: Any, n: int) -> Any:
+    """TERR-HF-10: (min, max) per node, the root first, each level row by row (rows along z) down to 16-sample cells;
+    a node covers its cells' samples and the row and column after them (inside the block)."""
+    import numpy as np
+    out = []
+    size = n
+    while size >= 16:
+        k = n // size
+        lo = h.reshape(k, size, k, size).min(axis=(1, 3))
+        hi = h.reshape(k, size, k, size).max(axis=(1, 3))
+        if k > 1:
+            # widened by the first row and column of the next cells
+            edge_r = h[size::size, :]
+            lo[:-1, :] = np.minimum(lo[:-1, :], edge_r.reshape(k - 1, k, size).min(axis=2))
+            hi[:-1, :] = np.maximum(hi[:-1, :], edge_r.reshape(k - 1, k, size).max(axis=2))
+            edge_c = h[:, size::size]
+            lo[:, :-1] = np.minimum(lo[:, :-1], edge_c.reshape(k, size, k - 1).min(axis=1))
+            hi[:, :-1] = np.maximum(hi[:, :-1], edge_c.reshape(k, size, k - 1).max(axis=1))
+            corner = h[size::size, size::size]
+            lo[:-1, :-1] = np.minimum(lo[:-1, :-1], corner)
+            hi[:-1, :-1] = np.maximum(hi[:-1, :-1], corner)
+        out.append(np.stack([lo, hi], axis=-1).reshape(-1))
+        size //= 2
+    return np.concatenate(out).astype('<u2')
+
+
+def main_tail(d: bytes) -> dict[str, Any]:
+    """A main height-field block's tail (TERR-HF-4, TERR-HF-9 - TERR-HF-11): the depth map's rows, the padding, the
+    min / max tree and the lower-envelope grids, and whether the first three re-encode to the file's bytes."""
+    import numpy as np
+    n = struct.unpack_from('<I', d, 0x18)[0]
+    a = struct.unpack_from('<I', d, 0x2D)[0]
+    end = 0x31 + 2 * n * n
+    h = np.frombuffer(d, '<u2', n * n, 0x31).reshape(n, n)
+    offsets = np.frombuffer(d, '<u4', n, end)
+    runs = np.frombuffer(d, '<u2', offset=end + 4 * n)
+    depth = np.zeros((n, n), np.uint8)
+    maximal = True
+    o = 0
+    for r in range(n):
+        if offsets[r] != o:
+            raise ValueError(f'row {r}: offset {offsets[r]}, expected {o}')
+        s, prev = 0, -1
+        while s < n:
+            c, v = int(runs[o]), int(runs[o + 1])
+            if c == 0 or v > 255 or s + c > n:
+                raise ValueError(f'row {r}: run ({c}, {v})')
+            maximal &= v != prev
+            depth[r, s:s + c] = v
+            s, prev, o = s + c, v, o + 2
+    rle = 2 * o
+    pad = (-(4 * n + rle)) % 16
+    tree = minmax_tree(h, n)
+    sides = pyramid_sides(n)
+    grids = sum(s * s for s in sides)
+    tail_len = len(d) - end
+    body = end + 4 * n + rle
+    re_encoded = (a == 4 * n + rle + pad and tail_len == 4 * n + rle + pad + 2 * len(tree) + 2 * grids
+                  and d[body:body + pad] == bytes(pad)
+                  and d[body + pad:body + pad + 2 * len(tree)] == tree.tobytes())
+    flat = np.frombuffer(d, '<u2', grids, len(d) - 2 * grids).astype(np.int64)
+    levels, at = [], 0
+    for s in sides:
+        levels.append(flat[at:at + s * s].reshape(s, s))
+        at += s * s
+    return {'n': n, 'depth': depth, 'maximal': maximal, 'pad': pad, 'tree': len(tree), 'grids': levels,
+            'heights': h, 're_encoded': re_encoded}
+
+
+def below(level: Any, h: Any) -> float:
+    """The share of height samples at or under a lower-envelope grid, each grid square split along its
+    (i, j)-(i+1, j+1) diagonal (TERR-HF-3)."""
+    import numpy as np
+    n = h.shape[0]
+    s = level.shape[0]
+    step = n // (s - 1)
+    z, x = np.mgrid[0:n, 0:n]
+    i, j = np.minimum(z // step, s - 2), np.minimum(x // step, s - 2)
+    fz, fx = (z - i * step) / step, (x - j * step) / step
+    g = level.astype(np.float64)
+    a, b, c, e = g[i, j], g[i, j + 1], g[i + 1, j], g[i + 1, j + 1]
+    v = np.where(fx >= fz, a + (b - a) * fx + (e - b) * fz, a + (c - a) * fz + (e - c) * fx)
+    return float((h >= v - 0.5).mean())
+
+
+def encode_material_row(cells: Any) -> bytes:
+    """TERR-MM-2: one row of a block (512 cells) as DICE writes it."""
+    b = (cells[0::2] | (cells[1::2] << 4)).astype('u1').tolist()
+    out = bytearray()
+    k = 0
+    while k < len(b):
+        e = k
+        while e < len(b) and b[e] == b[k]:
+            e += 1
+        left = e - k
+        while left:
+            if left == 1:
+                out.append(b[k])
+                left = 0
+            else:
+                take = min(left, 256)
+                out += bytes([b[k], b[k], take - 1])
+                left -= take
+        k = e
+    return bytes(out)
+
+
+def material_map(d: bytes) -> dict[str, Any]:
+    """TERR-MM-1 - TERR-MM-3: the cells' material indices (rows along z) and the names, and whether the cells
+    re-encode to the file's bytes."""
+    import numpy as np
+    w, nb = struct.unpack_from('<IH', d, 0)
+    per_row = w // 512
+    cells = np.zeros(((nb // per_row) * 256, w), np.uint8)
+    o = 6
+    out = bytearray(d[:6])
+    for k in range(nb):
+        length = struct.unpack_from('<I', d, o)[0]
+        data = d[o + 4:o + 4 + length]
+        table = struct.unpack_from('<256H', d, o + 4 + length)
+        o += 4 + length + 512
+        by, bx = divmod(k, per_row)
+        at = 0
+        rows = []
+        for r in range(256):
+            row = data[at:at + table[r]]
+            at += table[r]
+            pairs: list[int] = []
+            prev = -1
+            q = 0
+            while q < len(row):
+                x = row[q]
+                q += 1
+                if x == prev:
+                    pairs += [x] * row[q]
+                    q += 1
+                    prev = -1
+                else:
+                    pairs.append(x)
+                    prev = x
+            if len(pairs) != 256:
+                raise ValueError(f'block {k} row {r}: {len(pairs)} pairs')
+            line = np.array(pairs, np.uint8)
+            cells[by * 256 + r, bx * 512:(bx + 1) * 512:2] = line & 15
+            cells[by * 256 + r, bx * 512 + 1:(bx + 1) * 512:2] = line >> 4
+            rows.append(encode_material_row(cells[by * 256 + r, bx * 512:(bx + 1) * 512]))
+        block = b''.join(rows)
+        out += struct.pack('<I', len(block)) + block + struct.pack('<256H', *(len(r) for r in rows))
+    size = struct.unpack_from('<I', d, o)[0]
+    names = [x.decode('latin-1') for x in d[o + 4:o + 4 + size].split(b'\0') if x]
+    out += d[o:]
+    return {'width': w, 'blocks': nb, 'cells': cells, 'names': names, 're_encoded': bytes(out) == d}
+
+
+def tails_and_material_maps(bundles: list[Path]) -> None:
+    import numpy as np
+    print('== main height-field tails and material maps')
+    seen: set[str] = set()
+    for path in bundles:
+        es = [e for e in fbrb.entries(path) if not e.deleted and e.name.lower() not in seen
+              and e.type in ('TerrainHeightfield', 'TerrainMaterialMap')]
+        for e in es:
+            seen.add(e.name.lower())
+            d = fbrb.read(path, [e.name])[e.name]
+            t = e.name.split('/')[1]
+            if e.type == 'TerrainHeightfield':
+                if not struct.unpack_from('<I', d, 0x20)[0]:
+                    continue
+                m = main_tail(d)
+                dep = m['depth']
+                lows = ' '.join(f'{lv.shape[0]}:{below(lv, m["heights"]):.4f}' for lv in m['grids'])
+                print(f'  {t} n {m["n"]}: re-encoded {m["re_encoded"]}, runs maximal {m["maximal"]}, pad {m["pad"]}; '
+                      f'depth 255 {float((dep == 255).mean()):.3f}, 0 {float((dep == 0).mean()):.3f}; '
+                      f'grid samples at or under: {lows}')
+            else:
+                mm = material_map(d)
+                used = np.bincount(mm['cells'].ravel(), minlength=16)
+                print(f'  {t} material map {mm["width"]} x {mm["cells"].shape[0]}, {mm["blocks"]} blocks: '
+                      f're-encoded {mm["re_encoded"]}; {len(mm["names"])} names, cells per index '
+                      f'{[int(x) for x in used[:len(mm["names"])]]}')
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -413,6 +605,7 @@ def main() -> None:
     print(f'{len(bundles)} DICE level bundles')
     terrain_resources(bundles)
     partitions(bundles)
+    tails_and_material_maps(bundles)
 
 
 if __name__ == '__main__':

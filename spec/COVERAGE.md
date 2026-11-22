@@ -24,7 +24,7 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **DBX** binary / XML / types / references | bc2-formats, dbx tools, editor DBX inspector | PY1, PR1b-1 (one DBX document) | formats/dbx (28), xmlinst (4), model/types (27), references (19) | covered | covered | as after SPG |
 | **Bundles, precedence, registration, checksum** | bc2-formats, bc2-install, levelwrite export | IN1, OPFOR in Rust 2 | model/bundles (16), registration (18), engine/loading (13) | covered | covered | as after SPG |
 | **Level structure, modes, gameplay** | editor (E3, V1, VW2 mode layer), levelwrite, L1 study | E4, A1 | model/level (31), engine/levels (6), engine/gameplay (45), transforms/validation (59) | covered | covered | as after SPG |
-| **Terrain** (height field, patches, masks, destruction layer) | bc2-formats terrain, bc2-render, editor | E5 sculpt and paint, E7 | formats/terrain (19), RNDR-TERR (5), DSTR-TERR (4) | thin (no writer side) | thin: E5 needs the terrain writer rules (TERR open questions) | covered for E5: transforms/terrain_edit (15): what an edit writes, the atlas, flags, donors; E7 still needs the main block's tail decoded |
+| **Terrain** (height field, patches, masks, destruction layer) | bc2-formats terrain, bc2-render, editor | E5 sculpt and paint, E7 | formats/terrain (19), RNDR-TERR (5), DSTR-TERR (4) | thin (no writer side) | thin: E5 needs the terrain writer rules (TERR open questions) | covered for E5: transforms/terrain_edit (15): what an edit writes, the atlas, flags, donors; SPG2-rest: covered for E7 too - the main block's tail (TERR-HF-4, 9 - 11: depth map, min / max tree, lower envelope) and the material map (TERR-MM-2 - 4) decoded, 30 of 30 re-encoded byte for byte |
 | **Water** | bc2-formats, bc2-render, wake_water | - | formats/water (8), RNDR-WATER (3) | covered | covered | as after SPG |
 | **Collision / Havok** | bc2-convert havokport, bc2-formats havok | OPFOR in Rust 4 | formats/havok (24), collision (9) | covered | covered (the material hash closed, MAT-SLOT-1) | as after SPG |
 | **Meshes, mesh sets** (PC and Xbox 360) | bc2-convert, mesh viewer (editor), console-convert | Dx9 port (hold) | formats/mesh (26) | covered | covered | as after SPG |
@@ -41,14 +41,14 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **Vehicles** (entity, physics, seats, health, spawners) | OPFOR bf1943_vehicles, vehicle_input_profile, boatrelease (DLL), console_vehicles / console_markv | repair stations, air raid, Air Superiority (hold) | SND-VEH-1 (1) -> **engine/vehicles (22)** | none | covered | as after SPG |
 | **Materials and the material grid** (part / hit material, penetration, impact effects) | OPFOR material_grid, physmat, wake_material_states; havokport | OPFOR in Rust 4 | HAVOK-MAT (2), GAME-DMG-1 -> **engine/materials (30)** | none | covered; the hit material of plain objects open (playtest) | as after SPG |
 | **Destruction** (health states, parts, bangers, destroyed meshes, collapse) | bc2-render destruction states, editor (SG1 members), levelwrite members | E4 (M-COMs), the map editor's group edits | HAVOK-RUN-3, GAME-DMG-1 -> **engine/destruction (22)** | none | covered | as after SPG |
-| **Grime, dirt, camouflage** | OPFOR grime, grime_models, grime_sheet | translate soldiers (hold) | none -> MAT-TEX (4) | none | thin: MAT-TEX-3 inferred; the grime pipeline's own rules not written | as after SPG |
-| **Vegetation and undergrowth** (TreeMeshSet, undergrowth, billboards) | mesh readers, bc2-render, conversion (TreeMeshSet) | **E6 vegetation** | MSET-PART-2, RNDR-TERR-4 (2) | thin | thin (plan, section 2) | covered: engine/vegetation (8) |
+| **Grime, dirt, camouflage** | OPFOR grime, grime_models, grime_sheet | translate soldiers (hold) | none -> MAT-TEX (4) | none | thin: MAT-TEX-3 inferred; the grime pipeline's own rules not written | SPG2-rest: covered (data side): MAT-TEX (19): dirt slots and constants, terrain dirt triggers, vehicle / soldier / weapon camouflage per level, OPFOR's weathering pass; how dirt builds up at run time open |
+| **Vegetation and undergrowth** (TreeMeshSet, undergrowth, billboards) | mesh readers, bc2-render, conversion (TreeMeshSet) | **E6 vegetation** | MSET-PART-2, RNDR-TERR-4 (2) | thin | thin (plan, section 2) | covered: engine/vegetation (8); SPG2-rest: the undergrowth entry is the engine's TerrainUndergrowthType (VEG-UG-3, 5), the NAM_MP_003 reader fix |
 | **Animation and characters** (Granny, anim trees, aim, skeletons, soldiers, kits) | granny, aimanim, anim-tools, OPFOR anims / animswap / soldiers / kits / kitbags / skinning | translate soldiers (hold) | formats/granny (8), aimanim (3) | thin | thin (plan, section 2) | covered: engine/animation (17) |
 | **Decals and roads** | bc2-render (baked strips) | E5 | RNDR-TERR-4 (1) | thin | thin (plan, section 2) | covered: engine/decals (6) |
 | **Audio and voice-over** | console-convert XAS, OPFOR wake_vo / wake_ambience | E3c done | formats/audio (16), engine/audio (16) | covered | covered | as after SPG |
 | **AI and navigation** (Kynapse) | auto-navkit, stockmp-ai, editor AI workspace, DLL navgen / navquery / forceai | **NKS (now)**, NK3-NK5, A1, WW2 navmesh (hold) | formats/hpd (36), navsample (8), engine/ai (16), engine/bot_ai (41, round AIS), model/ai_orders (16, AIS), transforms/navkit (8), stockmp (7) | covered (generator rules in NKS) | covered; NKS owns the rest | as after SPG |
 | **Cull trees** | culltree, bc2-formats | PR1b-1 | formats/culltree (17), transforms/culltree (8) | covered | covered | as after SPG |
-| **Menus, HUD, APT** | menu-tools, aptgraft, OPFOR menus, DLL menutree / onslaught_hud | IN1 diagnostics | formats/apt (31), engine/menus (4) | thin (runtime) | thin (the action-script runtime and the HUD patches) | as after SPG |
+| **Menus, HUD, APT** | menu-tools, aptgraft, OPFOR menus, DLL menutree / onslaught_hud | IN1 diagnostics | formats/apt (31), engine/menus (4) | thin (runtime) | thin (the action-script runtime and the HUD patches) | SPG2-rest: covered (data side): engine/menus (30): the movies' action script measured, the interpreter's handler table, events and externs, the HUD movies, OPFOR's DLL patches, what a menu edit must keep |
 | **Networking and hosting** | DLL net / server_browser / patches | - | engine/network (9) | covered | covered | as after SPG |
 | **Persistence** (stats, ranks, unlocks, licences, awards) | DLL persistence, stats_screens; OPFOR ww2_awards | Pacific War awards (decided 2026-11-15) | GAME-AWARD-1 (1) -> **engine/persistence (7)** | none | thin: the game's path and OPFOR's hooks; the award engine and `Persistence/*.dbx` classes not written | covered: PERS-DATA / RANK / AWD / SCORE / WW2 (12 more); the award engine not built |
 | **OPFOR's game module: patch points** (27 files, about 170 addresses in `BFBC2Game.exe`) | `src/dll` | air raid, repair stations (hold) | network, persistence, AI-NEED-5, GAME-AWARD-1, crashes index | thin | thin (plan, section 2) | covered: engine/module (15): 221 addresses |
@@ -65,10 +65,34 @@ After SPG and AIS (round AIS added the bot AI's 57 rules): 1,051 rules in 59 fil
 rules in 68 files (118 new: 22 verified, 42 implemented, 46 observed, 8 inferred; DSTR-TERR-4 observed -> verified by
 the new game-tier check); covered 34, thin 2 (grime / camouflage, the menus' runtime), none 0.
 
+After SPG2-rest (2026-11-22): 1,231 rules in 68 files (from 1,183 at its start, NKS-rest included: 48 new; 531 -> 605
+verified, 116 -> 126 implemented, 487 -> 453 observed, 49 -> 47 inferred); covered 36, thin 0, none 0. The game-tier
+check (`core/tests/test_spec_probes.py`) now holds every probe's stable counts: 172 checks, about 3.5 minutes.
+
 ## 2. What is left, in the order the queued rounds need it
 
-Round SPG2 (2026-11-22) wrote items 1 - 11 of SPG's list (section 3 keeps that list as it was) and the probes' first
-game-tier check (`core/tests/test_spec_probes.py`, `run_tests.py game`: 14 rules verified by it, 13 of them new, DSTR-TERR-4 observed -> verified). Left:
+Round SPG2-rest (2026-11-22) did section 2a's items 1 - 2, 4 and 5 and part of 3 (the undergrowth fields); section 2a
+keeps SPG2's list as it was. Left:
+
+1. **Terrain, in game**: E5's and E7's rules are written down to the bytes, but no edited terrain has been loaded:
+   what the engine does with the depth map's values (TERR-HF-9) and a stale or synthetic lower envelope (TERR-HF-11),
+   and how it samples the material map (TEDIT-MM-1), wait on a playtest; what reads the height field for collision.
+   The suite's height-field readers still split the tail the old way (`Tail::Sections`): the round that writes main
+   blocks (E7) reads the four parts.
+2. **The undergrowth loader** (VEG-UG-5 is matched by data): the order inside the two-float scales and the two closing
+   flags.
+3. **RE still needed**: the emitter processors' semantics (FX-PROC-2), the mount functions (STRM-MNT-1), the
+   `OnlyTakeableByTeam` reader (ONS-CAP-1), the award evaluator and whether bots' deaths are scored (PERS-SCORE-1
+   against AI-NEED-5: a kill-probe playtest), the compiled anim tree's layout (ANIM-TREE-3); run-time dirt build-up
+   (MAT-TEX-6, MAT-TEX-7: a capture); the menus' loading roots, event queue and FSCommand callback (engine/menus.md
+   Open questions).
+4. **Readers that keep the one-byte undergrowth reading**: `bc2-convert`'s visual-terrain walk and console-convert's
+   `terrain.py` (Xbox and BF1943 inputs, whose second strings are all empty); a fix with the round that next touches
+   them.
+5. **Probes still printing only**: none of the probes' rules is observed for want of a check any more; the rules still
+   observed rest on counts no check holds (per-class ranges in the weapon and vehicle outputs) or on the executable.
+
+## 2a. What was left after SPG2 (kept as written)
 
 1. **Terrain for E7**: the main block's tail (TERR-HF-4) and the material map's encoding (TEDIT-MM-1); what reads the
    height field for collision (TEDIT open questions). E5's sculpt and paint rules are in place; every one waits on a
@@ -76,8 +100,8 @@ game-tier check (`core/tests/test_spec_probes.py`, `run_tests.py game`: 14 rules
 2. **The suite's undergrowth reader** misreads NAM_MP_003's visual terrain (VEG-UG-2): a reader fix for the round that
    next touches `bc2-render/src/terrain.rs` (QW-sized).
 3. **RE still needed**: the undergrowth numbers' meanings (VEG-UG-3), the emitter processors' semantics (FX-PROC-2),
-   the mount functions (STRM-MNT-1), the `OnlyTakeableByTeam` reader (ONS-CAP-1), the award evaluator and whether bots'
-   deaths are scored (PERS-SCORE-1 against AI-NEED-5: a kill-probe playtest), the compiled anim tree's layout
+   the mount functions (STRM-MNT-1), the `OnlyTakeableByTeam` reader (ONS-CAP-1), the award evaluator (whether bots'
+   deaths are scored was settled statically by AIS-rest, BOT-SCO-3; a kill-probe playtest confirms), the compiled anim tree's layout
    (ANIM-TREE-3).
 4. **Grime / camouflage** (MAT-TEX) and **the menus' action-script runtime** stay thin.
 5. **More probe counts as checks**: SPG's five probes (lighting, weapons, vehicles, materials, destruction) still back
