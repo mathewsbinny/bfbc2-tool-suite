@@ -33,6 +33,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_HLSL_CACHE_MB': ('cache', "the HLSL compile cache's cap in MB"),
     'BFBC2_SHADERCOVER_CACHE': ('cache', "the shader coverage index cache's folder; 0: none"),
     'BFBC2_SHADERCOVER_CACHE_MB': ('cache', "the shader coverage cache's cap in MB"),
+    'BFBC2_RENDERQA_CACHE': ('cache', "renderqa's truth index cache's folder; 0: none"),
+    'BFBC2_RENDERQA_CACHE_MB': ('cache', "renderqa's truth index cache's cap in MB"),
     'BFBC2_EDITOR_CACHE_MB': ('cache', "the map editor's prepared-level cache's cap in MB"),
     'BFBC2_HARNESS_CACHE_MB': ('cache', "the test harness's project cache cap (OPFOR work\\harness\\cache) in MB"),
     'BFBC2_NAVSTUDIO_CACHE_MB': ('cache', "the navigation data project cache cap (OPFOR work\\navstudio\\cache) in MB"),
