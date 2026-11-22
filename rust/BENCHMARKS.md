@@ -7573,3 +7573,106 @@ The build's Python, in an order that keeps each stage self-contained and provabl
    `navvehicle.stage_on_grid` (vehicle path data runs `stage`), `navwater_mesh`, `navsample_offline`, `hpdcheck`,
    `bfbc2-navigation-studio/overlay.py`, `rust/bench_navkit.py`. Retiring `navkit.py build` / `apply` removes
    command-line paths: a VERSION bump then (RELEASING.md).
+
+## NK2: NavKit's build, graphs to file (2026-11-21, branch `nk2`)
+
+NK1's plan, stage 1 of the build: everything a build does once its route graphs exist, and the neighbour links of
+the sectors' runtime meshes. A build now hands its graphs to the Rust core once (`navbuild.write_file`, called with
+the build's anchors), and the core prunes, lays out and writes the file; the stage's two link resolvers run in the core
+from the stage's own areas.
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navislands.components`, `shadowing` and `prune`'s loop (the shadow-island rule: small route islands mostly on objects, holding no anchor, beside a large one) | `bc2_navbuild::graphfile::shadow_islands`, `drop_edges` | `navbuild.write_file` (with the anchors: a build); `navislands.prune` is a thin call (`bc2_native.navkit_shadow_islands`) for other callers |
+| `navbuild.prune_order_nodes` (order nodes in islands under `ORDER_MIN_ISLAND`; `ORDER_STATS['removed']`) | `graphfile::prune_order_nodes` | `write_file` |
+| `navbuild.finalize_graph` (nodes without an edge dropped, sorted by unsigned id, costs from the `float32` positions, first-edge indices, the sorted-list fields `b` / `c`, the border owner bit) | `graphfile::finalize` | `write_file` |
+| `write_file`'s assembly (each sector's record, the meshes written, `hpdtool.write`) | `graphfile::write_file` (`kymesh::write`, `hpd::write`; the meshes read from the build's `kymesh.Mesh` values and written in parallel) | `bc2_native.navkit_write_graphs` |
+| `sector_links` (links grouped by sector and area across, the portals' offsets in their area objects) with `border_cell`, `same_grid_resolver` and `cross_grid_resolver` | `graphfile::sector_links` with `Border::inner_cell`; the resolvers in `bc2-py`'s `navgraph::sector_links` on the stage's `NavLevel` / `NavAreas` | `NavLevel.sector_links` (a `NavLinkScope` per stage: `navbuild.link_scope` / `link_across`), called by `stage` and `merge_detailed` |
+
+What stays Python until NK5: the stage builds the `kymesh.Area` / `Mesh` values (their tiles, height ranges,
+rectangle, bounds) from the traced areas and D / F details, because the stage's result is read as Python values by
+navvehicle, navwater_mesh, the golden test's whole-stage digests and `merge_detailed`, which sets the links of meshes
+already made. The mesh assembly's only computation, the links, is the core's; the rest is the values' construction,
+which moves with the stage.
+
+### Parity
+
+- **Every regression level, against the old Python** (`rust/parity_nk2_file.py`: this checkout builds each level
+  through `navregress.build_level` with the build clock fixed; inside the build every `sector_links` call also runs
+  the old Python's `sector_links` with the stage's resolver, or `merge_detailed`'s same-grid / cross-grid pair, from
+  the main checkout's `navbuild.py`, and `write_file` also runs the old `navislands.prune` and `write_file` on the same
+  graphs; then each checkout builds the level once more alone): **15 of 15 levels identical**: every sector's links
+  (5,698 calls), the file, the log lines, the island statistics and `ORDER_STATS['removed']`; and the old checkout's
+  own build, the new checkout's own build and the compared build have one SHA-1 per level.
+- **The golden builds** (`tests/navbuild_golden.json`, the build clock fixed): sp_009, sp_004_b, sp_008_b and
+  ons_mp_004 as recorded, in the parity run and in `test_navbuild_native.py --game --levels
+  sp_009,sp_004_b,sp_008_b,ons_mp_004`; its quick tier (the E2a / E3c / E3h recorded answers, among them whole stages
+  with their meshes' links) unchanged.
+- **NK1's apply parity**: 33 of 33 (`rust/parity_nk1_apply.py`, main's `navkit.py` - NK1's, itself 33 of 33
+  against the Python before NK1 - against this branch's `bfbc2.exe navkit apply`: the 18 DICE files and the 15
+  regression builds; the apply's edit stage is untouched).
+- **Python's order**: nothing a set or dict iteration orders reaches the output. The islands dropped are a set of
+  ids (which island a node is in does not depend on the union-find's order: the roots differ, the members do not);
+  the order nodes dropped, a set; `ORDER_STATS['removed']` follows the graphs' order; `sector_links` sorts its
+  groups; every sort is the reference's stable sort on the same keys (unsigned ids; the build's float64 positions,
+  finite). No NumPy arithmetic is in the stage but the `float32` rounding of positions for the costs (`as f32`:
+  round to nearest, as `np.float32`) and the cross-grid resolver's float64 heights (IEEE, the same). Proven on all
+  15 levels as above, which include every golden level.
+- **DICE parity cannot move**: the files are byte-identical to the Python's, so no content argument (navparity /
+  hpdcheck) is needed.
+
+### Time and memory
+
+The stage alone (its inputs - graphs, meshes, anchors, order and terrain ids - pickled from the build and loaded in
+a fresh process; old: `navislands.prune` + `write_file`, new: `write_file`), and the links inside each checkout's
+whole build (old: `sector_links` with its Python resolvers; new: `NavLevel.sector_links` with the scopes). Peak:
+the process's peak working set above its working set once the inputs were loaded (other agents' builds beside it).
+
+| level | file (MB) | links compared | stage alone, old -> new (s) | stage peak above inputs, old / new (MB) | links in the whole build, old -> new (s) | whole build, old -> new (s) |
+|---|---:|---:|---:|---:|---:|---:|
+| ons_mp_002 | 7.9 | 146 | 0.33 -> **0.16** | 39 / **38** | 0.03 -> 0.02 | 11 -> 11 |
+| ons_mp_004 | 7.3 | 72 | 0.34 -> **0.15** | 35 / **38** | 0.01 -> 0.02 | 6 -> 6 |
+| sp_003_b | 27.5 | 645 | 1.47 -> **0.47** | 131 / **92** | 0.11 -> 0.12 | 24 -> 22 |
+| sp_004_b | 7.9 | 107 | 0.40 -> **0.15** | 38 / **36** | 0.02 -> 0.02 | 8 -> 8 |
+| sp_005 | 37.2 | 615 | 2.16 -> **0.69** | 181 / **121** | 0.98 -> 0.45 | 58 -> 46 |
+| sp_005_b | 39.1 | 597 | 1.66 -> **0.93** | 182 / **130** | 0.95 -> 2.11 | 47 -> 41 |
+| sp_006 | 33.9 | 841 | 2.03 -> **0.69** | 171 / **113** | 1.36 -> 1.22 | 60 -> 66 |
+| sp_007 | 31.8 | 677 | 1.44 -> **0.66** | 151 / **113** | 2.22 -> 1.35 | 57 -> 62 |
+| sp_008 | 12.0 | 111 | 0.82 -> **0.36** | 56 / **52** | 0.04 -> 0.04 | 17 -> 15 |
+| sp_008_b | 8.1 | 75 | 0.40 -> **0.15** | 37 / **37** | 0.02 -> 0.02 | 9 -> 9 |
+| sp_009 | 0.4 | 22 | 0.07 -> **0.05** | 4 / **4** | 0.00 -> 0.00 | 2 -> 2 |
+| sp_01 | 17.4 | 320 | 0.73 -> **0.35** | 85 / **66** | 0.16 -> 0.15 | 21 -> 22 |
+| sp_02 | 13.0 | 290 | 0.57 -> **0.29** | 64 / **51** | 0.10 -> 0.04 | 18 -> 17 |
+| sp_03 | 31.2 | 679 | 1.39 -> **0.87** | 150 / **105** | 1.60 -> 1.09 | 66 -> 46 |
+| sp_04 | 20.9 | 501 | 1.74 -> **0.55** | 104 / **72** | 0.87 -> 0.65 | 50 -> 35 |
+| all 15 | | 5,698 | 15.6 -> **6.5** (2.4x) | largest 182 / **130** | 8.5 -> 7.3 | 454 -> 406 |
+
+The links are 1-3 % of a build either way, and their time is noisy here (the builds ran beside other agents'
+work; the first lookup of a stage's areas builds the core's per-sector area maps once, 0.1-1 s on the large levels,
+whichever caller comes first): 8.5 -> 7.3 s over the 15 levels, no claim beyond "not slower". The whole builds
+(old and new checkout each alone, one after the other) moved by the stage's time and the machine's load: 454 -> 406
+s. A whole build's own peak (7-8.5 GB on sp_005 / sp_005_b / sp_006 / sp_04) is the stages before this one (PR1b's
+"NavKit regression's 15 GB"); this stage's part is the table's.
+
+The new stage's time is mostly reading the build's `kymesh.Mesh` values into Rust (0.08 of 0.12 s on sp_004_b; with
+the meshes' bytes given, 0.04 s): the meshes are Python values until NK5 moves their assembly.
+
+### Retired
+
+`navislands.components` / `shadowing` and `prune`'s own loop; `navbuild.prune_order_nodes`, `finalize_graph`,
+`border_cell`, `same_grid_resolver`, `cross_grid_resolver`, and `write_file`'s and `sector_links`' bodies: Python
+twins inside a living tool (RETIRED.md rule 4: recorded here and in CHANGELOG, not as RETIRED.md rows); the last
+commit with them is `08b1382`. No command line went and nothing outside NavKit called them (Project OPFOR has no
+caller of navbuild or navislands), so `VERSION` stays (RELEASING.md). `test_navislands.py` checks the file
+`write_file` writes in place of `finalize_graph`'s tables.
+
+### What is left: NK3-NK5
+
+NK1's plan stands for NK3 (`navdetail`: its sets' order reaches the D lines and F cells) and NK4 (walkability end to
+end). NK5 now also takes the meshes' assembly: in `stage`, the `kymesh.Area` per area (height range from the pass-1
+`ylims`, portals / borders / outline from the trace, D / F from `navdetail`), the tile items, the rectangle and the
+sector bounds; then the stage's graphs and meshes can stay in Rust from the areas to `graphfile::write_file` (no
+`kymesh.Mesh` read back: the 0.08 s above), `merge_detailed`'s links run on its two stages' cores directly, and
+`navvehicle` / `navwater_mesh` / the golden test read a Rust stage result.

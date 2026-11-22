@@ -65,11 +65,14 @@ tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's
   detailed.py        which sectors are detailed zones (pitch 0.2), from the level alone
   ladders.py         the level's ladders and their collision boxes, for ladder links (written by prepare)
   sample_all.py      unattended in-game sampling of several levels
-  navbuild.py        the generator: samples + level objects -> pathdata.hpd
+  navbuild.py        the generator: samples + level objects -> pathdata.hpd (its last stage, graphs to file - the
+                     shadow islands, the order nodes, the node and edge tables, the neighbour links, the file - in
+                     the Rust core since round NK2: rust\bc2-navbuild\src\graphfile.rs)
   hpdcheck.py        structure of a pathdata.hpd: closed boundaries, edges, node order, D / F (as DICE's files)
   navdetail.py       D lines and F cells of an area (DICE's rule; used by navbuild; tests\test_detail_features.py)
-  navislands.py      shadow islands: small route islands beside a larger one lose their nodes (used by navbuild;
-                     tests\test_navislands.py; see "Route islands")
+  navislands.py      shadow islands: small route islands beside a larger one lose their nodes (the rule's
+                     settings and terrain nodes; the rule runs in the Rust core since round NK2, in
+                     navbuild.write_file; tests\test_navislands.py; see "Route islands")
   ordercheck.py      scoring: AI order positions on the areas, pairwise route check, self-check
   navcompare.py      two files on a level's AI positions: coverage, main network, pairwise, size
   navdiff.py         two files layer by layer: sectors, walkable cells, areas, boundaries, route graph
