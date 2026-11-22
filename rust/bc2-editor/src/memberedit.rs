@@ -75,15 +75,15 @@ fn next_added(doc: &Doc, instance: &str, taken: &[(String, u32)]) -> u32 {
 }
 
 /// A member's group file as the log leaves it (else the base's), to read its `Assets`.
-fn group_file(doc: &Doc, file: &str) -> Option<LevelWriter> {
+fn group_file(doc: &Doc, file: &str) -> Option<std::sync::Arc<LevelWriter>> {
     let t = bc2_levelwrite::files::Target::group(file);
     let bc2_levelwrite::files::Target::Group { file: low } = &t else {
         return None;
     };
     if let Some(w) = doc.files().groups.get(low) {
-        return Some(w.clone());
+        return Some(std::sync::Arc::clone(w));
     }
-    LevelWriter::parse(&doc.base_file(&t)?).ok()
+    LevelWriter::parse(&doc.base_file(&t)?).ok().map(std::sync::Arc::new)
 }
 
 /// A member's place in its group file now.

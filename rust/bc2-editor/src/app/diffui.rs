@@ -16,7 +16,6 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Instant;
 
 use bc2_levelwrite::export::{self, StageRecord};
@@ -100,7 +99,7 @@ impl PreviewState {
 
 /// A preview being opened: the stage prepared and loaded, the base loaded, the two compared, on a worker.
 pub struct PreviewJob {
-    rx: Receiver<Result<Box<PreviewLoaded>, EditorError>>,
+    rx: crate::task::Task<Box<PreviewLoaded>>,
     /// Since when.
     pub since: Instant,
     /// The stage.
@@ -269,11 +268,8 @@ impl EditorApp {
         let Ok(root) = self.opfor.clone() else { return };
         // a preview shown is closed first (the project's view back while the new one opens)
         self.close_preview();
-        let (tx, rx) = std::sync::mpsc::channel();
         let st = stage.to_path_buf();
-        std::thread::spawn(move || {
-            let _ = tx.send(crate::export_ui::guarded("The preview", || load_preview(&root, &st)));
-        });
+        let rx = crate::task::Task::spawn("The preview", move || load_preview(&root, &st));
         self.preview = PreviewState::Opening(PreviewJob {
             rx,
             since: Instant::now(),
@@ -289,15 +285,9 @@ impl EditorApp {
         let PreviewState::Opening(job) = &self.preview else {
             return;
         };
-        let r = match job.rx.try_recv() {
-            Ok(r) => r,
-            Err(TryRecvError::Empty) => {
-                ctx.request_repaint_after(std::time::Duration::from_millis(200));
-                return;
-            }
-            Err(TryRecvError::Disconnected) => {
-                Err(EditorError::Level("the preview's worker stopped unexpectedly".into()))
-            }
+        let Some(r) = job.rx.poll() else {
+            ctx.request_repaint_after(std::time::Duration::from_millis(200));
+            return;
         };
         let stage = job.stage.clone();
         // a preview asked for another project was dropped with its generation (round DF1): this one is the open

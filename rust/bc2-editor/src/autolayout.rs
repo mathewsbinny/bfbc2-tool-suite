@@ -8,7 +8,6 @@
 //! current one is stale and cannot be accepted.
 
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use bc2_levelwrite::autolayout::{self, Ask, Proposal};
 use bc2_levelwrite::placement::Mode;
@@ -24,7 +23,7 @@ use crate::theme::Palette;
 pub struct AutoLayout {
     /// The seed the next proposal uses.
     pub seed: u64,
-    job: Option<(u64, Receiver<Result<Proposal, String>>)>,
+    job: Option<(u64, crate::task::Task<Proposal>)>,
     /// The last proposal and the document revision it was made at.
     pub proposal: Option<(u64, Proposal)>,
     /// What happened last, in words.
@@ -69,21 +68,21 @@ impl AutoLayout {
             return;
         };
         let w = w.clone();
-        let (tx, rx) = channel();
-        std::thread::spawn(move || {
-            let r = autolayout::propose_with(&w, &site, routes.as_deref(), ask).map_err(|e| e.to_string());
-            let _ = tx.send(r);
+        // on the editor's one job type (round PR1b-0, crate::task)
+        let job = crate::task::Task::spawn("The auto layout", move || {
+            autolayout::propose_with(&w, &site, routes.as_deref(), ask)
+                .map_err(|e| crate::error::EditorError::Tool(e.to_string()))
         });
-        self.job = Some((doc.revision, rx));
+        self.job = Some((doc.revision, job));
         self.started = Some(std::time::Instant::now());
         self.message = format!("Laying out the layer (seed {}) ...", self.seed);
     }
 
     /// Takes a finished proposal; whether one arrived (the views' look is made again).
     pub fn poll(&mut self) -> bool {
-        let Some((rev, rx)) = &self.job else { return false };
-        match rx.try_recv() {
-            Ok(r) => {
+        let Some((rev, job)) = &self.job else { return false };
+        match job.poll() {
+            Some(r) => {
                 let rev = *rev;
                 self.job = None;
                 self.seconds = self.started.take().map_or(0.0, |t| t.elapsed().as_secs_f64());
@@ -99,12 +98,7 @@ impl AutoLayout {
                 }
                 true
             }
-            Err(TryRecvError::Empty) => false,
-            Err(TryRecvError::Disconnected) => {
-                self.job = None;
-                self.message = "The auto layout stopped without a proposal".into();
-                true
-            }
+            None => false,
         }
     }
 

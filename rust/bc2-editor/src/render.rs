@@ -789,7 +789,7 @@ impl SceneGpu {
             let tris = meshes.get(mesh as usize).map_or(0, |g| u64::from(g.count / 3));
             Some((mesh, radius, tris, b))
         };
-        if let Some((v, t)) = &scene.terrain
+        if let Some((v, t)) = scene.terrain.as_deref()
             && !t.is_empty()
         {
             let mesh = *self.terrain_mesh.get_or_insert_with(|| {
@@ -1184,7 +1184,7 @@ impl SceneGpu {
                     scene
                         .terrain
                         .as_ref()
-                        .map_or_else(Vec::new, |(v, t)| edges_of_indexed(v, t))
+                        .map_or_else(Vec::new, |m| edges_of_indexed(&m.0, &m.1))
                 } else if Some(m) == self.water_mesh {
                     scene
                         .water

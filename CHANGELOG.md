@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-22
+
 ### Added
 - **The Python inventory** (round PYI): `PYTHON_STATUS.md` and `python_status.json`, every `.py` file of the suite
   (358 on the QW3 merge, 104,486 non-blank lines) with its kind, status, Rust counterpart, callers (the suite and
@@ -68,6 +70,11 @@ landed on `main`.
   deviates today and the gaps in priority order). `formats/hpd.md`'s open questions are tracked items, five answered.
   A game-tier corpus test checks the verified rules on DICE's files; `cargo run --example kynapse_probe` measures
   DICE's files or NavKit's builds.
+- **The map editor's core before E4** (round PR1b-0, audit AU5 section 6): the views' editing tools are types behind
+  one trait (`bc2_editor::tool::ViewTool`: input, click, drawing, keys, Esc, and what each asks for as an outcome),
+  so E4's and E5's tools land as small types; background jobs are one type (`bc2_editor::task::Task`: a named
+  thread, a guarded body, one answer, a dead worker reported). `cargo run --release -p bc2-editor --example
+  editor_core_bench` and `--example preview_bench` measure the undo, memory, member-edit and preview numbers.
 - **Auto layout** (round A1): the Gameplay workspace's Auto layout panel proposes where the target mode's flags,
   bases, M-COMs, spawns and combat areas go on the level, in DICE's style - the mode's layer (DICE's own layout,
   from the target's donor) turned, scaled and placed where the level's ground, water, rocks and buildings suit it,
@@ -91,6 +98,29 @@ landed on `main`.
 - **Read-only probes** (`spec/probes/`): the scripts that measured DICE's data for these rules (lighting, weapons,
   vehicles, materials, destruction); they print counts and ranges only.
 
+### Changed
+- **Undo, redo and History in the map editor are 3-4 times faster, the first ray after them 200-300 times, and 200
+  operations' checkpoints hold a quarter of the memory** (round PR1b-0; SP_01: +279 MB -> +73 MB): the terrain, its
+  ray grid, the height field and the level's files are shared between the base scene and each undo's, and the
+  checkpoints share every part of a file their edits did not touch. A static group member's delete costs about 4 ms
+  instead of a sixth of a second on SP_01 (its refusal check is not applied twice and the group is found without
+  walking the partition per member type); object rays test only the parts of an object their path crosses; the asset preview's orbit is drawn on all cores (the same pictures). The DBX inspector's undo keeps
+  at most 256 MB of steps. Every result is the same as before, bit for bit (`rust/BENCHMARKS.md` "PR1b-0").
+- **Rust API** (round PR1b-0): `bc2_scene::scene::Scene::terrain` and `heightfield` are `Option<Arc<..>>`;
+  `bc2_levelwrite::files::LevelFiles::partition` and `groups` hold `Arc<LevelWriter>`s; `bc2_scene::raygrid::RayCache`
+  is shared by a scene's clones and keys the terrain grid by its mesh's `Arc`; the asset preview's reader answers
+  through `Task`.
+
+- **NavKit's walkability runs in Rust, end to end** (round NK4): a build stage hands the Rust core
+  (`bc2_navbuild::walk`) the sample files and its inputs once, and the core reads the run, makes it coarse when
+  needed, applies the hand edits, the water and reference-extent rules, the slope, clearance and structure rules, the
+  seeds, floods, ladders, unseeds and roof islands. The same path data byte for byte on all 15 regression levels of
+  the development PC (every stage's run, kept surfaces, gradients and stair flags bit for bit; the 4 golden builds as
+  recorded). Walkability is 2.7 times faster over those levels (234 -> 88 s; the largest detailed pass 39.7 -> 8.9 s)
+  and its memory peak 2.2-2.5 times lower (largest 12.8 -> 5.6 GB); the largest whole build's peak fell from 15.2 to
+  11.9 GB. `navsample.load` reads a version 3 sample file a block at a time instead of whole. Spec XNAV-BLD-4 records
+  the precision and order rules the port keeps.
+
 ### Fixed
 - **A ported shotgun keeps DICE's shotgun body set** (round QW3): the BF1943 import's weapon conventions moved every
   `AnimBaseSet wabsShg` to `wabsRif`; that is right for BF1943's knife, the only BF1943 weapon with it, but DICE uses
@@ -105,17 +135,6 @@ landed on `main`.
   (`aptgraft_test.res`), O4's prepare stand-in (`o4prep`) and O5's stock-MP stand-in (`o5s`) - now use a folder of
   the run's own; F4's shared mesh-viewer index cache is copied in whole before it is named.
 
-### Changed
-- **NavKit's walkability runs in Rust, end to end** (round NK4): a build stage hands the Rust core
-  (`bc2_navbuild::walk`) the sample files and its inputs once, and the core reads the run, makes it coarse when
-  needed, applies the hand edits, the water and reference-extent rules, the slope, clearance and structure rules, the
-  seeds, floods, ladders, unseeds and roof islands. The same path data byte for byte on all 15 regression levels of
-  the development PC (every stage's run, kept surfaces, gradients and stair flags bit for bit; the 4 golden builds as
-  recorded). Walkability is 2.7 times faster over those levels (234 -> 88 s; the largest detailed pass 39.7 -> 8.9 s)
-  and its memory peak 2.2-2.5 times lower (largest 12.8 -> 5.6 GB); the largest whole build's peak fell from 15.2 to
-  11.9 GB. `navsample.load` reads a version 3 sample file a block at a time instead of whole. Spec XNAV-BLD-4 records
-  the precision and order rules the port keeps.
-
 ### Removed
 - NavKit's Python for walkability (round NK4): `navwalk.walkable`'s NumPy glue, `near_points`, `ladder_ends`,
   `objective_floor`, `coarse`'s loop and `_column_picks`; `navedits.region_mask`'s NumPy and matplotlib body and
@@ -124,6 +143,8 @@ landed on `main`.
   arguments and answers; `navedits.regions_of` and `navwalk.walk_inputs` / `walk_answer` / `run_dict` / `samples_of`
   are new. No command line or option went, and nothing outside NavKit used them. A version 1 sample run (no hit
   words), which no build could use before, now builds with every surface taken as terrain.
+- **Rust API** (round PR1b-0): `bc2_editor::app::OutlineDraw`, `ViewState::outline` and `Measures::ruler` - the
+  polygon's corners and the ruler's points are the tools' own (`bc2_editor::tool::Tools::polygon` / `ruler`).
 
 ## [0.14.0] - 2026-11-21
 

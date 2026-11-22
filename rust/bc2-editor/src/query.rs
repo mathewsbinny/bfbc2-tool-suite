@@ -56,6 +56,63 @@ fn ray_triangle(o: V3, d: V3, tri: [V3; 3]) -> Option<(f64, V3)> {
     (t > 1e-9).then(|| (t, cross(e1, e2)))
 }
 
+/// A ray in an object's own space (its transform `m` undone: the inverse of its three axes): the same distance `t`
+/// reaches the same point. `None` when the axes are degenerate or the numbers are not finite (every run is tested).
+fn object_ray(m: &M, origin: V3, dir: V3) -> Option<(V3, V3)> {
+    let (a, b, c) = (row(m, 0), row(m, 1), row(m, 2));
+    let lens = [len(a), len(b), len(c)];
+    let (lo, hi) = (
+        lens.iter().copied().fold(f64::INFINITY, f64::min),
+        lens.iter().copied().fold(0.0, f64::max),
+    );
+    // a squashed or mirrored-flat transform: no reliable inverse
+    if !(lo > 1e-6 * hi && hi.is_finite()) {
+        return None;
+    }
+    let det = dot(a, cross(b, c));
+    if !det.is_finite() || det.abs() < 1e-9 * hi * hi * hi {
+        return None;
+    }
+    // x A = w  =>  x = w A^-1; the rows of A^-1 are the columns of the cofactors
+    let (bc, ca, ab) = (cross(b, c), cross(c, a), cross(a, b));
+    let solve = |w: V3| -> V3 { [dot(w, bc) / det, dot(w, ca) / det, dot(w, ab) / det] };
+    let o = solve(sub(origin, row(m, 3)));
+    let d = solve(dir);
+    (o.iter().chain(&d).all(|x| x.is_finite())).then_some((o, d))
+}
+
+/// Whether a ray (object space, `t` from just behind its origin on) meets a run's bounds, padded far beyond any
+/// rounding of the placing and of the inverse (1e-4 m and a millionth of the bounds' size).
+#[allow(
+    clippy::indexing_slicing,
+    reason = "[f64; 3] and [f32; 3] vectors indexed by their axes (0..3)"
+)]
+fn meets(o: V3, d: V3, b: &bc2_scene::raygrid::Bounds) -> bool {
+    let (lo, hi) = b;
+    let size = (0..3)
+        .map(|a| f64::from(lo[a]).abs().max(f64::from(hi[a]).abs()))
+        .fold(0.0, f64::max);
+    let pad = 1e-4 + 1e-6 * size;
+    let (mut t0, mut t1) = (-1.0f64, f64::INFINITY);
+    for a in 0..3 {
+        let (l, h) = (f64::from(lo[a]) - pad, f64::from(hi[a]) + pad);
+        if d[a] == 0.0 {
+            if o[a] < l || o[a] > h {
+                return false;
+            }
+            continue;
+        }
+        let (p, q) = ((l - o[a]) / d[a], (h - o[a]) / d[a]);
+        t0 = t0.max(p.min(q));
+        t1 = t1.min(p.max(q));
+        if t0 > t1 {
+            return false;
+        }
+    }
+    // bounds that are not numbers (an empty run): tested as before
+    true
+}
+
 /// The first surface (terrain or placed collision) along a ray from `origin` in unit direction `dir`.
 #[must_use]
 pub fn ray_hit(scene: &Scene, origin: V3, dir: V3) -> Option<Hit> {
@@ -73,7 +130,7 @@ pub fn ray_hit_except(scene: &Scene, origin: V3, dir: V3, skip: &dyn Fn(usize) -
             best = Some((t, n, entity, tri));
         }
     };
-    if let Some((v, tris)) = &scene.terrain {
+    if let Some((v, tris)) = scene.terrain.as_deref() {
         let at = |k: u32| v.get(k as usize).map(|p| p.map(f64::from));
         let mut test = |t: &[u32; 3]| {
             if let (Some(a), Some(b), Some(c)) = (at(t[0]), at(t[1]), at(t[2])) {
@@ -88,6 +145,8 @@ pub fn ray_hit_except(scene: &Scene, origin: V3, dir: V3, skip: &dyn Fn(usize) -
         }
     }
     if let Some(col) = &scene.collision {
+        // the blueprints' radii and run bounds, locked once for the whole walk
+        let mut shapes = scene.collision_shapes();
         for (index, _) in &col.meshes {
             if skip(*index) {
                 continue;
@@ -99,7 +158,8 @@ pub fn ray_hit_except(scene: &Scene, origin: V3, dir: V3, skip: &dyn Fn(usize) -
                 continue;
             };
             // the blueprint's radius, measured once (round HG1: it was measured from every triangle for every ray)
-            let radius = scene.collision_radius(local);
+            let shape = shapes.get(local);
+            let radius = shape.radius;
             let scale = (0..3).map(|r| len(row(&m, r))).fold(0.0, f64::max);
             let centre = row(&m, 3);
             let oc = sub(centre, origin);
@@ -109,9 +169,22 @@ pub fn ray_hit_except(scene: &Scene, origin: V3, dir: V3, skip: &dyn Fn(usize) -
             if along < -r || miss2 > r * r {
                 continue;
             }
-            if let Some(world) = scene.world_triangles(*index) {
-                for t in world {
-                    consider(t, Some(*index));
+            // the blueprint's triangles in runs (round PR1b-0, audit AU5 ALG-2): only the runs whose bounds the ray
+            // meets in the object's own space are placed and tested - in order, placed as world_triangles places
+            // them, without a list of every placed triangle
+            let in_object = object_ray(&m, origin, dir);
+            for (k, b) in shape.runs.iter().enumerate() {
+                if let Some((o, d)) = in_object
+                    && !meets(o, d, b)
+                {
+                    continue;
+                }
+                let at = k * bc2_scene::raygrid::RUN;
+                for tri in local
+                    .get(at..(at + bc2_scene::raygrid::RUN).min(local.len()))
+                    .unwrap_or_default()
+                {
+                    consider(tri.map(|v| bc2_scene::scene::place(&m, v)), Some(*index));
                 }
             }
         }

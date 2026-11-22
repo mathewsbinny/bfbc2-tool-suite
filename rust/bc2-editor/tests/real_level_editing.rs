@@ -48,7 +48,7 @@ fn placement_on_real_terrain() {
         }
     };
     let s = scene::load(&found.options).unwrap();
-    let Some((v, tris)) = &s.terrain else {
+    let Some((v, tris)) = s.terrain.as_deref() else {
         println!("skipped: MP_005's terrain is not unpacked");
         return;
     };

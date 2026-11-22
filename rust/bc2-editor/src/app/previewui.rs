@@ -110,9 +110,10 @@ impl Tabs<'_> {
                     if ui.button("Read the mesh index").clicked()
                         && let Some(root) = self.view.root.clone()
                     {
-                        std::thread::spawn(move || {
+                        // read in the background; the panel asks again until it is there
+                        drop(crate::task::Task::spawn_value("Reading the mesh index", move || {
                             let _ = crate::preview::index(&root);
-                        });
+                        }));
                     }
                 } else {
                     ui.label(

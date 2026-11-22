@@ -53,6 +53,10 @@ pub enum Source {
     },
 }
 
+/// The most bytes the inspector's undo stack keeps (the file before each edit): 256 MB, about 50 steps of a 5 MB level
+/// partition.
+pub const UNDO_BUDGET: usize = 256 << 20;
+
 /// A `.dbx` open in the inspector.
 #[derive(Debug, Clone)]
 pub struct DbxDoc {
@@ -65,7 +69,11 @@ pub struct DbxDoc {
     /// Changed since it was opened or saved.
     pub modified: bool,
     backed_up: bool,
-    undo: Vec<Vec<u8>>,
+    /// The file before each edit, oldest first, at most [`UNDO_BUDGET`] bytes in all (round PR1b-0, audit AU5
+    /// ALG-8: the stack was unbounded); the oldest go first, and `undo_dropped` says some went.
+    undo: std::collections::VecDeque<Vec<u8>>,
+    undo_bytes: usize,
+    undo_dropped: bool,
     /// The edits as DbxEdit commands (File > Save edit script).
     pub script: Vec<String>,
     /// The output pane's lines.
@@ -191,7 +199,9 @@ impl DbxDoc {
             path: name.to_owned(),
             modified: false,
             backed_up: false,
-            undo: Vec::new(),
+            undo: std::collections::VecDeque::new(),
+            undo_bytes: 0,
+            undo_dropped: false,
             script: Vec::new(),
             log: Vec::new(),
         })
@@ -368,9 +378,33 @@ impl DbxDoc {
 
     fn snapshot(&mut self) -> Result<(), String> {
         let b = self.bytes()?;
-        self.undo.push(b);
+        self.push_undo(b);
         self.modified = true;
         Ok(())
+    }
+
+    /// An undo step kept; the oldest steps let go while the stack is over [`UNDO_BUDGET`] (the newest is always
+    /// kept).
+    fn push_undo(&mut self, b: Vec<u8>) {
+        self.push_undo_within(b, UNDO_BUDGET);
+    }
+
+    fn push_undo_within(&mut self, b: Vec<u8>, budget: usize) {
+        self.undo_bytes += b.len();
+        self.undo.push_back(b);
+        while self.undo_bytes > budget && self.undo.len() > 1 {
+            if let Some(old) = self.undo.pop_front() {
+                self.undo_bytes -= old.len();
+                self.undo_dropped = true;
+            }
+        }
+    }
+
+    /// The newest undo step taken off the stack.
+    fn pop_undo(&mut self) -> Option<Vec<u8>> {
+        let b = self.undo.pop_back()?;
+        self.undo_bytes -= b.len();
+        Some(b)
     }
 
     /// The file's bytes now (`Serialize`).
@@ -389,13 +423,14 @@ impl DbxDoc {
 
     /// Edit > Undo: the file as it was before the last edit (its script line goes too).
     pub fn undo(&mut self) {
-        let Some(b) = self.undo.pop() else {
+        let Some(b) = self.pop_undo() else {
             self.log.push("Nothing to undo.".into());
             return;
         };
         self.restore(b);
         self.script.pop();
-        self.modified = !self.undo.is_empty();
+        // an edit whose step was let go is still in the file
+        self.modified = !self.undo.is_empty() || self.undo_dropped;
         self.log.push("Undone.".into());
     }
 
@@ -406,10 +441,18 @@ impl DbxDoc {
     /// # Errors
     /// The value is not one of the field's type (the file is left as it was), or no such element.
     pub fn apply_edit(&mut self, path: &[usize], attrs: &[String], value: &str) -> Result<Applied, String> {
-        let before = self.bytes()?;
+        // the file as it was, serialised only when the edit changed it (round PR1b-0, audit AU5 ALG-8: every
+        // apply serialised the whole file first)
+        let before = self.file.clone();
         match self.apply_inner(path, attrs, value) {
             Ok(Some(rounded)) => {
-                self.undo.push(before);
+                match before.serialize() {
+                    Ok(b) => self.push_undo(b),
+                    Err(e) => {
+                        self.file = before;
+                        return Err(e.message);
+                    }
+                }
                 self.modified = true;
                 let e = self.element(path).cloned().unwrap_or_default();
                 if let Some(v) = rounded {
@@ -438,7 +481,7 @@ impl DbxDoc {
             }
             Ok(None) => Ok(Applied::Unchanged),
             Err(e) => {
-                self.restore(before);
+                self.restore(before.serialize().map_err(|e| e.message)?);
                 Err(e)
             }
         }
@@ -564,7 +607,7 @@ impl DbxDoc {
         self.snapshot()?;
         let ok = editor::copy_field(&mut self.file, source, source_guid, field, &guid).map_err(|e| e.message)?;
         if !ok {
-            self.undo.pop();
+            self.pop_undo();
             self.log.push(format!("copyfield {field}: NOT FOUND"));
             return Ok(());
         }
@@ -601,7 +644,7 @@ impl DbxDoc {
         let guid = self.guid_of(path).unwrap_or_default();
         let array = self.element(path).and_then(|e| self.get(e, "name")).unwrap_or_default();
         if !editor::add_item(&mut self.file, &guid, &array, reference, None).map_err(|e| e.message)? {
-            self.undo.pop();
+            self.pop_undo();
             self.log
                 .push("additem: the array has no item to copy the shape from".into());
             return Ok(());
@@ -622,7 +665,7 @@ impl DbxDoc {
         self.snapshot()?;
         let n = editor::replace(&mut self.file, from, to);
         if n == 0 {
-            self.undo.pop();
+            self.pop_undo();
             self.log.push(format!("replace: not found: {from}"));
             return Ok(());
         }
@@ -692,7 +735,7 @@ impl DbxDoc {
         self.snapshot()?;
         let n = editor::set_byte(&mut self.file, name, b).map_err(|e| e.message)?;
         if n == 0 {
-            self.undo.pop();
+            self.pop_undo();
             self.log.push(format!("set: no bool/byte field {name}"));
             return Ok(());
         }
@@ -768,7 +811,7 @@ impl DbxDoc {
         self.snapshot()?;
         let r = dx::fix_slots(&mut self.file, from).map_err(|e| e.message)?;
         if r.changed == 0 {
-            self.undo.pop();
+            self.pop_undo();
         } else {
             self.script
                 .push(format!("# fixslots --from {from_path} (DbxEdit fixslots)"));
@@ -1029,9 +1072,20 @@ pub fn project_field(
     }
     .ok_or("Only an instance's fields (and its structures' fields) go into the project")?;
     let ty = ty_of(&guid, &field).ok_or_else(|| format!("{field} is not a field the project edits"))?;
-    // the edit made on a copy, as the file would take it
-    let mut scratch = doc.clone();
-    scratch.source = Source::File(PathBuf::new());
+    // the edit made on a copy of the file (not of the inspector's undo stack, script and output), as the file
+    // would take it
+    let mut scratch = DbxDoc {
+        file: doc.file.clone(),
+        source: Source::File(PathBuf::new()),
+        path: doc.path.clone(),
+        modified: false,
+        backed_up: false,
+        undo: std::collections::VecDeque::new(),
+        undo_bytes: 0,
+        undo_dropped: false,
+        script: Vec::new(),
+        log: Vec::new(),
+    };
     if scratch.apply_edit(path, attrs, value)? == Applied::Unchanged {
         return Ok(None);
     }
@@ -1276,6 +1330,30 @@ mod tests {
         assert_eq!(hint.len(), 1);
         assert_eq!(hint[0].1, 0x0008_0000);
         assert_eq!(denormal_hint(d.t(), d.element(&[0, 0, 1]).unwrap()), vec![]);
+    }
+
+    #[test]
+    fn the_undo_stack_keeps_its_budget() {
+        let mut d = doc();
+        let n = d.bytes().unwrap().len();
+        for _ in 0..5 {
+            let b = d.bytes().unwrap();
+            d.push_undo_within(b, 3 * n);
+        }
+        // the three newest kept; the file still counts as modified after they are undone
+        assert_eq!((d.undo_steps(), d.undo_bytes), (3, 3 * n));
+        d.modified = true;
+        for _ in 0..3 {
+            d.undo();
+        }
+        assert_eq!((d.undo_steps(), d.undo_bytes), (0, 0));
+        assert!(d.modified);
+        d.undo();
+        assert_eq!(d.log.last().unwrap(), "Nothing to undo.");
+        // the newest step is kept even over the budget
+        let b = d.bytes().unwrap();
+        d.push_undo_within(b, 1);
+        assert_eq!(d.undo_steps(), 1);
     }
 
     #[test]
