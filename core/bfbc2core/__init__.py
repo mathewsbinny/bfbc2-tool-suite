@@ -5,6 +5,9 @@ the one place bfbc2.exe --version, the map editor's Help and the hub's title rea
 """
 import os
 
+# One OpenBLAS thread unless the environment says otherwise (suite_paths.py: 490 MB of commit per process saved).
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+
 VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'VERSION')
 
 

@@ -683,7 +683,7 @@ folder and the logs: list them, prune them to their caps, or clear them.
 positional arguments:
   name             caches to act on: hlsl, fbrb, collision, effectport,
                    culltree, bf1943source, shadercover, navstudio, harness,
-                   navwater, editor, logs
+                   navwater, editor, meshview, logs
 
 options:
   -h, --help       show this help message and exit
