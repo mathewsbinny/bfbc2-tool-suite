@@ -134,7 +134,7 @@ needs its whole mode layer (player, mission, teams, bases, counters, spawns, and
 squads); without it the session waits forever in state 14. Put back what is missing, or choose the mode again. Rests
 on XEXP-CHK-2, GAME-LAYER-1, GAME-LAYER-4, LEVEL-MP-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:228] [code: rust/bc2-levelwrite/src/export.rs:2981] [code: rust/bc2-levelwrite/src/validate.rs:99]
+[code: rust/bc2-levelwrite/src/rules.rs:228] [code: rust/bc2-levelwrite/src/export.rs:2991] [code: rust/bc2-levelwrite/src/validate.rs:99]
 [test: rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-MODE-4: The donor level changed since the mode was chosen
@@ -197,7 +197,7 @@ Note (round V1); checked by `mapexport check`. Install the level on the server a
 bundles in bundleManifest and package.mft, or the level checksums differ (and a server without them crashes computing
 its checksum). Rests on CSUM-CHK-4, CSUM-CHK-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:288] [code: rust/bc2-levelwrite/src/export.rs:3142]
+[code: rust/bc2-levelwrite/src/rules.rs:288] [code: rust/bc2-levelwrite/src/export.rs:3152]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-REG-5: The announcer's registration is the donor's
@@ -207,7 +207,7 @@ Status: **verified**
 Error (round E3c); checked by `mapexport check`. The level's voice-over blocks and manifest lines must be its donor's
 under the new name, with no block whose bundleManifest line is missing. Rests on XEXP-REG-2, SND-VO-3.
 
-[code: rust/bc2-levelwrite/src/rules.rs:298] [code: rust/bc2-levelwrite/src/export.rs:3722]
+[code: rust/bc2-levelwrite/src/rules.rs:298] [code: rust/bc2-levelwrite/src/export.rs:3732]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-NAME-1: The level id's form
@@ -218,7 +218,7 @@ Error (round EX1); checked live in the editor and by `mapexport validate`; by `m
 `mapexport check`. The level id is a file, folder and localisation key: 3 to 40 of A-Z, 0-9 and _, starting with a
 letter. Rests on XEXP-PRE-1, LVL-ID-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:309] [code: rust/bc2-levelwrite/src/export.rs:3889] [code: rust/bc2-levelwrite/src/names.rs:381]
+[code: rust/bc2-levelwrite/src/rules.rs:309] [code: rust/bc2-levelwrite/src/export.rs:3899] [code: rust/bc2-levelwrite/src/names.rs:381]
 [test: rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-NAME-2: No _NAME in the level id
@@ -293,7 +293,7 @@ Error (round EX1); checked by `mapexport check`. The description, the menus' lev
 bundleManifest line and the name key's loading picture must name the same level: a mismatch is the start-up checksum
 crash or a black loading screen. Rests on XEXP-ID-1, REG-NEW-5, LVL-DESC-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:375] [code: rust/bc2-levelwrite/src/export.rs:3939]
+[code: rust/bc2-levelwrite/src/rules.rs:375] [code: rust/bc2-levelwrite/src/export.rs:3949]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-NAME-9: The level's own name keys and pictures
@@ -304,7 +304,7 @@ Error (round E3b); checked by `mapexport check`. With its own name the level's d
 keys, every text is stored in each language's encoding, and its pictures are in their templates' form. Rests on XEXP-
 ID-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:386] [code: rust/bc2-levelwrite/src/export.rs:3967]
+[code: rust/bc2-levelwrite/src/rules.rs:386] [code: rust/bc2-levelwrite/src/export.rs:3977]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-FILE-1: The staged files are the ones recorded
@@ -374,7 +374,7 @@ Status: **verified**
 Error (round E3d); checked by `mapexport check`. Every partition the level reaches must resolve in the bundles it
 loads; the export copies what does not, and never registers it. Rests on XEXP-CLO-1, REF-RES-5.
 
-[code: rust/bc2-levelwrite/src/rules.rs:453] [code: rust/bc2-levelwrite/src/export.rs:2921]
+[code: rust/bc2-levelwrite/src/rules.rs:453] [code: rust/bc2-levelwrite/src/export.rs:2922]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-LVL-1: LevelData.Name is the level's path
@@ -404,7 +404,7 @@ Status: **verified**
 Error (round E3d); checked by `mapexport check`. Without its height field the map loads without ground: keep the
 base's terrain bundles. Rests on TERR-NAME-1, LOAD-PART-6.
 
-[code: rust/bc2-levelwrite/src/rules.rs:482] [code: rust/bc2-levelwrite/src/export.rs:2961]
+[code: rust/bc2-levelwrite/src/rules.rs:482] [code: rust/bc2-levelwrite/src/export.rs:2970]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-PROF-1: Every block loads the era's common bundles
@@ -414,7 +414,7 @@ Status: **verified**
 Error (round E3b); checked by `mapexport check`. Each package.mft block must load the era's common bundles in their
 order, or the era's kits, vehicles and sounds do not resolve. Rests on XEXP-PRE-2, LVL-DESC-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:492] [code: rust/bc2-levelwrite/src/export.rs:3557]
+[code: rust/bc2-levelwrite/src/rules.rs:492] [code: rust/bc2-levelwrite/src/export.rs:3567]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-PROF-2: The game mode is the donor's and resolves
@@ -424,7 +424,7 @@ Status: **verified**
 Error (round E3b); checked by `mapexport check`. The description's GameMode must be the donor's and resolve: a
 GameMode that does not resolve crashes (0x74EAB3). Rests on LEVEL-DESC-2, LOAD-START-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:502] [code: rust/bc2-levelwrite/src/export.rs:3618]
+[code: rust/bc2-levelwrite/src/rules.rs:502] [code: rust/bc2-levelwrite/src/export.rs:3628]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-PROF-3: The factions are the donor's
@@ -434,7 +434,7 @@ Status: **verified**
 Error (round E3b); checked by `mapexport check`. The description's factions must be the donor's, the era's teams.
 Rests on XEXP-PRE-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:512] [code: rust/bc2-levelwrite/src/export.rs:3623]
+[code: rust/bc2-levelwrite/src/rules.rs:512] [code: rust/bc2-levelwrite/src/export.rs:3633]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-PROF-4: The kit pictures are the donor's and resolve
@@ -444,7 +444,7 @@ Status: **verified**
 Error (round E3b); checked by `mapexport check`. The description's kit pictures must be the donor's, each resolving in
 the bundles the level loads. Rests on XEXP-PRE-2, LOAD-PART-4.
 
-[code: rust/bc2-levelwrite/src/rules.rs:521] [code: rust/bc2-levelwrite/src/export.rs:3628]
+[code: rust/bc2-levelwrite/src/rules.rs:521] [code: rust/bc2-levelwrite/src/export.rs:3638]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-PROF-5: The era's level fields
@@ -454,7 +454,7 @@ Status: **verified**
 Error (round E3b); checked by `mapexport check`. The level fields the era sets (Vietnam's sound states ...) must be
 the era's. Rests on XEXP-PRE-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:530] [code: rust/bc2-levelwrite/src/export.rs:3641]
+[code: rust/bc2-levelwrite/src/rules.rs:530] [code: rust/bc2-levelwrite/src/export.rs:3651]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-PROF-6: The announcer is the era's
@@ -464,7 +464,7 @@ Status: **verified**
 Error (round E3c); checked by `mapexport check`. Every announcer partition the level names must resolve as on its
 donor, all from one era's voices. Rests on XEXP-VO-1, SND-VO-2.
 
-[code: rust/bc2-levelwrite/src/rules.rs:539] [code: rust/bc2-levelwrite/src/export.rs:3828]
+[code: rust/bc2-levelwrite/src/rules.rs:539] [code: rust/bc2-levelwrite/src/export.rs:3838]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-WTHR-1: The weather the export gave the level
@@ -474,7 +474,7 @@ Status: **verified**
 Error (round VW2); checked by `mapexport check`. The level's weather state, its spawn switch and its copied partitions
 must be what the export wrote. Rests on RNDR-WTHR-8, RNDR-WTHR-5.
 
-[code: rust/bc2-levelwrite/src/rules.rs:549] [code: rust/bc2-levelwrite/src/export.rs:2943]
+[code: rust/bc2-levelwrite/src/rules.rs:549] [code: rust/bc2-levelwrite/src/export.rs:2952]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-CULL-1: One cull tree, one object per slot
@@ -484,7 +484,7 @@ Status: **verified**
 Error (round E2); checked by `mapexport check`. Every slotted static object needs a slot of its own inside the tree: a
 shared slot or one outside the tree draws the wrong object or none. Rests on CULL-SLOT-3, LEVEL-SLOT-2, LEVEL-SLOT-3.
 
-[code: rust/bc2-levelwrite/src/rules.rs:559] [code: rust/bc2-levelwrite/src/export.rs:3034]
+[code: rust/bc2-levelwrite/src/rules.rs:559] [code: rust/bc2-levelwrite/src/export.rs:3044]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-CULL-2: A moved or placed object stands in its own blueprint's cull shape
@@ -494,7 +494,7 @@ Status: **verified**
 Error (round XF1); checked by `mapexport check`. A re-slotted object must stand in leaves of its own blueprint's shape
 where it stands, or it pops or vanishes as the camera moves. Rests on CULL-ADD-1, CULL-SPH-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:569] [code: rust/bc2-levelwrite/src/export.rs:3394]
+[code: rust/bc2-levelwrite/src/rules.rs:569] [code: rust/bc2-levelwrite/src/export.rs:3404]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XVAL-CULL-3: Every new static object has a cull slot
@@ -504,7 +504,7 @@ Status: **verified**
 Error (round XF1); checked by `mapexport check`. A new object left at slot 0 is see-through and indestructible: only
 objects no level slots may stay without a slot. Rests on CULL-SLOT-3.
 
-[code: rust/bc2-levelwrite/src/rules.rs:579] [code: rust/bc2-levelwrite/src/export.rs:3428]
+[code: rust/bc2-levelwrite/src/rules.rs:579] [code: rust/bc2-levelwrite/src/export.rs:3438]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XVAL-CULL-4: Objects stay within +-2048 m
@@ -526,7 +526,7 @@ Error (round XF1); checked by `mapexport check`. Every mesh the level reaches ne
 (except those DICE's base reaches without them): a part with no program crashes the renderer (0x98BD6E) or draws
 nothing. Rests on RNDR-DRAW-6, RNDR-DB-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:600] [code: rust/bc2-levelwrite/src/export.rs:3476]
+[code: rust/bc2-levelwrite/src/rules.rs:600] [code: rust/bc2-levelwrite/src/export.rs:3486]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XVAL-SHDR-2: No 40 km/h sign drawn with another level's entries
@@ -537,7 +537,7 @@ Error (round V1); checked live in the editor and by `mapexport validate`; by `ma
 (SpeedSign_40) drawn with another level's shader entries crashed the renderer at 0x98BD6E (OPFOR's Isla Inocentes
 test, unsolved). Place it only on a level whose own database draws it. Rests on RNDR-DRAW-6.
 
-[code: rust/bc2-levelwrite/src/rules.rs:610] [code: rust/bc2-levelwrite/src/export.rs:3287] [code: rust/bc2-levelwrite/src/validate.rs:165]
+[code: rust/bc2-levelwrite/src/rules.rs:610] [code: rust/bc2-levelwrite/src/export.rs:3297] [code: rust/bc2-levelwrite/src/validate.rs:165]
 [test: rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-SND-1: No streamed wave data in a level bundle
@@ -558,7 +558,7 @@ Error (round V1); checked by `mapexport check`. A deleted marker in a level bund
 the bundles after it: a hidden wave is a null wave in a sampler and the client crashes (0xFF2AC2). Rests on SND-
 NULL-1, SND-LOAD-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:630] [code: rust/bc2-levelwrite/src/export.rs:3172]
+[code: rust/bc2-levelwrite/src/rules.rs:630] [code: rust/bc2-levelwrite/src/export.rs:3182]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/tests/v1_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named]
 
 ### XVAL-TERR-1: The terrain is the base's own, whole
@@ -569,7 +569,7 @@ Error (round V1); checked by `mapexport check`. The visual terrain's patch shade
 of their own level: patch shaders from a donor whose atlas has another layout draw every tiled cell black. The level's
 terrain bundle must be the base's, entry for entry. Rests on TERR-VT-5, TERR-NAME-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:641] [code: rust/bc2-levelwrite/src/export.rs:3220]
+[code: rust/bc2-levelwrite/src/rules.rs:641] [code: rust/bc2-levelwrite/src/export.rs:3230]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules]
 
 ### XVAL-CONS-1: No Xbox 360 resource in a PC level
@@ -580,7 +580,7 @@ Error (round V1); checked by `mapexport check`. Xbox 360 textures (big-endian he
 (layout rules 04 00 00 01) are not the PC's: convert them first (bfbc2-console-convert) or the game reads garbage.
 Rests on XCONS-TEX-1, XCONS-HK-1, TEX-HDR-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:653] [code: rust/bc2-levelwrite/src/export.rs:3187]
+[code: rust/bc2-levelwrite/src/rules.rs:653] [code: rust/bc2-levelwrite/src/export.rs:3197]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/tests/v1_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named]
 
 ### XVAL-GRP-1: An edited static group keeps its members
@@ -591,7 +591,7 @@ Error (round V1); checked by `mapexport check`. A static group's physics lists o
 edited group file must keep each member's blueprint and the member count, or the load crashes at 0xAB4E58. Rests on
 LEVEL-MG-4, LOAD-MG-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:664] [code: rust/bc2-levelwrite/src/export.rs:3266]
+[code: rust/bc2-levelwrite/src/rules.rs:664] [code: rust/bc2-levelwrite/src/export.rs:3276]
 [test: rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules] [test: rust/bc2-levelwrite/src/export.rs::group_member_changes_are_named]
 
 ### XVAL-OBJ-1: No empty entry in the level's object list
