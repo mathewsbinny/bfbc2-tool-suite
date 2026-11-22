@@ -166,7 +166,13 @@ impl LevelWriter {
     /// An instance's `Transform` rows.
     #[must_use]
     pub fn transform(&self, guid: &str) -> Option<Rows> {
-        let e = self.find(guid)?;
+        self.transform_at(self.find(guid)?)
+    }
+
+    /// An instance's transform by its node (round V1: [`LevelWriter::find`] walks every instance; a caller going over
+    /// many keeps the nodes).
+    #[must_use]
+    pub fn transform_at(&self, e: NodeId) -> Option<Rows> {
         let t = self.d.child(e, b"Transform")?;
         let (size, vals) = bc2_formats::dbx::edit::numbers_of(self.d.raw(t))?;
         if size != 4 || vals.len() != 16 {

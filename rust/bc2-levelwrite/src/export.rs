@@ -889,7 +889,11 @@ pub fn bundle_manifest_line(lv: &str, kind: &str) -> String {
     )
 }
 
-fn pack_entries(entries: &[StagedEntry]) -> Result<Vec<u8>> {
+/// A bundle of `entries`, packed as the export packs its stage's (round V1: the tests' broken stages too).
+///
+/// # Errors
+/// A name or size the bundle format cannot hold.
+pub fn pack_entries(entries: &[StagedEntry]) -> Result<Vec<u8>> {
     let items: Vec<PackItem<'_>> = entries
         .iter()
         .map(|e| PackItem {
@@ -926,14 +930,16 @@ pub fn build(
     if game.bundle(&format!("game:levels/{low}/level-00.fbrb")).exists()
         || game.bundle(&format!("package:levels/{low}/level-00.fbrb")).exists() && !is_custom(game, &low)
     {
-        return Err(err(format!(
-            "{lv} is a level of the game copy: an export never replaces one; choose another name"
-        )));
+        return Err(crate::rules::refusal(
+            "XVAL-REG-3",
+            format!("{lv} is a level of the game copy: an export never replaces one; choose another name"),
+        ));
     }
     if !game.targets(&format!("levels/{low}/level-00.fbrb")).is_empty() && !is_custom(game, &low) {
-        return Err(err(format!(
-            "{lv} is registered in package.mft by another tool: choose another name"
-        )));
+        return Err(crate::rules::refusal(
+            "XVAL-REG-3",
+            format!("{lv} is registered in package.mft by another tool: choose another name"),
+        ));
     }
     let mut report = Vec::new();
     // 0. the target: the project's own (round E3d: its era and mode, the mode's layer in its log), else the export
@@ -948,22 +954,25 @@ pub fn build(
         ),
     };
     if let Some(why) = crate::modelayer::not_offered(&mode_k) {
-        return Err(err(why));
+        return Err(crate::rules::refusal("XVAL-MODE-1", why));
     }
     // the content profile: the set's common bundles, donors and level fields, read from its stock levels
     let profiles = crate::profile::scan(game, &mode_k)?;
     let prof = profiles.get(profile_sel)?;
     let donor_info = prof.donor(&donor_lv).ok_or_else(|| {
-        err(format!(
-            "{donor_lv} is not a {} level of the {} mode (the profile's: {})",
-            profile_sel.word(),
-            crate::modelayer::mode_name(&mode_k),
-            prof.donors
-                .iter()
-                .map(|d| d.level.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ))
+        crate::rules::refusal(
+            "XVAL-MODE-2",
+            format!(
+                "{donor_lv} is not a {} level of the {} mode (the profile's: {})",
+                profile_sel.word(),
+                crate::modelayer::mode_name(&mode_k),
+                prof.donors
+                    .iter()
+                    .map(|d| d.level.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        )
     })?;
     report.push(format!(
         "profile: {} (from its {} multiplayer levels): level commons {:?}; donor {} - game mode {}, factions {} / {}, \
@@ -989,7 +998,7 @@ pub fn build(
     if !problems.is_empty() {
         return Err(err(problems
             .iter()
-            .map(|p| p.message.as_str())
+            .map(|p| format!("{}: {}", p.code, p.message))
             .collect::<Vec<_>>()
             .join(" ")));
     }
@@ -1004,11 +1013,14 @@ pub fn build(
     } else {
         let r = project.base_report(&base_bytes);
         if !r.missing.is_empty() {
-            return Err(err(format!(
-                "the base level changed since the project was made and {} operations name objects it lacks (first: {:?})",
-                r.missing.len(),
-                r.missing.first()
-            )));
+            return Err(crate::rules::refusal(
+                "XVAL-EDIT-2",
+                format!(
+                    "the base level changed since the project was made and {} operations name objects it lacks (first: {:?})",
+                    r.missing.len(),
+                    r.missing.first()
+                ),
+            ));
         }
         report.push(format!(
             "base: Levels/{base_up} differs from the project's (sha1 {base_sha1}, project {}); every operation's \
@@ -1026,10 +1038,13 @@ pub fn build(
             crate::files::Target::Terrain { .. } | crate::files::Target::Paint { .. }
         )
     }) {
-        return Err(err(format!(
-            "{} is edited by the project, and the export does not write it yet (round E5)",
-            t.describe()
-        )));
+        return Err(crate::rules::refusal(
+            "XVAL-EDIT-5",
+            format!(
+                "{} is edited by the project, and the export does not write it yet (round E5)",
+                t.describe()
+            ),
+        ));
     }
     // round OP1: the log's other files (static group files) read from the base's bundles when it names them
     let (edited_files, applied) = {
@@ -1041,7 +1056,7 @@ pub fn build(
             &|lv| level_partition(game, lv).ok(),
             &sources,
         )
-        .map_err(|e| err(e.to_string()))?;
+        .map_err(|e| crate::rules::refusal("XVAL-EDIT-3", e))?;
         (all.files, all.partition)
     };
     report.push(format!(
@@ -1065,14 +1080,21 @@ pub fn build(
                 edited_groups.insert(format!("levels/{base}/{file}"), data);
             }
             other => {
-                return Err(err(format!(
-                    "{} is edited by the project, and the export does not write it yet",
-                    other.describe()
-                )));
+                return Err(crate::rules::refusal(
+                    "XVAL-EDIT-6",
+                    format!(
+                        "{} is edited by the project, and the export does not write it yet",
+                        other.describe()
+                    ),
+                ));
             }
         }
     }
     let mut w = LevelWriter::parse(&applied.bytes)?;
+    // round V1: an object moved or made beyond the cull tree's +-2048 m is refused in words, before the tree
+    if let Some(f) = crate::validate::out_of_range(&w, Some(&base_w)).first() {
+        return Err(crate::rules::refusal(&f.code, &f.message));
+    }
     // 2. multiplayer: the campaign out, the donor's layer in, placed, the level's fields
     let donor_bytes = level_partition(game, &donor_lv)?;
     let donor = LevelWriter::parse(&donor_bytes)?;
@@ -1123,7 +1145,7 @@ pub fn build(
         ));
         if sha1_hex(&donor_bytes) != c.donor_sha1 {
             report.push(format!(
-                "  note: {}'s partition changed since the mode was chosen (sha1 {} then)",
+                "  note XVAL-MODE-4: {}'s partition changed since the mode was chosen (sha1 {} then)",
                 c.donor, c.donor_sha1
             ));
         }
@@ -1131,10 +1153,10 @@ pub fn build(
     } else {
         let keep_area: HashSet<String> = [spec.layer.combat_area.to_ascii_uppercase()].into();
         if w.find(&spec.layer.combat_area).is_none() {
-            return Err(err(format!(
-                "the combat area {} is not in the base level",
-                spec.layer.combat_area
-            )));
+            return Err(crate::rules::refusal(
+                "XVAL-MODE-5",
+                format!("the combat area {} is not in the base level", spec.layer.combat_area),
+            ));
         }
         mpconvert::strip(&mut w, &keep_area, &choice, &mut conv)?;
         let map = mpconvert::graft(&mut w, &donor, &spec.layer, &seed, &mut conv)?;
@@ -1230,9 +1252,10 @@ pub fn build(
         }
     }
     if let Some(f) = edited_groups.keys().next() {
-        return Err(err(format!(
-            "{f} is edited by the project but is not one of the level's root files the export copies"
-        )));
+        return Err(crate::rules::refusal(
+            "XVAL-EDIT-6",
+            format!("{f} is edited by the project but is not one of the level's root files the export copies"),
+        ));
     }
     report.push(format!(
         "root files: {} copied under Levels/{lv}/ (shader databases, emitter system and textures, model groups, cull \
@@ -2435,17 +2458,46 @@ pub fn read_record(stage: &Path) -> Result<StageRecord> {
 pub struct CheckReport {
     /// (passed, what) per check.
     pub checks: Vec<(bool, String)>,
+    /// Each check's rule (round V1, [`crate::rules`]): its code, in the order of `checks`.
+    #[serde(default)]
+    pub codes: Vec<String>,
 }
 
 impl CheckReport {
-    fn add(&mut self, ok: bool, what: impl Into<String>) {
+    fn add(&mut self, code: &str, ok: bool, what: impl Into<String>) {
         self.checks.push((ok, what.into()));
+        self.codes.push(code.to_owned());
     }
 
-    /// Every check passed.
+    /// Every check passed (the note lines always do).
     #[must_use]
     pub fn ok(&self) -> bool {
         self.checks.iter().all(|c| c.0)
+    }
+
+    /// The check lines with their rules: (code, passed, what).
+    pub fn lines(&self) -> impl Iterator<Item = (&str, bool, &str)> {
+        self.checks
+            .iter()
+            .enumerate()
+            .map(|(k, (ok, w))| (self.codes.get(k).map_or("", String::as_str), *ok, w.as_str()))
+    }
+
+    /// The failed checks, and the note lines, as findings of their rules.
+    #[must_use]
+    pub fn findings(&self) -> Vec<crate::rules::Finding> {
+        self.lines()
+            .filter(|(code, ok, _)| {
+                !ok || crate::rules::rule(code).is_some_and(|r| r.severity == crate::rules::Severity::Note)
+            })
+            .map(|(code, _, what)| crate::rules::Finding::new(code, what))
+            .collect()
+    }
+
+    /// A check line as `mapexport check` prints it: `ok     XVAL-REG-1  registration: ...`.
+    #[must_use]
+    pub fn line(code: &str, ok: bool, what: &str) -> String {
+        format!("{} {code:<11} {what}", if ok { "ok    " } else { "FAILED" })
     }
 }
 
@@ -2585,6 +2637,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         let p = stage.join(&f.path);
         let bytes = std::fs::read(&p)?;
         r.add(
+            "XVAL-FILE-1",
             sha1_hex(&bytes) == f.sha1,
             format!("{}: the staged file is the one recorded", f.path),
         );
@@ -2624,6 +2677,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             }
         }
         r.add(
+            "XVAL-FILE-2",
             bad.is_empty() && h.entries.len() == f.entries,
             format!(
                 "{}: opens, {} entries, every partition parses{}",
@@ -2638,6 +2692,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         );
     }
     r.add(
+        "XVAL-SND-1",
         streamed.is_empty(),
         format!(
             "no streamed wave data (_waveDataSns_ entries) in the staged bundles (0x49EDF4){}",
@@ -2683,6 +2738,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         && rec.bundle_manifest.get(..KINDS.len()) == Some(bundle_manifest_lines(&low).as_slice())
         && staged == KINDS.iter().map(|k| format!("{k}-00.fbrb")).collect::<Vec<_>>();
     r.add(
+        "XVAL-REG-1",
         kinds_ok,
         format!("registration: a package.mft block and a bundleManifest line for each of {KINDS:?}"),
     );
@@ -2696,10 +2752,12 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         }
     }
     r.add(
+        "XVAL-REG-2",
         missing_targets.is_empty(),
         format!("registration: every target bundle exists {missing_targets:?}"),
     );
     r.add(
+        "XVAL-REG-3",
         game.targets(&format!("levels/{low}/level-00.fbrb")).is_empty() || is_custom(game, &low),
         format!("the name {} is not a level of the game copy", rec.level),
     );
@@ -2736,6 +2794,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         }
     }
     r.add(
+        "XVAL-REF-1",
         local_bad.is_empty(),
         format!(
             "local references: every one names an instance of its partition {:?}",
@@ -2796,7 +2855,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         }
         no_partition = keep;
     }
-    r.add(
+    r.add("XVAL-REF-2", 
         true,
         format!(
             "references to partitions in no bundle of the game copy, as DICE's own source partitions have them: {dangling:?}"
@@ -2804,6 +2863,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     );
     let total: usize = wanted.values().map(Vec::len).sum();
     r.add(
+        "XVAL-REF-3",
         no_partition.is_empty(),
         format!(
             "references: {total} into {} partitions; every partition is in a bundle the level loads {:?}",
@@ -2812,6 +2872,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         ),
     );
     r.add(
+        "XVAL-REF-4",
         no_instance.is_empty(),
         format!(
             "references: every one names an instance of its partition {:?}",
@@ -2829,6 +2890,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             .map(|t| String::from_utf8_lossy(t).into_owned())
     });
     r.add(
+        "XVAL-LVL-1",
         level_name.as_deref() == Some(format!("Levels/{}", rec.level).as_str()),
         format!("level partition: LevelData.Name {level_name:?}"),
     );
@@ -2840,6 +2902,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             .map(|t| String::from_utf8_lossy(t).into_owned())
     });
     r.add(
+        "XVAL-LVL-2",
         desc_level.as_deref() == Some(format!("Levels/{}", rec.level).as_str()),
         format!("description: LevelName {desc_level:?}"),
     );
@@ -2855,10 +2918,12 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     let mut base_loaded = game.loaded(&rec.base, "level");
     base_loaded.extend(game.startup());
     let cl = closure(game, &block_loaded, &base_loaded, &own_entries, &[], false)?;
-    r.add(
+    r.add("XVAL-REF-5", 
         cl.unresolved.is_empty(),
         format!(
-            "closure: every partition the level reaches ({} walked in its own and its base's bundles, {} copied in by              the export from {}) resolves in the bundles it loads under the {} profile; {} references to partitions in              no bundle at all (DICE's own) {:?}",
+            "closure: every partition the level reaches ({} walked in its own and its base's bundles, {} copied in by \
+             the export from {}) resolves in the bundles it loads under the {} profile; {} references to partitions in \
+             no bundle at all (DICE's own) {:?}",
             cl.walked,
             rec.closure.len(),
             {
@@ -2875,7 +2940,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     // round VW2: the weather the export gave the level
     if let (Some(wr), Some((_, lw))) = (&rec.weather, lvl) {
         for (ok, what) in crate::weather::check(wr, &LevelWriter { d: lw.clone() }, &live) {
-            r.add(ok, what);
+            r.add("XVAL-WTHR-1", ok, what);
         }
     }
     // the map's ground: its height field is in a bundle the terrain or the level block loads (round E3d: a Vietnam
@@ -2893,6 +2958,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         }
         let there = game.live(&tb)?.get(&hf).map(|f| rel_name(game, &f.0));
         r.add(
+            "XVAL-LVL-3",
             there.is_some(),
             format!(
                 "terrain: the height field {hf} is in {} (the terrain and level blocks' bundles)",
@@ -2912,10 +2978,12 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         match donor {
             Some(d) => {
                 let miss = crate::modelayer::missing(&mode, &have, &d);
-                r.add(
+                r.add("XVAL-MODE-3", 
                     miss.is_empty(),
                     format!(
-                        "mode layer: {} {} - {} bases {:?}, {} flags, {} combat areas, counters {:?} (tickets, lives,                          kills), {} teams, {} spawns, M-COMs per stage {:?} (the donor {}'s: bases {:?}, {} flags,                          stages {:?}) {miss:?}",
+                        "mode layer: {} {} - {} bases {:?}, {} flags, {} combat areas, counters {:?} (tickets, lives, \
+                         kills), {} teams, {} spawns, M-COMs per stage {:?} (the donor {}'s: bases {:?}, {} flags, \
+                         stages {:?}) {miss:?}",
                         if miss.is_empty() { "complete:" } else { "INCOMPLETE:" },
                         crate::modelayer::mode_name(&mode),
                         have.bases.iter().sum::<usize>(),
@@ -2934,6 +3002,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
                 );
             }
             None => r.add(
+                "XVAL-MODE-3",
                 false,
                 format!("mode layer: the donor {} is not in the game copy", rec.donor),
             ),
@@ -2962,7 +3031,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
                     }
                 }
                 let shared = slots.values().filter(|&&n| n > 1).count();
-                r.add(
+                r.add("XVAL-CULL-1", 
                     shared == 0 && outside == 0,
                     format!(
                         "cull tree: one preorder tree of {} leaves; {} slotted objects, {shared} slots shared, {outside} \
@@ -2972,7 +3041,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
                     ),
                 );
             }
-            Err(e) => r.add(false, format!("cull tree: {e}")),
+            Err(e) => r.add("XVAL-CULL-1", false, format!("cull tree: {e}")),
         }
     }
     // round XF1: each re-slotted object stands in leaves of its own blueprint's shape, and a new object without a
@@ -2987,7 +3056,246 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     // round XF1: every mesh the level reaches has entries in its shader databases, except those DICE's base level
     // reaches without them too and those no level's database has
     check_shaders(game, &rec, &own_entries, &live, &mut r)?;
+    check_v1(game, stage, &rec, &mut r)?;
     Ok(r)
+}
+
+/// Whether a resource entry's bytes are an Xbox 360 one (XVAL-CONS-1): a texture whose header is big-endian
+/// (TEX-HDR-1: version 3), Havok physics whose packfile has the console's layout rules (04 00 00 01, XCONS-HK-1).
+#[must_use]
+pub fn is_console_resource(type_name: &str, data: &[u8]) -> bool {
+    const MAGIC: [u8; 8] = [0x57, 0xE0, 0xE0, 0x57, 0x10, 0xC0, 0xC0, 0x10];
+    if type_name.eq_ignore_ascii_case("ITexture") || type_name.eq_ignore_ascii_case("XenonTexture") {
+        return data.get(..4) == Some(&[0, 0, 0, 3]);
+    }
+    if type_name.to_ascii_lowercase().contains("havok") {
+        let head = data.get(..data.len().min(512)).unwrap_or_default();
+        if let Some(p) = head.windows(8).position(|w| w == MAGIC) {
+            return data.get(p + 16..p + 20) == Some(&[4, 0, 0, 1]);
+        }
+    }
+    false
+}
+
+/// A deleted marker that hides a sound (XVAL-SND-2): a marker naming a sound partition or wave data.
+#[must_use]
+pub fn hides_sound(name: &str) -> bool {
+    let low = name.to_ascii_lowercase();
+    low.starts_with("sound/") || low.contains("/sound/") || low.contains("wave")
+}
+
+/// Per static group instance, its members' blueprints (`Assets` items, in order) and its transform count
+/// (XVAL-GRP-1).
+fn group_members(d: &EditDbx) -> BTreeMap<String, (Vec<String>, usize)> {
+    let mut out = BTreeMap::new();
+    for e in d.instances() {
+        let Some(a) = d.child(e, b"Assets") else { continue };
+        let assets: Vec<String> = d
+            .children(a)
+            .unwrap_or_default()
+            .iter()
+            .map(|&i| String::from_utf8_lossy(d.attr(i, b"ref").unwrap_or_default()).to_ascii_lowercase())
+            .collect();
+        let transforms = d
+            .child(e, b"Transforms")
+            .and_then(|t| bc2_formats::dbx::edit::numbers_of(d.raw(t)))
+            .map_or(0, |(_, v)| v.len());
+        let g = String::from_utf8_lossy(d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase();
+        out.insert(g, (assets, transforms));
+    }
+    out
+}
+
+/// What an edited static group file changed in its groups' members (XVAL-GRP-1): each group of `base` must keep its
+/// members' blueprints, in order, and their transforms' count.
+#[must_use]
+pub fn group_changes(base: &EditDbx, edited: &EditDbx) -> Vec<String> {
+    let (ma, mb) = (group_members(base), group_members(edited));
+    let mut bad = Vec::new();
+    for (g, (assets, tr)) in &ma {
+        match mb.get(g) {
+            Some((x, t)) if x == assets && t == tr => {}
+            Some((x, _)) => bad.push(format!(
+                "{g}: {} members, the base's {} ({})",
+                x.len(),
+                assets.len(),
+                if x.len() == assets.len() {
+                    "other blueprints"
+                } else {
+                    "another count"
+                }
+            )),
+            None => bad.push(format!("{g}: the group is gone")),
+        }
+    }
+    bad
+}
+
+/// Round V1's stage checks: the registration note for server and client (XVAL-REG-4), no deleted marker hiding a
+/// sound (XVAL-SND-2), the terrain bundle the base's own (XVAL-TERR-1), no Xbox 360 resource (XVAL-CONS-1), each
+/// static group file the project edited keeping its members (XVAL-GRP-1), no borrowed entries for the 40 km/h sign
+/// (XVAL-SHDR-2).
+#[allow(clippy::too_many_lines, reason = "the round's checks in order, each named")]
+fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -> Result<()> {
+    let low = rec.level.to_ascii_lowercase();
+    r.add(
+        "XVAL-REG-4",
+        true,
+        format!(
+            "registration: install {} on the server and on every client (bundleManifest and package.mft on both \
+             sides; the level checksums must agree)",
+            rec.level
+        ),
+    );
+    let mut hidden = Vec::new();
+    let mut console = Vec::new();
+    let mut staged: HashMap<String, HashMap<String, (String, Vec<u8>)>> = HashMap::new();
+    for f in &rec.files {
+        let (h, data) =
+            fbrb::extract_path_uncached(stage.join(&f.path)).map_err(|e| err(format!("{}: {e}", f.path)))?;
+        let mut m = HashMap::new();
+        for (e, d) in h.entries.iter().zip(data) {
+            if e.is_deleted() {
+                if hides_sound(&e.name) {
+                    hidden.push(format!("{}: {}", f.path, e.name));
+                }
+                continue;
+            }
+            if is_console_resource(&e.type_name, &d) {
+                console.push(format!("{}: {} ({})", f.path, e.name, e.type_name));
+            }
+            m.insert(e.name.to_ascii_lowercase(), (e.type_name.clone(), d));
+        }
+        staged.insert(f.path.clone(), m);
+    }
+    r.add(
+        "XVAL-SND-2",
+        hidden.is_empty(),
+        format!(
+            "no deleted marker in the staged bundles hides a sound (0xFF2AC2){}",
+            if hidden.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " (not: {})",
+                    hidden.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                )
+            }
+        ),
+    );
+    r.add(
+        "XVAL-CONS-1",
+        console.is_empty(),
+        format!(
+            "no Xbox 360 texture or Havok resource in the staged bundles{}",
+            if console.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " (not: {})",
+                    console.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                )
+            }
+        ),
+    );
+    // the terrain: the base's own bundle, entry for entry (its patch shaders with their own mask atlas)
+    if let Some(tb) = game.level_bundles(&rec.base, "terrain").into_iter().next() {
+        let live = game.live(std::slice::from_ref(&tb))?;
+        let mut names: Vec<&String> = live.keys().collect();
+        names.sort();
+        let found: Vec<&Found> = names.iter().filter_map(|n| live.get(*n)).collect();
+        let datas = read_found(&found)?;
+        let ours = staged.get("terrain-00.fbrb");
+        let mut differ = Vec::new();
+        for (n, d) in names.iter().zip(&datas) {
+            if ours
+                .and_then(|o| o.get(*n))
+                .is_none_or(|(_, x)| sha1_hex(x) != sha1_hex(d))
+            {
+                differ.push((*n).clone());
+            }
+        }
+        let extra = ours.map_or(0, |o| o.keys().filter(|k| !live.contains_key(*k)).count());
+        r.add(
+            "XVAL-TERR-1",
+            differ.is_empty() && extra == 0,
+            format!(
+                "terrain: the staged terrain bundle is {}'s own, {} entries byte for byte (its patch shaders drawn \
+                 with their own mask atlas){}",
+                rec.base,
+                names.len(),
+                if differ.is_empty() && extra == 0 {
+                    String::new()
+                } else {
+                    format!(
+                        " (differ: {:?}; {extra} entries of no base)",
+                        differ.iter().take(5).collect::<Vec<_>>()
+                    )
+                }
+            ),
+        );
+    }
+    // the static group files the project edited: each group keeps its members' blueprints and count
+    let base_live = game.live(&game.loaded(&rec.base, "level"))?;
+    let mut groups = 0;
+    let mut bad = Vec::new();
+    if let Some(level) = staged.get("level-00.fbrb") {
+        for (name, (_, data)) in level {
+            let Some(rest) = name.strip_prefix(&format!("levels/{low}/")) else {
+                continue;
+            };
+            if !(rest.starts_with("staticmodelgroup") && rest.ends_with("havokasset.dbx")) {
+                continue;
+            }
+            let Some(f) = base_live.get(&format!("levels/{}/{rest}", rec.base)) else {
+                continue;
+            };
+            let Some(orig) = read_found(&[f])?.pop() else { continue };
+            if orig == *data {
+                continue;
+            }
+            groups += 1;
+            let (Ok(a), Ok(b)) = (EditDbx::parse(&orig), EditDbx::parse(data)) else {
+                bad.push(format!("{rest}: does not parse"));
+                continue;
+            };
+            bad.extend(group_changes(&a, &b).into_iter().map(|x| format!("{rest} {x}")));
+        }
+    }
+    r.add(
+        "XVAL-GRP-1",
+        bad.is_empty(),
+        format!(
+            "static groups: the {groups} group file(s) the project edited keep every group's members (blueprints \
+             and count: 0xAB4E58){}",
+            if bad.is_empty() {
+                String::new()
+            } else {
+                format!(" (not: {})", bad.iter().take(5).cloned().collect::<Vec<_>>().join("; "))
+            }
+        ),
+    );
+    // the 40 km/h sign: never drawn with another level's shader entries
+    let sign: Vec<String> = rec
+        .shaders
+        .iter()
+        .flat_map(|s| s.added.iter())
+        .filter(|(mesh, _, _)| mesh.to_ascii_lowercase().contains("speedsign_40"))
+        .map(|(mesh, from, _)| format!("{mesh} from {from}"))
+        .collect();
+    r.add(
+        "XVAL-SHDR-2",
+        sign.is_empty(),
+        format!(
+            "shaders: no entries of the 40 km/h sign merged from another level (0x98BD6E){}",
+            if sign.is_empty() {
+                String::new()
+            } else {
+                format!(" (not: {})", sign.join(", "))
+            }
+        ),
+    );
+    Ok(())
 }
 
 /// The leaves a slot owns in a tree: from its first leaf to the next slot's (at most two), as [`crate::culltree`]
@@ -3083,6 +3391,7 @@ fn check_cull_shapes(game: &Game, rec: &StageRecord, lw: &EditDbx, tree: &EditDb
         }
     }
     r.add(
+        "XVAL-CULL-2",
         wrong.is_empty(),
         format!(
             "cull shapes: each of the {} re-slotted objects stands in its own blueprint's shape{}",
@@ -3116,7 +3425,7 @@ fn check_cull_shapes(game: &Game, rec: &StageRecord, lw: &EditDbx, tree: &EditDb
             bad.push(format!("{g} ({bp})"));
         }
     }
-    r.add(
+    r.add("XVAL-CULL-3", 
         bad.is_empty(),
         format!(
             "cull slots: every one of the {new_objects} objects not in the base has its own slot, or no level slots its \
@@ -3164,6 +3473,7 @@ fn check_shaders(
                 .map_or_else(|x| vec![x], |o| crate::shaders::check_db(&o.db))
         };
         r.add(
+            "XVAL-SHDR-1",
             bad.is_empty() && db_ok.is_empty(),
             format!(
                 "shaders: {}: entries for the {} meshes the level reaches but {} (the base's own reach without \
@@ -3223,7 +3533,7 @@ fn check_profile(
     let prof = match profiles.get(rec.profile) {
         Ok(p) => p,
         Err(e) => {
-            r.add(false, format!("profile {}: {e}", rec.profile.word()));
+            r.add("XVAL-MODE-2", false, format!("profile {}: {e}", rec.profile.word()));
             return Ok(());
         }
     };
@@ -3244,6 +3554,7 @@ fn check_profile(
         }
     }
     r.add(
+        "XVAL-PROF-1",
         missing.is_empty(),
         format!(
             "profile {}: every block loads the set's common bundles in their order ({}) {missing:?}",
@@ -3257,6 +3568,7 @@ fn check_profile(
     );
     let Some(donor) = prof.donor(&rec.donor) else {
         r.add(
+            "XVAL-MODE-2",
             false,
             format!(
                 "profile {}: the donor {} is not one of its levels of the mode",
@@ -3303,14 +3615,17 @@ fn check_profile(
         .iter()
         .all(|k| k.rsplit(' ').next().is_some_and(|t| t == "null" || resolves(t)));
     r.add(
+        "XVAL-PROF-2",
         mode == donor.game_mode && resolves(&mode),
         format!("kits: the game mode {mode} is the donor's and resolves (its kits and HUD)"),
     );
     r.add(
+        "XVAL-PROF-3",
         [f1.clone(), f2.clone()] == donor.factions,
         format!("kits: the factions {f1} / {f2} are the donor's {}", donor.level),
     );
     r.add(
+        "XVAL-PROF-4",
         kits == donor.kits && kit_parts_ok,
         format!(
             "kits: {} kit pictures, the donor's, each resolving in the bundles the level loads",
@@ -3323,6 +3638,7 @@ fn check_profile(
     let fields = lvl.map_or_default(|(_, d)| crate::profile::level_fields(&LevelWriter { d: d.clone() }));
     let wrong: Vec<&(String, String)> = prof.fields.iter().filter(|(f, v)| fields.get(f) != Some(v)).collect();
     r.add(
+        "XVAL-PROF-5",
         wrong.is_empty(),
         format!(
             "profile {}: the level fields {:?} are the set's {wrong:?}",
@@ -3403,6 +3719,7 @@ fn check_announcer(
         }
     }
     r.add(
+        "XVAL-REG-5",
         vo_blocks.iter().copied().eq(want_blocks.iter())
             && vo_lines.iter().copied().eq(want_lines.iter())
             && bad_files.is_empty()
@@ -3508,6 +3825,7 @@ fn check_announcer(
     };
     let one_set = sets.len() <= 1 || (sets.len() == 2 && sets.contains(&Profile::Bfbc2));
     r.add(
+        "XVAL-PROF-6",
         !seen.is_empty() && differ.is_empty() && voices == Some(rec.profile) && one_set,
         format!(
             "announcer: {} voices - {} partitions the level names (its trigger sets and line banks, followed) resolve \
@@ -3568,6 +3886,7 @@ fn check_names(game: &Game, rec: &StageRecord, r: &mut CheckReport) {
     );
     if problems.is_empty() {
         r.add(
+            "XVAL-NAME-1",
             true,
             format!(
                 "names: the id {}, its folder, the server-browser name {:?} and the on-screen names follow the rules \
@@ -3577,7 +3896,7 @@ fn check_names(game: &Game, rec: &StageRecord, r: &mut CheckReport) {
         );
     }
     for p in problems {
-        r.add(false, format!("names: {}", p.message));
+        r.add(p.code, false, format!("names: {}", p.message));
     }
     let low = rec.level.to_ascii_lowercase();
     let mut wrong: Vec<String> = Vec::new();
@@ -3617,6 +3936,7 @@ fn check_names(game: &Game, rec: &StageRecord, r: &mut CheckReport) {
         }
     }
     r.add(
+        "XVAL-NAME-8",
         wrong.is_empty(),
         format!(
             "names agree: Levels/{} is named by its description, the menus' list ({low}.dbx, {low}_description.dbx), \
@@ -3634,6 +3954,7 @@ fn check_names(game: &Game, rec: &StageRecord, r: &mut CheckReport) {
 /// The level's own name and pictures (round E3b): the description's and the level's loc keys are the staged texts',
 /// each text plain ASCII, each picture the one recorded, in its template's form (format, size, levels and entry
 /// size: the donor's own picture), and decoding.
+#[allow(clippy::too_many_lines, reason = "the names, then each picture, each named")]
 fn check_identity(
     game: &Game,
     stage: &Path,
@@ -3642,7 +3963,11 @@ fn check_identity(
     r: &mut CheckReport,
 ) -> Result<()> {
     if rec.strings.is_empty() && rec.awards.is_empty() {
-        r.add(true, "names and pictures: the base level's (no own name chosen)");
+        r.add(
+            "XVAL-NAME-9",
+            true,
+            "names and pictures: the base level's (no own name chosen)",
+        );
         return Ok(());
     }
     let (nk, dk) = loc_keys(&rec.level);
@@ -3689,6 +4014,7 @@ fn check_identity(
     });
     let want = Some((Some(nk.clone()), Some(dk.clone())));
     r.add(
+        "XVAL-NAME-9",
         keys == [nk.as_str(), dk.as_str()] && texts_ok && in_desc == want && in_level == want,
         format!(
             "names: {nk} and {dk} in the description and the level, their texts stored in every language's encoding{}",
@@ -3721,7 +4047,7 @@ fn check_identity(
     let od = game.ondemand_awards();
     for (want_entry, tmpl) in entries.iter().zip(&templates) {
         let Some(f) = rec.awards.iter().find(|a| a.install == *want_entry) else {
-            r.add(false, format!("picture {want_entry}: not staged"));
+            r.add("XVAL-NAME-9", false, format!("picture {want_entry}: not staged"));
             continue;
         };
         let bytes = std::fs::read(stage.join(&f.path))?;
@@ -3732,6 +4058,7 @@ fn check_identity(
         );
         let decodes = crate::awards::decode(crate::awards::unwrap(&bytes)).is_some();
         r.add(
+            "XVAL-NAME-9",
             sha1_hex(&bytes) == f.sha1 && a.is_some() && a == b && bytes.len() == t.len() && decodes,
             format!(
                 "picture {want_entry}: the one recorded, decodes, in {tmpl}'s form ({} bytes, {:?})",
@@ -4052,6 +4379,40 @@ pub fn patch_awards(
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+
+    /// Round V1 (XVAL-GRP-1, spec LEVEL-MG-4): a group file whose member list changed is named.
+    #[test]
+    fn group_member_changes_are_named() {
+        use bc2_formats::dbx::{DbxFile, Element};
+        let file = |assets: &[&str], n: usize| {
+            let mut f = DbxFile::default();
+            let items = assets
+                .iter()
+                .map(|a| Element::text(&mut f, "item", &[("ref", a)], ""))
+                .collect();
+            let arr = Element::container(&mut f, "array", &[("name", "Assets")], items);
+            let t = Element::numbers(&mut f, "array", &[("name", "Transforms")], 4, &vec![0u8; 4 * 16 * n]);
+            let g = Element::container(
+                &mut f,
+                "instance",
+                &[
+                    ("guid", "GG000000-0000-0000-0000-000000000000"),
+                    ("type", "X.StaticModelGroupEntityData"),
+                ],
+                vec![arr, t],
+            );
+            let p = Element::container(&mut f, "partition", &[("guid", "P")], vec![g]);
+            f.roots.push(p);
+            EditDbx::parse(&bc2_formats::dbx::write(&f).unwrap()).unwrap()
+        };
+        let base = file(&["objects/a/a/G1", "objects/b/b/G2"], 2);
+        assert_eq!(
+            group_changes(&base, &file(&["objects/a/a/G1", "objects/b/b/G2"], 2)),
+            Vec::<String>::new()
+        );
+        assert!(group_changes(&base, &file(&["objects/a/a/G1"], 1))[0].contains("another count"));
+        assert!(group_changes(&base, &file(&["objects/a/a/G1", "objects/c/c/G3"], 2))[0].contains("other blueprints"));
+    }
 
     /// Round QW2 (audit AU1 RISK-4): the entries `check` refuses in a staged bundle (spec SND-STRM-1).
     #[test]
