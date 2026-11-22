@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-21
+
 ### Added
 - **Static group members are editable in the map editor** (round SG1). Most of a WW2 map's objects (Wake Island:
   2,999 group members against 1,329 placed objects: its buildings, fences, trees and props) live in model groups; they
@@ -52,6 +54,18 @@ landed on `main`.
   rolls an interrupted commit back before it reads anything; `BC2_INSTALL_CRASH_AT=<n>` (tests) stops it before its
   n-th write step. The ledger (`bc2_formats::gameledger`) gained OPFOR's stage operations: `install_keep` (an
   install keeping the owner's other files, in OPFOR's record order), `restate`, `file_layers`, `slot_holders`.
+- **One whole-file writer for every Rust tool** (round PR1a, audit AU5 ARC-8): `bc2_formats::atomic::write` (a
+  temporary file beside the target named per process and per write, flushed to disk, moved over it with retries) is
+  what FbrbTool's and DbxEdit's commands, the install ledger, the installer, the caches, the logs' archive, the
+  harness, stock-MP's report, texqa and the editor's saves now call; two threads or processes writing one path no
+  longer share a temporary file (the ledger's was a fixed `.opfor-ledger-tmp`), and a recovery removes a killed
+  writer's temporary files. `bfbc2core.atomicio` names its temporary files the same way.
+- **Determinism as a rule** (round PR1a): the Rust workspace lints loops over hash maps (`clippy::iter_over_hash_type`;
+  each remaining one says why its order cannot reach an output); the repository rules refuse a new unsorted JSON write
+  in the tools' Python (`atomicio.dumps_stable`); `rust\native_census.py` lists who calls each `bc2_native` export.
+- **Stable test ids** (round PR1a): every `run_tests.py` entry has an id; its resources, CI skips, durations and the
+  round-code allowlists are keyed by it (`--list` shows it, `--only` matches it). A durations file keyed by display
+  names is still read.
 
 ### Changed
 - **`bfbc2.exe navkit apply` answers a DICE base in Rust** (round NK1): the side file's links, route edges and
@@ -60,6 +74,15 @@ landed on `main`.
   of the development PC byte-identical), 7-8 times faster and in a tenth of the memory. A NavKit base still rebuilds
   the level through `navkit.py` (its build is Python), whose edit stage now runs in the same Rust core. The map
   editor's AI workspace runs it as before.
+- **`bfbc2.exe`'s usage and the crates' descriptions name tools by what they do** (round PR1a, audit AU5 NAM-2), not by
+  the round that wrote them; the map editor's export hints and Help text too.
+- **The editor's prepared-copy record lists its files in a fixed order** (round PR1a): before, the order of
+  `prepared.json`'s files varied from run to run (hash order); `bc2_native`'s scene collision dict is in name order.
+- The Rust crates' Python-runtime emulation (`bc2-pyrt`) is no longer a dependency of the map editor; the mesh index
+  cache is `bc2-convert`'s `pickle-cache` feature and NavKit's apply edits `bc2-navbuild`'s `graphedit` feature
+  (round PR1a, audit AU5 ARC-1).
+- Spec HAVOK-WRAP-1 and the console converter's FORMAT.md call the wrapper's n words part words: part-name hashes in a
+  blueprint, the owners' leaves in a model group (round PR1a, audit AU5 NAM-4).
 
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
@@ -73,6 +96,11 @@ landed on `main`.
 - `bfbc2-auto-navkit/tools/navlinks.py` and `navtraversal.py` (round NK1): navkit apply's links, route edges and
   traversal annotations are the Rust core's (`navkit.graph_edits` / `write_traversal` call it). No command line or
   option went; nothing outside NavKit imported them.
+- Rust public API (round PR1a): `bc2_convert::meshview::cache::{locked, write_atomic}` (now
+  `bc2_formats::atomic::{locked, write}`), `bc2_menu::common::STAND_IN_VAR` (the test switch moved to `bfbc2.exe`'s
+  menu tools; `PeImage::open` has none, `PeImage::from_bytes` is new), `bc2-cli`'s copies of the shader-database
+  helpers; `bc2_convert::meshview::cache` and `bc2_navbuild::graphedit` now need their crate's feature. Test files and
+  `bc2-py` modules named by round were renamed by function (`rust/BENCHMARKS.md` "PR1a").
 
 ## [0.13.0] - 2026-11-21
 
