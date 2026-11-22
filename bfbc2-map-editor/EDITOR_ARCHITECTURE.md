@@ -60,7 +60,16 @@ The log follows `navtune.json`'s proven pattern:
   it was given when made.
 - **Undo and redo** as a list plus a redo stack, as in `navtune.py`. The editor replays from checkpoints (round
   XF1): the state after each mode choice and after every 16 operations is kept (at most 8), so an undo applies the
-  operations after the newest one the log still passes through, not the whole log.
+  operations after the newest one the log still passes through, not the whole log. Since round PR1b-0 (audit AU5
+  ALG-1, ALG-3, ALG-4) a checkpoint shares what did not change: the scene's terrain mesh, height field and partition
+  bytes are `Arc`s shared by the base scene and every undo's scene (`Scene::with_entities` takes the checkpoint's
+  entities without copying the base's), and the terrain's ray grid lives in a ray cache the clones share, so the
+  first ray after an undo no longer rebuilds it; each file's writer is an `Arc` (`LevelFiles`), and inside it the
+  DBX tree's elements sit in shared chunks of 1,024 and its file bytes and string table are shared
+  (`bc2_formats::dbx::edit`), so a checkpoint costs the chunks edited since the last one, not a copy of the
+  partition. A member edit's refusal check (`Doc::refusal`) keeps the files it made, and committing the same
+  operation next takes them instead of applying it again; the group entities are found with one guid index per
+  call instead of a walk of the partition per member type.
 - **Base changed** (a new game patch or a rebuilt WW2 level): operations whose target guid is gone are reported,
   never dropped silently.
 - **New maps (stage 2)** use the same file, with a generated base in place of a stock level.
@@ -99,6 +108,21 @@ The log follows `navtune.json`'s proven pattern:
   (its newest operation kind; 7 for a member delete or add); each version step has a migration
   (`project::migrate`), and the recorded projects of versions 1 - 6 (`rust/bc2-levelwrite/tests/data/projects`) must
   load (1 - 5 replay to the same partition, 6 its member move to the same member).
+
+**Tools and background jobs (round PR1b-0, audit AU5 ARC-6 / ARC-7, AU1 R21).** The views' editing tools are types
+behind one trait, `bc2_editor::tool::ViewTool`: each owns its state and answers the views' calls - `input` (the
+pointer on a view, before the editing input; `Some` when the left button is the tool's), `click` (a click while
+editing; `None` lets the click select), `draw` (what it holds, at an overlay `Layer`), `takes_enter` / `enter`,
+`transient` / `cancel` (Esc) and `left` (another tool chosen) - and says what it wants done as an `Outcome`
+(a message, a selection, an operation committed). `Tools` holds them all; `ViewState::tool` is the chosen one's id
+(`gizmo::Tool`, what the actions and the toolbar name). Select, Move, Rotate (the gizmo's drag stays shared in the
+views: `gizmo()` says a tool uses it), Ruler and Polygon are implementors; E4's gameplay tools and E5's brushes are
+new implementors and a line in `Tools`. Background work is `bc2_editor::task::Task<T>`: a body on its own named
+thread under DF1's `guarded`, one answer on its own channel, `poll` / `wait` / `wait_for`, and a worker that ended
+without an answer is an error; the comparison, the content browser's catalogue, the game-accurate view's world,
+the asset preview's reader and mesh index, and the export's preview run on it (the export window's four jobs, the
+level load, the AI workspace's two and `prepare`'s pipe readers keep their threads: see rust/BENCHMARKS.md
+"PR1b-0").
 
 ### 3.2 The core additions
 

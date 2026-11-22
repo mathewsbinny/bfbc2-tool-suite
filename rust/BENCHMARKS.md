@@ -8355,3 +8355,163 @@ so `VERSION` stays (RELEASING.md).
   holes, pinches and vertices at empty cells' centres, and DICE's never do: its 44,380 records are all simple loops
   through cell corners. So DICE groups F cells differently, maybe 4-connected, or without the 45-degree bridges.
   Measuring that on DICE's areas is a content question, not a port's.
+
+## PR1b-0: the map editor's core before E4 (2026-11-22, branch `pr1b0`)
+
+Audit AU5 section 6's PR1b-0: ALG-1, ALG-3, ALG-4, ARC-6, ARC-7, ALG-2, ALG-8, ALG-9. The rule: every result stays the
+same, bit for bit. Measured on the development PC (16 threads, 15 GB) with other rounds' builds beside it; release
+builds; `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=4`, build folder `rust-targets\bfbc2-tool-suite-pr1b0`. The "before"
+column is main at 30f19b0 built from a throw-away worktree, run back to back with "after". Nothing was written to
+`game\`; the game was never launched.
+
+### The numbers (`examples/editor_core_bench.rs`, `ray_bench.rs`, `preview_bench.rs`)
+
+`editor_core_bench <OPFOR> <level> 200 100`: the scene's clone, a document, 200 moves, three undos, three redos, History
+to the middle, the base and the end (the first ray straight down after each), then 100 static group members moved and
+100 deleted (each checked by `Doc::refusal` first, as the editor does) and one undo. The heap is counted by a counting
+global allocator. Every state's digest (partition bytes, each edited group file, every transform, the deleted set)
+and the run's whole digest are the same before and after: SP_01 `bb797793...`, Wake Island `145c4c0e...`.
+
+| | SP_01 before | SP_01 after | Wake before | Wake after |
+|---|---:|---:|---:|---:|
+| base scene clone | 18.6 ms, 56.8 MB | 7.2 ms, 9.4 MB | 8.8 ms, 50.5 MB | 4.0 ms, 5.0 MB |
+| undo / redo / History (9 steps) | 47 - 77 ms | 14 - 18 ms | 22 - 29 ms | 7 - 12 ms |
+| first ray after each of them | 114 - 123 ms | 0.58 - 0.67 ms | 105 - 113 ms | 0.34 - 0.37 ms |
+| heap after 200 moves (8 checkpoints) | +279 MB (peak +314) | +73 MB (peak +82) | +92 MB (peak +104) | +37 MB (peak +41) |
+| document made | 257 ms, +106 MB | 172 ms, +41 MB | 67 ms, +66 MB | 53 ms, +14 MB |
+| member delete: refusal check, median | 90.5 ms | 3.7 ms | 14.6 ms | 1.4 ms |
+| member delete: commit, median | 72.1 ms | 0.5 ms | 9.8 ms | 0.1 ms |
+| 100 refusals + 100 deletes | 17.98 s | 0.49 s | 2.54 s | 0.18 s |
+| undo after the member edits | 1,117 ms | 59 ms | 285 ms | 33 ms |
+| `members::group_entities` | one partition walk per member type | 2.2 ms | | 0.6 ms |
+
+The heap after 200 moves is AU3 PF-4's and AU5 ALG-4's question: 8 checkpoints held a whole copy of the partition's
+writer each (26 MB on SP_01) plus their entities. With the writers' elements in shared chunks a checkpoint holds the
+chunks edited since the one before (a copy of the writer now costs 0.0 MB and 0.0 ms until it is edited), so the 8
+checkpoints are bounded by what changed, not by the level's size: no further bound was needed.
+
+Rays (`ray_bench <OPFOR> <level> 400`; digests the same: SP_01 `d8c898ee...`, Wake `770ecf88...`):
+
+| | SP_01 before | after | Wake before | after |
+|---|---:|---:|---:|---:|
+| vertical ray (`ground_below`) | 0.581 ms | 0.604 ms | 0.493 ms | 0.492 ms |
+| picking ray | 0.675 ms | 0.640 ms | 0.554 ms | 0.502 ms |
+| `surface_below` | 0.293 ms | 0.290 ms | 0.231 ms | 0.202 ms |
+| picking ray, terrain only | | 0.254 ms | | 0.249 ms |
+
+The asset preview's orbit at 1200 x 900 (`preview_bench 1200 900 30`; digests the same): the guard tower 21.6 -> 6.9
+ms a picture (median), the 29,048-triangle soldier 23.7 -> 7.8 ms, under a 60 Hz frame on the UI thread.
+
+### 1. ALG-1: the terrain, its ray grid and the base scene shared
+
+`Scene::terrain` and `Scene::heightfield` are `Option<Arc<..>>`, the scene's partition bytes an `Arc` (private); a
+clone shares them. `RayCache` is shared by a scene's clones and keeps up to 4 terrain grids, each keyed by its mesh's
+`Arc` (held weakly: a mesh no scene holds is freed, and its grid goes at the next look-up), so the base and every
+undo's scene build the grid once. `Scene::with_entities` makes an undo's scene from the base without copying the
+base's entities (it marks the moved ones changed as `set_transform` did). For E5: a stroke that edits the terrain
+replaces the mesh's `Arc` (a new grid then); updating only the grid cells a stroke's tiles cover is E5's
+(`raygrid::TerrainGrid` buckets triangles by plan cell, so the cells of a tile are known).
+
+### 2. ALG-3: member edits applied once, the group entities found by one index
+
+- `LevelFiles::partition` and `groups` hold `Arc<LevelWriter>`; `apply` stages on `Arc` clones and `Arc::make_mut`
+  copies a writer only when an edit changes a shared one.
+- `bc2_formats::dbx::edit::EditDbx` keeps its elements in chunks of 1,024 behind `Arc`s and its file bytes and string
+  table in `Arc`s: a clone costs the chunk pointers, an edit copies one chunk.
+- `Doc::refusal` keeps the files its trial made (the document's revision, the operation, the files); a commit of the
+  same operation at the same revision takes them instead of applying it again.
+- The base partition is parsed once per document (`Doc::base_writer`), not again on every replay from the base.
+- `members::group_entities` found each member type with `LevelWriter::find`, a walk of every instance with a string
+  upper-cased per instance: one walk per member type, per member edit. It now builds one guid index per call.
+- Not done: one `Schema` per group file for `GroupField` edits (such an edit still scans its file; no tool makes them in
+  bulk yet), and a group-entity index kept across calls (it would need the writer to say when an instance is added or
+  removed; the per-call index already takes it from 169 ms to 2 ms on SP_01).
+
+### 3. ALG-4: checkpoint memory measured and bounded
+
+See the table: +279 MB -> +73 MB on SP_01 after 200 operations (Wake +92 -> +37 MB), from the chunked writers and the
+shared scene. `CHECKPOINT_EVERY` (16) and `CHECKPOINTS` (8) are unchanged.
+
+### 4. ARC-6: the tool trait
+
+`bc2_editor::tool`:
+
+```rust
+pub trait ViewTool {
+    fn id(&self) -> Tool;                                    // gizmo::Tool: what the actions and the toolbar name
+    fn key(&self) -> Option<&'static str> { None }           // its toolbar key
+    fn gizmo(&self) -> bool { false }                        // moves / turns with the shared gizmo drag
+    fn boxes(&self) -> bool { true }                         // a left drag on empty ground draws a box
+    fn input(&mut self, p: &Pointer, v: &ViewState) -> Option<Outcome> { None } // before the editing input
+    fn click(&mut self, hit: Option<Hit>, snap_vertex: bool) -> Option<Outcome> { None }
+    fn draw(&self, d: &Draw<'_>, layer: Layer) {}            // what it holds, at Layer::Edit or Layer::Tools
+    fn takes_enter(&self) -> bool { false }
+    fn enter(&mut self) {}
+    fn transient(&self) -> bool { false }                    // Esc cancels it first
+    fn cancel(&mut self) {}
+    fn left(&mut self) {}                                    // another tool was chosen
+}
+pub enum Outcome { Done, Message(String), Select(Vec<usize>, String), Commit(Box<Op>, String) }
+```
+
+`Tools` holds every tool's state (`ViewState::tools`; `ViewState::tool` is the chosen id): Select, Move and Rotate
+(the gizmo's drag, handles, snapping and surface placement stay shared in the views), Ruler (its points, read-out and
+drawing) and Polygon (its corners, double click and Enter, its selection). The toolbar is built from the tools' keys;
+Esc and the transient check ask every tool; a tool chosen tells the others. `ViewState::outline` (`OutlineDraw`) and
+`Measures::ruler` are gone (CHANGELOG Removed). Tests: `tool::tests` (3), beside the editor's. Not moved (not view tools
+yet): placing from the content browser and the gameplay tiles, the sink popup and the picker, the AI workspace's nine
+`NavTool`s (in `navui`), the measuring path (M). E4's flags, spawns, M-COMs and teams should be new implementors and
+a line in `Tools`; the AI tools are the next to move. `export::build` and `export_ui::window` were not split (ARC-6's
+second half; E4 does not need it).
+
+Game layer (the user's later targets: MOH 2010, Warfighter, BFBC1, BF3, BF4): the trait and `Task` assume no BFBC2
+format. Two BFBC2-specific points sit in the editor core: `Outcome::Commit` carries `bc2_levelwrite::Op` (a game layer
+would put an operation type per game behind the level API there), and tools see the `bc2_scene` scene through
+`ViewState` (a game-neutral scene trait would go in `bc2_scene`).
+
+### 5. ARC-7: one background-job type
+
+`bc2_editor::task::Task<T>`: `spawn(what, body)` / `spawn_value`, a thread named `bc2-editor: <what>`, the body under
+DF1's `guarded` (a panic is an error naming `what`), one answer on its own channel; `poll`, `wait`, `wait_for`; a
+worker that ended without an answer is `EditorError::Worker`. On it: the comparison (`compare::DiffState`), the content
+browser's catalogue, the game-accurate view's world (`GameLoad`), the asset preview's reader and its "Read the mesh
+index" button, and the export's preview (`diffui`): 6 of the 18 thread spawns. Left with their own threads, each
+already guarded or answering once: the export window's four (`export_ui`: they share `answer()`, and tests inject
+their receivers through `running_from`), the level load and its two helpers in `app.rs`, the AI workspace's two
+(`nav.rs`: a job with a cancel flag and streamed output) and `prepare`'s three (a tool's stdout and stderr read while
+it runs: these stay threads). Nothing bounds how many run at once: the bounded pool is PR1b-2 item 11 (ALG-11).
+
+### 6. ALG-2, ALG-8, ALG-9
+
+- **ALG-2.** An object ray takes the blueprints' shapes under one lock per ray (it was a lock and a look-up per placed
+  object) and, for an object its sphere does not reject, tests in the object's own space only the runs of 16
+  triangles whose bounds (padded by 1e-4 m plus a millionth of their size) its path meets, placing those triangles as
+  `world_triangles` does, without a list. The hits are the same (digests above). The gain is small (picking 0.675 ->
+  0.640 ms on SP_01): what is left of an object ray is the loop over every placed collision mesh (5,924 on SP_01) and
+  its blueprint's look-up by name; a grid of the objects' spheres needs the scene to say when an entity moved (E4's
+  placement tools, with an edit generation on `Scene`).
+- **ALG-8.** The DBX inspector's undo stack keeps at most `UNDO_BUDGET` (256 MB) of steps, the oldest going first (the
+  file stays modified); an edit clones the file and serialises it only when the edit changed it; a project field's
+  trial copies the file, not the inspector's undo, script and output. Test
+  `dbxinspect::tests::the_undo_stack_keeps_its_budget`.
+- **ALG-9.** `Canvas::fill_parts` draws every part in horizontal bands (32 rows or more, at most 64 bands) on all cores,
+  each band running `Canvas::fill`'s triangle loop in the same order on its own rows: the same picture, depths and
+  owners. The preview's orbit uses it; Save picture and the parity tests keep `fill`. The cache key is still a
+  `format!` of the state (well under a millisecond).
+
+### Proof of identical behaviour
+
+- Tests: bc2-editor lib 76 and `editor` 53 run (25 game tier ignored); the game-tier tests this round touches, 13 of
+  13: `xf1::undo_on_a_mode_project`, `group_members::wake_members_through_the_interface`,
+  `real_level_editing::placement_on_real_terrain`, `dbx_inspector_window::`,
+  `dbxedit_parity::the_inspector_gives_dbxeditguis_answers`, `editor_core::stroke_budgets_on_10000_strokes`,
+  `view_toggles::` (3), `problems_panel::`, `inspector_parity::`, `every_level::`, `game_view_live::`; bc2-levelwrite's
+  `export_xf1::` (2) and `model_group_members::` (2); bc2-formats, bc2-scene, bc2-levelwrite and bc2-convert's crate
+  tests (the replay corpus's `project::tests::old_projects_load_and_replay_the_same` among them).
+- Screenshots of the main views (`bfbc2-editor --screenshot`, 1600 x 950): the start screen dark, light and WW2, the
+  demo level dark, light and with a selection, MP_005, SP_01's navigation view and Wake Island: byte for byte the same
+  before and after. MP_005's differs between two runs of the same binary in 41 pixels of the status bar (a reading
+  indicator); the second "after" run equals the "before" run byte for byte. The screenshots stayed in the session's scratch
+  folder.
+- The project-log replays: the bench's state digests through 200 moves, undo, redo, History and 200 member edits, and
+  the corpus replay test above.

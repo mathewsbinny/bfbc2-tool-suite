@@ -37,6 +37,28 @@ landed on `main`.
   deviates today and the gaps in priority order). `formats/hpd.md`'s open questions are tracked items, five answered.
   A game-tier corpus test checks the verified rules on DICE's files; `cargo run --example kynapse_probe` measures
   DICE's files or NavKit's builds.
+- **The map editor's core before E4** (round PR1b-0, audit AU5 section 6): the views' editing tools are types behind
+  one trait (`bc2_editor::tool::ViewTool`: input, click, drawing, keys, Esc, and what each asks for as an outcome),
+  so E4's and E5's tools land as small types; background jobs are one type (`bc2_editor::task::Task`: a named
+  thread, a guarded body, one answer, a dead worker reported). `cargo run --release -p bc2-editor --example
+  editor_core_bench` and `--example preview_bench` measure the undo, memory, member-edit and preview numbers.
+
+### Changed
+- **Undo, redo and History in the map editor are 3-4 times faster, the first ray after them 200-300 times, and 200
+  operations' checkpoints hold a quarter of the memory** (round PR1b-0; SP_01: +279 MB -> +73 MB): the terrain, its
+  ray grid, the height field and the level's files are shared between the base scene and each undo's, and the
+  checkpoints share every part of a file their edits did not touch. A static group member's delete costs about 4 ms
+  instead of a sixth of a second on SP_01 (its refusal check is not applied twice and the group is found without
+  walking the partition per member type); object rays test only the parts of an object their path crosses; the asset preview's orbit is drawn on all cores (the same pictures). The DBX inspector's undo keeps
+  at most 256 MB of steps. Every result is the same as before, bit for bit (`rust/BENCHMARKS.md` "PR1b-0").
+- **Rust API** (round PR1b-0): `bc2_scene::scene::Scene::terrain` and `heightfield` are `Option<Arc<..>>`;
+  `bc2_levelwrite::files::LevelFiles::partition` and `groups` hold `Arc<LevelWriter>`s; `bc2_scene::raygrid::RayCache`
+  is shared by a scene's clones and keys the terrain grid by its mesh's `Arc`; the asset preview's reader answers
+  through `Task`.
+
+### Removed
+- **Rust API** (round PR1b-0): `bc2_editor::app::OutlineDraw`, `ViewState::outline` and `Measures::ruler` - the
+  polygon's corners and the ruler's points are the tools' own (`bc2_editor::tool::Tools::polygon` / `ruler`).
 
 ## [0.14.0] - 2026-11-21
 
