@@ -38,6 +38,26 @@ landed on `main`.
   A game-tier corpus test checks the verified rules on DICE's files; `cargo run --example kynapse_probe` measures
   DICE's files or NavKit's builds.
 
+### Changed
+- **NavKit's walkability runs in Rust, end to end** (round NK4): a build stage hands the Rust core
+  (`bc2_navbuild::walk`) the sample files and its inputs once, and the core reads the run, makes it coarse when
+  needed, applies the hand edits, the water and reference-extent rules, the slope, clearance and structure rules, the
+  seeds, floods, ladders, unseeds and roof islands. The same path data byte for byte on all 15 regression levels of
+  the development PC (every stage's run, kept surfaces, gradients and stair flags bit for bit; the 4 golden builds as
+  recorded). Walkability is 2.7 times faster over those levels (234 -> 88 s; the largest detailed pass 39.7 -> 8.9 s)
+  and its memory peak 2.2-2.5 times lower (largest 12.8 -> 5.6 GB); the largest whole build's peak fell from 15.2 to
+  11.9 GB. `navsample.load` reads a version 3 sample file a block at a time instead of whole. Spec XNAV-BLD-4 records
+  the precision and order rules the port keeps.
+
+### Removed
+- NavKit's Python for walkability (round NK4): `navwalk.walkable`'s NumPy glue, `near_points`, `ladder_ends`,
+  `objective_floor`, `coarse`'s loop and `_column_picks`; `navedits.region_mask`'s NumPy and matplotlib body and
+  `edits_for`'s mask loop (navedits no longer needs matplotlib); the bodies of `navbuild.water_tops`, `deep_water`,
+  `outside_bounds` and `stage`'s walkability block. The functions stay as calls into the Rust core with the same
+  arguments and answers; `navedits.regions_of` and `navwalk.walk_inputs` / `walk_answer` / `run_dict` / `samples_of`
+  are new. No command line or option went, and nothing outside NavKit used them. A version 1 sample run (no hit
+  words), which no build could use before, now builds with every surface taken as terrain.
+
 ## [0.14.0] - 2026-11-21
 
 ### Added

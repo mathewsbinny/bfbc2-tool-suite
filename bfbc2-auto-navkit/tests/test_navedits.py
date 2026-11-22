@@ -35,6 +35,38 @@ def grid():
     return SimpleNamespace(nx=nx, nz=nz, pitch=1.0, min_x=0.0, min_z=0.0, start=np.array(start), y=np.array(ys, np.float32))
 
 
+def matplotlib_region(x, z, y, region):
+    """The retired region_mask's polygon branch (round NK4 moved it to the Rust core): the box prefilter, then
+    matplotlib's Path.contains_points."""
+    from matplotlib.path import Path
+    lo, hi = region['y']
+    poly = np.asarray(region['polygon'], dtype=np.float64)
+    m = (y >= lo) & (y <= hi) & (x >= poly[:, 0].min()) & (x <= poly[:, 0].max()) & (z >= poly[:, 1].min()) & (z <= poly[:, 1].max())
+    if m.any():
+        idx = np.nonzero(m)[0]
+        m[idx] = Path(poly).contains_points(np.stack([x[idx], z[idx]], axis=1))
+    return m
+
+
+def matplotlib_agreement(polygons=400):
+    """Random polygons (3-9 vertices; half of them on a 0.5 m lattice, so sample points fall on their outlines and
+    vertices; some self-crossing) against sample points on 0.25 m and 1 m lattices: the polygons whose mask differs
+    from matplotlib's."""
+    rng = np.random.default_rng(20261122)
+    gx, gz = np.meshgrid(np.arange(-2, 12.25, 0.25), np.arange(-2, 12.25, 0.25))
+    x, z = gx.ravel(), gz.ravel()
+    y = np.zeros(len(x))
+    bad = 0
+    for n in range(polygons):
+        k = int(rng.integers(3, 10))
+        pts = rng.uniform(-1, 11, (k, 2))
+        if n % 2 == 0:
+            pts = np.round(pts * 2) / 2
+        region = nt.polygon([(float(a), float(b)) for a, b in pts], -1, 1)
+        bad += not np.array_equal(navedits.region_mask(x, z, y, region), matplotlib_region(x, z, y, region))
+    return bad
+
+
 def main(argv):
     failed = 0
 
@@ -70,6 +102,9 @@ def main(argv):
     check(e['counts'] == {'unwalkable': 1, 'walkable': 1, 'seed': 2, 'unseed': 1}, 'links, route edges, traversals and notes are left to navkit apply')
     e2 = navedits.edits_for(s, [])
     check(not e2['force_walkable'].any() and not e2['force_unwalkable'].any() and not e2['seeds'], 'no edits: nothing forced')
+    bad = matplotlib_agreement()
+    check(bad == 0, f'polygon regions as matplotlib answers them (Path.contains_points, the retired region_mask): '
+                    f'{bad} of 400 random polygons differ (points on outlines and vertices included)')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 
