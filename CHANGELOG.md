@@ -73,6 +73,12 @@ landed on `main`.
 - Every `mapexport check` line names its rule (`ok     XVAL-REG-1  registration: ...`), and every refusal of
   `mapexport build` starts with its rule's code. `CheckReport` has the codes beside its lines (`codes`, `lines()`,
   `findings()`).
+- **`bfbc2.exe navkit apply` answers a DICE base in Rust** (round NK1): the side file's links, route edges and
+  traversal annotations go into a copy of DICE's path data without Python (`bc2_navbuild::graphedit`), the same
+  files, report and output as before (252 of 252 recorded command lines; every DICE file and NavKit regression build
+  of the development PC byte-identical), 7-8 times faster and in a tenth of the memory. A NavKit base still rebuilds
+  the level through `navkit.py` (its build is Python), whose edit stage now runs in the same Rust core. The map
+  editor's AI workspace runs it as before.
 
 ### Fixed
 - **Test O2 no longer trips Microsoft Defender** (round AV1). Defender's machine-learning scan blocked reads of the
@@ -81,6 +87,11 @@ landed on `main`.
   `PE\0\0` signatures, so no scanner sees a program. Under `BFBC2_TEST_STAND_IN_EXE=1` (tests only), `bfbc2.exe`'s
   menu tools put the signatures back as they read it, so aptrefs reads the same bytes as before and gives the same
   answers.
+
+### Removed
+- `bfbc2-auto-navkit/tools/navlinks.py` and `navtraversal.py` (round NK1): navkit apply's links, route edges and
+  traversal annotations are the Rust core's (`navkit.graph_edits` / `write_traversal` call it). No command line or
+  option went; nothing outside NavKit imported them.
 
 ## [0.13.0] - 2026-11-21
 

@@ -87,11 +87,12 @@ def main(argv):
         os.makedirs(game)
         dest = os.path.join(game, 'pathdata.hpd')
         open(dest, 'wb').write(b'DICE original')
+        pr.game = os.path.join(tmp, 'game')           # the stand-in game copy (its install ledger: round DF2) ...
         pr.pathdata = lambda level: dest              # installs go to the stand-in ...
         pr.dice_pathdata = lambda level: dice         # ... while DICE's file is still read from the game copy
         navkit.install(pr, lv, log=lambda *a: None, src=out)
-        check(open(dest + navkit.BACKUP_SUFFIX, 'rb').read() == b'DICE original' and open(dest, 'rb').read() == open(out, 'rb').read(),
-              'install: the original kept as .opfor-orig, the edited file in its place')
+        check(open(dest, 'rb').read() == open(out, 'rb').read() and navkit.installed(pr, lv),
+              'install: the edited file in its place, recorded in the game copy\'s install ledger')
         tdest = navkit.traversal_path(game, lv)
         check(os.path.isfile(tdest) and json.load(open(tdest)) == doc, 'install: the traversal file beside it')
         t2 = nt.NavTune.new(f'Levels/{lv}', dice, kind='dice')
@@ -100,9 +101,9 @@ def main(argv):
         t2.save(p2)
         navkit.apply(pr, lv, p2, out, log=lambda *a: None, install_after=True)
         check(not os.path.isfile(trav) and not os.path.isfile(tdest), 'apply --install without traversals: no stale traversal files')
-        check(open(dest + navkit.BACKUP_SUFFIX, 'rb').read() == b'DICE original', 'a second install keeps the first original')
         navkit.restore(pr, lv, log=lambda *a: None)
-        check(open(dest, 'rb').read() == b'DICE original' and not os.path.isfile(dest + navkit.BACKUP_SUFFIX), 'restore puts the original back')
+        check(open(dest, 'rb').read() == b'DICE original' and not navkit.installed(pr, lv),
+              'restore puts the original back (the ledger kept it once, over two installs)')
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print('all passed' if not failed else f'{failed} check(s) failed')

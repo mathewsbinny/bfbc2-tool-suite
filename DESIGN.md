@@ -434,7 +434,7 @@ Its `sha1` lets `navkit apply` warn when the base has changed since.
 Status (2026-10-16): walkability operations work (`navkit.py apply <level> [--navtune file] [--out file]`, a full
 rebuild), and link and edge operations are written into the route graph (both nodes in one sector; on a DICE
 base into a copy of DICE's file, never shared), and traversal operations go to `<level>.traversal.json`
-(format in `bfbc2-auto-navkit/tools/navtraversal.py`): each annotation with its ends, the route node and island
+(format in `rust/bc2-navbuild/src/graphedit.rs` since round NK1; `navtraversal.py` before): each annotation with its ends, the route node and island
 at each end, and whether it joins two islands. Every run writes `<output>.report.txt`; `--install` installs
 the result with its traversal file (`<game>\Output\win32\ai\levels\<level>\infantry\<level>.traversal.json`,
 where OPFOR's bot layer will read it).
