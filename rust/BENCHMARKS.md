@@ -8143,6 +8143,40 @@ PR1a's rules ran over what V1 and NK2 added while the round was under way.
   before).
 - **The spec.** The merged spec's citations were remapped from the side each line came from (main's or PR1a's) to the
   merged files, and `rules.json` was re-emitted: 769 rules.
+## AIS: the bot AI specification (2026-11-22, branch `ais`)
+
+A specification round: no tool's behaviour changed. Two spec files (`spec/engine/bot_ai.md` 41 rules,
+`spec/model/ai_orders.md` 16 rules): 5 verified, 43 observed, 9 inferred.
+
+**Method.**
+- **Data.** `rust/bc2-formats/examples/ai_probe.rs` reads the 59 AI / template partitions of `sp_common` and the 15 of
+  `mp_common`, the level partitions of DICE's 13 campaign levels (Package copies) and of the 5 Onslaught levels OPFOR
+  installs: field ranges, enumerator tallies, order / spawner / squad counts, event wiring. 8.9 s (release, cold
+  bundle cache), structure and counts only.
+- **Corpus tests.** `rust/bc2-formats/tests/ai_corpus.rs`: 4 game-tier tests (the shared AI partitions, the three
+  difficulty modes, one OrderReadiness per order type, the campaign orders' shapes and the events into orders), 5.4 s
+  in release.
+- **The executable.** Read statically with a scratch copy of OPFOR's analysed Ghidra project (headless, read-only;
+  REA's own Ghidra analysis of the 19 MB executable does not complete). Nine probe runs; no game launch.
+
+**Findings for OPFOR's bot module:**
+
+| Finding | Rule |
+|---|---|
+| a bot is a server player with the AI flag +0xD84, made by the spawner's spawn 0x72D160 | BOT-CTL-1 |
+| the AI drives its soldier through an `EntryInputState` its input object (0x5A7F00, vtable 0x014198A8) pushes into the player's input handler: the server treats it as a remote human | BOT-CTL-2 |
+| DICE's AI sends 13 actions (move, fire, alt fire, zoom, jump, interact, reload, sprint); aim is set on the soldier directly; no stance, grenade, gadget or vehicle-entry input | BOT-CTL-3 |
+| sensing, decisions and behaviours run time-sliced per bot under budgets and priority bands | BOT-RT-4 |
+| every player, human too, has an AI proxy; humans are Kynapse entities for avoidance | BOT-RT-5 |
+| no AI class knows a game mode: orders are issued by the level's event graph | AIO-MODE-1, AIO-EVT-2 |
+| the nine AI partitions are byte-identical in `sp_common` and `mp_common`; spawn templates are `sp_common`'s only | BOT-DIF-1 |
+| campaign difficulty weakens enemies to 0.25-0.4 health and protects the human | BOT-DIF-2 |
+| DICE's bots teleport when stuck 3 s, never board vehicles, use no class gadgets | BOT-MOV-3, BOT-VEH-3, BOT-CMB-4 |
+
+**What is left** (ROADMAP AIS-rest; `spec/engine/bot_ai.md` "Reverse engineering still needed"): a play test with
+probes on the AI input object, the behaviours' writes, bots as scored and named players, the mode state's run-time
+objects, the bot object's class and senses, the order and squad runtime, the session's AI difficulty.
+
 ## NKS: the Kynapse specification (2026-11-22, branch `nks`)
 
 A specification round: no tool's behaviour changed. Three spec files (`spec/formats/kynapse.md`,
