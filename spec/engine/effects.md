@@ -161,11 +161,56 @@ Status: **observed** · Variants: PC
 
 [data: spec/probes/lighting.py emitters on the game copy, 2026-11-22: 35 point-light templates by folder; Emissive true x 8; MaxCount 1 .. 201]
 
+## 5. The processor chain
+
+### FX-PROC-1: One linked chain per emitter, spawn processors first, from SpawnRateData
+
+Status: **verified** · Variants: PC
+
+An emitter's behaviour is a linked list of processors (`Emitter.*Data`, each naming the next through
+`NextProcessor`). The template's `RootProcessor` is a `SpawnRateData` in every DICE emitter; the chain runs through the
+spawn processors (`SpawnPositionData`, `SpawnSizeData`, `SpawnDirectionData`, `SpawnSpeedData`,
+`SpawnRotationData`, `SpawnRotationSpeedData`, `SpawnAnimationData`, `SpawnAnimationFrameData`) and then the update
+and force processors (`UpdateAgeData`, size, colour, transparency, alpha levels, texture coordinates, rotation,
+orientation, linear velocity, clip scale, `GravityData`, `AirResistanceData`, `TurbulanceData`, `LocalForceData`),
+every spawn processor before every update processor (55,904 of 55,904 chains that have both). The document's own
+`RootProcessor` points into the same chain (at its first update processor, `UpdateAgeData`, on 41,148 documents; the
+whole chain on 3,095); 1,216 start from a `BaseEmitterData` outside it. Template chains are 6 - 26 processors long
+(most 18 - 21). `SpawnRateData`, `UpdateAgeData` and `UpdateBoundingBoxData` are on every emitter.
+
+[test: core/tests/test_spec_probes.py::emitters]
+[data: spec/probes/effects_chain.py, 2026-11-22: 50,141 emitter documents (the fx partitions of DICE's bundles, each per-level name once); template root SpawnRateData on 50,141; the document chain the same chain 3,095, inside the template chain 45,830, other 1,216; 31 processor classes; spawn before update on 55,904 of 55,904]
+
+### FX-PROC-2: A processor is its class, a type tag, an enable flag and Pre / Post evaluators
+
+Status: **verified** · Variants: PC
+
+Every processor carries `ProcessorType` = `Pt` + its class name without `Data` (966,139 of 966,139), `Enable` (false
+on 4,228: 2,694 turbulences, 1,182 base emitters, 303 rotations ...), `Deprecated` (never true), `EvaluatorInput`
+(`EfNormTime`, the particle's normalised age, on all but 40, which take `EfVelocity`) and `DefaultValues`. Its value
+over the particle's life comes from its `Pre` evaluator: `PolynomialData` (189,165), `RandomEvaluatorData`
+(180,318), `RotateVectorData` (28,953), `PolynomialColorInterpData` (24,111), `BoxEvaluatorData` (18,994),
+`RandomXYZEvaluatorData` (17,733), `SphereEvaluatorData` (10,679: the spawn volumes of FX-CLS-2), `SampleTextureData`
+(15); no processor uses `Post`. A particle previewer therefore needs these 31 processors and 8 evaluators.
+
+[test: core/tests/test_spec_probes.py::emitters]
+[data: spec/probes/effects_chain.py, 2026-11-22: the counts as listed over 966,139 chained processors]
+
+### FX-PROC-3: What an emitter draws
+
+Status: **observed** · Variants: PC
+
+The template's `EmittableType` is `ScreenAlignedQuad` (30,443 emitters), `DirectionAlignedQuad` (7,830),
+`ParticleMesh` (7,339: a `Mesh`, with `CompositeMeshPartNames`) or `Quad` (4,529).
+
+[data: spec/probes/effects_chain.py, 2026-11-22: EmittableType over 50,141 templates]
+
 ## Open questions
 
 - **The effect instance cap** (FX-CLS-3, LIGHT-PT-7).
 - **Appending images to a target's own atlas** (FX-ATL-4) instead of a merge: room in DICE's atlases is not measured
   (the merged Wake atlas is 82 % full).
-- **The processor chain** (FX-CLS-1): the `Emitter.*Data` classes beyond the spawn volume and texture coordinates are
-  not described here (colour, size, rotation, velocity curves); needed if the editor previews particles.
+- **The processor chain's semantics** (FX-PROC-1, FX-PROC-2): the chain's structure and classes are counted; what each
+  processor computes from its evaluator (the polynomial's form, the random range) is not traced in the executable.
+- **The 1,092 `BaseEmitterData` outside any chain** and the documents whose root starts there.
 - **Cost** of camera-proximity grids and of many lights: a playtest.

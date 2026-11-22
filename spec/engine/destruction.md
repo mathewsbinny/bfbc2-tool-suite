@@ -214,11 +214,12 @@ all 363.
 
 ### DSTR-TERR-4: TerrainData's destruction fields
 
-Status: **observed**
+Status: **verified**
 
 `Terrain.TerrainData` has `MaskTileSize` (64 on all 30 DICE terrains), `MaterialMaskStepSize` (1 on all) and
 `DefaultFullDepthEnable` (true on 1 of 30).
 
+[test: core/tests/test_spec_probes.py::terrain_partitions]
 [data: spec/probes/destruction.py, 2026-11-22: 30 TerrainData instances, the values above]
 
 ## 5. Model groups
