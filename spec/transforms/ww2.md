@@ -122,12 +122,13 @@ states, or opaque programs where the source draws water or bunkers blended. It d
 Status: **verified** · Variants: BF1943
 
 `wake_install --apply` registers last (REG-NEW-4) and refuses before the first write when a backup would be refused
-(XINST-STG-2) or the model groups do not fit the members the level places (LEVEL-MG-4, the 0xAB4E58 crash);
-`--verify` fails on the same; a revert refuses before changing anything; a patch that raises changes nothing.
+(XINST-STG-2) or the model groups do not fit the members the level places (LEVEL-MG-4, the 0xAB4E58 crash); the
+verification after the apply fails on the same; a revert refuses before changing anything; a shared patch that
+raises changes nothing. Since round OR1 the game-copy side is the suite's installer (`bfbc2 install`, XINST-WW2-1).
 
-[test: opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last] [test: opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_before_writing_when_a_backup_is_refused]
-[test: opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_when_the_model_groups_do_not_fit] [test: opfor:src/tools/tests/test_ww2_install.py::test_revert_refuses_before_changing_anything]
-[test: opfor:src/tools/tests/test_ww2_install.py::test_install_patch_bundle_raising_changes_nothing]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure] [test: opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup]
+[test: opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write] [test: opfor:src/tools/tests/test_ww2_installer.py::test_revert_refuses_before_changing_anything]
+[test: opfor:src/tools/tests/test_ww2_levels.py::test_a_failing_shared_patch_runs_no_installer]
 
 ## Open questions
 

@@ -7254,3 +7254,101 @@ runs it).
 
 **Left.** Static group files have no generic field operation in OP1's `Op::Files` (only members' transforms), so the inspector edits a group file through its own save path, not the project; OPFOR's `opforcore.paths.TOOL_DIRS` still names `DbxEditGUI` (unused) and its `SUITE_REQUIRES` must move to `('0.13.0', '0.14.0')`.
 
+## OR1: OPFOR in Rust, stage 1 - the WW2 install's game-copy side (2026-11-21, branch `or1`, with Project OPFOR's `or1`)
+
+**What moved.** Project OPFOR's WW2 install (`wake_install.py --plan / --apply / --apply-staged / --revert`,
+`ww2_level_install.py`; audit AU3 OP-1, OP-6) is two halves: the build (each level's closure, the ported assets, the
+shader databases, the textures, the terrain, `write_stage` and the packs, ww2_common, the shared bundles' patches:
+`wake_install.build` and `build_shared`, about 3,400 lines) and the install (the guard, the copies, the ledger
+writes, the registration, the verification, the opt-out, the staged record). The install is the new crate
+`rust/bc2-install`, run by `bfbc2 install`; the build stays Python until stage 2 (the level build) and stage 3 (the
+shader glue).
+
+| Project OPFOR (Python, removed from `wake_install.py` / `ww2_level_install.py`) | `bc2-install` |
+|---|---|
+| `mft_parse`, `mft_text`, `mft_with_level`, `bm_with_level`, `register` | `text`, `run::Run::register` |
+| `ini_value`, `ini_with_level`, `ini_with_key`, `ini_without_key`, `maps_with_levels`, `ini_text_new`, `set_ini`, `text_writes`, `all_text_writes` | `text`, `run` |
+| `ww2_marks`, `guard_backup`, `check_backup`, `ini_backup_refresh`, `refresh_ini` | `marks::Guard`, `run` (OPFOR's `ww2_marks` is a thin caller: `bfbc2 install marks`) |
+| `install_patch`, `stings_state`, `mark_stings`, `mark_tips`, `write_record`, `verify` | `run::Run::install` |
+| `install_all`'s guard and write half, `revert_all`, `revert` (less the menu mode) | `run::Run::install`, `run::Run::revert` |
+| `save_staged`, `load_staged`, `fingerprint`, `registration_lines`, `write_registration_text` | `staged`, `run` |
+| `opforcore.stages.Stages.install` (keep_others), `restate`, `check_install` | `bc2_formats::gameledger::Ledger::install_keep`, `restate`, `file_layers`, `slot_holders` (`gameledger_keep.rs`); `run::Run::check_install` |
+| `rebuild_all.locked` (now `ww2\rebuildlock.py`, taken by the install too) | `lock` (the same file and fields, plus the driver's token) |
+
+OPFOR's Python keeps its entry points as thin callers: `ww2_level_install.install_all` builds every level and the
+shared patches as before, writes the install plan (`bfbc2-install-plan/1`, `work\ww2\_rebuild\install_plan.json`:
+the staging and OPFOR's decisions as data - each level's bundles, report and gates, its registration blocks, the dev
+ini's and maps.ini's values, the DLL's markers and the names they need, what marks WW2 content for the guard, what
+the verification checks, the staged record's walk) and runs `bfbc2 install plan` or `apply`; `--apply-staged` is
+`bfbc2 install apply --staged work\ww2\staged.json` (the record now holds the plan); `--revert` is
+`bfbc2 install revert`, then `menu_install.py --revert` (stage 5's). `wake_install.py` 4,520 -> 4,085 lines,
+`ww2_level_install.py` 455 -> 393 with the plan writer; the two test modules of the moved rules
+(`test_ww2_ini_backup.py`, `test_ww2_apply_staged.py`) and the install half of `test_ww2_install.py` retired, their
+cases in `bc2-install`'s tests and OPFOR's new `test_ww2_installer.py`.
+
+**The rebuild lock** (OR0 left it open). `wake_install.py` (every mode that installs or plans) and
+`ww2_level_install.py <level>` (not `--atlas-only`, a step of `rebuild_all`, which holds the lock) take
+`work\ww2\_rebuild\rebuild.lock` for the whole run, as `rebuild_all` does, with a token they hand to
+`bfbc2 install --lock-token`; run alone, `bfbc2 install` takes the lock itself. A second run is refused in words
+(exit code 3); a lock whose process is gone is taken over with a note.
+
+**Found and fixed on the way.** The Python read the shared text files (the guard, the list of files the registration
+writes) before its first ledger operation rolled an interrupted commit back: after a kill in the registration's commit
+(package.mft written, bundleManifest not), the next run's guard saw Wake's blocks in package.mft that no record held
+and refused ("already holds the WW2 install's own content"). The installer rolls an interrupted commit back before it
+reads any file.
+
+### Proof
+
+- **The Python installer against the Rust one, on scratch copies** (never `game\`): the WW2 install's 7 shared files,
+  their 22 old markers and the 5 WW2 level folders of the author's game copy, copied with their write times and
+  migrated into the ledger (`opforcore\migrate.py --apply`: 8 files, owners `import`, `loadset`, `loading`,
+  `minimap-edges`, `manifestfix`, `wake`, none refused); one copy for each installer, each running the opt-out, an
+  apply of the real staging (`work\ww2\install*`, the last plan's: 4 levels, ww2_common, the 3 shared patches), then
+  the opt-out again. OPFOR main's Python (1b9ec17) against OR1's plan through `bfbc2 install`:
+
+  | Step | Files | Identical | Ledger records | Printed lines |
+  |---|---|---|---|---|
+  | revert (the opt-out) | 37 / 37 | 37 | 5 of 5 identical (less their ids and times) | 13 / 13 identical |
+  | apply | 74 / 74 | 72 + the DLL's 2 markers (each `<size> <FILETIME>` of its own installed bundle, checked) | 6 of 6 identical | 820 / 820 identical |
+  | revert | 37 / 37 | 37 | 5 of 5 identical | 12 / 12 identical |
+
+  Each copy after its second revert is byte for byte (every file's sha256, every record) the copy after its first:
+  the apply and the opt-out give the files back. The real game copy: 1,582 files, every path, size and write time
+  the same before and after.
+- **A kill at every write step** (`BC2_INSTALL_CRASH_AT=<n>`, OPFOR's `test_a_kill_at_every_write_step_recovers` on a
+  fake game copy): an apply has 38 write steps (5 level bundles, the record, ww2_common and its record, the 2
+  markers, then the ledger's journal, blobs, files and records of 6 commits), a revert 15; killed before each one,
+  the next run finishes with the files and records of a run never interrupted, and no lock left.
+- **The install oracle** (`compare_oracle.py --install`, 21,197 staging digests): run by the coordinator from OPFOR's
+  main checkout after the merge (one plan at a time); the build half that writes the staging is the Python of
+  before, and the installer writes `registration_all.txt` and each level's `report.txt` with the same bytes (the
+  printed plan above is the same).
+- Tests: `bc2-install` 9 unit + 3 integration (a fake game: plan, apply, opt-out; a failed gate writes nothing;
+  `install_keep`'s order and `restate`), `bc2-formats`, `bc2-cli`; clippy `-D warnings`; OPFOR's quick tier and
+  opforcore's tests (`test_suite_ledger_compat` both ways), ruff and mypy clean; `spec/trace.py --check` (rules
+  XINST-WW2-1 to -3).
+
+### Timings (this PC, other rounds running)
+
+| | Python (OPFOR main) | Rust (OR1) |
+|---|---|---|
+| the plan's tail (the guard, the registration's report, the reports, `registration_all.txt`, the staged record: the fingerprint and 1.8 GB of staged bundles' sha256) | 2.4 - 4.4 s (3 runs) | 2.9 - 3.3 s (3 runs, the plan JSON written in 0.03 s) |
+| apply (the real staging onto a scratch copy) | 4.5 s | 3.4 s |
+| revert | 1.9 - 2.5 s | 2.2 - 2.6 s |
+
+The tail reads and hashes the 1.8 GB the plan staged: the disk sets its time, in either language. The whole plan
+(OR0: 4 min 14 s) is the build's: stage 1 does not change it; the coordinator's oracle run gives this round's figure.
+
+### Left for stage 2 (the level build)
+
+`wake_install.build` and what it calls, still Python: the stock index and `our_files` (the inputs), `port_missing`
+(BF1943 assets ported at install time), `patch_ours` / `sky_patch` / `kit_voices` / `edit_level` (the level and our
+partitions), `root_files`, the closure, the emitter atlas's re-pointing, `mesh_flags`, `ondemand_waves`,
+`write_stage` and `pack_level` (the staging folders and their packs), `undergrowth_files`, `terrain_files`,
+`model_group_check`, `icon_gate` / `level_names`, `build_ww2_common`, `description`, and the shared patches
+(`build_shared`: `patch_bundle`, `level_list_query`, `air_superiority_mode`, `loading_pictures`); then `shader_dbs`,
+`autoclone`, `fix_layouts`, `register_parts`, `zonly_programs` and the textures they name, which use the Python
+shader `Merger` (stage 3, the shader glue). The map export's install (`mapedit_install.py`, its own copies of the
+registration rules) moves onto `bc2-install` with IN1. The Python twin `bfbc2core.gameledger` has no `install_keep`
+/ `restate` (the suite's Python installers do not need them).

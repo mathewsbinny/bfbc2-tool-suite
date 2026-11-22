@@ -1783,7 +1783,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3899-3903"
+     "ref": "opfor:src/tools/ww2/wake_install.py:3677-3681"
     },
     {
      "kind": "doc",
@@ -12562,7 +12562,11 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3431-3445"
+     "ref": "rust/bc2-install/src/run.rs:730-743"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:434-470"
     },
     {
      "kind": "doc",
@@ -14289,7 +14293,7 @@
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure"
     }
    ]
   },
@@ -14366,6 +14370,98 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/opforcore/tests/test_ledger.py::test_dry_run_and_read_only"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-1",
+   "title": "The gates and the guard before the first write; the registration last",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:641-775"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/marks.rs:312-354"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/main.rs::plan_apply_revert_on_a_fake_game"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/main.rs::a_failed_gate_writes_nothing"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_an_install_on_top_refuses_the_redo"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-2",
+   "title": "The records and the files are the Python installer's",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/gameledger_keep.rs:83-440"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:823-905"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR1 scratch proof, 2026-11-21: 37 / 74 / 37 files and 5-6 records identical per step (rust/BENCHMARKS.md OR1)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/main.rs::install_keep_orders_and_restate"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_revert_gives_the_files_back"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_a_launcher_edit_is_kept_by_the_opt_out"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-3",
+   "title": "A kill at any write step is resumed",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/run.rs:229-258"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/lock.rs:60-139"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_a_kill_at_every_write_step_recovers"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock"
     }
    ]
   },
@@ -15530,23 +15626,23 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_registers_last"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_before_writing_when_a_backup_is_refused"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_refuses_when_the_model_groups_do_not_fit"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_revert_refuses_before_changing_anything"
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_revert_refuses_before_changing_anything"
     },
     {
      "kind": "test",
-     "ref": "opfor:src/tools/tests/test_ww2_install.py::test_install_patch_bundle_raising_changes_nothing"
+     "ref": "opfor:src/tools/tests/test_ww2_levels.py::test_a_failing_shared_patch_runs_no_installer"
     }
    ]
   }
