@@ -356,6 +356,7 @@ def game_check(check: Any, exe: str, ref: str) -> None:
     import re
     import shutil
     import subprocess
+    import tempfile
     import time
 
     import test_cli_o2 as o2
@@ -366,10 +367,13 @@ def game_check(check: Any, exe: str, ref: str) -> None:
     if not opfor:
         print('     (no Project OPFOR BFBC2 copy: the stockmp builds skipped)')
         return
-    root = os.path.abspath(os.environ.get('BFBC2_O5_STANDIN') or os.path.join(os.environ.get('TEMP', '.'), 'o5s'))
-    if os.path.exists(root):
-        check(False, f'stockmp builds: the stand-in folder {root} exists already (remove it)')
+    given = os.environ.get('BFBC2_O5_STANDIN')
+    if given and os.path.exists(given):
+        check(False, f'stockmp builds: the stand-in folder {given} exists already (remove it)')
         return
+    # a folder of this run's own unless BFBC2_O5_STANDIN names one (was %TEMP%\o5s: a second worktree's run at the
+    # same time found it there and failed)
+    root = os.path.abspath(given or tempfile.mkdtemp(prefix='o5s_'))
     script = os.path.join(ref, 'bfbc2-stockmp-ai', 'stockmp.py')
     retired = 'stockmp' in o2.RETIRED or not os.path.isfile(script)
     levels = [x for x in (os.environ.get('BFBC2_O5_LEVELS') or 'mp_005,mp_002,mp_008cq').split(',') if x]
