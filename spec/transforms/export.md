@@ -23,7 +23,7 @@ copy (a `level-00.fbrb` in Dist, or in Package unless it is an earlier install o
 registered in `package.mft` (REG-NEW-2). The level's display name and description are 1 to a maximum number of
 printable ASCII characters (they are written as plain text into every language's table).
 
-[code: rust/bc2-levelwrite/src/export.rs:155-183] [code: rust/bc2-levelwrite/src/export.rs:826-841]
+[code: rust/bc2-levelwrite/src/export.rs:155-183] [code: rust/bc2-levelwrite/src/export.rs:831-846]
 [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names] [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
 
 ### XEXP-PRE-2: Only modes an era has; only a donor of that mode
@@ -35,7 +35,7 @@ a stock level of that era has it (WW2: Conquest only); Onslaught (needs bots) an
 Pacific War work) are refused with the reason; a donor that is not a level of that era and mode is refused with the
 list of valid ones. Nothing is invented from another era's layer.
 
-[code: rust/bc2-levelwrite/src/export.rs:854-870] [code: rust/bc2-levelwrite/src/modelayer.rs:97]
+[code: rust/bc2-levelwrite/src/export.rs:859-875] [code: rust/bc2-levelwrite/src/modelayer.rs:97]
 [test: rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers] [test: rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation]
 [test: rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys]
 
@@ -64,7 +64,7 @@ system and atlases, model groups, static cull trees, the animation sound map; PA
 `Levels/<LV>`; the base's other bundles are read at run time, not copied (the level block targets them, as DICE's
 mode levels target their base map's).
 
-[code: rust/bc2-levelwrite/src/export.rs:627-668] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
+[code: rust/bc2-levelwrite/src/export.rs:632-673] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
 [test: rust/bc2-levelwrite/src/mpconvert.rs::names_follow_the_level_and_case]
 
 ### XEXP-CLO-1: The closure: what does not resolve is copied, never registered
@@ -80,7 +80,7 @@ then any level bundle of the game copy. Another level's or era's bundles are nev
 their deleted markers). A partition only the base names that the stock base lacks too is DICE's dangling reference
 (REF-RES-3): listed, never filled. Every copy is listed in `stage.json` and `closure.txt` with its source and reason.
 
-[code: rust/bc2-levelwrite/src/export.rs:1561-1692]
+[code: rust/bc2-levelwrite/src/export.rs:1592-1723]
 [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture] [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1206-1229]
 
@@ -94,7 +94,7 @@ the donor's `vo/<lang>` blocks are registered under the new name and its own voi
 byte. Each set's announcer resolves to the same bytes as on its donor (BFBC2 13 partitions from `mp_common`,
 Vietnam 13 from `nam_common`, WW2 12, BFBC1 13).
 
-[code: rust/bc2-levelwrite/src/export.rs:1770-1831] [code: rust/bc2-levelwrite/src/export.rs:2770-2790]
+[code: rust/bc2-levelwrite/src/export.rs:1801-1862] [code: rust/bc2-levelwrite/src/export.rs:2836-2857]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer] [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1119-1140]
 
@@ -107,7 +107,7 @@ The stage records, for each bundle kind, the `package.mft` block and the `bundle
 common bundles; no other era's commons; for voice-over the donor's blocks (REG-NEW-3 as revised by E3c). The stage
 writes no game file.
 
-[code: rust/bc2-levelwrite/src/export.rs:741-795] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
+[code: rust/bc2-levelwrite/src/export.rs:746-800] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 
 ### XEXP-REG-2: No voice-over block without its bundleManifest line
@@ -132,7 +132,7 @@ map-list picture `Awards/images/Levels/<lv>`, made from the user's picture in th
 720; DXT5 512 x 256 with the picture in the alpha's box) and added to `ondemand_awards-00`. The patched overlay and
 awards bundles differ from their sources only in the level's keys and entries.
 
-[code: rust/bc2-levelwrite/src/export.rs:3160-3272] [test: rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches]
+[code: rust/bc2-levelwrite/src/export.rs:3505-3618] [test: rust/bc2-levelwrite/src/export.rs::overlay_and_awards_patches]
 [test: rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form] [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
 
 ### XEXP-RO-1: The game copy is read only
@@ -162,7 +162,7 @@ target era's; the cull tree check (XCULL-RES-2) passes; each re-slotted object s
 shape and no new object is at slot 0 that some level slots (XCULL-RES-3); every mesh the level reaches has entries
 in its shader databases (SHDB-LVL-2). Each failing line is stated in words.
 
-[code: rust/bc2-levelwrite/src/export.rs:2194-2599] [code: rust/bc2-levelwrite/src/export.rs:2618-2741]
+[code: rust/bc2-levelwrite/src/export.rs:2225-2659] [code: rust/bc2-levelwrite/src/export.rs:2679-2807]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level] [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
 

@@ -508,7 +508,7 @@ fn read_entries(
     cancel: &AtomicBool,
     log: &mut dyn FnMut(Event),
     stats: &mut Stats,
-) -> Result<HashMap<(usize, usize), Vec<u8>>, EditorError> {
+) -> Result<BTreeMap<(usize, usize), Vec<u8>>, EditorError> {
     let mut by_layer: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for &(l, e) in wanted {
         by_layer.entry(l).or_default().push(e);
@@ -540,7 +540,7 @@ fn read_entries(
     if cancel.load(Ordering::Relaxed) {
         return Err(EditorError::Level(CANCELLED.into()));
     }
-    let mut out = HashMap::new();
+    let mut out = BTreeMap::new(); // in (layer, entry) order: the record lists its files as written
     for (l, idx, r, secs) in results {
         let Some(layer) = layers.get(l) else { continue };
         let data = r.map_err(|e| {
@@ -778,6 +778,7 @@ pub fn prepare(
         let prefix = format!("levels/{lv}/");
         let mut group_names: BTreeSet<String> = BTreeSet::new();
         for l in &layers {
+            #[allow(clippy::iter_over_hash_type, reason = "collected into a sorted set")]
             for n in l.live.keys() {
                 if let Some(rest) = n.strip_prefix(&prefix)
                     && !rest.contains('/')

@@ -922,7 +922,7 @@ def main(argv):
                     'entity GUIDs. Produced by l1_measure.py.',
            'levels': levels_out, 'records': recs}
     with open(out, 'w', encoding='utf-8') as fh:
-        json.dump(doc, fh, indent=1)
+        json.dump(doc, fh, indent=1, sort_keys=True)
     print('wrote', out, len(recs), 'records')
 
 

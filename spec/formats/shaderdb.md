@@ -185,7 +185,7 @@ stream; formats and usages in `formats/mesh.md` MESH-VTX-1 / MESH-VTX-2), the el
 followed by a zero byte, and stream 0's stride at body byte 69. Layout GUIDs are unique in a file and named only by
 GUID (program keys, mesh parts).
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:43-44] [code: rust/bc2-convert/src/meshconv.rs:86-98] [code: rust/bc2-convert/src/meshconv.rs:383-440] [test: bfbc2-shader-tools/tests/test_shaderdb.py::xbox] [doc: bfbc2-shader-tools/FORMAT.md:218-221] [doc: bfbc2-console-convert/FORMAT.md:183-185]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:43-44] [code: rust/bc2-convert/src/meshconv.rs:86-98] [code: rust/bc2-convert/src/meshconv.rs:383-444] [test: bfbc2-shader-tools/tests/test_shaderdb.py::xbox] [doc: bfbc2-shader-tools/FORMAT.md:218-221] [doc: bfbc2-console-convert/FORMAT.md:183-185]
 
 ### SHDB-LAY-2: Layout and mesh part strides agree
 
@@ -286,7 +286,7 @@ listed. The check refuses a mesh the level reaches without entries unless the st
 or no database has it.
 
 [code: rust/bc2-levelwrite/src/shaders.rs:218-316] [code: rust/bc2-formats/src/shaderdb/merge.rs:165-200]
-[code: rust/bc2-levelwrite/src/export.rs:3046-3103]
+[code: rust/bc2-levelwrite/src/export.rs:3385-3447]
 [test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ## Render state

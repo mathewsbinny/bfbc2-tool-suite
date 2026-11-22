@@ -54,7 +54,7 @@ A block's targets, in order, are the bundles the source bundle loads (PREC-ORD-2
 bundles of the kind (`mp_common`, `sp_common`, `mp1_common`, `mp2_common`, `nam_common`, OPFOR's `ww2_common`). A
 block whose targets are only common bundles describes a bundle with no own copy (a voice-over source).
 
-[code: rust/bc2-levelwrite/src/export.rs:288-297] [code: rust/bc2-levelwrite/src/export.rs:563-596]
+[code: rust/bc2-levelwrite/src/export.rs:288-297] [code: rust/bc2-levelwrite/src/export.rs:563-601]
 [test: rust/bc2-editor/src/package.rs::registry_and_paths]
 [data: stock: blocks of 1 target 328, 2 targets 349, 3 targets 222; level-kind blocks with an own target: package only 164, package then game 132; most frequent common targets mp_common level, ingame and loader 61 each]
 
@@ -91,7 +91,7 @@ Status: **verified**
 repairs it).
 
 [data: stock: 835 lines, 3 tab-separated fields on all 835, the zero GUID on 835, third field 1 on 835, no CR, no BOM]
-[code: rust/bc2-levelwrite/src/export.rs:598-608] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
+[code: rust/bc2-levelwrite/src/export.rs:603-613] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
 [code: opfor:src/tools/ww2/wake_install.py:3360-3363]
 
 ### REG-BM-2: What stock lists
@@ -112,7 +112,7 @@ Status: **verified**
 For a new level the suite adds one line per bundle it ships, `levels/<lv>/<kind>\t<zero GUID>\t1`, for the kinds
 `level`, `terrain`, `ingame` and `loader`, with `<lv>` lower case.
 
-[code: rust/bc2-levelwrite/src/export.rs:598-608] [code: rust/bc2-levelwrite/src/export.rs:1505-1522]
+[code: rust/bc2-levelwrite/src/export.rs:603-613] [code: rust/bc2-levelwrite/src/export.rs:1536-1553]
 [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 
@@ -134,7 +134,7 @@ A new level `<lv>` (under `game\Package\levels\<lv>\`) is registered with, for e
 Every target other than the level's own bundles must exist in the game copy. The export's check refuses a stage
 whose registration misses a kind, names one twice, or targets a missing bundle.
 
-[code: rust/bc2-levelwrite/src/export.rs:563-596] [code: rust/bc2-levelwrite/src/export.rs:1505-1540]
+[code: rust/bc2-levelwrite/src/export.rs:563-601] [code: rust/bc2-levelwrite/src/export.rs:1536-1571]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
 [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:843-851]
@@ -147,7 +147,7 @@ A new level's name must not be a level of the game copy (no `levels/<lv>/level-0
 must not already be a `package.mft` source of another tool's level. Its id is `Levels/<LV>` with letters, digits and
 `_`.
 
-[code: rust/bc2-levelwrite/src/export.rs:644-655] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:835-838]
+[code: rust/bc2-levelwrite/src/export.rs:649-660] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:835-838]
 
 ### REG-NEW-3: Voice-over: the donor's blocks, no bundle of its own
 
@@ -170,7 +170,7 @@ An install copies the level's bundles in, patches the shared bundles (startup's 
 menus), and writes `package.mft` and `bundleManifest` **last**, so that at no point a level is registered whose
 bundles are not there; a revert takes the registration out first.
 
-[code: opfor:src/tools/mapedit/mapedit_install.py:344-368] [code: rust/bc2-install/src/run.rs:730-743] [code: rust/bc2-install/src/run.rs:434-470]
+[code: opfor:src/tools/mapedit/mapedit_install.py:344-368] [code: rust/bc2-install/src/run.rs:714-727] [code: rust/bc2-install/src/run.rs:418-454]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:900-916]
 
 ### REG-NEW-5: The menus need the startup bundle too

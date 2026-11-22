@@ -365,6 +365,7 @@ pub fn graph_edits(data: &[u8], ops: &[Value]) -> Result<GraphEdits, EditError> 
             });
         }
     }
+    #[allow(clippy::iter_over_hash_type, reason = "each touched sector recomputed on its own")]
     for &si in &touched {
         if let Some(s) = f.sectors.get_mut(si) {
             recompute_first_edges(s);

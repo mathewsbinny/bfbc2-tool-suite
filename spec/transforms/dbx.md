@@ -87,7 +87,7 @@ did: the same files written byte for byte, the same messages and exit codes, for
 usage, option and damaged-file errors, every edit fingerprint of the 795745 corpus and a recorded sample of 2,000
 corpus files through `xml`, `roundtrip`, `import` and an edit battery.
 
-[code: rust/bc2-formats/src/dbxedit/cli.rs:109-127]
+[code: rust/bc2-formats/src/dbxedit/cli.rs:95-113]
 [test: core/tests/test_dbxedit.py::quick] [test: core/tests/test_dbxedit.py::golden_edits] [test: core/tests/test_dbxedit.py::game]
 
 ### XDBX-CMD-2: What each edit does
@@ -115,7 +115,7 @@ Status: **verified**
 DbxEdit writes each output beside its target (`<path>.tmp-<process>-<n>`), flushed, then moved over it, waiting out
 a moment's lock; an error removes the temporary file and leaves the target as it was.
 
-[code: rust/bc2-formats/src/dbxedit/cli.rs:62-84] [test: rust/bc2-formats/src/atomic.rs::a_lasting_lock_is_returned] [test: rust/bc2-formats/src/atomic.rs::other_errors_are_not_retried]
+[code: rust/bc2-formats/src/dbxedit/cli.rs:58-70] [test: rust/bc2-formats/src/atomic.rs::a_lasting_lock_is_returned] [test: rust/bc2-formats/src/atomic.rs::other_errors_are_not_retried]
 
 ## Open questions
 

@@ -948,34 +948,18 @@ fn write_whole(path: &Path, text: &str) -> std::io::Result<()> {
     write_bytes(path, text.as_bytes())
 }
 
-/// Writes a file whole or not at all (round OP1, audit AU4 DS-20 / BUG-12): the bytes go to a temporary file beside
-/// it, flushed to the disk (`sync_all`, so a power cut cannot leave the new name on empty data), then moved over the
-/// file, the move tried again while another process holds the file for a moment ([`bc2_formats::atomic::replace`]:
-/// a virus scanner, a sync client). On any failure the temporary file is removed.
+/// Writes a file whole or not at all (round OP1, audit AU4 DS-20 / BUG-12): its folder made, then
+/// [`bc2_formats::atomic::write`] - a temporary file beside it, flushed to the disk (`sync_all`, so a power cut
+/// cannot leave the new name on empty data), moved over the file, the move tried again while another process holds
+/// the file for a moment (a virus scanner, a sync client). On any failure the temporary file is removed.
 ///
 /// # Errors
 /// The folder cannot be made, or the file written or moved.
 pub fn write_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    use std::io::Write as _;
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
     }
-    let mut tmp = path.as_os_str().to_owned();
-    let k = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    tmp.push(format!(".tmp-{}-{k}", std::process::id()));
-    let tmp = PathBuf::from(tmp);
-    let written = (|| {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(bytes)?;
-        f.sync_all()?;
-        drop(f);
-        bc2_formats::atomic::replace(&tmp, path)
-    })();
-    if written.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    written
+    Ok(bc2_formats::atomic::write(path, &[bytes])?)
 }
 
 #[cfg(test)]

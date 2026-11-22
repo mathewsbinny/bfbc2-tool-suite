@@ -24,7 +24,7 @@ use bc2_levelwrite::validate;
 use bc2_levelwrite::write::LevelWriter;
 use bc2_levelwrite::{Op, Profile};
 
-use crate::v1_rules::{Cq, Lb, at, rf, text};
+use crate::export_rules::{Cq, Lb, at, rf, text};
 
 /// A closed box (12 triangles) from `lo` to `hi`.
 fn cube(lo: [f64; 3], hi: [f64; 3]) -> Vec<[[f64; 3]; 3]> {
@@ -190,7 +190,7 @@ fn site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_object
         0,
         None,
     );
-    b.area("TeamNeutral", false, true, &crate::v1_rules::square(800.0));
+    b.area("TeamNeutral", false, true, &crate::export_rules::square(800.0));
     let w = LevelWriter::parse(&b.bytes()).unwrap();
     let f = validate::site_rules(&w, None, &s);
     for x in &f {
@@ -242,7 +242,7 @@ fn the_auto_layout_moves_a_layout_out_of_the_lake_onto_the_town() {
     assert!(all >= 20);
     // applied: every moved spawn point on land, the flags near the town's art
     let mut out = w.clone();
-    let mut proj = crate::v1_rules::project(&w.write().unwrap(), Profile::Bfbc2);
+    let mut proj = crate::export_rules::project(&w.write().unwrap(), Profile::Bfbc2);
     proj.push(Op::Move { items: p.moves.clone() }, &p.describe());
     for m in &p.moves {
         let e = out.find(&m.guid).unwrap();

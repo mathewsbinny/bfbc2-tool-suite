@@ -86,7 +86,7 @@ def python_only(*mods: Any) -> Iterator[None]:
         for m in done:
             m.use_native(True)
             if m is hkpack:                                      # hkpack's use_native(True) keeps it on: as before
-                hkpack._NATIVE.clear()
+                hkpack._registry().use_backend('hkpack', None)
             if m is culltree:
                 culltree._STRINGS_NATIVE.clear()
 

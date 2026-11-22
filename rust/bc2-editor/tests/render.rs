@@ -202,6 +202,7 @@ fn palette_opens_a_top_view_with_its_own_camera() {
     // F focuses every view on it
     h.frame(&mut app, vec![key(Key::F, Modifiers::NONE)]);
     h.settle(&mut app, 2);
+    #[allow(clippy::iter_over_hash_type, reason = "an assertion per viewport")]
     for (p, vp) in &app.view().unwrap().viewports {
         assert_eq!(vp.camera.target, [20.0, 0.0, -15.0], "{p:?}");
     }

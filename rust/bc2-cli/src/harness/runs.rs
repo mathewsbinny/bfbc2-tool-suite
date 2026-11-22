@@ -156,12 +156,17 @@ pub fn load(path: &str) -> PyResult<Value> {
     Ok(run)
 }
 
-/// `save(run, path)`: `json.dump(run, indent=1)` in text mode (CRLF) to `<path>.tmp-<pid>`, then moved over the path.
+/// `save(run, path)`: `json.dump(run, indent=1)` in text mode (CRLF) to a temporary file beside the path, then moved
+/// over it ([`pyos::files::write_atomic`]: per process and write, AU4-CQ-18; flushed to disk).
 pub fn save(run: &Value, path: &str) -> PyResult<()> {
-    let tmp = format!("{path}.tmp-{}", std::process::id()); // per process (AU4-CQ-18)
     let text = pyjson::dumps(run, Some(1)).replace('\n', "\r\n");
-    std::fs::write(&tmp, text).map_err(|e| crate::pyproc::os_error(&tmp, &e))?;
-    pyos::files::replace(&tmp, path).map_err(|_| Fail::Python)
+    pyos::files::write_atomic(path, text.as_bytes()).map_err(|(at, e)| {
+        if at == path {
+            Fail::Python // the move: the reference's own message
+        } else {
+            crate::pyproc::os_error(&at, &e)
+        }
+    })
 }
 
 fn items(v: &Value) -> Option<&[(String, Value)]> {

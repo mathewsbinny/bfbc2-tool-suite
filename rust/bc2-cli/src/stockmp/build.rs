@@ -662,10 +662,9 @@ pub fn build(py: &mut Py, paths: &Paths, c: &Value, problems: &[String]) -> PyRe
         ),
     ]);
     swap_in(paths, stage)?;
-    let tmp = format!("{report}.tmp-{}", std::process::id()); // per process (AU4-CQ-18)
+    // beside the report, per process and write (AU4-CQ-18), flushed, then moved over it
     let text = pyjson::dumps(&rep, Some(1)).replace('\n', "\r\n");
-    fs::write(&tmp, text.as_bytes()).map_err(|e| os_error(&tmp, &e))?;
-    pyos::files::replace(&tmp, &report).map_err(|e| os_error(&tmp, &e))?;
+    pyos::files::write_atomic(&report, text.as_bytes()).map_err(|(at, e)| os_error(&at, &e))?;
     Ok(built)
 }
 

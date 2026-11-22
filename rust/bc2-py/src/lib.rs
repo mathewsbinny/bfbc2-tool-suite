@@ -49,26 +49,26 @@
 //! `catalogue_exe_identifiers`, `emitteratlas_*`, `MeshLayouts` for `bfbc2-bf1943-import` (through `importcore.py`);
 //! `pefile.rs`: `pe_raw_*` for `menucommon.PEImage`; `coretext.rs`: `xmlinst_*` and `navtune_*` for `bfbc2core`.
 //!
-//! Round F3 (`formats_f3.rs`): `aimanim_*`, `hpd_mesh_layout` / `hpd_mesh_coverage`, `audio_xma_parts` /
+//! Round F3 (`aim_pathmesh_audio.rs`): `aimanim_*`, `hpd_mesh_layout` / `hpd_mesh_coverage`, `audio_xma_parts` /
 //! `audio_xma2_riff` / `audio_xas_blocks`, `navkit_navsample_v3` /
 //! `navkit_navsample_write`, `hkpack_parse`; `xenos_disasm_body` (`xenos.rs`).
 //!
-//! Round F4 (`formats_f4.rs`): `culltree_strings`, `audio_convert` / `audio_decode`, `hkpack_open` / `HkPackfile`,
+//! Round F4 (`culltree_audio_havok.rs`): `culltree_strings`, `audio_convert` / `audio_decode`, `hkpack_open` / `HkPackfile`,
 //! `navkit_asset_bodies`, `meshview_part`, `texqa_read`; `xenos_disasm` (`xenos.rs`).
 
+mod aim_pathmesh_audio;
 mod apt;
 mod aptmodel;
 mod console;
 mod convert;
+mod converters;
 mod coretext;
 mod culltree;
+mod culltree_audio_havok;
 mod dbxedit;
 mod dbxport;
-mod f2a;
 mod fbrb_cache;
 mod fbrbtool;
-mod formats_f3;
-mod formats_f4;
 mod geometry;
 mod granny;
 mod harness;
@@ -79,6 +79,7 @@ mod meshdata;
 mod meshindex;
 mod navapply;
 mod navbuild;
+mod navfile;
 mod navgraph;
 mod navpath;
 mod navtools;
@@ -467,7 +468,7 @@ mod bc2_native {
     };
 
     #[pymodule_export]
-    use super::navgraph::{NavAreas, navkit_area_cells, navkit_round3};
+    use super::navgraph::{NavAreas, NavLinkScope, navkit_area_cells, navkit_round3};
 
     #[pymodule_export]
     use super::xenos::{
@@ -476,14 +477,14 @@ mod bc2_native {
     };
 
     #[pymodule_export]
-    use super::formats_f3::{
+    use super::aim_pathmesh_audio::{
         aimanim_parse, aimanim_to_pc, aimanim_write, audio_xas_blocks, audio_xma_parts, audio_xma2_riff, hkpack_parse,
         hpd_mesh_coverage, hpd_mesh_layout, navkit_navsample_v3, navkit_navsample_write,
     };
 
     // round F4: F3's leftovers
     #[pymodule_export]
-    use super::formats_f4::{
+    use super::culltree_audio_havok::{
         HkPackfile, audio_convert, audio_decode, culltree_strings, hkpack_open, meshview_part, navkit_asset_bodies,
         texqa_read,
     };
@@ -517,7 +518,7 @@ mod bc2_native {
     use super::pathdata::{hpd_parse, hpd_write, kymesh_write};
 
     #[pymodule_export]
-    use super::f2a::{
+    use super::converters::{
         TexWriteJob, granny_add_tracks, granny_orientation_plan, granny_shift_plan, granny_with_crc,
         havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks, skin_bounds,
         skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert, terrain_heightfield,
@@ -532,6 +533,11 @@ mod bc2_native {
     // round NK1: navkit apply's edit stage (navlinks.py / navtraversal.py retired)
     #[pymodule_export]
     use super::navapply::{navkit_graph_edits, navkit_traversal};
+
+    // round NK2: a build's graphs to its file (navislands.prune, prune_order_nodes, finalize_graph, write_file's
+    // assembly retired; sector_links is NavLevel.sector_links)
+    #[pymodule_export]
+    use super::navfile::{navkit_shadow_islands, navkit_write_graphs};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

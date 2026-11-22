@@ -417,7 +417,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2491-2495"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2551-2555"
     },
     {
      "kind": "test",
@@ -572,11 +572,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1764-1775"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1795-1806"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2770-2780"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2836-2847"
     },
     {
      "kind": "test",
@@ -1502,7 +1502,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:7701-7720"
+     "ref": "rust/BENCHMARKS.md:8167-8186"
     }
    ]
   },
@@ -1518,7 +1518,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:7701-7720"
+     "ref": "rust/BENCHMARKS.md:8167-8186"
     }
    ]
   },
@@ -1741,7 +1741,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1920-1930"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1951-1961"
     },
     {
      "kind": "doc",
@@ -1807,7 +1807,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3022-3126"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3111-3470"
     },
     {
      "kind": "doc",
@@ -2548,7 +2548,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-render/tests/r5e.rs::block_windows_are_the_material_registers"
+     "ref": "rust/bc2-render/tests/deep_sea_materials.rs::block_windows_are_the_material_registers"
     },
     {
      "kind": "test",
@@ -2844,7 +2844,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-render/tests/r5e.rs::the_ww2_open_sea_is_drawn"
+     "ref": "rust/bc2-render/tests/deep_sea_materials.rs::the_ww2_open_sea_is_drawn"
     },
     {
      "kind": "code",
@@ -3904,7 +3904,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/aptscan.rs:195-205"
+     "ref": "rust/bc2-formats/src/aptscan.rs:199-209"
     },
     {
      "kind": "doc",
@@ -3992,7 +3992,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/aptscan.rs:170-180"
+     "ref": "rust/bc2-formats/src/aptscan.rs:170-184"
     },
     {
      "kind": "doc",
@@ -4017,7 +4017,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/aptscan.rs:292"
+     "ref": "rust/bc2-formats/src/aptscan.rs:296"
     },
     {
      "kind": "doc",
@@ -4629,7 +4629,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:982-996"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:967-981"
     },
     {
      "kind": "doc",
@@ -6156,7 +6156,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:277-296"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:276-295"
     },
     {
      "kind": "test",
@@ -6192,7 +6192,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:917-922"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:902-907"
     }
    ]
   },
@@ -6356,11 +6356,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:755-772"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:740-757"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:800-810"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:785-795"
     },
     {
      "kind": "code",
@@ -6392,7 +6392,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:777-787"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:762-772"
     },
     {
      "kind": "test",
@@ -6412,7 +6412,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:790-795"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:775-780"
     },
     {
      "kind": "test",
@@ -6436,7 +6436,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:909-926"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:894-911"
     },
     {
      "kind": "code",
@@ -6742,7 +6742,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:933-962"
+     "ref": "rust/bc2-convert/src/havokport.rs:934-963"
     },
     {
      "kind": "code",
@@ -6796,11 +6796,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:975-1011"
+     "ref": "rust/bc2-convert/src/havokport.rs:976-1012"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:1014-1033"
+     "ref": "rust/bc2-convert/src/havokport.rs:1015-1034"
     },
     {
      "kind": "test",
@@ -6825,11 +6825,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:560-600"
+     "ref": "rust/bc2-convert/src/havokport.rs:561-601"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:604-631"
+     "ref": "rust/bc2-convert/src/havokport.rs:605-632"
     },
     {
      "kind": "data",
@@ -6854,7 +6854,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -6870,7 +6870,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:1036-1059"
+     "ref": "rust/bc2-convert/src/havokport.rs:1037-1060"
     },
     {
      "kind": "test",
@@ -6923,7 +6923,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:512-521"
+     "ref": "rust/bc2-convert/src/havokport.rs:513-522"
     },
     {
      "kind": "test",
@@ -7130,7 +7130,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:662-718"
+     "ref": "rust/bc2-convert/src/havokport.rs:663-719"
     },
     {
      "kind": "test",
@@ -7171,7 +7171,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/havokport.rs:512-535"
+     "ref": "rust/bc2-convert/src/havokport.rs:513-536"
     },
     {
      "kind": "test",
@@ -9041,7 +9041,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:917-922"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:902-907"
     },
     {
      "kind": "inferred",
@@ -9484,7 +9484,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-convert/src/meshconv.rs:383-440"
+     "ref": "rust/bc2-convert/src/meshconv.rs:383-444"
     },
     {
      "kind": "test",
@@ -9721,7 +9721,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3046-3103"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3385-3447"
     },
     {
      "kind": "test",
@@ -11260,7 +11260,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1579-1584"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1610-1615"
     },
     {
      "kind": "code",
@@ -11472,7 +11472,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1062-1075"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1085-1101"
     },
     {
      "kind": "doc",
@@ -11632,7 +11632,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:880-881"
+     "ref": "rust/bc2-levelwrite/src/export.rs:885-886"
     },
     {
      "kind": "test",
@@ -11768,7 +11768,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:346-410"
+     "ref": "rust/bc2-levelwrite/src/write.rs:352-416"
     },
     {
      "kind": "test",
@@ -11792,7 +11792,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:194-212"
+     "ref": "rust/bc2-levelwrite/src/write.rs:200-218"
     }
    ]
   },
@@ -11816,7 +11816,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-238"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-244"
     },
     {
      "kind": "test",
@@ -12008,7 +12008,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -12024,7 +12024,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -12040,7 +12040,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
     },
     {
      "kind": "data",
@@ -12168,7 +12168,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1372-1377"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1403-1408"
     },
     {
      "kind": "test",
@@ -12240,7 +12240,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1358-1370"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1389-1401"
     },
     {
      "kind": "code",
@@ -12280,7 +12280,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1560-1572"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1591-1603"
     },
     {
      "kind": "test",
@@ -12296,7 +12296,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1579-1584"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1610-1615"
     },
     {
      "kind": "code",
@@ -12332,7 +12332,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1541-1600"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1572-1631"
     },
     {
      "kind": "code",
@@ -12360,7 +12360,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1600-1640"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1631-1671"
     },
     {
      "kind": "doc",
@@ -12420,7 +12420,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-238"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-244"
     },
     {
      "kind": "test",
@@ -12524,7 +12524,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:563-596"
+     "ref": "rust/bc2-levelwrite/src/export.rs:563-601"
     },
     {
      "kind": "test",
@@ -12576,7 +12576,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:598-608"
+     "ref": "rust/bc2-levelwrite/src/export.rs:603-613"
     },
     {
      "kind": "test",
@@ -12608,11 +12608,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:598-608"
+     "ref": "rust/bc2-levelwrite/src/export.rs:603-613"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1505-1522"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1536-1553"
     },
     {
      "kind": "test",
@@ -12632,11 +12632,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:563-596"
+     "ref": "rust/bc2-levelwrite/src/export.rs:563-601"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1505-1540"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1536-1571"
     },
     {
      "kind": "test",
@@ -12660,7 +12660,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:644-655"
+     "ref": "rust/bc2-levelwrite/src/export.rs:649-660"
     },
     {
      "kind": "doc",
@@ -12700,11 +12700,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:730-743"
+     "ref": "rust/bc2-install/src/run.rs:714-727"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:434-470"
+     "ref": "rust/bc2-install/src/run.rs:418-454"
     },
     {
      "kind": "doc",
@@ -13567,7 +13567,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2915-3043"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2998-3382"
     },
     {
      "kind": "test",
@@ -13583,7 +13583,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2548-2594"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2608-2654"
     },
     {
      "kind": "test",
@@ -13739,7 +13739,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:109-127"
+     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:95-113"
     },
     {
      "kind": "test",
@@ -13795,7 +13795,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:62-84"
+     "ref": "rust/bc2-formats/src/dbxedit/cli.rs:58-70"
     },
     {
      "kind": "test",
@@ -13819,7 +13819,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:826-841"
+     "ref": "rust/bc2-levelwrite/src/export.rs:831-846"
     },
     {
      "kind": "test",
@@ -13839,7 +13839,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:854-870"
+     "ref": "rust/bc2-levelwrite/src/export.rs:859-875"
     },
     {
      "kind": "code",
@@ -13891,7 +13891,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:627-668"
+     "ref": "rust/bc2-levelwrite/src/export.rs:632-673"
     },
     {
      "kind": "test",
@@ -13911,7 +13911,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1561-1692"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1592-1723"
     },
     {
      "kind": "test",
@@ -13935,11 +13935,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1770-1831"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1801-1862"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2770-2790"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2836-2857"
     },
     {
      "kind": "test",
@@ -13963,7 +13963,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:741-795"
+     "ref": "rust/bc2-levelwrite/src/export.rs:746-800"
     },
     {
      "kind": "test",
@@ -14003,7 +14003,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3160-3272"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3505-3618"
     },
     {
      "kind": "test",
@@ -14043,11 +14043,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2194-2599"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2225-2659"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2618-2741"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2679-2807"
     },
     {
      "kind": "test",
@@ -14087,11 +14087,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:949-1335"
+     "ref": "rust/bc2-formats/src/gameledger.rs:940-1326"
     },
     {
      "kind": "code",
-     "ref": "core/bfbc2core/gameledger.py:560-760"
+     "ref": "core/bfbc2core/gameledger.py:555-755"
     },
     {
      "kind": "test",
@@ -14127,11 +14127,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:257-280"
+     "ref": "rust/bc2-formats/src/gameledger.rs:260-270"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:715-947"
+     "ref": "rust/bc2-formats/src/gameledger.rs:705-938"
     },
     {
      "kind": "test",
@@ -14155,11 +14155,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/gameledger.rs:1504-1617"
+     "ref": "rust/bc2-formats/src/gameledger.rs:1495-1608"
     },
     {
      "kind": "code",
-     "ref": "core/bfbc2core/gameledger.py:856-918"
+     "ref": "core/bfbc2core/gameledger.py:851-913"
     },
     {
      "kind": "test",
@@ -14519,7 +14519,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:641-775"
+     "ref": "rust/bc2-install/src/run.rs:625-759"
     },
     {
      "kind": "code",
@@ -14559,7 +14559,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:823-905"
+     "ref": "rust/bc2-install/src/run.rs:807-889"
     },
     {
      "kind": "data",
@@ -14587,7 +14587,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/run.rs:229-258"
+     "ref": "rust/bc2-install/src/run.rs:213-242"
     },
     {
      "kind": "code",
@@ -14783,11 +14783,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:277-297"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:276-296"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:602-649"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:587-634"
     },
     {
      "kind": "test",
@@ -14815,7 +14815,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/tool.rs:817-933"
+     "ref": "rust/bc2-formats/src/fbrb/tool.rs:802-918"
     },
     {
      "kind": "test",
@@ -14923,11 +14923,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:923-944"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:924-944"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/atomic.rs:29-31"
+     "ref": "rust/bc2-formats/src/atomic.rs:227-229"
     },
     {
      "kind": "test",
@@ -15095,7 +15095,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/project.rs:880-960"
+     "ref": "rust/bc2-levelwrite/src/project.rs:880-959"
     },
     {
      "kind": "code",
@@ -15111,11 +15111,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed"
+     "ref": "rust/bc2-levelwrite/tests/journal_kill.rs::journal_survives_its_writer_killed"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
     }
    ]
   },
@@ -15151,11 +15151,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::stroke_budgets"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::stroke_budgets"
     }
    ]
   },
@@ -15187,7 +15187,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/lib.rs:50-62"
+     "ref": "rust/bc2-levelwrite/src/lib.rs:52-65"
     },
     {
      "kind": "code",
@@ -15231,7 +15231,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1180-1220"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1190-1230"
     },
     {
      "kind": "code",
@@ -15243,7 +15243,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/op1.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all"
+     "ref": "rust/bc2-editor/tests/editor_core.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all"
     }
    ]
   },
@@ -15259,19 +15259,19 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:585-595"
+     "ref": "rust/bc2-levelwrite/src/export.rs:585-600"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1015-1060"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1032-1083"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1185-1225"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1215-1255"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },
@@ -15295,7 +15295,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+     "ref": "rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects"
     }
    ]
   },
@@ -15315,7 +15315,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/sg1.rs::members_are_edited_like_objects"
+     "ref": "rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects"
     },
     {
      "kind": "data",
@@ -15339,7 +15339,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },
@@ -15351,11 +15351,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1011-1060"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1021-1070"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-226"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-232"
     },
     {
      "kind": "test",
@@ -15407,15 +15407,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:219-345"
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-351"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:346-415"
+     "ref": "rust/bc2-levelwrite/src/write.rs:352-421"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:635-798"
+     "ref": "rust/bc2-levelwrite/src/write.rs:645-808"
     },
     {
      "kind": "test",
@@ -15435,7 +15435,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:475-500"
+     "ref": "rust/bc2-levelwrite/src/write.rs:481-506"
     },
     {
      "kind": "test",
@@ -15459,7 +15459,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/write.rs:1115-1135"
+     "ref": "rust/bc2-levelwrite/src/write.rs:1125-1145"
     },
     {
      "kind": "test",
@@ -15475,7 +15475,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-editor/src/app/tools.rs:1313-1342"
+     "ref": "rust/bc2-editor/src/app/tools.rs:1314-1343"
     },
     {
      "kind": "test",
@@ -15647,11 +15647,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:335"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:336"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_build_refusals"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
     }
    ]
   },
@@ -15671,11 +15671,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:346"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:347"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_build_refusals"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
     }
    ]
   },
@@ -15691,7 +15691,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_build_refusals"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
     }
    ]
   },
@@ -15711,11 +15711,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -15739,11 +15739,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_build_refusals"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
     }
    ]
   },
@@ -15763,7 +15763,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -15787,11 +15787,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_build_refusals"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
     }
    ]
   },
@@ -15811,7 +15811,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -15827,7 +15827,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3031"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3032"
     },
     {
      "kind": "code",
@@ -15835,11 +15835,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -15859,7 +15859,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -15879,7 +15879,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -15899,7 +15899,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -15919,7 +15919,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -15939,11 +15939,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_build_refusals"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
     }
    ]
   },
@@ -15959,11 +15959,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3201"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3202"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -15979,11 +15979,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3827"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3831"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -15999,19 +15999,19 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3994"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3998"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/names.rs:381"
+     "ref": "rust/bc2-levelwrite/src/names.rs:382"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16027,15 +16027,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/names.rs:417"
+     "ref": "rust/bc2-levelwrite/src/names.rs:418"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16051,11 +16051,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/names.rs:430"
+     "ref": "rust/bc2-levelwrite/src/names.rs:431"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
@@ -16075,15 +16075,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/names.rs:479"
+     "ref": "rust/bc2-levelwrite/src/names.rs:480"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16099,15 +16099,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/names.rs:491"
+     "ref": "rust/bc2-levelwrite/src/names.rs:492"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16123,11 +16123,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/names.rs:537"
+     "ref": "rust/bc2-levelwrite/src/names.rs:538"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
@@ -16147,15 +16147,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/names.rs:552"
+     "ref": "rust/bc2-levelwrite/src/names.rs:553"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16171,11 +16171,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:4044"
+     "ref": "rust/bc2-levelwrite/src/export.rs:4048"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16191,11 +16191,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:4072"
+     "ref": "rust/bc2-levelwrite/src/export.rs:4076"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16215,7 +16215,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16235,7 +16235,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16255,7 +16255,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16271,11 +16271,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2898"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2899"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16291,11 +16291,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2906"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2907"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16311,11 +16311,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2915"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2916"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16331,11 +16331,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2962"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2963"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16351,11 +16351,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2933"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2934"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16371,11 +16371,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2945"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2946"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16391,11 +16391,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3010"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3011"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16411,11 +16411,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3662"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3666"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16431,11 +16431,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3723"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3727"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16451,11 +16451,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3728"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3732"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16471,11 +16471,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3733"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3737"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16491,11 +16491,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3746"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3750"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16511,11 +16511,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3933"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3937"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16531,11 +16531,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:2992"
+     "ref": "rust/bc2-levelwrite/src/export.rs:2993"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16551,11 +16551,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3084"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3085"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16571,11 +16571,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3499"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3503"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
@@ -16595,11 +16595,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3533"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3537"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
@@ -16623,11 +16623,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_build_refusals"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals"
     }
    ]
   },
@@ -16643,11 +16643,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3581"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3585"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
@@ -16667,7 +16667,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3346"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3350"
     },
     {
      "kind": "code",
@@ -16675,11 +16675,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16699,7 +16699,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
@@ -16719,15 +16719,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3231"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3232"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named"
     }
    ]
   },
@@ -16743,11 +16743,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3279"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3280"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     }
    ]
   },
@@ -16763,15 +16763,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3246"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3247"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::console_resources_deleted_sound_markers_and_build_refusals_are_named"
     }
    ]
   },
@@ -16787,11 +16787,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3325"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3329"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_stage.rs::v1_stage_rules"
+     "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
     },
     {
      "kind": "test",
@@ -16799,7 +16799,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/groups_sg1.rs::an_export_deletes_moves_and_adds_members"
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
     }
    ]
   },
@@ -16819,7 +16819,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -16839,7 +16839,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -16859,7 +16859,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -16883,7 +16883,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -16907,7 +16907,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -16923,11 +16923,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:307"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:308"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/v1_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
     }
    ]
   },
@@ -16943,7 +16943,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:491"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:492"
     },
     {
      "kind": "code",
@@ -16951,7 +16951,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/a1_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside"
+     "ref": "rust/bc2-levelwrite/tests/auto_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside"
     }
    ]
   },
@@ -16967,7 +16967,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:345"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:346"
     },
     {
      "kind": "code",
@@ -16975,7 +16975,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/a1_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside"
+     "ref": "rust/bc2-levelwrite/tests/auto_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside"
     }
    ]
   },
@@ -16991,11 +16991,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:414"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:415"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/a1_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside"
+     "ref": "rust/bc2-levelwrite/tests/auto_layout.rs::site_rules_raise_on_spawns_in_water_and_rock_vehicles_without_room_and_objects_outside"
     }
    ]
   },
@@ -17011,7 +17011,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:631"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:632"
     },
     {
      "kind": "code",
@@ -17019,7 +17019,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/a1_layout.rs::path_rules_want_spawns_and_objectives_on_the_main_network"
+     "ref": "rust/bc2-levelwrite/tests/auto_layout.rs::path_rules_want_spawns_and_objectives_on_the_main_network"
     }
    ]
   },
@@ -17035,11 +17035,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/a1_layout.rs::the_auto_layout_moves_a_layout_out_of_the_lake_onto_the_town"
+     "ref": "rust/bc2-levelwrite/tests/auto_layout.rs::the_auto_layout_moves_a_layout_out_of_the_lake_onto_the_town"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-editor/tests/a1.rs::the_auto_layout_is_proposed_drawn_accepted_and_validated"
+     "ref": "rust/bc2-editor/tests/auto_layout_panel.rs::the_auto_layout_is_proposed_drawn_accepted_and_validated"
     }
    ]
   },

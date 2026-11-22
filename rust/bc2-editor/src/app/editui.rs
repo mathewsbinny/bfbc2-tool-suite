@@ -1836,6 +1836,10 @@ pub(super) fn folders_section(
     let Some(d) = &v.doc else { return };
     let q = query.trim().to_lowercase();
     let mut folders: std::collections::BTreeMap<&str, Vec<usize>> = std::collections::BTreeMap::new();
+    #[allow(
+        clippy::iter_over_hash_type,
+        reason = "into a sorted map; each folder's members are sorted before they are shown"
+    )]
     for (g, f) in &d.org.folder_of {
         if let Some(k) = d.index(g) {
             folders.entry(f.as_str()).or_default().push(k);

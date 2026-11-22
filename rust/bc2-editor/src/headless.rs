@@ -74,11 +74,13 @@ impl Headless {
         // egui's texture changes go to its renderer at once; the image is drawn from the last frame's shapes
         {
             let mut r = self.gpu.egui.write();
+            #[allow(clippy::iter_over_hash_type, reason = "each texture updated on its own")]
             for (id, deltas) in &out.textures_delta.set {
                 for delta in deltas {
                     r.update_texture(&self.gpu.gpu.device, &self.gpu.gpu.queue, *id, delta);
                 }
             }
+            #[allow(clippy::iter_over_hash_type, reason = "each texture freed on its own")]
             for id in &out.textures_delta.free {
                 r.free_texture(id);
             }

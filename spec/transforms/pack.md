@@ -20,7 +20,7 @@ file, a damaged gzip member, an entry outside the payload) with an error that na
 had written by then are the ones FbrbTool left behind. It refuses an entry name that is empty, rooted (`\x`, `/x`,
 `C:x`) or leads out of the folder through `..`.
 
-[code: rust/bc2-formats/src/fbrb/tool.rs:277-297] [code: rust/bc2-formats/src/fbrb/tool.rs:602-649]
+[code: rust/bc2-formats/src/fbrb/tool.rs:276-296] [code: rust/bc2-formats/src/fbrb/tool.rs:587-634]
 [test: rust/bc2-formats/src/fbrb/tool.rs::round_trip_and_damage] [test: rust/bc2-formats/src/fbrb/unpack.rs::unusual_bundles_as_fbrbtool_unpacks_them]
 [test: core/tests/test_fbrbtool.py::damaged] [test: core/tests/test_fbrb_unpack_native.py::check_built]
 
@@ -32,7 +32,7 @@ For every bundle, the folder unpack writes is FbrbTool's: the same file names wi
 same `fbrb.manifest` (entry order, markers, layout tokens). Markers (`*deleted*`) get a manifest line and no file;
 two entries of one name leave the later one's bytes in the file (FBRB-ENT-9).
 
-[code: rust/bc2-formats/src/fbrb/tool.rs:817-933]
+[code: rust/bc2-formats/src/fbrb/tool.rs:802-918]
 [test: core/tests/test_fbrb_unpack_native.py::run_bundles] [test: core/tests/test_fbrb_unpack_native.py::check_built]
 [data: every bundle of the game copy whose payload is at most 300 MB, against fbrbtool_golden_game.json by SHA-1 (test_fbrb_unpack_native.py --game)]
 
@@ -82,7 +82,7 @@ Pack writes `<bundle>.tmp-<process id>` beside the target and moves it over the 
 a moment's lock by another process for about three seconds); on any error the temporary file is removed and the old
 bundle is untouched. The payload is streamed: memory stays about 10 MB whatever the bundle's size.
 
-[code: rust/bc2-formats/src/fbrb/pack.rs:923-944] [code: rust/bc2-formats/src/atomic.rs:29-31]
+[code: rust/bc2-formats/src/fbrb/pack.rs:924-944] [code: rust/bc2-formats/src/atomic.rs:227-229]
 [test: rust/bc2-formats/src/atomic.rs::a_moments_lock_is_waited_out] [test: rust/bc2-formats/src/atomic.rs::a_real_file_is_replaced]
 [test: rust/bc2-formats/src/fbrb/pack.rs::streamed_files_as_from_memory] [test: core/tests/test_fbrb_pack_native.py::check_built]
 

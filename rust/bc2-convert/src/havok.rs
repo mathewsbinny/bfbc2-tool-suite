@@ -732,7 +732,7 @@ pub enum WrapperError {
 }
 
 /// DICE's wrapper before the packfile at `o`, console -> PC (`havok.convert_wrapper`, round F2a; `FORMAT.md` 1.1):
-/// a count, the part name hashes, `a` vectors and `c` boxes swapped field by field, the byte run as it is, then 1,
+/// a count, the part words (a blueprint's part-name hashes, a model group's owner leaves: spec HAVOK-WRAP-1), `a` vectors and `c` boxes swapped field by field, the byte run as it is, then 1,
 /// `k` and `k` hashes ending at the packfile (the byte run's end: the one place where that holds).
 ///
 /// # Errors

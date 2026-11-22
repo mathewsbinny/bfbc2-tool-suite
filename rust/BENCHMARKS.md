@@ -7677,6 +7677,472 @@ Conquest and MP_005 as Conquest, a member deleted, one moved, two added) pass ev
 lines each, and `validate::project` raises no error (Wake: 1 finding below error, MP_005: none; `validate::project`
 now reads the base's group files as the export does). Deleting every member of a group's smallest kind is refused as
 `XVAL-GRP-1: ...` on both (Wake's heattank, MP_005's invwall_nohealth; `rules::apply_code`).
+## NK2: NavKit's build, graphs to file (2026-11-21, branch `nk2`)
+
+NK1's plan, stage 1 of the build: everything a build does once its route graphs exist, and the neighbour links of
+the sectors' runtime meshes. A build now hands its graphs to the Rust core once (`navbuild.write_file`, called with
+the build's anchors), and the core prunes, lays out and writes the file; the stage's two link resolvers run in the core
+from the stage's own areas.
+
+### What moved
+
+| Python (retired) | Rust | where it runs |
+|---|---|---|
+| `navislands.components`, `shadowing` and `prune`'s loop (the shadow-island rule: small route islands mostly on objects, holding no anchor, beside a large one) | `bc2_navbuild::graphfile::shadow_islands`, `drop_edges` | `navbuild.write_file` (with the anchors: a build); `navislands.prune` is a thin call (`bc2_native.navkit_shadow_islands`) for other callers |
+| `navbuild.prune_order_nodes` (order nodes in islands under `ORDER_MIN_ISLAND`; `ORDER_STATS['removed']`) | `graphfile::prune_order_nodes` | `write_file` |
+| `navbuild.finalize_graph` (nodes without an edge dropped, sorted by unsigned id, costs from the `float32` positions, first-edge indices, the sorted-list fields `b` / `c`, the border owner bit) | `graphfile::finalize` | `write_file` |
+| `write_file`'s assembly (each sector's record, the meshes written, `hpdtool.write`) | `graphfile::write_file` (`kymesh::write`, `hpd::write`; the meshes read from the build's `kymesh.Mesh` values and written in parallel) | `bc2_native.navkit_write_graphs` |
+| `sector_links` (links grouped by sector and area across, the portals' offsets in their area objects) with `border_cell`, `same_grid_resolver` and `cross_grid_resolver` | `graphfile::sector_links` with `Border::inner_cell`; the resolvers in `bc2-py`'s `navgraph::sector_links` on the stage's `NavLevel` / `NavAreas` | `NavLevel.sector_links` (a `NavLinkScope` per stage: `navbuild.link_scope` / `link_across`), called by `stage` and `merge_detailed` |
+
+What stays Python until NK5: the stage builds the `kymesh.Area` / `Mesh` values (their tiles, height ranges,
+rectangle, bounds) from the traced areas and D / F details, because the stage's result is read as Python values by
+navvehicle, navwater_mesh, the golden test's whole-stage digests and `merge_detailed`, which sets the links of meshes
+already made. The mesh assembly's only computation, the links, is the core's; the rest is the values' construction,
+which moves with the stage.
+
+### Parity
+
+- **Every regression level, against the old Python** (`rust/parity_nk2_file.py`: this checkout builds each level
+  through `navregress.build_level` with the build clock fixed; inside the build every `sector_links` call also runs
+  the old Python's `sector_links` with the stage's resolver, or `merge_detailed`'s same-grid / cross-grid pair, from
+  the main checkout's `navbuild.py`, and `write_file` also runs the old `navislands.prune` and `write_file` on the same
+  graphs; then each checkout builds the level once more alone): **15 of 15 levels identical**: every sector's links
+  (5,698 calls), the file, the log lines, the island statistics and `ORDER_STATS['removed']`; and the old checkout's
+  own build, the new checkout's own build and the compared build have one SHA-1 per level.
+- **The golden builds** (`tests/navbuild_golden.json`, the build clock fixed): sp_009, sp_004_b, sp_008_b and
+  ons_mp_004 as recorded, in the parity run and in `test_navbuild_native.py --game --levels
+  sp_009,sp_004_b,sp_008_b,ons_mp_004`; its quick tier (the E2a / E3c / E3h recorded answers, among them whole stages
+  with their meshes' links) unchanged.
+- **NK1's apply parity**: 33 of 33 (`rust/parity_nk1_apply.py`, main's `navkit.py` - NK1's, itself 33 of 33
+  against the Python before NK1 - against this branch's `bfbc2.exe navkit apply`: the 18 DICE files and the 15
+  regression builds; the apply's edit stage is untouched).
+- **Python's order**: nothing a set or dict iteration orders reaches the output. The islands dropped are a set of
+  ids (which island a node is in does not depend on the union-find's order: the roots differ, the members do not);
+  the order nodes dropped, a set; `ORDER_STATS['removed']` follows the graphs' order; `sector_links` sorts its
+  groups; every sort is the reference's stable sort on the same keys (unsigned ids; the build's float64 positions,
+  finite). No NumPy arithmetic is in the stage but the `float32` rounding of positions for the costs (`as f32`:
+  round to nearest, as `np.float32`) and the cross-grid resolver's float64 heights (IEEE, the same). Proven on all
+  15 levels as above, which include every golden level.
+- **DICE parity cannot move**: the files are byte-identical to the Python's, so no content argument (navparity /
+  hpdcheck) is needed.
+
+### Time and memory
+
+The stage alone (its inputs - graphs, meshes, anchors, order and terrain ids - pickled from the build and loaded in
+a fresh process; old: `navislands.prune` + `write_file`, new: `write_file`), and the links inside each checkout's
+whole build (old: `sector_links` with its Python resolvers; new: `NavLevel.sector_links` with the scopes). Peak:
+the process's peak working set above its working set once the inputs were loaded (other agents' builds beside it).
+
+| level | file (MB) | links compared | stage alone, old -> new (s) | stage peak above inputs, old / new (MB) | links in the whole build, old -> new (s) | whole build, old -> new (s) |
+|---|---:|---:|---:|---:|---:|---:|
+| ons_mp_002 | 7.9 | 146 | 0.33 -> **0.16** | 39 / **38** | 0.03 -> 0.02 | 11 -> 11 |
+| ons_mp_004 | 7.3 | 72 | 0.34 -> **0.15** | 35 / **38** | 0.01 -> 0.02 | 6 -> 6 |
+| sp_003_b | 27.5 | 645 | 1.47 -> **0.47** | 131 / **92** | 0.11 -> 0.12 | 24 -> 22 |
+| sp_004_b | 7.9 | 107 | 0.40 -> **0.15** | 38 / **36** | 0.02 -> 0.02 | 8 -> 8 |
+| sp_005 | 37.2 | 615 | 2.16 -> **0.69** | 181 / **121** | 0.98 -> 0.45 | 58 -> 46 |
+| sp_005_b | 39.1 | 597 | 1.66 -> **0.93** | 182 / **130** | 0.95 -> 2.11 | 47 -> 41 |
+| sp_006 | 33.9 | 841 | 2.03 -> **0.69** | 171 / **113** | 1.36 -> 1.22 | 60 -> 66 |
+| sp_007 | 31.8 | 677 | 1.44 -> **0.66** | 151 / **113** | 2.22 -> 1.35 | 57 -> 62 |
+| sp_008 | 12.0 | 111 | 0.82 -> **0.36** | 56 / **52** | 0.04 -> 0.04 | 17 -> 15 |
+| sp_008_b | 8.1 | 75 | 0.40 -> **0.15** | 37 / **37** | 0.02 -> 0.02 | 9 -> 9 |
+| sp_009 | 0.4 | 22 | 0.07 -> **0.05** | 4 / **4** | 0.00 -> 0.00 | 2 -> 2 |
+| sp_01 | 17.4 | 320 | 0.73 -> **0.35** | 85 / **66** | 0.16 -> 0.15 | 21 -> 22 |
+| sp_02 | 13.0 | 290 | 0.57 -> **0.29** | 64 / **51** | 0.10 -> 0.04 | 18 -> 17 |
+| sp_03 | 31.2 | 679 | 1.39 -> **0.87** | 150 / **105** | 1.60 -> 1.09 | 66 -> 46 |
+| sp_04 | 20.9 | 501 | 1.74 -> **0.55** | 104 / **72** | 0.87 -> 0.65 | 50 -> 35 |
+| all 15 | | 5,698 | 15.6 -> **6.5** (2.4x) | largest 182 / **130** | 8.5 -> 7.3 | 454 -> 406 |
+
+The links are 1-3 % of a build either way, and their time is noisy here (the builds ran beside other agents'
+work; the first lookup of a stage's areas builds the core's per-sector area maps once, 0.1-1 s on the large levels,
+whichever caller comes first): 8.5 -> 7.3 s over the 15 levels, no claim beyond "not slower". The whole builds
+(old and new checkout each alone, one after the other) moved by the stage's time and the machine's load: 454 -> 406
+s. A whole build's own peak (7-8.5 GB on sp_005 / sp_005_b / sp_006 / sp_04) is the stages before this one (PR1b's
+"NavKit regression's 15 GB"); this stage's part is the table's.
+
+The new stage's time is mostly reading the build's `kymesh.Mesh` values into Rust (0.08 of 0.12 s on sp_004_b; with
+the meshes' bytes given, 0.04 s): the meshes are Python values until NK5 moves their assembly.
+
+### Retired
+
+`navislands.components` / `shadowing` and `prune`'s own loop; `navbuild.prune_order_nodes`, `finalize_graph`,
+`border_cell`, `same_grid_resolver`, `cross_grid_resolver`, and `write_file`'s and `sector_links`' bodies: Python
+twins inside a living tool (RETIRED.md rule 4: recorded here and in CHANGELOG, not as RETIRED.md rows); the last
+commit with them is `08b1382`. No command line went and nothing outside NavKit called them (Project OPFOR has no
+caller of navbuild or navislands), so `VERSION` stays (RELEASING.md). `test_navislands.py` checks the file
+`write_file` writes in place of `finalize_graph`'s tables.
+
+### What is left: NK3-NK5
+
+NK1's plan stands for NK3 (`navdetail`: its sets' order reaches the D lines and F cells) and NK4 (walkability end to
+end). NK5 now also takes the meshes' assembly: in `stage`, the `kymesh.Area` per area (height range from the pass-1
+`ylims`, portals / borders / outline from the trace, D / F from `navdetail`), the tile items, the rectangle and the
+sector bounds; then the stage's graphs and meshes can stay in Rust from the areas to `graphfile::write_file` (no
+`kymesh.Mesh` read back: the 0.08 s above), `merge_detailed`'s links run on its two stages' cores directly, and
+`navvehicle` / `navwater_mesh` / the golden test read a Rust stage result.
+## PR1a: the post-Rust improvements' small fixes that stop drift (2026-11-21, branch `pr1a`)
+
+Audit AU5 section 6 re-scoped PR1 and made PR1a the first round: the small fixes that stop drift. Its seven items are
+below, in AU5's order, with what was done, what was proved and what is left. The rule held throughout: outputs stay
+byte-identical, or a change is recorded and explained. The three changed outputs are listed under item 5, and each
+was nondeterministic before.
+
+### 1. One whole-file writer (AU5 ARC-8)
+
+`bc2_formats::atomic` is now the only implementation:
+- `temp_name`: `<target>.tmp-<pid>-<n>`, unique per process and per write;
+- `write` / `write_with`: fill, flush, `sync_all`, `replace` with 11 tries; the temporary file is removed on any
+  error; `WriteError` says whether the temporary file or the move failed, so each caller keeps its error text;
+- `write_rebuildable`: the same without `sync_all`;
+- `locked`: the lock between processes;
+- `temp_writer` / `remove_dead_temps`: a killed writer's temporary files.
+
+Callers moved onto it:
+
+| writer | before | now |
+|---|---|---|
+| FbrbTool's entries and manifest (`fbrb/tool.rs`) | own counter, no flush to disk | `write_rebuildable` (unpacked files are rebuilt from the bundle; `sync_all` measured at about 1 ms a file, 1,500 files 1.5 s -> 2.9 s, and a bundle holds thousands) |
+| FbrbTool's pack (`fbrb/tool.rs`, `fbrb/pack.rs`) | `.tmp-<pid>`; `pack_path` not flushed | `temp_name`; both flushed |
+| DbxEdit's `AtomicFile` (`dbxedit/cli.rs`) | own counter | `write` (the temporary file's name in a write error, the target's in a move error, as before) |
+| the install ledger (`gameledger.rs`, and its Python twin) | the fixed `<path>.opfor-ledger-tmp`: two writers of one path shared it | `write`; a recovery removes the old fixed name and dead writers' temporary files |
+| meshview's cache (`bc2-convert`) | own rename loop retrying every error; own `locked` | `write`, `locked` |
+| bfbc2.exe's gameindex | pid-only name; its own copies of the cache's version, path and signature check | `write`, `locked`, `bc2_convert::meshview::cache`'s |
+| `pyos` (`atomic_write`, `locked`, `replace`) | pid-only name; own lock and retry loop | `pyos::files::write_atomic` over `atomic` |
+| harness runs, the log archive, stock-MP's report, texqa's JSON | pid-only names, no flush to disk (the harness, stockmp, texqa) | `write` |
+| navkit apply's traversal file | the fixed `<file>.tmp` | `write` |
+| editor: settings, catalogue record, nav side files; levelwrite: project writes and the cull cache | four separate wrappers: fixed or pid-only names, two without a flush to disk | `write` |
+| bc2-install: write, copy, the staged record | `.opfor-tmp-<pid>` / `.tmp-<pid>` | `write` / `temp_name` |
+
+`bfbc2core.atomicio._tmp` gained the same per-write counter. The golden normalisers already accept
+`.tmp-<pid>(-<n>)`.
+
+The shader-database helpers XF1 left in `bc2-cli` (`latin`, `to_latin`, `hex`, `entry_programs`, `program_refs`,
+`coverage`) are gone: `bc2_formats::shaderdb::merge`'s are used. New tests in `atomic.rs`:
+- names per write;
+- whole-or-nothing, and no temporary file left;
+- 4 threads x 10 writes to one path;
+- dead writers' files;
+- `locked` making its folder.
+
+### 2. Stable test ids and the round-code rule (PR0 item 1, AU5 NAM-1)
+
+`run_tests.tests()` entries are `(id, name, tier, argv)`:
+- 240 ids, lower-case words joined by `-` with an optional `:variant`, named by what each entry tests. The 20 ids
+  of round-named scripts were written by hand, for example `cli-menu-crash-navkit-convert` for O2.
+- `NEEDS`, `CI_STEPS`, `NOT_GAME_FREE`, the kept durations (`test_times.json` on the PC, `tests/test_durations.json`
+  in the repo) and the round-code allowlist are keyed by id.
+- A durations file still keyed by display names is read (`by_id`) and rewritten by id.
+- `--list` shows the ids, and `--only` matches them too.
+
+The seed file: 191 entries rekeyed, and 1 stale name dropped (the old single cargo entry's).
+
+`tests/test_repo.py`:
+- the 60 grandfathered round-named entries are now listed by id, and every id must be well formed, unique and free
+  of round codes;
+- new: Rust test files, `tests/data` files and `mod` names under `tests/` and `src/` must not carry a round code
+  (21 pre-TS1 test files are grandfathered by path);
+- new: JSON keys in a fixed order (item 5);
+- new: no round code in the usage or the crates' descriptions (item 6).
+
+Renamed (git mv; mod lines, spec citations, EDITOR_ARCHITECTURE, RETIRED and the dbx-tools README updated):
+
+| before | after |
+|---|---|
+| `bc2-editor/tests/gr3.rs` | `asset_preview_parity.rs` |
+| `bc2-editor/tests/gr4.rs` | `dbx_inspector_window.rs` |
+| `bc2-editor/tests/op1.rs` | `editor_core.rs` |
+| `bc2-editor/tests/sg1.rs` | `group_members.rs` |
+| `bc2-editor/tests/data/dbxeditgui_gr4.json.gz` | `dbxeditgui_answers.json.gz` |
+| `bc2-levelwrite/tests/groups_sg1.rs` | `model_group_members.rs` |
+| `bc2-levelwrite/tests/op1_journal.rs` | `journal_kill.rs` |
+| `bc2-render/tests/r5e.rs` | `deep_sea_materials.rs` |
+| `bc2-py/src/f2a.rs` | `converters.rs` |
+| `bc2-py/src/formats_f3.rs` | `aim_pathmesh_audio.rs` |
+| `bc2-py/src/formats_f4.rs` | `culltree_audio_havok.rs` |
+| `bc2-navbuild/src/e3c_tests.rs` | `graph_route_tests.rs` |
+| `bc2-navbuild/src/e3h_tests.rs` | `sector_flood_tests.rs` |
+
+Every test is still in its tier. The renamed modules' tests are listed by `cargo test --workspace -- --list`:
+
+| module | tests |
+|---|---|
+| asset_preview_parity | 3 |
+| dbx_inspector_window | 2 |
+| editor_core | 6 |
+| group_members | 2 |
+| model_group_members | 2 |
+| journal_kill | 2 |
+| deep_sea_materials | 2 |
+| graph_route_tests | 9 |
+| sector_flood_tests | 4 |
+
+Workspace total: 754 tests listed (the 6 new atomic tests included).
+
+### 3. `bc2-pyrt` out of the editor (AU5 ARC-1)
+
+- **The editor:** its one call, `preview.rs`'s `py::abspath`, is now `std::path::absolute`. Both use
+  GetFullPathNameW, as Python's `os.path.abspath` does. `bc2-editor` no longer depends on `bc2-pyrt`.
+- **`bc2-convert`:** its meshview cache (the pickle shared with `meshview.py`) is behind a new feature,
+  `pickle-cache`. `bfbc2.exe` enables it. The editor's asset preview enables it too, because it reads the same cache.
+  `meshview::Tables` moved out of the cache module.
+- **`bc2-navbuild`:** NK1 added `bc2-pyrt` for `graphedit`, which writes the traversal annotations as `json.dump`
+  writes them and uses Python's `round()`. That is our own sidecar file, not game data. Only `bfbc2.exe navkit apply`
+  and bc2-py's `navapply` (navkit.py's in-process call) use it. It is now behind a new feature, `graphedit`, which
+  `bc2-cli` and `bc2-py` enable. The rest of the crate, which the editor links, has no `bc2-pyrt`.
+- **`test_rust.py`:** its clippy subset (`-p`) runs with `--all-features`, so a crate is still linted alike alone or
+  in the workspace.
+
+`cargo tree -p bc2-editor -i bc2-pyrt` now shows `bc2-pyrt` only through `bc2-convert`'s `pickle-cache` and
+`bc2-levelwrite` (the cull cache's pickle and culltool's Python error model). See the census below.
+
+### 4. AV1's test switch out of `PeImage::open` (AU5 ARC-10)
+
+`bc2_menu::common::PeImage::open` now only reads and parses. `PeImage::from_bytes` is new, and `restore_stand_in` is
+public. `bfbc2.exe`'s menu tools open the exe through `menu::open_exe`, which:
+- reads `BFBC2_TEST_STAND_IN_EXE` once per process, at the command line's edge with `bfbc2.exe`'s other test
+  switches;
+- puts the stand-in's signatures back before `from_bytes`.
+
+O2 still writes no program to disk and needs no AV exclusion; see Proof.
+
+### 5. Determinism as a rule (PR0 item 2, queued item 4)
+
+**Rust.** `clippy::iter_over_hash_type` is a workspace lint. It found 42 loops over a `HashMap` / `HashSet`:
+
+| | sites | what |
+|---|---|---|
+| reached an output, fixed | 3 | see below |
+| reviewed, order cannot matter | 37 | each carries `#[allow(clippy::iter_over_hash_type, reason = "...")]`: sums, inserts into maps or sorted sets, lists sorted next, per-viewport UI updates, assertions |
+| not separate sites | 2 | `package.rs`'s other two loops over the same map, fixed with it |
+
+The three outputs fixed:
+- **The editor's prepared-copy record** (`prepared.json`). Its `files` list was in hash order, so it changed from run
+  to run. `read_entries` now returns a `BTreeMap` keyed by `(layer, entry)`, so the list comes out in that order.
+- **`bc2_native`'s scene collision dict**, now in blueprint-name order.
+- **`vw2_canaries`' path mapping back**: longest names first, then by name. A name contained in another could
+  otherwise be replaced first.
+
+**Python.** AU5 counted 73 unsorted JSON writes with grep; the AST count is 65 in the suite's non-test Python.
+- 10 were in scripts whose outputs nothing compares (the bench scripts, the NK1 parity script, the placement study
+  scripts). They now pass `sort_keys=True`.
+- The other 55 are the tools' outputs. Their key order is the order the code builds each dict in, the same under
+  any hash seed (checked below). Their Rust ports and OPFOR compare those bytes, so sorting them would change outputs.
+  `tests/test_repo.py`'s `JSON_ORDER_KEPT` counts them per file, and a file may not gain one. They are sorted, or
+  given a spec rule, when their Python twin retires (PY1).
+- New writes use `sort_keys=True` or `bfbc2core.atomicio.dumps_stable`.
+
+**Two-seed check.** Each command ran under `PYTHONHASHSEED=0` and `=4242`. Exit codes and stdout bytes were compared; the test scripts check their answers against their recordings under both seeds.
+- **Same stdout bytes under both seeds:** `spec/trace.py --json` and `--coverage`, `rust\native_census.py --markdown`, the NavKit driver on a stand-in OPFOR folder, the harness on built data, the install ledger and NavKit's tool edges.
+- **Passed under both seeds, stdout differing:** stock-MP on synthetic levels and texqa. The only difference is the names of their temporary folders in the printed lines (`tmpXXXX`).
+- **Rust:** `bfbc2.exe` and the test binaries draw a new hash seed in every process, so every O-series run is a two-seed run. O1-O5 passed alone and on one pipe.
+- **The rebuild:** the WW2 rebuild below matched the oracle with Python and Rust both on fresh seeds.
+
+### 6. Round codes out of user-facing text, and the "part hashes" misnomer (AU5 NAM-2, NAM-4)
+
+- **`bfbc2.exe`'s usage** now names each tool group by what it does. It used to say "round DF2", "round OR1", "round
+  O3/O4/O5". The BF1943 importer's catalogue and parity tools got their own line.
+- **The crates' descriptions** lost their round codes: bc2-cli, bc2-editor, bc2-install, bc2-levelwrite, bc2-menu,
+  bc2-pyrt, bc2-render.
+- **Other user-facing text** lost them too: the editor's export hints and Help text, and levelwrite's "not written
+  yet" message.
+- `test_repo.py` checks the usage and the descriptions.
+- The usage is not in any golden; the O-series lines still match (see Proof).
+
+The "part hashes" misnomer:
+- **HAVOK-WRAP-1's table**, the console converter's **FORMAT.md 1.1** and **`bc2-convert`'s `convert_wrapper` doc**
+  now say "part words": in blueprints the part names' hashes (`havok::part_hash`), in model groups each part's
+  owning instance's leaf (HAVOK-RUN-3).
+- **Two open questions** were stale:
+  - the part-hash function is now known; only the material hashes stay open;
+  - the model-group material table is decoded by HAVOK-RUN-3, so that question was removed.
+- **Code citations:** the spec's citations into files this branch changed were remapped by a line diff against
+  `7a18632`, and `rules.json` was re-emitted. `spec/trace.py --check` passes: 710 rules.
+
+### 7. The native-backend registry and the `bc2_native` census (queued item 5, AU5 ARC-12)
+
+**The registry's skeleton** is in `bfbc2core.native`:
+- `register_backend(name, needs, switch)`, `backend(name)`, `use_backend(name, on | None)` and `backends()`;
+- one switch for every optional piece: `BFBC2_PURE_PYTHON`, the piece's own `BFBC2_<TOOL>_PYTHON` variable, or this
+  process's choice.
+
+`hkpack` and `kymesh` moved onto it with the same behaviour.
+
+The other 22 `use_native` copies move when their modules are next touched, or retire with their twins:
+- `granny`, `hpdtool`, `navnative`, `harnesscore`, `importcore`;
+- `audio`, `texqa`, `texture`;
+- `apt`, `stfs`, `xisolib`;
+- `culltreelib`;
+- `aptcheck`, `aptgraft`, `aptrefslib`, `bc2loc`;
+- `meshview`, `skinmesh`, `texwrite`;
+- `shaderdb`, `xenos`, `stockcore`.
+
+The whole move was more than "small": 22 modules, each with its own switch variable, tests that poke its cache, and
+fallbacks into the Python. So PR1a stopped the drift: there is one place for new pieces, and two modules show the
+pattern.
+
+**The census.** `rust\native_census.py` reads the exports from `bc2-py/src/lib.rs` and counts their callers in the
+suite's tools, the suite's tests and OPFOR's `src`:
+- 237 exports in 38 files;
+- 223 called by a suite tool;
+- 8 called by OPFOR directly;
+- 14 called by no tool: `havok_triangles`, `fbrbtool_gunzip`, `zlib_deflate`, `stockmp_author_refusal`,
+  `stockmp_new_guid`, `harness_x86_decode`, `xas_encode`, `AptLines`, `navkit_centre_cells`, `navkit_float_ops`,
+  `navkit_nearest_cells`, `navkit_round3`, `xenos_float_repr`, `stfs_refusal`. These are test-only probes, or
+  classes returned rather than called by name.
+
+It is a report for now. PR1b-2 makes it a check once the twins retire.
+
+### The `bc2-pyrt` census (for PY1)
+
+The user's principle (2026-11-21): the target is compatibility with BFBC2 and DICE, not with Python. `bc2-pyrt` is a
+porting crutch that proves a port byte-identical while its Python twin exists. Every use is classed:
+- **1:** matches the game or engine (keep; cite the DICE evidence);
+- **2:** arbitrary Python behaviour in our own outputs (a spec-defined deterministic rule once the twin retires);
+- **3:** Python behaviour that may differ from what DICE's tools or the engine produced (decide against DICE ground
+  truth).
+
+No behaviour was changed for any of them in PR1a.
+
+**Who depends on it:**
+- always: `bc2-cli`, `bc2-py`, `bc2-levelwrite`, `bc2-menu`;
+- behind a feature: `bc2-convert` (`pickle-cache`: bc2-cli and the editor), `bc2-navbuild` (`graphedit`: bc2-cli
+  and bc2-py);
+- not at all: `bc2-formats`, `bc2-scene`, `bc2-shader`, `bc2-stockmp`, `bc2-harness`, `bc2-render`, `bc2-install`,
+  and the editor directly.
+
+**The library crates:**
+
+| crate | where | item | used for (called by) | Python twin (exists?) | class |
+|---|---|---|---|---|---|
+| bc2-convert (`pickle-cache`) | `meshview/cache.rs` `walk`, `bundles`, `cache_path` | `py::join` | the stock bundles' paths and the cache's path (`load`; bfbc2.exe gameindex) | `bfbc2-mesh-viewer/meshview.py` (yes) | 2 |
+| bc2-convert | `cache.rs` `same_sig`, `read`, `cache_bytes` | `pickle::{loads, Value}`, `pickle_write` | `meshview_index.pkl` read and written byte for byte as `Index._write` (`load`, gameindex, the editor's preview) | meshview.py (yes) | 2 (our cache; a native format once meshview.py's reader goes, ARC-4) |
+| bc2-levelwrite | `cullcache.rs` (`norm`, `PickleStore`, the row and listing entries) | `py::{abspath, join, OMap}`, `pickle`, `pickle_write` | culltree's reference-row cache shared with the Python (bc2-cli `cull`) | `bfbc2-culltree/culltreelib.py` (yes; `culltree.py`'s command line retired) | 2 |
+| bc2-levelwrite | `culltool.rs` (about 60 functions) | `err::{Fail, PyErr, PyResult, os_error}`, `fmt::{str_repr, float_repr}`, `py::{basename, splitext, abspath, dirname, join, isfile, isdir, strip, OMap}` | `CullTreeError` / OSError texts, reference-level lookup and labels, rows by blueprint (bc2-cli `culltree info/verify/add`) | culltreelib.py (yes) | 2 (the tree's keys use culltool's own `py_round`, see below) |
+| bc2-navbuild (`graphedit`) | `graphedit.rs` `num`, `point`, `op_name`, `two_way`, `graph_edits` | `json::Value` | the side file's operations, parsed (bc2-cli `navkit apply`; bc2-py `navapply`) | `navkit.py` (yes); `navlinks.py` retired | 2 |
+| bc2-navbuild | `graphedit.rs` `nearest`, `rise`, `traversal` | `fmt::round_to`, `json::dumps(indent=1)` | `<level>.traversal.json`'s numbers and layout (our sidecar for OPFOR's bot layer, not game data) | navkit.py (yes); `navtraversal.py` retired | 2 |
+| bc2-menu | `common.rs` re-exports and `find_opfor`, `out_dir`, `bundle_layers`, `resolve`, `find_exe`, `parse_patch`, `glob` | `err::*`, `py::{join, nt_split, abspath, dirname, isdir, isfile, splitext, basename, read_text, splitlines, strip, split, suite_root}` | menucommon's paths, OPFOR's patch text, MenuError / OSError texts (bc2-cli menu tools, caches, budget) | `bfbc2-menu-tools/menucommon.py` (yes) | 2 |
+| bc2-menu | `common.rs` `bundle_movies`, `parse_bigf`, `apply_patch` | `py::{OMap, Members}` | BIGF members and movies in the order the file holds them | menucommon.py (yes) | 1 (likely: the source file's member order; an insertion-ordered map, nothing Python-specific) |
+| bc2-menu | `graft/mod.rs`, `graft/edit.rs`, `graft/crosshair.rs` (about 100 functions) | `err::{Fail, PyErr, PyResult}`, `read_file`, `py::{basename, isfile, splitext}` | AptError texts, the hand-off to aptgraft.py, loading `.big` / `.apt` / `.const` | `bfbc2-menu-tools/aptgraft.py` (yes) | 2 |
+
+**`bc2-py` (the module `bc2_native`):**
+
+| where | item | used for | twin (exists?) | class |
+|---|---|---|---|---|
+| `navapply.rs` | `json::{loads, Value}` | parsing the JSON text `navkit.py` passes in | navkit.py (yes) | 2 (goes with the JSON bridge) |
+| `xenos.rs` `h_g` (from `xenos_disasm`) | `fmt::float_g` | `%g` of literal constants in the disassembly header | `bfbc2-shader-tools/xenos.py` (yes) | 2 if only read by people (to confirm: `%g` keeps 6 significant digits; if anything reassembles or compiles from it, 3) |
+
+**`bc2-cli` (`bfbc2.exe`).** About 1,700 lines in 26 modules use it, mostly through `crate::pyproc` (re-exporting
+`err::*`), `crate::pyfmt` (`fmt`) and `crate::pyjson` (`json`). This is the Python-process edge itself: the exception
+model and the hand-off to the Python, argparse, `os`, `json.dumps` of our own reports and settings, the report
+numbers' `round_to` / `float_repr` / `float_g`, ntpath spelling, and `str` methods.
+
+Class 2 throughout, except one class 3 (likely): `navkit/ladders.rs:85` `round_to(x, 3)` on the ladder boxes written
+to `ladders.json`, which NavKit turns into ladder links in path data.
+
+| module | lines | twins (exist?) |
+|---|---|---|
+| `pyproc`, `argfmt`, `pyos` | 81 | the process edge |
+| `stockmp/` | ~324 | `stockmplib` / `config` / `validate.py` (yes); `stockmp.py`'s command line retired |
+| `navkit/` | ~263 | `navkit.py` (yes); `prepare_level.py` retired |
+| `shader/` | ~149 | `shaderdb.py`, `renderqa.py` (yes) |
+| `nav/` | ~135 | `hpdtool`, `hkpack`, `convert`, `aimanim` (yes) |
+| `navtools/` | ~120 | `hpdcheck`, `hpdview`, `detailed`, `navparity`, `navregress`, `sample_all` (yes); `graphstats` retired |
+| `harness/` | ~101 | `harness.py` (yes) |
+| `texqa/` | ~98 | `texqa.py` (yes) |
+| `crash/` | ~75 | `exeref.py`, `crashreaderlib.py` (yes); `crashreader.py` retired |
+| `menu/` | ~71 | `aptcheck`, `bc2loc` (yes); `aptrefs` retired |
+| `readers/` | ~67 | `apt.py`, `stfs.py` (yes); `xiso.py` retired |
+| `graft/` | ~39 | `aptgraft.py` (yes) |
+| `audio/` | ~38 | `audio.py` (yes) |
+| `caches/`, `logs.rs`, `budget.rs` | ~43 | `bfbc2core/caches.py`, `fbrb.py` (yes) |
+| `cull/` | ~24 | `culltreelib.py` (yes) |
+| `bf1943/`, `bf1943src.rs`, `import/` | ~49 | `dbxcatalogue.py`, `bf1943import.py` (yes); `pickle::loads` of their caches |
+| `gameindex.rs` | 17 | meshview.py (yes); `pickle::loads` of `meshview_index.pkl` |
+| `meshview/`, `navshared.rs`, `main.rs` | ~19 | - |
+
+**Totals:**
+- class 1: 1 group (bc2-menu's member order);
+- class 3: 1 site (`ladders.json`'s `round_to`);
+- class 2: everything else.
+
+**Class-3 candidates outside `bc2-pyrt`** (Python behaviour copied without the crate; PY1 should check these against
+DICE ground truth too):
+- `bc2-cli/src/stockmp/pyx.rs`: Python's `round` (half to even), `fixed`, Neumaier `sum` and `hypot`, used for the
+  AI spawner and order positions written into levels (`generate.rs:147, :152`, `build.rs:251, :547`);
+- `bc2-navbuild`'s `pymath`: `dist3` (CPython `math.dist`) for path-data edge costs (`graphedit` `cost_tag`), and
+  `round3`;
+- `bc2-levelwrite/src/culltool.rs` `py_round`: half-to-even rounding of the cull tree's sphere keys written to game
+  trees.
+
+**Stale text:** `bc2-cli/src/cull/mod.rs` and `stockmp/mod.rs` still name the retired `culltree.py` / `stockmp.py`
+scripts (guarded by `RETIRED`), and `cull/mod.rs` / `culltool.rs`'s module docs still say damaged input is "handed
+to the Python". Left for PY1.
+
+### Proof
+
+- **WW2 rebuild** (OPFOR main checkout, `OPFOR_TOOLKIT` a scratch folder whose `bfbc2-tool-suite` was a junction to this worktree, its fresh `bc2_native.pyd` and `bin\bfbc2.exe`, `--jobs 2`): all 55 steps in 22.0 min (the 3 level chains side by side in 536 s). `compare_oracle.py`: **10,852 of 10,852 identical** (differ 0, missing 0, extra 0). `qa_checks.py` passed. OPFOR's `SUITE_REQUIRES` (< 0.14.0) warned about the new version, as expected. OPFOR was not changed and nothing was installed.
+- **`python run_tests.py quick -j 2`:** 133 of 133 passed in 713 s. That includes:
+  - O1-O5 (O2 among them, with no program on disk);
+  - the cargo build, the quick tests, clippy `-D warnings` and fmt;
+  - ruff and mypy on every folder;
+  - the repository rules, the env-var registry and `spec/trace.py --check` (710 rules).
+- **The runner's own tests:** `test_runner_parallel.py`, `test_runner_args.py` and `test_runner_output.py` pass, including the new stable-id checks.
+- **Release builds:** `rust\build_native.py` and `--editor` (the module, `bfbc2.exe` 0.14.0, `bfbc2-editor.exe`, `mapexport.exe`; sources 3d22f2ee69da).
+- **The game tier's whole-level tests and the VW2 export canaries were not run.** In the export, levelwrite and editor code this round changed only:
+  - the writers of the project, the cull cache and the prepared copy;
+  - one message;
+  - lint attributes;
+  - the prepared record's file order, now fixed.
+  Their quick tests passed.
+
+### Left
+
+- **The registry:** 22 `use_native` copies (listed in item 7).
+- **The census as a check:** PR1b-2.
+- **The grandfathered round names** (PR1c):
+  - 60 runner entries' display names;
+  - 21 Rust test files and their `mod` names (`df1`, `e2b`, `ex1`, `g2`-`g4`, `game_view_r5d`, `gr1`, `gr2`, `vw2`,
+    `xf1`, `culltool_ct1`, `export_e3b`/`e3c`/`e3d`/`ex1`/`xf1`, `gameplay_xf1`, `r5d`);
+  - the round-coded Python test scripts and goldens.
+- **The 55 insertion-ordered JSON writes:** with their twins (PY1).
+- **The `bc2-pyrt` removals:** PY1.
+- **`gameindex.rs`' own pickle reader:** it keeps `Rc` rows for memory, so it is not the cache module's `read`. It
+  goes when the cache's Python reader does (ARC-4).
+- **Module docs that cite rounds:** rewritten as files are touched (NAM-2).
+
+### Merging main (V1, NK2) into PR1a
+
+PR1a's rules ran over what V1 and NK2 added while the round was under way.
+
+- **Round names.** V1's test files were named by round: `bc2-editor/tests/v1.rs`, `bc2-levelwrite/tests/v1_rules.rs`
+  and `v1_stage.rs`. The rule had let them through, because its exception for project-format files (`v1.mapedit.json`
+  ... `v6`) matched any `v<n>`. The exception now covers only a name that is a version and nothing else. The three
+  files are now `problems_panel.rs`, `export_rules.rs` and `export_rules_stage.rs`; their mod lines,
+  `spec/transforms/validation.md` and `rules.json` were updated to match.
+  - V1's test functions are still named `v1_*` (the rule does not cover function names).
+  - The example `examples/v1_rules.rs` is outside the rule and was left (PR1c).
+  - NK2's `parity_nk2_file.py` lives under `rust/` and is outside the rule too.
+- **Test ids.** Neither round added a `run_tests.py` entry, so there were no new ids to give.
+- **Hash order.** The lint flagged 7 new loops:
+  - 2 reached an output and now run in a fixed order:
+    - the export's XVAL-GRP-1 check walked the staged level's entries in hash order, and its message lists the first
+      five problems; it now walks them in name order;
+    - `validate`'s vehicle-spawner findings (XVAL-PLACE-1) were grouped by team in a `HashMap`; it is now a
+      `BTreeMap`, so the Problems panel and `mapexport validate` list them the same way on every run.
+  - 5 in NK2's `graphfile` were reviewed and annotated: counts, set membership, and bucket lists only tested with
+    `any()`.
+- **JSON key order.** `parity_nk2_file.py`'s 5 unsorted JSON writes now sort their keys.
+- **`bc2-pyrt` in NK2.** `graphfile.rs` used `bc2_pyrt::fmt::round_to` for one thing: `round(v, 2)` of the dropped
+  order nodes' positions, which only reach the build's report. It now uses `bc2_navbuild::pymath::round_to`, the same
+  body. So `bc2-navbuild` links `bc2-pyrt` only with its `graphedit` feature, and `graphfile` (which the editor's
+  dependency closure includes) does not. For PY1 this is class 2: a report number.
+- **The atomic writer.** V1 and NK2 added no file writer in the Rust tools; V1's `v1_rules` example writes a scratch
+  measures file. NK2's `navbuild.write_file` (the Python build's path-data file) now writes through
+  `atomicio.write_bytes`: the same bytes, whole or not at all.
+- **The `bc2_native` census.** It now counts 240 exports in 39 files (NK2's `navkit_write_graphs`,
+  `navkit_shadow_islands` and the class `NavLinkScope`). 226 are called by a suite tool, 8 by OPFOR, and 14 by no tool (the same 14 as
+  before).
+- **The spec.** The merged spec's citations were remapped from the side each line came from (main's or PR1a's) to the
+  merged files, and `rules.json` was re-emitted: 769 rules.
 
 ## A1: the auto layout of a mode's gameplay, the site and path rules (2026-11-21, branch `a1`)
 
@@ -7800,7 +8266,7 @@ Squad Deathmatch's one value outside DICE's range is its vehicle count: the mode
 leaves the donor's vehicles to E4), so the layout has 0 where DICE's have 1 (L1-SD-006, a note); the auto layout only
 moves what the layer has.
 
-**The editor** (`rust/bc2-editor/tests/a1.rs`, game tier): Laguna Alta (`MP_003`) with Panama Canal's Conquest
+**The editor** (`rust/bc2-editor/tests/auto_layout_panel.rs`, game tier): Laguna Alta (`MP_003`) with Panama Canal's Conquest
 layer; the Gameplay workspace's Auto layout panel proposes on its worker (0.7-0.9 s, debug build), the views draw the
 proposal (rings and pins at the new flags, bases and M-COMs, the lines from where they stand, the spawn points, the
 new combat outlines) while the project is unchanged (its revision and log), Accept commits one move operation (the
@@ -7808,7 +8274,7 @@ History names it with the proposal's words), the Problems panel lists no error a
 object back. Screenshots (Dark, Light; `BC2_EDITOR_SHOTS`): `a1_proposal_dark.png`, `a1_proposal_light.png`,
 `a1_validation_dark.png`, `a1_validation_light.png`.
 
-**Synthetic** (`rust/bc2-levelwrite/tests/a1_layout.rs`, no game data): a 2,048 m terrain with a lake, a town of
+**Synthetic** (`rust/bc2-levelwrite/tests/auto_layout.rs`, no game data): a 2,048 m terrain with a lake, a town of
 400 buildings and a rock; the site rules raised by a layout broken once per case (a spawn point in the lake, one in the
 rock, a tank over the lake, one inside a building, one 1.5 m from a wall, a spawn point 100 m outside the area) and
 silent on the clean layout and on DICE's own objects where the base has them; the auto layout moves a Conquest layout

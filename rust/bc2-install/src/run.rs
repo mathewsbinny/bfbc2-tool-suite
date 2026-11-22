@@ -82,31 +82,15 @@ fn sha(p: &str) -> Result<String, Stop> {
     sha256::file(p).map_err(|e| format!("{p}: {e}"))
 }
 
-fn tmp_of(dst: &Path) -> PathBuf {
-    let mut t = dst.as_os_str().to_owned();
-    t.push(format!(".opfor-tmp-{}", std::process::id()));
-    PathBuf::from(t)
-}
-
-/// `cc.write_atomic`: a temporary file beside it, flushed, renamed over it (retried while another process holds it).
+/// `cc.write_atomic`: [`bc2_formats::atomic::write`] (a temporary file beside it, flushed, renamed over it, retried
+/// while another process holds it).
 fn write_atomic(dst: &Path, data: &[u8]) -> Result<(), Stop> {
-    let tmp = tmp_of(dst);
-    let r = (|| -> std::io::Result<()> {
-        let f = fs::File::create(&tmp)?;
-        std::io::Write::write_all(&mut &f, data)?;
-        f.sync_all()?;
-        drop(f);
-        bc2_formats::atomic::replace(&tmp, dst)
-    })();
-    if r.is_err() {
-        let _ = fs::remove_file(&tmp);
-    }
-    r.map_err(|e| format!("{}: {e}", dst.display()))
+    bc2_formats::atomic::write(dst, &[data]).map_err(|e| format!("{}: {}", dst.display(), e.io()))
 }
 
-/// `cc.copy_atomic`.
+/// `cc.copy_atomic`: the copy made beside `dst` ([`bc2_formats::atomic::temp_name`]), flushed, renamed over it.
 fn copy_atomic(src: &Path, dst: &Path) -> Result<(), Stop> {
-    let tmp = tmp_of(dst);
+    let tmp = bc2_formats::atomic::temp_name(dst);
     let r = (|| -> std::io::Result<()> {
         fs::copy(src, &tmp)?;
         fs::OpenOptions::new().write(true).open(&tmp)?.sync_all()?;

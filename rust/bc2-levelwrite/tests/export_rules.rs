@@ -1107,7 +1107,7 @@ fn each_edit_rule_has_a_broken_project_that_raises_it() {
         if ["XVAL-EDIT-1", "XVAL-EDIT-2", "XVAL-EDIT-3"].contains(&r.code.as_str()) {
             continue;
         }
-        // round A1's site and path rules read a site and a route graph: tests/a1_layout.rs breaks a layout for each
+        // round A1's site and path rules read a site and a route graph: tests/auto_layout.rs breaks a layout for each
         if ["XVAL-PLACE-2", "XVAL-PLACE-3", "XVAL-PLACE-4", "XVAL-PLACE-5"].contains(&r.code.as_str()) {
             continue;
         }

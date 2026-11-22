@@ -488,6 +488,10 @@ fn common(pc: &HashMap<String, String>, con: &HashMap<String, String>) -> Vec<St
 fn consoles(folders: &[String], kind: &str) -> PyResult<HashMap<String, String>> {
     let mut con = HashMap::new();
     for f in folders {
+        #[allow(
+            clippy::iter_over_hash_type,
+            reason = "each manifest names a file once; the first folder holding it wins either way"
+        )]
         for (rel, p) in manifest(f, kind)? {
             con.entry(rel).or_insert(p);
         }

@@ -460,7 +460,7 @@ pub fn run(py: &mut Py, cmdline: &[String]) -> PyResult<i32> {
         }
         return Ok(0);
     }
-    let img = PeImage::open(&find_exe(root, exe.as_deref())?)?;
+    let img = super::open_exe(&find_exe(root, exe.as_deref())?)?;
     let table = extern_table(&img)?;
     let cases = getter_cases(&img)?;
     if cmd == "table" {

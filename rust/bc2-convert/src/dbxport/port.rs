@@ -1977,6 +1977,10 @@ impl<'a> P<'a> {
             .filter_map(|g| by.get(g).filter(|&e| wired(e)).map(|e| (g.as_str(), e)))
             .collect();
         let mut control: Vec<(&str, i128)> = Vec::new();
+        #[allow(
+            clippy::iter_over_hash_type,
+            reason = "only the sorted, deduplicated values are used (ranked by value)"
+        )]
         for (&g, &e) in &holders {
             control.push((g, self.integer(ar.field(e, "WireIndex"))?));
         }

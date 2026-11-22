@@ -294,7 +294,8 @@ pub fn stacked_spawners(w: &LevelWriter, base: Option<&LevelWriter>) -> Vec<Find
             .filter_map(|e| bw.transform_at(e).map(|r| (guid_of(&bw.d, e), r[3])))
             .collect()
     });
-    let mut by_team: HashMap<&str, Vec<&Spawner>> = HashMap::new();
+    // teams in name order: the findings come out the same way on every run
+    let mut by_team: std::collections::BTreeMap<&str, Vec<&Spawner>> = std::collections::BTreeMap::new();
     for s in &spawners {
         by_team.entry(s.1.as_str()).or_default().push(s);
     }
