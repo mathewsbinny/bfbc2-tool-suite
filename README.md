@@ -809,7 +809,9 @@ The output is the same in both modes: one line per test as it finishes, the fail
 order), the total and exit code 1 if any failed. Every run keeps each passed test's duration and peak memory (all
 its processes, measured with a Windows job object) in `%LOCALAPPDATA%\bfbc2-tool-suite\test_times.json`; the next
 run starts the longest first, and `--plan` uses them (`--times <log or json>` for others; `tests\test_durations.json`
-seeds a PC that has none). `tests/test_runner_parallel.py` (quick) checks the scheduler itself. Each test's
+seeds a PC that has none). Both files, `NEEDS` and the CI skips are keyed by each entry's stable id (the first field
+of `run_tests.tests()`, shown by `--list`), not its display name, so a test can be renamed without losing them.
+`tests/test_runner_parallel.py` (quick) checks the scheduler itself. Each test's
 processes are in a job object that ends them when the runner ends, however it ends (Ctrl+C, a crash, killed), and
 the run's result lines and total go to the day log (`%LOCALAPPDATA%\bfbc2-tool-suite\logs\run-tests-<date>.log`).
 
