@@ -1,5 +1,5 @@
-r"""navlinks.py and navkit apply's graph edits, on a level's NavKit build and DICE's file (sp_004_b by default; no
-rebuild, so quick): a link joins two islands (the path test finds a route that had none), a one-way route
+r"""navkit apply's graph edits (navkit.graph_edits: the Rust core's since round NK1, navlinks.py retired), on a
+level's NavKit build and DICE's file (sp_004_b by default; no rebuild, so quick): a link joins two islands (the path test finds a route that had none), a one-way route
 edge goes one way only, removing an edge removes it (both ways by default), costs are the generator's, every
 node's first-edge index still follows the format's rule, an unchanged file stays byte-identical, a link no
 sector can hold is reported and not applied, and a DICE base gets its links on a copy.
@@ -24,7 +24,6 @@ import suite_paths  # noqa: E402
 suite_paths.use('core', 'navkit-tools', 'navkit')
 import hpdtool  # noqa: E402
 import navkit  # noqa: E402
-import navlinks  # noqa: E402
 from bfbc2core import navdata, navpath  # noqa: E402
 from bfbc2core import navtune as nt
 
@@ -62,8 +61,8 @@ def main(argv):
         raw = open(base, 'rb').read()
         f = hpdtool.parse(raw)
         check(first_edge_rule(f), 'the build follows the first-edge rule')
-        res = navlinks.apply(f, [], log=lambda *a: None)
-        check(res == [] and hpdtool.write(f) == raw, 'no graph edits: the file stays byte-identical')
+        same, res, summary = navkit.graph_edits(raw, [])
+        check(res == [] and same == raw and summary.startswith('  0 of 0'), 'no graph edits: the file stays byte-identical')
 
         nav = navdata.load(base)
         # two islands that come closest within a link's reach, inside one sector: the closest pair between the
@@ -86,13 +85,11 @@ def main(argv):
         t.add(nt.op('link-areas', a=far_a, b=far_b))                       # far apart: no sector holds both
         p = os.path.join(tmp, f'{lv}.navtune.json')
         t.save(p)
-        lines: list[str] = []                          # (navkit apply on a NavKit base rebuilds: see test_apply.py)
-        f2 = hpdtool.parse(raw)
-        results = navlinks.apply(f2, t.operations, log=lines.append)
-        check(results[0][1] and 'added' in results[0][2], f'the link is applied: {results[0][2]}')
-        check(not results[1][1] and 'no sector' in results[1][2], 'a link no sector can hold is reported, not applied')
+        data, lines, _summary = navkit.graph_edits(raw, t.operations)
+        f2 = hpdtool.parse(data)
+        check(lines[0].startswith('  link-areas') and 'added' in lines[0], f'the link is applied: {lines[0]}')
+        check(lines[1].startswith('  NOT APPLIED: ') and 'no sector' in lines[1], 'a link no sector can hold is reported, not applied')
         check(first_edge_rule(f2), 'after the link: the first-edge rule holds')
-        data = hpdtool.write(f2)
         check(hpdtool.write(hpdtool.parse(data)) == data, 'the linked file reads back exactly')
         out = os.path.join(tmp, 'linked.hpd')
         open(out, 'wb').write(data)
@@ -118,16 +115,12 @@ def main(argv):
             check(costs_ok(hpdtool.parse(open(dice_file, 'rb').read())), 'the same rule as every edge of DICE\'s file')
 
         # one-way, then removal
-        f3 = hpdtool.parse(data)
-        navlinks.apply(f3, [nt.op('route-edge', a=a, b=b, action='remove')], log=lambda *x: None)
         nav3_path = os.path.join(tmp, 'removed.hpd')
-        open(nav3_path, 'wb').write(hpdtool.write(f3))
+        open(nav3_path, 'wb').write(navkit.graph_edits(data, [nt.op('route-edge', a=a, b=b, action='remove')])[0])
         check(not navpath.route(navdata.load(nav3_path), a, b).found, 'removing the edge (both ways) cuts the link again')
-        f4 = hpdtool.parse(raw)
-        navlinks.apply(f4, [nt.op('route-edge', a=a, b=b, action='add', **cast(dict[str, Any], {'two-way': False}))],
-                       log=lambda *x: None)
         p4 = os.path.join(tmp, 'oneway.hpd')
-        open(p4, 'wb').write(hpdtool.write(f4))
+        one_way = nt.op('route-edge', a=a, b=b, action='add', **cast(dict[str, Any], {'two-way': False}))
+        open(p4, 'wb').write(navkit.graph_edits(raw, [one_way])[0])
         nav4 = navdata.load(p4)
         check(navpath.route(nav4, a, b).found and not navpath.route(nav4, b, a).found, 'a one-way route edge goes one way only')
 

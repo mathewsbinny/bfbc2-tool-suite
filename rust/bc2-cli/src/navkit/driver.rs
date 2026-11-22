@@ -150,7 +150,7 @@ fn made_for(trav: &str) -> PyResult<Option<String>> {
 /// `install(pr, lv, src=src)`: the built file (and its traversal annotations, when made for it) installed as
 /// `navkit:<lv>` in the game copy's install ledger (round DF2): what was there is kept there once, by its sha256, and
 /// `restore` gives it back whatever was installed over NavKit since.
-fn install(py: &mut Py, pr: &Project, lv: &str, src: Option<&str>) -> PyResult<()> {
+pub(super) fn install(py: &mut Py, pr: &Project, lv: &str, src: Option<&str>) -> PyResult<()> {
     let ours = match src.filter(|s| !s.is_empty()) {
         Some(s) => s.to_owned(),
         None => join2(&pr.out_dir(lv)?, "pathdata.hpd")?,
@@ -501,6 +501,7 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
     if args.iter().any(|a| a == "--no-detail") {
         return Err(Fail::Python); // navbuild's settings: the build's Python
     }
+    let install_flag = args.iter().any(|a| a == "--install");
     args.retain(|a| a != "--yes" && a != "--install");
     if args.is_empty() || matches!(args[0].as_str(), "-h" | "--help" | "help") {
         py.print(&pyfmt::docstring(include_str!(
@@ -525,8 +526,10 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         }
         let lv = pr.level(&args[1])?;
         match cmd {
-            // NavKit's generator (navbuild), the game (sample), file times (status): the Python's
-            "build" | "apply" | "all" | "sample" => Err(Fail::Python),
+            // NavKit's generator (navbuild), the game (sample): the Python's
+            "build" | "all" | "sample" => Err(Fail::Python),
+            // round NK1: a DICE base here, a NavKit base (a rebuild) the Python's
+            "apply" => super::apply::apply(py, &pr, &lv, opt("--navtune"), opt("--out"), install_flag).map(|()| 0),
             "status" => status(py, &pr, &lv).map(|()| 0),
             // unbuffered (navkitGUI: python -u, or PYTHONUNBUFFERED for this binary): each line out as it comes
             "prepare" if std::env::var("PYTHONUNBUFFERED").is_ok_and(|v| !v.is_empty()) => {

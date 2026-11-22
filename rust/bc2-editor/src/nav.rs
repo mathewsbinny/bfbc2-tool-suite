@@ -8,9 +8,9 @@
 //! Rust core's [`bc2_navbuild::navtune::dumps`]) is written from the log when the edits are saved or built.
 //!
 //! **Build, install, restore** run `bfbc2.exe navkit apply / install / restore` ([`navkit_command`]: the suite's
-//! binary, which hands `apply` to NavKit's Python; `python navkit.py` without it). Install and restore write only the
-//! level's AI path data in the game copy (`game\Output\win32\ai\levels\<lv>\infantry`): the editor shows what they will
-//! write first ([`install_plan`], [`restore_plan`]) and runs them only when that is confirmed.
+//! binary: `apply` on a DICE base in Rust since round NK1, on a NavKit base - a rebuild - NavKit's Python; `python
+//! navkit.py` without it). Install and restore write only the level's AI path data in the game copy
+//! (`game\Output\win32\ai\levels\<lv>\infantry`): the editor shows what they will write first ([`install_plan`], [`restore_plan`]) and runs them only when that is confirmed.
 
 use std::collections::{BTreeSet, HashMap};
 use std::io::{BufRead, BufReader};
@@ -371,7 +371,8 @@ fn suite() -> PathBuf {
 }
 
 /// NavKit's command line: `bin\bfbc2.exe navkit` when the binary is there (round O4: it hands the steps whose core is
-/// still Python, such as `apply`, to `navkit.py`), else `python navkit.py` (`BFBC2_CLI_PYTHON=1`: always the Python).
+/// still Python, such as `build` and `apply` on a NavKit base, to `navkit.py`), else `python navkit.py`
+/// (`BFBC2_CLI_PYTHON=1`: always the Python).
 #[must_use]
 pub fn navkit_command() -> Vec<String> {
     let exe = suite().join("bin").join("bfbc2.exe");
