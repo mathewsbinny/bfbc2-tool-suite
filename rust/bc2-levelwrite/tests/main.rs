@@ -27,6 +27,8 @@ mod groups_sg1;
 mod op1_journal;
 mod project_versions;
 mod real_levels;
+mod v1_rules;
+mod v1_stage;
 mod vw2;
 
 /// At most this many of the binary's tests run at the same time.

@@ -4,6 +4,8 @@
 //! ```text
 //! mapexport build   <project.mapedit.json> <export.json> --game <game folder> --out <stage folder>
 //! mapexport check   <stage folder> --game <game folder>
+//! mapexport validate <project.mapedit.json> --game <game folder>
+//! mapexport rules
 //! mapexport names   <export.json> --game <game folder> [--project <project.mapedit.json>]
 //! mapexport startup <startup-00.fbrb> --out <file> --work <temp folder> [--add <LEVEL> <description.dbx>]...
 //!                   [--remove <LEVEL>]...
@@ -22,6 +24,11 @@
 //! name and the on-screen names per language, against the game copy (stock levels, other projects' exports, the
 //! localisation's keys and letters); `build` refuses names that fail and `check` repeats the rules on the stage.
 //!
+//! `validate` checks a project as the editor's Problems panel does (round V1, `bc2_levelwrite::validate`): the
+//! export's rules of the edit phase and DICE's placement tendencies (round L1), each finding with its rule's code and
+//! severity; exit code 1 when one is an error. `rules` lists the rule registry (`bc2_levelwrite::rules`): code,
+//! severity, where it is checked, title, specification rules, round. Every `check` line names its rule's code.
+//!
 //! Exit code 0, or 1 with the reason on standard error (a failed check: 1, the checks printed).
 
 use std::path::PathBuf;
@@ -29,6 +36,7 @@ use std::process::ExitCode;
 
 use bc2_levelwrite::MapProject;
 use bc2_levelwrite::export::{self, ExportSpec, Game};
+use bc2_levelwrite::rules::Severity;
 
 fn value(args: &[String], key: &str) -> Option<PathBuf> {
     args.iter()
@@ -105,11 +113,35 @@ fn run(args: &[String]) -> Result<bool, String> {
         Some("check") => {
             let stage = PathBuf::from(args.get(1).ok_or("check <stage folder> --game <folder>")?);
             let r = export::check(&game()?, &stage).map_err(|e| e.to_string())?;
-            for (ok, what) in &r.checks {
-                say(&format!("{} {what}", if *ok { "ok    " } else { "FAILED" }));
+            for (code, ok, what) in r.lines() {
+                say(&export::CheckReport::line(code, ok, what));
             }
             say(if r.ok() { "check: ok" } else { "check: FAILED" });
             Ok(r.ok())
+        }
+        Some("validate") => {
+            let p = args.get(1).ok_or("validate <project> --game <folder>")?;
+            let project = MapProject::load(&PathBuf::from(p)).map_err(|e| format!("{p}: {e}"))?;
+            let found = bc2_levelwrite::validate::project(&game()?, &project).map_err(|e| e.to_string())?;
+            for f in &found {
+                say(&f.line());
+            }
+            let n = |s: Severity| found.iter().filter(|f| f.severity == s).count();
+            say(&format!(
+                "validate: {} error(s), {} warning(s), {} note(s)",
+                n(Severity::Error),
+                n(Severity::Warning),
+                n(Severity::Note)
+            ));
+            Ok(n(Severity::Error) == 0)
+        }
+        Some("rules") => {
+            for l in bc2_levelwrite::rules::table() {
+                say(&l);
+            }
+            let [n, w, e] = bc2_levelwrite::rules::counts();
+            say(&format!("{} rules: {e} errors, {w} warnings, {n} notes", n + w + e));
+            Ok(true)
         }
         Some("startup") => {
             let src = PathBuf::from(
@@ -200,7 +232,10 @@ fn run(args: &[String]) -> Result<bool, String> {
             Ok(true)
         }
         _ => {
-            Err("mapexport build | check | names | startup | overlay | awards (see the source's documentation)".into())
+            Err(
+                "mapexport build | check | validate | rules | names | startup | overlay | awards (see the source's documentation)"
+                    .into(),
+            )
         }
     }
 }

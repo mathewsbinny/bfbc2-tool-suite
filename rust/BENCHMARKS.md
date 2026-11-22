@@ -7573,3 +7573,107 @@ The build's Python, in an order that keeps each stage self-contained and provabl
    `navvehicle.stage_on_grid` (vehicle path data runs `stage`), `navwater_mesh`, `navsample_offline`, `hpdcheck`,
    `bfbc2-navigation-studio/overlay.py`, `rust/bench_navkit.py`. Retiring `navkit.py build` / `apply` removes
    command-line paths: a VERSION bump then (RELEASING.md).
+
+## V1: the export's compatibility and validation layer (2026-11-21, branch `v1`)
+
+Round V1 (ROADMAP "V1, L1, A1"; audit AU1 A9, G-N5 to G-N7, G-N19, G-N39 to G-N41, R22, R33, R35, RISK-3, RISK-4,
+RISK-9): every way an exported level can fail in the game, or be refused by the export, as one rule registry, checked
+live in the editor, by the build and by the stage's check; and round L1's study of DICE's stock maps turned into
+placement warnings.
+
+**The registry** (`bc2_levelwrite::rules`, `mapexport rules`, `spec/transforms/validation.md`): 108 rules - 59 of
+the export's own (`XVAL-<section>-<n>`) and L1's 49 placement rules (`L1-CQ-002` ...; L1-HT-001 left out: it needs
+the terrain's height field). By severity: **51 errors, 55 warnings, 2 notes** (the XVAL rules 51 / 6 / 2; every
+placement rule a warning, its stock-band findings notes). By where they are checked (a rule may be in several):
+live in the editor 19 (and the 49 placement rules), by `mapexport build` 18, by `mapexport check` 44, by the DBX inspector 5.
+
+Gathered under codes: every `mapexport check` line (each line now prints its code; `CheckReport.codes`), the
+build's refusals (their words start with the code), EX1's name rules (`names::Problem.code`, XVAL-NAME-1 to 7; the
+stage's XVAL-NAME-8 / 9), XF1's cull-shape and cull-slot lines (XVAL-CULL-2 / 3) and shader line (XVAL-SHDR-1),
+QW2's streamed-wave check (XVAL-SND-1), OP1's typed Problems (`ProblemCode::rule`: XVAL-EDIT-1 to 3), GR4's DBX
+inspector Level > Check (`rules::dbx_check_code`: XVAL-OBJ-1 to 3, XVAL-REF-1 / 3 / 4, XVAL-CULL-5 / 6).
+
+New checks, from the crash-risk audits and the memory notes:
+
+| rule | what | where | from |
+|---|---|---|---|
+| XVAL-SND-2 | a deleted marker in a staged bundle hiding a sound (a null wave: 0xFF2AC2, SND-NULL-1) | check | AU1 RISK-4 |
+| XVAL-TERR-1 | the staged terrain bundle is the base's own, entry for entry (patch shaders with their own mask atlas: TERR-VT-5, black tiled cells) | check | terrain patch donor rules, AU1 RISK-9 |
+| XVAL-CONS-1 | no Xbox 360 texture (big-endian header) or Havok packfile (layout rules 04 00 00 01) in a stage | check | console resource formats |
+| XVAL-SHDR-2 | the 40 km/h road sign never drawn with another level's shader entries (0x98BD6E, OPFOR's Isla Inocentes test) | live, check | console resource formats (the road-sign crash) |
+| XVAL-GRP-1 | an edited static group keeps DICE's layout (SG1's per-group lines: members, leaves, cumulative parts and network ids, physics) and its kinds: none left without a member, none new; SG1's refusal of the last member of a kind is a GRP-1 refusal (0xAB4E58, LEVEL-MG-4) | build, check | AU1 RISK-3, SG1 |
+| XVAL-REG-4 | a note on every stage: install on the server and every client (CSUM-CHK-4) | check | new-level registration |
+| XVAL-CULL-4 | an object moved or placed beyond +-2048 m refused in words (before: `culltree::encode` failed mid-build) | live, build | AU1 G-N39 / G-N40 |
+| XVAL-MODE-4 | the donor's partition changed since the mode was chosen (before: a report note only) | live, build | AU1 G-N7 |
+| XVAL-EDIT-4 | the partition does not parse (before: silent) | live | AU1 G-N19 |
+| XVAL-PLACE-1 | two vehicle spawners of one team within 1 m (pairs the base already has are DICE's) | live | AU1 A9 |
+| XVAL-OBJ-1 to 3 | GR4's Level > Check live: an empty object-list entry, a world object without physics, an object not listed | live | GR4 |
+
+**Placement** (`bc2_levelwrite::placement`): L1's measurements ported from `l1_measure.py` (the same metric names
+and definitions: capture zones, spawn points, combat-area unions on L1's raster, margins to the union's boundary
+sampled every 2 m, the Rush stages as `modelayer::rush_play` plays them). On the 64 stock levels of `maps.ini`
+(Conquest, Rush, Squad Rush, Squad Deathmatch; BFBC2, BFBC1, Vietnam, WW2), against `l1_measure.py`'s
+`l1_measurements.json` (8,771 records, 33.8 s): **3,539 of 3,539 values the rules read equal to 0.1** (the 67
+`cq.flag.prominence` values are L1-HT-001's, not ported). Each finding quotes the stock range, the levels and the
+rule's ID: "Flag A is 58 m from the nearest other flag; DICE keeps flags 58-450 m apart (median 121 m).
+[L1-CQ-002: stock 58 to 450.4, 16 levels]".
+
+| measure | value |
+|---|---|
+| the 64 stock levels: errors / warnings / notes | 0 / 0 / 29 |
+| the notes, per rule | CQ-002 8, CQ-003 3, CQ-004 1, CQ-005 2, RU-003 4, RU-004 1, RU-004s 1, RU-008 2, RU-011 4, RU-012 2, RU-013 1: exactly L1's `info_flagged` lists (`l1_rules_check.md`) |
+| DICE's own levels, the rules that report only edits (raw) | XVAL-CULL-4: 37 objects beyond +-2048 m on stock levels (sky domes, backdrops); XVAL-PLACE-1: 1 stacked pair; the DBX check: 0 |
+| the 64 levels, each read, validated and measured, release (`examples/v1_rules.rs`) | 23.8 s (160-500 ms a level, most of it reading the partition) |
+| L1's measurements of a level, release | 2-26 ms |
+| DbxEditGUI's Level > Check of a partition (written, parsed, checked), release | 30-102 ms |
+
+DICE's levels hold objects beyond the cull tree's range and one stacked pair of vehicle spawners, so those two rules
+(and the DBX check, whose stock findings would be DICE's) report only what the edits bring: objects the edits moved
+or made, pairs the base does not have, findings the base's own check does not have.
+
+**The six export canaries** (round VW2's `examples/vw2_canaries.rs`, built again on this branch: Arica at dawn,
+Atacama with Arica's sky, with MP_008CQ's fog, at night, after rain, Wake Island with Iwo Jima's state; each also
+built as its baseline): every one passes `mapexport check`, 50-52 lines under 36 rules, 4.1-7.3 s a check (release);
+the six new lines (XVAL-REG-4's note, XVAL-SND-2, XVAL-TERR-1, XVAL-CONS-1, XVAL-GRP-1, XVAL-SHDR-2) pass on all.
+`mapexport validate` on their six projects: no error and no warning on any; two notes - the
+Arica dawn canary's first-guess Conquest layer has two flags 31 m apart in height (L1-HT-002: DICE's within 24 m),
+and Wake Island's HQs are 65 m apart in their nearest-flag distance (L1-CQ-005; Wake Island itself is one of L1's
+two stock outliers at 94 m). `mapexport rules`: 108 rules, 51 errors, 55 warnings, 2 notes.
+
+**Synthetic broken projects** (`tests/v1_rules.rs`, no game data): small synthetic levels built element by element
+(a Conquest layout of two HQs, three flags, spawners with alternative points, a combat area of `Next`-linked
+outline points, ticket counters; a Rush layout of three stages of two M-COMs with their counters' Enable / Disable
+events, growing attackers' areas and per-stage defenders' areas, a life counter; Squad Rush; a Squad Deathmatch
+layout of four squads sharing a grid of 20 spawn points, a vehicle, kill counters). The four clean layouts raise
+nothing and are recognised as their mode; **49 of 49 placement rules** each raised by a layout broken one way, at
+their severity, with their citation; **every edit-phase rule** but the log's three raised by a broken project (a
+paint stroke, Onslaught chosen, a layer without flags with the donor changed, five names of the wrong form, two
+names the game already has, a prop 3 km out, the 40 km/h sign, two stacked spawners, a null object-list entry, a
+model group with a null `PhysicsData`, an unlisted terrain entity, a dangling local reference). Game tier
+(`tests/v1_stage.rs`): the build refuses XVAL-REG-3, XVAL-MODE-1, XVAL-EDIT-5, XVAL-CULL-4 and XVAL-EDIT-2 with the
+code first, and `validate::project` gives XVAL-EDIT-1 / 2 / 3; a staged canary (Atacama's Rush as BFBC2 Conquest,
+24.9 s) passes its 43 lines (35 rules), and a copy broken once per rule (a sha1, an entry count, a manifest line, a
+missing target, the menus' list, a name key, the donor, the sign's merged entries, streamed wave data, a deleted
+sound marker, a console texture, a terrain entry) fails exactly those 12 rules, checked in 5.5 s. A test keeps
+`validation.md` and the registry the same.
+
+**The editor** (`rust/bc2-editor/tests/v1.rs`, game tier): E3d's canary (Atacama's Rush as BFBC2 Conquest) opened
+as a project raises nothing; two edits through the document - flag B moved 20 m from flag A, a prop moved 3 km out -
+and the panel lists 5 rows - 1 error (XVAL-CULL-4), 2 warnings (L1-CQ-002 for the two flags now 20 m apart) and 2
+notes - errors first, each naming objects the scene has; an undo takes the error away. Live validation after an edit: **65-89 ms**
+(the dev profile, optimised; the base's own DBX check and the donor read once). Before `LevelWriter::transform_at`
+(V1: a transform by node; `find` walks every instance) the same validation took 3.3-4.3 s, the placement and range
+loops looking each object up by guid. Screenshots (Dark, Light): `v1_problems_dark.png`, `v1_problems_light.png`
+(`BC2_EDITOR_SHOTS`).
+
+Left for A1 and later: engine limits (instances, spawns, event connections: RE first, AU1 G-N39), spawns over water
+or in rocks and a vehicle spawner's room and domain (G-N44 / G-N45: the scene's collision and water are there; no
+stock statistic yet), the exported level's memory (R34), Xbox 360 meshes in a stage (their layout is not detected),
+the WW2 profile's kit rule on placements (G-N41), L1-HT-001. A1's auto layout can use `placement::measure` as its
+objective and `l1_a1_params.json` as its start.
+
+**After merging SG1 and OR1** (main ddaf6d6): SG1's member-edit exports (`tests/groups_sg1.rs`, Wake Island as WW2
+Conquest and MP_005 as Conquest, a member deleted, one moved, two added) pass every check line, their 5 XVAL-GRP-1
+lines each, and `validate::project` raises no error (Wake: 1 finding below error, MP_005: none; `validate::project`
+now reads the base's group files as the export does). Deleting every member of a group's smallest kind is refused as
+`XVAL-GRP-1: ...` on both (Wake's heattank, MP_005's invwall_nohealth; `rules::apply_code`).

@@ -29,8 +29,7 @@ import time
 from collections import Counter
 
 import numpy as np
-
-from l1_geom import Grid, boundary_samples, box_of, heightfield, inside_union, shoelace, signed_margin, xz
+from l1_geom import Grid, boundary_samples, box_of, heightfield, shoelace, signed_margin, xz
 from l1_level import Level, load, polygons
 from l1_levels import levels
 from l1_read import GAME

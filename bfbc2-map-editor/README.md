@@ -108,6 +108,13 @@ comes from, recorded in the project; the terrain itself is generated in a later 
   operation with who and when, new objects named by UUIDv5 guids) - never game files; the base map is never changed.
   A project whose base level has changed (a game patch, a rebuilt WW2 level) opens with the operations naming
   objects it no longer has listed under Problems; none is dropped.
+- **Problems** (round V1): after every change the project is checked against the export's rules (`mapexport
+  rules` lists them; `spec/transforms/validation.md`) and DICE's placement tendencies from the stock maps - flag
+  spacing, HQ distances, capture zones, spawns, combat-area margins, Rush stage spacing, Squad Deathmatch spawns -
+  errors first, then warnings and notes, each with its rule's code (hover for its message and spec citations) and
+  a **Go to** link that selects the object and frames it. A placement finding quotes DICE's range ("Stage 3 is 40 m
+  from stage 2; DICE's Rush stages are 93-316 m apart"); it is advice, never an error. `mapexport validate
+  <project> --game <game>` prints the same list.
 - **Select:** click (with its group), Ctrl or Shift + click adds or removes, drag a box on empty ground (Select tool,
   or any tool off the gizmo). Alt + left drag orbits (pans in the top / front / side views) while editing.
 - **Gizmo** (toolbar at the top of each view; **Q** select, **W** move, **E** rotate, **R** ruler, **X** world or

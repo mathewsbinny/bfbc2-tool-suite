@@ -89,6 +89,18 @@ pub enum ProblemCode {
     NotApplied,
 }
 
+impl ProblemCode {
+    /// Its rule in the export's registry (round V1, `bc2_levelwrite::rules`).
+    #[must_use]
+    pub fn rule(self) -> &'static str {
+        match self {
+            Self::BaseChanged => "XVAL-EDIT-1",
+            Self::MissingObject => "XVAL-EDIT-2",
+            Self::NotApplied => "XVAL-EDIT-3",
+        }
+    }
+}
+
 /// A problem of the open project (round OP1: typed, for the Problems panel and, later, live validation).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Problem {
