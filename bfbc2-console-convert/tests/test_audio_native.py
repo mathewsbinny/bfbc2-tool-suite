@@ -270,7 +270,7 @@ def both_ways(item: tuple[bytes, str, dict[int, bytes] | None], ff: bool) -> tup
     got = outcome(audio.convert, *item)
     if not ff:
         return got, None
-    return got, outcome(lambda *a: audio.convert_reference(*a, ffmpeg=True), *item) == got
+    return got, outcome(lambda b, s, st: audio.convert_reference(b, s, st, ffmpeg=True), *item) == got
 
 
 def item_sha(item: tuple[bytes, str, dict[int, bytes] | None]) -> str:

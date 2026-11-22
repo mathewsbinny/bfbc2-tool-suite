@@ -10260,3 +10260,111 @@ goldens and the byte-identical regression below. `parity_nk5_build.py` and `benc
   in chunks).
 - `navislands.py` and `navdetail.py` stay for their own callers (prune, features for the tests); the build reads the
   Rust defaults of their settings, so their module names no longer change a build.
+
+## PR1b-1c: sounds decoded in Rust, content keys, the export's one walk (2026-11-22, branch `pr1b1c`)
+
+What PR1b-1-rest left (above, "What is left"): items 1, 3 and 4 done, item 2 not started (left, below).
+
+### Item 1: an XMA2 decoder (`rust/bc2-xma`)
+
+FFmpeg 9.0's `xma2` decoder ported to Rust, operation for operation: the WAV demuxer's packets (2,048-byte XMA
+packets grouped by `ff_pcm_default_packet_size`, so a damaged packet takes the rest of its demuxer packet with it,
+as in FFmpeg), the XMA wrapper (`xma_decode_packet`: its sample FIFO, the 64 samples `decode.c` skips, the trims at
+the end), `wmaprodec.c` (tiles, channel transform, scale factors, the vector and run-level coefficient codes, the
+frame buffer with its stale bytes past a frame, the safe bit reader's clamping), FFmpeg's C inverse MDCT
+(`ff_tx_mdct_inv_float_c` over the split-radix `fft{n}_ns` codelets, same tables, same operation order, no fused
+multiply-adds), the sine windows, and libswresample's float to 16-bit conversion. The Huffman tables are generated
+from `wmaprodata.h`. Being a translation of LGPL code, the crate is under FFmpeg's licence (`LGPL-2.1-or-later`,
+`rust/bc2-xma/README.md`), not the suite's MIT.
+
+**Against ffmpeg**, every XMA stream of the two sound sets (BFBC2's unpacked Xbox bundles: 1,847 streams;
+Battlefield 1943's Waves with their streamed segments: 2,810), 1,039,009,766 samples, through
+`rust/bc2-xma/examples/xma_compare.rs` (ffmpeg's outputs kept in a scratch folder, deleted after):
+
+| reference | streams identical | samples that differ | largest difference |
+|---|---:|---:|---:|
+| `ffmpeg -cpuflags 0` (its C code) | 4,657 of 4,657 | 0 | 0 |
+| `ffmpeg` (its default run: SIMD transforms on this CPU) | 364 of 4,657 | 169,447 (0.016 %) | 1 |
+
+ffmpeg is not deterministic across machines: its default run picks AVX2 / FMA FFT codelets by the CPU, which add the
+same terms in another order; on a 47-stream sample its own default and C-path outputs differed on 1,069 of 7.8
+million samples, each by 1. The C path is the reference (spec rule XMA-DEC-1, coordinator's ruling 2026-11-22): the
+game decodes in the Xbox 360's XMA hardware, which no tool reproduces, and a difference of one in the last bit is far
+below the error of EA-XAS's 4-bit ADPCM that the samples are encoded into.
+
+**Whole conversions** (every Wave of both sets; `test_audio_native.py --game` checks the same with ffmpeg present): `audio.convert` (the Rust core, the
+in-process decoder) against `audio.convert_reference(..., ffmpeg=True)` (the Python, ffmpeg's C path): 4,430 PC Waves
+byte for byte the same, 34,133 Waves the same `AudioError` (streamed stubs without their stream, codecs other than
+EA-XMA). Against the conversions recorded with ffmpeg's default run (`tests\audio_golden.json`), 1,104 of the 4,430
+Waves now give other bytes (each where a sample moved by one changed the encoder's choice somewhere); the others are
+the same bytes. The recording's "now" answers hold the 1,104.
+
+**Speed:** the 1.04 billion samples decode in 18.2 s on one thread (57 M samples/s), where one ffmpeg process per
+stream took about 2 s of process start and pipes each.
+
+**Where it runs:** `bc2_convert::wavport::decode_xma_part` (the EA framing's `convert` / `decode`), `bc2_native`'s
+`audio_convert` / `audio_decode` (their `ffmpeg` argument and the `'ffmpeg'` answer gone) and `audio_xma_decode`
+(new: `audio.xma_decode`), `bfbc2.exe audio` (its ffmpeg lookup and pipes gone). `audio.py` runs no ffmpeg unless
+asked: `decode_xma` / `decode_reference` / `convert_reference` take `ffmpeg=True` for the tests' reference, and
+`ffmpeg_decode` runs ffmpeg with `-cpuflags 0`. A stream that decodes to nothing is silence padded to the header's
+count (the ffmpeg run raised an `AudioError` for an empty output). `AudioError.what_to_do` no longer says ffmpeg.
+
+**The recordings:** `core/tests/cli_o3_audio_golden.json` (182 command lines) recorded again from `audio.py` with no
+ffmpeg on `PATH` and no `$FFMPEG` (GitHub's runner has none; 60 of the 182 had needed ffmpeg); the four ffmpeg cases
+renamed (`no ffmpeg on PATH`, `FFMPEG names nothing` ...): they convert now. `test_audio_native.py`'s game recording
+("now" answers) recorded again from the new decoder after the proof above; with ffmpeg present its `--game` also
+checks each conversion against `convert_reference` on ffmpeg's C path.
+
+### Item 3: content keys and the last pickles under the budget
+
+| cache | key before | key now |
+|---|---|---|
+| `culltree` (reference rows; `culltreelib._RowCache`, `bc2_levelwrite::cullcache`) | level and tree file: size, `st_mtime_ns` | size and the first 128 bits of the file's SHA-256 (a signed little-endian int: the pickle's shape unchanged), `CACHE_VERSION` 1 -> 2; the Python (`hashlib`) and `bfbc2.exe culltree` (`bc2_gamefs::sha256`, SHA-NI) compute the same key and share the entries |
+| `shadercover` (`shaderdb.level_cover_prefixes`) | `(COVER_VERSION, path, size, st_mtime_ns, dx)` | the file named by `(COVER_VERSION, path, dx)`, its key `(COVER_VERSION, SHA-256 of the bundle, dx)` (hashed once per process per file), `COVER_VERSION` 1 -> 2 |
+| `hlsl` (`pcbuild.compile_hlsl`) | already by content since E3d: SHA-256 of the source, entry, profile, defines, name, flags and the compiler DLL's bytes | unchanged |
+| `collision` (the mesh-alias cache, `bc2_scene::alias_cache`) | each XML file's and its `.dbx`'s size and time | unchanged, decided: the cache exists to index an unchanged level without opening its thousands of small XML files; a content key reads every file, which is the whole cost it saves (the reference it stores is one field of the file). A stamp miss only reads the file again, never a wrong answer kept past a change of size or time |
+
+SHA-256 rather than BLAKE3 (the plan's): the Python reads and writes both keyed caches, `hashlib` has SHA-256 (no
+new dependency, no native module needed for the key), and `bc2_gamefs::sha256` already runs it on the SHA
+extensions at about 2 GB/s.
+
+Under the budget now (`caches.PROJECT_CACHES`, `budget::SPECS`; listed, pruned, cleared, counted in
+`BFBC2_CACHE_TOTAL_GB`): `dbxcatalogue` (`work\tools_out\dbx_catalogue.pkl`, 256 MB; `dbxcatalogue.load` marks it used
+and prunes after writing it), `ww2qa` (Project OPFOR's `work\ww2\_qa\cache`, 4,096 MB: `qa_checks.py`'s stock and
+bundle pickles, keyed by bundle stamps, so every changed bundle left an orphan behind; 2.1 GB in 148 files) and
+`ww2install` (`work\ww2\install_index.pkl`, `install_templates.pkl`, `install_dbnames.pkl`, 256 MB). OPFOR's two
+scripts mark a read entry used and prune after a write (OPFOR commit below); its rebuild hashes leave `_qa` and the
+files at `work\ww2`'s top out, so the pruning's markers there touch no oracle file. The caches' help, its argparse
+recordings and `argspecs.rs` changed by the three names (`cli_o3_caches_golden.json`, `argfmt_golden.json`,
+`abbrev_golden.json` recorded again from the Python; `bfbc2.exe` matches them).
+
+### Item 4 (ALG-5): the export's reach and closure walked once
+
+`mapexport build`'s closure (round E3d: what the level and its base's own bundles name, copied in when hidden or
+missing) and its shader reach (round XF1: every mesh the level can draw) each walked the level's partitions: the
+reach read and parsed again every partition the closure had walked. The closure now parses each partition once and
+keeps what the reach takes of it (`shaders::Memo`: the partitions it names, the mesh it gives entries); the reach
+reads and parses only what the closure does not walk (the shared bundles' partitions). The reach's steps, order and
+first-namer rule are unchanged, so its answer is the same map; a name the level's own entries hold twice is left
+out of the memo (the reach takes the last, the closure walks both).
+
+**Proof:** the cross-set export canary (`rust\bc2-levelwrite\examples\export_canary.rs`), `mapexport build` with
+`BFBC2_FBRB_CACHE=0`, main's (8ce3cd9, built in a scratch worktree) against this branch's: all five bundles,
+`closure.txt`, `registration.txt`, the description partition and `vo` byte for byte the same; `stage.json` and
+`report.txt` differ only in their timing lines. The closure walked 1,322 partitions of the level's own and its base's
+bundles (and copied 1,673 entries in), which the reach now takes from the memo; the reach's time is spent on the
+shared bundles' partitions and the three databases' merges ("shaders: the reach and the merges" 16.3 s before, 16.4 s
+after, within the run-to-run spread on a PC with other rounds running), so the gain here is the reads and parses
+saved, not the step's time.
+
+### What is left (PR1b-1d)
+
+- **Item 2, not started**: `dbxparity.py` / `portparity.py` ported behind `bfbc2 dbxparity|portparity` (today their
+  command lines are Rust and a run is handed to the Python; their O3 recordings pass, 102 of 102). A port needs:
+  DBX values printed as `dbx.value` prints them over the element tree `dbx.parse` gives, and the BF1943 index
+  (compare); for `--predict`, the Rust `dbxport` with fair pools, `BoneTables.ske01` and the catalogue's class
+  defaults swapped per partition (`fair_catalogue`); for `portparity`, meshport's whole `Porter` (only its index and
+  search are Rust), `mesh.parse`, `meshset.parse` and texture decoding. Each is proved by its report on the real
+  files against the Python's.
+- **The collision alias cache** stays keyed by file stamps (decided above); the culltree folder listing
+  (`list-<sha1>.pkl`, bfbc2.exe's own) likewise: it exists to skip reading files whose size and time are unchanged.
