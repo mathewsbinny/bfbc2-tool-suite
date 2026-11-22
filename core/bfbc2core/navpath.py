@@ -15,7 +15,10 @@ The search runs in the suite's Rust core (round E3o: bc2_native.PathGraph, one p
 on 2026-11-18 (round R1; the answers recorded in tests/navdata_golden.json) and the module is required. The estimate
 is the straight-line distance as sqrt(fma(z, z, fma(y, y, x * x))): np.linalg.norm's bits on the PC the routes were
 recorded on (NumPy 2 on OpenBLAS, which fuses the multiply-adds; 200,000 random vectors), so a route's ties break as
-they did there - now on every PC. closest_between's answer is kept per island pair and NavData.
+they did there - now on every PC. Route.straight is that same formula (distance(); round CI1: it was
+np.linalg.norm, a BLAS dot whose last bits follow the CPU's OpenBLAS kernel - SkylakeX on the recording PC, Haswell /
+Zen on GitHub's runner, where half the recorded routes differed in it). closest_between's answer is kept per island
+pair and NavData.
 """
 import weakref
 from collections.abc import Sequence
@@ -83,6 +86,13 @@ def _native() -> Any:
     return native.require('the path test (navpath.route)', 'PathGraph')
 
 
+def distance(v: Sequence[float] | np.ndarray) -> float:
+    """The length of the 3-vector v by the estimate's formula (NORM, in the core): np.linalg.norm's bits on the PC
+    the routes were recorded on, the same on every machine (round CI1)."""
+    b = np.ascontiguousarray(np.asarray(v, float).reshape(3), '<f8').tobytes()
+    return float(np.frombuffer(_native().PathGraph.norms(b, NORM), '<f8')[0])
+
+
 def _per_nav(nav: navdata.NavData) -> dict[str, Any]:
     """This NavData's entry (dropped with it), made at the first use."""
     k = id(nav)
@@ -141,7 +151,7 @@ def route(nav: navdata.NavData, start: Sequence[float] | np.ndarray, end: Sequen
     """The route from start to end: A* over the directed edges and their stored costs from the start's node, the
     estimate the straight distance to the end's node; nodes compared as (f, g, node), a node expanded once."""
     start, end = np.asarray(start, float), np.asarray(end, float)
-    r = Route(False, straight=float(np.linalg.norm(end - start)))
+    r = Route(False, straight=distance(end - start))
     r.start_node, r.start_join = join(nav, start)
     r.end_node, r.end_join = join(nav, end)
     if r.start_node is None or r.end_node is None:

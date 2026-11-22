@@ -1559,7 +1559,7 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "library",
-   "lines": 239,
+   "lines": 231,
    "note": "tiled / packed / layout references kept by ruling: texqa's independent decoder",
    "path": "bfbc2-console-convert/texture.py",
    "retiring": "PR1b-1c",
@@ -2775,7 +2775,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 140,
+   "lines": 148,
    "note": "the path test over the route graph, in Rust",
    "path": "core/bfbc2core/navpath.py",
    "retiring": "PR1b-2",
@@ -3183,7 +3183,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 85,
+   "lines": 105,
    "note": "Round O5's command lines in Rust (rust\\bc2-cli, bfbc2.exe: the shader tools' command lines - shaderdb, rend...",
    "path": "core/tests/test_cli_o5.py",
    "retiring": "Tests in Rust",
@@ -4167,7 +4167,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 651,
+   "lines": 652,
    "note": "Round E3o (rust/BENCHMARKS.md, \"E3o\"): each faster path against the code it replaced, compared exactly (eve...",
    "path": "tests/test_e3o_native.py",
    "retiring": "Tests in Rust",
@@ -4359,7 +4359,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 549,
+   "lines": 559,
    "note": "The Rust core's own checks (rust\\): formatting, clippy with warnings as errors, and every crate's tests.",
    "path": "tests/test_rust.py",
    "retiring": "Tests in Rust",
@@ -4425,7 +4425,7 @@
  "totals": {
   "all": {
    "files": 363,
-   "lines": 106634
+   "lines": 106665
   },
   "by_folder": {
    "(root)": {
@@ -4485,14 +4485,14 @@
    },
    "bfbc2-console-convert": {
     "files": 24,
-    "lines": 6531,
+    "lines": 6523,
     "live": 0,
     "partly": 1812,
     "ported": 36,
     "retired-pending": 0,
     "stays": 0,
     "test": 3429,
-    "twin": 1254
+    "twin": 1246
    },
    "bfbc2-console-readers": {
     "files": 5,
@@ -4617,13 +4617,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19834,
+    "lines": 19862,
     "live": 753,
     "partly": 0,
-    "ported": 1897,
+    "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14770,
+    "test": 14790,
     "twin": 2414
    },
    "design": {
@@ -4661,13 +4661,13 @@
    },
    "tests": {
     "files": 29,
-    "lines": 7682,
+    "lines": 7693,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7682,
+    "test": 7693,
     "twin": 0
    }
   },
@@ -4682,7 +4682,7 @@
    },
    "ported": {
     "files": 21,
-    "lines": 2572
+    "lines": 2580
    },
    "retired-pending": {
     "files": 3,
@@ -4694,11 +4694,11 @@
    },
    "test": {
     "files": 185,
-    "lines": 50468
+    "lines": 50499
    },
    "twin": {
     "files": 55,
-    "lines": 19428
+    "lines": 19420
    }
   }
  }

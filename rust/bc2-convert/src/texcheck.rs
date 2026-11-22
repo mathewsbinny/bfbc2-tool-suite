@@ -147,24 +147,58 @@ pub const fn decoded(fmt: u32) -> bool {
     matches!(fmt, 0 | 18 | 1 | 2 | 19 | 20 | 10)
 }
 
-/// Level 0's width and height and its byte ranges in the texture and in the reference.
-pub type Level0 = (u32, u32, std::ops::Range<usize>, std::ops::Range<usize>);
-
 /// What [`check`] measures of a PC texture (`texture.check`, round F2a).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Check {
     /// The worst mip-chain error: each level against its larger neighbour scaled down (the mean of absolute
     /// differences), the largest over the levels compared.
     pub worst: f64,
-    /// With a reference of the same header: (blocks identical, blocks), and level 0's (width, height, its range in
-    /// the texture, its range in the reference) for the correlation, which `texture.py` computes with NumPy's
-    /// `corrcoef` (its float sums are NumPy's own order).
-    pub blocks: Option<(usize, usize, Level0)>,
+    /// With a reference of the same header: (blocks identical, blocks).
+    pub blocks: Option<(usize, usize)>,
+    /// With a reference of the same header: level 0's [`correlation`] with the reference's level 0.
+    pub corr: Option<f64>,
+}
+
+/// The correlation of two integer pictures of the same size, over their (r, g, b) values: `np.corrcoef(a, b)[0, 1]`,
+/// 1.0 when either is constant (`if a.std() and b.std() else 1.0`), clipped to [-1, 1] as NumPy clips it; `None` for
+/// pictures of different sizes. Computed exactly (round CI1, spec rule XCONS-PAR-2): the five sums in integers,
+/// then `(n Sab - Sa Sb) / sqrt((n Saa - Sa^2) (n Sbb - Sb^2))` with each integer rounded once to f64 and only
+/// IEEE's correctly rounded operations after - the same bits on every machine. NumPy's own value is a BLAS `dot`
+/// whose summation order, and so its last bits, follow the CPU's `OpenBLAS` kernel (`SkylakeX` on the development
+/// PC, `Haswell` / `Zen` on GitHub's runner): the recorded answers differed between the two.
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names,
+    reason = "the exact integer sums rounded once each, deterministically; the formula's names"
+)]
+pub fn correlation(a: &[[i32; 3]], b: &[[i32; 3]]) -> Option<f64> {
+    if a.len() != b.len() {
+        return None;
+    }
+    let n = i128::try_from(a.len() * 3).ok()?;
+    let (mut sa, mut sb, mut saa, mut sbb, mut sab) = (0i128, 0i128, 0i128, 0i128, 0i128);
+    for (x, y) in a.iter().flatten().zip(b.iter().flatten()) {
+        let (x, y) = (i128::from(*x), i128::from(*y));
+        sa += x;
+        sb += y;
+        saa += x * x;
+        sbb += y * y;
+        sab += x * y;
+    }
+    let va = n * saa - sa * sa;
+    let vb = n * sbb - sb * sb;
+    if va == 0 || vb == 0 {
+        return Some(1.0);
+    }
+    let c = (n * sab - sa * sb) as f64 / ((va as f64) * (vb as f64)).sqrt();
+    Some(c.clamp(-1.0, 1.0))
 }
 
 /// `texture.check(pc, reference)`'s statistics: `Some(None)` for a format it does not compare, `None` where the
-/// reference raises. Every value is NumPy's to the bit: the 2 x 2 means are exact (four integers over 4), and the
-/// mean of absolute differences sums multiples of 1/4 exactly, so only its one division rounds.
+/// reference raises. The mip-chain error is NumPy's to the bit: the 2 x 2 means are exact (four integers over 4), and
+/// the mean of absolute differences sums multiples of 1/4 exactly, so only its one division rounds; the correlation
+/// is exact ([`correlation`]).
 #[must_use]
 #[allow(
     clippy::many_single_char_names,
@@ -217,6 +251,7 @@ pub fn check(pc: &[u8], reference: Option<&[u8]>) -> Option<Option<Check>> {
         worst = worst.max(mean);
     }
     let mut blocks = None;
+    let mut corr = None;
     if let Some(r) = reference
         && r.get(..HEADER) == pc.get(..HEADER)
         && pc.len() >= HEADER
@@ -225,8 +260,9 @@ pub fn check(pc: &[u8], reference: Option<&[u8]>) -> Option<Option<Check>> {
         let rl = levels(r)?;
         let rr = rl.first()?.4.clone();
         // the reference decodes both (an error there is its error)
-        decode(pc.get(d.clone())?, i64::from(w), i64::from(h), fmt)?;
-        decode(r.get(rr.clone())?, i64::from(w), i64::from(h), fmt)?;
+        let (_, _, pa) = decode(pc.get(d)?, i64::from(w), i64::from(h), fmt)?;
+        let (_, _, pb) = decode(r.get(rr)?, i64::from(w), i64::from(h), fmt)?;
+        corr = Some(correlation(&pa, &pb)?);
         let bpb = match fmt {
             0 | 18 => 8,
             10 => 1,
@@ -239,9 +275,9 @@ pub fn check(pc: &[u8], reference: Option<&[u8]>) -> Option<Option<Check>> {
                 r.get(HEADER + i * bpb..HEADER + (i + 1) * bpb) == Some(a)
             })
             .count();
-        blocks = Some((same, total, (w, h, d, rr)));
+        blocks = Some((same, total));
     }
-    Some(Some(Check { worst, blocks }))
+    Some(Some(Check { worst, blocks, corr }))
 }
 
 #[cfg(test)]
@@ -276,6 +312,18 @@ mod tests {
         let (h, w, px) = decode(&[1, 2, 9, 3, 4, 9], 2, 2, 10).unwrap();
         assert_eq!((h, w), (2, 2));
         assert_eq!(px, vec![[1; 3], [2; 3], [3; 3], [4; 3]]);
+    }
+
+    #[test]
+    fn correlation_exact() {
+        let a: Vec<[i32; 3]> = (0..50).map(|k| [k, (k * 7) % 13, 255 - k]).collect();
+        let neg: Vec<[i32; 3]> = a.iter().map(|p| p.map(|v| 300 - 2 * v)).collect();
+        assert_eq!(correlation(&a, &a), Some(1.0));
+        assert_eq!(correlation(&a, &neg), Some(-1.0));
+        assert_eq!(correlation(&a, &vec![[9; 3]; 50]), Some(1.0)); // a constant picture: NumPy's guard
+        assert_eq!(correlation(&a, &a[1..]), None);
+        // (n Sab - Sa Sb) / sqrt(va vb) of [0, 1, 2] and [0, 2, 1]: 3 / sqrt(6 * 6) = 0.5 exactly
+        assert_eq!(correlation(&[[0, 1, 2]], &[[0, 2, 1]]), Some(0.5));
     }
 
     #[test]
