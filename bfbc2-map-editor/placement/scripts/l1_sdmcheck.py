@@ -2,7 +2,6 @@
 import sys
 
 import numpy as np
-
 from l1_geom import boundary_samples, signed_margin
 from l1_level import load
 from l1_measure import ca_union, cp_spawners, spawn_points

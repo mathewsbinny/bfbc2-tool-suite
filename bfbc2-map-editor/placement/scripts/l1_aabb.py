@@ -5,7 +5,7 @@ import math
 from l1_level import load, polygons
 from l1_levels import levels
 
-for lv, era, mode, _ in levels():
+for lv, _era, mode, _ in levels():
     if mode not in ('CQ', 'ONS'):
         continue
     L = load(lv)

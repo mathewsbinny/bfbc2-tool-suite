@@ -9,9 +9,6 @@ flags none (or names the few DICE exceptions it accepts). Writes l1_rules_check.
 import json
 import os
 import sys
-from collections import defaultdict
-
-import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DICE = ('BFBC2', 'BFBC1', 'Vietnam')
@@ -142,7 +139,7 @@ def group_of(r):
 def check(doc):
     recs = doc['records']
     out = []
-    for rid, metric, modes, groups, warn, info, reduce, where, msg in RULES:
+    for rid, metric, modes, groups, warn, info, _reduce, where, msg in RULES:
         rows = [r for r in recs if r['metric'] == metric and group_of(r) in groups
                 and (modes is None or r['mode'] in modes) and (where is None or where(r))]
         if metric.startswith('rush.') and modes and 'SR' in modes:          # rush.* metrics are sr.* on Squad Rush

@@ -4,7 +4,6 @@ import math
 import os
 
 import numpy as np
-
 from l1_read import GAME, fbrb
 
 # ------------------------------------------------------------------------------------------------ polygons
