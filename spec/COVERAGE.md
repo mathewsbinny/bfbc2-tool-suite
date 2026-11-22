@@ -46,7 +46,7 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **Animation and characters** (Granny, anim trees, aim, skeletons, soldiers, kits) | granny, aimanim, anim-tools, OPFOR anims / animswap / soldiers / kits / kitbags / skinning | translate soldiers (hold) | formats/granny (8), aimanim (3) | thin | thin (plan, section 2) |
 | **Decals and roads** | bc2-render (baked strips) | E5 | RNDR-TERR-4 (1) | thin | thin (plan, section 2) |
 | **Audio and voice-over** | console-convert XAS, OPFOR wake_vo / wake_ambience | E3c done | formats/audio (16), engine/audio (16) | covered | covered |
-| **AI and navigation** (Kynapse) | auto-navkit, stockmp-ai, editor AI workspace, DLL navgen / navquery / forceai | **NKS (now)**, NK3-NK5, A1, WW2 navmesh (hold) | formats/hpd (36), navsample (8), engine/ai (16), transforms/navkit (8), stockmp (7) | covered (generator rules in NKS) | covered; NKS owns the rest |
+| **AI and navigation** (Kynapse) | auto-navkit, stockmp-ai, editor AI workspace, DLL navgen / navquery / forceai | **NKS (now)**, NK3-NK5, A1, WW2 navmesh (hold) | formats/hpd (36), navsample (8), engine/ai (16), engine/bot_ai (41, round AIS), model/ai_orders (16, AIS), transforms/navkit (8), stockmp (7) | covered (generator rules in NKS) | covered; NKS owns the rest |
 | **Cull trees** | culltree, bc2-formats | PR1b-1 | formats/culltree (17), transforms/culltree (8) | covered | covered |
 | **Menus, HUD, APT** | menu-tools, aptgraft, OPFOR menus, DLL menutree / onslaught_hud | IN1 diagnostics | formats/apt (31), engine/menus (4) | thin (runtime) | thin (the action-script runtime and the HUD patches) |
 | **Networking and hosting** | DLL net / server_browser / patches | - | engine/network (9) | covered | covered |
