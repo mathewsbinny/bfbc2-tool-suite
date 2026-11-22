@@ -61,7 +61,7 @@ landed on `main`.
 ### Changed
 - **Less memory** (round PR1b-1): NumPy's OpenBLAS runs one thread unless `OPENBLAS_NUM_THREADS` says otherwise
   (`suite_paths`, `bfbc2core`): each Python process importing NumPy committed about 490 MB for its 16 threads' buffers.
-  Test peaks: geometry readers 2.9 -> 1.0 GB, NavKit cells and routes 5.4 -> 1.6 GB, texture helpers 5.2 -> 4.6 GB.
+  Test peaks: geometry readers 2.9 -> 1.0 GB, NavKit cells and routes 5.4 -> 1.6 GB, texture helpers 5.2 -> 4.6 GB, model tools 5.5 -> 5.0 GB; the WW2 rebuild's steps each about 480 MB less (level builds 4.35 -> 3.87 GB).
   The batch readers of `bc2_native` (`dbx_parse_many`, `dbx_to_xml_many`, `fbrb_read_many`, `xenos_parse_many`,
   `granny_roots_many`, `granny_to_pc_many`, `texture_convert_many`) decode in a bounded window on all cores while
   the results are built in order, instead of decoding everything first: the Granny trees' peak 1.5 -> 0.9 GB, the
