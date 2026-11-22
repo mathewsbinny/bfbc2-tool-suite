@@ -8177,6 +8177,52 @@ A specification round: no tool's behaviour changed. Two spec files (`spec/engine
 probes on the AI input object, the behaviours' writes, bots as scored and named players, the mode state's run-time
 objects, the bot object's class and senses, the order and squad runtime, the session's AI difficulty.
 
+## NKS-rest2: the Kynapse generator against the levels' own data (2026-11-22, branch `nksr2`)
+
+A specification round: no tool's behaviour changed. KYG-RECT-1 answered and verified, two new rules (KYG-NODE-4
+verified, KYG-NODE-5 observed), KYG-NODE-1, KYG-AREA-2, KYG-DET-1, KYG-EDGE-3 and KYG-DF-2 narrowed; the gap list's
+NKG2 / NKG3 targets, the open questions and `formats/kynapse.md`'s OQ6 / OQ8 updated.
+
+**Method.**
+- **DICE's files alone.** `rust/bc2-formats/examples/kynapse_rules.rs` (read-only, counts only), one fit per
+  `--only`: `cover` 95 s in release (every sample point of the 35 files, 26 million, against the nodes it sees),
+  `spacing` 2.1 s, `midline` 2.6 s, `holes` 18 s, `pairs` 12 s.
+- **Against the levels.** `rust/bc2-scene/examples/kynapse_geom.rs` loads each of the 17 prepared levels with
+  collision and height field through `bc2_scene::scene::load` (0.7-1.6 s a level; 0.5-8.4 million collision
+  triangles) beside DICE's files: `clearance` (nodes against the collision clipped to the soldier's height band, and
+  control points 1.7 m / -1.1 m beside each), `detailed` (each infantry sector's level data, `--rows` for the numbers),
+  `rect` (the ground's box against each entity category's box). ONS_MP_005 is not prepared and is skipped. Release
+  times for the 17 levels: `clearance` 104 s, `detailed` 25 s, `rect` 15 s.
+- **Looked at.** Single sectors were plotted from a scratch dump (deleted): they showed the coverage layout and the
+  axis pairs that the fits then measured.
+- **Tests.** `kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis` (1.3 s in the dev profile) and
+  `bc2-scene/tests/kynapse_rect.rs::ground_stops_25_m_beyond_the_spawns` (1.1 s; entities only), both game tier.
+- No NavKit build, no game run; no vehicle-shaped sample run exists (165 sample files surveyed).
+
+**The fits (DICE's 35 files; 17 prepared levels for the geometry):**
+
+| Rule | Fit | Coverage | Status |
+|---|---|---|---|
+| the rectangle (KYG-RECT-1) | the box of soldier + vehicle spawns grown by 25 m; samples kept to about 24.5 m beyond the outermost spawn (vehicle 22.2 m) | infantry: 45 of 52 campaign sides 0.11-0.91 m inside it, the other 7 end 13-347 m before, none past; vehicle: 7 of 48 sides 2.33-3.09 m inside, none past. Exceptions: the 5 Onslaught files (ONS_MP_002 242 m past the prepared partition's spawns) | verified |
+| step pairs (KYG-NODE-4) | ordinary nodes sharing x or z exactly, one step GraphAccuracy + 0.35 m apart (3.35 / 0.85 / 15.35 m) | 6,578 coarse pairs at 3.350 m +- 2 mm, 80 x any other gap within 20 %; detailed 226 (56 x), vehicle 44 (22 x); 7.6 % of coarse nodes on such half-step offsets | verified |
+| coverage (KYG-NODE-5) | every point of the ground sees a node within DistEdgeMax / 2 | 96.5 % coarse and 98.3 % detailed within 7.5 m, 95.2 % vehicle within 25 m; steep fall just past it; 1.8 % of coarse points see none within 30 m | observed |
+| node placement (KYG-NODE-1) | not the collision | coarse nodes: 95.5 % without collision within 3 m, as control points; "collision corner + radius" (0.35-0.45 m): 2.2 % of detailed nodes against 1.9 % of control points; a node's share's centroid a median 0.65 m away (not a converged centroidal layout) | observed |
+| the midline cut (KYG-AREA-2) | open | a cut rises with the crossings (single 0.6 %, five or more 21 %); between crossings 99 % no ground for cut and uncut alike; coarse areas hold 3,221 holes across a midline, so "no loop across a midline" is excluded | observed |
+| detailed sectors (KYG-DET-1) | no level-data rule | best single feature (>= 28 placed objects with collision) 91.8 % of 2,561 sectors, best pair 92.2 %; designer zones, not shipped | observed |
+| the spanner's misses (KYG-EDGE-3) | a step after the pass (inferred) | a cell-level reach test is passed by 95.7 % of coarse misses and 96.8 % of edges; no pair order explains a miss; misses on step-pair nodes 32 % (edges 9 %), both ends of degree <= 4 69 % (edges 39 %); vehicle misses leave the mesh's cells (85 %) | verified (edges), inferred (misses) |
+| vehicle D / F (KYG-DF-2) | not fittable from disk | needs one in-game `[dev] navsample` run at the vehicle settings (pitch 1.0, radius 2.5, height 4) on sp_04 or sp_02 | open |
+
+**What NKG2 can implement now.** The rectangle as a rule (the spawns' box + 25 m, the same on new maps, replacing
+`CLIP_TO_REFERENCE` on campaign levels; Onslaught keeps DICE's extent); interior node placement to DICE's coverage
+(every point sees a node within DistEdgeMax / 2) measured by the coverage, `nodes_near` and `ai_pairwise`; DICE's
+detailed sectors on DICE levels and a stand-in for new maps (`NeedsDetailedPathfinding` within 10 m, or 28 or more
+placed objects with collision in the sector; 91.8 %). NKG3: the coarse D / F recall; the vehicle rule waits for the
+vehicle sample run (a playtest item).
+
+**Left (NKS-rest3 in the ROADMAP):** the midline trigger, exact node positions (where a step pair's centre comes from),
+the step after the spanner, the rectangle on the Onslaught files, the vehicle D / F rule (in game), the runtime's LPF
+and node +0x14.
+
 ## NKS-rest: the Kynapse generator's rules fitted, and the runtime RE left (2026-11-22, branch `nksr`)
 
 A specification round: no tool's behaviour changed. New rules KYG-EDGE-3 / KYG-EDGE-4 (verified, two game-tier tests
@@ -9769,6 +9815,46 @@ which could be a project cache as `meshview_index.pkl` is.
 - **Item 6**: `dbxparity.py` / `portparity.py` ported (their `--predict` passes need the Python `Porter`'s pools and
   `dbxcatalogue`'s pickle; `portparity` needs `meshport`'s Porter).
 - **ALG-5's one walk**: the export's reach and closure walked once.
+
+## AIS-rest: the bot AI's static RE, finished as far as it goes without the game (2026-11-22, branch `aisr`)
+
+A specification round: no tool's behaviour changed. 12 new rules (`spec/engine/bot_ai.md` 52, `spec/model/ai_orders.md`
+17; 69 in the two files: 5 verified, 55 observed, 9 inferred); BOT-RT-6, BOT-CTL-1, BOT-MOV-1 / 2, BOT-VEH-3, BOT-GS-1,
+BOT-DIF-4, AI-NEED-5 and PERS-SCORE-1 corrected or narrowed.
+
+**Method.**
+- **Ghidra.** A scratch copy of OPFOR's analysed project (258 MB, headless, `-readOnly`, deleted at the end), six
+  probe runs (decompiles, scalar searches for 0xD84 / 0xC2C, string and vtable listings), each 2-6 minutes.
+- **Scans.** Python with pefile / capstone over the executable, read only: the 86 creator registrations (`call
+  0x500660` after the type record's push), the behaviour / control instance vtables through their creators, linear
+  sweeps of the AI code (0xE40000-0xF30000, 414,448 instructions) for calls through an object loaded from a +0xC field
+  (the input object), +8 (the soldier interface) or +4, and for slot-2 / slot-3 calls with an action index of 0-12
+  as their first argument; E8 / E9 target and 32-bit pointer scans for callers and vtables; the engine's event-name
+  hash (djb2 with xor, from 0x10013E0) applied to event names and searched as immediates.
+- No game launch.
+
+**Findings for OPFOR's bot module:**
+
+| Finding | Rule |
+|---|---|
+| the bot's +0x8C points at its proxy: +4 a body interface, +8 the soldier interface (vtable 0x014197B8), +0xC the input object; seat-entry and exit requests at +0x24 / +0x28 | BOT-RT-6, BOT-CTL-6 |
+| DICE's AI writes reload and fire as digital actions, walks infantry by a move target (slot 15), not throttle / strafe; sprint, weapon slot (0 or last) and aim through their own slots; no site writes strafe, alt fire, zoom, jump or interact | BOT-CTL-7 |
+| stance is the soldier interface's slot 20 (0x58DAB0 -> 0x69F5B0), never `EiaChangePose`; vehicle weapons by input slots 17 / 18; seats by 0x5725E0 / 0x56D480 | BOT-CTL-8 |
+| cars and tanks write throttle 0, brake 2, yaw 3; turrets pitch 4 and roll 5; helicopters all five | BOT-VEH-5 |
+| the kill handler's 12 AI tests gate stat events and the skill rating only; bots never score (0x86C12D, 0x86A7EE) and have no scoring record (0x865D7F) | BOT-SCO-1, BOT-SCO-2 |
+| AI-NEED-5 against PERS-SCORE-1: the offline block was the 4-client scoring flag; with the patch a human's kill of a bot scores | BOT-SCO-3 |
+| a player's name is the EASTL string at +0xC2C, set by 0x564AE0 (the AI spawn at 0x72D3FB, from its soldier's data) and sent with the AI flag by 0x5486D0 | BOT-SCO-4 |
+| a capture point's owner +0x94, progress team +0x7C, progress +0x9C, captured flag +0xAC; 0x725630 / 0x711AA0 fire OnCaptured / OnLost | BOT-GS-3 |
+| an offline match runs the AI at the session's +0xC8: 1 (Normal) unless a campaign level ran before | BOT-DIF-4 |
+| one server order class; `IssueOrder` is the event hash 0xD2199312 checked in 0x58DD20 | AIO-RT-1 |
+
+**Proof.** `spec/trace.py --emit` / `--check` clean (1,195 rules); `run_tests.py quick -j 2` green.
+
+**What is left** (ROADMAP AIS-rest2; `spec/engine/bot_ai.md` "Reverse engineering still needed"): the in-game test of
+the AI input object (its checklist is in `bot_ai.md`, "Play-test plan for item 1"); whether bots count in capture areas
+and for tickets; the combat fire site (only scripted `EiaFire` writes were found); the Rush stage and M-COM state; the
+bot object's class and senses; the order issue (0x5A5490) and the urgency sum; who sets the proxy's seat-entry request;
+the soldier interface's state bits.
 
 ## NKG1: NavKit's path data, structure toward DICE's (2026-11-22, branch `nkg1`)
 

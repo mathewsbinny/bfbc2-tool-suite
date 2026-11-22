@@ -225,11 +225,14 @@ Status: **observed** · Variants: PC
 Since the offline-scoring patch (MOD-PATCH-1), the player-killed handler 0x86DC90 tests the server's scoring flag
 (`cmp byte [ebp+0x2A], 0` at 0x86DD97) and with it set runs the kill scoring (0x86C070, through the stats add
 0x7D27A0) and its award (0x86BE20, `KillScore`): bots' deaths are scored in the round. The career save still writes
-score 0 (no kills or score in `stats.txt` over 180 saves). This contradicts AI-NEED-5 (the handler returns for a
-victim that is not a player) and PERS-OPF-3's title; which holds on the patched executable needs the kill probe run in
-a playtest.
+score 0 (no kills or score in `stats.txt` over 180 saves). Round AIS-rest settled the contradiction with AI-NEED-5
+statically: the handler returns only for a null victim, a bot is a player, and the offline block was the scoring flag;
+so with the patch a human's kill of a bot scores, while the bot's own kills, its deaths (no scoring record) and any
+award to a bot are skipped by the AI-flag tests at 0x86C12D, 0x865D7F and 0x86A7EE (BOT-SCO-1 to BOT-SCO-3).
+PERS-OPF-3's title holds only without the patch. The kill probe in a playtest still has to confirm it (`bot_ai.md`,
+play-test plan step 6).
 
-[exe: 0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add]
+[exe: 0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add; 0x86DCAE (null victim), 0x86C12D (AI killer), 0x865D7F (no record for an AI player), 0x86A7EE (no award to an AI player)]
 [doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:371-377]
 
 ## 5. BF1943's awards for the Pacific War career
@@ -290,7 +293,8 @@ game yet.
 - **The rank table's sources** (PERS-UNLK-1): which stats the award and vehicle scores sum.
 - **BFBC2's award evaluator**: its entry point and whether it runs offline; why the career save drops the round's
   kills (PERS-SCORE-1).
-- **Bots' deaths scored or not** (PERS-SCORE-1 against AI-NEED-5 and PERS-OPF-3): a kill-probe playtest.
+- **Bots' deaths scored or not**: settled statically by round AIS-rest (PERS-SCORE-1 holds with the patch, BOT-SCO-3);
+  the kill-probe playtest confirms it.
 - The unlock bit space: whether the specializations continue the weapons' bits (PERS-DATA-3).
 - The 49 achievement-group awards against `MP_Achievements`; whether BFBC2's awards grid can show BF1943's 8 x 6.
 - **The award engine** (section 3): not built; the table (PERS-WW2-1 - PERS-WW2-3) is its input. BF1943 semantics the

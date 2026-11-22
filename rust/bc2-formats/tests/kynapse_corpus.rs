@@ -530,3 +530,70 @@ fn edges_are_not_redundant_at_1_2() {
         "vehicle: more than 5 % of edges redundant at 1.2"
     );
 }
+
+// spec: KYG-NODE-4
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+#[allow(clippy::iter_over_hash_type, reason = "counts and a maximum: the order is not read")]
+fn nodes_pair_one_step_apart_along_an_axis() {
+    // Ordinary nodes of a sector that share their x or their z exactly (f32): the gap along the other axis in
+    // millimetres, per kind (coarse, detailed, vehicle).
+    let mut gaps: [HashMap<i64, u64>; 3] = [HashMap::new(), HashMap::new(), HashMap::new()];
+    each(|f, h, meshes| {
+        for (s, m) in h.sectors.iter().zip(meshes) {
+            let k = if f.vehicle {
+                2
+            } else {
+                usize::from((m.pitch - 0.2).abs() < 1e-4)
+            };
+            let ord: Vec<&hpd::Node> = s.nodes.iter().filter(|n| n.id & 0x8000_0000 == 0).collect();
+            for (axis, other) in [(0usize, 2usize), (2, 0)] {
+                let mut by: HashMap<u32, Vec<f32>> = HashMap::new();
+                for n in &ord {
+                    by.entry(n.pos[axis].to_bits()).or_default().push(n.pos[other]);
+                }
+                for v in by.values() {
+                    for (i, a) in v.iter().enumerate() {
+                        for b in &v[i + 1..] {
+                            let mm = (f64::from((a - b).abs()) * 1000.0).round() as i64;
+                            *gaps[k].entry(mm).or_default() += 1;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    if gaps[0].is_empty() {
+        return;
+    }
+    // The step is GraphAccuracy + 0.35 m (3 / 0.5 / 15 m); the cell grid's own gaps (multiples of half the pitch)
+    // are left out of the comparison.
+    for (k, (name, step, pitch, least, ratio)) in [
+        ("coarse", 3350i64, 800i64, 6000u64, 20u64),
+        ("detailed", 850, 200, 200, 20),
+        ("vehicle", 15350, 1000, 40, 10),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let g = &gaps[k];
+        let at: u64 = (step - 2..=step + 2).map(|mm| g.get(&mm).copied().unwrap_or(0)).sum();
+        let half = pitch / 2;
+        let other = g
+            .iter()
+            .filter(|(mm, _)| {
+                (**mm - step).abs() > 2
+                    && (step * 4 / 5..=step * 6 / 5).contains(*mm)
+                    && (**mm % half).min(half - **mm % half) > 2
+            })
+            .map(|(_, n)| *n)
+            .max()
+            .unwrap_or(0);
+        println!("{name}: {at} pairs one step ({step} mm) apart; the most at any other gap within 20 %: {other}");
+        assert!(at >= least, "{name}: under {least} pairs one step apart");
+        assert!(
+            at >= ratio * other.max(1),
+            "{name}: the step is not {ratio} x any other gap near it"
+        );
+    }
+}
