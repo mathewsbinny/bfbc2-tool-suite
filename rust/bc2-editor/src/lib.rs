@@ -85,6 +85,7 @@ pub mod help;
 pub mod inspect;
 pub mod levels;
 pub mod math;
+pub mod memberedit;
 pub mod model;
 pub mod modeview;
 pub mod nav;

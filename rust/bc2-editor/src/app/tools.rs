@@ -682,10 +682,13 @@ impl ViewState {
                 };
                 let picks: Vec<(usize, [f64; 3])> = sel.iter().map(|&k| (k, [offset, 0.0, 0.0])).collect();
                 let items = self.deep_copies(d, &picks);
-                let copies: Vec<String> = items.iter().map(|i| i.guid.clone()).collect();
+                let n = self.doc.as_ref().and_then(Doc::last_n);
                 self.commit(gpu, palette, Op::Duplicate { items }, "");
-                if let Some(d) = &self.doc {
-                    let ks: Vec<usize> = copies.iter().filter_map(|g| d.index(g)).collect();
+                // the copies selected (a static group member's copy is named by its group: round SG1)
+                if let Some(d) = &self.doc
+                    && d.last_n() != n
+                {
+                    let ks: Vec<usize> = d.created_by_last().iter().filter_map(|g| d.index(g)).collect();
                     self.set_selection(gpu, ks, true);
                 }
             }
@@ -744,10 +747,13 @@ impl ViewState {
                 // marker) is copied with it, never shared with the original
                 let picks: Vec<(usize, [f64; 3])> = ms.iter().filter_map(|(g, _)| Some((d.index(g)?, shift))).collect();
                 let items = self.deep_copies(d, &picks);
-                let copies: Vec<String> = items.iter().map(|i| i.guid.clone()).collect();
+                let n = self.doc.as_ref().and_then(Doc::last_n);
                 self.commit(gpu, palette, Op::Duplicate { items }, "Paste");
-                if let Some(d) = &self.doc {
-                    let ks: Vec<usize> = copies.iter().filter_map(|g| d.index(g)).collect();
+                // the copies selected (a static group member's copy is named by its group: round SG1)
+                if let Some(d) = &self.doc
+                    && d.last_n() != n
+                {
+                    let ks: Vec<usize> = d.created_by_last().iter().filter_map(|g| d.index(g)).collect();
                     self.set_selection(gpu, ks, true);
                 }
             }
@@ -1275,6 +1281,34 @@ impl ViewState {
         if let Some(tile) = p.gameplay {
             self.finish_gameplay(gpu, palette, &tile, m, p.placement);
             return;
+        }
+        // round SG1: into a model group, when the group holds this kind (its collision is in the group's physics)
+        if let Some(file) = self.browser.into_group.clone()
+            && let Some(d) = self.doc.as_ref()
+        {
+            if let Some(k) = crate::memberedit::member_like(d, &file, &p.entry.path) {
+                let source = d.guid(k).unwrap_or_default().to_owned();
+                let item = bc2_levelwrite::ops::Duplicated {
+                    source,
+                    guid: String::new(),
+                    transform: bc2_levelwrite::rows_of(&m),
+                    owned: Vec::new(),
+                };
+                let n = d.last_n();
+                self.commit(gpu, palette, Op::Duplicate { items: vec![item] }, "Place into group");
+                if let Some(d) = self.doc.as_ref()
+                    && d.last_n() != n
+                {
+                    let ks: Vec<usize> = d.created_by_last().iter().filter_map(|g| d.index(g)).collect();
+                    self.set_selection(gpu, ks, true);
+                }
+                return;
+            }
+            self.message = format!(
+                "{} holds no {}: a group keeps the collision of the kinds it holds, so it is placed as a loose object",
+                file.trim_end_matches(".dbx"),
+                p.entry.path.rsplit('/').next().unwrap_or(&p.entry.path)
+            );
         }
         let Some(d) = self.doc.as_mut() else { return };
         let Some((template, fields)) = d.template_for(&p.entry.reference) else {
@@ -2163,6 +2197,31 @@ impl Tabs<'_> {
         let total = cat.entries.len();
         let set = source.as_ref().map_or("", |s| s.set.word());
         self.header(ui, "Place objects", &format!("{} of {total} {set}", shown.len()));
+        // round SG1: placed as a loose object, or into one of the level's model groups
+        let groups = self.view.doc.as_ref().map_or_else(Vec::new, crate::memberedit::groups);
+        if !groups.is_empty() {
+            let mut into = self.view.browser.into_group.clone();
+            let name = |f: &str| f.trim_end_matches(".dbx").trim_end_matches("_HavokAsset").to_owned();
+            egui::Frame::new()
+                .inner_margin(Margin::symmetric(m.space_2 as i8, 0))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Place into").color(p.ink_muted));
+                        egui::ComboBox::from_id_salt("place into group")
+                            .selected_text(into.as_deref().map_or_else(|| "Loose object".to_owned(), name))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut into, None, "Loose object");
+                                for (f, n) in &groups {
+                                    ui.selectable_value(&mut into, Some(f.clone()), format!("{} ({n})", name(f)))
+                                        .on_hover_text(
+                                            "A placed object of a kind this group holds becomes one of its members",
+                                        );
+                                }
+                            });
+                    });
+                });
+            self.view.browser.into_group = into;
+        }
         let mut filter = self.view.filter;
         egui::Frame::new()
             .inner_margin(Margin::same(m.space_2 as i8))

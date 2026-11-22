@@ -287,6 +287,52 @@ count crashes the load at 0xAB4E58 (a part bitset set out of range).
 [data: every stock level's groups: 4,356 of 4,356 member types of static, rigid and middle-growth groups use exactly the member's part count]
 [exe: BFBC2Game.exe 0xAB4E58] [doc: opfor:DEVELOPMENT_NOTES.md:1465-1476]
 
+### LEVEL-MG-5: Member types lay the group file out in order
+
+Status: **verified**
+
+A group's member types (`MemberDatas`, in order) lay out its group file: the `Assets`, `Transforms` (16 numbers each)
+and `Enums` items run member type by member type, `InstanceCount` items each, so the file has exactly the members
+the types count. Each type has at least one instance and one `SpawnDatas` record per instance, in the file's order.
+
+[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[data: 131 of 131 groups of 31 levels (BFBC2 Dist and Package, Vietnam, BFBC1, the four WW2 levels; 107,103 members): Assets = the types' InstanceCount sum, Transforms 16 per item, one SpawnDatas record per instance, InstanceCount > 0]
+
+### LEVEL-MG-6: Physics parts and network ids are cumulative; the count fields are ends
+
+Status: **verified**
+
+Over a group's member types in order, `FirstPhysicsPart` is the parts of the types before it and `PhysicsPartCount`
+is the **end** of its own (`FirstPhysicsPart + PhysicsPartCountPerInstance x InstanceCount`), not a count; static
+groups number network ids the same way (`FirstNetworkId`, `NetworkIdCount` the end, `NetworkIdCountPerInstance`).
+Deleting or adding an instance therefore renumbers every later type of its group.
+
+[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[data: 131 of 131 groups cumulative from 0, 47 of 47 static groups' network ids]
+
+### LEVEL-MG-7: A member's leaf is its Enums item and its SpawnDatas Enumeration
+
+Status: **verified**
+
+The group file's `Enums` holds each member's leaf of the client cull tree, the same numbers as the `SpawnDatas`
+records' `Enumeration` in order; over a level's groups the leaves are 1 .. L, each once, where L is the client
+tree's leaf count (CULL-SLOT-1).
+
+[test: rust/bc2-levelwrite/tests/groups_sg1.rs::every_stock_group_keeps_the_rules]
+[data: 16 levels: 60,723 members, leaves 1 - L each once, L the client tree's leaf count in 16 of 16]
+
+### LEVEL-MG-8: A group's collision is per member type, placed at each instance
+
+Status: **inferred**
+
+The group's physics resource holds one rigid body and shape per member type in the type's own space (MP_005's
+static group: 32 types, 33 rigid bodies and MOPP shapes, every collision vertex within 10.1 m of its origin), and no
+placement of an instance; the game places a type's collision at each instance's transform. So a moved member's
+collision follows its transform with no change to the packfile, and only kinds the group holds can be added to it.
+
+[inferred: no per-instance placement exists in the resource (the wrapper's per-instance data is a leaf and a material byte per part, HAVOK-RUN-3), while the shapes are local]
+[data: MP_005 StaticModelGroupEntity_HavokAsset.res: 85 mesh subparts and 77 convex shapes, coordinates -10.0 to 10.02 m]
+
 ## 7. Terrain, environment map, water
 
 ### LEVEL-TERR-1: The terrain entity

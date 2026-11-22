@@ -46,6 +46,7 @@ mod nav_parity;
 mod op1;
 mod real_level_editing;
 mod render;
+mod sg1;
 mod simplified_view;
 mod view_geometry;
 mod view_toggles;
