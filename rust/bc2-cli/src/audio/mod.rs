@@ -39,8 +39,7 @@ const HELP: &str = "usage: audio.py [-h] [--stream N=FILE] {bfbc2,bf1943} input 
      -h, --help       show this help message and exit\n  --stream N=FILE  a streamed segment's waveDataSns_<N>.res (N: \
      0 intro, 1\n                   loop, 2 outro)\n";
 const WHAT_TO_DO: &str = "Check that the resource is a Wave from BFBC2 (Xbox 360 or PC) or Battlefield 1943 (Xbox \
-     360); a streamed sound needs its <name>_waveDataSns_<n>.res from the streaming bundle; decoding EA-XMA needs ffmpeg \
-     (PATH or $FFMPEG).";
+     360); a streamed sound needs its <name>_waveDataSns_<n>.res from the streaming bundle.";
 const CHOICES: [&str; 2] = ["bfbc2", "bf1943"];
 
 /// How a conversion stops: `AudioError(msg)` (printed by `main`: `error: ...` and what to do, exit code 1), or as a
