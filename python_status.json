@@ -3207,7 +3207,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 73,
+   "lines": 76,
    "note": "Round O3's command lines in Rust (rust\\bc2-cli, bfbc2.exe: caches, stockmp, aptgraft, audio, dbxcatalogue,...",
    "path": "core/tests/test_cli_o3.py",
    "retiring": "Tests in Rust",
@@ -4263,7 +4263,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 707,
+   "lines": 709,
    "note": "Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or...",
    "path": "tests/test_f4_native.py",
    "retiring": "Tests in Rust",
@@ -4473,7 +4473,7 @@
  "totals": {
   "all": {
    "files": 367,
-   "lines": 107862
+   "lines": 107867
   },
   "by_folder": {
    "(root)": {
@@ -4665,13 +4665,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19827,
+    "lines": 19830,
     "live": 749,
     "partly": 0,
     "ported": 1897,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14767,
+    "test": 14770,
     "twin": 2414
    },
    "design": {
@@ -4709,13 +4709,13 @@
    },
    "tests": {
     "files": 29,
-    "lines": 7679,
+    "lines": 7681,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7679,
+    "test": 7681,
     "twin": 0
    }
   },
@@ -4742,7 +4742,7 @@
    },
    "test": {
     "files": 188,
-    "lines": 50283
+    "lines": 50288
    },
    "twin": {
     "files": 56,

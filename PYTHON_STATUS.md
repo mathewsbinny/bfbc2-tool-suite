@@ -30,8 +30,8 @@ rounds NK4 and NK5.
 | ported | 21 | 2,571 |
 | retired-pending | 3 | 310 |
 | stays | 58 | 10,566 |
-| test | 188 | 50,283 |
-| **all** | **367** | **107,862** |
+| test | 188 | 50,288 |
+| **all** | **367** | **107,867** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -52,11 +52,11 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 15 | 10,125 | 1,430 | 3,882 | 984 | 126 |  |  | 3,703 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 19,827 | 749 |  | 2,414 | 1,897 |  |  | 14,767 |
+| `core` | 76 | 19,830 | 749 |  | 2,414 | 1,897 |  |  | 14,770 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 33 | 5,933 |  |  |  |  |  | 5,666 | 267 |
 | `spec` | 10 | 3,910 |  |  |  |  |  | 3,910 |  |
-| `tests` | 29 | 7,679 |  |  |  |  |  |  | 7,679 |
+| `tests` | 29 | 7,681 |  |  |  |  |  |  | 7,681 |
 
 Lines by status in the folder table.
 
@@ -399,7 +399,7 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 19,827 lines.
+76 files, 19,830 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -450,7 +450,7 @@ Lines by status in the folder table.
 | `core/tests/test_caches.py` | 410 | test | test |  | run_tests.py | Tests in Rust | bfbc2core.caches (round E3p): the size caps of the suite's on-disk caches, their least-recently-used prunin... |
 | `core/tests/test_cli_o1.py` | 339 | test | test |  | run_tests.py | Tests in Rust | The suite's command lines in Rust (round O1: rust\bc2-cli, bfbc2.exe) against the Python command lines they... |
 | `core/tests/test_cli_o2.py` | 524 | test | test |  | run_tests.py | Tests in Rust | Round O2's command lines in Rust (rust\bc2-cli, bfbc2.exe: aptcheck, aptrefs, bc2loc; exeref, crashreader;... |
-| `core/tests/test_cli_o3.py` | 73 | test | test |  | run_tests.py | Tests in Rust | Round O3's command lines in Rust (rust\bc2-cli, bfbc2.exe: caches, stockmp, aptgraft, audio, dbxcatalogue,... |
+| `core/tests/test_cli_o3.py` | 76 | test | test |  | run_tests.py | Tests in Rust | Round O3's command lines in Rust (rust\bc2-cli, bfbc2.exe: caches, stockmp, aptgraft, audio, dbxcatalogue,... |
 | `core/tests/test_cli_o4.py` | 218 | test | test |  | run_tests.py | Tests in Rust | Round O4's command lines in Rust (rust\bc2-cli, bfbc2.exe: NavKit's driver navkit.py, the editor's prepare_... |
 | `core/tests/test_cli_o5.py` | 85 | test | test |  | run_tests.py | Tests in Rust | Round O5's command lines in Rust (rust\bc2-cli, bfbc2.exe: the shader tools' command lines - shaderdb, rend... |
 | `core/tests/test_core_edges.py` | 71 | test | test |  | run_tests.py | Tests in Rust | Edge cases of the core package, without game data (quick tier); regression tests for the round-3 audit: - t... |
@@ -547,7 +547,7 @@ Lines by status in the folder table.
 
 ## `tests`
 
-29 files, 7,679 lines.
+29 files, 7,681 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -564,7 +564,7 @@ Lines by status in the folder table.
 | `tests/test_editor.py` | 89 | test | test |  | run_tests.py | Tests in Rust | The map editor's headless proof (rust\bc2-editor, rounds G1 and E2; rust\bc2-levelwrite): their tests, with... |
 | `tests/test_envvars.py` | 68 | test | test |  | run_tests.py | Tests in Rust | The environment-variable registry (core\bfbc2core\envvars.py, round QW1): every quoted BFBC2_* / BC2_* / BF... |
 | `tests/test_f3_native.py` | 900 | test | test |  | run_tests.py | Tests in Rust | Round F3: the rest of the suite's Python format code in the Rust core, each port against its Python referen... |
-| `tests/test_f4_native.py` | 707 | test | test |  | run_tests.py | Tests in Rust | Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or... |
+| `tests/test_f4_native.py` | 709 | test | test |  | run_tests.py | Tests in Rust | Round F4: F3's leftovers in the Rust core, each port against its Python reference (kept as *_reference, or... |
 | `tests/test_hub.py` | 120 | test | test |  | run_tests.py | Tests in Rust | The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 7 tabs and the... |
 | `tests/test_lint.py` | 33 | test | test |  | run_tests.py | Tests in Rust | Lint (quick tier): ruff's checks from pyproject.toml find nothing in any of the suite's Python folders. |
 | `tests/test_locators.py` | 141 | test | test |  | run_tests.py | Tests in Rust | Every path locator gives the same answer as in a reference checkout of the suite (game tier: needs this mac... |
