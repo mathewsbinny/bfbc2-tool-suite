@@ -406,6 +406,16 @@ def kinds_ref(db: sd.ShaderDb) -> dict[str, set[int]]:
     return {name: {db.keys[i][0x33] for i in progs.get(g, []) if db.keys[i][0x30] == 0} for name, g in db.entries}
 
 
+def records_ref(db: sd.ShaderDb) -> dict[str, frozenset[bytes]]:
+    """Each entry's layout record bodies as Project OPFOR's wake_install.index_templates read them before round OR3c:
+    the entry's GUID the name's last, the last record of a layout GUID."""
+    lay = {r[:16]: r[16:] for r in db.layouts}
+    progs = db.entry_programs()
+    guids = dict(db.entries)
+    return {n: frozenset(lay[db.keys[i][32:48]] for i in progs.get(guids[n], []) if db.keys[i][32:48] in lay)
+            for n, _ in db.entries}
+
+
 def scan_ref(levels: list[str], dx: int, root: str) -> list[Any]:
     """The level scan as Python queries make it: S.load of each level, the four queries and the parts."""
     out: list[Any] = []
@@ -416,7 +426,7 @@ def scan_ref(levels: list[str], dx: int, root: str) -> list[Any]:
             out.append([lv, 'err', str(e)])
             continue
         out.append([lv, 'ok', sd.entry_signatures(db), sd.entry_textures(db), sd.entry_layouts(db), kinds_ref(db),
-                    list(db.parts)])
+                    list(db.parts), records_ref(db)])
     return out
 
 
@@ -426,7 +436,7 @@ def scan_got(levels: list[str], dx: int, root: str) -> list[Any]:
         if isinstance(s, sd.ShaderDbError):
             out.append([lv, 'err', str(s)])
         else:
-            out.append([lv, 'ok', s.signatures, s.textures, s.layouts, s.kinds, s.parts])
+            out.append([lv, 'ok', s.signatures, s.textures, s.layouts, s.kinds, s.parts, s.layout_records])
     return out
 
 
@@ -435,7 +445,7 @@ def same_scan(a: list[Any], b: list[Any]) -> list[str]:
     for x, y in zip(a, b):
         if x[:2] != y[:2] or x[2:] != y[2:]:
             bad.append(x[0])
-        elif x[1] == 'ok' and any(list(p) != list(q) for p, q in zip(x[2:6], y[2:6])):
+        elif x[1] == 'ok' and any(list(p) != list(q) for p, q in zip(x[2:6] + x[7:], y[2:6] + y[7:])):
             bad.append(f'{x[0]} (order)')
     if len(a) != len(b):
         bad.append(f'{len(a)} != {len(b)} levels')
@@ -453,7 +463,7 @@ def check_scan(c: Checks, scratch: str) -> None:
             n += len(ref)
             bad += [f'copy {seed} Dx{dx} {x}' for x in same_scan(ref, got)]
     c.check(not bad, f'level scan: {n} level databases (24 stand-in copies, Dx9 / 10 / 11): signatures, textures, '
-                     f'layouts, kinds and parts as the Python queries give them, in their order', '; '.join(bad[:4]))
+                     f'layouts, kinds, parts and layout records as the Python queries give them, in their order', '; '.join(bad[:4]))
 
 
 # ------------------------------------------------------------------------------------------------ the game copy

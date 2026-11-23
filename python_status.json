@@ -2307,11 +2307,11 @@
    ],
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
-   "lines": 1489,
-   "note": "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) are Rust; left: path glue, level_meshes (DBX reading)",
+   "lines": 1634,
+   "note": "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) and OPFOR's BF1943 shader translation driver (OR3c: bc2_convert::shadertranslate - translate_plan, missing / foreign entries, discards, the soldier glue) are Rust; left: path glue, level_meshes (DBX reading)",
    "path": "bfbc2-shader-tools/shaderdb.py",
    "retiring": "OPFOR in Rust stage 3",
-   "rust": "bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
+   "rust": "bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels, shadertranslate; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
    "status": "partly"
   },
   {
@@ -2355,7 +2355,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "test",
-   "lines": 467,
+   "lines": 475,
    "note": "The level side of shaderdb in the Rust core (round OR3b): `retexture` (bc2_native.shaderdb_retexture), the...",
    "path": "bfbc2-shader-tools/tests/test_shaderdb_levels.py",
    "retiring": "Tests in Rust",
@@ -2394,6 +2394,18 @@
    "lines": 337,
    "note": "Round E4b: the shader database kept in the Rust core (bc2_native.ShaderDbHandle) and the queries it answers...",
    "path": "bfbc2-shader-tools/tests/test_shaderdb_queries.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-shader-tools",
+   "kind": "test",
+   "lines": 225,
+   "note": "The BF1943 shader translation's driver in the Rust core (round OR3c: bc2_convert::shadertranslate through s...",
+   "path": "bfbc2-shader-tools/tests/test_shadertranslate.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
@@ -3543,7 +3555,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1375,
+   "lines": 1378,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3843,7 +3855,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 130,
+   "lines": 132,
    "note": "who calls each bc2_native export (AU5 ARC-12)",
    "path": "rust/native_census.py",
    "retiring": "PR1b-2 (made a check)",
@@ -3939,7 +3951,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 873,
+   "lines": 876,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4556,19 +4568,19 @@
  ],
  "totals": {
   "all": {
-   "files": 374,
-   "lines": 109804
+   "files": 375,
+   "lines": 110190
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1431,
+    "lines": 1434,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1375,
+    "test": 1378,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4726,14 +4738,14 @@
     "twin": 0
    },
    "bfbc2-shader-tools": {
-    "files": 17,
-    "lines": 10793,
+    "files": 18,
+    "lines": 11171,
     "live": 1430,
-    "partly": 3630,
+    "partly": 3775,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
-    "test": 4623,
+    "test": 4856,
     "twin": 984
    },
    "bfbc2-stockmp-ai": {
@@ -4771,12 +4783,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6028,
+    "lines": 6033,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5761,
+    "stays": 5766,
     "test": 267,
     "twin": 0
    },
@@ -4810,7 +4822,7 @@
    },
    "partly": {
     "files": 21,
-    "lines": 16759
+    "lines": 16904
    },
    "ported": {
     "files": 21,
@@ -4822,11 +4834,11 @@
    },
    "stays": {
     "files": 67,
-    "lines": 13242
+    "lines": 13247
    },
    "test": {
-    "files": 188,
-    "lines": 51955
+    "files": 189,
+    "lines": 52191
    },
    "twin": {
     "files": 56,

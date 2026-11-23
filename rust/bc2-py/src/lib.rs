@@ -102,6 +102,7 @@ mod shaderdb_levels;
 mod shaderdb_merge;
 mod shaderdb_open;
 mod shaders;
+mod shadertranslate;
 mod stockmp;
 mod texcheck;
 mod wave;
@@ -468,6 +469,14 @@ mod bc2_native {
         ww2build_patch_refs, ww2build_port_missing, ww2build_primary_type, ww2build_remap_targets, ww2build_root_files,
         ww2build_sky_patch, ww2build_stage_reset, ww2build_stock_bundles, ww2build_stock_index, ww2build_terrain_files,
         ww2build_undergrowth_files, ww2build_undergrowth_scales, ww2build_write_stage, ww2build_ww2_common,
+    };
+
+    #[pymodule_export]
+    use super::shadertranslate::{
+        shadertranslate_by_role, shadertranslate_discards, shadertranslate_element_map, shadertranslate_entry_blocks,
+        shadertranslate_foreign, shadertranslate_match_entries, shadertranslate_mesh_of, shadertranslate_missing,
+        shadertranslate_offer_kinds, shadertranslate_part_users, shadertranslate_patch_inputs, shadertranslate_perms,
+        shadertranslate_plan, shadertranslate_soldier_element_map, shadertranslate_vertex_elements,
     };
 
     #[pymodule_export]

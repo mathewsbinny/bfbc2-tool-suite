@@ -28161,7 +28161,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_translate.py:1017-1040"
+     "ref": "opfor:src/tools/ww2/wake_translate.py:763-776"
     },
     {
      "kind": "test",
@@ -28220,7 +28220,11 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_translate.py:275-280"
+     "ref": "opfor:src/tools/ww2/wake_translate.py:240-245"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:1043-1054"
     },
     {
      "kind": "data",
@@ -28241,7 +28245,11 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_translate.py:186-204"
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:896-913"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:457-474"
     }
    ]
   },
@@ -28254,7 +28262,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_translate.py:207-219"
+     "ref": "rust/bc2-convert/src/shadertranslate.rs:271-283"
     }
    ]
   },

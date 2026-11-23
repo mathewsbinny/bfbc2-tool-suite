@@ -60,6 +60,9 @@ pub struct EntryScan<'a> {
     pub layouts: Vec<&'a [u8]>,
     /// The skinning kinds (key byte 0x33) of its main-pass programs (key byte 0x30 zero), each once, sorted.
     pub kinds: Vec<u8>,
+    /// The bodies (bytes 16-) of the database's layout records its layouts name, each once, sorted - the last
+    /// record of a GUID (Project OPFOR's `wake_install.index_templates`, round `OR3c`).
+    pub layout_records: Vec<&'a [u8]>,
 }
 
 /// Why a database cannot be scanned: an index past its section or a record too short (the Python queries raised
@@ -90,6 +93,11 @@ pub fn scan<'a>(db: &'a ShaderDb<'_>) -> Result<Vec<EntryScan<'a>>, Malformed> {
     let be = db.big_endian;
     let groups: HashMap<&[u8], &[u16]> = db.groups.iter().map(|(g, idx)| (*g, idx.as_slice())).collect();
     let mut blocks: HashMap<usize, Block<'a>> = HashMap::new();
+    let records: HashMap<&[u8], &[u8]> = db
+        .layouts
+        .iter()
+        .map(|r| (r.get(..16).unwrap_or(r), r.get(16..).unwrap_or_default()))
+        .collect();
     let mut out = Vec::with_capacity(db.entries.len());
     for e in &db.entries {
         let progs: &[u16] = groups.get(e.guid).copied().unwrap_or_default();
@@ -125,6 +133,7 @@ pub fn scan<'a>(db: &'a ShaderDb<'_>) -> Result<Vec<EntryScan<'a>>, Malformed> {
                 kinds.insert(*key.get(0x33).ok_or(Malformed)?);
             }
         }
+        let layout_records: BTreeSet<&[u8]> = layouts.iter().filter_map(|g| records.get(g).copied()).collect();
         out.push(EntryScan {
             name: &e.name,
             constants: constants.into_iter().collect(),
@@ -132,6 +141,7 @@ pub fn scan<'a>(db: &'a ShaderDb<'_>) -> Result<Vec<EntryScan<'a>>, Malformed> {
             textures: textures.into_iter().collect(),
             layouts: layouts.into_iter().collect(),
             kinds: kinds.into_iter().collect(),
+            layout_records: layout_records.into_iter().collect(),
         });
     }
     Ok(out)
