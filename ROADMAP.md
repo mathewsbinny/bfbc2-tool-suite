@@ -133,20 +133,20 @@ added or deleted without its row, so update the table (and regenerate) in the ro
 
 | Folder | Lines | What is left | Retiring round |
 |---|---:|---|---|
-| `bfbc2-auto-navkit` | ~9,600 (tests apart; 1,331 fewer after NK5-rest) | the build is Rust (NK5) and `navbuild.py` is retired (NK5-rest); left: the sampling (starts the game), the offline sampler, the regression and parity runs, the GUI | A2-rest, PY1 |
-| `bfbc2-shader-tools` | ~6,990 | The Python `Merger` is retired (OR3a: `shaderdb.merger`, the Rust core's); the level cover index and `retexture` are the Rust core's (OR3b: `bc2_convert::shaderlevels`, the pickles retired; `shaderdb.level_scan` new); left: renderqa / xdiff / pcbuild / xenos_exec, shaderdb's path glue and `level_meshes` | OPFOR in Rust stage 3 |
-| `bfbc2-bf1943-import` | ~6,650 | The BF1943 import's Importer, the Python reference reader (the reader is `bc2_formats::bf1943` since PR1b-1-rest); the parity tools are Rust since PR1b-1d (`dbxparitylib.py` their library) | OPFOR in Rust stage 2 |
-| `core` | ~5,860 | The cache budget's twin, the install ledger's twin, the native-backend registry, shared helpers | PR1b-2 |
-| `bfbc2-menu-tools` | ~4,960 | Menu building (OPFOR's menus) | OPFOR in Rust stage 5 |
-| `bfbc2-console-convert` | ~3,650 | Audio conversion's framing (EA-XMA decoded in Rust since PR1b-1c; ffmpeg only the tests' reference), texqa's twin | - |
-| `bfbc2-automated-map-and-bot-test-harness` | ~2,930 | The harness's Python side (its command line is Rust, O4) | PR1b-2, Tests in Rust |
-| `bfbc2-stockmp-ai` | ~2,730 | The stock-MP library twin (its command line is Rust, O2) | PR1b-2 |
-| `bfbc2-map-editor` | ~2,400 | L1's placement study scripts (their measures ported in V1) | PY1 / PR1c (kept as research or retired) |
-| `bfbc2-anim-tools` | ~1,370 | Animation tooling | PR1b-2 (the user, 2026-11-22) |
-| `bfbc2-culltree` | ~1,210 | culltree's Python twin (its command line is Rust, CT1 / RT3) | PR1b-2 |
-| `bfbc2-model-tools` | ~1,170 | Model conversion helpers | PR1b-2 (the user, 2026-11-22) |
-| `bfbc2-console-readers` | ~940 | Xbox 360 readers | OPFOR in Rust stage 5 / the Onslaught re-port |
-| `bfbc2-mesh-viewer` | ~680 | `meshview.py`: OPFOR's game-index API (46 files, 103 calls) and `page()` | PR1b-2 (AU5 ARC-4: the Rust port through `bc2_native`) |
+| `bfbc2-auto-navkit` | ~9,650 | the build is Rust (NK5) and `navbuild.py` is retired (NK5-rest); left: the sampling (starts the game), the offline sampler (NKS-deep C brings a Rust one at 0.2 m), the regression and parity runs, the GUI | NKS-deep C, A2-rest, PY1 |
+| `bfbc2-shader-tools` | ~6,170 | The Python `Merger` is retired (OR3a), the level cover index, `retexture` and the level scan are Rust (OR3b); left: `wake_translate`'s translation driver and the soldier shader glue OPFOR calls, renderqa / xdiff / pcbuild / xenos_exec | OPFOR in Rust stage 3c |
+| `bfbc2-bf1943-import` | ~5,420 | The parity tools are Rust (PR1b-1d), the catalogue's cache too (PR1b-1e); left: the Importer, the Python reference reader and `Catalogue` (the reader is `bc2_formats::bf1943`) | OPFOR in Rust stage 2 |
+| `core` | ~5,090 | The cache budget, the install ledger and the bundle reader call the Rust core (PR1b-2); left: their Python twins, the native-backend registry, shared helpers | PY1, Tests in Rust |
+| `bfbc2-menu-tools` | ~4,410 | Menu building (OPFOR's menus) | OPFOR in Rust stage 5 |
+| `bfbc2-console-convert` | ~3,100 | Audio conversion's framing (EA-XMA decoded in Rust since PR1b-1c; ffmpeg only the tests' reference), texqa's twin | PY1 |
+| `bfbc2-automated-map-and-bot-test-harness` | ~2,530 | The harness's Python side (its command line is Rust, O4) | Tests in Rust |
+| `bfbc2-stockmp-ai` | ~2,400 | The stock-MP library twin (its command line is Rust, O2) | PY1 |
+| `bfbc2-map-editor` | ~2,140 | L1's placement study scripts (their measures ported in V1) | PY1 / PR1c (kept as research or retired) |
+| `bfbc2-anim-tools` | ~1,160 | `granny.py`'s curve_keys / sample are Rust (PR1b-2-rest); `Granny.put` with PR1b-2-rest2; left: the rest of the Granny object | PR1b-2-rest2, PY1 |
+| `bfbc2-culltree` | ~1,050 | culltree's Python twin (its command line is Rust, CT1 / RT3) | PY1 |
+| `bfbc2-model-tools` | ~1,030 | texwrite's packing is Rust (PR1b-2-rest); `decimate.py` / `shapes.py` with PR1b-2-rest2 | PR1b-2-rest2 |
+| `bfbc2-console-readers` | ~840 | Xbox 360 readers | OPFOR in Rust stage 5 / the Onslaught re-port |
+| `bfbc2-mesh-viewer` | ~460 | `meshview.py`'s index, meshes, stacking and render are Rust (PR1b-2-rest); left: `page()` for OPFOR's WW2 preview pages | OPFOR in Rust stage 4 |
 | `bfbc2-navigation-studio`, `bfbc2-dbx-tools`, `bfbc2-fbrb-tool` | ~350 | Leftovers in retired tools' folders | PR1c (moved into core or their user) |
 | `rust/*.py` | ~3,400 | Benchmark and parity scripts against the old Python | stay (they are measurements, not tools) |
 

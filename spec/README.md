@@ -376,3 +376,27 @@ rules verified by game-tier checks, nine of them corrected in place first):
   of the L1 study), 23 half-data / half-RE, 32 on other corpora (Xbox 360, BF1943, OPFOR's builds, research
   scripts), 21 needing the game running, 119 read from the executable, and the 37 Kynapse / NavKit rules (round
   NKG2's files).
+
+**After rounds SPG2-rest3, E4 / E4-rest, PR1b-2-rest2 and NKS-deep part A** (2026-11-23: 1,289 rules in 68 files -
+762 verified, 127 implemented, 352 observed, 48 inferred):
+
+- **The bot AI's game state** (SPG2-rest3, `engine/bot_ai.md`): the real ticket and life counters (BOT-GS-4
+  corrected), a death costs its team a ticket and a revive gives it back with no AI test (BOT-GS-6, BOT-GS-7), Rush's
+  lives, stages and events (BOT-GS-8), the M-COM interaction (BOT-GS-9), the bot object and its senses (BOT-RT-6);
+  the mount table's drain (STRM-MNT-3 corrected), dirt only on vehicles (MAT-TEX-20). From the executable: observed
+  until a playtest.
+- **Gameplay authoring** (E4, E4-rest, `engine/gameplay.md`, `transforms/projectlog.md`): a flag's unit is its own
+  (GAME-CQ-11), Rush stage counters count their M-COMs (GAME-RUSH-10), DICE's stage wiring - one base counter per
+  stage and a strict enable chain on 30 levels (GAME-RUSH-11), the flag texts' letter scheme with keys A-F in 8
+  languages (GAME-CQ-12), DICE's round values per mode and era (GAME-RULES-1).
+- **Kynapse's generator settings** (NKS-deep part A, `transforms/kynapse_generation.md` section 9, `formats/hpd.md`,
+  `formats/kynapse.md`): read from DICE's settings writer and Kynapse's parameter reader in the executable - the
+  graph accuracy plus Kynapse's default radius 0.35 m is the propagation distance and the step-pair gap (KYG-PAR-1,
+  verified), DICE's AI/Pathfinding settings mapped to the generator's fields (KYG-PAR-2), the break slope StepMax /
+  StepLength = 0.778 (KYG-PAR-3); the HPD header named from the generator's writer (KYN-FILE-2), node ids from 101 per
+  sector (KYG-NODE-6), the table times (HPD-TAB-4).
+- **Model tools' arithmetic** (PR1b-2-rest2): `decimate` / `shapes` reproduce OpenBLAS's SkylakeX kernels written out,
+  so the Rust is deterministic on any CPU and gives the oracle recorded on the development PC (XWW2-MOD-1).
+- **Running**: NKG3 (the D sides' slope rule KYG-DF-1, on by the user's ruling with sp_02's dip a named exception),
+  SPG3 (settings, input, scripting, dependency graphs) and NET2 (the network layer and a LAN / VLAN / Direct IP /
+  local hosting feasibility study).
