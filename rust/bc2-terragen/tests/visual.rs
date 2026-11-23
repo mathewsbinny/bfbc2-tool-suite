@@ -9,6 +9,7 @@
     clippy::doc_markdown,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
+    clippy::too_many_lines,
     missing_docs
 )]
 

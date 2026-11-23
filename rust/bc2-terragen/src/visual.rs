@@ -459,6 +459,36 @@ pub fn donor_entries(
     out
 }
 
+/// The colour / occlusion map a donor terrain's patch shaders sample (LIGHT-BAKE-2): the texture under
+/// `Terrains/<from>/` whose base name holds `occ` (DICE's `mp05_AmbientOcclusion`, `MP008_Occlusion`, `sp05_snowocc`,
+/// `heightmap_OCC`) that the most patch shader entries sample; `None` when they sample none (`MP_003`, `MP_004`).
+#[must_use]
+pub fn occlusion_name(db: &bc2_formats::shaderdb::ShaderDb<'_>, from: &str) -> Option<String> {
+    let scan = bc2_formats::shaderdb::levels::scan(db).ok()?;
+    let pre = format!("terrains/{0}/{0}/patchmaskshaders/", from.to_ascii_lowercase());
+    let folder = format!("terrains/{}/", from.to_ascii_lowercase());
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for e in &scan {
+        let name: String = e.name.iter().map(|&b| char::from(b)).collect();
+        if !name.to_ascii_lowercase().starts_with(&pre) {
+            continue;
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for t in &e.textures {
+            let tex: String = t.2.iter().map(|&b| char::from(b)).collect();
+            let low = tex.to_ascii_lowercase();
+            let base = low.rsplit('/').next().unwrap_or_default();
+            if low.starts_with(&folder) && base.contains("occ") && seen.insert(tex.clone()) {
+                *counts.entry(tex).or_insert(0) += 1;
+            }
+        }
+    }
+    counts
+        .into_iter()
+        .max_by_key(|(n, c)| (*c, std::cmp::Reverse(n.clone())))
+        .map(|(n, _)| n)
+}
+
 /// The new terrain `name`'s visual side from `donor` (the module's table).
 ///
 /// # Errors

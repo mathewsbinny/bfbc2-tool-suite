@@ -196,6 +196,51 @@ pub fn read_world(opfor: &Path, lv: &str, scene: &Scene) -> Result<ReadWorld, Ed
     })
 }
 
+/// A generated terrain's resources drawn in its donor level (round TG2; `bc2_terragen::visual`): the files made in
+/// memory - the terrain bundle's (height field, ring, material map, water, visual terrain, atlas, visual water) and
+/// the level's (colour / occlusion map, shader databases named `levels/<generated>/shaders/...`) - over the donor's
+/// prepared files, nothing written to disk.
+#[derive(Debug, Clone, Default)]
+pub struct Generated {
+    /// The generated terrain's name (`Terrains/<T>/<T>`), and the folder name of its databases.
+    pub terrain: String,
+    /// (name, FbrbTool type, data) of every file made.
+    pub files: Vec<(String, String, Vec<u8>)>,
+}
+
+/// [`read_world`] of a generated terrain (round TG2): the donor level `lv`'s placed things, weather and files with
+/// the generated terrain's files over them; the terrain drawn is the generated one with the patch, undergrowth and
+/// water entries its databases hold (cloned from the donor's under its name: TGEN-VIS-4).
+///
+/// # Errors
+/// The generated databases cannot be read.
+pub fn read_generated(opfor: &Path, lv: &str, scene: &Scene, generated: &Generated) -> Result<ReadWorld, EditorError> {
+    let t = Instant::now();
+    let weather = scene
+        .entities
+        .iter()
+        .filter_map(|e| e.blueprint.as_deref())
+        .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)));
+    let (placed, entity_of) = placed_entities(scene);
+    let files = Files::new(&bc2_render::files::level_folders(opfor, lv)).with(generated.files.clone());
+    let mut world = World::load_generated(
+        files,
+        opfor,
+        &generated.terrain.to_lowercase(),
+        &scene.name,
+        &placed,
+        weather,
+        &generated.terrain,
+    )?;
+    world.sky_pass = true;
+    Ok(ReadWorld {
+        world,
+        entity_of,
+        fingerprint: fingerprint(scene, &HashSet::new()),
+        seconds: t.elapsed().as_secs_f64(),
+    })
+}
+
 /// A game-accurate view being read on a worker (round OP1).
 pub struct GameLoad {
     rx: crate::task::Task<ReadWorld>,
@@ -210,6 +255,18 @@ impl GameLoad {
         let (opfor, lv, scene) = (opfor.to_path_buf(), lv.to_owned(), scene.clone());
         Self {
             rx: crate::task::Task::spawn("The game-accurate view", move || read_world(&opfor, &lv, &scene)),
+            since: Instant::now(),
+        }
+    }
+
+    /// Starts reading a generated terrain's world on a worker ([`read_generated`], round TG2).
+    #[must_use]
+    pub fn start_generated(opfor: &Path, lv: &str, scene: &Scene, generated: Generated) -> Self {
+        let (opfor, lv, scene) = (opfor.to_path_buf(), lv.to_owned(), scene.clone());
+        Self {
+            rx: crate::task::Task::spawn("The game-accurate view", move || {
+                read_generated(&opfor, &lv, &scene, &generated)
+            }),
             since: Instant::now(),
         }
     }

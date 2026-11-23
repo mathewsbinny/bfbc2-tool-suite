@@ -451,6 +451,38 @@ impl World {
         placed: &[Placed],
         weather: Option<&str>,
     ) -> Result<Self, RenderError> {
+        Self::load_with(files, opfor, lv, level, placed, weather, None)
+    }
+
+    /// A generated terrain drawn in its donor level (round TG2, TGEN-OUT-5's game-accurate view): `files` the donor
+    /// level's with the generated terrain's resources, colour / occlusion map and databases over them
+    /// ([`Files::with`]), `lv` the folder whose databases are the generated ones (`levels/<lv>/shaders`), `level`
+    /// the donor's partition (its placements' sky and environment map), `weather` as [`World::load`]'s, `terrain`
+    /// the generated terrain's name (`Terrains/<T>/<T>`) in place of the one the partition names.
+    ///
+    /// # Errors
+    /// The level's database or weather cannot be read.
+    pub fn load_generated(
+        files: Files,
+        opfor: &Path,
+        lv: &str,
+        level: &str,
+        placed: &[Placed],
+        weather: Option<&str>,
+        terrain: &str,
+    ) -> Result<Self, RenderError> {
+        Self::load_with(files, opfor, lv, level, placed, weather, Some(terrain))
+    }
+
+    fn load_with(
+        files: Files,
+        opfor: &Path,
+        lv: &str,
+        level: &str,
+        placed: &[Placed],
+        weather: Option<&str>,
+        terrain_override: Option<&str>,
+    ) -> Result<Self, RenderError> {
         let lv = lv.to_lowercase();
         let db = Db::parse(
             &files
@@ -480,14 +512,17 @@ impl World {
         let mut textures = TextureFiles::new();
         let mut counts = Counts::default();
         // the level's own terrain (its TerrainEntityData), else the first visual terrain its files hold
-        let terrain_name = placements.terrain.clone().or_else(|| {
-            files
-                .names()
-                .filter(|n| n.starts_with("terrains/") && n.ends_with(".visual.res"))
-                .min()
-                .and_then(|n| n.rsplit('/').next())
-                .map(|n| n.trim_end_matches(".visual.res").to_owned())
-        });
+        let terrain_name = terrain_override
+            .map(str::to_owned)
+            .or_else(|| placements.terrain.clone())
+            .or_else(|| {
+                files
+                    .names()
+                    .filter(|n| n.starts_with("terrains/") && n.ends_with(".visual.res"))
+                    .min()
+                    .and_then(|n| n.rsplit('/').next())
+                    .map(|n| n.trim_end_matches(".visual.res").to_owned())
+            });
         let terrain = match terrain_name
             .as_deref()
             .map(|n| Terrain::load(&files, &db, n, &envmap, &mut textures))

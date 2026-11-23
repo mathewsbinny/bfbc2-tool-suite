@@ -704,9 +704,6 @@ TABLE: tuple[Row, ...] = (
       'read-only probe for spec/engine/scripting.md (the level event graph); checked in the game tier'),
     R('spec/probes/terrain.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier'),
-    R('spec/probes/terrain_gen_proto.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
-      "round TG0's throw-away terrain generator prototype (spec/transforms/terrain_gen.md); TG1 writes the real one in "
-      'Rust, then this file goes'),
     R('spec/probes/terrain_shape.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/transforms/terrain_gen.md (DICE terrain shapes, biomes, playable areas); game tier'),
     R('spec/probes/vehicles.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',

@@ -26,6 +26,8 @@ windows.workspace = true
 png.workspace = true
 # the examples and level tests place a level's objects and group members as the editor does
 bc2-scene.workspace = true
+# a generated terrain drawn over its donor level (round TG2: tests/generated_terrain.rs)
+bc2-terragen.workspace = true
 
 [lints]
 workspace = true

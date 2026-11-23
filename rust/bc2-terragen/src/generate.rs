@@ -73,6 +73,10 @@ pub struct Settings {
     /// Rough relief (TGEN-GEN-6): terraces and ridges over patches of the ground, 0 (none) to 1; `None` takes the
     /// biome's ([`Biome::rough`]: temperate's rocky terrains 1, the others 0).
     pub rough: Option<f64>,
+    /// The water's height in metres (TGEN-VIS-2): the heights raised (or lowered, never under 0) so the water lies
+    /// there - a donor's rule layers shade by height, so a terrain drawn with them puts its water at the donor's;
+    /// `None` keeps the heights from 0.
+    pub water_level_m: Option<f64>,
     /// The sub-terrain ring (TGEN-RING-1): twelve 64-sample blocks around the main block, its edges stitched to it
     /// as DICE stitches them (the default); `false` writes the main block alone (as 14 of DICE's 30 terrains).
     pub ring: bool,
@@ -91,6 +95,7 @@ impl Settings {
             pads: Vec::new(),
             erosion: None,
             rough: None,
+            water_level_m: None,
             ring: true,
         }
     }
@@ -198,6 +203,14 @@ pub fn generate(s: &Settings) -> Result<Generated, GenError> {
     }
     let lo = h.iter().copied().fold(f64::INFINITY, f64::min);
     h.par_iter_mut().for_each(|v| *v -= lo);
+    if let Some(level) = s.water_level_m
+        && share > 0.0
+    {
+        let mut v = h.clone();
+        v.par_sort_unstable_by(f64::total_cmp);
+        let shift = level - percentile_sorted(&v, share * 100.0);
+        h.par_iter_mut().for_each(|x| *x = (*x + shift).max(0.0));
+    }
     let top = h.iter().copied().fold(0.0, f64::max);
     let range_m = t.range_m.max((top / 50.0).ceil() * 50.0);
     let raw: Vec<u16> = h

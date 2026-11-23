@@ -20514,6 +20514,27 @@
    ]
   },
   {
+   "id": "TERR-HF-12",
+   "title": "A single ring: twelve blocks around the main block, stitched to it",
+   "file": "spec/formats/terrain.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/ring.rs::dices_single_ring_terrains_are_stitched_so"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/ring.rs:224-300"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-terragen/tests/ring.rs on the game copy, 2026-11-23: 12 of 12 single-ring terrains, the order, sizes and stitching as given; the rings of 25 - 49 blocks (MP_002, SP_04, SP_004_B, BC1_Harvest_Day) not measured"
+    }
+   ]
+  },
+  {
    "id": "TERR-MM-1",
    "title": "Layout",
    "file": "spec/formats/terrain.md",
@@ -20751,6 +20772,23 @@
     {
      "kind": "data",
      "ref": "spec/probes/terrain.py, 2026-11-22: flags over DICE's 30 terrains 2 x 5,367, 4 x 11,712, 8 x 56,352, 16 x 13,750, 32 x 4,864, 64 x 2,558"
+    }
+   ]
+  },
+  {
+   "id": "TERR-VT-8",
+   "title": "A visual terrain decodes whole and is written again byte for byte",
+   "file": "spec/formats/terrain.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_visual_terrains_and_waters_round_trip"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/visual_terrain.rs:170-340"
     }
    ]
   },
@@ -21447,6 +21485,23 @@
     {
      "kind": "test",
      "ref": "rust/bc2-render/src/water.rs::depth_factors_invert_the_projection"
+    }
+   ]
+  },
+  {
+   "id": "WATER-VIS-6",
+   "title": "Open water's vertices are their position, up, along x, and x / 512, z / 512",
+   "file": "spec/formats/water.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_visual_terrains_and_waters_round_trip"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:240-360"
     }
    ]
   },
@@ -28546,9 +28601,21 @@
    "id": "TGEN-REQ-4",
    "title": "A new terrain takes its own name everywhere",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::a_donor_terrains_entries_clone_under_a_new_name"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/visual_terrain.rs:344-395"
+    },
     {
      "kind": "inferred",
      "ref": "TERR-NAME-1 and TERR-VT-3's naming; LVL-MODE-2; OPFOR's Wake Island install retargets cloned patch shaders by name the same way (TEDIT-SH-2)"
@@ -28667,11 +28734,11 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
     },
     {
      "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:251-271"
+     "ref": "rust/bc2-terragen/src/visual.rs:356-430"
     },
     {
      "kind": "data",
@@ -28683,12 +28750,108 @@
    "id": "TGEN-VIS-2",
    "title": "The donor's rule layers expect the donor's heights",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/generated_terrain.rs::a_generated_terrain_draws_with_its_donors_look"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-render/tests/generated_terrain.rs on OPFOR's prepared MP_005, 2026-11-23: per 20 m band over the water and 5 m band under it, luminance ratios and hues as given; rust/BENCHMARKS.md TG2"
+    },
+    {
      "kind": "inferred",
      "ref": "RNDR-TERR-2 (literal weights), RNDR-TERR-5 (Wake Island's sea floor shaded against its water at 215 m); the donor's water level from spec/probes/terrain_shape.py"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VIS-3",
+   "title": "Each cell draws the rule-only shader its ground asks for",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::the_cell_rule_against_dices_own_cells"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/visual.rs:29-95"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-terragen/tests/visual.rs on DICE's MP_005, MP_001, MP_009, MP_003, MP_004 and six rings, 2026-11-23, as given"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VIS-4",
+   "title": "The donor's entries are cloned into the new terrain's databases",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::a_donor_terrains_entries_clone_under_a_new_name"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/terrain.rs:70-137"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-WATER-1",
+   "title": "The visual water is one open-water quad over the outer square",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/visual.rs:280-336"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OCC-1",
+   "title": "The colour / occlusion map takes the donor's values where the terrain's sky visibility puts them",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_occlusion_maps_encode_as_dice_lays_them_out"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/visual.rs:160-275"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/itexture.rs:1-30"
+    },
+    {
+     "kind": "data",
+     "ref": "round TG2's scratch fit on DICE's maps (MP_005, MP_009, MP_001, SP_01) against sky visibility, slope and curvature at 2 m, 2026-11-23: r2 0.27 / 0.22 / 0.03 / 0.12"
     }
    ]
   },
@@ -28723,10 +28886,6 @@
     {
      "kind": "test",
      "ref": "core/tests/test_spec_probes.py::terrain_shapes"
-    },
-    {
-     "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
      "kind": "data",
@@ -28819,15 +28978,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
-    },
-    {
-     "kind": "test",
      "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
-    },
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:111-117"
     },
     {
      "kind": "code",
@@ -28844,15 +28995,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
-    },
-    {
-     "kind": "test",
      "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
-    },
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:94-122"
     },
     {
      "kind": "code",
@@ -28868,16 +29011,12 @@
    "id": "TGEN-GEN-2",
    "title": "The prototype's pipeline matches DICE's medians",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "verified",
+   "status": "observed",
    "variants": "PC",
    "evidence": [
     {
-     "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
-    },
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:46-122"
+     "kind": "data",
+     "ref": "spec/probes/terrain_gen_proto.py (retired in round TG2), 2026-11-23: seed 7, 1,024 samples, the five biomes' beta, median slope and under-water share as given; rust/BENCHMARKS.md TG0"
     }
    ]
   },
@@ -28937,6 +29076,48 @@
     {
      "kind": "code",
      "ref": "rust/bc2-cli/src/terrain_cli.rs:153-216"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-6",
+   "title": "Temperate's rough relief is an escarpment over smooth slopes",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:600-645"
+    },
+    {
+     "kind": "data",
+     "ref": "round TG2's scratch measure of DICE's MP_003, MP_004, SP_005, SP_005_B, SP_007 and MP_009 with spec/probes/terrain_shape.py's statistics, 2026-11-23, as given"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-RING-1",
+   "title": "One ring of twelve 64-sample blocks, stitched as DICE stitches its rings",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/ring.rs::a_generated_ring_reads_back_stitched_as_dices"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/ring.rs::dices_single_ring_terrains_are_stitched_so"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/ring.rs:1-150"
     },
     {
      "kind": "test",
@@ -28953,10 +29134,6 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:53-59"
-    },
-    {
-     "kind": "code",
      "ref": "rust/bc2-terragen/src/biome.rs:114-122"
     }
    ]
@@ -28968,10 +29145,6 @@
    "status": "implemented",
    "variants": "PC",
    "evidence": [
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:208-219"
-    },
     {
      "kind": "code",
      "ref": "rust/bc2-terragen/src/paint.rs:27-53"
@@ -29004,15 +29177,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
-    },
-    {
-     "kind": "test",
      "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
-    },
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:127-178"
     }
    ]
   },
@@ -29025,15 +29190,7 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
-    },
-    {
-     "kind": "test",
      "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
-    },
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:192-205"
     }
    ]
   },
@@ -29046,19 +29203,11 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
-    },
-    {
-     "kind": "test",
      "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
     },
     {
      "kind": "code",
      "ref": "rust/bc2-terragen/src/water.rs:7-23"
-    },
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:222-227"
     }
    ]
   },
@@ -29071,15 +29220,11 @@
    "evidence": [
     {
      "kind": "test",
-     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+     "ref": "rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip"
     },
     {
      "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:181-189"
-    },
-    {
-     "kind": "code",
-     "ref": "spec/probes/terrain_gen_proto.py:331-353"
+     "ref": "rust/bc2-formats/src/terrain_codec.rs:559-660"
     }
    ]
   },

@@ -4,9 +4,9 @@ instead of observed. Read only; skipped without the game copy. `terrain.py` and 
 their functions; SPG's five print-only probes (`materials`, `destruction`, `lighting`, `vehicles`, `weapons`) by the
 lines of their output that hold a rule's counts (EXPECT; `<head>§<line>` for a line inside one block of the output);
 `grime.py`, `menus.py`, `modes.py`, `level.py`, `registry.py` and round SPG3's `options.py`, `scripting.py` and
-`dependencies.py`, round TG0's `terrain_shape.py` and `terrain_gen_proto.py` (the throw-away generator prototype:
-its synthetic terrains and the writer canary on DICE's 30 main blocks), and round SPG4's `resources.py` and
-`census.py` (the census as spec/census.json holds it) by their own `checks()`.
+`dependencies.py`, round TG0's `terrain_shape.py` (round TG0's throw-away generator prototype `terrain_gen_proto.py`
+was retired by round TG2: the generator and its proofs are Rust's, `rust/bc2-terragen`), and round SPG4's
+`resources.py` and `census.py` (the census as spec/census.json holds it) by their own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -838,11 +838,6 @@ def terrain_shapes(game: Path) -> None:
     probe_checks('terrain_shape', game)
 
 
-# spec: TGEN-GEN-1, TGEN-GEN-2, TGEN-OUT-1, TGEN-OUT-2, TGEN-OUT-3, TGEN-VIS-1, TGEN-PLAY-3
-def terrain_generator_prototype(game: Path) -> None:
-    probe_checks('terrain_gen_proto', game)
-
-
 # spec: OCC-HDR-1, OCC-VTX-1, SOOT-HDR-1, SOOT-VTX-1, SOOT-TAIL-1, ATREE-HDR-1, ATREE-PTR-1, IR-HDR-1, HAVOK-RAG-1
 # spec: BINK-HDR-1, BINK-RES-1, BINK-OUT-1, GFILE-AHM-1, GFILE-DBM-1, GFILE-DFE-1, GFILE-INST-1, GFILE-LOGO-1
 def resources(game: Path) -> None:
@@ -876,7 +871,7 @@ def main() -> int:
                                        lambda: grime(game), lambda: menus(game), lambda: modes(game),
                                        lambda: level_partitions(game), lambda: registries(game),
                                        lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game),
-                                       lambda: terrain_shapes(game), lambda: terrain_generator_prototype(game),
+                                       lambda: terrain_shapes(game),
                                        lambda: resources(game), lambda: census(game)]
     for step in steps:
         step()

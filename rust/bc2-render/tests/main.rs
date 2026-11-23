@@ -18,6 +18,7 @@ use std::sync::{Condvar, Mutex, PoisonError};
 #[path = "../examples/common/mod.rs"]
 mod common;
 mod deep_sea_materials;
+mod generated_terrain;
 mod live;
 mod r5d;
 mod visual_terrains;

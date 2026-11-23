@@ -3483,7 +3483,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 816,
+   "lines": 813,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3939,7 +3939,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 873,
+   "lines": 870,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4122,18 +4122,6 @@
    "lines": 564,
    "note": "read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier",
    "path": "spec/probes/terrain.py",
-   "retiring": "stays",
-   "rust": "",
-   "status": "stays"
-  },
-  {
-   "callers": "core/tests/test_spec_probes.py (game)",
-   "embedded_by": [],
-   "folder": "spec",
-   "kind": "build or dev script",
-   "lines": 354,
-   "note": "round TG0's throw-away terrain generator prototype (spec/transforms/terrain_gen.md); TG1 writes the real one in Rust, then this file goes",
-   "path": "spec/probes/terrain_gen_proto.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4568,8 +4556,8 @@
  ],
  "totals": {
   "all": {
-   "files": 375,
-   "lines": 109902
+   "files": 374,
+   "lines": 109542
   },
   "by_folder": {
    "(root)": {
@@ -4761,13 +4749,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20376,
+    "lines": 20373,
     "live": 757,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15281,
+    "test": 15278,
     "twin": 2429
    },
    "design": {
@@ -4783,23 +4771,23 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6028,
+    "lines": 6025,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5761,
+    "stays": 5758,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 20,
-    "lines": 6740,
+    "files": 19,
+    "lines": 6386,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6740,
+    "stays": 6386,
     "test": 0,
     "twin": 0
    },
@@ -4833,12 +4821,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 68,
-    "lines": 13491
+    "files": 67,
+    "lines": 13134
    },
    "test": {
     "files": 188,
-    "lines": 51828
+    "lines": 51825
    },
    "twin": {
     "files": 56,
