@@ -9,11 +9,17 @@
 //! builds them (the bindings make the Python elements, sharing an element between a default and a prototype as the
 //! reference's one tree does).
 //!
-//! Refused ([`None`] from [`build`]), so that the reference runs and records its own messages: a chunk that cannot be
-//! read, a partition whose tree the reference would trip over (no root, a root that is not a container) or whose
-//! numbers it reads otherwise (a count or size past 64 bits).
+//! A chunk that cannot be read is a problem in the reference's words (its exception's name and text, as `fbrb.read`
+//! raises it through the bindings; round PR1b-1e: it was refused). Refused ([`None`] from [`build`]), so that the
+//! reference runs and records its own messages: a partition whose tree the reference would trip over (no root, a
+//! root that is not a container) or whose numbers it reads otherwise (a count or size past 64 bits), a bundle that
+//! changed under the pass.
+//!
+//! [`cache`]: the catalogue's own cache file (round PR1b-1e).
 
 #![allow(clippy::many_single_char_names)] // the reference's names (d, e, c, p, t), kept to read side by side
+
+pub mod cache;
 
 use std::collections::HashMap;
 
@@ -254,14 +260,97 @@ impl Walker<'_> {
 /// A bundle and the entry names the index gives it, in the index's order.
 pub type Job = (String, Vec<String>);
 
+/// Python's `repr()` of a `str` (a `KeyError`'s text): single quotes unless the text has one and no double quote,
+/// backslashes and the quote escaped, the C escapes for tab, newline and return, `\xNN` for other control characters.
+fn py_repr(s: &str) -> String {
+    let q = if s.contains('\'') && !s.contains('"') {
+        '"'
+    } else {
+        '\''
+    };
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push(q);
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            c if c == q => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
+                let _ = std::fmt::Write::write_fmt(&mut out, format_args!("\\x{:02x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(q);
+    out
+}
+
+/// The exception `fbrb.read(b, names)` raises for a bundle error, as (type name, `str(exception)`): `bc2_py`'s
+/// `fbrb_error` and PyO3's `io::Error` conversion. A missing entry is named in the order the reference asks for its
+/// names (`names` deduplicated in order: the chunk read again so). `None`: no text to give (refused).
+fn read_exception(e: &bc2_formats::fbrb::FbrbError, b: &str, names: &[String]) -> Option<(&'static str, String)> {
+    use bc2_formats::fbrb::FbrbError as E;
+    use std::io::ErrorKind as K;
+    Some(match e {
+        E::Io(io) => {
+            let kind = match io.kind() {
+                K::BrokenPipe => "BrokenPipeError",
+                K::ConnectionRefused => "ConnectionRefusedError",
+                K::ConnectionAborted => "ConnectionAbortedError",
+                K::ConnectionReset => "ConnectionResetError",
+                K::Interrupted => "InterruptedError",
+                K::NotFound => "FileNotFoundError",
+                K::PermissionDenied => "PermissionError",
+                K::AlreadyExists => "FileExistsError",
+                K::WouldBlock => "BlockingIOError",
+                K::TimedOut => "TimeoutError",
+                K::OutOfMemory => "MemoryError",
+                K::IsADirectory => "IsADirectoryError",
+                K::NotADirectory => "NotADirectoryError",
+                _ => "OSError",
+            };
+            (kind, io.to_string())
+        }
+        E::NotBundle => ("ValueError", format!("{b} is not an FbRB bundle")),
+        E::MissingEntry { .. } => {
+            let mut keys: Vec<&String> = Vec::with_capacity(names.len());
+            for n in names {
+                if !keys.contains(&n) {
+                    keys.push(n);
+                }
+            }
+            let lowered: Vec<String> = keys.iter().map(|k| k.to_lowercase()).collect();
+            match bc2_gamefs::bundles::read_path(b, &lowered) {
+                Err(E::MissingEntry { index }) => {
+                    let name = keys.get(index)?;
+                    ("KeyError", py_repr(&format!("{name} is not an entry of {b}")))
+                }
+                // read whole the second time, or another error: the bundle changed under the pass
+                _ => return None,
+            }
+        }
+        E::PayloadEnds => (
+            "ValueError",
+            format!("{b}: the payload ends before entry data (damaged bundle)"),
+        ),
+        other => ("ValueError", format!("{b}: {other}")),
+    })
+}
+
 /// `build`'s pass over `bundles` (each with the names `ix.where` gives it, in its order); `None`: refused (see the
-/// module's text). `group`: bundles read at once.
+/// module's text). `group`: bundles read at once. A chunk that cannot be read is a problem as the reference records
+/// it (`<bundle>: <n> partitions not read (<exception>: <text>)`), its partitions left out.
 #[must_use]
 pub fn build(bundles: &[Job], group: usize) -> Option<Built> {
     let mut sorted: Vec<&Job> = bundles.iter().collect();
     sorted.sort_by(|a, b| a.0.cmp(&b.0));
-    // the chunks in the reference's order: (bundle, its names deduplicated and sorted)
-    let mut chunks: Vec<(&str, Vec<String>)> = Vec::new();
+    // the chunks in the reference's order: (bundle, its names deduplicated and sorted, the chunk as the index has it)
+    let mut chunks: Vec<(&str, Vec<String>, &[String])> = Vec::new();
     for (b, ns) in sorted {
         for c in ns.chunks(CHUNK) {
             let mut keys: Vec<String> = Vec::with_capacity(c.len());
@@ -271,7 +360,7 @@ pub fn build(bundles: &[Job], group: usize) -> Option<Built> {
                 }
             }
             keys.sort();
-            chunks.push((b.as_str(), keys));
+            chunks.push((b.as_str(), keys, c));
         }
     }
     let mut out = Built::default();
@@ -280,14 +369,24 @@ pub fn build(bundles: &[Job], group: usize) -> Option<Built> {
     for grp in chunks.chunks(group.max(1)) {
         let jobs: Vec<(&str, Vec<String>)> = grp
             .iter()
-            .map(|(b, ks)| (*b, ks.iter().map(|k| k.to_lowercase()).collect()))
+            .map(|(b, ks, _)| (*b, ks.iter().map(|k| k.to_lowercase()).collect()))
             .collect();
         let read = bc2_gamefs::bundles::read_many(&jobs);
         let mut datas: Vec<(&str, &str, Vec<u8>)> = Vec::new();
-        for (r, (b, ks)) in read.into_iter().zip(grp) {
-            let data = r.ok()?;
-            for (k, d) in ks.iter().zip(data) {
-                datas.push((b, k.as_str(), d));
+        // the chunks not read: (the data read before them, the reference's problem), in the walk's order
+        let mut unread: Vec<(usize, String)> = Vec::new();
+        for (r, (b, ks, given)) in read.into_iter().zip(grp) {
+            match r {
+                Ok(data) => {
+                    for (k, d) in ks.iter().zip(data) {
+                        datas.push((b, k.as_str(), d));
+                    }
+                }
+                Err(e) => {
+                    let (kind, msg) = read_exception(&e, b, given)?;
+                    let problem = format!("{b}: {} partitions not read ({kind}: {msg})", given.len());
+                    unread.push((datas.len(), problem));
+                }
             }
         }
         let parsed: Vec<Option<Result<DbxTree<'_>, String>>> = datas
@@ -309,7 +408,11 @@ pub fn build(bundles: &[Job], group: usize) -> Option<Built> {
             keep: std::collections::HashSet::new(),
         };
         let mut keep_data: Vec<(usize, usize)> = Vec::new();
+        let mut unread = unread.into_iter().peekable();
         for (i, ((b, n, _), p)) in datas.iter().zip(&parsed).enumerate() {
+            while let Some((_, problem)) = unread.next_if(|(at, _)| *at <= i) {
+                w.out.problems.push(problem);
+            }
             match p {
                 None => {}
                 Some(Err(msg)) => w.out.problems.push(format!("{b}: {n} not parsed (ValueError: {msg})")),
@@ -329,6 +432,7 @@ pub fn build(bundles: &[Job], group: usize) -> Option<Built> {
                 }
             }
         }
+        w.out.problems.extend(unread.map(|(_, p)| p));
         walker_seen = std::mem::take(&mut w.seen);
         walker_classes = std::mem::take(&mut w.classes);
         drop(parsed);

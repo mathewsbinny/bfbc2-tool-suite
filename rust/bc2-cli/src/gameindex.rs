@@ -60,12 +60,12 @@ impl Index {
         Some((self.bundles.get(r.1)?.as_str(), r.2.as_str()))
     }
 
-    /// The bundles of `where.values()`.
+    /// `where.items()`: (entry name lower case, bundle, entry name), in the dict's order.
     #[cfg_attr(not(feature = "bf1943"), allow(dead_code, reason = "dbxcatalogue's"))]
-    pub fn bundles(&self) -> impl Iterator<Item = &str> {
+    pub fn rows(&self) -> impl Iterator<Item = (&str, &str, &str)> {
         self.rows
             .iter()
-            .filter_map(|r| self.bundles.get(r.1).map(String::as_str))
+            .filter_map(|r| Some((r.0.as_str(), self.bundles.get(r.1)?.as_str(), r.2.as_str())))
     }
 }
 

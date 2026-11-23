@@ -233,8 +233,10 @@ report.records                                                 # [Record(path, a
 - array item prototypes and a class default per type (plus a second one from another partition, for fair tests);
 - guid -> partition for all 606,896 instances, and each partition's primaryInstance.
 
-It is cached as `work\tools_out\dbx_catalogue.pkl` beside meshview's index, rebuilt when a bundle or BFBC2Game.exe
-changes.
+It is cached as `work\tools_out\dbx_catalogue.bin` beside meshview's index (round PR1b-1e: the Rust core's own file,
+`bc2_convert::dbxcatalogue::cache`, read by `dbxcatalogue.load` through `bc2_native` and by `bfbc2.exe
+dbxcatalogue|dbxparity`; the Python pickle `dbx_catalogue.pkl` is retired), keyed by the content of what it reads:
+rebuilt when a bundle's bytes, the names the index gives it or BFBC2Game.exe change, not when the game copy is moved.
 
 In short:
 - Templates are ranked per instance: DICE's same-guid counterpart, the caller's paired donor partitions (`donors=`),

@@ -16,6 +16,7 @@ thiserror.workspace = true
 rayon.workspace = true
 regex.workspace = true
 memchr.workspace = true
+flate2.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

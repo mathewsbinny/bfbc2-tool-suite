@@ -210,7 +210,8 @@ pub const SPECS: &[Spec] = &[
     // round PR1b-1c: dbxcatalogue's catalogue, Project OPFOR's WW2 QA pickles and its install's indexes
     project(
         "dbxcatalogue",
-        &["dbx_catalogue.pkl"],
+        // round PR1b-1e: bc2_convert::dbxcatalogue::cache's file, and the retired pickle a copy may still hold
+        &["dbx_catalogue.bin", "dbx_catalogue.pkl"],
         &["work", "tools_out"],
         "BFBC2_DBXCATALOGUE_CACHE_MB",
         256.0,
@@ -864,9 +865,14 @@ pub fn maybe_prune_total(opfor: Option<&str>) -> Option<Vec<(&'static str, Done)
     prune_total(total_cap(), opfor).ok()
 }
 
-/// One cache folder pruned to its cap unless its stamp says it was in the last [`PRUNE_EVERY`] seconds. Never
-/// fails.
-pub fn maybe_prune(s: &Spec, top: &str) {
+/// One cache folder pruned to its cap unless its stamp says it was in the last [`PRUNE_EVERY`] seconds; then, when
+/// it was, the overall budget ([`maybe_prune_total`] with `opfor`), as `caches.maybe_prune` runs both. Never fails;
+/// whether the folder was pruned.
+#[allow(clippy::must_use_candidate, reason = "a caller may prune and not ask")]
+pub fn maybe_prune(s: &Spec, top: &str, opfor: Option<&str>) -> bool {
+    if !Path::new(top).is_dir() {
+        return false;
+    }
     let rules = Rules {
         suffixes: s.suffixes,
         markers: s.markers,
@@ -875,7 +881,11 @@ pub fn maybe_prune(s: &Spec, top: &str) {
         unless_within: Some(PRUNE_EVERY),
         ..Rules::default()
     };
-    let _ = prune_folder(top, cap(s), &rules);
+    if !matches!(prune_folder(top, cap(s), &rules), Ok(Some(_))) {
+        return false;
+    }
+    let _ = maybe_prune_total(opfor);
+    true
 }
 
 #[cfg(test)]

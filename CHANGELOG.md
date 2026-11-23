@@ -28,6 +28,27 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-22
+
+### Changed
+- **The DBX catalogue's cache is the Rust core's own file** (round PR1b-1e): `work\tools_out\dbx_catalogue.bin`
+  (`bc2_convert::dbxcatalogue::cache`), read and written by `bfbc2 dbxcatalogue`, `bfbc2 dbxparity --predict` and,
+  through `bc2_native.catalogue_load`, `dbxcatalogue.load` (Project OPFOR's WW2 tools: the same `Catalogue`, the same
+  tables and elements). It is keyed by the content of what the pass reads - each bundle's entry names and content key
+  (its length, its header and its gzip trailer's CRC-32 of the whole payload; a bundle stored unzipped hashed whole),
+  the executable's SHA-256 - so a moved or copied game copy keeps it and a bundle rewritten at the old time does not.
+  `dbxparity --predict` reads it instead of building the catalogue every run (about 15 s -> 5 s; the retired Python took 12 s), and
+  `bfbc2 dbxcatalogue` builds it in Rust when the game copy changed (no longer handed to the Python). A bundle the
+  pass cannot read is now a problem in the Python's words from the Rust pass too (it made the Python run its
+  reference); an incomplete catalogue is still used but not cached.
+- `bc2_gamefs::budget::maybe_prune(spec, top, opfor)` runs the overall budget after a folder it pruned (as
+  `caches.maybe_prune`) and says whether it pruned.
+
+### Removed
+- The catalogue's pickle `work\tools_out\dbx_catalogue.pkl` (a file format a tool wrote): nothing reads or writes it;
+  the caches tool still counts and clears one left on disk. `dbxcatalogue.CACHE_VERSION` and `_signature` are gone
+  (`dbxcatalogue.CACHE` names the new file); without the Rust core `dbxcatalogue.load` builds the catalogue each time.
+
 ### Changed
 - **NavKit's route graphs follow DICE's edge rules** (round NKG2, `spec/transforms/kynapse_generation.md`): each
   sector's walkable pairs are pruned to DICE's greedy 1.2-spanner (KYG-EDGE-3) instead of keeping every pair (coarse)
