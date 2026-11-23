@@ -1,7 +1,7 @@
 {
  "levels": {
   "ons_mp_004": {
-   "bytes": 8023856,
+   "bytes": 7297064,
    "inputs": {
     "work/levels/ons_mp_004/dynamic_tris.npy": "9c9acd989a22ed59c3271e73cbd0f5e987e9fb27",
     "work/levels/ons_mp_004/forbid_tris.npy": "50fdfce0970303105e02a9e100e48009fe109e57",
@@ -15,10 +15,10 @@
     "work/navsample/ons_mp_004_navkit_hi_p02.bin": "77e7509a44941fb1d95ca66cf3d1da643579a937",
     "work/navsample/ons_mp_004_navkit_p02.bin": "0de7ca9590976402f747e77a8b8f3b3cd75b3193"
    },
-   "pathdata": "326b162973db3fc5d41d072df7655db8f6fb75b3"
+   "pathdata": "dc870cc8b87ef4c500c6303c719f663850487173"
   },
   "sp_004_b": {
-   "bytes": 8565240,
+   "bytes": 8046096,
    "inputs": {
     "work/levels/sp_004_b/dynamic_tris.npy": "94be7a1d433eaeaa47dd17e890fed17d7468e2d2",
     "work/levels/sp_004_b/forbid_tris.npy": "0e7e80affad5a7470794e8e24a13cdd48607222f",
@@ -32,10 +32,10 @@
     "work/navsample/sp_004_b_navkit_hi_p02.bin": "01c6256fb79818653452b7b0e6faf3674a83e322",
     "work/navsample/sp_004_b_navkit_p02.bin": "fcf7849f0b1bb3a318489ca29d7ebbf16e6ffeaf"
    },
-   "pathdata": "8d0e8305700314ad62eda32c896472f1bb5fbfb1"
+   "pathdata": "20f9b284871d45babd98d92d232de96693601421"
   },
   "sp_008_b": {
-   "bytes": 8843220,
+   "bytes": 7977168,
    "inputs": {
     "work/levels/sp_008_b/dynamic_tris.npy": "92823a8272ab53cdca206a4b7be272f7eac62b68",
     "work/levels/sp_008_b/forbid_tris.npy": "f935576798edba0deb6b1d1151265bef7c0abdc3",
@@ -49,10 +49,10 @@
     "work/navsample/sp_008_b_navkit_hi_p02.bin": "dd95409faac4cc13e75605df2888b6ab7f3f0503",
     "work/navsample/sp_008_b_navkit_p02.bin": "3c4046568694ef99a92cd3e0dae6c7fba7f06b73"
    },
-   "pathdata": "19c2ac0ff612d3fb8db61b8b37b7a19158ed13ed"
+   "pathdata": "2774bb3f1f7ed3797c545d99c75140a77b05720a"
   },
   "sp_009": {
-   "bytes": 453264,
+   "bytes": 331212,
    "inputs": {
     "work/levels/sp_009/dynamic_tris.npy": "c6cba883fba060e98cffea2296694a6033698fed",
     "work/levels/sp_009/forbid_tris.npy": "e2c636589cceb8830b96578220b8711e0188c0a5",
@@ -66,7 +66,7 @@
     "work/navsample/sp_009_navkit_hi_p02.bin": "4453af7e87fe8e3c24e68c7706cd08a96404048a",
     "work/navsample/sp_009_navkit_p02.bin": "854e44c4426edab320dedb005e41153ad74c5ce2"
    },
-   "pathdata": "7f5f994c100e439d42810258295a8edc0f6329a5"
+   "pathdata": "65e1f51d18c32350f6f549f86536081da2a69735"
   }
  },
  "quick": {

@@ -3917,7 +3917,22 @@ nodes with a DICE node near 38.4 -> 50.8 %.
   directions, the density limit, open ground simplified within DistEdgeMax into one graph, the removal pass, a wall
   passed through its gap only).
 - `kynapse_corpus` (game tier): `step_pairs_lie_on_the_nbsectors_probe_directions` new.
-- The switch on by default (the user's ruling): the golden builds and navregress's reference re-recorded (below).
+- The switch on by default (the user's ruling), for the infantry pitches (0.8, 0.2); vehicle builds (pitch 1 m) keep
+  NavKit's own nodes (ONS_MP_002's vehicle path data unchanged). navregress's reference `regression` saved again with
+  it (the old one kept as `regression_before_2026-11-23_nksdb.json`; the new rows equal the scratch run above, every
+  measure); the 10 whole-stage answers re-recorded; `test_navtools_native.py --record --game --only measures` (the
+  parity rows of sp_009 / sp_004_b, whose candidates are the new golden builds).
+
+The golden builds (`navbuild_golden.json`, old -> new SHA-1, bytes):
+
+| level | old | new |
+|---|---|---|
+| sp_009 | 7f5f994c100e439d42810258295a8edc0f6329a5 (453,264) | 65e1f51d18c32350f6f549f86536081da2a69735 (331,212) |
+| sp_004_b | 8d0e8305700314ad62eda32c896472f1bb5fbfb1 (8,565,240) | 20f9b284871d45babd98d92d232de96693601421 (8,046,096) |
+| sp_008_b | 19c2ac0ff612d3fb8db61b8b37b7a19158ed13ed (8,843,220) | 2774bb3f1f7ed3797c545d99c75140a77b05720a (7,977,168) |
+| ons_mp_004 | 326b162973db3fc5d41d072df7655db8f6fb75b3 (8,023,856) | dc870cc8b87ef4c500c6303c719f663850487173 (7,297,064) |
+
+The files shrink with NavKit's detailed nodes and edges (sp_01's detailed edges 88,665 -> 50,102).
 
 ## WW2-ORD1: the WW2 rebuild settles in one pass from an empty work\ww2 (2026-11-23, branch `ww2ord1`, with Project OPFOR's `ww2ord1`)
 

@@ -1555,8 +1555,9 @@ pub fn stage(
         order_nodes: cfg.order_nodes,
         order_node_min: sw.order_node_min,
         grid_min: (g.min_x, g.min_z),
-        placement: sw
-            .placement
+        // infantry pitches only: a vehicle build (pitch 1 m) keeps NavKit's own nodes (DICE's vehicle run, NbSectors 64
+        // and DistPropagation 15.35 m, is not measured: no vehicle sample run)
+        placement: (sw.placement && ((cfg.pitch - 0.8).abs() < 1e-6 || cfg.is_detailed()))
             .then(|| crate::propagate::Params::at_pitch(cfg.pitch, cfg.dist_edge_max)),
     };
     let level = &st.ground.level;
