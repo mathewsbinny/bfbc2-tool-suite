@@ -12,6 +12,7 @@ repository.workspace = true
 bc2-formats.workspace = true
 bc2-gamefs.workspace = true
 bc2-pyrt.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

@@ -121,8 +121,9 @@ CACHES: dict[str, Spec] = {s.name: s for s in (
          "reference levels' cull tree rows (culltree ref_rows)"),
     Spec('bf1943source', 'BF1943_SOURCE_INDEX', ('.pkl', '.points'), 'BF1943_SOURCE_INDEX_MB', MB, 64,
          "BF1943 source folders' checked bundles and their entries, payloads' restart points (bf1943import.Source)"),
-    Spec('shadercover', 'BFBC2_SHADERCOVER_CACHE', ('.pkl',), 'BFBC2_SHADERCOVER_CACHE_MB', MB, 64,
-         "level shader databases' entry-name prefixes (shaderdb.level_coverage / donor_levels)"),
+    Spec('shadercover', 'BFBC2_SHADERCOVER_CACHE', ('.bin', '.pkl'), 'BFBC2_SHADERCOVER_CACHE_MB', MB, 64,
+         "level shader databases' entry-name prefixes (shaderdb.level_coverage / donor_levels; .pkl: the retired "
+         "Python index's files, round OR3b)"),
     Spec('renderqa', 'BFBC2_RENDERQA_CACHE', ('.pkl',), 'BFBC2_RENDERQA_CACHE_MB', MB, 64,
          "the stock levels' shader databases indexed for renderqa (renderqa.truth_index)"),
 )}

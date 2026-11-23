@@ -37,11 +37,13 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 /// - 8: round A2, objects pinned for the auto layout (`pin`); a version-7 file loads as it is.
 /// - 9: round E4, the gameplay tools (`place-unit`: a flag, spawner or M-COM placed with its logic; `link-point`: a
 ///   spawn point linked to its spawner; `set-rules`: the round's rules); a version-8 file loads as it is.
-pub const VERSION: u32 = 9;
+/// - 10: round E4-rest, event connections added or taken out (`connect`: a Rush stage added or taken out with its
+///   wiring); a version-9 file loads as it is.
+pub const VERSION: u32 = 10;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
-pub const OP_VERSIONS: [(&str, u32); 16] = [
+pub const OP_VERSIONS: [(&str, u32); 17] = [
     ("nav-add", 2),
     ("nav-remove", 2),
     ("nav-load", 2),
@@ -58,6 +60,7 @@ pub const OP_VERSIONS: [(&str, u32); 16] = [
     ("place-unit", 9),
     ("link-point", 9),
     ("set-rules", 9),
+    ("connect", 10),
 ];
 
 /// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; round OP1 made
@@ -74,6 +77,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 6 -> 7: member deletes and adds were added (round SG1); a version-6 log has none
         // 7 -> 8: the auto layout's pins were added (round A2); a version-7 log has none
         // 8 -> 9: the gameplay tools' operations were added (round E4); a version-8 log has none
+        // 9 -> 10: event connections added or taken out were added (round E4-rest); a version-9 log has none
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {

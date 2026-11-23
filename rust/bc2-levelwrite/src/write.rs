@@ -936,6 +936,102 @@ impl LevelWriter {
         self.add_set(schema, p, false)
     }
 
+    /// Adds event connections (round E4-rest, [`Op::Connect`]) or takes them out: each added connection is a copy of
+    /// a connection of the level with the same two event names (else of the first one, its names set), its ends set,
+    /// at the end of the level's connections; one taken out is every connection with its ends and names.
+    ///
+    /// # Errors
+    /// An end is not in the partition, an added connection is there already (a taken-out one is not there), or the
+    /// level has no event connections to copy one from.
+    pub fn connect(&mut self, items: &[crate::ops::Connection], connected: bool) -> Result<()> {
+        for c in items {
+            for g in [&c.source, &c.target] {
+                self.need(g)?;
+            }
+        }
+        let name_of = |w: &Self, c: NodeId, f: &[u8]| -> Vec<u8> {
+            w.d.child(c, f)
+                .and_then(|x| w.d.child(x, b"Name"))
+                .and_then(|x| w.d.text(x))
+                .map_or_default(<[u8]>::to_vec)
+        };
+        let end_of = |w: &Self, c: NodeId, f: &[u8]| -> String {
+            w.d.child(c, f)
+                .and_then(|x| w.d.attr(x, b"ref"))
+                .and_then(local_ref)
+                .unwrap_or_default()
+        };
+        let same = |w: &Self, n: NodeId, c: &crate::ops::Connection| {
+            end_of(w, n, b"Source").eq_ignore_ascii_case(&c.source)
+                && end_of(w, n, b"Target").eq_ignore_ascii_case(&c.target)
+                && name_of(w, n, b"SourceEvent") == c.source_event.as_bytes()
+                && name_of(w, n, b"TargetEvent") == c.target_event.as_bytes()
+        };
+        let arrays = self.connection_arrays();
+        let Some(&array) = arrays.first() else {
+            return Err(LevelWriteError::Refused("the level has no event connections".into()));
+        };
+        for c in items {
+            let found: Vec<(NodeId, NodeId)> = arrays
+                .iter()
+                .flat_map(|&a| {
+                    self.d
+                        .children(a)
+                        .unwrap_or_default()
+                        .iter()
+                        .map(move |&n| (a, n))
+                        .collect::<Vec<_>>()
+                })
+                .filter(|&(_, n)| same(self, n, c))
+                .collect();
+            if !connected {
+                if found.is_empty() {
+                    return Err(LevelWriteError::Refused(format!("no connection {}", c.describe())));
+                }
+                for (a, n) in found {
+                    self.d.children_mut(a)?.retain(|&x| x != n);
+                }
+                continue;
+            }
+            if !found.is_empty() {
+                return Err(LevelWriteError::Refused(format!("{} is there already", c.describe())));
+            }
+            let all: Vec<NodeId> = arrays
+                .iter()
+                .flat_map(|&a| self.d.children(a).unwrap_or_default().to_vec())
+                .collect();
+            let template = all
+                .iter()
+                .copied()
+                .find(|&n| {
+                    name_of(self, n, b"SourceEvent") == c.source_event.as_bytes()
+                        && name_of(self, n, b"TargetEvent") == c.target_event.as_bytes()
+                })
+                .or_else(|| all.first().copied())
+                .ok_or_else(|| LevelWriteError::Refused("the level has no event connections".into()))?;
+            let copy = self.d.clone_node(template);
+            for (f, g) in [(&b"Source"[..], &c.source), (b"Target", &c.target)] {
+                let x = self.d.child(copy, f).ok_or_else(|| LevelWriteError::NoField {
+                    guid: "EventConnections".into(),
+                    field: String::from_utf8_lossy(f).into_owned(),
+                })?;
+                self.d.set_ref(x, g.to_ascii_lowercase().as_bytes())?;
+            }
+            for (f, name) in [
+                (&b"SourceEvent"[..], &c.source_event),
+                (b"TargetEvent", &c.target_event),
+            ] {
+                if name_of(self, copy, f) != name.as_bytes()
+                    && let Some(x) = self.d.child(copy, f).and_then(|e| self.d.child(e, b"Name"))
+                {
+                    self.d.set_text(x, name.as_bytes())?;
+                }
+            }
+            self.d.children_mut(array)?.push(copy);
+        }
+        Ok(())
+    }
+
     /// [`LevelWriter::add_instance`] with sub-instances: [`LevelWriter::copy_set`], then the blueprint and fields.
     fn add_set(&mut self, schema: &Schema, p: &Placed, internal_only: bool) -> Result<()> {
         let field = p.ref_field.as_deref().unwrap_or("ReferencedObject");
@@ -1034,6 +1130,13 @@ impl Ownership {
     /// of the objects or a member; the objects themselves left out, in partition order. Unknown guids are skipped.
     #[must_use]
     pub fn owned_from(&self, roots: &[String]) -> Vec<String> {
+        self.owned_from_except(roots, &HashSet::new())
+    }
+
+    /// [`Ownership::owned_from`] with some instances never reached (round E4-rest: another Rush stage's objects,
+    /// which own their own); upper-case guids.
+    #[must_use]
+    pub fn owned_from_except(&self, roots: &[String], except: &HashSet<String>) -> Vec<String> {
         let roots: Vec<String> = roots
             .iter()
             .map(|g| g.to_ascii_uppercase())
@@ -1045,6 +1148,12 @@ impl Ownership {
         let is_root = |g: &str| roots.iter().any(|r| r == g);
         // the greatest set: reachable from the objects, every referrer inside it
         let mut dead: HashSet<&str> = self.level.iter().map(String::as_str).collect();
+        dead.extend(
+            except
+                .iter()
+                .map(String::as_str)
+                .filter(|g| !roots.iter().any(|r| r == g)),
+        );
         loop {
             let mut reach: HashSet<&str> = roots.iter().map(String::as_str).collect();
             let mut todo: Vec<&str> = roots.iter().map(String::as_str).collect();
@@ -1262,6 +1371,10 @@ pub fn apply_one_with(
         }
         Op::SetRules { to, .. } => {
             out.fields += crate::gameplay::set_rules(w, schema, to).map_err(fail)?;
+        }
+        Op::Connect { items, connected } => {
+            w.connect(items, *connected).map_err(fail)?;
+            out.fields += items.len();
         }
         Op::PlaceUnit { item } => {
             w.place_unit(schema, item).map_err(fail)?;

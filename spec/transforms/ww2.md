@@ -144,6 +144,28 @@ states, or opaque programs where the source draws water or bunkers blended. It d
 [test: opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_runs_last_after_all_its_producers] [test: opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_missing_flag_skeleton_without_reading_staging]
 [test: opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_opaque_wave_and_bunker_programs]
 
+### XWW2-MOD-1: The weapon tools' NumPy products are the reference machine's OpenBLAS kernels, written out
+
+Status: **verified** · Variants: PC
+
+`decimate.py` (the third-person LODs of the Type 38 and the Winchester 1897) and `shapes.py` (`Geo.moved`,
+`Geo.tangents`, the windings of `_facing` / `outward` / `fix_winding`) compute with NumPy, whose matrix products
+go through OpenBLAS. OpenBLAS picks its kernels by the processor (`DYNAMIC_ARCH`), and each kernel has its own order
+of operations and fused multiply-adds, so NumPy's results differ in the last bit from one CPU to another (round
+CI1's lesson): the recorded WW2 outputs are those of the machine that recorded the oracle (OpenBLAS 0.3.34, core
+`SkylakeX` on an AMD Zen 4). The suite's Rust core (`bc2_convert::decimate`, `bc2_convert::shapes`, round
+PR1b-2-rest2) does not call a BLAS: it writes those kernels' operations out - `ddot` under 16 elements as the first
+product then a fused multiply-add per element; `x @ M` for a 4-vector as
+`y_j = fma(x3, M3j, fma(x2, M2j, fma(x0, M0j, x1 M1j)))`; `(n, 3) @ (3, 3)` for n >= 2 as
+`fma(a2, b2, fma(a1, b1, a0 b0))` and for n = 1 as `fma(a2, b2, fma(a0, b0, a1 b1))`; NumPy's sums of three columns
+as `((0 + x0) + x1) + x2`; every product is added to a zeroed output, so a zero result is +0 - so it is deterministic on any processor and gives the oracle's bits. The NumPy originals
+are kept (`*_reference`) and compared bit for bit where NumPy runs those kernels; elsewhere the recorded digests are
+the check.
+
+[test: bfbc2-model-tools/tests/test_decimate.py::parity] [test: bfbc2-model-tools/tests/test_decimate.py::shapes_parity]
+[test: rust/bc2-convert/src/decimate.rs::blas_forms] [code: rust/bc2-convert/src/decimate.rs:54-68] [code: rust/bc2-convert/src/shapes.rs:33-62]
+[data: 200,000 ddot and 100,000 quadric costs, 3,000 dgemv vectors, dgemm rows of n = 2 ... 1,000: all equal to NumPy on the reference machine]
+
 ## 3. The install
 
 ### XWW2-INS-1: The WW2 install refuses before writing

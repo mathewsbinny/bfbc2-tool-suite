@@ -97,6 +97,7 @@ mod pathdata;
 mod pefile;
 mod scene;
 mod shaderdb_handle;
+mod shaderdb_levels;
 mod shaderdb_merge;
 mod shaderdb_open;
 mod shaders;
@@ -445,6 +446,8 @@ mod bc2_native {
         shaderdb_texture_kind,
     };
     #[pymodule_export]
+    use super::shaderdb_levels::{shadercover_levels, shaderdb_level_scan, shaderdb_retexture};
+    #[pymodule_export]
     use super::shaderdb_merge::ShaderMerger;
     #[pymodule_export]
     use super::shaderdb_open::{shaderdb_dx_in_name, shaderdb_open, shaderdb_pick};
@@ -563,6 +566,11 @@ mod bc2_native {
         terrain_visual_water_parts, texture_check, texwrite_alpha, texwrite_l8_bytes, texwrite_l8_down,
         texwrite_levels, texwrite_resource, texwrite_wrapped,
     };
+
+    // round PR1b-2-rest2: decimate.py's edge collapses and shapes.py's products, tangents and windings
+    // (bfbc2-model-tools)
+    #[pymodule_export]
+    use super::converters::{model_decimate, shapes_matmul, shapes_tangents, shapes_turn_over};
 
     // round PR1b-2-rest: the mesh viewer's Python API on its Rust port (bfbc2-mesh-viewer\meshview.py; round O3's
     // meshview_index went with the pickle cache)

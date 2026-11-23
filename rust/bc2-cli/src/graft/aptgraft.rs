@@ -15,14 +15,19 @@ use std::fmt::Write as _;
 
 use bc2_formats::aptmodel::{self, Layout};
 use bc2_menu::graft::{
-    GRAFT_LAYOUT, Grafter, Movie, apt_err, crosshair, edit, free_depths, load, load_members, place_item, py_float,
-    py_int0,
+    GRAFT_LAYOUT, Grafter, Movie, crosshair, edit, free_depths, load, load_members, place_item, py_float, py_int0,
 };
 
 use crate::pyfmt::{docstring, str_repr};
 use crate::pyproc::{Fail, Py, PyErr, PyResult, write_file};
 
 const SOURCE: &str = include_str!("../../../../bfbc2-menu-tools/aptgraft.py");
+
+/// `AptError(msg)` as the command line raises it (the library's [`bc2_menu::error::MenuError::Apt`], as the
+/// Python's exception).
+fn apt_err(msg: impl Into<String>) -> Fail {
+    bc2_menu::error::MenuError::Apt(msg.into()).into()
+}
 const COMMANDS: [&str; 9] = [
     "roundtrip",
     "convert",

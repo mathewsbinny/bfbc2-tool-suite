@@ -70,6 +70,47 @@ an unread word, and the dynamic-record count. A writer keeps every word as DICE'
 [exe: magic `_stricmp` 0x0108EC95-0x0108ECA1; `cmp [esi+0x3A8], 2` at 0x0108ECAE; words 1-35 read at 0x0108ECD9; duplicate mode `cmp [+0x3B4], 1` at 0x0109171B; strides used at 0x0108DB9E, 0x0108DC54, 0x0108DD28; word 35 count at 0x010918D3, records read at 0x01091980-0x010919A2; swap pass 0x0108EAE0]
 [data: word 0 = 2, word 3 = 1, words 32 / 33 = 36 / 12 and word 35 = 0 in 35 of 35 files]
 
+### KYN-FILE-2: The header as the generator writes it, and the node record's parts
+
+Status: **verified**
+
+The Kynapse generator inside `BFBC2Game.exe` (`graphgen\kympdbhpdlinker.cpp`) still holds the code that writes
+this header (round NKS-deep A). It writes, after the magic, from its linker object:
+
+| Words | Written from | DICE's value | Meaning |
+|---|---|---|---|
+| 0, 1 | one field, written twice | 2, 2 | the file version |
+| 2 | the sector count | *n* | |
+| 3 | the mode | 1 | KYN-FILE-1's duplicate mode |
+| 4-7 | four floats, written only in mode 0 (zeros in mode 1) | 0 | a box or origin used by mode 0 |
+| 8-19 | a table of four {u32, u32, u32} entries from three arrays | {2, 0, 8}, then zeros | data descriptors: id, offset, size |
+| 20-31 | a second table of four such entries | zeros | |
+| 32, 33 | two ints | 36, 12 | the node and edge record sizes |
+| 34 | an int | 1 | not read by the runtime (KYRT-IGN-1) |
+| 35 | the path-objects data's count (the writer refuses to write without it: "PathObjects data not set to hpd linker.") | 0 | the dynamic-edge records (KYRT-DYN-1) |
+
+The runtime's search of words 8, 11, 14 and 17 for the value 2 (KYN-FILE-1) looks for descriptor 2 in the first
+table. The node record is a 28-byte node (id, position, the +16 slot, the +20 float, the first-edge field *a*)
+followed by descriptor 2's 8 bytes (the lookup-list fields *b*, *c*, HPD-NODE-6). Word 32 is 28 + descriptor 2's
+size. A writer keeps the words as DICE's (HPD-HDR-2).
+
+A third-party description of the same file layout in another Kynapse game (Divinity II,
+https://github.com/OpenDraconis/divinity2-lib/blob/main/engine/kynapse.md, opened 2026-11-22) names these parts
+`HPDHEADER_v2` (version 2, a "project type" 1, the node size 36, the edge size 12, four floats zero in every file),
+the table entry's kind word "level", and the node `CONCRETENODE` {id, position, `abstract`, `nextCopy`, `firstOut`}
+with "the additional data of descriptor id 2 (8 bytes)". Every one of those agrees with DICE's files and with the
+writer above, except one: that page calls the first node's +20 float "the slot's longest edge". In DICE's files it is
+DistEdgeMax (15 or 50 in every sector, HPD-NODE-1), and 2,605 of 3,120 sectors hold a longer edge, so the claim does
+not hold for BFBC2 and is not used.
+
+The tile table's end slot (KYM-TILE-1) holds left-over memory of the generator. 83 sectors hold 0xBAADF00D, the fill
+of the Windows debug heap, and others hold values such as 1.0, 0.4 and 0.8 as floats. So DICE's generator ran on a
+debug heap, and the slot carries nothing the data needs.
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::header_tables_and_record_layout]
+[exe: the HPD writer 0x011C5140: magic 0x014C7180, words 0 and 1 from linker +0x50, word 2 from +0x10, word 3 from +0x4C, words 4-7 floats +0x18 / +0x1C / +0x20 / +0x24 only when +0x4C = 0 (0x011C52B7), words 8-19 from the arrays at +0x28 / +0x2C / +0x30 and words 20-31 from +0x34 / +0x38 / +0x3C (four entries each, 0x011C54C8-0x011C55C8), words 32-34 from +0x40 / +0x44 / +0x48, word 35 the count at +0x0C of the path-objects data at +0x54 (error string 0x014C72A4); runtime search for descriptor 2 at 0x0108E689-0x0108E69E]
+[data: words 0 = 1 = 2, 3 = 1, 4-7 zero, 8-10 = 2 / 0 / 8, 11-31 zero, 32 = 28 + 8, 34 = 1 in 35 of 35 files; the first node's +20 float equals DistEdgeMax in 3,120 of 3,120 sectors and is shorter than the sector's longest edge in 2,605; 83 end slots 0xBAADF00D]
+
 ### KYN-SEC-1: The sector table's kind word and the sector id range
 
 Status: **verified**

@@ -8,8 +8,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+use crate::error::{MenuError, MenuResult};
 use bc2_formats::aptmodel::{Arg, Code, Content, Rid, Target, Val};
-use bc2_pyrt::err::{Fail, PyResult};
 
 use super::{
     APT, Builder, CKey, Grafter, Movie, apt_err, char_type_name, f32_bits, free_depths, ins, int_arg, is_branch,
@@ -17,28 +17,28 @@ use super::{
 };
 
 /// `text(arg)` of an instruction's argument.
-pub fn arg_text(m: &Movie, a: Option<&Arg>) -> PyResult<Option<String>> {
+pub fn arg_text(m: &Movie, a: Option<&Arg>) -> MenuResult<Option<String>> {
     match a {
         Some(Arg::Ref(r)) => Ok(Some(latin1(m.str_text(*r)?))),
         Some(Arg::Int(_)) => Ok(None),
-        _ => Err(Fail::Python),
+        _ => Err(MenuError::Reference),
     }
 }
 
 /// The pool node an instruction's second argument points at (`i.args[1].node`).
-fn ref_arg(i: &bc2_formats::aptmodel::Ins, k: usize) -> PyResult<Rid> {
+fn ref_arg(i: &bc2_formats::aptmodel::Ins, k: usize) -> MenuResult<Rid> {
     match i.args.get(k) {
         Some(Arg::Ref(r)) => Ok(*r),
-        _ => Err(Fail::Python),
+        _ => Err(MenuError::Reference),
     }
 }
 
-fn pool_names(m: &Movie, pool: Rid) -> PyResult<Vec<String>> {
+fn pool_names(m: &Movie, pool: Rid) -> MenuResult<Vec<String>> {
     m.vals(pool)?.iter().map(|v| m.const_text_of(*v)).collect()
 }
 
 /// `pc(t)` of the mode switches: the pool index of `t` (added to the pool and the names when missing).
-fn pc_ins(m: &mut Movie, names: &mut Vec<String>, pool: Rid, t: &str) -> PyResult<bc2_formats::aptmodel::Ins> {
+fn pc_ins(m: &mut Movie, names: &mut Vec<String>, pool: Rid, t: &str) -> MenuResult<bc2_formats::aptmodel::Ins> {
     if !names.iter().any(|n| n == t) {
         let k = m.const_index(&CKey::S(latin1_encode(t)?))?;
         m.vals_mut(pool)?.push(Val::Num(k as u32));
@@ -48,13 +48,13 @@ fn pc_ins(m: &mut Movie, names: &mut Vec<String>, pool: Rid, t: &str) -> PyResul
     Ok(ins(if k < 256 { 0xA2 } else { 0xA3 }, vec![Arg::Int(k as i64)]))
 }
 
-fn names_at(names: &[String], i: &bc2_formats::aptmodel::Ins) -> PyResult<Option<String>> {
+fn names_at(names: &[String], i: &bc2_formats::aptmodel::Ins) -> MenuResult<Option<String>> {
     let k = int_arg(i, 0)?;
     Ok(usize::try_from(k).ok().and_then(|k| names.get(k)).cloned())
 }
 
 /// `add_mode_case(movie, func, mode, key, fallback)`: the number of functions patched.
-pub fn add_mode_case(m: &mut Movie, func: &str, mode: &str, key: &str, fallback: &str) -> PyResult<usize> {
+pub fn add_mode_case(m: &mut Movie, func: &str, mode: &str, key: &str, fallback: &str) -> MenuResult<usize> {
     let mut done = 0;
     for n in m.code_nodes(false)? {
         let mut code = m.code(n)?.clone();
@@ -71,7 +71,7 @@ pub fn add_mode_case(m: &mut Movie, func: &str, mode: &str, key: &str, fallback:
             }
             let Some(pool) = pool else { continue };
             let mut names = pool_names(m, pool)?;
-            let body = i.body.ok_or(Fail::Python)?;
+            let body = i.body.ok_or(MenuError::Reference)?;
             if walk_ins(&code, body).iter().any(|&k| code.ins[k as usize].op == 0x88) {
                 return Err(apt_err(format!(
                     "{func}: the function sets its own constant pool (not supported)"
@@ -138,7 +138,7 @@ pub fn add_mode_case(m: &mut Movie, func: &str, mode: &str, key: &str, fallback:
 }
 
 /// `add_mode_alias(movie, mode, like, funcs)`: the number of switches patched.
-pub fn add_mode_alias(m: &mut Movie, mode: &str, like: &str, funcs: Option<&[String]>) -> PyResult<usize> {
+pub fn add_mode_alias(m: &mut Movie, mode: &str, like: &str, funcs: Option<&[String]>) -> MenuResult<usize> {
     let mut st = Alias {
         mode,
         like,
@@ -173,7 +173,7 @@ struct Alias<'a> {
 }
 
 impl Alias<'_> {
-    fn new_list(&mut self, m: &Movie, pool: Rid) -> PyResult<usize> {
+    fn new_list(&mut self, m: &Movie, pool: Rid) -> MenuResult<usize> {
         self.lists.push(pool_names(m, pool)?);
         Ok(self.lists.len() - 1)
     }
@@ -186,11 +186,11 @@ impl Alias<'_> {
         mut pool: Option<Rid>,
         mut names: Option<usize>,
         depth: usize,
-    ) -> PyResult<()> {
+    ) -> MenuResult<()> {
         if depth > 4 * bc2_formats::aptmodel::MAX_NESTING {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         }
-        let lst = code.streams.get(s as usize).cloned().ok_or(Fail::Python)?;
+        let lst = code.streams.get(s as usize).cloned().ok_or(MenuError::Reference)?;
         for k in lst {
             let i = code.ins[k as usize].clone();
             if i.op == 0x88 {
@@ -222,11 +222,11 @@ impl Alias<'_> {
         Ok(())
     }
 
-    fn is_name(&self, nl: usize, i: &bc2_formats::aptmodel::Ins, want: &str) -> PyResult<bool> {
+    fn is_name(&self, nl: usize, i: &bc2_formats::aptmodel::Ins, want: &str) -> MenuResult<bool> {
         Ok(matches!(i.op, 0xA2 | 0xA3) && names_at(&self.lists[nl], i)?.as_deref() == Some(want))
     }
 
-    fn patch(&mut self, m: &mut Movie, code: &mut Code, b: u32, nl: usize, pool: Rid) -> PyResult<()> {
+    fn patch(&mut self, m: &mut Movie, code: &mut Code, b: u32, nl: usize, pool: Rid) -> MenuResult<()> {
         let mut j = 0;
         while j + 3 < code.streams[b as usize].len() {
             let body = code.streams[b as usize].clone();
@@ -297,7 +297,7 @@ impl Alias<'_> {
 }
 
 /// The sprites' character ids and nodes: `[movie.char(c) for c in range(...) if movie.char_type(c) == 5]`.
-pub fn sprite_owners(m: &Movie) -> PyResult<Vec<Option<Rid>>> {
+pub fn sprite_owners(m: &Movie) -> MenuResult<Vec<Option<Rid>>> {
     let mut out = vec![None];
     for c in 0..m.char_count()? as i64 {
         if m.char_type(c)? == Some(5) {
@@ -308,7 +308,7 @@ pub fn sprite_owners(m: &Movie) -> PyResult<Vec<Option<Rid>>> {
 }
 
 /// `add_label_alias(movie, like, alias)`: the number of labels added.
-pub fn add_label_alias(m: &mut Movie, like: &str, alias: &str) -> PyResult<usize> {
+pub fn add_label_alias(m: &mut Movie, like: &str, alias: &str) -> MenuResult<usize> {
     let (mut added, mut found) = (0, 0);
     for owner in sprite_owners(m)? {
         let mut labels: HashMap<Option<String>, (usize, Rid)> = HashMap::new();
@@ -356,11 +356,13 @@ pub struct Deps {
 }
 
 /// `deps(movie, cid)`.
-pub fn deps(m: &Movie, cid: i64) -> PyResult<Deps> {
+pub fn deps(m: &Movie, cid: i64) -> MenuResult<Deps> {
     let mut d = Deps::default();
     let mut imps: HashMap<u32, (Option<String>, Option<String>)> = HashMap::new();
     for (mv, n, c) in m.imports()? {
-        let Val::Num(c) = c else { return Err(Fail::Python) };
+        let Val::Num(c) = c else {
+            return Err(MenuError::Reference);
+        };
         imps.insert(c, (mv, n));
     }
     let mut seen = HashSet::new();
@@ -375,7 +377,7 @@ fn visit_char(
     imps: &HashMap<u32, (Option<String>, Option<String>)>,
     seen: &mut HashSet<Rid>,
     depth: usize,
-) -> PyResult<()> {
+) -> MenuResult<()> {
     let c = if (0..=i64::from(u32::MAX)).contains(&c) {
         signed(c as u32)
     } else {
@@ -403,7 +405,7 @@ fn visit_char(
     {
         d.geometry.push(c);
         let Val::Ref(p) = m.val(tab, k + 2)? else {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         };
         visit(m, p, d, imps, seen, depth + 1)?;
     }
@@ -417,19 +419,19 @@ fn visit(
     imps: &HashMap<u32, (Option<String>, Option<String>)>,
     seen: &mut HashSet<Rid>,
     depth: usize,
-) -> PyResult<()> {
+) -> MenuResult<()> {
     // Python's recursion limit (1000 frames, two per level here)
     if depth > 400 {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
     if !seen.insert(n) {
         return Ok(());
     }
     if let Content::Words(v) = &m.node(n)?.content {
-        let num = |k: usize| -> PyResult<i64> {
+        let num = |k: usize| -> MenuResult<i64> {
             match v.get(k) {
                 Some(Val::Num(x)) => Ok(i64::from(*x)),
-                _ => Err(Fail::Python),
+                _ => Err(MenuError::Reference),
             }
         };
         match m.tag(n)? {
@@ -446,7 +448,9 @@ fn visit(
             "geo.part4" | "geo.part5" => visit_char(m, num(20)?, d, imps, seen, depth + 1)?,
             "pushlist" | "poollist" => {
                 for x in v {
-                    let Val::Num(k) = x else { return Err(Fail::Python) };
+                    let Val::Num(k) = x else {
+                        return Err(MenuError::Reference);
+                    };
                     d.constants.insert(*k);
                 }
             }
@@ -487,7 +491,7 @@ const EXTERN_FIX: [(&str, u8, &str); 2] = [
 const PC_LABEL: &str = "BEST";
 
 /// `find_place(movie, frame, name, depth)`.
-pub fn find_place(m: &mut Movie, frame: usize, name: Option<&str>, depth: Option<i64>) -> PyResult<Rid> {
+pub fn find_place(m: &mut Movie, frame: usize, name: Option<&str>, depth: Option<i64>) -> MenuResult<Rid> {
     for it in m.frame_items(frame, None)? {
         if m.tag(it)? != "place" {
             continue;
@@ -509,14 +513,14 @@ pub fn find_place(m: &mut Movie, frame: usize, name: Option<&str>, depth: Option
 }
 
 /// `extern_reads(movie, code)`: (stream, index of the push before, name).
-pub fn extern_reads(m: &Movie, code: &Code) -> PyResult<Vec<(u32, usize, String)>> {
+pub fn extern_reads(m: &Movie, code: &Code) -> MenuResult<Vec<(u32, usize, String)>> {
     let mut out = Vec::new();
     ext_walk(m, code, 0, &[], &mut out, &mut 0, 0)?;
     Ok(out)
 }
 
 /// `extern_mentions(movie, code)`.
-pub fn extern_mentions(m: &Movie, code: &Code) -> PyResult<usize> {
+pub fn extern_mentions(m: &Movie, code: &Code) -> MenuResult<usize> {
     let mut n = 0;
     ext_walk(m, code, 0, &[], &mut Vec::new(), &mut n, 0)?;
     Ok(n)
@@ -530,11 +534,11 @@ fn ext_walk(
     out: &mut Vec<(u32, usize, String)>,
     mentions: &mut usize,
     depth: usize,
-) -> PyResult<()> {
+) -> MenuResult<()> {
     if depth > 4 * bc2_formats::aptmodel::MAX_NESTING {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
-    let lst = code.streams.get(s as usize).ok_or(Fail::Python)?;
+    let lst = code.streams.get(s as usize).ok_or(MenuError::Reference)?;
     let mut pool: Vec<String> = pool.to_vec();
     for (k, &ik) in lst.iter().enumerate() {
         let i = &code.ins[ik as usize];
@@ -556,7 +560,7 @@ fn ext_walk(
                 if let Some(name) = at(nx) {
                     out.push((s, k - 1, name));
                 } else if !matches!(nx.args.first(), Some(Arg::Int(_))) {
-                    return Err(Fail::Python);
+                    return Err(MenuError::Reference);
                 }
             }
         }
@@ -571,7 +575,7 @@ fn ext_walk(
 }
 
 /// `replace_extern(lst, k, new)`.
-pub fn replace_extern(m: &Movie, code: &mut Code, s: u32, k: usize, op: u8) -> PyResult<()> {
+pub fn replace_extern(m: &Movie, code: &mut Code, s: u32, k: usize, op: u8) -> MenuResult<()> {
     let lst = code.streams[s as usize].clone();
     let first = &code.ins[lst[k] as usize];
     let ok = first.op == 0x71
@@ -602,7 +606,7 @@ pub fn replace_extern(m: &Movie, code: &mut Code, s: u32, k: usize, op: u8) -> P
 }
 
 /// `place_named(movie, owner, name)`.
-fn place_named(m: &mut Movie, owner: Option<Rid>, name: &str) -> PyResult<Rid> {
+fn place_named(m: &mut Movie, owner: Option<Rid>, name: &str) -> MenuResult<Rid> {
     for f in 0..m.frame_count(owner)? {
         for it in m.frame_items(f, owner)? {
             if m.tag(it)? == "place" && m.text(m.val(it, 13)?)?.as_deref() == Some(name) {
@@ -614,7 +618,7 @@ fn place_named(m: &mut Movie, owner: Option<Rid>, name: &str) -> PyResult<Rid> {
 }
 
 /// `set_scale(item, sx, sy, x)`.
-fn set_scale(m: &mut Movie, item: Rid, sx: Option<f64>, sy: Option<f64>, x: Option<f64>) -> PyResult<()> {
+fn set_scale(m: &mut Movie, item: Rid, sx: Option<f64>, sy: Option<f64>, x: Option<f64>) -> MenuResult<()> {
     for (k, v) in [(4, sx), (7, sy), (8, x)] {
         if let Some(v) = v {
             let b = f32_bits(v)?;
@@ -625,18 +629,18 @@ fn set_scale(m: &mut Movie, item: Rid, sx: Option<f64>, sy: Option<f64>, x: Opti
 }
 
 /// `set_clip_props(item, propText=text, propLocalized=localized)`.
-fn set_clip_props(m: &mut Movie, item: Rid, text: &str, localized: bool) -> PyResult<()> {
+fn set_clip_props(m: &mut Movie, item: Rid, text: &str, localized: bool) -> MenuResult<()> {
     let Val::Ref(clip) = m.val(item, 15)? else {
         return Err(apt_err("the placement has no clip events"));
     };
     let Val::Ref(ev) = m.val(clip, 1)? else {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     };
     let n = m.vals(ev)?.len();
     let mut k = 0;
     while k < n {
         let Val::Ref(c) = m.val(ev, k + 2)? else {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         };
         let mut code = m.code(c)?.clone();
         let lst = code.streams.first().cloned().unwrap_or_default();
@@ -675,7 +679,7 @@ fn action(m: &mut Movie, code: Rid) -> Rid {
 
 /// `onslaught_timer(pc, con, lms, place)`: the report lines.
 #[allow(clippy::too_many_lines, reason = "the reference's one function, step for step")]
-pub fn onslaught_timer(pc: &mut Movie, con: &mut Movie, lms: bool, place: bool) -> PyResult<Vec<String>> {
+pub fn onslaught_timer(pc: &mut Movie, con: &mut Movie, lms: bool, place: bool) -> MenuResult<Vec<String>> {
     let mut pc_externs = HashSet::new();
     for n in pc.code_nodes(false)? {
         for (_, _, name) in extern_reads(pc, pc.code(n)?)? {
@@ -754,13 +758,13 @@ pub fn onslaught_timer(pc: &mut Movie, con: &mut Movie, lms: bool, place: bool) 
     report.push(format!(
         "depths on the PC timeline: timer {d_play} (playing), {d_kill} (killed), banner {d_lms}"
     ));
-    let snippet = |g: &mut Grafter, pc: &mut Movie, con: &Movie, key: &str| -> PyResult<Rid> {
+    let snippet = |g: &mut Grafter, pc: &mut Movie, con: &Movie, key: &str| -> MenuResult<Rid> {
         let (stream, first, end) = CON_SNIPPETS
             .iter()
             .find(|s| s.0 == key)
             .map(|s| s.1)
-            .ok_or(Fail::Python)?;
-        let code = *con.m.cache.get(&(APT, stream, 3)).ok_or(Fail::Python)?;
+            .ok_or(MenuError::Reference)?;
+        let code = *con.m.cache.get(&(APT, stream, 3)).ok_or(MenuError::Reference)?;
         g.code_range(con, pc, code, first, end)
     };
     g.char(con, pc, CON_TIMER as u32)?;
@@ -782,7 +786,7 @@ pub fn onslaught_timer(pc: &mut Movie, con: &mut Movie, lms: bool, place: bool) 
             break;
         }
     }
-    let first = first.ok_or(Fail::Python)?;
+    let first = first.ok_or(MenuError::Reference)?;
     let mut inits = vec![snippet(&mut g, pc, con, "timer_events")?];
     if lms {
         inits.push(snippet(&mut g, pc, con, "lms_init")?);
@@ -876,11 +880,11 @@ pub fn onslaught_timer(pc: &mut Movie, con: &mut Movie, lms: bool, place: bool) 
         ((184, "label"), (Some(0.65), Some(0.65), None)),
     ];
     for ((owner, name), (sx, sy, x)) in fit {
-        let o = pc.char(*g.cmap.get(&owner).ok_or(Fail::Python)?)?;
+        let o = pc.char(*g.cmap.get(&owner).ok_or(MenuError::Reference)?)?;
         let it = place_named(pc, o, name)?;
         set_scale(pc, it, sx, sy, x)?;
     }
-    let o = pc.char(*g.cmap.get(&CON_TIMER).ok_or(Fail::Python)?)?;
+    let o = pc.char(*g.cmap.get(&CON_TIMER).ok_or(MenuError::Reference)?)?;
     let it = place_named(pc, o, "label")?;
     set_clip_props(pc, it, PC_LABEL, false)?;
     report.push(format!(

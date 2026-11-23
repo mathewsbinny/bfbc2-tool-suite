@@ -425,10 +425,12 @@ TABLE: tuple[Row, ...] = (
     T('bfbc2-mesh-viewer/tests/test_meshview_index.py'),
 
     # --- bfbc2-model-tools
-    R('bfbc2-model-tools/decimate.py', LIB, 'live', '', 'tests 1; OPFOR 2 (type38, winchester1897)',
-      'PR1b-2', 'quadric edge collapses for weapon LODs; not ported'),
-    R('bfbc2-model-tools/shapes.py', LIB, 'live', '', 'tests 2; OPFOR 1 (type100)', 'PR1b-2',
-      'simple solids for weapon parts (lathe, extrude); not ported'),
+    R('bfbc2-model-tools/decimate.py', LIB, 'twin', 'bc2_convert decimate', 'tests 1; OPFOR 2 (type38, winchester1897)',
+      'PR1b-2-rest2', 'Rust since PR1b-2-rest2 (OpenBLAS products written out: XWW2-MOD-1); the NumPy original '
+      'kept as decimate_reference'),
+    R('bfbc2-model-tools/shapes.py', LIB, 'partly', 'bc2_convert shapes', 'tests 2; OPFOR 1 (type100)', 'PR1b-2-rest2',
+      'products, tangents and windings in Rust since PR1b-2-rest2 (XWW2-MOD-1; *_reference the NumPy originals); '
+      'the builders (lathe, extrude) plain Python floats'),
     R('bfbc2-model-tools/skinmesh.py', LIB, 'twin', 'bc2_convert skinmesh', 'tests 2; OPFOR 3', 'PR1b-2',
       'Rust since F2a; its references kept (OPFOR feeds objects it builds)'),
     R('bfbc2-model-tools/texwrite.py', LIB, 'twin', 'bc2_convert texwrite', 'emitteratlas; tests 7; OPFOR 11',
@@ -452,11 +454,11 @@ TABLE: tuple[Row, ...] = (
       'meshview, xdiff; tests 7; OPFOR 6', 'OPFOR in Rust stage 3',
       'left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets'),
     R('bfbc2-shader-tools/shaderdb.py', TOOL, 'partly',
-      'bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb',
+      'bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb',
       '33 suite modules; tests 37; OPFOR 54', 'OPFOR in Rust stage 3',
-      "reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, "
-      "OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with "
-      "PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue"),
+      "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, "
+      "OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: "
+      "bc2_convert::shaderlevels, the pickles retired) are Rust; left: path glue, level_meshes (DBX reading)"),
     R('bfbc2-shader-tools/xdiff.py', TOOL, 'live', 'bfbc2 xdiff (argparse, errors only)',
       'tests 5; OPFOR 4 (xdiff.main in process)', 'OPFOR in Rust stage 3',
       "the translator's differential test (xenos_exec, WARP draws)"),
@@ -471,6 +473,7 @@ TABLE: tuple[Row, ...] = (
     T('bfbc2-shader-tools/tests/test_pcbuild_batch.py'),
     T('bfbc2-shader-tools/tests/test_renderqa.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb.py'),
+    T('bfbc2-shader-tools/tests/test_shaderdb_levels.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb_merge.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb_native.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb_queries.py'),
