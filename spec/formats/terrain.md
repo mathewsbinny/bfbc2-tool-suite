@@ -222,6 +222,32 @@ new main block (E7) writes any surface that stays under the heights (TEDIT-HF-3)
 [data: spec/probes/terrain.py, 2026-11-22: sizes 22,363 / 88,412 values on 30 of 30; share of samples at or under each grid per terrain as printed; the finest grid under all samples on 15]
 [inferred: stale envelopes from edited heights; the use from the shape of the data (a conservative lower surface per level of detail)]
 
+### TERR-HF-12: A single ring: twelve blocks around the main block, stitched to it
+
+Status: **verified** · Variants: PC
+
+On DICE's 12 terrains with one ring (13 blocks: BC1_Oasis, MP_001, MP_006, MP_007, MP_008, MP_009, MP_012,
+NAM_MP_002R, NAM_MP_003, NAM_MP_006, NAM_MP_007, SP_006), blocks `-001` to `-012` have 64 samples each and half the main
+block's side, and tile the square twice the main block's side minus the main block, in one order: their min corners,
+in half main sides, (-2, -2), (-1, -2), (-2, -1), (0, -2), (1, -2), (1, -1), (-2, 0), (-2, 1), (-1, 1), (1, 0), (0, 1),
+(1, 1). Their heights are stitched (st = the main block's samples per ring sample, 8 or 16):
+
+- a ring block's row or column that touches the main block is the main block's edge samples every st samples, from
+  the block's own start along the edge (512 of 512 samples on each terrain);
+- each ring block's last column and last row equal its neighbour's first (a ring block's, or the main block's knots;
+  768 of 768);
+- the main block's four edges are straight lines between those knots, within half a stored unit (the rounding), each
+  ring block's last knot repeating the next block's first (the edge flat over that span) and the edge flat after its
+  last knot.
+
+So a ring block's samples lie st main samples apart, its last one repeating its neighbour's first, and the main
+block's edge is cut to the ring's coarser line: no crack where a fine edge meets a coarse one. Round TG2's ring writer
+follows it (TGEN-RING-1).
+
+[test: rust/bc2-terragen/tests/ring.rs::dices_single_ring_terrains_are_stitched_so]
+[code: rust/bc2-terragen/src/ring.rs:224-300]
+[data: rust/bc2-terragen/tests/ring.rs on the game copy, 2026-11-23: 12 of 12 single-ring terrains, the order, sizes and stitching as given; the rings of 25 - 49 blocks (MP_002, SP_04, SP_004_B, BC1_Harvest_Day) not measured]
+
 ## 3. TerrainMaterialMap
 
 ### TERR-MM-1: Layout
@@ -402,6 +428,18 @@ edges at each cell's border (OPFOR's WW2 shores).
 [code: rust/bc2-render/src/terrain.rs:776-793]
 [data: DICE's MP_009: 757 tiled masks in 51 tiles' blocks, MP_005: 1,033 in 59; OPFOR's Wake Island: 998 in 78 (flags 8 and 4); no tile named outside its block]
 [data: spec/probes/terrain.py, 2026-11-22: flags over DICE's 30 terrains 2 x 5,367, 4 x 11,712, 8 x 56,352, 16 x 13,750, 32 x 4,864, 64 x 2,558]
+
+### TERR-VT-8: A visual terrain decodes whole and is written again byte for byte
+
+Status: **verified** · Variants: PC
+
+TERR-VT-1 - 4's grammar holds every byte: DICE's 30 visual terrains decode (road blocks kept as their bytes, every
+patch shader with its undergrowth entries, every patch map) and encode byte for byte
+(`bc2_formats::visual_terrain`, round TG2), so a writer that changes a part (a generated terrain's patch maps and
+renamed patch shaders, TGEN-VIS-1) writes everything else as DICE did. Names are latin-1.
+
+[test: rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_visual_terrains_and_waters_round_trip]
+[code: rust/bc2-formats/src/visual_terrain.rs:170-340]
 
 ### TERR-VT-6: PC and Xbox 360 visual terrain differ only where DICE edited the PC
 

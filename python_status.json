@@ -79,7 +79,7 @@
    "embedded_by": [],
    "folder": "bfbc2-anim-tools",
    "kind": "test",
-   "lines": 668,
+   "lines": 670,
    "note": "granny.py's Rust core (bc2_native: bc2_formats::granny, bc2_convert::granny): the reader against granny.py'...",
    "path": "bfbc2-anim-tools/tests/test_granny_native.py",
    "retiring": "Tests in Rust",
@@ -611,7 +611,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 385,
+   "lines": 457,
    "note": "area cells in Rust (E3h); the layers' comparison and the PNGs are Python",
    "path": "bfbc2-auto-navkit/tools/navdiff.py",
    "retiring": "proposed: NKG1",
@@ -673,7 +673,7 @@
    ],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 415,
+   "lines": 427,
    "note": "Rust answers argument errors and \"no reference run\"; left: run (the measures over many levels)",
    "path": "bfbc2-auto-navkit/tools/navparity.py",
    "retiring": "NK5",
@@ -685,7 +685,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 308,
+   "lines": 309,
    "note": "the regression builds call navwalk.build (Rust since NK5); left: the run, its inputs and measures in Python",
    "path": "bfbc2-auto-navkit/tools/navregress.py",
    "retiring": "NK5",
@@ -733,7 +733,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 592,
+   "lines": 597,
    "note": "walkable, coarse and the rules are Rust (NK4); build / water_tops / outside_bounds / deep_water are thin calls of the Rust build (NK5-rest: navbuild.py's); left: score's command line",
    "path": "bfbc2-auto-navkit/tools/navwalk.py",
    "retiring": "NK5",
@@ -3483,7 +3483,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 816,
+   "lines": 818,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3939,7 +3939,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 874,
+   "lines": 871,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4047,7 +4047,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 494,
+   "lines": 529,
    "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
    "path": "spec/probes/menus.py",
    "retiring": "stays",
@@ -4095,7 +4095,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 248,
+   "lines": 318,
    "note": "read-only probe for the SPG4 resource and loose-file formats (occluder, soot, animtree, bink, game_folder); game tier",
    "path": "spec/probes/resources.py",
    "retiring": "stays",
@@ -4122,18 +4122,6 @@
    "lines": 564,
    "note": "read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier",
    "path": "spec/probes/terrain.py",
-   "retiring": "stays",
-   "rust": "",
-   "status": "stays"
-  },
-  {
-   "callers": "core/tests/test_spec_probes.py (game)",
-   "embedded_by": [],
-   "folder": "spec",
-   "kind": "build or dev script",
-   "lines": 354,
-   "note": "round TG0's throw-away terrain generator prototype (spec/transforms/terrain_gen.md); TG1 writes the real one in Rust, then this file goes",
-   "path": "spec/probes/terrain_gen_proto.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4568,8 +4556,8 @@
  ],
  "totals": {
   "all": {
-   "files": 375,
-   "lines": 109998
+   "files": 374,
+   "lines": 109840
   },
   "by_folder": {
    "(root)": {
@@ -4585,25 +4573,25 @@
    },
    "bfbc2-anim-tools": {
     "files": 8,
-    "lines": 2715,
+    "lines": 2717,
     "live": 0,
     "partly": 1027,
     "ported": 106,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1582,
+    "test": 1584,
     "twin": 0
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 14713,
-    "live": 1858,
-    "partly": 4391,
+    "lines": 14803,
+    "live": 1859,
+    "partly": 4408,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
     "test": 5442,
-    "twin": 2749
+    "twin": 2821
    },
    "bfbc2-automated-map-and-bot-test-harness": {
     "files": 15,
@@ -4761,13 +4749,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20376,
+    "lines": 20378,
     "live": 757,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15281,
+    "test": 15283,
     "twin": 2429
    },
    "design": {
@@ -4783,23 +4771,23 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6029,
+    "lines": 6026,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5762,
+    "stays": 5759,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 20,
-    "lines": 6740,
+    "files": 19,
+    "lines": 6491,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6740,
+    "stays": 6491,
     "test": 0,
     "twin": 0
    },
@@ -4818,11 +4806,11 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5283
+    "lines": 5284
    },
    "partly": {
     "files": 21,
-    "lines": 16742
+    "lines": 16759
    },
    "ported": {
     "files": 21,
@@ -4833,16 +4821,16 @@
     "lines": 310
    },
    "stays": {
-    "files": 68,
-    "lines": 13492
+    "files": 67,
+    "lines": 13240
    },
    "test": {
     "files": 188,
-    "lines": 51951
+    "lines": 51955
    },
    "twin": {
     "files": 56,
-    "lines": 19636
+    "lines": 19708
    }
   }
  }

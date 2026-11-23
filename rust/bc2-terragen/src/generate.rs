@@ -19,6 +19,9 @@
 //!    bisection) where the 10th slope percentile would otherwise stay over 2 degrees above the biome's: DICE's sea
 //!    and lake floors are flat. Then the **hypsometric integral** remapped to the biome's once more (erosion and the
 //!    border moved it), the **relief** scaled so the median slope is the biome's, and the border corrected again.
+//!
+//!    Then **the rough relief** (TGEN-GEN-6; temperate by default): an escarpment raising a share of the ground,
+//!    the border corrected again.
 //! 6. **Pads** (TGEN-PLAY-3): a disc levelled at each objective site, blended into the ground around it.
 //! 7. **Water** (TGEN-SHAPE-4): the level under which the biome's share of the ground lies; the heights from 0 and the
 //!    range rounded up to 50 m, at least the biome's (TGEN-REQ-2).
@@ -35,8 +38,8 @@ use crate::rng::Stream;
 use crate::shape::{median, percentile_sorted, slopes};
 
 /// The generator's version: a change to what a seed and settings give is a new version (TGEN-GEN-1); a project
-/// records it with the seed.
-pub const GENERATOR_VERSION: u32 = 1;
+/// records it with the seed. 2 (round TG2): temperate's escarpment (TGEN-GEN-6) and the sub-terrain ring.
+pub const GENERATOR_VERSION: u32 = 2;
 
 /// A site to level (TGEN-PLAY-3), in world metres (the terrain is centred on the origin).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -67,6 +70,16 @@ pub struct Settings {
     pub pads: Vec<Pad>,
     /// Hydraulic erosion's droplets per 1,000 samples (`None`: the default, 125).
     pub erosion: Option<u32>,
+    /// Rough relief (TGEN-GEN-6): terraces and ridges over patches of the ground, 0 (none) to 1; `None` takes the
+    /// biome's ([`Biome::rough`]: temperate's rocky terrains 1, the others 0).
+    pub rough: Option<f64>,
+    /// The water's height in metres (TGEN-VIS-2): the heights raised (or lowered, never under 0) so the water lies
+    /// there - a donor's rule layers shade by height, so a terrain drawn with them puts its water at the donor's;
+    /// `None` keeps the heights from 0.
+    pub water_level_m: Option<f64>,
+    /// The sub-terrain ring (TGEN-RING-1): twelve 64-sample blocks around the main block, its edges stitched to it
+    /// as DICE stitches them (the default); `false` writes the main block alone (as 14 of DICE's 30 terrains).
+    pub ring: bool,
 }
 
 impl Settings {
@@ -81,6 +94,9 @@ impl Settings {
             water_share: None,
             pads: Vec::new(),
             erosion: None,
+            rough: None,
+            water_level_m: None,
+            ring: true,
         }
     }
 }
@@ -177,11 +193,24 @@ pub fn generate(s: &Settings) -> Result<Generated, GenError> {
     scale_to_median_slope(&mut h, n, t.slope[1]);
     // the remap and the scale moved the border: corrected again (a smooth rise, the slopes barely change)
     border(&mut h, n, s.border_m.unwrap_or(t.edge_minus_centre));
+    let rough = s.rough.unwrap_or_else(|| s.biome.rough());
+    if rough > 0.0 {
+        terrace(&mut h, n, rough, Stream::new(s.seed, 3));
+        border(&mut h, n, s.border_m.unwrap_or(t.edge_minus_centre));
+    }
     for p in &s.pads {
         pad(&mut h, n, p.x + half, p.z + half, p.radius);
     }
     let lo = h.iter().copied().fold(f64::INFINITY, f64::min);
     h.par_iter_mut().for_each(|v| *v -= lo);
+    if let Some(level) = s.water_level_m
+        && share > 0.0
+    {
+        let mut v = h.clone();
+        v.par_sort_unstable_by(f64::total_cmp);
+        let shift = level - percentile_sorted(&v, share * 100.0);
+        h.par_iter_mut().for_each(|x| *x = (*x + shift).max(0.0));
+    }
     let top = h.iter().copied().fold(0.0, f64::max);
     let range_m = t.range_m.max((top / 50.0).ceil() * 50.0);
     let raw: Vec<u16> = h
@@ -572,6 +601,39 @@ fn border(h: &mut [f64], n: usize, target: f64) {
         let a = miss / unit;
         h.par_iter_mut().zip(&b).for_each(|(v, w)| *v += a * w);
     }
+}
+
+// ------------------------------------------------------------------------------------------ 4b. the rough relief
+
+/// The escarpment's height in metres at full strength (TGEN-GEN-6).
+const ESCARPMENT_M: f64 = 120.0;
+/// The share of the ground on the raised side.
+const TERRACE_SHARE: f64 = 0.3;
+/// The share of the ground the escarpment's face spans (a band of the mask's quantiles).
+const FACE_SHARE: f64 = 0.002;
+/// The mask's spectrum slope: smooth (a mask of beta 3 is rough at the sample scale, and its face frays over a tenth
+/// of the ground).
+const MASK_BETA: f64 = 6.0;
+
+/// The rough relief of DICE's rocky temperate terrains (TGEN-GEN-6): a terrace - the ground over a share of the
+/// square, where a smooth mask from the seed is high, raised by an escarpment of `k` x [`ESCARPMENT_M`]. DICE's rough
+/// relief is that kind of ground: on `MP_004`, `SP_005` and `SP_005_B` 1.5 - 2.3 % of the 2 m samples lie more than
+/// 5 m off their 10 m mean, by up to 138 - 201 m (cliffs and escarpments over smooth slopes), not a ground rough
+/// everywhere; terraces of many low steps or a riser on every contour raised the 90th slope percentile by 4 - 30
+/// degrees for less relief (rust/BENCHMARKS.md TG2). Runs after the relief is scaled (the face is steep, the slopes
+/// elsewhere are kept), then the border is corrected again.
+fn terrace(h: &mut [f64], n: usize, k: f64, rng: Stream) {
+    let mask = spectral(n, MASK_BETA, rng);
+    let mut sorted = mask.clone();
+    sorted.par_sort_unstable_by(f64::total_cmp);
+    let total = sorted.len() as f64;
+    let jump = k.clamp(0.0, 1.0) * ESCARPMENT_M;
+    let edge = 1.0 - TERRACE_SHARE;
+    h.par_iter_mut().zip(&mask).for_each(|(v, m)| {
+        let q = sorted.partition_point(|x| x < m) as f64 / total;
+        let x = ((q - edge) / FACE_SHARE + 0.5).clamp(0.0, 1.0);
+        *v += jump * x * x * (3.0 - 2.0 * x);
+    });
 }
 
 // --------------------------------------------------------------------------------------------- 5. relief, 6. pads

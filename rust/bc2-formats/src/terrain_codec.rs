@@ -556,6 +556,104 @@ pub fn sub_quadtree(hf: &crate::terrain::Heightfield) -> Vec<[u16; 2]> {
     minmax_tree(&hf.raw, hf.size as usize)
 }
 
+/// A sub-terrain block of the ring around the main block (`Heightfield-001` and up; TERR-HF-5, round TG2): the
+/// header with A = 0 and header word 0x20 = 0, the heights, and the min / max quadtree computed from them - nothing
+/// else. DICE's 288 sub-terrain blocks decode and encode byte for byte (`tests/terrain_corpus.rs`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubBlock {
+    /// World bounds: min x, y, z.
+    pub min: [f32; 3],
+    /// World bounds: max x, y, z.
+    pub max: [f32; 3],
+    /// Samples per side (64, 128 or 256 on DICE's).
+    pub size: u32,
+    /// The stored heights, rows along z.
+    pub heights: Vec<u16>,
+}
+
+/// The header words of a sub-terrain block of `n` samples (DICE's: log2(n) - 3, then zeros; A = 0).
+#[must_use]
+pub fn sub_header(n: u32) -> HeaderWords {
+    HeaderWords {
+        log_a: n.max(1).ilog2().saturating_sub(3),
+        ..HeaderWords::default()
+    }
+}
+
+impl SubBlock {
+    /// A sub-terrain block from its bounds (min x, y, z, max x, y, z) and stored heights (n x n, rows along z).
+    ///
+    /// # Errors
+    /// The heights are not a square of a power of two of at least 16 samples a side.
+    pub fn new(bounds: [f32; 6], heights: Vec<u16>) -> Result<Self> {
+        let n = heights.len().isqrt();
+        if n * n != heights.len() || !n.is_power_of_two() || n < 16 {
+            return Err(CodecError::Shape(format!(
+                "{} heights are not a square of a power of two of 16 or more",
+                heights.len()
+            )));
+        }
+        let [x0, y0, z0, x1, y1, z1] = bounds;
+        Ok(Self {
+            min: [x0, y0, z0],
+            max: [x1, y1, z1],
+            size: n as u32,
+            heights,
+        })
+    }
+
+    /// Reads a sub-terrain block whose header words are DICE's and whose quadtree is the computed one (anything
+    /// else is refused: a writer would not give its bytes back).
+    ///
+    /// # Errors
+    /// [`CodecError::Heightfield`] for the header and heights, [`CodecError::Tail`] when its header words are not
+    /// [`sub_header`]'s or its quadtree is missing or not the computed one.
+    pub fn decode(data: &[u8]) -> Result<Self> {
+        let hf = crate::terrain::parse(data)?;
+        if hf.header != sub_header(hf.size) {
+            return Err(CodecError::Tail(format!(
+                "header words {:?}: not a sub-terrain block's",
+                hf.header
+            )));
+        }
+        let crate::terrain::Tail::Quadtree(tree) = &hf.tail else {
+            return Err(CodecError::Tail("no quadtree after the heights".into()));
+        };
+        if *tree != minmax_tree(&hf.raw, hf.size as usize) {
+            return Err(CodecError::Tail("the quadtree is not the heights' own".into()));
+        }
+        Ok(Self {
+            min: hf.min,
+            max: hf.max,
+            size: hf.size,
+            heights: hf.raw,
+        })
+    }
+
+    /// The block's file: header, heights, quadtree.
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        let n = self.size as usize;
+        let h = sub_header(self.size);
+        let tree = minmax_tree(&self.heights, n);
+        let mut out = Vec::with_capacity(HEADER_LEN + 2 * n * n + 4 * tree.len());
+        for v in self.min.iter().chain(&self.max) {
+            out.extend(v.to_le_bytes());
+        }
+        out.extend(self.size.to_le_bytes());
+        out.extend(h.log_a.to_le_bytes());
+        out.extend(h.log_b.to_le_bytes());
+        out.extend(h.w24.to_le_bytes());
+        out.extend(h.w26.to_le_bytes());
+        out.extend(h.w28.to_le_bytes());
+        out.push(h.b2c);
+        out.extend(h.first_len.to_le_bytes());
+        out.extend(self.heights.iter().flat_map(|v| v.to_le_bytes()));
+        out.extend(tree.iter().flatten().flat_map(|v| v.to_le_bytes()));
+        out
+    }
+}
+
 // ------------------------------------------------------------------------------------------------- material maps
 
 /// Cells a block of the material map holds: 512 a row, 256 rows (TERR-MM-2).

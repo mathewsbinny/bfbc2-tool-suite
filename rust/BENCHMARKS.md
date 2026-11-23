@@ -4438,3 +4438,90 @@ Rules went from 1,468 to 1,477. By status: verified 869, implemented 139, observ
 - The award criteria classes; whether DICE's `Final` templates hold the `<Code>_00` names.
 - The 26 node types; blocks B and C beyond their pointers.
 - OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
+## TG2: the generated terrain's ring and visual side (2026-11-23, branch `tg2`)
+
+What TG1 left (the ring, the visual water, temperate's rough relief, the prototype's retirement) and the generated
+terrain's visual side from one donor level, each part proved on DICE's data first. Spec: TGEN-GEN-6, TGEN-RING-1,
+TGEN-VIS-3, TGEN-VIS-4, TGEN-WATER-1, TGEN-OCC-1, TERR-HF-12, TERR-VT-8, WATER-VIS-6 new; TGEN-REQ-4, TGEN-VIS-2
+verified. Generator version 2.
+
+**The writers on DICE's data** (`bc2_formats`, release, the game copy):
+
+| Writer | DICE's data | Result |
+|---|---|---|
+| `terrain_codec::SubBlock` | 288 sub-terrain blocks | 288 of 288 decoded and encoded byte for byte (`terrain_corpus.rs`, 5.9 s with the main blocks) |
+| `visual_terrain` | 30 visual terrains | 30 of 30 byte for byte |
+| `water::VisualWaterFile` | 30 visual waters | 30 of 30 byte for byte (far plane 8192, 6000 on SP_004_B) |
+| `water::open_water_vertex` | open-water vertices (normal up, tangent x) | 23,820 of 23,820 byte for byte: (x, y, z, 1), (0, 1, 0, 0), (1, 0, 0, 0), (x / 512, z / 512), zeros |
+| `itexture` (DXT1 / L8, full mip chain) | 13 terrain colour / occlusion maps (SP_04's format 2 not written) | level sizes and headers DICE's on 13 of 13; level 0 encoded again within a mean of 0.00 (L8) - 0.90 (DXT1) levels, worst 25 |
+| `shaderdb::terrain::clone_terrain` | MP_005's 98 patch, undergrowth, cache and water entries into its own Dx9 / 10 / 11 databases | 98 of 98 with the donor's program keys and shaders, the occlusion map renamed in 51, the donor's entries unchanged; 0.38 / 0.09 / 0.06 s |
+| (DICE's precedent) | SP_008 -> SP_008_B patch entries | 16 of 16 shared combinations with SP_008's program keys under SP_008_B's name, 15 sampling SP_008_B's own occlusion map |
+
+**The ring** (`bc2_terragen::ring`, TGEN-RING-1): DICE's 12 single-ring terrains all have 12 blocks of 64 samples in
+one order and one stitching (TERR-HF-12: 512 of 512 seam samples equal the main block's knots, 768 of 768 ring-to-ring
+samples their neighbour's, the main edges straight between knots within 0.5 units); the generated ring passes the same
+checker (arid 1,024 and snow 2,048), its blocks decode and encode byte for byte; ring median 6 - 63 m from the border's
+(DICE -77 .. +79), 10 - 90 % spread 40 - 372 m (DICE 25 - 432).
+
+**Temperate's rough relief** (TGEN-GEN-6): DICE's rough terrains are rough in few places (1.5 - 2.3 % of 2 m samples
+over 5 m off their 10 m mean, by up to 138 - 201 m on MP_004, SP_005, SP_005_B). Tried at seed 7, 1,024:
+
+| Rough step | Slope p10 / p50 / p90 / p99 | Relief 10 m / 66 m | beta |
+|---|---|---|---|
+| TG1 (none) | 6.6 / 25.9 / 56.4 / 75.3 | 0.94 / 4.43 | 3.76 |
+| terraces of 14 m over 55 % (before the relief scale) | 1.4 / 25.9 / 67.1 / 82.9 | 1.67 / 5.74 | 3.35 |
+| blurred 2 - 8 m before the scale | 7.8 / 25.8 / 47 - 52 / 64 - 71 | 0.19 - 0.70 / 4.5 - 4.8 | 3.8 - 5.7 |
+| a riser on every 60 - 120 m contour | 6.3 / 26.0 / 63 - 65 / 83 - 86 | 1.6 - 2.6 / 5.3 - 7.5 | 2.9 - 3.3 |
+| mesas on a beta-3 mask (its face frays over a tenth of the ground) | 5.8 / 26.1 / 86.6 / 87.7 | 6.36 / 14.41 | 2.88 |
+| **one escarpment of 120 m over 30 %, beta-6 mask, after the scale (kept)** | **6.5 / 26.1 / 57.1 / 79.0** | **4.24 / 13.70** | **3.13** |
+| DICE's temperate median (SP_005) | 6.2 / 26.0 / 55.7 / 75.1 | 4.77 / 13.16 | 3.71 (3.16) |
+
+The other four biomes measure as in TG1.
+
+**The visual side** (`bc2_terragen::visual::build`, from MP_005 on a 1,024 arid terrain): 13 blocks, MP_005's 50
+patch shaders renamed, 4,096 main cells drawn by `Dunes_Destruction` 1,735, `Dunes_Mountain_Destruction` 1,792,
+`Dunes_Seafloor_Destruction` 569; the colour / occlusion map 2,048 x 2,048 DXT1 with MP_005's red p10 / p50 / p90
+(153 / 173 / 206); 99 entries cloned into each database; built in 2.2 s. From MP_008 (snow 2,048): L8 grey map, 81
+entries.
+
+**The cell rule against DICE** (TGEN-VIS-3, DICE's heights and water): the sea floor where DICE put it on 38,713 of
+47,177 rule-only cells (MP_005 0.80, MP_001 0.97, MP_009 0.89, MP_003 0.96, MP_004 0.67); DICE's slope layer is
+painted (on MP_005 no slope statistic or threshold beats "never", 0.73). DICE's colour / occlusion maps are painted
+too: sky visibility (2 - 256 m), slope and curvature explain r2 0.27 / 0.22 / 0.03 / 0.12 of MP_005 / MP_009 /
+MP_001 / SP_01's red, with coefficients of other signs on each - so the generated map takes the donor's values.
+
+**The game-accurate view** (`bc2-render`'s `generated_terrain` test: the generated files over OPFOR's prepared MP_005,
+`World::load_generated`, MP_005's weather; one device a world - a device keeps the engine's height map by name):
+every patch shader has a program; every sampled ray on the terrain drawn at its height (above 506 - 2,113, oblique
+1,222 - 2,458 rays). The look per height band against MP_005's own (plain rule-only cells' dry ground per 20 m over
+the water, sea-floor cells per 5 m under it; luminance ratio, hue within 0.035 everywhere):
+
+| Variant | Dry ground, first 20 m | Dry ground, higher | Sea floor |
+|---|---|---|---|
+| identity (MP_005's heights through the generated visual side) | 1.05 | 0.53 - 0.74 (the computed map darker than DICE's painting) | 1.01 - 1.15 |
+| generated, water at MP_005's 58 m | 0.89 | 0.85 - 1.00 | 1.74 (0 - 5 m: the flattened floor) |
+| generated, heights from 0 (water 2.7 m) | 1.54 - 1.62 | 3.10 - 3.23 | 0.80 |
+
+So the rule layers shade by the ground's height (TGEN-VIS-2): the generator takes the donor's water level
+(`--donor` sets it). Loading a generated world over MP_005's files: 0.2 - 0.9 s.
+
+| Run (release, this PC, other rounds building) | Time | Peak RAM |
+|---|---|---|
+| `bfbc2 terrain generate`, temperate 1,024 (ring, escarpment) | 2.2 s | 126 MB |
+| `bfbc2 terrain generate --donor mp_005`, arid 2,048 (reads the game copy's MP_005 bundles) | 11.4 - 22.6 s | 566 MB |
+| `bfbc2 terrain generate --donor mp_008`, snow 2,048 | 14.0 s | 570 MB |
+| `cargo test --release -p bc2-formats --test terrain_visual_corpus -- --ignored` | 7.7 s | - |
+| `cargo test --release -p bc2-terragen --test ring -- --include-ignored` | 15.3 s | - |
+| `cargo test --release -p bc2-render --test render -- --ignored generated_terrain` | 21 s | - |
+
+### What is left
+
+- Shores: DICE's slot-0 wake strips along the coast; the generated shallow sea floor draws 1.74 times as bright as
+  MP_005's (TGEN-VIS-2's open question).
+- Tiled layers and their atlas tiles (TG4 / E5-rest); undergrowth is not drawn by the game-accurate view.
+- Rings of more than one ring (25 - 49 blocks: MP_002, SP_04, SP_004_B, BC1_Harvest_Day) are not measured.
+- Jungle's 10th slope percentile (3.9 against 0.6), the playable area kept flatter (TG5).
+- Create Level's "Generate" and the export with the level's own terrain bundle (TG3).
+- **Unproven until a playtest**: everything the engine does with a generated terrain - the ring and its seams, the
+  visual terrain, the cloned entries, the visual water, the colour / occlusion map, the donor's rule layers in game.
+  Nothing was installed or launched.

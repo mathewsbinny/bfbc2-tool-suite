@@ -18,6 +18,8 @@ libz-rs-sys.workspace = true
 memchr.workspace = true
 # guid::new_guid's UUID v5 (round QW2: moved from bc2-stockmp)
 sha1_smol.workspace = true
+# shaderdb::terrain's merge store (round TG2: the records a terrain's cloned entries make)
+bumpalo.workspace = true
 
 
 [dev-dependencies]

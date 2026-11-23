@@ -71,7 +71,7 @@ Status: **verified** · Variants: PC, Xbox 360
 | fragment | string | the water fragment shader's entry name |
 | range count r | u32 | |
 | ranges | r x 4 x u32 | slot, triangle count, first index, index count |
-| far plane | f32 | 8192 |
+| far plane | f32 | 8192 (6000 on SP_004_B alone) |
 
 [code: rust/bc2-formats/src/water.rs:161-210]
 [test: rust/bc2-formats/src/water.rs::shaders_per_triangle]
@@ -137,10 +137,25 @@ its depth into a view distance as `y / (z - x)`).
 [code: rust/bc2-render/src/water.rs:1-22]
 [test: rust/bc2-render/src/water.rs::depth_factors_invert_the_projection]
 
+### WATER-VIS-6: Open water's vertices are their position, up, along x, and x / 512, z / 512
+
+Status: **verified** · Variants: PC
+
+A visual water decodes whole and encodes byte for byte (`bc2_formats::water::VisualWaterFile`: each slot a pair of
+names, the second empty but the ocean slot's water fragment shader; 30 of 30, round TG2). Every PC vertex whose
+normal is (0, 1, 0, 0) and tangent (1, 0, 0, 0) - the open water, away from the shore strips - is its position (x, y,
+z, 1), that normal and tangent, the texture coordinate (x / 512, z / 512) and four zeros, as halves: 23,820 of 23,820
+such vertices over DICE's visual waters are `water::open_water_vertex` of their position byte for byte. The shore and
+river strips (slot 0 on most levels) carry a strip's coordinates instead (0 - 1 across, the length along). A
+generated terrain's water is written with it (TGEN-WATER-1).
+
+[test: rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_visual_terrains_and_waters_round_trip]
+[code: rust/bc2-formats/src/water.rs:240-360]
+
 ## Open questions
 
 - The meaning of VisualWater's 6 trailing f16 per vertex beyond the half2 texture coordinate the shader reads.
-- The final f32 (8192): presumably a far distance or tiling extent; not read by the suite.
+- The final f32 (8192; 6000 on SP_004_B): presumably a far distance or tiling extent; not read by the suite.
 - Whether the game reads the WaterMesh at all for gameplay (swimming, boat buoyancy) or only the DBX water
   entities; the carriers of the Pacific War stand on no water because the open sea is not in the visual water.
 - What the format word (10) selects, and whether other values exist (none seen).

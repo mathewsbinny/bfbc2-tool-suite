@@ -9,9 +9,10 @@ what an edit writes is [terrain_edit.md](terrain_edit.md) (TEDIT-*); this file b
 
 The probes: `spec/probes/terrain_shape.py` measures DICE's 30 terrains (the corpus of terrain_edit.md: the game
 copy's DICE bundles dated before 2013, each resource once) and the 61 multiplayer level partitions with a combat area
-that OPFOR's `maps.ini` lists (`--ww2` adds OPFOR's four WW2 terrains, printed apart); `spec/probes/terrain_gen_proto.py`
-is round TG0's prototype generator and writer, checked against the suite's readers and against DICE's 30 main blocks.
-Both run in the game tier (`core/tests/test_spec_probes.py`). Numbers are of 2026-11-23.
+that OPFOR's `maps.ini` lists (`--ww2` adds OPFOR's four WW2 terrains, printed apart); it runs in the game tier
+(`core/tests/test_spec_probes.py`). Round TG0's throw-away prototype (`spec/probes/terrain_gen_proto.py`) was retired
+by round TG2 once its visual-terrain writer had a Rust twin: the generator, its writers and their proofs are
+`rust/bc2-terragen` and `bc2_formats` (sections 5 - 6). Numbers are of 2026-11-23.
 
 Biomes are named here as the data names them: **arid** (desert and dry levels), **jungle**, **snow**, **temperate**
 (DICE's `autumn` set), **vietnam** (DICE's `nam` set); BFBC1's two maps fall into arid (Oasis) and temperate (Harvest
@@ -69,14 +70,14 @@ Status: **inferred** · Variants: PC
 | the engine's at run time | patch normals (RNDR-TERR-2), the height scale (RNDR-TERR-5, TEDIT-HF-4), the destruction mask (DSTR-TERR-2), undergrowth instances (VEG-UG-3), direct light, shadows, fog and sky (LIGHT-BAKE-1) |
 
 The sub-terrain ring (distant low-detail land around the square) is optional: 14 of DICE's 30 terrains have none and
-show nothing past their edge; a generator adds a ring later by writing 12 blocks of 64 - 256 samples at 4 - 128 m with
-their quadtrees (TERR-HF-5), the same writer as the main block's.
+show nothing past their edge; round TG2's generator writes one ring of 12 blocks of 64 samples stitched to the main
+block as DICE's single rings are (TGEN-RING-1).
 
 [inferred: TEDIT-SRC-2's table extended to a whole new terrain; TERR-VT-3 (rule layers are computed), VEG-UG-3 (undergrowth generated at run time), LIGHT-BAKE-1 / -2 (what is baked), XCULL-RES-1 (the export reslots new objects)]
 
 ### TGEN-REQ-4: A new terrain takes its own name everywhere
 
-Status: **inferred** · Variants: PC
+Status: **verified** · Variants: PC
 
 A generated terrain is named `Terrains/<LV>/<LV>` after its level (DICE names each terrain after its map), and every
 name that carries the terrain's is written with it: the resources (TERR-NAME-1), the patch maps' height-field names
@@ -86,6 +87,18 @@ TERR-VT-3, VEG-UG-2), the mask atlas and colour / occlusion texture names, the t
 `TerrainEntityData.TerrainAsset`. Keeping the donor's name instead would make two different terrains answer to one
 name wherever both bundles are loaded (a mode level loads its base map's bundles: LVL-MODE-2).
 
+DICE did this for its own twin terrain: `SP_008_B` (a copy of `SP_008`) names its patch shaders
+`Terrains/SP_008_B/SP_008_B/PatchMaskShaders/<layers>`, with `SP_008`'s program keys on every shared layer combination
+(16 of 16 in each of the three databases), and its patch shaders sample its own colour / occlusion map
+(`Terrains/SP_008_B/Textures/sp08_ambientocclusion`, 15 of 16). Round TG2 renames the same way
+(`bc2_formats::visual_terrain::rename`, `shaderdb::terrain::clone_terrain`, TGEN-VIS-4): the visual terrain's patch,
+undergrowth-mask and cache shader names, the patch maps' height fields and atlas, the visual water's slots, the
+cloned database entries and the colour / occlusion map; the donor's layer textures, undergrowth meshes and the
+generic water shaders (`Shaders/WaterOcean`) keep their names (reused assets of the donor level's bundles).
+
+[test: rust/bc2-formats/tests/terrain_visual_corpus.rs::a_donor_terrains_entries_clone_under_a_new_name]
+[test: rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders]
+[code: rust/bc2-formats/src/visual_terrain.rs:344-395]
 [inferred: TERR-NAME-1 and TERR-VT-3's naming; LVL-MODE-2; OPFOR's Wake Island install retargets cloned patch shaders by name the same way (TEDIT-SH-2)]
 
 ### TGEN-REQ-5: The export registers the new level's own terrain bundle
@@ -131,7 +144,8 @@ The one terrain-specific baked datum is the colour / occlusion map (LIGHT-BAKE-2
 to keep, so the generator computes it: red from sky visibility and slope (WX0's fit, 36 % of MP_005's red explained:
 the computed map is plausible, not DICE's look), blue the layer mask the patch shaders read. Buildings keep their own
 occlusion textures and irradiance volumes (LIGHT-BAKE-3, LIGHT-IRR-2); E5's occlusion / colour paint layer edits the
-map afterwards (LIGHT-BAKE-6).
+map afterwards (LIGHT-BAKE-6). Round TG2 makes it (TGEN-OCC-1): DICE's maps are painted more than computed, so the
+generated map takes the donor map's own values, placed by the terrain's sky visibility.
 
 [inferred: LIGHT-BAKE-1, LIGHT-BAKE-2, LIGHT-BAKE-6, LIGHT-IRR-2]
 
@@ -218,25 +232,122 @@ slope ("Mountain"), sea floor, destruction - are computed in the shader from the
 RNDR-TERR-3). A generated terrain's first visual tier therefore needs no mask atlas tiles: every patch-map cell names
 the donor's rule-only shader with the most layers, with zero tiles and flags (TEDIT-VT-1's rule holds: a rule-only
 cell's non-zero flags are 0), and the shader's own slope and sea-floor rules paint rock on steep ground and sea floor
-under the water. The prototype writes such a visual terrain from MP_005's (one block, empty road blocks, MP_005's 50
-patch shaders, a 64 x 64 patch map all naming shader 13) and the probe's reader reads it back whole. Tiled layers
-(paths, fields, grass patches) are the second tier: they need atlas tiles painted (TEDIT-ATL-1), E5's paint tool.
+under the water. Round TG2's writer (`bc2_terragen::visual::visual_terrain`, through `bc2_formats::visual_terrain`:
+DICE's 30 visual terrains decode and encode byte for byte, TERR-VT-8) writes such a visual terrain from a donor's: N =
+13 blocks with the ring (1 without), 2N empty road blocks, the donor's patch shaders renamed (TGEN-REQ-4), a patch map
+of 16 m cells per block whose every cell names a rule-only shader by TGEN-VIS-3, no tiles, no flags, the donor's atlas
+layout in every header (TERR-VT-5). From MP_005 on a 1,024 arid terrain: 13 blocks, 50 patch shaders, the main
+block's 4,096 cells drawn by `Dunes_Destruction` (1,735), `Dunes_Mountain_Destruction` (1,792) and
+`Dunes_Seafloor_Destruction` (569). Tiled layers (paths, fields, grass patches) are the second tier: they need atlas
+tiles painted (TEDIT-ATL-1), E5's paint tool.
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
-[code: spec/probes/terrain_gen_proto.py:251-271]
+[test: rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders]
+[code: rust/bc2-terragen/src/visual.rs:356-430]
 [data: spec/probes/terrain_shape.py, 2026-11-23: rule-only patch shaders (tiled count 0) on 30 of 30 terrains, 1 (MP_006, NAM_MP_006, SP_005, SP_005_B) to 20 (SP_01)]
 
 ### TGEN-VIS-2: The donor's rule layers expect the donor's heights
 
-Status: **inferred** · Variants: PC
+Status: **verified** · Variants: PC
 
 A patch shader's layer weights are literals compiled into it (RNDR-TERR-2), and BF1943's sea-floor layers darken by
-depth under a water height of their own (RNDR-TERR-5's Wake Island case). A generated terrain drawn with a donor's
-rule shaders should therefore put its water at the donor's water level and keep its ground in the donor's height band
-(MP_005: water 58 m, range 500 m), until a capture shows which heights the rules read from the engine and which are
-literals.
+depth under a water height of their own (RNDR-TERR-5's Wake Island case). The game-accurate view (`bc2-render`:
+DICE's own compiled Dx11 programs, round TG2) shows MP_005's rule layers shading by the ground's height, not by the
+water the level writes: drawn over MP_005's files under MP_005's weather, its plain rule-only cells' dry ground is
+0.28 bright (luminance, HDR) in the first 20 m over MP_005's water and 0.15 - 0.20 above; on a generated arid terrain
+whose heights start at 0 (its water at 2.7 m) the same cells are 0.46 - 0.50 at every height (1.5 - 3.2 times
+MP_005's), while the same terrain raised so its water lies at MP_005's 58 m comes within 11 - 15 % of MP_005's band
+by band. So a generated terrain drawn with a donor's rule shaders puts its water at the donor's water level
+(`Settings::water_level_m`; `bfbc2 terrain generate --donor` takes the donor's by default). Two measures stay off:
+the generated terrain's shallow sea floor (0 - 5 m under the water) is 1.74 times MP_005's and greener (its flattened
+floor, TGEN-GEN-3, faces the sun where MP_005's shelves); and MP_005's own heights drawn through the generated visual
+side (the identity) match its sea floor at every depth within 15 % and its first 20 m of dry ground within 5 %, but
+its higher dry ground at 0.53 - 0.74 (the computed colour / occlusion map is darker there than DICE's painted one,
+TGEN-OCC-1). Unproven until a playtest: the engine's own drawing (the view is DICE's shaders, not the game).
 
+[test: rust/bc2-render/tests/generated_terrain.rs::a_generated_terrain_draws_with_its_donors_look]
+[data: rust/bc2-render/tests/generated_terrain.rs on OPFOR's prepared MP_005, 2026-11-23: per 20 m band over the water and 5 m band under it, luminance ratios and hues as given; rust/BENCHMARKS.md TG2]
 [inferred: RNDR-TERR-2 (literal weights), RNDR-TERR-5 (Wake Island's sea floor shaded against its water at 215 m); the donor's water level from spec/probes/terrain_shape.py]
+
+### TGEN-VIS-3: Each cell draws the rule-only shader its ground asks for
+
+Status: **verified** · Variants: PC
+
+A rule-only patch shader's layers are named in its entry (`Dunes_Seafloor_Mountain_Destruction`): a sea-floor layer
+(`Seafloor`, `Riverbed`, `Underwater`), a slope layer (`Mountain`, `Cliff`, `Slopes`), a destruction layer
+(`Destruction`, `Destr`, `dest`, `dst`). A generated cell (16 m) asks for the sea floor where a sample under it lies
+under the water and for the slope layer where one is steeper than 35 degrees (the material paint's rock, TGEN-MAT-2);
+it draws the donor's rule-only shader with the fewest misses (a sea floor missed counts double), then one with a
+destruction layer, then the one the donor's own map uses most (`bc2_terragen::visual::pick`).
+
+Measured on DICE's own cells with DICE's heights and water: the sea floor is where DICE put it on 38,713 of 47,177
+rule-only cells of MP_005, MP_001, MP_009, MP_003 and MP_004 (0.80, 0.97, 0.89, 0.96 and 0.67); the slope layer is
+painted (no slope threshold or statistic reproduces DICE's choice better than "never": MP_005 0.73 at a share of 0.73
+without it), so the rule puts it where the shader's own slope weighting will draw rock. DICE's rings draw a rule-only
+shader on every cell (most of them the plain one the rule picks for flat dry ground: 5 of 6 multiplayer rings; MP_001
+adds a pavement variant, MP_007 a mountain one); the generated ring's 4 x 4 cells take the same rule on the ring's
+heights.
+
+[test: rust/bc2-terragen/tests/visual.rs::the_cell_rule_against_dices_own_cells]
+[code: rust/bc2-terragen/src/visual.rs:29-95]
+[data: rust/bc2-terragen/tests/visual.rs on DICE's MP_005, MP_001, MP_009, MP_003, MP_004 and six rings, 2026-11-23, as given]
+
+### TGEN-VIS-4: The donor's entries are cloned into the new terrain's databases
+
+Status: **verified** · Variants: PC
+
+The new level's Dx9, Dx10 and Dx11 databases are the donor level's with every entry the new visual terrain and visual
+water name added again under the new terrain's name (TGEN-REQ-4): the patch and undergrowth mask shaders
+(`Terrains/<D>/<D>/PatchMaskShaders/`, `.../UgMaskShaders/`), the undergrowth cache shaders and the water slots
+(`Terrains/<D>/Shaders/...`). A clone keeps its programs' keys, vertex and pixel shaders and vertex layouts (the suite
+compiles no shader: TEDIT-SH-1; a donor terrain's own entries already satisfy TEDIT-SH-2 / -3), renames each program
+and its key's entry, and copies the parameter blocks with the colour / occlusion map renamed to the new terrain's
+(`bc2_formats::shaderdb::terrain::clone_terrain`, the merge of round OR3a). MP_005's 98 patch, undergrowth, cache and
+water entries cloned into MP_005's own databases keep the donor's keys and shaders (98 of 98 in each), sample the
+renamed map in 51 entries, and leave the donor's entries as they were (Dx9 0.38 s, Dx10 0.09 s, Dx11 0.06 s); DICE's
+twin `SP_008_B` has `SP_008`'s keys under its own name (TGEN-REQ-4). E5-rest's paint of a new layer combination is
+the same merge with explicit names (`shaderdb::terrain::clone_entries`: an entry of the level's own terrain cloned
+under the new combination's name).
+
+[test: rust/bc2-formats/tests/terrain_visual_corpus.rs::a_donor_terrains_entries_clone_under_a_new_name]
+[test: rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders]
+[code: rust/bc2-formats/src/shaderdb/terrain.rs:70-159]
+
+### TGEN-WATER-1: The visual water is one open-water quad over the outer square
+
+Status: **verified** · Variants: PC
+
+A generated terrain's water is one flat body (TGEN-REQ-6): the water mesh and the visual water are one quad at the
+water level over the outer square (the ring's, twice the main block's side, else the main block's), the visual
+water's indices the mesh's (WATER-VIS-4), its four vertices DICE's open-water vertices (WATER-VIS-6), drawn by the
+donor's open-water slot (the slot whose ranges hold most open-water vertices: MP_005's `Water`), the donor's slots
+renamed (TGEN-REQ-4; `Shaders/WaterOcean` and its fragment kept) and its far plane kept. Shores (DICE's slot-0 wake
+strips along the coast) are not written.
+
+[test: rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders]
+[code: rust/bc2-terragen/src/visual.rs:280-336]
+
+### TGEN-OCC-1: The colour / occlusion map takes the donor's values where the terrain's sky visibility puts them
+
+Status: **verified** · Variants: PC
+
+DICE's terrain maps (LIGHT-BAKE-2) are painted: the best fit of computed sky visibility (16 directions, 2 - 256 m),
+slope and curvature explains 27 % of MP_005's red channel, 22 % of MP_009's, 3 % of MP_001's and 12 % of SP_01's, with
+coefficients of other signs on each (round TG2's measure; WX0's 36 %). So the generated map is the donor's, rearranged:
+the terrain's cosine-weighted sky visibility (16 directions, horizons 2 - 64 texels) on the donor map's grid over
+2,048 m, ranked, each texel given the donor's red at its rank (the donor's distribution exactly); green and blue the
+donor's medians, or the red where the donor's map is grey (L8, or R = G = B on every texel); written in the donor's
+format, size, flags and full mip chain (`bc2_formats::itexture`: DXT1 and L8, DICE's level layout on all 13 terrain
+maps of those formats; DICE's maps decoded and encoded again within a mean of 0.0 - 0.9 levels). On MP_005 the
+generated map's red p10 / p50 / p90 are DICE's (153 / 173 / 206). The donor's map is found as the texture under
+`Terrains/<D>/` with `occ` in its name that the most patch shaders sample (MP_005 `mp05_AmbientOcclusion`, MP_008
+`MP008_Occlusion`, SP_005 `sp05_snowocc`; MP_003 and MP_004 sample none). E5-rest's re-bake writes the same texture
+format through the same encoder (LIGHT-BAKE-6).
+
+[test: rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders]
+[test: rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_occlusion_maps_encode_as_dice_lays_them_out]
+[code: rust/bc2-terragen/src/visual.rs:160-275]
+[code: rust/bc2-formats/src/itexture.rs:1-30]
+[data: round TG2's scratch fit on DICE's maps (MP_005, MP_009, MP_001, SP_01) against sky visibility, slope and curvature at 2 m, 2026-11-23: r2 0.27 / 0.22 / 0.03 / 0.12]
 
 ## 3. How DICE's terrains are shaped
 
@@ -276,7 +387,6 @@ biomes' DICE medians are 53 - 75, and half or less of DICE's 66 m relief (TGEN-G
 generator reaches 52 - 76 degrees and 70 - 100 % of the relief on four biomes: TGEN-GEN-4).
 
 [test: core/tests/test_spec_probes.py::terrain_shapes]
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
 [data: spec/probes/terrain_shape.py, 2026-11-23: median of median slopes 20.4; per terrain p10 / p90 / p99 as printed; biome medians of the 99th percentile arid 52.8, jungle 75.0, snow 71.1, temperate 75.1, vietnam 64.6; the prototype's five biomes (seed 7, n 1,024): p99 20.1 / 45.9 / 56.1 / 48.3 / 33.5 degrees, 66 m relief 0.87 / 2.46 / 3.23 / 2.80 / 1.52 m]
 
 ### TGEN-SHAPE-3: The spectrum is steep and the same in every biome
@@ -360,9 +470,7 @@ Round TG1's generator does the same (`Settings::pads`, world metres, radius 24 b
 generate --pad`), after the relief is scaled and before the water level is set; the test levels three pads on an arid
 terrain and finds each middle under 0.5 m.
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
-[code: spec/probes/terrain_gen_proto.py:111-117]
 [code: rust/bc2-terragen/src/generate.rs:649-676]
 
 ## 5. The generator
@@ -383,25 +491,23 @@ parallel step computes each value on its own and every sum runs in a fixed order
 one after the other; the same settings give the same bytes on one thread and on four. `bfbc2 terrain generate` writes
 `terrain.json` beside the resources with the seed, the settings and `generator_version` (1).
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
-[code: spec/probes/terrain_gen_proto.py:94-122]
 [code: rust/bc2-terragen/src/rng.rs:1-46]
 [code: rust/bc2-cli/src/terrain_cli.rs:120-151]
 
 ### TGEN-GEN-2: The prototype's pipeline matches DICE's medians
 
-Status: **verified** · Variants: PC
+Status: **observed** · Variants: PC
 
 The prototype: (1) Gaussian noise filtered to the biome's spectrum slope (TGEN-SHAPE-3); (2) a border term raising the
 edge by the biome's border-minus-centre; (3) the relief scaled until the median slope is the biome's (TGEN-SHAPE-2);
 (4) thermal erosion at a 42 degree talus; (5) objective pads (TGEN-PLAY-3); (6) the water level put where the biome's
 share of ground lies under it (TGEN-SHAPE-4); (7) the height range rounded up to 50 m, at least the biome's. On seed 7
 at 1,024 samples it hits every biome's beta within 0.1, median slope within 0.1 degree and under-water share exactly;
-the tails it misses are TGEN-SHAPE-2's.
+the tails it misses are TGEN-SHAPE-2's. (Round TG0's prototype, `spec/probes/terrain_gen_proto.py`, retired by round
+TG2: its pipeline is TGEN-GEN-3's first version.)
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
-[code: spec/probes/terrain_gen_proto.py:46-122]
+[data: spec/probes/terrain_gen_proto.py (retired in round TG2), 2026-11-23: seed 7, 1,024 samples, the five biomes' beta, median slope and under-water share as given; rust/BENCHMARKS.md TG0]
 
 ### TGEN-GEN-3: What the real generator adds (round TG1)
 
@@ -429,9 +535,9 @@ was kept (TGEN-GEN-4):
 6. **objective pads** (TGEN-PLAY-3), the heights from 0, the range rounded up to 50 m (at least the biome's), the
    water level where the biome's (or the settings') share of the ground lies under it.
 
-Not done in TG1: ridged / terraced noise (TGEN-GEN-4's one gap left, temperate's rough relief), the playable area kept
-flatter (TGEN-PLAY-1; A3 / TG5 give the region), shores and fords, the sub-terrain ring (TGEN-REQ-3). A 1,024 terrain
-takes 1 - 2.5 s, a 2,048 one 7 - 10 s on this PC (rust/BENCHMARKS.md TG1).
+Round TG2 added temperate's rough relief (TGEN-GEN-6), the water at a given height (TGEN-VIS-2) and the sub-terrain
+ring (TGEN-RING-1). Not done: the playable area kept flatter (TGEN-PLAY-1; A3 / TG5 give the region), shores and
+fords. A 1,024 terrain takes 1 - 2.5 s, a 2,048 one 7 - 10 s on this PC (rust/BENCHMARKS.md TG1).
 
 [code: rust/bc2-terragen/src/generate.rs:146-203]
 [code: rust/bc2-terragen/src/generate.rs:209-419]
@@ -459,19 +565,23 @@ centre; the prototype at the same seed), against the biome's DICE median (TGEN-S
 | temperate | DICE | 6.2 / 26.0 / 55.7 / 75.1 | 0.36 | 4.77 / 13.16 | 3.71 | 37.2 | 0.03 |
 | | prototype | 10.8 / 26.2 / 41.7 / 48.3 | 0.58 | 0.50 / 2.80 | 3.63 | -4.3 | 0.03 |
 | | TG1 | 6.6 / 25.9 / 56.4 / 75.3 | 0.36 | 0.94 / 4.43 | 3.76 | 37.3 | 0.03 |
+| | TG2 | 6.5 / 26.1 / 57.1 / 79.0 | 0.33 | 4.24 / 13.70 | 3.13 | 37.5 | 0.03 |
 | vietnam | DICE | 0.0 / 14.2 / 29.4 / 64.6 | 0.21 | 0.41 / 3.35 | 3.94 | 6.9 | 0.18 |
 | | prototype | 5.6 / 14.2 / 25.0 / 33.5 | 0.59 | 0.22 / 1.52 | 3.86 | -23.4 | 0.18 |
 | | TG1 | 0.8 / 14.2 / 32.9 / 62.7 | 0.22 | 0.45 / 2.36 | 3.98 | 7.0 | 0.18 |
 
 The prototype's gap is closed: the 99th-percentile slope is 52 - 76 degrees (DICE's medians 53 - 75; the prototype
 20 - 56), the 90th within 4 degrees, the 66 m relief 70 - 100 % of DICE's median on four biomes (the prototype 44 -
-65 %), the hypsometric integral within 0.02 (the prototype 0.58 - 0.60 on all five), the border within 0.2 m. Left:
-temperate's 10 m / 66 m relief (0.94 / 4.43 m against 4.77 / 13.16: the median of its five terrains sits on three rocky
-ones, MP_003, MP_004, SP_005; BC1_Harvest_Day has 0.13 / 1.33) wants the ridged / terraced option; jungle's 10th slope
+65 %), the hypsometric integral within 0.02 (the prototype 0.58 - 0.60 on all five), the border within 0.2 m.
+Temperate's 10 m / 66 m relief (TG1 0.94 / 4.43 m against 4.77 / 13.16: the median of its five terrains sits on three
+rocky ones, MP_003, MP_004, SP_005; BC1_Harvest_Day has 0.13 / 1.33) is round TG2's escarpment's (TGEN-GEN-6: 4.24 /
+13.70 m, its 99th slope percentile 79.0 and beta 3.13, DICE's rough SP_005's 75.1 and 3.16); the other four biomes
+measure as TG1's (the ring's stitching changes only the main block's outer rows). Left: jungle's 10th slope
 percentile 3.9 against 0.6 (DICE's range 0 - 7). A 2,048 jungle terrain (seed 11) measures 2.3 / 22.2 / 56.2 / 75.6,
 HI 0.41, relief 0.85 / 4.09 m, beta 3.93, border 14.8 m; its file is 8,669,245 bytes, the size of DICE's 2,048 blocks.
 The test holds every biome at seed 7 near its medians (median slope within 1 degree, p90 within 6, p99 within 5, HI
-within 0.03, beta within 0.3, border within 3 m, under-water share within 0.01).
+within 0.03, beta within 0.3 (temperate 0.65: the escarpment's step), the 66 m relief 65 - 130 % of DICE's, border
+within 3 m, under-water share within 0.01).
 
 [test: rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians]
 [data: spec/probes/terrain_shape.py's shape() on bfbc2 terrain generate's main blocks and the prototype's terrains, 2026-11-23, as tabled; DICE's medians from the same probe's run on the 30 terrains]
@@ -491,8 +601,55 @@ through `bc2_formats::terrain_codec` (round E5's codec: DICE's 30 main blocks an
 [--water <share>] [--pad <x>,<z>[,<r>]] ... [--erosion <k>]`, which writes the resources and `terrain.json`
 (TGEN-GEN-1) and refuses other sizes (TGEN-REQ-2).
 
+Round TG2: `Settings` also takes the rough relief (TGEN-GEN-6), the water's height (TGEN-VIS-2) and the ring
+(TGEN-RING-1); `Terrain::resources` adds the ring's `Heightfield-001` .. `-012`; `visual::build` makes the visual
+side from a donor's files (TGEN-VIS-1, -3, -4, TGEN-WATER-1, TGEN-OCC-1); the command line adds `--rough`,
+`--no-ring`, `--water-level` and `--donor <level> [--opfor <folder>]` (the visual side read from that DICE level of the
+game copy, the water at the donor's level unless given).
+
 [code: rust/bc2-terragen/src/lib.rs:118-139]
 [code: rust/bc2-cli/src/terrain_cli.rs:153-216]
+
+### TGEN-GEN-6: Temperate's rough relief is an escarpment over smooth slopes
+
+Status: **verified** · Variants: PC
+
+DICE's rough terrains are rough in few places, very: on MP_004, SP_005 and SP_005_B 1.5 - 2.3 % of the 2 m samples lie
+more than 5 m off their 10 m mean, by up to 138 - 201 m (cliffs and escarpments over smooth slopes; MP_003 0.6 % by up
+to 62 m; MP_009 0.07 % by 15 m). TG1's generator reached temperate's slopes (p90 56.4, p99 75.3 degrees) with a fifth
+of its 10 m / 66 m relief (0.94 / 4.43 m against 4.77 / 13.16). Round TG2's escarpment (`Settings::rough`, temperate
+1 by default, 0 for the other biomes): after the relief is scaled, the ground where a smooth mask from the seed (beta
+6) lies in its top 30 % is raised by 120 m (x the strength), the face spanning 0.2 % of the ground, then the border is
+corrected again. Tried first and dropped (seed 7, rust/BENCHMARKS.md TG2): terraces of 14 m steps over half the
+ground (90th slope percentile 67 against 56, relief 1.67 / 5.74 m), a riser on every 60 - 120 m contour (90th
+percentile 63 - 79), a mask of beta 3 (its face frayed over a tenth of the ground: 90th percentile 86). Temperate at
+seed 7 (1,024): slope p10 / p50 / p90 / p99 6.5 / 26.1 / 57.1 / 79.0 degrees, HI 0.33, relief 4.24 / 13.70 m, beta
+3.13 (DICE's rough SP_005: 3.16; a step's spectrum falls as k^-3), border 37.5 m.
+
+[test: rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians]
+[code: rust/bc2-terragen/src/generate.rs:600-645]
+[data: round TG2's scratch measure of DICE's MP_003, MP_004, SP_005, SP_005_B, SP_007 and MP_009 with spec/probes/terrain_shape.py's statistics, 2026-11-23, as given]
+
+### TGEN-RING-1: One ring of twelve 64-sample blocks, stitched as DICE stitches its rings
+
+Status: **verified** · Variants: PC
+
+DICE's 12 single-ring terrains (BC1_Oasis, MP_001, MP_006, MP_007, MP_008, MP_009, MP_012, NAM_MP_002R, NAM_MP_003,
+NAM_MP_006, NAM_MP_007, SP_006) have twelve blocks of 64 samples, each half the main block's side, tiling the square
+twice the main block's side around it, in one order (TERR-HF-12), and are stitched to the main block on all 12
+(512 of 512 seam samples, 768 of 768 ring-to-ring samples, the main edges straight within half a stored unit). Round
+TG2's ring (`bc2_terragen::ring`): the main block's border continued outwards and blended over a quarter of its side
+into distant hills (a beta 4 field from the seed around the border's median, spread 0.4 of the main block's 10 - 90 %
+range), then DICE's stitching. Its blocks read in the suite's reader and decode and encode byte for byte
+(`terrain_codec::SubBlock`), and the same checker finds them stitched as DICE's: on arid 1,024 and snow 2,048 terrains
+512 of 512 and 768 of 768 seam samples, the edges within 0.5. The ring's median lies 6 - 63 m from the border's
+(DICE's -77 .. +79 m) with a 10 - 90 % spread of 40 - 372 m (DICE's 25 - 432 m). The visual terrain gives each ring
+block a 4 x 4 patch map (TGEN-VIS-3), the water covers the ring (TGEN-WATER-1). `Settings::ring = false` (`--no-ring`)
+writes the main block alone, as 14 of DICE's 30.
+
+[test: rust/bc2-terragen/tests/ring.rs::a_generated_ring_reads_back_stitched_as_dices]
+[test: rust/bc2-terragen/tests/ring.rs::dices_single_ring_terrains_are_stitched_so]
+[code: rust/bc2-terragen/src/ring.rs:1-150]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 
 ### TGEN-MAT-1: Material names come from the donor level's grid
@@ -504,7 +661,6 @@ material grid of each level that uses the terrain (MAT-GRID-2): the donor level'
 prototype's per-biome lists are names DICE's terrains of that biome use (TGEN-BIOME-2): ground, rock, sea bed and a
 slope material.
 
-[code: spec/probes/terrain_gen_proto.py:53-59]
 [code: rust/bc2-terragen/src/biome.rs:114-122]
 
 ### TGEN-MAT-2: Materials are painted from height and slope; visual layers follow the same rules
@@ -517,7 +673,6 @@ shader (TGEN-VIS-1), so what a soldier walks on and what is drawn agree. TG2 add
 and distance to water, the visual tiled layers painted to match (TEDIT-MM-1: the editor pairs visual layers with
 materials by its own table), roads and paths as both.
 
-[code: spec/probes/terrain_gen_proto.py:208-219]
 [code: rust/bc2-terragen/src/paint.rs:27-53]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 
@@ -551,9 +706,7 @@ with the stored values the generator made, DICE's header words, the tail taken a
 and re-encode byte for byte with a depth map of 255 and the envelope under every sample (`under_share` 1.0); the
 1,024 file has DICE's 1,024 size and the 2,048 one (8,669,245 bytes) DICE's 2,048 size.
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
-[code: spec/probes/terrain_gen_proto.py:127-178]
 
 ### TGEN-OUT-2: A generated material map decodes and re-encodes byte for byte
 
@@ -564,9 +717,7 @@ re-encodes byte for byte with DICE's coding (TERR-MM-2). Round TG1's material ma
 decode to the painted cells and the biome's names and re-encode byte for byte; an arid terrain uses all four painted
 materials (ground, steep, slope, under water).
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
-[code: spec/probes/terrain_gen_proto.py:192-205]
 
 ### TGEN-OUT-3: A generated water mesh reads in the Rust reader
 
@@ -575,10 +726,8 @@ Status: **verified** · Variants: PC
 A one-body water mesh (a quad over the square at the water level) reads in `bfbc2core.water.parse_mesh` (Rust).
 Round TG1's (`bc2_terragen::water::water_mesh`) reads in `bc2_formats::water::parse_mesh`: 4 vertices, 2 triangles.
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 [code: rust/bc2-terragen/src/water.rs:7-23]
-[code: spec/probes/terrain_gen_proto.py:222-227]
 
 ### TGEN-OUT-4: The writer canary: DICE's 30 main blocks written again
 
@@ -589,11 +738,11 @@ block byte for byte on 30 of 30 with DICE's own envelope; with an envelope it bu
 to the envelope and the built envelope lies under every sample on 30 of 30. So the writer adds nothing of its own to
 a terrain except the envelope, and TG1's Rust writer is held to the same canary. TG1 writes through round E5's codec
 (`bc2_formats::terrain_codec`), whose corpus test is the canary in Rust: DICE's 30 main blocks and 30 material maps
-decoded and written again byte for byte, 288 sub-terrain quadtrees computed equal to the stored ones.
+decoded and written again byte for byte, 288 sub-terrain quadtrees computed equal to the stored ones; round TG2's
+sub-terrain writer (`terrain_codec::SubBlock`) writes DICE's 288 sub-terrain blocks again byte for byte.
 
-[test: core/tests/test_spec_probes.py::terrain_generator_prototype]
-[code: spec/probes/terrain_gen_proto.py:181-189]
-[code: spec/probes/terrain_gen_proto.py:331-353]
+[test: rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip]
+[code: rust/bc2-formats/src/terrain_codec.rs:559-660]
 
 ### TGEN-OUT-5: The proof plan
 
@@ -605,11 +754,12 @@ Status: **inferred** · Variants: PC
 | the writer canary on DICE's 30 (TGEN-OUT-4), and a DICE terrain through the whole new-terrain export: its NavKit build from the offline samples equals the one from DICE's own terrain | the writer perturbs nothing | TG1, TG3 |
 | `export::check` on a stage with a generated terrain (XEXP-CHK-1: every bundle opens, references resolve, the terrain's height field is loaded, shader entries present, cull check) | the level is complete as data | TG3 |
 | NavKit from the offline sampler (`navsample_offline.py stage`, the Rust sampler at 0.2 m from NKS-deep C): the build checks (hpdcheck, roundtrip) and NavKit's bot measures on the playable area (`connectivity`, `ai_coverage` over the combat area) | bots can use it | TG3 |
-| the editor's game-accurate view (bc2-render: patches, rule layers, undergrowth, water) and screenshots against the donor level's look | it draws | TG2 |
+| the editor's game-accurate view (bc2-render: patches, rule layers, undergrowth, water) and screenshots against the donor level's look | it draws | TG2 (done: TGEN-VIS-2, `bc2-render`'s `generated_terrain` test; undergrowth not drawn by the view) |
 | in game (when tests resume): terrain_edit.md section 5's step 7 (load, walk the edges, RenderDoc), then collision, materials (footsteps), undergrowth, bots | everything TEDIT-SRC-2 marks "not known" | after the in-game pause |
 
 Unproven until an in-game test: that the engine loads a main block whose envelope is the generator's (TERR-HF-11's
-use), a terrain other than the donor's under the donor's rule-layer literals (TGEN-VIS-2), a level without the base's
+use), a terrain other than the donor's under the donor's rule-layer literals in the engine itself (TGEN-VIS-2 holds in the
+game-accurate view), the sub-terrain ring (TGEN-RING-1), the visual water and the colour / occlusion map, a level without the base's
 terrain bundle (TGEN-REQ-5), a water mesh of our own (what the game uses it for), and that the depth map of 255 lets
 craters form as on DICE's ground (TERR-HF-9).
 
@@ -623,15 +773,15 @@ Status: **inferred** · Variants: PC
 
 | Part | Verdict | Effort |
 |---|---|---|
-| height field writer (main block, ring) | main block done (round E5's codec, round TG1's generator: TGEN-OUT-1 / -4); the ring left | small |
+| height field writer (main block, ring) | done (round E5's codec, round TG1's generator: TGEN-OUT-1 / -4; round TG2's ring: TGEN-RING-1) | small |
 | material map writer | feasible now: TGEN-OUT-2 | small |
-| water mesh | feasible now (TGEN-OUT-3); the visual water needs its donor slots copied (WATER-VIS-3) | small |
+| water mesh | done (TGEN-OUT-3; the visual water: TGEN-WATER-1) | small |
 | generator to DICE's medians | feasible now (TGEN-GEN-2) | small |
-| generator to DICE's tails and skew | done in round TG1 (TGEN-GEN-3 / -4: slope matching, remapping, erosion); temperate's rough relief left | medium |
-| visual terrain, rule layers only | feasible now (TGEN-VIS-1); unproven in game | small |
+| generator to DICE's tails and skew | done in round TG1 (TGEN-GEN-3 / -4: slope matching, remapping, erosion); temperate's rough relief in round TG2 (TGEN-GEN-6) | medium |
+| visual terrain, rule layers only | done (TGEN-VIS-1, -3; drawn in the game-accurate view, TGEN-VIS-2); unproven in game | small |
 | visual terrain, tiled layers and atlas | feasible (TEDIT-ATL-1 / TEDIT-VT-1 decoded); needs E5's paint path | medium |
-| patch / undergrowth shader entries renamed and retargeted in three databases | feasible: OPFOR's Wake Island clone does it (TEDIT-SH-2) | medium |
-| colour / occlusion map | feasible: WX0's sky-visibility model (TGEN-REQ-7) | small |
+| patch / undergrowth shader entries renamed and retargeted in three databases | done (TGEN-VIS-4) | medium |
+| colour / occlusion map | done (TGEN-OCC-1: the donor's values placed by sky visibility) | small |
 | vegetation and props | feasible: model-group members (TGEN-VEG-1, SG1's edits) | medium |
 | export as a new level | needs the export without the base's terrain bundle (TGEN-REQ-5) | medium |
 | path data | feasible with NK6's stage sampling; quality bounded by NavKit's parity | small (wiring) |
@@ -640,9 +790,10 @@ Status: **inferred** · Variants: PC
 Rounds: **TG1** (done 2026-11-23: `rust/bc2-terragen`, `bfbc2 terrain generate`; the writers are round E5's codec)
 the Rust generator and writers: main block, material map, water mesh, the canary and the readers' round trip, erosion
 and remapping tuned to the biome statistics (terrain_shape.py as the scorer); the ring and the visual water move to
-TG2. **TG2** the visual side: one donor's patch and undergrowth
-shaders renamed into a new terrain's databases, rule-layer patch maps, the colour / occlusion map, the editor's
-game-accurate view of a generated terrain. **TG3** E7's Create Level path A wired to the generator (a "Generate"
+TG2. **TG2** (done 2026-11-23) the ring, temperate's rough relief and the visual side: one donor's patch and undergrowth
+shaders renamed into a new terrain's databases, rule-layer patch maps, the visual water, the colour / occlusion map,
+the game-accurate view of a generated terrain (`bc2_render::world::World::load_generated`, the editor's
+`gameview::read_generated`); the prototype retired. **TG3** E7's Create Level path A wired to the generator (a "Generate"
 choice beside "From a height map": the same `TerrainImport` then written by the generator), the export with the
 level's own terrain bundle, `export::check`, NavKit from the offline sampler. **TG4** vegetation, rocks and props
 placed per biome, with E5's sculpt and paint working on the generated terrain (the same writers). **TG5** gameplay on
@@ -655,8 +806,11 @@ biome. Each round reports the TGEN-SHAPE / TGEN-PLAY statistics of its output ag
 
 - What the engine does with a generated lower envelope and with the depth map's values (TERR-HF-9, TERR-HF-11): a
   playtest (terrain_edit.md section 5).
-- Which heights a donor's rule layers read as literals (TGEN-VIS-2): a RenderDoc capture of a donor's sea-floor patch
-  with the water moved.
+- Which heights a donor's rule layers read as literals (TGEN-VIS-2: they shade by height in DICE's own shaders as the
+  game-accurate view draws them; whether the engine passes the level's water height anywhere): a RenderDoc capture of
+  a donor's sea-floor patch with the water moved.
+- Why the generated terrain's shallow sea floor draws 1.74 times as bright as MP_005's (TGEN-VIS-2): its flattened
+  floor's normals or a layer weight by depth.
 - Whether a level may leave out its base's terrain bundle (TGEN-REQ-5) and load its own alone.
 - Whether main blocks other than 1,024 / 2,048 samples of 1 m load (TGEN-REQ-2).
 - The engine's use of the water mesh (swimming, boats) for a body the generator writes.

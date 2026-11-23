@@ -234,6 +234,146 @@ pub fn triangle_shaders(mesh: &WaterMesh, visual: &VisualWater) -> Option<Vec<St
     Some(shader)
 }
 
+// ------------------------------------------------------------------------------------ the visual water, written
+
+/// A `VisualWater` decoded whole (round TG2; WATER-VIS-1 - 4): every part kept, so DICE's 28 visual waters decode
+/// and encode byte for byte (`tests/visual_water_corpus.rs`) and a writer changes only what it means to.
+///
+/// Each slot is a pair of NUL-terminated names (the second empty on DICE's but for the ocean slot's, which names
+/// the water fragment shader: what [`parse_visual`] reads as the fragment); the bytes after the ranges (the far plane,
+/// `f32` 8192, on DICE's) are kept as they are.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VisualWaterFile {
+    /// The format word (10).
+    pub format: u32,
+    /// Bytes a vertex (36 on the PC).
+    pub stride: u32,
+    /// The vertices as stored.
+    pub vertices: Vec<u8>,
+    /// The index buffer.
+    pub indices: Vec<u32>,
+    /// The slots: (shader entry, second name).
+    pub slots: Vec<(String, String)>,
+    /// The draw ranges: (slot, triangle count, first index, index count).
+    pub ranges: Vec<[u32; 4]>,
+    /// The bytes after the ranges.
+    pub tail: Vec<u8>,
+}
+
+/// DICE's bytes after a visual water's ranges: the far plane, `f32` 8192.0 (6000 on `SP_004_B` alone).
+pub const VISUAL_WATER_TAIL: [u8; 4] = [0, 0, 0, 0x46];
+
+impl VisualWaterFile {
+    /// Reads a visual water whole.
+    ///
+    /// # Errors
+    /// [`WaterError`] when a part runs past the end or a name has no end.
+    pub fn decode(data: &[u8]) -> Result<Self, WaterError> {
+        let mut r = Reader { data, at: 0 };
+        let format = r.u32()?;
+        let stride = r.u32()?;
+        let vb = r.u32()?;
+        let vertices = r.bytes(u64::from(vb))?.to_vec();
+        let ib = r.u32()?;
+        let indices = bytes::u32s(r.bytes(u64::from(ib))?).collect();
+        let count = r.u32()?;
+        let name = |r: &mut Reader<'_>| -> Result<String, WaterError> {
+            let start = usize::try_from(r.at).unwrap_or(usize::MAX);
+            let end = data
+                .get(start..)
+                .and_then(|s| s.iter().position(|&b| b == 0))
+                .map(|p| start + p)
+                .ok_or(WaterError::StringWithoutEnd(start))?;
+            r.at = end as u64 + 1;
+            Ok(data
+                .get(start..end)
+                .unwrap_or_default()
+                .iter()
+                .map(|&b| char::from(b))
+                .collect())
+        };
+        let mut slots = Vec::new();
+        for _ in 0..count {
+            let a = name(&mut r)?;
+            let b = name(&mut r)?;
+            slots.push((a, b));
+        }
+        let nr = r.u32()?;
+        let mut ranges = Vec::new();
+        for _ in 0..nr {
+            ranges.push(bytes::first(bytes::u32s(r.bytes(16)?)));
+        }
+        let tail = data
+            .get(usize::try_from(r.at).unwrap_or(usize::MAX)..)
+            .unwrap_or_default()
+            .to_vec();
+        Ok(Self {
+            format,
+            stride,
+            vertices,
+            indices,
+            slots,
+            ranges,
+            tail,
+        })
+    }
+
+    /// The file.
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(self.vertices.len() + 4 * self.indices.len() + 256);
+        out.extend(self.format.to_le_bytes());
+        out.extend(self.stride.to_le_bytes());
+        out.extend((self.vertices.len() as u32).to_le_bytes());
+        out.extend(&self.vertices);
+        out.extend((4 * self.indices.len() as u32).to_le_bytes());
+        out.extend(self.indices.iter().flat_map(|v| v.to_le_bytes()));
+        out.extend((self.slots.len() as u32).to_le_bytes());
+        for (a, b) in &self.slots {
+            for s in [a, b] {
+                out.extend(s.chars().map(|c| u8::try_from(u32::from(c)).unwrap_or(b'?')));
+                out.push(0);
+            }
+        }
+        out.extend((self.ranges.len() as u32).to_le_bytes());
+        out.extend(self.ranges.iter().flatten().flat_map(|v| v.to_le_bytes()));
+        out.extend(&self.tail);
+        out
+    }
+}
+
+/// A PC visual water vertex (WATER-VIS-2, 36 bytes, 18 halves) of DICE's open-water slot (round TG2, measured on
+/// every level's open-water triangles: `tests/visual_water_corpus.rs`): the position (x, y, z, 1), the normal
+/// (0, 1, 0, 0), the tangent (1, 0, 0, 0), the texture coordinate (x / 512, z / 512) and four zeros.
+#[must_use]
+pub fn open_water_vertex(x: f32, y: f32, z: f32) -> [u8; 36] {
+    let v = [
+        x,
+        y,
+        z,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        x / 512.0,
+        z / 512.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ];
+    let mut out = [0u8; 36];
+    for (o, f) in out.as_chunks_mut::<2>().0.iter_mut().zip(v) {
+        *o = bytes::f16_bits(f).to_le_bytes();
+    }
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {

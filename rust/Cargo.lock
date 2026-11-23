@@ -478,6 +478,7 @@ dependencies = [
 name = "bc2-formats"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "flate2",
  "libz-rs-sys",
  "memchr",
@@ -611,6 +612,7 @@ dependencies = [
  "bc2-formats",
  "bc2-gamefs",
  "bc2-scene",
+ "bc2-terragen",
  "png",
  "rayon",
  "thiserror 2.0.21",

@@ -14,6 +14,9 @@ use bc2_formats::fbrb;
 /// as rounds R5c to GW1 read them).
 pub const UNCACHED_ENV: &str = "BC2_RENDER_UNCACHED";
 
+/// Files made in memory ([`Files::with`]): lower-case name -> (FbrbTool type, data).
+type Overlay = HashMap<String, (String, Arc<Vec<u8>>)>;
+
 /// The files of a set of unpacked bundle folders.
 #[derive(Debug, Clone, Default)]
 pub struct Files {
@@ -21,6 +24,9 @@ pub struct Files {
     entries: HashMap<String, (PathBuf, String)>,
     /// Or the files of a stack of bundles, read from the bundles themselves ([`Files::bundles`]).
     bundled: Option<Arc<Bundled>>,
+    /// Files made in memory, found before the others (round TG2: a generated terrain's resources and databases over
+    /// its donor level's: [`Files::with`]). Lower-case name -> (type, data).
+    overlay: Arc<Overlay>,
 }
 
 /// A stack of bundles read in place (round R5c: the Package levels, nothing unpacked to disk).
@@ -56,7 +62,11 @@ impl Files {
                     .or_insert_with(|| (path, kind.to_owned()));
             }
         }
-        Self { entries, bundled: None }
+        Self {
+            entries,
+            bundled: None,
+            overlay: Arc::default(),
+        }
     }
 
     /// The files of a stack of bundles, in the game's order (a level's own, its common bundles, `mp_common`): the
@@ -85,7 +95,20 @@ impl Files {
                 index,
                 ..Bundled::default()
             })),
+            overlay: Arc::default(),
         })
+    }
+
+    /// These files with `extra` (name, FbrbTool type, data) found first (round TG2: a generated terrain's resources
+    /// and databases drawn over its donor level's files; nothing is written to disk).
+    #[must_use]
+    pub fn with(mut self, extra: Vec<(String, String, Vec<u8>)>) -> Self {
+        let mut o: Overlay = (*self.overlay).clone();
+        for (name, kind, data) in extra {
+            o.insert(name.to_lowercase(), (kind, Arc::new(data)));
+        }
+        self.overlay = Arc::new(o);
+        self
     }
 
     /// The names [`Files::read`] was asked for that the bundles hold and that are not read yet (taken).
@@ -175,6 +198,9 @@ impl Files {
     /// A file's bytes, or `None` when it is not listed or cannot be read.
     #[must_use]
     pub fn read(&self, name: &str) -> Option<Vec<u8>> {
+        if let Some((_, d)) = self.overlay.get(&name.to_lowercase()) {
+            return Some(d.as_ref().clone());
+        }
         if let Some(b) = &self.bundled {
             let low = name.to_lowercase();
             if let Some(d) = b.data.lock().unwrap_or_else(PoisonError::into_inner).get(&low) {
@@ -191,6 +217,9 @@ impl Files {
     /// A file's FbrbTool type (`RigidMeshSet`, `ITexture` ...).
     #[must_use]
     pub fn kind(&self, name: &str) -> Option<&str> {
+        if let Some((k, _)) = self.overlay.get(&name.to_lowercase()) {
+            return Some(k.as_str());
+        }
         if let Some(b) = &self.bundled {
             return b.index.get(&name.to_lowercase()).map(|(_, _, t)| t.as_str());
         }
@@ -199,16 +228,22 @@ impl Files {
 
     /// Every listed name (lower case).
     pub fn names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
-        match &self.bundled {
+        let own: Box<dyn Iterator<Item = &str> + '_> = match &self.bundled {
             Some(b) => Box::new(b.index.keys().map(String::as_str)),
             None => Box::new(self.entries.keys().map(String::as_str)),
-        }
+        };
+        Box::new(
+            self.overlay
+                .keys()
+                .map(String::as_str)
+                .chain(own.filter(|n| !self.overlay.contains_key(*n))),
+        )
     }
 
     /// How many files are listed.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.bundled.as_ref().map_or(self.entries.len(), |b| b.index.len())
+        self.names().count()
     }
 
     /// Whether no file is listed.

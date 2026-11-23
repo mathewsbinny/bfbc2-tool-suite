@@ -42,6 +42,29 @@ landed on `main`.
   `navwalk.MIDLINE_CUT` / `Switches::midline_cut`): neither leaves every measure as good (`rust/BENCHMARKS.md`
   "NKS-deep E"). DICE's detailed sectors measured again with the offline sampler at 0.2 m (still off). New probes
   `rust/bc2-formats/examples/kynapse_cut.rs` and `kynapse_seeds.rs`. Path data NavKit builds is unchanged.
+- **The generated terrain's ring and visual side** (round TG2, spec TGEN-GEN-6, TGEN-RING-1, TGEN-VIS-1 - 4,
+  TGEN-WATER-1, TGEN-OCC-1, TERR-HF-12, TERR-VT-8, WATER-VIS-6): `bfbc2 terrain generate` now writes the sub-terrain
+  ring (twelve 64-sample blocks stitched to the main block exactly as DICE's 12 single-ring terrains are; `--no-ring`
+  for none), gives temperate DICE's rough relief (an escarpment: 10 m / 66 m relief 4.24 / 13.70 m against DICE's
+  4.77 / 13.16; `--rough`), and with `--donor <level>` the visual side from that DICE level of the game copy: the
+  visual terrain (the donor's patch shaders renamed, each 16 m cell drawn by the rule-only shader its ground asks
+  for), the mask atlas, the visual water (one open-water quad), the colour / occlusion map (the donor's values placed
+  by the terrain's sky visibility) and the level's Dx9 / 10 / 11 shader databases with the donor terrain's patch,
+  undergrowth, cache and water entries cloned under the new name. The water lies at the donor's water level by
+  default (`--water-level`): the donor's rule layers shade by height (TGEN-VIS-2, measured in the game-accurate view:
+  within 11 - 15 % of MP_005's look band by band at its water level, 1.5 - 3.2 times as bright from 0). Generator
+  version 2 (temperate's heights and every terrain's outer rows change).
+- **The game-accurate view of a generated terrain** (round TG2): `bc2_render::files::Files::with` (files made in
+  memory over a level's), `World::load_generated`, and the editor's `gameview::read_generated` /
+  `GameLoad::start_generated` draw a generated terrain in its donor level, nothing written to disk (Create Level's
+  "Generate" wires it in round TG3).
+- **`bc2_formats` writers** (round TG2), each proved on DICE's data: `terrain_codec::SubBlock` (DICE's 288 sub-terrain
+  blocks byte for byte), `visual_terrain` (DICE's 30 visual terrains decoded and written again byte for byte, and the
+  terrain renames), `water::VisualWaterFile` (DICE's 30 visual waters byte for byte; `open_water_vertex`, 23,820 of
+  23,820 DICE open-water vertices), `itexture` (DXT1 and L8 textures with their mip chain in DICE's level layout;
+  DICE's terrain occlusion maps encoded again within a mean of 0.0 - 0.9 levels) and `shaderdb::terrain::clone_terrain`
+  (a terrain's shader entries cloned under another name with its textures renamed): shared with the editor's coming
+  visual paint and occlusion re-bake (E5-rest).
 - **Map editor: terrain sculpt and material paint** (round E5, spec TEDIT-BR-1, TEDIT-NAV-1, XVAL-TERR-2;
   TEDIT-HF-3 and TEDIT-MM-1 implemented): the Terrain workspace's brushes work - raise, lower, smooth, flatten to the
   height where the stroke began, a seeded noise and a ramp between two clicked points, each with a radius, a strength
@@ -138,6 +161,9 @@ landed on `main`.
   classes by system; a second probe, `spec/probes/resources.py`, holds the formats' counts in the game tier.
 
 ### Changed
+- `spec/probes/terrain_gen_proto.py` (round TG0's throw-away terrain generator prototype, a dev script) is retired with
+  its spec-probes check (round TG2): the generator, its writers and their proofs are `rust/bc2-terragen` and
+  `bc2_formats`.
 - `navsample_offline.sample_grid` runs in the Rust core (its NumPy casts, capsule test and helpers -
   `raster_hits`, `cast_columns`, `Intervals`, `capsule_blocked`, `_line_tri_interval`, `_edge_dist2`, `terrain_at` -
   are gone; no other project imports them). The export's stage step (`bc2_levelwrite::pathdata::sample_stage`) runs
