@@ -11090,11 +11090,13 @@ payload is empty; every pack path goes through it (`pack`, `pack_dir`, `pack_row
 
 **FbrbTool's goldens (DICE's bytes win).** Re-recorded only where the packer now differs: `fbrbtool_golden.json`
 `pack_built` "empty payload, zipped" and "no entries, zipped", `cases` "pack: a marker with an empty file" and
-"pack: only the first line"; `fbrbtool_golden_game.json` 54 pack records (the 105 bundles' distinct bytes). Each new
-record was checked to be FbrbTool's recorded bundle + the 20 bytes (SHA-1 of the new bundle less its last 20 bytes =
-the recorded SHA-1) before it was written; `meta.rerecorded` says so. Four records of temporary test bundles from a
-logged run (`<temp>/fbrb_unpack_01dh3d_5/b1, b2, b4, b5`; two of them zipped with an empty payload) were left as
-recorded: no builder makes those bytes now, so no test reaches them.
+"pack: only the first line"; `fbrbtool_golden_game.json` 56 pack records (the 105 bundles' distinct bytes, 54, and two
+temporary test bundles of a logged run, `<temp>/fbrb_unpack_01dh3d_5/b1` and `b2`, zipped with an empty payload: their
+unpacked folders rebuilt and checked against the recorded unpack digests); `cli_o1_golden.json` the files digest of
+the four `pack:` command lines with such a bundle (alone and on one pipe). Each new record was checked to be
+FbrbTool's recorded bundle + the 20 bytes (SHA-1 of the new bundle less its last 20 bytes = the recorded SHA-1; for
+`cli_o1`, the folder digest with the bundle so cut = the recorded digest, every stream and log line unchanged) before
+it was written; each file's `meta.rerecorded` says so.
 
 **The game.** It reads DICE's form (it ships it). FbrbTool's form (no member) has not been tried in game: no bundle
 OPFOR installs is one of markers only (65 OPFOR-dated bundles in the game copy, none without a live entry), so nothing
