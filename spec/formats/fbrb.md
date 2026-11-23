@@ -45,24 +45,24 @@ Evidence: [code: rust/bc2-formats/src/fbrb/header.rs:173-178] [code: rust/bc2-fo
 
 ### FBRB-HDR-3: The header part is one gzip member, then zeros
 
-Status: **observed**
+Status: **verified**
 
 The header part is a single gzip member (RFC 1952). In a padded layout (FBRB-LAY-3) zero bytes follow the member up
 to *H*; a reader decompresses the member and ignores what follows it. In 1,081 bundles nothing follows the member;
 in 5 (the stored async / streaming bundles with `hdr=4` or `hdr=4096`) 3 to 3,686 zero bytes do, always zeros.
 
-Evidence: [data: 1,086 bundles: 1,081 with no bytes after the header member, 5 with 3, 151, 384, 1,392 and 3,686 zero bytes] [code: rust/bc2-formats/src/fbrb/pack.rs:262-265]
+Evidence: [data: 1,086 bundles: 1,081 with no bytes after the header member, 5 with 3, 151, 384, 1,392 and 3,686 zero bytes] [code: rust/bc2-formats/src/fbrb/pack.rs:262-265] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 1,017 with nothing after the header member, 4 with zero bytes only]
 
 ### FBRB-HDR-4: The gzip members' header bytes
 
-Status: **observed**
+Status: **verified**
 
 Both gzip members begin `1F 8B 08 00` (deflate, no flags: no name, comment, extra field or header CRC) and a zero
 modification time. DICE's packer writes extra flags 0 and OS 0x0B (NTFS); FbrbTool (and the suite's packer, which
 reproduces it) writes extra flags 4 and OS 0. The game accepts both. The trailer is the CRC-32 and the uncompressed
 length modulo 2^32 (LE), as RFC 1952 has it.
 
-Evidence: [data: header members: 1,024 with `1F 8B 08 00 00000000 00 0B` (DICE), 62 with `... 04 00` (FbrbTool), 1 other tool's (a set modification time, OS 0xFF); payload members 1,015 / 60 / 1, 11 payloads stored or empty] [code: rust/bc2-formats/src/zlib.rs:985-990] [doc: rust/BENCHMARKS.md:2552]
+Evidence: [data: header members: 1,024 with `1F 8B 08 00 00000000 00 0B` (DICE), 62 with `... 04 00` (FbrbTool), 1 other tool's (a set modification time, OS 0xFF); payload members 1,015 / 60 / 1, 11 payloads stored or empty] [code: rust/bc2-formats/src/zlib.rs:985-990] [doc: rust/BENCHMARKS.md:2552] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: header members 1,021 of 1,021 and payload members 907 of 907 `1F 8B 08 00 00000000 00 0B` (DICE's form)]
 
 ### FBRB-HDR-5: The suite's gzip reading rules
 
@@ -93,11 +93,11 @@ Nothing follows the payload length field.
 
 ### FBRB-HDR-6: Version
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 The header's first word is 2. The suite's reader keeps the value without checking it; its writer writes 2.
 
-Evidence: [data: 2 in 1,086 of 1,086 bundles] [code: rust/bc2-formats/src/fbrb/header.rs:133] [code: rust/bc2-formats/src/fbrb/pack.rs:250]
+Evidence: [data: 2 in 1,086 of 1,086 bundles] [code: rust/bc2-formats/src/fbrb/header.rs:133] [code: rust/bc2-formats/src/fbrb/pack.rs:250] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 2 in 1,021 of 1,021]
 
 ### FBRB-HDR-7: String table
 
@@ -134,12 +134,13 @@ Evidence: [code: rust/bc2-formats/src/fbrb/header.rs:159] [code: rust/bc2-format
 
 ### FBRB-HDR-10: The zipped byte
 
-Status: **observed**
+Status: **verified**
 
 A non-zero zipped byte means the payload is one gzip member; 0 means the entries' bytes are stored. Stock zips every
-bundle but the uncompressed async `ondemand_*` and the `streaming_*` sound bundles.
+bundle but the uncompressed async `ondemand_*`, the `streaming_*` sound bundles and the two `build_overlay` bundles
+(corrected 2026-11-22, round SPV1: the earlier text left out `build_overlay`, stored in Dist and Package alike).
 
-Evidence: [code: rust/bc2-formats/src/fbrb/header.rs:158] [data: 1,075 zipped; 11 stored: Dist 6, Package 5 (the async ondemand and streaming bundles)]
+Evidence: [code: rust/bc2-formats/src/fbrb/header.rs:158] [data: 1,075 zipped; 11 stored: Dist 6, Package 5 (the async ondemand and streaming bundles)] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 1,012 zipped; 9 stored: async/ondemand_awards (Dist), async/ondemand_sounds, streaming_sounds, streaming_vo_en and build_overlay (Dist and Package each)]
 
 ## 3. Entries
 
@@ -165,33 +166,33 @@ Evidence: [code: rust/bc2-formats/src/fbrb/header.rs:136-157] [test: rust/bc2-fo
 
 ### FBRB-ENT-2: Names
 
-Status: **observed**
+Status: **verified**
 
 A name is the entry's archive path: relative, `/`-separated, with an extension (`Levels/MP_005/MP_005.dbx`). Names
 keep their case (364,121 live entries mixed case, 80,165 lower case) but compare without it: no bundle holds two
 names that differ only in case. A name must not be empty, rooted or lead out of its folder; the suite refuses such a
 name when unpacking.
 
-Evidence: [data: 444,286 live entries: all `/`-separated, none with a backslash; 1,086 of 1,086 bundles without a case-insensitive duplicate] [code: rust/bc2-formats/src/fbrb/header.rs:65-71] [code: rust/bc2-tools/src/fbrbtool.rs:275-294] [test: rust/bc2-formats/src/fbrb/pack.rs::safe_names]
+Evidence: [data: 444,286 live entries: all `/`-separated, none with a backslash; 1,086 of 1,086 bundles without a case-insensitive duplicate] [code: rust/bc2-formats/src/fbrb/header.rs:65-71] [code: rust/bc2-tools/src/fbrbtool.rs:275-294] [test: rust/bc2-formats/src/fbrb/pack.rs::safe_names] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 392,246 live entries: no backslash, none empty or rooted; no bundle with a case-insensitive duplicate]
 
 ### FBRB-ENT-3: Types
 
-Status: **observed**
+Status: **verified**
 
 The type names the resource kind: `<non-resource>` for data with no resource type (every `.dbx` partition and some
 `.res` / `.bin` files), a resource type such as `ITexture` or `MeshData` for a `.res` resource, or `*deleted*` for a
 marker. The catalogue of types and their extensions is `formats/res.md` (RES-TYPE-1).
 
-Evidence: [data: 37 types besides `*deleted*` over 444,286 live entries; every resource type on `.res` names] [code: rust/bc2-formats/src/fbrb/header.rs:20-21]
+Evidence: [data: 37 types besides `*deleted*` over 444,286 live entries; every resource type on `.res` names] [code: rust/bc2-formats/src/fbrb/header.rs:20-21] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 37 types besides `*deleted*` over 392,246 live entries; every resource type on `.res` names]
 
 ### FBRB-ENT-4: Flags
 
-Status: **observed**
+Status: **verified**
 
 A live entry's flags are `0x00010000`, a marker's 0. No other value occurs. The suite keeps the flags as they are
 (FbrbTool's manifest records them in hex) and does not interpret them.
 
-Evidence: [data: 0x00010000 on 444,286 live entries, 0 on 296,376 markers, no other value] [code: rust/bc2-tools/src/fbrbtool.rs:901-906]
+Evidence: [data: 0x00010000 on 444,286 live entries, 0 on 296,376 markers, no other value] [code: rust/bc2-tools/src/fbrbtool.rs:901-906] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 0x00010000 on 392,246 live entries, 0 on 286,000 markers, no other value]
 
 ### FBRB-ENT-5: size2
 
@@ -217,13 +218,13 @@ Evidence: [data: 13 `.dbx` entries in 3 Onslaught level bundles; 110 of 295 RES-
 
 ### FBRB-ENT-7: Offsets ascend in archive order
 
-Status: **observed**
+Status: **verified**
 
 Live entries' offsets ascend in archive order. In a zipped bundle the live entries are contiguous from offset 0:
 each starts where the previous one ends, and the last ends at the payload's length. A reader must not assume this
 (the suite's reader sorts the entries it collects by offset and allows overlaps), but every writer keeps it.
 
-Evidence: [data: 1,086 of 1,086 bundles ascending; 970 of 970 zipped bundles with live entries contiguous from 0, the last ending at the payload length] [code: rust/bc2-formats/src/fbrb/read.rs:44-55] [test: rust/bc2-formats/src/fbrb/read.rs::overlapping_entries]
+Evidence: [data: 1,086 of 1,086 bundles ascending; 970 of 970 zipped bundles with live entries contiguous from 0, the last ending at the payload length] [code: rust/bc2-formats/src/fbrb/read.rs:44-55] [test: rust/bc2-formats/src/fbrb/read.rs::overlapping_entries] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 1,021 of 1,021 bundles ascending (equal offsets only at zero-size entries); 907 of 907 zipped bundles with live entries contiguous from 0, the last ending at the payload length]
 
 ### FBRB-ENT-8: An entry lies inside the payload
 
@@ -259,13 +260,15 @@ Evidence: [code: rust/bc2-formats/src/fbrb/header.rs:35-37] [code: rust/bc2-form
 
 ### FBRB-DEL-2: Bundles of markers only
 
-Status: **observed**
+Status: **verified**
 
 A bundle may hold only markers (each level's own terrain bundle hides the other levels' terrains this way). Its
-payload is empty: the zipped byte is set, the payload length field is 0, and no gzip member follows the header (the
-file ends at 8 + *H*). One bundle holds no entries at all.
+payload is empty: the zipped byte is set and the payload length field is 0. DICE's packer then writes the gzip
+member of no data (20 bytes: `1F 8B 08 00 00000000 00 0B`, `03 00`, a zero CRC and length); FbrbTool, and the suite's
+packer after it, writes no member (the file ends at 8 + *H*). One bundle holds no entries at all. (Corrected
+2026-11-22, round SPV1: the earlier text said no member follows; all 105 of DICE's such bundles carry the empty one.)
 
-Evidence: [data: 105 bundles without a live entry, all zipped with payload length 0; 1 bundle with no entries] [code: rust/bc2-formats/src/zlib.rs:985-989]
+Evidence: [data: 105 bundles without a live entry, all zipped with payload length 0; 1 bundle with no entries] [code: rust/bc2-formats/src/zlib.rs:985-989] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 104 bundles of markers only and 1 with no entries, all 105 zipped with payload length 0 and followed by the 20-byte empty gzip member]
 
 ## 5. DICE's padded layouts
 

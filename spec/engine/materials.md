@@ -110,7 +110,7 @@ for one side as the source.
 
 ### MAT-GRID-7: The damage fields and their ranges
 
-Status: **observed**
+Status: **verified**
 
 `MaterialRelationDamageData` holds six floats and two booleans; DICE's values (all instances of DICE's grids):
 
@@ -127,6 +127,7 @@ Status: **observed**
 
 Values are read from the binary numbers, not the XML text (the XML misprints denormals, DBX's number rules).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: 162,950 MaterialRelationDamageData instances of DICE's 74 grids, the ranges above]
 
 ### MAT-GRID-8: Damage is multiplied by the relation and cut by its threshold
@@ -144,7 +145,7 @@ against Brick "1/290"); `CollisionDamageMultiplier` / `Threshold` play the same 
 
 ### MAT-GRID-9: Material properties DICE leaves at constants
 
-Status: **observed**
+Status: **verified**
 
 The material property data (the `MaterialProperty*` classes among a relation's data) is nearly constant in DICE's
 grids:
@@ -155,6 +156,7 @@ grids:
 `MaterialSoldierSoundSettings` with `FootStepSound` (2,067 set) and `LandSound` (all 2,167); `ProneSound` is null on
 all.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: DICE's grids, the counts above]
 
 ## 2. Material slots
@@ -188,7 +190,7 @@ disagree.
 
 ### MAT-SLOT-3: DICE's part materials
 
-Status: **observed**
+Status: **verified**
 
 DICE's 4,454 parts use 65 materials, every one in some DICE grid. The most used: brick 898, metal 425,
 wood_furniture 350, glass_breakable 332, wood 190, wood_fragile 182, concrete 174, defaultmaterial 167,
@@ -196,17 +198,19 @@ tree_banger_branch 125, concrete_indestructible 122. 1,264 parts are on a Penetr
 one, 427 on a ClientDestructible one. Brick is DICE's standard material for destructible building walls, whatever
 their faces show (hangar walls: Brick parts, metal_light faces).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: PartInfoDatas of the 1,183 DICE physics assets: 4,454 parts, 65 distinct materials, none outside DICE's grids]
 [doc: opfor:research/PHYSICS_MATERIALS.md:141-145]
 
 ### MAT-SLOT-4: Face lists
 
-Status: **observed**
+Status: **verified**
 
 A physics asset's `FaceMaterials` (the face materials its mesh subparts use) holds 1 - 9 names (1 in 532 files, 2 in
 337, 3 in 183); in 525 of 1,183 files it equals `MaterialMappings`, in the rest the part materials and face materials
 differ (the list in the wrapper and the packfile's `HavokMaterials` are `MaterialMappings`, HAVOK-MAT-1).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: FaceMaterials items per file 1 - 9 over 1,183 files; equal to MaterialMappings in 525]
 
 ### MAT-SLOT-5: Damage reads the part material; an object without parts its default material

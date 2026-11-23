@@ -17,22 +17,24 @@ instances, 34.86 million elements, read 2026-11-19 (counts of tags, attributes a
 
 ### TYPE-ELEM-1: Six tags make every partition
 
-Status: **observed**
+Status: **verified**
 
 A partition's element tree uses exactly six tags: `partition` (the root), `instance`, `field`, `complex`, `array`
 and `item`. No other tag occurs.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the level corpus (every `.dbx` copy in DICE's `levels/` bundles: 120,466 partitions): six tags, no other]
 [data: level corpus: 26,113,943 field, 3,235,928 complex, 2,313,497 instance, 2,027,833 item, 1,102,409 array, 79,526 partition; no other tag]
 
 ### TYPE-ELEM-2: Nesting
 
-Status: **observed**
+Status: **verified**
 
 The tree is `partition` > `instance` > members, where a member is a `field`, `complex` or `array`; a `complex`
 holds members; an `array` holds `item`s or, for arrays of structures, `complex`es. Seen parent > child pairs:
 partition>instance, instance>field / complex / array, complex>field / complex / array, array>item / complex.
 Nothing else nests: an `item` and a `field` never have children.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: the nine parent > child pairs listed, no other]
 [data: level corpus parent>child counts: instance>field 19,266,821; complex>field 6,847,122; partition>instance 2,313,497; array>item 2,027,833; instance>complex 1,887,137; array>complex 1,134,815; instance>array 1,078,337; complex>complex 213,976; complex>array 24,072; no other pair]
 
 ### TYPE-ELEM-3: One root, the partition, holding only instances
@@ -47,7 +49,7 @@ A partition file has exactly one root element, tagged `partition`, and every chi
 
 ### TYPE-ELEM-4: Element kinds by tag
 
-Status: **observed**
+Status: **verified**
 
 The element kind (the head byte's high nibble, `formats/dbx.md`) follows the tag and the member's type:
 
@@ -60,32 +62,35 @@ The element kind (the head byte's high nibble, `formats/dbx.md`) follows the tag
 | `array` | 0xA container, 2 text, 7 numbers | items; an empty array (TYPE-ARR-2); a number array (TYPE-ARR-3) |
 | `item` | 2 text | always: a reference or a string (TYPE-ARR-1) |
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus tag:kind: field:7 21,629,540; field:2 16,295,493; field:6 9,514,955; instance:0xA 3,916,895; item:2 3,675,001; complex:7 3,262,950; complex:0xA 3,260,507; array:2 1,413,523; array:0xA 548,802; array:7 255,664; partition:0xA 120,466; instance:2 4]
 [data: level corpus tag:kind counts: field:7 10,534,080; field:2 9,710,414; field:6 5,869,449; instance:0xA 2,313,493; item:2 2,027,833; complex:7 1,858,095; complex:0xA 1,377,833; array:2 664,969; array:0xA 285,441; array:7 151,999; partition:0xA 79,526; instance:2 4]
 
 ### TYPE-ELEM-5: The container byte is always 0
 
-Status: **observed**
+Status: **verified**
 
 A container element's value byte (`formats/dbx.md`) carries no meaning in game data: it is 0 on every container.
 Writers write 0.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::dbx_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the container byte 0 on all 8,222,821 containers of 124,458 files]
 [data: dbx-tools FORMAT.md section 6: 0 on all 43,289 game files of that count] [doc: bfbc2-dbx-tools/FORMAT.md:134]
 
 ### TYPE-ELEM-6: Empty instances
 
-Status: **observed**
+Status: **verified**
 
 Four instances of the level corpus are text elements with empty text instead of containers (an instance with no
 members). Readers must accept an instance that is not a container; `bc2-scene` and the catalogue treat it as an instance
 without fields.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 4 instances of kind 2, all with empty text]
 [data: level corpus: 4 instances of kind 2, all with empty text]
 
 ## 2. Attributes
 
 ### TYPE-ATTR-1: Attribute sets per tag
 
-Status: **observed**
+Status: **verified**
 
 Each tag has a fixed attribute set, in this order:
 
@@ -100,6 +105,7 @@ Each tag has a fixed attribute set, in this order:
 
 The order matters for the XML form (DBX-XML) and for DbxEdit's import matching, and writers keep it.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: the ten tag:attribute lists of the table, no other]
 [data: level corpus tag:attribute-list counts: field:name 20,206,769; field:ref,name 5,907,174; instance:guid,type 2,233,973; instance:guid,type,id 79,524; complex:name 2,101,113; complex:(none) 1,134,815; array:name 1,102,409; item:ref 2,015,781; item:(none) 12,052; partition:guid,primaryInstance,exportMode 79,526]
 
 ### TYPE-ATTR-2: The member name
@@ -115,23 +121,26 @@ position.
 
 ### TYPE-ATTR-3: The instance type is `<Namespace>.<Class>`
 
-Status: **observed**
+Status: **verified**
 
 An instance's `type` attribute is the class name qualified by a namespace, `<Namespace>.<Class>` with one dot.
 The suite compares types by their suffix after the last dot (`.LevelData`, `.ReferenceObjectData`), never by the
-namespace. Twelve namespaces occur in the level corpus (`Emitter`, `GameSharedResources`, `Entity`, `Audio`,
-`Terrain`, `Animation`, `Render`, `Decal`, `Physics`, `Weather`, `WorldRender`, `Overgrowth`, ...).
+namespace. Fourteen namespaces occur in the level corpus (`Emitter`, `GameSharedResources`, `Entity`, `Audio`,
+`Terrain`, `UI`, `Animation`, `Render`, `Decal`, `Physics`, `WorldRender`, `Weather`, `Overgrowth`, `World`;
+corrected 2026-11-22, round SPV1: the earlier text said twelve against its own count of 14).
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,916,899 types, every one with one dot; 14 namespaces]
 [data: level corpus: 14 distinct namespace prefixes; the largest Emitter 1,378,673 instances, GameSharedResources 357,107, Entity 266,203]
 [code: rust/bc2-scene/src/scene.rs:81-93] [code: rust/bc2-formats/src/dbxedit/check.rs:261-263]
 
 ### TYPE-ATTR-4: exportMode
 
-Status: **observed**
+Status: **verified**
 
 The partition's `exportMode` attribute is `All` in every partition of the level corpus. No other value is known
 and no reader uses it; writers copy it.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: exportMode=All on 120,466 of 120,466]
 [data: level corpus: exportMode=All on 79,526 of 79,526 partitions]
 
 ## 3. Value kinds
@@ -163,23 +172,25 @@ field path) and writes a field only in the shape the data shows.
 
 ### TYPE-VAL-2: Booleans and bytes are two-byte scalars
 
-Status: **observed**
+Status: **verified**
 
 A scalar element holds two bytes. The first is always 1; the second is the value. Booleans use 0 and 1; a few
 byte fields use other values (2, 4 and 6 seen, on channel counts). The engine's scalars are all kind 6 in the
 level corpus.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus scalars: kind 6 with 01 00 5,828,726; 01 01 3,684,061; 01 02 1,874; 01 06 292; 01 04 2; no other]
 [data: level corpus scalars: kind 6 with bytes 01 00 3,542,382; 01 01 2,325,640; 01 02 1,169; 01 06 256; 01 04 2; no other kind or first byte]
 [doc: bfbc2-dbx-tools/FORMAT.md:134]
 
 ### TYPE-VAL-3: Text values
 
-Status: **observed**
+Status: **verified**
 
 A non-reference text field holds a string: a name, an asset path or an enumeration value. 228,431 text fields of
 the level corpus are empty. Strings are shared through the partition's string table (`formats/dbx.md`), so the same
 text is stored once.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus non-reference text fields: 5,866,379 non-empty, 522,898 empty]
 [data: level corpus non-reference text fields: 3,574,809 non-empty, 228,431 empty]
 
 ### TYPE-VAL-4: Enumerations are stored by name
@@ -230,11 +241,12 @@ kind and size from a reference file (DBX-XML import rules). A tool that needs ex
 
 ### TYPE-NUM-4: Sizes 2 and 8
 
-Status: **observed**
+Status: **verified**
 
 Besides size 4, number elements of size 2 (unsigned 16-bit: the cull sphere keys `SphereKeyX` .. `SphereKeyW`,
 `SourceId` / `TargetId`) and size 8 (rare) occur. No other size occurs.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus number elements: size 4 18,381,844, size 2 6,766,070 (one value each, only on SphereKeyX / Y / Z / W, SourceId, TargetId), size 8 240 (one value each, on the AI's sensing times), no other size; 151,371 empty (count 0)]
 [data: level corpus number elements by count x size: 1x4 7,145,451; 1x2 3,003,402; 4x4 1,566,863; 16x4 240,726; 2x4 52,087; 1x8 68; empty 0x0 95,341]
 [data: MP_005 level bundle: 1x2 only on SphereKeyX/Y/Z/W (24,798 each) and SourceId / TargetId (88 each)]
 
@@ -267,11 +279,12 @@ three words used. The position is words 12, 13 and 14. Each row's fourth word is
 
 ### TYPE-CPLX-3: Transform lists
 
-Status: **observed**
+Status: **verified**
 
 A list of transforms (a model group's `Transforms`) is an `array` of kind 7 holding sixteen floats per placement,
 in the order of the matching item list (`Assets`).
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 494 CompositeHavokAsset instances, Transforms 16 values per Assets item in 494]
 [data: the level corpus's 232 CompositeHavokAsset instances: Transforms has 16 values per Assets item in 232 of 232]
 [code: rust/bc2-scene/src/scene.rs:547-560]
 
@@ -279,39 +292,43 @@ in the order of the matching item list (`Assets`).
 
 ### TYPE-ARR-1: Items are references or strings
 
-Status: **observed**
+Status: **verified**
 
 An `item` is always a text element. With a `ref` attribute (and empty text) it is a reference element of a
 reference array; without one its text is a string element of a string array.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,658,063 items with ref and empty text, 16,938 string items, none of another kind]
 [data: level corpus: 2,015,781 items with ref and empty text, 12,052 string items, none of another kind]
 
 ### TYPE-ARR-2: An empty array is an empty text element
 
-Status: **observed**
+Status: **verified**
 
 An array with no elements is stored as an `array` element of kind 2 (text) with the empty string, not as an empty
 container. A container array always has at least one child. Writers making an array empty must write this form;
 readers must take a text `array` as empty.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 1,413,523 arrays of kind 2, all with empty text; 548,802 container arrays, all with children]
 [data: level corpus: 664,969 arrays of kind 2, all with empty text; 285,441 container arrays, all with 1 or more children]
 
 ### TYPE-ARR-3: Number arrays
 
-Status: **observed**
+Status: **verified**
 
 An array of numbers (`ZOcclusionLookup`, `CompositeMeshPartNames`, `NeighbourLinks`, transform lists ...) is one
 `array` element of kind 7: the count and size varints and the values (DBX-NUM). An empty number array has count 0.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 255,664 arrays of kind 7]
 [data: level corpus: 151,999 arrays of kind 7; MP_005: 0-count number arrays on 10 field names, CompositeMeshPartNames 1,656]
 
 ### TYPE-ARR-4: Arrays of structures
 
-Status: **observed**
+Status: **verified**
 
 An array of structures holds unnamed `complex` children, one per element, in order. Event connections
 (LEVEL-EVT-1), spawn data and member data are such arrays.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::type_values] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: array>complex 2,671,667; unnamed complex elements 2,671,667, all in arrays]
 [data: level corpus: array>complex 1,134,815; complex elements without a name 1,134,815]
 
 ## 7. The schema

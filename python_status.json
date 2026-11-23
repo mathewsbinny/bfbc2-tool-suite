@@ -3471,8 +3471,8 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 401,
-   "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/p...",
+   "lines": 788,
+   "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -3927,7 +3927,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 845,
+   "lines": 849,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -3966,6 +3966,18 @@
    "lines": 524,
    "note": "read-only probe for spec/engine/materials.md section 5 (grime, dirt, camouflage); checked in the game tier",
    "path": "spec/probes/grime.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 320,
+   "note": "read-only probe for spec/model/level.md, the cull trees, vegetation and terrain splines; checked in the game tier",
+   "path": "spec/probes/level.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4014,6 +4026,18 @@
    "lines": 199,
    "note": "read-only probe for spec/engine/bot_ai.md (mode entities: event names against the exe); checked in the game tier",
    "path": "spec/probes/modes.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 161,
+   "note": "read-only probe for spec/model/registration.md and bundles.md (the stock registries); checked in the game tier",
+   "path": "spec/probes/registry.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4448,8 +4472,8 @@
  ],
  "totals": {
   "all": {
-   "files": 365,
-   "lines": 106593
+   "files": 367,
+   "lines": 107465
   },
   "by_folder": {
    "(root)": {
@@ -4641,13 +4665,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19941,
+    "lines": 20328,
     "live": 757,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14852,
+    "test": 15239,
     "twin": 2427
    },
    "design": {
@@ -4663,23 +4687,23 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6000,
+    "lines": 6004,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5733,
+    "stays": 5737,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 11,
-    "lines": 4124,
+    "files": 13,
+    "lines": 4605,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 4124,
+    "stays": 4605,
     "test": 0,
     "twin": 0
    },
@@ -4713,12 +4737,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 59,
-    "lines": 10847
+    "files": 61,
+    "lines": 11332
    },
    "test": {
     "files": 187,
-    "lines": 50803
+    "lines": 51190
    },
    "twin": {
     "files": 55,

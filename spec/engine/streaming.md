@@ -85,13 +85,14 @@ cutscenes) plus the same three, and none of the 32 Package-only weapon bundles.
 
 ### STRM-REG-1: The registry's spelling of the global bundles
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 `bundleManifest` writes the streamed and on-demand bundles with a leading slash (`/streaming_vo_<lang>` x 7,
 `/streaming_sounds`, `/async/ondemand_sounds`, `/async/ondemand_awards`), `async/startup` without one and the root
 voice bundle as `VO`; `package.mft` lists the seven `streaming_vo` and `streaming_sounds` as `game:` sources with
 `package:` then `game:` targets. Whether the slash matters is not known.
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: the game copy's Dist bundleManifest and package.mft, 2026-11-22: the lines as described]
 
 ### STRM-CNT-1: What each global bundle holds

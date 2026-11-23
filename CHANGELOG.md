@@ -53,6 +53,13 @@ landed on `main`.
   (BOT-GS-4: two constructors carried the wrong names) and the bundle mount record's fields (STRM-MNT-3: `VfsPath` +0,
   `Bundle` +0xC, `IsResourcePath` +0x18) corrected; the 37-way switch 0x11DD76A named as the C runtime's `toupper`
   (FX-PROC-4).
+### Added
+- Specification (round SPV1): 127 rules verified against DICE's own files by game-tier checks - the Rust corpus test
+  `rust/bc2-formats/tests/spec_corpus.rs` (DICE's 1,021 bundles: containers, resources, DBX, types, instances and
+  references, textures, meshes, BIGF) and `core/tests/test_spec_probes.py` (new probes for the level partitions,
+  cull trees, vegetation, terrain splines and the stock registries; the weapon, vehicle, material, destruction,
+  lighting and weather probes' counts); nine rules corrected where the data contradicted them; `spec/COVERAGE.md`
+  section 4, the census of every rule still observed and what would verify it.
 
 ## [0.21.0] - 2026-11-22
 

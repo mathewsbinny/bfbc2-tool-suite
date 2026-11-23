@@ -483,7 +483,7 @@ def tests():
         ('water:game', 'water, every level', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_water.py')]),
         ('level:game', 'level loader snapshot', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_level.py')]),
         ('terrain-samples:game', 'terrain against in-game samples', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_terrain.py')]),
-        ('spec-probes:game', "the specification probes' counts: DICE's terrains, undergrowth, terrain decals, emitter chains (SPG2)", 'game',
+        ('spec-probes:game', "the specification probes' counts on DICE's files: terrains, undergrowth, emitter chains, grime, menus, levels and cull trees, the stock registries, weapons, vehicles, materials, destruction, lighting (SPG2, SPV1)", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_spec_probes.py')]),
         ('hpdtool-roundtrip:game', 'path data round trip (hpdtool)', 'game', lambda root: [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'),
                                                                'roundtrip', *pathdata_files(root)]),

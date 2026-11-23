@@ -46,12 +46,13 @@ transform times the emitter entity's). The editor's Effects overlay draws these 
 
 ### FX-CLS-3: Effect instance and culling settings
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 An `EffectEntityData` caps its live instances with `MaxInstanceCount` (1 - 100 over DICE's 998 effects: 10 x 237,
 50 x 214, 30 x 172, 20 x 147) and culls by `CullDistance` (0, no distance cull, on 977; 300 m on 11, 350 m on 3).
 What the cap does when more placements are alive than it allows is open (LIGHT-PT-7).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py emitters: MaxInstanceCount and CullDistance over 998 EffectEntityData]
 
 ## 2. Emitters belong to a level
@@ -201,11 +202,12 @@ over the particle's life comes from its `Pre` evaluator: `PolynomialData` (189,1
 
 ### FX-PROC-3: What an emitter draws
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 The template's `EmittableType` is `ScreenAlignedQuad` (30,443 emitters), `DirectionAlignedQuad` (7,830),
 `ParticleMesh` (7,339: a `Mesh`, with `CompositeMeshPartNames`) or `Quad` (4,529).
 
+[test: core/tests/test_spec_probes.py::emitters]
 [data: spec/probes/effects_chain.py, 2026-11-22: EmittableType over 50,141 templates]
 
 ### FX-PROC-4: The executable's processor and evaluator types

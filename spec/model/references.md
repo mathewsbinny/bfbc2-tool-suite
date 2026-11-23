@@ -11,30 +11,33 @@ binary partitions, 52,213 distinct partition names, 2,313,497 instances; `model/
 
 ### INST-GUID-1: GUID text form
 
-Status: **observed**
+Status: **verified**
 
 An instance's `guid` attribute, and the partition's `guid` and `primaryInstance` attributes, are GUIDs written as
 36 characters, `8-4-4-4-12` hexadecimal digits with hyphens, **upper case**.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::instances_and_references] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,916,899 instance and 120,466 partition guid and primaryInstance attributes, all 36-character upper-case GUIDs]
 [data: level corpus: 2,313,497 instance and 79,526 partition guid attributes all 36-character GUIDs, all upper case; primaryInstance upper case on the 25,565 partitions of the mp_0* bundles checked]
 
 ### INST-GUID-2: Unique within a partition
 
-Status: **observed**
+Status: **verified**
 
 No two instances of one partition have the same GUID (compared without case).
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::instances_and_references] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: a duplicate instance GUID in 0 of 120,466 partitions]
 [data: level corpus: duplicate instance GUIDs in 0 of 79,526 partitions]
 
 ### INST-GUID-3: Not unique across partitions
 
-Status: **observed**
+Status: **verified**
 
 An instance GUID is not a global identity: the same GUID occurs in different partitions (copies of a partition
 under other names, mode layouts made from a base level, assets duplicated per level). An instance is identified by
 (partition name, GUID). Partition GUIDs are not unique either: 52,213 distinct partitions carry 26,890 distinct
 partition GUIDs.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::instances_and_references] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus, one copy per partition name (84,143 names): 563,963 distinct instance GUIDs, 125,465 of them in more than one partition name; 27,853 distinct partition GUIDs, 2,049 of them on partitions of different names]
 [data: level corpus, one copy per partition name: 439,450 distinct instance GUIDs, 79,802 of them in more than one partition name; 1,567 partition GUIDs shared by partitions of different names]
 
 ### INST-GUID-4: GUIDs compare without case
@@ -63,29 +66,32 @@ GUIDs. A level export renames every instance GUID this way and re-points its loc
 
 ### INST-PRIM-1: Every partition names its primary instance
 
-Status: **observed**
+Status: **verified**
 
 The partition's `primaryInstance` attribute names one of its instances: the asset the partition stands for (a
 level's `LevelData`, a blueprint's object data). It is not necessarily the first instance.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::instances_and_references] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: primaryInstance names an instance in 120,464 of 120,466 partitions; the first instance in 46,148, a later one in 74,316]
 [data: level corpus: primaryInstance names an instance of the file in 79,524 of 79,526 partitions; it is the first instance in 30,958, a later one in 48,566]
 
 ### INST-PRIM-2: Two partitions name no instance
 
-Status: **observed**
+Status: **verified**
 
 Two partitions of the level corpus have a `primaryInstance` that is none of their instances (each has 2
 instances). The game ships them; nothing is known to read their primary instance.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::instances_and_references] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 2 partitions, primaryInstance unmatched, no id attribute]
 [data: level corpus: 2 partitions, primaryInstance unmatched, no id attribute in either]
 
 ### INST-PRIM-3: The id attribute marks the primary instance
 
-Status: **observed**
+Status: **verified**
 
 Exactly the primary instance carries a third attribute, `id`, whose value is the partition's file name without the
 folder and extension (`Levels/MP_005.dbx` -> `MP_005`), in the entry name's case or another case.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::instances_and_references] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: id on 120,464 instances, once per partition, always the primary instance; equal to the entry's stem in 50,634, ignoring case in 69,830, other 0]
 [data: level corpus: id on 79,524 instances, 1 per partition, always the primary instance; equal to the entry's stem in 33,062, equal ignoring case in 46,462, other 0]
 
 ## 3. Reference forms
@@ -102,7 +108,7 @@ the attribute's value is the target. Tools find references by the attribute name
 
 ### REF-FORM-2: Three forms
 
-Status: **observed**
+Status: **verified**
 
 A `ref` value is one of:
 
@@ -114,6 +120,7 @@ A `ref` value is one of:
 
 No other form occurs (no empty `ref`).
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::instances_and_references] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 6,383,103 local (lower case), 5,535,169 null, 1,646,007 external (lower-case paths ending in a GUID), 0 other]
 [data: level corpus: 3,836,345 local (all lower case), 3,286,524 null, 800,086 external (all lower-case paths, each ending in a 36-character GUID), 0 other]
 
 ### REF-FORM-3: Telling local from external

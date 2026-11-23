@@ -37,12 +37,13 @@ the members in index order; a name listed twice keeps its first place and its la
 
 ### BIGF-DAT-1: Member data follows the index, 4-byte aligned, in index order
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 In the game's movies the members follow the index in index order, each starting on a multiple of 4 (0 - 3 bytes of
 padding after the index and between members), the last ending at the archive's end. The suite's movie writer lays
 them out the same way.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::bigf_members] [data: DICE's bundles of the game copy (dated before 2013), round SPV1 2026-11-22: 876 of 876 SwfMovie entries as described]
 [data: 1,027 of 1,027 SwfMovies: member offsets ascending and multiples of 4, the last member ending at the archive's end]
 [doc: bfbc2-menu-tools/aptgraft.py:100-101]
 

@@ -13,7 +13,7 @@ grows on: [transforms/terrain_edit.md](../transforms/terrain_edit.md).
 
 ### VEG-CLS-1: Forest, middlegrowth and undergrowth
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 | System | Data | DICE's levels |
 |---|---|---|
@@ -24,6 +24,7 @@ Status: **observed** · Variants: PC
 Forest and middlegrowth members point at blueprints under `vegetation/` (293 tree and 284 middlegrowth member types),
 `objects/` (89, 41) and `terrains/` (14, 16).
 
+[test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's): ForestEntityData 74 in 74, TreeMemberData 396 (InstanceCount sum 97,199), TreeMeshEntityData 737, MiddlegrowthModelGroupEntityData 93 in 71, MiddlegrowthModelGroupMemberData 341 (82,916); the member folders as listed (the table's 97,190 and 82,908 are the Dist copies'); the undergrowth row is VEG-UG-1's check] [test: core/tests/test_spec_probes.py::visual_terrains]
 [data: spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: ForestEntityData 74, TreeMemberData 396 (InstanceCount sum 97,190), TreeMeshEntityData 737, MiddlegrowthModelGroupEntityData 93 (in 71 partitions), MiddlegrowthModelGroupMemberData 341 (82,908); member types by the MemberType's first folder as listed]
 
 ### VEG-CLS-2: Forests and middlegrowth are model groups and keep the group rules

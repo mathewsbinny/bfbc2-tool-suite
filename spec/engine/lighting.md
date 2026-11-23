@@ -49,7 +49,7 @@ for texel (the E5 paint layer's ratio method keeps DICE's painting: LIGHT-BAKE-6
 
 ### LIGHT-BAKE-3: Objects carry occlusion textures by DICE's suffixes
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 Objects' baked lighting is per asset, shared by every level that places the asset, and named by suffix: `_Oc` (red:
 ambient occlusion, multiplying diffuse and key light alike; green: a material mask, MAT-TEX-3), `_OcRGB`,
@@ -58,6 +58,7 @@ multiplying only the hemisphere ambient term through `texture_OcclusionTexture`)
 over the game copy: `_Oc` 65, `_OcRGB` 43, `_Occlusion` 31, `_AO` 20, `_SkyOc` 14, `_Envmap` 13 (reflection cubes,
 LIGHT-ENV-1), `_AmbientOcclusion` 6, `_Lightmap` 1, `_LightmapColor` 1 (LIGHT-BAKE-5).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py baked on the game copy, 2026-11-22: distinct ITexture names by suffix as listed]
 [data: research round WX0: 267 `_Oc` shader-parameter uses (70 MB of texture), 44 `_SkyOc` uses, 256-512 texels, DXT1; MP_005's 587 textures by suffix]
 

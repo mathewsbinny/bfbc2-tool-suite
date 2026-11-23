@@ -23,12 +23,13 @@ a console exclusive tree installed whole on the PC crashed the traversal at load
 
 ### CULL-LVL-1: A level's two trees
 
-Status: **observed**
+Status: **verified**
 
 `LevelData` refers to two cull-tree partitions: `ExclusiveStaticCullTree` (`levels/<level>/staticculltree_exclusive`)
 and `ClientStaticCullTree` (`levels/<level>/staticculltree_client`). A third field, `ClientTreeStaticCullTree`, is null
 in every stock level. Each partition holds one `World.StaticCullTreeData` instance.
 
+[test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22: DICE's 74 level partitions name both trees, each a partition of the level's own bundle holding one World.StaticCullTreeData (148); ClientTreeStaticCullTree null on 74]
 [data: 37 of 37 stock levels have both partitions and a null ClientTreeStaticCullTree]
 [doc: bfbc2-culltree/README.md:53-58]
 
@@ -125,23 +126,25 @@ radius over 8191.75 m cannot be stored.
 
 ### CULL-SPH-2: Leaf spheres
 
-Status: **observed**
+Status: **verified**
 
 A leaf's sphere is the bounding sphere of its object's whole model in world space (models built away from their origin
 have spheres far from the object's position). Its quantized radius is always larger than `Max`: `W >= 4 x Max + 0.5`.
 
+[test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22: 516,718 of 516,718 leaves of DICE's 148 trees with W >= 4 x Max + 0.5; above 1.5 m W - ceil(4 x Max) = 0 on 84,356, 1 on 314,876]
 [data: 123,585 of 123,585 stock leaves satisfy W >= 4 x Max + 0.5; W - ceil(4 x Max) is 0 or 1 above 1.5 m]
 [data: Linux MP_008, 2,782 leaves: centre in the object's space within 0.14 m of the blueprint's median, 99 % within 0.105 m]
 [doc: bfbc2-culltree/README.md:94-105]
 
 ### CULL-SPH-3: Internal spheres
 
-Status: **observed**
+Status: **verified**
 
 An internal node's sphere bounds its children's **unquantized** spheres; decoded, it does not always contain the
 children's decoded spheres in DICE's trees (38 % of child spheres stick out, median 0.08 m, at most 1.1 m). The suite
 always writes internal spheres that contain the decoded spheres below them.
 
+[test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22: 395,342 of 1,033,140 child spheres (38 %) stick out of their parent's decoded sphere, at most 1.10 m]
 [data: stock trees: 38 % of child spheres stick out of their parent's decoded sphere, at most 1.1 m]
 [doc: bfbc2-culltree/README.md:106-108]
 

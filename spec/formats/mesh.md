@@ -42,12 +42,12 @@ Evidence: [code: rust/bc2-formats/src/meshdata.rs:117-155] [test: rust/bc2-forma
 
 ### MESH-HDR-2: `h0` is the mesh kind
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 `h0` names the kind of the mesh set the LOD belongs to: **0** rigid, **1** skinned, **2** composite, **4** tree. No
 other value occurs. The readers keep it as an opaque word.
 
-Evidence: [data: game copy 2026-11-19: every MeshData named `<set>_lod<i>_data.res` of 1,507 PC mesh sets: RigidMeshSet 1,505 LODs all 0, SkinnedMeshSet 378 all 1, CompositeMeshSet 471 all 2, TreeMeshSet 86 all 4; over 2,255 distinct MeshData: 0 x 1,451, 2 x 466, 1 x 255, 4 x 83]
+Evidence: [data: game copy 2026-11-19: every MeshData named `<set>_lod<i>_data.res` of 1,507 PC mesh sets: RigidMeshSet 1,505 LODs all 0, SkinnedMeshSet 378 all 1, CompositeMeshSet 471 all 2, TreeMeshSet 86 all 4; over 2,255 distinct MeshData: 0 x 1,451, 2 x 466, 1 x 255, 4 x 83] [test: rust/bc2-formats/tests/spec_corpus.rs::meshes] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 4,265 distinct MeshData: h0 0 x 2,610, 2 x 879, 1 x 618, 4 x 158; every mesh set LOD's MeshData has its set's kind (rigid 0, skinned 1, composite 2, tree 4)]
 
 ### MESH-HDR-3: The file is exactly header + V + I
 
@@ -60,12 +60,12 @@ Evidence: [code: rust/bc2-formats/src/meshdata.rs:142-146] [test: rust/bc2-forma
 
 ### MESH-HDR-4: PC MeshData use 16-bit indices
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 Every PC MeshData has wide indices 0 (16-bit, LE) and an even *I*. Xbox 360 MeshData may have wide indices 1
 (32-bit BE); the converter narrows them to 16 bits (MESH-CONV-3), and the PC writer always writes 0.
 
-Evidence: [data: wide = 0 and I even in 2,255 of 2,255 distinct PC MeshData (2026-11-19)] [code: rust/bc2-formats/src/meshdata.rs:192-194] [doc: bfbc2-console-convert/FORMAT.md:197-198]
+Evidence: [data: wide = 0 and I even in 2,255 of 2,255 distinct PC MeshData (2026-11-19)] [code: rust/bc2-formats/src/meshdata.rs:192-194] [doc: bfbc2-console-convert/FORMAT.md:197-198] [test: rust/bc2-formats/tests/spec_corpus.rs::meshes] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: wide = 0 and I even in 4,265 of 4,265 distinct PC MeshData]
 
 ### MESH-PART-1: Part record
 
@@ -89,11 +89,11 @@ Evidence: [code: rust/bc2-formats/src/meshdata.rs:123-135] [test: rust/bc2-forma
 
 ### MESH-PART-2: `fb` equals the bone count
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 A part's `fb` byte equals its u16 bone count.
 
-Evidence: [data: 7,191 of 7,191 parts of 2,255 distinct PC MeshData (2026-11-19)] [doc: bfbc2-console-convert/FORMAT.md:167]
+Evidence: [data: 7,191 of 7,191 parts of 2,255 distinct PC MeshData (2026-11-19)] [doc: bfbc2-console-convert/FORMAT.md:167] [test: rust/bc2-formats/tests/spec_corpus.rs::meshes] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 13,355 of 13,355 parts of 4,265 distinct PC MeshData]
 
 ### MESH-PART-3: Vertex addressing
 
@@ -276,12 +276,12 @@ Evidence: [code: rust/bc2-formats/src/meshdata.rs:285-345] [test: rust/bc2-forma
 
 ### MSET-LOD-2: A LOD's size is its MeshData's buffers + 12
 
-Status: **observed** · Variants: PC, Xbox 360
+Status: **verified** · Variants: PC, Xbox 360
 
 A LOD's `size` is its MeshData's vertex bytes + index bytes + 12, not the MeshData file's length. A writer that
 changes a MeshData's buffers must update the set's `size`.
 
-Evidence: [data: game copy 2026-11-19: 2,426 of 2,440 PC LODs with their MeshData (rigid 1,505 / 1,505, composite 471 / 471, tree 86 / 86, skinned 364 / 378 - 14 skinned LODs differ); all 2,463 Xbox 360 and 619 PC mp_common LODs (doc)] [doc: bfbc2-console-convert/FORMAT.md:218-219]
+Evidence: [data: game copy 2026-11-19: 2,426 of 2,440 PC LODs with their MeshData (rigid 1,505 / 1,505, composite 471 / 471, tree 86 / 86, skinned 364 / 378 - 14 skinned LODs differ); all 2,463 Xbox 360 and 619 PC mp_common LODs (doc)] [doc: bfbc2-console-convert/FORMAT.md:218-219] [test: rust/bc2-formats/tests/spec_corpus.rs::meshes] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 4,265 of 4,265 distinct mesh set LODs with their MeshData (rigid 2,610, composite 879, skinned 618, tree 158): no exception in DICE's files (the 14 skinned LODs of the 2026-11-19 count were not DICE's)]
 
 ### MSET-LOD-3: The flag byte by game
 
@@ -295,22 +295,22 @@ Evidence: [code: rust/bc2-formats/src/meshdata.rs:278] [code: rust/bc2-formats/s
 
 ### MSET-LOD-4: Shader names per part
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 A LOD's shader count *n* equals its MeshData's part count, and the *i*-th shader name of a shader set belongs to part
 *i*. The renderer finds a part's shader-database entry by the mesh set's shader name (SHDB-NAME-1), not by the
 partition's material.
 
-Evidence: [data: n equals the part count in 2,440 of 2,440 PC LODs (2026-11-19)] [inferred: the Type 38 port kept a donor's shader names in the .res and drew with the donor's entry, though its partition named its own (OPFOR's 2026-11-08 weapon port notes)]
+Evidence: [data: n equals the part count in 2,440 of 2,440 PC LODs (2026-11-19)] [inferred: the Type 38 port kept a donor's shader names in the .res and drew with the donor's entry, though its partition named its own (OPFOR's 2026-11-08 weapon port notes)] [test: rust/bc2-formats/tests/spec_corpus.rs::meshes] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: n equals the part count in 4,265 of 4,265 LODs]
 
 ### MSET-PART-1: Composite and tree part hashes
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 A composite or tree part's u32 hash is djb2 with XOR (`h = 5381; h = (h * 33) ^ byte`, mod 2^32) over the bytes of
 the part name's last `|`-separated segment, lower-cased (the whole name when it has no `|`).
 
-Evidence: [data: 6,916 of 6,916 parts of the game copy's distinct PC composite (6,579) and tree (337) mesh sets (2026-11-19)]
+Evidence: [data: 6,916 of 6,916 parts of the game copy's distinct PC composite (6,579) and tree (337) mesh sets (2026-11-19)] [test: rust/bc2-formats/tests/spec_corpus.rs::meshes] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 10,894 of 10,894 parts of the distinct composite and tree mesh sets]
 
 ### MSET-PART-2: A tree's parts are its levels
 

@@ -13,42 +13,48 @@ counts of some rules cover the first 28 of them), 2026-11-19; structure only.
 
 ### LEVEL-PART-1: The level partition and its primary instance
 
-Status: **observed**
+Status: **verified**
 
 The level `<LV>` is the partition `Levels/<LV>.dbx` of the bundle `levels/<lv>/level-00.fbrb`. Its primary
 instance is its only `LevelData` instance, it is the partition's first instance, and its `id` is `<LV>`.
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 74 of 74 with one LevelData, the primary and first instance, id = the level's name]
 [data: 28 level partitions: primary instance type LevelData in 28, at index 0 in 28, id equal to the level name in 28, exactly one LevelData in 28]
 [code: rust/bc2-levelwrite/src/write.rs:143-145]
 
 ### LEVEL-PART-2: No layers or sub-worlds
 
-Status: **observed**
+Status: **verified**
 
 A Frostbite 1 / BFBC2 level has no layer or sub-world partitions: the level partition holds the level's entities
 directly, and the only other partitions it owns are its model-group placements (LEVEL-MG-2) and the root files
 found by name (PART-NAME-3). Game-mode content is not a separate layer either; a mode layout is a whole level of
 its own (`MP_005GR`) that loads its base level's bundles.
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): no instance type containing SubWorld or Layer]
 [data: 32 level partitions: no instance type containing SubWorld or Layer; the World-named types are WorldObjectListData 159 and BigWorldSetting 6]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:843-845]
 
 ### LEVEL-PART-3: Instances in the level partition
 
-Status: **observed**
+Status: **verified**
 
 The level partition holds every placed entity of the level (placed objects, spawns, triggers, areas, orders, sounds,
 effects, event logic), the model groups and their members, the terrain, environment map and forests, the terrain
 splines and their points, and helper data (area geometry points, voice-over lines, object sets). It holds 1,500 to
 8,500 `Objects` items per level.
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): Objects items per level 1,690 - 8,419]
 [data: 28 level partitions: Objects items per level between 1,500 and 8,500; top listed types ReferenceObjectData 58,054, AreaGeometryEntityData 14,621, GameEffectEntityData 6,089]
 
 ## 2. LevelData
 
 ### LEVEL-DATA-1: LevelData's members
 
-Status: **observed**
+Status: **verified**
 
 `LevelData` has, in every level partition, these members among others: `Name` (text), `Objects` (array),
 `EventConnections` (array), `LevelDescription` (complex), `MaterialGrid`, `ExclusiveStaticCullTree`,
@@ -57,6 +63,8 @@ Status: **observed**
 `DefaultFOV`, `InfantryFOVMultiplier`, `FriendlyDamageModifier` (floats), `MinimapSettings`,
 `EmitterSystemMetrics` (complexes), `VoiceOvers`, `VoiceOverLines` (arrays).
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): every member present in 74 of 74 LevelData instances with the kind listed]
 [data: 28 level partitions: each of these members present in 28 of 28 LevelData instances, with the same kind in all]
 
 ### LEVEL-DATA-2: LevelData.Name is the level's path
@@ -106,7 +114,7 @@ A description whose `GameMode` reference does not resolve crashes the game at 0x
 
 ### LEVEL-OBJ-1: What is listed
 
-Status: **observed**
+Status: **verified**
 
 `LevelData.Objects` is a reference array of **local** items: the level's top-level entities. Placed objects,
 spawns, triggers, orders, effects, sounds, event logic, the terrain, model groups, forests and the static
@@ -114,6 +122,8 @@ environment map are listed. Not listed: model-group and tree members, mesh entit
 area geometry points that only belong to an area, voice-over lines, object sets, and `LevelData` itself; they are
 reached through the listed ones.
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 230,818 Objects items, all local; 445 world objects, all listed; LevelData never listed]
 [data: 28 level partitions: 103,749 Objects items, all local; unlisted types include TerrainSplinePlanePointData 17,847, StaticModelGroupMemberData 1,240, ObjectSet 1,154, HavokAsset 129, LevelData 28]
 [data: world objects in 32 level partitions: TerrainEntityData 32, StaticModelGroupEntityData 54, MiddlegrowthModelGroupEntityData 44, RigidModelGroupEntityData 16, ForestEntityData 32, StaticEnvmapEntityData 28, all listed]
 
@@ -152,23 +162,27 @@ instance whose original has one, and removes the item of a deleted instance (REF
 
 ### LEVEL-EVT-1: Where and what
 
-Status: **observed**
+Status: **verified**
 
 A level's event connections are one array, `LevelData.EventConnections`, of unnamed `complex` elements; no other
 instance of the level partition has `EventConnections`. Each connection has four members in this order: `Source`
 and `Target` (references), `SourceEvent` and `TargetEvent` (complexes, each a `Name` text and an `Id` 4-byte
 number): "when Source fires SourceEvent, send TargetEvent to Target".
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): EventConnections only on LevelData; 57,667 connections, all with Source, Target, SourceEvent, TargetEvent; 115,334 event complexes, all Name (text), Id (numbers)]
 [data: 28 level partitions: EventConnections only on LevelData (28), 26,892 connections, every one with the members Source, Target, SourceEvent, TargetEvent; all 53,784 event complexes are Name (text), Id (numbers)]
 [code: rust/bc2-levelwrite/src/write.rs:200-218]
 
 ### LEVEL-EVT-2: Connection ends
 
-Status: **observed**
+Status: **verified**
 
 A connection's ends are local references, except that a `Target` (rarely a `Source`) may be an external
 reference to an instance of another partition (a shared entity).
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): Source local 57,661, external 6; Target local 55,934, external 1,733; no null end]
 [data: 28 level partitions: Source local 26,889, external 3; Target local 26,517, external 375; no null end]
 
 ### LEVEL-EVT-3: Deleting an entity deletes its connections
@@ -197,11 +211,13 @@ object owns consecutive leaves from there. 0 means the object is not in the tree
 
 ### LEVEL-SLOT-2: Nonzero slots are unique
 
-Status: **observed**
+Status: **verified**
 
 Within a level no two placed objects have the same nonzero slot. Objects that share one are shown and hidden
 together (see-through houses and cars when moving); an object at slot 0 draws see-through and cannot be destroyed.
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): duplicate nonzero placed-object slots 0]
 [data: 32 level partitions: duplicate nonzero slots 0]
 [code: rust/bc2-formats/src/dbxedit/check.rs:415-440] [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:282-286]
 
@@ -240,7 +256,7 @@ open.
 
 ### LEVEL-MG-1: Groups and members
 
-Status: **observed**
+Status: **verified**
 
 A model group (`StaticModelGroupEntityData`, `RigidModelGroupEntityData`, `MiddlegrowthModelGroupEntityData`,
 `ForestEntityData`) is a listed instance of the level partition with a `Transform`, an `Enumeration`, a local
@@ -250,6 +266,8 @@ member (`StaticModelGroupMemberData`, `RigidModelGroupMemberData`, `Middlegrowth
 its mesh by `MeshEntityType` (local: `RigidMeshEntityData`, `CompositeMeshEntityData` or `TreeMeshEntityData`), and
 counts `InstanceCount`, `FirstPhysicsPart`, `PhysicsPartCount`, `PhysicsPartCountPerInstance`.
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 299 groups, all with Transform, Enumeration, MemberDatas and a local PhysicsEntityData; 3,352 members, all local and unlisted, with a local mesh entity, an external MemberType under objects/, vegetation/ or terrains/, and the four counts]
 [data: 32 level partitions: 146 groups, 1,676 members; PhysicsData local PhysicsEntityData on all 146; MeshEntityType local on all members; MemberType external on all members]
 
 ### LEVEL-MG-2: Placements live in `_HavokAsset` partitions
@@ -349,11 +367,15 @@ found by name (`Terrains/<Name>/<Name>.Heightfield-000.res`, PART-NAME-2) in the
 
 ### LEVEL-ENV-1: The static environment map
 
-Status: **observed**
+Status: **verified**
 
-`StaticEnvmapEntityData` (one per level) names its environment map texture by `StaticEnvmap`, an external reference
-under `terrains/`, and must be listed in `Objects` (LEVEL-OBJ-3).
+`StaticEnvmapEntityData` names its environment map texture by `StaticEnvmap`, an external reference under
+`terrains/`, and must be listed in `Objects` (LEVEL-OBJ-3). DICE's levels hold one, except 6 with none (MP_002,
+MP_002SR, MP_007, MP_007GR, MP_007SDM, SP_008_B) and MP_004 / MP_004SDM with three, two of them with a null
+`StaticEnvmap` (corrected 2026-11-22, round SPV1: the earlier text said one per level).
 
+[test: core/tests/test_spec_probes.py::level_partitions]
+[data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 72 StaticEnvmapEntityData in 68 levels (66 with one, 2 with three, 6 with none), all listed; StaticEnvmap external under terrains/ on 68, null on 4]
 [data: 28 StaticEnvmapEntityData in 32 level partitions, all listed, StaticEnvmap external under terrains/]
 
 ## 8. The multiplayer layer

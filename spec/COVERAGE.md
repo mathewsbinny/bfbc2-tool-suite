@@ -3,7 +3,8 @@
 Which of BFBC2's systems the specification covers, which tools and rounds touch each one (now or queued in
 `ROADMAP.md`, and Project OPFOR BFBC2's WW2 / Onslaught pipeline and game module), and where the gaps are. Written by
 round SPG (2026-11-22); keep it current when a round adds a spec file or a system gains a tool. Rule counts are
-`rules.json`'s after SPG (`python spec/trace.py --coverage` for the live numbers).
+`rules.json`'s after SPG (`python spec/trace.py --coverage` for the live numbers). Section 4 is round SPV1's
+verification census: every file's statuses before and after it, and what would verify each rule still observed.
 
 **Status.** **covered**: the system's data and the engine's use of it are specified to the depth the planned work
 needs, most rules observed or better. **thin**: some rules, but the planned work needs more (a format without its
@@ -169,3 +170,165 @@ keeps SPG2's list as it was. Left:
    content list against the PC Package port (WX1: the port lacks the night lamps, moon and night ambience).
 10. **Effects' processor chain** (FX-CLS-1): the `Emitter.*Data` classes, if the editor previews particles.
 11. **Streaming**: the mount order and precedence of `async`, `streaming_*` and `ondemand_*` bundles.
+
+## 4. The verification census (round SPV1, 2026-11-22)
+
+Round SPV1 checked the **observed** rules (seen in DICE's data or code, no test) against DICE's files and promoted to
+**verified** every one whose claims a game-tier check now counts: 127 of 473. The checks: the Rust corpus test
+`rust/bc2-formats/tests/spec_corpus.rs` (one pass over DICE's 1,021 bundles - every `.fbrb` of the game copy dated
+before 2013 - for the container, resource, DBX, type, instance and reference, texture, mesh and BIGF rules; about 40 s
+in release) and `core/tests/test_spec_probes.py` (two new probes, `probes/level.py` for the level partitions, cull
+trees, vegetation and terrain splines and `probes/registry.py` for the stock `package.mft` / `bundleManifest`; SPG's
+five print-only probes' output lines for the weapon, vehicle, material, destruction, lighting and weather rules). A
+rule is verified only when every number it states is checked; nine rules whose numbers the data contradicted were
+corrected in place (the wording, each saying so) and then verified: FBRB-HDR-10, FBRB-DEL-2, TYPE-ATTR-3, LEVEL-ENV-1,
+WPN-DMG-3, WPN-AMMO-1, WPN-SWAY-2, VEH-HP-4, VEH-MAT-1, and the DICE-only counts that differ from the game copy's
+(DBX-STR-3, MSET-LOD-2, VEG-CLS-1, the corpus rules) are new `[data: ...]` lines beside the old ones.
+
+### 4a. Status per file, before -> after
+
+Over the 1,269 rules SPV1 started from (round E4's five new rules, merged beside it, are verified and not counted).
+
+| File | Verified | Implemented | Observed | Inferred |
+|---|---|---|---|---|
+| `engine/ai.md` | 0 | 0 | 15 | 2 |
+| `engine/animation.md` | 3 | 5 | 8 | 1 |
+| `engine/audio.md` | 3 | 0 | 13 | 0 |
+| `engine/bot_ai.md` | 2 | 0 | 44 | 7 |
+| `engine/decals.md` | 1 -> 2 | 1 | 3 -> 2 | 1 |
+| `engine/destruction.md` | 14 -> 18 | 1 | 5 -> 1 | 2 |
+| `engine/effects.md` | 8 -> 10 | 1 | 4 -> 2 | 2 |
+| `engine/gameplay.md` | 9 | 1 | 39 | 0 |
+| `engine/kynapse_runtime.md` | 0 | 0 | 17 | 1 |
+| `engine/levels.md` | 0 | 0 | 6 | 0 |
+| `engine/lighting.md` | 7 -> 8 | 2 | 13 -> 12 | 4 |
+| `engine/loading.md` | 1 | 1 | 11 | 0 |
+| `engine/materials.md` | 21 -> 25 | 8 | 11 -> 7 | 6 |
+| `engine/menus.md` | 20 | 7 | 4 | 0 |
+| `engine/module.md` | 0 | 14 | 1 | 0 |
+| `engine/network.md` | 0 | 0 | 9 | 0 |
+| `engine/onslaught.md` | 0 | 7 | 8 | 0 |
+| `engine/persistence.md` | 3 | 3 | 14 | 0 |
+| `engine/rendering.md` | 25 | 4 | 14 | 2 |
+| `engine/streaming.md` | 0 -> 1 | 1 | 7 -> 6 | 0 |
+| `engine/vegetation.md` | 3 -> 4 | 1 | 5 -> 4 | 1 |
+| `engine/vehicles.md` | 5 -> 16 | 4 | 12 -> 1 | 1 |
+| `engine/weapons.md` | 7 -> 30 | 2 | 23 -> 0 | 2 |
+| `engine/weather.md` | 3 -> 6 | 0 | 8 -> 5 | 1 |
+| `formats/aimanim.md` | 3 | 0 | 0 | 0 |
+| `formats/apt.md` | 22 | 4 | 4 | 1 |
+| `formats/audio.md` | 14 | 1 | 2 | 0 |
+| `formats/bf1943.md` | 0 | 1 | 6 | 0 |
+| `formats/bigf.md` | 2 -> 3 | 0 | 1 -> 0 | 0 |
+| `formats/collision.md` | 4 | 1 | 2 | 2 |
+| `formats/culltree.md` | 9 -> 12 | 1 | 7 -> 4 | 0 |
+| `formats/dbx.md` | 20 -> 27 | 0 | 7 -> 0 | 1 |
+| `formats/fbrb.md` | 16 -> 25 | 0 | 11 -> 2 | 0 |
+| `formats/granny.md` | 6 | 2 | 0 | 0 |
+| `formats/havok.md` | 17 -> 18 | 2 | 5 -> 4 | 0 |
+| `formats/hpd.md` | 22 | 0 | 14 | 1 |
+| `formats/kynapse.md` | 11 | 0 | 10 | 0 |
+| `formats/loc.md` | 6 | 0 | 1 | 0 |
+| `formats/mesh.md` | 15 -> 21 | 2 | 9 -> 3 | 0 |
+| `formats/navsample.md` | 4 | 2 | 2 | 0 |
+| `formats/res.md` | 2 -> 5 | 1 | 5 -> 2 | 0 |
+| `formats/shaderdb.md` | 25 | 4 | 2 | 0 |
+| `formats/stfs.md` | 4 | 0 | 0 | 0 |
+| `formats/terrain.md` | 21 -> 23 | 0 | 4 -> 2 | 0 |
+| `formats/texture.md` | 12 -> 16 | 1 | 5 -> 1 | 0 |
+| `formats/water.md` | 5 | 3 | 0 | 0 |
+| `formats/xiso.md` | 2 | 0 | 0 | 0 |
+| `formats/xmlinst.md` | 3 | 1 | 0 | 0 |
+| `model/ai_orders.md` | 3 | 0 | 12 | 2 |
+| `model/bundles.md` | 5 -> 8 | 8 | 3 -> 0 | 0 |
+| `model/level.md` | 14 -> 24 | 1 | 15 -> 5 | 1 |
+| `model/references.md` | 5 -> 12 | 5 | 9 -> 2 | 0 |
+| `model/registration.md` | 5 -> 9 | 3 | 9 -> 5 | 1 |
+| `model/types.md` | 3 -> 19 | 6 | 17 -> 1 | 1 |
+| `transforms/console.md` | 7 | 1 | 1 | 0 |
+| `transforms/culltree.md` | 8 | 0 | 0 | 0 |
+| `transforms/dbx.md` | 8 | 0 | 0 | 0 |
+| `transforms/export.md` | 12 | 0 | 0 | 0 |
+| `transforms/install.md` | 29 | 0 | 0 | 0 |
+| `transforms/kynapse_generation.md` | 8 | 0 | 13 | 0 |
+| `transforms/navkit.md` | 8 | 1 | 0 | 0 |
+| `transforms/pack.md` | 9 | 0 | 0 | 0 |
+| `transforms/projectlog.md` | 19 | 1 | 0 | 0 |
+| `transforms/shaders.md` | 3 | 9 | 2 | 0 |
+| `transforms/stockmp.md` | 7 | 0 | 0 | 0 |
+| `transforms/terrain_edit.md` | 9 | 2 | 0 | 4 |
+| `transforms/validation.md` | 70 | 1 | 0 | 0 |
+| `transforms/ww2.md` | 10 | 0 | 1 | 0 |
+| **all: 1269 rules** | **622 -> 749** | **127** | **473 -> 346** | **47** |
+
+### 4b. The observed rules left, and what would verify each
+
+346 rules stay observed. Kinds of evidence that would verify them:
+
+- **P** (67): a data probe over DICE's PC files could count them (not written in SPV1: the shader
+  databases' programs, animation and persistence partitions, the terrain probe's strip and tree sections, the
+  weather states' classification, the levels' descriptions).
+- **A** (23): the AI's data, measured by `rust/bc2-formats/examples/ai_probe.rs`: its value lists can
+  become checks in `rust/bc2-formats/tests/ai_corpus.rs`.
+- **L** (24): DICE's placement conventions measured by the map editor's L1 / A1 / A2 study
+  (`bfbc2-map-editor/placement`): a re-run of the study as a check.
+- **M** (23): a count over DICE's files backs part of the rule; its mechanism is the executable's (RE)
+  or needs the game running.
+- **X** (32): measured on another corpus than DICE's PC files - the Xbox 360 or BF1943 data, Napisal's
+  or OPFOR's builds, OPFOR's sources, research rounds' scripts (WX0, WX1) - a check needs that corpus in the tests.
+- **G** (21): only the game running settles it (playtests, RenderDoc captures, crash reproductions):
+  in-game tests are paused.
+- **R** (119): read from `BFBC2Game.exe` only; verified by a playtest or kept as RE.
+- **N** (37): the Kynapse / NavKit files, left to round NKG2.
+
+| File | Observed | By kind |
+|---|---|---|
+| `engine/ai.md` | 15 | P: AI-NEED-4; X: AI-NEED-1, AI-NEED-2; G: AI-NEED-3; R: AI-CRASH-1, AI-CRASH-2, AI-CRASH-3, AI-CRASH-4, AI-KY-1, AI-KY-2, AI-KY-3, AI-KY-4, AI-NEED-5, AI-START-1, AI-START-2 |
+| `engine/animation.md` | 8 | P: ANIM-KIT-1, ANIM-KIT-3, ANIM-RAG-1, ANIM-RES-1, ANIM-RIG-1; G: ANIM-ZOOM-1, ANIM-ZOOM-2, ANIM-ZOOM-3 |
+| `engine/audio.md` | 13 | P: SND-VEH-1, SND-VO-5, SND-WAVE-1, SND-WAVE-2; X: SND-OD-1, SND-VO-1; G: SND-LOAD-1; R: SND-EVT-1, SND-EVT-2, SND-EVT-3, SND-EVT-4, SND-NULL-1, SND-STRM-1 |
+| `engine/bot_ai.md` | 44 | A: BOT-CMB-1, BOT-CMB-2, BOT-CMB-5, BOT-DIF-3, BOT-MOV-2, BOT-MOV-4, BOT-MOV-5, BOT-PER-1, BOT-PER-2, BOT-PER-5, BOT-SQD-1, BOT-VEH-1, BOT-VEH-2, BOT-VEH-4; G: BOT-DIF-4; R: BOT-CTL-1, BOT-CTL-2, BOT-CTL-3, BOT-CTL-6, BOT-CTL-7, BOT-CTL-8, BOT-GS-2, BOT-GS-3, BOT-GS-4, BOT-GS-5, BOT-PER-3, BOT-RT-1, BOT-RT-2, BOT-RT-3, BOT-RT-5, BOT-RT-6, BOT-RT-9, BOT-SCO-1, BOT-SCO-2, BOT-SCO-3, BOT-SCO-4, BOT-VEH-5 |
+| `engine/decals.md` | 2 | P: DECAL-STRIP-1 |
+| `engine/destruction.md` | 1 | R: DSTR-STATE-5 |
+| `engine/effects.md` | 2 | P: FX-NS-1; R: FX-PROC-4 |
+| `engine/gameplay.md` | 39 | P: GAME-LAYER-3, GAME-MODE-1; L: GAME-AREA-1, GAME-AREA-2, GAME-CQ-2, GAME-CQ-3, GAME-CQ-4, GAME-CQ-5, GAME-CQ-6, GAME-CQ-7, GAME-CQ-9, GAME-DMG-1, GAME-RUSH-2, GAME-RUSH-3, GAME-RUSH-4, GAME-RUSH-5, GAME-RUSH-6, GAME-RUSH-7, GAME-RUSH-8, GAME-SDM-2, GAME-SPAWN-1, GAME-SPAWN-2, GAME-SPAWN-3, GAME-TKT-1, GAME-VEH-1, GAME-VEH-2; X: GAME-AS-1; G: GAME-CQ-8, GAME-LAYER-1; R: GAME-AWARD-1, GAME-CQ-10, GAME-MODE-5, GAME-MODE-7, GAME-TKT-5 |
+| `engine/kynapse_runtime.md` | 17 | R: KYRT-AREA-1, KYRT-CFG-1, KYRT-CRASH-1, KYRT-IGN-1, KYRT-LINK-1, KYRT-LOAD-1, KYRT-LOAD-2, KYRT-LOAD-3, KYRT-MOVE-1, KYRT-NODE-1, KYRT-NODE-2, KYRT-PATH-1, KYRT-PATH-2, KYRT-PATH-3, KYRT-SEC-1, KYRT-TILE-1 |
+| `engine/levels.md` | 6 | P: LVL-DESC-1, LVL-MODE-1, LVL-MODE-2; G: LVL-DESC-2; R: LVL-RT-1 |
+| `engine/lighting.md` | 12 | P: LIGHT-BAKE-1, LIGHT-BAKE-2, LIGHT-BAKE-4, LIGHT-BAKE-5, LIGHT-ENV-2, LIGHT-OUT-2, LIGHT-PT-1, LIGHT-PT-6; X: LIGHT-PT-3, LIGHT-PT-4, LIGHT-SKY-3, LIGHT-SKY-4 |
+| `engine/loading.md` | 11 | R: LOAD-CSUM-1, LOAD-MG-1, LOAD-PART-1, LOAD-PART-2, LOAD-PART-3, LOAD-PART-4, LOAD-PART-5, LOAD-PART-6, LOAD-PH-1, LOAD-PH-2, LOAD-START-2 |
+| `engine/materials.md` | 7 | P: MAT-TEX-2; X: MAT-WW2-2; R: MAT-SLOT-5, MAT-TEX-20 |
+| `engine/menus.md` | 4 | R: MENU-CAT-1, MENU-EVT-1, MENU-RT-3, MENU-UNL-1 |
+| `engine/module.md` | 1 | X: MOD-CNT-1 |
+| `engine/network.md` | 9 | R: NET-JOIN-1, NET-SB-1, NET-SB-2, NET-SB-3, NET-SES-1, NET-SES-2, NET-SES-3, NET-SES-4, NET-SES-5 |
+| `engine/onslaught.md` | 8 | X: ONS-LVL-1, ONS-PORT-1, ONS-PORT-3, ONS-REG-1, ONS-WAVE-1; G: ONS-CAP-1, ONS-CAP-3; R: ONS-MODE-1 |
+| `engine/persistence.md` | 14 | P: PERS-AWD-1, PERS-AWD-3, PERS-DATA-1, PERS-DATA-2, PERS-DATA-3, PERS-RANK-1; R: PERS-AWD-4, PERS-JOIN-1, PERS-LIC-1, PERS-OPF-3, PERS-SAVE-1, PERS-SCORE-1, PERS-UNLK-1 |
+| `engine/rendering.md` | 14 | P: RNDR-DB-2, RNDR-LIGHT-1, RNDR-SHAD-1, RNDR-SKY-3, RNDR-TERR-3, RNDR-WTHR-3, RNDR-WTHR-4; X: RNDR-DB-3, RNDR-WTHR-6; R: RNDR-CRASH-1, RNDR-CRASH-2, RNDR-DRAW-6, RNDR-DRAW-7, RNDR-POST-3 |
+| `engine/streaming.md` | 6 | P: STRM-CNT-1; R: STRM-MNT-1, STRM-MNT-2, STRM-MNT-3 |
+| `engine/vegetation.md` | 4 | P: VEG-TREE-1; X: VEG-UG-4; R: VEG-UG-3, VEG-UG-6 |
+| `engine/vehicles.md` | 1 | R: VEH-HP-5 |
+| `engine/weather.md` | 5 | P: WTH-FX-1, WTH-FX-2, WTH-STATE-2, WTH-STATE-4, WTH-STATE-5 |
+| `formats/apt.md` | 4 | G: APT-FRM-2, APT-WR-4; R: APT-LOAD-1, APT-LOAD-3 |
+| `formats/audio.md` | 2 | P: WAVE-SEG-2, WAVE-SEG-3 |
+| `formats/bf1943.md` | 6 | X: B43-BNDL-1, B43-BNDL-2, B43-DBX-1, B43-HK-1, B43-LVL-1, B43-WPN-1 |
+| `formats/collision.md` | 2 | P: COLL-ALIAS-2; R: COLL-MG-2 |
+| `formats/culltree.md` | 4 | P: CULL-SLOT-1; X: CULL-SLOT-3; G: CULL-PLAT-1; R: CULL-TRV-1 |
+| `formats/fbrb.md` | 2 | P: FBRB-LAY-1; G: FBRB-ENT-6 |
+| `formats/havok.md` | 4 | P: HAVOK-MAT-1, HAVOK-PF-5, HAVOK-RUN-2 |
+| `formats/hpd.md` | 14 | N: HPD-EDGE-2, HPD-NODE-3, HPD-NODE-4, HPD-NODE-5, HPD-NODE-6, HPD-NODE-7, HPD-RT-1, HPD-SET-1, HPD-TAB-3, HPD-USE-1, HPD-USE-2, KYM-AREA-3, KYM-DF-1, KYM-HDR-2 |
+| `formats/kynapse.md` | 10 | N: KYN-AREA-1, KYN-B-1, KYN-C-1, KYN-DF-1, KYN-EDGE-2, KYN-EDGE-3, KYN-NODE-2, KYN-SEC-4, KYN-UNIT-1, KYN-WORLD-1 |
+| `formats/loc.md` | 1 | X: LOC-KEY-2 |
+| `formats/mesh.md` | 3 | P: MESH-PART-4, MESH-VTX-3, MSET-PART-2 |
+| `formats/navsample.md` | 2 | P: NAVS-HDR-2, NAVS-HDR-3 |
+| `formats/res.md` | 2 | P: RES-NAME-1; X: RES-TYPE-3 |
+| `formats/shaderdb.md` | 2 | P: SHDB-PB-2, SHDB-RS-2 |
+| `formats/terrain.md` | 2 | P: TERR-HF-6; G: TERR-VT-5 |
+| `formats/texture.md` | 1 | X: TEX-X-8 |
+| `model/ai_orders.md` | 12 | A: AIO-ASN-1, AIO-ASN-2, AIO-CLS-2, AIO-EVT-2, AIO-EVT-3, AIO-EVT-4, AIO-FLD-1, AIO-FLD-3, AIO-RDY-4; R: AIO-CLS-1, AIO-RT-1 |
+| `model/level.md` | 5 | P: LEVEL-DATA-3, LEVEL-MG-4; G: LEVEL-MP-1; R: LEVEL-DESC-1, LEVEL-DESC-2 |
+| `model/references.md` | 2 | P: REF-RES-3; R: REF-RES-5 |
+| `model/registration.md` | 5 | G: CSUM-CHK-1, CSUM-CHK-2, REG-MFT-6, REG-NEW-5; R: CSUM-CHK-3 |
+| `model/types.md` | 1 | P: TYPE-CPLX-1 |
+| `transforms/console.md` | 1 | R: XCONS-STG-2 |
+| `transforms/kynapse_generation.md` | 13 | N: KYG-AREA-1, KYG-AREA-2, KYG-AREA-3, KYG-DET-1, KYG-DF-1, KYG-DF-2, KYG-IN-1, KYG-NODE-1, KYG-NODE-2, KYG-NODE-3, KYG-NODE-5, KYG-SEC-2, KYG-SEED-1 |
+| `transforms/shaders.md` | 2 | X: XSH-DX-1, XSH-DX-2 |
+| `transforms/ww2.md` | 1 | X: XWW2-RB-2 |
+

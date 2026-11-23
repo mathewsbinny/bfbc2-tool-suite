@@ -22,12 +22,13 @@ Counts are of the game copy (2026-11-19): 4,128 HavokPhysicsData resources, all 
 
 ### HAVOK-RES-1: Names
 
-Status: **observed**
+Status: **verified**
 
 A blueprint's physics resource is named `<blueprint>_Havok.res`; a level's model groups (static, rigid, forest,
 middle growth: the placed objects merged into one shape) use `<group>_HavokAsset.res`. A few names repeat the
 suffix (`<name>_Havok_Havok.res`); the blueprint is then `<name>` (COLL-IDX-2).
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::resource_names] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 2,584 `_Havok.res`, 448 `_HavokAsset.res`, 3 `_Havok_Havok.res`, no other name; all in level bundles]
 [data: game copy: 3,595 `_Havok.res`, 529 `_HavokAsset.res`, 4 `_Havok_Havok.res`; all 4,128 of type HavokPhysicsData in level bundles]
 
 ### HAVOK-RES-2: Wrapper, then packfile
