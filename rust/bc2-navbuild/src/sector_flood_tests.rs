@@ -151,6 +151,7 @@ fn cfg() -> GraphCfg {
         grid_min: (0.0, 0.0),
         placement: None,
         dice_seeds: false,
+        mesh_corners: false,
     }
 }
 

@@ -68,6 +68,7 @@ pub mod rules;
 pub mod sampler;
 pub mod sector;
 pub mod stage;
+pub mod terrain_fill;
 pub mod trace;
 pub mod vehicle;
 pub mod walk;

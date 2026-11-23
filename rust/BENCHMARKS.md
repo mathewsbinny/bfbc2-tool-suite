@@ -4525,3 +4525,78 @@ So the rule layers shade by the ground's height (TGEN-VIS-2): the generator take
 - **Unproven until a playtest**: everything the engine does with a generated terrain - the ring and its seams, the
   visual terrain, the cloned entries, the visual water, the colour / occlusion map, the donor's rule layers in game.
   Nothing was installed or launched.
+
+## NKS-deep D (paused): walkability and extent - RESUME note (2026-11-23, branch `nksdd`)
+
+Paused by the coordinator (the user's ruling: every round but one paused). Work in progress, committed as WIP; no
+build default changed (every new switch is off), nothing written to OPFOR's `game\`, the game never launched.
+
+### Done
+
+- **Baseline reproduced**: this branch's module rebuilds the 15 regression levels with every measure equal to the
+  reference `regression` (scratch run `nksdd_base`, OPFOR `work\navkit\parity\nksdd_base.json`).
+- **navregress**: `nodes_same`, `edges_same`, `costs` moved out of `HIGHER` into a new `INFO` list (printed when they
+  change, never failing); the summary line prints `nodes_paired`. `harness/runs.rs` `PARITY_HIGHER` and
+  `testharness/runs.py`'s fallback list now equal navregress's `HIGHER` (19 measures).
+- **KYG-RECT-1 corrected (the 7 short sides solved)**: DICE's rectangle is the soldier and vehicle spawns' box
+  **without the player's alternate spawns** (`AlternateSpawnEntityData`). Scratch fit `rect`: all 52 campaign sides
+  within -0.39 .. +0.41 m of the box + 24.5 m (45 of 52 with alternates; 37 without team 1). On every one of the 7
+  sides the outermost spawn was an alternate ("New Player Position", "preston", "Haggard", ...); sp_006's strip
+  beyond is open terrain like the inside. Code: `navregress.spawn_bounds` / `bc2_navbuild::inputs::spawn_bounds`
+  leave alternates out (`ALTERNATE_SPAWN`); new switch `RECT_ON_DICE_LEVELS` (Python and Rust, **off**): campaign
+  levels bounded by the rectangle instead of DICE's extent (Onslaught keeps DICE's). `kynapse_rect.rs` now asserts
+  every infantry side at the box (not yet run). Spec text updated in `kynapse_generation.md` (KYG-RECT-1).
+- **KYG-SEED-3 (new, observed; spec written)**: the autoseed step decoded - `AutoSeedGeneration` always (default
+  0, BC2 sets none), candidates on the perimeter lines, BC2's three filters: terrain body (point query), slope
+  (ray +-2 m, normal y >= cos 40), covered (ray from 100 m above: any hit rejects); FilterFloorMode / strongly
+  forbidden propagation default off. Data: of DICE's detailed on-grid nodes on the autoseed lines 1.1 % lie under a
+  surface and 4.3 % on objects, against 6.2 % / 9.4 % elsewhere.
+- **KYG-PAR-4 (new, observed; spec written)**: the map builder's derived values (0x0114DF80): Pitch from
+  EntityRadius, StepLength from Pitch, HoleMax := -StepMax (DICE's 0.28 HoleMax has no effect), cos of both slope
+  limits, StepMax / StepLength and HoleMax / StepLength stored (KYG-PAR-3's 0.778, computed; where the exploration
+  reads them is still not traced: the block is copied).
+- Traced causes (scratch tools `extra.py`, `fringe.py`, `slope.py`, `over.py`, `bridge.py`, `spot.py`, `pairs.py`):
+  - `extra_ground`: 66 % of extra cells are within one cell of DICE's ground and 74-78 % (coarse) are NavKit's own
+    boundary cells; DICE's missing cells are 77-80 % its boundary. Speckle at the slope limit: DICE's keep share by
+    normal drops at 40 degrees as NavKit's, but DICE keeps 10-20 % less at 37-40 and more above 41 (sp_005, sp_03).
+    No discriminating rule found yet.
+  - `over_connection`: mostly joins inside one sector (sp_01's 53.5 % is one gap in DICE's graph on open ground at
+    (-309, 100, -415) in detailed sector 0x602 - two DICE areas 0.4 m apart around a 50-degree object ridge NavKit
+    keeps; sp_03's joins are places where DICE's graph has no nodes at all though its areas are there). sp_007's
+    142-node island (566.8, 141.6, 424.5): DICE's areas 73 / 75 (sector 0xF0D) share no portal and NavKit's 285 /
+    278 neither, yet NavKit's placement edges cross (0.28-0.64 m) - the probes' link-rule diagonal steps cross cell
+    corners the mesh does not link -> the `mesh_corners` switch below.
+  - `ai_pairwise`: sp_003_b (74.4) breaks at (a) a diagonal strip of 0.2 m columns with no terrain sample under a
+    34 m forbidden rock slab (casts stopped inside it; the offline sampler too) at (-62, 126, 662) and (b) the
+    sector-line / tile-line corner (-100, 139, 659). Other failures are often positions 4-5 m above the ground whose
+    nearest node differs (measure sensitivity).
+- Screen S1 (no object lips, `LIP_OBJECT_RISE=None`): sp_009 collapses (`ai_pairwise` 97.2 -> 32.8, the aircraft
+  sills), but `ai_pairwise` rises on sp_006 96.4 -> 98.2, sp_004_b 88.3 -> 89.7, sp_005_b 98.5 -> 99.1, sp_04 97.3
+  -> 97.7; sp_01's over-connection unchanged (not the object lip). -> the `lip_object_flat_all` switch below.
+
+### In progress (code written, unit-tested, **not yet measured**; all off)
+
+- `Switches::terrain_fill` / `navwalk.TERRAIN_FILL` (XNAV-BLD-5, `rust/bc2-navbuild/src/terrain_fill.rs`): a
+  narrow hole (no surface within 0.5 m of the height field, lowest surface > 1 m above it, sampled terrain within
+  1.2 m on both sides along an axis or diagonal) gets the height field's surface. Holes with DICE ground: sp_003_b
+  72, sp_01 895, sp_007 251 cells.
+- `Switches::mesh_corners` / `navwalk.MESH_CORNERS` (KYG-NODE-9, `propagate::Ground::corners`): probes and straight
+  walks turn a cell corner through a side cell, never across it. Unit test
+  `mesh_corners_keep_ground_that_meets_at_a_corner_apart`.
+- `WalkSettings::lip_object_flat_all` / `navwalk.LIP_OBJECT_FLAT_ALL`: every object lip needs flat floor on both
+  sides (keeps sp_009's sills, drops sloped-side lips).
+- The module was being rebuilt with the `RECT` change when paused (`bc2_native.pyd` is stale for `inputs.rs`):
+  `python rust\build_native.py` first.
+
+### Next steps
+
+1. Rebuild the module; run the scratch screens (driver `drive.py` in the session scratchpad - recreate: build with
+   `navregress.build_level` into a scratch folder, `navparity.run_level`, compare with `navregress.compare`):
+   `--set navregress.RECT_ON_DICE_LEVELS=True`, `navwalk.TERRAIN_FILL=True`, `navwalk.MESH_CORNERS=True`,
+   `navwalk.LIP_OBJECT_FLAT_ALL=True`, two at a time (about 30 min a pair).
+2. Keep each only if no measure gets worse (navregress's failing set); else leave it off with its numbers for the
+   user's ruling. If kept: re-record the reference, goldens (`test_navbuild_native.py --record --game`).
+3. Run `kynapse_rect.rs` (game tier) for the corrected rule; write KYG-NODE-9 and XNAV-BLD-5 into the spec once
+   measured; check new ids are unused on main (KYG-SEED-3, KYG-PAR-4, KYG-NODE-9, XNAV-BLD-5).
+4. Docs: CHANGELOG, ROADMAP (NKS-deep D), this section rewritten; then the full checks (per-group clippy, quick
+   tier, `test_navbuild_native --game`, `spec/trace.py --check`) and merge main (054cb1db or later).

@@ -38,18 +38,22 @@ pub fn label(status: &Value) -> String {
     }
 }
 
-/// navregress's HIGHER / LOWER (runs.py takes them from it).
-const PARITY_HIGHER: [&str; 16] = [
+/// navregress's HIGHER / LOWER (runs.py takes them from it). Since round NKS-deep D the old exact-match measures
+/// (`nodes_same`, `edges_same`, `costs`) are navregress's INFO, never failing: here they are counts.
+const PARITY_HIGHER: [&str; 19] = [
     "ground",
     "areas_same",
     "portals",
     "outline",
     "borders",
-    "costs",
-    "nodes_same",
     "nodes_near",
-    "edges_same",
+    "nodes_paired",
+    "edges_paired",
+    "costs_paired",
+    "nodes_paired_candidate",
     "connectivity",
+    "runtime_connectivity",
+    "strong_share",
     "ai_coverage",
     "ai_pairwise",
     "df_d_precision",

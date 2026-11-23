@@ -89,6 +89,39 @@ positions stay the propagation's locked first seeds (round NKS-deep B). DICE's l
 square, then the perimeter cells two pitches inside it, unlocked) was built behind a build experiment and measured
 on the 15 regression levels: see the gap list (item 2) for the result.
 
+### KYG-SEED-3: Which perimeter probes become autoseeds: terrain, within the slope limit, open to the sky
+
+Status: **observed**
+
+Round NKS-deep D read the autoseed step (`kybcautoseedstep.cpp`) and BC2's overrides. For every sector of the
+build the step asks `GetDoAutoSeed`: the step's `AutoSeedGeneration` is one of `always` (0), `whennoseed` (1: only
+a sector whose MapBuilder configuration holds no `SeedPoint` or `SeedGraph`) and `never` (2); BC2's job writes none,
+so the constructor's 0, **always**, holds and every sector is probed, spawns or not. `ComputeCandidates` lays the four
+perimeter lines of KYG-SEED-1 at the pitch; each line's columns are swept down (KYG-SEED-1's sphere) and every free
+-> blocked transition is a candidate. Each candidate is then tested, lowered by 0.9 m (just above its ground), by
+BC2's three filters; any filter that answers yes rejects it:
+
+1. **not terrain**: a point query at the candidate; accepted only when the body it finds is the terrain (objects
+   never seed: KYG-SEED-1's `AllowPathdataSeeds`);
+2. **too steep**: a ray from 2 m above to 2 m below it; rejected when the hit normal's y is under
+   cos(GroundSlopeMax), 40 degrees for infantry;
+3. **covered**: a ray from 100 m above down to it; rejected when it hits anything - ground under a roof, an
+   overhang, a bridge or a canopy with collision is never an autoseed.
+
+Kynapse's two later passes change nothing for BC2: `FilterFloorMode` (reject all but one of a column's accepted
+floors, modes 2-5) defaults to 0, and `PropagateStronglyForbidden` (spreading a rejection along a line to candidates
+within a height step and a distance) defaults to off; BC2 sets neither. The survivors are written to the sector's
+`.autoseed` file, which the map builder step merges (KYG-SEED-2). A sector with no spawn and no surviving candidate
+is written empty ("No seed found"), and ground a sector's seeds do not reach is not in its data (KYG-SEED-1).
+
+KYG-RECT-1's 7 short sides end inside sectors DICE built, not at a sector-level cut: sp_006's -z ground ends 29.2 m
+into its outermost row (z -870.8; the rectangle reaches -935.2, the row beyond holds no sector), sp_04's -x 38.7 m,
+sp_005's +x 96.4 m, sp_03's +z 87.6 m into theirs. Which filter or which step limit ends each side is not settled:
+the in-game samples cover 2 of the 7 strips.
+
+[exe: the step's run 0x01062740 (per sector: `GetDoAutoSeed` 0x010617E0 over `AutoSeedGeneration` 0x010611E0 / 0x010606A0 (always / whennoseed / never), `InitSectorInfo` 0x01061260, `ComputeCandidates` 0x010623A0 (four lines; the columns' sweep 0x01062060 through the probe slot +0x1C), the filter pass slot +0x28 (0x01060FD0: each candidate's flag +0x14 = slot +0x30's answer), `FilterFloorMode` slot +0x2C (0x01061070, modes 2-5 on +0xCC), the rejection's propagation 0x01061870 / 0x01061330 (only with +0xD0), the writer 0x01061B40 (flag 0 only)); the constructor 0x010629B0 (+0xC8 AutoSeedGeneration 0, +0xCC 0, +0xD0 false; the parameter parser 0x01060E20); BC2's `FrostbiteAutoSeedStep` (vtable 0x014A838C: probe 0x00EFE360; slot +0x30 0x00F07080: the point lowered by 0.9 m (0x0141BFD8), rejected when any filter of +0x198 answers yes); the filters made by 0x00F0E450: 0x00EA1D10 (test 0x00EA1D60: the point query 0x00B14680, the body's class), 0x00E9C6D0 (test 0x00E95DC0: a ray +-2 m (0x014D9558), the normal against cos(settings +0x5C x pi / 180)), 0x00E9C6A0 (test 0x00E95D30: a ray from 100 m above (0x014D9638))]
+[data: round NKS-deep D, `seedsky` (scratch) on the in-game 0.2 m samples of the 15 regression levels: of DICE's detailed ordinary on-grid nodes on the autoseed lines (two pitches inside the square; seeds and propagated nodes alike), 6 of 529 lie under a surface within 100 m and 23 on an object, against 58 and 88 of the 941 elsewhere (1.1 % against 6.2 %, 4.3 % against 9.4 %)]
+
 ## 2. The generator's rectangle and the sectors
 
 ### KYG-RECT-1: Ground stops at the spawns' box grown by 25 m
@@ -96,12 +129,16 @@ on the 15 regression levels: see the gap list (item 2) for the result.
 Status: **verified**
 
 DICE's ground stops at straight lines 6-24 m inside the extent NavKit samples (the level's objects plus a margin).
-Round NKS-rest2 found the lines in the level data: they are the box of the level's **soldier spawns (alternate spawns
-included) and vehicle spawns, grown by 25 m** on every side. On the 13 campaign levels' infantry files, 45 of the 52
-sides of the ground's box lie 0.11-0.91 m inside that box, a band one pitch (0.8 m) wide: the sample points kept are
-those up to about 24.5 m beyond the outermost spawn (the box less the entity radius and 0.1 m), and the outline runs
-half a pitch beyond the last one. The 7 other sides end 13-347 m before it, where the ground itself ends. No side
-passes it. Vehicle files are cut by the same box: the 7 of 48 vehicle sides that reach it lie 2.33-3.09 m inside it
+Round NKS-rest2 found the lines in the level data: they are the box of the level's **soldier spawns and vehicle
+spawns, grown by 25 m** on every side; round NKS-deep D found that the player's **alternate spawn positions**
+(`AlternateSpawnEntityData`) are **not** in it. On the 13 campaign levels' infantry files, all 52 sides of the
+ground's box lie 0.11-0.91 m inside that box, a band one pitch (0.8 m) wide: the sample points kept are those up to
+about 24.5 m beyond the outermost spawn (the box less the entity radius and 0.1 m), and the outline runs half a pitch
+beyond the last one. No side passes it. With the alternates in the box (round NKS-rest2's reading) 7 sides seemed to
+end 13-347 m before it "where the ground itself ends" (sp_03 +z, sp_04 -x, sp_005 +x, sp_006 -z, sp_008_b -x / -z /
++z): on each of them the outermost spawn is an alternate (the player's "New Player Position", "preston", "Haggard",
+...), and the ground's side lies at the next spawn's distance; on sp_006 the strip beyond is the same open terrain as
+inside it (z -900..-872 against -868..-840: 99.8 % terrain, 1.6 % covered, 3.4 % steeper than 40 degrees). Vehicle files are cut by the same box: the 7 of 48 vehicle sides that reach it lie 2.33-3.09 m inside it
 (radius 2.5 m, pitch 1.0 m), none passes it, and the others end on their own (vehicle ground is seeded from vehicle
 spawns and roads, KYG-SEED-1). Along each side the last cell row covers only 9-64 % of the side, which is what a
 straight cut through uneven ground leaves. The box is not the combat area, the height field, the placed objects or the
@@ -117,6 +154,7 @@ partitions NavKit prepares for those levels: ONS_MP_002's infantry ground reache
 [data: round NKS-rest (`kynapse_fit`): the vehicle file's ground box lies within 2.5 m of the infantry file's on 13 of 68 sides (17 levels) and 2.6-1,094 m inside it on the other 55, so the vehicle ground (seeded from vehicle spawns) shows no shared level-wide rectangle; on sp_04 all four sides lie 2.3-10.8 m apart]
 [test: rust/bc2-scene/tests/kynapse_rect.rs::ground_stops_25_m_beyond_the_spawns]
 [data: round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `rect` fit, 17 prepared levels): the infantry ground's sides against the spawns' box + 25 m, inset per side: sp_007 0.11 / 0.49 / 0.39 / 0.83 m, sp_02 0.20 / 0.50 / 0.41 / 0.19, sp_01 0.48 / 0.33 / 0.53 / 0.76, sp_003_b 0.63 / 0.80 / 0.79 / 0.22; the 45 sides at the box 0.110-0.908 m; vehicle sides at the box sp_003_b 2.33, sp_005_b 2.54, sp_007 2.33, sp_008 2.60 / 2.37, sp_008_b 3.09, sp_04 3.07]
+[data: round NKS-deep D, `rect` (scratch) on the 13 campaign levels, the infantry ground's box against the soldier and vehicle spawns' box + 24.5 m per side: without the alternate spawns all 52 sides within -0.39 .. +0.41 m (the band above), none passed; with them 45 of 52 (round NKS-rest2's); without team 1's spawns 37, the ground passing the box on 8 sides; the Onslaught files stay outside the rule (ons_mp_002's -z side 228.7 m past the box)]
 [data: round NKS-rest2, other boxes against the 68 infantry sides (17 levels): the ground lies more than 2 m outside the combat areas' box on 27 sides and outside the placed objects' box on 19; the height field's box ends more than 25 m beyond the ground on 66 sides and inside it on 2; with soldier spawns alone (+ 25 m) the ground passes the box (by more than 0.2 m) on 36 of the 132 sides of the 33 files, with vehicle spawns alone on 34, with both on 2 (Onslaught)]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:784-816]
 
@@ -913,6 +951,27 @@ the area link step below 0.62 m (DICE's unlinked steps start there, so 0.622 m w
 
 [inferred: three independently measured thresholds (0.62 m link step at pitch 0.8, the 0.775-0.780 slope band, about 0.17 m at pitch 0.2) agree with 0.28 / 0.36 = 0.778 within their measurement steps; the code that applies StepMax / StepLength was not traced]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:629-652]
+
+Round NKS-deep D found the ratio computed (KYG-PAR-4): the map builder stores StepMax / StepLength and its downward
+twin; where the exploration reads them (through a copy of the parameter block) is still not traced.
+
+### KYG-PAR-4: The map builder's derived step and slope values: HoleMax is -StepMax, both as slopes
+
+Status: **observed**
+
+After the parameters are read, the map builder fills its missing values and derives the step and slope limits the
+exploration uses, in this order: a Pitch not above 0 takes EntityRadius; a StepLength not above 0 takes the Pitch;
+then the step pair is made one signed range: when StepMax is 0 or more and HoleMax is above 0, **HoleMax becomes
+-StepMax** (a negative StepMax with a HoleMax above 0 sets StepMax to StepLength first; a negative StepMax with
+HoleMax 0 or less takes -HoleMax). It then stores cos(GroundSlopeMax) and cos(GroundSlopeMin) and the two ratios
+**StepMax / StepLength** and **HoleMax / StepLength**, and the sines of 90 degrees less two further angles (+0x510,
++0x514; not traced). With DICE's infantry values (StepMax 0.28, StepLength 0.36, HoleMax 0.28) the step range is -0.28 ..
+0.28 m and the slopes -0.778 .. 0.778, so DICE's HoleMax setting (0.28, KYG-PAR-2's "not yet seen") has no effect of
+its own: a drop is limited as a rise is. Vehicles (0.4 / 0.4 / 0.75): -0.4 .. 0.4 m, slopes -1 .. 1. This is the
+ratio KYG-PAR-3 inferred from three thresholds; it also says NavKit's symmetric step tests (`Level::step_fits`,
+KYG-AREA-1's |dy| test) are DICE's shape.
+
+[exe: 0x0114DF80 after the parameter loop: Pitch +0x520 from EntityRadius +0x4E0 at 0x0114E1AE; StepLength +0x4E4 from Pitch at 0x0114E1C7; the signed pair 0x0114E1E0-0x0114E240 (FCHS of StepMax into HoleMax +0x4EC); cos(GroundSlopeMax +0x4F4 x pi / 180) into +0x4FC and cos(GroundSlopeMin +0x4F8) into +0x500 at 0x0114E4F9-0x0114E541; StepMax / StepLength into +0x508 and HoleMax / StepLength into +0x504 at 0x0114E547-0x0114E565; sin(90 - +0x510) and sin(90 - +0x514) into +0x518 / +0x51C; then 0x011435B0]
 
 ### KYG-DOC-1: What public Kynapse documentation adds
 

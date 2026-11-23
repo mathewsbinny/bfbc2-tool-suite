@@ -193,3 +193,32 @@ fn dices_placement_is_on_by_default() {
     let sw = crate::stage::Switches::default();
     assert!(sw.placement);
 }
+
+#[test]
+fn mesh_corners_keep_ground_that_meets_at_a_corner_apart() {
+    // two 10 x 10 quadrants of flat ground touching only at one cell corner: the link rule steps across the corner,
+    // the mesh (KYG-NODE-9) does not
+    let (lv, cells) = level(20, 20, &|i, j| (i < 10) != (j < 10));
+    let blocked: HashSet<(usize, usize)> = HashSet::new();
+    let areas = vec![cells.clone()];
+    let p = Params::at_pitch(0.8, 15.0);
+    let k = cells.iter().find(|c| (c.0, c.1) == (3, 3)).unwrap().2;
+    let seed = PNode {
+        k,
+        cell: (3, 3),
+        pos: (2.4, 0.95, 2.4),
+        locked: true,
+    };
+    let far = |placed: &super::Placed| {
+        placed
+            .nodes
+            .iter()
+            .flatten()
+            .filter(|n| n.pos.0 > 8.0 && n.pos.2 > 8.0)
+            .count()
+    };
+    let mut g = Ground::of(&lv, &areas, 0, 0, (0.0, 0.0), 0.8, 0.95, Rule::Slope, &blocked);
+    assert!(far(&place(&g, &p, std::slice::from_ref(&seed), &areas)) > 0, "the link rule crosses the corner");
+    g.corners = true;
+    assert_eq!(far(&place(&g, &p, &[seed], &areas)), 0, "the mesh's corner is not crossed");
+}

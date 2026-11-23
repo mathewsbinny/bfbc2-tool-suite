@@ -450,6 +450,7 @@ pub fn graph_many<'py>(
         grid_min,
         placement: None,
         dice_seeds: false,
+        mesh_corners: false,
     };
     let sectors = store.read()?;
     let prepared = jobs

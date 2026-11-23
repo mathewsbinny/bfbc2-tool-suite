@@ -49,6 +49,8 @@ pub struct GraphCfg {
     /// DICE's seed list besides the border nodes and order positions (KYG-SEED-2, `Switches::dice_seeds`): the
     /// sector's soldier spawns and its perimeter cells two pitches inside its square, unlocked.
     pub dice_seeds: bool,
+    /// The mesh's corners in the placement (KYG-NODE-9, `Switches::mesh_corners`, [`propagate::Ground::corners`]).
+    pub mesh_corners: bool,
 }
 
 /// One sector's inputs besides its areas.
@@ -405,7 +407,7 @@ fn place_dice(
 ) -> Result<Vec<(usize, usize, f64)>, NavError> {
     let (ox, oz) = job.origin;
     let pitch = cfg.pitch;
-    let ground = propagate::Ground::of(
+    let mut ground = propagate::Ground::of(
         level,
         areas,
         job.gi0,
@@ -416,6 +418,7 @@ fn place_dice(
         cfg.rule,
         &job.blocked,
     );
+    ground.corners = cfg.mesh_corners;
     let mut seeds = Vec::with_capacity(job.borders.len());
     for (b, &(pos, k)) in job.borders.iter().enumerate() {
         let cell = match ground.cell_of.get(&k) {

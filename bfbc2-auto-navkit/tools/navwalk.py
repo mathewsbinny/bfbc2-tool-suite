@@ -135,6 +135,8 @@ LIP_OBJECT_RISE = 0.3              # ... and on objects when the steep sample is
 LIP_OBJECT_SLOPE_MAX = None        # a slope cap (deg) on object lips; None: any steepness, above STEEP_TERRAIN_MAX
                                     # only with flat floor on both sides (LIP_OBJECT_FLAT deg; 2026-10-22 evening)
 LIP_OBJECT_FLAT = 15.0
+LIP_OBJECT_FLAT_ALL = False        # every object lip needs LIP_OBJECT_FLAT floor on both sides, not only those steeper
+                                    # than STEEP_TERRAIN_MAX (round NKS-deep D, measured: rust/BENCHMARKS.md)
 ROOF_PRUNE = True                  # drop roof islands nothing reaches: a kept island (step-rule connected) that
                                     # holds no anchor (soldier spawn, AI order position, ladder end, or ground the
                                     # normal build kept - stage b), is not the largest, is mostly raised (ROOF_SHARE of
@@ -352,7 +354,7 @@ def _settings(slope: float) -> dict[str, Any]:
                 steep_terrain=bool(STEEP_TERRAIN), steep_max_cos=math.cos(math.radians(STEEP_TERRAIN_MAX)),
                 steep_span=float(STEEP_TERRAIN_SPAN), lip_width=int(LIP_WIDTH) if LIP_WIDTH else None,
                 lip_object_rise=None if LIP_OBJECT_RISE is None else float(LIP_OBJECT_RISE),
-                lip_object_slope_max=bool(LIP_OBJECT_SLOPE_MAX),
+                lip_object_slope_max=bool(LIP_OBJECT_SLOPE_MAX), lip_object_flat_all=bool(LIP_OBJECT_FLAT_ALL),
                 lip_flat_cos=None if LIP_OBJECT_FLAT is None else math.cos(math.radians(LIP_OBJECT_FLAT)),
                 roof_prune=bool(ROOF_PRUNE),
                 roof=(float(ROOF_RAISE), float(ROOF_SHARE), float(ROOF_NEAR), float(ROOF_NEAR_DY)),
@@ -555,12 +557,21 @@ PLACEMENT: bool = True
 DICE_SEEDS: bool = False
 MIDLINE_CUT: bool = False
 
+# The terrain under a sampling hole (XNAV-BLD-5, round NKS-deep D): a narrow strip of columns whose casts stopped on an
+# object above the ground gets the height field's surface (rust/bc2-navbuild/src/terrain_fill.rs).
+TERRAIN_FILL: bool = False
+
+# The mesh's corners in DICE's placement (KYG-NODE-9, round NKS-deep D): probes and straight walks turn a cell corner
+# through a side cell the mesh links, never straight across it (rust/bc2-navbuild/src/propagate.rs, Ground::corners).
+MESH_CORNERS: bool = False
+
 
 def switches() -> dict[str, Any]:
     """The build's switches this module owns (the stage's log line names what walkability did); the others are the
     Rust defaults."""
     return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR), df_slope=DF_SLOPE,
-                placement=bool(PLACEMENT), dice_seeds=bool(DICE_SEEDS), midline_cut=bool(MIDLINE_CUT))
+                placement=bool(PLACEMENT), dice_seeds=bool(DICE_SEEDS), midline_cut=bool(MIDLINE_CUT),
+                terrain_fill=bool(TERRAIN_FILL), mesh_corners=bool(MESH_CORNERS))
 
 
 def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,

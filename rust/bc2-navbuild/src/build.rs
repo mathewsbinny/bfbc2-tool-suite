@@ -144,6 +144,7 @@ fn walk_ground(
     seed_points: &[P3],
     cfg: &BuildSettings,
     ws: &WalkSettings,
+    fill: Option<std::sync::Arc<bc2_formats::terrain::Heightfield>>,
     report: &mut Report,
     log: &mut dyn Log,
 ) -> Result<Ground, NavError> {
@@ -169,6 +170,7 @@ fn walk_ground(
             _ => None,
         },
         bounds: if clip { inp.bounds } else { None },
+        terrain_fill: fill,
     };
     let orders = inp.order_points.clone().unwrap_or_default();
     let mut extra = seeds.clone();
@@ -222,6 +224,9 @@ fn walk_ground(
             b[3],
             counts.outside.unwrap_or(0)
         ));
+    }
+    if let Some(n) = counts.terrain_filled {
+        log.line(&format!("terrain filled into {n} sampling holes"));
     }
     report.steep.extend(walked.stats.steep.iter().copied());
     let terrain: Vec<bool> = match &s.hit {
@@ -316,7 +321,8 @@ pub fn build_graphs(
         }
     };
     stop(log)?;
-    let ground = walk_ground(inp, &inp.samples, inp.high.as_deref(), &[], cfg, ws, report, log)?;
+    let fill = if sw.terrain_fill { inp.terrain.clone() } else { None };
+    let ground = walk_ground(inp, &inp.samples, inp.high.as_deref(), &[], cfg, ws, fill.clone(), report, log)?;
     stop(log)?;
     let args = StageArgs {
         xoff: inp.xoff,
@@ -349,7 +355,7 @@ pub fn build_graphs(
                 have.iter().map(|s| s.1).min().unwrap_or(0),
             );
             let dcfg = cfg.detailed();
-            let ground = walk_ground(inp, &det.samples, det.high.as_deref(), &pts, &dcfg, ws, report, log)?;
+            let ground = walk_ground(inp, &det.samples, det.high.as_deref(), &pts, &dcfg, ws, fill, report, log)?;
             drop(pts);
             stop(log)?;
             let bargs = StageArgs {

@@ -30,6 +30,7 @@ fn settings() -> WalkSettings {
         lip_width: Some(2),
         lip_object_rise: Some(0.3),
         lip_object_slope_max: false,
+        lip_object_flat_all: false,
         lip_flat_cos: Some(15f64.to_radians().cos()),
         roof_prune: true,
         roof: RoofCfg {
