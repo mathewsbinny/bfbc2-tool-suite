@@ -85,6 +85,32 @@ pub fn clone_terrain(
     to: &str,
     textures: &[(String, String)],
 ) -> Result<Cloned, String> {
+    let mut pairs = Vec::with_capacity(entries.len());
+    let mut unnamed = Vec::new();
+    for name in entries {
+        match visual_terrain::rename(name, from, to) {
+            Some(new) => pairs.push((name.clone(), new)),
+            None => unnamed.push(name.clone()),
+        }
+    }
+    let mut out = clone_entries(base, donor, dx, &pairs, textures)?;
+    out.missing.extend(unnamed);
+    Ok(out)
+}
+
+/// Clones each (donor entry, new name) of `pairs` from the `donor` database into `base` ([`clone_terrain`] without
+/// the terrain's renaming: E5-rest's paint of a new layer combination clones an entry of the level's own terrain
+/// under the new combination's name). `textures` as [`clone_terrain`]'s.
+///
+/// # Errors
+/// A database does not read, or the merge refuses a clone (a texture name longer than its field).
+pub fn clone_entries(
+    base: &[u8],
+    donor: &[u8],
+    dx: u32,
+    pairs: &[(String, String)],
+    textures: &[(String, String)],
+) -> Result<Cloned, String> {
     let layout = if dx == 11 { 10 } else { dx };
     let bump = Bump::new();
     let store = Arena(&bump);
@@ -106,11 +132,7 @@ pub fn clone_terrain(
         .collect();
     let mut m = Merger::new(b.db, bk, Vec::new(), false).map_err(|e| e.to_string())?;
     let mut out = Cloned::default();
-    for name in entries {
-        let Some(new) = visual_terrain::rename(name, from, to) else {
-            out.missing.push(name.clone());
-            continue;
-        };
+    for (name, new) in pairs {
         let Some(tex) = used.get(name) else {
             out.missing.push(name.clone());
             continue;
@@ -120,17 +142,17 @@ pub fn clone_terrain(
                 .map(|c| u8::try_from(u32::from(c)).unwrap_or(b'?'))
                 .collect::<Vec<u8>>(),
         ) {
-            out.kept.push(new);
+            out.kept.push(new.clone());
             continue;
         }
         let ren: Vec<(String, String)> = textures.iter().filter(|(o, _)| tex.contains(o)).cloned().collect();
         let n = m
-            .clone_entry(&store, &d.db, &dk, name, &new, &ren, "the donor")
+            .clone_entry(&store, &d.db, &dk, name, new, &ren, "the donor")
             .map_err(|e| e.to_string())?;
         for (o, nn) in &ren {
             *out.retextured.entry(format!("{o} -> {nn}")).or_insert(0) += 1;
         }
-        out.added.push((name.clone(), new, n));
+        out.added.push((name.clone(), new.clone(), n));
     }
     out.bytes = m.finish().map_err(|e| e.to_string())?;
     Ok(out)

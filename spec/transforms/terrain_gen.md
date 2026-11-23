@@ -305,11 +305,12 @@ and its key's entry, and copies the parameter blocks with the colour / occlusion
 water entries cloned into MP_005's own databases keep the donor's keys and shaders (98 of 98 in each), sample the
 renamed map in 51 entries, and leave the donor's entries as they were (Dx9 0.38 s, Dx10 0.09 s, Dx11 0.06 s); DICE's
 twin `SP_008_B` has `SP_008`'s keys under its own name (TGEN-REQ-4). E5-rest's paint of a new layer combination is
-the same clone with the level's own terrain as donor and target.
+the same merge with explicit names (`shaderdb::terrain::clone_entries`: an entry of the level's own terrain cloned
+under the new combination's name).
 
 [test: rust/bc2-formats/tests/terrain_visual_corpus.rs::a_donor_terrains_entries_clone_under_a_new_name]
 [test: rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders]
-[code: rust/bc2-formats/src/shaderdb/terrain.rs:70-137]
+[code: rust/bc2-formats/src/shaderdb/terrain.rs:70-159]
 
 ### TGEN-WATER-1: The visual water is one open-water quad over the outer square
 

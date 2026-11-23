@@ -174,7 +174,7 @@ shaders (most 50), of 1 - 8 layers (4 on 424, 3 on 344), 0 - 4 of them tiled. Th
 compiler: a new entry is a clone of an existing one with the same tiled layers, from the same level or a donor that
 satisfies TEDIT-SH-2, its textures retargeted (OPFOR's Wake Island patches). Round TG2's
 `bc2_formats::shaderdb::terrain::clone_terrain` makes such clones into a level's three databases (TGEN-VIS-4); the
-paint's new combination is the same call with the level's own terrain as donor and target.
+paint's new combination is `clone_entries` with an entry of the level's own terrain and the new combination's name.
 
 [data: spec/probes/terrain.py, 2026-11-22: patch shaders per terrain 7 - 109; layer counts 1: 48, 2: 194, 3: 344, 4: 424, 5: 328, 6: 152, 7: 24, 8: 1; tiled counts 0: 177, 1: 410, 2: 478, 3: 321, 4: 129]
 [inferred: RNDR-TERR-1 (the entry per cell) and SHDB-LVL-1 (a level draws through its own databases only)]
