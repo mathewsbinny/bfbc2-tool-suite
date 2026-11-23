@@ -16,7 +16,10 @@
 //! - the string table: each entry's name, then its type the first time the type is used;
 //! - the header's payload length: the payload's, or with `plen=size2` the last live entry's offset + size2;
 //! - both gzip streams as .NET Framework's `GZipStream` writes them ([`crate::zlib::gzip_net`]: zlib level 6), the
-//!   header region padded with zeros to `hdr`.
+//!   header region padded with zeros to `hdr`;
+//! - one difference from FbrbTool, DICE's bytes winning (round SPV1-fix): a zipped bundle whose payload is empty
+//!   (markers only, or no entries) ends with DICE's 20-byte empty gzip member ([`EMPTY_GZIP_MEMBER`],
+//!   FBRB-DEL-2), where .NET's `GZipStream` wrote nothing.
 //!
 //! Round S1: the payload is streamed. The layout (offsets, padding, the header) comes from the files' sizes alone;
 //! the files are then read in order on a second thread, a megabyte at a time, and fed through the deflater
@@ -431,10 +434,22 @@ impl io::Read for Ahead {
     }
 }
 
-/// The payload's bytes through `out`: gzip'd for a zipped layout, else as they are.
+/// The gzip member of no data as DICE's packer wrote it after the header of each of its 105 zipped bundles whose
+/// payload is empty (FBRB-DEL-2): zlib's gzip header (time 0, extra flags 0, OS 0x0B), the empty final fixed block
+/// `03 00`, a zero CRC-32 and a zero length. .NET's `GZipStream` (FbrbTool) writes nothing for no data.
+pub const EMPTY_GZIP_MEMBER: [u8; 20] = [
+    0x1F, 0x8B, 0x08, 0x00, 0, 0, 0, 0, 0x00, 0x0B, 0x03, 0x00, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+/// The payload's bytes through `out`: gzip'd for a zipped layout, else as they are. A zipped payload of no bytes
+/// is DICE's empty member ([`EMPTY_GZIP_MEMBER`]): every zipped bundle of DICE's has a payload member.
 fn copy_payload(input: &mut dyn io::Read, out: &mut dyn Write, zipped: bool) -> io::Result<u64> {
     if zipped {
-        gzip_net_stream(input, out)
+        let n = gzip_net_stream(input, out)?;
+        if n == 0 {
+            out.write_all(&EMPTY_GZIP_MEMBER)?;
+        }
+        Ok(n)
     } else {
         io::copy(input, out)
     }
@@ -1224,6 +1239,50 @@ mod tests {
         assert_eq!(h.entries[1].type_name, "T");
         // the gzip header is .NET's
         assert_eq!(&b[8..18], &[0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 4, 0]);
+    }
+
+    #[test]
+    fn empty_zipped_payload_is_dices_member() {
+        let marker = PackItem {
+            name: "Levels/MP_005/Terrain",
+            type_name: DELETED,
+            flags: 0,
+            size2: 0,
+            data: b"",
+        };
+        let stored = Layout {
+            zipped: false,
+            ..Layout::default()
+        };
+        for (items, layout, member) in [
+            (&[marker][..], Layout::default(), true),
+            (&[][..], Layout::default(), true),
+            (&[marker][..], stored, false),
+            (&[][..], stored, false),
+        ] {
+            let b = pack(items, &layout).unwrap();
+            let h = read_header(&mut b.as_slice()).unwrap();
+            let end = usize::try_from(h.payload_start).unwrap();
+            assert_eq!(h.payload_len, Some(0));
+            // DICE's 20 bytes after a zipped header (FBRB-DEL-2), nothing after a stored one
+            assert_eq!(&b[end..], if member { &EMPTY_GZIP_MEMBER[..] } else { &[][..] });
+            // the member is a valid gzip stream of no data, and the bundle reads back
+            if member {
+                let mut out = Vec::new();
+                io::Read::read_to_end(&mut flate2::read::GzDecoder::new(&b[end..]), &mut out).unwrap();
+                assert!(out.is_empty());
+            }
+            let (_, data) = extract(&mut Cursor::new(&b)).unwrap();
+            assert!(data.iter().all(Vec::is_empty));
+        }
+        // a payload of bytes is .NET's member as before (no empty member after it)
+        let live = PackItem {
+            data: b"x",
+            type_name: "T",
+            ..marker
+        };
+        let b = pack(&[marker, live], &Layout::default()).unwrap();
+        assert!(!b.ends_with(&EMPTY_GZIP_MEMBER));
     }
 
     #[test]

@@ -4,7 +4,8 @@ The suite turns a bundle into a folder of entry files and back. **Unpack** (`fbr
 `bfbc2-cli fbrb unpack`, `bfbc2core.fbrb.unpack`) takes a bundle and writes every live entry to `<folder>/<name>`
 plus `fbrb.manifest` (FBRB-MAN-1). **Pack** (`fbrb::pack_path`, `pack_many`, `bfbc2core.fbrb.pack`) takes such a
 folder and writes a bundle (FBRB-MAN-2). Both were ported from FbrbTool (C#, retired in round R4) and are held to
-the bytes FbrbTool wrote, recorded before it was deleted (`core/tests/fbrbtool_golden*.json`).
+the bytes FbrbTool wrote, recorded before it was deleted (`core/tests/fbrbtool_golden*.json`), but where DICE's
+bytes differ from FbrbTool's (XPACK-PCK-3).
 
 The format is layer 1's (`formats/fbrb.md`); this file states the transformation's contract: what each direction
 refuses, what holds of its output, and the round trip.
@@ -48,7 +49,7 @@ a file is expected, an unsafe name (XPACK-UNP-1's rule), a manifest it cannot pa
 (no size column) whose size2 differs from the file's length, and a payload past 4 GB (`ValueError`). These are the
 folders FbrbTool refused.
 
-[code: rust/bc2-formats/src/fbrb/pack.rs:773-789] [code: rust/bc2-formats/src/fbrb/pack.rs:810-844]
+[code: rust/bc2-formats/src/fbrb/pack.rs:788-804] [code: rust/bc2-formats/src/fbrb/pack.rs:825-859]
 [test: rust/bc2-formats/src/fbrb/pack.rs::safe_names] [test: rust/bc2-formats/src/fbrb/pack.rs::files_that_change_size] [test: rust/bc2-formats/src/fbrb/pack.rs::too_large]
 [test: core/tests/test_fbrb_pack_native.py::check_built]
 
@@ -60,7 +61,7 @@ An entry keeps the manifest's size2 while its file has the size unpack wrote; an
 new size, except in a `size2=minus64` bundle, where an edited entry of at least 64 bytes gets size - 64 (FBRB-LAY-4).
 Markers keep 0.
 
-[code: rust/bc2-formats/src/fbrb/pack.rs:560-584] [test: rust/bc2-formats/src/fbrb/pack.rs::size2_rules]
+[code: rust/bc2-formats/src/fbrb/pack.rs:575-599] [test: rust/bc2-formats/src/fbrb/pack.rs::size2_rules]
 
 ### XPACK-PCK-3: Output: FbrbTool's bytes
 
@@ -68,9 +69,11 @@ Status: **verified**
 
 For any folder FbrbTool packed, pack writes FbrbTool's bundle byte for byte: zipped and stored, every padded layout,
 the size2 rules, markers with and without files, old manifests, CR LF and byte-order-marked manifests. The deflate is
-a byte-exact port of zlib 1.3.1's levels 4-9 (`bc2_formats::zlib`), used at level 6.
+a byte-exact port of zlib 1.3.1's levels 4-9 (`bc2_formats::zlib`), used at level 6. One exception, DICE's bytes
+winning: a zipped bundle whose payload is empty ends with DICE's 20-byte empty gzip member, where FbrbTool wrote
+nothing (FBRB-DEL-2; round SPV1-fix re-recorded those records as FbrbTool's bytes + the 20, each checked so).
 
-[code: rust/bc2-formats/src/fbrb/pack.rs:884-911] [code: rust/bc2-formats/src/zlib.rs:924-932]
+[code: rust/bc2-formats/src/fbrb/pack.rs:899-926] [code: rust/bc2-formats/src/zlib.rs:924-932]
 [test: core/tests/test_fbrb_pack_native.py::check_built] [test: core/tests/test_fbrb_pack_native.py::check_zlib]
 [test: rust/bc2-formats/src/zlib.rs::known_outputs] [test: rust/bc2-formats/src/zlib.rs::round_trips] [test: rust/bc2-formats/src/fbrb/pack.rs::padded_layouts]
 
@@ -112,16 +115,21 @@ the same bytes. Every bundle the suite writes reads back to the entries it was g
 Status: **verified**
 
 For a zipped bundle DICE packed, pack(unpack(b)) equals b except for the two gzip members' 10-byte headers (DICE's
-`xfl 0` / `os 0x0b`, the suite's `.NET` header `xfl 4` / `os 0`, FBRB-HDR-4), and for a zipped bundle of markers
-only, DICE's empty 20-byte payload member, which the suite does not write. Every deflate stream DICE wrote is zlib
-level 6, so the compressed bytes themselves agree.
+`xfl 0` / `os 0x0b`, the suite's `.NET` header `xfl 4` / `os 0`, FBRB-HDR-4). A zipped bundle with an empty payload
+(markers only, or no entries) has one member only: the suite writes DICE's empty 20-byte payload member as DICE's
+bytes (FBRB-DEL-2; since round SPV1-fix, 2026-11-22, before which it wrote none, as FbrbTool), so such a bundle
+comes back but for its header member's two bytes. Every deflate stream DICE wrote is zlib level 6, so the
+compressed bytes themselves agree.
 
 [test: core/tests/test_fbrb_pack_native.py::run_bundles] [test: core/tests/test_fbrb_pack_native.py::same_but_gzip_headers]
+[test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries]
 [data: all 1,086 bundles of the game copy (2026-11-16): 62 identical, 919 identical but for the gzip headers, 105 also but for the marker-only empty payload member]
+[data: round SPV1-fix 2026-11-22: DICE's 105 zipped bundles with an empty payload, unpacked and packed again: DICE's bytes but for the header member's xfl / os, the 20-byte member byte for byte]
 [doc: rust/BENCHMARKS.md:333-336]
 
 ## Open questions
 
-- Whether the game would load a zipped marker-only bundle without DICE's empty payload member (the suite has not
-  had to write one for the game; FBRB-DEL-2).
+- Whether the game would load a zipped marker-only bundle without DICE's empty payload member (FbrbTool's form,
+  which the suite wrote before round SPV1-fix; no bundle OPFOR installs today is one; FBRB-DEL-2). The suite now
+  writes DICE's form, which the game ships.
 - zlib's levels 1-3 (another matcher) are not ported; nothing in the game copy needs them.
