@@ -158,10 +158,15 @@ contradicted by it, and DICE's data still favours it (#8 = #9 on every entry fit
 visual terrain is the `IVisualTerrain` resource (`<terrain>.Visual`, requested at 0xA15AA0; the concrete class's
 vtable 0x144FCF0); no code in the terrain module reads or writes the type's flag bytes (+0x48 - +0x4A), and no factory
 makes a 0x4C-byte object with them: the run-time undergrowth keeps its own layout, so the loader cannot be found by the
-type's offsets. Which of the 19 slots parses the entry, and therefore the order inside a pair and the two flags, stays
-open (VEG-UG-5).
+type's offsets. None of the class's 19 slots parses the entry either (round SPG2-rest3 read them all): slots 8 and 11
+(0xA2D690, 0xA2A180) queue the frame's terrain jobs ("terrainCullView", "terrainPrepBld", "terrainBuild",
+"terrainPostBld", "occluderTerrain"), slot 7 (0xA25E90) makes a 0xC00-byte object (0xA1F7F0), slots 12 and 13 draw
+(0xA16500, 0xA26000), slot 6 (0xA1CB00) queues 16-byte records, and the rest are small getters and setters. So the
+entry is read where the resource is created, outside the class's own interface (start from the factory registered
+with the type at 0x1375A20); the order inside a pair and the two flags stay open (VEG-UG-5).
 
 [exe: BFBC2Game.exe field descriptors 0x1C3C940 - 0x1C3CA90 (name, type, offset; MinScale +0x1C, MaxScale +0x14, MinMaskScaleFactor +0x0C with type 0x155D02C; Mesh +0x3C, MeshShaderSet +0x38, CacheShader +0x44, Density +0x40, Variation +0x34, MinMask +0x28, MaxMask +0x24, WindScale +0x30, ViewDistance +0x2C, Enable +0x4A, RotateEnable +0x49, SkewEnable +0x48); ".Visual" 0x144F98C pushed at 0xA15AAD; IVisualTerrain type 0x1BF808C (registered 0x13759A0), the VisualTerrain type 0x1BF80FC (0x1375A20, getType 0xA01830 in vtable 0x144FCF0); round SPG2-rest2's sweep of 0x9F0000 - 0xA40000 for byte accesses at +0x48 - +0x4A (one constructor, 0x9E9530, of another class) and of every `push 0x4C` factory]
+[exe: BFBC2Game.exe vtable 0x144FCF0 read slot by slot (round SPG2-rest3): 0 0xA017E0, 1 0xA089F0, 2 0xA01830 (type), 3 0xA296E0, 4 0xA10460, 5 0xA10470, 6 0xA1CB00, 7 0xA25E90 (`push 0xC00`, 0xA1F7F0), 8 0xA2D690 (the job names), 9 0xA08D10, 10 0xA25EC0, 11 0xA2A180 ("terrainCullView", "occluderTerrain"), 12 0xA16500, 13 0xA26000, 14 0xA2F6D0, 15 0xA08D40, 16 0xA10480, 17 0xA091F0, 18 0xA091D0; none is a parser (no string read, no run of twelve floats)]
 
 ### VEG-UG-4: Undergrowth layouts must be in the level's databases
 

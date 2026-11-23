@@ -1108,6 +1108,10 @@
      "ref": "BFBC2Game.exe bot debug print 0xEEF450 (strings \" Bot id: \" 0x014A7E64, \"Squad: \", \" - Squad leader\" 0x014A7E50, \"Readiness: \" 0x014A7E44, \"Position: \"); Kynapse bot entity 0xF27900 (\"Entity_\", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)"
     },
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe bot constructor 0xE6C0B0 (`param_1[5"
+    },
+    {
      "kind": "doc",
      "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:202-203"
     }
@@ -1703,7 +1707,15 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe constructors 0x66E190 (0x68FB90 x 4 with the hashes), 0x67A030, 0x6740D0 (server object `+0x18` vtable +8 with 0x10); name functions 0x66A250, 0x6695D0, 0x669AF0 (vtable slots at 0x0141FEF8, 0x0142042C, 0x0141FDC4)"
+     "ref": "BFBC2Game.exe constructors 0x66E880 (vtables 0x66E8C1 - 0x66E8D4; channels 0x11 / 0x10 subscribed at 0x66E8F1 / 0x66E903), 0x67A4B0 (vtables 0x67A4F9 - 0x67A513; channels 0x16 / 0x10), 0x66E190 (0x68FB90 x 4: 0x87ADD7E8, 0xBB06A967, 0x7F3E7106, 0xD0488C09), 0x6740D0 (+0x84 = data +0x80; listener 0x67D680: death (0x10, 0x11) of the other team by its team -> 0x67D620(1), revive (0x10, 0x21) -> 0x67D620(-1), clamped to 0 .. +0x84); name functions 0x66A250 / 0x6695D0 / 0x669AF0 at 0x0141FEF8 / 0x0142042C / 0x0141FDC4 (slot 2 of 0x0141FEF0, 0x01420424, 0x0141FDBC), \"SvKillCounter\" at slot 2 of 0x0141FCB0; 0x67A030 writes 0x01420320 and +0x58 0x014202E8; 0xFFE580 (0x8BA423E4 -> +0x7C, 0xF90216B1 -> +0x80); field descriptors KillCounterEntityData `MaxKillCount` +0x80, `TeamId` +0x84, MissionObjectiveEntityData `ObjectiveType` +0xF0"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/modes.py, 2026-11-22: the hashes are `OnShowObjective`, `OnSuccess`, `Success`, `ShowObjective`, `Enable`, `Disable` (each found in the function named); DICE's mission objectives' connections: in `ShowObjective` 200, `Success` 97, `Disable` 19, `Enable` 1, out `OnShowObjective` 53, `OnSuccess` 74; kill counters out `OnMaxKillCount` 300"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::modes"
     }
    ]
   },
@@ -1717,6 +1729,74 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe 0x724060 (player list 0x532270; soldier vtable +0x30, its +0x2C component's vtable +8 > 0; team +0xA8; 0x6CA7B0 with data +0x11C / +0x138 or 0x6E54C0; per-team counts through 0x7216E0; outputs the +0x7C team's count, the best other team and its count); no +0xD84 operand in 0x724060 - 0x72425F; caller 0x726B60"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-6",
+   "title": "The ticket counter's state: a death costs one ticket, whoever died",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe constructor 0x66E880 (+0x98 = 1.0 from 0x14D94F0; channels 0x11 / 0x10); init (data +0x94 -> +0x94 and +0x80 at 0x66E907 - 0x66E920); reset 0x66EA50; handler 0x684050 (message (0x10, 0x11): msg +0x20 +0xA8 against data +0xA0 -> 0x681AD0(1.0) at 0x68413A; (0x10, 0x21) -> 0x681A70(+0x80 + 1.0, 0x14D94D8); (0x11, 0x17) sender +0x7C, (0x11, 0x18) sender +0x94 -> 0x711CD0 into +0x84); update 0x686830 (+0x84 = 0x675170(team) once, then 0x684150, 0x684320); bleed 0x684150 (0x6751D0, 0x675270, 0x675330, 0x6753B0, 0x680620; constants 0.01 at 0x1409E40, 1.0 at 0x14D94D8, 60.0 at 0x1412C48); 0x681AD0, 0x681A70, 0x6805B0 (hash 0xDE2783FB), 0x6752D0, 0x67E3F0 (hash 0x59CE0E1A); field descriptors TicketCounterEntityData 0x1C255D0 - 0x1C256A8"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/modes.py, 2026-11-22: DICE's ticket counters' connections: out `OnTeamWins` 125, `OnReachTicketPercentage` 129, no inputs; `OnReachZero` (0xDE2783FB) is no event name of DICE's PC level bundles, named from the game copy's other graphs (GAME-TKT-3)"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::modes"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-7",
+   "title": "A soldier's death and a revive are server messages on channel 0x10",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x6C3810 (skip at `+0x220 == 0`; message on the stack with vtable 0x01423044 at 0x6C3B89, posted through `[server +0x18"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-8",
+   "title": "Rush lives and stages: the life counter's state",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe constructor 0x67A4B0 (+0x84 / +0x98 = data +0xD8, +0x9C = data +0x94, +0xA4 = data +0x90; channels 0x16 / 0x10 at 0x67A539 / 0x67A54B); handler 0x689320 (victim msg +0x20, killer +0x24, team data +0xD4, attacker flag data +0xDC; 0x689200, 0x67D740, 0x67D890, 0x669690; channel 0x16: msg +0x28 / +0x30); event slot 6 0x6897D0 (`Winner` 0xBE6EE0AC, 0x27BECF7C, `IncreaseReinforce` 0x2CFC2C6C, `DestructBase` 0x324B3FE6 with message 0x46 and 0x6696B0, `DecreaseLife` 0xC14750A1, 0xE5A091E9); 0x689200 (`OnTeamLoss` 0x59D3259A, `OnFightHarder` 0x2CE6F2B8, message (0x11, 0x20)); 0x67D740 (data +0x98, the table through 0x13AA630 / 0x13AA650); field descriptors LifeCounterEntityData 0x1C25390 - 0x1C25498"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/modes.py, 2026-11-22: DICE's life counters' connections: in `DestructBase` 87, `IncreaseReinforce` 78, `Winner` 60, out `OnTeamLoss` 457, `OnFightHarder` 61; 30 counters with `Attacker` true (`StartingLifeCount` 20 - 100) and 30 without (`BaseCount` 2 - 5); `DecreaseLife` is no event name of DICE's PC level bundles (named from the game copy's other graphs)"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::modes"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-9",
+   "title": "An M-COM's arming is a game interaction entity",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field descriptors 0x1C25D80 - 0x1C25E10 (GameInteractionEntityData), enumeration InteractionEntityType 0x1C24220 - 0x1C242C8; vtable 0x01423AA8 (slots 2 0x68F8C0, 3 0x6A83E0, 33 0x68F8D0, 34 0x68F940, 37 0x68F9D0, 38 0x68F9E0), sub-object vtables 0x01423A84 / 0x01423A70 / 0x01423A64 written at 0x6A200F and 0x6A838F"
     }
    ]
   },
@@ -2571,7 +2651,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; 0x11DD76A (37) unread"
+     "ref": "BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; round SPG2-rest3: 0x11DD76A (37) is `toupper` for code-page bytes (low half through the CRT's `toupper`, the switch maps 0x9A / 0x9C / 0x9E / 0xE0 - 0xFE, 0xFF -> 0x9F), Ghidra's switch census of 36+ targets: 0x76ECC1, 0x776569, 0x77BC8C, 0x83B9BD, 0x85D53A, 0x95A2B7, 0x95E743, 0x98B8A1, 0x9AF960, 0x1198550, 0x11B39B3, 0x11B3A29, 0x11DD7BF, 0x11FD505, 0x1205000, 0x13633AB"
     },
     {
      "kind": "inferred",
@@ -5545,6 +5625,10 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe 0x884C20 (speed `sqrt(v.v)` against 5.0 at 0x14D9450; material 0x7BF160 -> 0x6C94E0 -> 0x6F0250, the terrain property at +0x10 with DirtTriggerColor +0x10 and DirtTriggerFactor +0x20 as MaterialPropertyTerrainData's field descriptors 0x1C35A88 / 0x1C35AB8 give; clamp with 0 and 1.0 at 0x14D94F0; the colour blend 0x884D28 - 0x884DB5), called from 0x893E9C; getters 0x877520 (+0x1D0) / 0x877530 (+0x180); copies 0x5EA24E - 0x5EA27B and 0x5EFB81 - 0x5EFBA9; constants set 0x5CB733 / 0x5CB7A7 (handles +0x6D0 / +0x6D4 of the table 0x5BF470 fills: dirtFactor, dirtColor, trackOffset ...; built by 0x5DD9D0)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x893E50 (only caller 0x8C0282 in 0x8C0210, `test flags, 1`); 0x8C0210 is slot 125 of vtable 0x01436C38 (175 slots; slot 43 returns \"ClVehicle\"), its only pointer in the image (0x01436E2C)"
     }
    ]
   },
@@ -8678,11 +8762,11 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns at +0 / +0xC, flag stores 0x565CFD (0), uStack 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC"
+     "ref": "BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns, flag stores 0x565CFD (0), then 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC"
     },
     {
-     "kind": "inferred",
-     "ref": "\"drained later\" from the table being filled with no open call in 0x5657B0; the flag's meaning from which bundles carry 1"
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x56EDE0 (0x566050 at 0x56EF03; settings group \"Game\" 0x1410BA0 through 0x4F4C80 at 0x56F033, `cmp byte [+0x94"
     }
    ]
   },
@@ -8965,6 +9049,10 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe field descriptors 0x1C3C940 - 0x1C3CA90 (name, type, offset; MinScale +0x1C, MaxScale +0x14, MinMaskScaleFactor +0x0C with type 0x155D02C; Mesh +0x3C, MeshShaderSet +0x38, CacheShader +0x44, Density +0x40, Variation +0x34, MinMask +0x28, MaxMask +0x24, WindScale +0x30, ViewDistance +0x2C, Enable +0x4A, RotateEnable +0x49, SkewEnable +0x48); \".Visual\" 0x144F98C pushed at 0xA15AAD; IVisualTerrain type 0x1BF808C (registered 0x13759A0), the VisualTerrain type 0x1BF80FC (0x1375A20, getType 0xA01830 in vtable 0x144FCF0); round SPG2-rest2's sweep of 0x9F0000 - 0xA40000 for byte accesses at +0x48 - +0x4A (one constructor, 0x9E9530, of another class) and of every `push 0x4C` factory"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtable 0x144FCF0 read slot by slot (round SPG2-rest3): 0 0xA017E0, 1 0xA089F0, 2 0xA01830 (type), 3 0xA296E0, 4 0xA10460, 5 0xA10470, 6 0xA1CB00, 7 0xA25E90 (`push 0xC00`, 0xA1F7F0), 8 0xA2D690 (the job names), 9 0xA08D10, 10 0xA25EC0, 11 0xA2A180 (\"terrainCullView\", \"occluderTerrain\"), 12 0xA16500, 13 0xA26000, 14 0xA2F6D0, 15 0xA08D40, 16 0xA10480, 17 0xA091F0, 18 0xA091D0; none is a parser (no string read, no run of twelve floats)"
     }
    ]
   },

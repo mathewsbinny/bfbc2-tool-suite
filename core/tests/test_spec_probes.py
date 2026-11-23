@@ -2,7 +2,8 @@ r"""The specification's probe counts as checks (rounds SPG2, SPG2-rest): the sta
 measure on DICE's bundles of Project OPFOR BFBC2's game copy, asserted, so that the rules they back are verified
 instead of observed. Read only; skipped without the game copy. `terrain.py` and `effects_chain.py` are read through
 their functions; SPG's five print-only probes (`materials`, `destruction`, `lighting`, `vehicles`, `weapons`) by the
-lines of their output that hold a rule's counts (EXPECT); `grime.py` and `menus.py` by their own `checks()`.
+lines of their output that hold a rule's counts (EXPECT); `grime.py`, `menus.py` and `modes.py` by their own
+`checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -417,6 +418,11 @@ def menus(game: Path) -> None:
     probe_checks('menus', game)
 
 
+# spec: BOT-GS-4, BOT-GS-6, BOT-GS-8
+def modes(game: Path) -> None:
+    probe_checks('modes', game)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -436,7 +442,7 @@ def main() -> int:
                                        lambda: terrain_partitions(t), lambda: emitters(bundles, fx),
                                        lambda: height_field_tails(t), lambda: material_maps(t),
                                        spg_materials, spg_destruction, spg_lighting, spg_vehicles, spg_weapons,
-                                       lambda: grime(game), lambda: menus(game)]
+                                       lambda: grime(game), lambda: menus(game), lambda: modes(game)]
     for step in steps:
         step()
     print(f'{"FAILED " + str(len(FAILED)) if FAILED else "passed"}: the specification probes\' counts '

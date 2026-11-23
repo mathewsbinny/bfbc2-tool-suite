@@ -649,14 +649,17 @@ under it and that material's `MaterialPropertyTerrainData` (MAT-TEX-7; none: not
 - colour = colour x (1 - a) + `DirtTriggerColor` x a.
 
 So DICE's 0.1 dirties a vehicle fully in 10 s of driving at 5 m/s or more, grass (0.001) in about 17 minutes, and the
-colour fades towards the last ground driven on (which entity classes run it was not traced past the caller
-0x893E50). Nothing in that code lowers the factor: no washing in water or
+colour fades towards the last ground driven on. Only the client vehicle runs it (round SPG2-rest3):
+`ClientVehicleEntity` (vtable 0x01436C38, "ClVehicle" in its slot 43) has 0x8C0210 in slot 125, which calls 0x893E50
+-> 0x884C20 when its flags argument has bit 0 set; no other vtable holds 0x8C0210 and 0x893E50 has no other caller,
+so soldiers, debris and server entities never get dirty. Nothing in that code lowers the factor: no washing in water or
 decay was found (the factor's only other writer is the entity's set-up). The drawing reads the two through getters
 (0x877520 the factor, 0x877530 the colour), copies them into the drawn instance (+0xEC or +0xDC the factor, +0xB0 the
 colour) and sets the shader constants `dirtFactor` / `dirtColor` (MAT-TEX-6) through the handles the instance's table
 looked up by name. A RenderDoc capture before and after driving over Mud confirms the values.
 
 [exe: BFBC2Game.exe 0x884C20 (speed `sqrt(v.v)` against 5.0 at 0x14D9450; material 0x7BF160 -> 0x6C94E0 -> 0x6F0250, the terrain property at +0x10 with DirtTriggerColor +0x10 and DirtTriggerFactor +0x20 as MaterialPropertyTerrainData's field descriptors 0x1C35A88 / 0x1C35AB8 give; clamp with 0 and 1.0 at 0x14D94F0; the colour blend 0x884D28 - 0x884DB5), called from 0x893E9C; getters 0x877520 (+0x1D0) / 0x877530 (+0x180); copies 0x5EA24E - 0x5EA27B and 0x5EFB81 - 0x5EFBA9; constants set 0x5CB733 / 0x5CB7A7 (handles +0x6D0 / +0x6D4 of the table 0x5BF470 fills: dirtFactor, dirtColor, trackOffset ...; built by 0x5DD9D0)]
+[exe: BFBC2Game.exe 0x893E50 (only caller 0x8C0282 in 0x8C0210, `test flags, 1`); 0x8C0210 is slot 125 of vtable 0x01436C38 (175 slots; slot 43 returns "ClVehicle"), its only pointer in the image (0x01436E2C)]
 
 ## 6. OPFOR's WW2 materials
 
@@ -738,8 +741,7 @@ take BF1943's `SoldierBody` / `SoldierHead` relations; every other weapon keeps 
   entity data class's field table in the executable would show it.
 - **OcRGB channels** (MAT-TEX-3): a disassembly of one OcRGB prop's pixel shader (which channel scales which
   sampler) would make the rule observed.
-- **Dirt in game** (MAT-TEX-20 is read statically): which entity classes run the build-up (its caller 0x893E50 was
-  not followed to a class), and a RenderDoc capture of a vehicle before and after driving over Mud to confirm the
+- **Dirt in game** (MAT-TEX-20 is read statically; client vehicles only, round SPG2-rest3): a RenderDoc capture of a vehicle before and after driving over Mud to confirm the
   constants. Which DirtMaskRGB channel a dirt shader reads is unread.
 - **Who makes the per-level camo** (MAT-TEX-10, MAT-TEX-11): no shipped DBX names the soldier camo textures, so the
   level's choice was made by DICE's content build; a level added by a modder needs its database compiled (or merged)

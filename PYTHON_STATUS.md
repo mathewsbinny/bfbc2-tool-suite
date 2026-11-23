@@ -29,9 +29,9 @@ rounds NK4 and NK5.
 | twin | 55 | 19,451 |
 | ported | 21 | 2,580 |
 | retired-pending | 3 | 310 |
-| stays | 58 | 10,646 |
-| test | 187 | 50,786 |
-| **all** | **364** | **106,313** |
+| stays | 59 | 10,847 |
+| test | 187 | 50,790 |
+| **all** | **365** | **106,518** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -52,10 +52,10 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 16 | 10,380 | 1,430 | 3,684 | 984 | 126 |  |  | 4,156 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 19,937 | 757 |  | 2,427 | 1,905 |  |  | 14,848 |
+| `core` | 76 | 19,941 | 757 |  | 2,427 | 1,905 |  |  | 14,852 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 5,998 |  |  |  |  |  | 5,731 | 267 |
-| `spec` | 10 | 3,925 |  |  |  |  |  | 3,925 |  |
+| `rust` | 33 | 6,000 |  |  |  |  |  | 5,733 | 267 |
+| `spec` | 11 | 4,124 |  |  |  |  |  | 4,124 |  |
 | `tests` | 29 | 7,619 |  |  |  |  |  |  | 7,619 |
 
 Lines by status in the folder table.
@@ -396,7 +396,7 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 19,937 lines.
+76 files, 19,941 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -472,7 +472,7 @@ Lines by status in the folder table.
 | `core/tests/test_paths.py` | 244 | test | test |  | run_tests.py | Tests in Rust | bfbc2core.paths on a stand-in folder tree (quick tier, no game data): where the suite finds Project OPFOR B... |
 | `core/tests/test_prepare_o4.py` | 194 | test | test |  | run_tests.py | Tests in Rust | Round O4: the editor's level prepare in Rust (bfbc2.exe prepare_level, rust\bc2-cli\src\navkit) against the... |
 | `core/tests/test_scene_native.py` | 103 | test | test |  | run_tests.py | Tests in Rust | level.load through the Rust scene (rust/bc2-scene, bc2_native.scene_load) against what the retired Python l... |
-| `core/tests/test_spec_probes.py` | 397 | test | test |  | run_tests.py | Tests in Rust | The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/p... |
+| `core/tests/test_spec_probes.py` | 401 | test | test |  | run_tests.py | Tests in Rust | The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/p... |
 | `core/tests/test_terrain.py` | 61 | test | test |  | run_tests.py | Tests in Rust | Checks terrain.py against the in-game terrain samples NavKit took (work\navsample\<level>_navkit.bin or _fu... |
 | `core/tests/test_water.py` | 62 | test | test |  | run_tests.py | Tests in Rust | water.py on every level of Project OPFOR BFBC2's game copy: each .Water.Mesh.res is read to its last byte,... |
 | `core/tests/test_xmlinst_native.py` | 149 | test | test |  | run_tests.py | Tests in Rust | Round F2b (rust/BENCHMARKS.md, "F2b"): bfbc2core.xmlinst in the Rust core against its patterns (instances_r... |
@@ -487,7 +487,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 5,998 lines.
+33 files, 6,000 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -521,13 +521,13 @@ Lines by status in the folder table.
 | `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
 | `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 843 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 845 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 
 ## `spec`
 
-10 files, 3,925 lines.
+11 files, 4,124 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -537,6 +537,7 @@ Lines by status in the folder table.
 | `spec/probes/lighting.py` | 342 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for the lighting, weather and effects specs |
 | `spec/probes/materials.py` | 365 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/materials.md |
 | `spec/probes/menus.py` | 494 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier |
+| `spec/probes/modes.py` | 199 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/bot_ai.md (mode entities: event names against the exe); checked in the game tier |
 | `spec/probes/terrain.py` | 564 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier |
 | `spec/probes/vehicles.py` | 359 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/vehicles.md |
 | `spec/probes/weapons.py` | 456 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/weapons.md |
