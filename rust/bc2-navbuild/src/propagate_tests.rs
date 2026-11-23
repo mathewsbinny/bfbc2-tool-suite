@@ -185,3 +185,11 @@ fn a_wall_is_passed_through_its_gap_only() {
         }
     }
 }
+
+// spec: KYG-NODE-8
+#[test]
+fn dices_placement_is_on_by_default() {
+    // the user's ruling (2026-11-23): DICE's placement in place of NavKit's own nodes and spanner
+    let sw = crate::stage::Switches::default();
+    assert!(sw.placement);
+}

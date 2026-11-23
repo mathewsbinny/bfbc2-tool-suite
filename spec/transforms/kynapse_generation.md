@@ -322,7 +322,8 @@ Round NKS-deep B decoded the placement from the executable (KYG-NODE-7: propagat
 directions, DistPropagation apart; KYG-NODE-8: dense edges and edges collapsed into their middles), which explains
 every trace above: positions on no grid are middles of middles, the step pairs are propagated nodes that never merged,
 and the coverage follows from merging only while every neighbour stays within DistEdgeMax. NavKit builds it behind
-`Switches::placement` (off until the user rules): on the 15 levels `nodes_near` 47.63 -> 56.21 %, `ai_pairwise`
+`Switches::placement`, on by the user's ruling (2026-11-23; its regressions named exceptions in `navkit.md`,
+"Parity target"): on the 15 levels `nodes_near` 47.63 -> 56.21 %, `ai_pairwise`
 92.67 -> 95.57 %, `connectivity` 98.79 -> 99.06 %, `over_connection` 15.31 -> 15.74 % (`rust/BENCHMARKS.md`
 "NKS-deep B").
 
@@ -503,6 +504,11 @@ two-edge test; and after any collapse again from the marked edges, until a pass 
 So nodes merge until a merge would leave a neighbour beyond DistEdgeMax or out of a straight walk: the coarse nodes'
 7-8 m spacing in open ground (KYG-NODE-5) and their positions off every grid (KYG-NODE-1: middles of middles), with the
 step pairs (KYG-NODE-7) the propagation's nodes that never merged.
+
+NavKit builds KYG-NODE-7, KYG-NODE-8 and KYG-EDGE-5 (`Switches::placement`), on by the user's ruling (2026-11-23):
+the measures it lowered are named exceptions under `navkit.md`'s parity target (`costs`, `nodes_same`, `edges_same`
+on tiny exact-match samples; `over_connection` mostly a larger matched sample, sp_007's real rise handed to round
+NKS-deep D; small per-level dips).
 
 [exe: dense edges 0x01154B00 (ConnectionDistance +0x588; set to DistPropagation x 1.2 (double 0x0142EE90) at 0x0114E2B1 when not positive; Kynapse's default -1 at 0x01146AEF); the simplification 0x0115B3C0 (its graph 0x011B81D0, edges sorted by `CSimplifyEdgeLess` 0x011B8030, a new edge dirty with its length 0x01152C00; state word +0x83C: 0 dirty edges, 1 OverSimplify's edges under (2 OneMeter)^2 = 4 with the cell lock +0x28 of the 5 m grid and rerouting, 2 every edge; leaves 0x011B64C0; the two-edge apex 0x011B6500; the collapse test 0x01158510 with 0x01157CA0 / 0x01158100: DistEdgeMax^2 +0x558, MaxDeltaHeight +0x578, the straight walk 0x01351F80 with EdgeRadius); the graph rebuilt 0x011B6740]
 [data: round NKS-deep B, NavKit with this placement (`Switches::placement`) against DICE's files of the 15 regression levels: the structure counts and parity in `rust/BENCHMARKS.md` "NKS-deep B"]
@@ -907,7 +913,7 @@ movement detail, then bytes):
    the grid toward their share's centroid and coarse coverage nodes every 7.5 m were both measured worse (KYG-NODE-1;
    coverage nodes raised `nodes_near` 47.63 -> 50.14 % but `over_connection` rose on 4 levels and ONS_MP_004's
    `connectivity` fell 0.44): the exact placement stays a named exception. **Round NKS-deep B**: the placement decoded (KYG-NODE-7,
-   KYG-NODE-8) and built behind `Switches::placement` (off until the user rules; the measures in KYG-NODE-1).
+   KYG-NODE-8) and built behind `Switches::placement`, on by the user's ruling (2026-11-23; the measures in KYG-NODE-1).
 3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): the duplicates are gone (NKG1). 111,968 edges sit on non-owner
    border copies (DICE 8,039); the runtime uses them (KYRT-PATH-3), and with NavKit's single border row they are its
    only edges into the lower sector, so they move onto owner copies with the band (NKG2, KYG-NODE-2: round NKG1

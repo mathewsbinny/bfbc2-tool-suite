@@ -291,7 +291,8 @@ pub struct Switches {
     pub df_slope: Option<f64>,
     /// DICE's node placement (round NKS-deep B; KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5): the propagation at `DistPropagation`,
     /// the dense edges, the simplification and the over-connection pass of Kynapse's map builder
-    /// ([`crate::propagate`]) in place of NavKit's centre, portal and coverage nodes and its spanner.
+    /// ([`crate::propagate`]) in place of NavKit's centre, portal and coverage nodes and its spanner. On by the user's
+    /// ruling (2026-11-23), its regressions named exceptions (`spec/transforms/navkit.md`, "Parity target").
     pub placement: bool,
     /// `navdetail.CHAIN_TURNS`.
     pub chain_turns: bool,
@@ -353,7 +354,7 @@ impl Default for Switches {
             detail_terrain_only: (false, true),
             cut_corners: true,
             df_slope: Some(DF_TERRAIN_SLOPE),
-            placement: false,
+            placement: true,
             chain_turns: true,
             shadow: Some(graphfile::Shadow::default()),
             header: HEADER,

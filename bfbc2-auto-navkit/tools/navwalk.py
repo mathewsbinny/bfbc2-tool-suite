@@ -545,8 +545,9 @@ def clock_words(stamp: Any) -> tuple[int, int]:
 DF_SLOPE: float | None = 0.77
 
 # DICE's node placement (KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5, round NKS-deep B): Kynapse's propagation, simplification and
-# over-connection pass in place of NavKit's own nodes and spanner.
-PLACEMENT: bool = False
+# over-connection pass in place of NavKit's own nodes and spanner. On by the user's ruling (2026-11-23; its regressions
+# named exceptions in spec/transforms/navkit.md, "Parity target").
+PLACEMENT: bool = True
 
 
 def switches() -> dict[str, Any]:

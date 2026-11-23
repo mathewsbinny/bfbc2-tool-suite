@@ -3843,7 +3843,9 @@ border nodes and the AI order positions in it as locked seeds (DICE has a node w
 KYG-NODE-1), the probes over the sector's kept surfaces with the area link rule and the route edges' D sides, a
 point's height its cell's surface, then the dense edges, the simplification and the removal pass, nodes left without
 an edge dropped; the ladder links, group joins and order nodes follow as before. Behind `Switches::placement`
-(`navwalk.PLACEMENT`), **off** until the user rules (below). A level builds in 8-86 s.
+(`navwalk.PLACEMENT`), **on** by the user's ruling (2026-11-23): the regressions below are named exceptions under
+`spec/transforms/navkit.md`'s parity target, sp_007's real `over_connection` rise handed to round NKS-deep D. A
+level builds in 8-86 s.
 
 ### Measured: the 15 regression levels (scratch builds, one at a time; before = the reference `regression`)
 
@@ -3883,7 +3885,7 @@ ordinary node median 3.14 / 1.35 / 2.90 m, edges per node 2.72 / 1.88 / 2.73; de
 median 5.20 / 4.44 / 5.19 m. Both ways within 2 m (sp_01): DICE nodes with a NavKit node near 44.8 -> 58.8 %, NavKit
 nodes with a DICE node near 38.4 -> 50.8 %.
 
-**What got worse, with counts (for the user's ruling; XNAV-BLD-3 keeps the switch off until then):**
+**What got worse, with counts (named exceptions by the user's ruling, 2026-11-23):**
 - `over_connection`: mostly the matched sample growing. On sp_003_b the DICE group pairs NavKit wrongly joins fall
   8,622 -> 7,629 and on sp_03 5,442 -> 4,753, while the matched DICE nodes grow 19,318 -> 29,999 and 21,654 -> 31,379
   (the measure weighs node pairs, so more matched nodes in the same wrong joins count more). sp_007 is a real rise:
@@ -3915,7 +3917,7 @@ nodes with a DICE node near 38.4 -> 50.8 %.
   directions, the density limit, open ground simplified within DistEdgeMax into one graph, the removal pass, a wall
   passed through its gap only).
 - `kynapse_corpus` (game tier): `step_pairs_lie_on_the_nbsectors_probe_directions` new.
-- The switch is off by default: the golden builds and navregress's reference are unchanged (not re-recorded).
+- The switch on by default (the user's ruling): the golden builds and navregress's reference re-recorded (below).
 
 ## WW2-ORD1: the WW2 rebuild settles in one pass from an empty work\ww2 (2026-11-23, branch `ww2ord1`, with Project OPFOR's `ww2ord1`)
 

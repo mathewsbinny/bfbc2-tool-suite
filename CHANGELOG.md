@@ -33,10 +33,10 @@ landed on `main`.
   KYG-AREA-4): Kynapse's map builder in `BFBC2Game.exe` places route nodes by propagation from the seeds in
   NbSectors directions DistPropagation apart, joins them densely, collapses edges into their middles and then removes
   edges that have a route within 1.2 times their length. NavKit can build its route graphs this way
-  (`bc2_navbuild::propagate`, `navwalk.PLACEMENT` / `Switches::placement`, **off** by default until the user rules
-  on the measured trade-offs: on the 15 regression levels nodes near DICE's 47.6 -> 56.2 %, AI pairwise routes
-  92.7 -> 95.6 %, connectivity 98.8 -> 99.1 %, over-connection 15.3 -> 15.7 %). With the switch off nothing NavKit
-  writes changes. New probe `rust/bc2-formats/examples/kynapse_place.rs`; `kynapse_df` also tests StepMax /
+  (`bc2_navbuild::propagate`, `navwalk.PLACEMENT` / `Switches::placement`, **on** by the user's ruling; the few
+  measures that dropped are named exceptions in `spec/transforms/navkit.md`): on the 15 regression levels nodes near DICE's 47.6 -> 56.2 %, AI pairwise routes
+  92.7 -> 95.6 %, connectivity 98.8 -> 99.1 %, over-connection 15.3 -> 15.7 %). Path data NavKit builds changes (its route
+  nodes and edges); navregress's reference run and the golden builds were re-recorded. New probe `rust/bc2-formats/examples/kynapse_place.rs`; `kynapse_df` also tests StepMax /
   StepLength x pitch as a step.
 - **Terrain generation in the specification** (round TG0, documentation and probes only): `spec/transforms/terrain_gen.md`
   (32 rules) says what a valid BFBC2 terrain is end to end (the eight kinds of data, what is generated, derived, reused
