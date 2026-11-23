@@ -5,7 +5,8 @@
 //!
 //! Every `TerrainHeightfield` and `TerrainMaterialMap` of the bundles dated before 2013, each resource once: a main
 //! block decodes and encodes byte for byte and its min / max tree is the computed one (TERR-HF-9 - 11); a sub-terrain
-//! block's quadtree is the computed one (TERR-HF-5); a material map decodes and encodes byte for byte (TERR-MM-1 - 4).
+//! block's quadtree is the computed one and the block decodes and encodes byte for byte (TERR-HF-5; round TG2's
+//! sub-terrain writer); a material map decodes and encodes byte for byte (TERR-MM-1 - 4).
 //! The game copy is `OPFOR_ROOT`'s `game`, else `project-opfor-bfbc2\game` beside the suite; the test passes with a
 //! note when it is missing.
 #![allow(
@@ -19,7 +20,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use bc2_formats::terrain_codec::{MainBlock, MaterialMap, sub_quadtree};
+use bc2_formats::terrain_codec::{MainBlock, MaterialMap, SubBlock, sub_quadtree};
 use bc2_formats::{fbrb, terrain};
 
 const DICE_BEFORE: u64 = 1_356_998_400;
@@ -98,6 +99,12 @@ fn dice_terrains_round_trip() {
                 {
                     bad.push(format!("{name}: sub-terrain quadtree differs from the computed one"));
                 }
+                // round TG2: the sub-terrain writer gives DICE's bytes back
+                match SubBlock::decode(&d) {
+                    Ok(s) if s.encode() == d => {}
+                    Ok(_) => bad.push(format!("{name}: sub-terrain block re-encodes to other bytes")),
+                    Err(e) => bad.push(format!("{name}: {e}")),
+                }
                 continue;
             }
             mains += 1;
@@ -117,5 +124,5 @@ fn dice_terrains_round_trip() {
     }
     println!("{mains} main blocks, {subs} sub-terrain blocks, {maps} material maps");
     assert!(bad.is_empty(), "{bad:#?}");
-    assert_eq!((mains, maps), (30, 30));
+    assert_eq!((mains, subs, maps), (30, 288, 30));
 }

@@ -31,6 +31,7 @@ pub mod levels;
 pub mod merge;
 pub mod open;
 pub mod query;
+pub mod terrain;
 
 use std::borrow::Cow;
 

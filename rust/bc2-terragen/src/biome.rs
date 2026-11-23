@@ -107,6 +107,16 @@ impl Biome {
         }
     }
 
+    /// The rough relief's strength (TGEN-GEN-6): temperate's terrains are the rocky ones (their 10 m and 66 m relief
+    /// three to four times the other biomes': TGEN-SHAPE-3), so temperate terraces at full strength by default.
+    #[must_use]
+    pub const fn rough(self) -> f64 {
+        match self {
+            Self::Temperate => 1.0,
+            _ => 0.0,
+        }
+    }
+
     /// The material map's names (TGEN-MAT-1, TERR-MM-4): `defaultmaterial` first, then the biome's ground, its
     /// steep material, what lies under the water and its slope material - names DICE's terrains of the biome use
     /// (TGEN-BIOME-2), resolved against the donor level's material grid when the level loads (MAT-GRID-2).

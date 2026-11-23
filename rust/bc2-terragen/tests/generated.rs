@@ -48,15 +48,18 @@ fn a_generated_terrain_reads_back_and_is_its_seeds() {
     let t = pool(4).install(|| Terrain::new(&s)).unwrap();
     let res = t.resources("TG_TEST").unwrap();
     let names: Vec<&str> = res.iter().map(|r| r.name.as_str()).collect();
-    assert_eq!(
-        names,
-        [
-            "Terrains/TG_TEST/TG_TEST.Heightfield-000.res",
-            "Terrains/TG_TEST/TG_TEST-MaterialMap.res",
-            "Terrains/TG_TEST/TG_TEST.Water.Mesh.res",
-            "Terrains/TG_TEST/TG_TEST.res",
-        ]
-    );
+    let mut want = vec![
+        "Terrains/TG_TEST/TG_TEST.Heightfield-000.res".to_owned(),
+        "Terrains/TG_TEST/TG_TEST-MaterialMap.res".to_owned(),
+    ];
+    want.extend((1..=12).map(|k| format!("Terrains/TG_TEST/TG_TEST.Heightfield-{k:03}.res")));
+    want.extend([
+        "Terrains/TG_TEST/TG_TEST.Water.Mesh.res".to_owned(),
+        "Terrains/TG_TEST/TG_TEST.res".to_owned(),
+    ]);
+    assert_eq!(names, want);
+    let full = res.clone();
+    let res: Vec<_> = [0usize, 1, 14, 15].iter().map(|&k| res[k].clone()).collect();
     // TGEN-OUT-1: the suite's reader, every height within one step; the tail a main block's; the codec's decode
     let hf = terrain::parse(&res[0].data).unwrap();
     assert_eq!(
@@ -97,7 +100,8 @@ fn a_generated_terrain_reads_back_and_is_its_seeds() {
         .unwrap()
         .resources("TG_TEST")
         .unwrap();
-    assert!(again.iter().zip(&res).all(|(a, b)| a.data == b.data));
+    assert_eq!(again.len(), full.len());
+    assert!(again.iter().zip(&full).all(|(a, b)| a.data == b.data));
     let mut other = s.clone();
     other.seed += 1;
     let other = Terrain::new(&other).unwrap();
@@ -119,7 +123,7 @@ fn a_generated_terrain_reads_back_and_is_its_seeds() {
     }
 }
 
-// spec: TGEN-GEN-4, TGEN-SHAPE-2
+// spec: TGEN-GEN-4, TGEN-GEN-6, TGEN-SHAPE-2
 #[test]
 fn every_biome_lands_on_its_dice_medians() {
     for b in Biome::ALL {
@@ -134,7 +138,12 @@ fn every_biome_lands_on_its_dice_medians() {
         assert!((s.slope[3] - g.slope[3]).abs() < 5.0, "{what}");
         assert!(s.slope[0] < g.slope[0] + 4.0, "{what}");
         assert!((s.hi - g.hi).abs() < 0.03, "{what}");
-        assert!((s.beta - g.beta).abs() < 0.3, "{what}");
+        // TGEN-GEN-6: temperate's escarpment (a step's spectrum falls as k^-3) takes its beta to 3.1, the rough
+        // DICE terrains' own (SP_005 3.16; the biome's range 3.16 - 4.36)
+        let beta_slack = if b == Biome::Temperate { 0.65 } else { 0.3 };
+        assert!((s.beta - g.beta).abs() < beta_slack, "{what}");
+        // the 66 m relief: 70 - 130 % of DICE's median (round TG2: temperate's rough relief reached)
+        assert!(s.rough64 > 0.65 * g.rough64 && s.rough64 < 1.3 * g.rough64, "{what}");
         assert!((s.edge_minus_centre - g.edge_minus_centre).abs() < 3.0, "{what}");
         assert!((s.wet - g.wet).abs() < 0.01, "{what}");
         assert!(

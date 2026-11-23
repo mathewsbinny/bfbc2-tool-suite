@@ -19,7 +19,12 @@
 //!   a mesh) with the tail's known layout.
 //! - [`terrain_codec`]: the main height-field block and the material map decoded whole and written again (round E5:
 //!   depth map, min / max tree, lower envelope; DICE's 30 terrains byte for byte).
-//! - [`water`]: water meshes and the shader of each triangle, a port of `core/bfbc2core/water.py`.
+//! - [`visual_terrain`]: the `VisualTerrain` decoded whole and written again (round TG2: DICE's 30 byte for byte;
+//!   the generated terrain's patch maps and renamed patch shaders).
+//! - [`itexture`]: PC `ITexture` resources written from pixels (round TG2: DXT1 and L8 levels, the mip chain; the
+//!   generated terrain's colour / occlusion map, E5-rest's re-bake).
+//! - [`water`]: water meshes and the shader of each triangle, a port of `core/bfbc2core/water.py`; the visual water
+//!   decoded whole and written again (round TG2).
 //! - [`havok`]: Havok packfiles and a blueprint's collision triangles, a port of NavKit's `hkpack.py` and
 //!   `levelobjects.triangles`.
 //! - [`shaderdb`]: per-level shader databases (PC Dx9 / Dx10 / Dx11, Xbox 360), a port of the reader and writer of
@@ -63,6 +68,7 @@ pub mod guid;
 pub mod havok;
 pub mod hpd;
 pub mod hpdlayout;
+pub mod itexture;
 pub mod kymesh;
 pub mod loc;
 pub mod meshdata;
@@ -73,6 +79,7 @@ pub mod stfs;
 pub mod terrain;
 pub mod terrain_codec;
 pub mod varint;
+pub mod visual_terrain;
 pub mod water;
 pub mod wave;
 pub mod xiso;

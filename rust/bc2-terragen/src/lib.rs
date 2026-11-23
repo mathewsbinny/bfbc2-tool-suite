@@ -8,7 +8,9 @@
 //! | settings: biome, size (1,024 / 2,048), seed, border, water share, objective pads, erosion | [`Settings`], [`Pad`], [`Biome`] |
 //! | the height field (pure function of the settings, TGEN-GEN-1) | [`generate()`] -> [`Generated`] |
 //! | the material cells from any height field (an edited one too) | [`paint::paint`], [`Biome::materials`] |
+//! | the sub-terrain ring, stitched as DICE's | [`ring::ring`] |
 //! | the water mesh | [`water::water_mesh`] |
+//! | the visual side from a donor terrain: visual terrain, atlas, visual water, colour / occlusion map, the shader databases' entries | [`visual::build`] |
 //! | DICE's statistics of a height field (the probe's `shape()`) | [`shape::shape`] |
 //! | everything at once, the resources' bytes | [`Terrain::new`], [`Terrain::resources`] |
 //!
@@ -37,11 +39,13 @@ pub mod biome;
 pub mod fft;
 pub mod generate;
 pub mod paint;
+pub mod ring;
 pub mod rng;
 pub mod shape;
+pub mod visual;
 pub mod water;
 
-use bc2_formats::terrain_codec::{CodecError, MainBlock, MaterialMap};
+use bc2_formats::terrain_codec::{CodecError, MainBlock, MaterialMap, SubBlock};
 
 pub use biome::{Biome, Targets};
 pub use generate::{GENERATOR_VERSION, GenError, Generated, Pad, Settings, generate};
@@ -76,6 +80,8 @@ pub struct Terrain {
     pub cells: Vec<u8>,
     /// The material names (TGEN-MAT-1).
     pub names: Vec<String>,
+    /// The sub-terrain ring (TGEN-RING-1; empty when the settings ask for none).
+    pub ring: Vec<ring::RingBlock>,
 }
 
 impl Terrain {
@@ -85,7 +91,12 @@ impl Terrain {
     ///
     /// [`GenError`] as [`generate()`].
     pub fn new(settings: &Settings) -> Result<Self, GenError> {
-        let height = generate(settings)?;
+        let mut height = generate(settings)?;
+        let ring = if settings.ring {
+            ring::ring(&mut height, settings.seed)
+        } else {
+            Vec::new()
+        };
         let n = height.size as usize;
         let width = 2 * n;
         let cells = paint::paint(&height.heights(), n, 1.0, height.water_y, width);
@@ -95,21 +106,23 @@ impl Terrain {
             width,
             cells,
             names: settings.biome.materials().iter().map(|s| (*s).to_owned()).collect(),
+            ring,
         })
     }
 
-    /// The water mesh (`<T>.Water.Mesh.res`): a quad at the water level, or none when no ground is under water.
+    /// The water mesh (`<T>.Water.Mesh.res`): a quad at the water level over the outer square (the ring's, else the
+    /// main block's; the visual water's quad: WATER-VIS-4), or none when no ground is under water.
     #[must_use]
     pub fn water_mesh(&self) -> Option<Vec<u8>> {
-        self.height
-            .water_y
-            .map(|y| water::water_mesh(f64::from(self.height.size), y))
+        let side = f64::from(self.height.size) * if self.ring.is_empty() { 1.0 } else { 2.0 };
+        self.height.water_y.map(|y| water::water_mesh(side, y))
     }
 
     /// The terrain bundle's resources (TGEN-REQ-1, TERR-NAME-1), named for terrain `name`
     /// (`Terrains/<name>/<name>...`): the main block (`.Heightfield-000.res`: the heights, a depth map of 255, the
     /// min / max tree and a lower envelope built under the heights by `bc2_formats::terrain_codec`), the material map
-    /// (`-MaterialMap.res`), the water mesh (`.Water.Mesh.res`) when ground lies under water, and the 0-byte
+    /// (`-MaterialMap.res`), the ring's blocks (`.Heightfield-001.res` .. `-012`: `terrain_codec::SubBlock`), the
+    /// water mesh (`.Water.Mesh.res`) when ground lies under water, and the 0-byte
     /// `Terrain` entry (`<name>.res`, TERR-NAME-2); each as (name, resource type, data), in that order.
     ///
     /// # Errors
@@ -131,6 +144,14 @@ impl Terrain {
             ),
             Resource::new(format!("{base}-MaterialMap.res"), "TerrainMaterialMap", map.encode()),
         ];
+        for (k, b) in self.ring.iter().enumerate() {
+            let block = SubBlock::new(b.bounds, b.raw.clone())?;
+            out.push(Resource::new(
+                format!("{base}.Heightfield-{:03}.res", k + 1),
+                "TerrainHeightfield",
+                block.encode(),
+            ));
+        }
         if let Some(w) = self.water_mesh() {
             out.push(Resource::new(format!("{base}.Water.Mesh.res"), "WaterMesh", w));
         }
