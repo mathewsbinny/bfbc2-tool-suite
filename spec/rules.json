@@ -23955,6 +23955,30 @@
      "ref": "coarse D lines 431,972 (98.1 % 2 points, 7,880 with 3, 268 with 4 or more), F records 40,908; detailed 81,158 and 3,472"
     },
     {
+     "kind": "data",
+     "ref": "round NKG3, `rust/bc2-navbuild/examples/kynapse_df.rs` on the 15 regression levels: the tables above"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/stage.rs:796-803"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/detail.rs:136-261"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/stage_tests.rs::terrain_slope_across_a_side"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::a_side_test_decides_where_it_answers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::split_rule_f_by_the_step_d_by_the_test"
+    },
+    {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:939-1008"
     }
