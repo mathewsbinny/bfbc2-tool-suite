@@ -4027,6 +4027,62 @@ Entry by entry against the game copy's installed bundles, the new level bundles 
 **Note for the merge**: tracker version 3 makes the next `--changed` on OPFOR's main checkout rerun all 55 steps
 (expected 7,945 of 7,945).
 
+## TG1: the terrain generator's core in Rust (2026-11-23, branch `tg1`)
+
+New crate `rust/bc2-terragen` (bc2-formats and rayon only) and `bfbc2 terrain generate` (new bfbc2.exe tool group
+`terrain`): a main height field from a seed shaped to one of DICE's five biomes, its material map painted from slope
+and height, its water mesh and a `terrain.json` (seed, settings, `generator_version` 1, the statistics against the
+biome's DICE medians). The blocks are written through round E5's `bc2_formats::terrain_codec` (merged from `e5`,
+a85e0514): E5's corpus test is the writer canary in Rust (DICE's 30 main blocks and 30 material maps byte for byte).
+Spec: TGEN-GEN-3 implemented, TGEN-GEN-4 (the shapes) and TGEN-GEN-5 (the library and the command line) new,
+TGEN-GEN-1, TGEN-OUT-1 - 3, TGEN-PLAY-3 and TGEN-MAT-1 / -2 cite the Rust.
+
+**The pipeline** (`bc2_terragen::generate`): spectral synthesis at the biome's beta (own radix-2 FFT); five rounds of
+hypsometric remapping and *slope matching* - each sample's gradient given the magnitude its rank takes in the biome's
+slope distribution (DICE's p10 / p50 / p90 / p99), the surface rebuilt by a periodic Poisson solve, the aimed
+distribution corrected by the miss measured as the probe measures (central differences); hydraulic erosion (125
+droplets per 1,000 samples); the border bowl corrected to the biome's border-minus-centre; the sea floor flattened by
+bisection where the 10th slope percentile stays over 2 degrees above the biome's; the hypsometric integral remapped
+again, the median slope scaled, the border corrected again; pads; the range rounded up to 50 m; the water level by
+share. Every random value is a hash of (seed, step, index); the bytes are the same on 1 and 4 threads (test).
+
+What closed the prototype's gap, step by step (seed 7, 1,024, the generator's own statistics):
+
+| Step added | arid p99 | jungle p99 | snow HI | jungle p10 | Note |
+|---|---|---|---|---|---|
+| TG0 prototype (thermal erosion, median-slope scale) | 20.0 | 45.9 | 0.60 | 9.0 | near-Gaussian slopes |
+| slope matching + remapping (4 rounds), erosion, border | 50.9 | 75.1 | 0.49 | 5.2 | the tail reached; HI drifts in the last steps |
+| + a final hypsometric remap after the border | 51.6 | 74.0 | 0.41 | 5.3 | HI on target on all five |
+| + the sea floor flattened (bisection, 2 degree slack) | 51.7 | 76.0 | 0.41 | 3.5 | p10 down; without the slack snow's p90 rose to 64.6 |
+| + the border corrected after the scale | 51.9 | 76.0 | 0.41 | 3.9 | border within 0.2 m on all five |
+
+**The shapes** (`spec/probes/terrain_shape.py`'s `shape()` on the written main blocks; TGEN-GEN-4 has the full
+table): 99th-percentile slope arid 51.9 / jungle 76.0 / snow 74.6 / temperate 75.3 / vietnam 62.7 degrees (DICE's
+medians 52.8 / 75.0 / 71.1 / 75.1 / 64.6; prototype 20.0 / 45.9 / 55.9 / 48.3 / 33.5); 66 m relief 1.63 / 4.67 / 4.55 /
+4.43 / 2.36 m (DICE 1.98 / 4.67 / 4.91 / 13.16 / 3.35; prototype 0.87 / 2.45 / 3.21 / 2.80 / 1.52); HI 0.29 / 0.42 /
+0.41 / 0.36 / 0.22 (DICE 0.27 / 0.41 / 0.41 / 0.36 / 0.21; prototype 0.58 - 0.60). The Rust statistics equal the
+probe's on the same files to the printed digit.
+
+| Run (release, this PC, other rounds building) | Time | Peak RAM |
+|---|---|---|
+| `bfbc2 terrain generate`, 1,024 (five biomes, seed 7) | 1.1 - 2.4 s | 126 MB |
+| `bfbc2 terrain generate`, 2,048 (five biomes, seed 11) | 6.8 - 9.8 s | 486 MB |
+| `cargo test -p bc2-terragen` (dev profile: two whole 1,024 terrains, one on 1 and 4 threads, five biomes) | 11.5 s | - |
+
+Files: a 1,024 main block is 2,171,963 bytes and a 2,048 one 8,669,245 bytes (DICE's sizes); material maps 0.5 - 4 MB.
+
+### What is left
+
+- The sub-terrain ring and the visual water (TGEN-PLAN-1's TG1 row; moved to TG2 with the visual terrain).
+- Temperate's rough relief (10 m / 66 m: 0.94 / 4.43 m against DICE's median 4.77 / 13.16, which three rocky terrains
+  set): the ridged / terraced option of TGEN-GEN-3.
+- Jungle's 10th slope percentile (3.9 against 0.6; DICE's range 0 - 7).
+- The playable area kept flatter (TGEN-PLAY-1) once A3 / TG5 give its region; shores and fords.
+- `spec/probes/terrain_gen_proto.py` is not retired: its visual-terrain writer (TGEN-VIS-1) has no Rust twin yet and
+  its checks are the Python readers' view of a generated terrain; TG2 retires it with the visual writer.
+- Unproven until a playtest: everything TGEN-OUT-5 lists (a generated block in game, its envelope, the depth map of
+  255, the water mesh).
+
 ## E5: terrain sculpt and paint (2026-11-23, branch `e5`)
 
 The map editor's Terrain workspace works: sculpt brushes and the material paint, saved as project operations,

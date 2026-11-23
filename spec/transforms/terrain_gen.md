@@ -272,7 +272,8 @@ The median of the terrains' median slopes is 20.4 degrees; within a terrain the 
 10th percentile is 0 - 10 degrees (flat floors, sea bed, roads), the 90th 4 - 71 degrees and the 99th 8 - 84 (DICE's
 cliffs: MP_004 83, SP_007 84). The steep tail is what a fractal surface lacks: the prototype matches each biome's
 median slope exactly and its spectrum within 0.1 but reaches a 99th-percentile slope of 20 - 56 degrees where the same
-biomes' DICE medians are 53 - 75, and half or less of DICE's 66 m relief (TGEN-GEN-3 names the fix).
+biomes' DICE medians are 53 - 75, and half or less of DICE's 66 m relief (TGEN-GEN-3 names the fix; round TG1's
+generator reaches 52 - 76 degrees and 70 - 100 % of the relief on four biomes: TGEN-GEN-4).
 
 [test: core/tests/test_spec_probes.py::terrain_shapes]
 [test: core/tests/test_spec_probes.py::terrain_generator_prototype]
@@ -355,8 +356,14 @@ The prototype levels a disc of 24 m radius at each requested site to the median 
 ground over the next 24 m; the pad's middle varies by under 0.5 m (TGEN-PLAY-2's 1.5 degree median slope). Pads are
 placed before the water level is set, so a pad never ends under water unless the site asks for it.
 
+Round TG1's generator does the same (`Settings::pads`, world metres, radius 24 by default in `bfbc2 terrain
+generate --pad`), after the relief is scaled and before the water level is set; the test levels three pads on an arid
+terrain and finds each middle under 0.5 m.
+
 [test: core/tests/test_spec_probes.py::terrain_generator_prototype]
+[test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 [code: spec/probes/terrain_gen_proto.py:111-117]
+[code: rust/bc2-terragen/src/generate.rs:649-676]
 
 ## 5. The generator
 
@@ -371,8 +378,16 @@ silent change of old projects' terrain); the random source is a counter-based ge
 PCG64; TG1 in Rust: a seeded generator with no platform or thread-count dependence, so parallel generation stays
 deterministic).
 
+Round TG1's generator (`bc2_terragen`): every random value is a hash of (seed, step, index) (SplitMix64's mix), every
+parallel step computes each value on its own and every sum runs in a fixed order, and hydraulic erosion's droplets run
+one after the other; the same settings give the same bytes on one thread and on four. `bfbc2 terrain generate` writes
+`terrain.json` beside the resources with the seed, the settings and `generator_version` (1).
+
 [test: core/tests/test_spec_probes.py::terrain_generator_prototype]
+[test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 [code: spec/probes/terrain_gen_proto.py:94-122]
+[code: rust/bc2-terragen/src/rng.rs:1-46]
+[code: rust/bc2-cli/src/terrain_cli.rs:120-151]
 
 ### TGEN-GEN-2: The prototype's pipeline matches DICE's medians
 
@@ -390,24 +405,95 @@ the tails it misses are TGEN-SHAPE-2's.
 
 ### TGEN-GEN-3: What the real generator adds (round TG1)
 
-Status: **inferred** · Variants: PC
+Status: **implemented** · Variants: PC
 
-To reach DICE's tails and skew (TGEN-SHAPE-1 / -2) the Rust generator adds, each measured with terrain_shape.py's
-statistics against the biome's DICE range before it is kept:
+Round TG1's generator (`rust/bc2-terragen`, `bc2_terragen::generate`) reaches DICE's tails and skew (TGEN-SHAPE-1 /
+-2) with, in order, each step measured with terrain_shape.py's statistics against the biome's DICE medians before it
+was kept (TGEN-GEN-4):
 
-- **hydraulic erosion** (particle droplets or stream power over flow accumulation): carves valleys with flat floors and
-  steep sides, the 99th-percentile slope and the 66 m relief the prototype lacks;
-- **height remapping** to the biome's hypsometric integral (0.21 - 0.41 by biome): low basins, long upper tail;
-- **ridged / terraced noise** as an option for snow and temperate cliffs;
-- **constraints from the playable area**: a region of TGEN-PLAY-1's size and shape kept flatter (median slope 8 - 9
-  degrees against 14 - 16 outside), objective pads (TGEN-PLAY-3), shores and fords where A3's layout asks for them;
-- **the edge**: mountains or sea per TGEN-SHAPE-4;
-- **an optional ring** of sub-terrain blocks (TGEN-REQ-3).
+1. **spectral synthesis** at the biome's beta (TGEN-SHAPE-3), periodic on the square (two FFTs);
+2. **height remapping and slope matching**, five rounds: the heights remapped by a power to the biome's hypsometric
+   integral, then each sample's gradient given the magnitude its rank takes in the biome's slope distribution (the
+   10th, 50th, 90th and 99th percentiles of TGEN-SHAPE-2) and the surface rebuilt from the gradients by a periodic
+   Poisson solve (least squares, by FFT); each round measures the percentiles as the probe does (central differences)
+   and corrects the distribution it aims at. This step is what gives DICE's steep tail: a fractal surface's slopes are
+   near-Gaussian, DICE's are a flat floor and a heavy tail;
+3. **hydraulic erosion**: 125 particle droplets per 1,000 samples (Beyer's model: inertia, capacity, erosion over a
+   radius-3 brush, deposition) carve valleys;
+4. **the edge** (TGEN-SHAPE-4): a bowl added until the border ring's median minus the centre's is the biome's (or the
+   settings': negative sinks it into sea);
+5. **the sea floor flattened** where the 10th slope percentile would stay more than 2 degrees over the biome's (the
+   ground under the coming water level keeps a share of its relief found by bisection: DICE's sea and lake floors are
+   flat), the hypsometric integral remapped once more, the relief scaled to the biome's median slope, the edge
+   corrected again;
+6. **objective pads** (TGEN-PLAY-3), the heights from 0, the range rounded up to 50 m (at least the biome's), the
+   water level where the biome's (or the settings') share of the ground lies under it.
 
-Performance: a 2,048 terrain is 4 M samples; spectral synthesis is two FFTs and erosion a few hundred passes, which in
-Rust with rayon takes seconds, so the editor can regenerate on every settings change.
+Not done in TG1: ridged / terraced noise (TGEN-GEN-4's one gap left, temperate's rough relief), the playable area kept
+flatter (TGEN-PLAY-1; A3 / TG5 give the region), shores and fords, the sub-terrain ring (TGEN-REQ-3). A 1,024 terrain
+takes 1 - 2.5 s, a 2,048 one 7 - 10 s on this PC (rust/BENCHMARKS.md TG1).
 
-[inferred: TGEN-SHAPE-1 - 3 (what DICE has), TGEN-SHAPE-2 (what the prototype misses), TGEN-PLAY-1 / -2, A3's ROADMAP row]
+[code: rust/bc2-terragen/src/generate.rs:146-203]
+[code: rust/bc2-terragen/src/generate.rs:209-419]
+[code: rust/bc2-terragen/src/generate.rs:426-524]
+[code: rust/bc2-terragen/src/generate.rs:564-676]
+
+### TGEN-GEN-4: TG1's terrains fall on DICE's biome medians
+
+Status: **verified** · Variants: PC
+
+terrain_shape.py's `shape()` on the main blocks `bfbc2 terrain generate` writes (seed 7, 1,024 samples, one pad at the
+centre; the prototype at the same seed), against the biome's DICE median (TGEN-SHAPE-1, -2, -4):
+
+| Biome | | Slope p10 / p50 / p90 / p99 deg | HI | Relief 10 m / 66 m (m) | beta | Border - centre m | Under water |
+|---|---|---|---|---|---|---|---|
+| arid | DICE | 1.2 / 8.0 / 32.0 / 52.8 | 0.27 | 0.20 / 1.98 | 4.02 | 35.1 | 0.12 |
+| | prototype | 3.1 / 8.0 / 14.5 / 20.0 | 0.60 | 0.12 / 0.87 | 3.94 | -4.0 | 0.12 |
+| | TG1 | 1.8 / 8.7 / 30.0 / 51.9 | 0.29 | 0.28 / 1.63 | 4.09 | 35.0 | 0.12 |
+| jungle | DICE | 0.6 / 22.2 / 54.9 / 75.0 | 0.41 | 0.68 / 4.67 | 4.07 | 14.8 | 0.20 |
+| | prototype | 9.0 / 22.2 / 37.2 / 45.9 | 0.60 | 0.32 / 2.45 | 4.00 | -41.3 | 0.20 |
+| | TG1 | 3.9 / 22.3 / 56.6 / 76.0 | 0.42 | 0.90 / 4.67 | 4.00 | 14.9 | 0.20 |
+| snow | DICE | 6.6 / 30.5 / 58.0 / 71.1 | 0.41 | 0.46 / 4.91 | 4.38 | 9.8 | 0.42 |
+| | prototype | 12.7 / 30.5 / 47.4 / 55.9 | 0.60 | 0.31 / 3.21 | 4.32 | -89.9 | 0.42 |
+| | TG1 | 7.9 / 30.5 / 60.6 / 74.6 | 0.41 | 0.83 / 4.55 | 4.33 | 9.7 | 0.42 |
+| temperate | DICE | 6.2 / 26.0 / 55.7 / 75.1 | 0.36 | 4.77 / 13.16 | 3.71 | 37.2 | 0.03 |
+| | prototype | 10.8 / 26.2 / 41.7 / 48.3 | 0.58 | 0.50 / 2.80 | 3.63 | -4.3 | 0.03 |
+| | TG1 | 6.6 / 25.9 / 56.4 / 75.3 | 0.36 | 0.94 / 4.43 | 3.76 | 37.3 | 0.03 |
+| vietnam | DICE | 0.0 / 14.2 / 29.4 / 64.6 | 0.21 | 0.41 / 3.35 | 3.94 | 6.9 | 0.18 |
+| | prototype | 5.6 / 14.2 / 25.0 / 33.5 | 0.59 | 0.22 / 1.52 | 3.86 | -23.4 | 0.18 |
+| | TG1 | 0.8 / 14.2 / 32.9 / 62.7 | 0.22 | 0.45 / 2.36 | 3.98 | 7.0 | 0.18 |
+
+The prototype's gap is closed: the 99th-percentile slope is 52 - 76 degrees (DICE's medians 53 - 75; the prototype
+20 - 56), the 90th within 4 degrees, the 66 m relief 70 - 100 % of DICE's median on four biomes (the prototype 44 -
+65 %), the hypsometric integral within 0.02 (the prototype 0.58 - 0.60 on all five), the border within 0.2 m. Left:
+temperate's 10 m / 66 m relief (0.94 / 4.43 m against 4.77 / 13.16: the median of its five terrains sits on three rocky
+ones, MP_003, MP_004, SP_005; BC1_Harvest_Day has 0.13 / 1.33) wants the ridged / terraced option; jungle's 10th slope
+percentile 3.9 against 0.6 (DICE's range 0 - 7). A 2,048 jungle terrain (seed 11) measures 2.3 / 22.2 / 56.2 / 75.6,
+HI 0.41, relief 0.85 / 4.09 m, beta 3.93, border 14.8 m; its file is 8,669,245 bytes, the size of DICE's 2,048 blocks.
+The test holds every biome at seed 7 near its medians (median slope within 1 degree, p90 within 6, p99 within 5, HI
+within 0.03, beta within 0.3, border within 3 m, under-water share within 0.01).
+
+[test: rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians]
+[data: spec/probes/terrain_shape.py's shape() on bfbc2 terrain generate's main blocks and the prototype's terrains, 2026-11-23, as tabled; DICE's medians from the same probe's run on the 30 terrains]
+
+### TGEN-GEN-5: The library the editor and the command line call
+
+Status: **implemented** · Variants: PC
+
+`bc2_terragen` is a crate of its own (bc2-formats and rayon only), so the map editor's Create Level and sculpt tools
+(E5, TG3) and `bfbc2 terrain generate` share it: `Settings` (biome, size, seed, border, water share, pads, erosion) ->
+`Terrain::new` (the height field as stored values with its range and water level, the 0.5 m material cells, the
+names) -> `Terrain::resources(name)` (the terrain bundle's `Terrains/<T>/<T>.Heightfield-000.res`,
+`<T>-MaterialMap.res`, `<T>.Water.Mesh.res`, the 0-byte `<T>.res`, each with its resource type), the blocks written
+through `bc2_formats::terrain_codec` (round E5's codec: DICE's 30 main blocks and material maps byte for byte);
+`paint::paint` repaints the materials of any height field (a sculpted one too). The command line:
+`bfbc2 terrain generate --biome <b> --size 1024|2048 --seed <n> --out <folder> [--name <T>] [--border <m>]
+[--water <share>] [--pad <x>,<z>[,<r>]] ... [--erosion <k>]`, which writes the resources and `terrain.json`
+(TGEN-GEN-1) and refuses other sizes (TGEN-REQ-2).
+
+[code: rust/bc2-terragen/src/lib.rs:118-139]
+[code: rust/bc2-cli/src/terrain_cli.rs:153-216]
+[test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 
 ### TGEN-MAT-1: Material names come from the donor level's grid
 
@@ -419,6 +505,7 @@ prototype's per-biome lists are names DICE's terrains of that biome use (TGEN-BI
 slope material.
 
 [code: spec/probes/terrain_gen_proto.py:53-59]
+[code: rust/bc2-terragen/src/biome.rs:114-122]
 
 ### TGEN-MAT-2: Materials are painted from height and slope; visual layers follow the same rules
 
@@ -431,6 +518,8 @@ and distance to water, the visual tiled layers painted to match (TEDIT-MM-1: the
 materials by its own table), roads and paths as both.
 
 [code: spec/probes/terrain_gen_proto.py:208-219]
+[code: rust/bc2-terragen/src/paint.rs:27-53]
+[test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 
 ### TGEN-VEG-1: Vegetation and props are placed as the level's model groups
 
@@ -457,7 +546,13 @@ the probe's DICE-checked reader re-encodes its depth runs, padding and min / max
 envelope grid, built with each vertex the lowest sample of the cells around it, lies at or under every sample
 (TERR-HF-11's requirement, TEDIT-HF-3). The 2,048 file is 8,669,245 bytes, the size of DICE's 2,048 blocks.
 
+Round TG1's main blocks (`bc2_terragen`, written by `bc2_formats::terrain_codec`) read in `bc2_formats::terrain::parse`
+with the stored values the generator made, DICE's header words, the tail taken as a main block's, decode in the codec
+and re-encode byte for byte with a depth map of 255 and the envelope under every sample (`under_share` 1.0); the
+1,024 file has DICE's 1,024 size and the 2,048 one (8,669,245 bytes) DICE's 2,048 size.
+
 [test: core/tests/test_spec_probes.py::terrain_generator_prototype]
+[test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 [code: spec/probes/terrain_gen_proto.py:127-178]
 
 ### TGEN-OUT-2: A generated material map decodes and re-encodes byte for byte
@@ -465,9 +560,12 @@ envelope grid, built with each vertex the lowest sample of the cells around it, 
 Status: **verified** · Variants: PC
 
 The prototype's material map (2,048 cells a side for a 1,024 m terrain) decodes to the painted cells and its names, and
-re-encodes byte for byte with DICE's coding (TERR-MM-2).
+re-encodes byte for byte with DICE's coding (TERR-MM-2). Round TG1's material maps (the codec's `MaterialMap`)
+decode to the painted cells and the biome's names and re-encode byte for byte; an arid terrain uses all four painted
+materials (ground, steep, slope, under water).
 
 [test: core/tests/test_spec_probes.py::terrain_generator_prototype]
+[test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 [code: spec/probes/terrain_gen_proto.py:192-205]
 
 ### TGEN-OUT-3: A generated water mesh reads in the Rust reader
@@ -475,8 +573,11 @@ re-encodes byte for byte with DICE's coding (TERR-MM-2).
 Status: **verified** · Variants: PC
 
 A one-body water mesh (a quad over the square at the water level) reads in `bfbc2core.water.parse_mesh` (Rust).
+Round TG1's (`bc2_terragen::water::water_mesh`) reads in `bc2_formats::water::parse_mesh`: 4 vertices, 2 triangles.
 
 [test: core/tests/test_spec_probes.py::terrain_generator_prototype]
+[test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
+[code: rust/bc2-terragen/src/water.rs:7-23]
 [code: spec/probes/terrain_gen_proto.py:222-227]
 
 ### TGEN-OUT-4: The writer canary: DICE's 30 main blocks written again
@@ -486,7 +587,9 @@ Status: **verified** · Variants: PC
 The prototype's block writer, given a DICE main block's heights, depth map, bounds and header words, writes the
 block byte for byte on 30 of 30 with DICE's own envelope; with an envelope it builds itself the file is identical up
 to the envelope and the built envelope lies under every sample on 30 of 30. So the writer adds nothing of its own to
-a terrain except the envelope, and TG1's Rust writer is held to the same canary.
+a terrain except the envelope, and TG1's Rust writer is held to the same canary. TG1 writes through round E5's codec
+(`bc2_formats::terrain_codec`), whose corpus test is the canary in Rust: DICE's 30 main blocks and 30 material maps
+decoded and written again byte for byte, 288 sub-terrain quadtrees computed equal to the stored ones.
 
 [test: core/tests/test_spec_probes.py::terrain_generator_prototype]
 [code: spec/probes/terrain_gen_proto.py:181-189]
@@ -520,11 +623,11 @@ Status: **inferred** · Variants: PC
 
 | Part | Verdict | Effort |
 |---|---|---|
-| height field writer (main block, ring) | feasible now: TGEN-OUT-1 / -4 | small |
+| height field writer (main block, ring) | main block done (round E5's codec, round TG1's generator: TGEN-OUT-1 / -4); the ring left | small |
 | material map writer | feasible now: TGEN-OUT-2 | small |
 | water mesh | feasible now (TGEN-OUT-3); the visual water needs its donor slots copied (WATER-VIS-3) | small |
 | generator to DICE's medians | feasible now (TGEN-GEN-2) | small |
-| generator to DICE's tails and skew | needs research: erosion and remapping tuned against TGEN-SHAPE-1 / -2 | medium |
+| generator to DICE's tails and skew | done in round TG1 (TGEN-GEN-3 / -4: slope matching, remapping, erosion); temperate's rough relief left | medium |
 | visual terrain, rule layers only | feasible now (TGEN-VIS-1); unproven in game | small |
 | visual terrain, tiled layers and atlas | feasible (TEDIT-ATL-1 / TEDIT-VT-1 decoded); needs E5's paint path | medium |
 | patch / undergrowth shader entries renamed and retargeted in three databases | feasible: OPFOR's Wake Island clone does it (TEDIT-SH-2) | medium |
@@ -534,9 +637,10 @@ Status: **inferred** · Variants: PC
 | path data | feasible with NK6's stage sampling; quality bounded by NavKit's parity | small (wiring) |
 | in-game acceptance | blocked by the in-game pause (TGEN-OUT-5) | - |
 
-Rounds: **TG1** the Rust generator and writers in `bc2-levelwrite` (or a `terrain` module of it): height field with
-ring, material map, water mesh and visual water, the canary and the readers' round trip, erosion and remapping tuned to
-the biome statistics (terrain_shape.py as the scorer). **TG2** the visual side: one donor's patch and undergrowth
+Rounds: **TG1** (done 2026-11-23: `rust/bc2-terragen`, `bfbc2 terrain generate`; the writers are round E5's codec)
+the Rust generator and writers: main block, material map, water mesh, the canary and the readers' round trip, erosion
+and remapping tuned to the biome statistics (terrain_shape.py as the scorer); the ring and the visual water move to
+TG2. **TG2** the visual side: one donor's patch and undergrowth
 shaders renamed into a new terrain's databases, rule-layer patch maps, the colour / occlusion map, the editor's
 game-accurate view of a generated terrain. **TG3** E7's Create Level path A wired to the generator (a "Generate"
 choice beside "From a height map": the same `TerrainImport` then written by the generator), the export with the
