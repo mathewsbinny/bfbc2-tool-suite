@@ -11683,3 +11683,50 @@ entities do with `IsMenuDevOptsEnabled` set; the handlers of the settings and co
 ### What is left (SPG3-rest)
 
 `spec/COVERAGE.md` section 2, items 1 - 4, and ROADMAP's SPG3-rest.
+
+## SPG4: the specification's census - everything in DICE's game files against the rules (2026-11-23, branch `spg4`)
+
+A specification round (no Rust or tool code changed): the census, two read-only probes, 13 new spec files, 72 rules
+(1,348 -> 1,420). Static analysis only: DICE's files through the suite's readers, `BFBC2Game.exe` (build 795745) read
+as data on a scratch copy (its `typeinfo` section, strings, capstone around single references); nothing launched.
+
+| Probe | Reads | Time | Checks |
+|---|---|---|---|
+| `spec/probes/census.py --measure` | the game folder's file list, every entry header of DICE's 1,021 bundles, every DBX partition once (84,641, tree parse), the exe's `typeinfo` section | 117 s (2 workers) | 4 in the game tier (files, res, dbx, engine equal to `census.json`) |
+| `spec/probes/census.py --check` | `census.json` and the spec's markdown | 0.5 s | the quick tier's gate |
+| `spec/probes/resources.py` | the distinct OccluderMesh, SootMesh, AnimTreeInfo, ImpulseResponse, RagdollResource and BinkMemory entries, the 33 movies, the loose files | 5 s | 36 |
+
+**Census, before -> after** (a rule covers an item when its text names it as a whole word; catalogue rules excepted):
+
+| Category | Items | Covered before | Covered after | Out of scope | None after |
+|---|---|---|---|---|---|
+| file kinds outside the bundles | 16 (1,317 files) | 6 | 13 | 3 (DirectX, `winui.dll`, `Support`) | 0 |
+| bundle entry types | 37 | 28 | 37 | 0 | 0 |
+| DBX instance classes | 630 (2,888,042 instances) | 304 | 630 | 0 | 0 |
+| typeinfo modules | 22 | 19 | 22 | 0 | 0 |
+| typeinfo records (not gated) | 1,900 | 419 | 799 | 0 | 1,101 |
+
+**Findings.**
+
+- The executable's reflection: a `typeinfo` record is 24 bytes (28 for value types and enumerations, with their
+  member table in `fieldinf`); kind = (flags >> 4) & 0x1F; every DBX class is one of its 1,362 classes (ENG-TI-1, 2).
+- The PC's `SootMesh` has a 16-byte float vertex form in 6 of 40 files, which the console converter's guard ("every
+  BFBC2 soot mesh has" the 12-byte form) does not allow for (SOOT-VTX-1); its tail is the box and triangle counts.
+- `AnimTreeInfo` is the tree compiler's memory image: a base address and three blocks, every pointer absolute in that
+  image (ATREE-PTR-1) - which is why ANIM-TREE-3 saw pointer shifts between trees.
+- `ImpulseResponse` is the one big-endian PC resource (`irf1`, FFT partitions of 1,024 frames, IR-HDR-1).
+- The movies outside the bundles carry the RES header with zero length words; `BinkTexture` ones have 8 bytes more
+  (BINK-OUT-1). `database.dbmanifest` is DICE's editor database manifest, a copy of the build overlays' entry;
+  `dfe`, `InstallationData.xml`, `UpdateHistory.log` and the dialog logo are named by no game file.
+- Only SP_006 has `HasFlyingAI`, and it is the only level with an `AerialHeightmap.res` (GFILE-AHM-1).
+- The spotting cones are per weapon (`...WeaponEffectsData`: `ActiveSpotConeAngle`, `FocusConeAngle`,
+  `OrderConeAngle`); the kill cam has no data class, only a texture atlas.
+
+**Unproven until a playtest** (in-game tests paused): the FOV's composition (SOLD-FOV-1), the aerial height map's
+loader condition, whether the start-up object reads `database.dbmanifest`.
+
+### What is left (SPG4-rest)
+
+The 1,101 typeinfo records no rule names (`spec/CENSUS.md` section 5), the run-time semantics behind the data-side
+files' rules (each file's open questions), and the opaque insides of OccluderMesh's triangle records, AnimTreeInfo's
+blocks and the impulse responses' partitions.

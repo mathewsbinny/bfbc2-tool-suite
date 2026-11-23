@@ -4,7 +4,8 @@ instead of observed. Read only; skipped without the game copy. `terrain.py` and 
 their functions; SPG's five print-only probes (`materials`, `destruction`, `lighting`, `vehicles`, `weapons`) by the
 lines of their output that hold a rule's counts (EXPECT; `<head>§<line>` for a line inside one block of the output);
 `grime.py`, `menus.py`, `modes.py`, `level.py`, `registry.py` and round SPG3's `options.py`, `scripting.py` and
-`dependencies.py` by their own `checks()`.
+`dependencies.py`, and round SPG4's `resources.py` and `census.py` (the census as spec/census.json holds it) by their
+own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -831,6 +832,17 @@ def asset_graph(game: Path) -> None:
     probe_checks('dependencies', game)
 
 
+# spec: OCC-HDR-1, OCC-VTX-1, SOOT-HDR-1, SOOT-VTX-1, SOOT-TAIL-1, ATREE-HDR-1, ATREE-PTR-1, IR-HDR-1, HAVOK-RAG-1
+# spec: BINK-HDR-1, BINK-RES-1, BINK-OUT-1, GFILE-AHM-1, GFILE-DBM-1, GFILE-DFE-1, GFILE-INST-1, GFILE-LOGO-1
+def resources(game: Path) -> None:
+    probe_checks('resources', game)
+
+
+# spec: GFILE-KIND-1, ENG-TI-1, ENG-TI-2, ENG-TI-3, SHDB-TYPE-1
+def census(game: Path) -> None:
+    probe_checks('census', game)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -852,7 +864,8 @@ def main() -> int:
                                        spg_materials, spg_destruction, spg_lighting, spg_vehicles, spg_weapons,
                                        lambda: grime(game), lambda: menus(game), lambda: modes(game),
                                        lambda: level_partitions(game), lambda: registries(game),
-                                       lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game)]
+                                       lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game),
+                                       lambda: resources(game), lambda: census(game)]
     for step in steps:
         step()
     print(f'{"FAILED " + str(len(FAILED)) if FAILED else "passed"}: the specification probes\' counts '

@@ -25,30 +25,30 @@ resource type is on `.res` names; `<non-resource>` is on `.dbx`, `.res`, `.bin` 
 | `ITexture` | 9,784 | `formats/texture.md` | reads, converts, writes |
 | `HavokPhysicsData` | 4,128 | `formats/havok.md` | reads, converts |
 | `RigidMeshSet` | 3,830 | `formats/mesh.md` | reads, writes |
-| `AnimTreeInfo` | 3,409 | - | copied only |
+| `AnimTreeInfo` | 3,409 | `formats/animtree.md` (header, blocks, pointers) | copied (OPFOR rewrites hand records) |
 | `DeltaAnimation` | 1,666 | `formats/granny.md` (as Granny) | reads |
 | `SkinnedMeshSet` | 1,216 | `formats/mesh.md` | reads, writes |
 | `AimAnimation` | 1,126 | `formats/aimanim.md` | reads, converts |
 | `SwfMovie` | 1,027 | `formats/apt.md`, `formats/bigf.md` | reads, edits |
 | `CompositeMeshSet` | 958 | `formats/mesh.md` | reads, writes |
-| `OccluderMesh` | 814 | - | copied only |
+| `OccluderMesh` | 814 | `formats/occluder.md` | copied only |
 | `TerrainHeightfield` | 527 | `formats/terrain.md` | reads, converts |
-| `SootMesh` | 495 | - | converts Xbox 360 -> PC (`bc2-convert` `soot_mesh`) |
+| `SootMesh` | 495 | `formats/soot.md` | converts Xbox 360 -> PC (`bc2-convert` `soot_mesh`) |
 | `TreeMeshSet` | 247 | `formats/mesh.md` | reads, writes |
 | `GrannyModel` | 178 | `formats/granny.md` | reads, converts |
 | `Dx9ShaderDatabase`, `Dx10ShaderDatabase`, `Dx11ShaderDatabase` | 136, 137, 137 | `formats/shaderdb.md` | reads, writes |
 | `Dx9PixelShader`, `Dx10PixelShader`, `Dx11PixelShader` | 115 each | `formats/shaderdb.md` | reads |
 | `Dx9VertexShader`, `Dx10VertexShader`, `Dx11VertexShader` | 14 each | `formats/shaderdb.md` | reads |
 | `VisualTerrain` | 97 | `formats/terrain.md` | reads, converts |
-| `IrradianceVolume` | 76 | - | copied only |
-| `BinkMemory` | 66 | - | copied only |
-| `WeatherSystem` | 57 | - | copied only |
+| `IrradianceVolume` | 76 | `engine/lighting.md` LIGHT-IRR-1 | copied only |
+| `BinkMemory` | 66 | `formats/bink.md` | copied only |
+| `WeatherSystem` | 57 | `engine/weather.md` WTH-RES-1 (4 bytes) | written by the export |
 | `WaterMesh` | 53 | `formats/water.md` | reads, converts |
 | `Terrain` | 53 | `formats/terrain.md` (always 0 bytes) | copied |
 | `TerrainMaterialMap` | 53 | `formats/terrain.md` | reads, converts |
 | `VisualWater` | 52 | `formats/water.md` | reads, converts |
-| `ImpulseResponse` | 21 | - | copied only |
-| `RagdollResource` | 2 | - | copied only |
+| `ImpulseResponse` | 21 | `formats/audio.md` IR-HDR-1 | copied only |
+| `RagdollResource` | 2 | `formats/havok.md` HAVOK-RAG-1 | copied only |
 
 Evidence: [data: 444,286 live entries of 1,086 bundles grouped by type and extension (round SP1 survey)] [code: rust/bc2-formats/src/fbrb/header.rs:20-21] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 392,246 live entries: 37 types (`<non-resource>` on .dbx 124,458, .res 14,694, .dbmanifest 2; every other type on .res only)]
 
@@ -126,7 +126,8 @@ Status: **verified** · Variants: PC
 
 The wrapper occurs in exactly two bundle families: `async/ondemand_awards` (`ITexture`: the award, rank, map-list
 and loading-screen pictures) and `async/ondemand_sounds` (`Wave`). No other `.res` or `.bin` entry of any bundle
-begins with `RES`, and the same types in other bundles are not wrapped (8,600 other `ITexture` entries).
+begins with `RES`, and the same types in other bundles are not wrapped (8,600 other `ITexture` entries). Outside the
+bundles the movies under `Output/win32/movies` carry the header too, with both length words 0 (BINK-OUT-1).
 
 Evidence: [data: wrapped: Dist ondemand_awards 889, Package ondemand_awards 295, Dist ondemand_sounds 205, Package ondemand_sounds 14; every `.res` / `.bin` entry of the 1,086 bundles checked, no other begins with `RES`] [test: rust/bc2-formats/tests/spec_corpus.rs::res_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: wrapped: ITexture in ondemand_awards 889, Wave in ondemand_sounds 219; no other `.res` / `.bin` entry begins with `RES`]
 
@@ -146,9 +147,8 @@ Evidence: [code: rust/bc2-editor/src/catalog.rs:185-190] [code: rust/bc2-levelwr
 - What the async loader does with the RES header: whether it checks the type name or version, and which of the two
   length words (and size2) it uses. Why the header is there only in the on-demand bundles (a streaming reader that
   learns a resource's type and length before the bundle header is parsed is the likely reason).
-- The layouts of `AnimTreeInfo`, `OccluderMesh`, `IrradianceVolume`, `BinkMemory`, `WeatherSystem`,
-  `ImpulseResponse` and `RagdollResource`, which the suite copies but does not read; `SootMesh` is converted but not
-  specified yet.
-- What `database.dbmanifest` lists and whether the game reads it.
+- Round SPG4 gave every type a layout (the table's third column); still opaque inside: `AnimTreeInfo`'s three blocks,
+  `OccluderMesh`'s triangle records, `ImpulseResponse`'s partitions, `SootMesh`'s flags and tail words.
+- `database.dbmanifest` is DICE's editor database manifest (GFILE-DBM-1); whether the game parses it is open.
 - Whether the game resolves a resource by name alone or also checks the entry type (a resource of the right name and
   the wrong type).

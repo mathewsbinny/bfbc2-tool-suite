@@ -123,6 +123,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | **Containers** | |
 | [formats/fbrb.md](formats/fbrb.md) | `.fbrb` bundles: header, entries, payload, padded layouts, the manifest |
 | [formats/res.md](formats/res.md) | resource entries: the type catalogue, names and extensions, per-type wrappers |
+| [formats/game_folder.md](formats/game_folder.md) | the files outside the bundles: the census's kinds, the aerial height map, `database.dbmanifest`, `dfe`, the patcher's record, what is out of scope (SPG4) |
 | [formats/bigf.md](formats/bigf.md) | BIGF / BIG4 archives (menu movie resources) |
 | [formats/stfs.md](formats/stfs.md) | Xbox 360 STFS packages (title updates, DLC) |
 | [formats/xiso.md](formats/xiso.md) | Xbox 360 disc images (XDVDFS) |
@@ -139,6 +140,9 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [formats/texture.md](formats/texture.md) | ITexture / XenonTexture: header, PC layout, Xenos tiling |
 | [formats/granny.md](formats/granny.md) | Granny models and animations |
 | [formats/shaderdb.md](formats/shaderdb.md) | Dx9 / Dx10 / Dx11 shader databases, vertex layouts, Xenos microcode |
+| [formats/occluder.md](formats/occluder.md) | OccluderMesh: the occlusion stand-in meshes (SPG4) |
+| [formats/soot.md](formats/soot.md) | SootMesh: the explosion soot surfaces (SPG4) |
+| [formats/animtree.md](formats/animtree.md) | AnimTreeInfo: compiled animation trees' header, blocks and pointers (SPG4) |
 | **Navigation** | |
 | [formats/hpd.md](formats/hpd.md) | Kynapse path data (`.hpd`) and its kymesh / graph blocks |
 | [formats/kynapse.md](formats/kynapse.md) | Kynapse path data's meaning: worlds per type, sectors, tiles and resolution, areas, portals, links, the route graph, units and frames |
@@ -146,7 +150,8 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [formats/culltree.md](formats/culltree.md) | static cull trees |
 | **Menus, sound, text** | |
 | [formats/apt.md](formats/apt.md) | APT / SwfMovie menu movies |
-| [formats/audio.md](formats/audio.md) | Wave resources, EA-XAS audio |
+| [formats/audio.md](formats/audio.md) | Wave resources, EA-XAS audio, impulse responses (SPG4) |
+| [formats/bink.md](formats/bink.md) | Bink videos: BinkMemory resources and the movies outside the bundles (SPG4) |
 | [formats/loc.md](formats/loc.md) | localization tables |
 | [formats/aimanim.md](formats/aimanim.md) | AimAnimation |
 | [formats/bf1943.md](formats/bf1943.md) | BF1943 as a source: where it is read from, its bundles and levels, the class differences DICE resolved; an index of the BF1943 rules elsewhere (round SPG2) |
@@ -187,6 +192,14 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [engine/settings.md](engine/settings.md) | options and settings: `settings.ini`, `GameSettings.ini` and its defaults partition, the engine settings objects, the command line, the options screens' getters and commands (SPG3) |
 | [engine/input.md](engine/input.md) | the input system: entry input actions, concepts, device bindings, mappings, the user's binding files, the controls screen, the PC pad path, tuning data, OPFOR's controller patch (SPG3) |
 | [engine/scripting.md](engine/scripting.md) | scriptability: the authoring layers and their reach, the level event graph's classes, data entities that reach the engine, consoles and server administration, what a modder scripting layer needs (SPG3) |
+| [engine/soldier.md](engine/soldier.md) | the soldier: the character controller's states and poses, sprint, collision, cameras and view recoil, the field of view, aim assistance, spotting (SPG4) |
+| [engine/squads.md](engine/squads.md) | teams, squads and players: team data, squad assets and ghosts, the player's squad system's names (SPG4) |
+| [engine/hud.md](engine/hud.md) | the HUD's data: configuration, menu movies and tips, the minimap and its icons, markers, screen effects, the spectator, the kill cam (SPG4) |
+| [engine/campaign.md](engine/campaign.md) | the single-player campaign: objectives and save points, fades and restrictions, triggers, cutscenes, waypoints and ambient life, descriptions and presence (SPG4) |
+| [engine/text.md](engine/text.md) | text: bitmap fonts and their glyphs, the text databases, UI atlases, subtitles (SPG4) |
+| [engine/sound_graph.md](engine/sound_graph.md) | sound graphs (ports, samplers, processing and output nodes), voice-over trees and trigger tables, the mix and the sound system (SPG4) |
+| [engine/internals.md](engine/internals.md) | engine internals: the executable's `typeinfo` records, memory groups, heaps and pools, the job system, the menu background scene (SPG4) |
+| [engine/data_classes.md](engine/data_classes.md) | the remaining DBX classes by system: emitter update processors, tree parameters, vehicle physics components, gadgets, the AI's constants, matchmaking, edge models (SPG4) |
 | **The suite's transformations (layer 4)** | |
 | [transforms/pack.md](transforms/pack.md) | FBRB unpack and pack |
 | [transforms/dbx.md](transforms/dbx.md) | DBX read / write round trips, import, DbxEdit's commands |
@@ -204,7 +217,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/shaders.md](transforms/shaders.md) | BF1943's Xenos shaders translated for Dx10 / 11: scope, code, binding tables, keys, fetch formats, the merge, Dx9 (SPG2) |
 | [transforms/dependencies.md](transforms/dependencies.md) | dependency graphs: the asset graph (partition references from string tables, dangling references, cycles, resources by name, closures) and the WW2 rebuild's step graph from OPFOR's step records (SPG3) |
 
-[rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it. [COVERAGE.md](COVERAGE.md) maps every BFBC2 system to its tools, rounds and rules; `probes/` holds
+[rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it. [CENSUS.md](CENSUS.md) is everything in DICE's game files (file kinds, resource types, DBX classes, the executable's typeinfo) with the rules that cover each, generated by `probes/census.py` from [census.json](census.json); its `--check` (quick tier) fails when a gated item has no rule. [COVERAGE.md](COVERAGE.md) maps every BFBC2 system to its tools, rounds and rules; `probes/` holds
 the read-only scripts that measured DICE's data for the engine files.
 
 ## Navigation (Kynapse)
@@ -406,3 +419,33 @@ rules verified by game-tier checks, nine of them corrected in place first):
 - **Running**: NKG3 (the D sides' slope rule KYG-DF-1, on by the user's ruling with sp_02's dip a named exception),
   SPG3 (settings, input, scripting, dependency graphs) and NET2 (the network layer and a LAN / VLAN / Direct IP /
   local hosting feasibility study).
+
+**After round SPG4** (2026-11-23: 1,420 rules in 85 files - 842 verified, 129 implemented, 391 observed, 58 inferred;
+72 new in 13 new files and three extended ones; RES-TYPE-1's table re-pointed):
+
+- **The census** (`CENSUS.md`, `census.json`, `probes/census.py`): DICE's game files as four inventories - 16 kinds
+  of file outside the bundles (1,317 files), 37 bundle entry types, 630 DBX instance classes (2,888,042 instances
+  with their members), and the executable's 1,900 `typeinfo` records in 22 modules (ENG-TI-1 - 3). Before the round
+  6 file kinds, 28 entry types, 304 classes and 19 modules had a rule naming them; after it 13 + 3 out of scope, 37,
+  630 and 22. The quick tier's `spec-census` fails on any file kind, entry type, class with 10 or more instances or
+  module with no rule and no out-of-scope reason; the game tier re-measures the census and fails when DICE's files
+  disagree with `census.json`.
+- **Every resource type has a layout**: `OccluderMesh` (OCC), `SootMesh` (SOOT; the PC's 16-byte vertex form the
+  console converter refuses), `AnimTreeInfo` (ATREE: the compiler's memory image and its base address),
+  `ImpulseResponse` (IR-HDR-1: big-endian `irf1` FFT partitions), `RagdollResource` (HAVOK-RAG-1), `BinkMemory` and
+  the out-of-bundle movies (BINK: a RES header with zero lengths), the shader types (SHDB-TYPE-1); `IrradianceVolume`
+  and `WeatherSystem` were specified already (LIGHT-IRR-1, WTH-RES-1) and are now linked from RES-TYPE-1. Opaque
+  inside, said so: the anim tree's blocks, the occluder's triangle records, the IR partitions' data.
+- **The loose files**: the aerial height map (GFILE-AHM-1, read by the flying AI of the one level with
+  `HasFlyingAI`), `database.dbmanifest` (DICE's editor database manifest, a copy of the build overlays' entry),
+  `dfe` (1,000 opaque bytes nothing names), the patcher's `InstallationData.xml` / `UpdateHistory.log`; DirectX,
+  `winui.dll` and `Support` out of scope with reasons.
+- **Systems with no file before**: the soldier, squads, the HUD (minimap, markers, spectator, kill cam), the
+  campaign (objectives, saves, cutscenes, triggers), text and fonts, sound graphs and voice-over, engine internals,
+  and the remaining classes by system (`engine/data_classes.md`). Their rules are the data side - which classes and
+  members DICE uses, where, how many - verified by the census; the run-time behaviour behind them is each file's
+  open questions.
+- **Left (SPG4-rest)**: 1,101 typeinfo records no rule names (`CENSUS.md` section 5, by module: mostly
+  `GameSharedResources`' value types and enumerations and `GameDll`'s run-time entities), the semantics behind the
+  data-side rules (the controller's states, the squad manager, the kill cam, the sound nodes), and the opaque
+  insides listed above.

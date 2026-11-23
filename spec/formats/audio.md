@@ -286,6 +286,38 @@ so the padding samples of the last frame are not played.
 [code: rust/bc2-convert/src/audio.rs:85-94] [code: rust/bc2-convert/src/audio.rs:140] [code: rust/bc2-formats/src/audioframe.rs:158-181]
 [inferred: that the game stops at the sample count rather than the frame end is assumed from DICE's own last blocks, which are cut the same way]
 
+## Impulse responses (`ImpulseResponse`)
+
+### IR-HDR-1: A big-endian `irf1` header and FFT partitions
+
+Status: **verified** · Variants: PC
+
+The convolution reverb's impulse responses are `ImpulseResponse` resources under `Sound/Impulse_Responses/` (5
+distinct: canyon, forest, urban, indoor large and small; their partitions are `Audio.IrAsset` with `LengthInSeconds`,
+`Normalize`, `FrequencyCut`, `RemixToQuad`, and `ReverbAsset` / `ReverbSettingsAsset` pick them). Unlike every other
+PC resource the file is **big-endian**:
+
+| Offset | Type | Content |
+|---|---|---|
+| 0 | 4 bytes | `irf1` |
+| 4 | u32 | 1 (a version) |
+| 8 | u32 | channels: 2 |
+| 12 | u32 | the response's length in frames |
+| 16 | u32 | the sample rate: 48,000 |
+| 20, 24 | 2 x u32 | the partition length: 1,024 (twice) |
+| 28 | u32 | the FFT size: 2,048 |
+| 32 | u32 | 1 |
+| 36 | 3 x u32 | not decoded (the second and third the same in all five files) |
+| 48 | | ceil(frames / 1,024) partitions of 32 + 2,048 x 2 channels x 2 bytes |
+
+The file ends exactly after the last partition. A partition's 32-byte head begins with a word whose high half is 2^k - 1
+(32,767, 16,383, 8,191 ...; inferred: the partition's scale); the rest of the head and the 16-bit data (inferred: the
+partition's spectrum, for a uniformly partitioned convolution) are not decoded.
+
+[test: core/tests/test_spec_probes.py::resources]
+[data: spec/probes/resources.py on DICE's bundles, 2026-11-23: 5 distinct ImpulseResponse entries (17 live): header irf1, 1, 2 channels, 48,000 Hz, 1,024, 1,024, 2,048, 1 in all; 48 + partitions x 8,224 = size in 5 of 5]
+[exe: BFBC2Game.exe typeinfo record `ImpulseResponse` (module Audio, 20 bytes) at 0x1C0E804; settings and fields `ReverbIR`, `ReverbArea`, `SoundAreaReverbs`]
+
 ## Open questions
 
 - The Wave header's flags and id (word 0x00) and word 0x14: what the engine uses them for.
