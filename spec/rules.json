@@ -22942,7 +22942,7 @@
    "id": "LEVEL-MG-4",
    "title": "The group's part counts must match the member's physics",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -22955,6 +22955,14 @@
     {
      "kind": "doc",
      "ref": "opfor:DEVELOPMENT_NOTES.md:1465-1476"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/gates.rs:198-290"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/levelbuild.rs::model_groups_against_their_members"
     }
    ]
   },
@@ -26090,6 +26098,54 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-4",
+   "title": "The closure takes what the level reaches and nothing it loads has",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/closure.rs:297-420"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/index.rs:150-240"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/levelbuild.rs::closure_walks_ours_stock_and_loaded"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/levelbuild.rs::stock_bundles_index_and_our_files"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR2, 2026-11-23: a Wake build through bc2_install::levelbuild against OPFOR main's Python build, every one of the 6,260 staged files identical"
+    }
+   ]
+  },
+  {
+   "id": "XINST-WW2-5",
+   "title": "The staging and the shared patches keep their bundles' order",
+   "file": "spec/transforms/install.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/stage.rs:109-160"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/stage.rs:316-420"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/tests/levelbuild.rs::staging_patches_and_common"
     }
    ]
   },

@@ -108,6 +108,7 @@ mod texcheck;
 mod wave;
 mod window;
 mod writers;
+mod ww2build;
 mod xenos;
 
 use bc2_formats::dbx::{self, DbxError, DbxTree};
@@ -449,12 +450,27 @@ mod bc2_native {
     };
     #[pymodule_export]
     use super::shaderdb_levels::{shadercover_levels, shaderdb_level_scan, shaderdb_retexture};
+
+    // round OR2: OPFOR's WW2 level build (wake_install.build's parts, bc2_install::levelbuild)
     #[pymodule_export]
     use super::shaderdb_merge::ShaderMerger;
     #[pymodule_export]
     use super::shaderdb_open::{shaderdb_dx_in_name, shaderdb_open, shaderdb_pick};
     #[pymodule_export]
     use super::shaders::{shaderdb_parse, shaderdb_write};
+    #[pymodule_export]
+    use super::ww2build::{
+        Ww2Index, Ww2PackJob, ww2build_air_superiority_mode, ww2build_closure, ww2build_description,
+        ww2build_edit_level, ww2build_emitter_atlas, ww2build_fetch_stock, ww2build_forget_index, ww2build_icon_gate,
+        ww2build_kit_voices, ww2build_level_list_items, ww2build_level_list_query, ww2build_level_list_xml,
+        ww2build_level_names, ww2build_live_entries, ww2build_loaded_names, ww2build_masked_names, ww2build_mesh_flags,
+        ww2build_model_group_check, ww2build_ondemand_bundles, ww2build_ondemand_waves, ww2build_our_files,
+        ww2build_pack_lines, ww2build_pack_many, ww2build_pack_start, ww2build_patch_bundle, ww2build_patch_ours,
+        ww2build_patch_refs, ww2build_port_missing, ww2build_primary_type, ww2build_remap_targets, ww2build_root_files,
+        ww2build_sky_patch, ww2build_stage_reset, ww2build_stock_bundles, ww2build_stock_index, ww2build_terrain_files,
+        ww2build_undergrowth_files, ww2build_undergrowth_scales, ww2build_write_stage, ww2build_ww2_common,
+    };
+
     #[pymodule_export]
     use super::shadertranslate::{
         shadertranslate_by_role, shadertranslate_discards, shadertranslate_element_map, shadertranslate_entry_blocks,

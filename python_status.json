@@ -1075,15 +1075,15 @@
    "status": "ported"
   },
   {
-   "callers": "tests 4; OPFOR 6",
+   "callers": "tests 4; OPFOR 5",
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "library",
    "lines": 375,
-   "note": "searches in Rust; the Porter in Rust too (PR1b-1d, without renames, donors, poses or the shader plan); left: OPFOR's ports through the Python Porter",
+   "note": "searches in Rust; the Porter in Rust too (PR1b-1d; its shader plan and bare meshes OR2: OPFOR's install ports, bc2_install::levelbuild::ports); left: renames, donors and poses (OPFOR's soldier and kit builds)",
    "path": "bfbc2-bf1943-import/meshport.py",
-   "retiring": "proposed: OPFOR in Rust stage 2",
-   "rust": "bc2_convert::meshport (the searches; Porter for bfbc2 portparity)",
+   "retiring": "OPFOR in Rust stage 4 (the soldiers' and kits' renamed ports)",
+   "rust": "bc2_convert::meshport (the searches; Porter for bfbc2 portparity and OPFOR's install ports)",
    "status": "partly"
   },
   {
@@ -1367,8 +1367,8 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "library",
-   "lines": 205,
-   "note": "Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens",
+   "lines": 167,
+   "note": "Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens; _Walk and ROAD_VERTEX retired (OR2: OPFOR's VisualTerrain walk is bc2_install::levelbuild::terrainfiles)",
    "path": "bfbc2-console-convert/terrain.py",
    "retiring": "PR1b-1c",
    "rust": "bc2_convert::terrain",
@@ -2403,7 +2403,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "test",
-   "lines": 222,
+   "lines": 225,
    "note": "The BF1943 shader translation's driver in the Rust core (round OR3c: bc2_convert::shadertranslate through s...",
    "path": "bfbc2-shader-tools/tests/test_shadertranslate.py",
    "retiring": "Tests in Rust",
@@ -3855,7 +3855,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 130,
+   "lines": 132,
    "note": "who calls each bc2_native export (AU5 ARC-12)",
    "path": "rust/native_census.py",
    "retiring": "PR1b-2 (made a check)",
@@ -3951,7 +3951,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 874,
+   "lines": 876,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4569,7 +4569,7 @@
  "totals": {
   "all": {
    "files": 375,
-   "lines": 110221
+   "lines": 110190
   },
   "by_folder": {
    "(root)": {
@@ -4629,14 +4629,14 @@
    },
    "bfbc2-console-convert": {
     "files": 24,
-    "lines": 6536,
+    "lines": 6498,
     "live": 0,
     "partly": 1817,
     "ported": 36,
     "retired-pending": 0,
     "stays": 0,
     "test": 3436,
-    "twin": 1247
+    "twin": 1209
    },
    "bfbc2-console-readers": {
     "files": 5,
@@ -4739,13 +4739,13 @@
    },
    "bfbc2-shader-tools": {
     "files": 18,
-    "lines": 11168,
+    "lines": 11171,
     "live": 1430,
     "partly": 3775,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
-    "test": 4853,
+    "test": 4856,
     "twin": 984
    },
    "bfbc2-stockmp-ai": {
@@ -4783,12 +4783,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6029,
+    "lines": 6033,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5762,
+    "stays": 5766,
     "test": 267,
     "twin": 0
    },
@@ -4834,15 +4834,15 @@
    },
    "stays": {
     "files": 67,
-    "lines": 13243
+    "lines": 13247
    },
    "test": {
     "files": 189,
-    "lines": 52188
+    "lines": 52191
    },
    "twin": {
     "files": 56,
-    "lines": 19708
+    "lines": 19670
    }
   }
  }

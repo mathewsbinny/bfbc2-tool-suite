@@ -522,12 +522,17 @@ dependencies = [
 name = "bc2-install"
 version = "0.1.0"
 dependencies = [
+ "bc2-convert",
  "bc2-formats",
  "bc2-gamefs",
+ "bc2-menu",
+ "bc2-pyrt",
+ "bc2-tools",
  "rayon",
  "regex",
  "serde",
  "serde_json",
+ "sha1_smol",
 ]
 
 [[package]]
@@ -588,6 +593,7 @@ dependencies = [
  "bc2-formats",
  "bc2-gamefs",
  "bc2-harness",
+ "bc2-install",
  "bc2-navbuild",
  "bc2-pyrt",
  "bc2-scene",
@@ -600,6 +606,8 @@ dependencies = [
  "pyo3",
  "rayon",
  "self_cell",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

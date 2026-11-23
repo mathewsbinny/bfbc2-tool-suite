@@ -318,6 +318,44 @@ rebuild's lock (`work\ww2\_rebuild\rebuild.lock`): a rebuild and an install neve
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_a_kill_at_every_write_step_recovers]
 [test: opfor:src/tools/tests/test_ww2_installer.py::test_the_rebuild_lock]
 
+## 4b. The WW2 level build in the suite (round OR2, "OPFOR in Rust" stage 2)
+
+Project OPFOR's `wake_install.build` stages each WW2 level's bundles from its builds and the game copy; since round OR2
+its parts other than the shader glue are `bc2_install::levelbuild` (OPFOR's Python passes its decisions - the level's
+bindings, its roots, remaps and donors - as data).
+
+### XINST-WW2-4: The closure takes what the level reaches and nothing it loads has
+
+Status: **verified**
+
+The walk starts from the level partition, the partitions named after its assets, the masked partitions its root
+files name and the partition names our mesh sets hold; it goes in waves, a wave's stock partitions read bundle by
+bundle. Our partition of a name wins over a stock one; a stock partition comes from the first stock bundle holding
+it (Package before Dist, levels first, never a WW2 level's own, an Onslaught or OPFOR build, an on-demand or global
+streaming bundle), a level-local copy by its alias under the name referenced; its resources from its own bundle, then
+each one it lacks from the first other bundle that has it, never a longer partition's of the same stem. A partition a
+loaded bundle holds (nam_common's deleted markers hiding mp_common's names) is not copied, but its resources nothing
+loaded has are. A terrain's water and its decals' materials and roads name no partition (DICE's convention); a shader
+name goes to the shader databases; anything else resolving nowhere is reported as ours or stock, as is a reference
+naming an instance its partition lacks.
+
+[code: rust/bc2-install/src/levelbuild/closure.rs:297-420] [code: rust/bc2-install/src/levelbuild/index.rs:150-240]
+[test: rust/bc2-install/tests/levelbuild.rs::closure_walks_ours_stock_and_loaded] [test: rust/bc2-install/tests/levelbuild.rs::stock_bundles_index_and_our_files]
+[data: round OR2, 2026-11-23: a Wake build through bc2_install::levelbuild against OPFOR main's Python build, every one of the 6,260 staged files identical]
+
+### XINST-WW2-5: The staging and the shared patches keep their bundles' order
+
+Status: **verified**
+
+A staging folder's manifest lists its files by lower name with the level partition last (entries load in manifest
+order); a shared bundle (startup, overlay, ondemand_awards) and ww2_common (nam_common's three bundles) are unpacked,
+a file of an entry's name replaces it in place (its type, flags and, for ww2_common, the bundle's spelling kept) and
+the others are added at the end, then packed. A file staged again from the same unchanged source is not written
+again.
+
+[code: rust/bc2-install/src/levelbuild/stage.rs:109-160] [code: rust/bc2-install/src/levelbuild/stage.rs:316-420]
+[test: rust/bc2-install/tests/levelbuild.rs::staging_patches_and_common]
+
 ## 5. The mod manager (round MM1)
 
 `bfbc2 mods` (`bc2_install::mods`) turns Project OPFOR's mods on and off one at a time on the install ledger of

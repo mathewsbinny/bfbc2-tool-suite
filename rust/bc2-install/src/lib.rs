@@ -16,8 +16,11 @@
 //! | `ww2_level_install.save_staged` / `load_staged` / `fingerprint` | [`staged`] |
 //! | `opforcore.stages.Stages.install` / `restate` / `check_install` | `bc2_gamefs::ledger` ([`Ledger::install_keep`](bc2_gamefs::ledger::Ledger::install_keep), `restate`), [`run`] |
 //! | `rebuild_all.locked` (the install takes it too) | [`lock`] |
+//! | `wake_install.build` and the parts it calls (round OR2, feature `levelbuild`) | [`levelbuild`] |
 //! | `opforcore\migrate.py`; the mod manager (round MM1): enable / disable / uninstall / restore-original / verify | [`mods`] |
 
+#[cfg(feature = "levelbuild")]
+pub mod levelbuild;
 pub mod lock;
 pub mod marks;
 pub mod mods;
