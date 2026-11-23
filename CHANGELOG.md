@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-23
+
 ### Added
 - **Project OPFOR's BF1943 shader translation driver in the Rust core** (round OR3c, "OPFOR in Rust" stage 3c):
   `bc2_convert::shadertranslate` through `shaderdb.translate_plan` - which of BF1943's programs each mesh-part layout
