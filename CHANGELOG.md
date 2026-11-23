@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-22
+
 ### Changed
 - **The DBX catalogue's cache is the Rust core's own file** (round PR1b-1e): `work\tools_out\dbx_catalogue.bin`
   (`bc2_convert::dbxcatalogue::cache`), read and written by `bfbc2 dbxcatalogue`, `bfbc2 dbxparity --predict` and,
