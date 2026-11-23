@@ -8,16 +8,16 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+use crate::error::{MenuError, MenuResult, read_text};
 use bc2_formats::apt::{self, MovieRef};
 use bc2_formats::pe;
 use bc2_formats::{bigf, fbrb};
-use bc2_pyrt::err::{self as pyproc, Fail, PyErr, PyResult};
 
 // ------------------------------------------------------------------------------------------------ Python's pieces
 
 pub use bc2_pyrt::py::{
-    Members, OMap, abspath, basename, dirname, drive_len, isdir, isfile, join, nt_split, py_space, read_text, split,
-    splitext, splitlines, strip, write_text,
+    Members, OMap, abspath, basename, dirname, drive_len, isdir, isfile, join, nt_split, py_space, split, splitext,
+    splitlines, strip, write_text,
 };
 
 /// `fnmatch` of a name against a pattern (`*`, `?`, `[seq]`, `[!seq]`), case folded as Windows' `normcase` does.
@@ -60,10 +60,10 @@ fn fold(s: &str) -> Vec<char> {
 }
 
 /// `sorted(glob.glob(pattern))` for a pattern whose wildcards are in its last part (else the Python answers).
-pub fn glob(pattern: &str) -> PyResult<Vec<String>> {
+pub fn glob(pattern: &str) -> MenuResult<Vec<String>> {
     let (head, tail) = nt_split(pattern);
     if head.contains(['*', '?', '[']) {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
     let dir = if head.is_empty() { ".".to_owned() } else { head.clone() };
     let pat = fold(&tail);
@@ -84,7 +84,7 @@ pub fn glob(pattern: &str) -> PyResult<Vec<String>> {
 }
 
 /// `args.index(flag)`, the value after it taken out (aptcheck's and bc2loc's `take`: the first occurrence).
-pub fn take(args: &mut Vec<String>, flag: &str) -> PyResult<Option<String>> {
+pub fn take(args: &mut Vec<String>, flag: &str) -> MenuResult<Option<String>> {
     let Some(i) = args.iter().position(|a| a == flag) else {
         return Ok(None);
     };
@@ -107,8 +107,8 @@ pub fn take_flag(args: &mut Vec<String>, flag: &str) -> bool {
 }
 
 /// `MenuToolError(msg)`.
-pub fn menu_err(msg: impl Into<String>) -> Fail {
-    Fail::Err(PyErr::new("MenuToolError", msg))
+pub fn menu_err(msg: impl Into<String>) -> MenuError {
+    MenuError::Menu(msg.into())
 }
 
 /// `bytes.hex(' ').upper()`.
@@ -132,7 +132,7 @@ pub const MOVIE_SETS: [(&str, &str); 7] = [
 
 /// `find_opfor(given)`: given, `OPFOR_ROOT`, then `project-opfor-bfbc2` beside the suite or a folder above it; the
 /// first with a `game` folder, absolute.
-pub fn find_opfor(given: Option<&str>) -> PyResult<String> {
+pub fn find_opfor(given: Option<&str>) -> MenuResult<String> {
     let suite = bc2_pyrt::py::suite_root();
     bc2_gamefs::game::find_opfor(given, true, bc2_gamefs::game::Beside::Above(&[suite.as_path()]))
         .map(|p| p.to_string_lossy().into_owned())
@@ -140,9 +140,9 @@ pub fn find_opfor(given: Option<&str>) -> PyResult<String> {
 }
 
 /// `out_dir(root)`: `<OPFOR>\work\tools_out`, made.
-pub fn out_dir(root: &str) -> PyResult<String> {
+pub fn out_dir(root: &str) -> MenuResult<String> {
     let d = join(root, &["work", "tools_out"]);
-    std::fs::create_dir_all(&d).map_err(|_| Fail::Python)?;
+    std::fs::create_dir_all(&d).map_err(|_| MenuError::Reference)?;
     Ok(d)
 }
 
@@ -160,14 +160,16 @@ pub fn bundle_layers(root: &str, rel: &str) -> Vec<String> {
 }
 
 /// `fbrb.entries(path)` (an error: the Python's own).
-pub fn entries(path: &str) -> PyResult<Vec<fbrb::Entry>> {
-    fbrb::entries_path(path).map(|h| h.entries).map_err(|_| Fail::Python)
+pub fn entries(path: &str) -> MenuResult<Vec<fbrb::Entry>> {
+    fbrb::entries_path(path)
+        .map(|h| h.entries)
+        .map_err(|_| MenuError::Reference)
 }
 
 /// `fbrb.read(path, names)`: the data of each name, in order.
-pub fn read_entries(path: &str, names: &[String]) -> PyResult<Vec<Vec<u8>>> {
+pub fn read_entries(path: &str, names: &[String]) -> MenuResult<Vec<Vec<u8>>> {
     let low: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
-    bc2_gamefs::bundles::read_path(path, &low).map_err(|_| Fail::Python)
+    bc2_gamefs::bundles::read_path(path, &low).map_err(|_| MenuError::Reference)
 }
 
 fn char_slice(s: &str, from: usize, to_end_minus: usize) -> String {
@@ -180,7 +182,7 @@ fn char_slice(s: &str, from: usize, to_end_minus: usize) -> String {
 
 #[allow(clippy::case_sensitive_file_extension_comparisons)] // lower-cased first, as the reference
 /// `bundle_movies(paths)`: `{movie name (lower case): (bundle, entry name)}` of the `Menu/<name>.res` movies.
-pub fn bundle_movies(paths: &[String]) -> PyResult<OMap<String, (String, String)>> {
+pub fn bundle_movies(paths: &[String]) -> MenuResult<OMap<String, (String, String)>> {
     let mut out = OMap::default();
     for p in paths {
         for e in entries(p)? {
@@ -200,11 +202,11 @@ pub fn bundle_movies(paths: &[String]) -> PyResult<OMap<String, (String, String)
 }
 
 /// `parse_bigf(b, where)`.
-pub fn parse_bigf(b: &[u8], place: &str) -> PyResult<Members> {
+pub fn parse_bigf(b: &[u8], place: &str) -> MenuResult<Members> {
     if b.get(..4) != Some(b"BIGF".as_slice()) {
         return Err(menu_err(format!("{place} is not a menu movie (.res, a BIGF archive)")));
     }
-    let got = bigf::parse(b).ok_or(Fail::Python)?;
+    let got = bigf::parse(b).ok_or(MenuError::Reference)?;
     let mut out = Members::default();
     for (name, r) in got {
         out.insert(name, b.get(r).unwrap_or_default().to_vec());
@@ -214,7 +216,7 @@ pub fn parse_bigf(b: &[u8], place: &str) -> PyResult<Members> {
 
 #[allow(clippy::case_sensitive_file_extension_comparisons)] // lower-cased first, as the reference
 /// `resolve(spec, root)`: (label, members).
-pub fn resolve(spec: &str, root: Option<&str>) -> PyResult<(String, Members)> {
+pub fn resolve(spec: &str, root: Option<&str>) -> MenuResult<(String, Members)> {
     if isfile(spec) {
         if spec.to_lowercase().ends_with(".apt") {
             let base = splitext(spec).0;
@@ -226,18 +228,18 @@ pub fn resolve(spec: &str, root: Option<&str>) -> PyResult<(String, Members)> {
                 )));
             }
             let mut m = Members::default();
-            m.insert(format!("{name}.apt"), pyproc::read_file(spec)?);
-            m.insert(format!("{name}.const"), pyproc::read_file(&cpath)?);
+            m.insert(format!("{name}.apt"), crate::error::read_file(spec)?);
+            m.insert(format!("{name}.const"), crate::error::read_file(&cpath)?);
             return Ok((spec.to_owned(), m));
         }
-        return Ok((spec.to_owned(), parse_bigf(&pyproc::read_file(spec)?, spec)?));
+        return Ok((spec.to_owned(), parse_bigf(&crate::error::read_file(spec)?, spec)?));
     }
     let low = spec.to_lowercase();
     let (name, movies) = if low.contains(".fbrb:") {
         let i = spec.rfind(':').unwrap_or(0);
         let (bundle, name) = (&spec[..i], &spec[i + 1..]);
         if !isfile(bundle) {
-            return Err(Fail::Err(PyErr::file_not_found(bundle)));
+            return Err(MenuError::not_found(bundle));
         }
         (name.to_owned(), bundle_movies(&[bundle.to_owned()])?)
     } else if low.starts_with("pristine:") {
@@ -256,7 +258,7 @@ pub fn resolve(spec: &str, root: Option<&str>) -> PyResult<(String, Members)> {
         let name = spec.split_once(':').map_or("", |x| x.1).to_owned();
         (name, bundle_movies(&[bundle])?)
     } else if spec.contains('\\') || spec.contains('/') || low.ends_with(".res") || low.ends_with(".apt") {
-        return Err(Fail::Err(PyErr::file_not_found(spec)));
+        return Err(MenuError::not_found(spec));
     } else {
         let root = match root.filter(|r| !r.is_empty()) {
             Some(r) => r.to_owned(),
@@ -297,11 +299,11 @@ pub struct Movie {
 
 impl Movie {
     /// `apt.Movie(data=(name, a, c))`; `Ok(Err(text))` where it raises `ValueError(text)`.
-    pub fn new(name: &str, a: &[u8], c: &[u8]) -> PyResult<Result<Self, String>> {
+    pub fn new(name: &str, a: &[u8], c: &[u8]) -> MenuResult<Result<Self, String>> {
         if !c.starts_with(b"Apt constant file") {
             return Ok(Err("not an APT constant file".to_owned()));
         }
-        let w = c.get(20..24).ok_or(Fail::Python)?;
+        let w = c.get(20..24).ok_or(MenuError::Reference)?;
         let le = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
         let be = u32::from_be_bytes([w[0], w[1], w[2], w[3]]);
         let n = a.len() as u64;
@@ -313,7 +315,7 @@ impl Movie {
             big = true;
         }
         let movie = i64::from(if big { be } else { le });
-        let consts = apt::constants(c, big).map_err(|_| Fail::Python)?;
+        let consts = apt::constants(c, big).map_err(|_| MenuError::Reference)?;
         Ok(Ok(Self {
             name: name.to_owned(),
             a: a.to_vec(),
@@ -335,8 +337,8 @@ impl Movie {
     }
 
     /// `cu(o)`: a u32 of the `.const` in the movie's byte order.
-    pub fn cu(&self, o: usize) -> PyResult<u64> {
-        let w = self.c.get(o..o + 4).ok_or(Fail::Python)?;
+    pub fn cu(&self, o: usize) -> MenuResult<u64> {
+        let w = self.c.get(o..o + 4).ok_or(MenuError::Reference)?;
         let a = [w[0], w[1], w[2], w[3]];
         Ok(u64::from(if self.big {
             u32::from_be_bytes(a)
@@ -347,7 +349,7 @@ impl Movie {
 }
 
 /// `movie_from_members(members, label)`.
-pub fn movie_from_members(members: &Members, label: &str) -> PyResult<Movie> {
+pub fn movie_from_members(members: &Members, label: &str) -> MenuResult<Movie> {
     let Some(aptname) = members.keys().find(|k| k.to_lowercase().ends_with(".apt")) else {
         let names: Vec<&str> = members.keys().map(String::as_str).collect();
         return Err(menu_err(format!(
@@ -395,9 +397,9 @@ pub struct PatchLine {
 
 /// `int(t, 16)` for an ASCII token: `Ok(None)` where Python raises `ValueError`; a token Python may read otherwise
 /// (Unicode digits) or a value past u64 hands off.
-fn int16(t: &str) -> PyResult<Option<i128>> {
+fn int16(t: &str) -> MenuResult<Option<i128>> {
     if !t.is_ascii() {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
     let (neg, s) = match t.as_bytes().first() {
         Some(b'-') => (true, &t[1..]),
@@ -416,9 +418,9 @@ fn int16(t: &str) -> PyResult<Option<i128>> {
         return Ok(None);
     }
     if digits.len() > 24 {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
-    let v = i128::from_str_radix(&digits, 16).map_err(|_| Fail::Python)?;
+    let v = i128::from_str_radix(&digits, 16).map_err(|_| MenuError::Reference)?;
     Ok(Some(if neg { -v } else { v }))
 }
 
@@ -426,7 +428,7 @@ type Problems = Vec<(usize, String)>;
 
 /// `parse_patch(path)`.
 #[expect(clippy::too_many_lines, reason = "menucommon.parse_patch, case by case")]
-pub fn parse_patch(path: &str) -> PyResult<(Vec<PatchLine>, Problems)> {
+pub fn parse_patch(path: &str) -> MenuResult<(Vec<PatchLine>, Problems)> {
     let text = read_text(path)?;
     let mut lines = Vec::new();
     let mut problems = Vec::new();
@@ -525,7 +527,7 @@ pub fn parse_patch(path: &str) -> PyResult<(Vec<PatchLine>, Problems)> {
             continue;
         }
         if offset < 0 || offset > i128::from(u32::MAX) * 4 {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         }
         let mut new = Vec::new();
         let mut bad = false;
@@ -700,19 +702,19 @@ pub fn restore_stand_in(mut b: Vec<u8>) -> Vec<u8> {
 
 impl PeImage {
     /// `PEImage(path)`: the file read and parsed.
-    pub fn open(path: &str) -> PyResult<Self> {
-        Self::from_bytes(path, pyproc::read_file(path)?)
+    pub fn open(path: &str) -> MenuResult<Self> {
+        Self::from_bytes(path, crate::error::read_file(path)?)
     }
 
     /// `PEImage(path)` of bytes already read (`path` names them in messages).
-    pub fn from_bytes(path: &str, b: Vec<u8>) -> PyResult<Self> {
+    pub fn from_bytes(path: &str, b: Vec<u8>) -> MenuResult<Self> {
         let h = match pe::raw::parse(&b) {
             Ok(h) => h,
             Err(pe::raw::RawError::NotExe) => {
                 return Err(menu_err(format!("{path} is not a Windows program (.exe)")));
             }
             Err(pe::raw::RawError::Not32) => return Err(menu_err(format!("{path} is not a 32-bit Windows program"))),
-            Err(_) => return Err(Fail::Python),
+            Err(_) => return Err(MenuError::Reference),
         };
         Ok(Self {
             path: path.to_owned(),
@@ -777,10 +779,10 @@ impl PeImage {
 }
 
 /// `find_exe(root, given)`.
-pub fn find_exe(root: Option<&str>, given: Option<&str>) -> PyResult<String> {
+pub fn find_exe(root: Option<&str>, given: Option<&str>) -> MenuResult<String> {
     if let Some(g) = given.filter(|g| !g.is_empty()) {
         if !isfile(g) {
-            return Err(Fail::Err(PyErr::file_not_found(g)));
+            return Err(MenuError::not_found(g));
         }
         return Ok(g.to_owned());
     }

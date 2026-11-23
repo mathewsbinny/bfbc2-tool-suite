@@ -8,8 +8,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use crate::error::{MenuError, MenuResult};
 use bc2_formats::aptmodel::{Arg, Ins, Rid, Val};
-use bc2_pyrt::err::{Fail, PyResult};
 
 use super::edit::arg_text;
 use super::{
@@ -40,7 +40,7 @@ pub struct Func {
 }
 
 /// `named_function(movie, name)`.
-pub fn named_function(m: &Movie, name: &str) -> PyResult<Func> {
+pub fn named_function(m: &Movie, name: &str) -> MenuResult<Func> {
     let mut found = Vec::new();
     for n in m.code_nodes(false)? {
         let code = m.code(n)?;
@@ -69,11 +69,11 @@ fn nf_walk(
     name: &str,
     found: &mut Vec<Func>,
     depth: usize,
-) -> PyResult<()> {
+) -> MenuResult<()> {
     if depth > 4 * bc2_formats::aptmodel::MAX_NESTING {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
-    for &k in code.streams.get(s as usize).ok_or(Fail::Python)? {
+    for &k in code.streams.get(s as usize).ok_or(MenuError::Reference)? {
         let i = &code.ins[k as usize];
         if i.op == 0x88 {
             pool = match i.args.get(1) {
@@ -103,7 +103,7 @@ fn nf_walk(
 }
 
 /// `_pool_name(movie, pool, i)`.
-fn pool_name(m: &Movie, pool: Option<Rid>, i: &Ins) -> PyResult<Option<String>> {
+fn pool_name(m: &Movie, pool: Option<Rid>, i: &Ins) -> MenuResult<Option<String>> {
     let Some(p) = pool else { return Ok(None) };
     if !(is_pool_byte(i.op) || i.op == 0xA3) {
         return Ok(None);
@@ -117,7 +117,7 @@ fn pool_name(m: &Movie, pool: Option<Rid>, i: &Ins) -> PyResult<Option<String>> 
 }
 
 /// `_push_regs(movie, i)`.
-fn push_regs(m: &Movie, i: &Ins) -> PyResult<Option<Vec<u32>>> {
+fn push_regs(m: &Movie, i: &Ins) -> MenuResult<Option<Vec<u32>>> {
     if i.op != 0x96 {
         return Ok(None);
     }
@@ -127,7 +127,9 @@ fn push_regs(m: &Movie, i: &Ins) -> PyResult<Option<Vec<u32>>> {
     let mut out = Vec::new();
     let mut all = true;
     for x in m.vals(*r)? {
-        let Val::Num(k) = x else { return Err(Fail::Python) };
+        let Val::Num(k) = x else {
+            return Err(MenuError::Reference);
+        };
         match m.constant(*k as usize)? {
             CKey::T(4, v) => out.push(v),
             _ => all = false,
@@ -152,10 +154,10 @@ pub struct Entry {
 }
 
 /// `crosshair_table(movie)`, in table order.
-pub fn crosshair_table(m: &Movie) -> PyResult<Vec<(Option<String>, Entry)>> {
+pub fn crosshair_table(m: &Movie) -> MenuResult<Vec<(Option<String>, Entry)>> {
     let f = named_function(m, CH_FUNCTION)?;
     let code = m.code(f.code)?;
-    let b = code.ins[f.ins as usize].body.ok_or(Fail::Python)?;
+    let b = code.ins[f.ins as usize].body.ok_or(MenuError::Reference)?;
     let body: Vec<&Ins> = code.streams[b as usize]
         .iter()
         .map(|&k| &code.ins[k as usize])
@@ -219,7 +221,7 @@ pub fn crosshair_table(m: &Movie) -> PyResult<Vec<(Option<String>, Entry)>> {
 }
 
 /// `timeline_display(movie)`: each frame's {depth: the place item showing it}.
-pub fn timeline_display(m: &mut Movie) -> PyResult<Vec<BTreeMap<i64, Rid>>> {
+pub fn timeline_display(m: &mut Movie) -> MenuResult<Vec<BTreeMap<i64, Rid>>> {
     let mut out = Vec::new();
     let mut disp: BTreeMap<i64, Rid> = BTreeMap::new();
     for f in 0..m.frame_count(None)? {
@@ -240,7 +242,7 @@ pub fn timeline_display(m: &mut Movie) -> PyResult<Vec<BTreeMap<i64, Rid>>> {
 }
 
 /// `crosshair_objects(movie, label, baseline)`.
-fn crosshair_objects(m: &mut Movie, label: &str, baseline: &str) -> PyResult<Vec<(i64, Rid)>> {
+fn crosshair_objects(m: &mut Movie, label: &str, baseline: &str) -> MenuResult<Vec<(i64, Rid)>> {
     let disp = timeline_display(m)?;
     let f = m.label_frame(label, None)?;
     let b = m.label_frame(baseline, None)?;
@@ -285,7 +287,7 @@ pub struct Added {
 
 /// `add_crosshair(dst, src, cid, frame)` (no image tiles, baseline "none").
 #[allow(clippy::too_many_lines, reason = "the reference's one function, step for step")]
-pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<i64>) -> PyResult<Added> {
+pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<i64>) -> MenuResult<Added> {
     let baseline = "none";
     let table = crosshair_table(src)?;
     let Some(ent) = table
@@ -302,7 +304,7 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
     if crosshair_table(dst)?.iter().any(|(k, _)| k.as_deref() == Some(cid)) {
         return Err(apt_err(format!("{}: crossHairs has \"{cid}\" already", dst.label)));
     }
-    let label = ent.label.clone().ok_or(Fail::Python)?;
+    let label = ent.label.clone().ok_or(MenuError::Reference)?;
     let count = dst.frame_count(None)?;
     for f in 0..count {
         for it in dst.frame_items(f, None)? {
@@ -317,7 +319,7 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
     let objs = crosshair_objects(src, &label, baseline)?;
     let disp = timeline_display(dst)?;
     let base = disp[dst.label_frame(baseline, None)?].clone();
-    let free = |dst: &mut Movie, f: i64| -> PyResult<bool> {
+    let free = |dst: &mut Movie, f: i64| -> MenuResult<bool> {
         let Ok(f) = usize::try_from(f) else { return Ok(false) };
         Ok(f + 1 < count
             && dst.frame_items(f, None)?.is_empty()
@@ -374,15 +376,17 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
             continue;
         };
         let Val::Ref(sparts) = src.val(se.0, se.1 + 2)? else {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         };
         let Val::Ref(dparts) = dst.val(de.0, de.1 + 2)? else {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         };
         let mut new_parts = Vec::new();
         for p in src.vals(sparts)?.clone() {
-            let Val::Ref(pn) = p else { return Err(Fail::Python) };
-            new_parts.push(Val::Ref(*g.memo.get(&pn).ok_or(Fail::Python)?));
+            let Val::Ref(pn) = p else {
+                return Err(MenuError::Reference);
+            };
+            new_parts.push(Val::Ref(*g.memo.get(&pn).ok_or(MenuError::Reference)?));
         }
         let n = new_parts.len();
         *dst.vals_mut(dparts)? = new_parts;
@@ -411,8 +415,8 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
         .enumerate()
         .map(|(n, &f)| (f, n as i64 + 1))
         .collect();
-    let sb = scode.ins[sfn.ins as usize].body.ok_or(Fail::Python)?;
-    let db = dcode.ins[dfn.ins as usize].body.ok_or(Fail::Python)?;
+    let sb = scode.ins[sfn.ins as usize].body.ok_or(MenuError::Reference)?;
+    let db = dcode.ins[dfn.ins as usize].body.ok_or(MenuError::Reference)?;
     let sbody: Vec<Ins> = scode.streams[sb as usize]
         .iter()
         .map(|&k| scode.ins[k as usize].clone())
@@ -478,7 +482,9 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
         } else if let (0x96, Some(Arg::Ref(lst))) = (i.op, i.args.get(1)) {
             let mut run: Vec<Val> = Vec::new();
             for k in src.vals(*lst)?.clone() {
-                let Val::Num(k) = k else { return Err(Fail::Python) };
+                let Val::Num(k) = k else {
+                    return Err(MenuError::Reference);
+                };
                 let c = src.constant(k as usize)?;
                 let r = match c {
                     CKey::T(4, x) => Some(read(
@@ -525,7 +531,7 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
         .iter()
         .map(|(_, e)| e.end)
         .max()
-        .ok_or(Fail::Python)?;
+        .ok_or(MenuError::Reference)?;
     dcode.ins[dfn.ins as usize].args[2] = Arg::Int(nregs | dflags << 16);
     let ks: Vec<u32> = block.into_iter().map(|b| push_ins(&mut dcode, b)).collect();
     let body = &mut dcode.streams[db as usize];
@@ -541,7 +547,7 @@ pub fn add_crosshair(dst: &mut Movie, src: &mut Movie, cid: &str, frame: Option<
             break;
         }
     }
-    let flags = flags.ok_or(Fail::Python)?;
+    let flags = flags.ok_or(MenuError::Reference)?;
     let s = dst.new_str(APT, latin1_encode(&label)?);
     let w = dst.new_words(
         APT,
@@ -580,7 +586,7 @@ enum Read {
     Reg(i64),
 }
 
-fn pool_index(dst: &mut Movie, ctx: &mut Ctx<'_>, name: &str, op: u8) -> PyResult<Ins> {
+fn pool_index(dst: &mut Movie, ctx: &mut Ctx<'_>, name: &str, op: u8) -> MenuResult<Ins> {
     if !ctx.dnames.iter().any(|n| n == name) {
         let k = dst.const_index(&CKey::S(latin1_encode(name)?))?;
         dst.vals_mut(ctx.dpool)?.push(Val::Num(k as u32));
@@ -596,7 +602,14 @@ fn pool_index(dst: &mut Movie, ctx: &mut Ctx<'_>, name: &str, op: u8) -> PyResul
     Ok(ins(op, vec![Arg::Int(k as i64)]))
 }
 
-fn copy_ins(src: &Movie, dst: &mut Movie, ctx: &mut Ctx<'_>, cid: &str, i: &Ins, spool: Option<Rid>) -> PyResult<Ins> {
+fn copy_ins(
+    src: &Movie,
+    dst: &mut Movie,
+    ctx: &mut Ctx<'_>,
+    cid: &str,
+    i: &Ins,
+    spool: Option<Rid>,
+) -> MenuResult<Ins> {
     if let Some(name) = pool_name(src, spool, i)? {
         return pool_index(dst, ctx, &name, i.op);
     }
@@ -635,7 +648,7 @@ fn read(
     values: &HashMap<i64, Ins>,
     used: &mut Vec<(i64, String)>,
     spool: Option<Rid>,
-) -> PyResult<Read> {
+) -> MenuResult<Read> {
     if let Some(&(_, v)) = fresh.iter().find(|(x, _)| *x == r) {
         return Ok(Read::Reg(v));
     }
