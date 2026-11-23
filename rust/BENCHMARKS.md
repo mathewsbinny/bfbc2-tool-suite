@@ -4525,3 +4525,51 @@ So the rule layers shade by the ground's height (TGEN-VIS-2): the generator take
 - **Unproven until a playtest**: everything the engine does with a generated terrain - the ring and its seams, the
   visual terrain, the cloned entries, the visual water, the colour / occlusion map, the donor's rule layers in game.
   Nothing was installed or launched.
+
+## OR2 (paused): OPFOR in Rust, stage 2 - the level build (2026-11-23, branch `or2`, with Project OPFOR's `or2`)
+
+Paused by the user (the round with the most work left). Worktrees kept: suite `bfbc2-tool-suite-or2`, OPFOR
+`opfor-or2` (branch `or2` in each; WIP commits). Build folder kept: `rust-targets\bfbc2-tool-suite-or2`.
+
+**Done (WIP, not yet proven on the oracle).** New module `bc2_install::build` (feature `build`, enabled by bc2-py):
+`index` (stock_bundles, ondemand_bundles, the stock index kept per process instead of `install_index.pkl`,
+masked_names, live_entries, our_files in os.walk order, primary_type), `closure` (the walk, step for step, take's
+order as the Python's), `stage` (write_stage with the staged-record memo, fetch_stock, pack_many, patch_bundle,
+build_ww2_common with its per-process memo), `gates` (model_group_check and its helpers, level_names, icon_gate on
+bc2_menu::graft), `describe` (description, air_superiority_mode, level_list_items/xml/query through DbxEdit in
+process), `levelfiles` (edit_level with the test aids, remap_targets, patch_refs, persistence, patch_ours,
+kit_voices, sky_patch's own branch, root_files, mesh_flags, ondemand_waves, emitter_atlas, undergrowth_files),
+`terrainfiles` (terrain_files, undergrowth_scales / blocks, the VisualTerrain walk that `terrain._Walk` did).
+Bindings `bc2-py/src/ww2build.rs` (`ww2build_*`, `Ww2Index`, `Ww2PackJob`). `bc2_convert::emitteratlas::drawn` made
+public. Tests: `bc2-install/tests/levelbuild.rs` (7 tests on a fake game: all pass) and unit tests; clippy clean on
+bc2-install (feature build) and bc2-py. OPFOR `wake_install.py` (opfor-or2): the Python bodies replaced by thin
+callers (about 1,400 lines out); tests rewritten for the Rust core: test_model_groups, test_ww2_packing,
+test_ww2_install (stock index), test_ww2_terrain_strips.
+
+**Parity so far.** `scratchpad\or2\parity_build.py <opfor> <out>` runs `wake_install.build` for Wake with WORK /
+PATCHED / PORTS redirected to a scratch folder (reads main's game\ and work\ww2 through junctions `opfor-or2\game`,
+`opfor-or2\work`; OPFOR_TOOLKIT a scratch toolkit of junctions to this worktree, operation-rising-sun,
+bf1943-tool-suite). The old Python run (main, 234 s) is in `scratchpad\or2\old`. The new run got through the index,
+our files, patch_ours, kit_voices, edit_level, root_files and the closure, then stopped in emitter_atlas: the
+binding read the manifest's `size` as a tuple (it is a JSON list) - fixed in the source, the native module not yet
+rebuilt (the build was stopped by the pause). `compare_trees.py old new` compares the stagings file by file.
+
+**Next steps.**
+1. `python rust\build_native.py` (about 20 min with other rounds building), rerun the new parity run, compare with
+   `old` and decode every difference (report lines, take order ties, report.json order).
+2. `terrainfiles::undergrowth_blocks`' memo: key it by the stand-ins (a test with other stand-ins left it set).
+3. `port_missing` (still Python): needs `bc2_convert::meshport::Porter` to give the plan (each part's `how` from
+   `Found`: "BFBC2 has this part", "layout of <k>", "layout of <k> (<n> element(s) left out)"; materials; sorted
+   textures; renamed {}), a bare mesh skinned to no soldier, the BF1943 Source over the Python object, dbxport for
+   PORT_PARTS, granny to_pc, plans.json as json.dump(indent=1) with CRLF.
+4. Retire the suite's `terrain._Walk` / `ROAD_VERTEX` (no user left), update PYTHON_STATUS, VERSION 0.25.0 and
+   OPFOR's SUITE_REQUIRES, CHANGELOG, ROADMAP, spec rules (LEVEL-MG-4 to verified with the Rust test; new XINST-WW2
+   rules for the build), this section.
+5. Ask the coordinator for a WW2 rebuild slot: rebuild oracle 7,945 / install oracle 21,149, game\ unchanged.
+6. Before removing the worktrees: `cmd /c rmdir` the junctions `opfor-or2\game`, `opfor-or2\work` and the scratch
+   toolkit's.
+
+**Learned.** DbxEdit's XML uses CRLF; DICE's reference fields put `ref` before `name` (the description's patterns
+need it). The closure's Python set orders (mesh-set starts, reached partitions) are replaced by first-seen / sorted
+orders: to be confirmed against the oracle's report ties. Heredocs mangle backslashes and wrote NUL bytes into a test
+(fixed); use script files.

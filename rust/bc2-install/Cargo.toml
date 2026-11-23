@@ -18,6 +18,18 @@ serde_json.workspace = true
 regex.workspace = true
 # the staged files' digests and the fingerprint's walk on all cores
 rayon.workspace = true
+# the WW2 level build (round OR2, feature `build`): DbxEdit's and FbrbTool's commands in process, the emitter atlas's
+# and mesh readers, the HUD icon movie, Python's number and string formats in the report, sha1 of the emitters
+bc2-tools = { workspace = true, optional = true }
+bc2-convert = { workspace = true, optional = true }
+bc2-menu = { workspace = true, optional = true }
+bc2-pyrt = { workspace = true, optional = true }
+sha1_smol = { workspace = true, optional = true }
+
+[features]
+# the WW2 level build (OPFOR's wake_install.build, round OR2): bc2_native's ww2build_* functions; bfbc2.exe's
+# installer does not need it
+build = ["dep:bc2-tools", "dep:bc2-convert", "dep:bc2-menu", "dep:bc2-pyrt", "dep:sha1_smol"]
 
 [lints]
 workspace = true

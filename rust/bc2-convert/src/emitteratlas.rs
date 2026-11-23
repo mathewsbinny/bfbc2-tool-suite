@@ -664,8 +664,10 @@ fn grid(info: &Info, spawn: bool) -> (i64, i64) {
     (cols.min(info.frames), cdiv(info.frames, cols))
 }
 
-/// `drawn(info, channel)`.
-fn drawn(info: &Info, ch: usize) -> bool {
+/// `drawn(info, channel)`: channel 0 the alpha fields, 1 the normals'. False for the fields of no image (the
+/// whole atlas, or a null texture / normal map).
+#[must_use]
+pub fn drawn(info: &Info, ch: usize) -> bool {
     let reference = if ch == 0 { &info.texture } else { &info.normalmap };
     if let Some(r) = reference {
         let l = r.to_lowercase();
