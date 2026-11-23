@@ -167,6 +167,8 @@ WPN-DMG-3, WPN-AMMO-1, WPN-SWAY-2, VEH-HP-4, VEH-MAT-1, and the DICE-only counts
 
 ### 4a. Status per file, before -> after
 
+Over the 1,269 rules SPV1 started from (round E4's five new rules, merged beside it, are verified and not counted).
+
 | File | Verified | Implemented | Observed | Inferred |
 |---|---|---|---|---|
 | `engine/ai.md` | 0 | 0 | 15 | 2 |

@@ -748,7 +748,8 @@ def holds(out: str, text: str) -> bool:
 def expect_lines(name: str) -> None:
     out = probe_output(name)
     for rule, text in EXPECT[name]:
-        check(holds(out, text), f'{rule}: spec/probes/{name}.py prints {text[:70]!r}')
+        shown = text.replace('§', ' > ')[:70]
+        check(holds(out, text), f'{rule}: spec/probes/{name}.py prints {shown!r}')
 
 
 # spec: MAT-GRID-1, MAT-GRID-2, MAT-GRID-3, MAT-GRID-4, MAT-GRID-5, MAT-GRID-6, MAT-SLOT-1, DSTR-TERR-3
