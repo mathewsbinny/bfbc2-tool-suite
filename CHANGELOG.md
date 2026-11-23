@@ -28,6 +28,14 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **The Kynapse generator's parameters in the specification** (round NKS-deep A, no tool changed):
+  `spec/transforms/kynapse_generation.md` section 9 (KYG-PAR-1 to 3, KYG-DOC-1), KYG-NODE-6, `spec/formats/kynapse.md`
+  KYN-FILE-2 and `spec/formats/hpd.md` HPD-TAB-4. DICE's generator ran with DistPropagation = GraphAccuracy + 0.35 m
+  (3.35 / 0.85 / 15.35 m: the step its node pairs keep), the spanner's 1.2 is DICE's OverConnectionRatio, node ids
+  count from 101 sector by sector, and the header words are named from the generator's own HPD writer. Four
+  game-tier corpus tests in `rust/bc2-formats/tests/kynapse_corpus.rs`.
+
 ### Changed
 - **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload
   is empty (only `*deleted*` markers, or no entries) now ends with the 20-byte gzip member of no data that DICE's 105

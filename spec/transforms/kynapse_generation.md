@@ -383,7 +383,8 @@ Multiples of half the step appear too (5.025 and 6.7 m coarse, 23.025 and 46.05 
 (7.6 % of coarse ordinary nodes lie whole half-steps from another on both axes), mostly beside small obstacles, and
 their nodes carry few edges (KYG-EDGE-3:
 the spanner's unexplained pairs gather on them). So part of the placement moves or splits nodes by half-steps along x
-and z. Where the pair's centre comes from is not decoded.
+and z. Where the pair's centre comes from is not decoded. The step itself is the generator's `DistPropagation`
+(KYG-PAR-1, round NKS-deep A).
 
 [test: rust/bc2-formats/tests/kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis]
 [data: round NKS-rest2 (`kynapse_rules`, `spacing` fit): pairs sharing x or z exactly, by gap: coarse 6,578 at 3.350 m (+- 2 mm; the next gap within 20 % 82), detailed 226 at 0.850 m (next 4), vehicle 44 at 15.350 m (next 2); coarse 753 at 6.700 m and 759 at 5.025 m; ordinary nodes joined to another by x and z offsets that are both whole half-steps: coarse 14,956 of 197,599 (12,166 in pairs, 2,313 in threes), detailed 4,176 of 147,130, vehicle 98 of 10,310]
@@ -402,6 +403,27 @@ an outline at another height that the 2-D sight test counts.
 
 [data: round NKS-rest2 (`kynapse_rules`, `cover` fit): every sample point of DICE's areas (0.8 m apart; 1 m on vehicle files), the nearest node of the sector at the area's height it sees: coarse 96.53 % within 7.5 m (88.6 % within 6 m, 96.97 % within 8 m) of 19,096,684 points, 1.83 % none within 30 m; detailed 98.31 % within 7.5 m (92.0 % within 6 m, 98.79 % within 8 m) of 5,735,964; vehicle 95.2 % within 25 m (81.0 % within 15 m) of 1,415,580, 2.7 % none within 30 m]
 [data: the same within the sectors' own squares (margins left out): coarse 96.94 % within 8 m, detailed 98.80 %, vehicle 95.5 % within 25 m: the tail is not the margins]
+
+### KYG-NODE-6: Node ids count from 101, sector by sector in table order
+
+Status: **verified**
+
+The generator's node counter starts at **101** in every file: the first id of the first sector with nodes is 101 in
+35 of 35 files (ids 0-100 are never used). It numbers the sectors in table order (ascending sector id, x then z),
+and each sector's new nodes take one range of numbers above the previous sector's: its ordinary nodes and the border
+nodes it is the first sector in table order to hold, interleaved in one range (border ids are not numbered after the
+ordinary ones: in 2,837 of 2,863 sectors holding both, some border id lies below the last ordinary id). About a fifth
+of each range is unused: 468,913 of the 586,397 numbers in the sectors' ranges name a node (80 %; per file 72-96 %).
+So the generator numbers a sector's nodes as it creates them, ordinary and border alike, and then drops about one in
+five (KYG-NODE-3's gaps; KYG-EDGE-3's later step). The gap between one sector's last id and the next sector's first
+is 0 before 1,136 of the 3,094 sectors that number new ids and mostly under 10: dropped nodes at a range's end.
+
+For NavKit this fixes where a parity build's ids start and how they run (101, table order, one range per sector);
+the dropped numbers mark where the later step removed nodes, which part B can compare against the step pairs
+(KYG-NODE-4).
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::node_ids_count_from_101_in_table_order]
+[data: first id 101 in 35 of 35 files; the new-id ranges of the 3,094 sectors that number new ids (the other 26 hold only border ids numbered in an earlier sector) rise in table order without overlap; 468,913 of 586,397 numbers used; a gap of 0 before 1,136 ranges, 1-9 before 1,835, 10 or more before 123 (the first sector's measured from 100)]
 
 ## 6. Route edges
 
@@ -572,6 +594,138 @@ On the 15 regression builds: 14,904 link entries, 5,922 to diagonal neighbours (
 infantry files of the same levels 14,562 and 5,682); 51,995 objects, all resolved, 6,614 cross-pitch (DICE 49,600 and
 8,875). Measure: `navparity:borders` 94.69 %.
 
+## 9. The generator's parameters (round NKS-deep A)
+
+DICE's path data stores few of the generator's settings itself: pitch, the tile size and the entity radius in each
+mesh header (HPD-SET-1, KYN-TILE-1), DistEdgeMax on each sector's first node (HPD-NODE-1), and the area heights that
+follow EntityHeight (KYM-AREA-3). The header and table words hold none (KYN-FILE-2, HPD-TAB-4). The rest are known
+from two sources read in round NKS-deep A: the settings DICE ships (`AI/Pathfinding/Infantry`, `Vehicles`,
+`InfantryData`, `VehicleData` in `sp_common` and `mp_common`, the same in both), and the Kynapse generator code in
+`BFBC2Game.exe`, which turns them into the generator's own parameters. Each rule below names what the parameter
+explains in DICE's data.
+
+### KYG-PAR-1: DistPropagation is GraphAccuracy + 0.35 m, because DICE sets the radius after the accuracy
+
+Status: **verified**
+
+DICE's build chain (`FUN_00F194F0`) writes the map builder's configuration as name / value pairs in a fixed order:
+StepMax, StepLength, HoleMax, GroundSlopeMax, GroundSlopeMin, MaxDeltaHeight, Pitch, VerticalPitch (only when
+not negative), **GraphAccuracy**, NbSectors, EdgeRadius, OverConnectionRatio, ForbidCollidingEdge, DistEdgeMax,
+UseOldPolylineSimplification (one generator kind only), CollisionModel, **EntityRadius**, EntityHeight,
+BuildCompositeShapes. Kynapse's map builder (`graphgen\kymapbuilder.cpp`) reads them one at a time, in that order. Only
+GraphAccuracy derives other parameters, from the EntityRadius it holds at that moment:
+
+- DistPropagation = GraphAccuracy + EntityRadius;
+- DistDensityMax = 0.65 x DistPropagation;
+- DistDensityMin = EntityRadius when that is below DistDensityMax, else DistDensityMax / 2.
+
+EntityRadius still has Kynapse's default, **0.35 m**, when GraphAccuracy is read: DICE's 0.4 / 2.5 arrives later and
+is stored without recomputing them. So DICE's generator ran with:
+
+| | GraphAccuracy | DistPropagation | DistDensityMax | DistDensityMin |
+|---|---:|---:|---:|---:|
+| coarse (infantry) | 3 | 3.35 | 2.1775 | 0.35 |
+| detailed (zone settings) | 0.5 | 0.85 | 0.5525 | 0.35 |
+| vehicle | 15 | 15.35 | 9.9775 | 0.35 |
+
+DistPropagation is KYG-NODE-4's step, exactly, on all three kinds: the pairs of nodes one step apart along an axis
+are one propagation step apart. It also shows as the nearest-neighbour distance: 7,505 coarse ordinary nodes have
+their nearest ordinary node (same floor) exactly 3.35 m away (+- 2 mm), against 96 at 1.05 times that; detailed 2,455
+at 0.85 m (199), vehicle 41 at 15.35 m (0). The median nearest-neighbour distance of coarse nodes is 3.35 m. The
+density limits leave no such trace (coarse: 234 nodes at 2.1775 m against 306 at 1.05 times it; 4 at 0.35 m), and no
+coarse node pair is closer than 0.02 m, so what the two limits do is not yet seen in the data. The detailed zones
+(`MapBuilderLocalSettingsZone`, GraphAccuracy 0.5) follow the same derivation: their parse was not traced, but their
+step is 0.5 + 0.35.
+
+A NavKit that places nodes by propagation (part B) uses these values, not GraphAccuracy + the real radius
+(3.4 / 0.9 / 17.5 m): the data contradicts the latter (no step at 3.4 m).
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::nearest_node_at_dist_propagation]
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis]
+[exe: DICE's configuration writer 0x00F1A94D-0x00F1B028 (GraphAccuracy from settings +0x64 at 0x00F1AC33, EntityRadius from the type's +0x2C at 0x00F1AF72); the map builder's parameter reader 0x011483D0 (one name per call, `ret 4`): GraphAccuracy at 0x011494E7-0x01149553 (DistPropagation +0x560 = value + EntityRadius +0x4E0; DistDensityMax +0x564 = x 0.65 (double 0x014C2820); DistDensityMin +0x568 = EntityRadius or DistDensityMax x 0.5 (0x014D9488)); EntityRadius at 0x0114A742-0x0114A768 stores +0x4E0 only; defaults 0x01146822-0x01146B3D: EntityRadius 0.35 (double 0x0145A4C8), EntityHeight 1.75, DistPropagation 1.5, DistEdgeMax 15, NbSectors 16, OverConnectionRatio 1.2; the generator's info-file format 0x014C2EF8 (printed at 0x0115553D) lists the same fields]
+[data: nearest ordinary node of the same floor exactly at DistPropagation (+- 2 mm): coarse 7,505 (at 1.05 x: 96), detailed 2,455 (199), vehicle 41 (0); coarse nearest-neighbour median 3.350 m; at DistDensityMax: coarse 234 (control 306), detailed 172 (187), vehicle 0]
+
+### KYG-PAR-2: DICE's settings, as the generator receives them, and what each explains
+
+Status: **observed**
+
+The values DICE ships (sp_common = mp_common) under the generator's names, with their trace in the data:
+
+| Parameter | Infantry | Vehicle | In the data |
+|---|---:|---:|---|
+| Pitch | 0.8 (zones 0.2) | 1.0 | mesh +0x24 (HPD-SET-1) |
+| GraphAccuracy | 3 (zones 0.5) | 15 | the step via DistPropagation (KYG-PAR-1) |
+| EntityRadius (the type's) | 0.4 | 2.5 | mesh +0x40 and every area (HPD-SET-1) |
+| EntityHeight | 1.9 | 4 | area heights + 0.8 x, outline + 0.5 x (KYM-AREA-3) |
+| DistEdgeMax (the type's) | 15 | 50 | first node +20 (HPD-NODE-1); edge reach (KYN-EDGE-1) |
+| OverConnectionRatio | 1.2 | 1.2 | the greedy spanner's 1.2 (KYG-EDGE-3) |
+| MaxDeltaHeight | 1000 | 1000 | no height limit on edges (KYN-EDGE-1: 7,186 edges longer than DistEdgeMax in 3-D) |
+| StepMax / StepLength | 0.28 / 0.36 | 0.4 / 0.4 | the area and D / F break (KYG-PAR-3, inferred) |
+| HoleMax | 0.28 | 0.75 | not yet seen in the data |
+| GroundSlopeMin / Max | 40 / 40 | 25 / 40 | not yet seen (vehicle ground stops at 25-28 degrees: `navvehicle.SLOPE_MAX`) |
+| EdgeRadius | 0.41 | 2.51 | not yet seen |
+| NbSectors | 32 (zones 128) | 64 | not decoded |
+| VerticalPitch | -1 (not written: Kynapse's default) | 2 | not yet seen |
+| CollisionModel | swept sphere | cylinder | KYG-IN-1 |
+| ForbidCollidingEdge, BuildCompositeShapes | false, true | false, true | not yet seen |
+
+The parameters DICE does not write keep Kynapse's defaults: among them OverSimplify on, ExploreAll and
+ExploreDiagonales on, ConnectionDistance, ComponentSizeMin and the steps run (FirstStep exploration to LastStep graph
+optimisation). The reader also knows parameters DICE never sets (`PropagationSeedPoint`, `AllowSimplification`,
+`RemoveOutVertices`, `ConnectSlightlyOutsideSeeds`, `JoinNeighbourObstacles`, `ExplorationHysteresisRatio`,
+`DoNotSimplifyCornerVertices`, `GenerateHidingPoints`, `MaxDistanceToWall` and others); their names show the stages
+(an exploration, an analysis, the graph's creation and its optimisation) but their effect was not traced.
+
+[exe: parameter reader 0x011483D0: the names and the fields they store (EdgeRadius +0x56C, EntityHeight +0x4DC, Pitch +0x520, StepLength +0x4E4, StepMax +0x4E8, HoleMax +0x4EC, GroundSlopeMax +0x4F4, GroundSlopeMin +0x4F8, NbSectors +0x55C, DistPropagation +0x560, DistDensityMax +0x564, DistDensityMin +0x568, DistEdgeMax +0x554 and its square +0x558, MaxDeltaHeight +0x578, OverConnectionRatio +0x58C, OverSimplify +0x584, FirstStep +0x5A4, LastStep +0x5A8); DICE's writer 0x00F1A94D-0x00F1B028 reads them from `PathfindingSettings` +0x48 / +0x54 / +0x58 / +0x5C / +0x4C / +0x50 / +0x68 / +0x60 / +0x64 / +0x44 / +0x24 / +0x28 / +0x73 / +0x70 and the type's +0x20 / +0x2C]
+[data: `AI/Pathfinding/Infantry`, `Vehicles`, `InfantryData`, `VehicleData` read from sp_common and mp_common `level-00.fbrb` (identical): the values in the table; MaxDeltaHeight 1000 and OverConnectionRatio 1.2 in both settings]
+
+### KYG-PAR-3: The break slope is StepMax / StepLength
+
+Status: **inferred**
+
+StepMax / StepLength is 0.28 / 0.36 = 0.778 for infantry and 0.4 / 0.4 = 1.0 for vehicles. Three thresholds measured
+on DICE's infantry data without a known source sit at that slope:
+
+- KYG-AREA-1's area link step at pitch 0.8: linked steps up to 0.591 m, unlinked from 0.62 m; 0.778 x 0.8 = 0.622 m
+  (closer than the 0.6 m used);
+- KYG-DF-1's terrain slope across a side (round NKG3): the share of sides DICE breaks rises from 54 % at slopes
+  0.770-0.775 to 91 % at 0.775-0.780, around 0.778;
+- the detailed sectors' terrain break "from about 0.17 m" at pitch 0.2: 0.778 x 0.2 = 0.156 m.
+
+So the generator's walkable step between two samples one pitch apart is most likely StepMax / StepLength x pitch (a
+slope limit expressed as a step over a step length). For vehicles that is 1.0 m at pitch 1.0, which the vehicle D / F
+fit (KYG-DF-2) can test once a vehicle-shaped sample run exists. Part B tests the rule on the raw samples.
+
+[inferred: three independently measured thresholds (0.62 m link step at pitch 0.8, the 0.775-0.780 slope band, about 0.17 m at pitch 0.2) agree with 0.28 / 0.36 = 0.778 within their measurement steps; the code that applies StepMax / StepLength was not traced]
+[doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:629-652]
+
+### KYG-DOC-1: What public Kynapse documentation adds
+
+Status: **observed**
+
+Round NKS-deep A searched the web for Kynapse's (Kynogon, later Autodesk) manuals, SDK pages, talks and articles on
+its generator. No manual or SDK page of Kynapse itself is public; the pages opened (2026-11-22) give:
+
+- https://www.gamedeveloper.com/game-platforms/tooling-around-pathfinding-with-kynogon-s-kynapse : Kynapse computes
+  "a 3D topological description of the world called the pathdata out of the collision world", with an automatic
+  generation and hierarchical data for large terrains, streamed at run time. Agrees with KYG-IN-1 (the generator
+  samples the collision world) and the last stage "Building hierarchical database".
+- https://www.gamedeveloper.com/game-platforms/product-kynogon-releases-kynapse-4-0 : version 4.0 handles "very large
+  terrains using an automatic tile mechanism". Agrees with the sectors and tiles (KYG-SEC-1, KYN-TILE-1).
+- https://en.wikipedia.org/wiki/Kynapse : bought by Autodesk in 2008, re-engineered as Autodesk Navigation in 2011;
+  BFBC2 is not in its list of titles. No technical detail.
+- https://help.autodesk.com/cloudhelp/ENU/Navigation-SDK-Help/api/class_kaim_1_1_nav_mesh_gen_parameters.html : the
+  successor's generator takes an entity radius and height, a step limit "between neighboring raster pixels" and a
+  slope limit. That generator is a rewrite (a raster NavMesh, not Kynapse's sampled sectors), so its parameters are
+  not used for DICE's data; the step between neighbouring samples matches KYG-PAR-3's reading of StepMax only in kind.
+- https://github.com/OpenDraconis/divinity2-lib/blob/main/engine/kynapse.md : a third-party reverse-engineering note
+  on Divinity II's Kynapse files; its names agree with DICE's files except the +20 float (KYN-FILE-2).
+
+So the executable's own generator code (KYG-PAR-1, KYG-PAR-2) is the better source; the public pages confirm the
+overall design and contradict nothing but the one third-party claim KYN-FILE-2 reports.
+
+[data: five pages opened; each fact checked against DICE's 35 files where it applies (KYN-FILE-2's +20 float contradicted: 2,605 of 3,120 sectors hold a longer edge)]
+
 ## The NavKit gap list, in priority order
 
 Ordered by what the runtime does with each difference (path existence first, then which node a point gets, then
@@ -658,5 +812,8 @@ grown by 25 m, verified). Still open, with what the fits ruled out:
   are not shipped. Closed as unrecoverable for DICE's levels (their own list is the record); new maps use the stand-in
   in the gap list.
 - The rectangle on the Onslaught files (KYG-RECT-1's exception): which spawns DICE built them from.
+- Round NKS-deep A (section 9): what DistDensityMin / DistDensityMax (0.35 / 0.65 x DistPropagation) do to the
+  nodes, and whether the walkable step is StepMax / StepLength x pitch (KYG-PAR-3). Next: both against the raw
+  samples in part B; the map builder's propagation and density code (0x01140000-0x01160000) read further.
 
 The `formats/kynapse.md` section 6 table tracks the same questions.
