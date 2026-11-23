@@ -699,7 +699,7 @@ opens on three buttons (`rust/bc2-editor/src/app/modes.rs`, `create.rs`; Back an
   samples a side - the main height field sizes the terrain reader knows (`bc2_formats::terrain::FIXED`) - or 1025 /
   2049 (the last row and column dropped). Create saves a project with `terrain_import` (the settings, the sample
   range) and the height map and colour map copied beside it with their sha1s; its base names no level. Such a
-  project opens on its own page saying "Terrain generation arrives in a later round (E7)"; nothing is generated.
+  project opens on its own page saying "Terrain generation arrives in a later round (E7)"; nothing is generated (the writer and a seeded generator: spec/transforms/terrain_gen.md, rounds TG1 - TG5).
 - **Multiplayer or campaign, from the data:** each level's description's `GameMode` (read by `catalog.rs`): a
   campaign mode (`gamemodes/singelplayer...`) is campaign, any other mode multiplayer; a level whose description is
   not read is listed under Create level only. On OPFOR's game copy: BFBC2 38 multiplayer + 13 campaign, BFBC1 8 + 0,

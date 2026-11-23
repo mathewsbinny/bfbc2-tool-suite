@@ -11683,3 +11683,51 @@ entities do with `IsMenuDevOptsEnabled` set; the handlers of the settings and co
 ### What is left (SPG3-rest)
 
 `spec/COVERAGE.md` section 2, items 1 - 4, and ROADMAP's SPG3-rest.
+
+## TG0: terrain generator feasibility and spec (2026-11-23, branch `tg0`)
+
+A feasibility and specification round for the user's goal of our own random height-map and terrain generator built
+from BFBC2's assets (no Rust or tool code changed). `spec/transforms/terrain_gen.md`: 32 rules (16 verified, 2
+implemented, 3 observed, 11 inferred, ids TGEN-*); a read-only probe of DICE's terrain shapes, biomes and playable
+areas; a throw-away prototype generator and writer (Python, NumPy) that TG1 replaces in Rust. Both run in the game
+tier (`core/tests/test_spec_probes.py`: `terrain_shapes`, `terrain_generator_prototype`).
+
+| Run | Reads / writes | Time | Peak RAM |
+|---|---|---|---|
+| `spec/probes/terrain_shape.py` | DICE's 30 terrains (heights, material maps, visual terrains, water meshes) and 74 level partitions | 80 s | 474 MB |
+| `spec/probes/terrain_gen_proto.py` (n 1,024, donor MP_005) | generates, writes and reads back 3 terrains (seed, again, seed + 1) and a visual terrain | 17 s | 187 MB |
+| `spec/probes/terrain_gen_proto.py --n 2048` | the same at 2,048 samples | 54 s | 615 MB |
+| the writer canary (`checks()` with the game copy) | DICE's 30 main blocks written again from their heights, depth maps and header words | 126 s | 654 MB |
+
+**What a generated terrain proved (offline, the suite's readers):** a 1,024 and a 2,048 main block read in the Rust
+reader (every height within one u16 step, the tail taken as a main block's), the depth runs, padding and min / max
+tree re-encoded by the DICE-checked reader, the built lower envelope under every sample; the material map decoded and
+re-encoded byte for byte; the water mesh read; a one-block visual terrain with MP_005's 50 patch shaders and every cell
+on its rule-only shader read back; same seed same bytes. The canary: DICE's 30 main blocks written again are byte for
+byte DICE's with their own envelope (30 of 30) and identical up to the envelope with a built one (30 of 30), the built
+envelope under every sample (30 of 30). The 2,048 file is 8,669,245 bytes, the size of DICE's.
+
+**What DICE's terrains are (the numbers a generator matches):** 30 main blocks of 1,024 (11) / 2,048 (19) samples of 1
+m, centred on the origin from height 0; five biomes by the levels' vegetation sets (arid 5, jungle 9, snow 6, temperate
+5, vietnam 5; the material maps agree on 30 of 30); median slope 20.4 degrees (biome medians 8 - 30.5), a steep tail
+(99th percentile 8 - 84 degrees), hypsometric integral 0.12 - 0.57, spectrum slope beta 3.2 - 4.6; 27 of 30 with ground
+under water (0 - 83 %); borders a median 19 m above the centre. Combat areas (61 levels): Conquest 44 - 479 thousand m2
+(median 99, the placement study's figure), at most 22 % of the terrain in any mode, convexity median 82 - 97 %, flatter
+inside than outside on 52 of 61 levels; 50 Conquest flags on the ground at 1.5 degrees median slope (92 % under 10) at
+any height of the combat area.
+
+**The prototype against DICE:** spectral synthesis at the biome's beta, relief scaled to the biome's median slope,
+thermal erosion, objective pads, the water level at the biome's under-water share: every biome's beta within 0.1,
+median slope within 0.1 degree and under-water share exactly (seed 7, 1,024 samples); its 99th-percentile slope (20 -
+56 degrees) and 66 m relief (0.9 - 3.2 m) fall short of DICE's biome medians (53 - 75 degrees, 2 - 13 m): hydraulic erosion and
+height remapping are TG1's research item (TGEN-GEN-3).
+
+### What is left (TG1 - TG5)
+
+TGEN-PLAN-1: TG1 the Rust generator and writers (ring, visual water, the canary, erosion and remapping tuned to the
+biome statistics); TG2 the visual side (a donor's patch and undergrowth shaders renamed into the new terrain's
+databases, the colour / occlusion map, the game-accurate view); TG3 E7's Create Level wired to the generator, the export
+with the level's own terrain bundle, `export::check`, NavKit from the offline sampler; TG4 vegetation, rocks and props
+with E5's sculpt and paint; TG5 gameplay through A3 and the WW2 (pacific) biome. Unproven until in-game tests resume:
+the engine with a generated envelope, a donor's rule layers on other heights, a level without its base's terrain
+bundle, our own water mesh, craters on a depth map of 255.

@@ -4,7 +4,8 @@ instead of observed. Read only; skipped without the game copy. `terrain.py` and 
 their functions; SPG's five print-only probes (`materials`, `destruction`, `lighting`, `vehicles`, `weapons`) by the
 lines of their output that hold a rule's counts (EXPECT; `<head>§<line>` for a line inside one block of the output);
 `grime.py`, `menus.py`, `modes.py`, `level.py`, `registry.py` and round SPG3's `options.py`, `scripting.py` and
-`dependencies.py` by their own `checks()`.
+`dependencies.py` and round TG0's `terrain_shape.py` and `terrain_gen_proto.py` (the throw-away generator prototype:
+its synthetic terrains and the writer canary on DICE's 30 main blocks) by their own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -831,6 +832,16 @@ def asset_graph(game: Path) -> None:
     probe_checks('dependencies', game)
 
 
+# spec: TGEN-REQ-1, TGEN-REQ-2, TGEN-BIOME-1, TGEN-SHAPE-1, TGEN-SHAPE-2, TGEN-SHAPE-3, TGEN-PLAY-1, TGEN-PLAY-2
+def terrain_shapes(game: Path) -> None:
+    probe_checks('terrain_shape', game)
+
+
+# spec: TGEN-GEN-1, TGEN-GEN-2, TGEN-OUT-1, TGEN-OUT-2, TGEN-OUT-3, TGEN-VIS-1, TGEN-PLAY-3
+def terrain_generator_prototype(game: Path) -> None:
+    probe_checks('terrain_gen_proto', game)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -852,7 +863,8 @@ def main() -> int:
                                        spg_materials, spg_destruction, spg_lighting, spg_vehicles, spg_weapons,
                                        lambda: grime(game), lambda: menus(game), lambda: modes(game),
                                        lambda: level_partitions(game), lambda: registries(game),
-                                       lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game)]
+                                       lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game),
+                                       lambda: terrain_shapes(game), lambda: terrain_generator_prototype(game)]
     for step in steps:
         step()
     print(f'{"FAILED " + str(len(FAILED)) if FAILED else "passed"}: the specification probes\' counts '

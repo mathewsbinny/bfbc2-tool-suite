@@ -29,6 +29,15 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Terrain generation in the specification** (round TG0, documentation and probes only): `spec/transforms/terrain_gen.md`
+  (32 rules) says what a valid BFBC2 terrain is end to end (the eight kinds of data, what is generated, derived, reused
+  or the engine's, names, registration, collision, water, navigation, lighting), groups DICE's 30 terrains into five
+  biomes by their vegetation sets with the materials, atlases, undergrowth, trees, rocks and props each offers (and
+  OPFOR's WW2 set apart), measures how DICE's terrains and playable areas are shaped (elevation, slopes, spectra,
+  water, combat areas, flags), and designs the generator, its proof and the rounds TG1 - TG5. New probes:
+  `spec/probes/terrain_shape.py` and the throw-away prototype `spec/probes/terrain_gen_proto.py` (a seeded height
+  field, material map, water mesh and rule-layer visual terrain written and read back; DICE's 30 main blocks written
+  again byte for byte), both in `run_tests.py game`'s spec-probes check. No tool changes.
 - **NavKit: DICE's terrain rule for D lines** (round NKG3, spec KYG-DF-1): DICE's D sides between two terrain cells
   follow the terrain's slope across the side (above 0.77), not the step between the cell centres; its F cells follow
   the steps. NavKit's build reads the level's height field (`navwalk.build(heightfield=...)`,

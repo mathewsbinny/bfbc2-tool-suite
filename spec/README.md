@@ -201,6 +201,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/validation.md](transforms/validation.md) | the export's rule registry: every way an exported level fails or is refused, checked live, by the build and by the stage's check; DICE's placement tendencies (L1) as warnings |
 | [transforms/projectlog.md](transforms/projectlog.md) | the editor's project log: undo / redo, GUIDs, apply |
 | [transforms/terrain_edit.md](transforms/terrain_edit.md) | what a terrain sculpt, paint or new terrain must write, and what the game computes (SPG2, for E5 / E7) |
+| [transforms/terrain_gen.md](transforms/terrain_gen.md) | a generated terrain end to end: what a valid terrain is, DICE's biomes and reusable assets, DICE's terrain shapes and playable areas in numbers, the generator's design, the proof plan and rounds TG1 - TG5 (TG0) |
 | [transforms/shaders.md](transforms/shaders.md) | BF1943's Xenos shaders translated for Dx10 / 11: scope, code, binding tables, keys, fetch formats, the merge, Dx9 (SPG2) |
 | [transforms/dependencies.md](transforms/dependencies.md) | dependency graphs: the asset graph (partition references from string tables, dangling references, cycles, resources by name, closures) and the WW2 rebuild's step graph from OPFOR's step records (SPG3) |
 
