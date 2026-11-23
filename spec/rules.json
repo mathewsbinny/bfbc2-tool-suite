@@ -26846,6 +26846,526 @@
    ]
   },
   {
+   "id": "TGEN-REQ-1",
+   "title": "A level's terrain is eight kinds of data, most of them in the terrain bundle",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 30 DICE terrains, each with a main block, a material map, a visual terrain and a water mesh read from the same bundle; terrain_edit.md's corpus counts for the rest (TEDIT-SRC-1, TEDIT-BLK-1)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-2",
+   "title": "DICE's limits: 1 or 2 km squares of 1 m samples, centred on the origin, heights from 0",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: sizes (n, spacing) (1024, 1 m) x 11, (2048, 1 m) x 19; 30 of 30 bounds -n/2 .. n/2 with min y 0"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/heightmap.rs:26-27"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-3",
+   "title": "Generated, derived, reused, or the engine's",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TEDIT-SRC-2's table extended to a whole new terrain; TERR-VT-3 (rule layers are computed), VEG-UG-3 (undergrowth generated at run time), LIGHT-BAKE-1 / -2 (what is baked), XCULL-RES-1 (the export reslots new objects)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-4",
+   "title": "A new terrain takes its own name everywhere",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TERR-NAME-1 and TERR-VT-3's naming; LVL-MODE-2; OPFOR's Wake Island install retargets cloned patch shaders by name the same way (TEDIT-SH-2)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-5",
+   "title": "The export registers the new level's own terrain bundle",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "XEXP-BLD-2 (base bundles read at run time), XEXP-REG-1, XEXP-CHK-1; LVL-MODE-2"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-6",
+   "title": "Collision, water, navigation and cull trees",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "COLL-TERR-1, WATER-MESH-1, CULL-LVL-1, XCULL-RES-1; bfbc2-auto-navkit/tools/navsample_offline.py's `stage` command (round NK6)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/tools/navsample_offline.py:19-21"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-7",
+   "title": "Lighting: one map to generate, nothing to re-bake",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "LIGHT-BAKE-1, LIGHT-BAKE-2, LIGHT-BAKE-6, LIGHT-IRR-2"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-1",
+   "title": "A terrain's biome is its levels' vegetation set",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:48-63"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: biomes {arid 5, jungle 9, snow 6, temperate 5, vietnam 5}; materials agree on 30 of 30"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-2",
+   "title": "What each biome offers a generator",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: \"TGEN-ASSET per biome\" (materials, atlas layouts, undergrowth meshes, forest / middlegrowth / blueprint types and instances by folder, rock / cliff names) over the 30 terrains and the 74 DICE level partitions on them"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-3",
+   "title": "The pacific biome is OPFOR's conversions of BF1943",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py --ww2, 2026-11-23: per terrain n, range, under-water share 0.915 - 0.963, atlas, patch shaders, undergrowth meshes, materials, forest / middlegrowth / blueprint folders as printed"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-4",
+   "title": "One donor visual terrain per generated terrain",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TERR-VT-5, TEDIT-SH-1 - 3, VEG-UG-1, VEG-UG-4, MAT-GRID-2; the Wake Island install's single donor (MP_009CQ)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VIS-1",
+   "title": "Rule-only patch shaders draw a terrain with no atlas tiles",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:251-271"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: rule-only patch shaders (tiled count 0) on 30 of 30 terrains, 1 (MP_006, NAM_MP_006, SP_005, SP_005_B) to 20 (SP_01)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VIS-2",
+   "title": "The donor's rule layers expect the donor's heights",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "RNDR-TERR-2 (literal weights), RNDR-TERR-5 (Wake Island's sea floor shaded against its water at 215 m); the donor's water level from spec/probes/terrain_shape.py"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-1",
+   "title": "Elevation: low basins and a long upper tail",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:107-138"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: per terrain elevation percentiles, hypsometric integral, slope percentiles and shares, relief, beta, water level, under-water share, coastline, border minus centre; per biome medians and ranges as tabled; 99th height percentile over the range 0.02 - 0.90, median 0.48"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-2",
+   "title": "Slopes: a flat floor and a heavy steep tail",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: median of median slopes 20.4; per terrain p10 / p90 / p99 as printed; biome medians of the 99th percentile arid 52.8, jungle 75.0, snow 71.1, temperate 75.1, vietnam 64.6; the prototype's five biomes (seed 7, n 1,024): p99 20.1 / 45.9 / 56.1 / 48.3 / 33.5 degrees, 66 m relief 0.87 / 2.46 / 3.23 / 2.80 / 1.52 m"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-3",
+   "title": "The spectrum is steep and the same in every biome",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:79-96"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: beta 3.16 (SP_005) - 4.56 (SP_004_B, SP_04); 10 m relief per terrain as printed"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-4",
+   "title": "Water and the border",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: under-water share, coastline length, water level and border minus centre per terrain as printed; water meshes with no vertices on SP_006 and SP_009"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAY-1",
+   "title": "Combat areas are 1 - 22 % of the terrain, roughly convex, near the middle",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:286-344"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 61 levels (modes from OPFOR's maps.ini); per mode as tabled; inside flatter than outside on 14 / 14 / 10 / 14 levels by mode; under-water share inside, median 0.17 / 0.17 / 0.12 / 0.15"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/l1_distributions.md:42"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAY-2",
+   "title": "Conquest flags stand on flat ground at any height",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 50 flags of 16 Conquest levels: slope, height percentile, relief against 100 m and distance to water percentiles as given; 92 % under 10 degrees"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAY-3",
+   "title": "The generator flattens objective pads",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:111-117"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-1",
+   "title": "A seed and settings give the same terrain, byte for byte",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:94-122"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-2",
+   "title": "The prototype's pipeline matches DICE's medians",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:46-122"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-3",
+   "title": "What the real generator adds (round TG1)",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TGEN-SHAPE-1 - 3 (what DICE has), TGEN-SHAPE-2 (what the prototype misses), TGEN-PLAY-1 / -2, A3's ROADMAP row"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-MAT-1",
+   "title": "Material names come from the donor level's grid",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:53-59"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-MAT-2",
+   "title": "Materials are painted from height and slope; visual layers follow the same rules",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:208-219"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-1",
+   "title": "Vegetation and props are placed as the level's model groups",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "VEG-CLS-1 / -2, VEG-UG-1 / -3, COLL-MG-2, XCULL-RES-1; the per-biome instance counts of TGEN-BIOME-2"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-1",
+   "title": "A generated main block reads back in the suite's readers",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:127-178"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-2",
+   "title": "A generated material map decodes and re-encodes byte for byte",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:192-205"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-3",
+   "title": "A generated water mesh reads in the Rust reader",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:222-227"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-4",
+   "title": "The writer canary: DICE's 30 main blocks written again",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:181-189"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:331-353"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-5",
+   "title": "The proof plan",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "terrain_edit.md section 5; XEXP-CHK-1; XNAV-BLD-1 - 4; NavKit's parity target (navkit.md)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAN-1",
+   "title": "Verdict per part, and rounds TG1 - TG5",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the verdicts from the rules cited per row; the order from the dependencies (writer, then drawing, then export, then content)"
+    }
+   ]
+  },
+  {
    "id": "XVAL-EDIT-1",
    "title": "The base level changed since the project was made",
    "file": "spec/transforms/validation.md",
