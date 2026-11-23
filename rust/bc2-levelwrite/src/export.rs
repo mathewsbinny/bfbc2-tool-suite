@@ -1773,7 +1773,10 @@ pub fn build(
         bundles.extend(game.loaded(&base, "level"));
         let live = game.live(&bundles)?;
         let f = live.get(name).ok_or_else(|| {
-            crate::rules::refusal("XVAL-EDIT-6", format!("{name} is in none of the base's terrain bundles"))
+            crate::rules::refusal(
+                "XVAL-EDIT-6",
+                format!("{name} is in none of the base's terrain bundles"),
+            )
         })?;
         terrain.push(StagedEntry {
             name: f.1.name.clone(),
@@ -3572,7 +3575,10 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
                 if wrong.is_empty() {
                     String::new()
                 } else {
-                    format!(" (not: {})", wrong.iter().take(5).cloned().collect::<Vec<_>>().join("; "))
+                    format!(
+                        " (not: {})",
+                        wrong.iter().take(5).cloned().collect::<Vec<_>>().join("; ")
+                    )
                 }
             ),
         );

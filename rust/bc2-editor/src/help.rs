@@ -202,8 +202,8 @@ pub const WORKSPACES: [Workspace; 6] = [
     Workspace {
         name: "Terrain",
         available: true,
-        what: "Sculpt the terrain with brushes - raise, lower, smooth, flatten to the height where the stroke began, noise, and a ramp between two clicked points - each with a radius, a strength and a falloff, and paint its physics material (footsteps, impacts, dust) with one of the terrain's own materials. Hold the left button on the ground to paint; letting go keeps the stroke as one step of History (Ctrl+Z undoes it). The game-accurate view follows. The export writes the sculpted height field (its min / max tree and lower envelope rebuilt) and the painted material map.",
-        when: "The visual paint layers, widening the height range and re-shading the occlusion map come in round E5-rest.",
+        what: "Sculpt the terrain with brushes - raise, lower, smooth, flatten to the height where the stroke began, noise, and a ramp between two clicked points - each with a radius, a strength and a falloff, and paint its physics material (footsteps, impacts, dust) with one of the terrain's own materials. Hold the left button on the ground to paint; letting go keeps the stroke as one step of History (Ctrl+Z undoes it). The game-accurate view follows. The export writes the sculpted height field (its min / max tree and lower envelope rebuilt) and the painted material map. The visual paint layers (greyed), widening the height range and re-shading the occlusion map come in round E5-rest.",
+        when: "",
     },
     Workspace {
         name: "Vegetation",

@@ -555,8 +555,9 @@ impl Doc {
             // round E5: the scene's terrain follows a height-field stroke
             Op::Stroke {
                 target: Target::Terrain { .. },
+                tiles,
                 ..
-            } => self.sync_terrain(),
+            } => self.sync_terrain_in(Some(tiles)),
             op => self.apply_scene(op),
         }
     }
@@ -565,22 +566,63 @@ impl Doc {
     /// the region that differs from the scene's (nothing when they are the same). The mesh is a new `Arc`, so the ray
     /// structures built on the old one are not used for it.
     fn sync_terrain(&mut self) {
+        self.sync_terrain_in(None);
+    }
+
+    /// [`Doc::sync_terrain`] over the tiles a stroke named (`Some`: only those samples are compared and copied, a
+    /// stroke's cost; `None`: the whole raster, after an undo or a replay).
+    fn sync_terrain_in(&mut self, tiles: Option<&[bc2_levelwrite::delta::TileDelta]>) {
+        use bc2_formats::terrain_codec::Region;
         let (Some(t), Some(hf)) = (self.terrain_target(), self.scene.heightfield.clone()) else {
             return;
         };
-        let samples = match self.files.rasters.get(&t) {
-            Some(r) => r.samples(),
-            None => match self.base.heightfield.as_ref() {
-                Some(b) if !std::sync::Arc::ptr_eq(b, &hf) => b.raw.clone(),
-                _ => return,
+        let n = hf.size as usize;
+        let mut new_raw: Option<Vec<u16>> = None;
+        let region = match (self.files.rasters.get(&t), tiles) {
+            (Some(r), Some(tiles)) => {
+                let tile = bc2_levelwrite::delta::TILE as usize;
+                let mut region: Option<Region> = None;
+                let mut raw = hf.raw.clone();
+                for d in tiles {
+                    let (x0, z0) = (d.x as usize * tile, d.y as usize * tile);
+                    let rect = Region {
+                        x0,
+                        z0,
+                        x1: (x0 + tile).min(n),
+                        z1: (z0 + tile).min(n),
+                    };
+                    for z in rect.z0..rect.z1 {
+                        for x in rect.x0..rect.x1 {
+                            if let Some(v) = raw.get_mut(z * n + x) {
+                                *v = r.get(x as u32, z as u32);
+                            }
+                        }
+                    }
+                    region = Some(region.map_or(rect, |g| g.union(rect)));
+                }
+                new_raw = Some(raw);
+                region
+            }
+            (Some(r), None) => {
+                let samples = r.samples();
+                let region = bc2_levelwrite::terrainedit::changed_region(&hf.raw, &samples, n);
+                new_raw = Some(samples);
+                region
+            }
+            (None, _) => match self.base.heightfield.as_ref() {
+                Some(b) if !std::sync::Arc::ptr_eq(b, &hf) => {
+                    let region = bc2_levelwrite::terrainedit::changed_region(&hf.raw, &b.raw, n);
+                    new_raw = Some(b.raw.clone());
+                    region
+                }
+                _ => None,
             },
         };
-        let n = hf.size as usize;
-        let Some(region) = bc2_levelwrite::terrainedit::changed_region(&hf.raw, &samples, n) else {
+        let (Some(region), Some(raw)) = (region, new_raw) else {
             return;
         };
         let mut new_hf = (*hf).clone();
-        new_hf.raw = samples;
+        new_hf.raw = raw;
         if let Some(mesh) = self.scene.terrain.as_deref() {
             let mut m = mesh.clone();
             terrain_vertices(&mut m.0, &new_hf, region);

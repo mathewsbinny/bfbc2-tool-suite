@@ -260,7 +260,10 @@ fn terrain_strokes_on_real_levels() {
         let mut d = Doc::create("Sculpted", &dir, lv, s).unwrap();
         let ht = d.terrain_target().unwrap();
         let mt = d.material_target().unwrap();
-        assert!(matches!(&mt, Target::Material { file } if file.ends_with("-materialmap.res")), "{mt:?}");
+        assert!(
+            matches!(&mt, Target::Material { file } if file.ends_with("-materialmap.res")),
+            "{mt:?}"
+        );
         let base = d.scene.heightfield.clone().unwrap();
         let g = Ground::of(&base);
         let s = BrushSettings {
@@ -270,17 +273,33 @@ fn terrain_strokes_on_real_levels() {
             ..BrushSettings::default()
         };
         // the middle of the terrain
-        let (x, z) = (g.x0 + g.cell[0] * f64::from(g.n) / 2.0, g.z0 + g.cell[1] * f64::from(g.n) / 2.0);
+        let (x, z) = (
+            g.x0 + g.cell[0] * f64::from(g.n) / 2.0,
+            g.z0 + g.cell[1] * f64::from(g.n) / 2.0,
+        );
         let mut r = d.raster(&ht).unwrap();
         let t = std::time::Instant::now();
         let dab = sculpt_dab(&mut r, &g, Brush::Raise, (x, z), &s, 0.0);
         d.stroke(&ht, &r, "Raise").unwrap().unwrap();
-        println!("{lv}: n {}, a raise dab and its stroke in {:.3} s", g.n, t.elapsed().as_secs_f64());
+        println!(
+            "{lv}: n {}, a raise dab and its stroke in {:.3} s",
+            g.n,
+            t.elapsed().as_secs_f64()
+        );
         let (i, j) = g.grid(x, z);
-        let at = |hf: &bc2_formats::terrain::Heightfield| hf.raw[j.round() as usize * hf.size as usize + i.round() as usize];
+        let at =
+            |hf: &bc2_formats::terrain::Heightfield| hf.raw[j.round() as usize * hf.size as usize + i.round() as usize];
         let now = d.scene.heightfield.clone().unwrap();
         assert!(at(&now) > at(&base) || dab.clamped, "{lv}: raised");
         let mut cells = d.raster(&mt).unwrap();
+        // a material other than the one under the brush's middle
+        let size = bc2_editor::sculpt::cell_size(&g, cells.width());
+        let under = cells.get(((x - g.x0) / size) as u32, ((z - g.z0) / size) as u32);
+        let names = d.material_names().len() as u16;
+        let s = BrushSettings {
+            material: ((under + 1) % names) as u8,
+            ..s
+        };
         let _ = paint_dab(&mut cells, &g, (x, z), &s);
         let t = std::time::Instant::now();
         d.stroke(&mt, &cells, "Material").unwrap().unwrap();
@@ -291,7 +310,10 @@ fn terrain_strokes_on_real_levels() {
         );
         assert_eq!(d.project.reader_needed(), 11);
         assert!(d.undo() && d.undo());
-        assert!(d.scene.heightfield.as_ref().unwrap().raw == base.raw, "{lv}: undone to DICE's heights");
+        assert!(
+            d.scene.heightfield.as_ref().unwrap().raw == base.raw,
+            "{lv}: undone to DICE's heights"
+        );
         assert!(d.redo());
         assert!(d.scene.heightfield.as_ref().unwrap().raw == now.raw, "{lv}: redone");
         let _ = std::fs::remove_dir_all(&dir);
