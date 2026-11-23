@@ -28,6 +28,15 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Changed
+- **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload
+  is empty (only `*deleted*` markers, or no entries) now ends with the 20-byte gzip member of no data that DICE's 105
+  such bundles end with, where FbrbTool (and the suite after it) wrote nothing. `bfbc2core.fbrb.pack` / `pack_many`,
+  `bfbc2 fbrbtool pack` and `bc2_formats::fbrb::pack` (new constant `EMPTY_GZIP_MEMBER`) all write it; repacking each
+  of DICE's 105 gives DICE's bytes but for the header member's two header bytes (FBRB-HDR-4). FbrbTool's recorded
+  pack results for such bundles were re-recorded (each FbrbTool's bundle + those 20 bytes). Every other bundle is
+  unchanged.
+
 ## [0.22.0] - 2026-11-22
 
 ### Changed
@@ -50,13 +59,6 @@ landed on `main`.
   (`dbxcatalogue.CACHE` names the new file); without the Rust core `dbxcatalogue.load` builds the catalogue each time.
 
 ### Changed
-- **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload
-  is empty (only `*deleted*` markers, or no entries) now ends with the 20-byte gzip member of no data that DICE's 105
-  such bundles end with, where FbrbTool (and the suite after it) wrote nothing. `bfbc2core.fbrb.pack` / `pack_many`,
-  `bfbc2 fbrbtool pack` and `bc2_formats::fbrb::pack` (new constant `EMPTY_GZIP_MEMBER`) all write it; repacking each
-  of DICE's 105 gives DICE's bytes but for the header member's two header bytes (FBRB-HDR-4). FbrbTool's recorded
-  pack results for such bundles were re-recorded (each FbrbTool's bundle + those 20 bytes). Every other bundle is
-  unchanged.
 - **NavKit's route graphs follow DICE's edge rules** (round NKG2, `spec/transforms/kynapse_generation.md`): each
   sector's walkable pairs are pruned to DICE's greedy 1.2-spanner (KYG-EDGE-3) instead of keeping every pair (coarse)
   or the Gabriel graph (detailed), and every edge lives on its source's owner copy (KYG-EDGE-4): an edge out of a
