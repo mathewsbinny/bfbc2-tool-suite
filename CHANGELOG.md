@@ -137,8 +137,22 @@ landed on `main`.
   first) and writes nothing when the place is outside its section (the Python wrote the resource's bytes first); a
   damaged resource whose object tree does not read raises a `GrannyError` saying why. Proven against the twin on the
   built resources (600 writes) and every Granny file the game tiers read (below, rust/BENCHMARKS.md "PR1b-2-rest3").
+- Specification (round SPG2-rest4), read from the executable:
+  - the undergrowth entry's loader names the 12 numbers by the code that uses them (VEG-UG-5, now verified on DICE's
+    3,069 entries), and the generator's formulas are written down (VEG-UG-7);
+  - the particle polynomial is a cubic, clamped before the scale (FX-PROC-5);
+  - the FSCommand callback's ten commands (MENU-RT-6) and the menu event queue's once-a-frame drain (MENU-EVT-4) are
+    described, and the menus probe checks them;
+  - a finished award is written as `<Code>_00` / `_01` stats (PERS-AWD-5);
+  - the career save drops a round's kills because the scoring record's stats pointer is set only by EA's answer
+    (PERS-SCORE-2);
+  - the compiled anim tree's three blocks are described from the loader's relocation walkers and checked on all
+    1,926 DICE trees (ATREE-BLK-1 to 3).
 
 ### Fixed
+- Specification (round SPG2-rest4): MENU-EVT-2's "target movie" at UiManager+0x82CF8 is the event drain's frame
+  counter; VEG-UG-6 corrected: the type's registration has no factory, and the entry is read by the visual terrain's
+  resource factory.
 - The offline sampler's 0.2 m runs from `navsample_offline.py all` / `stockmp` and an export's stage sampled a
   detailed sector outside the level's box without its objects (the geometry was cropped to the level's box; sp_009's
   6 flagged sectors east of x 500): the geometry now covers every square a run samples (NAVS-SMP-2).

@@ -37,21 +37,21 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **Point lights** (ActAsPointLight emitters, `PointLightEntityData`) | editor Lights overlay | VW2c lamp tool, VW2e night conversion | none -> LIGHT-PT (9) | none | covered for VW2c / VW2e; the per-draw choice and the instance cap open (RE) | as after SPG |
 | **Weather system** (states, switches, effects) | bc2-render weather, editor weather picker, levelwrite weather (VW2a-c) | VW2d, VW3 weather editor | RNDR-WTHR (9) -> **engine/weather (12)** | thin | covered | as after SPG |
 | **Sky, moon, god rays** | bc2-render sky dome | VW2e (moon, god rays), RenderDoc (clouds) | RNDR-SKY (3) + LIGHT-SKY (4) | thin | covered (the panoramic clouds' composite still open, RNDR-SKY-3) | as after SPG |
-| **Effects, emitters, emitter atlases** | editor Effects overlay, emitteratlas (suite), OPFOR emitter_atlas, E3d cross-set copy | VW2c, VW2d | none -> **engine/effects (11)** | none | covered for the atlas and placement; the processor chain is thin | covered: the processor chain FX-PROC (4: SPG2-rest2 adds the executable's enums; its semantics open) |
+| **Effects, emitters, emitter atlases** | editor Effects overlay, emitteratlas (suite), OPFOR emitter_atlas, E3d cross-set copy | VW2c, VW2d | none -> **engine/effects (11)** | none | covered for the atlas and placement; the processor chain is thin | covered: the processor chain FX-PROC (4: SPG2-rest2 adds the executable's enums; its semantics open); SPG2-rest4: the evaluator dispatch and the polynomial (FX-PROC-5) |
 | **Weapons and projectiles** (firing, damage, sway, zoom, ammo, grenades, attachments) | OPFOR bf1943_weapons, weapons, rifle_grenades, rg_projectiles, scopes, attachments; dbxport | translate weapons (hold), air raid (hold) | none -> **engine/weapons (34)** | none | covered | as after SPG |
 | **Vehicles** (entity, physics, seats, health, spawners) | OPFOR bf1943_vehicles, vehicle_input_profile, boatrelease (DLL), console_vehicles / console_markv | repair stations, air raid, Air Superiority (hold) | SND-VEH-1 (1) -> **engine/vehicles (22)** | none | covered | as after SPG |
 | **Materials and the material grid** (part / hit material, penetration, impact effects) | OPFOR material_grid, physmat, wake_material_states; havokport | OPFOR in Rust 4 | HAVOK-MAT (2), GAME-DMG-1 -> **engine/materials (30)** | none | covered; the hit material of plain objects open (playtest) | as after SPG |
 | **Destruction** (health states, parts, bangers, destroyed meshes, collapse) | bc2-render destruction states, editor (SG1 members), levelwrite members | E4 (M-COMs), the map editor's group edits | HAVOK-RUN-3, GAME-DMG-1 -> **engine/destruction (22)** | none | covered | as after SPG |
 | **Grime, dirt, camouflage** | OPFOR grime, grime_models, grime_sheet | translate soldiers (hold) | none -> MAT-TEX (4) | none | thin: MAT-TEX-3 inferred; the grime pipeline's own rules not written | SPG2-rest: covered (data side): MAT-TEX (19): dirt slots and constants, terrain dirt triggers, vehicle / soldier / weapon camouflage per level, OPFOR's weathering pass; SPG2-rest2: the run-time build-up (MAT-TEX-20) |
-| **Vegetation and undergrowth** (TreeMeshSet, undergrowth, billboards) | mesh readers, bc2-render, conversion (TreeMeshSet) | **E6 vegetation** | MSET-PART-2, RNDR-TERR-4 (2) | thin | thin (plan, section 2) | covered: engine/vegetation (8); SPG2-rest: the undergrowth entry is the engine's TerrainUndergrowthType (VEG-UG-3, 5), the NAM_MP_003 reader fix; SPG2-rest2: bc2-convert's reader fixed too, the loader not found (VEG-UG-6) |
-| **Animation and characters** (Granny, anim trees, aim, skeletons, soldiers, kits) | granny, aimanim, anim-tools, OPFOR anims / animswap / soldiers / kits / kitbags / skinning | translate soldiers (hold) | formats/granny (8), aimanim (3) | thin | thin (plan, section 2) | covered: engine/animation (17) |
+| **Vegetation and undergrowth** (TreeMeshSet, undergrowth, billboards) | mesh readers, bc2-render, conversion (TreeMeshSet) | **E6 vegetation** | MSET-PART-2, RNDR-TERR-4 (2) | thin | thin (plan, section 2) | covered: engine/vegetation (8); SPG2-rest: the undergrowth entry is the engine's TerrainUndergrowthType (VEG-UG-3, 5), the NAM_MP_003 reader fix; SPG2-rest2: bc2-convert's reader fixed too, the loader not found (VEG-UG-6); SPG2-rest4: the loader and the generator read, the 12 numbers verified (VEG-UG-5 to 7) |
+| **Animation and characters** (Granny, anim trees, aim, skeletons, soldiers, kits) | granny, aimanim, anim-tools, OPFOR anims / animswap / soldiers / kits / kitbags / skinning | translate soldiers (hold) | formats/granny (8), aimanim (3) | thin | thin (plan, section 2) | covered: engine/animation (17); SPG2-rest4: the compiled tree's three blocks (ATREE-BLK-1 to 3) |
 | **Decals and roads** | bc2-render (baked strips) | E5 | RNDR-TERR-4 (1) | thin | thin (plan, section 2) | covered: engine/decals (6) |
 | **Audio and voice-over** | console-convert XAS, OPFOR wake_vo / wake_ambience | E3c done | formats/audio (16), engine/audio (16) | covered | covered | as after SPG |
 | **AI and navigation** (Kynapse) | auto-navkit, stockmp-ai, editor AI workspace, DLL navgen / navquery / forceai | **NKS (now)**, NK3-NK5, A1, WW2 navmesh (hold) | formats/hpd (36), navsample (8), engine/ai (16), engine/bot_ai (41, round AIS), model/ai_orders (16, AIS), transforms/navkit (8), stockmp (7) | covered (generator rules in NKS) | covered; NKS owns the rest | as after SPG |
 | **Cull trees** | culltree, bc2-formats | PR1b-1 | formats/culltree (17), transforms/culltree (8) | covered | covered | as after SPG |
-| **Menus, HUD, APT** | menu-tools, aptgraft, OPFOR menus, DLL menutree / onslaught_hud | IN1 diagnostics | formats/apt (31), engine/menus (4) | thin (runtime) | thin (the action-script runtime and the HUD patches) | SPG2-rest: covered (data side): engine/menus (30): the movies' action script measured, the interpreter's handler table, events and externs, the HUD movies, OPFOR's DLL patches, what a menu edit must keep |
+| **Menus, HUD, APT** | menu-tools, aptgraft, OPFOR menus, DLL menutree / onslaught_hud | IN1 diagnostics | formats/apt (31), engine/menus (4) | thin (runtime) | thin (the action-script runtime and the HUD patches) | SPG2-rest: covered (data side): engine/menus (30): the movies' action script measured, the interpreter's handler table, events and externs, the HUD movies, OPFOR's DLL patches, what a menu edit must keep; SPG2-rest4: the FSCommand callback and the event queue's drain (MENU-RT-6, MENU-EVT-4) |
 | **Networking and hosting** | DLL net / server_browser / patches | NET2 (2026-11-23); remote play studied, not queued | engine/network (9) | covered | covered | as after SPG; NET2: covered statically, engine/network (25): the transports, the connection layer, settings and start-up options, versions and disconnect reasons, PunkBuster, the server's listen path, the join by address, the Plasma back-end and its LAN mode; remote play in engine/network_feasibility (study); thin at run time (nothing NET2 adds was run) |
-| **Persistence** (stats, ranks, unlocks, licences, awards) | DLL persistence, stats_screens; OPFOR ww2_awards | Pacific War awards (decided 2026-11-15) | GAME-AWARD-1 (1) -> **engine/persistence (7)** | none | thin: the game's path and OPFOR's hooks; the award engine and `Persistence/*.dbx` classes not written | covered: PERS-DATA / RANK / AWD / SCORE / WW2 (12 more); the award engine not built |
+| **Persistence** (stats, ranks, unlocks, licences, awards) | DLL persistence, stats_screens; OPFOR ww2_awards | Pacific War awards (decided 2026-11-15) | GAME-AWARD-1 (1) -> **engine/persistence (7)** | none | thin: the game's path and OPFOR's hooks; the award engine and `Persistence/*.dbx` classes not written | covered: PERS-DATA / RANK / AWD / SCORE / WW2 (12 more); the award engine not built; SPG2-rest4: the award listener and grant (PERS-AWD-5), why the career save drops kills (PERS-SCORE-2) |
 | **OPFOR's game module: patch points** (27 files, about 170 addresses in `BFBC2Game.exe`) | `src/dll` | air raid, repair stations (hold) | network, persistence, AI-NEED-5, GAME-AWARD-1, crashes index | thin | thin (plan, section 2) | covered: engine/module (15): 221 addresses |
 | **Streaming** (`async`, `streaming_*`, `ondemand_*`) | bc2-formats | - | SND-WAVE-2, SND-OD-1 | thin | thin | covered: engine/streaming (7); the mount functions not traced |
 | **BF1943 as a source** (bundles, Havok 4.6.1, DBX classes, Xenos) | bf1943-import, OPFOR ww2 | Pacific War (hold) | HAVOK-V461 (2), XWW2 (9), WPN-WW2, VEH-WW2, MAT-WW2, LIGHT-SKY-4 | thin | thin (a source-side file still missing, section 2) | covered: formats/bf1943 (7, an index of the rest) |
@@ -93,6 +93,35 @@ game folder's files, the remaining resource types, the soldier, squads, HUD data
 internals, every DBX class). The game tier gained `resources.py`'s and `census.py`'s checks (about 3 minutes more).
 
 ## 2. What is left, in the order the queued rounds need it
+
+Round SPG2-rest4 (2026-11-23, static only) worked SPG2-rest3's items 1 and 3 below (the list after it is kept as it
+was). Found:
+- the undergrowth entry's loader: the factory 0xA2F440 and the loader 0xA2BA20, not the type's registration 0x1375A20,
+  which has no factory. The 12 numbers are named by the code that uses them and verified against DICE's data
+  (VEG-UG-5); the generator's formulas are VEG-UG-7;
+- the particle evaluators' dispatch and the polynomial: c.x t^3 + c.y t^2 + c.z t + c.w, clamped, then scaled
+  (FX-PROC-5);
+- the FSCommand callback's ten own commands, checked by the menus probe (MENU-RT-6), and the event queue's drain:
+  once a frame, with delayed events deduplicated (MENU-EVT-4; MENU-EVT-2's "target movie" corrected);
+- the award listener and where a finished award is written: `<Code>_00` / `_01` stats (PERS-AWD-5);
+- why the career save has no kills: the scoring record's stats pointer, which only EA's answer sets (PERS-SCORE-2);
+  the fix is OPFOR's;
+- the compiled anim tree's three blocks from the loader's relocation walkers, verified on all 1,926 trees
+  (ATREE-BLK-1 to 3).
+
+Rules went from 1,468 to 1,477. Left (queued as SPG2-rest5):
+
+1. **Undergrowth**: `WindScale` and the second flag byte (no reader in the terrain module); which render settings
+   scale density and view distance.
+2. **Effects**: the other evaluators (box, random, sphere, rotate vector, colour interpolation), the polynomial
+   operator, what each processor does with its value, the `EfVelocity` path.
+3. **Menus**: the loading screens' root names (the screen classes' root-name slot; the main menu's is 0x753660);
+   who sets an event's delay; the screens' FSCommand handlers (vtable +0x30).
+4. **Persistence**: OPFOR's fix for PERS-SCORE-2 (attach the filled stats with 0x866240) and its playtest; the
+   criteria classes; whether `<Code>_00` names are in DICE's `Final` templates.
+5. **Anim trees**: the 26 node types' meanings and fields; block B's words and block C's records beyond their
+   pointers.
+6. **Playtests** (paused): as SPG2-rest3's item 4, plus a save with kills after the PERS-SCORE-2 fix.
 
 Round SPG4 (2026-11-23) made the spec's coverage measurable: `spec/CENSUS.md` (generated by `spec/probes/census.py`)
 lists everything in DICE's game files - 16 file kinds outside the bundles, 37 bundle entry types, 630 DBX classes,

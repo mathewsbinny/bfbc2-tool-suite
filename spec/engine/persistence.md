@@ -231,10 +231,38 @@ an award at load. What moves an award is the per-player stat events: 0x8584D0 lo
 (player, event) and calls it (vtable +4) with the two stat categories, the value and the scope. So the evaluator runs
 offline as soon as stat events are sent, and those are sent only for human players and only with the server's scoring
 flag (BOT-SCO-1): without OPFOR's scoring patch (BOT-SCO-3) no award moves offline, with it a human's events reach the
-awards. The listener classes (one per `CriteriaType`: in a round, in a spawn, all-time) and where a finished award is
-written were not followed.
+awards. The listener and where a finished award is written are PERS-AWD-5 (round SPG2-rest4: one listener object per
+player, not one class per `CriteriaType`).
 
 [exe: BFBC2Game.exe 0x86B4B4 (`push 0x1454`, then 0x86A660(server +0x2C, +0xC, byte +0x1E)); 0x86A660 (+0xC the flag; 0x86A796 call 0x86A0F0); 0x86A0F0 ("Persistence/MP_Awards" 0x1433BFC, "Persistence/SP_Awards" 0x1433C14 by the flag; 0x869360); 0x869360 (0x863E70 collects the awards, hash by id, 0x8669B0 per criterion: criterion +0xC key, +0x14 flag); 0x8584D0 (listener lookup 0x844410 by (player, event), call vtable +4); callers of 0x8584D0: 0x85A030, 0x8684F0, 0x86DC90]
+
+### PERS-AWD-5: One award listener per player; a finished award is written into a stats object as two values
+
+Status: **observed** · Variants: PC
+
+The join (0x865D70) registers one listener per player with the server's stat-event dispatcher (0x85AED0, into its
+map at +0x20): a 0xBD4-byte object (constructor 0x8531B0, vtable 0x1433780) holding the player's stats object
+(+0xBD0, the one the join made: PERS-JOIN-1), the join's record object (+0x08) and 104 lists of 0x1C bytes from
++0x74. Its event handler (vtable +4, 0x85F530, the call PERS-AWD-4's 0x8584D0 makes) walks the criteria listening to
+the event: a criterion whose categories match (0x83C170) adds the value (its vtable +0x0C), writes its progress into
+the stats object (+0x14) and reports whether it is met (+0x08). For each met criterion the handler tries its award
+(0x852CB0): an award not yet done is checked against all its criteria and granted when they are met. A grant:
+
+- writes two stats with the plain set (0x7D26C0, existing names only) into the award object's stats object (+0x18;
+  presumably the player's, which the listener hands to its criteria through +0x14): `<Code>_00`, the times awarded,
+  and `<Code>_01`, the grant time in days since 1 January 2008 (a 64-bit time less the one made from (2008, 1, 1) at
+  0x852FFB, over 86,400);
+- by the data's `Repeat` (`AwardType`): `OnceGlobally` (0) and `OncePerRound` (1) mark the award done; `Unlimited`
+  (2) resets its criteria; `Limited` (3) marks it done once the count reaches `MaxRepetitions`, else resets them;
+- then tries the award object's dependents (its list at +0x3C, 0x18-byte entries: those whose required count the new
+  count reaches, or that carry a flag) the same way.
+
+For the event scopes 2 and 0x51 the handler then resets criteria (0x85F3E0 with 1), presumably at a life's or a
+round's end. So the game writes a finished award to no file: it is two stats in a stats object, which the stats
+commit (PERS-SAVE-1) hands on and OPFOR's commit hook writes to `stats.txt` when their names exist in the object
+(PERS-OPF-1).
+
+[exe: BFBC2Game.exe 0x865DE8 (0x85AED0 with the player id, the stats from 0x85F7B0 and the record object); 0x85AED0 (`push 0xBD4`, 0x8531B0, insert 0x854A40 at +0x20); 0x8531B0 (vtable 0x1433780, +0x08, +0xBD0, 0x68 lists from +0x74 at 0x853210 - 0x853227); handler 0x85F530 (0x83C170, criterion vtable +0x0C / +0x14 / +0x08 at 0x85F5EB - 0x85F604; 0x852CB0 at 0x85F671, 0x853240 at 0x85F67F; scopes 2 / 0x51 -> 0x85F3E0 at 0x85F769 - 0x85F777); grant 0x852CB0 ("%s_00" 0x141D918, "%s_01" 0x14333AC with the data's Code +0x90; 0x7D26C0 at 0x85306E and 0x8530B6; 86,400.0 at 0x141DA20; 0x50ED90(2008, 1, 1) into 0x15714C0; Repeat +0x30 through the table 0x853170, MaxRepetitions +0x3C at 0x8530F5; the dependents 0x853124 - 0x85315C); AwardData field descriptors 0x1C32170 - 0x1C322F0 (Code +0x90, Repeat +0x30, MaxRepetitions +0x3C); AwardType 0x1C31D38 - 0x1C31D80]
 
 ### PERS-SCORE-1: With the scoring patch, bots' deaths are scored in the round
 
@@ -243,7 +271,8 @@ Status: **observed** · Variants: PC
 Since the offline-scoring patch (MOD-PATCH-1), the player-killed handler 0x86DC90 tests the server's scoring flag
 (`cmp byte [ebp+0x2A], 0` at 0x86DD97) and with it set runs the kill scoring (0x86C070, through the stats add
 0x7D27A0) and its award (0x86BE20, `KillScore`): bots' deaths are scored in the round. The career save still writes
-score 0 (no kills or score in `stats.txt` over 180 saves). Round AIS-rest settled the contradiction with AI-NEED-5
+score 0 (no kills or score in `stats.txt` over 180 saves): the scoring writes through the record's stats pointer,
+which offline is never set (PERS-SCORE-2, round SPG2-rest4). Round AIS-rest settled the contradiction with AI-NEED-5
 statically: the handler returns only for a null victim, a bot is a player, and the offline block was the scoring flag;
 so with the patch a human's kill of a bot scores, while the bot's own kills, its deaths (no scoring record) and any
 award to a bot are skipped by the AI-flag tests at 0x86C12D, 0x865D7F and 0x86A7EE (BOT-SCO-1 to BOT-SCO-3).
@@ -252,6 +281,39 @@ play-test plan step 6).
 
 [exe: 0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add; 0x86DCAE (null victim), 0x86C12D (AI killer), 0x865D7F (no record for an AI player), 0x86A7EE (no award to an AI player)]
 [doc: opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:371-377]
+
+### PERS-SCORE-2: The round's scoring writes through the scoring record's stats pointer, which only EA's answer sets
+
+Status: **observed** · Variants: PC
+
+Every stat the round's scoring adds goes through the scoring object's per-player record (0x570 bytes, constructor
+0x862A90 at the join, 0x8634E0) and its stats pointer +0x24:
+
+- `deaths` +1 for the victim (0x86C0B5 - 0x86C0C2), `teamkills` +1 (0x86C175 - 0x86C187) and `kills` +1 for the
+  killer (0x86D46E - 0x86D486), each skipped when +0x24 is 0;
+- the score itself (0x86A7E0, under every score award 0x86BE20): the points go into the record's running score
+  (+0x18) and, under the category's stat name (the `sc_*` buckets, presumably), into the stats only when +0x24 is set
+  (0x86A9BE - 0x86A9D1).
+
+The constructor sets +0x24 to 0, and the one function that sets it (0x866240, which also feeds the record the stats'
+`score` and `veteran`) is called only from the stats-arrived handler 0x86BEB0, when EA's stats service answers
+(PERS-JOIN-1, PERS-UNLK-1). Offline the service never answers, and OPFOR's module fills the service's stats object
+from `stats.txt` and runs `Unlocks::compute` (PERS-OPF-1) without calling either, so the record's pointer stays 0:
+with the scoring patch the round scores in the record (its running score) and sends the awards' stat events, but adds
+nothing to the stats object the commit hands on. That is why the career save keeps no kills, deaths or round score
+(PERS-SCORE-1): the dropped values were never in the object. The awards' listener is not affected (it holds the join's
+stats object directly: PERS-AWD-5). The `score` OPFOR's save log prints is DICE's derived template (`Formula`
+`sc_general+sc_team+sc_bonus+sc_squad+...`, PersistentDerivedValueTemplateData in `MP_Template`), so it says 0 even
+when `sc_*` values are saved.
+
+The fix that follows (OPFOR's module, not done by this round): after filling the local player's stats, attach them
+to the scoring record the way the game does, by 0x866240(player, stats, flag) on the scoring object (the server's
++0x24), or by running the stats-arrived handler itself. Until a playtest with the kill probe confirms it, this stays
+observed.
+
+[exe: BFBC2Game.exe record constructor 0x862A90 (+0x24 = 0 at 0x862ABF; 0x570 bytes from 0x8634E0 at 0x863560); 0x866240 (`mov [eax+0x24], esi` at 0x86627B; "score" 0x142B144 and "veteran" 0x1433AD8 read from the stats); its one caller 0x86BF30 in 0x86BEB0; the uses of +0x24: 0x86C0AC, 0x86C175, 0x86D46E, 0x86A9BE; 0x7D27A0 adds only to an existing name (0x7D0C70, a string-keyed map at stats +0x98)]
+[code: opfor:src/dll/persistence.cpp:269-277]
+[data: game copy's stats.txt and opfor.log, 2026-11-23: saves after the scoring patch name no kills, deaths or score (the file holds two sc_* values whose origin the log does not show); MP_Template (startup-00): kills, deaths, teamkills Increment / Checkpoint, score a derived template, all in PersistenceData.Final (1,756)]
 
 ## 5. BF1943's awards for the Pacific War career
 
@@ -309,9 +371,12 @@ game yet.
 ## Open questions
 
 - **The rank table's sources** (PERS-UNLK-1): which stats the award and vehicle scores sum.
-- **BFBC2's award evaluator**: loaded and wired at every level start, driven by the stat events (PERS-AWD-4); the
-  listener classes per criteria type and where a finished award is written are open, and so is why the career save
-  drops the round's kills (PERS-SCORE-1).
+- **BFBC2's award evaluator**: loaded and wired at every level start, driven by the stat events (PERS-AWD-4), one
+  listener per player writing `<Code>_00` / `_01` into a stats object (PERS-AWD-5). Open: the criteria objects' own
+  classes (vtables +0x08 / +0x0C / +0x14), whether `<Code>_00` names exist in DICE's `Final` templates (else the set
+  drops them as it drops unknown names), and the scopes 2 / 0x51.
+- **The career save's kills** (PERS-SCORE-2): the scoring record's stats pointer is never set offline; OPFOR's module
+  should attach the filled stats with 0x866240. Then a playtest: the kill probe and a save with kills and deaths.
 - **Bots' deaths scored or not**: settled statically by round AIS-rest (PERS-SCORE-1 holds with the patch, BOT-SCO-3);
   the kill-probe playtest confirms it.
 - The unlock bit space: whether the specializations continue the weapons' bits (PERS-DATA-3).

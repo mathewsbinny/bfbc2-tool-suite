@@ -121,53 +121,81 @@ has `MinAltitude`, `MaxAltitude`, `MinSlope`, `MaxSlope`. The render settings sc
 
 ### VEG-UG-5: The 12 numbers' fields
 
-Status: **inferred** · Variants: PC
+Status: **verified** · Variants: PC
 
-Matching TERR-VT-3's 12 floats to VEG-UG-3's fields by count, order and DICE's values (3,069 entries):
+The visual terrain's loader (VEG-UG-6) reads an entry's 12 floats one by one into a 0x50-byte run-time record, in file
+order, and the code that uses them names each one (VEG-UG-7):
 
-| # | Field | Range | Most | Why |
+| # | Record | Field | Range (DICE) | What the code does with it |
 |---|---|---|---|---|
-| 0 | `Density` | 0.1 - 2.2 | 1, 0.4, 0.8 | a density per patch area |
-| 1 | `Variation` | 0.906 - 1 | 1 (2,895) | always at or over #2 |
-| 2 | `MinMask` | 0 - 0.9999 | 0, 0.99 | under #1 and #3 on every entry |
-| 3 | `MaxMask` | 0.603 - 1 | 1 (2,882) | at or over #2 on every entry |
-| 4, 5 | `MinScale` (x, y) | 0.3 - 55 | 0.5, 1 | #5 never over #4; correlated 0.94 with #6, #7 |
-| 6, 7 | `MaxScale` (x, y) | 0.5 - 80 | 1, 1.2, 2 | over #4, #5 on 99.5 % |
-| 8, 9 | `MinMaskScaleFactor` (x, y) | 0.3 - 1.2 | 1 | #8 = #9 on every entry |
-| 10 | `WindScale` | 0 - 0.3 | 0, 0.1 | under every other number on every entry |
-| 11 | `ViewDistance` | 18 - 100 | 55 (1,907) | metres, over every other number |
+| 0 | +0x00 | `Density` | 0.1 - 2.2 | samples per metre along each axis of the cell (times a render setting) |
+| 1 | +0x04 | `Variation` | 0.906 - 1 | scales each instance's random offset from its grid point |
+| 2 | +0x08 | `MinMask` | 0 - 0.9999 | subtracted from the mask |
+| 3 | +0x0C | `MaxMask` | 0.603 - 1 | the loader stores 1 / (MaxMask - MinMask) at +0x30 (1.0 when they are equal) |
+| 4, 5 | +0x10, +0x14 | `MinScale` (x, y) | 0.3 - 55 | the scale at random r = 0 |
+| 6, 7 | +0x18, +0x1C | `MaxScale` (x, y) | 0.5 - 80 | the scale at random r = 1 |
+| 8, 9 | +0x20, +0x24 | `MinMaskScaleFactor` (x, y) | 0.3 - 1.2 | the scale factor at mask 0 (1 at mask 1) |
+| 10 | +0x28 | `WindScale` | 0 - 0.3 | copied with the record; no reader found (named by count and order) |
+| 11 | +0x2C | `ViewDistance` | 18 - 100 | metres: the terrain keeps the largest over its types, the draw scales it |
 
-The order follows the type's field list after the strings (`Density`, `Variation`, `MinMask`, `MaxMask`, then the
-two-float fields, `WindScale`, `ViewDistance`); the closing bytes 01 00 are presumably `RotateEnable` and
-`SkewEnable` (rotated, not skewed), `Enable` being left out (an entry that is written is enabled). A port that uses
-another level's undergrowth mesh copies that level's 12 numbers for it (OPFOR: VEG-OPF-1); a new entry starts from the
-values DICE uses most for a similar mesh.
+Then two bytes: the first (+0x34, 1 on all 3,069 DICE entries) turns each instance's up axis to the terrain's normal
+(presumably `SkewEnable`); the second (+0x35, 0 on all) is only copied, no reader found (presumably `RotateEnable`;
+the generator turns every instance by one of 32 fixed angles about the vertical whatever it holds). Within a pair the
+first float is x. MaxMask is over MinMask on every DICE entry, by 0.0001 at least (MinMask 0.9999, MaxMask 1, which
+makes the mask a near step); an entry with the two equal gets the factor 1.0, so its mask ramps over a width of 1 from
+MinMask, not a step. A port that uses another level's undergrowth mesh copies that level's 12 numbers for it (OPFOR:
+VEG-OPF-1); a new entry starts from the values DICE uses most for a similar mesh.
 
-[data: spec/probes/terrain.py, 2026-11-22: the 12 positions' ranges, most frequent values and orderings over 3,069 entries]
-[inferred: the fields of VEG-UG-3 matched to the positions by the count (6 floats and 3 pairs), the order of the type's field list, and DICE's ranges and orderings; the loader that reads the entry was not found (VEG-UG-6), so the order inside a pair and the two flags are not confirmed]
+[test: core/tests/test_spec_probes.py::visual_terrains]
+[data: spec/probes/terrain.py, 2026-11-22: the 12 positions' ranges, most frequent values and orderings over 3,069 entries; round SPG2-rest4: MaxMask - MinMask > 0 on 3,069 of 3,069, smallest 0.0001]
+[exe: BFBC2Game.exe loader 0xA2BA20: the entry's strings 0xA2BC2A / 0xA2BC39 (0x5144F0) and 0xA2BC95 (0x506A00, into a 0x200-byte buffer; a reference to record +0x38 when not empty), the floats 0xA2BD8E - 0xA2BE49 (stream vtable +0x1C into +0x00 - +0x2C, the pairs by two-step loops), the bytes 0xA2BE4B - 0xA2BE6B (vtable +0x24 into +0x34, +0x35), +0x30 = 1 / (+0x0C - +0x08) or 1.0 (0x14D94F0) at 0xA2BE6D - 0xA2BEA3; record stride 0x50 at 0xA2BEE2]
 
-### VEG-UG-6: The type's field list does not give the file's order, and the loader keeps no copy of the type
+### VEG-UG-6: The entry is read by the visual terrain's factory, not by the class's slots
 
 Status: **observed** · Variants: PC
 
-`TerrainUndergrowthType`'s field descriptors list the fields in this order: `MinScale`, `MaxScale`,
-`MinMaskScaleFactor` (the three two-float fields, one Vec2 type), `Mesh`, `MeshShaderSet`, `CacheShader`, `Density`,
-`Variation`, `MinMask`, `MaxMask`, `WindScale`, `ViewDistance`, `Enable`, `RotateEnable`, `SkewEnable`. The file's entry
-(VEG-UG-2) puts the three strings first and ends with two flag bytes, so it is not written in the descriptors' order
-(nor in field-offset order): VEG-UG-5's assignment, which puts the pairs after the four single floats, is not
-contradicted by it, and DICE's data still favours it (#8 = #9 on every entry fits a two-float scale factor). The
-visual terrain is the `IVisualTerrain` resource (`<terrain>.Visual`, requested at 0xA15AA0; the concrete class's
-vtable 0x144FCF0); no code in the terrain module reads or writes the type's flag bytes (+0x48 - +0x4A), and no factory
-makes a 0x4C-byte object with them: the run-time undergrowth keeps its own layout, so the loader cannot be found by the
-type's offsets. None of the class's 19 slots parses the entry either (round SPG2-rest3 read them all): slots 8 and 11
-(0xA2D690, 0xA2A180) queue the frame's terrain jobs ("terrainCullView", "terrainPrepBld", "terrainBuild",
-"terrainPostBld", "occluderTerrain"), slot 7 (0xA25E90) makes a 0xC00-byte object (0xA1F7F0), slots 12 and 13 draw
-(0xA16500, 0xA26000), slot 6 (0xA1CB00) queues 16-byte records, and the rest are small getters and setters. So the
-entry is read where the resource is created, outside the class's own interface (start from the factory registered
-with the type at 0x1375A20); the order inside a pair and the two flags stay open (VEG-UG-5).
+`TerrainUndergrowthType`'s field descriptors list the fields in another order (`MinScale`, `MaxScale`,
+`MinMaskScaleFactor`, `Mesh`, `MeshShaderSet`, `CacheShader`, `Density`, `Variation`, `MinMask`, `MaxMask`, `WindScale`,
+`ViewDistance`, `Enable`, `RotateEnable`, `SkewEnable`) and the run-time keeps none of the type's 0x4C-byte objects:
+the loader fills a 0x50-byte record of its own (VEG-UG-5), which is why round SPG2-rest2 found no code at the type's
+offsets. None of the `VisualTerrain` class's 19 slots (vtable 0x144FCF0) parses the file either (round SPG2-rest3 read
+them all). The registration at 0x1375A20 only makes the class's type object (parent `IVisualTerrain`, no factory
+argument); the parser is reached from the resource factory 0xA2F440, which appends `.visual` to the name, allocates the
+0x2500-byte `VisualTerrain` (constructor 0xA27D80, which sets the vtable 0x144FCF0 and two interface vtables at +0x0C
+and +0x10) and calls the loader 0xA2BA20 with the stream. The loader walks the file as TERR-VT-1 has it: per patch
+shader a 0x20-byte record (its two names as pending references at +0x00 and +0x04, the layer and tiled counts at +0x08
+and +0x0C, the groups at +0x10, 0x10 bytes each), per group the entries (0x50 bytes each, VEG-UG-5). The entry's mesh
+name and second string are queued together as one reference (0xA145F0, into the terrain's list at +0x14); the shader
+name becomes a reference resolved into record +0x38. The records copy as a unit (0xA0AF30: +0x00 - +0x35 by value,
++0x38 a counted reference, then +0x3C and +0x44).
 
-[exe: BFBC2Game.exe field descriptors 0x1C3C940 - 0x1C3CA90 (name, type, offset; MinScale +0x1C, MaxScale +0x14, MinMaskScaleFactor +0x0C with type 0x155D02C; Mesh +0x3C, MeshShaderSet +0x38, CacheShader +0x44, Density +0x40, Variation +0x34, MinMask +0x28, MaxMask +0x24, WindScale +0x30, ViewDistance +0x2C, Enable +0x4A, RotateEnable +0x49, SkewEnable +0x48); ".Visual" 0x144F98C pushed at 0xA15AAD; IVisualTerrain type 0x1BF808C (registered 0x13759A0), the VisualTerrain type 0x1BF80FC (0x1375A20, getType 0xA01830 in vtable 0x144FCF0); round SPG2-rest2's sweep of 0x9F0000 - 0xA40000 for byte accesses at +0x48 - +0x4A (one constructor, 0x9E9530, of another class) and of every `push 0x4C` factory]
-[exe: BFBC2Game.exe vtable 0x144FCF0 read slot by slot (round SPG2-rest3): 0 0xA017E0, 1 0xA089F0, 2 0xA01830 (type), 3 0xA296E0, 4 0xA10460, 5 0xA10470, 6 0xA1CB00, 7 0xA25E90 (`push 0xC00`, 0xA1F7F0), 8 0xA2D690 (the job names), 9 0xA08D10, 10 0xA25EC0, 11 0xA2A180 ("terrainCullView", "occluderTerrain"), 12 0xA16500, 13 0xA26000, 14 0xA2F6D0, 15 0xA08D40, 16 0xA10480, 17 0xA091F0, 18 0xA091D0; none is a parser (no string read, no run of twelve floats)]
+[exe: BFBC2Game.exe 0x1375A20 (0x500660 with the type 0x1BF80FC, parent 0x1BF808C, the last two arguments zero); factory 0xA2F440 (".visual" 0x144FF28, `push 0x2500` at 0xA2F4EB, 0xA27D80 at 0xA2F4FE, the loader 0xA2BA20 at 0xA2F522); constructor 0xA27D80 (vtables 0x144FCF0, +0x0C 0x144FCE0, +0x10 0x144FCDC); loader 0xA2BA20: patch shaders 0xA2BA99 - 0xA2BF65 (count into +0xD08 at 0xA2BA80, stride 0x20 at 0xA2BF55), groups stride 0x10 at 0xA2BF03, entries stride 0x50 at 0xA2BEE2; copies 0xA04CB0, 0xA0AF30]
+[exe: BFBC2Game.exe field descriptors 0x1C3C940 - 0x1C3CA90 (round SPG2-rest2's list); vtable 0x144FCF0's 19 slots as round SPG2-rest3 read them (0xA017E0 ... 0xA091D0)]
+
+### VEG-UG-7: How the generator uses an undergrowth type
+
+Status: **observed** · Variants: PC
+
+The cell generator 0xA0DDC0 places one type's instances in a terrain cell:
+
+- **Grid**: `Density` times a render setting times the cell's x and z extents gives the sample counts along each axis,
+  so the instances per area grow with the square of `Density`; each sample moves from its grid point by a random
+  offset scaled by `Variation`.
+- **Mask**: m = clamp((mask byte / 255 - `MinMask`) x the stored 1 / (`MaxMask` - `MinMask`), 0, 1), from the cell's
+  undergrowth mask; a sample is kept when its random threshold (4 bits of the instance's random word: 0 - 240 in steps
+  of 16) is below m x 255.
+- **Scale**: r = 5 random bits / 31; scale = lerp(`MinScale`, `MaxScale`, r) x (m + (1 - m) x `MinMaskScaleFactor`),
+  per component: the full factor at mask 0, none at mask 1. The x component scales the instance's first axis, y the
+  other two.
+- **Orientation**: one of 32 rotations about the vertical, picked by 5 random bits, always; with the first flag byte
+  set the up axis is the terrain normal (three bytes of the normal map) and the other two are rebuilt from it.
+- **Distance**: the terrain keeps the largest `ViewDistance` over its types (0xA2460A, 0xA278F0); the draw multiplies
+  a type's by a render setting (0xA1ECBE).
+
+So a generated terrain that clones a donor's entries gets the donor's density per metre, mask response and sizes; the
+mask the patch's layers give decides where (VEG-UG-1).
+
+[exe: BFBC2Game.exe generator 0xA0DDC0 (called from 0xA0ECCF): Density 0xA0DDF7 - 0xA0DE94, Variation 0xA0E0D6 - 0xA0E13E, the mask 0xA0E2E3 - 0xA0E326 (1/255 at 0x144F770) and the keep test 0xA0E34A - 0xA0E371 (255.0 at 0x14116F8), the scale 0xA0E57B - 0xA0E66F (1/31 at 0x144F778), the 32 rotations 0xA0DF5B - 0xA0E027, the normal 0xA0E386 - 0xA0E570; the same mask formula in 0xA08580; ViewDistance 0xA2460A, 0xA278F0, 0xA1ECBE (times setting +0x48)]
 
 ### VEG-UG-4: Undergrowth layouts must be in the level's databases
 
@@ -198,11 +226,15 @@ uses most for that mesh (MP_004 uses one block in all 40 of its grass's patch gr
 
 ## Open questions
 
-- The 12 numbers' fields are named (VEG-UG-3, VEG-UG-5) but matched by data, not by the loader's code; which
-  component of a two-float scale is the height, and the two closing flags, are open.
-- How the undergrowth mask shader chooses where each mesh grows (per layer weight, a noise, the mask tiles) and what
-  the per-entry shader name changes.
-- The undergrowth cache: whether the engine bakes instance positions per patch at load (a cache resource) or each
-  frame; no undergrowth resource besides the meshes was found.
+- `WindScale` (+0x28) and the second flag byte (+0x35) are copied with the record, but no reader was found in the
+  terrain module (VEG-UG-5). The wind is likely read through the undergrowth's shader constants, which were not
+  followed.
+- Which render settings scale `Density` (generator argument +0x10, read at 0xA0DDF7) and `ViewDistance` (setting
+  +0x48): presumably `UndergrowthDensityScale` and `UndergrowthViewDistanceScale` (VEG-UG-3's list), not traced to
+  their fields.
+- How the undergrowth mask shader fills the mask the generator reads (VEG-UG-7: per layer weight, a noise, the mask
+  tiles) and what the per-entry shader name changes.
+- The undergrowth cache: the generator (VEG-UG-7) runs per cell from the terrain's jobs; whether its output is kept in
+  the `Terrain/Undergrowth/Cache` resource between frames was not followed.
 - Density per level: the forest and middlegrowth totals are counted, not yet per level (E6's defaults).
 - Trees shot down: `PartsToBangerParts` and the banger blueprints (DSTR) for trees are not decoded here.

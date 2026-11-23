@@ -75,6 +75,13 @@ HANDLERS = 0x1545B00
 DISPATCH = ((0x1311041, bytes.fromhex('0fb638')), (0x1311056, bytes.fromhex('8b14bd005b5401')))
 FSCOMMAND_PTR = 0x1545AA4
 EVENT_NAME = 0x143C1E0
+# MENU-RT-6 / MENU-EVT-4 (round SPG2-rest4): the UI start-up 0xFA6BC0 installs the FSCommand callback 0xFA5380
+# (`mov [0x1BEAAF8], 0xFA5380` at 0xFA71AD) and fills its command table (UiManager+0x82418) between 0xFA6C27 and
+# 0xFA7050: each command's name pushed (`push imm32`), then its number stored (`mov dword [eax], imm32`); the drain
+# 0x918E50 counts frames (`add dword [ebx+0x82CF8], 1` at 0x918FC2 and 0x918FCE).
+FSCMD_INSTALL = (0xFA71AD, bytes.fromhex('c705f8aabe018053fa00'))
+FSCMD_TABLE = (0xFA6C27, 0xFA7050)
+DRAIN_FRAME = ((0x918FC2, bytes.fromhex('8383f82c080001')), (0x918FCE, bytes.fromhex('8383f82c080001')))
 
 
 def stock(p: Path) -> bool:
@@ -332,6 +339,26 @@ def engine(st: Stats, exe: Path) -> None:
     st.exe['missing'] = {kind: sorted(x for x in st.refs[kind] if x not in names and x not in ('prototype',)
                                       and not x.startswith('__'))
                          for kind in ('extern', 'extern_param', 'fscommand')}
+    st.exe['callback_install'] = all(img.b[img.off(va):img.off(va) + len(b)] == b for va, b in (FSCMD_INSTALL,))
+    st.exe['drain_frames'] = all(img.b[img.off(va):img.off(va) + len(b)] == b for va, b in DRAIN_FRAME)
+    st.exe['callback_commands'] = callback_commands(img)
+
+
+def callback_commands(img: Any) -> dict[str, int]:
+    """MENU-RT-6: the FSCommand callback's own command table, {name: number}, from the start-up's code: a `push imm32`
+    naming a string (EASTL's allocator tag left out) is the next command; the next `mov dword [eax], imm32` its
+    number."""
+    lo, hi = (img.off(va) for va in FSCMD_TABLE)
+    b, out, name = img.b, {}, None
+    for o in range(lo, hi):
+        if b[o] == 0x68:
+            s = img.cstr(struct.unpack_from('<I', b, o + 1)[0])
+            if s and s != 'EASTL' and s.isidentifier():
+                name = s
+        elif b[o] == 0xC7 and b[o + 1] == 0x00 and name is not None:
+            out[name] = struct.unpack_from('<I', b, o + 2)[0]
+            name = None
+    return out
 
 
 def analyse(game: Path) -> Stats:
@@ -412,6 +439,10 @@ def summary(st: Stats) -> dict[str, Any]:
         'dispatch_bytes': st.exe.get('dispatch'), 'fscommand_prefix_len': len(st.exe.get('fscommand') or ''),
         'event_function': st.exe.get('event') == '_root.gameEvent',
         'missing_names': {k: len(v) for k, v in st.exe.get('missing', {}).items()},
+        'callback_install': st.exe.get('callback_install'), 'drain_frames': st.exe.get('drain_frames'),
+        'callback_commands': st.exe.get('callback_commands'),
+        'missing_fscommands_in_callback': sorted(x for x in st.exe.get('missing', {}).get('fscommand', ())
+                                                 if x in (st.exe.get('callback_commands') or {})),
     }
 
 
@@ -438,6 +469,10 @@ EXPECTED: dict[str, Any] = {
     'level_loading_movies': {'set': 40, 'unset': 34}, 'loading_movies_in_level_ui': True,
     'handler_table': 185, 'handled': 132, 'used_unhandled': [], 'dispatch_bytes': True, 'fscommand_prefix_len': 10,
     'event_function': True, 'missing_names': {'extern': 9, 'extern_param': 0, 'fscommand': 6},
+    'callback_install': True, 'drain_frames': True,
+    'callback_commands': {'assert': 7, 'bind3D': 2, 'load3D': 3, 'loadTexture': 0, 'playSound': 9, 'pop3D': 5,
+                          'quitToMenu': 8, 'setInputRoot': 6, 'unload3D': 4, 'unloadTexture': 1},
+    'missing_fscommands_in_callback': ['assert', 'loadTexture', 'playSound', 'unloadTexture'],
 }
 
 
@@ -461,6 +496,8 @@ RULES: dict[str, str] = {
     'modes': 'MENU-HUD-1', 'mode_hud_known': 'MENU-HUD-1',
     'level_loading_movies': 'MENU-LOAD-1', 'loading_movies_in_level_ui': 'MENU-LOAD-1',
     'movie_ids': 'MENU-HUD-2', 'hud_states': 'MENU-HUD-3',
+    'callback_install': 'MENU-RT-6', 'callback_commands': 'MENU-RT-6', 'missing_fscommands_in_callback': 'MENU-RT-6',
+    'drain_frames': 'MENU-EVT-4',
 }
 
 

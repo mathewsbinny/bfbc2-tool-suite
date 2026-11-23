@@ -228,9 +228,8 @@ FX-PROC-2). A polynomial evaluator's fields are `Coefficients` (one Vec4), `Scal
 the operator classes add `ExpressionType` (`PolynomialExpression`, `SineExpression`, `CosineExpression`) and
 `Operator` (none, add, sub; `Multiplication` / `Addition` / `Subtraction` for the polynomial operator). The
 `EvaluatorInput` values step like byte offsets into a particle record (`EfVelocity` 0x50, `EfNormTime` 0x70,
-`EfSpeed` 0x78, `EfNone` 0x7C): presumably the input is read at that offset of the particle. The evaluation itself
-(the polynomial's form, whether the clamp follows the scale) was not found: of the executable's 12- and 37-way
-switches the ones read are not the particle system's. The 37-way switch at 0x11DD76A, left unread by round
+`EfSpeed` 0x78, `EfNone` 0x7C): presumably the input is read at that offset of the particle. The evaluation is
+FX-PROC-5 (round SPG2-rest4: an 11-way dispatch, 0xB268E0, not a 12- or 37-way switch). The 37-way switch at 0x11DD76A, left unread by round
 SPG2-rest2, is the C runtime's code-page upper-casing (`toupper` for bytes 0x80 and up: 0x9A -> 0x8A, 0xE0 - 0xFE ->
 0xC0 - 0xDE), not the particle update. Round SPG2-rest3's census of the switches with 36 or more cases found 16; of
 those read none is the particle update's (0x98B7F0, 38 cases, copies dirty render states; 0x77BC8C is the main menu's
@@ -239,14 +238,41 @@ command dispatcher; 0x1363390 and 0x11B31C0 as before), and 0x9AF940 (41 cases) 
 [exe: BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; round SPG2-rest3: 0x11DD76A (37) is `toupper` for code-page bytes (low half through the CRT's `toupper`, the switch maps 0x9A / 0x9C / 0x9E / 0xE0 - 0xFE, 0xFF -> 0x9F), Ghidra's switch census of 36+ targets: 0x76ECC1, 0x776569, 0x77BC8C, 0x83B9BD, 0x85D53A, 0x95A2B7, 0x95E743, 0x98B8A1, 0x9AF960, 0x1198550, 0x11B39B3, 0x11B3A29, 0x11DD7BF, 0x11FD505, 0x1205000, 0x13633AB]
 [inferred: "the input is an offset" from the values' spacing (0x48, 0x4C, 0x50, 0x60, 0x70 ... matching floats and vectors laid out in a record)]
 
+### FX-PROC-5: The evaluator dispatch and the polynomial: a cubic in the input, clamped, then scaled
+
+Status: **observed** · Variants: PC
+
+The particle update reads a processor's value through one dispatcher (0xB268E0, called by the processors' update
+functions such as 0xB27BF0). The processor builds a small record for it: its `DefaultValues` (+0x00, a Vec4), its
+`Pre` evaluator (+0x10), the evaluator's component selector (+0x14: 0 - 3 pick x, y, z or w of the value
+vector the processor passes, anything else gives 1.0), the evaluator's type (+0x18) and the processor's
+`EvaluatorInput` (+0x1C, `EfNone` 0x7C when it has none). The dispatcher switches on the type (1 - 0xB through the
+table at 0xB26E98; 0, `EtDefault`, and anything else return nothing) to one function per evaluator: box 0xB23890, mesh
+0xB26830, polynomial 0xB24FD0, polynomial operator 0xB266D0, random 0xB21300, random XYZ 0xB23780, rotate vector
+0xB23500, sample texture 0xB265F0, sphere 0xB25090, constant 0xB23990, colour interpolation from 0xB26D92 on.
+
+For a polynomial (`PolynomialData`, run-time `PolynomialTempData`: `Coefficients` c at +0x00, `MaxClamp` +0x10,
+`MinClamp` +0x14, `ScaleValue` +0x18, after a 0x20-byte header in the evaluator object), with the input t and the
+selected component v:
+
+    value = min(MaxClamp, max(MinClamp, c.x t^3 + c.y t^2 + c.z t + c.w)) x ScaleValue x v
+
+So the clamp applies to the polynomial before the scale, and `Coefficients` runs from the cubic term down to the
+constant. The input t is the vector the update passes for the particle when the processor's `EvaluatorInput` is
+`EfNormTime` (0x70, the particle's normalised age: FX-PROC-2, all but 40 of DICE's processors); for any other input
+this dispatcher evaluates the polynomial at t = 1.0 (the 40 `EfVelocity` processors' own path was not followed).
+
+[exe: BFBC2Game.exe dispatcher 0xB268E0 (type at record +0x18 minus 1 against 0xA at 0xB268F6 - 0xB26905, table 0xB26E98; component switch at +0x14 with the default 1.0 from 0x14D94F0; the input test `cmp ecx, 0x70` at 0xB26A2E); its wrapper 0xB26F80; the record built at 0xB27CB0 - 0xB27D1E in 0xB27BF0 (the processor's DefaultValues +0x10, Pre +0x0C, EvaluatorInput +0x24 by the field descriptors 0x1C1DEC0, 0x1C1DB60, 0x1C1DE90; the evaluator's +0x14 the type, +0x10 minus 1 the component); polynomial 0xB24FD0 (coefficients +0x20, MaxClamp +0x30, MinClamp +0x34, ScaleValue +0x38; the powers and their shuffles 0xB24FFF - 0xB25047, `maxps` with MinClamp 0xB25052, `minps` with MaxClamp 0xB25058, the product with ScaleValue x v 0xB2505B); PolynomialTempData's field descriptors 0x1C1E8F8 - 0x1C1E954 (Coefficients +0x0, MaxClamp +0x10, MinClamp +0x14, ScaleValue +0x18; record 0x1BFA934, 0x20 bytes)]
+
 ## Open questions
 
 - **The effect instance cap** (FX-CLS-3, LIGHT-PT-7).
 - **Appending images to a target's own atlas** (FX-ATL-4) instead of a merge: room in DICE's atlases is not measured
   (the merged Wake atlas is 82 % full).
-- **The processor chain's semantics** (FX-PROC-1, FX-PROC-2, FX-PROC-4): the chain's structure, classes and the
-  executable's enums are known; what each processor computes from its evaluator (the polynomial's form, the random
-  range) is not traced: the particle update was not found (start from a reader of `Coefficients` +0x10 / +0x20 with
-  `ScaleValue` beside it, or from the emitter template's `RootProcessor` +0xB4).
+- **The processor chain's semantics** (FX-PROC-1, FX-PROC-2, FX-PROC-4, FX-PROC-5): the evaluator dispatch and the
+  polynomial are read; the other evaluators (box 0xB23890, random 0xB21300, random XYZ 0xB23780, rotate vector
+  0xB23500, sphere 0xB25090, the colour interpolation), the polynomial operator 0xB266D0, what each processor does with
+  the value (the update functions that call 0xB26F80), the `EfVelocity` path and which vector the update passes as
+  the selected component's source are not traced.
 - **The 1,092 `BaseEmitterData` outside any chain** and the documents whose root starts there.
 - **Cost** of camera-proximity grids and of many lights: a playtest.

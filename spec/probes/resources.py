@@ -45,6 +45,9 @@ EXPECTED: dict[str, Any] = {
     'soot_index_ok': 40, 'soot_tail': 40,
     # ATREE-HDR-1, ATREE-PTR-1
     'atree_version': [6], 'atree_layout': 1926, 'atree_aligned': 1926, 'atree_pointers_inside': 1926,
+    # ATREE-BLK-1 - 3
+    'atree_node_table': 1926, 'atree_nodes': 1926, 'atree_b_head': 1926, 'atree_c_records': 1926,
+    'atree_node_types': (1, 26, 26), 'atree_node_count': 59725,
     # WAVE-IR-1
     'ir_header': [('irf1', 1, 2, 48000, 1024, 1024, 2048, 1)], 'ir_layout': 5,
     # HAVOK-RAG-1
@@ -160,6 +163,83 @@ def anim_trees(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
         inside += all(r % 4 == 0 and r <= a + b + c for r in rel)
     out.update(atree_version=sorted(versions), atree_layout=layout, atree_aligned=aligned,
                atree_pointers_inside=inside)
+    anim_tree_blocks(items, out)
+
+
+# ATREE-BLK-1 - 3: the loader's relocation walkers (BFBC2Game.exe 0xF598E0 block A, 0xF599F0 block B, 0xF59A30
+# block C): the node types whose records hold pointers, and where (0xF59730 - 0xF598C0 by the type map at 0xF599D4).
+ATREE_NODE_POINTERS = {2: (0x20, 0x28, 0x30, 0x38), 3: (0x20, 0x28, 0x30, 0x38), 4: (0x24,), 6: (0x20, 0x28),
+                       7: (0x20,), 13: (0x20,), 16: (0x110,), 23: (0x20, 0x28), 25: (0x20,)}
+ATREE_INDIRECT = {2: 0x38, 16: 0x110}    # the record's pointer leads to one more pointer the walker relocates
+ATREE_C_RECORD = 0x60
+
+
+class _Tree:
+    """A compiled tree's blocks: (file offset, offset from block A, size) each, with its base address."""
+
+    def __init__(self, d: bytes) -> None:
+        self.d = d
+        _, self.base, a, b, c = struct.unpack_from('<5I', d, 0)
+        self.blocks = ((20, 0, a), (20 + a, a, b), (20 + a + b, a + b, c))
+
+    def u(self, o: int) -> int:
+        return int(struct.unpack_from('<I', self.d, o)[0])
+
+    def own(self, w: int, blk: int) -> bool:
+        """w is 0 or points into block blk or at its end."""
+        _, lo, size = self.blocks[blk]
+        return w == 0 or self.base + lo <= w <= self.base + lo + size
+
+    def at(self, w: int, blk: int) -> int:
+        """The file offset a pointer into block blk names."""
+        start, lo, _ = self.blocks[blk]
+        return start + w - self.base - lo
+
+
+def anim_tree_blocks(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
+    """ATREE-BLK-*: block A starts with (node table, node count), each node a u32 type 1 - 26 and pointers at the
+    type's places; block B starts with one pointer; block C with (record table, count) of 0x60-byte records. Every
+    pointer is 0 or points into its own block or at its end. Counts and types only."""
+    head = nodes = b_head = c_recs = 0
+    types: Counter[int] = Counter()
+    for _, d in items:
+        tr = _Tree(d)
+        u, own, at, base = tr.u, tr.own, tr.at, tr.base
+        a, b, c = (size for _s, _l, size in tr.blocks)
+        table, n = u(20), u(24)
+        ok = own(table, 0) and (n == 0 or table != 0) and at(table, 0) + 4 * n <= 20 + a
+        all_nodes = ok
+        for i in range(n if ok else 0):
+            p = u(at(table, 0) + 4 * i)
+            if not base <= p < base + a:
+                all_nodes = False
+                break
+            no = at(p, 0)
+            t = u(no)
+            types[t] += 1
+            for off in ATREE_NODE_POINTERS.get(t, ()):
+                all_nodes &= own(u(no + off), 0)
+            ind = ATREE_INDIRECT.get(t)
+            if ind is not None and u(no + ind):
+                all_nodes &= own(u(at(u(no + ind), 0)), 0)
+        head += ok
+        nodes += all_nodes
+        b_head += b == 0 or own(u(20 + a), 1)
+        good = c > 0
+        if good:
+            rt, rn = u(20 + a + b), u(24 + a + b)
+            good = own(rt, 2) and (rn == 0 or rt != 0)
+            r0 = at(rt, 2) if rt else 0
+            good &= r0 + ATREE_C_RECORD * rn <= 20 + a + b + c
+            for k in range(rn if good else 0):
+                r = r0 + ATREE_C_RECORD * k
+                offs = [8 * j for j in range(min(u(r + 0x10), 2))]
+                offs += [0x14 + 8 * j for j in range(min(u(r + 0x24), 2))]
+                for off in offs + [0x28, 0x30, 0x38]:
+                    good &= own(u(r + off), 2)
+        c_recs += good
+    out.update(atree_node_table=head, atree_nodes=nodes, atree_b_head=b_head, atree_c_records=c_recs,
+               atree_node_types=(min(types), max(types), len(types)), atree_node_count=sum(types.values()))
 
 
 def impulse_responses(items: list[tuple[str, bytes]], out: dict[str, Any]) -> None:
