@@ -438,6 +438,7 @@ dependencies = [
  "bc2-formats",
  "bc2-gamefs",
  "bc2-xma",
+ "flate2",
  "memchr",
  "proptest",
  "rayon",

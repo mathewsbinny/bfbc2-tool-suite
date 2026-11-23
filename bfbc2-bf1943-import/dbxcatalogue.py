@@ -21,7 +21,7 @@ One pass over every BFBC2 partition of the game copy (meshview.Index: the first 
                a second one from another partition (a fair test leaves a partition's own instances out)
   exe_names    every identifier in BFBC2Game.exe's strings (class and enum names: an enum value BFBC2 can read)
 
-Built once and cached beside meshview's index (work\tools_out\dbx_catalogue.pkl), rebuilt when a bundle or the
+Built once and cached beside meshview's index (work\tools_out\dbx_catalogue.bin), rebuilt when a bundle or the
 executable changes.
 
     cat = dbxcatalogue.load(ix)                     # meshview.Index
@@ -31,14 +31,18 @@ executable changes.
 The pass runs in the suite's Rust core when it is built (round F2b, rust/bc2-convert/src/dbxcatalogue.rs, through
 importcore): the bundles read and their partitions parsed on all cores, the walk in this module's order - every
 table equal to build_reference's key for key and in the same insertion order, the kept elements built as the same
-trees (a prototype inside a kept instance the same object). Where a chunk cannot be read or a partition is one the
-reference would read otherwise, build_reference runs (it records the problems); BFBC2_IMPORTER_PYTHON=1 runs it
-always.
+trees (a prototype inside a kept instance the same object), a chunk that cannot be read recorded as the reference
+records it. Where a partition is one the reference would read otherwise, build_reference runs (it records the
+problems); BFBC2_IMPORTER_PYTHON=1 runs it always.
+
+The cache (round PR1b-1e) is the Rust core's own file (rust/bc2-convert/src/dbxcatalogue/cache.rs, through
+bc2_native.catalogue_load, as bfbc2.exe dbxcatalogue|dbxparity read it): keyed by the content of what the pass reads
+(each bundle's entry names and content key, the executable's SHA-256), under the cache budget ('dbxcatalogue'). The
+Python pickle it replaces (dbx_catalogue.pkl) is retired; without the Rust core the catalogue is built each time,
+not cached.
 """
 import collections
-import hashlib
 import os
-import pickle
 import re
 import sys
 import time
@@ -51,9 +55,9 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'bf1943-import')
 import importcore  # noqa: E402
-from bfbc2core import atomicio, dbx  # noqa: E402
+from bfbc2core import dbx  # noqa: E402
 
-CACHE_VERSION = 3
+CACHE = 'dbx_catalogue.bin'         # in work\tools_out: the Rust core's cache file
 PER_TYPE = 200                      # instances of a type walked for shapes / texts (all of them for the guid index)
 TEXTS_CAP = 400                     # distinct text values kept per path
 
@@ -199,17 +203,6 @@ class Catalogue:
         self.numeric = dict(self.numeric)
 
 
-def _signature(ix: Any, exe: str) -> str:
-    bundles = sorted({b for b, _ in ix.where.values()})
-    h = hashlib.sha1()
-    for b in bundles + [exe]:
-        try:
-            h.update(f'{b}|{os.path.getsize(b)}|{int(os.path.getmtime(b))}\n'.encode())
-        except OSError:
-            h.update(f'{b}|missing\n'.encode())
-    return h.hexdigest()
-
-
 GROUP = 8                           # chunks read at once by the Rust pass (each up to 400 partitions)
 
 
@@ -228,6 +221,21 @@ def build(ix: Any, exe: str | None, log: Any = None) -> Catalogue:
     return cat if cat is not None else build_reference(ix, exe, log)
 
 
+def _tables(d: dict[str, Any], exe_names: frozenset[str]) -> Catalogue:
+    """A Catalogue of the Rust core's tables (catalogue_build / catalogue_load)."""
+    cat = Catalogue()
+    cat.exe_names = exe_names
+    cat.partitions = d['partitions']
+    cat.classes = d['classes']
+    cat.order = d['order']
+    cat.shapes = {k: collections.Counter(v) for k, v in d['shapes'].items()}
+    cat.texts = {k: collections.Counter(v) for k, v in d['texts'].items()}
+    cat.numeric = {k: collections.Counter(v) for k, v in d['numeric'].items()}
+    cat.protos, cat.guids, cat.primary = d['protos'], d['guids'], d['primary']
+    cat.defaults, cat.others, cat.problems = d['defaults'], d['others'], d['problems']
+    return cat
+
+
 def _build_rust(ix: Any, exe: str | None, log: Any) -> Catalogue | None:
     """build's pass in the Rust core, or None (no core, or refused)."""
     m = importcore.native()
@@ -238,19 +246,11 @@ def _build_rust(ix: Any, exe: str | None, log: Any) -> Catalogue | None:
     r = importcore.call('catalogue_build', list(names.items()), dbx.Element, GROUP)
     if r is None:
         return None
-    d = r[0]
-    cat = Catalogue()
+    exe_names: frozenset[str] = frozenset()
     if exe and os.path.isfile(exe):
         with open(exe, 'rb') as fh:
-            cat.exe_names = frozenset(m.catalogue_exe_identifiers(fh.read()))
-    cat.partitions = d['partitions']
-    cat.classes = d['classes']
-    cat.order = d['order']
-    cat.shapes = {k: collections.Counter(v) for k, v in d['shapes'].items()}
-    cat.texts = {k: collections.Counter(v) for k, v in d['texts'].items()}
-    cat.numeric = {k: collections.Counter(v) for k, v in d['numeric'].items()}
-    cat.protos, cat.guids, cat.primary = d['protos'], d['guids'], d['primary']
-    cat.defaults, cat.others, cat.problems = d['defaults'], d['others'], d['problems']
+            exe_names = frozenset(m.catalogue_exe_identifiers(fh.read()))
+    cat = _tables(r[0], exe_names)
     if log:
         log(f'  catalogue: {len(names)}/{len(names)} bundles, {cat.partitions} partitions, {time.time() - t0:.0f} s')
     return cat
@@ -288,70 +288,48 @@ def build_reference(ix: Any, exe: str | None, log: Any = None) -> Catalogue:
 
 
 def load(ix: Any, exe: str | None = None, log: Any = None) -> Catalogue:
-    """The cached Catalogue of the index's game copy (built on first use: a few minutes)."""
+    """The cached Catalogue of the index's game copy (built on first use: a few minutes).
+
+    The cache is the Rust core's (bc2_native.catalogue_load): read when it is this game copy's, else the catalogue
+    built (under the file's lock: one process builds, one that waited reads what the other wrote) and written, unless
+    the build had problems (an incomplete catalogue - a bundle locked by the running game, say - is used but not
+    cached); the cache folder and the overall budget pruned after a write. Without the core, or where its build
+    refuses, build_reference runs and nothing is cached."""
     root = getattr(ix, 'root', None)
     if exe is None and root:
         exe = os.path.join(root, 'game', 'BFBC2Game.exe')
-    sig = _signature(ix, exe or '')
-    path = os.path.join(root, 'work', 'tools_out', 'dbx_catalogue.pkl') if root else None
-    if not path:
-        return _build_and_cache(ix, exe, log, sig, None)
-    cached = _cached(path, sig)
-    if cached is not None:
-        return cached
-    # one process builds a missing catalogue at a time; one that waited reads what the other wrote (tools or tests
-    # side by side: each built it for minutes, both through the same .tmp file; 2026-11-17)
-    with atomicio.locked(path + '.lock'):
-        cached = _cached(path, sig)
-        return cached if cached is not None else _build_and_cache(ix, exe, log, sig, path)
-
-
-def _cached(path: str, sig: Any) -> Catalogue | None:
-    """The cached Catalogue when the cache file is this game copy's; None when missing, old or damaged."""
-    try:
-        with open(path, 'rb') as fh:
-            c = pickle.load(fh)
-        if c['version'] == CACHE_VERSION and c['sig'] == sig:
-            cat: Catalogue = c['catalogue']
-            from bfbc2core import caches
-            caches.touch(path)                                  # used: the 'dbxcatalogue' cache's LRU clock (PR1b-1c)
-            return cat
-    except Exception:                                           # noqa: BLE001 - missing, old or corrupt: rebuilt
-        pass
-    return None
-
-
-def _build_and_cache(ix: Any, exe: str | None, log: Any, sig: Any, path: str | None) -> Catalogue:
-    print('cataloguing BFBC2\'s partitions (once; cached) ...', file=sys.stderr)
     say = log or (lambda m: print(m, file=sys.stderr))
-    cat = build(ix, exe, say)
+    started = []
+
+    def hear(start: bool, line: str) -> None:
+        if start:
+            started.append(True)
+            print(line, file=sys.stderr)
+        else:
+            say(line)
+
+    path = os.path.join(root, 'work', 'tools_out', CACHE) if root else None
+    r = importcore.call('catalogue_load', list(_names(ix).items()), exe or '', path, dbx.Element, hear)
+    if r is not None:
+        d = r[0]
+        return _tables(d, frozenset(d['exe_names']))
+    if not started:
+        print('cataloguing BFBC2\'s partitions (once; cached) ...', file=sys.stderr)
+    cat = build_reference(ix, exe, say)
     if cat.problems:
-        # an incomplete catalogue (a bundle locked by the running game, say) is used but not cached: a cache keyed
-        # on the bundles' size and time would keep it after the cause is gone
         say(f'catalogue: {len(cat.problems)} read problem(s) - this catalogue is incomplete and NOT cached:')
         for p in cat.problems[:20]:
             say(f'  {p}')
         if len(cat.problems) > 20:
             say(f'  ... {len(cat.problems) - 20} more')
-        return cat
-    if path:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        data = pickle.dumps({'version': CACHE_VERSION, 'sig': sig, 'catalogue': cat}, protocol=pickle.HIGHEST_PROTOCOL)
-        try:
-            atomicio.write_bytes(path, data)                    # its own .tmp-<pid>, replaced whole
-            from bfbc2core import caches
-            caches.maybe_prune('dbxcatalogue', os.path.dirname(path))   # under its cap and the budget (PR1b-1c)
-        except PermissionError as ex:                           # Windows: another process is reading the old file
-            say(f'catalogue: built but not cached this time ({ex})')
     return cat
 
 
 if __name__ == '__main__':
     suite_paths.use('mesh-viewer', 'shader-tools')
-    import dbxcatalogue  # the cache pickles dbxcatalogue.Catalogue, not __main__'s
     import meshview
     import shaderdb
     t = time.time()
-    c = dbxcatalogue.load(meshview.Index(shaderdb.find_opfor(None)))
+    c = load(meshview.Index(shaderdb.find_opfor(None)))
     print(f'{c.partitions} partitions, {len(c.classes)} classes, {len(c.guids)} guids, {len(c.shapes)} paths, '
           f'{len(c.exe_names)} executable names ({time.time() - t:.0f} s)')
