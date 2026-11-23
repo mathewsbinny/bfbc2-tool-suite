@@ -43,9 +43,16 @@ landed on `main`.
   answers, the levels' databases read in parallel. The cache `shadercover` holds one `<24 hex>.bin` per level bundle
   and Dx, keyed by the bundle's content key (its length, head and gzip trailer's CRC-32 of the whole payload) instead
   of a SHA-256 of every byte of every bundle (`COVER_VERSION` 3).
+- **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload
+  is empty (only `*deleted*` markers, or no entries) now ends with the 20-byte gzip member of no data that DICE's 105
+  such bundles end with, where FbrbTool (and the suite after it) wrote nothing. `bfbc2core.fbrb.pack` / `pack_many`,
+  `bfbc2 fbrbtool pack` and `bc2_formats::fbrb::pack` (new constant `EMPTY_GZIP_MEMBER`) all write it; repacking each
+  of DICE's 105 gives DICE's bytes but for the header member's two header bytes (FBRB-HDR-4). FbrbTool's recorded
+  pack results for such bundles were re-recorded (each FbrbTool's bundle + those 20 bytes). Every other bundle is
+  unchanged.
 - **`shaderdb.retexture` runs in the Rust core** (`bc2_formats::shaderdb::merge::retexture`, the merge's own): the
-  same blocks, hits and refusals; a refusal naming a texture that is not UTF-8 is a `ShaderDbError` (the Python
-  raised `UnicodeDecodeError` making its message). It needs the Rust core (`bfbc2core.native.require`).
+  same blocks, hits and refusals; a refusal names its textures as latin-1, as every other shaderdb message (the Python
+  read them as UTF-8, or raised `UnicodeDecodeError` making its message). It needs the Rust core (`bfbc2core.native.require`).
 
 ### Removed
 - The cover index's Python implementation and its pickles (`shadercover\*.pkl`, a file format a tool wrote:

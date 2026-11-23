@@ -30,8 +30,8 @@ rounds NK4 and NK5.
 | ported | 21 | 2,580 |
 | retired-pending | 3 | 310 |
 | stays | 61 | 11,335 |
-| test | 188 | 51,674 |
-| **all** | **368** | **107,878** |
+| test | 188 | 51,682 |
+| **all** | **368** | **107,886** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -52,7 +52,7 @@ rounds NK4 and NK5.
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 17 | 10,793 | 1,430 | 3,630 | 984 | 126 |  |  | 4,623 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
-| `core` | 76 | 20,336 | 757 |  | 2,429 | 1,905 |  |  | 15,245 |
+| `core` | 76 | 20,344 | 757 |  | 2,429 | 1,905 |  |  | 15,253 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 33 | 6,007 |  |  |  |  |  | 5,740 | 267 |
 | `spec` | 13 | 4,605 |  |  |  |  |  | 4,605 |  |
@@ -397,7 +397,7 @@ Lines by status in the folder table.
 
 ## `core`
 
-76 files, 20,336 lines.
+76 files, 20,344 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -460,7 +460,7 @@ Lines by status in the folder table.
 | `core/tests/test_fbrb.py` | 122 | test | test |  | run_tests.py | Tests in Rust | FbrbTool's commands (in process, the Rust core: bfbc2core.fbrbtool): unpack then pack gives back the same b... |
 | `core/tests/test_fbrb_cache.py` | 314 | test | test |  | run_tests.py | Tests in Rust | The bundle cache (round E3e, rust/bc2-formats fbrb::cache through bc2_native) against the reader without it... |
 | `core/tests/test_fbrb_native.py` | 320 | test | test |  | run_tests.py | Tests in Rust | The bundle reader (rust/bc2-formats fbrb, through the bc2_native module) against what the retired Python re... |
-| `core/tests/test_fbrb_pack_native.py` | 336 | test | test |  | run_tests.py | Tests in Rust | The Rust bundle packer (rust/bc2-formats fbrb::pack and zlib, through the bc2_native module) against what F... |
+| `core/tests/test_fbrb_pack_native.py` | 344 | test | test |  | run_tests.py | Tests in Rust | The Rust bundle packer (rust/bc2-formats fbrb::pack and zlib, through the bc2_native module) against what F... |
 | `core/tests/test_fbrb_unpack_native.py` | 247 | test | test |  | run_tests.py | Tests in Rust | The in-process unpack (rust/bc2-formats fbrb::unpack through the bc2_native module, bfbc2core.fbrb.unpack)... |
 | `core/tests/test_fbrbtool.py` | 602 | test | test |  | run_tests.py | Tests in Rust | FbrbTool's commands in process (bfbc2core.fbrbtool, rust\bc2-formats\src\fbrb\tool.rs) against what FbrbToo... |
 | `core/tests/test_gameledger.py` | 397 | test | test |  | run_tests.py | Tests in Rust | Round DF2: the game copy's install ledger (bfbc2core.gameledger, the twin of rust\bc2-formats\src\gameledge... |
