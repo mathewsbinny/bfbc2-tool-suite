@@ -28,6 +28,13 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **The network layer in the specification** (round NET2, documentation only): `spec/engine/network.md` grows from 9 to
+  25 rules (the transports and connection layer, network settings and start-up options, versions and disconnect
+  reasons, PunkBuster, the server's listen path, the join by address, EA's Plasma back-end and its LAN mode, all read
+  statically from `BFBC2Game.exe`), and `spec/engine/network_feasibility.md` studies locally hosted play, Direct IP,
+  VLAN and LAN for Project OPFOR (needs, risks, effort, order, and the tests that would prove each). No tool changes.
+
 ## [0.24.0] - 2026-11-23
 
 Round PR1b-2-rest2 removes public Rust API (culltool's own DBX codec, bc2-menu's `Fail` results), so this merge
