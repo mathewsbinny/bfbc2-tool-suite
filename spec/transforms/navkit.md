@@ -69,6 +69,25 @@ vertices contain nothing).
 [test: bfbc2-auto-navkit/tests/test_navedits.py::matplotlib_agreement]
 [data: the 15 regression levels' 30 walkability stages give the retired Python's run, kept flags, gradients and stair flags bit for bit, and the same path data (rust/parity_nk4_walk.py, round NK4)]
 
+### XNAV-MEAS-1: The graph measured over every DICE node and edge by nearest-node pairing
+
+Status: **implemented**
+
+`navdiff` pairs, per sector, every DICE route node with at most one NavKit node and every NavKit node with at most
+one DICE node: all pairs within the tolerance in plan (half of KYG-NODE-7's DistPropagation by the DICE sector's
+pitch: 0.425 m detailed, 1.675 m coarse, 7.675 m vehicle) and 1 m in height, taken nearest first (ties by DICE then
+NavKit index). Over all DICE nodes and edges of the file (sectors only DICE has count as unpaired): `nodes_paired`,
+the paired share of DICE's nodes; `nodes_paired_candidate`, of NavKit's; `edges_paired`, DICE's edges whose
+partners hold the edge in the same direction; `costs_paired`, those whose cost word is within a tenth of DICE's
+(both in sixteenths of a metre, KYG-EDGE-2); and `node_distance`, each DICE node's nearest NavKit node in plan
+(within 1 m in height) as shares up to 0.05 / 0.1 / 0.25 / 0.5 / 1 / 2 / 4 m and beyond. The Rust core
+(`bc2_navbuild::measures`) and the Python (`navdiff.paired_graph`) give the same counts. `navparity` reports them
+beside the old exact-match measures (0.05 m: `nodes_same`, `edges_same`, `costs` over the matched edges only) and
+`navregress` fails a level when one drops.
+
+[code: bfbc2-auto-navkit/tools/navdiff.py:288-353] [code: rust/bc2-navbuild/src/measures.rs:454-555]
+[test: bfbc2-auto-navkit/tests/test_navtools_native.py::quick]
+
 ## 2. Apply
 
 ### XNAV-APP-1: Region edits need a NavKit base; DICE's base takes graph edits only
@@ -145,8 +164,14 @@ Set by the user, 2026-11-22. "100 % parity" with DICE's path data means a full c
 1. **What bots experience,** on every level: `ground`, `connectivity`, `ai_coverage` and `ai_pairwise` at 99.5 % or
    more; `extra_ground` and `over_connection` under 1 %; `sectors_extra` 0.
 2. **DICE's structure, rule by rule:** each generator rule of `kynapse_generation.md` that is decoded is reproduced
-   exactly on DICE's files (the rule's own probe count), so `areas_same`, `portals`, `nodes_same` / `nodes_near`,
-   `edges_same` and the D / F recall rise round by round (NKG1-NKG3) towards 100 %.
+   exactly on DICE's files (the rule's own probe count), so `areas_same`, `portals`, the graph's measures and the
+   D / F recall rise round by round (NKG1-NKG3) towards 100 %. The graph is judged over every DICE node and edge
+   (round NKS-deep E, XNAV-MEAS-1): `nodes_paired` (DICE's nodes with a NavKit partner within half a propagation
+   step), `nodes_paired_candidate` (the same pairs as a share of NavKit's nodes, so extra nodes earn nothing),
+   `edges_paired` and `costs_paired` (DICE's edges held by the partners, and those with the cost within a tenth),
+   with the nearest-node distance histogram; `nodes_near` (within 2 m) stays. The old exact-match measures
+   (`nodes_same`, `edges_same` within 5 cm, `costs` of those few edges) are kept beside them for one round
+   (NKS-deep E) so the change is visible, then dropped from the target.
 3. **Listed exceptions only:** DICE data that describes a level as it no longer is (SP_03's 93 nodes under the PC
    ground, `navparity.stale_nodes`), where the current level wins; and any rule shown to be unrecoverable from
    DICE's output, named with its evidence. Nothing else may stay short of the target unexplained. Named by the user's

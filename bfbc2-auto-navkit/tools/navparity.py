@@ -8,7 +8,12 @@ Each level is compared with its original (DICE) path data in OPFOR's game copy, 
   sectors        sector ids in each file
   walkable       DICE ground reproduced, extra ground, areas exactly the same, detailed (0.2 m) areas
   boundaries     outline, portals and border portals of the areas that match
-  routing        route nodes and edges in the same place (0.05 m), edge costs
+  routing        route nodes and edges in the same place (0.05 m), edge costs of those edges (the old measures,
+                 nodes_same / edges_same / costs); and over every DICE node and edge (round NKS-deep E): each DICE
+                 node paired one to one with its nearest NavKit node of the sector within half a propagation step
+                 (1.675 m coarse, 0.425 m detailed; 1 m in height): nodes_paired, edges_paired (DICE edges whose
+                 partners hold the edge), costs_paired (those with the cost within a tenth of DICE's; all three
+                 shares of DICE's), nodes_paired_candidate (the paired share of NavKit's nodes), node_distance (the nearest NavKit node's plan distance histogram, nd_far beyond 4 m)
   islands        separately connected regions (the seeded islands): count, large ones (>= 25 nodes), and over
                  DICE's route nodes (each paired with a NavKit node within 2 m): of the pairs DICE connects,
                  the share NavKit connects (connectivity), and of the pairs NavKit connects, the share DICE does
@@ -362,6 +367,11 @@ def _run_level(root, lv, candidate, log):
         'outline': d['bounds_of_same_areas']['outline'], 'portals': d['bounds_of_same_areas']['portals'],
         'borders': d['bounds_of_same_areas']['borders'],
         'nodes_same': d['graph']['node_parity'], 'edges_same': d['graph']['edge_parity'], 'costs': d['graph']['costs_same_of_same_edges'],
+        # the nearest-node pairing over every DICE node and edge (round NKS-deep E; navdiff.paired_graph)
+        'nodes_paired': d['graph']['node_pairing'], 'edges_paired': d['graph']['edge_pairing'],
+        'nodes_paired_candidate': d['graph']['node_pairing_candidate'],      # of NavKit's nodes: more nodes earn no credit
+        'nodes_reference': d['graph']['nodes_reference'], 'nodes_candidate': d['graph']['nodes_candidate'],
+        'costs_paired': d['graph']['cost_pairing'], 'node_distance': d['graph']['node_distance'],
         'islands_reference': isl['reference'], 'islands_candidate': isl['candidate'],
         'large_islands_reference': isl['large_reference'], 'large_islands_candidate': isl['large_candidate'],
         'nodes_near': isl['nodes_near'], 'connectivity': isl['connectivity'], 'over_connection': isl['over_connection'],
@@ -383,13 +393,15 @@ COLUMNS = [
     ('ground', 'ground %', '{:.1f}'), ('extra_ground', 'extra %', '{:.1f}'), ('areas_same', 'areas %', '{:.1f}'),
     ('detailed_reference', 'det.ref', '{}'), ('detailed_candidate', 'det.ours', '{}'),
     ('portals', 'portals %', '{:.1f}'), ('nodes_same', 'nodes %', '{:.1f}'), ('edges_same', 'edges %', '{:.1f}'),
+    ('nodes_paired', 'n.pair %', '{:.1f}'), ('edges_paired', 'e.pair %', '{:.1f}'), ('costs_paired', 'c.pair %', '{:.1f}'),
     ('islands_reference', 'isl.ref', '{}'), ('islands_candidate', 'isl.ours', '{}'), ('connectivity', 'connect %', '{:.1f}'),
     ('over_connection', 'over %', '{:.1f}'), ('runtime_connectivity', 'runtime %', '{:.1f}'), ('ai_coverage', 'AI pos %', '{:.1f}'), ('ai_pairwise', 'pairwise %', '{:.1f}'),
     ('ladder_ground', 'ladder %', '{:.1f}'),
     ('df_d_precision', 'D prec %', '{:.1f}'), ('df_d_recall', 'D rec %', '{:.1f}'), ('df_f_precision', 'F prec %', '{:.1f}'),
     ('df_f_recall', 'F rec %', '{:.1f}'),
 ]
-TOTALS = ['ground', 'extra_ground', 'areas_same', 'portals', 'nodes_same', 'edges_same', 'connectivity', 'over_connection', 'runtime_connectivity', 'ai_coverage',
+TOTALS = ['ground', 'extra_ground', 'areas_same', 'portals', 'nodes_same', 'edges_same', 'nodes_paired', 'edges_paired',
+          'costs_paired', 'connectivity', 'over_connection', 'runtime_connectivity', 'ai_coverage',
           'ai_pairwise', 'ladder_ground', 'df_d_precision', 'df_d_recall', 'df_f_precision', 'df_f_recall']
 
 

@@ -447,6 +447,110 @@ pub fn compare_sector(r: &Sector, c: &Sector, cfg: &DiffCfg) -> Option<SectorDif
         ("detailed_ref", detailed(ra)),
         ("detailed_cand", detailed(ca)),
     ];
+    out.counts.extend(paired_graph(r, c)?);
+    Some(out)
+}
+
+/// The nearest-node pairing's tolerance by the reference sector's pitch (`navdiff.PAIR_TOL`): half of KYG-NODE-7's
+/// DistPropagation, 0.425 m detailed, 1.675 m coarse, 7.675 m vehicle.
+#[must_use]
+pub fn pair_tolerance(pitch: f64) -> f64 {
+    if pitch < 0.5 {
+        0.425
+    } else if pitch < 0.95 {
+        1.675
+    } else {
+        7.675
+    }
+}
+
+/// `navdiff.NODE_NEAR_DY`.
+const NODE_NEAR_DY: f64 = 1.0;
+/// `navdiff.DIST_BINS` and `DIST_KEYS` (the last key: none within the last bound).
+const DIST_BINS: [f64; 7] = [0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0];
+const DIST_KEYS: [&str; 8] = [
+    "nd_005", "nd_010", "nd_025", "nd_050", "nd_100", "nd_200", "nd_400", "nd_far",
+];
+/// `navdiff.COST_TOL`.
+const COST_TOL: i64 = 10;
+
+fn floor_key(x: f64) -> Option<i64> {
+    let f = x.floor();
+    (f.is_finite() && f.abs() < 4.0e18).then_some(f as i64)
+}
+
+/// `navdiff.paired_graph` (round NKS-deep E): every reference node paired one to one with a candidate node, nearest
+/// first in plan within [`pair_tolerance`] and `NODE_NEAR_DY` in height; the reference edges whose partners hold the
+/// edge, those with the cost within a tenth, and the histogram of each reference node's nearest candidate node.
+fn paired_graph(r: &Sector, c: &Sector) -> Option<Vec<(&'static str, i64)>> {
+    let tol = pair_tolerance(f64::from(r.mesh.pitch));
+    let reach = tol.max(DIST_BINS[DIST_BINS.len() - 1]);
+    let mut grid: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
+    for (k, p) in c.graph.nodes.iter().enumerate() {
+        grid.entry((floor_key(p.0 / reach)?, floor_key(p.2 / reach)?))
+            .or_default()
+            .push(k);
+    }
+    let mut hist = [0i64; 8];
+    let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
+    for (i, n) in r.graph.nodes.iter().enumerate() {
+        let (gx, gz) = (floor_key(n.0 / reach)?, floor_key(n.2 / reach)?);
+        let mut best = f64::INFINITY;
+        for dx in [-1, 0, 1] {
+            for dz in [-1, 0, 1] {
+                for &k in grid.get(&(gx + dx, gz + dz)).map_or(&[][..], Vec::as_slice) {
+                    let m = c.graph.nodes.get(k)?;
+                    if (m.1 - n.1).abs() > NODE_NEAR_DY {
+                        continue;
+                    }
+                    let d2 = (m.0 - n.0) * (m.0 - n.0) + (m.2 - n.2) * (m.2 - n.2);
+                    best = best.min(d2);
+                    if d2 <= tol * tol {
+                        pairs.push((d2, i, k));
+                    }
+                }
+            }
+        }
+        let b = DIST_BINS.iter().position(|u| best <= u * u).unwrap_or(DIST_BINS.len());
+        *hist.get_mut(b)? += 1;
+    }
+    pairs.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+    let mut partner: HashMap<usize, usize> = HashMap::new();
+    let mut taken: HashSet<usize> = HashSet::new();
+    for &(_, i, k) in &pairs {
+        if !partner.contains_key(&i) && !taken.contains(&k) {
+            partner.insert(i, k);
+            taken.insert(k);
+        }
+    }
+    let mut cand_edges: HashMap<(usize, usize), Vec<i64>> = HashMap::new();
+    for &(s, d, t) in &c.graph.edges {
+        cand_edges.entry((s, d)).or_default().push(i64::from(t & 0x7FFF_FFFF));
+    }
+    let (mut edges, mut costs) = (0i64, 0i64);
+    for &(s, d, t) in &r.graph.edges {
+        let (Some(&s), Some(&d)) = (partner.get(&s), partner.get(&d)) else {
+            continue;
+        };
+        let Some(got) = cand_edges.get_mut(&(s, d)).filter(|g| !g.is_empty()) else {
+            continue;
+        };
+        let want = i64::from(t & 0x7FFF_FFFF);
+        let at = got
+            .iter()
+            .enumerate()
+            .min_by_key(|&(_, &c)| ((c - want).abs(), c))
+            .map(|(n, _)| n)?;
+        let best_c = got.remove(at);
+        edges += 1;
+        costs += i64::from(COST_TOL * (best_c - want).abs() <= want);
+    }
+    let mut out = vec![
+        ("nodes_paired", partner.len() as i64),
+        ("edges_paired", edges),
+        ("costs_paired", costs),
+    ];
+    out.extend(DIST_KEYS.iter().zip(hist).map(|(&k, v)| (k, v)));
     Some(out)
 }
 

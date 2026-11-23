@@ -322,11 +322,12 @@ pub fn build_graphs(
         xoff: inp.xoff,
         zoff: inp.zoff,
         order_points: inp.order_points.clone().unwrap_or_default(),
+        spawns: inp.seeds.clone(),
         id_start: 1,
         terrain: inp.terrain.clone(),
         ..StageArgs::default()
     };
-    let a = stage::stage(ground, &args, cfg, sw, &mut report.stats, log)?;
+    let a = stage::stage_cut(ground, &args, cfg, sw, &mut report.stats, log)?;
     stop(log)?;
     let graphs = match &inp.detailed {
         None => a.graphs,
@@ -355,13 +356,15 @@ pub fn build_graphs(
                 xoff: inp.xoff,
                 zoff: inp.zoff,
                 order_points: args.order_points.clone(),
+                spawns: args.spawns.clone(),
                 sector_filter: Some(dset.clone()),
                 grid_min: Some(grid_min),
                 id_start: a.next_id,
                 carried,
                 terrain: inp.terrain.clone(),
+                cuts: BTreeSet::new(),
             };
-            let b = stage::stage(ground, &bargs, &dcfg, sw, &mut report.stats, log)?;
+            let b = stage::stage_cut(ground, &bargs, &dcfg, sw, &mut report.stats, log)?;
             stop(log)?;
             stage::merge(a, b, &dset, &owners, sw, log)
         }
