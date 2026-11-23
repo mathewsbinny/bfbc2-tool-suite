@@ -36,6 +36,13 @@ landed on `main`.
   the parts give on the loaded database - read and answered in the Rust core (`bc2_convert::shaderlevels`), the
   levels in parallel, without making the databases in Python. Project OPFOR's `wake_shaders --clone` and
   `detail_layers` ask it of every stock level.
+### Added
+- **The Kynapse generator's parameters in the specification** (round NKS-deep A, no tool changed):
+  `spec/transforms/kynapse_generation.md` section 9 (KYG-PAR-1 to 3, KYG-DOC-1), KYG-NODE-6, `spec/formats/kynapse.md`
+  KYN-FILE-2 and `spec/formats/hpd.md` HPD-TAB-4. DICE's generator ran with DistPropagation = GraphAccuracy + 0.35 m
+  (3.35 / 0.85 / 15.35 m: the step its node pairs keep), the spanner's 1.2 is DICE's OverConnectionRatio, node ids
+  count from 101 sector by sector, and the header words are named from the generator's own HPD writer. Four
+  game-tier corpus tests in `rust/bc2-formats/tests/kynapse_corpus.rs`.
 
 ### Changed
 - **The level cover index runs in the Rust core** (round OR3b, `bc2_convert::shaderlevels`,

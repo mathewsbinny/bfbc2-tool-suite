@@ -8177,6 +8177,58 @@ A specification round: no tool's behaviour changed. Two spec files (`spec/engine
 probes on the AI input object, the behaviours' writes, bots as scored and named players, the mode state's run-time
 objects, the bot object's class and senses, the order and squad runtime, the session's AI difficulty.
 
+## NKS-deep A: the Kynapse generator's parameters and public documentation (2026-11-22, branch `nksd`)
+
+A specification round: no tool's behaviour changed. New rules KYG-PAR-1 (verified), KYG-PAR-2 (observed), KYG-PAR-3
+(inferred), KYG-NODE-6 (verified), KYG-DOC-1 (observed), KYN-FILE-2 (verified), HPD-TAB-4 (verified); a pointer from
+KYG-NODE-4 to KYG-PAR-1 and one open question added.
+
+**Method.**
+- **The executable.** `BFBC2Game.exe` (build 795745) read statically and read-only with capstone / pefile scratch
+  scripts (deleted): DICE's configuration writer (`FUN_00F194F0`), Kynapse's map-builder parameter reader
+  (0x011483D0), its defaults (0x01146822) and info-file format (0x014C2EF8), and the HPD writer (0x011C5140). No
+  Ghidra project, no game run.
+- **DICE's settings.** The four `AI/Pathfinding` partitions read out of `sp_common` / `mp_common` `level-00.fbrb`
+  into scratch (identical in both; deleted).
+- **Data.** Scratch Python over the 35 files, then four game-tier tests in `kynapse_corpus.rs`
+  (`header_tables_and_record_layout`, `node_ids_count_from_101_in_table_order`, `sector_times_are_the_write_time`,
+  `nearest_node_at_dist_propagation`): 1.6 s together in the test profile.
+- **The web.** Searches for Kynapse manuals, SDK pages and talks; five pages opened (KYG-DOC-1 lists them).
+
+**Findings:**
+
+| Rule | Finding | Evidence |
+|---|---|---|
+| KYG-PAR-1 | DistPropagation = GraphAccuracy + 0.35 m: DICE writes GraphAccuracy before EntityRadius, and the reader derives DistPropagation from the radius it holds then (Kynapse's default 0.35). 3.35 / 0.85 / 15.35 m is KYG-NODE-4's step exactly; DistDensityMax 0.65 x it, DistDensityMin 0.35 | nearest node exactly at it: coarse 7,505 (control 96), detailed 2,455 (199), vehicle 41 (0); coarse median nearest-neighbour 3.350 m |
+| KYG-PAR-2 | DICE's settings under the generator's names: OverConnectionRatio 1.2 (= KYG-EDGE-3's spanner), MaxDeltaHeight 1000 (no height limit on edges), EdgeRadius 0.41 / 2.51, NbSectors 32 / 128 / 64, StepMax / StepLength 0.28 / 0.36 and 0.4 / 0.4; Kynapse defaults for the rest | the partitions; the reader's field offsets |
+| KYG-PAR-3 | the break slope is StepMax / StepLength (0.778): the 0.62 m link step at pitch 0.8, NKG3's 0.775-0.780 slope band, the detailed 0.156 m (measured about 0.17) | inferred |
+| KYN-FILE-2 | header words from the HPD writer: 0 = 1 = the version 2, 3 the mode, 4-7 mode-0 floats, 8-31 two tables of four {id, offset, size} data descriptors ({2, 0, 8}: the node's 8 bytes of lookup lists), 32-34 sizes, 35 the path objects' count; end slots hold the debug heap's 0xBAADF00D (83) | 35 of 35 files; 2,605 of 3,120 sectors hold an edge longer than the +20 float, so the third-party "longest edge" reading is wrong for BFBC2 |
+| KYG-NODE-6 | node ids count from 101, sector by sector in table order, ordinary and border interleaved; 80 % of the numbers used | 35 of 35 files start at 101 |
+| HPD-TAB-4 | the table's date / time are the write time (one-second steps, a file within 9 s, infantry before vehicle) | 3,120 sectors |
+| KYG-DOC-1 | no public Kynapse manual or SDK page; articles confirm the design (collision-world sampling, tiles, hierarchy); one third-party claim contradicted | five pages |
+
+**Ranked: what would raise NavKit's parity most if used (for parts B and C).**
+1. **Propagation at DistPropagation (KYG-PAR-1) for node placement.** The node generator steps 3.35 / 0.85 / 15.35 m;
+   placing NavKit's nodes by propagation from the seeds at that step (with a minimum spacing of DistDensityMin and
+   the coverage of KYG-NODE-5) is the first rule with a decoded constant for KYG-NODE-1, the largest gap
+   (`nodes_same` 0.66 %, `nodes_near` 47.6 %). Part B: fit where a propagation starts (the step pairs' centres)
+   against the raw samples; read the map builder's propagation and density code (0x01140000-0x01160000).
+2. **The walkable step StepMax / StepLength x pitch (KYG-PAR-3)** for the area link rule (0.622 m, not 0.6) and the
+   D / F break at both pitches (0.156 m detailed). It aligns NavKit's area rule with DICE's, which KYG-AREA-2 says
+   must happen before the off-grid portals can go (`portals` 6.5 %, `areas_same` 5.2 %), and gives part C's vehicle
+   run its threshold (1.0 m).
+3. **Node ids from 101 in table order with one range per sector (KYG-NODE-6)**: cheap, and the unused numbers in
+   DICE's ranges show which nodes the later step dropped, which part B can use to fit KYG-EDGE-3's 37 % of
+   unexplained missing edges.
+4. **The derived density limits** (DistDensityMax 2.1775 / 0.5525 / 9.9775 m, DistDensityMin 0.35 m): no trace in
+   the data yet; part B tests them on the raw samples before NavKit uses them.
+5. **OverConnectionRatio 1.2 and MaxDeltaHeight 1000** (KYG-PAR-2): NavKit already uses both (NKG2's spanner, no
+   height limit); now named as DICE's settings, nothing to change.
+6. **The header and record names (KYN-FILE-2, HPD-TAB-4)**: byte-level only; NavKit already writes DICE's words.
+
+**Left:** the density limits' effect, the StepMax / StepLength rule against raw samples, NbSectors, EdgeRadius and
+HoleMax's traces in the data, the map builder's propagation code, and the C portals' direction vector (KYN-C-1).
+
 ## NKS-rest2: the Kynapse generator against the levels' own data (2026-11-22, branch `nksr2`)
 
 A specification round: no tool's behaviour changed. KYG-RECT-1 answered and verified, two new rules (KYG-NODE-4

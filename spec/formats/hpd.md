@@ -124,6 +124,20 @@ file and name the sector's 100 m grid square after the file's sector offsets (HP
 
 [data: 3,120 of 3,120 sectors have the same id in the table and the mesh header]
 
+### HPD-TAB-4: The date and time words are the file's write time
+
+Status: **verified**
+
+The table's build date and time (HPD-TAB-1) record when the generator wrote each sector, not when it built it. One
+file has one date. The times rise with the table order, all of a file's sectors within 10 seconds (sp_005_b's 270 in
+9 s), and the hundredths are always 0 (the clock has one-second steps). They carry no generation parameter. They do
+give the build order of a level: on every level the infantry file was written before the vehicle file, minutes to
+hours apart (sp_004_b 15:14 and 15:18; sp_006 23:47 and 01:41 the next day). A writer may put any date there; the
+runtime passes the words on without a known use (KYRT-IGN-1).
+
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::sector_times_are_the_write_time]
+[data: 35 of 35 files: one date, times non-decreasing in table order, at most 9 s from the first sector to the last, hundredths 0 in 3,120 of 3,120 sectors; the vehicle file's time later than the infantry file's on 17 of 17 levels with both]
+
 ## 3. Sector block and route graph
 
 ### HPD-BLK-1: Block layout
