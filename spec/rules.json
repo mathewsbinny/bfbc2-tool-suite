@@ -730,7 +730,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:177-181"
+     "ref": "opfor:src/tools/ww2/wake_install.py:193-197"
     },
     {
      "kind": "doc",
@@ -762,12 +762,12 @@
      "ref": "OPFOR's Wake Island install: copied on-demand waves of mp_common resolved to a null wave on the client; the unwrapped copies play"
     },
     {
-     "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3083-3088"
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148"
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:177-190"
+     "ref": "opfor:src/tools/ww2/wake_install.py:193-206"
     }
    ]
   },
@@ -784,7 +784,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:103-106"
+     "ref": "opfor:src/tools/ww2/wake_install.py:98-101"
     }
    ]
   },
@@ -801,15 +801,15 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:103-106"
+     "ref": "opfor:src/tools/ww2/wake_install.py:98-101"
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:145-147"
+     "ref": "opfor:src/tools/ww2/wake_install.py:147-149"
     },
     {
-     "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3083-3088"
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148"
     },
     {
      "kind": "doc",
@@ -2284,7 +2284,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:473-481"
+     "ref": "opfor:src/tools/ww2/wake_install.py:410-418"
     }
    ]
   },
@@ -5484,8 +5484,8 @@
      "ref": "BFBC2Game.exe 0x74EAB3, Coral Sea's load, play test 2026-11-14"
     },
     {
-     "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3677-3681"
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2710-2711"
     },
     {
      "kind": "doc",
@@ -5563,7 +5563,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:181"
+     "ref": "rust/bc2-install/src/levelbuild/index.rs:156-182"
     }
    ]
   },
@@ -9131,7 +9131,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:2119-2132"
+     "ref": "opfor:src/tools/ww2/wake_install.py:1436-1449"
     },
     {
      "kind": "doc",
@@ -9160,7 +9160,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:1244-1245"
+     "ref": "rust/bc2-install/src/levelbuild/closure.rs:233-236"
     },
     {
      "kind": "doc",
@@ -11050,7 +11050,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:716-719"
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:405-411"
     }
    ]
   },
@@ -11063,15 +11063,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:716-768"
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:294-415"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:2722-2741"
+     "ref": "rust/bc2-install/src/levelbuild/terrainfiles.rs:76-113"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:2751-2769"
+     "ref": "rust/bc2-install/src/levelbuild/terrainfiles.rs:125-172"
     }
    ]
   },
@@ -23430,7 +23430,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:1276-1280"
+     "ref": "rust/bc2-install/src/levelbuild/closure.rs:167-177"
     },
     {
      "kind": "doc",
@@ -23626,7 +23626,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:3360-3363"
+     "ref": "opfor:src/tools/ww2/wake_install.py:2457-2460"
     }
    ]
   },
@@ -28325,7 +28325,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:2343-2347"
+     "ref": "opfor:src/tools/ww2/wake_install.py:1660-1664"
     }
    ]
   },
@@ -28532,7 +28532,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:473-481"
+     "ref": "opfor:src/tools/ww2/wake_install.py:410-418"
     }
    ]
   },

@@ -138,7 +138,7 @@ for any layout. An export therefore adds the entries of every mesh it brings in 
 
 [exe: BFBC2Game.exe 0x98BD6E, renderer; 0x98BCE0-0x98BD7B: `mov edx,[ebx+8]` ... `movups xmm0,[edx+8]`]
 [data: OPFOR: the WallWooden port (fixed by giving its parts a same-stride layout and its instanced variant); ONS_MP_004's road / stop signs (open)]
-[doc: opfor:src/tools/ww2/wake_install.py:2119-2132] [doc: opfor:DEVELOPMENT_NOTES.md:1350] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:586]
+[doc: opfor:src/tools/ww2/wake_install.py:1436-1449] [doc: opfor:DEVELOPMENT_NOTES.md:1350] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:586]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1371]
 
 ### RNDR-DRAW-7: A mesh set's LOD settings must resolve (0x8D59FB)
@@ -151,7 +151,7 @@ therefore be in a bundle the level loads (BF1943's `BeachHouseLodSettings_1`, `T
 in OPFOR's port; Fill_Tree's `Vegetation_Lod1` exists nowhere).
 
 [exe: BFBC2Game.exe 0x8D59FB, null read in the client's mesh set-up]
-[doc: opfor:src/tools/ww2/wake_install.py:1244-1245] [doc: opfor:research/WW2_SUBSTITUTION_AUDIT.md:48]
+[doc: rust/bc2-install/src/levelbuild/closure.rs:233-236] [doc: opfor:research/WW2_SUBSTITUTION_AUDIT.md:48]
 
 ### RNDR-DRAW-8: A program's material registers are its block header's window
 

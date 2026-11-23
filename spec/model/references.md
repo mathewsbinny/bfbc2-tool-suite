@@ -201,7 +201,7 @@ does not create it, and the placement reads a null blueprint during the level ch
 Island's first load).
 
 [exe: BFBC2Game.exe 0x6EFCA4, null blueprint read in the level checksum]
-[code: opfor:src/tools/ww2/wake_install.py:1276-1280] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:93-94]
+[code: rust/bc2-install/src/levelbuild/closure.rs:167-177] [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:93-94]
 
 ## 5. Removing a target
 
