@@ -8,7 +8,13 @@
 //! block's quadtree is the computed one (TERR-HF-5); a material map decodes and encodes byte for byte (TERR-MM-1 - 4).
 //! The game copy is `OPFOR_ROOT`'s `game`, else `project-opfor-bfbc2\game` beside the suite; the test passes with a
 //! note when it is missing.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout, clippy::doc_markdown, missing_docs)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::print_stdout,
+    clippy::doc_markdown,
+    missing_docs
+)]
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
