@@ -139,9 +139,9 @@ to an earlier skipped step whose output a later step rewrote (`run_changed`, `Tr
 What a program other than Python reads beyond its arguments is not recorded (the scans of `step_roots` cover what it
 writes).
 
-[code: opfor:src/tools/ww2/stepstamps.py:1-38] [code: opfor:src/tools/ww2/stepstamps.py:191-262]
-[code: opfor:src/tools/ww2/stepstamps.py:266-309] [code: opfor:src/tools/ww2/rebuild_all.py:97-126]
-[code: opfor:src/tools/ww2/rebuild_all.py:413-470]
+[code: opfor:src/tools/ww2/stepstamps.py:1-38] [code: opfor:src/tools/ww2/stepstamps.py:208-279]
+[code: opfor:src/tools/ww2/stepstamps.py:283-330] [code: opfor:src/tools/ww2/rebuild_all.py:105-134]
+[code: opfor:src/tools/ww2/rebuild_all.py:421-477]
 
 ### XDEP-STEP-2: The measured graph
 
@@ -157,22 +157,38 @@ steps read no earlier step's output (they read only the game copy, BF1943 and th
 
 [data: spec/probes/dependencies.py --steps, 2026-11-23, OPFOR's 55 step records of the rebuild of 2026-11-22 / 23: the counts above (they change with every rebuild and step change: the probe prints them, its checks() do not hold them)]
 
-### XDEP-STEP-3: Three steps read an output a later step writes
+### XDEP-STEP-3: No step reads an output a later step writes
 
-Status: **observed**
+Status: **implemented**
 
-Three steps read files that only a step after them writes, i.e. the previous rebuild's output:
-`wake_translate.py Objects/ -Objects/Weapons` reads 33 of `material_grid.py`'s outputs
-(`work/ww2/material_grid/effects/...`, `emitters/...`) and 2 of `bf1943_jp_bazooka.py`'s (the M18's textures), and
-`material_grid.py` reads 2 of `wake_vo.py`'s (`vo/sound/vo/vo_en.dbx`, `vo_triggers.dbx`). On a clean `work\ww2` these
-reads find nothing (or another run's files), so the result depends on what the folder held before - the same kind of
-order fault the P0 audit found in `wake_shaders --clone`. The oracle passes because the outputs reach a fixed point
-after one rebuild. A step-graph runner must either move these producers before their readers or record the edge as
-an explicit two-pass dependency; until then, a rebuild from an empty `work\ww2` needs two passes of these steps.
-(Unproven: whether the readers merely test for the files or use their content.)
+Every step runs after each step whose output it reads. Before round WW2-ORD1 (OPFOR, 2026-11-23) three steps read
+files only a later step wrote, so they read the previous rebuild's copy: `wake_translate.py Objects/ -Objects/Weapons`
+read 33 of `material_grid.py`'s outputs and 2 of `bf1943_jp_bazooka.py`'s, and `material_grid.py` read 2 of
+`wake_vo.py`'s. Both readers really use these files, through every OURS root at once. `wake_translate` reads the WW2
+builds through `wake_install.our_files`, every root with the later build winning. `material_grid`'s `build_roots`
+stops when a root is missing, and it follows the level's references into `wake_vo`'s VO partitions. On an empty
+`work\ww2`, `material_grid` stopped. The fix was the order. `bf1943_jp_bazooka`, `wake_vo` and `anims` read no other
+step's output; they now run first, then `material_grid`, then `wake_translate` (a test holds every OURS producer
+before both readers). The one read left over was `install_index.pkl`. It is `wake_install`'s stock-bundle index,
+keyed by the bundles' sizes and dates and rebuilt by whichever step finds it stale. It is declared a cache, with
+`install_dbnames.pkl` and `install_templates.pkl`, and the tracker no longer records it.
 
-[data: spec/probes/dependencies.py --steps, 2026-11-23: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2)]
-[code: opfor:src/tools/ww2/rebuild_all.py:97-117]
+The step records of a rebuild from a seeded-empty `work\ww2` (XDEP-STEP-5) give 0 reads of a later step's output. The
+same rebuild settles in one pass: `--changed --dry` afterwards runs 0 of 55 steps. Getting there took four fixes that
+an empty folder exposed:
+- `wake_ambience` drew a preview into a folder it had not made yet.
+- The tracker's hook stamped every file under a folder handed to the Rust core without its skips, so `material_grid`
+  recorded rebuild_all's own step logs as inputs. Those logs are rewritten every run, so the step never settled. With
+  a full `work\ww2` the folder is over the hook's 50,000-file limit and is listed, not stamped.
+- A listed folder that the step itself, or a later step, fills at any depth looked changed.
+- `qa_checks` failed when there was no install report.
+
+[code: opfor:src/tools/ww2/rebuild_all.py:105-134] [code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:43-48]
+[code: opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:66-72] [code: opfor:src/tools/ww2/stepstamps.py:303-311]
+[test: opfor:src/tools/tests/test_ww2_build.py::test_ours_readers_after_every_ours_producer]
+[test: opfor:src/tools/tests/test_rebuild_tracker.py::test_a_run_from_an_empty_work_settles]
+[test: opfor:src/tools/tests/test_rebuild_tracker.py::test_the_install_indexes_are_not_tracked]
+[data: spec/probes/dependencies.py --steps, 2026-11-23, before: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2); after, on the 55 records of OPFOR's rebuild from a seeded-empty work\ww2 (round WW2-ORD1): 0 reads of a later step's output, 362 read-after-write edges (26,529 files), 7 write-after-write (26 files), longest chain 15 steps; rebuild_all --changed --dry afterwards: 0 of 55 steps would run]
 
 ### XDEP-STEP-4: What a step-graph runner must keep
 
@@ -183,16 +199,70 @@ A runner that schedules the rebuild from its records instead of the fixed list m
 1. **Read-after-write**: a step after every step whose recorded output it reads (XDEP-STEP-2);
 2. **Write-after-write**: steps writing one file in their list order (the Wake level's five writers, the weapon
    textures before `grime.py --apply`), and readers of that file after the writer whose version they read;
-3. **The read-before-write cases** resolved, not inherited (XDEP-STEP-3);
+3. **No read-before-write**: none is left since round WW2-ORD1 (XDEP-STEP-3); a new one is resolved, not inherited;
 4. **The declared folders** (`OUTPUTS`) as a fallback for steps whose records miss non-Python reads, and the
    memory gate of the level chains (`JOBS`, `MIN_FREE`: a level build peaks at about 3 GB);
-5. **External inputs** (the game copy, BF1943, the suite's code) as roots whose hashes rerun their readers, as
-   `--changed` does now;
+5. **External inputs** (the game copy, BF1943, the suite's code, and the inputs inside `work\ww2` that no step writes,
+   XDEP-STEP-5) as roots whose hashes rerun their readers, as `--changed` does now;
 6. **A first run with no records** in the declared order, since edges come only from records.
 
 With these the 19 independent steps and the level chains can run side by side; the 14-step chain bounds the time.
 
 [inferred: from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE]
+
+### XDEP-STEP-5: Inputs inside work\ww2 that no step writes
+
+Status: **observed**
+
+The rebuild reads three kinds of files under `work\ww2` that none of its steps produce. An empty `work\ww2` must be
+seeded with them:
+1. **Placed by hand**: `fonts\` (the Permanent Marker font, 2 files in the oracle, read by `menu_art`) and
+   `weapon_icons\confirmed` (the user's sign-off of the weapon icons, which `weapon_icons.py` keeps across its
+   rebuild).
+2. **The install plan's staging**, which `rebuild_all` lists as `NOT_REBUILT`:
+   - `wake_translate` reads `install_ports\plans.json` (wake_install's `MESH_PLANS`), and `emitter_atlas` reads
+     `install_ports\objects`;
+   - each level's build, atlas and checks read `install_ports_<lv>\` and
+     `install_<lv>\level\objects\vegetation` (`tree_billboards`).
+
+   These come from `wake_install` / `ww2_level_install --plan`, which read the rebuild's outputs. The result is a
+   rebuild -> install plan -> rebuild cycle, so from nothing, one pass cannot settle without a plan having run.
+3. **Caches** keyed by their sources: `install_*.pkl` (now untracked, XDEP-STEP-3), `material_grid*\effects_cache.pickle`
+   and `grime_refs.json`.
+
+Two ways to make (1) and (2) explicit, before a step-graph runner:
+- a declared external-input list in `rebuild_all` (the hand-placed files, and the plan's staging with its producer),
+  checked at start with a clear message;
+- or the plan's porting moved into the rebuild as its own step, which breaks the cycle.
+
+[data: OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\level\objects\vegetation, the caches); a rebuild from a work\ww2 seeded with fonts\, weapon_icons\confirmed, install_ports\, install_ports_<lv>\ and install_<lv>\level\objects\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass]
+[code: opfor:src/tools/ww2/rebuild_all.py:155]
+
+### XDEP-STEP-6: The rebuild oracle holds the folder's history
+
+Status: **observed**
+
+OPFOR's rebuild oracle (`src\tools\tests\data\ww2_rebuild_oracle.json`, 10,852 files) hashes `work\ww2` as it is
+after a rebuild, not only what the steps write. A rebuild from a seeded-empty `work\ww2` (XDEP-STEP-5) matches 7,921
+files. Every difference comes from the folder's history, none from the step order:
+- **2,903 relics** that no step wrote in the last rebuild:
+  - 2,798 `wake\shaders_hlsl` sources from manual `wake_translate --hlsl` runs (2026-11-07 - 11-15);
+  - 78 `wake\textures_bf1943` textures;
+  - 27 `guadal_canal` / `iwo_jima_s` `textures_bf1943\Tinted` textures.
+- **18 `wake\textures_bf1943` textures kept by a skip**: `wake_shaders.convert_textures` keeps a texture that is
+  already there. OPFOR's folder holds conversions from 2026-11-05 made by an older converter. Those break TEX-FMT-2:
+  the L8 rows of the smallest mips are unpadded (16 / 4 / 1 or 8 / 2 / 1 bytes, where DICE's own L8 textures give
+  16 / 8 / 4). They also set flag bit 1, which TEX-FLAG-1 keeps clear on a texture converted from a console copy. The
+  current converter's bytes follow both rules.
+- **4 `effects_cache.pickle`**: the unpickled content is the same, the pickle bytes are not.
+- **6 emitter-atlas `manifest.json` / `report.txt`**: only the closure's file count differs (4,758 vs 4,736),
+  because the relics are counted; the atlases are the same.
+
+The oracle matches OPFOR's own folder (10,852 of 10,852). Regenerating it is a separate ruling: archive the relics,
+skip the caches, and reconvert the 18 textures.
+
+[data: round WW2-ORD1, 2026-11-23: compare_oracle on the seeded-empty rebuild's hashes, 7,921 of 10,852 identical, differ 28, missing 2,903, extra 0; each missing or differing file joined to the step records of OPFOR's rebuild of 2026-11-22 / 23 (no writer for the relics, the 18 textures and the pickles); the 18 textures' headers (format 10, flags 2 vs 0, smallest mips) against DICE's format-10 textures of the game copy's level bundles; the pickles unpickled and compared]
+[inferred: the relics and the skipped conversions are left by earlier runs, so an oracle of the folder holds them]
 
 ## Open questions
 
@@ -200,6 +270,7 @@ With these the 19 independent steps and the level chains can run side by side; t
   time): the graph is the data's, not the loader's.
 - Edges held outside the string table: resources that name partitions or other resources inside their own bytes
   (a mesh set's shader names, a shader database's texture names), and the VO tables' wave names.
-- Whether the three read-before-write steps (XDEP-STEP-3) use the files' content.
+- Whether the rebuild should own the install plan's porting (XDEP-STEP-5), or the plan's staging should stay an
+  external input.
 - The stale records of steps renamed since (`ww2_level_build.py <level>` without its parts) are ignored by the probe;
   the runner should prune them.

@@ -29,6 +29,10 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Spec: the WW2 rebuild settles from empty** (round WW2-ORD1, with OPFOR): XDEP-STEP-3 implemented (no step
+  reads a later step's output; the proof from a seeded-empty `work\ww2`), XDEP-STEP-5 (the inputs inside
+  `work\ww2` no step writes: hand-placed files, the install plan's staging) and XDEP-STEP-6 (what the rebuild
+  oracle holds beyond the steps' outputs).
 - **NavKit: DICE's terrain rule for D lines** (round NKG3, spec KYG-DF-1): DICE's D sides between two terrain cells
   follow the terrain's slope across the side (above 0.77), not the step between the cell centres; its F cells follow
   the steps. NavKit's build reads the level's height field (`navwalk.build(heightfield=...)`,
