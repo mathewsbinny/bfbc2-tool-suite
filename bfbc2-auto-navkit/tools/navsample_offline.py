@@ -1450,7 +1450,7 @@ def build_level(root, lv, out=None, log=print, samples_dir=None):
                    dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=s08[:-4] + '_hi.bin',
                    stairs_path=os.path.join(L, 'stair_tris.npy'),
                    seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
-                   water=navregress.level_water(root, lv), bounds=navregress.reference_bounds(root, lv),
+                   water=navregress.level_water(root, lv), bounds=navregress.build_bounds(root, lv),
                    order_points=navregress.order_points_of(root, lv), area_orders=navregress.area_orders_of(root, lv),
                    ladders=json.load(open(lad)) if os.path.isfile(lad) else None,
                    log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))

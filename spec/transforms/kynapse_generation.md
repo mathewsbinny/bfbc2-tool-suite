@@ -87,9 +87,15 @@ partitions NavKit prepares for those levels: ONS_MP_002's infantry ground reache
 [data: round NKS-rest2, other boxes against the 68 infantry sides (17 levels): the ground lies more than 2 m outside the combat areas' box on 27 sides and outside the placed objects' box on 19; the height field's box ends more than 25 m beyond the ground on 66 sides and inside it on 2; with soldier spawns alone (+ 25 m) the ground passes the box (by more than 0.2 m) on 36 of the 132 sides of the 33 files, with vehicle spawns alone on 34, with both on 2 (Onslaught)]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:784-816]
 
-NavKit today: on a level with DICE data it clips to DICE's extent (`navbuild.CLIP_TO_REFERENCE`), which is a bound
-borrowed from the answer, not a rule. On a new map it keeps its sampling box. `navparity:sectors_extra` 1.33 mean
-(sp_01 12), `extra_ground` 8.31 %.
+NavKit today: on a new map (no DICE path data) the build keeps the sample columns inside this rectangle, the spawns'
+box grown by 24.5 m (`navregress.spawn_bounds`, `bc2_navbuild::inputs::spawn_bounds`, round NKG2). On a level with
+DICE data it still clips to DICE's extent (`clip_to_reference`). Round NKG2 measured the rectangle against that extent
+on the 15 regression levels: on 45 of the 52 campaign sides the two lie within 0.41 m of each other (the rule's
+0.11-0.91 m band), but on the 7 sides where DICE's ground ends on its own (sp_03 +z 59.2 m, sp_04 -x 347.0 m, sp_005
++x 276.5 m, sp_006 -z 64.4 m, sp_008_b -x 140.9 / -z 12.5 / +z 239.5 m) the rectangle keeps ground DICE has none of:
+there the end is the seeding's (KYG-SEED-1), not the rectangle's, and NavKit seeds objects and spawns more widely. So
+on DICE's levels the extent stays the reference's until the seeding matches (XNAV-BLD-3), and the Onslaught levels
+keep it by the exception above. `navparity:sectors_extra` 1.33 mean (sp_01 12), `extra_ground` 8.31 %.
 
 ### KYG-SEC-1: Sectors: a 100 m grid numbered from the file's offsets
 
@@ -179,7 +185,12 @@ boundaries follow no grid.
 
 NavKit today (probe): coarse 75,436 / 1,748 / 64,370 and detailed 155,194 / 2,404 / 237,972. It has no midline cut,
 and five to ten times DICE's off-grid portals: staircase boundaries between areas, which DICE mostly does not link.
-Measures: `navparity:portals` 6.47 %, `areas_same` 5.18 %. The largest single structural gap.
+Measures: `navparity:portals` 6.47 %, `areas_same` 5.18 %. The largest single structural gap. Round NKG2 did not
+change it: the cut's trigger is not decoded (above: no feature, crossing count or hole separates cut from uncut
+groups), so a cut NavKit made would be its own rule, not DICE's; and the off-grid portals join areas NavKit's softer
+link rule (`LINK_RULE` slope) connects where the 0.6 m area rule splits them, so dropping them takes routes away
+(`connectivity`) until the area rule and the link rule agree as DICE's do. Both wait for the raw-sample fit the Open
+questions name.
 
 ### KYG-AREA-3: Area heights
 
@@ -230,6 +241,18 @@ NavKit today (probe): 710 detailed sectors where DICE's infantry files of the sa
 detailed areas (DICE: 51,461 over all 18 files). Measure: `navparity:detailed_candidate` / `detailed_reference`
 8,605 / 3,099 areas mean (2.8x).
 
+Round NKG2 built DICE's own list (`navkit.DICE_DETAILED`, `bc2_navbuild::inputs::DICE_DETAILED`; off). Only 462 of
+DICE's 502 can be: the pitch-0.2 sample runs sampled NavKit's own choice (755 sectors), and 40 of DICE's (sp_04 10,
+sp_006 9, sp_01 8, sp_02 3, sp_008_b 3, ons_mp_004 4, one each on sp_005, sp_007, sp_008) were never sampled at 0.2;
+building them detailed from those runs left them with no ground (sp_02 `ground` 98.95 -> 96.17 %, `connectivity`
+99.49 -> 74.5 %), so the switch builds DICE's sectors that were sampled. Even so, 8 of the means got worse on the 15
+levels (`nodes_near` 47.63 -> 45.51 %, `connectivity` 98.79 -> 98.74, `runtime_connectivity` 98.41 -> 98.34,
+`strong_share` 99.69 -> 99.66, `portals` 6.47 -> 6.35, `outline` 97.99 -> 97.88, `df_d_precision` 50.53 -> 49.92,
+`costs`; better: `ground` 98.22 -> 98.38, `df_d_recall` 18.84 -> 22.34, `df_f_recall` 33.46 -> 39.96):
+in the 293 sectors NavKit makes detailed and DICE builds at 0.8, NavKit's 0.8 m build reproduces DICE's 0.8 m ground
+and graph less well than its own 0.2 m build does. So XNAV-BLD-3 keeps NavKit's own choice until the coarse build
+closes that gap, and a pitch-0.2 run over DICE's list (in game, paused) is needed for the 40.
+
 ## 5. Route nodes
 
 ### KYG-NODE-1: Node placement is off the sampling grid
@@ -264,6 +287,15 @@ NavKit today (probe): every node on a cell centre (672,793 of 672,793). Measures
 `nodes_near` 47.63 %. The placement rule (which outline corners, what offset, how open ground is filled) is the main
 open rule for the graph. KYG-NODE-2 is the border part.
 
+Round NKG2 tried moving every new node off the grid toward the centroid of its share of the ground (the cells whose
+nearest node it is within 7.5 m, the move kept inside its own cell, so walkability is unchanged): `ai_pairwise` fell
+92.73 -> 92.33 % (sp_04 97.3 -> 95.4, sp_009 71.8 -> 68.2), `nodes_same` 0.66 -> 0.58, `connectivity` -0.04, so it
+was taken out. A move that is not DICE's placement only moves NavKit's nodes away from the cell centres DICE's 4 %
+share. The coverage gap is measured instead (`kynapse_rules --only cover` on the builds, KYG-NODE-5): ground seeing a
+node within 7.5 m, coarse 73.7 % (DICE's same 15 files 96.4 %), detailed 97.5 % (98.3 %). Exact positions stay
+unrecoverable from the output so far (the exception the parity target allows, with the evidence above and under
+Open questions).
+
 ### KYG-NODE-2: Border nodes form a band shared by two to four sectors
 
 Status: **observed**
@@ -290,6 +322,23 @@ sector found no pair; a coarse / detailed seam on sp_007 split as the detailed g
 row): `connectivity` fell up to 0.5 points on 5 levels, so it waits for NKG2's band. Measures:
 `navparity:connectivity` 98.79 %, `over_connection` 15.31 %, `runtime_connectivity` 98.41 % and `strong_share`
 99.69 % (DICE 97.30 %).
+
+Round NKG2 (`graphfile::relocate_owner_edges`, `owner_edges` on): the band follows from the owner rule itself. Every
+edge a sector's graph holds out of a node it does not own moves to the node's owner, the sector whose square holds
+it; the owner gets a copy of the edge's far end, which becomes a border node (shared id) if it was an ordinary node,
+and this repeats until nothing moves. So the nodes within an edge's reach of a line, on both sides, become shared:
+the band, as wide as DistEdgeMax. On the 15 regression builds (probe, with the spanner): border ids 48,899 -> 125,145
+(DICE's infantry files of the same levels 103,085); ids in 3 sectors 66 -> 3,967 (DICE 4,799), in 4 sectors 222 ->
+2,272 (3,553); border ids with no owner copy 346 -> 0 (DICE 3,308); edges out of non-owner copies 111,968 -> 0 (DICE
+7,355); nodes outside their sector's mesh rectangle 3,522 -> 53,577 (DICE 90,809). As the runtime walks the graph the
+strongly connected share is 100 % on every level (`strong_share` 99.69 -> 100 %) and `runtime_connectivity` rises
+98.41 -> 98.80 % (sp_003_b 90.01 -> 92.67 %); `connectivity`, `over_connection`, `nodes_near`, `ai_pairwise` and
+the ground measures do not move. A second row of border nodes 0.8 m into the
+lower sector (NKG1's try, again with the owner rule) is not needed and was worse (`connectivity` -0.02,
+`over_connection` +0.23, `ai_pairwise` -0.12): left out. The band's node positions are NavKit's (KYG-NODE-1), so its
+spacing along a line is not DICE's 1.6 m.
+
+[test: rust/bc2-navbuild/src/graphfile.rs::tests::bounds_are_the_node_box_edges_move_to_owners_and_foreign_only_pairs_keep_no_node]
 
 ### KYG-NODE-3: Node ids and the lookup lists
 
@@ -318,7 +367,10 @@ point resolves to, when two candidates share a coordinate on that axis and both 
 NavKit today (probe): a stable sort by index (2,480 / 2,487 / 2,470 of 2,494 sectors). The runtime reads the lists in
 order (KYRT-NODE-2), so the ties can decide which node a point gets, but only between nodes with the same coordinate;
 with NavKit's own node positions (on cell centres, KYG-NODE-1) the ties are among NavKit's nodes, not DICE's, so round
-NKG1 left them: they matter once placement follows DICE's (NKG2), and DICE's tie rule is not decoded.
+NKG1 left them: they matter once placement follows DICE's (NKG2), and DICE's tie rule is not decoded. Round NKG2 left
+them too, as a named exception: placement does not follow DICE's (KYG-NODE-1), and the table above shows no rule on
+the stored values reproduces DICE's order (the best, index order, 7,110 of 15,276 x ties); the inferred cause, a sort
+on unrounded coordinates the file does not keep, makes the order unrecoverable from DICE's output.
 
 ### KYG-NODE-4: Step pairs: nodes one step of GraphAccuracy + 0.35 m apart along an axis
 
@@ -420,6 +472,17 @@ measured in metres or in units of `GraphAccuracy`, has no sharp edge. Round NKS-
 So the infantry rule is the spanner over the nodes of the main pass, with a later step (the step pairs, and the
 removal of numbered nodes) that the spanner does not revisit. That step is not decoded.
 
+NavKit today (round NKG2): each sector's walkable pairs (every pair within DistEdgeMax whose straight line is
+walkable, both pitches) go through the greedy 1.2-spanner, shortest first, ties by pair order
+(`graph::spanner_prune`, `stage::SPANNER_STRETCH`; the Gabriel rule on detailed sectors is no longer used); the ladder
+links and the group joins come after it, as before. The test checks the rule's two halves on random point sets: every
+pair left out has a route of at most 1.2 times over the kept ones, and the kept pairs join what all pairs join. NavKit's
+edge counts then follow its node counts (KYG-NODE-1): coarse edges per node fall to DICE's side, detailed ones rise
+with NavKit's denser detailed nodes (counts in the round's table, `rust/BENCHMARKS.md` "NKG2").
+
+[test: rust/bc2-navbuild/src/graph_route_tests.rs::spanner_keeps_routes_within_the_stretch]
+[test: rust/bc2-navbuild/src/graph_route_tests.rs::spanner_drops_a_pair_with_a_route_within_1_2]
+
 [test: rust/bc2-formats/tests/kynapse_corpus.rs::edges_are_not_redundant_at_1_2]
 [data: edges between ordinary nodes with another route in their sector at most 1.2 times as long: infantry 946 of 487,308 node pairs, vehicle 427 of 11,814]
 [data: round NKS-rest probe (`kynapse_fit`), ordinary pairs within DistEdgeMax across and 3 m in height: coarse 253,010 with an edge (637 cross the outline or a D line) and 651,044 without (142,493 of them in sight); with a route at most 1.2 times as long: coarse edges 186 of 252,373, pairs without 89,966 of 142,493; detailed 742 of 189,995 and 134,546 of 198,161; vehicle 279 of 8,087 and 16,874 of 20,718]
@@ -440,6 +503,10 @@ they are not a drop rule.
 
 [test: rust/bc2-formats/tests/kynapse_corpus.rs::edges_have_a_reverse_by_node_id]
 [data: one-way by id: infantry 14,692 of 1,646,482 edges (border-border 5,533, ordinary-border 7,113, ordinary-ordinary 2,046; 5,921 down, 2,867 level, 5,904 up by more than 0.3 m), vehicle 2,343 of 47,584; one-way in their sector: infantry 212,664 (206,058 into a non-owner copy), vehicle 6,836 (4,815)]
+
+NavKit today (round NKG2): the same convention. Each edge lives on its source's owner copy (KYG-NODE-2's
+relocation), so an edge into a non-owner copy has its way back in the far end's owner sector; by id the graph stays
+symmetric (every pair is written both ways, each way in its source's owner).
 
 ## 7. D lines and F cells
 
@@ -515,7 +582,10 @@ movement detail, then bytes):
    levels (502). For new maps DICE's choice is not recoverable from level data (designer zones, KYG-DET-1); the best
    stand-in is `NeedsDetailedPathfinding` within 10 m (precise: 300 of 304 picks detailed) together with 28 or more
    placed objects with collision in the sector (91.8 % of DICE's sectors classified right), offered as the default
-   and overridable per sector.
+   and overridable per sector. **Round NKG2**: written (`DICE_DETAILED`) and measured, but off: 40 of DICE's 502 were
+   never sampled at pitch 0.2, and with the other 462 eight means got worse (KYG-DET-1). Open: a pitch-0.2 sampling
+   run over DICE's list (in game) and a coarse build as good as the detailed one in the 293 sectors only NavKit makes
+   detailed; the new-map stand-in is not changed (the level's flag and stacked-floor choice stays).
 2. **Node placement** (KYG-NODE-1, KYG-NODE-2): every NavKit node on a cell centre against DICE's 4 %; a sparse border
    row against DICE's band; corner sharing 288 against 9,426. The go-to's resolver takes the first node in lookup-list
    order within 15 m that passes a straight-line test (KYRT-NODE-1, KYRT-NODE-2), so placement decides routes
@@ -524,22 +594,31 @@ movement detail, then bytes):
    DistEdgeMax / 2 (DICE: 96.5 % coarse, 98.3 % detailed within 7.5 m; 95.2 % vehicle within 25 m), with no node on the
    cell-centre grid by construction. The exact positions are still open (KYG-NODE-1 lists what they are not, now the
    collision too; KYG-NODE-4's step pairs are their only decoded trace), so NKG2 measures the coverage, `nodes_near`
-   and `ai_pairwise`, not `nodes_same`.
+   and `ai_pairwise`, not `nodes_same`. **Round NKG2**: the band done (KYG-NODE-2: the owner rule's relocation; border
+   ids 125,145 against DICE's 103,085, in three or four sectors 6,239 against 8,352). Interior placement not: nodes moved off
+   the grid toward their share's centroid and coarse coverage nodes every 7.5 m were both measured worse (KYG-NODE-1;
+   coverage nodes raised `nodes_near` 47.63 -> 50.14 % but `over_connection` rose on 4 levels and ONS_MP_004's
+   `connectivity` fell 0.44): the exact placement stays a named exception.
 3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): the duplicates are gone (NKG1). 111,968 edges sit on non-owner
    border copies (DICE 8,039); the runtime uses them (KYRT-PATH-3), and with NavKit's single border row they are its
    only edges into the lower sector, so they move onto owner copies with the band (NKG2, KYG-NODE-2: round NKG1
    measured 100 -> 6.5 % strongly connected without them). DICE's one-way edges are its border convention: the graph
    is symmetric by id (KYG-EDGE-4), as NavKit's is. **NKG2's target**: KYG-EDGE-3's pair rule, a greedy 1.2-spanner over
    mutually reachable pairs within DistEdgeMax (which reproduces DICE's missing pairs at 63-81 % and keeps all but
-   0.2 % of its edges); `edges_same` and `over_connection` measure it.
+   0.2 % of its edges); `edges_same` and `over_connection` measure it. **Round NKG2**: done, both: the spanner on every
+   sector (KYG-EDGE-3) and edges on owner copies only (KYG-EDGE-4: 0 edges out of non-owner copies, DICE 7,355).
 4. **Area division** (KYG-AREA-2): no midline cut and 5-10x the off-grid portals (`portals` 6.5 %, `areas_same`
    5.2 %). The cut's trigger is still open (size, tile, hole, crossing count and what lies between the crossings
-   excluded); NKG2 can take the off-grid portals (KYG-AREA-1's step boundaries DICE does not link) first.
+   excluded); NKG2 can take the off-grid portals (KYG-AREA-1's step boundaries DICE does not link) first. **Round
+   NKG2**: not changed (KYG-AREA-2: the trigger is undecoded, and the off-grid portals carry routes until NavKit's
+   area and link rules agree); both wait for the raw-sample fit.
 5. **The rectangle** (KYG-RECT-1): a borrowed bound on DICE levels, none on new maps. **NKG2's target**: the rule,
    verified on the 13 campaign levels: the box of the soldier and vehicle spawns grown by 25 m, sample points kept up
    to about 24.5 m beyond the outermost spawn (infantry; about 22.2 m on vehicle files), the same on new maps. It
    replaces `navbuild.CLIP_TO_REFERENCE` on campaign levels; the Onslaught levels keep DICE's extent (their files are
-   not bounded by the prepared partitions' spawns).
+   not bounded by the prepared partitions' spawns). **Round NKG2**: the rule bounds every build without DICE path data
+   (new maps, the editor's stages); on DICE's campaign levels it was measured in place of DICE's extent and kept off
+   (KYG-RECT-1: the 7 sides where DICE's ground ends before the rectangle).
 6. **D / F** (KYG-DF-1, KYG-DF-2): coarse recall 19 % / 33 %, nothing for vehicles or detailed areas. **NKG3's
    target** stays the coarse rule's recall. The vehicle rule cannot be fitted from the files on disk (no vehicle-shaped
    sample run exists, KYG-DF-2): NKG3 needs one in-game `[dev] navsample` run at the vehicle settings (pitch 1.0 m, a
@@ -552,7 +631,8 @@ movement detail, then bytes):
    an earlier sector has) keep the build's bounds.
 9. **Lookup-list ties** (KYG-NODE-3): a stable sort; DICE's order is unknown. The runtime's resolver reads the lists
    in order (KYRT-NODE-2), so ties can change which node a point gets, but only between nodes with the same
-   coordinate; with NavKit's own positions this matters only once placement matches DICE's.
+   coordinate; with NavKit's own positions this matters only once placement matches DICE's. **Round NKG2**: a named
+   exception (KYG-NODE-3: no rule on the stored values gives DICE's order).
 
 ## Open questions
 

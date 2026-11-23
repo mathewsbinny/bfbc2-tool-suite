@@ -28,6 +28,18 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Changed
+- **NavKit's route graphs follow DICE's edge rules** (round NKG2, `spec/transforms/kynapse_generation.md`): each
+  sector's walkable pairs are pruned to DICE's greedy 1.2-spanner (KYG-EDGE-3) instead of keeping every pair (coarse)
+  or the Gabriel graph (detailed), and every edge lives on its source's owner copy (KYG-EDGE-4): an edge out of a
+  border copy moves to the sector that owns the node, which gets a copy of the far end. That forms DICE's border band
+  (KYG-NODE-2: nodes near each sector line shared by two to four sectors) and makes the graph, as the game walks it,
+  strongly connected on every regression level (`strong_share` 99.69 -> 100 %). Path data NavKit builds changes;
+  navregress's reference run and the golden builds were re-recorded.
+- A NavKit build on a map without DICE path data keeps only the ground inside DICE's generator rectangle, the box of
+  the level's soldier and vehicle spawns grown by 24.5 m (KYG-RECT-1; `navregress.spawn_bounds`), where it kept the
+  whole sampling box. Levels with DICE path data still use DICE's extent.
+
 ## [0.20.0] - 2026-11-22
 
 ### Added

@@ -410,9 +410,10 @@ pub struct Layout {
     /// The first node's value.
     pub dist_edge_max: f64,
     /// A border copy the sector does not own carries no edges (HPD-NODE-5: the owner's copy holds the node's edges),
-    /// so an edge into it has none back in this sector (KYN-EDGE-3, KYG-EDGE-4). Only with `border_owner` and a sector
-    /// origin. Off by default: the runtime walks every copy's edges (KYRT-PATH-3), and with NavKit's single border
-    /// row, all in the higher sector, the non-owner copies' edges are the only ones into the lower sector.
+    /// so an edge into it has none back in this sector (KYN-EDGE-3, KYG-EDGE-4); [`write_file`] first moves every
+    /// edge out of a copy to the copy's owner ([`relocate_owner_edges`]), and a sector keeps the nodes its own edges
+    /// name. Only with `border_owner` and a sector origin. Off in this struct's default; the build's switch
+    /// (`stage::Switches::owner_edges`) is on since round NKG2.
     pub owner_edges: bool,
     /// The sector table's bounds are the box of the sector's written nodes (KYN-SEC-2), not the build's bounds.
     pub node_bounds: bool,
@@ -460,6 +461,98 @@ pub fn arcs(g: &SectorGraph, layout: &Layout) -> Vec<(usize, usize)> {
         }
     }
     out
+}
+
+/// An edge to move: (owner sector, (source's masked id, position), (target's masked id, position)).
+type Move = (usize, (u32, [f64; 3]), (u32, [f64; 3]));
+
+/// DICE's border band (KYG-NODE-2, KYG-EDGE-4): with `owner_edges`, a node's out-edges live on its owner copy only,
+/// so every edge a sector's graph holds out of a node it does not own moves to the owner's graph: the sector whose
+/// 100 m square holds the node, which gets a copy of the edge's far end when it has none. A far end that was an
+/// ordinary node becomes a border node (bit 31 set in every sector). Repeated until nothing moves (a node in a
+/// sector's margin that became a border node is owned by the next sector, so its edges move there too). Edges out of
+/// a node whose square no sector of the file has stay where they are. Returns the edges moved and the copies added.
+pub fn relocate_owner_edges(graphs: &mut [SectorGraph], layout: &Layout) -> (usize, usize) {
+    if !(layout.owner_edges && layout.border_owner) {
+        return (0, 0);
+    }
+    let square = |p: [f64; 3]| ((p[0] / 100.0).floor() as i64, (p[2] / 100.0).floor() as i64);
+    let mut by_square: HashMap<(i64, i64), usize> = HashMap::new();
+    for (n, g) in graphs.iter().enumerate() {
+        if let Some((ox, oz)) = g.origin {
+            by_square.entry(square([ox + 50.0, 0.0, oz + 50.0])).or_insert(n);
+        }
+    }
+    let (mut moved, mut added) = (0, 0);
+    loop {
+        // (owner sector, source, target) by masked id and position
+        let mut tasks: Vec<Move> = Vec::new();
+        for g in graphs.iter() {
+            for &(i, j) in &g.pairs {
+                for (s, d) in [(i, j), (j, i)] {
+                    let (Some(a), Some(b)) = (g.nodes.get(s), g.nodes.get(d)) else {
+                        continue;
+                    };
+                    if owns(a.id, a.pos, g.origin, layout) {
+                        continue;
+                    }
+                    let Some(&o) = by_square.get(&square(a.pos)) else {
+                        continue;
+                    };
+                    if graphs.get(o).is_some_and(|og| og.sid == g.sid) {
+                        continue;
+                    }
+                    tasks.push((o, (a.id & 0x7FFF_FFFF, a.pos), (b.id & 0x7FFF_FFFF, b.pos)));
+                }
+            }
+        }
+        let mut convert: HashSet<u32> = HashSet::new();
+        let mut new_pairs = 0;
+        tasks.sort_by_key(|t| t.0);
+        for chunk in tasks.chunk_by(|x, y| x.0 == y.0) {
+            let Some(og) = chunk.first().and_then(|t| graphs.get_mut(t.0)) else {
+                continue;
+            };
+            let mut index: HashMap<u32, usize> = og
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(q, n)| (n.id & 0x7FFF_FFFF, q))
+                .collect();
+            let mut have: HashSet<(usize, usize)> = og.pairs.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
+            for &(_, (aid, apos), (bid, bpos)) in chunk {
+                let mut index_of = |id: u32, pos: [f64; 3]| -> usize {
+                    *index.entry(id).or_insert_with(|| {
+                        og.nodes.push(RouteNode {
+                            id: id | 0x8000_0000,
+                            pos,
+                        });
+                        added += 1;
+                        og.nodes.len() - 1
+                    })
+                };
+                let qa = index_of(aid, apos);
+                let qb = index_of(bid, bpos);
+                convert.insert(bid);
+                if qa != qb && have.insert((qa.min(qb), qa.max(qb))) {
+                    og.pairs.push((qa, qb));
+                    new_pairs += 1;
+                }
+            }
+        }
+        for g in graphs.iter_mut() {
+            for n in &mut g.nodes {
+                if convert.contains(&(n.id & 0x7FFF_FFFF)) {
+                    n.id |= 0x8000_0000;
+                }
+            }
+        }
+        moved += new_pairs;
+        if new_pairs == 0 {
+            break;
+        }
+    }
+    (moved, added)
 }
 
 /// The ids of the nodes some written edge ([`arcs`]) of some sector names: the nodes the file keeps.
@@ -686,12 +779,21 @@ pub fn write_file(graphs: &[SectorGraph], meshes: &[Vec<u8>], s: &FileSettings) 
         Some((ids, min)) if !ids.is_empty() && *min > 0 => prune_order_nodes(&mut graphs, ids, *min),
         _ => Vec::new(),
     };
+    relocate_owner_edges(&mut graphs, &s.layout);
     let linked = linked_arc_ids(&graphs, &s.layout);
     let mut sectors = Vec::with_capacity(graphs.len());
     let mut boxes: HashSet<[u32; 6]> = HashSet::new();
     let mut build_bounds = 0;
+    let owner_rule = s.layout.owner_edges && s.layout.border_owner;
     for (g, mesh) in graphs.iter().zip(meshes) {
-        let (nodes, edges) = finalize(g, &linked, &s.layout)?;
+        // with the owner rule a sector keeps the nodes its own written edges name (a copy no edge of the sector
+        // touches is not written there); else every node some sector's edge names
+        let (nodes, edges) = if owner_rule {
+            let here = linked_arc_ids(std::slice::from_ref(g), &s.layout);
+            finalize(g, &here, &s.layout)?
+        } else {
+            finalize(g, &linked, &s.layout)?
+        };
         let mut bounds = [0f32; 6];
         for (b, &v) in bounds.iter_mut().zip(&g.bounds) {
             *b = f32_of(v, "a sector bound")?;
@@ -1018,7 +1120,7 @@ mod tests {
 
     #[test]
     #[allow(clippy::many_single_char_names)] // sectors a, b, c as in the comments
-    fn bounds_are_the_node_box_and_foreign_only_pairs_keep_no_node() {
+    fn bounds_are_the_node_box_edges_move_to_owners_and_foreign_only_pairs_keep_no_node() {
         let node = |id, pos| RouteNode { id, pos };
         let mesh = b"KynogonRuntimeMesh\0\0rest".to_vec();
         // sector 0x0101 (square 0..100): two ordinary nodes, a border node it owns, and a pair between two border
@@ -1067,16 +1169,22 @@ mod tests {
         assert_eq!(w.build_bounds, 1);
         let f = hpd::parse(&w.data).unwrap();
         let ids = |k: usize| f.sectors[k].nodes.iter().map(|n| n.id).collect::<Vec<_>>();
-        assert_eq!(ids(0), vec![1, 2, B | 5]);
-        assert_eq!(ids(1), vec![3, B | 5]);
+        // the band (KYG-NODE-2): 5's edge to 3 moves to 5's owner 0x0101, which gets a copy of 3 (now a border
+        // node); the pair of 6 and 7 moves to their owner 0x0201, and 0x0101 keeps neither
+        assert_eq!(ids(0), vec![1, 2, B | 3, B | 5]);
+        assert_eq!(ids(1), vec![B | 3, B | 5, B | 6, B | 7]);
         assert_eq!(ids(2), Vec::<u32>::new());
-        assert_eq!(f.sectors[0].bounds, [10.0, 99.2, 1.0, 3.0, 20.0, 50.0]);
-        assert_eq!(f.sectors[1].bounds, [99.2, 150.0, 2.0, 4.0, 50.0, 50.0]);
+        assert_eq!(f.sectors[0].bounds, [10.0, 150.0, 1.0, 4.0, 20.0, 50.0]);
+        assert_eq!(f.sectors[1].bounds, [99.2, 150.0, 2.0, 4.0, 50.0, 62.0]);
         assert_eq!(f.sectors[2].bounds, [199.2, 300.88, 0.0, 9.0, -0.8, 100.88]);
-        // in 0x0201 the edge into the foreign copy of 5 has none back; 5's edges are in 0x0101
+        // each edge on its source's owner copy: one-way in its sector, two-way by id (KYG-EDGE-4)
         let e = |k: usize| f.sectors[k].edges.iter().map(|e| (e.src, e.dst)).collect::<Vec<_>>();
-        assert_eq!(e(1), vec![(0, 1)]);
-        assert_eq!(e(0), vec![(0, 1), (1, 0), (1, 2), (2, 1)]);
+        assert_eq!(e(0), vec![(0, 1), (1, 0), (1, 3), (3, 1), (3, 2)]);
+        assert_eq!(e(1), vec![(0, 1), (2, 3), (3, 2)]);
+        // every copy's c bit 16: set where the sector's square does not hold the node
+        let c = |k: usize| f.sectors[k].nodes.iter().map(|n| n.c >> 16).collect::<Vec<_>>();
+        assert_eq!(c(0), vec![0, 0, 1, 0]);
+        assert_eq!(c(1), vec![0, 1, 0, 0]);
     }
 
     #[test]

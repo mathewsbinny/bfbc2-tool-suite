@@ -145,6 +145,7 @@ fn cfg() -> GraphCfg {
         rule: Rule::Slope,
         cover: None,
         gabriel: false,
+        spanner: None,
         order_nodes: true,
         order_node_min: 3.0,
         grid_min: (0.0, 0.0),

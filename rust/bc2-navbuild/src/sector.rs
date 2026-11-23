@@ -34,6 +34,9 @@ pub struct GraphCfg {
     pub cover: Option<f64>,
     /// `GABRIEL_EDGES` applies at this pitch.
     pub gabriel: bool,
+    /// DICE's edge rule (KYG-EDGE-3): the walkable pairs pruned to a greedy spanner of this stretch (over the
+    /// Gabriel rule when both are set).
+    pub spanner: Option<f64>,
     /// `cfg.order_nodes`.
     pub order_nodes: bool,
     /// `ORDER_NODE_MIN`.
@@ -235,7 +238,11 @@ pub fn build_graph(level: &Level, areas: &[Vec<Cell>], job: &GraphJob, cfg: &Gra
     }
     // the walkable pairs, pruned to the Gabriel graph where the build says so
     let mut pairs = route::edge_pairs(level, &st.plain(), route_cfg, &job.blocked)?;
-    if cfg.gabriel {
+    if let Some(stretch) = cfg.spanner {
+        let keep = graph::spanner_prune(st.nodes.len(), &pairs, stretch)
+            .ok_or_else(|| NavError::Shape("spanner_prune".into()))?;
+        pairs = keep.into_iter().filter_map(|n| pairs.get(n).copied()).collect();
+    } else if cfg.gabriel {
         let pos: Vec<P3> = st.nodes.iter().map(|n| n.node.pos).collect();
         let keep = graph::gabriel_prune(&pos, &pairs).ok_or_else(|| NavError::Shape("gabriel_prune".into()))?;
         pairs = keep.into_iter().filter_map(|n| pairs.get(n).copied()).collect();

@@ -10743,3 +10743,98 @@ saved, not the step's time.
   files against the Python's.
 - **The collision alias cache** stays keyed by file stamps (decided above); the culltree folder listing
   (`list-<sha1>.pkl`, bfbc2.exe's own) likewise: it exists to skip reading files whose size and time are unchanged.
+
+## NKG2: NavKit's graph toward DICE's - the spanner, the owner rule and its band (2026-11-22, branch `nkg2`)
+
+The graph-and-areas half of the NavKit gap list (`spec/transforms/kynapse_generation.md`). Every candidate change was
+measured with navparity on the 15 regression levels (navregress's builds into a scratch folder, one level at a time)
+and with `kynapse_probe` / `kynapse_rules` on the builds and on DICE's files, and kept only where no measure got worse
+(XNAV-BLD-3). Two rules went in; six items were measured and stayed out, each with its evidence.
+
+### What changed in NavKit's file
+
+| Rule | Change | Switch |
+|---|---|---|
+| KYG-EDGE-3 | each sector's walkable pairs pruned to a greedy 1.2-spanner (shortest first, ties by pair order), both pitches; the Gabriel rule on detailed sectors is no longer used | `Switches::spanner` = `Some(SPANNER_STRETCH)` (on) |
+| KYG-EDGE-4 / KYG-NODE-2 | every edge on its source's owner copy: an edge out of a copy moves to the node's owner (the sector whose square holds it), which gets a copy of the far end (an ordinary far end becomes a border node), until nothing moves; a sector writes the nodes its own edges name. This forms DICE's border band | `Switches::owner_edges` (on; `graphfile::relocate_owner_edges`) |
+| KYG-RECT-1 | a build of a map without DICE path data keeps the sample columns inside the spawns' box grown by 24.5 m (`navregress.spawn_bounds`, `inputs::spawn_bounds`; the editor's stage export when its base level has no DICE data) | always (DICE's levels keep DICE's extent) |
+
+### Parity (15 regression levels, means; before = main's build, `work\navkit\regress` of NKG1 rebuilt byte-identical)
+
+Every navparity measure is unchanged but these:
+
+| Measure | before | after |
+|---|---:|---:|
+| `runtime_connectivity` | 98.41 | 98.80 |
+| `strong_share` (DICE's own files 97.30) | 99.69 | 100.00 |
+| `nodes_same` | 0.64 | 0.66 |
+| `costs` | 95.91 | 95.29 |
+| islands (count) | 402.47 | 402.53 |
+
+`costs` is the share of edges matched to DICE's (both ends within 5 cm) whose cost word equals DICE's. The band
+matches more edges, and the new ones' lengths differ by a sixteenth: sp_006 12 of 12 -> 12 of 14 matched edges,
+sp_003_b 76 of 84 -> 92 of 103. No edge that matched before lost its cost, so the drop is the sample growing, not a
+regression; it is the only measure below the reference.
+
+| level | runtime_connectivity | | strong_share | |
+|---|---:|---:|---:|---:|
+| sp_01 | 97.89 | 99.10 | 99.28 | 100 |
+| sp_02 | 99.44 | 99.56 | 99.86 | 100 |
+| sp_03 | 97.58 | 98.59 | 99.10 | 100 |
+| sp_04 | 99.69 | 99.80 | 99.93 | 100 |
+| sp_003_b | 90.01 | 92.67 | 98.20 | 100 |
+| sp_004_b | 100 | 100 | 100 | 100 |
+| sp_005 | 99.23 | 99.38 | 99.72 | 100 |
+| sp_005_b | 99.27 | 99.37 | 99.90 | 100 |
+| sp_006 | 99.54 | 99.63 | 99.89 | 100 |
+| sp_007 | 98.12 | 98.25 | 99.84 | 100 |
+| sp_008 | 98.88 | 98.96 | 99.89 | 100 |
+| sp_008_b | 98.50 | 98.50 | 99.92 | 100 |
+| sp_009 | 100 | 100 | 100 | 100 |
+| ons_mp_002 | 99.75 | 100 | 99.86 | 100 |
+| ons_mp_004 | 98.19 | 98.23 | 99.97 | 100 |
+
+### Structure (probe; DICE = DICE's infantry files of the same 15 levels)
+
+| Measure | before | after | DICE |
+|---|---:|---:|---:|
+| border ids | 48,899 | 125,145 | 103,085 |
+| ids in 3 / 4 sectors | 66 / 222 | 3,967 / 2,272 | 4,799 / 3,553 |
+| border ids with no owner copy | 346 | 0 | 3,308 |
+| edges out of non-owner copies | 111,968 | 0 | 7,355 |
+| nodes outside their sector's mesh rectangle | 3,522 | 53,577 | 90,809 |
+| coarse nodes / edges | 249,059 / 651,516 | 277,100 / 520,405 | 350,902 / 1,016,192 |
+| detailed nodes / edges | 423,734 / 1,242,530 | 462,629 / 1,872,847 | 196,287 / 535,742 |
+| ordinary ids | 574,485 | 498,233 | 329,114 |
+| strongly / weakly connected node pairs as the runtime walks | 99.80 % | 100 % | 97.04 % (all 35) |
+| table bounds the node box | 2,489 | 2,484 | 2,474 |
+| link entries / objects | 14,904 / 51,995 | 14,904 / 51,995 | 14,562 / 49,600 |
+
+The detailed graphs gain edges because the spanner keeps more pairs than the Gabriel rule among NavKit's dense
+detailed nodes (2.4 x DICE's: its 710 detailed sectors and 4 m coverage nodes); coarse edges per node fall to 1.9
+(DICE 2.9: DICE's nodes are denser, KYG-NODE-5). `kynapse_rules --only pairs`: coarse pairs in sight without an edge
+or a route within 1.2 x, 46,951 -> 40,050 (DICE's 51,668). Five sectors' node boxes now equal an earlier sector's
+(nodes shared across the line), so they keep the build's bounds (KYN-SEC-2's duplicate rule): 2,489 -> 2,484.
+`kynapse_rules --only cover` (KYG-NODE-5, ground seeing a node within 7.5 m): coarse 73.69 -> 73.15 %, detailed
+97.54 -> 97.56 % (DICE's same files 96.41 / 98.27 %).
+
+### Measured and left out
+
+| Item | What was tried | Result |
+|---|---|---|
+| DICE's detailed sectors (KYG-DET-1) | DICE's list on DICE's levels (`DICE_DETAILED`, written, off) | 40 of DICE's 502 never sampled at 0.2 (sp_02 `connectivity` 99.49 -> 74.5 % when built from the run anyway); with the 462 sampled, 8 means worse: `nodes_near` 47.63 -> 45.51, `connectivity` -0.05, `runtime_connectivity` -0.07, `portals` -0.12, `outline` -0.11, `df_d_precision` -0.61 (better: `ground` +0.16, D / F recall +3.5 / +6.5) |
+| A second border row (NKG1's) with the owner rule | a row 0.8 m into the lower sector | not needed with the relocation; `connectivity` -0.02, `over_connection` +0.23, `ai_pairwise` -0.12 |
+| Nodes off the grid (KYG-NODE-1) | each new node moved toward its share's centroid, inside its cell | `ai_pairwise` 92.73 -> 92.33, `nodes_same` -0.08, `connectivity` -0.04 |
+| Coarse coverage nodes (KYG-NODE-5) | `node_cover` 7.5 m at pitch 0.8 | `nodes_near` 47.63 -> 50.14, but `over_connection` +1.75 / +2.15 on sp_03 / sp_003_b, ONS_MP_004 `connectivity` 97.90 -> 97.46 |
+| The rectangle on DICE's levels (KYG-RECT-1) | the spawns' box in place of DICE's extent | `extra_ground` 8.31 -> 11.03, `sectors_extra` 1.33 -> 2.60 (sp_008_b 23.3 -> 57.6 %, sp_006 0 -> 19 sectors): DICE's ground ends before the box on 7 sides |
+| Midline cut, off-grid portals (KYG-AREA-2), lookup ties (KYG-NODE-3) | not built | the cut's trigger and the tie order are not decoded (named exceptions); the off-grid portals carry routes until the area and link rules agree |
+
+### Tests
+
+- `cargo test -p bc2-navbuild --lib`: the spanner (unit and proptest: every pair left out has a route within 1.2 x,
+  the kept pairs join what all pairs join) and the owner rule's relocation (`graphfile` tests); the switch defaults.
+- `test_navkit_offline.py`: `build_detailed` with and without `DICE_DETAILED`.
+- The goldens re-recorded: `test_navbuild_native.py --record --game` (sp_009, sp_004_b, sp_008_b, ons_mp_004) and
+  `test_navtools_native.py --record --game --only vehicle,measures` (ONS_MP_002's vehicle path data, the parity rows of
+  sp_009 / sp_004_b); navregress's reference run `regression` saved again (the old one kept as
+  `regression_before_2026-11-22_nkg2.json`).

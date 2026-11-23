@@ -528,6 +528,76 @@ fn sample_grid(path: &str) -> Res<(f64, f64, f64, i64, i64)> {
     Ok((f(8), f(12), f(16), i64::from(u(20) as i32), i64::from(u(24) as i32)))
 }
 
+/// `uncovered(g, sectors, s)`: the sectors whose 100 m square the sample grid g does not cover, in the order given.
+fn uncovered(g: (f64, f64, f64, i64, i64), sectors: &[(i64, i64)], (xoff, zoff): (i64, i64)) -> Vec<(i64, i64)> {
+    let (pitch, min_x, min_z, nx, nz) = g;
+    let (max_x, max_z) = (min_x + (nx - 1) as f64 * pitch, min_z + (nz - 1) as f64 * pitch);
+    sectors
+        .iter()
+        .copied()
+        .filter(|&(i, j)| {
+            let (x0, z0) = ((i + xoff) as f64 * 100.0, (j + zoff) as f64 * 100.0);
+            x0 < min_x - 1e-3 || x0 + 100.0 > max_x + 1e-3 || z0 < min_z - 1e-3 || z0 + 100.0 > max_z + 1e-3
+        })
+        .collect()
+}
+
+/// `dice_detailed_sectors(pr, lv)`: the sectors DICE's path data builds at pitch 0.2, as (grid x, grid z) ids,
+/// sorted; empty without DICE path data.
+pub fn dice_detailed_sectors(r: &Root, lv: &str) -> Res<Vec<(i64, i64)>> {
+    let Some(p) = r.dice_pathdata(lv)? else {
+        return Ok(Vec::new());
+    };
+    if !os::isfile(&p) {
+        return Ok(Vec::new());
+    }
+    let data = os::read(&p)?;
+    let f = bc2_formats::hpd::parse(&data).map_err(|_| Fail::Handoff)?;
+    let mut out = Vec::new();
+    for s in &f.sectors {
+        let m = bc2_formats::kymesh::parse(s.mesh).map_err(|_| Fail::Handoff)?;
+        if (f64::from(m.pitch) - 0.2).abs() < 1e-3 {
+            out.push((i64::from(s.id >> 8), i64::from(s.id & 0xff)));
+        }
+    }
+    out.sort_unstable();
+    Ok(out)
+}
+
+/// `navkit.DICE_DETAILED`: DICE's own detailed sectors on a level with DICE path data (KYG-DET-1), off - round NKG2
+/// measured them worse on XNAV-BLD-3's measures (NavKit's 0.8 m build reproduces DICE's ground and graph less well
+/// than its 0.2 m build where NavKit picks detailed sectors DICE built at 0.8).
+pub const DICE_DETAILED: bool = false;
+
+/// `build_detailed(pr, lv, p02)`: the sectors a build makes detailed and its log line's note: the level's own choice
+/// ([`detailed_sectors`]); with [`DICE_DETAILED`], on a level with DICE path data, DICE's own detailed sectors
+/// (KYG-DET-1) that the pitch-0.2 run sampled (the level's own choice, inside its grid).
+fn build_detailed(r: &Root, lv: &str, s: &Value, p02: &str) -> Res<(BTreeSet<(i64, i64)>, String)> {
+    let own: BTreeSet<(i64, i64)> = detailed_sectors(r, lv, s)?.into_iter().collect();
+    let dice = if DICE_DETAILED {
+        dice_detailed_sectors(r, lv)?
+    } else {
+        Vec::new()
+    };
+    if dice.is_empty() {
+        return Ok((own, String::new()));
+    }
+    let off = (int_of(s.get("xoff"))?, int_of(s.get("zoff"))?);
+    // not sampled at 0.2: outside the run's grid, or not the level's own choice (what sample --pitch 0.2 samples)
+    let mut out: BTreeSet<(i64, i64)> = uncovered(sample_grid(p02)?, &dice, off).into_iter().collect();
+    out.extend(dice.iter().filter(|x| !own.contains(x)));
+    let note = if out.is_empty() {
+        ", DICE's".to_owned()
+    } else {
+        format!(
+            ", DICE's ({} of its {} not sampled at 0.2 stay at 0.8)",
+            out.len(),
+            dice.len()
+        )
+    };
+    Ok((dice.into_iter().filter(|x| !out.contains(x)).collect(), note))
+}
+
 /// `stale_detailed_samples(...)`: pitch-0.2 samples that do not fit the build refused.
 fn stale_detailed_samples(
     lv: &str,
@@ -559,13 +629,7 @@ fn stale_detailed_samples(
     }
     let (pitch, min_x, min_z, nx, nz) = g;
     let (max_x, max_z) = (min_x + (nx - 1) as f64 * pitch, min_z + (nz - 1) as f64 * pitch);
-    let out: Vec<&(i64, i64)> = sectors
-        .iter()
-        .filter(|&&(i, j)| {
-            let (x0, z0) = ((i + xoff) as f64 * 100.0, (j + zoff) as f64 * 100.0);
-            x0 < min_x - 1e-3 || x0 + 100.0 > max_x + 1e-3 || z0 < min_z - 1e-3 || z0 + 100.0 > max_z + 1e-3
-        })
-        .collect();
+    let out = uncovered(g, sectors, (xoff, zoff));
     if let Some(first) = out.first() {
         return Err(navkit_error(format!(
             "{lv}: {} (x {min_x:.1}..{max_x:.1}, z {min_z:.1}..{max_z:.1}) does not cover {} detailed sector(s), e.g. \
@@ -800,6 +864,74 @@ pub fn reference_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
     Ok(Some(b))
 }
 
+/// `navregress.SPAWN_REACH`: KYG-RECT-1's rectangle, the spawns' box grown by 25 m less the radius 0.4 and 0.1 m.
+pub const SPAWN_REACH: f64 = 24.5;
+
+/// The sorted entries of a folder (none when it does not read).
+fn sorted_dir(d: &Path) -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> =
+        std::fs::read_dir(d).map_or_else(|_| Vec::new(), |r| r.flatten().map(|e| e.path()).collect());
+    v.sort();
+    v
+}
+
+/// `navregress.spawn_bounds(root, lv)`: DICE's generator rectangle (KYG-RECT-1, verified on the 13 campaign levels):
+/// the box of the level's soldier spawns (alternates included) and vehicle spawns grown by [`SPAWN_REACH`], as
+/// (min x, min z, max x, max z); `None` without a spawn or a partition that loads (the level read as
+/// `level.load(geometry=False)` reads it: Package, Dist, then NavKit's shared data).
+pub fn spawn_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
+    let base = PathBuf::from(r.level_work(lv)?);
+    let mut bases = vec![base.join("pkg"), base.join("dist")];
+    bases.extend(
+        sorted_dir(&PathBuf::from(join(&r.work, &["navkit", "common"])?))
+            .into_iter()
+            .filter(|p| p.is_dir()),
+    );
+    let want = format!("{lv}.dbx");
+    let Some(partition) = bases
+        .iter()
+        .take(2)
+        .flat_map(|b| sorted_dir(&b.join("levels")))
+        .find(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().to_lowercase() == want)
+        })
+    else {
+        return Ok(None);
+    };
+    let name = partition
+        .file_stem()
+        .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+    let Ok(sc) = bc2_scene::scene::load(&bc2_scene::scene::LoadOptions::new(name, partition, bases)) else {
+        return Ok(None);
+    };
+    let mut b = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+    for e in &sc.entities {
+        if (e.category == "soldier spawn" || e.category == "vehicle spawn")
+            && let Some(p) = e.position()
+        {
+            b = [b[0].min(p[0]), b[1].min(p[2]), b[2].max(p[0]), b[3].max(p[2])];
+        }
+    }
+    Ok((b[0] <= b[2]).then(|| {
+        [
+            b[0] - SPAWN_REACH,
+            b[1] - SPAWN_REACH,
+            b[2] + SPAWN_REACH,
+            b[3] + SPAWN_REACH,
+        ]
+    }))
+}
+
+/// `navregress.build_bounds(root, lv)`: the extent a build keeps - DICE's ([`reference_bounds`]) on a level with DICE
+/// path data, else the spawns' rectangle ([`spawn_bounds`]), else `None`.
+pub fn build_bounds(r: &Root, lv: &str) -> Res<Option<[f64; 4]>> {
+    match reference_bounds(r, lv)? {
+        Some(b) => Ok(Some(b)),
+        None => spawn_bounds(r, lv),
+    }
+}
+
 /// `navregress.area_orders_of` for a level prepared before `area_orders.json` existed: `levelobjects.area_orders` of
 /// the converted level partition (`work\levels\<lv>\dist\levels\<lv>.xml`, any case): the Transform translation of
 /// every `.AreaOrderEntityData` away from the origin; `None` where the Python's `except Exception` gives `None` (no
@@ -881,12 +1013,11 @@ pub fn build_inputs(r: &Root, lv: &str, tool: ToolRun<'_>) -> Res<Gathered> {
     if os::isfile(&p02) {
         let hi02 = r.samples(lv, "_hi_p02")?;
         let high = os::isfile(&hi02).then_some(hi02);
-        let sectors = detailed_sectors(r, lv, &s)?;
-        let set: BTreeSet<(i64, i64)> = sectors.iter().copied().collect();
+        let (set, note) = build_detailed(r, lv, &s, &p02)?;
         let sorted: Vec<(i64, i64)> = set.iter().copied().collect();
         stale_detailed_samples(lv, &p02, high.as_deref(), &sorted, (xoff, zoff))?;
         lines.push(format!(
-            "  detailed zones: {} sectors at pitch 0.2{}",
+            "  detailed zones: {} sectors at pitch 0.2{note}{}",
             set.len(),
             if high.is_some() {
                 ""
@@ -913,7 +1044,7 @@ pub fn build_inputs(r: &Root, lv: &str, tool: ToolRun<'_>) -> Res<Gathered> {
     inp.high = Some(PathBuf::from(format!("{}_hi.bin", &s08[..s08.len() - 4])));
     inp.seeds = points(&load_json(&join2(&l, "soldier_spawns.json")?)?)?;
     inp.water = level_water(&r.root, lv, tool)?;
-    inp.bounds = reference_bounds(r, lv)?;
+    inp.bounds = build_bounds(r, lv)?;
     let op = join2(&l, "order_points.json")?;
     inp.order_points = if os::isfile(&op) {
         Some(points(&load_json(&op)?)?)

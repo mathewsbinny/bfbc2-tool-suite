@@ -349,6 +349,19 @@ def main(argv):
                   'sampling_box: the original path data\'s extent + 20 m', f'{box} {yr}')
             check(navkit.dice_detailed_sectors(pr, 'mp_005') == [(0, 1)] and navkit.dice_detailed_sectors(pr, 'sp_01') == [],
                   'dice_detailed_sectors: DICE\'s pitch-0.2 sectors as (x, z) ids; none without path data')
+            # build_detailed: the level's own choice; with DICE_DETAILED DICE's sectors that the pitch-0.2 run sampled
+            P.set(navkit, 'detailed_sectors', lambda pr_, lv: [(0, 1), (2, 2)])
+            P.set(navkit, 'sample_grid', lambda p: (0.2, -1000.0, -1000.0, 10001, 10001))
+            P.set(pr, 'settings', lambda lv: {'xoff': 0, 'zoff': 0})
+            got_off = navkit.build_detailed(pr, 'mp_005', 'p02')
+            P.set(navkit, 'DICE_DETAILED', True)
+            got_on = navkit.build_detailed(pr, 'mp_005', 'p02')
+            P.set(navkit, 'detailed_sectors', lambda pr_, lv: [(2, 2)])
+            got_unsampled = navkit.build_detailed(pr, 'mp_005', 'p02')
+            check(got_off == ({(0, 1), (2, 2)}, '') and got_on == ({(0, 1)}, ", DICE's")
+                  and got_unsampled == (set(), ", DICE's (1 of its 1 not sampled at 0.2 stay at 0.8)"),
+                  'build_detailed: the level\'s choice; with DICE_DETAILED DICE\'s sampled sectors (KYG-DET-1)',
+                  f'{got_off} {got_on} {got_unsampled}')
             P.undo()
             P.set(navkit, 'HERE', fake_here)
             P.set(navkit, 'game_running', lambda: running['on'])

@@ -522,7 +522,11 @@ pub fn build_bytes(
                 samples_dir: None,
             };
             let mut g = inputs::build_inputs(&root, &samples.level, &inputs::quiet_tool).map_err(words)?;
-            g.inputs.bounds = inputs::reference_bounds(&opfor_root, &blv).map_err(words)?;
+            // DICE's extent where the base level has DICE path data; else the stage's own spawns' rectangle
+            // (KYG-RECT-1), as build_inputs found it
+            if let Some(b) = inputs::reference_bounds(&opfor_root, &blv).map_err(words)? {
+                g.inputs.bounds = Some(b);
+            }
             g
         }
     };
