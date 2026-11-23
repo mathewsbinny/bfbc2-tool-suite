@@ -24856,19 +24856,19 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:191-262"
+     "ref": "opfor:src/tools/ww2/stepstamps.py:208-279"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:266-309"
+     "ref": "opfor:src/tools/ww2/stepstamps.py:283-330"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-126"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:413-470"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:421-477"
     }
    ]
   },
@@ -24886,17 +24886,41 @@
   },
   {
    "id": "XDEP-STEP-3",
-   "title": "Three steps read an output a later step writes",
+   "title": "No step reads an output a later step writes",
    "file": "spec/transforms/dependencies.md",
-   "status": "observed",
+   "status": "implemented",
    "evidence": [
     {
-     "kind": "data",
-     "ref": "spec/probes/dependencies.py --steps, 2026-11-23: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2)"
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-117"
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:43-48"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:66-72"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:303-311"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_ours_readers_after_every_ours_producer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_a_run_from_an_empty_work_settles"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_the_install_indexes_are_not_tracked"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23, before: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2); after, on the 55 records of OPFOR's rebuild from a seeded-empty work\\ww2 (round WW2-ORD1): 0 reads of a later step's output, 362 read-after-write edges (26,529 files), 7 write-after-write (26 files), longest chain 15 steps; rebuild_all --changed --dry afterwards: 0 of 55 steps would run"
     }
    ]
   },
@@ -24909,6 +24933,38 @@
     {
      "kind": "inferred",
      "ref": "from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-5",
+   "title": "Inputs inside work\\ww2 that no step writes",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\\level\\objects\\vegetation, the caches); a rebuild from a work\\ww2 seeded with fonts\\, weapon_icons\\confirmed, install_ports\\, install_ports_<lv>\\ and install_<lv>\\level\\objects\\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:155"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-6",
+   "title": "The rebuild oracle holds the folder's history",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round WW2-ORD1, 2026-11-23: compare_oracle on the seeded-empty rebuild's hashes, 7,921 of 10,852 identical, differ 28, missing 2,903, extra 0; each missing or differing file joined to the step records of OPFOR's rebuild of 2026-11-22 / 23 (no writer for the relics, the 18 textures and the pickles); the 18 textures' headers (format 10, flags 2 vs 0, smallest mips) against DICE's format-10 textures of the game copy's level bundles; the pickles unpickled and compared"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the relics and the skipped conversions are left by earlier runs, so an oracle of the folder holds them"
     }
    ]
   },

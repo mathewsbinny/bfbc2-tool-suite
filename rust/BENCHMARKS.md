@@ -3814,3 +3814,42 @@ loader condition, whether the start-up object reads `database.dbmanifest`.
 The 1,101 typeinfo records no rule names (`spec/CENSUS.md` section 5), the run-time semantics behind the data-side
 files' rules (each file's open questions), and the opaque insides of OccluderMesh's triangle records, AnimTreeInfo's
 blocks and the impulse responses' partitions.
+## WW2-ORD1: the WW2 rebuild settles in one pass from an empty work\ww2 (2026-11-23, branch `ww2ord1`, with Project OPFOR's `ww2ord1`)
+
+An OPFOR round with a specification update here (no suite code changed). It fixes SPG3's XDEP-STEP-3: three steps
+of OPFOR's WW2 rebuild read files that only a later step wrote. OPFOR's commits:
+- **The order**: `bf1943_jp_bazooka`, `wake_vo`, `anims`, then `material_grid`, all before `wake_translate`. Both
+  readers take every OURS root, and `material_grid` stopped on an empty folder. A test holds every OURS producer
+  before both.
+- **The tracker** (stepstamps):
+  - the install indexes (`install_*.pkl`) and rebuild_all's own logs are left out;
+  - the files under a folder handed to the Rust core go through the hook's skips;
+  - a listing of a folder that the step or a later step fills, at any depth, is not judged.
+- **`wake_ambience`** makes its preview folder before drawing into it.
+- **`qa_checks`** no longer fails when there is no install report.
+
+| Run | Steps | Time | Oracle (10,852) | `--changed --dry` after | Probe: read-before-write |
+|---|---|---|---|---|---|
+| before, OPFOR's records of 2026-11-22 / 23 | 55 | - | 10,852 (main's folder) | - | 3 edges, 37 files |
+| from seeded-empty (599 external input files), rebuild 4 | 55 in one pass | 21.5 min | 7,921 identical, 28 differ, 2,903 missing | 0 of 55 | 0 (362 read-after-write edges, 7 write-after-write) |
+| OPFOR's main checkout, `--changed` on the new order | 55 (tracker code changed) | 19.4 min | 10,852 of 10,852 | 0 of 55 | 0 (336 read-after-write edges, 9 write-after-write) |
+
+The first empty-folder runs exposed the fixes above. Run 1 stopped at `wake_ambience`. Runs 2 and 3 never settled:
+`material_grid` recorded the step logs as inputs, and two listings looked changed.
+
+**Findings.**
+- **XDEP-STEP-5**: the rebuild reads inputs under `work\ww2` that no step writes:
+  - hand-placed files: `fonts\`, `weapon_icons\confirmed`;
+  - the install plan's staging: `install_ports*`, `install_<lv>\level\objects\vegetation`. That staging is a rebuild
+    -> plan -> rebuild cycle.
+- **XDEP-STEP-6**: the oracle holds the folder's history, and every difference from empty falls in one of these:
+  - 2,903 relics no step writes (2,798 debug HLSL sources from manual `--hlsl` runs, 105 textures);
+  - 18 L8 textures that the clone pass keeps from a 2026-11-05 converter. They have unpadded smallest mips against
+    TEX-FMT-2 and flag bit 1 against TEX-FLAG-1; the current converter follows both rules;
+  - 4 effects caches with equal content but different pickle bytes;
+  - 6 emitter-atlas reports that count the relics.
+
+  Regenerating the oracle is for the user to rule on (round WW2-ORC1).
+
+**Unproven until a playtest** (in-game tests paused): nothing is installed by this round. The 18 malformed textures
+are in the last install, and whether they show is unknown.
