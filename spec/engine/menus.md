@@ -213,9 +213,14 @@ suggest a nested structure). 40 of DICE's
 `loading_mp` / `loading_sp` / `loading_sp01` roots of MENU-AS-8 are still named by no data or executable string
 found. The one executable test on a movie's name is the movie object's constructor (0xFDC780 -> 0xFDBE30): a movie
 whose name contains `_loading` gets one extra call on its player at creation (vtable +0x20 with 0), which no other
-movie gets.
+movie gets. Round SPG2-rest4 found how a screen names its root: a virtual of the screen class returns it (the main
+menu's, slot 12 of vtable 0x142B4C8, 0x753660, returns `main_root`, the one root name the executable holds), and the
+loading screens are told to start by the events `onStartLoading` / `onStartLoadingSP` (0x7373A0 picks one by a flag;
+also sent at 0x77BDEB, 0x788D44 and 0x9523D9) through the root's `gameEvent` (MENU-EVT-2). No other screen
+class with that slot was found by its vtable's shape, so the loading roots' names still come from no string read.
 
 [test: core/tests/test_spec_probes.py::menus]
+[exe: BFBC2Game.exe 0x753660 (`push 0x142AEA0` "main_root", in vtable 0x142B4C8 slot 12); 0x7373A0 ("onStartLoading" 0x142A71C, "onStartLoadingSP" 0x142A708, sent through 0x929A70)]
 [data: spec/probes/menus.py, 2026-11-22: LoadingMovie set on 40 of 74 DICE level partitions, all under Levels/<level>/UI/; the two read by hand (MP05_CQ, SP_02's LoadingMovie) are Render.BinkMemoryAsset with a BinkMemory resource]
 [exe: BFBC2Game.exe LevelDescription's field descriptors 0x1C23758 - 0x1C23848 (Name +0xF4, Description +0xE8, LoadingScreens +0x104, LoadingMovie +0x100, LoadingMovieTopLeft / LoadingMovieDimensions +0x8 / +0x0, LoopBeginFrame +0xD4, LoopEndFrame +0xD0, AttackerTeam +0xE4, LoadingTime +0xD8, Music +0x114); 0xFDBE30 (substring test 0x50E8E0 with "_loading" 0x14B2710)]
 
@@ -290,6 +295,32 @@ OPFOR's pad reads this tree for its focus ring, every read guarded: the tree cha
 
 [code: opfor:src/dll/menutree.cpp:1-25] [code: opfor:src/dll/menutree.cpp:112-118]
 
+### MENU-RT-6: The FSCommand callback answers ten commands itself and passes the rest to the screen
+
+Status: **verified** · Variants: PC
+
+The UI's start-up (0xFA6BC0) installs the host callback MENU-RT-4 calls (the pointer at 0x1BEAAF8 := 0xFA5380) and
+fills its command table, a map at UiManager+0x82418 from a name to a number: `loadTexture` 0, `unloadTexture` 1,
+`bind3D` 2, `load3D` 3, `unload3D` 4, `pop3D` 5, `setInputRoot` 6, `assert` 7, `quitToMenu` 8, `playSound` 9. The
+callback (0xFA5380 -> 0xFA4930, the UiManager from 0x19A4CA8) looks the command up:
+
+- not in the table: the current screen (UiManager+0x14) gets it, its vtable +0x30 with the command and its argument;
+  so every game FSCommand of the movies (MENU-AS-7's 133) is the screen's to answer;
+- `loadTexture` (0): the argument is split at commas and must give two parts; unless the second starts with `!`, the
+  screen's texture loader 0xFA3FF0 gets both;
+- `unloadTexture` (1): one part, to 0xF9E5A0;
+- `setInputRoot` (6): the argument, or 0 for `void`, to 0x1317610;
+- `playSound` (9): the argument to the sound 0xF909C0;
+- `bind3D`, `load3D`, `unload3D`, `pop3D`, `assert` and `quitToMenu` (2 - 5, 7, 8): nothing (the switch's empty case).
+
+This answers four of the six FSCommands MENU-AS-7 found missing from the name table (`assert`, `loadTexture`,
+`playSound`, `unloadTexture`): they are the callback's, not the screens'. The other two (`clearLocalDeathMessages`,
+`g`) reach the screen like any other.
+
+[test: core/tests/test_spec_probes.py::menus]
+[data: spec/probes/menus.py, 2026-11-23: the callback's install bytes at 0xFA71AD; its table as the start-up's code gives it (ten names and numbers); 4 of the 6 FSCommands missing from the name table are in it]
+[exe: BFBC2Game.exe start-up 0xFA6BC0 (`mov [0x1BEAAF8], 0xFA5380` at 0xFA71AD; the names 0x14AF4F8 - 0x14AF560 pushed and their numbers stored 0xFA6C27 - 0xFA7045, insert 0xFA23F0); callback 0xFA5380 -> 0xFA4930 (lookup 0xF8B6D0 in UiManager+0x82418, number at node +0x1C, table 0xFA4B4C; the screen's vtable +0x30 at 0xFA4B3E; the comma 0x140EB9C)]
+
 ## Events and extern getters
 
 ### MENU-EVT-2: An event is a call of the root's gameEvent, passed to the listeners
@@ -297,15 +328,15 @@ OPFOR's pad reads this tree for its focus ring, every read guarded: the tree cha
 Status: **verified** · Variants: PC
 
 The engine's event record names the function `_root.gameEvent` (the string at 0x143C1E0, stored by the queue 0x9299B0
-and by the simple send 0x929A70) and the target movie (UiManager+0x82CF8 when queued); records wait on UiManager
-+0x82CEC. Four movies define the root `gameEvent`: main_root and loading_mp with 6 parameters, hud_root and
+and by the simple send 0x929A70) and the frame it was queued in (UiManager+0x82CF8, the drain's frame counter:
+MENU-EVT-4; read as a target movie until round SPG2-rest4); records wait on UiManager +0x82CEC. Four movies define the root `gameEvent`: main_root and loading_mp with 6 parameters, hud_root and
 nam_hud_root with 8 (the event name and up to 5 or 7 values); each hands them to `_root.gameEvents.fireEvent`,
 `_root.gameEvents` being a dice.EventManager the root makes when it starts. The menus handle an event as
 `gameEventListener.<name> = function`; the HUD layers register `_root.catchEvent(name, handler)`, which hud_root defines
 with one handler per name (a second registration replaces the first, with a trace message).
 
 [test: core/tests/test_spec_probes.py::menus]
-[exe: BFBC2Game.exe build 795745: 0x9299C3 and 0x929AB7 store the name 0x143C1E0 - 0x143C1EF; target from UiManager+0x82CF8 (0x9299D9, 0x929AC9); queue UiManager+0x82CEC (0x929A39)]
+[exe: BFBC2Game.exe build 795745: 0x9299C3 and 0x929AB7 store the name 0x143C1E0 - 0x143C1EF; the frame stamp from UiManager+0x82CF8 into record +4 (0x9299D9, 0x929AC9); queue UiManager+0x82CEC (0x929A39)]
 [data: spec/probes/menus.py, 2026-11-22: gameEvent defined by hud_root (8 params), nam_hud_root (8), main_root (6), loading_mp (6); the event function string as read]
 
 ### MENU-EVT-3: An extern read reaches the screen's getter by name
@@ -322,6 +353,31 @@ menu, MOD-MODE-1) and, offline, the stats screens' `playerStats`, `unlockGrid`, 
 [exe: BFBC2Game.exe build 795745: getters 0x76EC30, 0x777B30, 0x76E780, 0x95A1B0]
 [code: opfor:src/dll/stats_screens.cpp:604-606] [code: opfor:src/dll/gamemode.cpp:623-634]
 [doc: bfbc2-menu-tools/aptrefslib.py:11-14]
+
+### MENU-EVT-4: Queued events are delivered once a frame, delayed ones deduplicated
+
+Status: **verified** · Variants: PC
+
+An event record is 0x68 bytes from a reusable pool (UiManager+0x82CE0; 0x9202D0 takes a free one or makes one): +0x00
+in use, +0x01 delayed, +0x02 the frame parity it waits for, +0x04 the frame it was queued in, +0x08 the frames to
+wait, +0x0C the function (`_root.gameEvent`), +0x18 the event name, +0x24 the value count, +0x28 the values (the
+name first). The senders (0x929A70, 0x9299B0) stamp the frame and append the record to the queue UiManager+0x82CEC;
+the values are typed when the engine adds them; over the 47 functions that queue events, 45 values are strings
+(0xF7C5C0), 11 integers (0xF7C5D0), 7 floats (0xF7C5E0) and 5 one shared constant (0xF7C620). The drain 0x918E50
+runs from the screens' updates (0x743640, 0x764790, 0x785140) and only while a movie is loaded (0xF7A320):
+
+1. every record with no values, and every record with values that is not delayed, is called at once (0xF82070
+   without values, 0xF820D0 with them) and freed;
+2. a delayed record waits until the frame counter has run its frames past the stamp and the counter's parity matches
+   +0x02; then, of all waiting records with the same event name, one is called and every one is freed;
+3. the frame counter (UiManager+0x82CF8) goes up by one, also when no movie is loaded.
+
+So an event is seen by the movie in the frame it was sent, and a burst of the same delayed event reaches it once.
+MENU-EVT-2's "target movie" at +0x82CF8 is this counter.
+
+[test: core/tests/test_spec_probes.py::menus]
+[data: spec/probes/menus.py, 2026-11-23: the counter's increments as read, `add dword [ebx+0x82CF8], 1` at 0x918FC2 and 0x918FCE]
+[exe: BFBC2Game.exe drain 0x918E50 (callers 0x74364A, 0x7647ED, 0x7851BB; 0xF7A320; first pass 0x918E66 - 0x918ED4, the delayed pass 0x918ED6 - 0x918F80 with the name compare 0x42EA40, the free pass 0x918F86 - 0x918FC0); pool 0x9202D0 (`push 0x68`, the fields cleared 0x9202E5 - 0x92030F); senders 0x929A70, 0x9299B0; the value constructors 0xF7C5C0 -> 0x12F1F90, 0xF7C5D0, 0xF7C5E0 -> 0x12F1EE0 (a float at +8), 0xF7C620 (the value at 0x1BE9234), counted over the 84 call sites of 0x9299B0]
 
 ## The HUD
 
@@ -482,16 +538,19 @@ the step before. The byte-offset patches therefore always meet DICE's bytes; the
 
 - Which movies load in which order beyond the literal loads of MENU-AS-8: the loading roots (loading_mp, loading_sp,
   loading_sp01) are named by no GameModeData, LevelDescription (MENU-LOAD-1: its LoadingMovie is a Bink video) or
-  executable string found; where the engine takes them from.
+  executable string found; the main menu's root comes from its screen class (0x753660), so the next step is the
+  loading screen classes' root-name slot (the screens' vtables with a slot like 0x142B4C8's 12th; the classes that
+  send `onStartLoading` are the place to start).
 - Whether the HUD, the main menu and the loading screens share one `_global` (MENU-AS-5's "first registration wins"
   across them).
 - How `loadMovie("<name>.swf")` and an import's movie name find the resource: by the UI asset's name or its
   `SourceFile` (nam_hud_root's names hud_root's), and with or without case.
 - extern.hudMovies: the HUD getter (0x777B30) is not read; MENU-HUD-2's order is inferred from the ids' names.
-- The 9 extern names and 6 FSCommands missing from the name table (MENU-AS-7): dead code, mock paths, or answered by
-  another route (loadTexture / unloadTexture / playSound reach the FSCommand callback, 0x1BEAAF8, which is not read).
-- The FSCommand callback and the queued events' delivery: where the queue (UiManager+0x82CEC) is drained and how the
-  values are typed on the movie side.
+- The 9 extern names missing from the name table (MENU-AS-7): dead code, mock paths, or answered by another route;
+  of the 6 FSCommands, 4 are the callback's own (MENU-RT-6) and `clearLocalDeathMessages` and `g` go to the screen's
+  handler (vtable +0x30 of each screen class, not read).
+- Who sets an event record's delay and parity (+0x01, +0x02, +0x08: MENU-EVT-4): the 47 queueing functions were not
+  followed one by one.
 - The handlers at 08, 09, 31 - 33, 35 - 37, 5E and 77 (MENU-RT-2) and the operands of Try (0x8F) and CallFrame
   (0x9E): unused by DICE, unread; the suite's names of EA's no-operand opcodes 0x56 - 0x5E and 0x70 - 0x77 are
   OpenSAGE's, and the PC table disagrees with them at 0x57 (no handler) and 0x5E, 0x77 (handlers).

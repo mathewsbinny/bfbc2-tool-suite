@@ -122,7 +122,7 @@ def height_fields(t: Terrains) -> None:
           f'TEDIT-HF-2: the ranges ({dict(ranges)})')
 
 
-# spec: TEDIT-VT-1, TEDIT-ATL-1, TEDIT-ATL-2, TEDIT-BLK-1, VEG-UG-1, VEG-UG-2
+# spec: TEDIT-VT-1, TEDIT-ATL-1, TEDIT-ATL-2, TEDIT-BLK-1, VEG-UG-1, VEG-UG-2, VEG-UG-5
 def visual_terrains(t: Terrains) -> None:
     check(len(t.visual) == 30, f'30 DICE visual terrains ({len(t.visual)})')
     blocks = collections.Counter(int(v['n']) for v in t.visual.values())
@@ -130,6 +130,7 @@ def visual_terrains(t: Terrains) -> None:
     pair: collections.Counter[tuple[bool, bool]] = collections.Counter()
     second_set: set[str] = set()
     tails: collections.Counter[bytes] = collections.Counter()
+    mask_spread: list[float] = []   # VEG-UG-5: MaxMask - MinMask (the loader stores 1 / it, 1.0 when 0)
     cells_ok = cells_leftover = cells_bad = 0
     aligned_bad_terrains: dict[str, int] = {}
     atlas_ok = atlas_bad = 0
@@ -138,8 +139,9 @@ def visual_terrains(t: Terrains) -> None:
         shaders = v['shaders']
         for _n, ug, _l, _t, meshes in shaders:
             pair[(bool(ug), bool(meshes))] += 1
-            for _mesh, inst, _s, _vals, tail in meshes:
+            for _mesh, inst, _s, vals, tail in meshes:
                 tails[tail] += 1
+                mask_spread.append(vals[3] - vals[2])
                 if inst:
                     second_set.add(name.split('/')[1])
         atlases = set()
@@ -177,6 +179,8 @@ def visual_terrains(t: Terrains) -> None:
           f'VEG-UG-1: undergrowth mask shader exactly when meshes ({dict(pair)})')
     check(set(tails) == {b'\x01\x00'} and sum(tails.values()) == 3069, 'VEG-UG-2: 3,069 entries ending 01 00')
     check(second_set == {'NAM_MP_003'}, f'VEG-UG-2: second string only on NAM_MP_003 ({sorted(second_set)})')
+    check(len(mask_spread) == 3069 and min(mask_spread) > 0 and round(min(mask_spread), 4) == 0.0001,
+          f'VEG-UG-5: MaxMask over MinMask on every entry, by 0.0001 at least ({min(mask_spread):.6f})')
     check(cells_bad == 0 and cells_ok == 358282 and cells_leftover == 9590,
           f'TEDIT-VT-1: flags = tiled count, else one leftover on a rule-only cell ({cells_ok}, {cells_leftover}, {cells_bad})')
     check(atlas_bad == 0 and atlas_ok >= 30, f'TEDIT-ATL-1: every map header = atlas size / 64 - 1, L8 ({atlas_ok}, {atlas_bad})')
@@ -797,7 +801,7 @@ def grime(game: Path) -> None:
 
 
 # spec: MENU-AS-1, MENU-AS-2, MENU-AS-3, MENU-AS-4, MENU-AS-5, MENU-AS-6, MENU-AS-7, MENU-AS-8, MENU-DLG-1
-# spec: MENU-RT-1, MENU-RT-2, MENU-RT-4, MENU-EVT-2, MENU-HUD-1, MENU-HUD-2, MENU-HUD-3, MENU-ED-2
+# spec: MENU-RT-1, MENU-RT-2, MENU-RT-4, MENU-RT-6, MENU-EVT-2, MENU-EVT-4, MENU-HUD-1, MENU-HUD-2, MENU-HUD-3, MENU-ED-2
 def menus(game: Path) -> None:
     probe_checks('menus', game)
 
@@ -845,6 +849,7 @@ def terrain_generator_prototype(game: Path) -> None:
 
 # spec: OCC-HDR-1, OCC-VTX-1, SOOT-HDR-1, SOOT-VTX-1, SOOT-TAIL-1, ATREE-HDR-1, ATREE-PTR-1, IR-HDR-1, HAVOK-RAG-1
 # spec: BINK-HDR-1, BINK-RES-1, BINK-OUT-1, GFILE-AHM-1, GFILE-DBM-1, GFILE-DFE-1, GFILE-INST-1, GFILE-LOGO-1
+# spec: ATREE-BLK-1, ATREE-BLK-2, ATREE-BLK-3
 def resources(game: Path) -> None:
     probe_checks('resources', game)
 

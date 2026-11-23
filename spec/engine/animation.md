@@ -108,9 +108,13 @@ Two first-person weapon trees built on the same base tree have the same compiled
 bytes) and their slot durations as f32 seconds at 0x5100 - 0x5810: a word there that differs between the two is a
 duration unless it differs by the trees' pointer shift (their words at +4) or belongs to a kept zoom animation.
 OPFOR's scoped trees are the M24's resource with the rifle's own durations put back and the hands re-baked
-(ANIM-TREE-2). The offsets come from pairwise differences, not a decoded layout.
+(ANIM-TREE-2). The offsets come from pairwise differences, not a decoded layout. Round SPG2-rest4 placed them in the
+compiled tree's layout: 0x5100 - 0x5810 lies in block B (0x4FB4 - 0x5824 in all 10 DICE trees of those sizes), the
+flat data block whose one pointer is its first word (ATREE-BLK-2), so the durations sit in plain data and their
+rewrite moves no pointer; which words of block B are durations is still matched by differences, not by the reader.
 
 [inferred: pairwise differences of same-size compiled trees; DICE's first-person weapon trees are 36,388 (2), 36,836 (2), 36,468, 36,292 and 36,500 bytes]
+[data: spec/probes/resources.py's block sizes, round SPG2-rest4 2026-11-23: block A 0x4FA0 and block B 0x870 bytes in all 10 DICE trees of those five sizes, so B runs 0x4FB4 - 0x5824 in the file]
 [code: opfor:src/tools/ww2/weapons.py:148-181]
 
 ## 3. Zoom

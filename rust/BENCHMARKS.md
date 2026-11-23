@@ -4391,3 +4391,50 @@ Rust on 40 random pairs, the new counts included).
 - `DICE_DETAILED`: a ruling; the offline sampler's 0.2 m builds against the in-game ones.
 - The old exact-match measures (`nodes_same`, `edges_same`, `costs`) out of navregress's failing set after this
   round.
+
+## SPG2-rest4: reverse engineering for the specification (2026-11-23, branch `spg2r4`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745), read only. REA's Ghidra session could not start: its private
+runtime folder was locked, and a reopen left it there. So the reading was done with capstone over a scratch image
+of the executable, as in round SPG2-rest3's sweeps. DICE's data was read through the suite's readers. Nothing was
+run in the game, and nothing was written to `game\`.
+
+| Item | Found | Rules |
+|---|---|---|
+| undergrowth parser (VEG-UG-5) | found. The registration at 0x1375A20 only makes the type object. The `VisualTerrain` resource factory 0xA2F440 ("`.visual`", 0x2500 bytes, constructor 0xA27D80) calls the loader 0xA2BA20, which reads each entry into a 0x50-byte record: the 12 floats in file order, two bytes, and 1 / (MaxMask - MinMask) at +0x30. The cell generator 0xA0DDC0 names every float but `WindScale` by its use. The field layout went to the coordinator for TG2 as soon as it was known, with a correction (an exactly equal mask pair ramps over a width of 1; DICE's smallest spread is 0.0001). | VEG-UG-5 (inferred -> verified), VEG-UG-6 (corrected), VEG-UG-7 new |
+| particle update (FX-PROC-4) | found the evaluation: the dispatcher 0xB268E0 (11 evaluator types through the table 0xB26E98). The polynomial 0xB24FD0 is clamp(c.x t^3 + c.y t^2 + c.z t + c.w) x ScaleValue x the selected component; t is the normalised age for `EfNormTime`. | FX-PROC-5 new |
+| menus (MENU-LOAD-1) | the FSCommand callback 0xFA5380 and its ten commands, installed by 0xFA6BC0; the rest go to the screen's vtable +0x30. The event queue's drain 0x918E50: once a frame, delayed events deduplicated, values typed as strings, integers and floats. The loading roots: the main menu's root comes from a screen-class virtual (0x753660), and the loading screens start on `onStartLoading` / `onStartLoadingSP`; their own names were still not found. | MENU-RT-6, MENU-EVT-4 new; MENU-EVT-2, MENU-LOAD-1 updated |
+| award listeners (PERS-AWD-4) | found: one 0xBD4-byte listener per player (0x8531B0, registered at the join), its handler 0x85F530, and the grant 0x852CB0. A finished award is the stats `<Code>_00` (count) and `<Code>_01` (days since 2008-01-01), plus the `AwardType` handling. | PERS-AWD-5 new |
+| career save drops kills (PERS-SCORE-1) | found: kills, deaths, teamkills and the score buckets go through the scoring record's stats pointer (+0x24). The constructor sets it to 0, and only 0x866240 sets it, called only from the stats-arrived handler, which needs EA's answer. OPFOR's fill never attaches the stats, so nothing reaches the saved object. `score` is DICE's derived template, so OPFOR's log always prints 0. | PERS-SCORE-2 new |
+| anim tree (ANIM-TREE-3) | found the outer layout from the loader 0xF47360's three relocation walkers. A: a node table and 26 node types with fixed pointer places. B: flat data behind one pointer; OPFOR's durations lie here. C: 0x60-byte records. | ATREE-BLK-1 to 3 new (verified), ANIM-TREE-3 updated |
+
+Probes and checks (game tier; nothing of EA's is kept, only counts and types):
+
+- `spec/probes/resources.py` (`anim_tree_blocks`): every one of DICE's 1,926 trees has its node table, every node
+  and typed pointer in block A, block B's head in B, and block C's records' pointers in C (or at the block's end);
+  59,725 nodes of types 1 - 26.
+- `spec/probes/menus.py`: the callback's install bytes, its command table as the start-up's code gives it, and the
+  drain's frame counter. Four of the six FSCommands missing from the name table are the callback's own.
+- `core/tests/test_spec_probes.py::visual_terrains`: MaxMask over MinMask on all 3,069 entries, by 0.0001 at least.
+
+Rules went from 1,468 to 1,477. By status: verified 869, implemented 139, observed 401, inferred 68.
+
+### Playtests still pending (in-game tests are paused)
+
+- `transforms/terrain_edit.md` section 5 (E5 / E7).
+- ONS-CAP-3's patch.
+- MAT-TEX-20's RenderDoc capture.
+- BOT-GS-5.
+- bot_ai.md's plan, including the kill probe.
+- New this round: after OPFOR attaches the filled stats to the scoring record (PERS-SCORE-2), a round with kills and
+  deaths whose save keeps them.
+- The award stats `<Code>_00` / `_01` in a save (PERS-AWD-5).
+
+### What is left (SPG2-rest5)
+
+- The undergrowth's `WindScale` and second flag byte, and the render settings that scale density and view distance.
+- The other particle evaluators and the processors' use of the value; the `EfVelocity` path.
+- The loading screens' root names; who sets an event's delay; the screens' FSCommand handlers.
+- The award criteria classes; whether DICE's `Final` templates hold the `<Code>_00` names.
+- The 26 node types; blocks B and C beyond their pointers.
+- OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
