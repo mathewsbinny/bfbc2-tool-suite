@@ -61,22 +61,8 @@ pub const SPEED_SIGN: &str = "objects/objects/roadsigns/speedsign_40";
 pub fn validate(i: Input<'_>) -> Vec<Finding> {
     let p = i.project;
     let mut out = Vec::new();
-    // the log's files the export does not write
-    for o in &p.operations {
-        for t in o.op.files() {
-            if matches!(t, Target::Paint { .. }) {
-                out.push(Finding::new(
-                    "XVAL-EDIT-5",
-                    format!(
-                        "Operation {} ({}) edits {}: the export does not write the visual paint yet.",
-                        o.n,
-                        o.name(),
-                        t.describe()
-                    ),
-                ));
-            }
-        }
-    }
+    // round E5-rest: every file the log edits is written by the export (the visual paint since E5-rest); what a
+    // paint cannot write is refused by the export in words (XVAL-EDIT-5)
     // the mode
     if let Some(c) = p.mode() {
         if let Some(why) = crate::modelayer::not_offered(&c.mode) {

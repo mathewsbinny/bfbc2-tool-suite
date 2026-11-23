@@ -41,11 +41,14 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 ///   wiring); a version-9 file loads as it is.
 /// - 11: round E5, strokes on the terrain's material map (`stroke` naming a `material` target: the material paint);
 ///   a version-10 file loads as it is (its strokes name height fields and paint layers only).
-pub const VERSION: u32 = 11;
+/// - 12: round E5-rest, the terrain's other layers: strokes on the colour / occlusion map (`colour`) and the
+///   sub-terrain ring (`ring`), a stroke over several rasters (`also`), a widened height range (`terrain-range`) and
+///   a material name added (`material-add`); a version-11 file loads as it is.
+pub const VERSION: u32 = 12;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
-pub const OP_VERSIONS: [(&str, u32); 17] = [
+pub const OP_VERSIONS: [(&str, u32); 19] = [
     ("nav-add", 2),
     ("nav-remove", 2),
     ("nav-load", 2),
@@ -63,6 +66,8 @@ pub const OP_VERSIONS: [(&str, u32); 17] = [
     ("link-point", 9),
     ("set-rules", 9),
     ("connect", 10),
+    ("terrain-range", 12),
+    ("material-add", 12),
 ];
 
 /// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; round OP1 made
@@ -81,6 +86,8 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 8 -> 9: the gameplay tools' operations were added (round E4); a version-8 log has none
         // 9 -> 10: event connections added or taken out were added (round E4-rest); a version-9 log has none
         // 10 -> 11: material-map strokes were added (round E5); a version-10 log has none
+        // 11 -> 12: the colour, ring and multi-raster strokes, terrain-range and material-add (round E5-rest); a
+        //   version-11 log has none
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {
@@ -805,6 +812,18 @@ impl MapProject {
                 })
             {
                 return parts(o).max(7);
+            }
+            // round E5-rest: a stroke on the colour map or the ring, or over several rasters
+            if let Op::Stroke { target, also, .. } = &o.op {
+                let new = |t: &crate::files::Target| {
+                    matches!(
+                        t,
+                        crate::files::Target::Colour { .. } | crate::files::Target::Ring { .. }
+                    )
+                };
+                if !also.is_empty() || new(target) {
+                    return 12;
+                }
             }
             // round E5: a stroke on the material map needs a reader that knows that target
             if let Op::Stroke {

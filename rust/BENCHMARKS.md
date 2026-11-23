@@ -4525,3 +4525,99 @@ So the rule layers shade by the ground's height (TGEN-VIS-2): the generator take
 - **Unproven until a playtest**: everything the engine does with a generated terrain - the ring and its seams, the
   visual terrain, the cloned entries, the visual water, the colour / occlusion map, the donor's rule layers in game.
   Nothing was installed or launched.
+
+## E5-rest (paused): what round E5 left - RESUME note (2026-11-23, branch `e5r`)
+
+Paused by the coordinator (the user's request). Committed as WIP on `e5r`; everything builds (`cargo check` of
+bc2-levelwrite, bc2-editor, bc2-cli with tests). Worktree `C:\Programming\Projects\bfbc2-tool-suite-e5r`, build
+folder `C:\Programming\Projects\rust-targets\bfbc2-tool-suite-e5r` kept.
+
+### Done (code, with tests passing)
+
+- `bc2_formats::itexture::splice` (+ `Rect`, `pack565` / `unpack565`): rewrites only the DXT1 blocks / L8 texels
+  under a region and the mip texels below it; unit test.
+- `bc2_terragen::visual::sky_visibility_over` (the editor's adapter: any height function, an area of texels; TG2's
+  `sky_visibility` calls it); `bc2_terragen::ring::stitch` made public.
+- `bc2_levelwrite::terrainpaint` (new): `LayerModel` (patch shader names split into layers by their stored layer
+  counts, rule / tiled kinds, DICE's order), `paint` (each reached cell: its own combination's shader, else a tiled
+  superset with empty masks, else a clone of a same-kinds shader with the swapped layer's own textures retargeted;
+  one tile per aligned block and layer in free atlas slots, clamp borders, flags = tiled count), `pairing`,
+  `colour_raster` / `write_colour` / `reshade` (ratio of sky visibility), `check_visual`, `check_colour`,
+  `entry_textures`, `layer_textures`. 4 unit tests pass.
+- `bc2_levelwrite::terrainedit`: `rescale`, `write_heights_in` (widened range: envelope floored by the ratio, full
+  rebuild), `write_materials_named` (names added, at most 16), `grid_terrain_materials` (Terrain / Default /
+  Construction), the ring: `ring_raster` (256 x 256 composite), `split_ring`, `write_ring` (rescaled with the range,
+  DICE's stitching, the main block rebuilt where stitched); `check_heights` allows a grown max y, `check_materials`
+  added names. Unit tests pass.
+- Ops / files: `Target::Colour`, `Target::Ring`; `Op::Stroke.also: Vec<StrokePart>` (one operation over several
+  rasters, all or nothing); `Op::TerrainRange`, `Op::MaterialAdd`; `LevelFiles.ranges` / `material_names` (and in
+  `AppliedFiles`); project format 12; path data counts ring strokes and the range as collision changes.
+- Export: `terrain_writes` (main + range + ring, material maps + names, visual paint + clones, the colour map into
+  the level bundle), clones into every staged database after the shaders step, `ExportSources` rasters for Colour /
+  Ring, record `colour_edits` / `shader_clones`; XVAL-TERR-2 extended (ring stitching), new XVAL-TERR-3 (registry and
+  check); XVAL-EDIT-5 now build-only (a paint that cannot be written); validate's edit-time paint finding removed.
+- Scene: `TerrainExtra` (visual terrain, atlas, ring blocks beside the height field; the colour map from the bases'
+  `Terrains/<T>/Textures/*occ*.res`).
+- Editor: `terraindoc.rs` (a child module of edit.rs: colour / ring targets, `layer_model`, `paint_layers`,
+  `terrain_range`, `widen_range`, `material_names` with the added ones, `materials_to_add` (the grid, via the game
+  copy), `add_material`, `pairing`, `stroke_parts`, `reshade`); the scene follows a widened range and its undo;
+  brushes Paint (layer, paired material in the same stroke) and Shade (new `Brush::Shade`), sculpt dabs reaching the
+  ring (`ring_ground`, `reaches_ring`), `Outcome::Stroke(Vec<(Target, Raster)>, ..)`, the material overlay around the
+  brush (`material_overlay`, `material_colour`), the game-accurate view following the drag every 150 ms
+  (`terrain_preview`); toolbar: layer combo, Paired material, Lighten, Re-shade sculpted area, Widen range, Add
+  material. `terrain_tools::terrain_brushes_through_the_interface` passes (paint, pair, shade, ring, re-shade, widen,
+  undo).
+
+### Measured on DICE's data (game tier, `tests/terrain_layers.rs`, 4 of 4 pass)
+
+- Layer model: 7 of 23 Dist visual terrains have one kind per layer (MP_005, MP_006, MP_007, SP_005, SP_005_B,
+  SP_006, SP_04); the others are refused: names that do not split (MP_001, MP_003, MP_004, MP_009, SP_007,
+  SP_004_B) or a layer tiled in one shader and a rule layer in another (MP_002, MP_008, MP_012, SP_003_B, SP_008,
+  SP_008_B, SP_009, SP_01, SP_02, SP_03).
+- Slot order (TEDIT-VT-2, to write): one tile per aligned block and layer in name order 1,131 of 1,131; reversed
+  1,063 of 1,463. Atlas border texels equal their nearest inside texel: 94.9 % (270,434 of 284,928).
+- Material maps: 155 of 155 names are their grid's Terrain / Default / Construction materials (Stone and Concrete
+  are Construction). MP_005 pairing: Asphalt -> Tarmac 85 %, Dirtfloor -> Dirt 63 %, DryGrass -> Sand 98 %, Rubble ->
+  Sand 98 %, Trash -> Gravel 99 %.
+- MP_005, a tiled layer painted on each patch shader's cells: 67 own combination, 19 tiled superset, 7 clone, 55
+  refused (layers with no texture of their own: DryGrass, Rubble share theirs). Three paints written in 0.08 s: 47
+  cells, 8 tiles, 2 clones; only the written tiles differ; `check_visual` clean.
+- Colour maps: 18 DXT1 / L8 maps; nothing painted gives DICE's bytes; a 64 x 64 shade rewrites 611 - 4,096 level-0
+  bytes; SP_04's and SP_006's maps are another format (left).
+- Rings: 7 single-ring terrains: unedited gives DICE's bytes; a raise on the west edge rewrites 2 of 12 blocks, seams
+  512 / 512 and 768 / 768, edges 0.50 units off straight; the range x 1.5 within 0.0038 - 0.0076 m.
+- Export: `sculpted_export_stages_and_checks` still passes (39 s).
+
+### In progress
+
+- `terrain_edits::painted_export_stages_and_checks` builds (44.5 s) and writes everything; it fails only on its
+  `rec.terrain_edits` order assertion: the order is `[materialmap, heightfield-000, masktileatlas, visual]` (name
+  order). Its "material the map lacks" picks `Default` (the grid's first): pick a Terrain-category name instead.
+  Then see XVAL-TERR-3 in its output.
+
+### Next steps
+
+1. Fix the painted export test (above); run `export_rules_stage::v1_build_refusals` (XVAL-EDIT-5 now refuses the
+   64 x 64 paint by its size) and `export_rules` (the edit-time XVAL-EDIT-5 expectation was removed; check no
+   registry test needs every Edit-stage rule covered).
+2. Path data end to end: build `bin\bfbc2.exe` (`python rust\build_native.py`; note `--help` starts a real build),
+   export a sculpted project on base `mp_005` (prepared: `work\navkit\mp_005\navkit.json`) with `path_data: true`;
+   time it.
+3. Spec (ids free on main 054cb1db: TEDIT-VT-2, TEDIT-MM-2, TEDIT-RING-1, XVAL-TERR-3): `transforms/terrain_edit.md`
+   (VT-1, ATL-1 / -2, SH-1 and OCC-1 to implemented, HF-2, MM-1, BR-1; new VT-2, MM-2, RING-1),
+   `transforms/validation.md` (XVAL-EDIT-5 text, XVAL-TERR-2, new XVAL-TERR-3; fix the shifted code line refs), then
+   `spec/trace.py --emit` and `--check`.
+4. Docs: CHANGELOG [Unreleased], this section rewritten as the round's, ROADMAP E5-rest to Done, EDITOR_ARCHITECTURE's
+   terrain part, the new brushes' help text.
+5. Full checks: cargo fmt; clippy -D warnings on bc2-formats, bc2-terragen, bc2-levelwrite, bc2-scene, bc2-editor,
+   bc2-cli and the 19 bfbc2.exe groups alone; the crates' tests with the game tier; `run_tests.py quick -j 2`; merge
+   main (BENCHMARKS: main's file plus this section); recheck the new rule ids.
+
+### Learned
+
+- Patch shader layer names contain underscores (`Cliff_m`, `SP_03_Cliff`): split by the stored layer count.
+- On 16 of 23 terrains a layer is tiled in some shaders and a rule layer in others: the one-kind model does not hold
+  there and the paint refuses (XVAL-EDIT-5); a per-shader tiled-slot model is the next step if those levels matter.
+- The Bash tool breaks long heredocs with quotes: edit through scratch Python scripts or the Write tool.
+- Unproven until a playtest: everything in game (painted cells, clones, the colour map, the ring seams, a widened
+  range).

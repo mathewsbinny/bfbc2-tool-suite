@@ -82,6 +82,13 @@ pub struct BrushSettings {
     pub seed: u32,
     /// The material the material brush paints (its index in the material map's names).
     pub material: u8,
+    /// The visual layer the paint brush lays (round E5-rest: one of the terrain's tiled layers).
+    pub layer: String,
+    /// The shade brush lightens instead of darkening (round E5-rest).
+    pub lighten: bool,
+    /// The paint brush paints this material (its index) under its layer too: the visual / material pairing
+    /// (round E5-rest, TEDIT-MM-2); `None`: the visual layer only.
+    pub pair: Option<u8>,
 }
 
 impl Default for BrushSettings {
@@ -92,6 +99,9 @@ impl Default for BrushSettings {
             falloff: Falloff::Smooth,
             seed: 1,
             material: 0,
+            layer: String::new(),
+            lighten: false,
+            pair: None,
         }
     }
 }
@@ -386,13 +396,104 @@ pub fn paint_dab(cells: &mut Raster, g: &Ground, (x, z): (f64, f64), s: &BrushSe
     Dab { region, clamped: false }
 }
 
+/// One dab of the visual paint brush (round E5-rest): each height-field sample under the brush takes its weight of
+/// the layer, laid over what the stroke painted before (`v + (255 - v) x strength x falloff`).
+#[must_use]
+pub fn paint_layer_dab(r: &mut Raster, g: &Ground, (x, z): (f64, f64), s: &BrushSettings) -> Dab {
+    let region = g.disc(x, z, s.radius);
+    let k = s.strength.clamp(0.0, 1.0);
+    for j in region.z0..region.z1 {
+        for i in region.x0..region.x1 {
+            let (i, j) = (i as u32, j as u32);
+            let (wx, wz) = g.world(i, j);
+            let w = s.falloff.weight((wx - x).hypot(wz - z) / s.radius.max(0.01)) * k;
+            if w <= 0.0 {
+                continue;
+            }
+            let v = f64::from(r.get(i, j).min(255));
+            r.set(i, j, (v + (255.0 - v) * w).round().clamp(0.0, 255.0) as u16);
+        }
+    }
+    Dab { region, clamped: false }
+}
+
+/// The square the colour / occlusion map covers, metres (LIGHT-BAKE-2: 2,048 m centred on the origin).
+pub const COLOUR_M: f64 = 2048.0;
+
+/// The colour / occlusion map's (fractional) texel of a world point.
+#[must_use]
+pub fn colour_texel(width: u32, x: f64, z: f64) -> (f64, f64) {
+    let per_m = f64::from(width) / COLOUR_M;
+    ((x + COLOUR_M / 2.0) * per_m, (z + COLOUR_M / 2.0) * per_m)
+}
+
+/// One dab of the shade brush (round E5-rest, TEDIT-OCC-1): each colour / occlusion texel under the brush darkened
+/// (or lightened) by up to half its value a dab, times strength and falloff.
+#[must_use]
+pub fn shade_dab(r: &mut Raster, grey: bool, (x, z): (f64, f64), s: &BrushSettings) -> Dab {
+    use bc2_levelwrite::terrainpaint::{colour_of, sample_of};
+    let w = r.width();
+    let (cx, cz) = colour_texel(w, x, z);
+    let rt = s.radius * f64::from(w) / COLOUR_M;
+    let region = Region {
+        x0: (cx - rt).floor().max(0.0) as usize,
+        z0: (cz - rt).floor().max(0.0) as usize,
+        x1: (cx + rt).ceil().max(0.0) as usize + 1,
+        z1: (cz + rt).ceil().max(0.0) as usize + 1,
+    }
+    .clip(w as usize);
+    let k = s.strength.clamp(0.0, 1.0) * 0.5;
+    for j in region.z0..region.z1 {
+        for i in region.x0..region.x1 {
+            let wt = s
+                .falloff
+                .weight((i as f64 + 0.5 - cx).hypot(j as f64 + 0.5 - cz) / rt.max(0.01))
+                * k;
+            if wt <= 0.0 {
+                continue;
+            }
+            let f = if s.lighten { 1.0 + wt } else { 1.0 - wt };
+            let c = colour_of(r.get(i as u32, j as u32), grey);
+            let c = c.map(|v| (f64::from(v) * f).round().clamp(0.0, 255.0) as u8);
+            r.set(i as u32, j as u32, sample_of(c, grey));
+        }
+    }
+    Dab { region, clamped: false }
+}
+
+/// The ring's ground (round E5-rest, TERR-HF-12): its raster of 256 x 256 samples, `st` main samples apart, over the
+/// outer square twice the main block's side ([`bc2_levelwrite::terrainedit::ring_raster`]), the main block's scale.
+#[must_use]
+pub fn ring_ground(g: &Ground) -> Ground {
+    let st = f64::from((g.n / 2 / 64).max(1));
+    let side = [f64::from(g.n) * g.cell[0], f64::from(g.n) * g.cell[1]];
+    Ground {
+        x0: g.x0 - side[0] / 2.0,
+        z0: g.z0 - side[1] / 2.0,
+        cell: [g.cell[0] * st, g.cell[1] * st],
+        n: bc2_levelwrite::terrainedit::RING_SIDE,
+        lo: g.lo,
+        scale: g.scale,
+    }
+}
+
+/// Whether a brush's disc reaches past the main block's square (onto the ring).
+#[must_use]
+pub fn reaches_ring(g: &Ground, (x, z): (f64, f64), radius: f64) -> bool {
+    let side = [f64::from(g.n) * g.cell[0], f64::from(g.n) * g.cell[1]];
+    x - radius < g.x0 || z - radius < g.z0 || x + radius > g.x0 + side[0] || z + radius > g.z0 + side[1]
+}
+
 /// A stroke being made: the raster it works on (a copy of the log's, tiles shared) and what it touched.
 #[derive(Debug, Clone)]
 pub struct Working {
-    /// The raster's target (the height field, the material map).
+    /// The raster's target (the height field, the material map, a paint layer, the colour / occlusion map).
     pub target: Target,
     /// The raster as the stroke leaves it so far.
     pub raster: Raster,
+    /// The other rasters the same stroke changes (round E5-rest: the ring under a sculpt, the paired material under
+    /// a visual paint), committed with it as one operation.
+    pub also: Vec<(Target, Raster)>,
     /// What it touched.
     pub region: Region,
     /// A height was clamped to the level's range.
@@ -418,6 +519,60 @@ pub struct TerrainTool {
     hover: Option<(Projection, V3)>,
     /// The log's height field (and material map) as last read, at the document's revision: the pointer's ground.
     cache: Option<(u64, Raster)>,
+    /// When the game-accurate view last took the heights of a stroke under way (round E5-rest: it follows the drag,
+    /// a few times a second).
+    pub live_at: Option<std::time::Instant>,
+    /// The material map around the brush, drawn over the views while the material brush (or a paint with its paired
+    /// material) is chosen (round E5-rest): quads on the ground and their material's index.
+    pub overlay: Vec<([V3; 4], u8)>,
+}
+
+/// The colour a material index is drawn in by the material overlay (eight hues, repeated).
+#[must_use]
+pub fn material_colour(k: u8) -> eframe::egui::Color32 {
+    const HUES: [(u8, u8, u8); 8] = [
+        (230, 159, 0),
+        (86, 180, 233),
+        (0, 158, 115),
+        (240, 228, 66),
+        (0, 114, 178),
+        (213, 94, 0),
+        (204, 121, 167),
+        (160, 160, 160),
+    ];
+    let (r, g, b) = HUES[usize::from(k) % HUES.len()];
+    eframe::egui::Color32::from_rgb(r, g, b)
+}
+
+/// The material map's cells around world (`x`, `z`) as quads on the ground (`extent` metres each way, at most 32
+/// quads a side), for the overlay.
+#[must_use]
+pub fn material_overlay(heights: &Raster, g: &Ground, cells: &Raster, (x, z): (f64, f64), extent: f64) -> Vec<([V3; 4], u8)> {
+    let size = cell_size(g, cells.width());
+    let step = (extent * 2.0 / 32.0).max(size);
+    let k = (extent / step).ceil() as i64;
+    let mut out = Vec::new();
+    let cell_at = |wx: f64, wz: f64| -> Option<u8> {
+        let (ci, cj) = ((wx - g.x0) / size, (wz - g.z0) / size);
+        let w = f64::from(cells.width());
+        (ci >= 0.0 && cj >= 0.0 && ci < w && cj < w).then(|| cells.get(ci as u32, cj as u32).min(255) as u8)
+    };
+    let x0 = (x / step).floor() * step;
+    let z0 = (z / step).floor() * step;
+    for j in -k..k {
+        for i in -k..k {
+            let (ax, az) = (x0 + i as f64 * step, z0 + j as f64 * step);
+            let Some(m) = cell_at(ax + step / 2.0, az + step / 2.0) else {
+                continue;
+            };
+            let p = |px: f64, pz: f64| [px, g.height(heights, px, pz) + 0.15, pz];
+            out.push((
+                [p(ax, az), p(ax + step, az), p(ax + step, az + step), p(ax, az + step)],
+                m,
+            ));
+        }
+    }
+    out
 }
 
 impl TerrainTool {
@@ -469,6 +624,22 @@ impl ViewTool for TerrainTool {
             g.hit(&heights, o, d)
         };
         self.hover = pointer.hover.and_then(under).map(|p| (pointer.projection, p));
+        // round E5-rest: the material map around the brush while materials are painted
+        self.overlay.clear();
+        if (brush == Brush::Material || (brush == Brush::Paint && self.settings.pair.is_some()))
+            && let Some((_, c)) = self.hover
+            && let Some(mt) = doc.material_target()
+        {
+            let cells = match &self.stroke {
+                Some(w) if w.target == mt => Some(w.raster.clone()),
+                Some(w) => w.also.iter().find(|(t, _)| *t == mt).map(|(_, r)| r.clone()),
+                None => None,
+            }
+            .or_else(|| doc.raster(&mt));
+            if let Some(cells) = cells {
+                self.overlay = material_overlay(&heights, &g, &cells, (c[0], c[2]), self.settings.radius * 2.5);
+            }
+        }
         // the ramp: two clicks
         if brush == Brush::Ramp {
             if !pointer.clicked {
@@ -483,8 +654,7 @@ impl ViewTool for TerrainTool {
             let mut r = heights;
             let dab = ramp(&mut r, &g, a, p, &self.settings);
             return Some(Outcome::Stroke(
-                target,
-                Box::new(r),
+                vec![(target, r)],
                 format!(
                     "Ramp {:.0} m (radius {:.0} m)",
                     (p[0] - a[0]).hypot(p[2] - a[2]),
@@ -497,21 +667,57 @@ impl ViewTool for TerrainTool {
             // letting go: the stroke committed as one operation
             let w = self.stroke.take()?;
             self.cache = None;
-            return Some(Outcome::Stroke(w.target, Box::new(w.raster), self.label(), w.clamped));
+            self.live_at = None;
+            let mut parts = vec![(w.target, w.raster)];
+            parts.extend(w.also);
+            return Some(Outcome::Stroke(parts, self.label(), w.clamped));
         }
         let p = under(pointer.hover.or(pointer.at)?)?;
         let material = brush == Brush::Material;
         if self.stroke.is_none() {
-            let (target, raster) = if material {
-                let t = doc.material_target()?;
-                let r = doc.raster(&t)?;
-                (t, r)
-            } else {
-                (doc.terrain_target()?, heights)
+            let mut also = Vec::new();
+            let (target, raster) = match brush {
+                Brush::Material => {
+                    let t = doc.material_target()?;
+                    let r = doc.raster(&t)?;
+                    (t, r)
+                }
+                // round E5-rest: a visual layer's weights over the height field's samples (its paired material too)
+                Brush::Paint => {
+                    if self.settings.layer.is_empty() {
+                        return Some(Outcome::Message("Choose a layer to paint first".into()));
+                    }
+                    let t = Target::Paint {
+                        layer: self.settings.layer.clone(),
+                    };
+                    let r = doc.raster(&t).unwrap_or_else(|| Raster::new(g.n, g.n, 0));
+                    if self.settings.pair.is_some()
+                        && let Some(m) = doc.material_target()
+                        && let Some(mr) = doc.raster(&m)
+                    {
+                        also.push((m, mr));
+                    }
+                    (t, r)
+                }
+                Brush::Shade => {
+                    let t = doc.colour_target()?;
+                    let r = doc.raster(&t)?;
+                    (t, r)
+                }
+                _ => {
+                    // round E5-rest: the ring under the sculpt (DICE's single ring)
+                    if let Some(rt) = doc.ring_target()
+                        && let Some(rr) = doc.raster(&rt)
+                    {
+                        also.push((rt, rr));
+                    }
+                    (doc.terrain_target()?, heights)
+                }
             };
             self.stroke = Some(Working {
                 target,
                 raster,
+                also,
                 region: Region {
                     x0: 0,
                     z0: 0,
@@ -531,10 +737,32 @@ impl ViewTool for TerrainTool {
             return Some(Outcome::Done);
         }
         w.last = Some((p[0], p[2]));
-        let dab = if material {
-            paint_dab(&mut w.raster, &g, (p[0], p[2]), &s)
-        } else {
-            sculpt_dab(&mut w.raster, &g, brush, (p[0], p[2]), &s, w.target_height)
+        let at = (p[0], p[2]);
+        let dab = match brush {
+            _ if material => paint_dab(&mut w.raster, &g, at, &s),
+            Brush::Paint => {
+                // the paired material under the layer: its cells where the dab's weight is a half or more
+                if let (Some(m), Some((_, mr))) = (s.pair, w.also.first_mut()) {
+                    let ms = BrushSettings {
+                        material: m,
+                        ..s.clone()
+                    };
+                    let _ = paint_dab(mr, &g, at, &ms);
+                }
+                paint_layer_dab(&mut w.raster, &g, at, &s)
+            }
+            Brush::Shade => shade_dab(&mut w.raster, doc.colour_is_grey(), at, &s),
+            _ => {
+                // round E5-rest: the ring takes the same dab where the brush reaches past the main block
+                if reaches_ring(&g, at, s.radius)
+                    && let Some((_, rr)) = w.also.first_mut()
+                {
+                    let rg = ring_ground(&g);
+                    let d = sculpt_dab(rr, &rg, brush, at, &s, w.target_height);
+                    w.clamped |= d.clamped;
+                }
+                sculpt_dab(&mut w.raster, &g, brush, at, &s, w.target_height)
+            }
         };
         w.region = w.region.union(dab.region);
         w.clamped |= dab.clamped;
@@ -558,6 +786,16 @@ impl ViewTool for TerrainTool {
                 .collect()
         };
         let p = d.palette;
+        for (quad, m) in &self.overlay {
+            let pts: Vec<Pos2> = quad.iter().filter_map(|w| d.to_screen(*w)).collect();
+            if pts.len() == 4 {
+                d.painter.add(eframe::egui::Shape::convex_polygon(
+                    pts,
+                    material_colour(*m).gamma_multiply(0.45),
+                    Stroke::NONE,
+                ));
+            }
+        }
         d.painter.add(eframe::egui::Shape::line(
             ring(self.settings.radius),
             Stroke::new(1.5, p.view_selection),
@@ -588,6 +826,7 @@ impl ViewTool for TerrainTool {
         self.ramp_from = None;
         self.hover = None;
         self.stroke = None;
+        self.overlay.clear();
     }
 }
 

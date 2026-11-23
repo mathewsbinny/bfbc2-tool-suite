@@ -10,6 +10,10 @@
 //!   material stroke in its log (tiles beside the project) is built and checked: `export::check` passes, XVAL-TERR-1
 //!   holds for the rest of the terrain bundle and XVAL-TERR-2 for the two rewritten entries, the staged entries are
 //!   the strokes' heights and cells; an unedited canary stages the base's terrain bundle byte for byte.
+//! - `painted_export_stages_and_checks` (round E5-rest): the same canary with a sculpt, the range widened (500 ->
+//!   650 m), a material of the level's grid added, DryGrass painted with that material under it in one stroke, and the
+//!   colour / occlusion map shaded: XVAL-TERR-2 and XVAL-TERR-3 pass, the staged height field keeps the sculpted ground
+//!   in the wider range, the painted cells draw a DryGrass patch shader, the level bundle holds the shaded map.
 //!
 //! Reads OPFOR's game copy (beside the suite, or `OPFOR_GAME`); writes only into a temporary folder; skipped without a
 //! game copy. Nothing here is loaded in game: `spec/transforms/terrain_edit.md` section 5 is the playtest.
@@ -177,6 +181,7 @@ fn sculpted_export_stages_and_checks() {
             target: Target::Terrain { file: hname.clone() },
             size: [hf.size, hf.size],
             tiles: dt,
+            also: Vec::new(),
         },
         "Raise",
     );
@@ -190,6 +195,7 @@ fn sculpted_export_stages_and_checks() {
             target: Target::Material { file: mname.clone() },
             size: [m.width, m.width],
             tiles: dm,
+            also: Vec::new(),
         },
         "Material",
     );
@@ -241,5 +247,217 @@ fn sculpted_export_stages_and_checks() {
     let staged = MaterialMap::decode(&get(&mname)).unwrap();
     let want: Vec<u8> = painted.samples().iter().map(|&v| v as u8).collect();
     assert!(staged.cells == want);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+#[ignore = "game tier: a whole staged export with every terrain layer of round E5-rest; run_tests.py game runs it"]
+// spec: XVAL-TERR-2, XVAL-TERR-3, TEDIT-HF-2, TEDIT-VT-1, TEDIT-OCC-1
+fn painted_export_stages_and_checks() {
+    let _gate = crate::gate();
+    let Some(dir) = game_dir() else {
+        eprintln!("skipped: no game copy");
+        return;
+    };
+    let game = Game::open(&dir).unwrap();
+    let tmp = std::env::temp_dir().join(format!("bc2_e5r_export_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
+    let project_file = tmp.join("Painted.mapedit.json");
+    let tiles = DirStore::of(&project_file);
+    let base = export::level_partition(&game, "mp_005gr").unwrap();
+    let mut p = MapProject::new("E5-rest paint", "mp_005gr", "levels/MP_005GR", &base, Profile::Bfbc2);
+    let c = export::choose_mode(&game, &p, Profile::Bfbc2, "Conquest", None).unwrap();
+    p.push(Op::SetMode { to: Box::new(c) }, "target");
+    let w = bc2_levelwrite::write::LevelWriter::parse(&base).unwrap();
+    let hname = export::heightfield_name(&w).unwrap();
+    let stem = hname.replace(".heightfield-000.res", "");
+    let mname = format!("{stem}-materialmap.res");
+    let hb = export::base_terrain_file(&game, "mp_005gr", &hname).unwrap();
+    let hf = terrain::parse(&hb).unwrap();
+    let n = hf.size;
+    // a sculpt, then the range widened from 500 m to 650 m (TEDIT-HF-2)
+    let before = Raster::from_samples(n, n, &hf.raw);
+    let mut after = before.clone();
+    sculpt(&mut after, &hf);
+    let dt = bc2_levelwrite::delta::stroke(&before, &after, &tiles).unwrap();
+    p.push(
+        Op::Stroke {
+            target: Target::Terrain { file: hname.clone() },
+            size: [n, n],
+            tiles: dt,
+            also: Vec::new(),
+        },
+        "Raise",
+    );
+    p.push(
+        Op::TerrainRange {
+            file: hname.clone(),
+            from: 500.0,
+            to: 650.0,
+        },
+        "Widen",
+    );
+    // a material of the level's grid the map lacks (MAT-GRID-2)
+    let mb = export::base_terrain_file(&game, "mp_005gr", &mname).unwrap();
+    let m = MaterialMap::decode(&mb).unwrap();
+    let grid = ["mp_005gr", "mp_005"]
+        .iter()
+        .find_map(|lv| export::base_terrain_file(&game, lv, &format!("levels/{lv}/materials_win32.dbx")))
+        .unwrap();
+    let add = bc2_levelwrite::terrainedit::grid_terrain_materials(&grid)
+        .into_iter()
+        .find(|g| !m.names.iter().any(|n| n.eq_ignore_ascii_case(g)))
+        .unwrap();
+    p.push(
+        Op::MaterialAdd {
+            file: mname.clone(),
+            name: add.clone(),
+        },
+        "Add material",
+    );
+    // DryGrass painted on a 40 m disc (TEDIT-VT-1), with the added material under it in the same stroke
+    let mut paint = Raster::new(n, n, 0);
+    let mut cells = material_raster(&m);
+    let per = m.width / n;
+    for j in 960..1040u32 {
+        for i in 1060..1140u32 {
+            if f64::from(i as i32 - 1100).hypot(f64::from(j as i32 - 1000)) < 40.0 {
+                paint.set(i, j, 255);
+                for dz in 0..per {
+                    for dx in 0..per {
+                        cells.set(i * per + dx, j * per + dz, m.names.len() as u16);
+                    }
+                }
+            }
+        }
+    }
+    let paint_target = Target::Paint {
+        layer: "DryGrass".into(),
+    };
+    let dp = bc2_levelwrite::delta::stroke(&Raster::new(n, n, 0), &paint, &tiles).unwrap();
+    let dc = bc2_levelwrite::delta::stroke(&material_raster(&m), &cells, &tiles).unwrap();
+    p.push(
+        Op::Stroke {
+            target: paint_target,
+            size: [n, n],
+            tiles: dp,
+            also: vec![bc2_levelwrite::ops::StrokePart {
+                target: Target::Material { file: mname.clone() },
+                size: [m.width, m.width],
+                tiles: dc,
+            }],
+        },
+        "Paint DryGrass",
+    );
+    // the colour / occlusion map darkened over 64 x 64 texels (TEDIT-OCC-1)
+    let cname = "terrains/mp_005/textures/mp05_ambientocclusion.res".to_owned();
+    let cb = export::base_terrain_file(&game, "mp_005gr", &cname).unwrap();
+    let cr = bc2_levelwrite::terrainpaint::colour_raster(&cb).unwrap();
+    let mut shaded = cr.clone();
+    for z in 1000..1064 {
+        for x in 1100..1164 {
+            let col = bc2_levelwrite::terrainpaint::colour_of(shaded.get(x, z), false);
+            shaded.set(x, z, bc2_levelwrite::terrainpaint::sample_of(col.map(|v| v / 2), false));
+        }
+    }
+    let dcol = bc2_levelwrite::delta::stroke(&cr, &shaded, &tiles).unwrap();
+    p.push(
+        Op::Stroke {
+            target: Target::Colour { file: cname.clone() },
+            size: [cr.width(), cr.height()],
+            tiles: dcol,
+            also: Vec::new(),
+        },
+        "Shade",
+    );
+    assert_eq!(p.reader_needed(), 12, "the new terrain operations need project format 12");
+    p.save(&project_file).unwrap();
+    let back = MapProject::load(&project_file).unwrap();
+    assert_eq!(back.operations.len(), 6);
+    let spec = ExportSpec {
+        format: export::FORMAT.into(),
+        version: export::VERSION,
+        level: "MAPEDIT_E5R_PAINT".into(),
+        folder: String::new(),
+        title: "E5-rest paint canary".into(),
+        mode: "conquest".into(),
+        layer: LayerSpec {
+            donor: p.mode().map_or_else(String::new, |c| c.donor.clone()),
+            bases: Vec::new(),
+            flags: Vec::new(),
+            combat_area: String::new(),
+        },
+        profile: Profile::Bfbc2,
+        identity: None,
+        path_data: false,
+    };
+    let stage = tmp.join("stage");
+    let t = std::time::Instant::now();
+    let rec = export::build(&game, &back, &project_file.display().to_string(), &spec, &stage).unwrap();
+    println!("built in {:.1} s", t.elapsed().as_secs_f64());
+    for l in rec.report.iter().filter(|l| l.starts_with("project:") || l.contains("patch shader entr")) {
+        println!("{l}");
+    }
+    let vname = format!("{stem}.visual.res");
+    let aname = format!("{stem}.masktileatlas.res");
+    assert_eq!(
+        rec.terrain_edits,
+        vec![mname.clone(), aname.clone(), hname.clone(), vname.clone()],
+        "in name order"
+    );
+    assert_eq!(rec.colour_edits, vec![cname.clone()]);
+    let r = export::check(&game, &stage).unwrap();
+    for (code, ok, text) in r.lines() {
+        if code.starts_with("XVAL-TERR") {
+            println!("{code} {ok}: {text}");
+        }
+    }
+    assert!(r.ok(), "{:#?}", r.checks.iter().filter(|c| !c.0).collect::<Vec<_>>());
+    assert!(r.lines().any(|(c, ok, _)| c == "XVAL-TERR-3" && ok));
+    // the staged entries read back
+    let (h, data) = fbrb::extract_path_uncached(stage.join("terrain-00.fbrb")).unwrap();
+    let get = |name: &str| {
+        h.entries
+            .iter()
+            .zip(&data)
+            .find(|(e, _)| e.name.eq_ignore_ascii_case(name))
+            .map(|(_, d)| d.clone())
+            .unwrap()
+    };
+    let staged_hf = terrain::parse(&get(&hname)).unwrap();
+    assert_eq!(staged_hf.max[1], 650.0);
+    let worst = staged_hf
+        .raw
+        .iter()
+        .zip(after.samples())
+        .map(|(a, b)| (f64::from(*a) * 650.0 - f64::from(b) * 500.0).abs() / 65535.0)
+        .fold(0.0, f64::max);
+    assert!(worst < 0.01, "the sculpted ground kept within a stored unit: {worst} m");
+    let staged_m = MaterialMap::decode(&get(&mname)).unwrap();
+    assert_eq!(staged_m.names.last(), Some(&add));
+    assert_eq!(
+        staged_m.get(1100 * per as usize, 1000 * per as usize),
+        m.names.len() as u8,
+        "the paired material under the paint"
+    );
+    let vt = bc2_formats::visual_terrain::VisualTerrain::decode(&get(&vname)).unwrap();
+    let base_vt =
+        bc2_formats::visual_terrain::VisualTerrain::decode(&export::base_terrain_file(&game, "mp_005gr", &vname).unwrap())
+            .unwrap();
+    let cell = (1000 / 16) * 128 + 1100 / 16;
+    assert_ne!(vt.maps[0].shader[cell], base_vt.maps[0].shader[cell], "the painted cell's shader");
+    assert!(vt.shaders[usize::from(vt.maps[0].shader[cell])].name.contains("DryGrass"));
+    let (lh, ld) = fbrb::extract_path_uncached(stage.join("level-00.fbrb")).unwrap();
+    let staged_c = lh
+        .entries
+        .iter()
+        .zip(&ld)
+        .find(|(e, _)| e.name.eq_ignore_ascii_case(&cname))
+        .map(|(_, d)| d.clone())
+        .unwrap();
+    let back_c = bc2_levelwrite::terrainpaint::colour_raster(&staged_c).unwrap();
+    assert!(back_c.get(1130, 1030) != cr.get(1130, 1030), "the shaded texel");
+    assert_eq!(back_c.get(10, 10), cr.get(10, 10), "a far texel DICE's");
     let _ = std::fs::remove_dir_all(&tmp);
 }

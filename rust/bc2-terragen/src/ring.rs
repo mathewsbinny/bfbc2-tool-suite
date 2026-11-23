@@ -146,8 +146,9 @@ fn edge_index(n: usize, side: u8, k: usize) -> usize {
 
 /// DICE's stitching (the module's list): the main block's edges straightened between the ring's knots, the ring's
 /// rows and columns that touch the main block made its knots, each ring block's last column and row its
-/// neighbour's first.
-fn stitch(main: &mut [u16], n: usize, st: usize, blocks: &mut [Vec<u16>]) {
+/// neighbour's first. Public for round E5-rest: the editor's export stitches a sculpted main block and ring the same
+/// way (`bc2_levelwrite::terrainedit::write_ring`).
+pub fn stitch(main: &mut [u16], n: usize, st: usize, blocks: &mut [Vec<u16>]) {
     let half = n / 2;
     let rn = RING_N;
     // 1. the main block's edges: knots every st samples, each block span's last knot the next span's first, the last

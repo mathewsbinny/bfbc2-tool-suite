@@ -539,6 +539,7 @@ dependencies = [
  "bc2-navbuild",
  "bc2-pyrt",
  "bc2-scene",
+ "bc2-terragen",
  "bc2-tools",
  "embed-resource",
  "png",
