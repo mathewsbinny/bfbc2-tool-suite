@@ -191,10 +191,14 @@ fn a_rush_stage_through_the_interface() {
         };
         app.select(&gpu, Some(k));
         app.focus_selected();
-        h.settle(&mut app, 4);
+        h.settle(&mut app, 40);
         tool(&mut h, &mut app, GameplayKind::Stage);
-        let at = ground(&app, p[0] + 15.0, p[2]);
+        // the ground a little beside the framed M-COM (the view's middle)
+        let rect = app.view().unwrap().viewports[&Projection::Perspective].rect.unwrap();
+        let at = rect.center() + Vec2::new(rect.width() * 0.15, rect.height() * 0.1);
+        println!("click at {at:?} in {rect:?}, the M-COM at {p:?}");
         h.hover(&mut app, at);
+        h.settle(&mut app, 2);
         h.click(&mut app, at);
         h.settle(&mut app, 3);
         assert_eq!(ops(&app).len(), 1, "{}", app.view().unwrap().message);
