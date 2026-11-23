@@ -29,6 +29,17 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Project OPFOR's BF1943 shader translation driver in the Rust core** (round OR3c, "OPFOR in Rust" stage 3c):
+  `bc2_convert::shadertranslate` through `shaderdb.translate_plan` - which of BF1943's programs each mesh-part layout
+  and permutation of an entry is made from (by layout, by role or by element order; the soldiers' layouts by
+  meaning), its vertex inputs, renderer fragment, key and id, and where the Python driver stopped an entry (its
+  `TranslateError` / `XenosError` / `KeyError` / `ValueError`, in place) - and `missing_entries`, `foreign_entries`,
+  `discards` (a compiled shader's discard from its shader chunk, without the disassembler: 40,744 of 40,744 shaders as
+  the disassembly said), `match_entries`, `entry_perms`, `part_users`, `offer_kinds`, `entry_blocks`, `element_map`,
+  `soldier_element_map`, `vertex_elements`, `by_role`, `mesh_of`, `patch_inputs`. `level_scan` gives each entry's
+  layout record bodies too (`LevelScan.layout_records`). Project OPFOR's `wake_translate` / `ww2_char_shaders` /
+  `wake_install.index_templates` call them: Wake's translation as the retired Python made it, byte for byte, about 3-4
+  times as fast (`rust/BENCHMARKS.md` "OR3c"). New quick test `shadertranslate`.
 - **NavKit: the graph measured over every DICE node and edge** (round NKS-deep E, spec XNAV-MEAS-1): `navparity`
   and `navregress` pair each DICE route node one to one with its nearest NavKit node of the sector (within half a
   propagation step: 1.675 m coarse, 0.425 m detailed) and report `nodes_paired`, `nodes_paired_candidate` (the

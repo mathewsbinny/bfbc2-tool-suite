@@ -135,7 +135,11 @@ def check_plan(c: Checks) -> None:
     w2, db2, _ = pair()
     db2.parts = []
     asked: list[int] = []
-    e = plan(w2, db2, planned=lambda: asked.append(1) or {})[0].error
+
+    def planned() -> dict[str, list[tuple[str, bytes, bool]]]:
+        asked.append(1)
+        return {}
+    e = plan(w2, db2, planned=planned)[0].error
     c.check(isinstance(e, xenos_hlsl.TranslateError) and str(e) == 'no mesh parts in the database' and asked == [1],
             'plan: no mesh parts, the planned parts asked once', repr(e))
     w2, db2, ins2 = pair()
