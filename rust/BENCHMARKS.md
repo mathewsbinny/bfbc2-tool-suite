@@ -11419,3 +11419,112 @@ step's other work (its clones and merges) was not changed; not explained here - 
 - `test_shaderdb_levels.py` (quick, new entry `shaderdb-levels`; `--game`: `shaderdb-levels:game`).
 - cargo fmt; clippy `--all-targets -D warnings` on bc2-formats, bc2-convert, bc2-py, bc2-gamefs, bc2-cli and each of
   `bfbc2.exe`'s tool groups alone; `cargo test` of the new modules (results in the round's report).
+
+## PR1b-2-rest2: merge step 3, the menu tools' typed errors, decimate and shapes in Rust (2026-11-23, branch `pr1b2r2`)
+
+What PR1b-2-rest left ("PR1b-2-rest", "What is left"): items 1, 2 and 4 done; 3 and 5 left (below). Removals
+(culltool's `Doc` / `El`, bc2-menu's `Fail` results): the merge releases **0.24.0** (0.23.0 went to round OR3b, merged first; CHANGELOG). Nothing was
+written to OPFOR's `game\`; the game never launched.
+
+### 1. Merge step 3: the cull tools on the one DBX document
+
+| was | now |
+|---|---|
+| `bc2_levelwrite::culltool::Doc` / `El`: `culltree.py`'s own byte-keeping codec (an owned tree of elements, values copied out of the file), built from `bc2_formats::culltree::elements` | `EditDbx` (the suite's one editable document since PR1b-2), read by `bc2_formats::culltree::document` under `Doc`'s rules: string indexes kept as stored and checked where read (`IndexError` -> the reference's own exception, as before), every value a range of the shared file bytes, the trailer kept; written by `EditDbx::write` |
+| `stream_root`: a second copy of the element loop materialising `El`s one root child at a time (round CT1's streamed readers) | `bc2_formats::culltree::stream`: the same walk on a scratch `EditDbx` cleared after each root child or streamed item (`Sink`: `child` / `streamed` / `item`) |
+| three element loops (`elements`, `Doc.parse`'s tree, `stream_root`) | one: `bc2_formats::culltree::walk` (a `Visit` per element); `elements`, `document` and `stream` are visitors |
+| `El` methods (`attr`, `name`, `child`, `numbers`, `set_numbers`), `Doc::instances` / `instance` | functions over `(&EditDbx, NodeId)` (`attr`, `name_of`, `child_index`, `numbers`, `set_numbers`, `instances`); a node cloned with its string indexes as stored (`clone_stored`), so the written tree's bytes are the template's |
+
+A string index past 32 bits (the one document keeps 32-bit indexes; no DICE file has one) is
+`ElementError::Wide`, which culltool reports as the reference's own exception (`Damaged`), as an index outside the
+table always was. The export's cull-tree walker (`bc2_levelwrite::culltree`, the editor's export) was already on
+`EditDbx` (round XF1); it is unchanged.
+
+**Proof**, old `bfbc2.exe` (main `6b71953`) against new, `BFBC2_CULLTREE_CACHE=0`:
+
+| what | result |
+|---|---|
+| Onslaught: `culltree add <tree> <level> --auto --misplaced 2.0 --ref <Linux level> --ref-dir work\levels\*` (console_cull.py's command line) on the four console ports' levels and trees (`work\onslaught\build_<lv>\out`) | 4 of 4 the same (report, exit code; ons_mp_005 adds: tree and level byte for byte); the kept post-install inputs (`work\console_cull\<lv>\pkg`, 3 levels) "nothing to add" on both |
+| `add --auto --misplaced 2.0 --ref-dir <its folder>` on every level partition with an exclusive tree beside it in OPFOR's `work\levels` | 89 of 89 the same; 25 wrote a tree and a level, every one byte for byte |
+| `info` and `verify` on every cull tree of `work\levels` | 360 of 360 runs the same (stdout, stderr, exit code) |
+| CT1's game-tier test (`culltool_ct1::streamed_readers_answer_as_the_whole_document`), now also: every file the document reads written back byte for byte | **87 level partitions and 260 trees and descriptions**: every one written back byte for byte, the streamed and whole readers the same (damaged copies too; a damaged copy's non-shortest varint is written shortest, as `Doc.tobytes` wrote it, so the round trip is checked on the real files) |
+| `cli-caches-stockmp-graft-meshview-cull` (the cull group's 190 recorded command lines) | **190 of 190** (the cull group) as recorded; graft 228 of 228; every O3 group passes |
+
+### 2. The menu tools' typed errors
+
+`bc2_menu::error::MenuError`: `Menu` (`MenuToolError`), `Apt` (`AptError`), `NotFound` (`FileNotFoundError` of a
+named movie, bundle or exe), `Io` (a file's `OSError`), `Latin1` (`UnicodeEncodeError`), `Reference` (an input the
+Python reference fails on with its own exception: the hand-off); `MenuResult` everywhere the library returned
+`PyResult` (common.rs, graft/mod.rs, graft/edit.rs, graft/crosshair.rs: 220 uses). `From<MenuError> for Fail`
+gives `bfbc2.exe` the Python's exceptions (kind and words), and its matches on `MenuToolError` /
+`FileNotFoundError` are matches on the variants (`MenuError::is_file_not_found`: a named file missing or `open()`'s
+`ENOENT`, as before). The library reads files with its own `read_file` / `read_text`.
+
+| proof | result |
+|---|---|
+| `cli-menu-crash-navkit-convert` (O2: the menu group's recorded command lines) | all groups as recorded (the menu group's lines among them): ALL PASSED |
+| `cli-caches-stockmp-graft-meshview-cull` (O3: aptgraft's) | **190 of 190** (the cull group) as recorded; graft 228 of 228; every O3 group passes |
+| `apt-model-check-refs-native`, `apt-decode-graft-native`, `aptgraft` | in `run_tests.py quick` (below) |
+
+### 3. rayon in bc2-cli's own CPU work: not done
+
+bc2-cli uses no rayon. The one CPU-heavy loop of its own found is texqa's analyses, already on scoped threads (at
+most 4, texqa.py's worker processes' rows in order); moving it to the pool is a refactor with no win measured. Left.
+
+### 4. `decimate.py` and `shapes.py` in Rust: OpenBLAS' bits matched
+
+NumPy's products go through OpenBLAS 0.3.34 (`DYNAMIC_ARCH`); on the reference machine (AMD Ryzen 7 8845HS, Zen 4)
+it picks the `SkylakeX` kernels (`openblas_get_corename`). Found by trial against NumPy (Python's `math.fma` for the
+fused forms; `scratchpad` probes, not kept):
+
+| NumPy | OpenBLAS | the bits (all equal) |
+|---|---|---|
+| `np.dot` / `np.linalg.norm` of 3- and 4-vectors | `ddot` (under 16 elements: its fused scalar tail) | `a0 b0`, then `fma(ai, bi, s)`: 200,000 of 200,000 |
+| `x @ M`, x a 4-vector, M 4 x 4 C order | `dgemv` | `y_j = fma(x3, M3j, fma(x2, M2j, fma(x0, M0j, x1 M1j)))`: 3,000 of 3,000 vectors (the other 119 orders and plain sums tried: none) |
+| `x @ M @ x` (decimate's quadric cost) | `dgemv` then `ddot` | 100,000 of 100,000 |
+| `(n, 3) @ (3, 3)`, n >= 2 (`Geo.moved`) | `dgemm` | `fma(a2, b2, fma(a1, b1, a0 b0))`: every element of n = 2 ... 1,000 |
+| `(1, 3) @ (3, 3)` | `dgemv` | `fma(a2, b2, fma(a0, b0, a1 b1))` |
+| `np.sum(x, axis=1)`, `norm(x, axis=1)` of 3 columns | (NumPy's pairwise sum) | `((0 + x0) + x1) + x2` (three -0 give +0) |
+| every BLAS product | the output zeroed first (`beta` 0, `ddot`'s sum from 0.0) | a zero result is +0 |
+
+On another processor NumPy's own last bits differ (round CI1's lesson), so the port writes these kernels out rather
+than calling a BLAS: it is deterministic on any processor and gives the oracle recorded on this PC (spec
+XWW2-MOD-1). Matching NumPy is only possible where NumPy runs the SkylakeX kernels; elsewhere the recorded digests
+are the test. `decimate` and the Python's dict
+and set orders: the heap's tuples order every pop, sets only decide all-or-nothing tests, and the open edges'
+quadrics are added in the dict's insertion order, as the port does.
+
+| proof | result |
+|---|---|
+| `test_decimate.py`: the sphere tests (seams closed, bones apart, max_cost) on the port | pass (500 / 600 triangles, closed, bones apart, caps) |
+| the port's arrays against `decimate_reference` (bit for bit) and against digests recorded from it: spheres, a shapes-built rifle (lathes, an extrusion, a turned bolt on a second bone) at 6 targets / caps and a boundary weight, 4 jittered spheres | **19 of 19** cases bit for bit (also a 48-segment rifle: 576 triangles at three targets / caps); digests recorded from the reference (`tests/decimate_golden.json`) |
+| shapes: `moved` (40 rotations, whole and 1-274-vertex parts), `tangents`, `fix_winding`, `outward`, `_facing` against the NumPy originals; extrude's windings | **240 of 240** results bit for bit, after one fix: OpenBLAS adds each product to a zeroed output, so a zero result is +0 (the plain chain gave -0 for 7 normals of a rotated part: `+ 0.0` on every product now) |
+| WW2 rebuild (the Type 38's and Winchester 1897's LODs, the shapes-built parts) | OPFOR main `6ad7a88` (read-only; `OPFOR_TOOLKIT` a scratch folder junctioned to this worktree, version 0.22.0 at the time; `BFBC2_FBRB_CACHE` a scratch folder), `--jobs 2`: all 55 steps in 26.8 min; `compare_oracle` **10,852 of 10,852 identical** (differ 0, missing 0, extra 0); `qa_checks.py` passed |
+
+### 5. `Granny.put`: not done
+
+It writes into the Python reader's buffer and moves when the Granny object is Rust's (a port of `granny.py`'s
+`Granny` class: 1,179 lines, its reader's object tree and the writers' field walk). Left.
+
+### Tests
+
+- `cargo fmt`; `cargo clippy --all-targets -D warnings` on bc2-formats, bc2-levelwrite, bc2-menu, bc2-convert,
+  bc2-py, bc2-cli, bc2-editor, bc2-stockmp (after merging main): clean; CI's per-group clippy of `bfbc2.exe` (all 18
+  groups of `[features] default`, each alone): clean (exit 0; cargo's own unused-dependency notes only).
+- `cargo test` of bc2-formats, bc2-menu, bc2-convert, bc2-levelwrite, bc2-cli: all pass (new:
+  `culltree::document_writes_back`, `decimate::blas_forms` / `a_square_of_four_triangles`,
+  `shapes::products_and_windings`); `culltool_ct1` (game tier) as above.
+- `test_cli_o2.py`: ALL PASSED; `test_cli_o3.py`: every group as recorded (cull 190 of 190, graft 228 of 228).
+- `test_decimate.py`: the unit checks, 19 of 19 decimations and 240 of 240 shapes results against the NumPy
+  originals (this machine: OpenBLAS core SkylakeX), the 19 recorded digests.
+- `run_tests.py quick -j 2` after merging main (version 0.24.0, module and `bfbc2.exe` rebuilt): **133 of 133**.
+- `rust\native_census.py --check`: 282 exports, 0 without a caller; `python_status.py` regenerated (`decimate.py` a
+  twin, `shapes.py` partly); `spec/trace.py --check` ok (1,289 rules; XWW2-MOD-1 new, unused on main); ruff and mypy
+  on `bfbc2-model-tools`.
+
+### What is left (PR1b-2-rest3)
+
+- **rayon in bc2-cli's own CPU work** (measure first: texqa's scoped threads the candidate).
+- **`Granny.put`** with the Granny object made Rust's.
+- `shapes.py`'s builders (`lathe`, `extrude`, `_triangulate`) stay Python by decision: plain Python floats (`math.cos`,
+  `math.hypot`), no BLAS; a port would have to match CPython's `hypot` and the C library's `cos` for nothing gained.
