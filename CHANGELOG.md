@@ -28,8 +28,11 @@ landed on `main`.
 
 ## [Unreleased]
 
-Round PR1b-2-rest2 removes public Rust API (culltool's own DBX codec, bc2-menu's `Fail` results): the merge bumps
-MINOR (0.24.0; `RELEASING.md`, "A merge that removes something").
+## [0.24.0] - 2026-11-23
+
+Round PR1b-2-rest2 removes public Rust API (culltool's own DBX codec, bc2-menu's `Fail` results), so this merge
+releases a minor version (`RELEASING.md`, "A merge that removes something"). Project OPFOR uses none of what was
+removed; its `SUITE_REQUIRES` moves to 0.24.0 - 0.25.0.
 
 ### Changed
 - **Merge step 3: `bfbc2.exe culltree` reads and writes on the suite's one DBX document** (round PR1b-2-rest2):
