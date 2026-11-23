@@ -79,13 +79,15 @@ class GrannyError(Exception):
 
 
 # ------------------------------------------------------------------------------------------------ backend
-# Reading (Granny's tables, root()) runs in the suite's Rust core (rust/, module bc2_native: bc2_formats::granny)
-# when it is built, else in Python here - the reader below is the format's reference and stays: the same values
-# (tests/test_granny_native.py; the game tier: every Granny resource of the Xbox copy, the game copy and Battlefield
-# 1943). An input the Rust reader refuses is read by the Python code, which raises what it raises. A Granny written
-# to (put, to_bytes) reads in Python from then on. BFBC2_PURE_PYTHON=1 (or use_native(False)) reads in Python;
-# backend() says which reader runs. The Xbox 360 -> PC conversion (to_pc, to_pc_many: bc2_convert::granny) always
-# runs in the Rust core (require): its Python was retired on 2026-11-18.
+# A Granny is the suite's Rust core's object (rust/, module bc2_native: bc2_py::granny::Granny over
+# bc2_formats::granny) when it is built: the resource's bytes, its tables, the object tree (root, read), the places of
+# members (field, array_at) and the writes (put, to_bytes) are Rust's (round PR1b-2-rest3). GrannyReference below is
+# the Python twin, the format's reference that stays: the same tables, trees, places and bytes
+# (tests/test_granny_native.py, test_granny_f2a_native.py; the game tier: every Granny resource of the Xbox copy, the
+# game copy and Battlefield 1943). An input the Rust reader refuses is read by GrannyReference, which raises what it
+# raises (or reads it). BFBC2_PURE_PYTHON=1 (or use_native(False)) gives GrannyReference; backend() says which runs.
+# The Xbox 360 -> PC conversion (to_pc, to_pc_many: bc2_convert::granny) and the curves (curve_keys, sample) always
+# run in the Rust core (require): their Python was retired.
 
 def _import_native() -> Any:
     try:
@@ -94,7 +96,7 @@ def _import_native() -> Any:
     except ImportError:                       # the tool copied out of the suite: Python only
         return None
     m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'granny_root') else None
+    return m if m is not None and hasattr(m, 'Granny') else None
 
 
 def _load_native() -> Any:
@@ -142,35 +144,28 @@ def use_native(on: bool) -> str:
     return backend()
 
 
-class Granny:
-    """A parsed resource: strings, sections, relocations; root() reads the object tree into dicts and lists."""
+def Granny(b, where='file'):
+    """A parsed resource: the Rust core's (bc2_native.Granny) when it is built and reads it, else GrannyReference;
+    both have the same attributes (where, e, strings_from, strings, gr2, root_type, root_obj, total, crc_from, data,
+    sections, section_at, reloc) and methods (name, members, type_name, size, read, root, field, put, array_at,
+    to_bytes)."""
+    if _native is not None and isinstance(b, (bytes, bytearray)):
+        try:
+            return _native.Granny(bytes(b), where, GrannyError)
+        except ValueError:                                  # GrannyReference says why (or reads it)
+            pass
+    return GrannyReference(b, where)
+
+
+class GrannyReference:
+    """The Python reader and writer (the twin): strings, sections, relocations; root() reads the object tree into
+    dicts and lists; put() writes values in place, to_bytes() gives the resource with its CRC recomputed."""
 
     def __init__(self, b, where='file'):
         self.where = where
-        self._raw = None                                    # the bytes the Rust core reads root() from
         self._types = {}
         self._sizes = {}
-        if _native is not None and isinstance(b, (bytes, bytearray)):
-            raw = bytes(b)
-            try:
-                big, self.strings_from, self.strings, self.gr2, self.root_type, self.root_obj, self.total, \
-                    self.crc_from = _native.granny_header(raw)
-            except ValueError:                              # the Python reader below says why (or reads it)
-                pass
-            else:
-                self.e = '>' if big else '<'
-                self.data = bytearray(raw)
-                self._raw = raw
-                return                                      # sections, section_at, reloc: made on first use
         self._python_init(b, where)
-
-    def __getattr__(self, name):
-        """sections, section_at and reloc of a resource the Rust core read: made on first use."""
-        if name in ('sections', 'section_at', 'reloc') and self.__dict__.get('_header_raw', self.__dict__.get('_raw')) is not None:
-            raw = self.__dict__.get('_header_raw', self.__dict__.get('_raw'))
-            self.sections, self.section_at, self.reloc = _native.granny_index(raw)
-            return self.__dict__[name]
-        raise AttributeError(name)
 
     def _python_init(self, b, where):
         if len(b) < 4 or 10 not in struct.unpack_from('<I', b, 0) + struct.unpack_from('>I', b, 0):
@@ -326,11 +321,6 @@ class Granny:
 
     def root(self, limit=64):
         with _gc_paused():
-            if self._raw is not None and _native is not None:
-                try:
-                    return _native.granny_root(self._raw, limit)
-                except (ValueError, OverflowError):        # the Python reader raises its own exception (or reads it)
-                    pass
             return self.read(self.root_type, self.root_obj, 0, limit)
 
     # ---- writing (values patched in place: the file keeps its size and layout)
@@ -349,17 +339,8 @@ class Granny:
             raise GrannyError(f'{self.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
         sec, off = at
         pos = self.section_at[sec] + off
-        self._written()
         struct.pack_into(fmt, self.data, pos, *values)
         struct.pack_into(fmt, self.sections[sec], off, *values)
-
-    def _written(self):
-        """The data is about to change: the sections are made now (from the bytes as they were, as the Python reader
-        has them) and root() reads in Python from now on."""
-        if self._raw is not None:
-            self._header_raw = self._raw
-            self.sections                                   # noqa: B018 - made by __getattr__
-            self._raw = None
 
     def array_at(self, obj, name):
         """(section, offset) of the elements of a reference-to-array member."""
@@ -371,16 +352,9 @@ class Granny:
 
     def to_bytes(self):
         """The resource with its Granny CRC recomputed."""
-        import zlib
         if self.e != '<':
             raise GrannyError(f'{self.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
         g0 = self.gr2
-        self._written()
-        nat = _native if _native is not None and hasattr(_native, 'granny_with_crc') else None
-        got = nat.granny_with_crc(self.data, g0, self.crc_from, self.total) if nat is not None else None
-        if got is not None:                                 # the Rust core's CRC (round F2a), written here too
-            self.data[g0 + 40:g0 + 44] = got[g0 + 40:g0 + 44]
-            return got
         crc = zlib.crc32(bytes(self.data[g0 + self.crc_from:g0 + self.total])) & 0xFFFFFFFF
         struct.pack_into('<I', self.data, g0 + 40, crc)
         return bytes(self.data)
@@ -688,9 +662,7 @@ def roots(blobs, limit=64, where='resource'):
     for k, b in enumerate(blobs):
         r = got[k] if got is not None else None
         if r is None or isinstance(r, Exception):
-            g = Granny(b, where)
-            g._written()                                    # the Rust core did not read it: Python
-            r = g.root(limit)
+            r = GrannyReference(b, where).root(limit)       # the Rust core did not read it: Python
         out.append(r)
     return out
 

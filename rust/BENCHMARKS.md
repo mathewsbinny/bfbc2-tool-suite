@@ -4158,6 +4158,80 @@ terrain unpack before sampling. Not run end to end in this round (it needs a pre
 **Unproven until a playtest**: everything the game does with an edited terrain - drawing, collision, LOD, the
 envelope, the depth map's meaning, the material under a contact. Nothing was installed or launched.
 
+## PR1b-2-rest3: the Granny object in Rust; texqa's analyses on rayon measured (2026-11-23, branch `pr1b2r3`)
+
+What PR1b-2-rest2 left ("PR1b-2-rest2", "What is left"): both items. Removals (`bc2_native.granny_header`,
+`granny_index`, `granny_with_crc`; `granny.Granny` a function, no longer a class): the merge bumps MINOR (CHANGELOG
+"Removed"). Nothing was written to OPFOR's `game\`; the game never launched.
+
+### 1. rayon in bc2-cli's own CPU work: measured, not kept
+
+texqa's analyses (`bc2-cli/src/texqa/run.rs`: scoped threads, at most 4) were moved onto rayon's one pool
+(`par_iter` in order; `--workers` / `BFBC2_TEXQA_WORKERS` a pool of that size) and timed against the old
+`bfbc2.exe` on OPFOR's `work\ww2\install` (789 textures, `--worst 0 --no-bf1943 --no-dice`, cold; the report and
+`texqa.json` the same bytes every run; other rounds building on the PC, ~30% CPU):
+
+| run | wall (s) |
+|---|---|
+| old: scoped threads (4) | 8.57, 8.37, 8.46, 8.47 (median 8.46) |
+| rayon, the pool's 16 threads | 8.86, 8.29, 8.64, 8.19, 8.47 (median 8.47) |
+| rayon, `BFBC2_WORKERS` 1 / 2 / 3 / 4 / 6 / 8 / 16 | 24.11 / 13.23 / 9.53 / 8.70 / 7.42 / 7.56 / 8.47 |
+| every texture cached (the serial part: finding, hashing, the report) | 0.98 |
+
+Not faster at the default pool, so not kept (the scoped threads stay). Root cause of the ceiling: the analyses are
+allocation-bound, not thread-bound - CPU time of one run, user + kernel: 1 thread 16.9 + 6.7 s, 4 threads 22.8 +
+8.1 s, 16 threads 62.2 + 30.1 s for the same work (the largest texture alone, Corsair's 4,096 x 2,048 colour map, takes
+0.5 s). Each analysis allocates whole-picture float buffers (`bc2_pyrt`'s arrays) whose pages Windows commits and
+zeroes per allocation; more threads contend on that. Left (below): buffers reused across a texture's levels and
+checks, then the pool.
+
+### 2. `Granny.put`: the Granny object is Rust's
+
+| was | now |
+|---|---|
+| `granny.Granny`: a Python class; with the Rust core its tables came from `granny_header` (sections, offsets, relocations made on first use by `granny_index`) and `root()` from `granny_root` over a copy of the bytes; `put` wrote the Python's `bytearray` and its per-section copies, after which every read ran in Python (`_written`); `to_bytes` took the CRC from `granny_with_crc` | `granny.Granny(b, where)` returns `bc2_native.Granny` (`rust/bc2-py/src/granny.rs`): it holds the resource's bytes and its tables (read once), and answers `root` / `read` / `members` / `size` / `type_name` / `name`, `field` / `array_at` (`bc2_formats::granny::Granny::member_offset`), `put` (struct's packing, little-endian) and `to_bytes` (`bc2_convert::granny_edit::with_crc`); reads after a write take the same tables over the written bytes (`Granny::over`); the attributes are the old ones (`where`, `e`, `strings`, `data`, `sections`, `section_at`, `reloc`, ...) |
+| the Python reader, writer and the Rust hand-offs in one class | `granny.GrannyReference`: the Python reader and writer only (the twin: `BFBC2_PURE_PYTHON`, `use_native(False)`, resources the Rust reader refuses) |
+
+Decided against the Python twin (spec GRANNY-EDIT-2, DICE's data: PC Granny files are little-endian throughout and
+their sections never overlap - 4,534 of the game copy's PC Granny resources, 0 with sections, relocation tables,
+marshalling lists or the header overlapping, `scratchpad` probe):
+
+| the Python | now |
+|---|---|
+| `put` packed any `struct` format (`>`, native `@` sizes) | `<` first, else `struct.error`; nothing written |
+| `put` wrote the resource's bytes, then failed on a section copy too short for the place | the place is checked first: nothing written |
+| later trees read from per-section copies (two sections over the same bytes would not share a write) | one copy of the bytes, the tables over it |
+| a damaged resource whose tree failed in Rust was re-read by the Python (its own `struct.error` / `IndexError` / ...) | a `GrannyError` saying why (`<where>: <why>`) |
+
+**Proof** (the module and `bfbc2.exe` built from this branch):
+
+| what | result |
+|---|---|
+| `test_granny_native.py` (quick): `writes` - 20 rounds of 30 writes into the built resource of every member type (in range, out of range, the wrong count, past a section, no such section; shuffled), `field` / `array_at` (a member that is not there), `to_bytes`, `read`, against `GrannyReference` | **600 of 600**: the same bytes, sections and tree after each write, the same refusals (type; `GrannyError` messages word for word), the same `to_bytes`; a big-endian resource read only both ways; `>I`, `I`, `=I`, `!I` refused, nothing written |
+| the same: built resources (both byte orders) and 2,184 damaged copies, tables and trees both ways; `to_pc` against the recording | all the same, **2,193 of 2,193** conversions as recorded; 263 damaged copies the Rust core refuses with a `GrannyError` where the Python failed with its own exception |
+| `test_granny_native.py --game`: every Granny resource of the Xbox mp_common / sp_common (each converted, the PC result read too), the game copy's PC ones, Battlefield 1943's | **2,660 / 4,534 / 756** read the same both ways (Rust 12.6 / 17.8 / 2.9 s, Python 40.2 / 42.1 / 10.9 s); 2,660 and 1,495 conversions as recorded |
+| `test_granny_f2a_native.py` (quick): the WW2 rifles' 57 animations - every position curve moved (ramp, rest), every quantized orientation curve rewritten, `to_bytes`, tracks added, damaged copies; to_bytes of 300 headers with changed sizes / CRCs / cut short | 57 / 57 / 114 / 114 identical; 300 of 300 (93 the same error); 8 damaged copies refused (a `GrannyError` where the Python failed); edits Rust 0.67 s, Python 1.00 s |
+| `test_granny_f2a_native.py --game`: every GrannyAnimation of the game copy's bundles the same way (shift, orientations, to_bytes, add_tracks; copies cut short) | **4,889 / 4,889** edited and **4,889 / 4,889** grown identically, all answered in Rust; 9,778 damaged and 9,778 refusal cases the same; 52 damaged copies a `GrannyError` where the Python failed; edits Rust 376 s / Python 460 s, add_tracks Rust 45 s / Python 278 s (each with its reads) |
+| `test_granny.py`, `test_granny_curves.py`, `test_granny_port.py` | pass |
+
+### Tests
+
+- `cargo fmt`; `cargo clippy --all-targets -D warnings` on bc2-formats and bc2-py: clean; CI's per-group clippy of
+  `bfbc2.exe` (all 19 groups of `[features] default`, each alone): clean.
+- `cargo test` of bc2-formats and bc2-py: all pass (new: `granny::member_offsets_and_another_copy`).
+- `run_tests.py quick -j 2` (module and `bfbc2.exe` rebuilt from this branch): **134 of 134**. O2 passes.
+- `rust\native_census.py --check`: 285 exports, 0 without a caller; `python_status.py` regenerated (`granny.py` still
+  partly: the twins left); `spec/trace.py --check` ok (1,468 rules; GRANNY-EDIT-2 new, unused on main); ruff and
+  mypy on `bfbc2-anim-tools`.
+
+### What is left
+
+- texqa's analyses: allocation-bound (above) - reuse a texture's picture buffers across its levels and checks, then
+  measure the pool again.
+- `GrannyReference` and the `*_reference` functions (`shift_position_reference`, `set_orientations_reference`,
+  `add_tracks_reference`, `_Graft`): the Python twins, kept for parity; retiring them needs their answers recorded
+  (as `granny_golden.json` holds `to_pc`'s) - PY1.
+
 ## NKS-deep E: the measures over every node and edge, DICE's seeds, the midline cut's size, DICE's detailed sectors (2026-11-23, branch `nksde`)
 
 Part E of NKS-deep (ROADMAP "NKS-deep"). The executable was read with headless Ghidra on a scratch copy of Project

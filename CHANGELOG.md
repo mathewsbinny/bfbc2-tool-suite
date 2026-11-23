@@ -142,11 +142,24 @@ landed on `main`.
   `raster_hits`, `cast_columns`, `Intervals`, `capsule_blocked`, `_line_tri_interval`, `_edge_dist2`, `terrain_at` -
   are gone; no other project imports them). The export's stage step (`bc2_levelwrite::pathdata::sample_stage`) runs
   `bfbc2.exe navkit sample --offline --stage` instead of `navsample_offline.py stage`.
+- **`granny.Granny(b)` is the Rust core's object** (round PR1b-2-rest3, spec GRANNY-EDIT-2): `bc2_native.Granny`
+  holds the resource's bytes and tables and answers `root` / `read` / `members` / `size` / `type_name` / `field` /
+  `array_at` / `put` / `to_bytes` (the same attributes as before: `where`, `e`, `strings`, `data`, `sections`,
+  `section_at`, `reloc`, ...). The Python reader and writer is `granny.GrannyReference`, the twin (pure-Python mode,
+  resources the Rust reader refuses). Decided against the Python: `put` takes little-endian formats only (`'<'`
+  first) and writes nothing when the place is outside its section (the Python wrote the resource's bytes first); a
+  damaged resource whose object tree does not read raises a `GrannyError` saying why. Proven against the twin on the
+  built resources (600 writes) and every Granny file the game tiers read (below, rust/BENCHMARKS.md "PR1b-2-rest3").
 
 ### Fixed
 - The offline sampler's 0.2 m runs from `navsample_offline.py all` / `stockmp` and an export's stage sampled a
   detailed sector outside the level's box without its objects (the geometry was cropped to the level's box; sp_009's
   6 flagged sectors east of x 500): the geometry now covers every square a run samples (NAVS-SMP-2).
+
+### Removed
+- `bc2_native.granny_header`, `granny_index` and `granny_with_crc` (round PR1b-2-rest3): the Python `Granny`'s
+  hand-offs to the Rust core, replaced by `bc2_native.Granny`; nothing else called them. `granny.Granny` is a
+  function returning that object (or a `GrannyReference`), no longer a class. A removal: the merge bumps MINOR.
 
 ## [0.24.0] - 2026-11-23
 

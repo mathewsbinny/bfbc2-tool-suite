@@ -119,6 +119,22 @@ animation (their strings into the string table); the sections are laid out again
 
 Evidence: [code: rust/bc2-convert/src/granny_edit.rs:1] [test: bfbc2-anim-tools/tests/test_granny.py::add_tracks] [doc: bfbc2-anim-tools/granny.py:40-44]
 
+### GRANNY-EDIT-2: Writing values in place
+
+Status: **verified** · Variants: PC
+
+A value is written into a PC resource where it is (the file keeps its size, layout and tables): little-endian, as
+DICE's PC files hold every value, and only inside the section that holds it - a place past the section's end, or a
+value its format cannot hold, writes nothing. The tables (sections, relocations, strings) stay those of the file as
+it was read; the resource's bytes are the one copy the object tree is read from after a write, and the bytes written
+out (the Granny CRC recomputed over them). A big-endian (Xbox 360) resource is read only. Decided against the Python
+twin (round PR1b-2-rest3): its writer packed whatever byte order a format named, wrote the resource's bytes before
+finding a place outside the section, and read later trees from per-section copies that a section overlapping
+another would not share; no DICE file has overlapping sections, so the trees are the same on all of them. A
+resource whose object tree does not read (damaged) is a GrannyError saying why.
+
+Evidence: [code: rust/bc2-py/src/granny.rs:159] [code: rust/bc2-formats/src/granny.rs:399] [test: rust/bc2-formats/src/granny.rs::member_offsets_and_another_copy] [test: bfbc2-anim-tools/tests/test_granny_native.py::writes] [test: bfbc2-anim-tools/tests/test_granny_f2a_native.py::edits]
+
 ## Open questions
 
 - Compressed Granny sections (compression type non-zero) are refused; none have been seen, but the game's support is

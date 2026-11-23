@@ -16110,6 +16110,35 @@
    ]
   },
   {
+   "id": "GRANNY-EDIT-2",
+   "title": "Writing values in place",
+   "file": "spec/formats/granny.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-py/src/granny.rs:159"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:399"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/granny.rs::member_offsets_and_another_copy"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny_native.py::writes"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny_f2a_native.py::edits"
+    }
+   ]
+  },
+  {
    "id": "HAVOK-RES-1",
    "title": "Names",
    "file": "spec/formats/havok.md",
