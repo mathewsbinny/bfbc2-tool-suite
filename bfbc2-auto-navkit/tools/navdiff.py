@@ -10,12 +10,15 @@ where the one before agrees:
   areas     DICE areas reproduced as exactly the same set of cells (else split / merged / different)
   bounds    for areas that match: outline, portal and border-portal geometry, compared as grid-sized pieces
             (so runs merged differently still compare equal)
-  graph     route nodes matched by position (0.05 m horizontally, 0.3 m vertically), then edges and costs
+  graph     route nodes matched by position (0.05 m horizontally, 0.3 m vertically), then edges and costs;
+            and every DICE node paired one to one with its nearest NavKit node within half a propagation step
+            (paired_graph), every DICE edge judged through the partners
 
 Parity = the share of the reference that the candidate reproduces exactly, per layer. 100 % on every layer
 is the goal (navkit-dice-parity: same content, bytes may differ).
 """
 import json
+import math
 import os
 import sys
 from collections import defaultdict
@@ -282,7 +285,72 @@ def compare_sector(ref, cand):
             r['edges_same'] += 1
             r['costs_same'] += e.tag in tags
             tags.remove(e.tag if e.tag in tags else tags[0])
+    r.update(paired_graph(ref, cand))
     return r
+
+
+# The nearest-node pairing (round NKS-deep E): every DICE node paired one to one with a NavKit node of the sector,
+# nearest first, within half a propagation step (KYG-NODE-7's DistPropagation / 2: 1.675 m coarse, 0.425 m detailed,
+# 7.675 m vehicle) in plan and NODE_NEAR_DY in height; every DICE edge is then judged through its ends' partners.
+PAIR_TOL = ((0.5, 0.425), (0.95, 1.675), (math.inf, 7.675))      # (the sector's pitch below, tolerance)
+NODE_NEAR_DY = 1.0
+DIST_BINS = (0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0)                # the nearest-node histogram's upper bounds (m)
+DIST_KEYS = ('nd_005', 'nd_010', 'nd_025', 'nd_050', 'nd_100', 'nd_200', 'nd_400', 'nd_far')
+COST_TOL = 10                                                     # a paired edge's cost within 1 / COST_TOL of DICE's
+
+
+def pair_tolerance(pitch):
+    return next(t for below, t in PAIR_TOL if pitch < below)
+
+
+def paired_graph(ref, cand):
+    """The all-node measures: nodes_paired (DICE nodes with a partner), edges_paired (DICE edges whose partners hold
+    the edge), costs_paired (of those, the cost within a tenth of DICE's) and the histogram of each DICE node's
+    nearest NavKit node in plan (DIST_KEYS; nd_far: none within 4 m at NODE_NEAR_DY)."""
+    tol = pair_tolerance(float(ref.mesh.pitch))
+    reach = max(tol, DIST_BINS[-1])
+    grid = defaultdict(list)
+    for k, n in enumerate(cand.nodes):
+        grid[(math.floor(n.pos[0] / reach), math.floor(n.pos[2] / reach))].append(k)
+    hist = dict.fromkeys(DIST_KEYS, 0)
+    pairs = []
+    for i, n in enumerate(ref.nodes):
+        gx, gz = math.floor(n.pos[0] / reach), math.floor(n.pos[2] / reach)
+        best = math.inf
+        for dx in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                for k in grid.get((gx + dx, gz + dz), ()):
+                    m = cand.nodes[k].pos
+                    if abs(m[1] - n.pos[1]) > NODE_NEAR_DY:
+                        continue
+                    d2 = (m[0] - n.pos[0]) * (m[0] - n.pos[0]) + (m[2] - n.pos[2]) * (m[2] - n.pos[2])
+                    best = min(best, d2)
+                    if d2 <= tol * tol:
+                        pairs.append((d2, i, k))
+        b = next((j for j, u in enumerate(DIST_BINS) if best <= u * u), len(DIST_BINS))
+        hist[DIST_KEYS[b]] += 1
+    pairs.sort()
+    partner: dict[int, int] = {}
+    taken: set[int] = set()
+    for _, i, k in pairs:
+        if i not in partner and k not in taken:
+            partner[i] = k
+            taken.add(k)
+    cand_edges = defaultdict(list)
+    for e in cand.edges:
+        cand_edges[(e.src, e.dst)].append(e.tag & 0x7FFFFFFF)
+    edges = costs = 0
+    for e in ref.edges:
+        s, d = partner.get(e.src), partner.get(e.dst)
+        got = cand_edges.get((s, d)) if s is not None and d is not None else None
+        if not got:
+            continue
+        want = e.tag & 0x7FFFFFFF
+        best_c = min(got, key=lambda c: (abs(c - want), c))
+        got.remove(best_c)
+        edges += 1
+        costs += COST_TOL * abs(best_c - want) <= want
+    return {'nodes_paired': len(partner), 'edges_paired': edges, 'costs_paired': costs, **hist}
 
 
 # ------------------------------------------------------------------------------------------------ report
@@ -293,7 +361,8 @@ def pct(a, b):
 
 ROW_KEYS = ('cells_ref', 'cells_cand', 'cells_same', 'areas_ref', 'areas_cand', 'areas_same', 'areas_split', 'areas_other',
             'outline_same', 'portals_same', 'borders_same', 'nodes_ref', 'nodes_cand', 'nodes_same', 'edges_ref',
-            'edges_same', 'costs_same', 'only_ref', 'only_cand', 'detailed_ref', 'detailed_cand')   # compare_sector's
+            'edges_same', 'costs_same', 'only_ref', 'only_cand', 'detailed_ref', 'detailed_cand',
+            'nodes_paired', 'edges_paired', 'costs_paired') + DIST_KEYS   # compare_sector's
 
 
 def _diff_native(R, C, common, only_r, only_c, clip):
@@ -348,6 +417,7 @@ def diff(reference, candidate, per_sector=False, log=print, clip=None):
         tot['cells_ref'] += native[1][n][0] if native is not None else sum(len(c) for c in s.cells())
         tot['areas_ref'] += len(s.mesh.areas)
         tot['nodes_ref'] += len(s.nodes)
+        tot['nd_far'] += len(s.nodes)             # no NavKit node of the sector at all
         tot['edges_ref'] += len(s.edges)
     for n, sid in enumerate(only_c):
         tot['cells_cand'] += native[2][n] if native is not None else sum(len(c) for c in C[sid].cells())
@@ -366,7 +436,13 @@ def diff(reference, candidate, per_sector=False, log=print, clip=None):
         'graph': {'nodes_reference': tot['nodes_ref'], 'nodes_candidate': tot['nodes_cand'], 'nodes_same': tot['nodes_same'],
                   'node_parity': round(pct(tot['nodes_same'], tot['nodes_ref']), 2),
                   'edges_reference': tot['edges_ref'], 'edges_same': tot['edges_same'], 'edge_parity': round(pct(tot['edges_same'], tot['edges_ref']), 2),
-                  'costs_same_of_same_edges': round(pct(tot['costs_same'], tot['edges_same']), 2)},
+                  'costs_same_of_same_edges': round(pct(tot['costs_same'], tot['edges_same']), 2),
+                  # the nearest-node pairing over every DICE node and edge (round NKS-deep E, paired_graph)
+                  'nodes_paired': tot['nodes_paired'], 'node_pairing': round(pct(tot['nodes_paired'], tot['nodes_ref']), 2),
+                  'node_pairing_candidate': round(pct(tot['nodes_paired'], tot['nodes_cand']), 2),
+                  'edges_paired': tot['edges_paired'], 'edge_pairing': round(pct(tot['edges_paired'], tot['edges_ref']), 2),
+                  'costs_paired': tot['costs_paired'], 'cost_pairing': round(pct(tot['costs_paired'], tot['edges_ref']), 2),
+                  'node_distance': {k: round(pct(tot[k], tot['nodes_ref']), 2) for k in DIST_KEYS}},
         'worst_sectors': [{'id': hex(r['id']), 'cells_only_reference': len(r['only_ref']), 'cells_only_candidate': len(r['only_cand']),
                            'areas_same': f"{r['areas_same']}/{r['areas_ref']}"}
                           for r in sorted(rows, key=lambda r: -(len(r['only_ref']) + len(r['only_cand'])))[:15]],
@@ -379,6 +455,8 @@ def diff(reference, candidate, per_sector=False, log=print, clip=None):
     log(f"bounds    of the same areas: outline {b['outline']} %, portals {b['portals']} %, border portals {b['borders']} %")
     log(f"graph     nodes {g['nodes_same']}/{g['nodes_reference']} ({g['node_parity']} %), edges {g['edges_same']}/{g['edges_reference']} ({g['edge_parity']} %), "
         f"costs of matched edges {g['costs_same_of_same_edges']} %; candidate has {g['nodes_candidate']} nodes")
+    log(f"paired    nodes {g['node_pairing']} %, edges {g['edge_pairing']} %, costs within a tenth {g['cost_pairing']} % "
+        f"(of DICE's; nearest node: " + ', '.join(f"{k} {v} %" for k, v in g['node_distance'].items()) + ')')
     if per_sector:
         log('worst sectors (cells only in reference / only in candidate, areas the same):')
         for w in res['worst_sectors']:

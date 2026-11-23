@@ -747,6 +747,30 @@ impl Level {
         Ok(out)
     }
 
+    /// KYG-AREA-4's split (0x011B4BB0): an area's cells dealt into four groups by the middle of their integer box
+    /// (mid = (min + max) >> 1; x above it, z above it), each group's connected components an area of its own.
+    #[must_use]
+    pub fn split_box(&self, comp: &[Cell], gi0: i64, gj0: i64, rule: Rule) -> Vec<Vec<Cell>> {
+        let ext = |f: fn(&Cell) -> i64| {
+            let it = comp.iter().map(f);
+            (it.clone().min().unwrap_or(0), it.max().unwrap_or(0))
+        };
+        let ((i0, i1), (j0, j1)) = (ext(|c| c.0), ext(|c| c.1));
+        let (mi, mj) = ((i0 + i1) >> 1, (j0 + j1) >> 1);
+        let mut out = Vec::new();
+        for (hi, hj) in [(false, false), (true, false), (false, true), (true, true)] {
+            let group: Vec<(usize, i64, i64)> = comp
+                .iter()
+                .filter(|c| (c.0 > mi) == hi && (c.1 > mj) == hj)
+                .map(|&(i, j, k)| (k, i, j))
+                .collect();
+            if !group.is_empty() {
+                out.extend(self.components(&group, gi0, gj0, rule));
+            }
+        }
+        out
+    }
+
     /// `navbuild.bisect`: a component spanning more than `max_area` samples on an axis is cut at the middle of its
     /// longer extent, each half split into components again, recursively.
     fn bisect(&self, comp: Vec<Cell>, gi0: i64, gj0: i64, max_area: i64, rule: Rule, out: &mut Vec<Vec<Cell>>) {

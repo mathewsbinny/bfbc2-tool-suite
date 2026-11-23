@@ -404,6 +404,7 @@ fn job_of(level: &Level, t: &Bound<'_, PyAny>) -> PyResult<(usize, GraphJob)> {
             mids,
             borders,
             orders,
+            spawns: Vec::new(),
             ladders,
             blocked,
         },
@@ -448,6 +449,7 @@ pub fn graph_many<'py>(
         order_node_min,
         grid_min,
         placement: None,
+        dice_seeds: false,
     };
     let sectors = store.read()?;
     let prepared = jobs

@@ -30,7 +30,7 @@ pub const LEVELS: [&str; 13] = [
 pub const ONSLAUGHT: [&str; 2] = ["ons_mp_002", "ons_mp_004"];
 
 /// (key, heading, decimals: None for `'{}'`)
-const COLUMNS: [(&str, &str, Option<usize>); 20] = [
+const COLUMNS: [(&str, &str, Option<usize>); 23] = [
     ("ground", "ground %", Some(1)),
     ("extra_ground", "extra %", Some(1)),
     ("areas_same", "areas %", Some(1)),
@@ -39,6 +39,9 @@ const COLUMNS: [(&str, &str, Option<usize>); 20] = [
     ("portals", "portals %", Some(1)),
     ("nodes_same", "nodes %", Some(1)),
     ("edges_same", "edges %", Some(1)),
+    ("nodes_paired", "n.pair %", Some(1)),
+    ("edges_paired", "e.pair %", Some(1)),
+    ("costs_paired", "c.pair %", Some(1)),
     ("islands_reference", "isl.ref", None),
     ("islands_candidate", "isl.ours", None),
     ("connectivity", "connect %", Some(1)),
@@ -52,13 +55,16 @@ const COLUMNS: [(&str, &str, Option<usize>); 20] = [
     ("df_f_precision", "F prec %", Some(1)),
     ("df_f_recall", "F rec %", Some(1)),
 ];
-const TOTALS: [&str; 16] = [
+const TOTALS: [&str; 19] = [
     "ground",
     "extra_ground",
     "areas_same",
     "portals",
     "nodes_same",
     "edges_same",
+    "nodes_paired",
+    "edges_paired",
+    "costs_paired",
     "connectivity",
     "over_connection",
     "runtime_connectivity",

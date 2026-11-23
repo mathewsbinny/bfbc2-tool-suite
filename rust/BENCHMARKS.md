@@ -4231,3 +4231,163 @@ marshalling lists or the header overlapping, `scratchpad` probe):
 - `GrannyReference` and the `*_reference` functions (`shift_position_reference`, `set_orientations_reference`,
   `add_tracks_reference`, `_Graft`): the Python twins, kept for parity; retiring them needs their answers recorded
   (as `granny_golden.json` holds `to_pc`'s) - PY1.
+
+## NKS-deep E: the measures over every node and edge, DICE's seeds, the midline cut's size, DICE's detailed sectors (2026-11-23, branch `nksde`)
+
+Part E of NKS-deep (ROADMAP "NKS-deep"). The executable was read with headless Ghidra on a scratch copy of Project
+OPFOR's analysed project (deleted); no game run, nothing written to OPFOR's `game\`. Every build was measured on the
+15 regression levels (one level at a time, free RAM checked before each); the DICE-side rules on all 35 DICE files.
+
+### 1. The measure rework (XNAV-MEAS-1)
+
+`navdiff.paired_graph` / `bc2_navbuild::measures::paired_graph` (Python and Rust give the same counts on 40 random
+file pairs): per sector every DICE node paired one to one with a NavKit node, nearest first, within half a
+propagation step in plan (0.425 m detailed, 1.675 m coarse, 7.675 m vehicle) and 1 m in height. Over all DICE
+nodes / edges: `nodes_paired`, `nodes_paired_candidate` (of NavKit's nodes: extra nodes earn nothing),
+`edges_paired` (the partners hold the edge), `costs_paired` (and its cost is within a tenth), `node_distance` (each
+DICE node's nearest NavKit node in plan, binned). The old measures stay beside them for this round.
+
+The current build (B's placement on; the reference re-recorded, every old measure equal to B's):
+
+| level | nodes_same (old) | edges_same (old) | costs (old, of matched) | nodes_near | nodes_paired | nodes_paired_candidate | edges_paired | costs_paired |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| sp_01 | 0.92 | 0.02 | 73.33 | 59.13 | 28.75 | 23.55 | 7.16 | 2.38 |
+| sp_02 | 0.37 | 0.01 | 100.0 | 52.60 | 19.03 | 16.81 | 3.05 | 1.22 |
+| sp_03 | 0.99 | 0.03 | 96.43 | 60.51 | 33.76 | 27.80 | 8.63 | 2.93 |
+| sp_04 | 0.53 | 0.01 | 100.0 | 48.48 | 20.95 | 18.84 | 3.69 | 1.25 |
+| sp_003_b | 1.20 | 0.04 | 94.37 | 60.23 | 36.74 | 31.28 | 9.76 | 3.31 |
+| sp_004_b | 0.38 | 0.01 | 100.0 | 62.20 | 17.63 | 11.71 | 2.38 | 0.91 |
+| sp_005 | 0.94 | 0.03 | 86.44 | 57.40 | 33.67 | 26.67 | 8.14 | 2.75 |
+| sp_005_b | 0.92 | 0.02 | 85.71 | 61.93 | 32.15 | 26.05 | 7.59 | 2.60 |
+| sp_006 | 0.34 | 0.00 | 50.0 | 39.97 | 18.53 | 16.02 | 2.60 | 1.03 |
+| sp_007 | 0.73 | 0.01 | 87.5 | 58.43 | 27.10 | 20.60 | 5.31 | 1.82 |
+| sp_008 | 0.58 | 0.00 | 100.0 | 68.59 | 26.55 | 16.28 | 6.06 | 2.15 |
+| sp_008_b | 0.57 | 0.00 | 100.0 | 59.16 | 14.49 | 9.23 | 2.17 | 0.80 |
+| sp_009 | 0.21 | 0.00 | 100.0 | 32.43 | 9.70 | 7.81 | 0.84 | 0.69 |
+| ons_mp_002 | 0.30 | 0.00 | 0.0 | 56.93 | 15.64 | 14.76 | 2.05 | 0.81 |
+| ons_mp_004 | 0.40 | 0.00 | 100.0 | 65.18 | 14.75 | 14.85 | 2.21 | 0.87 |
+| **mean** | 0.63 | 0.01 | 84.92 | 56.21 | 23.30 | 18.82 | 4.78 | 1.70 |
+
+Nearest NavKit node of each DICE node (mean shares): within 0.05 m 0.59 %, 0.1 m 0.59, 0.25 m 3.37, 0.5 m 8.07, 1 m
+15.94, 2 m 23.29, 4 m 21.89, none within 4 m 26.27 %. The old `costs` is a share of the 0-5 edges a level matched
+within 5 cm (ons_mp_002's 0 % is one edge); `costs_paired` covers every DICE edge.
+
+Old and new definitions on B's placement (the same offline 0.2 m samples both ways, the only pair of runs with the
+placement off): the old measures hardly move; the new ones show every graph measure rising.
+
+| measure | placement off | placement on |
+|---|---:|---:|
+| `costs` (old) | 88.64 | 90.32 |
+| `nodes_same` / `edges_same` (old) | 0.67 / 0.02 | 0.66 / 0.02 |
+| `nodes_near` | 47.77 | 56.90 |
+| `nodes_paired` | 15.23 | 23.48 |
+| `nodes_paired_candidate` | 10.34 | 18.04 |
+| `edges_paired` | 1.61 | 4.80 |
+| `costs_paired` | 0.42 | 1.69 |
+
+### 2. DICE's seed list (KYG-SEED-2)
+
+Decoded: a sector's seeds come from its MapBuilder configuration - the spawn seeds in the sector's box (the
+sectors maker), then its `.autoseed` perimeter points; BC2 snaps them to the sample grid and drops them onto the
+ground; they become nodes unlocked, after any seed-graph nodes (none on DICE's levels). Checked on the 35 files
+(`kynapse_seeds`): of DICE's detailed ordinary nodes on the sample grid, 584 of 1,610 lie on the lines two pitches
+inside a square (0.8 % of the grid's points do); coarse on-grid nodes are not enriched there (279 of 7,562 against
+3.2 %): coarse seeds merge, detailed ones often survive.
+
+Built behind `Switches::dice_seeds` (the spawns and the perimeter cells two pitches inside the square, unlocked,
+after NavKit's border nodes and order positions). Screens on sp_009, sp_004_b, ons_mp_004 (means; before = B):
+
+| variant | nodes_near | nodes_paired | edges_paired | connectivity | over_connection | ai_pairwise | NavKit nodes, sp_004_b (DICE 8,971) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| before | 53.27 | 14.03 | 1.81 | 99.31 | 8.94 | 95.17 | 13,509 |
+| spawns + perimeter (DICE's) | 52.81 | 14.33 | 1.75 | 99.16 | 9.33 | 96.10 | 14,093 |
+| perimeter on terrain only | 52.78 | 14.46 | 1.77 | 99.14 | 9.33 | 95.17 | - |
+| without the order positions | 52.53 | 13.87 | 1.79 | 99.18 | 9.45 | 89.90 | - |
+| border nodes held back until the sector's seeds propagated | 53.28 | 13.90 | 1.72 | 99.18 | 9.20 | 96.10 | - |
+| the seeds locked | 59.32 | 19.48 | 1.85 | 99.24 | 9.20 | 96.60 | 52,147 |
+
+The locked variant's gains come with 4-7 times the nodes (rejected on that alone). DICE's list on the full set: the
+6 levels built before sp_005's build passed 50 minutes (stopped): `nodes_near` 57.19 -> 58.39, `nodes_paired` 26.14
+-> 27.70, `edges_paired` 5.78 -> 6.14, `nodes_same` 0.73 -> 0.86, but `connectivity` 98.74 -> 98.60 (5 of 6 levels
+lower, sp_04 -0.27), `over_connection` 24.27 -> 24.60, `ai_pairwise` sp_04 97.3 -> 96.6 and sp_01 98.9 -> 98.6,
+`costs` (old) 94.0 -> 80.5. Off (XNAV-BLD-3). NavKit's sectors have no margins and no linking stage, so its border
+nodes stand in for what DICE's linking joins, and DICE's literal list starts a lattice that NavKit's border band then
+crowds.
+
+### 3. The midline cut (KYG-AREA-4, KYG-AREA-5)
+
+Decoded: the size test serialises each area into Kynapse's in-place mesh without a buffer: 100 bytes + 28 per
+portal segment + 52 per C entry + 20 per D / E chain + 12 per segment + 32 per F polygon + 12 per segment, after the
+per-area chain simplification (round B's "before the outlines are simplified" corrected). Fitted on the 35 files
+with the stored counts (`kynapse_cut`; C portals not counted): grouped by the union's box midline, 807 of 872 coarse
+cut groups reach 8,192 bytes merged back (median 15.2 KB) against 1,211 of 115,713 uncut areas (p99 8.3 KB): a
+partial separation, since the stored layout is not the in-place one; grouped by the tile midline (KYG-AREA-2's
+groups) 311 of 1,064 stay under. The detailed and vehicle straight portals on a box midline are mostly not size
+cuts (227 detailed groups, median 2.5 KB).
+
+Built: `stage::stage_cut` (`Switches::midline_cut`): the stage built again while an area's record by the formula
+reaches 8,192 bytes, that area dealt into four on its cells' box midlines (`Level::split_box`, each group's
+components an area). NavKit's records are not DICE-sized (largest coarse / detailed on sp_01: 42 / 48 KB, DICE 13 /
+15 KB; 166 / 358 areas over the limit against DICE's 84 / 11), so it fires on hundreds of areas a level. The 15
+levels (before = B):
+
+| measure | before | cut |
+|---|---:|---:|
+| areas (DICE 10,960) | 14,267 | 27,400 |
+| detailed areas (DICE 3,099) | 8,605 | 18,105 |
+| `areas_same`, `portals`, `outline` | 5.18, 6.48, 97.99 | unchanged |
+| `nodes_near` / `nodes_paired` / `edges_paired` | 56.21 / 23.30 / 4.78 | 56.33 / 23.39 / 4.81 |
+| `ai_coverage` | 99.16 | 97.27 |
+| `ai_pairwise` | 95.57 | 92.99 |
+| `df_d_recall` / `df_f_recall` | 23.89 / 33.46 | 23.18 / 32.17 |
+
+Off: the cut needs NavKit's own records DICE-sized first (its outlines and per-cell portals). A level builds 1.5-2.5
+times slower with it (each extra stage pass).
+
+### 4. DICE's detailed sectors with the offline 0.2 m samples (KYG-DET-1)
+
+`bfbc2 navkit sample <lv> --offline --dice` (0.8 + 0.2 m, 3-19 s a level) covers all 502 of DICE's detailed
+sectors; the builds take the 0.2 m pair from it and the 0.8 m in-game samples as before. Control: NavKit's own
+choice from the same offline 0.2 m run. Means over the 15 levels:
+
+| measure | in-game 0.2 m, NavKit's choice (reference) | offline, NavKit's | offline, DICE's 502 | offline, NavKit's, placement off | offline, DICE's, placement off |
+|---|---:|---:|---:|---:|---:|
+| `ground` | 98.22 | 98.14 | 98.38 | 98.14 | 98.38 |
+| `areas_same` | 5.18 | 5.16 | 5.40 | 5.16 | 5.40 |
+| `portals` | 6.48 | 6.43 | 6.16 | 6.43 | 6.16 |
+| `outline` | 97.99 | 97.96 | 97.57 | 97.96 | 97.57 |
+| `nodes_near` | 56.21 | 56.90 | 57.05 | 47.77 | 46.38 |
+| `nodes_paired` | 23.30 | 23.48 | 23.30 | 15.23 | 13.95 |
+| `nodes_paired_candidate` | 18.82 | 18.04 | 18.99 | 10.34 | 10.44 |
+| `edges_paired` | 4.78 | 4.80 | 4.80 | 1.61 | 1.40 |
+| `connectivity` | 99.06 | 98.33 | 98.36 | 98.03 | 98.07 |
+| `ai_coverage` | 99.16 | 98.10 | 98.30 | 98.10 | 98.30 |
+| `ai_pairwise` | 95.57 | 93.84 | 94.38 | 90.62 | 91.19 |
+| `df_d_recall` / `df_f_recall` | 23.89 / 33.46 | 23.89 / 33.46 | 28.40 / 39.96 | 23.89 / 33.46 | 28.40 / 39.96 |
+| `over_connection` | 15.74 | 15.70 | 15.56 | 15.64 | 15.40 |
+| detailed areas (DICE 3,099) | 8,605 | 9,913 | 8,261 | 9,913 | 8,261 |
+
+Against its control, DICE's choice is better on 11 means and worse on `portals`, `outline`, `costs` and
+`nodes_paired` (placement on); placement off it lowers the node measures. The offline 0.2 m samples are worse than
+the in-game ones for the same choice (`connectivity` 99.06 -> 98.33, `ai_pairwise` 95.57 -> 93.84; sp_03 99.15 ->
+95.96, ons_mp_002 99.85 -> 97.30). `DICE_DETAILED` stays off: a ruling for the user, and the offline / in-game
+0.2 m gap is an item of its own (NAVS-SMP-4 measured surfaces, not builds).
+
+### What changed, what did not
+
+The build's output is unchanged (both switches off): the 15 levels rebuilt give every measure of B's reference; the
+reference run was re-recorded with the new measures (the old one kept as `regression_before_2026-11-23_nksde.json`);
+the golden builds are unchanged. Tests: `cargo test -p bc2-navbuild --lib` (new:
+`split_box_deals_an_area_into_four_on_its_box_midlines`, `inplace_size_counts_the_in_place_record`,
+`the_midline_cut_leaves_no_area_at_the_size_limit`); `test_navtools_native.py` quick (navdiff's Python against the
+Rust on 40 random pairs, the new counts included).
+
+### Left
+
+- DICE's seeds need NavKit's sectors built with DICE's margins and a linking stage (KYG-SEC-2), and a faster
+  propagation over thousands of seeds (sp_005 passed 50 minutes).
+- The midline cut needs NavKit's area records DICE-sized (outline simplification and portal runs as DICE's), and
+  `ai_coverage`'s loss under the cut traced.
+- `DICE_DETAILED`: a ruling; the offline sampler's 0.2 m builds against the in-game ones.
+- The old exact-match measures (`nodes_same`, `edges_same`, `costs`) out of navregress's failing set after this
+  round.

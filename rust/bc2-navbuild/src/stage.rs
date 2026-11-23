@@ -251,6 +251,12 @@ pub struct Switches {
     pub edge_sector_tiles: bool,
     /// `MAX_AREA` when `BISECT_AREAS`, else `None`.
     pub max_area: Option<i64>,
+    /// KYG-AREA-4's midline cut ([`stage_cut`]): an area whose record reaches `MaxLocalMapBinarySize` split on its
+    /// cells' box midlines.
+    pub midline_cut: bool,
+    /// DICE's seed list (KYG-SEED-2) in the placement: the sector's soldier spawns and perimeter cells, unlocked,
+    /// after the border nodes and order positions.
+    pub dice_seeds: bool,
     /// `GABRIEL_EDGES`.
     pub gabriel: Gabriel,
     /// DICE's edge rule (KYG-EDGE-3): a sector's walkable pairs pruned to a greedy spanner of this stretch
@@ -339,6 +345,8 @@ impl Default for Switches {
             edge_rule_grid_min: true,
             edge_sector_tiles: true,
             max_area: None,
+            midline_cut: false,
+            dice_seeds: false,
             gabriel: Gabriel::Detailed,
             spanner: Some(SPANNER_STRETCH),
             sort_nodes_by_id: true,
@@ -427,6 +435,8 @@ pub struct StageArgs {
     pub zoff: i64,
     /// The AI order points.
     pub order_points: Vec<P3>,
+    /// The soldier spawns: DICE's placement seeds a sector from those in its square (KYG-SEED-2).
+    pub spawns: Vec<P3>,
     /// Build only these sectors.
     pub sector_filter: Option<BTreeSet<(i64, i64)>>,
     /// The level's minimum sector X / Y when the stage holds only part of it.
@@ -437,6 +447,91 @@ pub struct StageArgs {
     pub carried: BTreeMap<(i64, i64), Vec<(u32, P3)>>,
     /// The level's terrain height field: DICE's terrain rule for broken sides (KYG-DF-1, `Switches::df_slope`).
     pub terrain: Option<Arc<Heightfield>>,
+    /// The areas to split on their cells' box midlines (KYG-AREA-4, [`stage_cut`]): (sector, tile, the area's
+    /// first cell).
+    pub cuts: BTreeSet<CutKey>,
+}
+
+/// An area of pass 1: (sector, tile, its least cell (i, j, surface)).
+pub type CutKey = ((i64, i64), (i64, i64), (i64, i64, usize));
+
+/// `MaxLocalMapBinarySize`: Kynapse's default (DICE does not set it), KYG-AREA-4.
+pub const MAX_LOCAL_MAP_BINARY_SIZE: i64 = 8192;
+
+/// An area's in-place record size as the map builder's size test counts it (KYG-AREA-4: 0x0134EDA0 run for its size
+/// from 0x011AD550): 100 bytes, 28 per portal segment, 20 per D / E chain and 12 per segment, 32 per F polygon and 12
+/// per segment; from the record NavKit writes (its portals one segment each, its lines and cells as stored).
+#[must_use]
+pub fn inplace_size(a: &kymesh::Area) -> i64 {
+    let chains = |l: &[Vec<kymesh::Vec3>]| -> (i64, i64) {
+        let n = l.iter().filter(|c| c.len() >= 2).count();
+        let segs: usize = l.iter().map(|c| c.len().saturating_sub(1)).sum();
+        (
+            i64::try_from(n).unwrap_or(i64::MAX),
+            i64::try_from(segs).unwrap_or(i64::MAX),
+        )
+    };
+    let (nd, sd) = chains(&a.d_lines);
+    let (ne, se) = chains(&a.outline);
+    let count = |n: usize| i64::try_from(n).unwrap_or(i64::MAX);
+    let nf = count(a.cells.len());
+    let sf = count(a.cells.iter().map(|c| c.points.len().saturating_sub(1)).sum());
+    100 + 28 * count(a.portals.len()) + 20 * (nd + ne) + 12 * (sd + se) + 32 * nf + 12 * sf
+}
+
+/// KYG-AREA-4's cut: [`stage`] again while an area's record ([`inplace_size`]) reaches
+/// [`MAX_LOCAL_MAP_BINARY_SIZE`], that area split on its cells' box midlines (pass 1, [`Level::split_box`]); the
+/// stats and the log are those of the last run.
+///
+/// # Errors
+/// As [`stage`].
+pub fn stage_cut(
+    ground: Ground,
+    args: &StageArgs,
+    cfg: &BuildSettings,
+    sw: &Switches,
+    stats: &mut BuildStats,
+    log: &mut dyn Log,
+) -> Result<Stage, NavError> {
+    if !sw.midline_cut {
+        return stage(ground, args, cfg, sw, stats, log);
+    }
+    struct Quiet(f64);
+    impl Log for Quiet {
+        fn line(&mut self, _text: &str) {}
+        fn seconds(&self) -> f64 {
+            self.0
+        }
+    }
+    let mut args = args.clone();
+    let mut ground = ground;
+    for _ in 0..12 {
+        let mut trial = stats.clone();
+        let st = stage(ground, &args, cfg, sw, &mut trial, &mut Quiet(log.seconds()))?;
+        let mut new = BTreeSet::new();
+        for (inf, gr) in st.sectors.iter().zip(&st.graphs) {
+            for (a, area) in gr.mesh.areas.iter().enumerate() {
+                if inplace_size(area) < MAX_LOCAL_MAP_BINARY_SIZE {
+                    continue;
+                }
+                let (Some(cells), Some(t)) = (inf.cells.get(a), inf.tiles.get(a)) else {
+                    continue;
+                };
+                if let Some(&first) = cells.iter().min() {
+                    new.insert((inf.xy, (i64::from(t[0]), i64::from(t[1])), first));
+                }
+            }
+        }
+        new.retain(|k| !args.cuts.contains(k));
+        if new.is_empty() {
+            *stats = trial;
+            log.line(&format!("midline cuts (KYG-AREA-4): {} areas split", args.cuts.len()));
+            return Ok(st);
+        }
+        ground = st.ground;
+        args.cuts.extend(new);
+    }
+    stage(ground, &args, cfg, sw, stats, log)
 }
 
 /// One sector of a stage (`info[(X, Y)]`).
@@ -1180,8 +1275,30 @@ pub fn stage(
         .collect();
     let built = specs
         .par_iter()
-        .map(|&((gi0, gj0, _, _), start, (tile, tiles))| {
-            level.build_areas(gi0, gj0, cfg.window, start, tile, tiles, sw.max_area, sw.area_link)
+        .zip(sectors.par_iter())
+        .map(|(&((gi0, gj0, _, _), start, (tile, tiles)), &xy)| {
+            let areas = level.build_areas(gi0, gj0, cfg.window, start, tile, tiles, sw.max_area, sw.area_link)?;
+            if args.cuts.is_empty() {
+                return Ok(areas);
+            }
+            // KYG-AREA-4: the areas a size test marked, split on their box midlines (and their pieces, again)
+            let mut out = Vec::with_capacity(areas.len());
+            let mut todo: Vec<((i64, i64), Vec<Cell>)> = areas;
+            todo.reverse();
+            while let Some((t, cells)) = todo.pop() {
+                let first = cells.iter().min().copied();
+                if first.is_some_and(|f| args.cuts.contains(&(xy, t, f))) && cells.len() > 1 {
+                    let pieces = level.split_box(&cells, gi0, gj0, sw.area_link);
+                    if pieces.len() > 1 {
+                        for p in pieces.into_iter().rev() {
+                            todo.push((t, p));
+                        }
+                        continue;
+                    }
+                }
+                out.push((t, cells));
+            }
+            Ok(out)
         })
         .collect::<Result<Vec<_>, NavError>>()?;
     let mut infos: Vec<SectorInfo> = Vec::with_capacity(sectors.len());
@@ -1557,6 +1674,7 @@ pub fn stage(
         grid_min: (g.min_x, g.min_z),
         // infantry pitches only: a vehicle build (pitch 1 m) keeps NavKit's own nodes (DICE's vehicle run, NbSectors 64
         // and DistPropagation 15.35 m, is not measured: no vehicle sample run)
+        dice_seeds: sw.dice_seeds,
         placement: (sw.placement && ((cfg.pitch - 0.8).abs() < 1e-6 || cfg.is_detailed()))
             .then(|| crate::propagate::Params::at_pitch(cfg.pitch, cfg.dist_edge_max)),
     };
@@ -1597,6 +1715,12 @@ pub fn stage(
             .get(&inf.xy)
             .map(|b| b.iter().map(|&(_, p, k)| (p, k)).collect())
             .unwrap_or_default();
+        let spawns: Vec<P3> = args
+            .spawns
+            .iter()
+            .copied()
+            .filter(|p| ox <= p.0 && p.0 <= ox + 100.0 && oz <= p.2 && p.2 <= oz + 100.0)
+            .collect();
         jobs.push(GraphJob {
             gi0,
             gj0,
@@ -1604,6 +1728,7 @@ pub fn stage(
             mids,
             borders,
             orders,
+            spawns,
             ladders: lads,
             blocked: det.blocked.clone(),
         });
