@@ -37,6 +37,11 @@ landed on `main`.
   builds were re-recorded. Measured on the 15 regression levels: D precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %,
   every other measure unchanged but sp_02's D recall (21.86 -> 21.53 %, 0.33 points lower: a named exception by the
   user's ruling). The probe `rust/bc2-navbuild/examples/kynapse_df.rs` fits the rule on DICE's files.
+- **The network layer in the specification** (round NET2, documentation only): `spec/engine/network.md` grows from 9 to
+  25 rules (the transports and connection layer, network settings and start-up options, versions and disconnect
+  reasons, PunkBuster, the server's listen path, the join by address, EA's Plasma back-end and its LAN mode, all read
+  statically from `BFBC2Game.exe`), and `spec/engine/network_feasibility.md` studies locally hosted play, Direct IP,
+  VLAN and LAN for Project OPFOR (needs, risks, effort, order, and the tests that would prove each). No tool changes.
 
 ## [0.24.0] - 2026-11-23
 

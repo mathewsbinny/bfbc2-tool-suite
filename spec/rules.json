@@ -7193,6 +7193,234 @@
    ]
   },
   {
+   "id": "NET-TRN-1",
+   "title": "The transport is a socket factory installed for the whole process",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe setTransportMode 0x650E60; factories 0x4F1E00 (vtable 0x1411934), 0x4F1E60 (vtable 0x1411960), 0x5F0F40 -> 0x5F0D50 (vtable 0x141BE04); shared base vtable 0x141128C; UDP create methods 0x4F5280 / 0x4F5380 / 0x4F54A0 -> 0x4F1EC0; in-memory create 0x4F5020 -> 0x4F1D60"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/notes/srv8.txt:1"
+    }
+   ]
+  },
+  {
+   "id": "NET-TRN-2",
+   "title": "The game's own sockets are UDP only",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe UDP socket methods 0x4E3290 (socket 0x4E32E9, bind 0x4E3301), 0x4E3350 (socket 0x4E337F, bind 0x4E33B6), sendto 0x4E3025, recvfrom 0x4EF52F; Havok socket 0xC6A3C0 (string 0x1481F80); DirtySock thunks 0xC55604-0xC5568E called from 0xD7DB7A-0xD7F963; WS2_32 IAT 0x14059AC-0x1405A4C"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:321-349"
+    }
+   ]
+  },
+  {
+   "id": "NET-TRN-3",
+   "title": "The connection layer: a challenge handshake, ghosts, moves and voice",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe connection state names 0xC02AF0-0xC02B5F (strings 0x147D360-0x147D4D4); \"ConnectionManager\" 0x147D888; managers Ghost / MoveClient / MoveServer / Voice 0x147DA6C-0x147DAA8; recorder states 0x147D2CC-0x147D310; packing types 0x140BB2C-0x140BBC8; frame / timeout setting names 0x1417DE0-0x1418394, 0x141D810-0x141D8D8"
+    }
+   ]
+  },
+  {
+   "id": "NET-CFG-1",
+   "title": "The network settings the executable reads",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field names 0x142CC84-0x142CE80 (network / core), 0x142D100-0x142D714 (client / server), 0x142DC00-0x142DDB0 (game); setting strings 0x14183E4, 0x141D9FC, 0x1418624, 0x141D8F4, 0x141D9EC; readers 0x565654, 0x55D0EF, 0x561D9B, 0x8587CC, 0x6561A1"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/notes/srv5.txt:1-10"
+    }
+   ]
+  },
+  {
+   "id": "NET-CFG-2",
+   "title": "Start-up options are looked up by name",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe option lookup 0x4F4CF0 over 0x155D008; call sites listen 0x86B19F, dedicated 0x55D52B, port 0x5FC429, pingInterval 0x5FC374, heartBeatInterval 0x570488, maxQueriesPerSecond 0x856992, queryPortOffset 0x8569B5, networkProtocolId 0x565A07, loginToken 0x5623C6 / 0x56B7E1 / 0x580010 / 0x5889D9 / 0x5B104A, requestState 0x5B4EF5, requestStateParams 0x5B4F36"
+    }
+   ]
+  },
+  {
+   "id": "NET-CFG-3",
+   "title": "Three switches in WinMain decide the instance mutex",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe WinMain helper 0x401EE0 (called from 0xC51FBB): compares at 0x401F11 / 0x401F2E / 0x401F4D / 0x401F6A against strings 0x1409838, 0x140982C, 0x1409824; CreateMutexA 0x401FB7; error checks 0xB7 and 5 at 0x401FC7 / 0x401FD4"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-1",
+   "title": "Network.Version is the build's string unless an option overrides it",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5657B0 (strings 0x1418614 \"ROMEPC795745\", 0x1418604 \"ROMEPC784592\", 0x14185E8, option 0x14185F0); setter 0x4F4BD0; readers of 0x1418624 at 0x565869, 0x565949, 0x565A43, 0x5FE3BD, 0x60010E, 0x600522, 0x600689, 0x853F0C"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-2",
+   "title": "A refused or dropped client gets one of fourteen reasons",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x54BBA0 (jump table 0x54BC70, 14 entries), strings 0x1417960-0x1417A4C, log 0x141793C; second user 0x558FA4; menu strings 0x141A2C4-0x141A32C, 0x1418CA0-0x1418CB8"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-3",
+   "title": "Both ends read the title id and the protocol version",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x650CBB, 0x65620E, 0x6561A2, 0x86B267, 0x86B345"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-4",
+   "title": "The level checksum is computed on both load paths",
+   "file": "spec/engine/network.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "two callers of the checksum at 0x5681AB and 0x829D7D, a stored 16-byte digest, the setting name at 0x142CD70 and reason 12 at 0x14179D0; no compare site found"
+    }
+   ]
+  },
+  {
+   "id": "NET-AC-1",
+   "title": "PunkBuster loads only from its folder",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0x5B83EC-0x5B89BA (strings 0x141AC90-0x141ADAC); settings 0x143C22C, 0x141B750; commands 0x141AE3C, 0x141AF4C"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:182-183"
+    }
+   ]
+  },
+  {
+   "id": "NET-SRV-1",
+   "title": "The server listens where `-listen` says, else on Network.ServerPort",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86B0D0 (category compare at 0x86B0D6, types 0x86B0EE); listen option 0x86B19F; parser 0x8585E0 (':' at 0x858607, '-' at 0x858690, atoi 0x85869D); host default at 0x86B1E7-0x86B1F8 (string 0x141240C); TitleId 0x86B267, ProtocolVersion 0x86B345"
+    }
+   ]
+  },
+  {
+   "id": "NET-SRV-2",
+   "title": "The client executable has the server, not the dedicated server's front end",
+   "file": "spec/engine/network.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "0x55D502-0x55D545 (strings 0x1416738 \"win32\", 0x1418490 \"dedicated\", 0x1416724 \"linux\"); no string \"ServerOptions\" / \"RemoteAdminPort\" in the executable; setting names 0x142D568-0x142D688"
+    }
+   ]
+  },
+  {
+   "id": "NET-SRV-3",
+   "title": "A client can join a server by address",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x55CE50 (event 10 -> 0x55D040); setting 0x14183F8 read at 0x55D07F, ':' search 0x55D0C6, ServerPort 0x55D0EF, format \":%d\" 0x14183E0; message 0x551480 (type 0x14 at 0x551483, vtable 0x1417D20); post 0x55D17F; other constructors' callers 0x5B3FF5, 0x5B43C4, 0x952413, 0x95E5C2, 0x95F267"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/notes/srv6.txt:1-60"
+    }
+   ]
+  },
+  {
+   "id": "NET-ONL-1",
+   "title": "The back-end is Plasma: FESL first, Theater from FESL",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe client strings 0x141C2BC-0x141C2FC; host parts 0x149D080 / 0x149D088 used at 0xDDC39C / 0xDDC31E; 0x149C7D0 at 0xDD6EC9; theaterIp / theaterPort 0x149B5E0 / 0x149B5FC; overrides 0x149A235-0x149A2E5; states 0x1505214-0x1505394; requestState 0x5B4EF5"
+    }
+   ]
+  },
+  {
+   "id": "NET-ONL-2",
+   "title": "Plasma's GameManager carries a LAN broadcast mode",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xDBAB60 (socket 0xDBABED, bind 0xDBAC6F, broadcast address 0xDBACA9-0xDBACED); init 0xDBAD00 (object 0x4954 bytes, constructor 0xDB7110) called at 0xE0110E; caller 0xE01070 in vtable 0x14A022C; strings 0x1498578, 0x1498C74, 0x1498C9C, 0x1498DC4, 0x149A8E5; session types 0x146E970-0x146E9F4"
+    }
+   ]
+  },
+  {
    "id": "ONS-LVL-1",
    "title": "Four levels on four multiplayer maps",
    "file": "spec/engine/onslaught.md",

@@ -50,7 +50,7 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **AI and navigation** (Kynapse) | auto-navkit, stockmp-ai, editor AI workspace, DLL navgen / navquery / forceai | **NKS (now)**, NK3-NK5, A1, WW2 navmesh (hold) | formats/hpd (36), navsample (8), engine/ai (16), engine/bot_ai (41, round AIS), model/ai_orders (16, AIS), transforms/navkit (8), stockmp (7) | covered (generator rules in NKS) | covered; NKS owns the rest | as after SPG |
 | **Cull trees** | culltree, bc2-formats | PR1b-1 | formats/culltree (17), transforms/culltree (8) | covered | covered | as after SPG |
 | **Menus, HUD, APT** | menu-tools, aptgraft, OPFOR menus, DLL menutree / onslaught_hud | IN1 diagnostics | formats/apt (31), engine/menus (4) | thin (runtime) | thin (the action-script runtime and the HUD patches) | SPG2-rest: covered (data side): engine/menus (30): the movies' action script measured, the interpreter's handler table, events and externs, the HUD movies, OPFOR's DLL patches, what a menu edit must keep |
-| **Networking and hosting** | DLL net / server_browser / patches | - | engine/network (9) | covered | covered | as after SPG |
+| **Networking and hosting** | DLL net / server_browser / patches | NET2 (2026-11-23); remote play studied, not queued | engine/network (9) | covered | covered | as after SPG; NET2: covered statically, engine/network (25): the transports, the connection layer, settings and start-up options, versions and disconnect reasons, PunkBuster, the server's listen path, the join by address, the Plasma back-end and its LAN mode; remote play in engine/network_feasibility (study); thin at run time (nothing NET2 adds was run) |
 | **Persistence** (stats, ranks, unlocks, licences, awards) | DLL persistence, stats_screens; OPFOR ww2_awards | Pacific War awards (decided 2026-11-15) | GAME-AWARD-1 (1) -> **engine/persistence (7)** | none | thin: the game's path and OPFOR's hooks; the award engine and `Persistence/*.dbx` classes not written | covered: PERS-DATA / RANK / AWD / SCORE / WW2 (12 more); the award engine not built |
 | **OPFOR's game module: patch points** (27 files, about 170 addresses in `BFBC2Game.exe`) | `src/dll` | air raid, repair stations (hold) | network, persistence, AI-NEED-5, GAME-AWARD-1, crashes index | thin | thin (plan, section 2) | covered: engine/module (15): 221 addresses |
 | **Streaming** (`async`, `streaming_*`, `ondemand_*`) | bc2-formats | - | SND-WAVE-2, SND-OD-1 | thin | thin | covered: engine/streaming (7); the mount functions not traced |
@@ -71,6 +71,14 @@ verified, 116 -> 126 implemented, 487 -> 453 observed, 49 -> 47 inferred); cover
 check (`core/tests/test_spec_probes.py`) now holds every probe's stable counts: 172 checks, about 3.5 minutes.
 
 ## 2. What is left, in the order the queued rounds need it
+
+Round NET2 (2026-11-23, static only) extended `engine/network.md` from 9 to 25 rules (23 observed, 2 inferred) and
+wrote `engine/network_feasibility.md`, a study of locally hosted play, Direct IP, VLAN and LAN with no rules of its
+own. Left for networking, in its order: one diagnostic run with the socket transport to settle why the in-process
+server never listened, its port defaults and `Network.Version` (network.md's open questions); then, if the user takes
+remote play up, the listen server and Direct IP as one milestone (the study's sections 4 and 5). Statically still
+open: transport 2's path, the server's compare sites for the version, title and level digest, and whether Plasma's
+GameManager is ever created on PC.
 
 Round SPG2-rest3 (2026-11-22, with AIS-rest2's static half) worked section 2c's item 3 and bot_ai.md's RE list; section
 2c keeps SPG2-rest2's list as it was. Found: the ticket counter's and the life counter's state and what moves them
@@ -206,7 +214,7 @@ Over the 1,269 rules SPV1 started from (round E4's five new rules, merged beside
 | `engine/materials.md` | 21 -> 25 | 8 | 11 -> 7 | 6 |
 | `engine/menus.md` | 20 | 7 | 4 | 0 |
 | `engine/module.md` | 0 | 14 | 1 | 0 |
-| `engine/network.md` | 0 | 0 | 9 | 0 |
+| `engine/network.md` | 0 | 0 | 9 (NET2: 23) | 0 (NET2: 2) |
 | `engine/onslaught.md` | 0 | 7 | 8 | 0 |
 | `engine/persistence.md` | 3 | 3 | 14 | 0 |
 | `engine/rendering.md` | 25 | 4 | 14 | 2 |
@@ -298,7 +306,7 @@ Over the 1,269 rules SPV1 started from (round E4's five new rules, merged beside
 | `engine/materials.md` | 7 | P: MAT-TEX-2; X: MAT-WW2-2; R: MAT-SLOT-5, MAT-TEX-20 |
 | `engine/menus.md` | 4 | R: MENU-CAT-1, MENU-EVT-1, MENU-RT-3, MENU-UNL-1 |
 | `engine/module.md` | 1 | X: MOD-CNT-1 |
-| `engine/network.md` | 9 | R: NET-JOIN-1, NET-SB-1, NET-SB-2, NET-SB-3, NET-SES-1, NET-SES-2, NET-SES-3, NET-SES-4, NET-SES-5 |
+| `engine/network.md` | 9 (NET2: 23) | R: NET-JOIN-1, NET-SB-1, NET-SB-2, NET-SB-3, NET-SES-1, NET-SES-2, NET-SES-3, NET-SES-4, NET-SES-5; NET2 adds R: NET-AC-1, NET-CFG-1, NET-CFG-2, NET-CFG-3, NET-ONL-1, NET-ONL-2, NET-SRV-1, NET-SRV-3, NET-TRN-1, NET-TRN-2, NET-TRN-3, NET-VER-1, NET-VER-2, NET-VER-3 |
 | `engine/onslaught.md` | 8 | X: ONS-LVL-1, ONS-PORT-1, ONS-PORT-3, ONS-REG-1, ONS-WAVE-1; G: ONS-CAP-1, ONS-CAP-3; R: ONS-MODE-1 |
 | `engine/persistence.md` | 14 | P: PERS-AWD-1, PERS-AWD-3, PERS-DATA-1, PERS-DATA-2, PERS-DATA-3, PERS-RANK-1; R: PERS-AWD-4, PERS-JOIN-1, PERS-LIC-1, PERS-OPF-3, PERS-SAVE-1, PERS-SCORE-1, PERS-UNLK-1 |
 | `engine/rendering.md` | 14 | P: RNDR-DB-2, RNDR-LIGHT-1, RNDR-SHAD-1, RNDR-SKY-3, RNDR-TERR-3, RNDR-WTHR-3, RNDR-WTHR-4; X: RNDR-DB-3, RNDR-WTHR-6; R: RNDR-CRASH-1, RNDR-CRASH-2, RNDR-DRAW-6, RNDR-DRAW-7, RNDR-POST-3 |
