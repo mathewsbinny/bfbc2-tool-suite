@@ -105,7 +105,7 @@
    ],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 1057,
+   "lines": 1058,
    "note": "Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions",
    "path": "bfbc2-auto-navkit/navkit.py",
    "retiring": "NK5",
@@ -685,7 +685,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 302,
+   "lines": 308,
    "note": "the regression builds call navwalk.build (Rust since NK5); left: the run, its inputs and measures in Python",
    "path": "bfbc2-auto-navkit/tools/navregress.py",
    "retiring": "NK5",
@@ -733,7 +733,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 582,
+   "lines": 587,
    "note": "walkable, coarse and the rules are Rust (NK4); build / water_tops / outside_bounds / deep_water are thin calls of the Rust build (NK5-rest: navbuild.py's); left: score's command line",
    "path": "bfbc2-auto-navkit/tools/navwalk.py",
    "retiring": "NK5",
@@ -2763,7 +2763,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "library",
-   "lines": 336,
+   "lines": 340,
    "note": "the level loader in Rust (E1a); the Python builds the tools' Entity / Level objects",
    "path": "core/bfbc2core/level.py",
    "retiring": "PR1b-1c",
@@ -4485,7 +4485,7 @@
  "totals": {
   "all": {
    "files": 368,
-   "lines": 108120
+   "lines": 108136
   },
   "by_folder": {
    "(root)": {
@@ -4512,9 +4512,9 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 15123,
-    "live": 1852,
-    "partly": 4773,
+    "lines": 15135,
+    "live": 1858,
+    "partly": 4779,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
@@ -4677,10 +4677,10 @@
    },
    "core": {
     "files": 76,
-    "lines": 20344,
+    "lines": 20348,
     "live": 757,
     "partly": 0,
-    "ported": 1905,
+    "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
     "test": 15253,
@@ -4734,15 +4734,15 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5277
+    "lines": 5283
    },
    "partly": {
     "files": 21,
-    "lines": 17152
+    "lines": 17158
    },
    "ported": {
     "files": 21,
-    "lines": 2580
+    "lines": 2584
    },
    "retired-pending": {
     "files": 3,
