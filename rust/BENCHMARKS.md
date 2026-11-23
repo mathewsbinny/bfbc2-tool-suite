@@ -10838,3 +10838,14 @@ or a route within 1.2 x, 46,951 -> 40,050 (DICE's 51,668). Five sectors' node bo
   `test_navtools_native.py --record --game --only vehicle,measures` (ONS_MP_002's vehicle path data, the parity rows of
   sp_009 / sp_004_b); navregress's reference run `regression` saved again (the old one kept as
   `regression_before_2026-11-22_nkg2.json`).
+
+The golden builds (`navbuild_golden.json`, old -> new SHA-1, bytes; the files grow by the band's copies and the
+detailed sectors' spanner edges); the 10 whole-stage answers ('stage', built with the switch defaults) re-recorded
+with them, the E2a / E3c / E3h answers unchanged:
+
+| level | old | new |
+|---|---|---|
+| sp_009 | e9be0ef5ef1c45e71930516e9f6c1090552993be (408,096) | 7f5f994c100e439d42810258295a8edc0f6329a5 (453,264) |
+| sp_004_b | bd44cedb25e7c88032ef29bf47c3fdddee72032f (8,242,112) | 469a8b98dc0b44833b9318a1fc8120386b5e0931 (8,556,872) |
+| sp_008_b | 2839e515d3802f501e4dc67513becc97591201a7 (8,484,708) | 01b978717db04edd7e92aaf29553a951f0a647e9 (8,842,992) |
+| ons_mp_004 | 020d7019c061c2e1b91335d540b213f8e80598ed (7,627,988) | 76caa81b6c2577afcf722ba4a1621ab8bec56ef5 (8,020,340) |
