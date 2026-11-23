@@ -11197,3 +11197,99 @@ same-class template, the wrench from the power tool, the rifle grenades' anti-ar
 firings, VEH material stand-ins from DICE's grids. `test_ww2_balance.py` on the rebuilt outputs: 138 class values of
 the K98 and Springfield inside DICE's five bolt-action rifles' ranges; the wrench at the power tool's rates. Nothing
 re-derived; no WW2 output changed for this item.
+
+## OR3b: OPFOR in Rust, stage 3b - the level cover index, `retexture`, the level scan (2026-11-23, branch `or3b`, with Project OPFOR's `or3b`)
+
+What OR3a left ("What is left"): the level cover index with content keys, `retexture`'s Python twin, and the shader
+glue's heavy work in Project OPFOR's `wake_shaders` / `wake_translate` / `ww2_char_shaders`. Version **0.23.0**
+(removals: the cover index's pickles, a file format; the Python index; `retexture`'s Python body - RELEASING.md; not
+tagged here; a round merged first may take the number). Nothing was written to OPFOR's `game\`; the game never
+launched.
+
+### What moved
+
+- **The level cover index** (`shaderdb.level_cover_prefixes` / `level_coverage` / `donor_levels`):
+  `bc2_convert::shaderlevels::levels` through `bc2_native.shadercover_levels`. A level's database is found as
+  `load_levels` finds it (`level_database`: the bundle's databases, `pick_database`, the bundle cache, `open` with
+  the label and messages of `ShaderDb.parse`), its prefixes by `bc2_formats::shaderdb::levels::cover_prefixes`, the
+  levels read in parallel. The cache `shadercover`: one `<24 hex>.bin` per level bundle and Dx (named by the bundle's
+  path and the Dx; magic, version 3, the Dx, the key, the prefixes in their order or the error, a SHA-256 of all
+  before it), **keyed by the bundle's content key** (`dbxcatalogue::cache::bundle_key`: its length, its head and its
+  gzip trailer - the CRC-32 of the whole payload; the pickles hashed every byte of every bundle). A damaged file, or
+  one of another version, Dx or content, is not read and is written again. Python passes the bundles' paths (never
+  the project folder: OPFOR's rebuild tracker stamps every file under a folder a native call is given).
+- **`retexture`**: `bc2_formats::shaderdb::merge::retexture` (the merge's own) through
+  `bc2_native.shaderdb_retexture`; `hits` added to in the order the Python met the names.
+- **`shaderdb.level_scan(levels, dx)`** (new): per level, what `entry_signatures`, `entry_textures`, `entry_layouts`,
+  the main-pass skinning kinds (key byte 0x33 where byte 0x30 is 0) and the parts give on the loaded database -
+  `bc2_formats::shaderdb::levels::scan` on the parsed file, the levels in parallel, the Python dictionaries made once.
+- Project OPFOR: `wake_shaders --clone`'s donor scan (pass 1: every stock level, Dx9 / 10 / 11) and
+  `detail_layers.index_levels` on `level_scan`; `wake_shaders.donor_dbs` chooses its donors from the cover index
+  (`donor_levels` with the base's covered meshes taken out: the same choice) and loads only the chosen levels;
+  `wake_shaders.signatures` / `entry_layouts` are the suite's `entry_signatures` / `entry_layouts` (the Rust handle;
+  they are also what `detail_layers`, `kitbags` and `wake_install` call). `ww2_char_shaders.retexture` and
+  `wake_terrain` reach the Rust `retexture` through `S.retexture`. SUITE_REQUIRES 0.23.0 to below 0.24.0.
+
+### Proof
+
+- **Recorded before the deletion** (`bfbc2-shader-tools/tests/test_shaderdb_levels.py --record`, from the Python at
+  `4534f26`, `levels_golden.json`): 418 `retexture` cases (18 built: swaps, chains, a name that is the tail of a
+  longer one, an empty name, at the block's start and end, latin-1 names, too long; 400 seeded random blocks and
+  renames) - the bytes, the error, the hits; the cover index on 24 seeded stand-in game copies (150 levels: Dist and
+  Package, Package winning, no Dx9 database, two, a damaged one, the level's own among several, unknown levels, mixed
+  case) - each level's prefixes in order or its error, the index's hits and loads on a first, a second and an
+  uncached pass, `level_coverage`, `donor_levels`, and a damaged bundle's exception. `levels_golden_game.json`: every
+  level of the game copy (89), its prefixes' digest or error.
+- The Rust answers: **418 of 418** retextures (12 refusals naming a texture that is not ASCII decided: named as
+  latin-1, as every other shaderdb message; the Python read them as UTF-8, or raised `UnicodeDecodeError` making the
+  message), **the 24 copies identical** (every row, hit and load count), the game copy **89 of 89**. What only the
+  new index does: one `.bin` per bundle, a bundle rewritten in place with its old time indexed again, damaged files
+  read from the bundle again and rewritten. The level scan against the Python queries: 450 stand-in databases and
+  the game copy's 89 levels x Dx9 / 10 / 11, every dictionary and its order identical. Rust unit tests: the prefixes'
+  order and edge cases, the index file's round trip and damage, names by place and keys by content.
+- On the game copy, OPFOR's old pass 1 (its own `signatures` / `entry_layouts` / `entry_kinds` over `S.load`) against
+  the new loop over `level_scan`: the six tables equal for Dx9, Dx10 and Dx11; `donor_dbs` old against new with
+  `needs_bfbc2.txt` (166 meshes) on bases mp_005 and mp_002: the same donors (12 / 11 per Dx) and the same database
+  bytes.
+- **WW2 rebuild**: OPFOR's main checkout detached at `or3b` (b89e92d), `OPFOR_TOOLKIT` a scratch folder of junctions
+  (this worktree, version 0.23.0, fresh module and `bin\bfbc2.exe`), `OPFOR_SUITE_STRICT=1`, `--jobs 2`: all 55 steps
+  in 15.4 min; `compare_oracle` **10,852 of 10,852 identical**; `qa_checks.py` passed. **Install oracle**:
+  `wake_install.py --plan` 5.0 min, `compare_oracle --install` **21,197 of 21,197 identical**; the game copy's 1,582
+  files (11.6 GB) hashed (path, size, time, SHA-256) before the rebuild, before the plan and after it: identical.
+
+### Timings
+
+| | Python | Rust |
+|---|---:|---:|
+| cover index, the game copy's 89 levels, empty index | 6.1 s | 1.2 s |
+| cover index, from the index | 1.74 s | 0.29 s |
+| `wake_shaders --clone` pass 1, 79 stock levels (Dx9 / 10 / 11) | 8.1 / 10.5 / 8.2 s | 2.8 / 3.1 / 2.9 s |
+| `detail_layers.index_levels` (79 levels, Dx9) | 5.9 s | 1.4 s |
+| level scan vs the Python queries, 89 levels x 3 (test) | 23.8 s | 6.7 s |
+| `donor_dbs`, base mp_005 / mp_002 | 5.6 / 5.2 s | 4.4 / 2.2 s |
+
+In the rebuild: `wake_shaders` 11 s (10 s in OR3a's), `wake_shaders --clone` 49 s (59 s), `wake_translate` 18 s,
+the three level chains side by side 277 s (410 s in OR3a's, other rounds building beside it then). `detail_layers`
+took 56 s (14 s in OR3a's rebuild) though its index alone takes 1.4 s against the old 5.9 s on the same copy: the
+step's other work (its clones and merges) was not changed; not explained here - to look at in the next rebuild.
+
+### Decided
+
+- `retexture`'s refusal names its textures as latin-1 (above).
+
+### What is left (stage 3)
+
+- `wake_translate`'s translation driver (`translate_db`, `foreign_entries`, `add_missing_entries`, the terrain patch
+  and strip programs, `translate_batch`'s orchestration around the Rust translator and d3dcompiler): ~1,300 lines of
+  Python glue over Rust queries; the time is in HLSL compiles (cached) and the per-program Python.
+- `ww2_char_shaders`' soldier glue (`match_entries`, `perms`, `part_users`, `offer_kinds`, `entry_blocks`): small,
+  per database; it calls `translate_db`.
+- `wake_install.index_templates`' Dx9 scan (needs the layout records too: `level_scan` with the layouts' bodies),
+  with the install oracle.
+- OR3a's self-clone accident (PY1).
+
+### Tests
+
+- `test_shaderdb_levels.py` (quick, new entry `shaderdb-levels`; `--game`: `shaderdb-levels:game`).
+- cargo fmt; clippy `--all-targets -D warnings` on bc2-formats, bc2-convert, bc2-py, bc2-gamefs, bc2-cli and each of
+  `bfbc2.exe`'s tool groups alone; `cargo test` of the new modules (results in the round's report).
