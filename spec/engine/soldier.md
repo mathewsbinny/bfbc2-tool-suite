@@ -14,15 +14,14 @@ bots' use of these classes is `engine/bot_ai.md`.
 
 Status: **verified** · Variants: PC
 
-`SoldierEntityData.CharacterPhysics` names a `CharacterPhysicsData` (DICE has two: the soldiers' and the Vietnam
-soldiers', both in `Objects/Soldiers/Common/DefaultSoldierPhysics`-style partitions). It holds the body (`Mass`,
-`PhysicalRadius`, `MaxAscendAngle`, `WaterDepthLimit`, ladder angles), the input (`InputAcceleration`), the damage and
-jump penalties, the `Poses` (stand, crouch, prone: CharacterPoseData) and the `States`, one per movement mode; each
+`SoldierEntityData.CharacterPhysics` names a `CharacterPhysicsData` (DICE has two, in two partitions under
+`Objects/Soldiers/`, one of them `Objects/Soldiers/Common/DefaultSoldierPhysics`). It holds the body (`Mass`,
+`PhysicalRadius`, `MaxAscendAngle`, `WaterDepthLimit`, ladder angles), the input (`InputAcceleration`), the damage
+and jump penalties, the `Poses` (stand, crouch, prone: CharacterPoseData) and the `States`, one per movement mode; each
 state has a `PoseInfo` array of `CharacterStatePoseInfo` (per pose: velocity, acceleration / deceleration gains,
 sprint gain and multiplier). The modes are ground, jump, air, falling, climbing (ladders), sliding, swimming,
-parachuting and animation-controlled (a vault or a scripted move):
-
-The parachute itself (mesh, offsets, tilt and turning) is the soldier's `SoldierParachuteData`.
+parachuting and animation-controlled (a vault or a scripted move); the parachute itself (mesh, offsets, tilt and
+turning) is the soldier's `SoldierParachuteData`:
 
 | Class | Instances | Partitions | Where | Members |
 |---|---|---|---|---|

@@ -398,11 +398,11 @@ def dump(census: dict[str, Any]) -> None:
     cats = sorted(census)
     for i, cat in enumerate(cats):
         items = census[cat]
-        lines.append(f' {json.dumps(cat)}: {{')
+        lines.append(f' {json.dumps(cat, sort_keys=True)}: {{')
         keys = sorted(items)
         for j, k in enumerate(keys):
             comma = ',' if j < len(keys) - 1 else ''
-            lines.append(f'  {json.dumps(k)}: {json.dumps(items[k], sort_keys=True, separators=(",", ":"))}{comma}')
+            lines.append(f'  {json.dumps(k, sort_keys=True)}: {json.dumps(items[k], sort_keys=True, separators=(",", ":"))}{comma}')
         lines.append(' }' + (',' if i < len(cats) - 1 else ''))
     lines.append('}')
     CENSUS_JSON.write_text('\n'.join(lines) + '\n', encoding='utf-8')
