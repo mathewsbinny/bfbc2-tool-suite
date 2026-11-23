@@ -12264,11 +12264,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:2317-2328"
-    },
-    {
-     "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:875"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:837-873"
     },
     {
      "kind": "test",
@@ -12316,7 +12312,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:2329-2347"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2196-2213"
     },
     {
      "kind": "test",
@@ -12336,11 +12332,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:56"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:59"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:2348-2352"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2215-2219"
     },
     {
      "kind": "exe",
@@ -12564,7 +12560,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/culltree.rs:100-182"
+     "ref": "rust/bc2-formats/src/culltree.rs:166-236"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/culltree.rs:332-386"
     },
     {
      "kind": "test",
@@ -12573,6 +12573,10 @@
     {
      "kind": "test",
      "ref": "rust/bc2-formats/src/culltree.rs::edges"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/culltree.rs::document_writes_back"
     },
     {
      "kind": "test",
@@ -27696,6 +27700,39 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_opaque_wave_and_bunker_programs"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-MOD-1",
+   "title": "The weapon tools' NumPy products are the reference machine's OpenBLAS kernels, written out",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_decimate.py::parity"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_decimate.py::shapes_parity"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/decimate.rs::blas_forms"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/decimate.rs:54-68"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shapes.rs:33-62"
+    },
+    {
+     "kind": "data",
+     "ref": "200,000 ddot and 100,000 quadric costs, 3,000 dgemv vectors, dgemm rows of n = 2 ... 1,000: all equal to NumPy on the reference machine"
     }
    ]
   },

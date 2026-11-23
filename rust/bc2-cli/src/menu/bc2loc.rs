@@ -13,10 +13,12 @@ use bc2_formats::loc;
 
 use super::common::{
     self as mc, MOVIE_SETS, OMap, basename, bundle_layers, bundle_movies, entries, find_exe, find_opfor, isfile, join,
-    menu_err, movie_from_members, out_dir, parse_bigf, read_entries, resolve, write_text,
+    movie_from_members, out_dir, parse_bigf, read_entries, resolve, write_text,
 };
+use super::menu_err;
 use crate::pyfmt::{docstring, str_repr};
 use crate::pyproc::{self, Fail, Py, PyErr, PyResult};
+use bc2_menu::error::MenuError;
 
 const SOURCE: &str = include_str!("../../../../bfbc2-menu-tools/bc2loc.py");
 const PC_PREFIX: &str = "WIN32_";
@@ -280,8 +282,8 @@ fn movie_constants_all(root: Option<&str>) -> PyResult<BTreeSet<String>> {
                             .take(c.chars().count().saturating_sub(2))
                             .collect::<String>()
                     })),
-                    Err(Fail::Err(e)) if e.kind == "MenuToolError" => {}
-                    Err(e) => return Err(e),
+                    Err(MenuError::Menu(_)) => {}
+                    Err(e) => return Err(e.into()),
                 }
             }
         }
@@ -299,8 +301,8 @@ fn key_names(loc: &LocFile, root: Option<&str>) -> PyResult<HashMap<u32, String>
                 .map(|(s, _)| s)
                 .filter(|s| s.chars().count() < 120),
         ),
-        Err(Fail::Err(e)) if e.kind == "MenuToolError" || e.kind == "FileNotFoundError" => {}
-        Err(e) => return Err(e),
+        Err(e) if matches!(e, MenuError::Menu(_)) || e.is_file_not_found() => {}
+        Err(e) => return Err(e.into()),
     }
     match movie_constants_all(root) {
         Ok(c) => cands.extend(c),
@@ -349,7 +351,7 @@ pub fn run(py: &mut Py, cmdline: &[String]) -> PyResult<i32> {
     let opfor = || -> PyResult<String> {
         match root.filter(|r| !r.is_empty()) {
             Some(r) => Ok(r.to_owned()),
-            None => find_opfor(None),
+            None => Ok(find_opfor(None)?),
         }
     };
     if cmd == "langs" {

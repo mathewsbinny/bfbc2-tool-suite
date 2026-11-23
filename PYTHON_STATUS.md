@@ -24,14 +24,14 @@ rounds NK4 and NK5.
 
 | Status | Files | Lines |
 |---|---:|---:|
-| live | 20 | 5,641 |
-| partly | 20 | 16,885 |
-| twin | 55 | 19,453 |
+| live | 18 | 5,277 |
+| partly | 21 | 17,152 |
+| twin | 56 | 19,636 |
 | ported | 21 | 2,580 |
 | retired-pending | 3 | 310 |
-| stays | 61 | 11,335 |
-| test | 188 | 51,682 |
-| **all** | **368** | **107,886** |
+| stays | 61 | 11,337 |
+| test | 188 | 51,828 |
+| **all** | **368** | **108,120** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -48,13 +48,13 @@ rounds NK4 and NK5.
 | `bfbc2-map-editor` | 20 | 2,141 |  |  | 1,282 |  |  | 859 |  |
 | `bfbc2-menu-tools` | 12 | 6,659 |  | 2,941 | 1,466 |  |  |  | 2,252 |
 | `bfbc2-mesh-viewer` | 4 | 697 |  | 386 |  |  |  | 78 | 233 |
-| `bfbc2-model-tools` | 8 | 1,694 | 364 |  | 666 |  |  |  | 664 |
+| `bfbc2-model-tools` | 8 | 1,926 |  | 267 | 849 |  |  |  | 810 |
 | `bfbc2-navigation-studio` | 2 | 358 |  |  |  |  | 270 |  | 88 |
 | `bfbc2-shader-tools` | 17 | 10,793 | 1,430 | 3,630 | 984 | 126 |  |  | 4,623 |
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 20,344 | 757 |  | 2,429 | 1,905 |  |  | 15,253 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 6,007 |  |  |  |  |  | 5,740 | 267 |
+| `rust` | 33 | 6,009 |  |  |  |  |  | 5,742 | 267 |
 | `spec` | 13 | 4,605 |  |  |  |  |  | 4,605 |  |
 | `tests` | 29 | 7,619 |  |  |  |  |  |  | 7,619 |
 
@@ -331,15 +331,15 @@ Lines by status in the folder table.
 
 ## `bfbc2-model-tools`
 
-8 files, 1,694 lines.
+8 files, 1,926 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-model-tools/decimate.py` | 154 | library | live |  | tests 1; OPFOR 2 (type38, winchester1897) | PR1b-2 | quadric edge collapses for weapon LODs; not ported |
-| `bfbc2-model-tools/shapes.py` | 210 | library | live |  | tests 2; OPFOR 1 (type100) | PR1b-2 | simple solids for weapon parts (lathe, extrude); not ported |
+| `bfbc2-model-tools/shapes.py` | 267 | library | partly | bc2_convert shapes | tests 2; OPFOR 1 (type100) | PR1b-2-rest2 | products, tangents and windings in Rust since PR1b-2-rest2 (XWW2-MOD-1; *_reference the NumPy originals); the builders (lathe, extrude) plain Python floats |
+| `bfbc2-model-tools/decimate.py` | 183 | library | twin | bc2_convert decimate | tests 1; OPFOR 2 (type38, winchester1897) | PR1b-2-rest2 | Rust since PR1b-2-rest2 (OpenBLAS products written out: XWW2-MOD-1); the NumPy original kept as decimate_reference |
 | `bfbc2-model-tools/skinmesh.py` | 317 | library | twin | bc2_convert skinmesh | tests 2; OPFOR 3 | PR1b-2 | Rust since F2a; its references kept (OPFOR feeds objects it builds) |
 | `bfbc2-model-tools/texwrite.py` | 349 | library | twin | bc2_convert texwrite | emitteratlas; tests 7; OPFOR 11 | PR1b-2 | DXT encoding in Rust; resource / header packing and NumPy eigh still Python; references kept |
-| `bfbc2-model-tools/tests/test_decimate.py` | 88 | test | test |  | run_tests.py | Tests in Rust | decimate.py (unit tier): a UV sphere (its texture seam split into two wedges per point, as a game mesh has... |
+| `bfbc2-model-tools/tests/test_decimate.py` | 234 | test | test |  | run_tests.py | Tests in Rust | decimate.py (unit tier): a UV sphere (its texture seam split into two wedges per point, as a game mesh has... |
 | `bfbc2-model-tools/tests/test_model_f2a_native.py` | 298 | test | test |  | run_tests.py | Tests in Rust | Round F2a: the model tools in the Rust core against their Python reference - texwrite.py (texture: the leve... |
 | `bfbc2-model-tools/tests/test_models.py` | 123 | test | test |  | run_tests.py | Tests in Rust | skinmesh.py, shapes.py and the skinned mesh sets (console converter's meshset.py) on the game's files (game... |
 | `bfbc2-model-tools/tests/test_texwrite.py` | 155 | test | test |  | run_tests.py | Tests in Rust | texwrite.py (unit tier; the game tier part skipped without the game): - layout: a 512 x 512 colour texture... |
@@ -488,7 +488,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 6,007 lines.
+33 files, 6,009 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -522,7 +522,7 @@ Lines by status in the folder table.
 | `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
 | `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 852 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 854 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 

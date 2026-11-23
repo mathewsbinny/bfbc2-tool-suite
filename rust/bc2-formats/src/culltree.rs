@@ -37,6 +37,8 @@ use std::path::{Path, PathBuf};
 use rayon::prelude::*;
 use thiserror::Error;
 
+use crate::dbx::edit::{EditDbx, NodeId, Parts};
+
 /// A container element's kind (the head byte's high nibble).
 pub const CONTAINER: u8 = 0xA;
 /// A text element's kind.
@@ -58,6 +60,10 @@ pub enum ElementError {
     /// Containers are still open at the end.
     #[error("truncated file (unclosed elements)")]
     Unclosed,
+    /// A string index of the element at this byte is past 32 bits ([`document`] / [`stream`] only: the suite's one
+    /// document keeps 32-bit indexes; the Python reader fails on such an index where it reads it).
+    #[error("a string index of the element at byte {0} is past 32 bits (not a cull tree or level partition)")]
+    Wide(usize),
 }
 
 /// One element of the stream, in file order.
@@ -108,51 +114,100 @@ pub fn varint(data: &[u8], pos: usize) -> Result<(u64, usize), ElementError> {
     })
 }
 
-/// Reads the element stream from `start` (24 + the string area's size) as `culltree.Doc` does.
+/// One element of the stream as [`walk`] reads it: where it starts, its tag, head byte and attributes, and by kind
+/// a container's extra byte or the value's bytes in the file.
+#[derive(Debug, Clone)]
+pub struct Step<'a> {
+    /// Where the element (its tag) starts.
+    pub at: usize,
+    /// The tag (a string table index).
+    pub tag: u64,
+    /// The head byte: kind << 4 | attribute count.
+    pub head: u8,
+    /// Its attributes (key, value).
+    pub attrs: &'a [(u64, u64)],
+    /// A container's extra byte (0 for the others).
+    pub extra: u8,
+    /// The value's bytes in the file (empty for containers; see [`Element::value`]).
+    pub value: Range<usize>,
+}
+
+impl Step<'_> {
+    /// The kind (head byte's high nibble).
+    #[must_use]
+    pub fn kind(&self) -> u8 {
+        self.head >> 4
+    }
+}
+
+/// What [`walk`] hands each element to: `open` for a container (its children follow, then `close`), `value` for the
+/// others; `depth` is the number of containers open around it. An `Err` stops the walk with it.
+pub trait Visit {
+    /// A container opens.
+    ///
+    /// # Errors
+    /// The visitor's own refusal.
+    fn open(&mut self, step: &Step, depth: usize) -> Result<(), ElementError>;
+    /// A value element.
+    ///
+    /// # Errors
+    /// The visitor's own refusal.
+    fn value(&mut self, step: &Step, depth: usize) -> Result<(), ElementError>;
+    /// The container opened at `depth` closes.
+    fn close(&mut self, depth: usize);
+}
+
+/// The element stream from `start` (24 + the string area's size) walked as `culltree.Doc` reads it, each element
+/// handed to `v` (round PR1b-2-rest2: the one walk under [`elements`], [`document`] and [`stream`]). The trailer's
+/// start.
 ///
 /// # Errors
-/// [`ElementError`] where the retired Python reader raised, and for a varint past 64 bits.
-pub fn elements(data: &[u8], start: usize) -> Result<Elements, ElementError> {
-    let mut out = Elements::default();
-    let mut open: Vec<usize> = Vec::new();
+/// [`ElementError`] where the retired Python reader raised, a varint past 64 bits, or the visitor's.
+pub fn walk(data: &[u8], start: usize, v: &mut impl Visit) -> Result<usize, ElementError> {
+    let mut depth = 0usize;
+    let mut attrs: Vec<(u64, u64)> = Vec::new();
     let mut pos = start;
     while pos < data.len() {
+        let at = pos;
         let (tag, p) = varint(data, pos)?;
         if tag == 0 {
-            let Some(c) = open.pop() else { break };
-            let n = out.elements.len();
-            if let Some(e) = out.elements.get_mut(c) {
-                e.end = Some(n);
+            if depth == 0 {
+                break;
             }
+            depth -= 1;
+            v.close(depth);
             pos = p;
             continue;
         }
         pos = p;
         let head = *data.get(pos).ok_or(ElementError::Truncated(pos))?;
         pos += 1;
-        let a0 = out.attrs.len();
+        attrs.clear();
         for _ in 0..head & 0xf {
             let (k, p) = varint(data, pos)?;
-            let (v, p) = varint(data, p)?;
-            out.attrs.push((k, v));
+            let (val, p) = varint(data, p)?;
+            attrs.push((k, val));
             pos = p;
         }
-        let mut e = Element {
+        let mut step = Step {
+            at,
             tag,
             head,
-            attrs: a0..out.attrs.len(),
-            ..Element::default()
+            attrs: &attrs,
+            extra: 0,
+            value: 0..0,
         };
         match head >> 4 {
             CONTAINER => {
-                e.extra = *data.get(pos).ok_or(ElementError::Truncated(pos))?;
+                step.extra = *data.get(pos).ok_or(ElementError::Truncated(pos))?;
                 pos += 1;
-                e.end = Some(usize::MAX);
-                open.push(out.elements.len());
+                v.open(&step, depth)?;
+                depth += 1;
+                continue;
             }
             TEXT => {
                 let (_, p) = varint(data, pos)?;
-                e.value = pos..p;
+                step.value = pos..p;
                 pos = p;
             }
             NUMBERS => {
@@ -165,20 +220,316 @@ pub fn elements(data: &[u8], start: usize) -> Result<Elements, ElementError> {
                     .filter(|&e| e <= data.len() as u64)
                     .ok_or(ElementError::Truncated(s))?;
                 pos = end as usize;
-                e.value = s..pos;
+                step.value = s..pos;
             }
             _ => {
-                e.value = pos..(pos + 2).min(data.len());
+                step.value = pos..(pos + 2).min(data.len());
                 pos += 2;
             }
         }
-        out.elements.push(e);
+        v.value(&step, depth)?;
     }
-    if !open.is_empty() {
+    if depth > 0 {
         return Err(ElementError::Unclosed);
     }
-    out.end = pos.min(data.len());
-    Ok(out)
+    Ok(pos.min(data.len()))
+}
+
+/// Reads the element stream from `start` (24 + the string area's size) as `culltree.Doc` does.
+///
+/// # Errors
+/// [`ElementError`] where the retired Python reader raised, and for a varint past 64 bits.
+pub fn elements(data: &[u8], start: usize) -> Result<Elements, ElementError> {
+    struct Flat {
+        out: Elements,
+        open: Vec<usize>,
+    }
+    impl Flat {
+        fn push(&mut self, step: &Step) {
+            let a0 = self.out.attrs.len();
+            self.out.attrs.extend_from_slice(step.attrs);
+            self.out.elements.push(Element {
+                tag: step.tag,
+                head: step.head,
+                attrs: a0..self.out.attrs.len(),
+                extra: step.extra,
+                value: step.value.clone(),
+                end: None,
+            });
+        }
+    }
+    impl Visit for Flat {
+        fn open(&mut self, step: &Step, _: usize) -> Result<(), ElementError> {
+            self.open.push(self.out.elements.len());
+            self.push(step);
+            if let Some(e) = self.out.elements.last_mut() {
+                e.end = Some(usize::MAX);
+            }
+            Ok(())
+        }
+        fn value(&mut self, step: &Step, _: usize) -> Result<(), ElementError> {
+            self.push(step);
+            Ok(())
+        }
+        fn close(&mut self, _: usize) {
+            let n = self.out.elements.len();
+            if let Some(c) = self.open.pop()
+                && let Some(e) = self.out.elements.get_mut(c)
+            {
+                e.end = Some(n);
+            }
+        }
+    }
+    let mut f = Flat {
+        out: Elements::default(),
+        open: Vec::new(),
+    };
+    f.out.end = walk(data, start, &mut f)?;
+    Ok(f.out)
+}
+
+/// A string index (a tag or an attribute's key or value) as the one document keeps it: 32 bits.
+fn index32(i: u64, at: usize) -> Result<u32, ElementError> {
+    u32::try_from(i).map_err(|_| ElementError::Wide(at))
+}
+
+/// The parts of a stream element for the one document (string indexes as stored, not checked: a cull tree reader
+/// checks them where it reads them, as `culltree.Doc` does).
+fn parts(step: &Step, container: bool) -> Result<(Parts, u32), ElementError> {
+    let mut attrs = Vec::with_capacity(step.attrs.len());
+    for &(k, val) in step.attrs {
+        attrs.push((index32(k, step.at)?, index32(val, step.at)?));
+    }
+    Ok((
+        Parts {
+            tag: index32(step.tag, step.at)?,
+            kind: step.kind(),
+            attrs,
+            cbyte: step.extra,
+            payload: Vec::new(),
+            children: container.then(Vec::new),
+        },
+        0,
+    ))
+}
+
+/// A text value's string index for [`EditDbx::text`] (the bytes as stored are its payload either way).
+fn text_index(data: &[u8], step: &Step) -> u32 {
+    if step.kind() != TEXT {
+        return 0;
+    }
+    varint(data, step.value.start).map_or(u32::MAX, |(t, _)| u32::try_from(t).unwrap_or(u32::MAX))
+}
+
+/// A binary `.dbx` read under `culltree.Doc`'s rules into the suite's one document ([`EditDbx`], round
+/// PR1b-2-rest2: culltool's own codec retired): the element stream as [`elements`] reads it, string indexes kept as
+/// stored and not checked (the reader checks those it reads), every value's bytes a range of the file, the trailer
+/// kept; the string table is the caller's (`strings`, read from the header with its rules) and `start` the end of
+/// its area. Written back ([`EditDbx::write`]) it gives the file byte for byte.
+///
+/// # Errors
+/// [`ElementError`] as [`elements`], and [`ElementError::Wide`] for a string index past 32 bits.
+pub fn document(data: &[u8], header: u32, strings: Vec<Vec<u8>>, start: usize) -> Result<EditDbx, ElementError> {
+    struct Doc<'d> {
+        data: &'d [u8],
+        d: EditDbx,
+        open: Vec<NodeId>,
+        roots: Vec<NodeId>,
+    }
+    impl Doc<'_> {
+        fn attach(&mut self, id: NodeId) {
+            match self.open.last() {
+                Some(&p) => {
+                    if let Ok(c) = self.d.children_mut(p) {
+                        c.push(id);
+                    }
+                }
+                None => self.roots.push(id),
+            }
+        }
+    }
+    impl Visit for Doc<'_> {
+        fn open(&mut self, step: &Step, _: usize) -> Result<(), ElementError> {
+            let (p, _) = parts(step, true)?;
+            let id = self.d.push_read(p, (0, 0), 0);
+            self.attach(id);
+            self.open.push(id);
+            Ok(())
+        }
+        fn value(&mut self, step: &Step, _: usize) -> Result<(), ElementError> {
+            let (p, _) = parts(step, false)?;
+            let r = &step.value;
+            let id = self.d.push_read(
+                p,
+                (r.start as u32, (r.end - r.start) as u32),
+                text_index(self.data, step),
+            );
+            self.attach(id);
+            Ok(())
+        }
+        fn close(&mut self, _: usize) {
+            self.open.pop();
+        }
+    }
+    let area = (24.min(data.len()), start.clamp(24.min(data.len()), data.len()));
+    let mut v = Doc {
+        data,
+        d: EditDbx::from_file(data, header, strings, area),
+        open: Vec::new(),
+        roots: Vec::new(),
+    };
+    let end = walk(data, start, &mut v)?;
+    let mut d = v.d;
+    *d.roots_mut() = v.roots;
+    d.set_trailing(data.get(end..).unwrap_or_default().to_vec());
+    Ok(d)
+}
+
+/// What [`stream`] hands out, each element on a scratch document that holds only it (and is cleared after): each
+/// child of the first root once it is closed, and - for the containers among a root child's own children that
+/// `streamed` picks - each of their items instead (the picked container is kept with no children).
+pub trait Sink {
+    /// A child of the first root (its index among them), with its subtree.
+    fn child(&mut self, index: usize, d: &EditDbx, n: NodeId);
+    /// Whether a root child's child container's items are streamed (asked when it opens: its attributes only).
+    fn streamed(&mut self, d: &EditDbx, n: NodeId) -> bool;
+    /// An item (with its subtree) of a picked container: the root child's index, the container's index among that
+    /// child's children.
+    fn item(&mut self, index: usize, slot: usize, d: &EditDbx, n: NodeId);
+}
+
+/// [`document`]'s read with the memory of one root child at a time (round CT1's streamed readers, on the one
+/// document since round PR1b-2-rest2): the first root's children are handed to `sink` one by one and dropped;
+/// whatever else the file holds is read (and checked) but not kept. Whether the file has a root.
+///
+/// # Errors
+/// As [`document`], at the same bytes.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the streamer and its visitor in one piece, as `document`'s"
+)]
+pub fn stream(
+    data: &[u8],
+    header: u32,
+    strings: Vec<Vec<u8>>,
+    start: usize,
+    sink: &mut dyn Sink,
+) -> Result<bool, ElementError> {
+    struct Streamer<'d, 's> {
+        data: &'d [u8],
+        d: EditDbx,
+        sink: &'s mut dyn Sink,
+        /// the open containers kept (inside a root child): (id, its index among its root child's children when it
+        /// is a picked container)
+        open: Vec<(NodeId, Option<usize>)>,
+        /// whether the open root is the first
+        in_root: bool,
+        roots: usize,
+        index: usize,
+    }
+    impl Streamer<'_, '_> {
+        /// Whether an element at `depth` is kept: inside the first root.
+        fn kept(&self, depth: usize) -> bool {
+            self.in_root && depth > 0
+        }
+        /// A finished element (closed, or a value): handed out when it is a root child or an item, dropped after.
+        fn done(&mut self, id: NodeId, depth: usize) {
+            if depth == 1 {
+                self.sink.child(self.index, &self.d, id);
+                self.index += 1;
+                self.d.truncate_nodes(0);
+                return;
+            }
+            // an item: its picked container is the innermost open one, at depth - 1
+            if let Some(&(_, Some(slot))) = self.open.last()
+                && self.open.len() == depth - 1
+            {
+                self.sink.item(self.index, slot, &self.d, id);
+                self.d.truncate_nodes(id as usize);
+            }
+        }
+        fn add(&mut self, id: NodeId, depth: usize) {
+            // a root child has no parent; an item is not attached to its picked container
+            if depth > 1
+                && let Some(&(p, slot)) = self.open.last()
+                && slot.is_none()
+                && let Ok(c) = self.d.children_mut(p)
+            {
+                c.push(id);
+            }
+        }
+    }
+    impl Visit for Streamer<'_, '_> {
+        fn open(&mut self, step: &Step, depth: usize) -> Result<(), ElementError> {
+            if depth == 0 {
+                self.roots += 1;
+                self.in_root = self.roots == 1;
+                return Ok(());
+            }
+            if !self.kept(depth) {
+                return Ok(());
+            }
+            let (p, _) = parts(step, true)?;
+            let id = self.d.push_read(p, (0, 0), 0);
+            // a root child's child container: picked or not, its index the root child's children before it
+            let slot = if depth == 2 {
+                let before = self
+                    .open
+                    .last()
+                    .and_then(|&(r, _)| self.d.children(r))
+                    .map_or(0, <[NodeId]>::len);
+                self.sink.streamed(&self.d, id).then_some(before)
+            } else {
+                None
+            };
+            self.add(id, depth);
+            self.open.push((id, slot));
+            Ok(())
+        }
+        fn value(&mut self, step: &Step, depth: usize) -> Result<(), ElementError> {
+            if depth == 0 {
+                self.roots += 1;
+                return Ok(());
+            }
+            if !self.kept(depth) {
+                return Ok(());
+            }
+            let (p, _) = parts(step, false)?;
+            let r = &step.value;
+            let id = self.d.push_read(
+                p,
+                (r.start as u32, (r.end - r.start) as u32),
+                text_index(self.data, step),
+            );
+            self.add(id, depth);
+            self.done(id, depth);
+            Ok(())
+        }
+        fn close(&mut self, depth: usize) {
+            if depth == 0 {
+                self.in_root = false;
+                return;
+            }
+            if !self.in_root {
+                return;
+            }
+            if let Some((id, _)) = self.open.pop() {
+                self.done(id, depth);
+            }
+        }
+    }
+    let area = (24.min(data.len()), start.clamp(24.min(data.len()), data.len()));
+    let mut v = Streamer {
+        data,
+        d: EditDbx::from_file(data, header, strings, area),
+        sink,
+        open: Vec::new(),
+        in_root: false,
+        roots: 0,
+        index: 0,
+    };
+    walk(data, start, &mut v)?;
+    Ok(v.roots > 0)
 }
 
 /// The files `glob.glob(os.path.join(dir, '**', '*.dbx'), recursive=True)` lists, as paths relative to `dir`
@@ -345,6 +696,61 @@ mod tests {
         let mut over = vec![0xff; 9];
         over.push(0x02); // bit 64
         assert_eq!(elements(&over, 0), Err(ElementError::Varint(0)));
+    }
+
+    #[test]
+    #[allow(clippy::items_after_statements, reason = "the sink next to its use")]
+    fn document_writes_back() {
+        // a header with three strings ("r", "instance", "x"), then a root with an instance holding a picked
+        // container of two items and a text, a second root, and a trailer
+        let mut data = b"{binary}".to_vec();
+        let area = [0u32.to_be_bytes(), 2u32.to_be_bytes(), 11u32.to_be_bytes()].concat();
+        let strings = b"r\0instance\0x\0".to_vec();
+        let size = (area.len() + strings.len()) as u32;
+        for w in [24 + size, 0x1234, size, 3] {
+            data.extend(w.to_be_bytes());
+        }
+        data.extend(&area);
+        data.extend(&strings);
+        let start = data.len();
+        data.extend([
+            2, 0xA0, 5, // root
+            1, 0xA1, 2, 2, 0, // instance (tag 1), attribute (2, 2)
+            2, 0xA0, 0, // a container (picked)
+            2, 0x70, 1, 2, 7, 8, // item: numbers
+            2, 0x50, 3, 4, // item: a value
+            0, // the container closes
+            2, 0x20, 2, // a text
+            0, 0, // the instance, the root
+            2, 0x50, 9, 9, // a second root (a value)
+            0, 0xEE, // end, trailer
+        ]);
+        let strs = vec![b"r".to_vec(), b"instance".to_vec(), b"x".to_vec()];
+        let d = document(&data, 0x1234, strs.clone(), start).unwrap();
+        assert_eq!(d.write().unwrap(), data);
+        assert_eq!(d.roots().len(), 2);
+        struct Got(Vec<(usize, usize)>, Vec<(usize, usize, usize)>);
+        impl Sink for Got {
+            fn child(&mut self, i: usize, d: &EditDbx, n: NodeId) {
+                self.0.push((i, d.children(n).map_or(0, <[NodeId]>::len)));
+            }
+            fn streamed(&mut self, _: &EditDbx, _: NodeId) -> bool {
+                true
+            }
+            fn item(&mut self, i: usize, slot: usize, d: &EditDbx, n: NodeId) {
+                self.1.push((i, slot, d.payload(n).len()));
+            }
+        }
+        let mut g = Got(Vec::new(), Vec::new());
+        assert!(stream(&data, 0x1234, strs.clone(), start, &mut g).unwrap());
+        assert_eq!(g.0, vec![(0, 2)]); // the instance: the picked container (no items kept) and the text
+        assert_eq!(g.1, vec![(0, 0, 4), (0, 0, 2)]);
+        let mut wide = data.clone();
+        wide.splice(start + 3..start + 4, [0x80, 0x80, 0x80, 0x80, 0x10]); // tag 2^32
+        assert_eq!(
+            document(&wide, 0, strs, start).map(|_| ()),
+            Err(ElementError::Wide(start + 3))
+        );
     }
 
     #[test]

@@ -11,11 +11,13 @@ use std::collections::BTreeSet;
 use bc2_formats::aptscan::{self, Names, hex6};
 
 use super::common::{
-    MOVIE_SETS, Movie, OMap, PeImage, bundle_layers, bundle_movies, find_exe, find_opfor, join, menu_err,
-    movie_from_members, out_dir, parse_bigf, read_entries, resolve, write_text,
+    MOVIE_SETS, Movie, OMap, PeImage, bundle_layers, bundle_movies, find_exe, find_opfor, join, movie_from_members,
+    out_dir, parse_bigf, read_entries, resolve, write_text,
 };
 use super::json::{J, dumps};
+use super::menu_err;
 use crate::pyproc::{Fail, Py, PyResult};
+use bc2_menu::error::MenuError;
 
 /// The usage `bfbc2 aptrefs` prints: `aptrefs.py`'s docstring, reworded when round RT3 retired that command
 /// line (the library is `aptrefslib.py`).
@@ -169,8 +171,8 @@ fn scan_movies(specs: &[String], sets: Option<&BTreeSet<String>>, root: Option<&
                 let m = parse_bigf(b, entry).and_then(|members| movie_from_members(&members, entry));
                 match m {
                     Ok(m) => read.push(m),
-                    Err(Fail::Err(e)) if e.kind == "MenuToolError" => {}
-                    Err(e) => return Err(e),
+                    Err(MenuError::Menu(_)) => {}
+                    Err(e) => return Err(e.into()),
                 }
             }
             let refs: Vec<_> = read.iter().map(Movie::mref).collect();

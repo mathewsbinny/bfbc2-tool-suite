@@ -4,11 +4,54 @@ every vertex belongs to one skeleton bone (Geo.bone).
 
 Units are metres in the model's space (Bad Company 2 weapons: +z along the barrel to the muzzle, +y up). A UV rect
 is (u0, v0, u1, v1) on the texture; where an axis maps to a rect, the first value goes to the rect's first edge.
+
+Round PR1b-2-rest2: the NumPy work runs in the suite's Rust core (bc2_convert::shapes): Geo.moved's matrix products,
+Geo.tangents and the winding tests of _facing / outward / fix_winding. NumPy's products go through OpenBLAS, whose
+kernels' last bits depend on the processor; the core writes out the kernels of the machine that recorded Project
+OPFOR's WW2 weapon parts (spec rule XWW2-MOD-1, as decimate.py), so the parts are those on any processor. The
+builders (lathe, extrude, _triangulate) are plain Python floats and stay here; *_reference are the NumPy originals,
+kept as the tests' reference.
 """
 import math
+import os
+import sys
 from typing import Any
 
 import numpy as np
+
+
+def _native() -> Any:
+    """The Rust core (NativeMissing, saying how to get it, without it)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('shapes.py (its products, tangents and windings)', 'shapes_matmul')
+
+
+def _f8(a) -> bytes:
+    return np.ascontiguousarray(a, '<f8').tobytes()
+
+
+def _rows(b: bytes, n: int = 3) -> np.ndarray:
+    return np.frombuffer(b, np.float64).reshape(-1, n).copy()
+
+
+def matmul(points, m):
+    """points (n x 3) @ m (3 x 3), as NumPy's OpenBLAS computes it on the reference machine."""
+    points = np.asarray(points, float)
+    if not len(points):
+        return points @ np.asarray(m, float)
+    return _rows(_native().shapes_matmul(_f8(points), [float(x) for x in np.asarray(m, float).ravel()]))
+
+
+def _turn_over(g, mode, v=(0.0, 0.0, 0.0)) -> np.ndarray:
+    tris = np.asarray(g.tris, np.int64).reshape(-1, 3)
+    flags = _native().shapes_turn_over(_f8(g.pos), _f8(g.nrm), np.ascontiguousarray(tris, '<i8').tobytes(), mode,
+                                       [float(x) for x in np.asarray(v, float).ravel()])
+    return np.frombuffer(flags, np.uint8).astype(bool)
 
 
 class Geo:
@@ -28,6 +71,14 @@ class Geo:
         """Rotated (3x3, about a point) and then moved."""
         p, n = self.pos.copy(), self.nrm.copy()
         if rot is not None:
+            p = matmul(p - about, np.asarray(rot).T) + about
+            n = matmul(n, np.asarray(rot).T)
+        return Geo(p + np.asarray(by), n, self.uv.copy(), self.tris.copy(), self.bone.copy())
+
+    def moved_reference(self, by=(0, 0, 0), rot=None, about=(0, 0, 0)):
+        """The NumPy original of moved."""
+        p, n = self.pos.copy(), self.nrm.copy()
+        if rot is not None:
             p = (p - about) @ np.asarray(rot).T + about
             n = n @ np.asarray(rot).T
         return Geo(p + np.asarray(by), n, self.uv.copy(), self.tris.copy(), self.bone.copy())
@@ -42,6 +93,13 @@ class Geo:
         """(tangent, binormal) per vertex: tangent along +u on the surface; binormal across normal and tangent,
         -(normal x tangent) or +(normal x tangent) - whichever points along +v (the game stores both: a face whose
         texture is mirrored has the other sign)."""
+        tris = np.asarray(self.tris, np.int64).reshape(-1, 3)
+        t, b = _native().shapes_tangents(_f8(self.pos), _f8(self.nrm), _f8(self.uv),
+                                         np.ascontiguousarray(tris, '<i8').tobytes())
+        return _rows(t), _rows(b)
+
+    def tangents_reference(self):
+        """The NumPy original of tangents."""
         t = np.zeros_like(self.pos)
         bv = np.zeros_like(self.pos)
         for a, b, c in self.tris:
@@ -212,6 +270,12 @@ def extrude(outline, half, side_rect, side_box, edge_rect, axis='x', center=0.0)
 
 def _facing(g, normal):
     """g with every triangle wound so that its geometric normal agrees with `normal`."""
+    flip = _turn_over(g, 'normal', normal)
+    return Geo(g.pos, g.nrm, g.uv, [t[::-1] if f else t for t, f in zip(g.tris, flip)], g.bone)
+
+
+def _facing_reference(g, normal):
+    """The NumPy original of _facing."""
     tris = []
     for t in g.tris:
         a, b, c = g.pos[t]
@@ -223,6 +287,12 @@ def _facing(g, normal):
 
 def outward(g, inside_point):
     """Each triangle wound so it faces away from inside_point (closed convex-ish solids)."""
+    flip = _turn_over(g, 'outward', inside_point)
+    return Geo(g.pos, g.nrm, g.uv, [t[::-1] if f else t for t, f in zip(g.tris, flip)], g.bone)
+
+
+def outward_reference(g, inside_point):
+    """The NumPy original of outward."""
     tris = []
     for t in g.tris:
         a, b, c = g.pos[t]
@@ -235,6 +305,12 @@ def outward(g, inside_point):
 def fix_winding(g):
     """Each triangle wound to agree with its vertices' normals (the convention: counter-clockwise seen from the
     side the normal points to)."""
+    flip = _turn_over(g, 'normals')
+    return Geo(g.pos, g.nrm, g.uv, [t[::-1] if f else t for t, f in zip(g.tris, flip)], g.bone)
+
+
+def fix_winding_reference(g):
+    """The NumPy original of fix_winding."""
     tris = []
     for t in g.tris:
         a, b, c = g.pos[t]
