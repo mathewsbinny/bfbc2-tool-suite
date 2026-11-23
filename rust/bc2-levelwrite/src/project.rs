@@ -35,11 +35,13 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 ///   member named `{"added": n}`: [`crate::members::Member`]); a version-6 file loads as it is (its member edits name
 ///   base members by number, as version 7 does).
 /// - 8: round A2, objects pinned for the auto layout (`pin`); a version-7 file loads as it is.
-pub const VERSION: u32 = 8;
+/// - 9: round E4, the gameplay tools (`place-unit`: a flag, spawner or M-COM placed with its logic; `link-point`: a
+///   spawn point linked to its spawner; `set-rules`: the round's rules); a version-8 file loads as it is.
+pub const VERSION: u32 = 9;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
-pub const OP_VERSIONS: [(&str, u32); 13] = [
+pub const OP_VERSIONS: [(&str, u32); 16] = [
     ("nav-add", 2),
     ("nav-remove", 2),
     ("nav-load", 2),
@@ -53,6 +55,9 @@ pub const OP_VERSIONS: [(&str, u32); 13] = [
     ("files", 6),
     ("stroke", 6),
     ("pin", 8),
+    ("place-unit", 9),
+    ("link-point", 9),
+    ("set-rules", 9),
 ];
 
 /// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; round OP1 made
@@ -68,6 +73,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 5 -> 6: the base records its other files' sha1s (round OP1); a version-5 project edited none
         // 6 -> 7: member deletes and adds were added (round SG1); a version-6 log has none
         // 7 -> 8: the auto layout's pins were added (round A2); a version-7 log has none
+        // 8 -> 9: the gameplay tools' operations were added (round E4); a version-8 log has none
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {
@@ -764,6 +770,18 @@ impl MapProject {
     /// of a member the project added (round SG1).
     #[must_use]
     pub fn reader_needed(&self) -> u32 {
+        let kind = |op: &Op| {
+            serde_json::to_value(op)
+                .ok()
+                .and_then(|v| v.get("op").and_then(|k| k.as_str().map(str::to_owned)))
+                .and_then(|k| OP_VERSIONS.iter().find(|(n, _)| *n == k).map(|x| x.1))
+                .unwrap_or(1)
+        };
+        // a multi-file operation needs what its partition edits need too (round E4: a flag added in one step)
+        let parts = |o: &Operation| match &o.op {
+            Op::Files { .. } => o.op.parts().into_iter().map(kind).max().unwrap_or(1),
+            _ => 1,
+        };
         let of = |o: &Operation| {
             if let Op::Files { edits } = &o.op
                 && edits.iter().any(|e| {
@@ -779,13 +797,9 @@ impl MapProject {
                     )
                 })
             {
-                return 7;
+                return parts(o).max(7);
             }
-            serde_json::to_value(&o.op)
-                .ok()
-                .and_then(|v| v.get("op").and_then(|k| k.as_str().map(str::to_owned)))
-                .and_then(|k| OP_VERSIONS.iter().find(|(n, _)| *n == k).map(|x| x.1))
-                .unwrap_or(1)
+            kind(&o.op).max(parts(o))
         };
         let ops = self.operations.iter().chain(&self.redo).map(of).max().unwrap_or(1);
         if self.base.files.is_empty() { ops } else { ops.max(6) }
@@ -1342,18 +1356,21 @@ mod tests {
             Err(ProjectError::Format(_))
         ));
         // round OP1: a newer file whose log needs nothing newer than this editor (`min_reader`) is read
-        let readable = q
-            .to_json()
-            .unwrap()
-            .replace(&format!("\"version\": {VERSION}"), "\"version\": 9");
+        let readable = q.to_json().unwrap().replace(
+            &format!("\"version\": {VERSION}"),
+            &format!("\"version\": {}", VERSION + 1),
+        );
         assert!(readable.contains("\"min_reader\": 1"), "{readable}");
         assert_eq!(MapProject::from_json(&readable).unwrap().operations, q.operations);
-        let newer = readable.replace("\"min_reader\": 1", "\"min_reader\": 9");
+        let newer = readable.replace("\"min_reader\": 1", &format!("\"min_reader\": {}", VERSION + 1));
         let e = MapProject::from_json(&newer).unwrap_err();
-        assert!(matches!(e, ProjectError::Version(9)));
+        assert!(matches!(e, ProjectError::Version(v) if v == VERSION + 1));
         assert_eq!(
             e.to_string(),
-            format!("made by a newer editor version (project format 9); this editor reads up to {VERSION}")
+            format!(
+                "made by a newer editor version (project format {}); this editor reads up to {VERSION}",
+                VERSION + 1
+            )
         );
         // a version-1 file (the format before GR2's navigation operations) loads unchanged, as the current version
         let v1 = q

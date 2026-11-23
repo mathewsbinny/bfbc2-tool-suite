@@ -557,36 +557,15 @@ impl Doc {
             }
             Op::Place { items } => {
                 for p in items {
-                    let Some(k) = self.index(&p.template) else { continue };
-                    let old = self.scene.entities.get(k).and_then(|e| e.matrix);
-                    let to = bc2_levelwrite::matrix_of(&p.transform);
-                    let Some(n) = self.copy_entity(k, &p.guid, Some(to)) else {
-                        continue;
-                    };
-                    self.copy_owned(k, n, old, to, &p.owned);
-                    for f in &p.fields {
-                        self.field_to_scene(n, &f.field, &f.value);
-                    }
-                    let path = blueprint_path(&p.blueprint);
-                    let same = self.scene.entities.get(k).and_then(|e| e.blueprint.clone()) == Some(path.clone());
-                    // a spawner's vehicle or a template kept as it is: the entity stays the template's kind
-                    if !same && !p.blueprint.is_empty() && p.ref_field.is_none() {
-                        let info = self.blueprint_info(&path);
-                        if let Some(c) = self.scene.collision.as_mut() {
-                            c.meshes.retain(|(i, _)| *i != n);
-                            if c.blueprints.contains_key(&path) {
-                                c.meshes.push((n, path.clone()));
-                            }
-                        }
-                        if let Some(e) = self.scene.entities.get_mut(n) {
-                            e.blueprint = Some(path);
-                            e.name = None;
-                            if let Some((category, bt, destructible)) = info {
-                                e.category = category;
-                                e.blueprint_type = bt;
-                                e.destructible = destructible;
-                            }
-                        }
+                    self.place_in_scene(p);
+                }
+            }
+            Op::PlaceUnit { item } => self.place_in_scene(item),
+            // round E4: a team set shows in the views' team colours
+            Op::SetTeam { items } => {
+                for t in items {
+                    if let Some(k) = self.index(&t.guid) {
+                        self.field_to_scene(k, "Team", &FieldValue::Text(t.to.data().to_owned()));
                     }
                 }
             }
@@ -598,6 +577,42 @@ impl Doc {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// A placed object in the scene (a placement, or a gameplay unit's: round E4): a copy of its template with the
+    /// sub-instances copied with it, its fields, and its blueprint's kind.
+    fn place_in_scene(&mut self, p: &bc2_levelwrite::ops::Placed) {
+        let Some(k) = self.index(&p.template) else { return };
+        let old = self.scene.entities.get(k).and_then(|e| e.matrix);
+        let to = bc2_levelwrite::matrix_of(&p.transform);
+        let Some(n) = self.copy_entity(k, &p.guid, Some(to)) else {
+            return;
+        };
+        self.copy_owned(k, n, old, to, &p.owned);
+        for f in &p.fields {
+            self.field_to_scene(n, &f.field, &f.value);
+        }
+        let path = blueprint_path(&p.blueprint);
+        let same = self.scene.entities.get(k).and_then(|e| e.blueprint.clone()) == Some(path.clone());
+        // a spawner's vehicle or a template kept as it is: the entity stays the template's kind
+        if !same && !p.blueprint.is_empty() && p.ref_field.is_none() {
+            let info = self.blueprint_info(&path);
+            if let Some(c) = self.scene.collision.as_mut() {
+                c.meshes.retain(|(i, _)| *i != n);
+                if c.blueprints.contains_key(&path) {
+                    c.meshes.push((n, path.clone()));
+                }
+            }
+            if let Some(e) = self.scene.entities.get_mut(n) {
+                e.blueprint = Some(path);
+                e.name = None;
+                if let Some((category, bt, destructible)) = info {
+                    e.category = category;
+                    e.blueprint_type = bt;
+                    e.destructible = destructible;
+                }
+            }
         }
     }
 

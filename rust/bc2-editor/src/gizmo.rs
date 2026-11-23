@@ -26,6 +26,8 @@ pub enum Tool {
     Ruler,
     /// Select inside a polygon: click its corners.
     Polygon,
+    /// The Gameplay workspace's tool (round E4): add flags, spawn points and M-COMs, carry them by the cursor.
+    Gameplay,
 }
 
 impl Tool {
@@ -38,6 +40,7 @@ impl Tool {
             Self::Rotate => "Rotate",
             Self::Ruler => "Ruler",
             Self::Polygon => "Polygon",
+            Self::Gameplay => "Gameplay",
         }
     }
 }
@@ -154,7 +157,7 @@ pub fn handles(view: &View, f: &Frame, tool: Tool) -> Vec<(Handle, Outline)> {
                 }
             }
         }
-        Tool::Select | Tool::Ruler | Tool::Polygon => {}
+        Tool::Select | Tool::Ruler | Tool::Polygon | Tool::Gameplay => {}
     }
     out
 }
