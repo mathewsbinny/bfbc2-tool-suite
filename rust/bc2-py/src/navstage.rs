@@ -63,7 +63,7 @@ const CFG_KEYS: [&str; 21] = [
 ];
 
 /// The keys [`switches_of`] takes.
-const SWITCH_KEYS: [&str; 26] = [
+const SWITCH_KEYS: [&str; 27] = [
     "area_link",
     "link_rule",
     "symmetric_portals",
@@ -86,6 +86,7 @@ const SWITCH_KEYS: [&str; 26] = [
     "cut_corners",
     "chain_turns",
     "df_slope",
+    "placement",
     "shadow",
     "header",
     "roof_prune",
@@ -194,6 +195,7 @@ pub(crate) fn switches_of(d: Option<&Bound<'_, PyDict>>) -> PyResult<Switches> {
         detail_terrain_only,
         cut_corners,
         chain_turns,
+        placement,
         roof_prune,
         objective_floor
     );
@@ -296,6 +298,7 @@ pub fn navkit_settings(py: Python<'_>) -> PyResult<(Bound<'_, PyDict>, Bound<'_,
     s.set_item("cut_corners", w.cut_corners)?;
     s.set_item("chain_turns", w.chain_turns)?;
     s.set_item("df_slope", w.df_slope)?;
+    s.set_item("placement", w.placement)?;
     s.set_item(
         "shadow",
         w.shadow.map(|h| {

@@ -26221,6 +26221,22 @@
    ]
   },
   {
+   "id": "KYG-AREA-4",
+   "title": "An area too large in bytes is split at its cells' box midlines",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the size test 0x011AD550 (MaxLocalMapBinarySize +0x598: default 0x2000 at 0x01146ACB, the reader 0x0114A579 keeps values from 0x1000; the tiles +0x5D4 x +0x5D8, each map's area sizes summed; an area at or over the limit marks its tile and the four side neighbours in +0x6A4 and is listed in +0x698); the split 0x011B4BB0 (the cells' integer box, mid = (min + max) >> 1 at 0x011B4D16 / 0x011B4D18, four groups by x > mid and z > mid at 0x011B4D42-0x011B4D6A); the rebuild loop 0x011B2160 (the size test, then the split and the marked tiles built again)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest: stored records of cut groups 1-32 KB, uncut areas 0-14 KB; cuts on the tile midline 16,159 coarse B portals"
+    }
+   ]
+  },
+  {
    "id": "KYG-AREA-3",
    "title": "Area heights",
    "file": "spec/transforms/kynapse_generation.md",
@@ -26401,6 +26417,50 @@
    ]
   },
   {
+   "id": "KYG-NODE-7",
+   "title": "Nodes propagate from the seeds in NbSectors directions, DistPropagation apart",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "propagation 0x0115D520 (100 nodes a call; NbSectors +0x55C probes; the angle i x 6.2831855 (double 0x01412670) / NbSectors; sin / cos; the probe 0x01153000 (EntityRadius +0x4E0, EdgeRadius +0x56C, Pitch +0x520, DistPropagation +0x560): reach DistPropagation + 2 x Pitch, the end pulled back 2 x Pitch; NeighbourInfo sorted by its squared distance, farthest first (0x0115BDC0); the candidate test and insertion 0x01158BA0 (ground height 0x011545E0, DistDensityMin +0x568, DistDensityMax +0x564, the straight-walk test 0x013565E0 both ways, a 5 m node grid); the seeds 0x0115AC40 (seed points +0x420, count +0x428: \"No seed defined\" at 0x01143658 when 0; seed graphs +0x450); driver 0x0115D980"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::step_pairs_lie_on_the_nbsectors_probe_directions"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B, `kynapse_place --only angles` over the 35 files: step pairs on the directions coarse 21,709 / detailed 2,272 / vehicle 341, off 175 / 135 / 18, on odd directions 9,396 / 1,138 / 163; control on 243 of 15,521 / 26 of 2,926 / 5 of 3,051"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/propagate.rs:1-40"
+    }
+   ]
+  },
+  {
+   "id": "KYG-NODE-8",
+   "title": "Dense edges, then edges collapsed into their middles",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "dense edges 0x01154B00 (ConnectionDistance +0x588; set to DistPropagation x 1.2 (double 0x0142EE90) at 0x0114E2B1 when not positive; Kynapse's default -1 at 0x01146AEF); the simplification 0x0115B3C0 (its graph 0x011B81D0, edges sorted by `CSimplifyEdgeLess` 0x011B8030, a new edge dirty with its length 0x01152C00; state word +0x83C: 0 dirty edges, 1 OverSimplify's edges under (2 OneMeter)^2 = 4 with the cell lock +0x28 of the 5 m grid and rerouting, 2 every edge; leaves 0x011B64C0; the two-edge apex 0x011B6500; the collapse test 0x01158510 with 0x01157CA0 / 0x01158100: DistEdgeMax^2 +0x558, MaxDeltaHeight +0x578, the straight walk 0x01351F80 with EdgeRadius); the graph rebuilt 0x011B6740"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B, NavKit with this placement (`Switches::placement`) against DICE's files of the 15 regression levels: the structure counts and parity in `rust/BENCHMARKS.md` \"NKS-deep B\""
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/propagate.rs:1-40"
+    }
+   ]
+  },
+  {
    "id": "KYG-EDGE-1",
    "title": "Edges join nodes within DistEdgeMax across",
    "file": "spec/transforms/kynapse_generation.md",
@@ -26493,6 +26553,26 @@
     {
      "kind": "data",
      "ref": "one-way by id: infantry 14,692 of 1,646,482 edges (border-border 5,533, ordinary-border 7,113, ordinary-ordinary 2,046; 5,921 down, 2,867 level, 5,904 up by more than 0.3 m), vehicle 2,343 of 47,584; one-way in their sector: infantry 212,664 (206,058 into a non-owner copy), vehicle 6,836 (4,815)"
+    }
+   ]
+  },
+  {
+   "id": "KYG-EDGE-5",
+   "title": "The 1.2 rule removes edges in order from the simplified graph",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the over-connection pass 0x01155FA0 (only when OverConnectionRatio +0x58C > 1; each edge of the table +0x6E0 in order, not a seed graph's; removal 0x010DA6E0 of it and its reverse); the route test 0x01155150 (`CHeuristicEuclidianDistance`, `CMySphereConstraint` of radius ratio x length around the source, the A* 0x010EB1F0, the path's lengths summed against ratio x length); then nodes without an edge removed 0x011578B0 (ComponentSizeMin +0x57C, default 1)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B: NavKit with the placement and this pass (`Switches::placement`) against DICE's files, `rust/BENCHMARKS.md` \"NKS-deep B\""
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/propagate.rs:1-40"
     }
    ]
   },
@@ -26618,6 +26698,10 @@
    "file": "spec/transforms/kynapse_generation.md",
    "status": "inferred",
    "evidence": [
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B, `rust/bc2-navbuild/examples/kynapse_df.rs` (the rule \"step > StepMax / StepLength x pitch\"): detailed terrain true / false 14,616 / 824,630 against the 0.175 m step's 14,010 / 48,791, detailed objects 3,398 / 220,430 against 2,451 / 181,096, normal-pitch objects found 787 / false 2,180 against 865 / 2,331"
+    },
     {
      "kind": "inferred",
      "ref": "three independently measured thresholds (0.62 m link step at pitch 0.8, the 0.775-0.780 slope band, about 0.17 m at pitch 0.2) agree with 0.28 / 0.36 = 0.778 within their measurement steps; the code that applies StepMax / StepLength was not traced"

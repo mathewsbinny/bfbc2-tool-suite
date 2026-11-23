@@ -733,7 +733,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "library",
-   "lines": 587,
+   "lines": 592,
    "note": "walkable, coarse and the rules are Rust (NK4); build / water_tops / outside_bounds / deep_water are thin calls of the Rust build (NK5-rest: navbuild.py's); left: score's command line",
    "path": "bfbc2-auto-navkit/tools/navwalk.py",
    "retiring": "NK5",
@@ -4569,7 +4569,7 @@
  "totals": {
   "all": {
    "files": 375,
-   "lines": 109897
+   "lines": 109902
   },
   "by_folder": {
    "(root)": {
@@ -4596,9 +4596,9 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 14708,
+    "lines": 14713,
     "live": 1858,
-    "partly": 4386,
+    "partly": 4391,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
@@ -4822,7 +4822,7 @@
    },
    "partly": {
     "files": 21,
-    "lines": 16765
+    "lines": 16770
    },
    "ported": {
     "files": 21,

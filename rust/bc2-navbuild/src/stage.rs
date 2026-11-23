@@ -289,6 +289,11 @@ pub struct Switches {
     /// recall 50.5 / 18.8 -> 56.7 / 23.9 %; the dip on `sp_02` a named exception by the user's ruling). `None`, or a
     /// build without the height field: the step rule everywhere.
     pub df_slope: Option<f64>,
+    /// DICE's node placement (round NKS-deep B; KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5): the propagation at `DistPropagation`,
+    /// the dense edges, the simplification and the over-connection pass of Kynapse's map builder
+    /// ([`crate::propagate`]) in place of NavKit's centre, portal and coverage nodes and its spanner. On by the user's
+    /// ruling (2026-11-23), its regressions named exceptions (`spec/transforms/navkit.md`, "Parity target").
+    pub placement: bool,
     /// `navdetail.CHAIN_TURNS`.
     pub chain_turns: bool,
     /// `navislands`' rule when `SHADOW_ISLANDS`, else `None`.
@@ -349,6 +354,7 @@ impl Default for Switches {
             detail_terrain_only: (false, true),
             cut_corners: true,
             df_slope: Some(DF_TERRAIN_SLOPE),
+            placement: true,
             chain_turns: true,
             shadow: Some(graphfile::Shadow::default()),
             header: HEADER,
@@ -1549,6 +1555,10 @@ pub fn stage(
         order_nodes: cfg.order_nodes,
         order_node_min: sw.order_node_min,
         grid_min: (g.min_x, g.min_z),
+        // infantry pitches only: a vehicle build (pitch 1 m) keeps NavKit's own nodes (DICE's vehicle run, NbSectors 64
+        // and DistPropagation 15.35 m, is not measured: no vehicle sample run)
+        placement: (sw.placement && ((cfg.pitch - 0.8).abs() < 1e-6 || cfg.is_detailed()))
+            .then(|| crate::propagate::Params::at_pitch(cfg.pitch, cfg.dist_edge_max)),
     };
     let level = &st.ground.level;
     let mut jobs = Vec::with_capacity(st.sectors.len());

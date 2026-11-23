@@ -154,6 +154,18 @@ Set by the user, 2026-11-22. "100 % parity" with DICE's path data means a full c
    (KYG-DF-1): 43 of DICE's 12,932 sides, lost where the terrain's slope across the side is 0.60-0.77 and the centres'
    step 0.60-0.65 m, the band where DICE breaks only 17-34 % of sides and the height field's 1 m quantisation hides
    DICE's own slope measure; every other level's D precision and recall rose with it.
+   Named by the user's ruling (2026-11-23, round NKS-deep B) with DICE's node placement on (KYG-NODE-7, KYG-NODE-8,
+   KYG-EDGE-5; `nodes_near` 47.63 -> 56.21 %, `ai_pairwise` 92.67 -> 95.57 %, `connectivity` 98.79 -> 99.06 % on the
+   15 levels): `costs` 95.29 -> 84.92 %, `nodes_same` 0.66 -> 0.63 % and `edges_same` 0.02 -> 0.01 %, measures of
+   tiny exact-match samples (edges matched within 5 cm, a handful a level; nodes on DICE's exact positions, which the
+   old cell-centre nodes met only on DICE's 4 % of cell-centre nodes); `over_connection` 15.31 -> 15.74 %, mostly the
+   matched sample growing (sp_003_b's wrongly joined DICE group pairs 8,622 -> 7,629 and sp_03's 5,442 -> 4,753 while
+   their matched DICE nodes grow 19,318 -> 29,999 and 21,654 -> 31,379), with one real rise, sp_007 10.87 -> 17.47 %
+   (a 142-node DICE island joined to the main group by short detailed edges beside DICE's own island boundary; handed
+   to round NKS-deep D); and the per-level dips `connectivity` sp_007 -0.21, ons_mp_002 -0.15, sp_004_b -0.10,
+   `nodes_near` sp_009 41.08 -> 32.43 % (the old build held 2.6 x DICE's nodes there; NavKit's nodes near a DICE node
+   23.0 -> 32.4 %) and sp_008_b 61.82 -> 59.16 %, `ai_pairwise` sp_008 96.2 -> 95.5 % (`rust/BENCHMARKS.md` "NKS-deep
+   B").
 
 Measured 2026-11-20 (15 regression levels, means): `ground` 98.22 %, `connectivity` 98.79 %, `ai_coverage`
 99.16 %, `ai_pairwise` 92.67 %, `extra_ground` 8.31 %, `over_connection` 15.31 %, `sectors_extra` 1.33;

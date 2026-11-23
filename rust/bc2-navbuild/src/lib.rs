@@ -60,6 +60,7 @@ pub mod ntpath;
 pub mod offline;
 pub mod parity;
 pub mod pick;
+pub mod propagate;
 pub mod pyjson;
 pub mod pymath;
 pub mod route;

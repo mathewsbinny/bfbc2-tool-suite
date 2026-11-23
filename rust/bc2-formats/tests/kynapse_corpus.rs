@@ -756,3 +756,74 @@ fn nearest_node_at_dist_propagation() {
         assert!(at[k][0] >= 10 * at[k][1].max(1), "{name}: not 10 x the control");
     }
 }
+
+// spec: KYG-NODE-7
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn step_pairs_lie_on_the_nbsectors_probe_directions() {
+    // The propagation sends NbSectors probes per node, one every 2 pi / NbSectors radians from +x (32 coarse, 128
+    // detailed, 64 vehicle), each DistPropagation long. Pairs of ordinary nodes of a sector at the same floor exactly
+    // one step apart in plan (+- 2 mm) lie on those directions (within 0.01 degrees); about half on the odd ones, so
+    // the count is NbSectors, not half of it. Control: pairs at 1.02-1.10 steps.
+    let mut on = [[0u64; 4]; 3]; // per kind: step pairs on / off the directions, on an odd direction; control on
+    let mut ctrl = [0u64; 3];
+    each(|f, h, meshes| {
+        for (s, m) in h.sectors.iter().zip(meshes) {
+            let k = if f.vehicle {
+                2
+            } else {
+                usize::from((m.pitch - 0.2).abs() < 1e-4)
+            };
+            let (dp, n) = [(3.35f64, 32u32), (0.85, 128), (15.35, 64)][k];
+            let ord: Vec<[f64; 3]> = s
+                .nodes
+                .iter()
+                .filter(|v| v.id & 0x8000_0000 == 0)
+                .map(|v| v.pos.map(f64::from))
+                .collect();
+            let off = |a: &[f64; 3], b: &[f64; 3], n: u32| {
+                let ang = (b[2] - a[2]).atan2(b[0] - a[0]).to_degrees().rem_euclid(360.0);
+                let step = 360.0 / f64::from(n);
+                let r = ang.rem_euclid(step);
+                r.min(step - r)
+            };
+            for (i, a) in ord.iter().enumerate() {
+                for b in &ord[i + 1..] {
+                    if (a[1] - b[1]).abs() > 3.0 {
+                        continue;
+                    }
+                    let d = (a[0] - b[0]).hypot(a[2] - b[2]);
+                    if (d - dp).abs() <= 0.002 {
+                        if off(a, b, n) < 0.01 {
+                            on[k][0] += 1;
+                            on[k][2] += u64::from(off(a, b, n / 2) >= 0.01);
+                        } else {
+                            on[k][1] += 1;
+                        }
+                    } else if (d - dp * 1.06).abs() <= dp * 0.04 {
+                        on[k][3] += 1;
+                        ctrl[k] += u64::from(off(a, b, n) < 0.01);
+                    }
+                }
+            }
+        }
+    });
+    if on[0][0] == 0 {
+        return;
+    }
+    for (k, name) in ["coarse", "detailed", "vehicle"].into_iter().enumerate() {
+        println!(
+            "{name}: step pairs {} on the directions ({} on odd ones), {} off; control {} of {} on",
+            on[k][0], on[k][2], on[k][1], ctrl[k], on[k][3]
+        );
+        assert!(on[k][0] >= 15 * on[k][1], "{name}: under 93 % on the directions");
+        assert!(
+            4 * on[k][2] >= on[k][0] && 4 * on[k][2] <= 3 * on[k][0],
+            "{name}: odd directions not about half"
+        );
+        assert!(
+            ctrl[k] * 20 <= on[k][3].max(1),
+            "{name}: the control on the directions too"
+        );
+    }
+}

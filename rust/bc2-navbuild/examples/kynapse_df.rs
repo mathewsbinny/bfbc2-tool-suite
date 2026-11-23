@@ -586,6 +586,14 @@ fn main() {
                         let step_t = if cls == "d" { 0.175 } else { 0.6 };
                         // the step rule against DICE's label
                         rule(&mut c, &format!("{cls} {kind} step > {step_t}"), step > step_t, lab);
+                        // KYG-PAR-3's walkable step, StepMax / StepLength x pitch (0.622 / 0.156 m)
+                        let par3 = 0.28 / 0.36 * ad.pitch;
+                        rule(
+                            &mut c,
+                            &format!("{cls} {kind} step > stepmax/steplength x pitch"),
+                            step > par3,
+                            lab,
+                        );
                         if let (true, Some(hf)) = (terrain, &hf) {
                             let p = ad.pitch;
                             let (mx, mz) = (

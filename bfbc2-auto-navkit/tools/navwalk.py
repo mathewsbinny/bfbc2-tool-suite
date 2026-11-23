@@ -544,11 +544,17 @@ def clock_words(stamp: Any) -> tuple[int, int]:
 # step rule. On by the user's ruling (2026-11-22; sp_02's D recall 21.86 -> 21.53 % a named exception).
 DF_SLOPE: float | None = 0.77
 
+# DICE's node placement (KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5, round NKS-deep B): Kynapse's propagation, simplification and
+# over-connection pass in place of NavKit's own nodes and spanner. On by the user's ruling (2026-11-23; its regressions
+# named exceptions in spec/transforms/navkit.md, "Parity target").
+PLACEMENT: bool = True
+
 
 def switches() -> dict[str, Any]:
     """The build's switches this module owns (the stage's log line names what walkability did); the others are the
     Rust defaults."""
-    return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR), df_slope=DF_SLOPE)
+    return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR), df_slope=DF_SLOPE,
+                placement=bool(PLACEMENT))
 
 
 def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,
