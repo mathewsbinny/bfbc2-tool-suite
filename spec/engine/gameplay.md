@@ -315,6 +315,21 @@ there. `StartAtBottom` starts the progress at 0 instead of 100 (0x7118E0); `Disa
 upper-sphere fields are read in the same update. DICE's PC values: GAME-CQ-5 (radius), GAME-CQ-6 (times).
 
 [exe: BFBC2Game.exe 0x726B60 (update: +0xAD, data +0x13A, data +0x84, 0x724060, 0x725D40, data +0x136); 0x725D40 (factor > 0 -> 0x725630, < 0 -> 0x711AA0, 0 -> +0x98 = 0); 0x7066B0 (data +0x80 ReturnMultiplier, +0x88 MinNrToTakeControl, +0x134 SeesawCapturing, +0xB8 MaxCaptureMultiplier, +0xBC AddedMultiplierPerPlayer; constants 1.0 at 0x14D94F0, -1.0 at 0x14D9420); 0x725630 (100.0 at 0x14D9638 over data +0x9C); 0x711AA0 (data +0xA0); 0x7118E0 (+0x9C = 0 when data +0x132 StartAtBottom, else 100); field descriptors 0x1C25750 - 0x1C25A68]
+### GAME-CQ-11: A flag's unit is its own
+
+Status: **verified**
+
+Every DICE flag has a unit no other capture point shares: what moves with it (its zone's outline or box, its map
+marker, its spawners and their spawn points) and what only its own events reach (`OnCaptured` / `OnLost` to two team
+filters per team, each filter starting the flag's own capture and loss messages and voice-over lines, and on some
+flags its vehicle spawners). The capture messages name the flag (`HUD_MP_CQ_TOOK_BASE_B`), the marker's `Sid` is its
+letter (the minimap's and the HUD's). So a new flag is a copy of a flag's unit wired as the template is, and a flag
+is deleted with its unit (the editor's gameplay tools, XLOG-GAME-1).
+
+[data: E4: 19 Conquest levels of every set, 67 flags: no unit shares an instance with another capture point's; 246 team filters in the units; Valparaiso's flag C (MP_01_Factory): 31 instances - its box, marker, spawner, 10 spawn points, 4 team filters, 4 messages, 4 voice-over entities and their lines, one vehicle spawner]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::every_conquest_flag_has_a_unit_of_its_own]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::a_flag_added_wired_and_deleted_on_valparaiso]
+[code: rust/bc2-levelwrite/src/gameplay.rs:435-450]
 
 ## 4. Tickets and the end of the round
 
@@ -488,6 +503,37 @@ bases and the two combat areas in play per stage are L1's, in L1's play order, w
 [test: rust/bc2-levelwrite/tests/vw2.rs::rush_stages_as_played_match_l1]
 [test: rust/bc2-editor/tests/vw2.rs::mode_view_layer_hides_by_mode_and_rush_stage]
 [doc: bfbc2-map-editor/placement/L1_placement_report.md:146-163]
+
+### GAME-RUSH-10: A stage's counters count its M-COMs
+
+Status: **verified**
+
+Each `MultipleTriggerEntityData` a Rush or Squad Rush M-COM's `onDestroyed` reaches directly has `TriggerAmount` equal
+to the number of the stage's M-COMs that reach it (2 on Rush, 1 on Squad Rush): a stage ends when all of them are
+destroyed. An M-COM added to a stage makes every counter of the stage count one more, one taken out one fewer.
+
+[data: E4: 31 Rush and Squad Rush levels of every set, 221 stage counters, all equal]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::every_rush_stage_counter_counts_its_mcoms]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::an_mcom_added_to_a_rush_stage_and_taken_out]
+[code: rust/bc2-levelwrite/src/gameplay.rs:479-500]
+
+### GAME-RULES-1: The round's rules and DICE's values for them
+
+Status: **verified**
+
+The rules of a round are the mode layer's own values: Conquest each ticket counter's `InitialTicketCount` and
+`TicketLossPerMin` and each flag's `TimeToGetControl` / `TimeToLoseControl`; Rush and Squad Rush the life counters'
+`StartingLifeCount` (the attackers' `Attacker` true); Squad Deathmatch the kill counters' `MaxKillCount`. No server
+option of the game changes them (the server's presets are hardcore, friendly fire, kill cam, minimap, spotting,
+crosshair and third-person vehicle cameras: `Server.*` settings, not tickets). DICE's values per mode and era are the
+editor's defaults (GAME-TKT-1, GAME-CQ-6, GAME-RUSH-8, GAME-SDM-1): Conquest 200 tickets losing 10 a minute, a flag
+taken in 20 s (WW2 130, 4, 10 s); Rush attackers 100 lives (BFBC1 and Vietnam 75), defenders 1,500; Squad Rush 20
+against 1,000; Squad Deathmatch 50 kills. The values DICE used are the choices (Conquest tickets 200, 250, 350; a flag
+20 or 25 s); another value is the user's own, which the export's L1 rules warn about.
+
+[exe: BFBC2Game.exe strings: Server.IsHardcore, Server.FriendlyFireEnabled, Server.KillCam, Server.Minimap, Server.MinimapSpotting, Server.ThreeDSpotting, Server.Crosshair, Server.ThirdPersonVehicleCameras; no ticket or round-length setting]
+[test: rust/bc2-levelwrite/tests/gameplay_tools.rs::round_rules_stock_set_and_refused]
+[code: rust/bc2-levelwrite/src/gameplay.rs:656-760]
 
 ## 6. Squad Deathmatch
 

@@ -21,7 +21,9 @@
 use std::collections::BTreeMap;
 
 use bc2_formats::dbx::edit::NodeId;
-use bc2_levelwrite::LevelWriter;
+use bc2_levelwrite::gameplay::{self, Rules, Team};
+use bc2_levelwrite::placement::Mode;
+use bc2_levelwrite::{LevelWriter, Op};
 
 use crate::content::Catalogue;
 use crate::edit::Doc;
@@ -282,6 +284,245 @@ pub fn tiles(doc: &Doc, catalogue: Option<&Catalogue>) -> Vec<Tile> {
         }
     }
     out
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Round E4: the gameplay tools (the Gameplay workspace's tool on the views, its panel) - each a levelwrite
+// operation made from the level as the log leaves it ([`bc2_levelwrite::gameplay`]).
+
+/// What the gameplay tool does with a click on a view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GameplayKind {
+    /// Adds a flag (Conquest): a copy of the level's smallest flag with its unit, owned by the picker's team.
+    #[default]
+    Flag,
+    /// Adds a spawn point to the selected spawner (or the selected flag's, else the nearest flag's or base's).
+    SpawnPoint,
+    /// Adds an M-COM to Rush stage `k` (play order, from 0).
+    Mcom(usize),
+    /// Carries a flag, base, spawner or M-COM with what moves with it: a click picks it up, the next puts it down.
+    Carry,
+}
+
+impl GameplayKind {
+    /// Its name.
+    #[must_use]
+    pub fn name(self) -> String {
+        match self {
+            Self::Flag => "Add flag".into(),
+            Self::SpawnPoint => "Add spawn point".into(),
+            Self::Mcom(k) => format!("Add M-COM to stage {}", k + 1),
+            Self::Carry => "Carry".into(),
+        }
+    }
+
+    /// What a click does, for the status bar.
+    #[must_use]
+    pub fn hint(self) -> &'static str {
+        match self {
+            Self::Flag => "Click the ground to add a flag there with its zone, marker and spawns; Esc stops",
+            Self::SpawnPoint => {
+                "Click the ground to add a spawn point to the selected spawner (or the selected or nearest flag's)"
+            }
+            Self::Mcom(_) => "Click the ground to add an M-COM to the stage, wired to its counters; Esc stops",
+            Self::Carry => {
+                "Click a flag, base, spawner or M-COM to pick it up with what moves with it, click again to put it \
+                 down; Esc drops it"
+            }
+        }
+    }
+}
+
+/// A position as the partitions store it.
+fn at32(p: crate::math::V3) -> [f32; 3] {
+    #[allow(clippy::cast_possible_truncation, reason = "transforms are singles")]
+    p.map(|x| x as f32)
+}
+
+/// The team picker's team.
+#[must_use]
+pub fn team_of_picker(team: u8) -> Team {
+    match team {
+        1 => Team::Team1,
+        2 => Team::Team2,
+        _ => Team::TeamNeutral,
+    }
+}
+
+/// The soldier spawner a new spawn point at `at` goes to: a selected spawner; else a selected capture point's
+/// spawner (the picker's team's when it has one per team); else the nearest capture point's.
+#[must_use]
+pub fn spawner_for(doc: &Doc, selection: &[usize], at: crate::math::V3, team: Team) -> Option<String> {
+    let w = doc.writer()?;
+    let is = |g: &str, ty: &str| w.find(g).is_some_and(|e| w.type_of(e).ends_with(ty));
+    let picked: Vec<String> = selection
+        .iter()
+        .filter_map(|&k| doc.guid(k).map(str::to_owned))
+        .collect();
+    if let Some(s) = picked.iter().find(|g| is(g, ".SoldierSpawnEntityData")) {
+        return Some(s.clone());
+    }
+    let of_point = |cp: &str| -> Option<String> {
+        let ss: Vec<String> = gameplay::spawners(w, cp)
+            .into_iter()
+            .filter(|s| is(s, ".SoldierSpawnEntityData"))
+            .collect();
+        ss.iter()
+            .find(|s| gameplay::team_of(w, s) == Some(team))
+            .or_else(|| ss.first())
+            .cloned()
+    };
+    if let Some(s) = picked
+        .iter()
+        .filter(|g| is(g, ".CapturePointEntityData"))
+        .find_map(|g| of_point(g))
+    {
+        return Some(s);
+    }
+    let d2 = |g: &str| {
+        w.transform(g).map_or(f64::INFINITY, |r| {
+            let p = r[3];
+            (f64::from(p[0]) - at[0]).powi(2) + (f64::from(p[2]) - at[2]).powi(2)
+        })
+    };
+    let mut points: Vec<String> =
+        w.d.of_type(b".CapturePointEntityData")
+            .into_iter()
+            .map(|e| guid(w, e))
+            .collect();
+    points.sort_by(|a, b| d2(a).total_cmp(&d2(b)));
+    points.iter().find_map(|g| of_point(g))
+}
+
+/// The Rush stages in play order (their M-COMs), or the stages as the M-COMs group when the order is not known.
+#[must_use]
+pub fn rush_stages(doc: &Doc) -> Vec<Vec<String>> {
+    let Some(w) = doc.writer() else { return Vec::new() };
+    let (play, _) = bc2_levelwrite::modelayer::rush_play(w);
+    if play.is_empty() {
+        bc2_levelwrite::modelayer::stages(w)
+    } else {
+        play.into_iter().map(|s| s.mcoms).collect()
+    }
+}
+
+/// The operation a gameplay tool's click at `at` makes (with its History label and the new object's guid), or why
+/// not in words.
+///
+/// # Errors
+/// The level has no partition, or levelwrite refuses (no template, no spawner, no such stage).
+pub fn place_op(
+    doc: &Doc,
+    kind: GameplayKind,
+    at: crate::math::V3,
+    team: Team,
+    selection: &[usize],
+) -> Result<(Op, String, String), String> {
+    let w = doc.writer().ok_or("this level has no partition to edit")?;
+    let guid = |s: &str| doc.project.new_guid(s);
+    let p = at32(at);
+    match kind {
+        GameplayKind::Flag => {
+            let letter = gameplay::next_letter(w);
+            let (op, g) = gameplay::add_flag(w, p, team, &guid).map_err(|e| e.to_string())?;
+            Ok((op, format!("Add flag {letter}"), g))
+        }
+        GameplayKind::SpawnPoint => {
+            let s = spawner_for(doc, selection, at, team)
+                .ok_or("the level has no soldier spawner to add a spawn point to: select one")?;
+            let (op, g) = gameplay::add_spawn_point(w, &s, p, &guid).map_err(|e| e.to_string())?;
+            Ok((op, "Add spawn point".into(), g))
+        }
+        GameplayKind::Mcom(k) => {
+            let stages = rush_stages(doc);
+            let stage = stages
+                .get(k)
+                .ok_or_else(|| format!("the level has no Rush stage {}", k + 1))?;
+            let (op, g) = gameplay::add_mcom(w, &doc.schema, stage, p, &guid).map_err(|e| e.to_string())?;
+            Ok((op, format!("Add M-COM to stage {}", k + 1), g))
+        }
+        GameplayKind::Carry => Err("the carry tool moves objects; it adds none".into()),
+    }
+}
+
+/// Whether an object is one the gameplay tools carry and delete with its unit: a capture point, a soldier spawner,
+/// a spawn point, a vehicle spawner or an M-COM.
+#[must_use]
+pub fn is_unit_root(doc: &Doc, k: usize) -> bool {
+    let Some(w) = doc.writer() else { return false };
+    let Some(g) = doc.guid(k) else { return false };
+    let Some(e) = w.find(g) else { return false };
+    let t = w.type_of(e);
+    [
+        ".CapturePointEntityData",
+        ".SoldierSpawnEntityData",
+        ".AlternateSpawnEntityData",
+        ".VehicleSpawnEntityData",
+    ]
+    .iter()
+    .any(|s| t.ends_with(s))
+        || gameplay::stage_of(w, g).is_some()
+}
+
+/// The delete of gameplay objects with their units (round E4: one operation; an M-COM's stage counting one fewer),
+/// or why not in words. Objects another one's unit holds are taken with it, not twice.
+///
+/// # Errors
+/// levelwrite refuses one of them (a team's last base, the last flag, a stage's last M-COM).
+pub fn delete_op(doc: &Doc, ks: &[usize]) -> Result<Op, String> {
+    let w = doc.writer().ok_or("this level has no partition to edit")?;
+    let mut edits: Vec<bc2_levelwrite::files::FileEdit> = Vec::new();
+    let mut taken: Vec<String> = Vec::new();
+    for &k in ks {
+        let Some(g) = doc.guid(k) else { continue };
+        if taken.iter().any(|t| t.eq_ignore_ascii_case(g)) {
+            continue;
+        }
+        let op = gameplay::delete_unit(w, &doc.schema, g).map_err(|e| e.to_string())?;
+        for part in op.parts() {
+            let part = match part {
+                Op::Delete { guids } => {
+                    let left: Vec<String> = guids.iter().filter(|x| !taken.contains(x)).cloned().collect();
+                    taken.extend(left.iter().cloned());
+                    Op::Delete { guids: left }
+                }
+                other => other.clone(),
+            };
+            edits.push(bc2_levelwrite::files::FileEdit::Partition { op: Box::new(part) });
+        }
+    }
+    match edits.len() {
+        0 => Err("nothing to delete".into()),
+        1 => match edits.pop() {
+            Some(bc2_levelwrite::files::FileEdit::Partition { op }) => Ok(*op),
+            _ => Err("nothing to delete".into()),
+        },
+        _ => Ok(Op::Files { edits }),
+    }
+}
+
+/// The carry of a unit: its root to `to`, what moves with it as far, each keeping its height above the ground.
+#[must_use]
+pub fn carry_op(doc: &Doc, root: &str, to: crate::math::V3) -> Option<Op> {
+    let w = doc.writer()?;
+    // the terrain under a point (objects left out)
+    let ground = |x: f64, z: f64| -> Option<f64> {
+        crate::query::surface_below_except(&doc.scene, x, z, &|_| true)
+            .filter(|h| h.entity.is_none())
+            .map(|h| h.point[1])
+    };
+    let items = gameplay::carry_unit(w, root, at32(to), &ground);
+    (!items.is_empty()).then_some(Op::Move { items })
+}
+
+/// The round's rules as the level holds them, the mode they are for and DICE's for it (the panel's rows), when the
+/// level has a mode layer.
+#[must_use]
+pub fn rules(doc: &Doc) -> Option<(Mode, Rules, Rules)> {
+    let w = doc.writer()?;
+    let mode = bc2_levelwrite::placement::detect_mode(w)?;
+    let stock = gameplay::stock(mode, doc.project.target_profile());
+    Some((mode, gameplay::rules_of(w, &doc.schema), stock))
 }
 
 #[cfg(test)]

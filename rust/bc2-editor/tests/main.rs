@@ -40,6 +40,7 @@ mod game_view_live;
 mod game_view_package;
 mod game_view_r5d;
 mod game_view_ww2;
+mod gameplay_tools;
 mod gr1;
 mod gr2;
 mod group_members;

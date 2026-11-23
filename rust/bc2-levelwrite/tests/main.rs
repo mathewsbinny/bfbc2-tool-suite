@@ -26,6 +26,7 @@ mod export_rules;
 mod export_rules_stage;
 mod export_sp01;
 mod export_xf1;
+mod gameplay_tools;
 mod gameplay_xf1;
 mod journal_kill;
 mod model_group_members;
