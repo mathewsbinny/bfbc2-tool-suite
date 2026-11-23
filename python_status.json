@@ -2161,24 +2161,24 @@
    "embedded_by": [],
    "folder": "bfbc2-model-tools",
    "kind": "library",
-   "lines": 154,
-   "note": "quadric edge collapses for weapon LODs; not ported",
+   "lines": 183,
+   "note": "Rust since PR1b-2-rest2 (OpenBLAS products written out: XWW2-MOD-1); the NumPy original kept as decimate_reference",
    "path": "bfbc2-model-tools/decimate.py",
-   "retiring": "PR1b-2",
-   "rust": "",
-   "status": "live"
+   "retiring": "PR1b-2-rest2",
+   "rust": "bc2_convert decimate",
+   "status": "twin"
   },
   {
    "callers": "tests 2; OPFOR 1 (type100)",
    "embedded_by": [],
    "folder": "bfbc2-model-tools",
    "kind": "library",
-   "lines": 210,
-   "note": "simple solids for weapon parts (lathe, extrude); not ported",
+   "lines": 267,
+   "note": "products, tangents and windings in Rust since PR1b-2-rest2 (XWW2-MOD-1; *_reference the NumPy originals); the builders (lathe, extrude) plain Python floats",
    "path": "bfbc2-model-tools/shapes.py",
-   "retiring": "PR1b-2",
-   "rust": "",
-   "status": "live"
+   "retiring": "PR1b-2-rest2",
+   "rust": "bc2_convert shapes",
+   "status": "partly"
   },
   {
    "callers": "tests 2; OPFOR 3",
@@ -2197,7 +2197,7 @@
    "embedded_by": [],
    "folder": "bfbc2-model-tools",
    "kind": "test",
-   "lines": 88,
+   "lines": 234,
    "note": "decimate.py (unit tier): a UV sphere (its texture seam split into two wedges per point, as a game mesh has...",
    "path": "bfbc2-model-tools/tests/test_decimate.py",
    "retiring": "Tests in Rust",
@@ -3927,7 +3927,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 851,
+   "lines": 853,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4473,7 +4473,7 @@
  "totals": {
   "all": {
    "files": 367,
-   "lines": 107458
+   "lines": 107692
   },
   "by_folder": {
    "(root)": {
@@ -4621,14 +4621,14 @@
    },
    "bfbc2-model-tools": {
     "files": 8,
-    "lines": 1694,
-    "live": 364,
-    "partly": 0,
+    "lines": 1926,
+    "live": 0,
+    "partly": 267,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 664,
-    "twin": 666
+    "test": 810,
+    "twin": 849
    },
    "bfbc2-navigation-studio": {
     "files": 2,
@@ -4687,12 +4687,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6006,
+    "lines": 6008,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5739,
+    "stays": 5741,
     "test": 267,
     "twin": 0
    },
@@ -4721,12 +4721,12 @@
   },
   "by_status": {
    "live": {
-    "files": 20,
-    "lines": 5641
+    "files": 18,
+    "lines": 5277
    },
    "partly": {
-    "files": 20,
-    "lines": 16939
+    "files": 21,
+    "lines": 17206
    },
    "ported": {
     "files": 21,
@@ -4738,15 +4738,15 @@
    },
    "stays": {
     "files": 61,
-    "lines": 11334
+    "lines": 11336
    },
    "test": {
     "files": 187,
-    "lines": 51202
+    "lines": 51348
    },
    "twin": {
-    "files": 55,
-    "lines": 19452
+    "files": 56,
+    "lines": 19635
    }
   }
  }

@@ -76,7 +76,12 @@ fn writes_back(p: &str) {
     if let Ok(d) = read_doc(p) {
         let (got, want) = (d.write().unwrap(), std::fs::read(p).unwrap());
         let at = got.iter().zip(&want).position(|(a, b)| a != b);
-        assert!(got == want, "document {p}: {} / {} bytes, first difference {at:?}", got.len(), want.len());
+        assert!(
+            got == want,
+            "document {p}: {} / {} bytes, first difference {at:?}",
+            got.len(),
+            want.len()
+        );
     }
 }
 

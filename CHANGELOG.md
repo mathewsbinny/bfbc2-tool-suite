@@ -28,6 +28,37 @@ landed on `main`.
 
 ## [Unreleased]
 
+Round PR1b-2-rest2 removes public Rust API (culltool's own DBX codec, bc2-menu's `Fail` results): the merge bumps
+MINOR (0.23.0; `RELEASING.md`, "A merge that removes something").
+
+### Changed
+- **Merge step 3: `bfbc2.exe culltree` reads and writes on the suite's one DBX document** (round PR1b-2-rest2):
+  `bc2_levelwrite::culltool`'s trees and levels are `EditDbx` documents, read by `bc2_formats::culltree::document`
+  (`stream` for the streamed readers of round CT1: one root child at a time) under `culltree.py`'s rules (string
+  indexes checked where read, every value's bytes kept, the trailer kept); the element reader, the document and the
+  streamed read are one walk (`bc2_formats::culltree::walk`). Every output is the same: old and new `bfbc2.exe
+  culltree` on the four Onslaught levels (console_cull's command line) and `add --auto --misplaced 2` on the 89 level
+  partitions of OPFOR's `work\levels` (25 written trees and levels) byte for byte, `info` / `verify` on 180 trees
+  the same, and every tree and level partition (and damaged copies) written back byte for byte (CT1's test).
+- **The menu tools' library returns typed errors** (round PR1b-2-rest2): `bc2_menu::error::MenuError` (`Menu`,
+  `Apt`, `NotFound`, `Io`, `Latin1`, `Reference`) and `MenuResult` in place of the Python emulation's `Fail` (about
+  220 places in `common` and `graft`); `bfbc2.exe`'s menu and graft groups turn them back into the Python's
+  exceptions (`From<MenuError> for Fail`), so their recorded answers are unchanged.
+- **`decimate.py` and `shapes.py`'s NumPy work in Rust** (round PR1b-2-rest2): `bc2_convert::decimate` (the edge
+  collapses; `bc2_native.model_decimate`) and `bc2_convert::shapes` (`Geo.moved`'s products, `Geo.tangents`, the
+  windings of `_facing` / `outward` / `fix_winding`; `shapes_matmul` / `shapes_tangents` / `shapes_turn_over`). NumPy's
+  products went through OpenBLAS, whose kernels are chosen by the processor; the port writes out the kernels of the
+  machine that recorded Project OPFOR's WW2 weapon LODs (OpenBLAS 0.3.34 SkylakeX: `ddot`'s fused tail, `dgemv` and
+  `dgemm`'s orders), so it gives those LODs on any processor (spec XWW2-MOD-1). The NumPy originals stay as
+  `decimate_reference`, `Geo.moved_reference`, `Geo.tangents_reference`, `*_reference` for the tests.
+
+### Removed
+- `bc2_levelwrite::culltool::Doc` and `El` (culltree.py's codec in Rust): `parse_doc` / `read_doc` / `write_doc`
+  and the `El` methods as functions over `EditDbx` (`attr`, `name_of`, `child_index`, `numbers`, `set_numbers`,
+  `instances`); `CullTree.doc` / `Level.doc` are `EditDbx`.
+- `bc2_menu::common::menu_err` / `bc2_menu::graft::apt_err` return `MenuError`; `bc2_menu::common` no longer
+  re-exports `read_text` (`bc2_menu::error::read_text`).
+
 ## [0.22.0] - 2026-11-22
 
 ### Changed
