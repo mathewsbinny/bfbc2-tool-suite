@@ -602,6 +602,8 @@ pub struct SceneGpu {
     /// The triangles of the per-state collision meshes (round VW1), by mesh: their edges are made from them.
     state_collision: HashMap<u32, Arc<Vec<bc2_formats::havok::Triangle>>>,
     terrain_mesh: Option<u32>,
+    /// The terrain mesh the GPU's copy was made from (its `Arc`'s address; round E5: a sculpt replaces it).
+    terrain_from: usize,
     water_mesh: Option<u32>,
     /// The selected entities (outlined).
     selection: Vec<usize>,
@@ -698,6 +700,7 @@ impl SceneGpu {
             blueprint_mesh: HashMap::new(),
             state_collision: HashMap::new(),
             terrain_mesh: None,
+            terrain_from: 0,
             water_mesh: None,
             selection: Vec::new(),
             instances: Vec::new(),
@@ -723,6 +726,47 @@ impl SceneGpu {
         };
         out.refresh(gpu, scene, palette, &|_| false);
         out
+    }
+
+    /// A stroke under way drawn at once (round E5): the terrain mesh's vertex rows over `region` of the samples written
+    /// from the heights `raster` (on the ground `g`), straight into the GPU's copy; the scene's own mesh follows when
+    /// the stroke is committed ([`SceneGpu::refresh`]).
+    pub fn preview_terrain(
+        &mut self,
+        gpu: &Gpu,
+        scene: &Scene,
+        raster: &bc2_levelwrite::delta::Raster,
+        g: &crate::sculpt::Ground,
+        region: bc2_formats::terrain_codec::Region,
+    ) {
+        let (Some(mesh), Some(arc)) = (self.terrain_mesh, scene.terrain.as_ref()) else {
+            return;
+        };
+        let Some(m) = self.meshes.get(mesh as usize) else {
+            return;
+        };
+        let verts = &arc.0;
+        let n = g.n as usize;
+        let per_row = verts.len().isqrt();
+        let Some(stride) = (1..=n.max(1)).find(|s| n.div_ceil(*s) == per_row) else {
+            return;
+        };
+        for (r, row) in (0..n).step_by(stride).enumerate() {
+            if row + stride <= region.z0 || row >= region.z1 + stride {
+                continue;
+            }
+            let Some(src) = verts.get(r * per_row..(r + 1) * per_row) else {
+                continue;
+            };
+            let line: Vec<[f32; 3]> = src
+                .iter()
+                .enumerate()
+                .map(|(c, v)| [v[0], g.metres(raster.get((c * stride) as u32, row as u32)) as f32, v[2]])
+                .collect();
+            gpu.queue
+                .write_buffer(&m.vertices, (r * per_row * 12) as u64, &f32_bytes(&line));
+        }
+        self.terrain_from = 1;
     }
 
     /// Builds the instances and lines again from the scene (after an edit: moved, added or deleted entities, a
@@ -756,7 +800,13 @@ impl SceneGpu {
         ];
         let indexed = |gpu: &Gpu, name: &str, v: &[[f32; 3]], t: &[[u32; 3]]| -> Mesh {
             Mesh {
-                vertices: buffer(gpu, name, &f32_bytes(v), wgpu::BufferUsages::VERTEX),
+                // the terrain's are written again by a sculpt (round E5)
+                vertices: buffer(
+                    gpu,
+                    name,
+                    &f32_bytes(v),
+                    wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                ),
                 indices: Some(buffer(gpu, name, &u32_bytes(t), wgpu::BufferUsages::INDEX)),
                 count: (t.len() * 3) as u32,
                 visual: false,
@@ -789,13 +839,24 @@ impl SceneGpu {
             let tris = meshes.get(mesh as usize).map_or(0, |g| u64::from(g.count / 3));
             Some((mesh, radius, tris, b))
         };
-        if let Some((v, t)) = scene.terrain.as_deref()
-            && !t.is_empty()
+        if let Some(arc) = scene.terrain.as_ref()
+            && !arc.1.is_empty()
         {
+            let (v, t) = (&arc.0, &arc.1);
+            let from = Arc::as_ptr(arc) as usize;
             let mesh = *self.terrain_mesh.get_or_insert_with(|| {
                 meshes.push(indexed(gpu, "terrain", v, t));
                 (meshes.len() - 1) as u32
             });
+            // round E5: a sculpted (or undone) terrain is written over the GPU's copy, the same size
+            if self.terrain_from != 0
+                && self.terrain_from != from
+                && let Some(m) = meshes.get(mesh as usize)
+            {
+                gpu.queue.write_buffer(&m.vertices, 0, &f32_bytes(v));
+                self.edges.remove(&mesh);
+            }
+            self.terrain_from = from;
             triangles += t.len() as u64;
             let step = (v.len() / 4000).max(1);
             sample.extend(v.iter().step_by(step).map(|p| p.map(f64::from)));

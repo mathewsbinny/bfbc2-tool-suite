@@ -100,7 +100,12 @@ pub fn material_raster(m: &MaterialMap) -> Raster {
 /// A raster from a stroke target's bytes as [`crate::files::LevelFiles::edited`] gives them (little-endian `u16`s).
 #[must_use]
 pub fn raster_of(bytes: &[u8], width: u32, height: u32) -> Raster {
-    let samples: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
+    let samples: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
+        .collect();
     Raster::from_samples(width, height, &samples)
 }
 
@@ -125,10 +130,7 @@ pub fn check_heights(base: &[u8], edited: &[u8]) -> Vec<String> {
     if e.tree != minmax_tree(&e.heights, n) {
         out.push("its min / max tree is not the one its heights give".to_owned());
     }
-    if let (Some(g), Some(&side)) = (
-        e.envelope.last(),
-        bc2_formats::terrain_codec::envelope_sides(n).last(),
-    ) {
+    if let (Some(g), Some(&side)) = (e.envelope.last(), bc2_formats::terrain_codec::envelope_sides(n).last()) {
         let poke = e
             .heights
             .iter()
@@ -178,7 +180,11 @@ mod tests {
             .unwrap()
             .encode();
         let r = Raster::from_samples(n as u32, n as u32, &h);
-        assert_eq!(write_heights(&base, &r).unwrap(), base, "nothing edited: the base's bytes");
+        assert_eq!(
+            write_heights(&base, &r).unwrap(),
+            base,
+            "nothing edited: the base's bytes"
+        );
         let mut pit = r.clone();
         for z in 20..30 {
             for x in 20..30 {
@@ -186,7 +192,11 @@ mod tests {
             }
         }
         let out = write_heights(&base, &pit).unwrap();
-        assert!(check_heights(&base, &out).is_empty(), "{:?}", check_heights(&base, &out));
+        assert!(
+            check_heights(&base, &out).is_empty(),
+            "{:?}",
+            check_heights(&base, &out)
+        );
         // the heights written without the rebuild: the tree and the envelope are stale
         let mut stale = MainBlock::decode(&base).unwrap();
         stale.heights = pit.samples();
@@ -205,6 +215,14 @@ mod tests {
         assert_eq!(MaterialMap::decode(&out).unwrap().get(100, 200), 1);
         cells.set(0, 0, 5);
         assert!(write_materials(&mb, &cells).is_err(), "no material 5");
-        assert_eq!(changed_region(&[1, 2, 3, 4], &[1, 2, 9, 4], 2), Some(Region { x0: 0, z0: 1, x1: 1, z1: 2 }));
+        assert_eq!(
+            changed_region(&[1, 2, 3, 4], &[1, 2, 9, 4], 2),
+            Some(Region {
+                x0: 0,
+                z0: 1,
+                x1: 1,
+                z1: 2
+            })
+        );
     }
 }

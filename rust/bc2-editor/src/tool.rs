@@ -41,6 +41,17 @@ pub enum Outcome {
     Commit(Box<Op>, String),
     /// An operation committed, then the objects it made (these guids) selected (round E4: a flag added).
     CommitSelect(Box<Op>, String, Vec<String>),
+    /// A brush stroke under way (round E5): the region of the raster it just changed, to redraw at once (the raster
+    /// is the tool's, [`crate::sculpt::TerrainTool::stroke`]).
+    TerrainPreview(bc2_levelwrite::files::Target, bc2_formats::terrain_codec::Region),
+    /// A brush stroke finished (round E5): the raster as it leaves it, committed as one operation with its History
+    /// label; whether a height was clamped to the level's range.
+    Stroke(
+        bc2_levelwrite::files::Target,
+        Box<bc2_levelwrite::delta::Raster>,
+        String,
+        bool,
+    ),
 }
 
 /// Where in a view's overlays a tool draws (the order the views draw them in).
@@ -54,6 +65,10 @@ pub enum Layer {
 
 /// A view's pointer as the tools' input sees it (this frame).
 #[derive(Debug, Clone, Copy)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "the pointer's states this frame, each its own question"
+)]
 pub struct Pointer {
     /// The view.
     pub projection: Projection,
@@ -71,6 +86,10 @@ pub struct Pointer {
     pub hover: Option<Pos2>,
     /// A document is open and the workspace moves objects (the object tools' input is live).
     pub editing: bool,
+    /// The primary button is held on the view (round E5: a brush paints while it is).
+    pub down: bool,
+    /// A document is open in the Terrain workspace (round E5: the brushes' input is live).
+    pub terrain: bool,
 }
 
 /// What a tool draws with: a view's painter (clipped to it) and where things are on it.
@@ -517,6 +536,8 @@ pub struct Tools {
     pub polygon: PolygonTool,
     /// The Gameplay workspace's tool (round E4).
     pub gameplay: GameplayTool,
+    /// The Terrain workspace's brushes (round E5).
+    pub terrain: crate::sculpt::TerrainTool,
 }
 
 impl Default for Tools {
@@ -528,6 +549,7 @@ impl Default for Tools {
             ruler: RulerTool::default(),
             polygon: PolygonTool::default(),
             gameplay: GameplayTool::default(),
+            terrain: crate::sculpt::TerrainTool::default(),
         }
     }
 }
@@ -543,6 +565,7 @@ impl Tools {
             Tool::Ruler => &self.ruler,
             Tool::Polygon => &self.polygon,
             Tool::Gameplay => &self.gameplay,
+            Tool::Terrain => &self.terrain,
         }
     }
 
@@ -555,12 +578,13 @@ impl Tools {
             Tool::Ruler => &mut self.ruler,
             Tool::Polygon => &mut self.polygon,
             Tool::Gameplay => &mut self.gameplay,
+            Tool::Terrain => &mut self.terrain,
         }
     }
 
     /// Every tool, in the toolbar's order.
     #[must_use]
-    pub fn all(&self) -> [&dyn ViewTool; 6] {
+    pub fn all(&self) -> [&dyn ViewTool; 7] {
         [
             &self.select,
             &self.moving,
@@ -568,11 +592,12 @@ impl Tools {
             &self.ruler,
             &self.polygon,
             &self.gameplay,
+            &self.terrain,
         ]
     }
 
     /// Every tool, to tell each of them something.
-    pub fn all_mut(&mut self) -> [&mut dyn ViewTool; 6] {
+    pub fn all_mut(&mut self) -> [&mut dyn ViewTool; 7] {
         [
             &mut self.select,
             &mut self.moving,
@@ -580,6 +605,7 @@ impl Tools {
             &mut self.ruler,
             &mut self.polygon,
             &mut self.gameplay,
+            &mut self.terrain,
         ]
     }
 
@@ -662,6 +688,7 @@ mod tests {
             Tool::Ruler,
             Tool::Polygon,
             Tool::Gameplay,
+            Tool::Terrain,
         ] {
             assert_eq!(tools.get(t).id(), t);
         }

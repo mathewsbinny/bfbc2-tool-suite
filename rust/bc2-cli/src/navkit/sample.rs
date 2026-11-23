@@ -316,7 +316,8 @@ fn staged_heightfield(py: &mut Py, stage: &str, tt: &str) -> PyResult<()> {
         if let Some(dir) = to.parent() {
             std::fs::create_dir_all(dir).map_err(|e| crate::pyproc::os_error(&dir.display().to_string(), &e))?;
         }
-        bc2_gamefs::atomic::write(&to, &[data.as_slice()]).map_err(|e| navkit_error(format!("{}: {e}", to.display())))?;
+        bc2_gamefs::atomic::write(&to, &[data.as_slice()])
+            .map_err(|e| navkit_error(format!("{}: {e}", to.display())))?;
         py.print(&format!("  the stage's height field {name}"))?;
     }
     Ok(())

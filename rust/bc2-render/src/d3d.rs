@@ -381,6 +381,12 @@ impl Device {
         Self::make_texture(&self.device, w, h, mips, faces, format, cube, &levels)
     }
 
+    /// Lets the texture of this name go: the next draw that reads it makes it again from its data (round E5: the
+    /// terrain's height map after a sculpt).
+    pub fn forget_texture(&mut self, name: &str) {
+        self.textures.remove(name);
+    }
+
     fn texture(
         &mut self,
         name: &str,

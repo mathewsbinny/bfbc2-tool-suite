@@ -411,6 +411,8 @@ impl ViewState {
         self.selected = self.selection.last().copied();
         let sel = self.selection.clone();
         self.gpu_scene.set_selection(&gpu.gpu, &sel);
+        // round E5: the game-accurate view's terrain follows a stroke or its undo
+        self.sync_game_terrain();
         self.redraw();
     }
 

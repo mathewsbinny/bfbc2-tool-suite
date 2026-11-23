@@ -613,7 +613,8 @@ pub(crate) fn base_level_file(
 
 /// A terrain resource of the base level (round E5: its main height field, its material map) from the bundles its
 /// terrain and level load; `None` when they do not have it.
-fn base_terrain_file(game: &Game, base: &str, name: &str) -> Option<Vec<u8>> {
+#[must_use]
+pub fn base_terrain_file(game: &Game, base: &str, name: &str) -> Option<Vec<u8>> {
     let mut bundles = game.loaded(base, "terrain");
     bundles.extend(game.loaded(base, "level"));
     read_one(game, &bundles, name).ok()
@@ -641,8 +642,9 @@ impl crate::files::Sources for ExportSources<'_> {
                 Some(crate::delta::Raster::from_samples(hf.size, hf.size, &hf.raw))
             }
             crate::files::Target::Material { file } => {
-                let m = bc2_formats::terrain_codec::MaterialMap::decode(&base_terrain_file(self.game, self.base, file)?)
-                    .ok()?;
+                let m =
+                    bc2_formats::terrain_codec::MaterialMap::decode(&base_terrain_file(self.game, self.base, file)?)
+                        .ok()?;
                 Some(crate::terrainedit::material_raster(&m))
             }
             _ => None,
@@ -1175,20 +1177,31 @@ pub fn build(
     for (t, data) in edited_files.clone() {
         match &t {
             crate::files::Target::Terrain { file } | crate::files::Target::Material { file } => {
-                let base_file = base_terrain_file(game, &base, file)
-                    .ok_or_else(|| crate::rules::refusal("XVAL-EDIT-6", format!("{} is not in the base level", t.describe())))?;
+                let base_file = base_terrain_file(game, &base, file).ok_or_else(|| {
+                    crate::rules::refusal("XVAL-EDIT-6", format!("{} is not in the base level", t.describe()))
+                })?;
                 let written = if matches!(t, crate::files::Target::Terrain { .. }) {
                     let hf = bc2_formats::terrain::parse(&base_file).map_err(|e| err(format!("{file}: {e}")))?;
-                    crate::terrainedit::write_heights(&base_file, &crate::terrainedit::raster_of(&data, hf.size, hf.size))?
+                    crate::terrainedit::write_heights(
+                        &base_file,
+                        &crate::terrainedit::raster_of(&data, hf.size, hf.size),
+                    )?
                 } else {
                     let m = bc2_formats::terrain_codec::MaterialMap::decode(&base_file)
                         .map_err(|e| err(format!("{file}: {e}")))?;
-                    crate::terrainedit::write_materials(&base_file, &crate::terrainedit::raster_of(&data, m.width, m.width))?
+                    crate::terrainedit::write_materials(
+                        &base_file,
+                        &crate::terrainedit::raster_of(&data, m.width, m.width),
+                    )?
                 };
                 report.push(format!(
                     "project: {} {}",
                     t.describe(),
-                    if written == base_file { "unchanged by its strokes" } else { "rewritten from its strokes" }
+                    if written == base_file {
+                        "unchanged by its strokes"
+                    } else {
+                        "rewritten from its strokes"
+                    }
                 ));
                 if written != base_file {
                     terrain_edits.insert(file.clone(), written);

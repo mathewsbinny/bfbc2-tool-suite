@@ -1063,7 +1063,10 @@ pub fn material_map_beside(heightfield: &Path) -> Option<PathBuf> {
         .ok()?
         .flatten()
         .map(|e| e.path())
-        .find(|p| p.file_name().is_some_and(|n| n.to_string_lossy().to_ascii_lowercase() == want))
+        .find(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase() == want)
+        })
 }
 
 /// `level.terrain_name`: the terrain's name from the level partition's first `TerrainEntityData`'s `TerrainAsset`

@@ -92,7 +92,17 @@ After the heights change, every part of a block that is computed from them is re
 With these an E7 writer can write a whole main block of 1,024 or 2,048 samples; what the game does with a stale or
 synthetic envelope is not known until a playtest.
 
+Round E5 implements it (`bc2_formats::terrain_codec`, shared with TG1's generator): the main block decodes and encodes
+byte for byte on DICE's 30 terrains and the computed quadtree equals the stored one on all 288 sub-terrain blocks; an
+edit recomputes the tree's nodes and lowers the envelope's vertices over the edited region (one sample beyond it), each
+vertex at or under every sample of the grid squares it is a corner of; nothing edited writes DICE's bytes. On MP_005
+and SP_01 a raised hill and a dug pit write blocks whose edited samples all lie over the envelope.
+
 [test: core/tests/test_spec_probes.py::height_field_tails]
+[test: rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip]
+[test: rust/bc2-levelwrite/tests/terrain_edits.rs::terrain_resources_written_from_strokes]
+[code: rust/bc2-formats/src/terrain_codec.rs:1-40]
+[code: rust/bc2-levelwrite/src/terrainedit.rs:1-60]
 [inferred: TERR-HF-4 - TERR-HF-11's grammars; the console and BF1943 converters keep the tails as they are (TERR-HF-7, TERR-HF-8)]
 
 ### TEDIT-HF-4: The height scale the patch shaders use is the engine's, not the database's
@@ -210,7 +220,13 @@ for every level that uses the terrain). A visual paint (TEDIT-VT-1) and the mate
 patch layers are not tied to materials in the data, so the editor pairs them (asphalt patch -> `tarmac`) by its own
 table. DICE's cells re-encode byte for byte, so an untouched block stays as DICE has it.
 
+Round E5 implements the cell paint (`MaterialMap` in `bc2_formats::terrain_codec`; the editor's Material brush paints
+the map's own names: adding a name the level's grid must hold, and the visual pairing, are E5-rest's).
+
 [test: core/tests/test_spec_probes.py::material_maps]
+[test: rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip]
+[test: rust/bc2-levelwrite/tests/terrain_edits.rs::terrain_resources_written_from_strokes]
+[code: rust/bc2-formats/src/terrain_codec.rs:1-40]
 [inferred: TERR-MM-2 - TERR-MM-4; the pairing of visual layers with materials is the editor's choice (no field links them in DICE's resources)]
 
 ## 4. The rest of the terrain bundle
@@ -235,12 +251,51 @@ A sculpt or a paint changes what the terrain's colour / occlusion map (LIGHT-BAK
 painted most of that map by hand, so the editor scales only the edited texels by the ratio of new to old computed
 sky visibility and leaves the rest byte for byte (LIGHT-BAKE-6).
 
+Not written yet (E5-rest): the map is a texture of the level's bundle (`mp05_AmbientOcclusion` in MP_005's
+`level-00.fbrb`, not its terrain bundle), DXT1 or L8, so a re-bake needs the texture's encoder and the level bundle's
+entry replaced.
+
 [inferred: LIGHT-BAKE-2 and LIGHT-BAKE-6]
+
+### TEDIT-BR-1: The editor's brushes write stored heights and cells, clamped to the range
+
+Status: **implemented** · Variants: PC
+
+The map editor's Terrain workspace (round E5) sculpts the main block's stored heights - raise, lower, smooth, flatten to
+the height where the stroke began, a seeded noise, a ramp between two clicked points - each with a radius, a strength
+and a falloff (smooth, linear, constant), and paints the material map's cells with one of the map's names. A stroke is
+one operation of the project's log: the 64 x 64 tiles of the raster it changed, kept beside the project
+(XLOG-DELTA-1); undo and redo replay from the checkpoints. A height a brush would take past the level's range is held
+to it (TEDIT-HF-2: widening the range is E5-rest's) and the editor says so. The export writes the main block with its
+derived parts rebuilt (TEDIT-HF-3) and the material map (TEDIT-MM-1) into the staged terrain bundle in place of the
+base's entries; the rest of the bundle stays byte for byte (XVAL-TERR-1, XVAL-TERR-2). The sub-terrain ring is never
+edited: the brushes reach the main block only.
+
+[code: rust/bc2-editor/src/sculpt.rs:1-20]
+[code: rust/bc2-levelwrite/src/export.rs:1174-1210]
+[code: rust/bc2-levelwrite/src/export.rs:1752-1762]
+[test: rust/bc2-editor/tests/terrain_tools.rs::terrain_brushes_through_the_interface]
+[test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
+
+### TEDIT-NAV-1: A sculpted level's path data is sampled on the staged height field
+
+Status: **implemented** · Variants: PC
+
+A sculpt changes the level's ground, so its path data must be sampled again (the AI walks the terrain the samples
+describe): the export's path-data step counts a height-field stroke as a collision change and samples the stage
+offline (`bfbc2 navkit sample --offline --stage`), which writes the staged terrain bundle's main height field over the
+base's terrain unpack in the stage's tree before sampling. Collision in game comes from the height field itself (no
+separate terrain collision resource ships in the terrain bundle); whether the engine's Havok height-field shape reads
+the edited block as written waits on section 5's step 2.
+
+[code: rust/bc2-cli/src/navkit/sample.rs:296-325]
+[code: rust/bc2-levelwrite/src/pathdata.rs:350-365]
+[inferred: the terrain bundle's entries (heightfield, material map, visual terrain, water, atlas) hold no collision resource; the sampler reads the height field (`inputs::heightfield_of`)]
 
 ## 5. The playtest plan (E5 / E7)
 
 Written by round SPG2-rest2 (2026-11-22); not run: in-game tests are paused. Every rule above that a writer relies on
-stays at its status until its step passes. One level throughout: a copy of MP_005 (one main block, n = 1024, mostly
+stays at its status until its step passes. One level throughout: a copy of MP_005 (one main block, n = 2048 (corrected by round E5: the codec reads MP_005's block as 2,048 samples), mostly
 255 depth with 0 footprints, TERR-HF-9) exported by the editor as a test level of its own (registered on server and
 client, never over DICE's MP_005), Conquest, offline host, one player and, from step 6, a few bots.
 
