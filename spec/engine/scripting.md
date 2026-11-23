@@ -86,8 +86,9 @@ not show (`enableDevOpts`, SCR-DEV-1). `DebugTestEntityData` is never placed.
 
 Status: **observed** · Variants: PC
 
-The retail PC client has no interactive console: no console window class, no command registry and no "unknown
-command" text of its own (the one such string is Havok's MOPP error). What remains:
+No interactive console was found in the retail PC client: a search of its strings found no console command
+registry, no command or variable listing and no "unknown command" text of its own (the one such string is Havok's
+MOPP error); a hidden one is not ruled out. What remains:
 
 - the menu name table's `enableDevOpts` (extern 0xF3), backed by the `Client` object's `IsMenuDevOptsEnabled`
   (+0xF4), and `debugdata` (0xD2), `consoleTrace` (0x8C, the movies' trace to the engine's log): the menus' developer
