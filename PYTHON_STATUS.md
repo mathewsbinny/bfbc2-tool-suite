@@ -25,18 +25,18 @@ rounds NK4 and NK5.
 | Status | Files | Lines |
 |---|---:|---:|
 | live | 18 | 5,283 |
-| partly | 21 | 16,770 |
+| partly | 21 | 16,742 |
 | twin | 56 | 19,636 |
 | ported | 21 | 2,584 |
 | retired-pending | 3 | 310 |
-| stays | 67 | 13,134 |
-| test | 188 | 51,825 |
-| **all** | **374** | **109,542** |
+| stays | 67 | 13,135 |
+| test | 188 | 51,950 |
+| **all** | **374** | **109,640** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | `(root)` | 2 | 1,431 | 56 |  |  |  |  |  | 1,375 |
-| `bfbc2-anim-tools` | 8 | 2,620 |  | 1,055 |  | 106 |  |  | 1,459 |
+| `bfbc2-anim-tools` | 8 | 2,717 |  | 1,027 |  | 106 |  |  | 1,584 |
 | `bfbc2-auto-navkit` | 56 | 14,713 | 1,858 | 4,391 | 2,749 | 273 |  |  | 5,442 |
 | `bfbc2-automated-map-and-bot-test-harness` | 15 | 3,833 | 636 | 743 | 1,106 | 40 |  |  | 1,308 |
 | `bfbc2-bf1943-import` | 26 | 10,508 | 546 | 1,540 | 3,273 | 56 |  |  | 5,093 |
@@ -54,7 +54,7 @@ rounds NK4 and NK5.
 | `bfbc2-stockmp-ai` | 11 | 3,481 |  |  | 2,365 | 38 |  |  | 1,078 |
 | `core` | 76 | 20,373 | 757 |  | 2,429 | 1,909 |  |  | 15,278 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
-| `rust` | 33 | 6,025 |  |  |  |  |  | 5,758 | 267 |
+| `rust` | 33 | 6,026 |  |  |  |  |  | 5,759 | 267 |
 | `spec` | 19 | 6,386 |  |  |  |  |  | 6,386 |  |
 | `tests` | 29 | 7,622 |  |  |  |  |  |  | 7,622 |
 
@@ -71,17 +71,17 @@ Lines by status in the folder table.
 
 ## `bfbc2-anim-tools`
 
-8 files, 2,620 lines.
+8 files, 2,717 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
-| `bfbc2-anim-tools/granny.py` | 1055 | tool entry point | partly | bc2_formats::granny, bc2_convert::granny / granny_edit | bf1943import, dbxport, meshport; tests 6; OPFOR 12 | PR1b-2 | reading and writing in Rust (E3i, F2a); left: curve_keys / sample on the reader side, Granny.put / field / array_at, the *_reference twins |
+| `bfbc2-anim-tools/granny.py` | 1027 | tool entry point | partly | bc2_formats::granny, bc2_convert::granny / granny_edit, bc2_py::granny::Granny | bf1943import, dbxport, meshport; tests 6; OPFOR 12 | PR1b-2 | the Granny object is Rust's (PR1b-2-rest3: its bytes, tables, tree, field / array_at / put / to_bytes), curve_keys / sample too (PR1b-2-rest); left: GrannyReference (the Python reader and writer) and the *_reference twins, kept for parity |
 | `bfbc2-anim-tools/aimanim.py` | 106 | library | ported | bc2_formats::aimanim; bfbc2 aimanim; embedded | bf1943import; tests 2; OPFOR 2 (bf1943_weapons, weapon_preview) | PR1b-2 | references retired in RT1; parse / write / to_pc go through bc2_native; its docstring is the usage bfbc2.exe prints |
 | `bfbc2-anim-tools/tests/test_aimanim.py` | 124 | test | test |  | run_tests.py | Tests in Rust | aimanim.py: generated aim poses (AimAnimation) read, written and renumbered. |
 | `bfbc2-anim-tools/tests/test_granny.py` | 216 | test | test |  | run_tests.py | Tests in Rust | granny.py on the game's files (game tier; skipped without them): - the soldier skeleton (characters/skeleto... |
 | `bfbc2-anim-tools/tests/test_granny_curves.py` | 211 | test | test |  | run_tests.py | Tests in Rust | granny.curve_keys and granny.sample on the Rust core (round PR1b-2-rest: bc2_convert::granny_edit) against... |
-| `bfbc2-anim-tools/tests/test_granny_f2a_native.py` | 187 | test | test |  | run_tests.py | Tests in Rust | Round F2a: Granny's writing side in the Rust core against its Python reference - Granny.to_bytes (the CRC),... |
-| `bfbc2-anim-tools/tests/test_granny_native.py` | 563 | test | test |  | run_tests.py | Tests in Rust | granny.py's Rust core (bc2_native: bc2_formats::granny, bc2_convert::granny): the reader against granny.py'... |
+| `bfbc2-anim-tools/tests/test_granny_f2a_native.py` | 205 | test | test |  | run_tests.py | Tests in Rust | Round F2a: Granny's writing side in the Rust core against its Python reference - Granny.to_bytes (the CRC),... |
+| `bfbc2-anim-tools/tests/test_granny_native.py` | 670 | test | test |  | run_tests.py | Tests in Rust | granny.py's Rust core (bc2_native: bc2_formats::granny, bc2_convert::granny): the reader against granny.py'... |
 | `bfbc2-anim-tools/tests/test_granny_port.py` | 158 | test | test |  | run_tests.py | Tests in Rust | granny.py's Xbox 360 -> PC conversion (to_pc) and DICE's bone table. |
 
 ## `bfbc2-auto-navkit`
@@ -488,7 +488,7 @@ Lines by status in the folder table.
 
 ## `rust`
 
-33 files, 6,025 lines.
+33 files, 6,026 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -522,7 +522,7 @@ Lines by status in the folder table.
 | `rust/parity_nk3_detail.py` | 512 | benchmark or parity script | stays |  | by hand (detail_tests.rs cites it) | stays | NK3 parity against a pre-NK3 checkout (capture pinned at bda5b8d or earlier: it needs navbuild.py) |
 | `rust/parity_nk4_walk.py` | 181 | benchmark or parity script | stays |  | by hand | stays | NK4 parity and memory against a pre-NK4 checkout (walkability's arrays per stage, private bytes; both checkouts pinned at bda5b8d or earlier: they need navbuild.py) |
 | `rust/parity_nk5_build.py` | 109 | benchmark or parity script | stays |  | by hand | stays | round NK5's parity: whole regression builds, old against new (files, log lines, time and peak memory) |
-| `rust/python_status.py` | 870 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
+| `rust/python_status.py` | 871 | build or dev script | stays |  | by hand; tests/test_repo.py | stays | this inventory |
 | `rust/bc2-editor/tests/package_levels_check.py` | 168 | test helper or golden recorder | test |  | G3 (by hand); tests 1 | Tests in Rust | G3's independent check of Package-only levels |
 | `rust/bc2-levelwrite/tests/dbxbin_reference.py` | 99 | test helper or golden recorder | test |  | real_levels.rs | PR1b-2 | the Python reference of levelwrite's edits (stockmp's dbxbin) |
 

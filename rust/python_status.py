@@ -82,10 +82,11 @@ TABLE: tuple[Row, ...] = (
     R('bfbc2-anim-tools/aimanim.py', LIB, 'ported', 'bc2_formats::aimanim; bfbc2 aimanim',
       'bf1943import; tests 2; OPFOR 2 (bf1943_weapons, weapon_preview)', 'PR1b-2',
       'references retired in RT1; parse / write / to_pc go through bc2_native; its docstring is the usage bfbc2.exe prints'),
-    R('bfbc2-anim-tools/granny.py', TOOL, 'partly', 'bc2_formats::granny, bc2_convert::granny / granny_edit',
-      'bf1943import, dbxport, meshport; tests 6; OPFOR 12', 'PR1b-2',
-      'reading and writing in Rust (E3i, F2a); left: curve_keys / sample on the reader side, Granny.put / field / '
-      'array_at, the *_reference twins'),
+    R('bfbc2-anim-tools/granny.py', TOOL, 'partly', 'bc2_formats::granny, bc2_convert::granny / granny_edit, '
+      'bc2_py::granny::Granny', 'bf1943import, dbxport, meshport; tests 6; OPFOR 12', 'PR1b-2',
+      "the Granny object is Rust's (PR1b-2-rest3: its bytes, tables, tree, field / array_at / put / to_bytes), "
+      'curve_keys / sample too (PR1b-2-rest); left: GrannyReference (the Python reader and writer) and the '
+      '*_reference twins, kept for parity'),
     T('bfbc2-anim-tools/tests/test_aimanim.py'),
     T('bfbc2-anim-tools/tests/test_granny.py'),
     T('bfbc2-anim-tools/tests/test_granny_curves.py'),

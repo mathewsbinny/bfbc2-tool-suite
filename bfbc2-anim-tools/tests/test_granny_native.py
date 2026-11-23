@@ -186,6 +186,20 @@ def both(fn) -> tuple[tuple[str, Any], tuple[str, Any]]:
     return rs, py
 
 
+REFUSALS = [0]
+
+
+def agree(rs: tuple[str, Any], py: tuple[str, Any]) -> bool:
+    """The same outcome both ways; or a damaged resource the Rust core's Granny refuses to read (a GrannyError
+    saying why, GRANNY-EDIT-2) where the Python reader fails with its own exception: a refusal both ways."""
+    if rs[0] == py[0] and same(rs[1], py[1]):
+        return True
+    if rs[0] == 'GrannyError' and py[0] not in ('ok', 'GrannyError'):
+        REFUSALS[0] += 1
+        return True
+    return False
+
+
 def tables(g) -> tuple:
     return (g.e, g.strings_from, g.strings, g.gr2, g.root_type, g.root_obj, g.total, g.crc_from,
             [bytes(s) for s in g.sections], list(g.section_at), list(g.reloc.items()))
@@ -199,7 +213,7 @@ def check_one(b: bytes, rec: Recorded, name: str, bones=None) -> list[str]:
     if rs[0] != py[0] or not same(rs[1], py[1]):
         diffs.append(f'tables: {rs[0]} / {py[0]}')
     rs, py = both(lambda: granny.Granny(b, 'x').root())
-    if rs[0] != py[0] or not same(rs[1], py[1]):
+    if not agree(rs, py):
         diffs.append(f'root: {rs[0]} {str(rs[1])[:80]} / {py[0]} {str(py[1])[:80]}')
     rec(name, converted(b, bones, 'x')[0])
     return diffs
@@ -362,7 +376,7 @@ def quick(check) -> None:
             d += check_one(b, rec, f'built {name}, bones {bones}', bones)
         check(not d, f'built resource ({name}): the same tables, tree and errors both ways', '; '.join(d))
     g = granny.Granny(files['little'])
-    check(granny.backend() == 'rust' and g._raw is not None, 'the Rust core reads the built resource')
+    check(granny.backend() == 'rust' and isinstance(g, NATIVE.Granny), 'the Rust core reads the built resource')
     pc = granny.to_pc(files['big'])
     check(pc == files['little'], 'to_pc of the big-endian build is the little-endian build, byte for byte')
 
@@ -409,16 +423,119 @@ def quick(check) -> None:
     use(True)
     check(same(rs, py), 'roots: the trees of Granny(b).root()')
 
-    # written to: Python reads from then on, and the tables are the Python reader's
-    g = granny.Granny(files['little'])
+    writes(check, files)
+    print(f'     ({REFUSALS[0]} damaged copies the Rust core refuses to read, a GrannyError saying why, where the '
+          'Python reader fails with its own exception)')
+
+
+def put_cases(g, rng: random.Random) -> list[tuple[Any, str, list[Any]]]:
+    """Writes into every numeric member of g's root and its items: (place, format, values) - in range, out of range,
+    the wrong count, past the section's end, a section that is not there."""
     root = g.root()
-    g.put(g.field(root, 'Count'), '<i', 12345)
-    use(False)
-    p = granny.Granny(files['little'])
-    p.put(p.field(p.root(), 'Count'), '<i', 12345)
-    use(True)
-    check(g._raw is None and same(g.root(), p.root()) and g.to_bytes() == p.to_bytes() and g.root()['Count'] == 12345,
-          'put: the tree and bytes after a write are the Python reader\'s')
+    out: list[tuple[Any, str, list[Any]]] = []
+    plain = {'Count': '<i', 'Scale': '<f', 'U16': '<H', 'I16': '<h', 'U8': '<B', 'U32': '<I', 'Half': '<H'}
+    for name, fmt in plain.items():
+        good = {'<i': rng.randrange(-2**31, 2**31), '<f': rng.uniform(-1e6, 1e6), '<H': rng.randrange(65536),
+                '<h': rng.randrange(-32768, 32768), '<B': rng.randrange(256), '<I': rng.randrange(2**32)}[fmt]
+        out.append((g.field(root, name), fmt, [good]))
+    out.append((g.field(root, 'Pose'), '<I16f', [7] + [rng.uniform(-2, 2) for _ in range(16)]))
+    out.append((g.field(root, 'Inline'), '<2hbb2hbb', [1, -2, 3, -4, 5, 6, -7, 8]))
+    out.append((g.field(root, 'Inline'), '<2x?b', [True, 5]))
+    out.append((g.field(root, 'U16b'), '<4H', [9, 8, 7, 6]))
+    out.append((g.field(root, 'Scale'), '<d', [0.5]))
+    out.append((g.field(root, 'Scale'), '<q', [-5]))
+    out.append((g.array_at(root, 'Values'), '<4f', [1.0, float('inf'), -0.0, float('nan')]))
+    sec, off = g.array_at(root, 'Shorts')
+    out.append(((sec, off + 2), '<H', [4242]))
+    for item in root['Items']:
+        out.append((g.field(item, 'Count'), '<i', [rng.randrange(-1000, 1000)]))
+    # refusals (the same exception both ways)
+    out.append((g.field(root, 'U8'), '<B', [256]))
+    out.append((g.field(root, 'U8'), '<B', [-1]))
+    out.append((g.field(root, 'I16'), '<h', [40000]))
+    out.append((g.field(root, 'U32'), '<I', [-1]))
+    out.append((g.field(root, 'Count'), '<i', [2**31]))
+    out.append((g.field(root, 'Count'), '<i', [1.5]))
+    out.append((g.field(root, 'Scale'), '<f', ['x']))
+    out.append((g.field(root, 'Scale'), '<f', [1e300]))
+    out.append((g.field(root, 'Count'), '<2i', [1]))
+    out.append((g.field(root, 'Count'), '<i', [1, 2]))
+    out.append(((0, len(g.sections[0]) - 2), '<I', [1]))
+    out.append(((0, len(g.sections[0])), '<B', [1]))
+    out.append(((5, 0), '<B', [1]))
+    return out
+
+
+def kind(fn) -> tuple[str, str]:
+    """(exception type, its message for a GrannyError) or ('ok', '') - the write comparisons' outcome (struct's
+    messages are CPython's own words, not compared)."""
+    try:
+        fn()
+        return 'ok', ''
+    except Exception as e:                                   # noqa: BLE001 - compared
+        return type(e).__name__, str(e) if isinstance(e, granny.GrannyError) else ''
+
+
+def writes(check, files: dict[str, bytes]) -> None:
+    """put / field / array_at / to_bytes: the Rust core's Granny against the Python reader's (GrannyReference) - after
+    every write the same bytes, sections and tree, the same refusals; to_bytes the same resource."""
+    rng = random.Random(0x50)
+    n = 0
+    diffs: list[str] = []
+    for rnd in range(20):
+        b = files['little']
+        rs, py = NATIVE.Granny(b, 'built', granny.GrannyError), granny.GrannyReference(b, 'built')
+        cases = put_cases(py, rng)
+        rng.shuffle(cases)
+        for at, fmt, vals in cases:
+            n += 1
+            # a refusal is tried on fresh copies: the Python wrote the resource's bytes before finding a place outside
+            # the section (decided against it, GRANNY-EDIT-2: nothing is written)
+            r1, p1 = NATIVE.Granny(rs.data, 'built', granny.GrannyError), granny.GrannyReference(bytes(py.data), 'built')
+            a = kind(lambda at=at, fmt=fmt, vals=vals, g=r1: g.put(at, fmt, *vals))
+            p = kind(lambda at=at, fmt=fmt, vals=vals, g=p1: g.put(at, fmt, *vals))
+            if a != p:
+                diffs.append(f'put {at} {fmt} {vals}: {a} / {p}')
+            elif a[0] != 'ok':
+                if r1.data != rs.data or [bytes(x) for x in p1.sections] != [bytes(x) for x in py.sections]:
+                    diffs.append(f'put {at} {fmt} {vals}: refused, yet the sections changed')
+                continue
+            rs.put(at, fmt, *vals)
+            py.put(at, fmt, *vals)
+            if not (rs.data == bytes(py.data) and [bytes(x) for x in rs.sections] == [bytes(x) for x in py.sections]
+                    and same(rs.root(), py.root())):
+                diffs.append(f'put {at} {fmt} {vals}: the resource differs after it')
+        for name in ('Count', 'Nope'):
+            a2 = outcome(lambda name=name, g=rs: g.field(g.root(), name))
+            p2 = outcome(lambda name=name, g=py: g.field(g.root(), name))
+            if a2 != p2:
+                diffs.append(f'field {name}: {a2} / {p2}')
+        for name in ('Values', 'Item', 'Nope'):
+            a2 = outcome(lambda name=name, g=rs: g.array_at(g.root(), name))
+            p2 = outcome(lambda name=name, g=py: g.array_at(g.root(), name))
+            if a2 != p2:
+                diffs.append(f'array_at {name}: {a2} / {p2}')
+        if outcome(rs.to_bytes) != outcome(py.to_bytes) or rs.data != bytes(py.data):
+            diffs.append(f'to_bytes after round {rnd}')
+        root = rs.root()
+        if not same(root, py.root()) or not same(rs.read(root['__tref__'], root['__at__']),
+                                                 py.read(root['__tref__'], root['__at__'])):
+            diffs.append(f'read after round {rnd}')
+    check(not diffs, f'put / field / array_at / to_bytes: {n} writes into the built resource, the same bytes, tree and '
+          'refusals as the Python reader\'s', '; '.join(diffs[:5]))
+    big = NATIVE.Granny(files['big'], 'big', granny.GrannyError)
+    pyb = granny.GrannyReference(files['big'], 'big')
+    got = [outcome(lambda: big.put((0, 0), '<B', 1)), outcome(big.to_bytes)]
+    check(got == [outcome(lambda: pyb.put((0, 0), '<B', 1)), outcome(pyb.to_bytes)] and got[0][0] == 'GrannyError',
+          'a big-endian resource is read only both ways', str(got))
+    # decided against the Python (GRANNY-EDIT-2): a PC file's values are written little-endian ('<' first), as DICE's
+    # PC files hold them; the Python packed whatever byte order the format named
+    lit = NATIVE.Granny(files['little'], 'built', granny.GrannyError)
+    at = lit.field(lit.root(), 'U32')
+    refused = [kind(lambda f=f: lit.put(at, f, 1)) for f in ('>I', 'I', '=I', '!I')]
+    check(all(o[0] != 'ok' for o in refused) and lit.data == files['little'],
+          "put: a format without '<' first (another byte order, native sizes) is refused and writes nothing",
+          str(refused[:1]))
 
 
 def safe(b: bytes) -> bool:
@@ -498,7 +615,7 @@ class Tally:
         """name: where (in the messages); key: the recording's name of its conversion (None: read only)."""
         self.files += 1
         rs, py = self.timed(lambda: granny.Granny(b, name).root())
-        if rs[0] != py[0] or not same(rs[1], py[1]):
+        if not agree(rs, py):
             self.diffs.append(f'{name}: root {rs[0]} / {py[0]}')
         rs, py = both(lambda: tables(granny.Granny(b, name)))
         if rs[0] != py[0] or not same(rs[1], py[1]):

@@ -19,11 +19,11 @@
    "embedded_by": [],
    "folder": "bfbc2-anim-tools",
    "kind": "tool entry point",
-   "lines": 1055,
-   "note": "reading and writing in Rust (E3i, F2a); left: curve_keys / sample on the reader side, Granny.put / field / array_at, the *_reference twins",
+   "lines": 1027,
+   "note": "the Granny object is Rust's (PR1b-2-rest3: its bytes, tables, tree, field / array_at / put / to_bytes), curve_keys / sample too (PR1b-2-rest); left: GrannyReference (the Python reader and writer) and the *_reference twins, kept for parity",
    "path": "bfbc2-anim-tools/granny.py",
    "retiring": "PR1b-2",
-   "rust": "bc2_formats::granny, bc2_convert::granny / granny_edit",
+   "rust": "bc2_formats::granny, bc2_convert::granny / granny_edit, bc2_py::granny::Granny",
    "status": "partly"
   },
   {
@@ -67,7 +67,7 @@
    "embedded_by": [],
    "folder": "bfbc2-anim-tools",
    "kind": "test",
-   "lines": 187,
+   "lines": 205,
    "note": "Round F2a: Granny's writing side in the Rust core against its Python reference - Granny.to_bytes (the CRC),...",
    "path": "bfbc2-anim-tools/tests/test_granny_f2a_native.py",
    "retiring": "Tests in Rust",
@@ -79,7 +79,7 @@
    "embedded_by": [],
    "folder": "bfbc2-anim-tools",
    "kind": "test",
-   "lines": 563,
+   "lines": 670,
    "note": "granny.py's Rust core (bc2_native: bc2_formats::granny, bc2_convert::granny): the reader against granny.py'...",
    "path": "bfbc2-anim-tools/tests/test_granny_native.py",
    "retiring": "Tests in Rust",
@@ -3939,7 +3939,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 870,
+   "lines": 871,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4557,7 +4557,7 @@
  "totals": {
   "all": {
    "files": 374,
-   "lines": 109542
+   "lines": 109640
   },
   "by_folder": {
    "(root)": {
@@ -4573,13 +4573,13 @@
    },
    "bfbc2-anim-tools": {
     "files": 8,
-    "lines": 2620,
+    "lines": 2717,
     "live": 0,
-    "partly": 1055,
+    "partly": 1027,
     "ported": 106,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1459,
+    "test": 1584,
     "twin": 0
    },
    "bfbc2-auto-navkit": {
@@ -4771,12 +4771,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6025,
+    "lines": 6026,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5758,
+    "stays": 5759,
     "test": 267,
     "twin": 0
    },
@@ -4810,7 +4810,7 @@
    },
    "partly": {
     "files": 21,
-    "lines": 16770
+    "lines": 16742
    },
    "ported": {
     "files": 21,
@@ -4822,11 +4822,11 @@
    },
    "stays": {
     "files": 67,
-    "lines": 13134
+    "lines": 13135
    },
    "test": {
     "files": 188,
-    "lines": 51825
+    "lines": 51950
    },
    "twin": {
     "files": 56,
