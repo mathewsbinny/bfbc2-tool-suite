@@ -37,7 +37,7 @@
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`), `fbrb_unpack` (FbrbTool's `unpack`, `fbrb.unpack`) and `zlib_deflate`.
 //!
-//! Granny resources (`granny.rs`): `granny_header`, `granny_index`, `granny_root` / `granny_roots_many` and
+//! Granny resources (`granny.rs`): the `Granny` class (`granny.Granny`), `granny_root` / `granny_roots_many` and
 //! `granny_to_pc` / `granny_to_pc_many`, for `bfbc2-anim-tools/granny.py`.
 //!
 //! The converter's (`convert.rs`): `texture_convert` / `texture_convert_many`, and the EA-XAS audio codec
@@ -501,7 +501,7 @@ mod bc2_native {
     use super::aptmodel::{AptModel, apt_check_many, apt_refs_many, apt_roundtrip_many};
 
     #[pymodule_export]
-    use super::granny::{granny_header, granny_index, granny_root, granny_roots_many, granny_to_pc, granny_to_pc_many};
+    use super::granny::{Granny, granny_root, granny_roots_many, granny_to_pc, granny_to_pc_many};
 
     #[pymodule_export]
     use super::navbuild::{
@@ -561,11 +561,11 @@ mod bc2_native {
     #[pymodule_export]
     use super::converters::{
         TexWriteJob, granny_add_tracks, granny_curve_keys, granny_orientation_plan, granny_sample, granny_shift_plan,
-        granny_with_crc, havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks,
-        skin_bounds, skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert,
-        terrain_heightfield, terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts,
-        terrain_visual_water_parts, texture_check, texwrite_alpha, texwrite_l8_bytes, texwrite_l8_down,
-        texwrite_levels, texwrite_resource, texwrite_wrapped,
+        havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks, skin_bounds,
+        skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert, terrain_heightfield,
+        terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts, terrain_visual_water_parts,
+        texture_check, texwrite_alpha, texwrite_l8_bytes, texwrite_l8_down, texwrite_levels, texwrite_resource,
+        texwrite_wrapped,
     };
 
     // round PR1b-2-rest2: decimate.py's edge collapses and shapes.py's products, tangents and windings

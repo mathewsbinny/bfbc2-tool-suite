@@ -396,6 +396,31 @@ impl<'a> Granny<'a> {
         })
     }
 
+    /// The same tables over another copy of the resource, of the same layout: each section's bytes read from `data`
+    /// at the place they were read from (a resource written in place keeps the tables it was read with: GRANNY-EDIT-2).
+    pub fn over(&mut self, data: &'a [u8]) {
+        for (s, &at) in self.sections.iter_mut().zip(&self.section_at) {
+            let at = usize::try_from(at).unwrap_or(usize::MAX);
+            *s = data.get(at..at.saturating_add(s.len())).unwrap_or_default();
+        }
+    }
+
+    /// Where member `name` (latin-1 bytes) of the type at `tref` starts in its object (`Granny.field`'s walk): the
+    /// first member of that name, `None` when there is none.
+    ///
+    /// # Errors
+    /// As [`members`](Self::members) and [`size`](Self::size) (an inline struct before it without a type).
+    pub fn member_offset(&self, tref: Ref, name: &[u8]) -> Result<Option<u64>, GrannyError> {
+        let mut off = 0u64;
+        for m in self.members(tref)?.iter() {
+            if self.text_bytes(self.name(m.name)) == name {
+                return Ok(Some(off));
+            }
+            off = mul_add(self.one_size(m, 0)?, u64::from(m.arr.max(1)), off)?;
+        }
+        Ok(None)
+    }
+
     /// The string of index `i` (`name`): the table's entry, else `#<i>`.
     #[must_use]
     pub fn name(&self, i: u32) -> Text<'a> {
@@ -915,6 +940,75 @@ mod tests {
         assert_eq!(half(0x7BFF), 65504.0);
         assert_eq!(half(0x7C00), f64::INFINITY);
         assert!(half(0x7E00).is_nan());
+    }
+
+    /// A PC resource of one section: a type {u8 Flag, i32 Count[2], f32 Scale} at 0 and its object at 128.
+    fn one_section() -> Vec<u8> {
+        let le = |v: &[u32]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+        // three definitions and the zero type end at 128; the object (13 bytes, unaligned members) follows
+        let mut sec = vec![0u8; 128];
+        for (i, (t, nm, arr)) in [(12u32, 1u32, 0u32), (19, 2, 2), (10, 3, 0)].iter().enumerate() {
+            sec[32 * i..32 * i + 16].copy_from_slice(&le(&[*t, *nm, 0, *arr]));
+        }
+        sec.push(1);
+        sec.extend(le(&[7, 8, 2.5f32.to_bits()]));
+        let soff = 40u32;
+        let head = 72 + 44;
+        let size = sec.len() as u32;
+        let mut g = MAGIC.to_vec();
+        g.extend(le(&[head, 0, 0, 0]));
+        g.extend(le(&[7, head + size, 0, soff, 1, 0, 0, 0, 128, 0]));
+        g.extend(le(&[
+            0,
+            head,
+            size,
+            size,
+            4,
+            size,
+            size,
+            head + size,
+            0,
+            head + size,
+            0,
+        ]));
+        g.extend(&sec);
+        let mut out = le(&[10, 4]);
+        for s in ["<file>", "Flag", "Count", "Scale"] {
+            out.extend((s.len() as u16).to_le_bytes());
+            out.extend(s.as_bytes());
+        }
+        out.extend(le(&[g.len() as u32]));
+        out.extend(g);
+        out
+    }
+
+    /// The third member's value of a read object.
+    fn scale(v: Value<'_>) -> Option<Value<'_>> {
+        match v {
+            Value::Object(o) => Some(o.fields[2].1.clone()),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn member_offsets_and_another_copy() {
+        let b = one_section();
+        let g = Granny::parse(&b).unwrap();
+        assert_eq!(g.member_offset((0, 0), b"Flag").unwrap(), Some(0));
+        assert_eq!(g.member_offset((0, 0), b"Count").unwrap(), Some(1));
+        assert_eq!(g.member_offset((0, 0), b"Scale").unwrap(), Some(9));
+        assert_eq!(g.member_offset((0, 0), b"Nope").unwrap(), None);
+        let v = g.read(Some((0, 0)), Some((0, 128)), 0, 64).unwrap();
+        assert_eq!(scale(v), Some(Value::Scalar(Scalar::Float(2.5))));
+        // a write in place: the same tables over the written bytes read the new value
+        let mut w = b.clone();
+        let at = g.section_at[0] as usize + 128 + 9;
+        w[at..at + 4].copy_from_slice(&(-1.0f32).to_le_bytes());
+        let mut g2 = Granny::parse(&b).unwrap();
+        g2.over(&w);
+        let v = g2.read(Some((0, 0)), Some((0, 128)), 0, 64).unwrap();
+        assert_eq!(scale(v), Some(Value::Scalar(Scalar::Float(-1.0))));
+        assert_eq!(g2.sections[0].len(), g.sections[0].len());
     }
 
     #[test]
