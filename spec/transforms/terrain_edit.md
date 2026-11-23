@@ -272,8 +272,8 @@ base's entries; the rest of the bundle stays byte for byte (XVAL-TERR-1, XVAL-TE
 edited: the brushes reach the main block only.
 
 [code: rust/bc2-editor/src/sculpt.rs:1-20]
-[code: rust/bc2-levelwrite/src/export.rs:1174-1210]
-[code: rust/bc2-levelwrite/src/export.rs:1752-1762]
+[code: rust/bc2-levelwrite/src/export.rs:1175-1210]
+[code: rust/bc2-levelwrite/src/export.rs:1764-1790]
 [test: rust/bc2-editor/tests/terrain_tools.rs::terrain_brushes_through_the_interface]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
 

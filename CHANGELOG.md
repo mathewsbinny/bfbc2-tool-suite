@@ -29,6 +29,22 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: terrain sculpt and material paint** (round E5, spec TEDIT-BR-1, TEDIT-NAV-1, XVAL-TERR-2;
+  TEDIT-HF-3 and TEDIT-MM-1 implemented): the Terrain workspace's brushes work - raise, lower, smooth, flatten to the
+  height where the stroke began, a seeded noise and a ramp between two clicked points, each with a radius, a strength
+  and a falloff (smooth, linear, constant), and the Material brush that paints the terrain's physics material map
+  (0.5 m or 0.25 m cells) with one of its own materials. A stroke is drawn as it is made and kept as one undoable
+  `stroke` operation (its 64 x 64 tiles beside the project); the game-accurate view follows. The export writes the
+  sculpted main height field (min / max tree recomputed and lower envelope lowered over the edited region, depth map
+  kept) and the painted material map into the staged terrain bundle in place of the base's entries, and
+  `mapexport check` reads them back (XVAL-TERR-2); the path-data step samples the stage on the sculpted height field.
+  Project format 11 (a stroke on the material map). The visual paint layers, the occlusion map's re-shade and
+  widening the height range are E5-rest's. Nothing is proven in game yet (`spec/transforms/terrain_edit.md`
+  section 5).
+- **`bc2_formats::terrain_codec`** (round E5, shared with TG1's generator): the main height-field block (depth map,
+  min / max tree, lower envelope) and the `TerrainMaterialMap` decoded whole and written again - DICE's 30 main blocks
+  and 30 material maps byte for byte, the 288 sub-terrain quadtrees equal to the computed ones
+  (`rust/bc2-formats/tests/terrain_corpus.rs`).
 - **NavKit: DICE's node placement, decoded** (round NKS-deep B, spec KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5,
   KYG-AREA-4): Kynapse's map builder in `BFBC2Game.exe` places route nodes by propagation from the seeds in
   NbSectors directions DistPropagation apart, joins them densely, collapses edges into their middles and then removes

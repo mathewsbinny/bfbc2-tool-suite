@@ -218,7 +218,7 @@ fn sculpted_export_stages_and_checks() {
     let t = std::time::Instant::now();
     let rec = export::build(&game, &back, &project_file.display().to_string(), &spec, &stage).unwrap();
     println!("built in {:.1} s", t.elapsed().as_secs_f64());
-    assert_eq!(rec.terrain_edits, vec![hname.clone(), mname.clone()]);
+    assert_eq!(rec.terrain_edits, vec![mname.clone(), hname.clone()], "in name order");
     let r = export::check(&game, &stage).unwrap();
     for (code, ok, text) in r.lines() {
         if code.starts_with("XVAL-TERR") {

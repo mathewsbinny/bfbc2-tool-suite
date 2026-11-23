@@ -228,3 +228,72 @@ fn terrain_brushes_through_the_interface() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+/// Sculpt and paint on MP_005 and SP_01 as loaded (game tier): a raise and a material dab committed as strokes, the
+/// scene's heights following, the material target beside the height field, undo back to DICE's heights.
+#[test]
+#[ignore = "game tier: MP_005's and SP_01's terrains; run_tests.py game runs it (tests/test_rust.py run --game)"]
+fn terrain_strokes_on_real_levels() {
+    use bc2_editor::edit::Doc;
+    use bc2_editor::sculpt::{BrushSettings, paint_dab, sculpt_dab};
+    let _gate = crate::gate();
+    let Ok(root) = bc2_editor::levels::find_opfor(None) else {
+        println!("skipped: no game copy");
+        return;
+    };
+    for lv in ["mp_005", "sp_01"] {
+        let found = match bc2_editor::levels::load_options(&root, lv) {
+            Ok(f) => f,
+            Err(e) => {
+                println!("skipped {lv}: {e}");
+                continue;
+            }
+        };
+        let s = bc2_scene::scene::load(&found.options).unwrap();
+        if s.heightfield.is_none() || s.material_map.is_none() {
+            println!("skipped {lv}: its terrain is not unpacked");
+            continue;
+        }
+        let dir = std::env::temp_dir().join(format!("bc2_editor_terrain_real_{lv}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut d = Doc::create("Sculpted", &dir, lv, s).unwrap();
+        let ht = d.terrain_target().unwrap();
+        let mt = d.material_target().unwrap();
+        assert!(matches!(&mt, Target::Material { file } if file.ends_with("-materialmap.res")), "{mt:?}");
+        let base = d.scene.heightfield.clone().unwrap();
+        let g = Ground::of(&base);
+        let s = BrushSettings {
+            radius: 20.0,
+            strength: 1.0,
+            material: 1,
+            ..BrushSettings::default()
+        };
+        // the middle of the terrain
+        let (x, z) = (g.x0 + g.cell[0] * f64::from(g.n) / 2.0, g.z0 + g.cell[1] * f64::from(g.n) / 2.0);
+        let mut r = d.raster(&ht).unwrap();
+        let t = std::time::Instant::now();
+        let dab = sculpt_dab(&mut r, &g, Brush::Raise, (x, z), &s, 0.0);
+        d.stroke(&ht, &r, "Raise").unwrap().unwrap();
+        println!("{lv}: n {}, a raise dab and its stroke in {:.3} s", g.n, t.elapsed().as_secs_f64());
+        let (i, j) = g.grid(x, z);
+        let at = |hf: &bc2_formats::terrain::Heightfield| hf.raw[j.round() as usize * hf.size as usize + i.round() as usize];
+        let now = d.scene.heightfield.clone().unwrap();
+        assert!(at(&now) > at(&base) || dab.clamped, "{lv}: raised");
+        let mut cells = d.raster(&mt).unwrap();
+        let _ = paint_dab(&mut cells, &g, (x, z), &s);
+        let t = std::time::Instant::now();
+        d.stroke(&mt, &cells, "Material").unwrap().unwrap();
+        println!(
+            "{lv}: material map {} cells, a paint stroke in {:.3} s",
+            cells.width(),
+            t.elapsed().as_secs_f64()
+        );
+        assert_eq!(d.project.reader_needed(), 11);
+        assert!(d.undo() && d.undo());
+        assert!(d.scene.heightfield.as_ref().unwrap().raw == base.raw, "{lv}: undone to DICE's heights");
+        assert!(d.redo());
+        assert!(d.scene.heightfield.as_ref().unwrap().raw == now.raw, "{lv}: redone");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

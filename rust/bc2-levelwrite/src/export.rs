@@ -1763,13 +1763,23 @@ pub fn build(
     )?;
     // round E5: the sculpted height field and painted material map in place of the base's entries
     for (name, data) in &terrain_edits {
-        let Some(e) = terrain.iter_mut().find(|e| e.name.eq_ignore_ascii_case(name)) else {
-            return Err(crate::rules::refusal(
-                "XVAL-EDIT-6",
-                format!("{name} is not in the base's terrain bundle: the export writes only that bundle's terrain"),
-            ));
-        };
-        e.data.clone_from(data);
+        if let Some(e) = terrain.iter_mut().find(|e| e.name.eq_ignore_ascii_case(name)) {
+            e.data.clone_from(data);
+            continue;
+        }
+        // a mode level's own terrain bundle may not hold its terrain (MP_005GR loads MP_005's): the entry is added to
+        // the staged bundle, which the level loads before the base's
+        let mut bundles = game.loaded(&base, "terrain");
+        bundles.extend(game.loaded(&base, "level"));
+        let live = game.live(&bundles)?;
+        let f = live.get(name).ok_or_else(|| {
+            crate::rules::refusal("XVAL-EDIT-6", format!("{name} is in none of the base's terrain bundles"))
+        })?;
+        terrain.push(StagedEntry {
+            name: f.1.name.clone(),
+            type_name: f.1.type_name.clone(),
+            data: data.clone(),
+        });
     }
     // the level's UI (its minimap) from the base's own ingame bundles and the levels' they load: a mode level's
     // minimap is its map's (`MP_005GR` reads `levels/mp_005/ui/`), whose bundle the new level does not load
@@ -3485,46 +3495,42 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
         ),
     );
     // the terrain: the base's own bundle, entry for entry (its patch shaders with their own mask atlas), but for the
-    // height field and material map the project's strokes rewrote (round E5), which must read back right
+    // height field and material map the project's strokes rewrote (round E5), which must read back right against the
+    // base's (from any bundle its terrain loads: a mode level's own terrain bundle may not hold its terrain)
+    let edited: BTreeSet<String> = rec.terrain_edits.iter().map(|n| n.to_ascii_lowercase()).collect();
+    let ours = staged.get("terrain-00.fbrb");
     if let Some(tb) = game.level_bundles(&rec.base, "terrain").into_iter().next() {
         let live = game.live(std::slice::from_ref(&tb))?;
-        let mut names: Vec<&String> = live.keys().collect();
+        let mut names: Vec<&String> = live.keys().filter(|n| !edited.contains(*n)).collect();
         names.sort();
         let found: Vec<&Found> = names.iter().filter_map(|n| live.get(*n)).collect();
         let datas = read_found(&found)?;
-        let ours = staged.get("terrain-00.fbrb");
-        let edited: HashSet<String> = rec.terrain_edits.iter().map(|n| n.to_ascii_lowercase()).collect();
         let mut differ = Vec::new();
-        let mut wrong = Vec::new();
         for (n, d) in names.iter().zip(&datas) {
-            let mine = ours.and_then(|o| o.get(*n));
-            if edited.contains(&n.to_ascii_lowercase()) {
-                let Some((_, x)) = mine else {
-                    wrong.push(format!("{n}: not staged"));
-                    continue;
-                };
-                let problems = if n.to_ascii_lowercase().ends_with("-materialmap.res") {
-                    crate::terrainedit::check_materials(d, x)
-                } else {
-                    crate::terrainedit::check_heights(d, x)
-                };
-                wrong.extend(problems.into_iter().map(|p| format!("{n}: {p}")));
-            } else if mine.is_none_or(|(_, x)| sha1_hex(x) != sha1_hex(d)) {
+            if ours
+                .and_then(|o| o.get(*n))
+                .is_none_or(|(_, x)| sha1_hex(x) != sha1_hex(d))
+            {
                 differ.push((*n).clone());
             }
         }
-        let extra = ours.map_or(0, |o| o.keys().filter(|k| !live.contains_key(*k)).count());
+        let extra = ours.map_or(0, |o| {
+            o.keys()
+                .filter(|k| !live.contains_key(*k) && !edited.contains(*k))
+                .count()
+        });
         r.add(
             "XVAL-TERR-1",
             differ.is_empty() && extra == 0,
             format!(
-                "terrain: the staged terrain bundle is {}'s own, {} entries byte for byte{} (its patch shaders drawn                  with their own mask atlas){}",
+                "terrain: the staged terrain bundle is {}'s own, {} entries byte for byte{} (its patch shaders drawn \
+                 with their own mask atlas){}",
                 rec.base,
-                names.len() - edited.len(),
+                names.len(),
                 if edited.is_empty() {
                     String::new()
                 } else {
-                    format!(" besides the {} the project rewrote", edited.len())
+                    format!(", with the {} the project rewrote", edited.len())
                 },
                 if differ.is_empty() && extra == 0 {
                     String::new()
@@ -3536,21 +3542,40 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
                 }
             ),
         );
-        if !edited.is_empty() {
-            r.add(
-                "XVAL-TERR-2",
-                wrong.is_empty(),
-                format!(
-                    "terrain edits: {} rewritten resource(s) read back by the terrain readers - the height field's                      min / max tree its heights' and its edited samples over its lower envelope, its depth map,                      bounds and size the base's; the material map's width and names the base's{}",
-                    edited.len(),
-                    if wrong.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" (not: {})", wrong.iter().take(5).cloned().collect::<Vec<_>>().join("; "))
-                    }
-                ),
-            );
+    }
+    if !edited.is_empty() {
+        let mut bundles = game.loaded(&rec.base, "terrain");
+        bundles.extend(game.loaded(&rec.base, "level"));
+        let live = game.live(&bundles)?;
+        let mut wrong = Vec::new();
+        for n in &edited {
+            let (Some(f), Some((_, x))) = (live.get(n), ours.and_then(|o| o.get(n))) else {
+                wrong.push(format!("{n}: not staged, or not the base's"));
+                continue;
+            };
+            let d = read_found(&[f])?.pop().unwrap_or_default();
+            let problems = if n.ends_with("-materialmap.res") {
+                crate::terrainedit::check_materials(&d, x)
+            } else {
+                crate::terrainedit::check_heights(&d, x)
+            };
+            wrong.extend(problems.into_iter().map(|p| format!("{n}: {p}")));
         }
+        r.add(
+            "XVAL-TERR-2",
+            wrong.is_empty(),
+            format!(
+                "terrain edits: {} rewritten resource(s) read back by the terrain readers - the height field's min / \
+                 max tree its heights' and its edited samples over its lower envelope, its depth map, bounds and size \
+                 the base's; the material map's width and names the base's{}",
+                edited.len(),
+                if wrong.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (not: {})", wrong.iter().take(5).cloned().collect::<Vec<_>>().join("; "))
+                }
+            ),
+        );
     }
     // the static group files the project edited: each group keeps its members' blueprints and count
     let base_live = game.live(&game.loaded(&rec.base, "level"))?;

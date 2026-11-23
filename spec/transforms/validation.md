@@ -92,7 +92,7 @@ by `mapexport build` (a refusal). The project paints a visual paint layer, and t
 terrain yet (round E5 writes the sculpted height field and the material map; the visual paint is E5-rest's): it
 refuses the project. Undo the paint strokes to export the rest. Rests on XLOG-DELTA-1, TERR-VT-5.
 
-[code: rust/bc2-levelwrite/src/rules.rs:187] [code: rust/bc2-levelwrite/src/export.rs:1141] [code: rust/bc2-levelwrite/src/validate.rs:69]
+[code: rust/bc2-levelwrite/src/rules.rs:187] [code: rust/bc2-levelwrite/src/export.rs:1142] [code: rust/bc2-levelwrite/src/validate.rs:69]
 [test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals]
 
 ### XVAL-EDIT-6: Only the level's own root files are exported
@@ -573,7 +573,7 @@ of their own level: patch shaders from a donor whose atlas has another layout dr
 terrain bundle must be the base's, entry for entry, but for the height field and material map the project's strokes
 rewrote (round E5, XVAL-TERR-2). Rests on TERR-VT-5, TERR-NAME-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:642] [code: rust/bc2-levelwrite/src/export.rs:3506]
+[code: rust/bc2-levelwrite/src/rules.rs:642] [code: rust/bc2-levelwrite/src/export.rs:3523]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
 
@@ -586,7 +586,7 @@ read back as DICE's formats: the height field a main block of the base's size, b
 tree the one its heights give, every edited sample at or over its lower envelope; the material map of the base's width
 and names, every cell one of them. Rests on TEDIT-HF-3, TEDIT-MM-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:654] [code: rust/bc2-levelwrite/src/export.rs:3529] [code: rust/bc2-levelwrite/src/terrainedit.rs:105-170]
+[code: rust/bc2-levelwrite/src/rules.rs:654] [code: rust/bc2-levelwrite/src/export.rs:3565] [code: rust/bc2-levelwrite/src/terrainedit.rs:105-170]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
 
 ### XVAL-CONS-1: No Xbox 360 resource in a PC level
