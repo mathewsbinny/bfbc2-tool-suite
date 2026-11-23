@@ -54,7 +54,7 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 #[test]
-#[ignore = "reads the game copy (run_tests.py game)"]
+#[ignore = "game tier: reads the game copy (run_tests.py game)"]
 fn dice_terrains_round_trip() {
     let Some(g) = game() else {
         println!("no game copy: skipped");
