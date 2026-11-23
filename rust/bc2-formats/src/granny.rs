@@ -982,6 +982,14 @@ mod tests {
         out
     }
 
+    /// The third member's value of a read object.
+    fn scale(v: Value<'_>) -> Option<Value<'_>> {
+        match v {
+            Value::Object(o) => Some(o.fields[2].1.clone()),
+            _ => None,
+        }
+    }
+
     #[test]
     fn member_offsets_and_another_copy() {
         let b = one_section();
@@ -990,20 +998,16 @@ mod tests {
         assert_eq!(g.member_offset((0, 0), b"Count").unwrap(), Some(1));
         assert_eq!(g.member_offset((0, 0), b"Scale").unwrap(), Some(9));
         assert_eq!(g.member_offset((0, 0), b"Nope").unwrap(), None);
-        let Value::Object(o) = g.read(Some((0, 0)), Some((0, 128)), 0, 64).unwrap() else {
-            panic!()
-        };
-        assert_eq!(o.fields[2].1, Value::Scalar(Scalar::Float(2.5)));
+        let v = g.read(Some((0, 0)), Some((0, 128)), 0, 64).unwrap();
+        assert_eq!(scale(v), Some(Value::Scalar(Scalar::Float(2.5))));
         // a write in place: the same tables over the written bytes read the new value
         let mut w = b.clone();
         let at = g.section_at[0] as usize + 128 + 9;
         w[at..at + 4].copy_from_slice(&(-1.0f32).to_le_bytes());
         let mut g2 = Granny::parse(&b).unwrap();
         g2.over(&w);
-        let Value::Object(o) = g2.read(Some((0, 0)), Some((0, 128)), 0, 64).unwrap() else {
-            panic!()
-        };
-        assert_eq!(o.fields[2].1, Value::Scalar(Scalar::Float(-1.0)));
+        let v = g2.read(Some((0, 0)), Some((0, 128)), 0, 64).unwrap();
+        assert_eq!(scale(v), Some(Value::Scalar(Scalar::Float(-1.0))));
         assert_eq!(g2.sections[0].len(), g.sections[0].len());
     }
 
