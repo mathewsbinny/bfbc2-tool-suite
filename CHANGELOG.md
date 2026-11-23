@@ -42,6 +42,11 @@ landed on `main`.
   reasons, PunkBuster, the server's listen path, the join by address, EA's Plasma back-end and its LAN mode, all read
   statically from `BFBC2Game.exe`), and `spec/engine/network_feasibility.md` studies locally hosted play, Direct IP,
   VLAN and LAN for Project OPFOR (needs, risks, effort, order, and the tests that would prove each). No tool changes.
+- **The specification covers options, input, scriptability and dependency graphs** (round SPG3):
+  `spec/engine/settings.md`, `spec/engine/input.md`, `spec/engine/scripting.md` and `spec/transforms/dependencies.md`
+  (43 rules), with three read-only probes over DICE's data and the executable (`spec/probes/options.py`,
+  `scripting.py`, `dependencies.py`) held by the game-tier check `core/tests/test_spec_probes.py`. `dependencies.py
+  --steps` prints the WW2 rebuild's step graph from Project OPFOR's step records.
 
 ## [0.24.0] - 2026-11-23
 

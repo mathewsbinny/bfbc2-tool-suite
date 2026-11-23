@@ -11640,3 +11640,46 @@ has no normal-pitch terrain D side and is unchanged):
 builds write no D / F); sp_004_b's parity row re-recorded (its candidate is the new golden build). navregress's
 reference `regression` saved again (exit 1 only for the ruled exception, sp_02 `df_d_recall` 21.86 -> 21.53); the old
 one kept as `regression_before_2026-11-22_nkg3.json`.
+## SPG3: options, input, scriptability and dependency graphs in the specification (2026-11-23, branch `spg3`)
+
+A specification round (no Rust or tool code changed): four new files, 43 rules (17 verified, 2 implemented, 16
+observed, 8 inferred), three read-only probes held by the game-tier check. Static analysis only: `BFBC2Game.exe`
+(build 795745) on a scratch copy (string and reference searches, a call index of every `E8` / `E9` target, capstone
+disassembly), DICE's partitions through the suite's readers, OPFOR's step records; nothing launched, no settings file
+read beyond its key names.
+
+| Probe | Reads | Time | Checks |
+|---|---|---|---|
+| `spec/probes/options.py` | the startup bundle's `Settings/GameSettings` and `Input/*`, `mp_common`'s `Input/InputMappings/*`, the exe | 0.1 s | 16 |
+| `spec/probes/scripting.py` | DICE's 74 level partitions, the exe's type names | 15 s | 13 |
+| `spec/probes/dependencies.py` | every `.dbx` string table of DICE's 1,021 bundles (124,458 entries; no tree parse) | 22 s | 12 |
+| `spec/probes/dependencies.py --steps` | OPFOR's 55 step records (63 MB of JSON) | 0.4 s | print only |
+
+The asset graph from string tables alone (an external reference is a string `<path>/<guid>`, DBX-STR-1) costs 22 s
+for the whole of DICE's data, against minutes for a tree parse: the way for an editor's "what uses this".
+
+**Findings.**
+
+- `settings.ini` is 4 sections and 29 keys in one static table; `GameSettings.ini` is the defaults partition's 45
+  user-exposed settings plus the ones the code asks for by name (`ToggleCrouch`, `HoldToZoom`, `ColorBlindMode`,
+  `KitConfig_0` - `7`, `CurrentKit`, the server browser's two); the 14 hidden ones are never saved (SET-GS-1 - 4).
+- The per-user binding files are DBX in XML instance form, used only when `MapDataVersion` >= 11, saved whole on
+  every confirmed or cancelled key change (INP-FILE-1); the console's XInput device and rumble have no caller on PC
+  (INP-PAD-1).
+- DICE's 57,667 event connections use 77 classes and 186 event names; 107 of the exe's 180 entity data classes are
+  never wired; `GameSettingEntityData` / `ConsoleCommandEntityData` are never placed, but 104 debug-menu items are,
+  in 21 levels (SCR-EVT-1, SCR-EVT-2, SCR-CMD-1). No developer console in the client; the dedicated server is not on
+  this PC (SCR-DEV-1, SCR-SRV-1).
+- 113,597 of 266,618 partition references (43 %) name partitions DICE never shipped (textures' and materials'
+  partitions mostly); 11 small cycles (XDEP-REF-2, XDEP-REF-3).
+- **The WW2 rebuild has three read-before-write steps**: `wake_translate` reads 33 of `material_grid`'s and 2 of
+  `bf1943_jp_bazooka`'s outputs and `material_grid` 2 of `wake_vo`'s, all written later in the order - the previous
+  rebuild's files. The oracle passes because the outputs are at a fixed point; a rebuild from an empty `work\ww2`
+  would need these steps twice (XDEP-STEP-3). For OPFOR to fix or declare before `rebuild_all` becomes a step graph.
+
+**Unproven until a playtest** (in-game tests paused): what the game does with bad settings values; what the debug-menu
+entities do with `IsMenuDevOptsEnabled` set; the handlers of the settings and console-command entities.
+
+### What is left (SPG3-rest)
+
+`spec/COVERAGE.md` section 2, items 1 - 4, and ROADMAP's SPG3-rest.

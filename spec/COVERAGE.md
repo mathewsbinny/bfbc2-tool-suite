@@ -57,6 +57,10 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **BF1943 as a source** (bundles, Havok 4.6.1, DBX classes, Xenos) | bf1943-import, OPFOR ww2 | Pacific War (hold) | HAVOK-V461 (2), XWW2 (9), WPN-WW2, VEH-WW2, MAT-WW2, LIGHT-SKY-4 | thin | thin (a source-side file still missing, section 2) | covered: formats/bf1943 (7, an index of the rest) |
 | **Xbox 360 / Onslaught DLC data** | console-convert, console-readers, OPFOR onslaught (14 stages) | Onslaught without Napisal (hold), OPFOR in Rust 5 | transforms/console (8), TEX-X / MESH-CONV / HAVOK-X360 / GRANNY-CONV, LIGHT-PT-3 / 4 | thin | thin (Onslaught's mode rules and the DLC's content list) | covered: engine/onslaught (14); the DLC's full content list per port open |
 | **Install, export, project log** | bc2-install, levelwrite, editor | IN1 | transforms/install (20), export (12), projectlog (20), pack (9), dbx (8), ww2 (9) | covered | covered | as after SPG |
+| **Options and settings** (`settings.ini`, `GameSettings.ini` / `.bin` and their defaults, the engine settings objects, the command line, the options screens) | OPFOR's DLL (the user-data redirect, `stats_screens`'s getters) | - | engine/settings (11) | none | none | none; **SPG3: covered** (the files, sections and keys, the defaults partition, the read / write paths, the menus' getters and commands); thin on `GameSettings.bin` and on what a bad value does (open) |
+| **Input** (entry input actions, concepts, device bindings, mappings, the user's binding files, the controls screen, the pad path, tuning data) | OPFOR's DLL (`input`, `prompts`, `padaimer`), `src/tools/controller` | controller presets, rumble, PlayStation pads (OPFOR's CONTROLLER_PLAN) | engine/input (12), BOT-CTL-3, MOD-IN-1, VEH-SEAT-2 | none | thin (MOD-IN-1 only) | thin (BOT-CTL-3, MOD-IN-1); **SPG3: covered** (both enumerations, the three data layers, the user files' load / save and version gate, the controls screen, the PC pad path); the sensitivity sliders' consumers and the schemes open |
+| **Scriptability** (the authoring layers, the level event graph's classes, data entities that reach the engine, consoles, server administration) | the data (editor, levelwrite), OPFOR's menu patches and DLL hooks | a modder-facing scripting layer (none queued) | engine/scripting (9), LEVEL-EVT (model/level), MENU-*, MOD-* | none | none | none; **SPG3: covered as a survey**: the 107 entity classes DICE's graphs never use and the console / settings entities' handlers open; the dedicated server is not on this PC |
+| **Dependency graphs** (the asset graph; the WW2 rebuild's step graph) | levelwrite's closure (XEXP-CLO-1), OPFOR's `rebuild_all` / `stepstamps` | OPFOR in Rust: `rebuild_all` as a step graph | transforms/dependencies (11) | none | none | none; **SPG3: covered**: the asset graph measured over DICE's bundles (verified), the step graph from the records (observed) and a runner's constraints; resources' internal name references open |
 
 **Totals** (36 systems). Before SPG: 769 rules in 46 files; covered 15, thin 13, none 8 (point lights, effects,
 weapons, vehicles, materials, destruction, grime / camo, persistence - the last with one crash rule). After SPG: 933
@@ -70,6 +74,10 @@ After SPG2-rest (2026-11-22): 1,231 rules in 68 files (from 1,183 at its start, 
 verified, 116 -> 126 implemented, 487 -> 453 observed, 49 -> 47 inferred); covered 36, thin 0, none 0. The game-tier
 check (`core/tests/test_spec_probes.py`) now holds every probe's stable counts: 172 checks, about 3.5 minutes.
 
+After SPG3 (2026-11-23): 1,332 rules in 72 files with main's of the same day (43 new in four new files: 17 verified, 2 implemented, 16 observed, 8
+inferred); 40 systems (four new: options and settings, input, scriptability, dependency graphs), all covered. The
+game-tier check gained three probes' `checks()` (`options`, `scripting`, `dependencies`: about 40 seconds more).
+
 ## 2. What is left, in the order the queued rounds need it
 
 Round NET2 (2026-11-23, static only) extended `engine/network.md` from 9 to 25 rules (23 observed, 2 inferred) and
@@ -79,6 +87,21 @@ server never listened, its port defaults and `Network.Version` (network.md's ope
 remote play up, the listen server and Direct IP as one milestone (the study's sections 4 and 5). Statically still
 open: transport 2's path, the server's compare sites for the version, title and level digest, and whether Plasma's
 GameManager is ever created on PC.
+Round SPG3 (2026-11-23) added the four systems above (section 1's last rows); what it left is in the four files' open
+questions and here:
+
+1. **Settings**: `GameSettings.bin`'s layout; the parsers' behaviour on a bad value; whether `-<Object>.<Field>` sets
+   the engine settings (SET-CLI-1); which slider writes `Sensitivity0` - `Sensitivity2` (INP-SET-1). The first two
+   need a test start with copies of the files (paused).
+2. **Scripting**: the handlers of `GameSettingEntityData` and `ConsoleCommandEntityData` and the events of the 107
+   entity classes DICE's graphs do not use (SCR-EVT-2, SCR-CMD-1); whether the debug document server starts.
+3. **Step graph**: the three read-before-write steps (XDEP-STEP-3: `wake_translate` reads `material_grid`'s and
+   `bf1943_jp_bazooka`'s outputs, `material_grid` reads `wake_vo`'s) - OPFOR's order to fix or declare before the
+   step-graph runner; the stale records of renamed steps.
+4. **Asset graph**: references held inside resources (mesh sets' shader names, shader databases' texture names, the
+   VO tables' waves), which the string-table listing does not see (XDEP-RES-1).
+
+The rest of this section is SPG2-rest3's list, as it was.
 
 Round SPG2-rest3 (2026-11-22, with AIS-rest2's static half) worked section 2c's item 3 and bot_ai.md's RE list; section
 2c keeps SPG2-rest2's list as it was. Found: the ticket counter's and the life counter's state and what moves them

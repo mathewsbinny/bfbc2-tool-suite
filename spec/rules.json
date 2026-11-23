@@ -3766,6 +3766,230 @@
    ]
   },
   {
+   "id": "INP-ENUM-1",
+   "title": "Fifty entry input actions",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe EntryInputActionEnum field table 0x01C27C58 (50 records, EiaThrottle 0 ... EiaUndefined 49)"
+    }
+   ]
+  },
+  {
+   "id": "INP-ENUM-2",
+   "title": "Seventy-seven input concepts",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the concept enumeration's field table from 0x01C2F140 (77 records)"
+    }
+   ]
+  },
+  {
+   "id": "INP-ENUM-3",
+   "title": "The device enumerations",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field tables: IDK_W 0x01C2FF68, IDB_Rdown 0x01C2FB48, IDA_Axis0Y 0x01C2F890, IampXenon 0x01C285B8, IAMESlot1 0x01C28600"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:71-89"
+    }
+   ]
+  },
+  {
+   "id": "INP-DATA-1",
+   "title": "Concept partitions: device bindings per concept",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: DICE's startup bundle, the eight concept partitions' instance counts above"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    }
+   ]
+  },
+  {
+   "id": "INP-DATA-2",
+   "title": "Mapping partitions: concept to entry input action, per player entry",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: mp_common's level-00 bundle, the five mapping partitions' pairs"
+    }
+   ]
+  },
+  {
+   "id": "INP-CFG-1",
+   "title": "The input configuration: four user maps and the controls screen's layout",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: Input/InputConfiguration: 4 maps, 36 / 18 / 15 / 12 rows, 33 + 49 editable actions, 81 listed"
+    }
+   ]
+  },
+  {
+   "id": "INP-FILE-1",
+   "title": "One XML file per user map, used when its version is 11 or more",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5B14C0 (0x6E3E90; per map 0x59B340 at 0x5B155E; version test 0x5B1567; default 0x4FC6F0 / 0x13B3600; maps +0x38 / +0x54 via 0x5AD5C0); load 0x59B340 (\"/data/local/input/\" 0x1419E08 + name + \".dbx\" 0x140BA60; 0x4DDC10 open; 0x466670 XML read); save 0x59B420 (0x4DDBF0, 0x47B1E0); 0x5AE8F0 (callers 0x5B1801, 0x5B1908, 0x5B1931, 0x5B325E); name list 0x1570EF0 (\"shared\" 0x141A160, \"infantry\" 0x141A154, \"land\" 0x141A14C, \"air\" 0x141A148)"
+    },
+    {
+     "kind": "data",
+     "ref": "the element and field names of one per-user input file (read only): EntryInputActionMapDataVersion with MapDataVersion and EntryInputActionMapData, one EntryInputActionMapData (PlatformSpecific, Slot), InputActionsData, Keyboard- / Mouse- / PadInputActionData"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    }
+   ]
+  },
+  {
+   "id": "INP-UI-1",
+   "title": "The controls screen's names",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table 0x0143C898; dispatcher 0x95E680 cases 0xC6 -> 0x9633DA (0x5B1810), 0xC7 -> 0x9633F1 (0x5B1920), 0xC8 -> 0x963408, 0xC9 -> 0x9631BC, 0xCC -> 0x962F37, 0xCD -> 0x962D45, 0xAA -> 0x962B2C; extern switch 0x13C -> 0x95AF2E, 0x10A -> 0x95C93F, 0x13D -> 0x95A63B, 0x13E -> 0x95A558"
+    }
+   ]
+  },
+  {
+   "id": "INP-SET-1",
+   "title": "The input game settings",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7C3E70 (caller 0x596CD2 in 0x596BA0; \"Sensitivity0\" - \"5\", \"InvertScrollWheel\" between 0x7C3F00 and 0x7C4A80; getter 0x80D0C0 at 0x7C401C ... 0x7C485A); setters 0x7CC820 / 0x7CC840; 0x8301D0 (caller 0x955C73) reads Vibration, Scheme*, AimAssist, Crouch"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:83-89"
+    }
+   ]
+  },
+  {
+   "id": "INP-PAD-1",
+   "title": "The PC reads one pad through DirectInput; the console's XInput path is present but not connected",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7E7D50 (reached by the jump at 0x7E845C); 0x7CC4A0 (caller 0x7D2504); XInput device constructor 0x7D6890, motors 0x7CC010 / 0x7CC050, switch 0x7BA010: no call and no absolute reference in the round's call index and reference search; 0x7BA120 reached only by the jump at 0x7CBFFD; XINPUT1_3 imports IAT 0x1405A54 - 0x1405A5C, read only at 0xE42CE2 - 0xE42CEE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:71-121"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500"
+    }
+   ]
+  },
+  {
+   "id": "INP-TUNE-1",
+   "title": "Dead zones, sensitivities and curves live in the data",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field tables: the deadzone fields 0x01C1A788 - 0x01C1A7E8 (+0x28 - +0x38); the camera sensitivities 0x01C2F020 - 0x01C2F068 (+0xC0 - +0xD0); IsPadRumbleEnabled 0x01C142D8 (a Client field)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500"
+    }
+   ]
+  },
+  {
+   "id": "INP-MOD-1",
+   "title": "OPFOR replaces the pad read and writes the console layouts into the user files",
+   "file": "spec/engine/input.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/controller/make_pad_bindings.py:1-16"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:211-252"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:184-201"
+    }
+   ]
+  },
+  {
    "id": "KYRT-CFG-1",
    "title": "Sector size, overlap and offsets are world settings from the level",
    "file": "spec/engine/kynapse_runtime.md",
@@ -9145,6 +9369,338 @@
     {
      "kind": "code",
      "ref": "rust/bc2-render/src/terrain.rs:560-649"
+    }
+   ]
+  },
+  {
+   "id": "SCR-LAY-1",
+   "title": "Six layers author behaviour, each with its own reach",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the rules cited per row and SCR-EVT-1 - SCR-CMD-1"
+    }
+   ]
+  },
+  {
+   "id": "SCR-EVT-1",
+   "title": "DICE's event graphs use 77 classes and 186 event names",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: 74 levels, 57,667 connections, 1,739 external ends, 56 source and 72 target classes (77), 82 + 104 event names (186), the eight classes above by connection ends"
+    }
+   ]
+  },
+  {
+   "id": "SCR-EVT-2",
+   "title": "180 entity data classes exist; DICE's graphs use 73 of them",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: 180 `...EntityData` type names in the exe; 73 of the graphs' 77 classes"
+    }
+   ]
+  },
+  {
+   "id": "SCR-CMD-1",
+   "title": "Entities that set a setting or run a command; the debug menu in DICE's data",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe type records: ConsoleCommandEntityData 0x01C05DC0, DebugMenuSubMenuEntityData 0x01C05DD8, GameSettingEntityData 0x01BFDF0C, ChangeGameSettingType 0x01BFDEF0, ServerConsoleCommandEntity 0x01BF1DD8"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: instance counts of the six classes in DICE's 74 level partitions; DebugMenuItemEntityData in mp_002, mp_004, mp_005gr, mp_006, mp_007gr, mp_008, mp_009gr, mp_012gr and 13 campaign levels"
+    }
+   ]
+  },
+  {
+   "id": "SCR-DEV-1",
+   "title": "No developer console in the PC client; developer options and debug pages are switched off",
+   "file": "spec/engine/scripting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table entries enableDevOpts 0xF3, debugdata 0xD2, consoleTrace 0x8C; Client field IsMenuDevOptsEnabled +0xF4 (field table 0x01C14338); \"/settings\" 0x14123A0 and \"/settings/*\" 0x1412394 registered in 0x501BF0 (handlers 0x4FFEC0, 0x4FFC60, \"Settings - %s\"); \"/stats\" 0x1411DA4, \"/types\" 0x140FDF8; \"Unknown command - This mopp data has been corrupted\" 0x148EF90 (Havok)"
+    }
+   ]
+  },
+  {
+   "id": "SCR-SRV-1",
+   "title": "Server administration: traces only; the server build is not on this PC",
+   "file": "spec/engine/scripting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe \"-dedicated\" 0x140982C (0x401F29, 0x401F65), \"-server\" 0x1409824 (0x401F48); \"BFBC2Server-124DD424-...\" pushed at 0x401FA5; \"set_cl_punkbuster\" 0x141AE3C, \"set_sv_punkbuster\" 0x141AF4C, \"punkbuster kick\" 0x1417978; name table kickPlayer 0xB4, voteKickPlayer 0x39, playerKickedReason 0x13F"
+    }
+   ]
+  },
+  {
+   "id": "SCR-AS-1",
+   "title": "The menus' script reaches the game only through the name table",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from MENU-RT-1 - MENU-RT-5, MENU-EVT-1 - MENU-EVT-3, APT-LOAD-3 and MENU-ED-3"
+    }
+   ]
+  },
+  {
+   "id": "SCR-DLL-1",
+   "title": "Hooks reach everything, for one build",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from MOD-EXE-1, MOD-CNT-1, MOD-HOOK-1 - MOD-HOOK-3, BOT-CTL-5"
+    }
+   ]
+  },
+  {
+   "id": "SCR-NEED-1",
+   "title": "What a scripting layer for modders would need",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from SCR-LAY-1 - SCR-DLL-1 and the bot module plan (BOT-CTL-4)"
+    }
+   ]
+  },
+  {
+   "id": "SET-FILE-1",
+   "title": "One per-user folder under Documents",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe imports SHGetSpecialFolderPathA (IAT 0x14057C4, called at 0x4E25BB and 0x518174); \"/data/local/\" 0x14107C8, \"/data/local/input/\" 0x1419E08, \"/data/local/GameSettings.ini\" 0x1432448, \"\\settings.ini\" 0x142FABC, \"/data/local/Screenshots/\" 0x147737C, \"/data/local/crashreport.xml\" 0x1419CF8"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/userdata.cpp:170-200"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:187-205"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+    }
+   ]
+  },
+  {
+   "id": "SET-INI-1",
+   "title": "settings.ini: four sections, 29 keys",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe key table 0x1570FA8 - 0x1571134 (33 records of {begin, end, capacity}); initialisers 0x1372AA0 - 0x13735C0 (\"RefreshRate\", \"Overgrowth\" and \"MSAA\" through records whose push the probe reads as lengths); GetPrivateProfileStringA IAT 0x14051D8, WritePrivateProfileStringA IAT 0x14051D4"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: every section and key name a C string of the exe, the table 33 records"
+    },
+    {
+     "kind": "data",
+     "ref": "the key names of one settings.ini the game wrote (read only, no value read): the four sections and 29 keys above, in this order"
+    }
+   ]
+  },
+  {
+   "id": "SET-INI-2",
+   "title": "settings.ini is read at start-up and written by the options and the recommended settings",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reader 0x7DBD60 (caller 0x570430 in 0x5703E0); writer 0x7DD1F0 (callers 0x56AE02, 0x570442, 0x9124ED, 0x960946, 0x960FF9); \"low\" / \"medium\" / \"high\" / \"custom\" pushed in 0x7DD100 - 0x7DDA00; \"custom\" -> MainQuality at 0x7D7339 and 0x7D73F0; \"auto\" in the reader"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:179"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-1",
+   "title": "The game settings' defaults are the GameSettings partition",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: DICE's startup bundle, Settings/GameSettings: the categories, 14 / 34 / 11 / 0 settings per type, 45 UserExposed, the 14 names above"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-2",
+   "title": "Nine categories, one INI section each",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x80D970 (`cmp eax, 8`, jump table 0x80D9E0; \"unknown\" 0x1431B88)"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-3",
+   "title": "GameSettings.ini is read setting by setting, typed, and written whole with GameSettings.bin",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reader 0x831ED0 (0x80D970 section name, flag +0x28 at 0x831FB0, GetPrivateProfileStringA at 0x831FDC, type switch 0x831FEA - 0x832241, \"GameSettings.bin\" 0x83215F -> 0x815870); writer 0x833FD0 (\"/data/local/GameSettings.ini\" 0x834330, \"GameSettings.bin\" 0x83446D; callers 0x8347CF, 0x920623); 0x9205A0 callers 0x932E5C, 0x95993D, 0x95FB65, 0x95FEFD, 0x962D33, 0x962F0D, 0x96316E, 0x963336"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-4",
+   "title": "Which keys the file holds",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe getters 0x80D2E0 and 0x80D0C0 (call sites listed by the round's call index); \"ToggleCrouch\" pushed at 0x814722 before 0x80D2E0; \"KitConfig_0\" - \"_7\" and \"CurrentKit\" at 0x77898A - 0x778AFA and 0x778970 in 0x777AA0; \"ServerFilterSettings\" / \"ServerDropDownSettings\" at 0x95D5BA / 0x95D495"
+    },
+    {
+     "kind": "data",
+     "ref": "the key names of one GameSettings.ini the game wrote (read only, no value read): GstAudio 10, GstGameplay 19, GstInput 19, GstPersistence 5, GstPlayerProfile 4, GstRender 2 keys; none of the 14 hidden names; the extra names above"
+    }
+   ]
+  },
+  {
+   "id": "SET-ENG-1",
+   "title": "Engine settings are reflected objects looked up by name",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe lookup 0x4F4C40 (ECX = *(0x0155CFDC); the boolean type object 0x01BF0354); the GameSettings field table around 0x01C15250 (InputConfiguration +0x78, ToggleCrouch +0x8E, HoldToZoom +0x90, InputTapMaxTime +0x1C, InputHoldMinTime +0x84); type names \"CoreSettings\" 0x1412FB8, \"GameSettings\" 0x142CD30, \"ClientSettings\" 0x142CEB4, \"ServerSettings\" 0x142D4C0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:69-86"
+    }
+   ]
+  },
+  {
+   "id": "SET-CLI-1",
+   "title": "Command-line options",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 40 callers (the names pushed before each); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; \"-noAsync\" 0x14123AC at 0x501F86, \"-host\" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438"
+    }
+   ]
+  },
+  {
+   "id": "SET-UI-1",
+   "title": "The options pages talk to the engine by name: getters per category, commands, events",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table 0x0143C898 (ids as above); command dispatcher 0x95E680 (`id - 0xB`, byte table 0x963F24, jump table 0x963DA4: 0x5B -> 0x9607C5 ... 0x60 -> 0x960934); extern switch in 0x95A1B0 (`id - 1`, byte table 0x95DB68, jump table 0x95D98C: 0x9C - 0xA1 -> 0x95B325 - 0x95B36B, each 0x9430C0(n)); setSetting 0x9607F6 (split at \",\") -> 0x929D30"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG3's scan of DICE's 91 movies (spec/probes/menus.py's corpus): the settings names in 11 movies' constants; `settings` names _settings, resetSettings, changeResolution, adapterResolutions, confirmKeySwitch and cancelKeySwitch"
+    }
+   ]
+  },
+  {
+   "id": "SET-UI-2",
+   "title": "Graphics pages set items; the controls pages save at once",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x929D30 callers 0x961121 - 0x9627AB (37 sites); 0x962F37 / 0x962D45 / 0x9631BC: `push 0x1B; push 0x2B; call [vtable+0x18"
     }
    ]
   },
@@ -22825,6 +23381,174 @@
     {
      "kind": "test",
      "ref": "rust/bc2-gamefs/src/atomic.rs::other_errors_are_not_retried"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-NODE-1",
+   "title": "The nodes",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from REF-FORM-4, PART-NAME-1 - PART-NAME-3, BNDL-LOC-1, REG-MFT-2, REG-BM-1"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REF-1",
+   "title": "Partition edges are the external references in the string table",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 1,021 bundles, 124,458 .dbx entries, 84,641 partitions, 266,618 edges, 5,254 without an out-edge, 60,372 without an in-edge"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REF-2",
+   "title": "Two edges in five point at no partition the game ships",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 113,597 dangling edges to 7,652 names; by top folder as above"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REF-3",
+   "title": "The graph has eleven small cycles",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 11 components, sizes 10, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-RES-1",
+   "title": "A resource belongs to a partition by name",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 80,991 resources, the counts per rule above"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REG-1",
+   "title": "Bundle and registry edges",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from REG-MFT-4, REG-BM-1, REG-NEW-1, REF-RES-2, BNDL-DEL-2, PART-NAME-3"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-ALG-1",
+   "title": "Computing a closure",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from XEXP-CLO-1, XDEP-REF-1 - XDEP-RES-1, REF-DEL-1, REF-DEL-2; the probe's run time on this PC"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-1",
+   "title": "Steps, records and what a record holds",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:1-38"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:191-262"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:266-309"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-126"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:413-470"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-2",
+   "title": "The measured graph",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23, OPFOR's 55 step records of the rebuild of 2026-11-22 / 23: the counts above (they change with every rebuild and step change: the probe prints them, its checks() do not hold them)"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-3",
+   "title": "Three steps read an output a later step writes",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2)"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-117"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-4",
+   "title": "What a step-graph runner must keep",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE"
     }
    ]
   },

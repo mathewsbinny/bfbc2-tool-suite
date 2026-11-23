@@ -184,6 +184,9 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [engine/module.md](engine/module.md) | OPFOR's game module: every patch point in `BFBC2Game.exe` (221 addresses), how hooks are checked and installed (SPG2) |
 | [engine/onslaught.md](engine/onslaught.md) | Onslaught: the mode in DICE's data, what the PC engine does with it, Napisal's and OPFOR's console ports (SPG2) |
 | [engine/streaming.md](engine/streaming.md) | the async, streaming and on-demand bundles: mounting, contents, registry, the suite (SPG2) |
+| [engine/settings.md](engine/settings.md) | options and settings: `settings.ini`, `GameSettings.ini` and its defaults partition, the engine settings objects, the command line, the options screens' getters and commands (SPG3) |
+| [engine/input.md](engine/input.md) | the input system: entry input actions, concepts, device bindings, mappings, the user's binding files, the controls screen, the PC pad path, tuning data, OPFOR's controller patch (SPG3) |
+| [engine/scripting.md](engine/scripting.md) | scriptability: the authoring layers and their reach, the level event graph's classes, data entities that reach the engine, consoles and server administration, what a modder scripting layer needs (SPG3) |
 | **The suite's transformations (layer 4)** | |
 | [transforms/pack.md](transforms/pack.md) | FBRB unpack and pack |
 | [transforms/dbx.md](transforms/dbx.md) | DBX read / write round trips, import, DbxEdit's commands |
@@ -199,6 +202,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [transforms/projectlog.md](transforms/projectlog.md) | the editor's project log: undo / redo, GUIDs, apply |
 | [transforms/terrain_edit.md](transforms/terrain_edit.md) | what a terrain sculpt, paint or new terrain must write, and what the game computes (SPG2, for E5 / E7) |
 | [transforms/shaders.md](transforms/shaders.md) | BF1943's Xenos shaders translated for Dx10 / 11: scope, code, binding tables, keys, fetch formats, the merge, Dx9 (SPG2) |
+| [transforms/dependencies.md](transforms/dependencies.md) | dependency graphs: the asset graph (partition references from string tables, dangling references, cycles, resources by name, closures) and the WW2 rebuild's step graph from OPFOR's step records (SPG3) |
 
 [rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it. [COVERAGE.md](COVERAGE.md) maps every BFBC2 system to its tools, rounds and rules; `probes/` holds
 the read-only scripts that measured DICE's data for the engine files.
