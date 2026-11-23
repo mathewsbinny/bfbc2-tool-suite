@@ -54,6 +54,7 @@ pub mod rushstage;
 pub mod schema;
 pub mod shaders;
 pub mod site;
+pub mod terrainedit;
 pub mod validate;
 pub mod vehicles;
 pub mod weather;

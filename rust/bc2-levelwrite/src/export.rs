@@ -611,6 +611,50 @@ pub(crate) fn base_level_file(
     read_one(game, bundles, &format!("levels/{base}/{file}")).ok()
 }
 
+/// A terrain resource of the base level (round E5: its main height field, its material map) from the bundles its
+/// terrain and level load; `None` when they do not have it.
+fn base_terrain_file(game: &Game, base: &str, name: &str) -> Option<Vec<u8>> {
+    let mut bundles = game.loaded(base, "terrain");
+    bundles.extend(game.loaded(base, "level"));
+    read_one(game, &bundles, name).ok()
+}
+
+/// Where the export's application of the log reads the level's other files (round OP1 / E5): the static group files
+/// from the base's level bundles, the terrain's rasters from its terrain bundle, the strokes' tiles from beside the
+/// project.
+struct ExportSources<'a> {
+    game: &'a Game,
+    bundles: &'a [PathBuf],
+    base: &'a str,
+    tiles: crate::delta::DirStore,
+}
+
+impl crate::files::Sources for ExportSources<'_> {
+    fn file(&self, target: &crate::files::Target) -> Option<Vec<u8>> {
+        base_level_file(self.game, self.bundles, self.base, target)
+    }
+
+    fn raster(&self, target: &crate::files::Target) -> Option<crate::delta::Raster> {
+        match target {
+            crate::files::Target::Terrain { file } => {
+                let hf = bc2_formats::terrain::parse(&base_terrain_file(self.game, self.base, file)?).ok()?;
+                Some(crate::delta::Raster::from_samples(hf.size, hf.size, &hf.raw))
+            }
+            crate::files::Target::Material { file } => {
+                let m = bc2_formats::terrain_codec::MaterialMap::decode(&base_terrain_file(self.game, self.base, file)?)
+                    .ok()?;
+                Some(crate::terrainedit::material_raster(&m))
+            }
+            _ => None,
+        }
+    }
+
+    fn tile(&self, sha1: &str) -> Option<Vec<u8>> {
+        use crate::delta::TileStore as _;
+        self.tiles.get(sha1)
+    }
+}
+
 fn show(bundles: &[PathBuf]) -> String {
     bundles
         .iter()
@@ -720,6 +764,10 @@ pub struct StageRecord {
     /// The level's path data staged with it (round A2: the export's path-data step, [`crate::pathdata`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path_data: Option<crate::pathdata::PathDataRecord>,
+    /// The terrain bundle's entries the project's strokes rewrote (round E5: the main height field, the material
+    /// map; lower case): the rest of the bundle stays the base's, byte for byte (XVAL-TERR-1, XVAL-TERR-2).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub terrain_edits: Vec<String>,
 }
 
 /// An object the export gave new cull leaves (round XF1): its blueprint, its slot and the shape's source
@@ -1080,14 +1128,14 @@ pub fn build(
     }
     let base_w = LevelWriter::parse(&base_bytes)?;
     let schema = Schema::scan([&base_w.d]);
-    // round OP1: a stroke's raster (terrain, paint) is not written by the export yet (round E5): refused before the
-    // log is applied, in words
-    if let Some(t) = project.operations.iter().flat_map(|o| o.op.files()).find(|t| {
-        matches!(
-            t,
-            crate::files::Target::Terrain { .. } | crate::files::Target::Paint { .. }
-        )
-    }) {
+    // round OP1: a paint layer's raster is not written by the export yet (round E5 writes the height field and the
+    // material map; the visual paint is E5-rest's): refused before the log is applied, in words
+    if let Some(t) = project
+        .operations
+        .iter()
+        .flat_map(|o| o.op.files())
+        .find(|t| matches!(t, crate::files::Target::Paint { .. }))
+    {
         return Err(crate::rules::refusal(
             "XVAL-EDIT-5",
             format!(
@@ -1098,7 +1146,12 @@ pub fn build(
     }
     // round OP1: the log's other files (static group files) read from the base's bundles when it names them
     let (edited_files, applied, member_orders, members_added) = {
-        let sources = |t: &crate::files::Target| base_level_file(game, &base_bundles, &base, t);
+        let sources = ExportSources {
+            game,
+            bundles: &base_bundles,
+            base: &base,
+            tiles: crate::delta::DirStore::of(Path::new(project_file)),
+        };
         let all = crate::files::apply_files(
             &base_bytes,
             &project.operations,
@@ -1117,8 +1170,30 @@ pub fn build(
         applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.placed, applied.fields
     ));
     let mut edited_groups: HashMap<String, Vec<u8>> = HashMap::new();
+    // round E5: the terrain's resources the strokes rewrote, by entry name (lower case)
+    let mut terrain_edits: BTreeMap<String, Vec<u8>> = BTreeMap::new();
     for (t, data) in edited_files.clone() {
         match &t {
+            crate::files::Target::Terrain { file } | crate::files::Target::Material { file } => {
+                let base_file = base_terrain_file(game, &base, file)
+                    .ok_or_else(|| crate::rules::refusal("XVAL-EDIT-6", format!("{} is not in the base level", t.describe())))?;
+                let written = if matches!(t, crate::files::Target::Terrain { .. }) {
+                    let hf = bc2_formats::terrain::parse(&base_file).map_err(|e| err(format!("{file}: {e}")))?;
+                    crate::terrainedit::write_heights(&base_file, &crate::terrainedit::raster_of(&data, hf.size, hf.size))?
+                } else {
+                    let m = bc2_formats::terrain_codec::MaterialMap::decode(&base_file)
+                        .map_err(|e| err(format!("{file}: {e}")))?;
+                    crate::terrainedit::write_materials(&base_file, &crate::terrainedit::raster_of(&data, m.width, m.width))?
+                };
+                report.push(format!(
+                    "project: {} {}",
+                    t.describe(),
+                    if written == base_file { "unchanged by its strokes" } else { "rewritten from its strokes" }
+                ));
+                if written != base_file {
+                    terrain_edits.insert(file.clone(), written);
+                }
+            }
             crate::files::Target::Group { file } => {
                 let note = match project.base.files.get(&t.base_key().unwrap_or_default()) {
                     Some(b)
@@ -1669,10 +1744,20 @@ pub fn build(
             })
             .collect())
     };
-    let terrain = pick(
+    let mut terrain = pick(
         game.level_bundles(&base, "terrain").into_iter().take(1).collect(),
         &|_| true,
     )?;
+    // round E5: the sculpted height field and painted material map in place of the base's entries
+    for (name, data) in &terrain_edits {
+        let Some(e) = terrain.iter_mut().find(|e| e.name.eq_ignore_ascii_case(name)) else {
+            return Err(crate::rules::refusal(
+                "XVAL-EDIT-6",
+                format!("{name} is not in the base's terrain bundle: the export writes only that bundle's terrain"),
+            ));
+        };
+        e.data.clone_from(data);
+    }
     // the level's UI (its minimap) from the base's own ingame bundles and the levels' they load: a mode level's
     // minimap is its map's (`MP_005GR` reads `levels/mp_005/ui/`), whose bundle the new level does not load
     let ingame_bundles: Vec<PathBuf> = game
@@ -1802,6 +1887,7 @@ pub fn build(
         shaders: shader_record,
         weather: weather_record,
         path_data: None,
+        terrain_edits: terrain_edits.keys().cloned().collect(),
     };
     let mut rec = rec;
     // round A2: the opt-in path-data step (refused in words when the base's path data is not the level's)
@@ -3385,7 +3471,8 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
             }
         ),
     );
-    // the terrain: the base's own bundle, entry for entry (its patch shaders with their own mask atlas)
+    // the terrain: the base's own bundle, entry for entry (its patch shaders with their own mask atlas), but for the
+    // height field and material map the project's strokes rewrote (round E5), which must read back right
     if let Some(tb) = game.level_bundles(&rec.base, "terrain").into_iter().next() {
         let live = game.live(std::slice::from_ref(&tb))?;
         let mut names: Vec<&String> = live.keys().collect();
@@ -3393,12 +3480,23 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
         let found: Vec<&Found> = names.iter().filter_map(|n| live.get(*n)).collect();
         let datas = read_found(&found)?;
         let ours = staged.get("terrain-00.fbrb");
+        let edited: HashSet<String> = rec.terrain_edits.iter().map(|n| n.to_ascii_lowercase()).collect();
         let mut differ = Vec::new();
+        let mut wrong = Vec::new();
         for (n, d) in names.iter().zip(&datas) {
-            if ours
-                .and_then(|o| o.get(*n))
-                .is_none_or(|(_, x)| sha1_hex(x) != sha1_hex(d))
-            {
+            let mine = ours.and_then(|o| o.get(*n));
+            if edited.contains(&n.to_ascii_lowercase()) {
+                let Some((_, x)) = mine else {
+                    wrong.push(format!("{n}: not staged"));
+                    continue;
+                };
+                let problems = if n.to_ascii_lowercase().ends_with("-materialmap.res") {
+                    crate::terrainedit::check_materials(d, x)
+                } else {
+                    crate::terrainedit::check_heights(d, x)
+                };
+                wrong.extend(problems.into_iter().map(|p| format!("{n}: {p}")));
+            } else if mine.is_none_or(|(_, x)| sha1_hex(x) != sha1_hex(d)) {
                 differ.push((*n).clone());
             }
         }
@@ -3407,10 +3505,14 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
             "XVAL-TERR-1",
             differ.is_empty() && extra == 0,
             format!(
-                "terrain: the staged terrain bundle is {}'s own, {} entries byte for byte (its patch shaders drawn \
-                 with their own mask atlas){}",
+                "terrain: the staged terrain bundle is {}'s own, {} entries byte for byte{} (its patch shaders drawn                  with their own mask atlas){}",
                 rec.base,
-                names.len(),
+                names.len() - edited.len(),
+                if edited.is_empty() {
+                    String::new()
+                } else {
+                    format!(" besides the {} the project rewrote", edited.len())
+                },
                 if differ.is_empty() && extra == 0 {
                     String::new()
                 } else {
@@ -3421,6 +3523,21 @@ fn check_v1(game: &Game, stage: &Path, rec: &StageRecord, r: &mut CheckReport) -
                 }
             ),
         );
+        if !edited.is_empty() {
+            r.add(
+                "XVAL-TERR-2",
+                wrong.is_empty(),
+                format!(
+                    "terrain edits: {} rewritten resource(s) read back by the terrain readers - the height field's                      min / max tree its heights' and its edited samples over its lower envelope, its depth map,                      bounds and size the base's; the material map's width and names the base's{}",
+                    edited.len(),
+                    if wrong.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" (not: {})", wrong.iter().take(5).cloned().collect::<Vec<_>>().join("; "))
+                    }
+                ),
+            );
+        }
     }
     // the static group files the project edited: each group keeps its members' blueprints and count
     let base_live = game.live(&game.loaded(&rec.base, "level"))?;

@@ -39,7 +39,9 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 ///   spawn point linked to its spawner; `set-rules`: the round's rules); a version-8 file loads as it is.
 /// - 10: round E4-rest, event connections added or taken out (`connect`: a Rush stage added or taken out with its
 ///   wiring); a version-9 file loads as it is.
-pub const VERSION: u32 = 10;
+/// - 11: round E5, strokes on the terrain's material map (`stroke` naming a `material` target: the material paint);
+///   a version-10 file loads as it is (its strokes name height fields and paint layers only).
+pub const VERSION: u32 = 11;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
@@ -78,6 +80,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 7 -> 8: the auto layout's pins were added (round A2); a version-7 log has none
         // 8 -> 9: the gameplay tools' operations were added (round E4); a version-8 log has none
         // 9 -> 10: event connections added or taken out were added (round E4-rest); a version-9 log has none
+        // 10 -> 11: material-map strokes were added (round E5); a version-10 log has none
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {
@@ -802,6 +805,14 @@ impl MapProject {
                 })
             {
                 return parts(o).max(7);
+            }
+            // round E5: a stroke on the material map needs a reader that knows that target
+            if let Op::Stroke {
+                target: crate::files::Target::Material { .. },
+                ..
+            } = &o.op
+            {
+                return 11;
             }
             kind(&o.op).max(parts(o))
         };

@@ -64,11 +64,11 @@ pub fn validate(i: Input<'_>) -> Vec<Finding> {
     // the log's files the export does not write
     for o in &p.operations {
         for t in o.op.files() {
-            if matches!(t, Target::Terrain { .. } | Target::Paint { .. }) {
+            if matches!(t, Target::Paint { .. }) {
                 out.push(Finding::new(
                     "XVAL-EDIT-5",
                     format!(
-                        "Operation {} ({}) edits {}: the export does not write terrain yet (round E5).",
+                        "Operation {} ({}) edits {}: the export does not write the visual paint yet.",
                         o.n,
                         o.name(),
                         t.describe()
