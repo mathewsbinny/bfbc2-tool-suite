@@ -33,6 +33,8 @@ RECORD = os.path.join(SUITE, 'rust', 'native_census.json')
 RETURNED = {
     'AptLines': 'apt_decode(records=True) returns it (the dump kept in Rust until a line is asked for)',
     'NavStageGraphs': "navstage_graphs returns it (the stage's graphs, read by index)",
+    'Ww2Index': "ww2build_stock_index returns it (OPFOR's wake_install keeps it as its index's .native)",
+    'Ww2PackJob': 'ww2build_pack_start returns it (wake_install.finish_packs waits on it)',
 }
 EXPORT = re.compile(r'#\[pymodule_export\]\s*use\s+super::(\w+)::(?:\{([^}]*)\}|(\w+))\s*;', re.S)
 

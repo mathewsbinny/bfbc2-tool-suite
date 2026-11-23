@@ -932,12 +932,6 @@ pub fn ww2build_undergrowth_scales<'py>(
     Ok((PyBytes::new(py, &out), report))
 }
 
-/// Forgets the kept undergrowth blocks (a test's other stock index).
-#[pyfunction]
-pub fn ww2build_forget_undergrowth() {
-    terrainfiles::forget_blocks();
-}
-
 /// BF1943's source (`bf1943import.Source`) as the porter reads it: its entries (taken once) and each entry's
 /// bytes from the Python object, with the interpreter held.
 struct PySource {
