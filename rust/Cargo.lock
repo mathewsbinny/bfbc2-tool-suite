@@ -571,6 +571,7 @@ dependencies = [
  "libm",
  "proptest",
  "rayon",
+ "regex",
  "sha1_smol",
  "thiserror 2.0.21",
  "windows-sys 0.61.2",

@@ -792,7 +792,7 @@ pub fn heightfield_of(root: &str, lv: &str, log: &mut dyn FnMut(&str) -> Res<()>
 }
 
 /// The level's terrain height field (`heightfield_of`'s unpack), or `None` (no terrain).
-fn level_terrain(root: &str, lv: &str, tool: ToolRun<'_>) -> Res<Option<bc2_formats::terrain::Heightfield>> {
+pub fn level_terrain(root: &str, lv: &str, tool: ToolRun<'_>) -> Res<Option<bc2_formats::terrain::Heightfield>> {
     let name = heightfield_of(root, lv, &mut |_| Ok(()), tool)?;
     let dest = join(root, &["work", "levels", lv, "terrain"])?;
     if !os::isdir(&dest) {

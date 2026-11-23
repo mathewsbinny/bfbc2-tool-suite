@@ -3523,6 +3523,160 @@ has no normal-pitch terrain D side and is unchanged):
 builds write no D / F); sp_004_b's parity row re-recorded (its candidate is the new golden build). navregress's
 reference `regression` saved again (exit 1 only for the ruled exception, sp_02 `df_d_recall` 21.86 -> 21.53); the old
 one kept as `regression_before_2026-11-22_nkg3.json`.
+
+## NKS-deep C: NavKit's offline sampler in Rust, at 0.2 m, DICE's detailed sectors and a vehicle run (2026-11-23, branch `nksdc`)
+
+Part C of NKS-deep (ROADMAP "NKS-deep"), A2-rest's sampler brought forward: `navsample_offline.py`'s sampling ported
+to Rust (`bc2_navbuild::sampler`), run at 0.2 m over the level's and DICE's detailed sectors and for a vehicle-shaped
+entity, exposed as `bfbc2 navkit sample <level> --offline` and through the bindings. Nothing was written to `game\`;
+the game never launched. Measured on the development PC (16 threads, 15 GB) beside other rounds' builds.
+
+### The port (`bc2_navbuild::sampler`)
+
+| Python (`navsample_offline.py`) | Rust |
+|---|---|
+| `Grid`, `from_box`, `like` | `sampler::Grid` (`from_box` in `float32` as `navsample.cpp`'s `Begin()`, the 1 m rectangle mask) |
+| `level_geometry`, `destroyed_parts`, `part_names`, `load_level` | `sampler::level` (the suite's collision index, `hulls::asset_bodies`, the reference's regexes) |
+| `raster_hits`, `_edge_dist2`, `_line_tri_interval`, the barycentric test | `sampler::geom` (one pair at a time, NumPy's order of operations) |
+| `cast_columns`, `Intervals`, `capsule_blocked`, `terrain_blocks`, `sample_grid` | `sampler::sample` (bands of 8 rows on all cores) |
+| `write` / `file_bytes` | `Samples::write_to` (streamed, `write_v3`'s bytes) |
+| `compare` | `sampler::compare` (a column at a time) |
+| `sample_level`, `like` / `validate`, `stage` | `sampler::level::sample_level`, `like`; `bfbc2 navkit sample --offline [--like / --stage]` |
+
+**Bit for bit.** Each (triangle, column) pair's arithmetic is NumPy's: `np.minimum` / `maximum` / `clip` keep a NaN,
+`np.cross` is `a1 b2 - a2 b1`, a row's `sum` / `linalg.norm` over three values is `(x0 + x1) + x2` (NumPy 2.5's
+contiguous reduction, measured on 200,000 rows: 100 % against 88 % for `x0 + (x1 + x2)`), the placed object's matrix
+the fused chain `hulls` measured (round F4). The cast's and the capsule's float keys (`column * 4096 + height`) are
+computed as the reference computes them, so every search lands on the same hit; hits tied in height keep the
+reference's order (mesh, convex, terrain; each by triangle index). The work runs in bands of rows: every answer the
+reference computes for a column depends only on that column's pairs (its keys never reach another column's), so the
+order of the work changes nothing.
+
+### Parity with the Python (the reference, NumPy)
+
+| run | files | identical |
+|---|---:|---:|
+| pitch 0.8, both capsule runs, the 15 regression levels | 30 | **30** |
+| pitch 0.2 over the level's detailed sectors (`sample --pitch 0.2`'s crop): sp_009, sp_004_b, ons_mp_004 | 6 | **6** |
+| the in-game files' grids (`like`, masked detailed runs included): sp_009, sp_004_b at 0.8 and 0.2, both runs | 8 | **8** |
+| the same through `bfbc2 navkit sample sp_004_b --offline` (0.8 + 0.2) | 4 | **4** |
+| an export's stage (`mapedit_aurora_cq`, base sp_01; `navsample_offline.py stage` against `bfbc2 navkit sample --offline --stage`, stand-in OPFOR folders): the prepared tree - objects, group members, triangle lists, ladders, settings - and the four sample files | 17 | **17** (Python 26.3 s / 3.19 GB commit, Rust 16.6 s / 0.70 GB) |
+
+One difference was found and decided (NAVS-SMP-2): `sample_level` and `stage` cropped the geometry to the level's box
+before the 0.2 m run, so a detailed sector outside it lost its objects (sp_009: 6 flagged sectors east of x 500, the
+box ends at x 100; 1,678,603 against 1,723,700 surfaces, 20,768 columns). The geometry now covers every square a run
+samples (the box's sector squares, the flagged sectors, DICE's); `sample --pitch 0.2` already cropped to the detailed
+box and is what the table compares against. The Python's `sample_level` and `stage` were fixed the same way.
+
+### Speed and memory (whole process; Python: the run in a warm interpreter)
+
+| level | Python 0.8 s | GB | Rust 0.8 s | GB | | level | Python 0.8 s | GB | Rust 0.8 s | GB |
+|---|---:|---:|---:|---:|---|---|---:|---:|---:|---:|
+| sp_01 | 30.5 | 4.98 | 1.4 | 0.19 | | sp_006 | 30.2 | 3.67 | 2.2 | 0.35 |
+| sp_02 | 14.8 | 2.53 | 1.2 | 0.16 | | sp_007 | 26.1 | 3.45 | 1.8 | 0.35 |
+| sp_03 | 25.9 | 3.46 | 1.9 | 0.31 | | sp_008 | 14.0 | 2.74 | 0.9 | 0.14 |
+| sp_04 | 11.2 | 2.04 | 1.4 | 0.19 | | sp_008_b | 12.9 | 2.63 | 0.7 | 0.11 |
+| sp_003_b | 18.5 | 3.01 | 1.8 | 0.27 | | sp_009 | 0.9 | 0.21 | 0.4 | 0.05 |
+| sp_004_b | 3.2 | 0.79 | 0.6 | 0.09 | | ons_mp_002 | 8.3 | 1.69 | 1.1 | 0.11 |
+| sp_005 | 21.5 | 3.30 | 1.8 | 0.27 | | ons_mp_004 | 4.1 | 0.91 | 0.8 | 0.09 |
+| sp_005_b | 25.3 | 3.30 | 1.9 | 0.26 | | | | | | |
+
+At 0.2 m (the detailed run alone in Python; the 0.8 m and 0.2 m runs together in Rust): sp_009 15.7 s / 2.48 GB ->
+1.4 s / 0.11 GB, sp_004_b 63.0 s / 4.52 GB -> 2.8 s / 0.25 GB, ons_mp_004 61.8 s / 3.90 GB -> 2.5 s / 0.20 GB. On
+the in-game grids (four files): sp_009 32.2 s / 2.66 GB -> 1.2 s / 0.11 GB, sp_004_b 165.3 s / 5.55 GB -> 5.6 s /
+0.31 GB. Peak memory (working set; commit) is the geometry, the band results and one copy of the surfaces: the runs
+share the cast's surfaces, the files are streamed, the comparison reads a column at a time (an in-game detailed file
+is up to 84 million columns and 670 MB). The whole level with `--dice --vehicle` (0.8 m pair, 0.2 m pair over the
+level's and DICE's detailed sectors, vehicle run):
+
+| level | s | GB | | level | s | GB | | level | s | GB |
+|---|---:|---:|---|---|---:|---:|---|---|---:|---:|
+| sp_01 | 17.3 | 0.57 | | sp_005 | 23.8 | 0.71 | | sp_008_b | 9.4 | 0.41 |
+| sp_02 | 13.0 | 0.54 | | sp_005_b | 20.9 | 0.58 | | sp_009 | 1.9 | 0.11 |
+| sp_03 | 20.5 | 0.66 | | sp_006 | 29.4 | 0.85 | | ons_mp_002 | 7.4 | 0.29 |
+| sp_04 | 14.1 | 0.63 | | sp_007 | 25.4 | 0.85 | | ons_mp_004 | 4.3 | 0.21 |
+| sp_003_b | 13.1 | 0.40 | | sp_008 | 19.8 | 0.48 | | sp_004_b | 3.5 | 0.26 |
+
+Every level stays far under the 3 GB budget (the largest commit 1.26 GB, sp_006).
+
+### Agreement with the in-game sampler (NAVS-SMP-4)
+
+`bfbc2 navkit sample <level> --offline --like <in-game files>` on OPFOR's `work\navsample` (read only): per in-game
+surface a partner within 0.1 m (found), per offline surface one in game (real), the walkable and blocked flags on
+matched surfaces (normal run; the high run's blocked agreement in brackets), the object surfaces found. The 0.2 m
+rows are the in-game detailed runs, on the columns they sampled.
+
+| level | 0.8 m columns | found / real | walk / blocked agree | objects found | 0.2 m columns | found / real | walk / blocked agree | objects found |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| sp_01 | 2,148,328 | 97.72 / 98.22 | 97.27 / 98.35 (98.63) | 82.40 | 12,675,605 | 96.63 / 96.10 | 97.86 / 97.39 (97.81) | 87.62 |
+| sp_02 | 1,612,334 | 98.46 / 97.54 | 98.53 / 98.41 (98.27) | 88.16 | 13,517,006 | 97.33 / 95.77 | 98.18 / 97.35 (96.82) | 89.72 |
+| sp_03 | 4,514,346 | 98.65 / 98.69 | 97.99 / 98.10 (98.35) | 85.06 | 17,038,780 | 95.35 / 95.46 | 97.82 / 96.62 (97.39) | 85.02 |
+| sp_04 | 3,239,189 | 99.70 / 99.65 | 99.28 / 98.50 (98.51) | 97.07 | 18,906,555 | 99.29 / 99.13 | 98.65 / 98.28 (98.15) | 97.24 |
+| sp_003_b | 4,873,328 | 99.37 / 99.48 | 96.31 / 98.38 (98.37) | 85.42 | 8,884,605 | 95.44 / 96.20 | 97.93 / 97.56 (97.76) | 85.48 |
+| sp_004_b | 505,318 | 99.27 / 99.02 | 97.06 / 98.82 (98.66) | 95.50 | 6,866,066 | 99.18 / 98.89 | 98.52 / 98.71 (98.56) | 96.56 |
+| sp_005 | 4,010,827 | 99.30 / 99.20 | 97.60 / 98.88 (99.14) | 92.28 | 19,366,545 | 97.97 / 97.72 | 98.52 / 97.99 (98.59) | 92.40 |
+| sp_005_b | 4,069,150 | 99.47 / 99.29 | 97.95 / 98.68 (98.85) | 92.98 | 14,518,280 | 98.06 / 97.44 | 98.10 / 97.68 (98.15) | 92.98 |
+| sp_006 | 5,512,128 | 99.25 / 99.19 | 98.94 / 99.49 (99.53) | 90.22 | 20,850,328 | 97.45 / 97.24 | 98.16 / 98.15 (98.32) | 90.41 |
+| sp_007 | 4,108,715 | 98.88 / 98.59 | 96.49 / 97.71 (97.54) | 86.57 | 25,609,545 | 97.43 / 96.75 | 98.10 / 96.68 (97.14) | 86.64 |
+| sp_008 | 548,464 | 95.32 / 95.16 | 96.93 / 97.52 (97.47) | 90.67 | 10,909,105 | 95.72 / 95.67 | 97.62 / 97.58 (97.28) | 91.36 |
+| sp_008_b | 400,939 | 97.20 / 96.16 | 97.75 / 98.00 (97.62) | 93.91 | 7,948,471 | 96.37 / 95.39 | 97.58 / 97.64 (97.28) | 92.79 |
+| sp_009 | 118,664 | 99.26 / 99.66 | 99.68 / 99.55 (99.68) | 93.33 | 1,556,330 | 98.80 / 99.24 | 99.31 / 99.18 (99.48) | 93.11 |
+| ons_mp_002 | 675,736 | 96.90 / 96.29 | 96.99 / 97.74 (98.35) | 85.84 | 7,509,726 | 95.42 / 94.95 | 97.75 / 96.93 (97.82) | 85.15 |
+| ons_mp_004 | 490,326 | 98.72 / 98.48 | 98.80 / 98.80 (99.00) | 91.07 | 4,578,061 | 97.98 / 97.71 | 98.23 / 98.25 (98.60) | 90.71 |
+
+The 0.2 m agreement is within 0.5-3 points of the 0.8 m one on every level, so the offline samples stand in for the
+in-game ones where the game never sampled. What stays unproven until a playtest: whether a build from offline
+samples matches one from in-game samples (`navsample_offline.py parity` measured that before, on the Python; not
+re-run this round).
+
+### DICE's detailed sectors at 0.2 m (KYG-DET-1)
+
+`--dice` adds DICE's own detailed sectors to the level's choice. Of DICE's 502 detailed sectors on the 15 regression
+levels, the in-game 0.2 m runs sampled 462 (NKG2's 40 never sampled); the offline sampler now samples **all 502**:
+
+| level | DICE's | sampled in game | never in game (now offline) |
+|---|---:|---:|---|
+| sp_01 | 41 | 33 | (2, 5) (3, 2) (3, 5) (10, 4) (10, 5) (13, 3) (13, 4) (13, 5) |
+| sp_02 | 38 | 35 | (4, 11) (6, 1) (6, 9) |
+| sp_04 | 55 | 45 | (3, 1) (3, 3) (4, 13) (7, 5) (8, 1) (8, 2) (9, 11) (11, 10) (12, 8) (12, 9) |
+| sp_005 | 42 | 41 | (6, 8) |
+| sp_006 | 51 | 42 | (13, 15) (13, 16) (13, 17) (14, 13) (14, 14) (14, 17) (14, 18) (14, 19) (15, 9) |
+| sp_007 | 47 | 46 | (5, 4) |
+| sp_008 | 19 | 18 | (6, 7) |
+| sp_008_b | 23 | 20 | (2, 1) (6, 4) (7, 4) |
+| ons_mp_004 | 21 | 17 | (2, 1) (2, 9) (3, 6) (3, 9) |
+| sp_03, sp_003_b, sp_004_b, sp_005_b, sp_009, ons_mp_002 | 50, 28, 19, 41, 4, 23 | all | - |
+
+(sp_02's (6, 1) is in the level's own offline choice - its stacked columns in the offline 0.8 m samples - so `--dice`
+lists 39 sectors as DICE's only.) The in-game list counts a sector sampled when its in-game 0.2 m file has samples in
+at least half of its square. The build's `DICE_DETAILED` switch (NKG2, off) can now be measured with every one of
+DICE's sectors at 0.2: part B's.
+
+### The vehicle run (NAVS-SMP-3, inferred)
+
+At the vehicle pitch (1.0 m) the same casts, each surface tested with a vertical cylinder of radius 2.5 from 0.4 to
+4 m (KYG-PAR-2) against the collision triangles (a 32-sided prism), and the height field's rise above the surface's
+plane against the step. Blocked share of the surfaces: sp_009 40 %, sp_004_b 45 %, sp_006 24 %, sp_04 38 %, sp_03 59
+%, ONS_MP_002 55 %. Not validated: no in-game vehicle-shaped run exists (KYG-DF-2, a playtest item); it is the input
+the vehicle D / F fit (NKG3's left item) needs.
+
+### Bindings and callers
+
+- `bc2_native.navkit_offline_sample` (geometry and height field in memory): `navsample_offline.sample_grid` calls it;
+  its NumPy (the casts, the capsule test, `Intervals`, `terrain_at`) is gone. `navkit_offline_sample_level`:
+  `navkit.py sample <level> --offline`.
+- `bc2_levelwrite::pathdata::sample_stage` (the export's stage step) runs `bfbc2.exe navkit sample <level> --offline
+  --stage <stage> --base <base>` (was `navsample_offline.py stage`).
+- The editor's sculpted-terrain sampling (A2-rest) can call `sampler::sample` with its own `Field` and `Geometry`.
+
+### What is left
+
+- **Retiring `navsample_offline.py`**: not done. Its research drivers (`parity`, `stockmp`, `build`, `check`,
+  `all` with the Package overlay and the combat-area box of a map without path data) and the reference wrappers the
+  F3 / F4 / collision-backend tests call (`asset_bodies_reference`, `_write_args`, `level_geometry`) still use it. A
+  removal bumps the minor version (CHANGELOG rule); nothing was removed that another project imports.
+- The vehicle run's rule is unvalidated until an in-game vehicle-shaped run.
+- A sculpted terrain on the stage (A2-rest): the stage still copies the base's terrain.
 ## SPG3: options, input, scriptability and dependency graphs in the specification (2026-11-23, branch `spg3`)
 
 A specification round (no Rust or tool code changed): four new files, 43 rules (17 verified, 2 implemented, 16
@@ -3762,3 +3916,43 @@ nodes with a DICE node near 38.4 -> 50.8 %.
   passed through its gap only).
 - `kynapse_corpus` (game tier): `step_pairs_lie_on_the_nbsectors_probe_directions` new.
 - The switch is off by default: the golden builds and navregress's reference are unchanged (not re-recorded).
+
+## WW2-ORD1: the WW2 rebuild settles in one pass from an empty work\ww2 (2026-11-23, branch `ww2ord1`, with Project OPFOR's `ww2ord1`)
+
+An OPFOR round with a specification update here (no suite code changed). It fixes SPG3's XDEP-STEP-3: three steps
+of OPFOR's WW2 rebuild read files that only a later step wrote. OPFOR's commits:
+- **The order**: `bf1943_jp_bazooka`, `wake_vo`, `anims`, then `material_grid`, all before `wake_translate`. Both
+  readers take every OURS root, and `material_grid` stopped on an empty folder. A test holds every OURS producer
+  before both.
+- **The tracker** (stepstamps):
+  - the install indexes (`install_*.pkl`) and rebuild_all's own logs are left out;
+  - the files under a folder handed to the Rust core go through the hook's skips;
+  - a listing of a folder that the step or a later step fills, at any depth, is not judged.
+- **`wake_ambience`** makes its preview folder before drawing into it.
+- **`qa_checks`** no longer fails when there is no install report.
+
+| Run | Steps | Time | Oracle (10,852) | `--changed --dry` after | Probe: read-before-write |
+|---|---|---|---|---|---|
+| before, OPFOR's records of 2026-11-22 / 23 | 55 | - | 10,852 (main's folder) | - | 3 edges, 37 files |
+| from seeded-empty (599 external input files), rebuild 4 | 55 in one pass | 21.5 min | 7,921 identical, 28 differ, 2,903 missing | 0 of 55 | 0 (362 read-after-write edges, 7 write-after-write) |
+| OPFOR's main checkout, `--changed` on the new order | 55 (tracker code changed) | 19.4 min | 10,852 of 10,852 | 0 of 55 | 0 (336 read-after-write edges, 9 write-after-write) |
+
+The first empty-folder runs exposed the fixes above. Run 1 stopped at `wake_ambience`. Runs 2 and 3 never settled:
+`material_grid` recorded the step logs as inputs, and two listings looked changed.
+
+**Findings.**
+- **XDEP-STEP-5**: the rebuild reads inputs under `work\ww2` that no step writes:
+  - hand-placed files: `fonts\`, `weapon_icons\confirmed`;
+  - the install plan's staging: `install_ports*`, `install_<lv>\level\objects\vegetation`. That staging is a rebuild
+    -> plan -> rebuild cycle.
+- **XDEP-STEP-6**: the oracle holds the folder's history, and every difference from empty falls in one of these:
+  - 2,903 relics no step writes (2,798 debug HLSL sources from manual `--hlsl` runs, 105 textures);
+  - 18 L8 textures that the clone pass keeps from a 2026-11-05 converter. They have unpadded smallest mips against
+    TEX-FMT-2 and flag bit 1 against TEX-FLAG-1; the current converter follows both rules;
+  - 4 effects caches with equal content but different pickle bytes;
+  - 6 emitter-atlas reports that count the relics.
+
+  Regenerating the oracle is for the user to rule on (round WW2-ORC1).
+
+**Unproven until a playtest** (in-game tests paused): nothing is installed by this round. The 18 malformed textures
+are in the last install, and whether they show is unknown.

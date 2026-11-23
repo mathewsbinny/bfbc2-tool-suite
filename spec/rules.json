@@ -18882,7 +18882,7 @@
    "id": "NAVS-SMP-1",
    "title": "What a sample is",
    "file": "spec/formats/navsample.md",
-   "status": "implemented",
+   "status": "verified",
    "evidence": [
     {
      "kind": "code",
@@ -18890,11 +18890,83 @@
     },
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample_offline.py:985"
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:682-785"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:839-1145"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_cast_layers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_capsule"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/geom.rs::the_interval_against_brute_force"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_file_is_write_v3s"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C: the Rust sampler's files against the Python's (NumPy) on the 15 regression levels at pitch 0.8, both capsule runs: 30 of 30 byte-identical; at pitch 0.2 over the detailed sectors (sp_009, sp_004_b, ons_mp_004): 6 of 6; on the in-game files' grids (`like`; sp_009, sp_004_b, 0.8 and 0.2, both runs): 8 of 8"
     },
     {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:168-184"
+    }
+   ]
+  },
+  {
+   "id": "NAVS-SMP-2",
+   "title": "The offline geometry covers every square a run samples",
+   "file": "spec/formats/navsample.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/level.rs:758-790"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C: sp_009's 0.2 m run cropped to the level's box against the detailed box: 1,678,603 against 1,723,700 surfaces, 20,768 columns differing, all in the flagged sectors east of x 500; with the wider crop the 0.8 m runs of the 15 regression levels are unchanged (30 of 30 identical)"
+    }
+   ]
+  },
+  {
+   "id": "NAVS-SMP-3",
+   "title": "A vehicle-shaped run",
+   "file": "spec/formats/navsample.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "KYG-PAR-2's vehicle settings and its cylinder collision model; the step against the surface's plane as navvehicle's obstacle rule takes it (CLEAR_LOW above the local ground plane)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:600-632"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_vehicle_cylinder"
+    }
+   ]
+  },
+  {
+   "id": "NAVS-SMP-4",
+   "title": "How far the offline samples agree with the in-game ones",
+   "file": "spec/formats/navsample.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C, rust/BENCHMARKS.md \"NKS-deep C\": 60 in-game files (0.8 m and 0.2 m, both capsule runs, 15 levels; 0.2 m: 1.6 to 25.6 million sampled columns a file), the measures of `navsample_offline.compare`"
     }
    ]
   },
@@ -24784,19 +24856,19 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:191-262"
+     "ref": "opfor:src/tools/ww2/stepstamps.py:208-279"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/stepstamps.py:266-309"
+     "ref": "opfor:src/tools/ww2/stepstamps.py:283-330"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-126"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:413-470"
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:421-477"
     }
    ]
   },
@@ -24814,17 +24886,41 @@
   },
   {
    "id": "XDEP-STEP-3",
-   "title": "Three steps read an output a later step writes",
+   "title": "No step reads an output a later step writes",
    "file": "spec/transforms/dependencies.md",
-   "status": "observed",
+   "status": "implemented",
    "evidence": [
     {
-     "kind": "data",
-     "ref": "spec/probes/dependencies.py --steps, 2026-11-23: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2)"
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:105-134"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-117"
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:43-48"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:66-72"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:303-311"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_ours_readers_after_every_ours_producer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_a_run_from_an_empty_work_settles"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_the_install_indexes_are_not_tracked"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23, before: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2); after, on the 55 records of OPFOR's rebuild from a seeded-empty work\\ww2 (round WW2-ORD1): 0 reads of a later step's output, 362 read-after-write edges (26,529 files), 7 write-after-write (26 files), longest chain 15 steps; rebuild_all --changed --dry afterwards: 0 of 55 steps would run"
     }
    ]
   },
@@ -24837,6 +24933,38 @@
     {
      "kind": "inferred",
      "ref": "from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-5",
+   "title": "Inputs inside work\\ww2 that no step writes",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\\level\\objects\\vegetation, the caches); a rebuild from a work\\ww2 seeded with fonts\\, weapon_icons\\confirmed, install_ports\\, install_ports_<lv>\\ and install_<lv>\\level\\objects\\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:155"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-6",
+   "title": "The rebuild oracle holds the folder's history",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round WW2-ORD1, 2026-11-23: compare_oracle on the seeded-empty rebuild's hashes, 7,921 of 10,852 identical, differ 28, missing 2,903, extra 0; each missing or differing file joined to the step records of OPFOR's rebuild of 2026-11-22 / 23 (no writer for the relics, the 18 textures and the pickles); the 18 textures' headers (format 10, flags 2 vs 0, smallest mips) against DICE's format-10 textures of the game copy's level bundles; the pickles unpickled and compared"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the relics and the skipped conversions are left by earlier runs, so an oracle of the folder holds them"
     }
    ]
   },
