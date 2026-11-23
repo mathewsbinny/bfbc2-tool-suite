@@ -70,7 +70,6 @@ impl Workspace {
     #[must_use]
     pub fn coming(self) -> Option<&'static str> {
         match self {
-            Self::Terrain => Some("Coming in the terrain round"),
             Self::Vegetation => Some("Coming in the vegetation round"),
             _ => None,
         }

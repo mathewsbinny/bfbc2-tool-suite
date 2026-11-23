@@ -17,6 +17,8 @@
 //!   `bfbc2-anim-tools/granny.py`: the tables, the object tree, DICE's per-bone table.
 //! - [`terrain`]: terrain height fields, a port of `core/bfbc2core/terrain.py` (heights, exact height at a point,
 //!   a mesh) with the tail's known layout.
+//! - [`terrain_codec`]: the main height-field block and the material map decoded whole and written again (round E5:
+//!   depth map, min / max tree, lower envelope; DICE's 30 terrains byte for byte).
 //! - [`water`]: water meshes and the shader of each triangle, a port of `core/bfbc2core/water.py`.
 //! - [`havok`]: Havok packfiles and a blueprint's collision triangles, a port of NavKit's `hkpack.py` and
 //!   `levelobjects.triangles`.
@@ -69,6 +71,7 @@ pub mod restart;
 pub mod shaderdb;
 pub mod stfs;
 pub mod terrain;
+pub mod terrain_codec;
 pub mod varint;
 pub mod water;
 pub mod wave;

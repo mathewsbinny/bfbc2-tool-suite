@@ -54,6 +54,7 @@ mod modes;
 mod navui;
 mod previewui;
 mod problemsui;
+mod terrainui;
 mod tools;
 
 pub use crate::workspace::Workspace;
@@ -1018,7 +1019,10 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
         let editable: Vec<usize> = v.map_or_else(Vec::new, ViewState::editable_selection);
         let objects = v.is_some_and(|v| v.doc.is_some() && v.workspace == Workspace::Objects);
         match action {
-            Action::Brush(b) => b.workspace().coming(),
+            Action::Brush(b) if b.coming().is_some() => b.coming(),
+            Action::Brush(_) if doc.is_none() => {
+                Some("Open a project first (New map from an existing map, or Open a project)")
+            }
             Action::CompareWithBase if doc.is_none() => {
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }

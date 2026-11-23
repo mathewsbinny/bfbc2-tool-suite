@@ -41,6 +41,12 @@ pub enum Target {
         /// The file's name.
         file: String,
     },
+    /// The terrain's physics material map (`terrains/<a>/<b>-materialmap.res`, lower case; round E5's material
+    /// paint): a raster of material indices, one per cell ([`crate::terrainedit`]).
+    Material {
+        /// The file's name.
+        file: String,
+    },
     /// A terrain paint mask (round E5's paint brush): a raster of the project's own, one byte per sample, named by
     /// the layer it paints ([`crate::delta`]).
     Paint {
@@ -71,6 +77,7 @@ impl Target {
             Self::Partition => "the level partition".into(),
             Self::Group { file } => format!("the static group file {file}"),
             Self::Terrain { file } => format!("the height field {file}"),
+            Self::Material { file } => format!("the material map {file}"),
             Self::Paint { layer } => format!("the paint layer {layer}"),
             Self::Navigation => "the navigation side file".into(),
             Self::Project => "the project".into(),
@@ -85,6 +92,7 @@ impl Target {
         match self {
             Self::Group { file } => Some(format!("group:{file}")),
             Self::Terrain { file } => Some(format!("terrain:{file}")),
+            Self::Material { file } => Some(format!("material:{file}")),
             Self::Partition | Self::Paint { .. } | Self::Navigation | Self::Project => None,
         }
     }

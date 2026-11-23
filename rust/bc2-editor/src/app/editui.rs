@@ -391,6 +391,7 @@ impl ViewState {
         }
         if let Some(d) = &self.doc {
             let skip = |k: usize| !d.shown(k);
+            self.gpu_scene.terrain_rev = d.terrain_rev;
             self.gpu_scene.refresh(&gpu.gpu, &d.scene, palette, &skip);
             let mut without = d.deleted.clone();
             without.extend(d.filtered.iter().copied());
@@ -411,6 +412,8 @@ impl ViewState {
         self.selected = self.selection.last().copied();
         let sel = self.selection.clone();
         self.gpu_scene.set_selection(&gpu.gpu, &sel);
+        // round E5: the game-accurate view's terrain follows a stroke or its undo
+        self.sync_game_terrain();
         self.redraw();
     }
 

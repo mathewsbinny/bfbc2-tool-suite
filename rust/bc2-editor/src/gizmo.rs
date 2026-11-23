@@ -28,6 +28,8 @@ pub enum Tool {
     Polygon,
     /// The Gameplay workspace's tool (round E4): add flags, spawn points and M-COMs, carry them by the cursor.
     Gameplay,
+    /// The Terrain workspace's brushes (round E5): sculpt and paint the terrain.
+    Terrain,
 }
 
 impl Tool {
@@ -41,6 +43,7 @@ impl Tool {
             Self::Ruler => "Ruler",
             Self::Polygon => "Polygon",
             Self::Gameplay => "Gameplay",
+            Self::Terrain => "Terrain brush",
         }
     }
 }
@@ -157,7 +160,7 @@ pub fn handles(view: &View, f: &Frame, tool: Tool) -> Vec<(Handle, Outline)> {
                 }
             }
         }
-        Tool::Select | Tool::Ruler | Tool::Polygon | Tool::Gameplay => {}
+        Tool::Select | Tool::Ruler | Tool::Polygon | Tool::Gameplay | Tool::Terrain => {}
     }
     out
 }

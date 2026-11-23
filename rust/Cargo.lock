@@ -422,6 +422,7 @@ dependencies = [
  "bc2-pyrt",
  "bc2-scene",
  "bc2-stockmp",
+ "bc2-terragen",
  "bc2-tools",
  "embed-resource",
  "flate2",
@@ -645,6 +646,14 @@ dependencies = [
  "rayon",
  "serde_json",
  "sha1_smol",
+]
+
+[[package]]
+name = "bc2-terragen"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "rayon",
 ]
 
 [[package]]

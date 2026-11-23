@@ -28218,6 +28218,22 @@
      "ref": "core/tests/test_spec_probes.py::height_field_tails"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::terrain_resources_written_from_strokes"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain_codec.rs:1-40"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:1-60"
+    },
+    {
      "kind": "inferred",
      "ref": "TERR-HF-4 - TERR-HF-11's grammars; the console and BF1943 converters keep the tails as they are (TERR-HF-7, TERR-HF-8)"
     }
@@ -28378,6 +28394,18 @@
      "ref": "core/tests/test_spec_probes.py::material_maps"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::terrain_resources_written_from_strokes"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain_codec.rs:1-40"
+    },
+    {
      "kind": "inferred",
      "ref": "TERR-MM-2 - TERR-MM-4; the pairing of visual layers with materials is the editor's choice (no field links them in DICE's resources)"
     }
@@ -28410,6 +28438,56 @@
     {
      "kind": "inferred",
      "ref": "LIGHT-BAKE-2 and LIGHT-BAKE-6"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-BR-1",
+   "title": "The editor's brushes write stored heights and cells, clamped to the range",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/sculpt.rs:1-20"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1175-1210"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1764-1790"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/terrain_tools.rs::terrain_brushes_through_the_interface"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-NAV-1",
+   "title": "A sculpted level's path data is sampled on the staged height field",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/sample.rs:296-325"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:350-365"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the terrain bundle's entries (heightfield, material map, visual terrain, water, atlas) hold no collision resource; the sampler reads the height field (`inputs::heightfield_of`)"
     }
    ]
   },
@@ -28744,8 +28822,16 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:111-117"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:649-676"
     }
    ]
   },
@@ -28761,8 +28847,20 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:94-122"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/rng.rs:1-46"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/terrain_cli.rs:120-151"
     }
    ]
   },
@@ -28787,12 +28885,62 @@
    "id": "TGEN-GEN-3",
    "title": "What the real generator adds (round TG1)",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "implemented",
    "variants": "PC",
    "evidence": [
     {
-     "kind": "inferred",
-     "ref": "TGEN-SHAPE-1 - 3 (what DICE has), TGEN-SHAPE-2 (what the prototype misses), TGEN-PLAY-1 / -2, A3's ROADMAP row"
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:146-203"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:209-419"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:426-524"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:564-676"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-4",
+   "title": "TG1's terrains fall on DICE's biome medians",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py's shape() on bfbc2 terrain generate's main blocks and the prototype's terrains, 2026-11-23, as tabled; DICE's medians from the same probe's run on the 30 terrains"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-5",
+   "title": "The library the editor and the command line call",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/lib.rs:118-139"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/terrain_cli.rs:153-216"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
     }
    ]
   },
@@ -28806,6 +28954,10 @@
     {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:53-59"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/biome.rs:114-122"
     }
    ]
   },
@@ -28819,6 +28971,14 @@
     {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:208-219"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/paint.rs:27-53"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
     }
    ]
   },
@@ -28847,6 +29007,10 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:127-178"
     }
@@ -28864,6 +29028,10 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:192-205"
     }
@@ -28879,6 +29047,14 @@
     {
      "kind": "test",
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/water.rs:7-23"
     },
     {
      "kind": "code",
@@ -29019,7 +29195,7 @@
   },
   {
    "id": "XVAL-EDIT-5",
-   "title": "Terrain and paint edits are not exported yet",
+   "title": "Visual paint layers are not exported yet",
    "file": "spec/transforms/validation.md",
    "status": "verified",
    "evidence": [
@@ -29029,11 +29205,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1047"
+     "ref": "rust/bc2-levelwrite/src/export.rs:1142"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:64"
+     "ref": "rust/bc2-levelwrite/src/validate.rs:69"
     },
     {
      "kind": "test",
@@ -30037,15 +30213,43 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:641"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:642"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3280"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3526"
     },
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-TERR-2",
+   "title": "A sculpted or painted terrain reads back whole",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:654"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3568"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:110-168"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks"
     }
    ]
   },

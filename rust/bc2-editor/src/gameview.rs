@@ -45,6 +45,8 @@ impl Device {
             "the game-accurate view needs Direct3D 11 (Windows)".into(),
         ))
     }
+
+    fn forget_texture(&mut self, _name: &str) {}
 }
 
 /// The far plane, metres.
@@ -465,6 +467,18 @@ impl GameView {
         self.sourced = false;
         self.drawn = None;
         Ok(())
+    }
+
+    /// The terrain's stored heights replaced (round E5: a sculpt, its undo): the height map drawn anew at the next
+    /// frame. Returns whether anything changed.
+    pub fn set_terrain_heights(&mut self, raw: &[u16]) -> bool {
+        if !self.world.set_terrain_heights(raw) {
+            return false;
+        }
+        self.device.forget_texture(bc2_render::terrain::HEIGHTMAP);
+        self.sourced = false;
+        self.drawn = None;
+        true
     }
 
     /// Whether a world point lies behind what the last game frame drew (round R5d): the labels drawn over the game

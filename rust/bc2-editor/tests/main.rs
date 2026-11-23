@@ -52,6 +52,7 @@ mod real_level_editing;
 mod render;
 mod rush_stage_tools;
 mod simplified_view;
+mod terrain_tools;
 mod view_geometry;
 mod view_toggles;
 mod vw2;

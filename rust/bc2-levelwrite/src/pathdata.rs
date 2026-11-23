@@ -15,7 +15,10 @@
 //! data as it is (`work\navkit\<base>`, `work\navkit_offline\<base>`, DICE's own file) when the project changes
 //! nothing it depends on; otherwise the step refuses in words.
 //!
-//! **Not yet**: a sculpted terrain (the stage sampler reads the base's), a base level NavKit cannot prepare (the
+//! A sculpted terrain (round E5) changes the collision too: the stage's terrain bundle holds the edited height field,
+//! and the stage sampler reads it over the base's terrain unpack.
+//!
+//! **Not yet**: a base level NavKit cannot prepare (the
 //! Package-only WW2 levels), and the stock-MP AI layer for the staged level (`stockmp` by a stock level's name).
 #![allow(
     clippy::cast_precision_loss,
@@ -353,13 +356,6 @@ pub fn ready_at(
     level: Option<&str>,
 ) -> Result<Plan, Vec<String>> {
     let c = changes(project, cur, base);
-    if c.terrain > 0 {
-        return Err(vec![format!(
-            "the project sculpts the terrain ({} stroke(s)): the stage's offline sampler reads the base level's \
-             terrain, so the level's path data cannot be built yet",
-            c.terrain
-        )]);
-    }
     let nowhere = PathBuf::new();
     let st = stage.unwrap_or(&nowhere);
     let lv = level.unwrap_or(&project.base.level);

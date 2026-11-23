@@ -29,6 +29,33 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: terrain sculpt and material paint** (round E5, spec TEDIT-BR-1, TEDIT-NAV-1, XVAL-TERR-2;
+  TEDIT-HF-3 and TEDIT-MM-1 implemented): the Terrain workspace's brushes work - raise, lower, smooth, flatten to the
+  height where the stroke began, a seeded noise and a ramp between two clicked points, each with a radius, a strength
+  and a falloff (smooth, linear, constant), and the Material brush that paints the terrain's physics material map
+  (0.5 m or 0.25 m cells) with one of its own materials. A stroke is drawn as it is made and kept as one undoable
+  `stroke` operation (its 64 x 64 tiles beside the project); the game-accurate view follows. The export writes the
+  sculpted main height field (min / max tree recomputed and lower envelope lowered over the edited region, depth map
+  kept) and the painted material map into the staged terrain bundle in place of the base's entries, and
+  `mapexport check` reads them back (XVAL-TERR-2); the path-data step samples the stage on the sculpted height field.
+  Project format 11 (a stroke on the material map). The visual paint layers, the occlusion map's re-shade and
+  widening the height range are E5-rest's. Nothing is proven in game yet (`spec/transforms/terrain_edit.md`
+  section 5).
+- **`bc2_formats::terrain_codec`** (round E5, shared with TG1's generator): the main height-field block (depth map,
+  min / max tree, lower envelope) and the `TerrainMaterialMap` decoded whole and written again - DICE's 30 main blocks
+  and 30 material maps byte for byte, the 288 sub-terrain quadtrees equal to the computed ones
+  (`rust/bc2-formats/tests/terrain_corpus.rs`).
+- **A terrain generator** (round TG1, spec TGEN-GEN-3 - 5): new crate `rust/bc2-terragen` and `bfbc2 terrain generate
+  --biome arid|jungle|snow|temperate|vietnam --size 1024|2048 --seed <n> --out <folder>` (new tool group `terrain`):
+  a main height field shaped to one of DICE's five biomes (spectral synthesis at the biome's spectrum, hypsometric
+  remapping and slope matching to its slope distribution, hydraulic erosion, raised or sunk borders, flat sea floors,
+  objective pads with `--pad`, the water level by the biome's share), the material map painted from slope and height,
+  a water mesh, and a `terrain.json` with the seed, settings, generator version and the terrain's statistics against
+  the biome's DICE medians. The same seed gives the same bytes on any number of threads. Written through round E5's
+  terrain codec. On every biome the 99th-percentile slope is now 52 - 76 degrees (DICE's medians 53 - 75; the TG0
+  prototype's 20 - 56) and the hypsometric integral within 0.02 of DICE's; temperate's rough small-scale relief is
+  left. A 1,024 terrain takes 1 - 2.5 s, a 2,048 one 7 - 10 s. The library is what the editor's Create Level and
+  sculpt tools will call.
 - **NavKit: DICE's node placement, decoded** (round NKS-deep B, spec KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5,
   KYG-AREA-4): Kynapse's map builder in `BFBC2Game.exe` places route nodes by propagation from the seeds in
   NbSectors directions DistPropagation apart, joins them densely, collapses edges into their middles and then removes

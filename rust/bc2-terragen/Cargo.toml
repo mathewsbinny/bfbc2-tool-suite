@@ -1,0 +1,17 @@
+[package]
+name = "bc2-terragen"
+description = "A new BFBC2 terrain from a seed: biome-shaped height fields, material painting and water, pure Rust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+# the writers of the generated terrain's resources and the readers its tests read them back with
+bc2-formats.workspace = true
+rayon.workspace = true
+
+[lints]
+workspace = true

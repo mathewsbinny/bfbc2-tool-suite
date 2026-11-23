@@ -504,7 +504,16 @@ impl ViewState {
     pub(super) fn tool_action(&mut self, gpu: &GpuCtx, palette: &Palette, action: Action) -> bool {
         let sel = self.editable_selection();
         match action {
+            Action::Brush(b) => self.choose_brush(b),
             Action::SetWorkspace(w) => {
+                // round E5: the Terrain workspace's brush is its tool; leaving it, Select
+                if w == Workspace::Terrain && self.tools.terrain.brush.is_some() {
+                    self.tool = Tool::Terrain;
+                    self.tools.choose(Tool::Terrain);
+                } else if w != Workspace::Terrain && self.tool == Tool::Terrain {
+                    self.tool = Tool::Select;
+                    self.tools.choose(Tool::Select);
+                }
                 self.workspace = w;
                 self.pointer.drag = None;
                 self.pointer.box_from = None;
@@ -1358,6 +1367,11 @@ impl ViewState {
                 self.set_selection(gpu, list, true);
             }
             Outcome::Commit(op, label) => self.commit(gpu, palette, *op, &label),
+            // round E5: the brushes
+            Outcome::TerrainPreview(target, region) => self.terrain_preview(gpu, &target, region),
+            Outcome::Stroke(target, raster, label, clamped) => {
+                self.terrain_stroke(gpu, palette, &target, &raster, &label, clamped);
+            }
             Outcome::CommitSelect(op, label, guids) => {
                 let n = self.doc.as_ref().and_then(Doc::last_n);
                 self.commit(gpu, palette, *op, &label);
@@ -1541,6 +1555,9 @@ impl Tabs<'_> {
             at: resp.interact_pointer_pos(),
             hover,
             editing: self.view.doc.is_some() && self.view.workspace.moves_objects(),
+            // round E5: a brush paints while the left button is held on the view (Alt+left still orbits)
+            down: resp.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_down() && !i.modifiers.alt),
+            terrain: self.view.doc.is_some() && self.view.workspace == Workspace::Terrain,
         };
         let mut tools = std::mem::take(&mut self.view.tools);
         let taken = tools.get_mut(self.view.tool).input(&pointer, self.view);
@@ -1711,7 +1728,11 @@ impl Tabs<'_> {
             },
             crate::tool::Layer::Tools,
         );
-        // the Terrain and Vegetation workspaces: their brushes, greyed until their rounds
+        // round E5: the Terrain workspace's brushes and their settings
+        if self.view.workspace == Workspace::Terrain && self.view.doc.is_some() {
+            self.terrain_bar(ui, rect, &p);
+        }
+        // the Vegetation workspace: its brushes, greyed until their round
         if let Some(why) = self.view.workspace.coming() {
             let bar = Rect::from_min_size(rect.min + Vec2::splat(6.0), Vec2::new(rect.width() - 12.0, 40.0));
             let mut ui2 = ui.new_child(

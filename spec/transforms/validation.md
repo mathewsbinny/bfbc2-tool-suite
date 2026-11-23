@@ -83,15 +83,16 @@ the load crashes (0x49EDF4). Rests on LOAD-PART-1.
 [code: rust/bc2-levelwrite/src/rules.rs:177] [code: rust/bc2-levelwrite/src/validate.rs:117]
 [test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 
-### XVAL-EDIT-5: Terrain and paint edits are not exported yet
+### XVAL-EDIT-5: Visual paint layers are not exported yet
 
 Status: **verified**
 
-Error (round OP1); checked live in the editor and by `mapexport validate`; by `mapexport build` (a refusal). The
-project edits the terrain or paints it, and the export does not write terrain yet (round E5): it refuses the project.
-Undo the strokes to export the rest. Rests on XLOG-DELTA-1, TERR-VT-5.
+Error (round OP1; since round E5 only for the visual paint); checked live in the editor and by `mapexport validate`;
+by `mapexport build` (a refusal). The project paints a visual paint layer, and the export does not write the visual
+terrain yet (round E5 writes the sculpted height field and the material map; the visual paint is E5-rest's): it
+refuses the project. Undo the paint strokes to export the rest. Rests on XLOG-DELTA-1, TERR-VT-5.
 
-[code: rust/bc2-levelwrite/src/rules.rs:187] [code: rust/bc2-levelwrite/src/export.rs:1047] [code: rust/bc2-levelwrite/src/validate.rs:64]
+[code: rust/bc2-levelwrite/src/rules.rs:187] [code: rust/bc2-levelwrite/src/export.rs:1142] [code: rust/bc2-levelwrite/src/validate.rs:69]
 [test: rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it] [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_build_refusals]
 
 ### XVAL-EDIT-6: Only the level's own root files are exported
@@ -569,10 +570,24 @@ Status: **verified**
 
 Error (round V1); checked by `mapexport check`. The visual terrain's patch shaders must be drawn with the mask atlas
 of their own level: patch shaders from a donor whose atlas has another layout draw every tiled cell black. The level's
-terrain bundle must be the base's, entry for entry. Rests on TERR-VT-5, TERR-NAME-1.
+terrain bundle must be the base's, entry for entry, but for the height field and material map the project's strokes
+rewrote (round E5, XVAL-TERR-2). Rests on TERR-VT-5, TERR-NAME-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:641] [code: rust/bc2-levelwrite/src/export.rs:3280]
+[code: rust/bc2-levelwrite/src/rules.rs:642] [code: rust/bc2-levelwrite/src/export.rs:3526]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
+[test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
+
+### XVAL-TERR-2: A sculpted or painted terrain reads back whole
+
+Status: **verified**
+
+Error (round E5); checked by `mapexport check`. The height field and material map the project's strokes rewrote must
+read back as DICE's formats: the height field a main block of the base's size, bounds and depth map, its min / max
+tree the one its heights give, every edited sample at or over its lower envelope; the material map of the base's width
+and names, every cell one of them. Rests on TEDIT-HF-3, TEDIT-MM-1.
+
+[code: rust/bc2-levelwrite/src/rules.rs:654] [code: rust/bc2-levelwrite/src/export.rs:3568] [code: rust/bc2-levelwrite/src/terrainedit.rs:110-168]
+[test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
 
 ### XVAL-CONS-1: No Xbox 360 resource in a PC level
 

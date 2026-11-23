@@ -256,11 +256,13 @@ fn stage_level(py: &mut Py, pr: &Project, stage: &str, lv: &str, base: &str) -> 
         bc2_navbuild::pyjson::dumps(&NValue::Dict(st), Some(1)).replace('\n', "\r\n"),
     )
     .map_err(|e| crate::pyproc::os_error(&sp, &e))?;
-    // the base's terrain (an export does not sculpt it yet): its unpack copied, so the height field reads
+    // the base's terrain: its unpack copied, so the height field reads; then the stage's own height field over it
+    // (round E5: an export that sculpts writes it into the staged terrain bundle)
     let (tb, tt) = (join2(&lb, "terrain")?, join2(&l, "terrain")?);
     if pyos::isdir(&tb) && !pyos::isdir(&tt) {
         copy_tree(&tb, &tt)?;
     }
+    staged_heightfield(py, stage, &tt)?;
     let settings = lib(Settings::of(&bc2_navbuild::inputs::Root::new(&tree).map_err(fail)?, lv))?;
     let src = Source {
         level_dir: l.clone(),
@@ -290,6 +292,35 @@ fn stage_level(py: &mut Py, pr: &Project, stage: &str, lv: &str, base: &str) -> 
         Err(nos::Fail::Sink) => Err(err.unwrap_or(Fail::Python)),
         other => lib(other).map(|_| ()),
     }
+}
+
+/// The staged terrain bundle's main height field (`*.heightfield-000.res`) written over the stage tree's terrain unpack
+/// (round E5): the sampler then reads the sculpted ground, not the base's. Nothing when the stage has no terrain
+/// bundle.
+fn staged_heightfield(py: &mut Py, stage: &str, tt: &str) -> PyResult<()> {
+    let bundle = std::path::Path::new(stage).join("terrain-00.fbrb");
+    if !bundle.is_file() {
+        return Ok(());
+    }
+    let h = bc2_formats::fbrb::entries_path(&bundle).map_err(|e| navkit_error(format!("{}: {e}", bundle.display())))?;
+    let names: Vec<String> = h
+        .entries
+        .iter()
+        .filter(|e| !e.is_deleted() && e.name.to_ascii_lowercase().ends_with(".heightfield-000.res"))
+        .map(|e| e.name.clone())
+        .collect();
+    let datas = bc2_formats::fbrb::read_path_uncached(&bundle, &names)
+        .map_err(|e| navkit_error(format!("{}: {e}", bundle.display())))?;
+    for (name, data) in names.iter().zip(datas) {
+        let to = name.split('/').fold(std::path::PathBuf::from(tt), |p, s| p.join(s));
+        if let Some(dir) = to.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| crate::pyproc::os_error(&dir.display().to_string(), &e))?;
+        }
+        bc2_gamefs::atomic::write(&to, &[data.as_slice()])
+            .map_err(|e| navkit_error(format!("{}: {e}", to.display())))?;
+        py.print(&format!("  the stage's height field {name}"))?;
+    }
+    Ok(())
 }
 
 /// A JSON value with every dict's keys sorted (`sort_keys=True`).
