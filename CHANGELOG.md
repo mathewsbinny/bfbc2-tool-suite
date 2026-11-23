@@ -28,6 +28,13 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **The specification covers options, input, scriptability and dependency graphs** (round SPG3):
+  `spec/engine/settings.md`, `spec/engine/input.md`, `spec/engine/scripting.md` and `spec/transforms/dependencies.md`
+  (43 rules), with three read-only probes over DICE's data and the executable (`spec/probes/options.py`,
+  `scripting.py`, `dependencies.py`) held by the game-tier check `core/tests/test_spec_probes.py`. `dependencies.py
+  --steps` prints the WW2 rebuild's step graph from Project OPFOR's step records.
+
 ### Changed
 - **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload
   is empty (only `*deleted*` markers, or no entries) now ends with the 20-byte gzip member of no data that DICE's 105

@@ -3,7 +3,8 @@ measure on DICE's bundles of Project OPFOR BFBC2's game copy, asserted, so that 
 instead of observed. Read only; skipped without the game copy. `terrain.py` and `effects_chain.py` are read through
 their functions; SPG's five print-only probes (`materials`, `destruction`, `lighting`, `vehicles`, `weapons`) by the
 lines of their output that hold a rule's counts (EXPECT; `<head>§<line>` for a line inside one block of the output);
-`grime.py`, `menus.py`, `modes.py`, `level.py` and `registry.py` by their own `checks()`.
+`grime.py`, `menus.py`, `modes.py`, `level.py`, `registry.py` and round SPG3's `options.py`, `scripting.py` and
+`dependencies.py` by their own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -815,6 +816,21 @@ def registries(game: Path) -> None:
     probe_checks('registry', game)
 
 
+# spec: SET-INI-1, SET-GS-1, SET-GS-2, SET-UI-1, INP-ENUM-1, INP-ENUM-2, INP-DATA-1, INP-DATA-2, INP-CFG-1, INP-UI-1
+def options(game: Path) -> None:
+    probe_checks('options', game)
+
+
+# spec: SCR-EVT-1, SCR-EVT-2, SCR-CMD-1
+def event_graph(game: Path) -> None:
+    probe_checks('scripting', game)
+
+
+# spec: XDEP-REF-1, XDEP-REF-2, XDEP-REF-3, XDEP-RES-1
+def asset_graph(game: Path) -> None:
+    probe_checks('dependencies', game)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -835,7 +851,8 @@ def main() -> int:
                                        lambda: height_field_tails(t), lambda: material_maps(t),
                                        spg_materials, spg_destruction, spg_lighting, spg_vehicles, spg_weapons,
                                        lambda: grime(game), lambda: menus(game), lambda: modes(game),
-                                       lambda: level_partitions(game), lambda: registries(game)]
+                                       lambda: level_partitions(game), lambda: registries(game),
+                                       lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game)]
     for step in steps:
         step()
     print(f'{"FAILED " + str(len(FAILED)) if FAILED else "passed"}: the specification probes\' counts '
