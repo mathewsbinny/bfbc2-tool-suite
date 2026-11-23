@@ -28,7 +28,21 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-23
+
+### Added
+- **`shaderdb.level_scan(levels, dx)`** (round OR3b): each level database's entry signatures, textures, vertex
+  layouts, main-pass skinning kinds and mesh parts - what `entry_signatures`, `entry_textures`, `entry_layouts` and
+  the parts give on the loaded database - read and answered in the Rust core (`bc2_convert::shaderlevels`), the
+  levels in parallel, without making the databases in Python. Project OPFOR's `wake_shaders --clone` and
+  `detail_layers` ask it of every stock level.
+
 ### Changed
+- **The level cover index runs in the Rust core** (round OR3b, `bc2_convert::shaderlevels`,
+  `bc2_native.shadercover_levels`): `shaderdb.level_cover_prefixes` / `level_coverage` / `donor_levels` give the same
+  answers, the levels' databases read in parallel. The cache `shadercover` holds one `<24 hex>.bin` per level bundle
+  and Dx, keyed by the bundle's content key (its length, head and gzip trailer's CRC-32 of the whole payload) instead
+  of a SHA-256 of every byte of every bundle (`COVER_VERSION` 3).
 - **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload
   is empty (only `*deleted*` markers, or no entries) now ends with the 20-byte gzip member of no data that DICE's 105
   such bundles end with, where FbrbTool (and the suite after it) wrote nothing. `bfbc2core.fbrb.pack` / `pack_many`,
@@ -36,6 +50,13 @@ landed on `main`.
   of DICE's 105 gives DICE's bytes but for the header member's two header bytes (FBRB-HDR-4). FbrbTool's recorded
   pack results for such bundles were re-recorded (each FbrbTool's bundle + those 20 bytes). Every other bundle is
   unchanged.
+- **`shaderdb.retexture` runs in the Rust core** (`bc2_formats::shaderdb::merge::retexture`, the merge's own): the
+  same blocks, hits and refusals; a refusal names its textures as latin-1, as every other shaderdb message (the Python
+  read them as UTF-8, or raised `UnicodeDecodeError` making its message). It needs the Rust core (`bfbc2core.native.require`).
+
+### Removed
+- The cover index's Python implementation and its pickles (`shadercover\*.pkl`, a file format a tool wrote:
+  nothing reads them; the caches tool still counts and prunes those left on disk) and `retexture`'s Python twin.
 
 ## [0.22.0] - 2026-11-22
 

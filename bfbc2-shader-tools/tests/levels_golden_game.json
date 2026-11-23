@@ -1,0 +1,443 @@
+{
+"cover": {
+"bc1_harvest_day_cq": [
+"ok",
+4794,
+"c0849d2cc50cf7a9890c97ff"
+],
+"bc1_harvest_day_gr": [
+"ok",
+4917,
+"ae5924d4a22bf7df37c197f7"
+],
+"bc1_harvest_day_sdm": [
+"ok",
+4527,
+"5ca6caaba22cb63fa553ac47"
+],
+"bc1_harvest_day_sr": [
+"ok",
+4462,
+"6b83079ef01fb97145da003f"
+],
+"bc1_oasis_cq": [
+"ok",
+5134,
+"2f85a9bc292fa599040ffea5"
+],
+"bc1_oasis_gr": [
+"ok",
+5300,
+"c83c41d14c458bea67a60eeb"
+],
+"bc1_oasis_sdm": [
+"ok",
+4850,
+"6c3adfcad962fa2b481d1e42"
+],
+"bc1_oasis_sr": [
+"ok",
+4815,
+"cfeb2f229b67132a0308b2f0"
+],
+"coral_sea": [
+"ok",
+5914,
+"47aa6d9151a241d16ed25ac2"
+],
+"guadal_canal": [
+"ok",
+6793,
+"895274c76599d72c407bf22e"
+],
+"iwo_jima_s": [
+"ok",
+6899,
+"ac8c5ea2c0d62f604cfd74af"
+],
+"mp2_common": [
+"err",
+"<root>\\game\\Package\\levels\\mp2_common\\level-00.fbrb has 0 Dx9 shader databases; name one (<bundle>:<entry>): "
+],
+"mp_001": [
+"ok",
+4802,
+"d95cc7a4d7af80666ce8ac3d"
+],
+"mp_001sdm": [
+"ok",
+4407,
+"c8146a5d1b2c0fa8d2502540"
+],
+"mp_001sr": [
+"ok",
+4618,
+"8d7619de6cff0f466a02b33b"
+],
+"mp_002": [
+"ok",
+4594,
+"6cccc561810fde0aa23da840"
+],
+"mp_002sr": [
+"ok",
+4356,
+"db6cd6676253ee609de0e900"
+],
+"mp_003": [
+"ok",
+4591,
+"f8ec2019ff8c51dd9b4ae296"
+],
+"mp_003sr": [
+"ok",
+4359,
+"42847f1aa3c1ff61109e23bc"
+],
+"mp_004": [
+"ok",
+4962,
+"f7c115ce9760efec6fbb499f"
+],
+"mp_004sdm": [
+"ok",
+4491,
+"d857435b56f3b111fea1819a"
+],
+"mp_005": [
+"ok",
+4567,
+"eecb205b323b74dd93ef7444"
+],
+"mp_005gr": [
+"ok",
+4743,
+"9acb2d281ba9b19467aa857c"
+],
+"mp_005sr": [
+"ok",
+4144,
+"e1737d0c6758757f3f25d16b"
+],
+"mp_006": [
+"ok",
+5077,
+"6900ff0480ddcafb28a82ca0"
+],
+"mp_006cq": [
+"ok",
+5043,
+"8eb5017966b3454f27c6f9d2"
+],
+"mp_006sdm": [
+"ok",
+4793,
+"04b06c48106faed4c7fba8ca"
+],
+"mp_007": [
+"ok",
+4771,
+"c701ff788dc403eb7e4a385e"
+],
+"mp_007gr": [
+"ok",
+4752,
+"44f72d9af559661251f0e6ed"
+],
+"mp_007sdm": [
+"ok",
+4499,
+"7276ab914308d101bd54c2bf"
+],
+"mp_008": [
+"ok",
+4885,
+"a0b20eb9ce39e8c0870c5742"
+],
+"mp_008cq": [
+"ok",
+4849,
+"b7889ca53dd8400a01b8fb05"
+],
+"mp_008sdm": [
+"ok",
+4717,
+"0fa5f0727a9c730f5407251e"
+],
+"mp_009cq": [
+"ok",
+4439,
+"fd7a66ec98794adf6689ea00"
+],
+"mp_009gr": [
+"ok",
+4553,
+"d8dc0a04ad9f44701da9bde1"
+],
+"mp_009sdm": [
+"ok",
+4151,
+"3db5e88292d17b0aff6efa4d"
+],
+"mp_009sr": [
+"ok",
+4118,
+"b5e34583623c859a1908d022"
+],
+"mp_012cq": [
+"ok",
+4841,
+"fd0912b30fb342f0a859b842"
+],
+"mp_012gr": [
+"ok",
+4835,
+"84643c7b42d426733c8e4ea9"
+],
+"mp_012sr": [
+"ok",
+4426,
+"d185627721c0d1de226f5f95"
+],
+"mp_common": [
+"err",
+"<root>\\game\\Dist\\win32\\levels\\mp_common\\level-00.fbrb has 0 Dx9 shader databases; name one (<bundle>:<entry>): "
+],
+"mp_sp_002gr": [
+"ok",
+4227,
+"94ef23d6e4dd39f9970a01cc"
+],
+"mp_sp_002sdm": [
+"ok",
+4049,
+"e9a638a91da4928bf81c7005"
+],
+"mp_sp_002sr": [
+"ok",
+4006,
+"3d1422394aab2e1156065dce"
+],
+"mp_sp_005cq": [
+"ok",
+4648,
+"8e60b79ad3680ccce01ae8c5"
+],
+"mp_sp_005sdm": [
+"ok",
+4181,
+"d9dfa019ab4d8e7e31b77cb4"
+],
+"nam_common": [
+"err",
+"<root>\\game\\Package\\levels\\nam_common\\level-00.fbrb has 0 Dx9 shader databases; name one (<bundle>:<entry>): "
+],
+"nam_mp_002cq": [
+"ok",
+2825,
+"d5579d7e5a91c4c124384936"
+],
+"nam_mp_002r": [
+"ok",
+2999,
+"d6fb513d7ca4ed8b511f6e8c"
+],
+"nam_mp_002sdm": [
+"ok",
+2708,
+"1f4d8ff3f8e95edb7abc750e"
+],
+"nam_mp_002sr": [
+"ok",
+2785,
+"5b33bb6339fec0b76e575be0"
+],
+"nam_mp_003cq": [
+"ok",
+2450,
+"d50e95f358127830938b7434"
+],
+"nam_mp_003r": [
+"ok",
+2587,
+"8a2532271207dffb44fe75f0"
+],
+"nam_mp_003sdm": [
+"ok",
+2395,
+"8487dad4135b976695dcdba9"
+],
+"nam_mp_003sr": [
+"ok",
+2451,
+"d849fc92375dcd6b250e1797"
+],
+"nam_mp_005cq": [
+"ok",
+3046,
+"cfd9fc4904eb6fbda29c409d"
+],
+"nam_mp_005r": [
+"ok",
+3172,
+"e963ee05ec1b7ae2e8526f8e"
+],
+"nam_mp_005sdm": [
+"ok",
+2954,
+"7a8c016b923576a97f2f7898"
+],
+"nam_mp_005sr": [
+"ok",
+3040,
+"e053c8e964b29e947edae164"
+],
+"nam_mp_006cq": [
+"ok",
+3004,
+"10547cae6b5e9d9e76d33b13"
+],
+"nam_mp_006r": [
+"ok",
+2918,
+"d8bde09e745a0cfd27161f21"
+],
+"nam_mp_006sdm": [
+"ok",
+2837,
+"437ac221352bcf539d400ddf"
+],
+"nam_mp_006sr": [
+"ok",
+2893,
+"0417ae63712e8c00aed0a2ef"
+],
+"nam_mp_007cq": [
+"ok",
+3185,
+"0051ab43f8777a0f60a63c19"
+],
+"nam_mp_007r": [
+"ok",
+3231,
+"40c752f4fad2291676e04a8a"
+],
+"nam_mp_007sdm": [
+"ok",
+3043,
+"66f2eb21caf88014544a9c58"
+],
+"nam_mp_007sr": [
+"ok",
+3099,
+"a8f0ec3386441e44ec7b7723"
+],
+"ons_mp_002": [
+"ok",
+4852,
+"e7bf8bb484d35ef5e13496e4"
+],
+"ons_mp_004": [
+"ok",
+5198,
+"4b95c82f2f37ab748364761c"
+],
+"ons_mp_005": [
+"ok",
+4980,
+"b1e266053a08770a81b6e055"
+],
+"ons_mp_005gr": [
+"ok",
+4743,
+"9acb2d281ba9b19467aa857c"
+],
+"ons_mp_008": [
+"ok",
+5193,
+"86f8aae741d5a2da0494f56e"
+],
+"opfor_ons_mp_004": [
+"err",
+"<root>\\game\\Dist\\win32\\levels\\opfor_ons_mp_004\\level-00.fbrb has 0 Dx9 shader databases; name one (<bundle>:<entry>): "
+],
+"sp_003_b": [
+"ok",
+3852,
+"dba56ad23bec96079dc4dce3"
+],
+"sp_004_b": [
+"ok",
+2496,
+"45bf36bb005736998ddf633c"
+],
+"sp_005": [
+"ok",
+3598,
+"800a3af339238b7a24109621"
+],
+"sp_005_b": [
+"ok",
+3808,
+"8a2f8dc5b781a73611f2071f"
+],
+"sp_006": [
+"ok",
+4005,
+"afee3f0ce21ab114ca2b3fa3"
+],
+"sp_007": [
+"ok",
+3833,
+"23cfd73d596f6ec8647325c4"
+],
+"sp_008": [
+"ok",
+4167,
+"2aad96c691898715fe11ca4d"
+],
+"sp_008_b": [
+"ok",
+3351,
+"5cf26d6c67ebe0ae256e0b65"
+],
+"sp_009": [
+"ok",
+2459,
+"631a631dc83dff24968e768a"
+],
+"sp_01": [
+"ok",
+3030,
+"f95bbf8a1a9e2d3f1a09cc62"
+],
+"sp_02": [
+"ok",
+3707,
+"64fb76f0b63dbe3398a8e24c"
+],
+"sp_03": [
+"ok",
+3629,
+"9b3d60313a7a7ecb6dc2f992"
+],
+"sp_04": [
+"ok",
+3800,
+"0ddd3149c882d234c28cd136"
+],
+"sp_common": [
+"err",
+"<root>\\game\\Dist\\win32\\levels\\sp_common\\level-00.fbrb has 0 Dx9 shader databases; name one (<bundle>:<entry>): "
+],
+"wake_island_s": [
+"ok",
+6722,
+"f8daaf787e74e73435696c21"
+],
+"ww2_common": [
+"err",
+"<root>\\game\\Package\\levels\\ww2_common\\level-00.fbrb has 0 Dx9 shader databases; name one (<bundle>:<entry>): "
+]
+}
+}

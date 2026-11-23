@@ -2307,11 +2307,11 @@
    ],
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
-   "lines": 1543,
-   "note": "reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue",
+   "lines": 1489,
+   "note": "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: bc2_convert::shaderlevels, the pickles retired) are Rust; left: path glue, level_meshes (DBX reading)",
    "path": "bfbc2-shader-tools/shaderdb.py",
    "retiring": "OPFOR in Rust stage 3",
-   "rust": "bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
+   "rust": "bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb",
    "status": "partly"
   },
   {
@@ -2346,6 +2346,18 @@
    "lines": 559,
    "note": "shaderdb.py on databases built here (quick), and with --game on Project OPFOR BFBC2's game copy: - built Dx...",
    "path": "bfbc2-shader-tools/tests/test_shaderdb.py",
+   "retiring": "Tests in Rust",
+   "rust": "",
+   "status": "test"
+  },
+  {
+   "callers": "run_tests.py",
+   "embedded_by": [],
+   "folder": "bfbc2-shader-tools",
+   "kind": "test",
+   "lines": 467,
+   "note": "The level side of shaderdb in the Rust core (round OR3b): `retexture` (bc2_native.shaderdb_retexture), the...",
+   "path": "bfbc2-shader-tools/tests/test_shaderdb_levels.py",
    "retiring": "Tests in Rust",
    "rust": "",
    "status": "test"
@@ -2643,7 +2655,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "tool entry point",
-   "lines": 945,
+   "lines": 946,
    "note": "the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate",
    "path": "core/bfbc2core/caches.py",
    "retiring": "PR1b-2",
@@ -3531,7 +3543,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1367,
+   "lines": 1372,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3927,7 +3939,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 851,
+   "lines": 852,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4472,19 +4484,19 @@
  ],
  "totals": {
   "all": {
-   "files": 367,
-   "lines": 107466
+   "files": 368,
+   "lines": 107886
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1423,
+    "lines": 1428,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1367,
+    "test": 1372,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4642,14 +4654,14 @@
     "twin": 0
    },
    "bfbc2-shader-tools": {
-    "files": 16,
-    "lines": 10380,
+    "files": 17,
+    "lines": 10793,
     "live": 1430,
-    "partly": 3684,
+    "partly": 3630,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
-    "test": 4156,
+    "test": 4623,
     "twin": 984
    },
    "bfbc2-stockmp-ai": {
@@ -4665,14 +4677,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 20343,
+    "lines": 20344,
     "live": 757,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
     "test": 15253,
-    "twin": 2428
+    "twin": 2429
    },
    "design": {
     "files": 1,
@@ -4687,12 +4699,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6006,
+    "lines": 6007,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5739,
+    "stays": 5740,
     "test": 267,
     "twin": 0
    },
@@ -4726,7 +4738,7 @@
    },
    "partly": {
     "files": 20,
-    "lines": 16939
+    "lines": 16885
    },
    "ported": {
     "files": 21,
@@ -4738,15 +4750,15 @@
    },
    "stays": {
     "files": 61,
-    "lines": 11334
+    "lines": 11335
    },
    "test": {
-    "files": 187,
-    "lines": 51210
+    "files": 188,
+    "lines": 51682
    },
    "twin": {
     "files": 55,
-    "lines": 19452
+    "lines": 19453
    }
   }
  }
