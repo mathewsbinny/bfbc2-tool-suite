@@ -20,6 +20,7 @@
     clippy::too_many_lines,
     clippy::panic,
     clippy::many_single_char_names,
+    clippy::doc_markdown,
     missing_docs
 )]
 
