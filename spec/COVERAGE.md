@@ -61,6 +61,16 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **Input** (entry input actions, concepts, device bindings, mappings, the user's binding files, the controls screen, the pad path, tuning data) | OPFOR's DLL (`input`, `prompts`, `padaimer`), `src/tools/controller` | controller presets, rumble, PlayStation pads (OPFOR's CONTROLLER_PLAN) | engine/input (12), BOT-CTL-3, MOD-IN-1, VEH-SEAT-2 | none | thin (MOD-IN-1 only) | thin (BOT-CTL-3, MOD-IN-1); **SPG3: covered** (both enumerations, the three data layers, the user files' load / save and version gate, the controls screen, the PC pad path); the sensitivity sliders' consumers and the schemes open |
 | **Scriptability** (the authoring layers, the level event graph's classes, data entities that reach the engine, consoles, server administration) | the data (editor, levelwrite), OPFOR's menu patches and DLL hooks | a modder-facing scripting layer (none queued) | engine/scripting (9), LEVEL-EVT (model/level), MENU-*, MOD-* | none | none | none; **SPG3: covered as a survey**: the 107 entity classes DICE's graphs never use and the console / settings entities' handlers open; the dedicated server is not on this PC |
 | **Dependency graphs** (the asset graph; the WW2 rebuild's step graph) | levelwrite's closure (XEXP-CLO-1), OPFOR's `rebuild_all` / `stepstamps` | OPFOR in Rust: `rebuild_all` as a step graph | transforms/dependencies (11) | none | none | none; **SPG3: covered**: the asset graph measured over DICE's bundles (verified), the step graph from the records (observed) and a runner's constraints; resources' internal name references open |
+| **Game folder files outside the bundles** (movies, the aerial height map, `database.dbmanifest`, `dfe`, the patcher's files, the DLLs) | none (copied) | - | formats/game_folder (6), bink (4) | none | none | none; **SPG4: covered**: every DICE file kind specified or out of scope (DirectX, `winui.dll`, `Support`), the census its gate |
+| **Remaining resource types** (OccluderMesh, SootMesh, AnimTreeInfo, ImpulseResponse, RagdollResource, the shader types) | copied; `soot_mesh` converts | - | formats/occluder (3), soot (3), animtree (2), IR-HDR-1, HAVOK-RAG-1, SHDB-TYPE-1 | none | none | none; **SPG4: covered** (header and structure, verified on every DICE entry; opaque insides listed) |
+| **The soldier** (character controller, stances, sprint, cameras, view recoil, FOV, aim assistance, spotting) | OPFOR's controller patch, kits | controller presets (OPFOR) | engine/soldier (9) | none | none | none; **SPG4: covered (data side)**; the controller's run-time open |
+| **Teams and squads** | - | - | engine/squads (3), BOT-SQD | none | none | none; **SPG4: covered (data side)**; the squad manager's code open |
+| **HUD data** (minimap, markers, nametags, screen effects, spectator, kill cam) | menu-tools, OPFOR's HUD patches | - | engine/hud (7), MENU-HUD | thin | thin | thin; **SPG4: covered (data side)** |
+| **Single-player campaign** (objectives, saves, cutscenes, triggers, waypoints) | editor (event graph) | - | engine/campaign (6) | none | none | none; **SPG4: covered (data side)**; the save file open |
+| **Text and fonts** (fonts, text databases, atlases, subtitles) | bc2loc (loc tables) | - | engine/text (4), formats/loc (7) | thin | thin | thin; **SPG4: covered** |
+| **Sound graphs, voice-over trees, the mix** | console-convert (Waves), OPFOR wake_vo | - | engine/sound_graph (5), engine/audio | thin | thin | thin; **SPG4: covered (data side)**; node semantics open |
+| **Engine internals** (typeinfo, memory, jobs, scenes) | the census | - | engine/internals (7) | none | none | none; **SPG4: covered**: the typeinfo records decoded (1,900, 22 modules); 1,101 records no rule names yet (CENSUS.md section 5) |
+| **Every DBX class** (the long tail: emitter updates, tree parameters, vehicle physics parts, gadgets, AI constants, matchmaking, edge models) | the DBX readers | - | engine/data_classes (10) | - | - | **SPG4: 630 of 630 classes named by a rule** (304 before) |
 
 **Totals** (36 systems). Before SPG: 769 rules in 46 files; covered 15, thin 13, none 8 (point lights, effects,
 weapons, vehicles, materials, destruction, grime / camo, persistence - the last with one crash rule). After SPG: 933
@@ -78,7 +88,22 @@ After SPG3 (2026-11-23): 1,332 rules in 72 files with main's of the same day (43
 inferred); 40 systems (four new: options and settings, input, scriptability, dependency graphs), all covered. The
 game-tier check gained three probes' `checks()` (`options`, `scripting`, `dependencies`: about 40 seconds more).
 
+After SPG4 (2026-11-23): 1,420 rules in 85 files (72 new: 13 new files, three extended); 50 systems (ten new rows: the
+game folder's files, the remaining resource types, the soldier, squads, HUD data, the campaign, text, sound graphs,
+internals, every DBX class). The game tier gained `resources.py`'s and `census.py`'s checks (about 3 minutes more).
+
 ## 2. What is left, in the order the queued rounds need it
+
+Round SPG4 (2026-11-23) made the spec's coverage measurable: `spec/CENSUS.md` (generated by `spec/probes/census.py`)
+lists everything in DICE's game files - 16 file kinds outside the bundles, 37 bundle entry types, 630 DBX classes,
+1,900 typeinfo records in 22 modules - with the rules that cover each, and the quick tier's `spec-census` fails when
+a file kind, entry type, class (10+ instances) or module has none. Before: 6 / 16 file kinds, 28 / 37 entry types,
+304 / 630 classes, 19 / 22 modules; after: 13 + 3 out of scope, 37, 630, 22 (the ten rows above the totals). Left for
+SPG4-rest, by value: the 1,101 typeinfo records no rule names (CENSUS.md section 5: `GameSharedResources`' value types
+and enumerations, `GameDll`'s run-time entities), then the run-time semantics behind the new data-side rules (each new
+file's open questions: the character controller, the squad manager, the kill cam, the sound nodes, the save file), then
+the opaque insides of OccluderMesh's triangle records, AnimTreeInfo's blocks and the impulse responses' partitions.
+
 
 Round NET2 (2026-11-23, static only) extended `engine/network.md` from 9 to 25 rules (23 observed, 2 inferred) and
 wrote `engine/network_feasibility.md`, a study of locally hosted play, Direct IP, VLAN and LAN with no rules of its

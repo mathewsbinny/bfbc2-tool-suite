@@ -456,6 +456,22 @@ hits, and the trees are as tight as DICE's.
 [test: rust/bc2-convert/src/mopp.rs::ray_hits]
 [data: 88 shared physics files: 54,245 triangles of BF1943's 236 converted codes all reach their terminals; 11,800 rays equal brute force; a triangle's own box returns 28.3 % of the keys against DICE's 27.7 %]
 
+## 6. The ragdoll (`RagdollResource`)
+
+### HAVOK-RAG-1: The ragdoll is a bare 5.5.0 packfile
+
+Status: **verified** · Variants: PC
+
+DICE's one `RagdollResource` (`Characters/Ragdolls/ragdoll01`, ANIM-RAG-1) is a Havok 5.5.0 packfile from byte 0 -
+the packfile magic and `Havok-5.5.0-r1` at 40 (HAVOK-PF-1) - with no DICE wrapper (HAVOK-WRAP-1 is only on
+`HavokPhysicsData`). Its class names section holds a physics system of capsule rigid bodies joined by ragdoll and
+limited-hinge constraints (`hkpPhysicsData`, `hkpPhysicsSystem`, `hkpRigidBody`, `hkpCapsuleShape`,
+`hkpRagdollConstraintData`, `hkpLimitedHingeConstraintData`, `hkpRagdollMotorConstraintAtom` ...), the same 5.5.0
+classes the suite's packfile reader knows; the suite reads it as a packfile but has no ragdoll-specific code.
+
+[test: core/tests/test_spec_probes.py::resources]
+[data: spec/probes/resources.py on DICE's bundles, 2026-11-23: 1 distinct RagdollResource (2 live), 16,944 bytes, packfile magic at 0, Havok-5.5.0-r1 at 40]
+
 ## Open questions
 
 - ~~The hash function of the wrapper's material hashes~~: closed by round SPG (MAT-SLOT-1): the 33-xor hash of the

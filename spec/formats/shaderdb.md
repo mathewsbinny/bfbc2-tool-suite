@@ -429,6 +429,23 @@ decodes every program of BF1943's and BFBC2's Xbox 360 databases and translates 
 
 Evidence: [code: rust/bc2-shader/src/xenos.rs:1448] [test: rust/bc2-shader/tests/robust.rs::random_microcode] [test: bfbc2-shader-tools/tests/test_xenos_native.py::game] [doc: bfbc2-shader-tools/XENOS.md:82-110]
 
+## Resource types
+
+### SHDB-TYPE-1: Nine shader resource types
+
+Status: **verified** · Variants: PC
+
+The shader resources of DICE's bundles are of nine entry types: `Dx9ShaderDatabase`, `Dx10ShaderDatabase`,
+`Dx11ShaderDatabase` (109 live entries each, 76 distinct names: each level's `Shaders/Dx<N>_Single.res` and the shared
+databases), and the single-shader resources `Dx9PixelShader`, `Dx10PixelShader`, `Dx11PixelShader` (112 each, all
+distinct) and `Dx9VertexShader`, `Dx10VertexShader`, `Dx11VertexShader` (14 each): single shaders outside the level
+databases (inferred: the post-process and UI programs, whose DBX side is `Render.ShaderAsset`, 78 instances, and
+`VertexShaderFragmentAsset`, 5; the pairing by name is not checked). On Dx10 / 11 a single shader is plain DXBC
+(SHDB-DXBC-1); a database merges only with databases of its own type (SHDB-HDR-2's kinds).
+
+[test: core/tests/test_spec_probes.py::census]
+[data: spec/probes/census.py on DICE's bundles, 2026-11-23 (spec/census.json): the nine types' live entries and distinct names as above]
+
 ## Open questions
 
 - Program state bit 0x2 (decal layers), most permutation bytes of a key, and how the renderer chooses among an entry's

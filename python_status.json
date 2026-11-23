@@ -3483,7 +3483,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 807,
+   "lines": 816,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3543,7 +3543,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1372,
+   "lines": 1375,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3939,9 +3939,21 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 865,
+   "lines": 869,
    "note": "this inventory",
    "path": "rust/python_status.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "run_tests.py (quick: --check); core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 416,
+   "note": "the specification's census of DICE's files (spec/census.json, spec/CENSUS.md) and its coverage gate",
+   "path": "spec/probes/census.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4074,6 +4086,18 @@
    "lines": 161,
    "note": "read-only probe for spec/model/registration.md and bundles.md (the stock registries); checked in the game tier",
    "path": "spec/probes/registry.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 248,
+   "note": "read-only probe for the SPG4 resource and loose-file formats (occluder, soot, animtree, bink, game_folder); game tier",
+   "path": "spec/probes/resources.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4395,7 +4419,7 @@
    "embedded_by": [],
    "folder": "tests",
    "kind": "test",
-   "lines": 346,
+   "lines": 349,
    "note": "The repository's own rules, checked before anything is pushed (no game data needed): - no game file types a...",
    "path": "tests/test_repo.py",
    "retiring": "Tests in Rust",
@@ -4544,19 +4568,19 @@
  ],
  "totals": {
   "all": {
-   "files": 373,
-   "lines": 109637
+   "files": 375,
+   "lines": 110320
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1428,
+    "lines": 1431,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1372,
+    "test": 1375,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4737,13 +4761,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20367,
+    "lines": 20376,
     "live": 757,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15272,
+    "test": 15281,
     "twin": 2429
    },
    "design": {
@@ -4759,35 +4783,35 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6020,
+    "lines": 6024,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5753,
+    "stays": 5757,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 18,
-    "lines": 6076,
+    "files": 20,
+    "lines": 6740,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6076,
+    "stays": 6740,
     "test": 0,
     "twin": 0
    },
    "tests": {
     "files": 29,
-    "lines": 7619,
+    "lines": 7622,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 7619,
+    "test": 7622,
     "twin": 0
    }
   },
@@ -4809,12 +4833,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 66,
-    "lines": 12819
+    "files": 68,
+    "lines": 13487
    },
    "test": {
     "files": 188,
-    "lines": 51847
+    "lines": 51862
    },
    "twin": {
     "files": 56,
