@@ -433,6 +433,99 @@ pub fn gabriel_prune(pos: &[(f64, f64, f64)], pairs: &[(usize, usize, f64)]) -> 
     Some(keep)
 }
 
+/// A route length ordered as a float ([`spanner_prune`]'s queue; never NaN there).
+#[derive(PartialEq)]
+struct Len(f64);
+
+impl Eq for Len {}
+
+impl PartialOrd for Len {
+    fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(o))
+    }
+}
+
+impl Ord for Len {
+    fn cmp(&self, o: &Self) -> std::cmp::Ordering {
+        self.0.total_cmp(&o.0)
+    }
+}
+
+/// DICE's edge rule (KYG-EDGE-3): of the route pairs `(a, b, d)`, the indices of a greedy `stretch`-spanner, in
+/// input order. The pairs are taken shortest first (ties by input order); a pair is kept unless the pairs kept so far
+/// already join its two nodes by a route at most `stretch` times its length `d`. A spanner keeps every group the
+/// pairs join. `None` for a pair naming no node, or a NaN length.
+#[must_use]
+pub fn spanner_prune(n_nodes: usize, pairs: &[(usize, usize, f64)], stretch: f64) -> Option<Vec<usize>> {
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    if pairs
+        .iter()
+        .any(|&(a, b, d)| a >= n_nodes || b >= n_nodes || d.is_nan())
+    {
+        return None;
+    }
+    let mut order: Vec<usize> = (0..pairs.len()).collect();
+    order.sort_by(|&x, &y| {
+        let (dx, dy) = (pairs.get(x).map_or(0.0, |p| p.2), pairs.get(y).map_or(0.0, |p| p.2));
+        dx.total_cmp(&dy).then(x.cmp(&y))
+    });
+    let mut adj: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n_nodes];
+    let mut dist = vec![f64::INFINITY; n_nodes];
+    let mut touched: Vec<usize> = Vec::new();
+    let mut keep = Vec::new();
+    for n in order {
+        let Some(&(a, b, d)) = pairs.get(n) else { continue };
+        if a == b {
+            continue;
+        }
+        let limit = stretch * d;
+        // Dijkstra from a over the kept pairs, no farther than the limit
+        let mut heap = BinaryHeap::new();
+        if let Some(v) = dist.get_mut(a) {
+            *v = 0.0;
+        }
+        touched.push(a);
+        heap.push(Reverse((Len(0.0), a)));
+        let mut found = false;
+        while let Some(Reverse((Len(du), u))) = heap.pop() {
+            if du > dist.get(u).copied().unwrap_or(f64::INFINITY) {
+                continue;
+            }
+            if u == b {
+                found = true;
+                break;
+            }
+            for &(w, l) in adj.get(u).map_or(&[][..], Vec::as_slice) {
+                let dw = du + l;
+                if dw <= limit && dw < dist.get(w).copied().unwrap_or(f64::INFINITY) {
+                    if let Some(v) = dist.get_mut(w) {
+                        *v = dw;
+                    }
+                    touched.push(w);
+                    heap.push(Reverse((Len(dw), w)));
+                }
+            }
+        }
+        for t in touched.drain(..) {
+            if let Some(v) = dist.get_mut(t) {
+                *v = f64::INFINITY;
+            }
+        }
+        if !found {
+            keep.push(n);
+            if let Some(v) = adj.get_mut(a) {
+                v.push((b, d));
+            }
+            if let Some(v) = adj.get_mut(b) {
+                v.push((a, d));
+            }
+        }
+    }
+    keep.sort_unstable();
+    Some(keep)
+}
+
 /// Union-find's root of x, halving the path (the reference's `find`).
 fn find(parent: &mut [usize], mut x: usize) -> usize {
     while let Some(&p) = parent.get(x) {

@@ -443,6 +443,7 @@ pub fn graph_many<'py>(
         rule: rule(&rule_name)?,
         cover,
         gabriel,
+        spanner: None,
         order_nodes,
         order_node_min,
         grid_min,

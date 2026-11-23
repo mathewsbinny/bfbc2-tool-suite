@@ -163,6 +163,14 @@ edges into a border node with no owner copy dropped), `runtime_connectivity` 98.
 sectors (0 before), duplicate edges 0 (6,916), diagonal-neighbour links 5,922 of 14,904 entries (0 of 8,994; DICE
 5,682 of 14,562).
 
+Measured 2026-11-22 after round NKG2 (the same levels, means): `runtime_connectivity` 98.41 -> 98.80 % (sp_003_b
+92.67 % lowest), `strong_share` 99.69 -> 100 % on every level, `nodes_same` 0.64 -> 0.66 %; `costs` 95.91 -> 95.29 %
+(more edges matched, the new ones a sixteenth off: rust/BENCHMARKS.md "NKG2"); every other measure unchanged. Structure
+(probe): border ids 125,145 (DICE 103,085), shared by 3 / 4 sectors 3,967 / 2,272 (DICE 4,799 / 3,553), edges out of
+non-owner copies 0 (DICE 7,355). Named exceptions added by NKG2 (kynapse_generation.md): the lookup lists' tie order
+(KYG-NODE-3) and the exact node placement (KYG-NODE-1) are not recoverable from DICE's output so far; DICE's detailed
+sectors wait for a pitch-0.2 sampling run over DICE's list (KYG-DET-1).
+
 ## Open questions
 
 - The levels where NavKit's coverage still falls short of DICE's (KYNAPSE_SPEC.md and the parity runs); the goal is

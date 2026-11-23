@@ -432,8 +432,10 @@ rule below; AI order coverage on both Onslaught maps 100 %.
   0.2 and merges them with the normal build.
 - **Detailed zones (pitch 0.2):** chosen by `tools\detailed.py` without DICE's data - sectors near an object whose
   blueprint sets `NeedsDetailedPathfinding`, and sectors with 100+ stacked-floor columns in the 0.8 m samples (93 % of
-  DICE's choice on 14 levels). Built with 6 x 6 tiles, link step 0.3 m, a Gabriel-pruned route graph and coverage
-  nodes every 4 m.
+  DICE's choice on 14 levels). Built with 6 x 6 tiles, link step 0.3 m and coverage nodes every 4 m.
+- **Route edges** (round NKG2): every sector's walkable pairs pruned to DICE's greedy 1.2-spanner (KYG-EDGE-3), each
+  edge stored on its source's owner copy; an edge out of a border copy moves to the sector that owns the node, which
+  forms DICE's border band of nodes shared by two to four sectors (KYG-NODE-2).
 - **Ladder links:** `navkit.py prepare` writes `ladders.json` (`tools\ladders.py`: placed ladder objects and their
   collision boxes); the build seeds the far end of a ladder whose near end is walkable and links a node at each end.
   DICE's path data has none; the game puts any soldier who walks into a ladder on it.
@@ -551,7 +553,8 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
      - **edge sectors** (on the sector grid's minimum X / Z) start their tiles and their rectangle at
        their own edge (`EDGE_SECTOR_TILES`, `EDGE_SECTOR_RULE`);
      - on a level with DICE path data the ground is **bounded to DICE's extent** (`CLIP_TO_REFERENCE` -
-       a bound for comparison, not a rule found in the level data; a new map keeps its sampling box);
+       a bound for comparison; a new map keeps the ground inside DICE's generator rectangle, the box of its soldier
+       and vehicle spawns grown by 24.5 m, KYG-RECT-1);
      - **portals** stand on both of their areas; a piece whose target sees that side as its own interior
        becomes outline (`SYMMETRIC_PORTALS`, `ONE_WAY_PORTALS`);
      - **soldiers** standing in the level while it was sampled are not in the path data

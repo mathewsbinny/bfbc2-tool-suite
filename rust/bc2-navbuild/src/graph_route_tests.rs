@@ -374,3 +374,72 @@ proptest! {
         }
     }
 }
+
+/// The shortest route between a and b over the kept pairs (Floyd-Warshall on a few nodes).
+#[allow(clippy::many_single_char_names)] // the textbook names
+fn route_len(n: usize, pairs: &[(usize, usize, f64)], keep: &[usize], a: usize, b: usize) -> f64 {
+    let mut d = vec![vec![f64::INFINITY; n]; n];
+    for (i, row) in d.iter_mut().enumerate() {
+        row[i] = 0.0;
+    }
+    for &k in keep {
+        let (u, v, l) = pairs[k];
+        d[u][v] = d[u][v].min(l);
+        d[v][u] = d[v][u].min(l);
+    }
+    for m in 0..n {
+        for i in 0..n {
+            for j in 0..n {
+                let via = d[i][m] + d[m][j];
+                if via < d[i][j] {
+                    d[i][j] = via;
+                }
+            }
+        }
+    }
+    d[a][b]
+}
+
+#[test]
+fn spanner_drops_a_pair_with_a_route_within_1_2() {
+    // three nodes on a line: 0 - 1 - 2 joins 0 and 2 in 2 m, within 1.2 x 2 m: the long pair goes
+    let pairs = [(0, 1, 1.0), (0, 2, 2.0), (1, 2, 1.0)];
+    assert_eq!(graph::spanner_prune(3, &pairs, 1.2), Some(vec![0, 2]));
+    // a right angle: the route round the corner (2 m) is longer than 1.2 x sqrt 2: the diagonal stays
+    let pairs = [(0, 1, 1.0), (1, 2, 1.0), (0, 2, 2f64.sqrt())];
+    assert_eq!(graph::spanner_prune(3, &pairs, 1.2), Some(vec![0, 1, 2]));
+    // a pair naming no node, a NaN length
+    assert_eq!(graph::spanner_prune(2, &[(0, 2, 1.0)], 1.2), None);
+    assert_eq!(graph::spanner_prune(2, &[(0, 1, f64::NAN)], 1.2), None);
+}
+
+proptest! {
+    /// KYG-EDGE-3: every pair left out has a route over the kept pairs at most 1.2 times its length; every kept pair
+    /// had none when it was taken, so the kept pairs join exactly the groups all pairs join.
+    #[test]
+    fn spanner_keeps_routes_within_the_stretch(
+        pts in proptest::collection::vec((0.0f64..20.0, 0.0f64..20.0), 2..12),
+        mask in proptest::collection::vec(any::<bool>(), 66),
+    ) {
+        let n = pts.len();
+        let mut pairs = Vec::new();
+        let mut m = 0;
+        for a in 0..n {
+            for b in a + 1..n {
+                if mask[m % mask.len()] {
+                    pairs.push((a, b, (pts[a].0 - pts[b].0).hypot(pts[a].1 - pts[b].1)));
+                }
+                m += 1;
+            }
+        }
+        let keep = graph::spanner_prune(n, &pairs, 1.2).unwrap();
+        let all: Vec<usize> = (0..pairs.len()).collect();
+        for (k, &(a, b, d)) in pairs.iter().enumerate() {
+            let r = route_len(n, &pairs, &keep, a, b);
+            if !keep.contains(&k) {
+                prop_assert!(r <= 1.2 * d + 1e-9, "pair {k} left out with a route of {r} for {d}");
+            }
+            prop_assert_eq!(r.is_finite(), route_len(n, &pairs, &all, a, b).is_finite());
+        }
+    }
+}

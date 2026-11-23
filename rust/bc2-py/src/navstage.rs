@@ -63,7 +63,7 @@ const CFG_KEYS: [&str; 21] = [
 ];
 
 /// The keys [`switches_of`] takes.
-const SWITCH_KEYS: [&str; 24] = [
+const SWITCH_KEYS: [&str; 25] = [
     "area_link",
     "link_rule",
     "symmetric_portals",
@@ -71,6 +71,7 @@ const SWITCH_KEYS: [&str; 24] = [
     "edge_sector_tiles",
     "max_area",
     "gabriel",
+    "spanner",
     "sort_nodes_by_id",
     "border_owner",
     "owner_edges",
@@ -198,6 +199,9 @@ pub(crate) fn switches_of(d: Option<&Bound<'_, PyDict>>) -> PyResult<Switches> {
     if has(d, "max_area")? {
         w.max_area = opt(d, "max_area")?;
     }
+    if has(d, "spanner")? {
+        w.spanner = opt(d, "spanner")?;
+    }
     if has(d, "gabriel")? {
         let gabriel: Option<String> = opt(d, "gabriel")?;
         w.gabriel = match gabriel.as_deref() {
@@ -273,6 +277,7 @@ pub fn navkit_settings(py: Python<'_>) -> PyResult<(Bound<'_, PyDict>, Bound<'_,
             Gabriel::Off => None,
         },
     )?;
+    s.set_item("spanner", w.spanner)?;
     s.set_item("sort_nodes_by_id", w.sort_nodes_by_id)?;
     s.set_item("border_owner", w.border_owner)?;
     s.set_item("owner_edges", w.owner_edges)?;

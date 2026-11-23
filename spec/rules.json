@@ -22897,6 +22897,10 @@
     {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:897-901"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/graphfile.rs::tests::bounds_are_the_node_box_edges_move_to_owners_and_foreign_only_pairs_keep_no_node"
     }
    ]
   },
@@ -22998,6 +23002,14 @@
    "file": "spec/transforms/kynapse_generation.md",
    "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/graph_route_tests.rs::spanner_keeps_routes_within_the_stretch"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/graph_route_tests.rs::spanner_drops_a_pair_with_a_route_within_1_2"
+    },
     {
      "kind": "test",
      "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edges_are_not_redundant_at_1_2"

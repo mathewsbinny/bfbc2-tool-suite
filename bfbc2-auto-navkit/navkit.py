@@ -516,7 +516,8 @@ def detailed_rects(pr: Project, lv: str, margin: float = 1.0) -> list[list[float
 
 def dice_detailed_sectors(pr: Project, lv: str) -> list[tuple[int, int]]:
     """The sectors DICE's path data builds as detailed zones (pitch 0.2), as (grid x, grid z) ids; empty without it.
-    For scoring detailed_sectors only - NavKit does not choose from it."""
+    A build on a level with DICE path data takes these (build_detailed, KYG-DET-1: DICE's choice is designer zones
+    that no level-data rule recovers, so its own list is the record)."""
     import hpdtool
     import kymesh
     p = pr.dice_pathdata(lv)
@@ -687,6 +688,37 @@ def sample_grid(path: str) -> tuple[float, float, float, int, int]:
     return pitch, min_x, min_z, nx, nz
 
 
+def uncovered(g: tuple[float, float, float, int, int], sectors: Iterable[tuple[int, int]],
+              s: dict[str, Any]) -> list[tuple[int, int]]:
+    """The sectors whose 100 m square a sample grid g (sample_grid) does not cover, in the order given."""
+    pitch, min_x, min_z, nx, nz = g
+    max_x, max_z = min_x + (nx - 1) * pitch, min_z + (nz - 1) * pitch
+    return [(i, j) for i, j in sectors
+            if (i + s['xoff']) * 100 < min_x - 1e-3 or (i + s['xoff']) * 100 + 100 > max_x + 1e-3
+            or (j + s['zoff']) * 100 < min_z - 1e-3 or (j + s['zoff']) * 100 + 100 > max_z + 1e-3]
+
+
+# DICE's own detailed sectors on a level with DICE path data (KYG-DET-1): off. Round NKG2 measured them on the 15
+# regression levels (462 of DICE's 502 sampled at 0.2): NavKit's 0.8 m build reproduces DICE's ground and graph less
+# well than its 0.2 m build in the 293 sectors NavKit makes detailed and DICE does not (nodes_near -2.1, connectivity
+# -0.05 points), so XNAV-BLD-3 keeps the level's own choice until the coarse build closes that gap.
+DICE_DETAILED = False
+
+
+def build_detailed(pr: Project, lv: str, p02: str) -> tuple[set[tuple[int, ...]], str]:
+    """The sectors a build makes detailed, and a note for its log line: the level's own choice (detailed_sectors); with
+    DICE_DETAILED, on a level with DICE path data, DICE's own detailed sectors (KYG-DET-1) that the pitch-0.2 run p02
+    sampled - the level's own choice is what sample --pitch 0.2 samples, inside the run's grid -; the others stay at
+    0.8 until sampled (the note counts them)."""
+    own = detailed_sectors(pr, lv)
+    dice = dice_detailed_sectors(pr, lv) if DICE_DETAILED else []
+    if not dice:
+        return set(own), ''
+    out = set(uncovered(sample_grid(p02), dice, pr.settings(lv))) | (set(dice) - set(own))
+    note = f", DICE's ({len(out)} of its {len(dice)} not sampled at 0.2 stay at 0.8)" if out else ", DICE's"
+    return {x for x in dice if x not in out}, note
+
+
 def stale_detailed_samples(pr: Project, lv: str, p02: str, hi02: str | None, sectors: Iterable[tuple[int, int]],
                            s: dict[str, Any]) -> None:
     """Refuses pitch-0.2 samples that do not fit the build: not at pitch 0.2, a high-capsule run on another grid
@@ -701,9 +733,7 @@ def stale_detailed_samples(pr: Project, lv: str, p02: str, hi02: str | None, sec
                           f'(one is from an older box){redo}')
     pitch, min_x, min_z, nx, nz = g
     max_x, max_z = min_x + (nx - 1) * pitch, min_z + (nz - 1) * pitch
-    out = [(i, j) for i, j in sectors
-           if (i + s['xoff']) * 100 < min_x - 1e-3 or (i + s['xoff']) * 100 + 100 > max_x + 1e-3
-           or (j + s['zoff']) * 100 < min_z - 1e-3 or (j + s['zoff']) * 100 + 100 > max_z + 1e-3]
+    out = uncovered(g, sectors, s)
     if out:
         raise NavKitError(f'{lv}: {os.path.basename(p02)} (x {min_x:.1f}..{max_x:.1f}, z {min_z:.1f}..{max_z:.1f}) '
                           f'does not cover {len(out)} detailed sector(s), e.g. {out[0]} - made for another box or '
@@ -723,16 +753,17 @@ def build_inputs(pr: Project, lv: str, log: Log = print) -> tuple[str, str, int,
     if os.path.isfile(pr.samples(lv, '_p02')):
         # the detailed-zone pass: DICE's pitch-0.2 sectors built from the level's pitch-0.2 samples (sample --pitch 0.2)
         hi02 = pr.samples(lv, '_hi_p02')
+        sectors, note = build_detailed(pr, lv, pr.samples(lv, '_p02'))
         detailed = dict(samples=pr.samples(lv, '_p02'), high=hi02 if os.path.isfile(hi02) else None,
-                        sectors=set(detailed_sectors(pr, lv)))
-        stale_detailed_samples(pr, lv, detailed['samples'], detailed['high'], detailed['sectors'], s)
-        log(f'  detailed zones: {len(detailed["sectors"])} sectors at pitch 0.2'
+                        sectors=sectors)
+        stale_detailed_samples(pr, lv, detailed['samples'], detailed['high'], sorted(detailed['sectors']), s)
+        log(f'  detailed zones: {len(detailed["sectors"])} sectors at pitch 0.2{note}'
             + ('' if detailed['high'] else ' (no high-capsule run at 0.2 - stairs use the normal capsule there)'))
     kw = dict(detailed=detailed,
               dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=s08[:-4] + '_hi.bin',
               stairs_path=os.path.join(L, 'stair_tris.npy'),
               seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
-              water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
+              water=navregress.level_water(pr.root, lv), bounds=navregress.build_bounds(pr.root, lv),
               order_points=navregress.order_points_of(pr.root, lv), area_orders=navregress.area_orders_of(pr.root, lv),
               ladders=json.load(open(os.path.join(L, 'ladders.json'))) if os.path.isfile(os.path.join(L, 'ladders.json')) else None,
               log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))

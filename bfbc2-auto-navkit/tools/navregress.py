@@ -109,6 +109,33 @@ def reference_bounds(root, lv):
     return float(P[:, 0].min()), float(P[:, 2].min()), float(P[:, 0].max()), float(P[:, 2].max())
 
 
+SPAWN_REACH = 24.5      # KYG-RECT-1: sample points kept up to the spawns' box grown by 25 m, less radius 0.4 and 0.1 m
+
+
+def spawn_bounds(root, lv, reach=SPAWN_REACH):
+    """(minX, minZ, maxX, maxZ) of DICE's generator rectangle for a level (KYG-RECT-1, verified on the 13 campaign
+    levels): the box of its soldier spawns (alternates included) and vehicle spawns, grown by `reach` - the sample
+    columns a build keeps; None when the level holds no spawn or does not load. Builds take it where the level has no
+    DICE path data (reference_bounds wins: the Onslaught files are not bounded by their partitions' spawns, and DICE's
+    ground ends before the box on 7 of 52 campaign sides, where its own ground ends)."""
+    from bfbc2core import level as levelmod
+    try:
+        L = levelmod.load(lv, root, log=lambda *a: None, geometry=False)
+    except Exception:
+        return None
+    P = [e.position for e in L.entities if e.category in ('soldier spawn', 'vehicle spawn') and e.position is not None]
+    if not P:
+        return None
+    xs, zs = [float(p[0]) for p in P], [float(p[2]) for p in P]
+    return min(xs) - reach, min(zs) - reach, max(xs) + reach, max(zs) + reach
+
+
+def build_bounds(root, lv):
+    """The extent a build keeps: DICE's (reference_bounds) on a level with DICE path data, else the spawns' rectangle
+    (spawn_bounds), else None (the sampling box)."""
+    return reference_bounds(root, lv) or spawn_bounds(root, lv)
+
+
 def area_orders_of(root, lv):
     """The level's AreaOrder positions (work/levels/<lv>/area_orders.json from levelobjects.py; for a level prepared
     before that file existed, read from the level's XML), or None."""
@@ -132,15 +159,33 @@ def order_points_of(root, lv):
 def detailed_of(root, lv, samples, xoff, zoff):
     """The detailed-zone pass, as navkit.py build does it: the level's pitch-0.2 samples (navkit.py sample --pitch 0.2,
     work\\navsample\\<lv>_navkit_p02.bin, with _hi_p02) and its detailed sectors chosen from the level alone
-    (detailed.py); None without pitch-0.2 samples."""
+    (detailed.py), or with navkit.DICE_DETAILED DICE's own where the level has DICE path data (KYG-DET-1; those the
+    pitch-0.2 run sampled, as navkit.build_detailed); None without pitch-0.2 samples."""
     import detailed
+    import navkit
     p02 = os.path.join(root, 'work', 'navsample', f'{lv}_navkit_p02.bin')
     if not os.path.isfile(p02):
         return None
     hi = p02[:-4].replace('_p02', '_hi_p02') + '.bin'
     common = [os.path.join(root, 'work', 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
     chosen, _why = detailed.choose(os.path.join(root, 'work', 'levels', lv), common, samples, xoff, zoff)
+    dice = dice_detailed(root, lv) if navkit.DICE_DETAILED else []
+    if dice:
+        out = set(navkit.uncovered(navkit.sample_grid(p02), dice, {'xoff': xoff, 'zoff': zoff}))
+        out |= set(dice) - {tuple(x) for x in chosen}            # not sampled at 0.2 (sample samples the choice)
+        return dict(samples=p02, high=hi if os.path.isfile(hi) else None, sectors={x for x in dice if x not in out})
     return dict(samples=p02, high=hi if os.path.isfile(hi) else None, sectors=set(chosen))
+
+
+def dice_detailed(root, lv):
+    """DICE's detailed (pitch 0.2) sectors of the level as (grid x, grid z), sorted; [] without DICE path data."""
+    import hpdtool
+    import kymesh
+    p = navparity.reference_of(root, lv)
+    if not p or not os.path.isfile(p):
+        return []
+    return sorted((sec.id >> 8, sec.id & 0xff) for sec in hpdtool.parse(open(p, 'rb').read()).sectors
+                  if abs(kymesh.parse_mesh(sec.mesh).pitch - 0.2) < 1e-3)
 
 
 def ladders_of(root, lv):
@@ -155,7 +200,7 @@ def build_level(root, lv, out, log=lambda *a: None):
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                    seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv),
                    order_points=order_points_of(root, lv), area_orders=area_orders_of(root, lv),
-                   bounds=reference_bounds(root, lv), log=log,
+                   bounds=build_bounds(root, lv), log=log,
                    detailed=detailed_of(root, lv, samples, xoff, zoff), ladders=ladders_of(root, lv))
 
 

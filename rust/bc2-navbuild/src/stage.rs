@@ -251,12 +251,16 @@ pub struct Switches {
     pub max_area: Option<i64>,
     /// `GABRIEL_EDGES`.
     pub gabriel: Gabriel,
+    /// DICE's edge rule (KYG-EDGE-3): a sector's walkable pairs pruned to a greedy spanner of this stretch
+    /// ([`SPANNER_STRETCH`]), in place of the Gabriel rule; `None`: the Gabriel rule (`gabriel`) or every pair.
+    pub spanner: Option<f64>,
     /// `SORT_NODES_BY_ID`.
     pub sort_nodes_by_id: bool,
     /// `BORDER_OWNER`.
     pub border_owner: bool,
-    /// Edges only out of the border copies a sector owns (`graphfile::Layout::owner_edges`; HPD-NODE-5, KYG-EDGE-4):
-    /// off, until each sector line has owned border nodes on both sides (KYG-NODE-2).
+    /// Edges only out of the copies a sector owns (`graphfile::Layout::owner_edges`; HPD-NODE-5, KYG-EDGE-4), each
+    /// edge moved to its source's owner (`graphfile::relocate_owner_edges`), which forms DICE's border band
+    /// (KYG-NODE-2): on since round NKG2.
     pub owner_edges: bool,
     /// The sector table's bounds as the box of the sector's nodes (`graphfile::Layout::node_bounds`; KYN-SEC-2).
     pub node_bounds: bool,
@@ -289,6 +293,10 @@ pub struct Switches {
     pub objective_floor: bool,
 }
 
+/// KYG-EDGE-3's stretch: an edge is left out when the graph already joins its nodes by a route at most this many
+/// times its length.
+pub const SPANNER_STRETCH: f64 = 1.2;
+
 /// `HEADER`: the path data's 36 header words.
 pub const HEADER: [u32; bc2_formats::hpd::HEADER_WORDS] = {
     let mut h = [0u32; bc2_formats::hpd::HEADER_WORDS];
@@ -314,9 +322,10 @@ impl Default for Switches {
             edge_sector_tiles: true,
             max_area: None,
             gabriel: Gabriel::Detailed,
+            spanner: Some(SPANNER_STRETCH),
             sort_nodes_by_id: true,
             border_owner: true,
-            owner_edges: false,
+            owner_edges: true,
             node_bounds: true,
             diagonal_links: true,
             order_node_min: 3.0,
@@ -1479,6 +1488,7 @@ pub fn stage(
         rule: sw.link_rule,
         cover: cfg.node_cover().filter(|&c| c != 0.0),
         gabriel: sw.gabriel == Gabriel::All || (sw.gabriel == Gabriel::Detailed && cfg.is_detailed()),
+        spanner: sw.spanner,
         order_nodes: cfg.order_nodes,
         order_node_min: sw.order_node_min,
         grid_min: (g.min_x, g.min_z),
