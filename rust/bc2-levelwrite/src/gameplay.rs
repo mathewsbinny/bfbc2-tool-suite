@@ -1099,21 +1099,186 @@ pub fn add_flag(w: &LevelWriter, at: [f32; 3], team: Team, guid: &dyn Fn(&str) -
         },
     })];
     // the marker's letter (the minimap's and the HUD's) and name
+    let mut items = Vec::new();
+    let mut was = String::new();
     if let Some(m) = marker_of(w, &template)
         && let Some(copy) = owned.iter().find(|o| o.source == m)
     {
-        let mut items = Vec::new();
+        was = text_of(w, &m, b"Sid");
         if has(&m, b"Sid") {
             items.push(text_field("Sid", &copy.guid, &letter.to_string()));
         }
         if has(&m, b"Name") {
             items.push(text_field("Name", &copy.guid, &name));
         }
-        if !items.is_empty() {
-            edits.push(partition(Op::SetField { items }));
+    }
+    // its own texts (round E4-rest, GAME-CQ-12): the capture messages name the new letter's keys, its spawns the
+    // level's key for the letter and the flag's name
+    if let Some(was) = was.chars().next().filter(char::is_ascii_uppercase) {
+        for o in &owned {
+            let Some(e) = w.find(&o.source) else { continue };
+            let ty = w.type_of(e);
+            if ty.ends_with(".MessageEntityData") {
+                let sid = text_of(w, &o.source, b"MessageSid");
+                if let Some(k) = relettered(&sid, "_BASE_", was, letter) {
+                    items.push(text_field("MessageSid", &o.guid, &k));
+                }
+                let n = text_of(w, &o.source, b"Name");
+                if let Some(k) = relettered(&n, " base ", was, letter) {
+                    items.push(text_field("Name", &o.guid, &k));
+                }
+            } else if ty.ends_with(SOLDIER_SPAWN) {
+                let sid = text_of(w, &o.source, b"LocationNameSid");
+                if let Some(k) = relettered(&sid, "_", was, letter) {
+                    items.push(text_field("LocationNameSid", &o.guid, &k));
+                }
+                if has(&o.source, b"Name") {
+                    items.push(text_field("Name", &o.guid, &name));
+                }
+            }
         }
     }
+    if !items.is_empty() {
+        edits.push(partition(Op::SetField { items }));
+    }
     Ok((Op::Files { edits }, new))
+}
+
+/// A text field of an instance (empty when it has none).
+fn text_of(w: &LevelWriter, guid: &str, field: &[u8]) -> String {
+    w.find(guid)
+        .and_then(|e| w.d.child(e, field))
+        .and_then(|x| w.d.text(x))
+        .map_or_else(String::new, |t| String::from_utf8_lossy(t).into_owned())
+}
+
+/// A text ending in `<sep><was>` with the new letter instead (`HUD_MP_CQ_TOOK_BASE_B` -> `..._E`, `MP_001_B` ->
+/// `MP_001_E`); `None` when it does not end so.
+fn relettered(text: &str, sep: &str, was: char, letter: char) -> Option<String> {
+    let tail = format!("{sep}{was}");
+    text.strip_suffix(&tail).map(|head| format!("{head}{sep}{letter}"))
+}
+
+/// The NATO word of a flag letter, as DICE's capture messages say it (`HUD_MP_CQ_TOOK_BASE_E`: "WE HAVE TAKEN
+/// POSITION ECHO").
+#[must_use]
+pub fn nato(letter: char) -> Option<&'static str> {
+    const WORDS: [&str; 26] = [
+        "ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL", "INDIA", "JULIET", "KILO", "LIMA",
+        "MIKE", "NOVEMBER", "OSCAR", "PAPA", "QUEBEC", "ROMEO", "SIERRA", "TANGO", "UNIFORM", "VICTOR", "WHISKEY",
+        "X-RAY", "YANKEE", "ZULU",
+    ];
+    let k = u32::from(letter).checked_sub(u32::from('A'))?;
+    WORDS.get(usize::try_from(k).ok()?).copied()
+}
+
+/// A flag (capture point) renamed (round E4-rest): its `Name`, `LocationName` and `ControlPointName`, its marker's
+/// and its spawners' `Name` set to `<letter>: <name>` (the letter its marker's `Sid`; DICE's form, "B: Warehouse").
+/// One operation. The deploy screen's text is made from it at the export (GAME-CQ-12).
+///
+/// # Errors
+/// The point is not a capture point, the name is empty, or it is the point's name already.
+pub fn rename_flag(w: &LevelWriter, point: &str, name: &str) -> Result<Op> {
+    of_type(w, point, CAPTURE_POINT, "a capture point")?;
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(refused("a flag's name is not empty"));
+    }
+    let g = point.to_ascii_uppercase();
+    let letter = marker_of(w, &g).map_or_default(|m| text_of(w, &m, b"Sid"));
+    let full = if letter.is_empty() || name.starts_with(&format!("{letter}:")) {
+        name.to_owned()
+    } else {
+        format!("{letter}: {name}")
+    };
+    let has = |g: &str, f: &[u8]| w.find(g).is_some_and(|e| w.d.child(e, f).is_some());
+    let mut items: Vec<FieldSet> = ["Name", "LocationName", "ControlPointName"]
+        .into_iter()
+        .filter(|f| has(&g, f.as_bytes()))
+        .map(|f| text_field(f, &g, &full))
+        .collect();
+    for o in marker_of(w, &g).into_iter().chain(spawners(w, &g)) {
+        if has(&o, b"Name") {
+            items.push(text_field("Name", &o, &full));
+        }
+    }
+    for i in &mut items {
+        i.from = Some(FieldValue::Text(text_of(w, &i.guid, i.field.as_bytes())));
+    }
+    items.retain(|i| i.from.as_ref() != Some(&i.to));
+    if items.is_empty() {
+        return Err(refused(format!("{g} is named {full:?} already")));
+    }
+    Ok(Op::SetField { items })
+}
+
+/// Texts by loc key: (key, text).
+pub type Texts = Vec<(String, String)>;
+
+/// The texts a level's flags need that the game does not have (round E4-rest, GAME-CQ-12), its spawners' keys
+/// renamed to the exported level's: each soldier spawner of a lettered capture point whose `LocationNameSid` has no
+/// text gets `<LEVEL>_<letter>` with the point's name in capitals (`E: HARBOR`, DICE's form); each capture message
+/// key `HUD_MP_CQ_TOOK_BASE_<letter>` / `HUD_MP_CQ_LOST_BASE_<letter>` without a text is returned for the export to
+/// word (DICE's own have A - F).
+///
+/// Returns the spawn names (key, text) and the message keys, each once, in order.
+///
+/// # Errors
+/// A field cannot be set.
+pub fn flag_texts(
+    w: &mut LevelWriter,
+    schema: &Schema,
+    level: &str,
+    has_text: &dyn Fn(&str) -> bool,
+) -> Result<(Texts, Vec<String>)> {
+    let mut names: Vec<(String, String)> = Vec::new();
+    let mut keys: Vec<String> = Vec::new();
+    for p in all_of(w, CAPTURE_POINT, |_, _| true) {
+        let letter = marker_of(w, &p).map_or_default(|m| text_of(w, &m, b"Sid"));
+        let Some(l) = letter
+            .chars()
+            .next()
+            .filter(|c| letter.len() == 1 && c.is_ascii_uppercase())
+        else {
+            continue;
+        };
+        let place = [&b"LocationName"[..], b"Name", b"ControlPointName"]
+            .iter()
+            .map(|f| text_of(w, &p, f))
+            .find(|t| !t.trim().is_empty())
+            .unwrap_or_else(|| format!("Flag {l}"));
+        let text = if place.starts_with(&format!("{l}:")) {
+            place.to_ascii_uppercase()
+        } else {
+            format!("{l}: {}", place.to_ascii_uppercase())
+        };
+        for s in spawners(w, &p) {
+            let sid = text_of(w, &s, b"LocationNameSid");
+            let soldier = w.find(&s).is_some_and(|e| w.type_of(e).ends_with(SOLDIER_SPAWN));
+            if !soldier || sid.is_empty() || has_text(&sid) {
+                continue;
+            }
+            let key = format!("{}_{l}", level.to_ascii_uppercase());
+            w.set_field(schema, &s, "LocationNameSid", &FieldValue::Text(key.clone()))?;
+            if !names.iter().any(|x| x.0 == key) {
+                names.push((key, text.clone()));
+            }
+        }
+    }
+    for e in w.d.of_type(b".MessageEntityData") {
+        let Some(t) = w.d.child(e, b"MessageSid").and_then(|x| w.d.text(x)) else {
+            continue;
+        };
+        let k = String::from_utf8_lossy(t).into_owned();
+        let flag_key = ["HUD_MP_CQ_TOOK_BASE_", "HUD_MP_CQ_LOST_BASE_"].iter().any(|h| {
+            k.strip_prefix(h)
+                .is_some_and(|r| r.len() == 1 && r.chars().all(|c| c.is_ascii_uppercase()))
+        });
+        if flag_key && !has_text(&k) && !keys.contains(&k) {
+            keys.push(k);
+        }
+    }
+    Ok((names, keys))
 }
 
 /// A spawn point added to a soldier spawner (round E4): a copy of one of its points (else of any spawn point of the
@@ -1163,6 +1328,81 @@ pub fn add_spawn_point(
         },
         new,
     ))
+}
+
+/// A soldier spawner added to a capture point (round E4-rest): a copy of one of the point's soldier spawners (the
+/// team's when it has one per team) with its spawn points, standing at `at` and turned as it is, wired to the point's
+/// logic as the template is (a flag's spawner is switched with it), linked into the point's `Spawners`
+/// (GAME-SPAWN-1) and given `team`. A point without a soldier spawner takes a copy of the nearest one of another
+/// point, with its spawn points only (none of that point's logic). One operation; returns it with the new spawner's
+/// guid.
+///
+/// # Errors
+/// The point is not a capture point, or the level has no soldier spawner to copy.
+pub fn add_spawner(
+    w: &LevelWriter,
+    point: &str,
+    at: [f32; 3],
+    team: Team,
+    guid: &dyn Fn(&str) -> String,
+) -> Result<(Op, String)> {
+    of_type(w, point, CAPTURE_POINT, "a capture point")?;
+    let is_soldier = |g: &String| w.find(g).is_some_and(|e| w.type_of(e).ends_with(SOLDIER_SPAWN));
+    let own: Vec<String> = spawners(w, point).into_iter().filter(is_soldier).collect();
+    let d2 = |g: &str| {
+        w.transform(g)
+            .map_or(f32::INFINITY, |r| (r[3][0] - at[0]).powi(2) + (r[3][2] - at[2]).powi(2))
+    };
+    let (template, wired) = if let Some(t) = own.iter().find(|s| team_of(w, s) == Some(team)).or_else(|| own.first()) {
+        (t.clone(), true)
+    } else {
+        let mut all = all_of(w, SOLDIER_SPAWN, |w, e| w.d.child(e, b"Transform").is_some());
+        all.sort_by(|a, b| d2(a).total_cmp(&d2(b)));
+        let t = all
+            .into_iter()
+            .next()
+            .ok_or_else(|| refused("the level has no soldier spawner to copy a new one from"))?;
+        (t, false)
+    };
+    let at = &standing(w, &template, at);
+    let new = guid(&template);
+    let item = Placed {
+        guid: new.clone(),
+        template: template.clone(),
+        blueprint: String::new(),
+        ref_field: None,
+        owned: if wired {
+            sub_copies(w, &unit(w, &template), at, guid)
+        } else {
+            sub_copies(w, &crate::modelayer::cluster(w, &template), at, guid)
+        },
+        transform: *at,
+        fields: Vec::new(),
+        placement: None,
+    };
+    let place = if wired {
+        Op::PlaceUnit { item }
+    } else {
+        Op::Place { items: vec![item] }
+    };
+    let mut edits = vec![
+        partition(place),
+        partition(Op::LinkSpawner {
+            point: point.to_ascii_uppercase(),
+            spawner: new.clone(),
+            linked: true,
+        }),
+    ];
+    if team_of(w, &template) != Some(team) && team_field(w, &template).is_ok() {
+        edits.push(partition(Op::SetTeam {
+            items: vec![TeamSet {
+                guid: new.clone(),
+                from: team_of(w, &template),
+                to: team,
+            }],
+        }));
+    }
+    Ok((Op::Files { edits }, new))
 }
 
 /// The stage counters' `TriggerAmount`s set to `count(m-coms reaching it)` (GAME-RUSH-10).
@@ -1250,9 +1490,13 @@ fn exclusive(w: &LevelWriter, members: &[String]) -> Vec<String> {
         .into_iter()
         .chain(all_of(w, SOLDIER_SPAWN, |_, _| true))
         .chain(crate::modelayer::stages(w).into_iter().flatten());
+    let mine: std::collections::HashSet<String> = crate::modelayer::cluster(w, root).into_iter().collect();
     for r in roots {
         if r != *root && !members.contains(&r) {
-            others.extend(crate::modelayer::cluster(w, &r));
+            let theirs = crate::modelayer::cluster(w, &r);
+            // a flag's cluster holds its spawners' (round E4-rest: a spawner deleted takes its spawn points)
+            let through_root = theirs.contains(root);
+            others.extend(theirs.into_iter().filter(|x| !(through_root && mine.contains(x))));
         }
     }
     members.iter().filter(|m| !others.contains(*m)).cloned().collect()

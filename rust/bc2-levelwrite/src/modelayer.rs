@@ -935,6 +935,19 @@ pub fn missing(mode: &str, have: &LayerSig, donor: &LayerSig) -> Vec<String> {
 #[must_use]
 pub fn cluster(w: &LevelWriter, guid: &str) -> Vec<String> {
     let g = graph(w);
+    let objs = objectives(w, &g);
+    cluster_in(w, &g, &objs, guid)
+}
+
+/// [`cluster`] of many objects, the partition's graph read once (round E4-rest: a Rush stage's objects).
+#[must_use]
+pub fn clusters(w: &LevelWriter, guids: &[String]) -> Vec<Vec<String>> {
+    let g = graph(w);
+    let objs = objectives(w, &g);
+    guids.iter().map(|x| cluster_in(w, &g, &objs, x)).collect()
+}
+
+fn cluster_in(w: &LevelWriter, g: &Graph, objs: &HashSet<String>, guid: &str) -> Vec<String> {
     let root = guid.to_ascii_uppercase();
     let follow_refs = [
         "SoldierSpawnEntityData",
@@ -950,7 +963,6 @@ pub fn cluster(w: &LevelWriter, guid: &str) -> Vec<String> {
         "GameSoundEntityData",
         "ReferenceObjectData",
     ];
-    let objs = objectives(w, &g);
     let mut out = vec![root.clone()];
     let mut seen: HashSet<String> = out.iter().cloned().collect();
     let mut i = 0;

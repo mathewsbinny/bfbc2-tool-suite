@@ -3161,6 +3161,38 @@
    ]
   },
   {
+   "id": "GAME-CQ-12",
+   "title": "A flag's texts are keyed by its letter",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest, 2026-11-22: every stock Conquest level of each set, 67 lettered flags: 208 of 208 capture messages name their flag's letter, 103 of 103 soldier spawners' LocationNameSid end in it, all 103 with a text; HUD_MP_CQ_TOOK_BASE_A - F and LOST_BASE_A - F in all 8 languages, G on none"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::every_conquest_flags_texts_name_its_letter"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_valparaiso"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_a_synthetic_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:1115-1283"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:227-322"
+    }
+   ]
+  },
+  {
    "id": "GAME-TKT-1",
    "title": "Conquest tickets",
    "file": "spec/engine/gameplay.md",
@@ -3457,6 +3489,34 @@
     {
      "kind": "code",
      "ref": "rust/bc2-levelwrite/src/gameplay.rs:479-500"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-11",
+   "title": "A stage is wired to the next by its base counter",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest: rust/bc2-levelwrite/examples/rush_facts.rs on 31 Rush and Squad Rush levels, 2026-11-22: 30 levels with one base counter per stage and the exact chain (87 stages), BaseCount equal on 30 of 30; base counters' `OnTrigger` CapturePoint `Enable` of the next stage's 54 of 57 middle stages, CombatArea `Enable` 43, `Disable` of its own 36 (0 on the last); 78 later stages' other counters enabled from the start, 3 not; `ons_mp_005gr` (the Onslaught install's) has no defenders' life counter"
+    },
+    {
+     "kind": "data",
+     "ref": "E4-rest sweep, 2026-11-22: on all 30 levels a stage added after the last plays last with its copies as the last stage's objects (72 - 323 copies, 7 - 62 connections added) and, taken out again, gives back every instance and stage state; each of the 87 stages taken out leaves the others in their order and states but one hold-back combat area on nam_mp_002r"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-873"
     }
    ]
   },
@@ -25085,6 +25145,38 @@
     {
      "kind": "test",
      "ref": "rust/bc2-editor/tests/gameplay_tools.rs::gameplay_tools_through_the_interface"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-GAME-3",
+   "title": "A Rush stage is added and taken out whole, and event connections are operations",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-873"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:939-1034"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::connections_added_and_taken_out"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::a_stage_added_and_taken_out_on_port_valdez"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/rush_stage_tools.rs::a_rush_stage_through_the_interface"
     }
    ]
   },

@@ -42,6 +42,22 @@ landed on `main`.
   (3.35 / 0.85 / 15.35 m: the step its node pairs keep), the spanner's 1.2 is DICE's OverConnectionRatio, node ids
   count from 101 sector by sector, and the header words are named from the generator's own HPD writer. Four
   game-tier corpus tests in `rust/bc2-formats/tests/kynapse_corpus.rs`.
+- **Whole Rush stages, a new flag's own texts and spawners in the gameplay tools** (round E4-rest,
+  `EDITOR_ARCHITECTURE.md` 3.4): the Gameplay tool's **Add stage** adds a Rush or Squad Rush stage after the last - a
+  copy of the last stage with its M-COMs, counters, bases, spawns and combat areas, its M-COMs' middle where the click
+  is, wired to the last stage as DICE wires its stages (spec GAME-RUSH-11: one base counter per stage, the enable
+  chain, the switches of what each stage has in play) and the defenders' `BaseCount` one more; the panel's **Remove
+  stage** takes a stage out with what belongs to it, the stage before handing on to the next (taking out the first,
+  the round starts as the second did). A flag added takes its own letter's capture messages
+  (`HUD_MP_CQ_TOOK_BASE_<letter>`) and spawn-name key, the panel renames the selected flag in DICE's form
+  ("E: Harbor"), and the export words what the game has no text for (GAME-CQ-12): the deploy screen's names under the
+  level's own keys and the capture messages of letters past F from DICE's F in each language. **Add spawner** adds a
+  soldier spawner with its spawn points to the selected (or nearest) flag or base, wired as the flag's own. Each is
+  one operation; nothing of it has been tried in game yet (in-game tests are paused).
+- levelwrite: `rushstage::{stages, add_stage, remove_stage, counterparts, connections, settled}`,
+  `gameplay::{add_spawner, rename_flag, flag_texts, nato}`, `names::{language_texts, flag_message_texts}`,
+  `export::flag_loc_keys`, `LevelWriter::connect`, `Ownership::owned_from_except`, `modelayer::clusters`; the operation
+  `connect` (event connections added or taken out).
 
 ### Changed
 - **The level cover index runs in the Rust core** (round OR3b, `bc2_convert::shaderlevels`,
@@ -63,6 +79,9 @@ landed on `main`.
 ### Removed
 - The cover index's Python implementation and its pickles (`shadercover\*.pkl`, a file format a tool wrote:
   nothing reads them; the caches tool still counts and prunes those left on disk) and `retexture`'s Python twin.
+- The map project format is version 10 (round E4-rest's `connect`); a version-9 project loads as it is.
+- A soldier spawner deleted with its unit takes its spawn points although its flag's cluster lists them (round
+  E4-rest); `mapexport overlay --remove <LEVEL>` also takes out the level's flag spawn names (`<LEVEL>_A` to `_Z`).
 
 ## [0.22.0] - 2026-11-22
 

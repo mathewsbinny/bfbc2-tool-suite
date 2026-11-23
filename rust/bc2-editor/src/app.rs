@@ -58,6 +58,7 @@ mod tools;
 
 pub use crate::workspace::Workspace;
 pub use create::HeightmapForm;
+pub use gameplayui::{GameplayPanel, PanelRequest};
 pub use modes::StartPage;
 pub use navui::NAV_RUNNING;
 pub use previewui::{PreviewShown, preview_colours};
@@ -265,7 +266,7 @@ pub struct ViewState {
     /// The Gameplay workspace's auto layout and its proposal (round A1).
     pub autolayout: crate::autolayout::AutoLayout,
     /// The Gameplay panel's rules being edited (round E4).
-    pub gameplay: gameplayui::GameplayPanel,
+    pub gameplay: GameplayPanel,
     load_seconds: f64,
     /// The selection changed in the view: the outliner shows its row.
     reveal: bool,
@@ -1779,7 +1780,7 @@ impl EditorApp {
             notes,
             live: crate::validation::Live::default(),
             autolayout: crate::autolayout::AutoLayout::default(),
-            gameplay: gameplayui::GameplayPanel::default(),
+            gameplay: GameplayPanel::default(),
             load_seconds: secs,
             reveal: false,
             labels: true,

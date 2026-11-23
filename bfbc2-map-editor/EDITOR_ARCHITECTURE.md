@@ -176,6 +176,26 @@ default; `set-rules` writes only what changed. In the editor: `tool::GameplayToo
 chosen in the Gameplay panel, `app/gameplayui.rs`), Delete in the Gameplay workspace (`gameplay::delete_op`). Left:
 E4-rest (ROADMAP).
 
+**Built in round E4-rest (2026-11-22).** Whole **Rush stages** (`bc2_levelwrite::rushstage`, spec GAME-RUSH-11,
+XLOG-GAME-3): `stages` reads a level's stages as DICE wires them - each stage's base counter (the one taking a base
+from the defenders' life counter), the enable chain, what is in play during that stage only (`StageParts::own`, from
+the play's states settled so the base counter has the last word) and the stage's set (its M-COMs' units, counters and
+own objects with what only they own and reach: `Ownership::owned_from_except`, the other stages' roots never
+reached) - and refuses a level wired otherwise. `add_stage` places a copy of the last stage's set (connections among
+the copies only), wires it to the shared logic as the last stage is and to the last stage by the last two stages'
+connections shifted by one (`counterparts`: each object of the stage before mapped to the last stage's that comes
+into play the same way), then plays the level and makes the last counter switch whatever the new stage would hold
+wrongly; `remove_stage` hands a stage's end on to the stage before's counter and its objects' entries on to the next
+stage's counterparts. Both adjust `BaseCount` and are one `files` operation with the new `connect` (project format
+10). A new flag's **texts** (GAME-CQ-12): `add_flag` re-letters the copied capture messages' and spawners' keys,
+`rename_flag` names a flag in DICE's form, and the export (`gameplay::flag_texts`, `names::flag_message_texts`, step
+4b of `export::build`) gives spawn keys without a text the level's own (`<LEVEL>_<letter>`) and words capture
+messages past F from DICE's F per language; the record's `strings` carry them to the install. `add_spawner` places a
+copy of a flag's soldier spawner unit wired as its own and links it. In the editor: `GameplayKind::Stage` and
+`::Spawner` on the tool, the panel's "Remove stage", "Add stage after the last" and the selected flag's name
+(`app::PanelRequest` lets the interface tests press them). What stays unproven until a playtest: the game playing an
+added or shortened stage chain, the new texts on the HUD and deploy screen, a spawner added to a flag.
+
 ### 3.4a The AI workspace (the user, 2026-11-16)
 
 The editor has a switchable **AI workspace** for the bot side of a map. It works on any map, whether being built

@@ -126,7 +126,7 @@ fn a_flag_added_wired_and_deleted_on_valparaiso() {
         gameplay::add_flag(&w0, at, Team::Team2, &|s| bc2_levelwrite::new_guid(&name, n, s)).unwrap()
     };
     p.push(op, "Add flag E");
-    assert_eq!(p.reader_needed(), VERSION, "a flag added needs this editor's version");
+    assert_eq!(p.reader_needed(), 9, "a flag added needs version 9 (round E4)");
     let applied = bc2_levelwrite::apply(&base, &p.operations, &schema).unwrap();
     let w = round_trip(&applied.bytes);
     assert!(gameplay::flags(&w).contains(&flag));
@@ -477,7 +477,7 @@ fn every_rush_stage_counter_counts_its_mcoms() {
 /// A small synthetic Conquest level (no game data): two bases, two flags each with a map marker (its letter), a
 /// spawner of three points, two team filters its `OnCaptured` reaches and their messages, a voice-over line both
 /// flags' filters start (shared), two ticket counters.
-fn synthetic() -> Vec<u8> {
+pub(crate) fn synthetic() -> Vec<u8> {
     use crate::export_rules::{Lb, at, boolean, float, int, refs, rf, text};
     let mut b = Lb::new();
     let vo = b.add(
@@ -526,7 +526,11 @@ fn synthetic() -> Vec<u8> {
             );
             let m = b.add(
                 "MessageEntityData",
-                vec![text("MessageSid", "HUD_TOOK"), at([x, 5.0, 0.0])],
+                vec![
+                    text("MessageSid", &format!("HUD_MP_CQ_TOOK_BASE_{letter}")),
+                    text("Name", &format!("{team} - Taking base {letter}")),
+                    at([x, 5.0, 0.0]),
+                ],
                 true,
             );
             b.event(&cp, "OnCaptured", &f, "Impulse");
@@ -633,8 +637,8 @@ fn the_tools_on_a_synthetic_level() {
     let mut v = w0.clone();
     assert_eq!(gameplay::set_rules(&mut v, &schema, &to).unwrap(), 2 + 2 + 2 * 2);
     assert_eq!(gameplay::rules_of(&v, &schema), to);
-    // the project's version: a version-8 file loads as it is; the tools' operations need this one
-    assert_eq!(p.reader_needed(), VERSION);
+    // the project's version: a version-8 file loads as it is; the tools' operations need version 9 (round E4)
+    assert_eq!(p.reader_needed(), 9);
     let mut raw: serde_json::Value = serde_json::from_str(&p.to_json().unwrap()).unwrap();
     let ops = raw["operations"].clone();
     raw["operations"] = serde_json::Value::Array(Vec::new());
@@ -737,6 +741,17 @@ fn aurora_conquest_with_the_tools_edits_exports() {
         gameplay::unit(&w, &template).len() + 1,
         "the new flag's unit: its template's and the new spawn point"
     );
+    // its texts (round E4-rest, GAME-CQ-12): the deploy screen's name under the level's own key, in the record the
+    // install adds to every language
+    let letter = text(&w, &gameplay::marker_of(&w, &flag).unwrap(), b"Sid");
+    let key = format!("{}_{letter}", rec.level);
+    assert_eq!(text(&w, &spawner, b"LocationNameSid"), key);
+    assert!(
+        rec.strings.contains(&(key.clone(), format!("{letter}: FLAG {letter}"))),
+        "{:?}",
+        rec.strings
+    );
+    println!("flag texts: {:?}", rec.strings);
     println!(
         "staged {}: {} flags, letters {:?}, {}",
         rec.level,
