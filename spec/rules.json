@@ -30119,7 +30119,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3523"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3526"
     },
     {
      "kind": "test",
@@ -30143,11 +30143,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3565"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3568"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:105-170"
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:110-168"
     },
     {
      "kind": "test",

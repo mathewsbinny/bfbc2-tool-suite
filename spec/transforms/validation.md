@@ -573,7 +573,7 @@ of their own level: patch shaders from a donor whose atlas has another layout dr
 terrain bundle must be the base's, entry for entry, but for the height field and material map the project's strokes
 rewrote (round E5, XVAL-TERR-2). Rests on TERR-VT-5, TERR-NAME-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:642] [code: rust/bc2-levelwrite/src/export.rs:3523]
+[code: rust/bc2-levelwrite/src/rules.rs:642] [code: rust/bc2-levelwrite/src/export.rs:3526]
 [test: rust/bc2-levelwrite/tests/export_rules_stage.rs::v1_stage_rules]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
 
@@ -586,7 +586,7 @@ read back as DICE's formats: the height field a main block of the base's size, b
 tree the one its heights give, every edited sample at or over its lower envelope; the material map of the base's width
 and names, every cell one of them. Rests on TEDIT-HF-3, TEDIT-MM-1.
 
-[code: rust/bc2-levelwrite/src/rules.rs:654] [code: rust/bc2-levelwrite/src/export.rs:3565] [code: rust/bc2-levelwrite/src/terrainedit.rs:105-170]
+[code: rust/bc2-levelwrite/src/rules.rs:654] [code: rust/bc2-levelwrite/src/export.rs:3568] [code: rust/bc2-levelwrite/src/terrainedit.rs:110-168]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks]
 
 ### XVAL-CONS-1: No Xbox 360 resource in a PC level
