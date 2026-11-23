@@ -361,6 +361,8 @@ pub struct Entry {
     pub layouts: Vec<Vec<u8>>,
     /// Main-pass skinning kinds, sorted.
     pub kinds: Vec<u8>,
+    /// The layout record bodies its layouts name, sorted (round `OR3c`).
+    pub layout_records: Vec<Vec<u8>>,
 }
 
 impl From<EntryScan<'_>> for Entry {
@@ -372,6 +374,7 @@ impl From<EntryScan<'_>> for Entry {
             textures: e.textures.into_iter().map(|(s, c, n)| (s, c, n.to_vec())).collect(),
             layouts: e.layouts.into_iter().map(<[u8]>::to_vec).collect(),
             kinds: e.kinds,
+            layout_records: e.layout_records.into_iter().map(<[u8]>::to_vec).collect(),
         }
     }
 }

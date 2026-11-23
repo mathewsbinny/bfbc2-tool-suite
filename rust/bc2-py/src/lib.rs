@@ -102,6 +102,7 @@ mod shaderdb_levels;
 mod shaderdb_merge;
 mod shaderdb_open;
 mod shaders;
+mod shadertranslate;
 mod stockmp;
 mod texcheck;
 mod wave;
@@ -454,6 +455,13 @@ mod bc2_native {
     use super::shaderdb_open::{shaderdb_dx_in_name, shaderdb_open, shaderdb_pick};
     #[pymodule_export]
     use super::shaders::{shaderdb_parse, shaderdb_write};
+    #[pymodule_export]
+    use super::shadertranslate::{
+        shadertranslate_by_role, shadertranslate_discards, shadertranslate_element_map, shadertranslate_entry_blocks,
+        shadertranslate_foreign, shadertranslate_match_entries, shadertranslate_mesh_of, shadertranslate_missing,
+        shadertranslate_offer_kinds, shadertranslate_part_users, shadertranslate_patch_inputs, shadertranslate_perms,
+        shadertranslate_plan, shadertranslate_soldier_element_map, shadertranslate_vertex_elements,
+    };
 
     #[pymodule_export]
     use super::stockmp::{

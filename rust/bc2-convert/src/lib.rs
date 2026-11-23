@@ -55,6 +55,7 @@ pub mod meshview;
 pub mod mopp;
 pub mod pyfmt;
 pub mod shaderlevels;
+pub mod shadertranslate;
 pub mod shapes;
 pub mod skinmesh;
 pub mod terrain;

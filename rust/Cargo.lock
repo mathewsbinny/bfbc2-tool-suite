@@ -438,6 +438,7 @@ version = "0.1.0"
 dependencies = [
  "bc2-formats",
  "bc2-gamefs",
+ "bc2-shader",
  "bc2-xma",
  "flate2",
  "memchr",
