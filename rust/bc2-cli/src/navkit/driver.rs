@@ -458,6 +458,8 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         "--out",
         "--from",
         "--pitch",
+        "--stage",
+        "--base",
     ] {
         if let Some(i) = args.iter().position(|a| a == k) {
             let v = args.get(i + 1).cloned().ok_or_else(index_error)?;
@@ -491,6 +493,16 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
             return Err(navkit_error(format!(
                 "{cmd}: which level? (e.g. navkit.py {cmd} SP_01)"
             )));
+        }
+        // round NKS-deep C: the offline sampler in Rust (the in-game one below stays the Python's)
+        if cmd == "sample" && args.iter().any(|a| a == "--offline") {
+            let o = super::sample::Opts {
+                pitch: opt("--pitch"),
+                out: opt("--out"),
+                stage: opt("--stage"),
+                base: opt("--base"),
+            };
+            return super::sample::offline(py, &pr, &args[1..], &o);
         }
         let lv = pr.level(&args[1])?;
         match cmd {

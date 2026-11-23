@@ -10,8 +10,8 @@
 //! the build's seeds and objective floors, and the project's navigation edits (walkability in the build; links, route
 //! edges and traversals by `graphedit` after it, the annotations staged beside the file). A project that changes the
 //! level's collision (static objects, static group members) is sampled offline on its stage first ([`sample_stage`]:
-//! `navsample_offline.py stage`, the staged bundle prepared into [`stage_tree`]; Python - the sampler's port is
-//! NavKit's next step), when its base level is prepared for NavKit. A base without samples stages its newest path
+//! `bfbc2.exe navkit sample --offline --stage`, the staged bundle prepared into [`stage_tree`]; the sampler in Rust
+//! since round NKS-deep C), when its base level is prepared for NavKit. A base without samples stages its newest path
 //! data as it is (`work\navkit\<base>`, `work\navkit_offline\<base>`, DICE's own file) when the project changes
 //! nothing it depends on; otherwise the step refuses in words.
 //!
@@ -141,7 +141,7 @@ impl Changes {
             let first: Vec<&str> = self.objects.iter().take(3).map(String::as_str).collect();
             out.push(format!(
                 "the project moves, adds or deletes {} static object(s) ({}{}): the level's collision changed, so it \
-                 must be sampled again (the offline sampler on the stage: `navsample_offline.py stage`, run by the export when the base level is prepared)",
+                 must be sampled again (the offline sampler on the stage: `bfbc2 navkit sample --offline --stage`, run by the export when the base level is prepared)",
                 self.objects.len(),
                 first.join(", "),
                 if self.objects.len() > 3 { ", ..." } else { "" }
@@ -150,14 +150,14 @@ impl Changes {
         if self.members > 0 {
             out.push(format!(
                 "the project edits {} static group member(s): the level's collision changed, so it must be sampled \
-                 again (the offline sampler on the stage's group files: `navsample_offline.py stage`, run by the export when the base level is prepared)",
+                 again (the offline sampler on the stage's group files: `bfbc2 navkit sample --offline --stage`, run by the export when the base level is prepared)",
                 self.members
             ));
         }
         if self.terrain > 0 {
             out.push(format!(
                 "the project sculpts the terrain ({} stroke(s)): the level's ground changed, so it must be sampled \
-                 again (the offline sampler on the stage: `navsample_offline.py stage`, run by the export when the base level is prepared)",
+                 again (the offline sampler on the stage: `bfbc2 navkit sample --offline --stage`, run by the export when the base level is prepared)",
                 self.terrain
             ));
         }
@@ -255,7 +255,7 @@ pub fn traversal_install_path(level: &str) -> String {
     format!("Output/win32/ai/levels/{lv}/infantry/{lv}.traversal.json")
 }
 
-/// A staged level's NavKit folder (`navsample_offline.py stage`: the staged level prepared and sampled offline), in
+/// A staged level's NavKit folder (`bfbc2 navkit sample --offline --stage`: the staged level prepared and sampled offline), in
 /// OPFOR's work folder (a short path: the unpacked bundle's names stay under Windows' 260 characters):
 /// `work\navkit_stage\<level>`, an OPFOR-like tree - `work\levels\<level>`, `work\navkit\<level>\navkit.json`,
 /// `work\navsample` under it.
@@ -325,7 +325,8 @@ pub struct Samples {
 pub enum Plan {
     /// Build the level in process from these samples.
     Build(Samples),
-    /// Sample the stage offline first (`navsample_offline.py stage`: the project changes the collision), then build.
+    /// Sample the stage offline first (`bfbc2 navkit sample --offline --stage`: the project changes the collision), then
+    /// build.
     Sample,
     /// Copy the base's newest path data as it is (no samples to build from, and nothing that changes it).
     Copy(Source),
@@ -624,21 +625,9 @@ pub fn stage(
     )
 }
 
-/// The Python the suite runs its Python steps with: `BFBC2_PYTHON`, else `bin\python.txt`'s, else `python`.
-fn python() -> PathBuf {
-    if let Some(v) = std::env::var_os("BFBC2_PYTHON").filter(|p| !p.is_empty()) {
-        return PathBuf::from(v);
-    }
-    let suite = bc2_pyrt::py::suite_root();
-    std::fs::read_to_string(suite.join("bin").join("python.txt"))
-        .ok()
-        .and_then(|t| t.lines().map(str::trim).find(|l| !l.is_empty()).map(|l| suite.join(l)))
-        .filter(|p| p.is_file())
-        .unwrap_or_else(|| PathBuf::from("python"))
-}
-
-/// The offline sampler on the stage (`navsample_offline.py stage <stage>`: the staged level prepared from its bundle
-/// and sampled into [`stage_tree`]; Python - the sampler's port is NavKit's next step), its lines to `out`.
+/// The offline sampler on the stage (`bfbc2.exe navkit sample <level> --offline --stage <stage> --base <base>`, round
+/// NKS-deep C: `bc2_navbuild::sampler` - the staged level prepared from its bundle and sampled into [`stage_tree`]),
+/// its lines to `out`. A child process: the stage's prepare runs the command line's `levelobjects` and `ladders`.
 ///
 /// # Errors
 /// It did not start or failed: its last lines.
@@ -649,19 +638,14 @@ pub fn sample_stage(
     out: &mut dyn bc2_navbuild::inputs::Out,
 ) -> Result<(), String> {
     use std::io::BufRead as _;
-    let script = bc2_pyrt::py::suite_root()
-        .join("bfbc2-auto-navkit")
-        .join("tools")
-        .join("navsample_offline.py");
-    let mut c = std::process::Command::new(python());
-    c.arg(&script)
-        .arg("stage")
+    let exe = bc2_pyrt::py::suite_root().join("bin").join("bfbc2.exe");
+    let mut c = std::process::Command::new(&exe);
+    c.args(["navkit", "sample", level, "--offline", "--stage"])
         .arg(stage)
-        .args(["--level", level, "--base", base])
+        .args(["--base", base])
         .arg("--opfor")
         .arg(opfor)
         .env("PYTHONUNBUFFERED", "1")
-        .env("OPENBLAS_NUM_THREADS", "1")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -670,7 +654,7 @@ pub fn sample_stage(
         use std::os::windows::process::CommandExt as _;
         c.creation_flags(0x0800_0000);
     }
-    let mut child = c.spawn().map_err(|e| format!("{}: {e}", script.display()))?;
+    let mut child = c.spawn().map_err(|e| format!("{}: {e}", exe.display()))?;
     let err = child.stderr.take().map(|s| {
         std::thread::spawn(move || {
             std::io::BufReader::new(s)

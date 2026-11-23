@@ -105,8 +105,8 @@
    ],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 1058,
-   "note": "Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions",
+   "lines": 1085,
+   "note": "Rust answers every command but the in-game sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build), sample --offline since NKS-deep C (bc2_navbuild::sampler); left: the GUI and the tests call its functions",
    "path": "bfbc2-auto-navkit/navkit.py",
    "retiring": "NK5",
    "rust": "bfbc2 navkit (bc2-cli navkit: driver, prepare, apply)",
@@ -297,7 +297,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 243,
+   "lines": 209,
    "note": "NavKit's offline sampler (tools\\navsample_offline.py) on geometry built here (no game data): the cast loop...",
    "path": "bfbc2-auto-navkit/tests/test_navsample_offline.py",
    "retiring": "Tests in Rust",
@@ -705,15 +705,15 @@
    "status": "partly"
   },
   {
-   "callers": "tests 6; the export's path-data step (bc2_levelwrite::pathdata::sample_stage: `stage`)",
+   "callers": "tests 6",
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 1547,
-   "note": "file_bytes and the raster in Rust; left: asset_bodies (NumPy hulls), the level geometry, the command line",
+   "lines": 1127,
+   "note": "the sampling (casts, capsule, terrain), the level geometry, like / validate / compare and stage in Rust (NKS-deep C: bfbc2 navkit sample --offline; the export's stage step runs it); left: the research drivers (parity, stockmp, build, check, all) and the asset_bodies reference the F3 / F4 tests call",
    "path": "bfbc2-auto-navkit/tools/navsample_offline.py",
-   "retiring": "A2-rest",
-   "rust": "bc2_navbuild offline / hulls",
+   "retiring": "proposed: NKS-deep C-rest",
+   "rust": "bc2_navbuild sampler / offline / hulls (navkit_offline_sample, navkit_offline_sample_level); bfbc2 navkit sample --offline",
    "status": "partly"
   },
   {
@@ -3939,7 +3939,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 869,
+   "lines": 873,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4569,7 +4569,7 @@
  "totals": {
   "all": {
    "files": 375,
-   "lines": 110320
+   "lines": 109897
   },
   "by_folder": {
    "(root)": {
@@ -4596,13 +4596,13 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 15135,
+    "lines": 14708,
     "live": 1858,
-    "partly": 4779,
+    "partly": 4386,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5476,
+    "test": 5442,
     "twin": 2749
    },
    "bfbc2-automated-map-and-bot-test-harness": {
@@ -4783,12 +4783,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6024,
+    "lines": 6028,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5757,
+    "stays": 5761,
     "test": 267,
     "twin": 0
    },
@@ -4822,7 +4822,7 @@
    },
    "partly": {
     "files": 21,
-    "lines": 17158
+    "lines": 16765
    },
    "ported": {
     "files": 21,
@@ -4834,11 +4834,11 @@
    },
    "stays": {
     "files": 68,
-    "lines": 13487
+    "lines": 13491
    },
    "test": {
     "files": 188,
-    "lines": 51862
+    "lines": 51828
    },
    "twin": {
     "files": 56,

@@ -31,6 +31,8 @@ mod navcompare;
 pub(crate) mod ordercheck;
 mod prepare;
 mod project;
+// round NKS-deep C: `navkit sample --offline` (bc2_navbuild::sampler)
+mod sample;
 
 /// The group's tools.
 pub const TOOLS: &[Tool] = &[

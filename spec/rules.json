@@ -18882,7 +18882,7 @@
    "id": "NAVS-SMP-1",
    "title": "What a sample is",
    "file": "spec/formats/navsample.md",
-   "status": "implemented",
+   "status": "verified",
    "evidence": [
     {
      "kind": "code",
@@ -18890,11 +18890,83 @@
     },
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample_offline.py:985"
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:682-785"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:839-1145"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_cast_layers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_capsule"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/geom.rs::the_interval_against_brute_force"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_file_is_write_v3s"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C: the Rust sampler's files against the Python's (NumPy) on the 15 regression levels at pitch 0.8, both capsule runs: 30 of 30 byte-identical; at pitch 0.2 over the detailed sectors (sp_009, sp_004_b, ons_mp_004): 6 of 6; on the in-game files' grids (`like`; sp_009, sp_004_b, 0.8 and 0.2, both runs): 8 of 8"
     },
     {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:168-184"
+    }
+   ]
+  },
+  {
+   "id": "NAVS-SMP-2",
+   "title": "The offline geometry covers every square a run samples",
+   "file": "spec/formats/navsample.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/level.rs:758-790"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C: sp_009's 0.2 m run cropped to the level's box against the detailed box: 1,678,603 against 1,723,700 surfaces, 20,768 columns differing, all in the flagged sectors east of x 500; with the wider crop the 0.8 m runs of the 15 regression levels are unchanged (30 of 30 identical)"
+    }
+   ]
+  },
+  {
+   "id": "NAVS-SMP-3",
+   "title": "A vehicle-shaped run",
+   "file": "spec/formats/navsample.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "KYG-PAR-2's vehicle settings and its cylinder collision model; the step against the surface's plane as navvehicle's obstacle rule takes it (CLEAR_LOW above the local ground plane)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/sampler/mod.rs:600-632"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/sampler/tests.rs::the_vehicle_cylinder"
+    }
+   ]
+  },
+  {
+   "id": "NAVS-SMP-4",
+   "title": "How far the offline samples agree with the in-game ones",
+   "file": "spec/formats/navsample.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round NKS-deep C, rust/BENCHMARKS.md \"NKS-deep C\": 60 in-game files (0.8 m and 0.2 m, both capsule runs, 15 levels; 0.2 m: 1.6 to 25.6 million sampled columns a file), the measures of `navsample_offline.compare`"
     }
    ]
   },

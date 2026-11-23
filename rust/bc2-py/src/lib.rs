@@ -89,6 +89,7 @@ mod navdetail;
 mod navfile;
 mod navgraph;
 mod navpath;
+mod navsampler;
 mod navstage;
 mod navtools;
 mod navtrace;
@@ -607,6 +608,10 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
+
+    // round NKS-deep C: NavKit's offline sampler (navsample_offline's sample_grid, navkit.py sample --offline)
+    #[pymodule_export]
+    use super::navsampler::{navkit_offline_sample, navkit_offline_sample_level};
 
     #[pymodule_export]
     use super::navtools::{

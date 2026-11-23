@@ -19,6 +19,8 @@ bc2-scene.workspace = true
 sha1_smol.workspace = true
 # the estimate's and hulls' fused multiply-adds, the same bits on every machine (round CI1)
 libm.workspace = true
+# the offline sampler's blueprint XML (sampler::level: destroyed_parts, part_names - the reference's regexes)
+regex.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
 
