@@ -6,9 +6,10 @@
 //!
 //! The model's node numbers stand for the Python objects: an instruction is its index in its code node, a list of
 //! instructions a stream index ([`Code::streams`]), so `is` / `id()` comparisons of the reference are comparisons of
-//! numbers here. Every `AptError` the reference raises is a [`Fail::Err`] with its words; wherever the reference
+//! numbers here. Every `AptError` the reference raises is a [`MenuError::Apt`] with its words; wherever the reference
 //! would raise another exception (an index or attribute error, `struct.error`, a value its writer cannot pack) or the
-//! model refuses, [`Fail::Python`] hands the whole command line to `aptgraft.py`.
+//! model refuses, [`MenuError::Reference`] (`bfbc2.exe` hands the whole command line to `aptgraft.py`). Round
+//! PR1b-2-rest2 typed these errors ([`crate::error`]); they were the Python emulation's `Fail`.
 
 #![allow(
     clippy::indexing_slicing,
@@ -28,8 +29,8 @@ pub mod edit;
 
 use std::collections::HashMap;
 
+use crate::error::{MenuError, MenuResult};
 use bc2_formats::aptmodel::{self, Arg, Code, Content, Ins, Layout, Model, Node, Rid, Target, Val};
-use bc2_pyrt::err::{Fail, PyErr, PyResult};
 
 /// `aptgraft.SIG`.
 pub const SIG: u32 = 0x0987_6543;
@@ -58,8 +59,8 @@ pub fn is_pool_byte(op: u8) -> bool {
 }
 
 /// `AptError(msg)`.
-pub fn apt_err(msg: impl Into<String>) -> Fail {
-    Fail::Err(PyErr::new("AptError", msg))
+pub fn apt_err(msg: impl Into<String>) -> MenuError {
+    MenuError::Apt(msg.into())
 }
 
 /// `apt.CHAR_TYPES.get(t, str(t))`.
@@ -103,7 +104,7 @@ pub fn latin1(b: &[u8]) -> String {
 }
 
 /// `s.encode('latin1')`, its `UnicodeEncodeError` as Python words it.
-pub fn latin1_encode(s: &str) -> PyResult<Vec<u8>> {
+pub fn latin1_encode(s: &str) -> MenuResult<Vec<u8>> {
     let chars: Vec<char> = s.chars().collect();
     if let Some(i) = chars.iter().position(|&c| u32::from(c) > 0xFF) {
         let mut j = i;
@@ -129,16 +130,16 @@ pub fn latin1_encode(s: &str) -> PyResult<Vec<u8>> {
                 j - 1
             )
         };
-        return Err(Fail::Err(PyErr::new("UnicodeEncodeError", msg)));
+        return Err(MenuError::Latin1(msg));
     }
     Ok(chars.iter().map(|&c| c as u8).collect())
 }
 
 /// `f32(x)`: the bits of `struct.pack('<f', x)` (its `OverflowError`: handed to the Python).
-pub fn f32_bits(x: f64) -> PyResult<u32> {
+pub fn f32_bits(x: f64) -> MenuResult<u32> {
     let f = x as f32;
     if x.is_finite() && !f.is_finite() {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
     Ok(f.to_bits())
 }
@@ -161,23 +162,23 @@ pub enum CKey {
 pub type Members = Vec<(String, Vec<u8>)>;
 
 /// `read_bigf_bytes(b, where)`.
-pub fn read_bigf(b: &[u8], place: &str) -> PyResult<Members> {
+pub fn read_bigf(b: &[u8], place: &str) -> MenuResult<Members> {
     if b.get(..4) != Some(b"BIGF".as_slice()) {
         return Err(apt_err(format!("{place} is not a menu movie (.res, a BIGF archive)")));
     }
-    let word = |at: usize| -> PyResult<usize> {
+    let word = |at: usize| -> MenuResult<usize> {
         b.get(at..at + 4)
             .and_then(|s| s.try_into().ok())
             .map(|s: [u8; 4]| u32::from_be_bytes(s) as usize)
-            .ok_or(Fail::Python)
+            .ok_or(MenuError::Reference)
     };
     let n = word(8)?;
     let mut p = 16;
     let mut out = Vec::new();
     for _ in 0..n {
         let (off, size) = (word(p)?, word(p + 4)?);
-        let rest = b.get(p + 8..).ok_or(Fail::Python)?;
-        let e = rest.iter().position(|&c| c == 0).ok_or(Fail::Python)?;
+        let rest = b.get(p + 8..).ok_or(MenuError::Reference)?;
+        let e = rest.iter().position(|&c| c == 0).ok_or(MenuError::Reference)?;
         let a = off.min(b.len());
         let z = off.saturating_add(size).min(b.len()).max(a);
         out.push((latin1(&rest[..e]), b[a..z].to_vec()));
@@ -187,8 +188,8 @@ pub fn read_bigf(b: &[u8], place: &str) -> PyResult<Members> {
 }
 
 /// `write_bigf(members)`.
-pub fn write_bigf(members: &Members) -> PyResult<Vec<u8>> {
-    aptmodel::write_bigf(members).map_err(|_| Fail::Python)
+pub fn write_bigf(members: &Members) -> MenuResult<Vec<u8>> {
+    aptmodel::write_bigf(members).map_err(|_| MenuError::Reference)
 }
 
 /// A layout per member file: `'keep'`, `'pack'`, or `GRAFT_LAYOUT` (`.apt` / `.geo` keep, `.const` pack).
@@ -209,17 +210,17 @@ pub struct Movie {
 }
 
 /// A frame item's or a node's shape where the reference would raise its own exception.
-fn py<T>(v: Option<T>) -> PyResult<T> {
-    v.ok_or(Fail::Python)
+fn py<T>(v: Option<T>) -> MenuResult<T> {
+    v.ok_or(MenuError::Reference)
 }
 
 impl Movie {
     /// `Movie(members, label)`.
-    pub fn new(members: Members, label: &str) -> PyResult<Self> {
+    pub fn new(members: Members, label: &str) -> MenuResult<Self> {
         // dict(members): a repeated name takes its last bytes - left to the Python
         let mut seen = std::collections::HashSet::new();
         if !members.iter().all(|(n, _)| seen.insert(n.clone())) {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         }
         let Some(apt) = members.iter().position(|(n, _)| n.to_lowercase().ends_with(".apt")) else {
             return Err(apt_err(format!("{label}: no .apt member")));
@@ -252,11 +253,11 @@ impl Movie {
             return Err(apt_err(format!("{label}: not an APT constant file")));
         }
         if cb.len() < 24 {
-            return Err(Fail::Python); // struct.error
+            return Err(MenuError::Reference); // struct.error
         }
         let a = &members[apt].1;
-        let big = aptmodel::movie_big(a, cb).ok_or(Fail::Python)?;
-        let m = Model::parse(a, cb, g.map(|k| members[k].1.as_slice()), big).map_err(|_| Fail::Python)?;
+        let big = aptmodel::movie_big(a, cb).ok_or(MenuError::Reference)?;
+        let m = Model::parse(a, cb, g.map(|k| members[k].1.as_slice()), big).map_err(|_| MenuError::Reference)?;
         Ok(Self {
             m,
             label: label.to_owned(),
@@ -270,55 +271,55 @@ impl Movie {
     // ------------------------------------------------------------------------------------------- nodes
 
     /// A node.
-    pub fn node(&self, rid: Rid) -> PyResult<&Node> {
+    pub fn node(&self, rid: Rid) -> MenuResult<&Node> {
         py(self.m.nodes.get(rid as usize))
     }
 
     /// A Words node's fields.
-    pub fn vals(&self, rid: Rid) -> PyResult<&Vec<Val>> {
+    pub fn vals(&self, rid: Rid) -> MenuResult<&Vec<Val>> {
         match &self.node(rid)?.content {
             Content::Words(v) => Ok(v),
-            _ => Err(Fail::Python),
+            _ => Err(MenuError::Reference),
         }
     }
 
     /// A Words node's fields, to change.
-    pub fn vals_mut(&mut self, rid: Rid) -> PyResult<&mut Vec<Val>> {
+    pub fn vals_mut(&mut self, rid: Rid) -> MenuResult<&mut Vec<Val>> {
         match self.m.nodes.get_mut(rid as usize).map(|n| &mut n.content) {
             Some(Content::Words(v)) => Ok(v),
-            _ => Err(Fail::Python),
+            _ => Err(MenuError::Reference),
         }
     }
 
     /// Field `k` of a Words node.
-    pub fn val(&self, rid: Rid, k: usize) -> PyResult<Val> {
+    pub fn val(&self, rid: Rid, k: usize) -> MenuResult<Val> {
         py(self.vals(rid)?.get(k).copied())
     }
 
     /// Field `k` as a number (a pointer there: the reference's own exception).
-    pub fn num(&self, rid: Rid, k: usize) -> PyResult<u32> {
+    pub fn num(&self, rid: Rid, k: usize) -> MenuResult<u32> {
         match self.val(rid, k)? {
             Val::Num(v) => Ok(v),
-            Val::Ref(_) => Err(Fail::Python),
+            Val::Ref(_) => Err(MenuError::Reference),
         }
     }
 
     /// Sets field `k`.
-    pub fn set(&mut self, rid: Rid, k: usize, v: Val) -> PyResult<()> {
+    pub fn set(&mut self, rid: Rid, k: usize, v: Val) -> MenuResult<()> {
         *py(self.vals_mut(rid)?.get_mut(k))? = v;
         Ok(())
     }
 
     /// A Str node's text.
-    pub fn str_text(&self, rid: Rid) -> PyResult<&[u8]> {
+    pub fn str_text(&self, rid: Rid) -> MenuResult<&[u8]> {
         match &self.node(rid)?.content {
             Content::Str(t) => Ok(t),
-            _ => Err(Fail::Python),
+            _ => Err(MenuError::Reference),
         }
     }
 
     /// `text(v)`: the text a field points at, `None` for a number.
-    pub fn text(&self, v: Val) -> PyResult<Option<String>> {
+    pub fn text(&self, v: Val) -> MenuResult<Option<String>> {
         match v {
             Val::Ref(r) => Ok(Some(latin1(self.str_text(r)?))),
             Val::Num(_) => Ok(None),
@@ -326,24 +327,24 @@ impl Movie {
     }
 
     /// A node's tag.
-    pub fn tag(&self, rid: Rid) -> PyResult<&str> {
+    pub fn tag(&self, rid: Rid) -> MenuResult<&str> {
         let t = self.node(rid)?.tag;
         py(self.m.tags.get(usize::from(t)).map(String::as_str))
     }
 
     /// A Code node.
-    pub fn code(&self, rid: Rid) -> PyResult<&Code> {
+    pub fn code(&self, rid: Rid) -> MenuResult<&Code> {
         match &self.node(rid)?.content {
             Content::Code(c) => Ok(c),
-            _ => Err(Fail::Python),
+            _ => Err(MenuError::Reference),
         }
     }
 
     /// A Code node, to change.
-    pub fn code_mut(&mut self, rid: Rid) -> PyResult<&mut Code> {
+    pub fn code_mut(&mut self, rid: Rid) -> MenuResult<&mut Code> {
         match self.m.nodes.get_mut(rid as usize).map(|n| &mut n.content) {
             Some(Content::Code(c)) => Ok(c),
-            _ => Err(Fail::Python),
+            _ => Err(MenuError::Reference),
         }
     }
 
@@ -383,25 +384,25 @@ impl Movie {
         self.m.heads.movie
     }
 
-    fn ref_at(&self, rid: Rid, k: usize) -> PyResult<Rid> {
+    fn ref_at(&self, rid: Rid, k: usize) -> MenuResult<Rid> {
         match self.val(rid, k)? {
             Val::Ref(r) => Ok(r),
-            Val::Num(_) => Err(Fail::Python),
+            Val::Num(_) => Err(MenuError::Reference),
         }
     }
 
     /// `Movie.chartable`.
-    pub fn chartable(&self) -> PyResult<Rid> {
+    pub fn chartable(&self) -> MenuResult<Rid> {
         self.ref_at(self.movie(), 6)
     }
 
     /// `len(chartable.vals)`.
-    pub fn char_count(&self) -> PyResult<usize> {
+    pub fn char_count(&self) -> MenuResult<usize> {
         Ok(self.vals(self.chartable()?)?.len())
     }
 
     /// `Movie.char(cid)`.
-    pub fn char(&self, cid: i64) -> PyResult<Option<Rid>> {
+    pub fn char(&self, cid: i64) -> MenuResult<Option<Rid>> {
         let t = self.vals(self.chartable()?)?;
         Ok(match usize::try_from(cid).ok().and_then(|c| t.get(c)) {
             Some(Val::Ref(r)) => Some(*r),
@@ -410,7 +411,7 @@ impl Movie {
     }
 
     /// `Movie.char_type(cid)`.
-    pub fn char_type(&self, cid: i64) -> PyResult<Option<u32>> {
+    pub fn char_type(&self, cid: i64) -> MenuResult<Option<u32>> {
         match self.char(cid)? {
             Some(n) => self.num(n, 0).map(Some),
             None => Ok(None),
@@ -418,7 +419,7 @@ impl Movie {
     }
 
     /// `Movie.add_char(node)`.
-    pub fn add_char(&mut self, node: Option<Rid>) -> PyResult<i64> {
+    pub fn add_char(&mut self, node: Option<Rid>) -> MenuResult<i64> {
         let t = self.chartable()?;
         let v = self.vals_mut(t)?;
         v.push(node.map_or(Val::Num(0), Val::Ref));
@@ -429,7 +430,7 @@ impl Movie {
     }
 
     /// `Movie.imports()`: (movie, name, character).
-    pub fn imports(&self) -> PyResult<Vec<(Option<String>, Option<String>, Val)>> {
+    pub fn imports(&self) -> MenuResult<Vec<(Option<String>, Option<String>, Val)>> {
         let Val::Ref(r) = self.val(self.movie(), 11)? else {
             return Ok(Vec::new());
         };
@@ -444,7 +445,7 @@ impl Movie {
     }
 
     /// `Movie.add_import(movie, name)`.
-    pub fn add_import(&mut self, movie: &str, name: &str) -> PyResult<i64> {
+    pub fn add_import(&mut self, movie: &str, name: &str) -> MenuResult<i64> {
         let cid = self.add_char(None)?;
         let mv = self.movie();
         let node = match self.val(mv, 11)? {
@@ -466,7 +467,7 @@ impl Movie {
     }
 
     /// `Movie.font_name(cid)`.
-    pub fn font_name(&self, cid: i64) -> PyResult<Option<String>> {
+    pub fn font_name(&self, cid: i64) -> MenuResult<Option<String>> {
         match self.char(cid)? {
             Some(n) if self.val(n, 0)? == Val::Num(3) => self.text(self.val(n, 2)?),
             _ => Ok(None),
@@ -478,7 +479,7 @@ impl Movie {
     }
 
     /// `Movie.frames(owner, create)`: `None` for the detached empty node the reference gives without `create`.
-    pub fn frames(&mut self, owner: Option<Rid>, create: bool) -> PyResult<Option<Rid>> {
+    pub fn frames(&mut self, owner: Option<Rid>, create: bool) -> MenuResult<Option<Rid>> {
         let o = self.owner(owner);
         match self.val(o, 3)? {
             Val::Ref(r) => Ok(Some(r)),
@@ -492,7 +493,7 @@ impl Movie {
     }
 
     /// `len(frames(owner).vals) // 2`.
-    pub fn frame_count(&self, owner: Option<Rid>) -> PyResult<usize> {
+    pub fn frame_count(&self, owner: Option<Rid>) -> MenuResult<usize> {
         match self.val(self.owner(owner), 3)? {
             Val::Ref(r) => Ok(self.vals(r)?.len() / 2),
             Val::Num(_) => Ok(0),
@@ -500,7 +501,7 @@ impl Movie {
     }
 
     /// `Movie.items(frame, owner, create)`.
-    pub fn items(&mut self, frame: usize, owner: Option<Rid>, create: bool) -> PyResult<Option<Rid>> {
+    pub fn items(&mut self, frame: usize, owner: Option<Rid>, create: bool) -> MenuResult<Option<Rid>> {
         let fr = self.frames(owner, create)?;
         let len = match fr {
             Some(f) => self.vals(f)?.len(),
@@ -536,12 +537,12 @@ impl Movie {
         }
         match v {
             Val::Ref(r) => Ok(Some(r)),
-            Val::Num(_) => Err(Fail::Python),
+            Val::Num(_) => Err(MenuError::Reference),
         }
     }
 
     /// `Movie.add_item(frame, item, owner, index)`.
-    pub fn add_item(&mut self, frame: usize, item: Rid, owner: Option<Rid>, index: Option<usize>) -> PyResult<()> {
+    pub fn add_item(&mut self, frame: usize, item: Rid, owner: Option<Rid>, index: Option<usize>) -> MenuResult<()> {
         let lst = py(self.items(frame, owner, true)?)?;
         let v = self.vals_mut(lst)?;
         let at = index.map_or(v.len(), |i| i.min(v.len()));
@@ -552,14 +553,14 @@ impl Movie {
     }
 
     /// `Movie.frame_items(frame, owner)`.
-    pub fn frame_items(&mut self, frame: usize, owner: Option<Rid>) -> PyResult<Vec<Rid>> {
+    pub fn frame_items(&mut self, frame: usize, owner: Option<Rid>) -> MenuResult<Vec<Rid>> {
         match self.items(frame, owner, false)? {
             Some(l) => self
                 .vals(l)?
                 .iter()
                 .map(|v| match v {
                     Val::Ref(r) => Ok(*r),
-                    Val::Num(_) => Err(Fail::Python),
+                    Val::Num(_) => Err(MenuError::Reference),
                 })
                 .collect(),
             None => Ok(Vec::new()),
@@ -567,7 +568,7 @@ impl Movie {
     }
 
     /// `Movie.timeline_depths(owner)`.
-    pub fn timeline_depths(&mut self, owner: Option<Rid>) -> PyResult<std::collections::HashSet<i64>> {
+    pub fn timeline_depths(&mut self, owner: Option<Rid>) -> MenuResult<std::collections::HashSet<i64>> {
         let mut out = std::collections::HashSet::new();
         for f in 0..self.frame_count(owner)? {
             for it in self.frame_items(f, owner)? {
@@ -586,7 +587,7 @@ impl Movie {
     }
 
     /// `Movie.label_frame(label, owner)`.
-    pub fn label_frame(&mut self, label: &str, owner: Option<Rid>) -> PyResult<usize> {
+    pub fn label_frame(&mut self, label: &str, owner: Option<Rid>) -> MenuResult<usize> {
         for f in 0..self.frame_count(owner)? {
             for it in self.frame_items(f, owner)? {
                 if self.tag(it)? == "label" && self.text(self.val(it, 1)?)?.as_deref() == Some(label) {
@@ -600,23 +601,23 @@ impl Movie {
     // ------------------------------------------------------------------------------------------- constants
 
     /// `Movie.const_entries`.
-    pub fn const_entries(&self) -> PyResult<Rid> {
+    pub fn const_entries(&self) -> MenuResult<Rid> {
         self.ref_at(self.m.heads.const_head, 2)
     }
 
     /// `Movie.constant(k)`.
-    pub fn constant(&self, k: usize) -> PyResult<CKey> {
+    pub fn constant(&self, k: usize) -> MenuResult<CKey> {
         let v = self.vals(self.const_entries()?)?;
         let (t, x) = (*py(v.get(2 * k))?, *py(v.get(2 * k + 1))?);
         match (t, x) {
             (Val::Num(1), Val::Ref(r)) => Ok(CKey::S(self.str_text(r)?.to_vec())),
             (Val::Num(t), Val::Num(x)) => Ok(CKey::T(t, x)),
-            _ => Err(Fail::Python),
+            _ => Err(MenuError::Reference),
         }
     }
 
     /// `Movie.const_index(key)` (added at the end when missing).
-    pub fn const_index(&mut self, key: &CKey) -> PyResult<usize> {
+    pub fn const_index(&mut self, key: &CKey) -> MenuResult<usize> {
         if self.cidx.is_none() {
             let n = self.vals(self.const_entries()?)?.len() / 2;
             let mut idx = HashMap::new();
@@ -648,7 +649,7 @@ impl Movie {
     }
 
     /// `Movie.const_text(k)`.
-    pub fn const_text(&self, k: usize) -> PyResult<String> {
+    pub fn const_text(&self, k: usize) -> MenuResult<String> {
         Ok(match self.constant(k)? {
             CKey::S(t) => latin1(&t),
             CKey::T(4, x) => format!("reg{x}"),
@@ -657,17 +658,17 @@ impl Movie {
     }
 
     /// `const_text` of a field (a pool list's entry: a number).
-    pub fn const_text_of(&self, v: Val) -> PyResult<String> {
+    pub fn const_text_of(&self, v: Val) -> MenuResult<String> {
         match v {
             Val::Num(k) => self.const_text(k as usize),
-            Val::Ref(_) => Err(Fail::Python),
+            Val::Ref(_) => Err(MenuError::Reference),
         }
     }
 
     // ------------------------------------------------------------------------------------------- geometry
 
     /// `Movie.geo_entry(gid)`: (table node, field index).
-    pub fn geo_entry(&self, gid: i64) -> PyResult<Option<(Rid, usize)>> {
+    pub fn geo_entry(&self, gid: i64) -> MenuResult<Option<(Rid, usize)>> {
         let Some(gh) = self.m.heads.geo_head else {
             return Ok(None);
         };
@@ -686,7 +687,7 @@ impl Movie {
     }
 
     /// `Movie.add_geometry(gid, parts_node)`.
-    pub fn add_geometry(&mut self, gid: i64, parts: Rid) -> PyResult<()> {
+    pub fn add_geometry(&mut self, gid: i64, parts: Rid) -> MenuResult<()> {
         let Some(gh) = self.m.heads.geo_head else {
             return Err(apt_err(format!("{}: no .geo member to add geometry to", self.label)));
         };
@@ -706,7 +707,7 @@ impl Movie {
     }
 
     /// `code_nodes(movie, new_only)`: the reachable `.apt` Code nodes.
-    pub fn code_nodes(&self, new_only: bool) -> PyResult<Vec<Rid>> {
+    pub fn code_nodes(&self, new_only: bool) -> MenuResult<Vec<Rid>> {
         let mut out = Vec::new();
         for (f, lst) in self.m.reachable() {
             if f != APT {
@@ -723,7 +724,7 @@ impl Movie {
     }
 
     /// `Node.refs()`.
-    pub fn refs(&self, rid: Rid) -> PyResult<Vec<Rid>> {
+    pub fn refs(&self, rid: Rid) -> MenuResult<Vec<Rid>> {
         Ok(match &self.node(rid)?.content {
             Content::Words(v) => v
                 .iter()
@@ -748,8 +749,8 @@ impl Movie {
     // ------------------------------------------------------------------------------------------- writing
 
     /// `Movie.write(order, layout)`: the members in their order (`big`: the byte order).
-    pub fn write(&self, big: bool, layouts: [Layout; 3], dead: bool) -> PyResult<Members> {
-        let w = self.m.write(big, layouts, 0, dead).map_err(|_| Fail::Python)?;
+    pub fn write(&self, big: bool, layouts: [Layout; 3], dead: bool) -> MenuResult<Members> {
+        let w = self.m.write(big, layouts, 0, dead).map_err(|_| MenuError::Reference)?;
         self.members
             .iter()
             .zip(&self.files)
@@ -759,7 +760,7 @@ impl Movie {
                 } else {
                     match w.get(f as usize) {
                         Some(Some(b)) => Ok((n.clone(), b.clone())),
-                        _ => Err(Fail::Python),
+                        _ => Err(MenuError::Reference),
                     }
                 }
             })
@@ -767,7 +768,7 @@ impl Movie {
     }
 
     /// `Movie.to_res(order, layout)`.
-    pub fn to_res(&self, big: bool, layouts: [Layout; 3]) -> PyResult<Vec<u8>> {
+    pub fn to_res(&self, big: bool, layouts: [Layout; 3]) -> MenuResult<Vec<u8>> {
         write_bigf(&self.write(big, layouts, true)?)
     }
 }
@@ -809,15 +810,15 @@ pub fn push_ins(c: &mut Code, i: Ins) -> u32 {
 }
 
 /// An instruction's integer argument `k` (anything else: the reference's own exception).
-pub fn int_arg(i: &Ins, k: usize) -> PyResult<i64> {
+pub fn int_arg(i: &Ins, k: usize) -> MenuResult<i64> {
     match i.args.get(k) {
         Some(Arg::Int(v)) => Ok(*v),
-        _ => Err(Fail::Python),
+        _ => Err(MenuError::Reference),
     }
 }
 
 /// `int(text, 0)` for the forms the command lines take (anything else: the Python answers).
-pub fn py_int0(s: &str) -> PyResult<i64> {
+pub fn py_int0(s: &str) -> MenuResult<i64> {
     let t = s.trim_matches(|c: char| c.is_ascii_whitespace());
     let (neg, body) = match t.strip_prefix('-') {
         Some(b) => (true, b),
@@ -832,24 +833,24 @@ pub fn py_int0(s: &str) -> PyResult<i64> {
         (2, d)
     } else {
         if lower.len() > 1 && lower.starts_with('0') && !lower.chars().all(|c| c == '0') {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         }
         (10, lower.as_str())
     };
     if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
-    let v = i64::from_str_radix(digits, radix).map_err(|_| Fail::Python)?;
+    let v = i64::from_str_radix(digits, radix).map_err(|_| MenuError::Reference)?;
     Ok(if neg { -v } else { v })
 }
 
 /// `float(text)` for the plain forms (anything else: the Python answers).
-pub fn py_float(s: &str) -> PyResult<f64> {
+pub fn py_float(s: &str) -> MenuResult<f64> {
     let t = s.trim_matches(|c: char| c.is_ascii_whitespace());
     if t.is_empty() || t.contains('_') {
-        return Err(Fail::Python);
+        return Err(MenuError::Reference);
     }
-    t.parse::<f64>().map_err(|_| Fail::Python)
+    t.parse::<f64>().map_err(|_| MenuError::Reference)
 }
 
 // ------------------------------------------------------------------------------------------------ grafting
@@ -884,7 +885,7 @@ impl Grafter {
     }
 
     /// `Grafter.const(k)`.
-    pub fn konst(&mut self, src: &Movie, dst: &mut Movie, k: usize) -> PyResult<usize> {
+    pub fn konst(&mut self, src: &Movie, dst: &mut Movie, k: usize) -> MenuResult<usize> {
         if let Some(&v) = self.cmap_const.get(&k) {
             return Ok(v);
         }
@@ -900,17 +901,17 @@ impl Grafter {
     }
 
     /// `Grafter.char(cid)` of a Python int (`signed()` of it as the reference takes it).
-    pub fn char_py(&mut self, src: &Movie, dst: &mut Movie, cid: i64) -> PyResult<i64> {
+    pub fn char_py(&mut self, src: &Movie, dst: &mut Movie, cid: i64) -> MenuResult<i64> {
         let c = if (cid >> 31) & 1 != 0 { cid - (1 << 32) } else { cid };
         self.char_signed(src, dst, c)
     }
 
     /// `Grafter.char(cid)`.
-    pub fn char(&mut self, src: &Movie, dst: &mut Movie, cid: u32) -> PyResult<i64> {
+    pub fn char(&mut self, src: &Movie, dst: &mut Movie, cid: u32) -> MenuResult<i64> {
         self.char_signed(src, dst, signed(cid))
     }
 
-    fn char_signed(&mut self, src: &Movie, dst: &mut Movie, cid: i64) -> PyResult<i64> {
+    fn char_signed(&mut self, src: &Movie, dst: &mut Movie, cid: i64) -> MenuResult<i64> {
         if let Some(&v) = self.cmap.get(&cid) {
             return Ok(v);
         }
@@ -932,7 +933,7 @@ impl Grafter {
                 if py(dm)?.to_lowercase() == m.to_lowercase() && dn.as_deref() == Some(n.as_str()) {
                     new = Some(match c {
                         Val::Num(v) => i64::from(v),
-                        Val::Ref(_) => return Err(Fail::Python),
+                        Val::Ref(_) => return Err(MenuError::Reference),
                     });
                     break;
                 }
@@ -973,7 +974,7 @@ impl Grafter {
                 return Err(apt_err(format!("{}: shape {cid} has no geometry", src.label)));
             };
             let Val::Ref(parts) = src.val(tab, k + 2)? else {
-                return Err(Fail::Python);
+                return Err(MenuError::Reference);
             };
             let p = self.node(src, dst, parts)?;
             dst.add_geometry(new, p)?;
@@ -994,7 +995,7 @@ impl Grafter {
     }
 
     /// `Grafter.node(n)`: a copy of a source node for the target (memoised; ids, constants and fonts re-mapped).
-    pub fn node(&mut self, src: &Movie, dst: &mut Movie, n: Rid) -> PyResult<Rid> {
+    pub fn node(&mut self, src: &Movie, dst: &mut Movie, n: Rid) -> MenuResult<Rid> {
         if let Some(&c) = self.memo.get(&n) {
             return Ok(c);
         }
@@ -1034,8 +1035,8 @@ impl Grafter {
         }
     }
 
-    fn fix(&mut self, src: &Movie, dst: &mut Movie, c: Rid, tag: &str) -> PyResult<()> {
-        let remap = |g: &mut Self, dst: &mut Movie, k: usize| -> PyResult<()> {
+    fn fix(&mut self, src: &Movie, dst: &mut Movie, c: Rid, tag: &str) -> MenuResult<()> {
+        let remap = |g: &mut Self, dst: &mut Movie, k: usize| -> MenuResult<()> {
             let id = dst.num(c, k)?;
             let v = g.char(src, dst, id)?;
             dst.set(c, k, Val::Num(v as u32))
@@ -1057,7 +1058,9 @@ impl Grafter {
                 let v = dst.vals(c)?.clone();
                 let mut out = Vec::with_capacity(v.len());
                 for x in v {
-                    let Val::Num(k) = x else { return Err(Fail::Python) };
+                    let Val::Num(k) = x else {
+                        return Err(MenuError::Reference);
+                    };
                     out.push(Val::Num(self.konst(src, dst, k as usize)? as u32));
                 }
                 *dst.vals_mut(c)? = out;
@@ -1078,7 +1081,7 @@ impl Grafter {
         s: u32,
         out: &mut Code,
         imap: &mut Imap,
-    ) -> PyResult<u32> {
+    ) -> MenuResult<u32> {
         let lst = py(code.streams.get(s as usize))?.clone();
         let ns = out.streams.len() as u32;
         out.streams.push(Vec::new());
@@ -1107,7 +1110,7 @@ impl Grafter {
                 out.ins[j as usize].target = match i.target {
                     Target::Ins(t) => Target::Ins(*py(imap.ins.get(&t))?),
                     Target::End(t) => Target::End(*py(imap.streams.get(&t))?),
-                    _ => return Err(Fail::Python),
+                    _ => return Err(MenuError::Reference),
                 };
             }
         }
@@ -1119,7 +1122,7 @@ impl Grafter {
     /// source Code node `code` from offset `first` up to `end`, after a ConstantPool of the pool constants they
     /// use, then End.
     #[allow(clippy::too_many_lines, reason = "the reference's one function, kept in one piece")]
-    pub fn code_range(&mut self, src: &Movie, dst: &mut Movie, code_rid: Rid, first: i64, end: i64) -> PyResult<Rid> {
+    pub fn code_range(&mut self, src: &Movie, dst: &mut Movie, code_rid: Rid, first: i64, end: i64) -> MenuResult<Rid> {
         let code = src.code(code_rid)?.clone();
         let top = py(code.streams.first())?.clone();
         let mut idx: HashMap<i64, usize> = HashMap::new();
@@ -1127,7 +1130,7 @@ impl Grafter {
             if let Some(at) = code.ins[i as usize].at {
                 idx.insert(at, k);
             } else {
-                return Err(Fail::Python);
+                return Err(MenuError::Reference);
             }
         }
         let last_at = py(top.last().and_then(|&i| code.ins[i as usize].at))?;
@@ -1209,7 +1212,7 @@ impl Grafter {
         let mut consts = Vec::with_capacity(used.len());
         for &k in &used {
             let Val::Num(c) = pool[k as usize] else {
-                return Err(Fail::Python);
+                return Err(MenuError::Reference);
             };
             consts.push(Val::Num(self.konst(src, dst, c as usize)? as u32));
         }
@@ -1270,7 +1273,7 @@ impl Builder {
     }
 
     /// `b.pool(*names)`.
-    pub fn pool(&mut self, m: &mut Movie, names: &[&str]) -> PyResult<()> {
+    pub fn pool(&mut self, m: &mut Movie, names: &[&str]) -> MenuResult<()> {
         self.names = names.iter().map(|s| (*s).to_owned()).collect();
         let mut idx = Vec::new();
         for n in names {
@@ -1288,7 +1291,7 @@ impl Builder {
     }
 
     /// `b.op(name, *args)`.
-    pub fn op(&mut self, m: &mut Movie, name: &str, arg: Option<&str>) -> PyResult<&mut Self> {
+    pub fn op(&mut self, m: &mut Movie, name: &str, arg: Option<&str>) -> MenuResult<&mut Self> {
         let op = py(op_named(name))?;
         let mut i = ins(op, Vec::new());
         let mut branch = None;
@@ -1312,7 +1315,7 @@ impl Builder {
     }
 
     /// `b.code()`: the Code node (End added).
-    pub fn code(mut self, m: &mut Movie) -> PyResult<Rid> {
+    pub fn code(mut self, m: &mut Movie) -> MenuResult<Rid> {
         self.add(ins(0, Vec::new()));
         for (k, name) in &self.pending {
             let at = *py(self.labels.get(name))?;
@@ -1332,7 +1335,7 @@ pub fn place_item(
     x: f64,
     y: f64,
     flags: u32,
-) -> PyResult<Rid> {
+) -> MenuResult<Rid> {
     let one = f32_bits(1.0)?;
     let mut v: Vec<Val> = [3, flags, 0, 0, one, 0, 0, one, 0, 0, 0xFFFF_FFFF, 0, 0, 0, 0, 0]
         .into_iter()
@@ -1353,7 +1356,7 @@ pub fn place_item(
 }
 
 /// `free_depths(movie, count, start)`.
-pub fn free_depths(m: &mut Movie, count: usize, start: i64) -> PyResult<Vec<i64>> {
+pub fn free_depths(m: &mut Movie, count: usize, start: i64) -> MenuResult<Vec<i64>> {
     let used = m.timeline_depths(None)?;
     let mut out = Vec::new();
     let mut d = start;
@@ -1368,33 +1371,33 @@ pub fn free_depths(m: &mut Movie, count: usize, start: i64) -> PyResult<Vec<i64>
 
 /// `Movie.load(spec)`'s members: a `.res`, a `.apt` with its `.const` / `.geo` beside it, or `<bundle.fbrb>:<name>`
 /// (read through the bundle reader). (label, members).
-pub fn load_members(spec: &str) -> PyResult<(String, Members)> {
+pub fn load_members(spec: &str) -> MenuResult<(String, Members)> {
     use bc2_pyrt::py::{basename, isfile, splitext};
     if isfile(spec) {
         if spec.to_lowercase().ends_with(".apt") {
             let base = splitext(spec).0;
             let name = basename(&base);
-            let mut out = vec![(format!("{name}.apt"), bc2_pyrt::err::read_file(spec)?)];
+            let mut out = vec![(format!("{name}.apt"), crate::error::read_file(spec)?)];
             for ext in [".const", ".geo"] {
                 let p = format!("{base}{ext}");
                 if isfile(&p) {
-                    out.push((format!("{name}{ext}"), bc2_pyrt::err::read_file(&p)?));
+                    out.push((format!("{name}{ext}"), crate::error::read_file(&p)?));
                 }
             }
             return Ok((spec.to_owned(), out));
         }
-        return Ok((spec.to_owned(), read_bigf(&bc2_pyrt::err::read_file(spec)?, spec)?));
+        return Ok((spec.to_owned(), read_bigf(&crate::error::read_file(spec)?, spec)?));
     }
     let low = spec.to_lowercase();
     if low.contains(".fbrb:") || bundle_spec(spec) {
         let Some((bundle, name)) = spec.rsplit_once(':') else {
-            return Err(Fail::Python);
+            return Err(MenuError::Reference);
         };
         if !isfile(bundle) {
-            return Err(Fail::Err(PyErr::file_not_found(bundle)));
+            return Err(MenuError::not_found(bundle));
         }
         let entries = bc2_formats::fbrb::entries_path(bundle)
-            .map_err(|_| Fail::Python)?
+            .map_err(|_| MenuError::Reference)?
             .entries;
         // fbrb.names: {lower name: entry}, the last of a repeated name
         let mut names: HashMap<String, String> = HashMap::new();
@@ -1410,14 +1413,14 @@ pub fn load_members(spec: &str) -> PyResult<(String, Members)> {
             return Err(apt_err(format!("no {entry} in {bundle}")));
         };
         let data = bc2_gamefs::bundles::read_path(bundle, &[real.to_lowercase()])
-            .map_err(|_| Fail::Python)?
+            .map_err(|_| MenuError::Reference)?
             .into_iter()
             .next()
-            .ok_or(Fail::Python)?;
+            .ok_or(MenuError::Reference)?;
         BUNDLE_READ.store(true, std::sync::atomic::Ordering::SeqCst);
         return Ok((spec.to_owned(), read_bigf(&data, spec)?));
     }
-    Err(Fail::Err(PyErr::file_not_found(spec)))
+    Err(MenuError::not_found(spec))
 }
 
 /// Set once a movie was read out of a bundle (`fbrb.read`): the Python then runs the caches' overall budget
@@ -1448,7 +1451,7 @@ fn bundle_spec(spec: &str) -> bool {
 }
 
 /// `Movie.load(spec)`.
-pub fn load(spec: &str) -> PyResult<Movie> {
+pub fn load(spec: &str) -> MenuResult<Movie> {
     let (label, members) = load_members(spec)?;
     Movie::new(members, &label)
 }

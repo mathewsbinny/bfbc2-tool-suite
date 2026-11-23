@@ -44,6 +44,7 @@ use std::io;
 use std::sync::Arc;
 
 use bc2_formats::culltree as raw;
+use bc2_formats::dbx::edit::{EditDbx, NodeId, Parts};
 use bc2_pyrt::err::{Fail, PyErr};
 use bc2_pyrt::fmt::float_repr;
 use bc2_pyrt::py::{OMap, abspath, basename, dirname, isdir, isfile, join, splitext};
@@ -153,6 +154,10 @@ pub fn py_max(v: &[f64]) -> f64 {
 
 // ------------------------------------------------------------------------------------------------ binary DBX
 
+// Round PR1b-2-rest2 (merge step 3): `culltree.py`'s `Doc` is the suite's one document, `EditDbx`, read under
+// `Doc`'s rules by `bc2_formats::culltree::document` / `stream` (string indexes checked where they are read, as here;
+// every value's bytes as stored; written back byte for byte). The reference's `El` methods are the functions below.
+
 /// A varint ([`bc2_formats::varint::read_u64`]); one past 64 bits is a big integer only Python reads.
 fn varint(data: &[u8], pos: usize) -> CullResult<(u64, usize)> {
     bc2_formats::varint::read_u64(data, pos).map_err(|_| PY)
@@ -162,89 +167,92 @@ fn put_varint(v: u64, out: &mut Vec<u8>) {
     bc2_formats::varint::put(out, v);
 }
 
-/// `El`: an element as the reference keeps it.
-#[derive(Debug, Clone)]
-pub struct El {
-    pub tag: u64,
-    pub head: u8,
-    pub attrs: Vec<(u64, u64)>,
-    pub extra: u8,
-    pub value: Vec<u8>,
-    pub children: Option<Vec<El>>,
+/// String `id` of the document (an index past the table: the reference's `IndexError`).
+fn st(d: &EditDbx, id: u32) -> CullResult<&str> {
+    // the table was decoded as the reference decodes it (UTF-8, a bad sequence replaced) before it was kept
+    std::str::from_utf8(d.string(id).ok_or(PY)?).map_err(|_| PY)
 }
 
-impl El {
-    pub fn kind(&self) -> u8 {
-        self.head >> 4
-    }
-
-    /// `attr(name)` against the document's strings (an index past them: the reference's `IndexError`).
-    pub fn attr<'a>(&self, s: &'a [String], name: &str) -> CullResult<Option<&'a str>> {
-        for &(k, v) in &self.attrs {
-            let key = s.get(usize::try_from(k).map_err(|_| PY)?).ok_or(PY)?;
-            if key == name {
-                return Ok(Some(s.get(usize::try_from(v).map_err(|_| PY)?).ok_or(PY)?));
-            }
+/// `El.attr(name)`.
+pub fn attr<'a>(d: &'a EditDbx, n: NodeId, name: &str) -> CullResult<Option<&'a str>> {
+    for &(k, v) in d.attr_ids(n) {
+        if st(d, k)? == name {
+            return Ok(Some(st(d, v)?));
         }
-        Ok(None)
     }
-
-    pub fn name<'a>(&self, s: &'a [String]) -> CullResult<Option<&'a str>> {
-        self.attr(s, "name")
-    }
-
-    /// `child(name)`: the first child of that name, its index.
-    pub fn child(&self, s: &[String], name: &str) -> CullResult<Option<usize>> {
-        for (i, c) in self.children.iter().flatten().enumerate() {
-            if c.name(s)? == Some(name) {
-                return Ok(Some(i));
-            }
-        }
-        Ok(None)
-    }
-
-    /// `numbers()`: (size, values), each value sliced as Python slices (short at the end).
-    pub fn numbers(&self) -> CullResult<(u64, Vec<Vec<u8>>)> {
-        let (count, p) = varint(&self.value, 0)?;
-        let (size, p) = varint(&self.value, p)?;
-        if count > 1 << 24 || size > 1 << 32 {
-            return Err(PY); // a damaged count only the reference walks (or runs out of memory on)
-        }
-        let n = self.value.len();
-        let mut out = Vec::new();
-        for i in 0..count {
-            let a = (p as u64 + i * size).min(n as u64) as usize;
-            let b = (p as u64 + (i + 1) * size).min(n as u64) as usize;
-            out.push(self.value[a..b.max(a)].to_vec());
-        }
-        Ok((size, out))
-    }
-
-    /// `set_numbers(size, values)`.
-    pub fn set_numbers(&mut self, size: u64, values: &[Vec<u8>]) -> CullResult<()> {
-        let mut out = Vec::new();
-        put_varint(values.len() as u64, &mut out);
-        put_varint(size, &mut out);
-        for v in values {
-            if v.len() as u64 != size {
-                return Err(cte("internal: number of the wrong size"));
-            }
-            out.extend_from_slice(v);
-        }
-        self.value = out;
-        Ok(())
-    }
+    Ok(None)
 }
 
-/// `Doc`: a binary DBX file kept byte for byte.
-#[derive(Debug, Clone)]
-pub struct Doc {
-    pub name: String,
-    head12: Vec<u8>,
-    string_area: Vec<u8>,
-    pub strings: Vec<String>,
-    pub roots: Vec<El>,
-    trailer: Vec<u8>,
+/// `El.name()`.
+pub fn name_of(d: &EditDbx, n: NodeId) -> CullResult<Option<&str>> {
+    attr(d, n, "name")
+}
+
+/// `El.child(name)`: the first child of that name, its index among the children.
+pub fn child_index(d: &EditDbx, n: NodeId, name: &str) -> CullResult<Option<usize>> {
+    for (i, &c) in d.children(n).unwrap_or_default().iter().enumerate() {
+        if name_of(d, c)? == Some(name) {
+            return Ok(Some(i));
+        }
+    }
+    Ok(None)
+}
+
+/// Child `i` of `n`.
+fn kid(d: &EditDbx, n: NodeId, i: usize) -> CullResult<NodeId> {
+    d.children(n).and_then(|c| c.get(i)).copied().ok_or(PY)
+}
+
+/// `El.numbers()`: (size, values), each value sliced as Python slices (short at the end).
+pub fn numbers(d: &EditDbx, n: NodeId) -> CullResult<(u64, Vec<Vec<u8>>)> {
+    let value = d.payload(n);
+    let (count, p) = varint(value, 0)?;
+    let (size, p) = varint(value, p)?;
+    if count > 1 << 24 || size > 1 << 32 {
+        return Err(PY); // a damaged count only the reference walks (or runs out of memory on)
+    }
+    let len = value.len();
+    let mut out = Vec::new();
+    for i in 0..count {
+        let a = (p as u64 + i * size).min(len as u64) as usize;
+        let b = (p as u64 + (i + 1) * size).min(len as u64) as usize;
+        out.push(value[a..b.max(a)].to_vec());
+    }
+    Ok((size, out))
+}
+
+/// `El.set_numbers(size, values)`.
+pub fn set_numbers(d: &mut EditDbx, n: NodeId, size: u64, values: &[Vec<u8>]) -> CullResult<()> {
+    let mut out = Vec::new();
+    put_varint(values.len() as u64, &mut out);
+    put_varint(size, &mut out);
+    for v in values {
+        if v.len() as u64 != size {
+            return Err(cte("internal: number of the wrong size"));
+        }
+        out.extend_from_slice(v);
+    }
+    d.set_raw(n, out).map_err(|_| PY)
+}
+
+/// `El.clone()`: a deep copy with every string index and value as stored (not attached anywhere yet).
+fn clone_stored(d: &mut EditDbx, n: NodeId) -> NodeId {
+    let children = d
+        .children(n)
+        .map(<[NodeId]>::to_vec)
+        .map(|kids| kids.into_iter().map(|c| clone_stored(d, c)).collect());
+    d.push(Parts {
+        tag: d.tag_id(n),
+        kind: d.kind(n),
+        attrs: d.attr_ids(n).to_vec(),
+        cbyte: d.container_byte(n),
+        payload: if children.is_some() {
+            Vec::new()
+        } else {
+            d.payload(n).to_vec()
+        },
+        children,
+    })
 }
 
 fn be32(d: &[u8], at: usize) -> CullResult<u32> {
@@ -252,8 +260,8 @@ fn be32(d: &[u8], at: usize) -> CullResult<u32> {
     Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
 }
 
-/// The header and string table of a binary DBX file: (string area, strings, where the elements start).
-fn header(data: &[u8], name: &str) -> CullResult<(Vec<String>, usize)> {
+/// The header and string table of a binary DBX file: (header word, strings, where the elements start).
+fn header(data: &[u8], name: &str) -> CullResult<(u32, Vec<Vec<u8>>, usize)> {
     if data.len() <= 24 || !data.starts_with(MAGIC) {
         return Err(cte(format!("{name} is not a binary .dbx file")));
     }
@@ -268,143 +276,54 @@ fn header(data: &[u8], name: &str) -> CullResult<(Vec<String>, usize)> {
             return Err(PY);
         }
         let end = data[start..].iter().position(|&b| b == 0).ok_or(PY)? + start;
-        strings.push(String::from_utf8_lossy(&data[start..end]).into_owned());
+        strings.push(String::from_utf8_lossy(&data[start..end]).into_owned().into_bytes());
     }
-    Ok((strings, 24 + size))
+    Ok((be32(data, 12)?, strings, 24 + size))
 }
 
-impl Doc {
-    pub fn parse(data: &[u8], name: &str) -> CullResult<Self> {
-        let (strings, pos) = header(data, name)?;
-        let head12 = data[12..16].to_vec();
-        let string_area = data[24.min(data.len())..pos.min(data.len())].to_vec();
-        let read = raw::elements(data, pos).map_err(|e| cte(format!("{name}: {e}")))?;
-        // the flat stream as a tree (a container's children: the elements up to its end)
-        fn take(read: &raw::Elements, data: &[u8], i: &mut usize, end: usize, out: &mut Vec<El>) {
-            while *i < end {
-                let e = &read.elements[*i];
-                *i += 1;
-                let attrs = read.attrs.get(e.attrs.clone()).unwrap_or_default().to_vec();
-                let mut el = El {
-                    tag: e.tag,
-                    head: e.head,
-                    attrs,
-                    extra: e.extra,
-                    value: Vec::new(),
-                    children: None,
-                };
-                if let Some(stop) = e.end {
-                    let mut kids = Vec::new();
-                    take(read, data, i, stop, &mut kids);
-                    el.children = Some(kids);
-                } else {
-                    el.value = data.get(e.value.clone()).unwrap_or_default().to_vec();
-                }
-                out.push(el);
-            }
-        }
-        let mut roots = Vec::new();
-        let mut i = 0;
-        take(&read, data, &mut i, read.elements.len(), &mut roots);
-        Ok(Self {
-            name: name.to_owned(),
-            head12,
-            string_area,
-            strings,
-            roots,
-            trailer: data[read.end..].to_vec(),
-        })
-    }
-
-    pub fn read(path: &str) -> CullResult<Self> {
-        Self::parse(&read(path)?, &basename(path))
-    }
-
-    /// The elements and strings dropped (round CT1: a document already written that is not used again).
-    pub fn release(&mut self) {
-        self.roots = Vec::new();
-        self.strings = Vec::new();
-        self.string_area = Vec::new();
-        self.trailer = Vec::new();
-    }
-
-    pub fn tobytes(&self) -> Vec<u8> {
-        fn put(e: &El, out: &mut Vec<u8>) {
-            put_varint(e.tag, out);
-            out.push(e.head);
-            for &(k, v) in &e.attrs {
-                put_varint(k, out);
-                put_varint(v, out);
-            }
-            if e.kind() == CONTAINER {
-                out.push(e.extra);
-                for c in e.children.iter().flatten() {
-                    put(c, out);
-                }
-                out.push(0);
-            } else {
-                out.extend_from_slice(&e.value);
-            }
-        }
-        let mut payload = Vec::new();
-        for r in &self.roots {
-            put(r, &mut payload);
-        }
-        payload.extend_from_slice(&self.trailer);
-        let mut out = MAGIC.to_vec();
-        out.extend_from_slice(&(24 + self.string_area.len() as u32).to_be_bytes());
-        out.extend_from_slice(&self.head12);
-        out.extend_from_slice(&(self.string_area.len() as u32).to_be_bytes());
-        out.extend_from_slice(&(self.strings.len() as u32).to_be_bytes());
-        out.extend_from_slice(&self.string_area);
-        out.extend_from_slice(&payload);
-        out
-    }
-
-    /// `write(path)`: its folder made, the file written.
-    pub fn write(&self, path: &str) -> CullResult<()> {
-        let dir = dirname(&abspath(path));
-        std::fs::create_dir_all(&dir).map_err(|e| mkdir_error(&dir, e))?;
-        std::fs::write(path, self.tobytes()).map_err(|e| CullError::io(path, e))
-    }
-
-    /// `instances`: the root's children tagged `instance` (their indices).
-    pub fn instances(&self) -> CullResult<Vec<usize>> {
-        let root = self.roots.first().ok_or(PY)?;
-        let mut out = Vec::new();
-        for (i, e) in root.children.iter().flatten().enumerate() {
-            let tag = self.strings.get(usize::try_from(e.tag).map_err(|_| PY)?).ok_or(PY)?;
-            if tag == "instance" {
-                out.push(i);
-            }
-        }
-        Ok(out)
-    }
-
-    pub fn instance(&self, i: usize) -> &El {
-        match self.roots[0].children.as_ref() {
-            Some(c) => &c[i],
-            None => unreachable_el(),
-        }
-    }
-
-    fn instance_mut(&mut self, i: usize) -> &mut El {
-        let c = self.roots[0].children.as_mut();
-        match c {
-            Some(c) => &mut c[i],
-            None => unreachable_mut(),
-        }
+/// The element reader's error as the reference raises it: `CullTreeError` with its text; a string index past 32
+/// bits is the reference's own exception where it reads it.
+fn element_error(name: &str, e: &raw::ElementError) -> CullError {
+    match e {
+        raw::ElementError::Wide(_) => PY,
+        e => cte(format!("{name}: {e}")),
     }
 }
 
-#[allow(clippy::panic, reason = "instances() only gives indices of a container's children")]
-fn unreachable_el() -> &'static El {
-    panic!("an instance index of a root without children")
+/// `Doc(data, name)`: the file as the one document.
+pub fn parse_doc(data: &[u8], name: &str) -> CullResult<EditDbx> {
+    let (head, strings, pos) = header(data, name)?;
+    raw::document(data, head, strings, pos).map_err(|e| element_error(name, &e))
 }
 
-#[allow(clippy::panic, reason = "instances() only gives indices of a container's children")]
-fn unreachable_mut() -> &'static mut El {
-    panic!("an instance index of a root without children")
+/// `Doc.read(path)`.
+pub fn read_doc(path: &str) -> CullResult<EditDbx> {
+    parse_doc(&read(path)?, &basename(path))
+}
+
+/// `Doc.write(path)`: its folder made, the file written.
+pub fn write_doc(d: &EditDbx, path: &str) -> CullResult<()> {
+    let dir = dirname(&abspath(path));
+    std::fs::create_dir_all(&dir).map_err(|e| mkdir_error(&dir, e))?;
+    let bytes = d.write().map_err(|_| PY)?;
+    std::fs::write(path, bytes).map_err(|e| CullError::io(path, e))
+}
+
+/// `Doc.instances`: the root's children tagged `instance` (their indices among the root's children).
+pub fn instances(d: &EditDbx) -> CullResult<Vec<usize>> {
+    let root = *d.roots().first().ok_or(PY)?;
+    let mut out = Vec::new();
+    for (i, &e) in d.children(root).unwrap_or_default().iter().enumerate() {
+        if st(d, d.tag_id(e))? == "instance" {
+            out.push(i);
+        }
+    }
+    Ok(out)
+}
+
+/// The root's child `i` (an index [`instances`] gave).
+fn instance(d: &EditDbx, i: usize) -> CullResult<NodeId> {
+    kid(d, *d.roots().first().ok_or(PY)?, i)
 }
 
 /// `os.makedirs`'s error (reported as the reference reports it: the `From` impl).
@@ -415,8 +334,8 @@ pub fn mkdir_error(dir: &str, e: io::Error) -> CullError {
     }
 }
 
-fn int4(e: &El) -> CullResult<i64> {
-    let (size, v) = e.numbers()?;
+fn int4(d: &EditDbx, e: NodeId) -> CullResult<i64> {
+    let (size, v) = numbers(d, e)?;
     if size != 4 || v.len() != 1 {
         return Err(cte("internal: not a single 4-byte number"));
     }
@@ -424,8 +343,8 @@ fn int4(e: &El) -> CullResult<i64> {
     Ok(i64::from(i32::from_be_bytes(b)))
 }
 
-fn floats(e: &El) -> CullResult<Vec<f64>> {
-    let (size, v) = e.numbers()?;
+fn floats(d: &EditDbx, e: NodeId) -> CullResult<Vec<f64>> {
+    let (size, v) = numbers(d, e)?;
     if size != 4 {
         return Ok(Vec::new());
     }
@@ -712,8 +631,11 @@ pub fn build(arena: &mut Arena, nodes: &[NodeData]) -> CullResult<(Id, usize)> {
 #[derive(Debug, Clone)]
 pub struct CullTree {
     pub path: String,
-    pub doc: Doc,
+    /// The tree's document (empty for a tree only read: [`CullTree::read_only`]).
+    pub doc: EditDbx,
+    /// The cull tree instance: its index among the root's children.
     inst: usize,
+    /// Its `Nodes` field: the index among the instance's children.
     array: usize,
     pub enum_offset: i64,
     pub nodes: Vec<NodeData>,
@@ -732,22 +654,21 @@ const NODE_FIELDS: [&str; 6] = ["Right", "Max", "SphereKeyX", "SphereKeyY", "Sph
 type Streamed = (usize, Vec<NodeData>, Option<CullError>);
 
 /// The cull tree instance's `Nodes` and `EnumOffset` fields: (the array's index among its children, `EnumOffset`).
-fn fields(s: &[String], e: &El, base: &str) -> CullResult<(usize, i64)> {
-    let array = e.child(s, "Nodes")?;
-    let eo = e.child(s, "EnumOffset")?;
+fn fields(d: &EditDbx, e: NodeId, base: &str) -> CullResult<(usize, i64)> {
+    let array = child_index(d, e, "Nodes")?;
+    let eo = child_index(d, e, "EnumOffset")?;
     let (Some(array), Some(eo)) = (array, eo) else {
         return Err(cte(format!("{base}: the cull tree has no Nodes or EnumOffset field")));
     };
-    let kids = e.children.as_ref().ok_or(PY)?;
-    Ok((array, int4(&kids[eo])?))
+    Ok((array, int4(d, kid(d, e, eo)?)?))
 }
 
-fn node_of(s: &[String], c: &El) -> CullResult<NodeData> {
+fn node_of(d: &EditDbx, c: NodeId) -> CullResult<NodeData> {
     let mut v: HashMap<Option<String>, Vec<u8>> = HashMap::new();
-    for f in c.children.iter().flatten() {
-        let (_size, vals) = f.numbers()?;
+    for &f in d.children(c).unwrap_or_default() {
+        let (_size, vals) = numbers(d, f)?;
         let first = vals.into_iter().next().ok_or(PY)?;
-        v.insert(f.name(s)?.map(str::to_owned), first);
+        v.insert(name_of(d, f)?.map(str::to_owned), first);
     }
     let get = |k: &str| -> CullResult<Vec<u8>> {
         v.get(&Some(k.to_owned()))
@@ -766,14 +687,80 @@ fn node_of(s: &[String], c: &El) -> CullResult<NodeData> {
     Ok(NodeData { right, max, keys })
 }
 
+/// The nodes of a `Nodes` array element.
+fn nodes_of(d: &EditDbx, array: NodeId) -> CullResult<Vec<NodeData>> {
+    d.children(array)
+        .unwrap_or_default()
+        .iter()
+        .map(|&c| node_of(d, c))
+        .collect()
+}
+
+/// The chosen cull tree instance's fields: (its `Nodes` array's index among its children, `EnumOffset`, the array's
+/// nodes as read from the instance itself).
+type Chosen = (usize, i64, CullResult<Vec<NodeData>>);
+
+/// What [`CullTree::read_only`] keeps of the streamed root children (its sink).
+struct TreeSink {
+    /// the file's name (for the fields' error)
+    base: String,
+    /// a tag or type that is the reference's own exception
+    bad: bool,
+    /// the first cull tree instance: its index, then its fields and (in case its `Nodes` were not streamed) its
+    /// array's nodes, as read from the instance itself
+    chosen: Option<(usize, CullResult<Chosen>)>,
+    /// the streamed `Nodes` items of the root child being read
+    items: Vec<Streamed>,
+    nodes_of_chosen: Vec<Streamed>,
+}
+
+impl raw::Sink for TreeSink {
+    fn child(&mut self, i: usize, d: &EditDbx, e: NodeId) {
+        let mine = std::mem::take(&mut self.items);
+        match st(d, d.tag_id(e)) {
+            Err(_) => self.bad = true,
+            Ok("instance") => match attr(d, e, "type") {
+                Err(_) => self.bad = true,
+                Ok(Some("World.StaticCullTreeData")) if self.chosen.is_none() => {
+                    let read = fields(d, e, &self.base).map(|(array, eo)| {
+                        let nodes = kid(d, e, array).and_then(|a| nodes_of(d, a));
+                        (array, eo, nodes)
+                    });
+                    self.chosen = Some((i, read));
+                    self.nodes_of_chosen = mine;
+                }
+                Ok(_) => {}
+            },
+            Ok(_) => {}
+        }
+    }
+
+    fn streamed(&mut self, d: &EditDbx, e: NodeId) -> bool {
+        matches!(name_of(d, e), Ok(Some("Nodes")))
+    }
+
+    fn item(&mut self, _: usize, slot: usize, d: &EditDbx, e: NodeId) {
+        if self.items.last().is_none_or(|x| x.0 != slot) {
+            self.items.push((slot, Vec::new(), None));
+        }
+        if let Some(x) = self.items.last_mut()
+            && x.2.is_none()
+        {
+            match node_of(d, e) {
+                Ok(n) => x.1.push(n),
+                Err(e) => x.2 = Some(e),
+            }
+        }
+    }
+}
+
 impl CullTree {
     pub fn read(path: &str) -> CullResult<Self> {
-        let doc = Doc::read(path)?;
+        let doc = read_doc(path)?;
         let base = basename(path);
-        let s = &doc.strings;
         let mut found = Vec::new();
-        for i in doc.instances()? {
-            if doc.instance(i).attr(s, "type")? == Some("World.StaticCullTreeData") {
+        for i in instances(&doc)? {
+            if attr(&doc, instance(&doc, i)?, "type")? == Some("World.StaticCullTreeData") {
                 found.push(i);
             }
         }
@@ -782,12 +769,9 @@ impl CullTree {
                 "{base} has no World.StaticCullTreeData instance (not a cull tree)"
             )));
         };
-        let e = doc.instance(inst);
-        let (array, enum_offset) = fields(s, e, &base)?;
-        let mut nodes = Vec::new();
-        for c in e.children.as_ref().ok_or(PY)?[array].children.iter().flatten() {
-            nodes.push(node_of(s, c)?);
-        }
+        let e = instance(&doc, inst)?;
+        let (array, enum_offset) = fields(&doc, e, &base)?;
+        let nodes = nodes_of(&doc, kid(&doc, e, array)?)?;
         Self::with_nodes(path, doc, inst, array, enum_offset, nodes)
     }
 
@@ -795,95 +779,42 @@ impl CullTree {
     /// back): the same nodes, values and errors as [`CullTree::read`], the file streamed - its nodes taken as they
     /// are read instead of the whole document kept. Its document is empty: it cannot be written.
     pub fn read_only(path: &str) -> CullResult<Self> {
-        use std::cell::RefCell;
         let data = read(path)?;
         let base = basename(path);
-        let (strings, pos) = header(&data, &base)?;
-        let s = &strings;
+        let (head, strings, pos) = header(&data, &base)?;
         // CullTree.__init__'s order: the document (its element errors first), `instances` (every root child's tag),
         // every instance's type, then the first cull tree's fields and nodes
-        let mut bad = false; // a tag or type that is the reference's own exception
-        let mut chosen: Option<(usize, El)> = None;
-        // the streamed "Nodes" items of the root child being read: (its index among the child's children, the
-        // nodes up to the first that fails, that failure)
-        let items: RefCell<Vec<Streamed>> = RefCell::new(Vec::new());
-        let mut nodes_of_chosen: Vec<Streamed> = Vec::new();
-        let mut child = |i: usize, el: El| {
-            let mine = std::mem::take(&mut *items.borrow_mut());
-            match usize::try_from(el.tag).ok().and_then(|t| s.get(t)) {
-                None => bad = true,
-                Some(t) if t == "instance" => match el.attr(s, "type") {
-                    Err(_) => bad = true,
-                    Ok(Some("World.StaticCullTreeData")) if chosen.is_none() => {
-                        chosen = Some((i, el));
-                        nodes_of_chosen = mine;
-                    }
-                    Ok(_) => {}
-                },
-                Some(_) => {}
-            }
+        let mut sink = TreeSink {
+            base: base.clone(),
+            bad: false,
+            chosen: None,
+            items: Vec::new(),
+            nodes_of_chosen: Vec::new(),
         };
-        let streamed = |e: &El| matches!(e.name(s), Ok(Some("Nodes")));
-        let mut item = |_: usize, slot: usize, el: El| {
-            let mut v = items.borrow_mut();
-            if v.last().is_none_or(|x| x.0 != slot) {
-                v.push((slot, Vec::new(), None));
-            }
-            if let Some(x) = v.last_mut()
-                && x.2.is_none()
-            {
-                match node_of(s, &el) {
-                    Ok(n) => x.1.push(n),
-                    Err(e) => x.2 = Some(e),
-                }
-            }
-        };
-        let walked = stream_root(
-            &data,
-            pos,
-            &mut Sink {
-                child: &mut child,
-                streamed: &streamed,
-                item: &mut item,
-            },
-        );
-        let has_root = walked.map_err(|e| cte(format!("{base}: {e}")))?;
-        if !has_root || bad {
+        let walked = raw::stream(&data, head, strings, pos, &mut sink);
+        let has_root = walked.map_err(|e| element_error(&base, &e))?;
+        if !has_root || sink.bad {
             return Err(PY);
         }
-        let Some((inst, e)) = chosen else {
+        let Some((inst, read)) = sink.chosen else {
             return Err(cte(format!(
                 "{base} has no World.StaticCullTreeData instance (not a cull tree)"
             )));
         };
-        let (array, enum_offset) = fields(s, &e, &base)?;
-        let nodes = match nodes_of_chosen.into_iter().find(|x| x.0 == array) {
+        let (array, enum_offset, kept) = read?;
+        let nodes = match sink.nodes_of_chosen.into_iter().find(|x| x.0 == array) {
             Some((_, _, Some(fail))) => return Err(fail),
             Some((_, nodes, None)) => nodes,
             // not streamed: a Nodes field that is not an array (no items), or one whose items are kept
-            None => {
-                let mut nodes = Vec::new();
-                for c in e.children.as_ref().ok_or(PY)?[array].children.iter().flatten() {
-                    nodes.push(node_of(s, c)?);
-                }
-                nodes
-            }
+            None => kept?,
         };
-        let doc = Doc {
-            name: base,
-            head12: Vec::new(),
-            string_area: Vec::new(),
-            strings: Vec::new(),
-            roots: Vec::new(),
-            trailer: Vec::new(),
-        };
-        Self::with_nodes(path, doc, inst, array, enum_offset, nodes)
+        Self::with_nodes(path, EditDbx::new(), inst, array, enum_offset, nodes)
     }
 
     /// The tree from its nodes: the used ones linked and checked, the spare ones counted, the leaves indexed.
     fn with_nodes(
         path: &str,
-        doc: Doc,
+        doc: EditDbx,
         inst: usize,
         array: usize,
         enum_offset: i64,
@@ -963,44 +894,41 @@ impl CullTree {
     pub fn write(&mut self, path: &str) -> CullResult<()> {
         let mut flat = self.arena.flatten(self.root);
         flat.extend(std::iter::repeat_n(NodeData::ZERO, SPARE));
-        let s = self.doc.strings.clone();
-        let array = &self.doc.instance(self.inst).children.as_ref().ok_or(PY)?[self.array];
-        let tmpl = array.children.as_ref().and_then(|c| c.first()).ok_or(PY)?.clone();
+        let mut doc = self.doc.clone();
+        let array = kid(&doc, instance(&doc, self.inst)?, self.array)?;
+        let tmpl = *doc.children(array).and_then(<[NodeId]>::first).ok_or(PY)?;
         let mut items = Vec::with_capacity(flat.len());
         for d in &flat {
-            let mut c = tmpl.clone();
-            for f in c.children.iter_mut().flatten() {
-                let nm = f.name(&s)?;
-                let (size, _) = f.numbers()?;
-                match nm {
+            let c = clone_stored(&mut doc, tmpl);
+            for f in doc.children(c).unwrap_or_default().to_vec() {
+                let nm = name_of(&doc, f)?.map(str::to_owned);
+                let (size, _) = numbers(&doc, f)?;
+                match nm.as_deref() {
                     Some("Right") => {
                         let v = i32::try_from(d.right).map_err(|_| PY)?;
-                        f.set_numbers(4, &[v.to_be_bytes().to_vec()])?;
+                        set_numbers(&mut doc, f, 4, &[v.to_be_bytes().to_vec()])?;
                     }
                     Some("Max") => {
                         let x = d.max as f32;
                         if x.is_infinite() && d.max.is_finite() {
                             return Err(PY); // struct's OverflowError
                         }
-                        f.set_numbers(4, &[x.to_be_bytes().to_vec()])?;
+                        set_numbers(&mut doc, f, 4, &[x.to_be_bytes().to_vec()])?;
                     }
                     Some(n) if NODE_FIELDS.contains(&n) => {
                         let axis = "XYZW".find(n.chars().last().unwrap_or('X')).unwrap_or(0);
                         let k = u16::try_from(d.keys[axis]).map_err(|_| PY)?;
                         let mut v = k.to_be_bytes().to_vec();
                         v.extend(std::iter::repeat_n(0u8, (size as usize).saturating_sub(2)));
-                        f.set_numbers(size, &[v])?;
+                        set_numbers(&mut doc, f, size, &[v])?;
                     }
                     _ => {}
                 }
             }
             items.push(c);
         }
-        let (inst, arr) = (self.inst, self.array);
-        let mut doc = self.doc.clone();
-        let node = &mut doc.instance_mut(inst).children.as_mut().ok_or(PY)?[arr];
-        node.children = Some(items);
-        doc.write(path)
+        *doc.children_mut(array).map_err(|_| PY)? = items;
+        write_doc(&doc, path)
     }
 }
 
@@ -1084,44 +1012,41 @@ fn inv3(r: [[f64; 3]; 3]) -> CullResult<[[f64; 3]; 3]> {
 #[derive(Debug, Clone)]
 pub struct Level {
     pub path: String,
-    pub doc: Doc,
+    pub doc: EditDbx,
     pub objects: Vec<Placed>,
     pub tree_refs: HashMap<String, String>,
 }
 
 /// `Level.__init__`'s loop body for one instance (root child `i`): its tree references and its placed object.
 fn scan_instance(
-    s: &[String],
-    e: &El,
+    d: &EditDbx,
+    e: NodeId,
     i: usize,
     objects: &mut Vec<Placed>,
     tree_refs: &mut HashMap<String, String>,
 ) -> CullResult<()> {
     for f in ["ExclusiveStaticCullTree", "ClientStaticCullTree"] {
-        if let Some(c) = e.child(s, f)? {
-            let kid = &e.children.as_ref().ok_or(PY)?[c];
-            if let Some(r) = kid.attr(s, "ref")?
-                && !r.is_empty()
-            {
-                tree_refs.insert(f.to_owned(), r.to_owned());
-            }
+        if let Some(c) = child_index(d, e, f)?
+            && let Some(r) = attr(d, kid(d, e, c)?, "ref")?
+            && !r.is_empty()
+        {
+            tree_refs.insert(f.to_owned(), r.to_owned());
         }
     }
-    if e.attr(s, "type")? != Some("Entity.ReferenceObjectData") {
+    if attr(d, e, "type")? != Some("Entity.ReferenceObjectData") {
         return Ok(());
     }
     let (en, tr, ro) = (
-        e.child(s, "Enumeration")?,
-        e.child(s, "Transform")?,
-        e.child(s, "ReferencedObject")?,
+        child_index(d, e, "Enumeration")?,
+        child_index(d, e, "Transform")?,
+        child_index(d, e, "ReferencedObject")?,
     );
     let (Some(en), Some(tr)) = (en, tr) else {
         return Ok(());
     };
-    let kids = e.children.as_ref().ok_or(PY)?;
-    let guid = e.attr(s, "guid")?.unwrap_or("").to_owned();
+    let guid = attr(d, e, "guid")?.unwrap_or("").to_owned();
     let rf = match ro {
-        Some(ro) => kids[ro].attr(s, "ref")?,
+        Some(ro) => attr(d, kid(d, e, ro)?, "ref")?,
         None => None,
     };
     let blueprint = match rf {
@@ -1129,11 +1054,11 @@ fn scan_instance(
         Some(r) => r.to_owned(),
         None => String::new(),
     };
-    let v = floats(&kids[tr])?;
+    let v = floats(d, kid(d, e, tr)?)?;
     if v.len() != 16 {
         return Ok(());
     }
-    let enumeration = int4(&kids[en])?;
+    let enumeration = int4(d, kid(d, e, en)?)?;
     let mut m = [[0.0; 4]; 4];
     for (k, x) in v.iter().enumerate() {
         m[k / 4][k % 4] = *x;
@@ -1157,12 +1082,11 @@ fn no_objects(path: &str) -> CullError {
 
 impl Level {
     pub fn read(path: &str) -> CullResult<Self> {
-        let doc = Doc::read(path)?;
-        let s = &doc.strings;
+        let doc = read_doc(path)?;
         let mut objects = Vec::new();
         let mut tree_refs = HashMap::new();
-        for i in doc.instances()? {
-            scan_instance(s, doc.instance(i), i, &mut objects, &mut tree_refs)?;
+        for i in instances(&doc)? {
+            scan_instance(&doc, instance(&doc, i)?, i, &mut objects, &mut tree_refs)?;
         }
         if objects.is_empty() {
             return Err(no_objects(path));
@@ -1191,8 +1115,8 @@ impl Level {
     pub fn set_enum(&mut self, o: usize, value: i64) -> CullResult<()> {
         let v = i32::try_from(value).map_err(|_| PY)?;
         let (i, c) = self.objects[o].el;
-        let el = &mut self.doc.instance_mut(i).children.as_mut().ok_or(PY)?[c];
-        el.set_numbers(4, &[v.to_be_bytes().to_vec()])?;
+        let el = kid(&self.doc, instance(&self.doc, i)?, c)?;
+        set_numbers(&mut self.doc, el, 4, &[v.to_be_bytes().to_vec()])?;
         self.objects[o].enumeration = value;
         Ok(())
     }
@@ -1220,141 +1144,32 @@ impl Objects {
     }
 }
 
-use raw::varint as varint_e;
-
-/// What [`stream_root`] hands out: each child of the first root, and - for the containers among a root child's own
-/// children that `streamed` picks - each of their items instead of the container holding them (the container is
-/// kept with no children).
-struct Sink<'a> {
-    /// (index among the root's children, the element with its subtree), once it is closed
-    child: &'a mut dyn FnMut(usize, El),
-    /// picks a root child's child container by its (attributes-only) element
-    streamed: &'a dyn Fn(&El) -> bool,
-    /// (root child's index, the picked container's index among its children, an item with its subtree)
-    item: &'a mut dyn FnMut(usize, usize, El),
+/// What [`scan_level`] keeps of the streamed root children (its sink): `Level.__init__`'s loop.
+struct LevelSink {
+    objects: Vec<Placed>,
+    tree_refs: HashMap<String, String>,
+    bad_tag: bool,
+    first: Option<CullError>,
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "raw::elements' loop and its element kinds in one piece, as there"
-)]
-/// `raw::elements`' walk of the element stream, materializing only the first root's children: each one is handed
-/// to the sink as soon as it is closed, and dropped there. Ok(whether there is a root); the same errors as
-/// `raw::elements`, at the same bytes.
-fn stream_root(data: &[u8], start: usize, sink: &mut Sink) -> Result<bool, raw::ElementError> {
-    use raw::ElementError::{Truncated, Unclosed};
-    // the open containers: their element while it is kept (inside the first root), None for the roots and the
-    // containers of the other roots; with it, its index among its root child's children when its items are streamed
-    let mut open: Vec<(Option<El>, Option<usize>)> = Vec::new();
-    let mut in_root = false;
-    let mut roots = 0usize;
-    let mut index = 0usize;
-    let mut pos = start;
-    let mut deliver = |open: &mut Vec<(Option<El>, Option<usize>)>, el: El, index: &mut usize| {
-        if open.len() == 1 {
-            (sink.child)(*index, el);
-            *index += 1;
-        } else if let Some((_, Some(slot))) = open.last() {
-            (sink.item)(*index, *slot, el);
-        } else if let Some((Some(parent), _)) = open.last_mut()
-            && let Some(kids) = parent.children.as_mut()
-        {
-            kids.push(el);
-        }
-    };
-    while pos < data.len() {
-        let (tag, p) = varint_e(data, pos)?;
-        if tag == 0 {
-            let Some((top, _)) = open.pop() else { break };
-            pos = p;
-            if open.is_empty() {
-                in_root = false;
-            } else if let Some(el) = top {
-                deliver(&mut open, el, &mut index);
-            }
-            continue;
-        }
-        pos = p;
-        let head = *data.get(pos).ok_or(Truncated(pos))?;
-        pos += 1;
-        let keep = in_root && !open.is_empty();
-        let mut attrs = Vec::new();
-        for _ in 0..head & 0xf {
-            let (k, p) = varint_e(data, pos)?;
-            let (v, p) = varint_e(data, p)?;
-            if keep {
-                attrs.push((k, v));
-            }
-            pos = p;
-        }
-        let top_level = open.is_empty();
-        let value = match head >> 4 {
-            CONTAINER => {
-                let extra = *data.get(pos).ok_or(Truncated(pos))?;
-                pos += 1;
-                if top_level {
-                    roots += 1;
-                    in_root = roots == 1;
+impl raw::Sink for LevelSink {
+    fn child(&mut self, i: usize, d: &EditDbx, e: NodeId) {
+        match st(d, d.tag_id(e)) {
+            Err(_) => self.bad_tag = true,
+            Ok("instance") if !self.bad_tag && self.first.is_none() => {
+                if let Err(err) = scan_instance(d, e, i, &mut self.objects, &mut self.tree_refs) {
+                    self.first = Some(err);
                 }
-                let el = keep.then(|| El {
-                    tag,
-                    head,
-                    attrs: std::mem::take(&mut attrs),
-                    extra,
-                    value: Vec::new(),
-                    children: Some(Vec::new()),
-                });
-                // a root child's child picked by the sink: its index there (the children before it are closed)
-                let slot = match (&el, open.as_slice()) {
-                    (Some(e), [_, (Some(parent), _)]) if (sink.streamed)(e) => parent.children.as_ref().map(Vec::len),
-                    _ => None,
-                };
-                open.push((el, slot));
-                continue;
             }
-            raw::TEXT => {
-                let (_, p) = varint_e(data, pos)?;
-                let r = pos..p;
-                pos = p;
-                r
-            }
-            raw::NUMBERS => {
-                let s = pos;
-                let (n, p) = varint_e(data, pos)?;
-                let (size, p) = varint_e(data, p)?;
-                let end = n
-                    .checked_mul(size)
-                    .and_then(|b| (p as u64).checked_add(b))
-                    .filter(|&e| e <= data.len() as u64)
-                    .ok_or(Truncated(s))?;
-                pos = end as usize;
-                s..pos
-            }
-            _ => {
-                let r = pos..(pos + 2).min(data.len());
-                pos += 2;
-                r
-            }
-        };
-        if top_level {
-            roots += 1;
-        }
-        if keep {
-            let el = El {
-                tag,
-                head,
-                attrs,
-                extra: 0,
-                value: data.get(value).unwrap_or_default().to_vec(),
-                children: None,
-            };
-            deliver(&mut open, el, &mut index);
+            Ok(_) => {}
         }
     }
-    if !open.is_empty() {
-        return Err(Unclosed);
+
+    fn streamed(&mut self, _: &EditDbx, _: NodeId) -> bool {
+        false
     }
-    Ok(roots > 0)
+
+    fn item(&mut self, _: usize, _: usize, _: &EditDbx, _: NodeId) {}
 }
 
 /// `Level(path)`'s objects and tree references (the same values and the same errors as [`Level::read`]), the file
@@ -1362,45 +1177,30 @@ fn stream_root(data: &[u8], start: usize, sink: &mut Sink) -> Result<bool, raw::
 pub fn scan_level(path: &str) -> CullResult<Objects> {
     let data = read(path)?;
     let name = basename(path);
-    let (strings, pos) = header(&data, &name)?;
-    let mut objects = Vec::new();
-    let mut tree_refs = HashMap::new();
+    let (head, strings, pos) = header(&data, &name)?;
     // Level.__init__'s order: the document read whole (its element errors first), `instances` (every root child's
     // tag looked up), then each instance in turn, then the check for objects
-    let mut bad_tag = false;
-    let mut first: Option<CullError> = None;
-    let mut child = |i, el: El| match usize::try_from(el.tag).ok().and_then(|t| strings.get(t)) {
-        None => bad_tag = true,
-        Some(t) if t == "instance" && !bad_tag && first.is_none() => {
-            if let Err(e) = scan_instance(&strings, &el, i, &mut objects, &mut tree_refs) {
-                first = Some(e);
-            }
-        }
-        Some(_) => {}
+    let mut sink = LevelSink {
+        objects: Vec::new(),
+        tree_refs: HashMap::new(),
+        bad_tag: false,
+        first: None,
     };
-    let walked = stream_root(
-        &data,
-        pos,
-        &mut Sink {
-            child: &mut child,
-            streamed: &|_| false,
-            item: &mut |_, _, _| {},
-        },
-    );
-    let has_root = walked.map_err(|e| cte(format!("{name}: {e}")))?;
-    if !has_root || bad_tag {
+    let walked = raw::stream(&data, head, strings, pos, &mut sink);
+    let has_root = walked.map_err(|e| element_error(&name, &e))?;
+    if !has_root || sink.bad_tag {
         return Err(PY);
     }
-    if let Some(e) = first {
+    if let Some(e) = sink.first {
         return Err(e);
     }
-    if objects.is_empty() {
+    if sink.objects.is_empty() {
         return Err(no_objects(path));
     }
     Ok(Objects {
         path: path.to_owned(),
-        objects,
-        tree_refs,
+        objects: sink.objects,
+        tree_refs: sink.tree_refs,
     })
 }
 

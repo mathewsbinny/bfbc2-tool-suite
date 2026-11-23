@@ -597,3 +597,162 @@ fn nodes_pair_one_step_apart_along_an_axis() {
         );
     }
 }
+
+// spec: KYN-FILE-2
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn header_tables_and_record_layout() {
+    // sectors whose longest edge (3-D) is longer than the first node's +20 float; tile end slots holding the debug
+    // heap's 0xBAADF00D fill (KYN-FILE-2's note on the generator's memory)
+    let (mut longer, mut sectors, mut baad) = (0u64, 0u64, 0u64);
+    each(|f, h, meshes| {
+        for (s, m) in h.sectors.iter().zip(meshes) {
+            sectors += 1;
+            let len = |e: &hpd::Edge| {
+                let (p, q) = (s.nodes[e.src as usize].pos, s.nodes[e.dst as usize].pos);
+                let d: f32 = (0..3).map(|k| (p[k] - q[k]) * (p[k] - q[k])).sum();
+                d.sqrt()
+            };
+            longer += u64::from(s.edges.iter().map(len).fold(0.0f32, f32::max) > s.nodes[0].value + 1e-3);
+            baad += u64::from(m.end_slot == 0xBAAD_F00Du32.to_le_bytes());
+        }
+        let w = &h.header;
+        // words 0 and 1 are one field written twice (the file version); 4-7 the mode-0 floats, zero in mode 1
+        assert_eq!(w[1], w[0], "{}: word 1", f.name);
+        assert_eq!(w[3], 1, "{}: word 3 (mode)", f.name);
+        assert!(w[4..8].iter().all(|v| *v == 0), "{}: words 4-7", f.name);
+        // two tables of four {u32, u32, u32}: one entry, descriptor 2 at offset 0 of size 8
+        assert_eq!(&w[8..11], &[2, 0, 8], "{}: the first table's first entry", f.name);
+        assert!(w[11..32].iter().all(|v| *v == 0), "{}: words 11-31", f.name);
+        // the node record: 28 bytes of the node and the 8 bytes of descriptor 2 (the lookup lists b, c)
+        assert_eq!(w[32], 28 + w[10], "{}: node stride", f.name);
+        assert_eq!(w[34], 1, "{}: word 34", f.name);
+        // the first node's +20 float is DistEdgeMax, not the sector's longest edge
+        let dist_edge_max = if f.vehicle { 50.0 } else { 15.0 };
+        for s in &h.sectors {
+            assert_eq!(s.nodes[0].value, dist_edge_max, "{}: sector {:#x}", f.name, s.id);
+        }
+    });
+    if sectors > 0 {
+        println!("{longer} of {sectors} sectors hold an edge longer than the +20 value; {baad} end slots 0xBAADF00D");
+        assert!(longer * 2 > sectors, "the +20 value is not the longest edge");
+    }
+}
+
+// spec: KYG-NODE-6
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn node_ids_count_from_101_in_table_order() {
+    let (mut used, mut span) = (0u64, 0u64);
+    each(|f, h, _| {
+        // a border id is numbered in the first sector (in table order) that holds it
+        let mut seen = HashSet::new();
+        let mut last = 100u32;
+        let mut first = None;
+        for s in &h.sectors {
+            let mut new: Vec<u32> = Vec::new();
+            for n in &s.nodes {
+                if n.id & 0x8000_0000 == 0 || seen.insert(n.id) {
+                    new.push(n.id & 0x7FFF_FFFF);
+                }
+            }
+            let (Some(lo), Some(hi)) = (new.iter().min().copied(), new.iter().max().copied()) else {
+                continue;
+            };
+            first.get_or_insert(lo);
+            assert!(
+                lo > last,
+                "{}: sector {:#x} numbered before the sector ahead of it",
+                f.name,
+                s.id
+            );
+            used += new.len() as u64;
+            span += u64::from(hi - lo + 1);
+            last = hi;
+        }
+        assert_eq!(first, Some(101), "{}: the first id", f.name);
+    });
+    if span > 0 {
+        let share = used as f64 / span as f64;
+        println!(
+            "ids used in the sectors' ranges: {used} of {span} ({:.1} %)",
+            share * 100.0
+        );
+        assert!((0.7..0.9).contains(&share), "the ranges' fill {share}");
+    }
+}
+
+// spec: HPD-TAB-4
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn sector_times_are_the_write_time() {
+    let secs = |t: u32| (t / 1_000_000) * 3600 + (t / 10_000 % 100) * 60 + t / 100 % 100;
+    each(|f, h, _| {
+        let date = h.sectors[0].date;
+        let t0 = secs(h.sectors[0].time);
+        let mut prev = t0;
+        for s in &h.sectors {
+            assert_eq!(s.time % 100, 0, "{}: hundredths", f.name);
+            assert_eq!(s.date, date, "{}: one date per file", f.name);
+            let t = secs(s.time);
+            assert!(
+                t >= prev,
+                "{}: sector {:#x} written before the one ahead of it",
+                f.name,
+                s.id
+            );
+            prev = t;
+        }
+        assert!(prev - t0 <= 10, "{}: the sectors written over {} s", f.name, prev - t0);
+    });
+}
+
+// spec: KYG-PAR-1
+#[test]
+#[ignore = "game tier: reads DICE's path data in the game copy"]
+fn nearest_node_at_dist_propagation() {
+    // DistPropagation = GraphAccuracy + 0.35 (Kynapse's default EntityRadius): 3.35 / 0.85 / 15.35 m. Count the
+    // ordinary nodes whose nearest ordinary node of the same floor (height within 2 m) lies at it within 2 mm, and
+    // at 1.05 times it as a control.
+    let mut at = [[0u64; 2]; 3];
+    each(|f, h, meshes| {
+        for (s, m) in h.sectors.iter().zip(meshes) {
+            let k = if f.vehicle {
+                2
+            } else {
+                usize::from((m.pitch - 0.2).abs() < 1e-4)
+            };
+            let dp = [3.35f64, 0.85, 15.35][k];
+            let ord: Vec<[f64; 3]> = s
+                .nodes
+                .iter()
+                .filter(|n| n.id & 0x8000_0000 == 0)
+                .map(|n| n.pos.map(f64::from))
+                .collect();
+            for (i, p) in ord.iter().enumerate() {
+                let mut best = f64::INFINITY;
+                for (j, q) in ord.iter().enumerate() {
+                    if i != j && (p[1] - q[1]).abs() < 2.0 {
+                        best = best.min((p[0] - q[0]).hypot(p[2] - q[2]));
+                    }
+                }
+                at[k][0] += u64::from((best - dp).abs() <= 0.002);
+                at[k][1] += u64::from((best - dp * 1.05).abs() <= 0.002);
+            }
+        }
+    });
+    if at[0][0] == 0 {
+        return;
+    }
+    for (k, (name, least)) in [("coarse", 7000u64), ("detailed", 2000), ("vehicle", 30)]
+        .into_iter()
+        .enumerate()
+    {
+        println!(
+            "{name}: {} nodes with the nearest at DistPropagation, {} at 1.05 x it",
+            at[k][0], at[k][1]
+        );
+        assert!(at[k][0] >= least, "{name}: under {least}");
+        assert!(at[k][0] >= 10 * at[k][1].max(1), "{name}: not 10 x the control");
+    }
+}

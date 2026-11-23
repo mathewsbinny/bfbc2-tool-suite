@@ -26,12 +26,14 @@ mod export_rules;
 mod export_rules_stage;
 mod export_sp01;
 mod export_xf1;
+mod flag_texts;
 mod gameplay_tools;
 mod gameplay_xf1;
 mod journal_kill;
 mod model_group_members;
 mod project_versions;
 mod real_levels;
+mod rush_stages;
 mod vw2;
 
 /// At most this many of the binary's tests run at the same time.

@@ -473,6 +473,8 @@ impl ViewTool for GameplayTool {
             GameplayKind::Flag => "F",
             GameplayKind::SpawnPoint => "S",
             GameplayKind::Mcom(_) => "M",
+            GameplayKind::Spawner => "P",
+            GameplayKind::Stage => "R",
             GameplayKind::Carry => "",
         };
         if let Some((_, _, from)) = &self.carrying

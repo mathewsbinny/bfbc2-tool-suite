@@ -50,6 +50,7 @@ mod nav_parity;
 mod problems_panel;
 mod real_level_editing;
 mod render;
+mod rush_stage_tools;
 mod simplified_view;
 mod view_geometry;
 mod view_toggles;

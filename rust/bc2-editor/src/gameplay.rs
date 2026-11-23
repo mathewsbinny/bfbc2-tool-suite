@@ -300,6 +300,12 @@ pub enum GameplayKind {
     SpawnPoint,
     /// Adds an M-COM to Rush stage `k` (play order, from 0).
     Mcom(usize),
+    /// Adds a soldier spawner to the selected capture point (else the nearest): a copy of one of its spawners with
+    /// its spawn points, linked to it (round E4-rest).
+    Spawner,
+    /// Adds a Rush stage after the last: a copy of the last stage with its M-COMs, bases, spawns and combat areas,
+    /// its M-COMs' middle where the click is (round E4-rest, GAME-RUSH-11).
+    Stage,
     /// Carries a flag, base, spawner or M-COM with what moves with it: a click picks it up, the next puts it down.
     Carry,
 }
@@ -312,6 +318,8 @@ impl GameplayKind {
             Self::Flag => "Add flag".into(),
             Self::SpawnPoint => "Add spawn point".into(),
             Self::Mcom(k) => format!("Add M-COM to stage {}", k + 1),
+            Self::Spawner => "Add spawner".into(),
+            Self::Stage => "Add stage".into(),
             Self::Carry => "Carry".into(),
         }
     }
@@ -325,6 +333,12 @@ impl GameplayKind {
                 "Click the ground to add a spawn point to the selected spawner (or the selected or nearest flag's)"
             }
             Self::Mcom(_) => "Click the ground to add an M-COM to the stage, wired to its counters; Esc stops",
+            Self::Spawner => {
+                "Click the ground to add a soldier spawner with its spawn points to the selected (or nearest) flag or base"
+            }
+            Self::Stage => {
+                "Click the ground where the new last stage's M-COMs go: the last stage is copied there with its bases,                  spawns and combat areas, and wired after it"
+            }
             Self::Carry => {
                 "Click a flag, base, spawner or M-COM to pick it up with what moves with it, click again to put it \
                  down; Esc drops it"
@@ -441,8 +455,69 @@ pub fn place_op(
             let (op, g) = gameplay::add_mcom(w, &doc.schema, stage, p, &guid).map_err(|e| e.to_string())?;
             Ok((op, format!("Add M-COM to stage {}", k + 1), g))
         }
+        GameplayKind::Spawner => {
+            let point = point_for(doc, selection, at).ok_or("the level has no flag or base to add a spawner to")?;
+            let (op, g) = gameplay::add_spawner(w, &point, p, team, &guid).map_err(|e| e.to_string())?;
+            Ok((op, "Add spawner".into(), g))
+        }
+        GameplayKind::Stage => {
+            let ground = |x: f64, z: f64| -> Option<f64> {
+                crate::query::surface_below_except(&doc.scene, x, z, &|_| true)
+                    .filter(|h| h.entity.is_none())
+                    .map(|h| h.point[1])
+            };
+            let n = rush_stages(doc).len();
+            let s =
+                bc2_levelwrite::rushstage::add_stage(w, &doc.schema, p, &guid, &ground).map_err(|e| e.to_string())?;
+            let first = s.mcoms.first().cloned().unwrap_or_default();
+            Ok((s.op, format!("Add Rush stage {}", n + 1), first))
+        }
         GameplayKind::Carry => Err("the carry tool moves objects; it adds none".into()),
     }
+}
+
+/// The capture point a new spawner at `at` goes to: a selected one, else the nearest.
+#[must_use]
+pub fn point_for(doc: &Doc, selection: &[usize], at: crate::math::V3) -> Option<String> {
+    let w = doc.writer()?;
+    let is_point = |g: &str| {
+        w.find(g)
+            .is_some_and(|e| w.type_of(e).ends_with(".CapturePointEntityData"))
+    };
+    if let Some(g) = selection.iter().filter_map(|&k| doc.guid(k)).find(|g| is_point(g)) {
+        return Some(g.to_owned());
+    }
+    let d2 = |g: &str| {
+        w.transform(g).map_or(f64::INFINITY, |r| {
+            let p = r[3];
+            (f64::from(p[0]) - at[0]).powi(2) + (f64::from(p[2]) - at[2]).powi(2)
+        })
+    };
+    let mut points: Vec<String> =
+        w.d.of_type(b".CapturePointEntityData")
+            .into_iter()
+            .map(|e| guid(w, e))
+            .collect();
+    points.sort_by(|a, b| d2(a).total_cmp(&d2(b)));
+    points.into_iter().next()
+}
+
+/// A Rush stage taken out with what belongs to it (round E4-rest): one operation, or why not in words.
+///
+/// # Errors
+/// levelwrite refuses (not DICE's stage wiring, the level's only stage).
+pub fn remove_stage_op(doc: &Doc, k: usize) -> Result<Op, String> {
+    let w = doc.writer().ok_or("this level has no partition to edit")?;
+    bc2_levelwrite::rushstage::remove_stage(w, &doc.schema, k).map_err(|e| e.to_string())
+}
+
+/// A flag renamed (round E4-rest): one operation, or why not in words.
+///
+/// # Errors
+/// levelwrite refuses (not a capture point, an empty name, the same name).
+pub fn rename_op(doc: &Doc, point: &str, name: &str) -> Result<Op, String> {
+    let w = doc.writer().ok_or("this level has no partition to edit")?;
+    gameplay::rename_flag(w, point, name).map_err(|e| e.to_string())
 }
 
 /// Whether an object is one the gameplay tools carry and delete with its unit: a capture point, a soldier spawner,
