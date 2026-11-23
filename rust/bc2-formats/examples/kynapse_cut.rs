@@ -21,6 +21,8 @@
     clippy::cast_precision_loss,
     clippy::too_many_lines,
     clippy::iter_over_hash_type,
+    clippy::many_single_char_names,
+    clippy::doc_markdown,
     missing_docs
 )]
 
@@ -182,7 +184,10 @@ fn mesh(m: &kymesh::Mesh, cl: &str, boxmid: bool, st: &mut Stats) {
     }
     for idx in groups.values() {
         for v in [0u8, 1, 2, 4, 5, 8, 12, 13] {
-            let e = st.by.entry((format!("{cl}{}", if boxmid { "-box" } else { "" }), v)).or_default();
+            let e = st
+                .by
+                .entry((format!("{cl}{}", if boxmid { "-box" } else { "" }), v))
+                .or_default();
             if idx.len() == 1 {
                 e.0.push(inplace(&m.areas[idx[0]], v));
             } else {
@@ -203,7 +208,10 @@ fn pct(v: &[i64], q: f64) -> i64 {
 }
 
 fn main() {
-    let mut levels: Vec<_> = std::fs::read_dir(levels_dir()).expect("levels folder").flatten().collect();
+    let mut levels: Vec<_> = std::fs::read_dir(levels_dir())
+        .expect("levels folder")
+        .flatten()
+        .collect();
     levels.sort_by_key(std::fs::DirEntry::file_name);
     let mut st = Stats::default();
     let mut files = 0;

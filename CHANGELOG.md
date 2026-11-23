@@ -29,6 +29,19 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **NavKit: the graph measured over every DICE node and edge** (round NKS-deep E, spec XNAV-MEAS-1): `navparity`
+  and `navregress` pair each DICE route node one to one with its nearest NavKit node of the sector (within half a
+  propagation step: 1.675 m coarse, 0.425 m detailed) and report `nodes_paired`, `nodes_paired_candidate` (the
+  same pairs as a share of NavKit's nodes), `edges_paired`, `costs_paired` (cost within a tenth) and the
+  nearest-node distance histogram (`node_distance`), beside the old 5 cm exact-match `nodes_same` / `edges_same` /
+  `costs` (kept for one round). In the Rust core and the Python alike. The reference run was re-recorded with them.
+- **NavKit: DICE's seed list and the midline cut's size, decoded** (round NKS-deep E, spec KYG-SEED-2, KYG-AREA-5,
+  KYG-AREA-4 corrected): a sector's seeds are its spawns and its perimeter autoseeds, snapped to the grid and never
+  locked; the midline cut tests the in-place record (100 + 28 per portal segment + 20 per line + 12 per segment ...)
+  after simplification. Both built and measured, both **off** (`navwalk.DICE_SEEDS` / `Switches::dice_seeds`,
+  `navwalk.MIDLINE_CUT` / `Switches::midline_cut`): neither leaves every measure as good (`rust/BENCHMARKS.md`
+  "NKS-deep E"). DICE's detailed sectors measured again with the offline sampler at 0.2 m (still off). New probes
+  `rust/bc2-formats/examples/kynapse_cut.rs` and `kynapse_seeds.rs`. Path data NavKit builds is unchanged.
 - **Map editor: terrain sculpt and material paint** (round E5, spec TEDIT-BR-1, TEDIT-NAV-1, XVAL-TERR-2;
   TEDIT-HF-3 and TEDIT-MM-1 implemented): the Terrain workspace's brushes work - raise, lower, smooth, flatten to the
   height where the stroke began, a seeded noise and a ramp between two clicked points, each with a radius, a strength

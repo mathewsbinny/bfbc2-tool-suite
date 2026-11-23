@@ -452,7 +452,7 @@ pub fn compare_sector(r: &Sector, c: &Sector, cfg: &DiffCfg) -> Option<SectorDif
 }
 
 /// The nearest-node pairing's tolerance by the reference sector's pitch (`navdiff.PAIR_TOL`): half of KYG-NODE-7's
-/// DistPropagation, 0.425 m detailed, 1.675 m coarse, 7.675 m vehicle.
+/// `DistPropagation`, 0.425 m detailed, 1.675 m coarse, 7.675 m vehicle.
 #[must_use]
 pub fn pair_tolerance(pitch: f64) -> f64 {
     if pitch < 0.5 {
@@ -484,7 +484,7 @@ fn floor_key(x: f64) -> Option<i64> {
 /// edge, those with the cost within a tenth, and the histogram of each reference node's nearest candidate node.
 fn paired_graph(r: &Sector, c: &Sector) -> Option<Vec<(&'static str, i64)>> {
     let tol = pair_tolerance(f64::from(r.mesh.pitch));
-    let reach = tol.max(DIST_BINS[DIST_BINS.len() - 1]);
+    let reach = tol.max(DIST_BINS.last().copied().unwrap_or(4.0));
     let mut grid: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
     for (k, p) in c.graph.nodes.iter().enumerate() {
         grid.entry((floor_key(p.0 / reach)?, floor_key(p.2 / reach)?))

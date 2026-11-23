@@ -11,6 +11,8 @@
     clippy::expect_used,
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::many_single_char_names,
+    clippy::doc_markdown,
     missing_docs
 )]
 
@@ -41,7 +43,10 @@ fn line_at(v: f64, at: f64) -> bool {
 }
 
 fn main() {
-    let mut levels: Vec<_> = std::fs::read_dir(levels_dir()).expect("levels folder").flatten().collect();
+    let mut levels: Vec<_> = std::fs::read_dir(levels_dir())
+        .expect("levels folder")
+        .flatten()
+        .collect();
     levels.sort_by_key(std::fs::DirEntry::file_name);
     let mut c: BTreeMap<String, u64> = BTreeMap::new();
     let mut add = |k: String| *c.entry(k).or_default() += 1;
@@ -85,5 +90,7 @@ fn main() {
     for (k, v) in &c {
         println!("{k} {v}");
     }
-    println!("grid points of a 100 m square on the 1.6 m lines: coarse 4 x 125 of 125 x 125 = 3.2 %, detailed 4 x 500 of 500 x 500 = 0.8 %");
+    println!(
+        "grid points of a 100 m square on the 1.6 m lines: coarse 4 x 125 of 125 x 125 = 3.2 %, detailed 4 x 500 of 500 x 500 = 0.8 %"
+    );
 }

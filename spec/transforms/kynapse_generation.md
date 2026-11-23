@@ -954,7 +954,15 @@ movement detail, then bytes):
    and overridable per sector. **Round NKG2**: written (`DICE_DETAILED`) and measured, but off: 40 of DICE's 502 were
    never sampled at pitch 0.2, and with the other 462 eight means got worse (KYG-DET-1). Open: a pitch-0.2 sampling
    run over DICE's list (in game) and a coarse build as good as the detailed one in the 293 sectors only NavKit makes
-   detailed; the new-map stand-in is not changed (the level's flag and stacked-floor choice stays).
+   detailed; the new-map stand-in is not changed (the level's flag and stacked-floor choice stays). **Round NKS-deep
+   E**: measured again with all 502 sampled at 0.2 m by part C's offline sampler (the control: NavKit's own choice
+   from the same offline run): placement on, ground 98.14 -> 98.38, areas_same 5.16 -> 5.40, nodes_near 56.90 ->
+   57.05, connectivity 98.33 -> 98.36, ai_pairwise 93.84 -> 94.38, D / F recall 23.89 / 33.46 -> 28.40 / 39.96,
+   over_connection 15.70 -> 15.56, detailed areas 9,913 -> 8,261 (DICE 3,099), but portals 6.43 -> 6.16, outline
+   97.96 -> 97.57, costs and nodes_paired 23.48 -> 23.30 lower; placement off the node measures fall too (nodes_near
+   47.77 -> 46.38). The offline 0.2 m samples are themselves worse than the in-game ones for NavKit's own choice
+   (connectivity 99.06 -> 98.33, ai_pairwise 95.57 -> 93.84), so `DICE_DETAILED` stays off: a ruling for the user
+   (`rust/BENCHMARKS.md` "NKS-deep E").
 2. **Node placement** (KYG-NODE-1, KYG-NODE-2): every NavKit node on a cell centre against DICE's 4 %; a sparse border
    row against DICE's band; corner sharing 288 against 9,426. The go-to's resolver takes the first node in lookup-list
    order within 15 m that passes a straight-line test (KYRT-NODE-1, KYRT-NODE-2), so placement decides routes
@@ -969,6 +977,13 @@ movement detail, then bytes):
    coverage nodes raised `nodes_near` 47.63 -> 50.14 % but `over_connection` rose on 4 levels and ONS_MP_004's
    `connectivity` fell 0.44): the exact placement stays a named exception. **Round NKS-deep B**: the placement decoded (KYG-NODE-7,
    KYG-NODE-8) and built behind `Switches::placement`, on by the user's ruling (2026-11-23; the measures in KYG-NODE-1).
+   **Round NKS-deep E**: the seeds decoded (KYG-SEED-2: the sector's spawns and perimeter autoseeds, unlocked; no
+   border nodes) and built behind `Switches::dice_seeds` (off). On the 6 levels measured before the build of sp_005
+   passed 50 minutes, `nodes_near` 57.19 -> 58.39, `nodes_paired` 26.14 -> 27.70, `edges_paired` 5.78 -> 6.14, but
+   `connectivity` lower on 5 of 6 (mean 98.74 -> 98.60), `over_connection` 24.27 -> 24.60; the screen variants
+   (perimeter on terrain only, without the order positions, border nodes held back until the sector's own seeds
+   propagated, seeds locked) each made another measure worse (locked seeds: 4-7 x the nodes). NavKit's sectors have
+   no margins and no linking stage, so its border nodes stand in for both; the switch stays off.
 3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): the duplicates are gone (NKG1). 111,968 edges sit on non-owner
    border copies (DICE 8,039); the runtime uses them (KYRT-PATH-3), and with NavKit's single border row they are its
    only edges into the lower sector, so they move onto owner copies with the band (NKG2, KYG-NODE-2: round NKG1
@@ -981,7 +996,11 @@ movement detail, then bytes):
    5.2 %). The cut's trigger is still open (size, tile, hole, crossing count and what lies between the crossings
    excluded); NKG2 can take the off-grid portals (KYG-AREA-1's step boundaries DICE does not link) first. **Round
    NKG2**: not changed (KYG-AREA-2: the trigger is undecoded, and the off-grid portals carry routes until NavKit's
-   area and link rules agree); both wait for the raw-sample fit.
+   area and link rules agree); both wait for the raw-sample fit. **Round NKS-deep E**: the trigger's size decoded
+   (KYG-AREA-5) and the cut built behind `Switches::midline_cut` (off): NavKit's records are far larger than DICE's
+   (detailed areas up to 48 KB against DICE's 14.7 KB), so the test fires on hundreds of areas a level: areas
+   14,267 -> 27,400 (DICE 10,960), `areas_same` unchanged, `ai_coverage` 99.16 -> 97.27, `ai_pairwise` 95.57 ->
+   92.99. The cut waits for NavKit's own records to be DICE-sized (its outlines and portals).
 5. **The rectangle** (KYG-RECT-1): a borrowed bound on DICE levels, none on new maps. **NKG2's target**: the rule,
    verified on the 13 campaign levels: the box of the soldier and vehicle spawns grown by 25 m, sample points kept up
    to about 24.5 m beyond the outermost spawn (infantry; about 22.2 m on vehicle files), the same on new maps. It
@@ -1016,11 +1035,12 @@ went on with `rust/bc2-formats/examples/kynapse_rules.rs` (DICE's files alone) a
 a 1.2-spanner), which are one-way (KYG-EDGE-4, the border convention), and the rectangle (KYG-RECT-1, the spawns' box
 grown by 25 m, verified). Still open, with what the fits ruled out:
 
-- The midline cut (KYG-AREA-2): its trigger decoded (KYG-AREA-4, an area's built record at MaxLocalMapBinarySize);
-  open: the size of the unsimplified record, to be fitted against DICE's cut groups (part C's 0.2 m samples), before
-  NavKit can cut.
-- Node placement (KYG-NODE-1): decoded (KYG-NODE-7, KYG-NODE-8); open: DICE's exact seed list per sector and its mesh
-  queries, which NavKit stands in for (border nodes and order positions; its sample grid).
+- The midline cut (KYG-AREA-2): its trigger decoded (KYG-AREA-4) and its size (KYG-AREA-5, the in-place record
+  after simplification); open: the in-place chains' simplification exactly (0x011AA3A0 / 0x011AC9E0), so the size can
+  be computed from samples rather than from the stored counts, and NavKit's records made DICE-sized before it cuts.
+- Node placement (KYG-NODE-1): decoded (KYG-NODE-7, KYG-NODE-8) and its seeds (KYG-SEED-2); open: the sector maps'
+  margins and the linking stage that joins sectors' graphs (NavKit's border nodes stand in), the autoseed file's
+  skip flag and merge order, and the mesh queries (NavKit's sample grid).
 - The remaining 37 % of coarse pairs without an edge (KYG-EDGE-3): answered by KYG-EDGE-5 (the removal pass over the
   simplified graph).
 - The vehicle D / F rule (KYG-DF-2): needs a vehicle-shaped sample run in game (none on disk); a playtest item.

@@ -218,6 +218,13 @@ every other measure unchanged; sp_02's `df_d_recall` 21.86 -> 21.53 % is the nam
 (rust/BENCHMARKS.md "NKG3"). Named exception added by NKG3: DICE's slope measure within 0.01 of
 its threshold (the height field's quantisation hides it, KYG-DF-1).
 
+Measured 2026-11-23 after round NKS-deep E (the same levels, means; B's placement on, the build unchanged): the
+graph over every DICE node and edge (XNAV-MEAS-1) `nodes_paired` 23.30 %, `nodes_paired_candidate` 18.82 %,
+`edges_paired` 4.78 %, `costs_paired` 1.70 %; each DICE node's nearest NavKit node within 0.5 m 12.6 %, within 2 m
+51.8 %, none within 4 m 26.3 %. Beside them for this round the old `nodes_same` 0.63 %, `edges_same` 0.01 %, `costs`
+84.92 % (of the few edges matched within 5 cm). DICE's seed list (KYG-SEED-2), the midline cut (KYG-AREA-4 / 5) and
+DICE's detailed sectors from the offline 0.2 m samples were measured and left off (rust/BENCHMARKS.md "NKS-deep E").
+
 ## Open questions
 
 - The levels where NavKit's coverage still falls short of DICE's (KYNAPSE_SPEC.md and the parity runs); the goal is

@@ -391,6 +391,10 @@ fn own_nodes(
 
 /// DICE's placement ([`propagate::place`]): the border nodes as locked seeds, the propagated, simplified nodes after
 /// them, and the edges the over-connection pass leaves.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the seed lists in DICE's order, one after the other"
+)]
 fn place_dice(
     level: &Level,
     areas: &[Vec<Cell>],
@@ -490,8 +494,8 @@ fn place_dice(
                     continue;
                 }
                 for (side, on, along) in [(0, i == 2, j), (1, i == last, j), (2, j == 2, i), (3, j == last, i)] {
-                    if on {
-                        sides[side].push((along, i64::try_from(k).unwrap_or(i64::MAX), k));
+                    if on && let Some(list) = sides.get_mut(side) {
+                        list.push((along, i64::try_from(k).unwrap_or(i64::MAX), k));
                     }
                 }
             }

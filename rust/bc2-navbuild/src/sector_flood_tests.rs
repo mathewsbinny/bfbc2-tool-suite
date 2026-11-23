@@ -236,7 +236,12 @@ fn split_box_deals_an_area_into_four_on_its_box_midlines() {
     let pieces = l.split_box(&cells, 0, 0, Rule::Slope);
     assert_eq!(pieces.len(), 4);
     assert!(pieces.iter().all(|p| p.len() == 25));
-    let lo = |p: &Vec<Cell>| (p.iter().map(|c| c.0).min().unwrap(), p.iter().map(|c| c.1).min().unwrap());
+    let lo = |p: &Vec<Cell>| {
+        (
+            p.iter().map(|c| c.0).min().unwrap(),
+            p.iter().map(|c| c.1).min().unwrap(),
+        )
+    };
     let mut starts: Vec<(i64, i64)> = pieces.iter().map(lo).collect();
     starts.sort_unstable();
     assert_eq!(starts, [(0, 0), (0, 5), (5, 0), (5, 5)]);

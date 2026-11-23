@@ -251,7 +251,7 @@ pub struct Switches {
     pub edge_sector_tiles: bool,
     /// `MAX_AREA` when `BISECT_AREAS`, else `None`.
     pub max_area: Option<i64>,
-    /// KYG-AREA-4's midline cut ([`stage_cut`]): an area whose record reaches MaxLocalMapBinarySize split on its
+    /// KYG-AREA-4's midline cut ([`stage_cut`]): an area whose record reaches `MaxLocalMapBinarySize` split on its
     /// cells' box midlines.
     pub midline_cut: bool,
     /// DICE's seed list (KYG-SEED-2) in the placement: the sector's soldier spawns and perimeter cells, unlocked,
@@ -455,7 +455,7 @@ pub struct StageArgs {
 /// An area of pass 1: (sector, tile, its least cell (i, j, surface)).
 pub type CutKey = ((i64, i64), (i64, i64), (i64, i64, usize));
 
-/// MaxLocalMapBinarySize: Kynapse's default (DICE does not set it), KYG-AREA-4.
+/// `MaxLocalMapBinarySize`: Kynapse's default (DICE does not set it), KYG-AREA-4.
 pub const MAX_LOCAL_MAP_BINARY_SIZE: i64 = 8192;
 
 /// An area's in-place record size as the map builder's size test counts it (KYG-AREA-4: 0x0134EDA0 run for its size
@@ -466,7 +466,10 @@ pub fn inplace_size(a: &kymesh::Area) -> i64 {
     let chains = |l: &[Vec<kymesh::Vec3>]| -> (i64, i64) {
         let n = l.iter().filter(|c| c.len() >= 2).count();
         let segs: usize = l.iter().map(|c| c.len().saturating_sub(1)).sum();
-        (i64::try_from(n).unwrap_or(i64::MAX), i64::try_from(segs).unwrap_or(i64::MAX))
+        (
+            i64::try_from(n).unwrap_or(i64::MAX),
+            i64::try_from(segs).unwrap_or(i64::MAX),
+        )
     };
     let (nd, sd) = chains(&a.d_lines);
     let (ne, se) = chains(&a.outline);

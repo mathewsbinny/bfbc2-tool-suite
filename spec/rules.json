@@ -26113,6 +26113,22 @@
    ]
   },
   {
+   "id": "KYG-SEED-2",
+   "title": "A sector's seed list: its spawns and its perimeter autoseeds, snapped, dropped and never locked",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the parser 0x011483D0 (`SeedPoint` pushed at 0x011485A1 into +0x41C; `PropagationSeedPoint` +0x42C, exploration only; `SeedGraph` +0x44C loaded by 0x010A7170; AllowSimplification +0x45C, RemoveOutVertices +0x46C, ConnectSlightlyOutsideSeeds +0x47C; BC2's override 0x00EFF710); the sectors maker 0x0109B260 (`kybcsectorsmakerstep.cpp`: the box test inclusive on x, y, z; a seed graph emitted when any node lies in the box in x and z); BC2's step creator 0x00F194F0 (the `<SeedPoints>` block from its job, the list 0x00F07590 boxes by 25 m, 0x014309B8); the autoseed merge in `kybcmapbuilderstep.cpp` 0x01066BF7-0x01066D18 (\"Could not read autoseed file [%s"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep E, `cargo run --release -p bc2-formats --example kynapse_seeds` over the 35 files: ordinary nodes on the sample grid (5 mm) on the lines two pitches inside a 100 m square / elsewhere: detailed 584 (+ 9 on the 1.6 m lines) / 1,017 of 147,130; coarse 279 / 7,283 of 197,599; vehicle 0 / 84"
+    }
+   ]
+  },
+  {
    "id": "KYG-RECT-1",
    "title": "Ground stops at the spawns' box grown by 25 m",
    "file": "spec/transforms/kynapse_generation.md",
@@ -26233,6 +26249,22 @@
     {
      "kind": "data",
      "ref": "round NKS-rest: stored records of cut groups 1-32 KB, uncut areas 0-14 KB; cuts on the tile midline 16,159 coarse B portals"
+    }
+   ]
+  },
+  {
+   "id": "KYG-AREA-5",
+   "title": "The size test counts the in-place record: 100 + 28 per portal segment + 20 per line + 12 per segment",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the size call in 0x011AD550 (0x011AD634: the in-place mesh +0x5B4, `FUN_0134EDA0(0, sizes)`); the serialiser 0x0134EDA0 (`sizes[k"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep E, `cargo run --release -p bc2-formats --example kynapse_cut` over the 35 files (C portals not counted; groups by the union's box midline): coarse uncut 115,713 (max 14,428, p99 8,292, 1,211 at or over 8,192), cut groups 872 (p10 9,524, p50 15,184, 65 under 8,192); grouped by the tile midline instead (KYG-AREA-2's groups) 311 of 1,064 coarse cut groups stay under 8,192; detailed uncut 50,624 (p99 7,716, 379 over), box-midline groups 227 (p50 2,536, 199 under); vehicle uncut 15,352 (max 8,396, 2 over), groups 1,022 (p50 1,540, 1,009 under): in the detailed and vehicle files the straight portals on a union's box midline are mostly not size cuts"
     }
    ]
   },
@@ -26813,6 +26845,26 @@
     {
      "kind": "data",
      "ref": "the 15 regression levels' 30 walkability stages give the retired Python's run, kept flags, gradients and stair flags bit for bit, and the same path data (rust/parity_nk4_walk.py, round NK4)"
+    }
+   ]
+  },
+  {
+   "id": "XNAV-MEAS-1",
+   "title": "The graph measured over every DICE node and edge by nearest-node pairing",
+   "file": "spec/transforms/navkit.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-auto-navkit/tools/navdiff.py:288-353"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/measures.rs:454-555"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-auto-navkit/tests/test_navtools_native.py::quick"
     }
    ]
   },

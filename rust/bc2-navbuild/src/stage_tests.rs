@@ -761,7 +761,10 @@ fn inplace_size_counts_the_in_place_record() {
         ],
         border_portals: Vec::new(),
         d_lines: vec![vec![p(0.0, 0.0), p(1.0, 0.0)]],
-        outline: vec![vec![p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)], vec![p(1.0, 1.0)]],
+        outline: vec![
+            vec![p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
+            vec![p(1.0, 1.0)],
+        ],
         cells: vec![kymesh::Cell {
             direction: p(1.0, 0.0),
             points: vec![p(0.0, 0.0), p(0.8, 0.0), p(0.8, 0.8), p(0.0, 0.8), p(0.0, 0.0)],
@@ -771,7 +774,6 @@ fn inplace_size_counts_the_in_place_record() {
     };
     // portals 3 x 28; chains: D 1 (1 segment), E 1 counted (3 segments; the one-point line is no chain); F 1 (4)
     assert_eq!(inplace_size(&a), 100 + 84 + 20 * 2 + 12 * 4 + 32 + 12 * 4);
-    assert!(MAX_LOCAL_MAP_BINARY_SIZE == 8192);
 }
 
 #[test]
@@ -788,8 +790,15 @@ fn the_midline_cut_leaves_no_area_at_the_size_limit() {
         (st, log.0)
     };
     let (off, _) = run(&Switches::default());
-    let plain = stage(flat(&cfg), &args, &cfg, &Switches::default(), &mut BuildStats::default(), &mut Lines(Vec::new()))
-        .unwrap();
+    let plain = stage(
+        flat(&cfg),
+        &args,
+        &cfg,
+        &Switches::default(),
+        &mut BuildStats::default(),
+        &mut Lines(Vec::new()),
+    )
+    .unwrap();
     assert_eq!(off.graphs.len(), plain.graphs.len());
     assert!(off.graphs.iter().zip(&plain.graphs).all(|(a, b)| a.mesh == b.mesh));
     let sw = Switches {
@@ -798,6 +807,10 @@ fn the_midline_cut_leaves_no_area_at_the_size_limit() {
     };
     let (on, log) = run(&sw);
     assert!(log.iter().any(|l| l.starts_with("midline cuts (KYG-AREA-4): ")));
-    let big = on.graphs.iter().flat_map(|g| &g.mesh.areas).filter(|a| inplace_size(a) >= MAX_LOCAL_MAP_BINARY_SIZE);
+    let big = on
+        .graphs
+        .iter()
+        .flat_map(|g| &g.mesh.areas)
+        .filter(|a| inplace_size(a) >= MAX_LOCAL_MAP_BINARY_SIZE);
     assert_eq!(big.count(), 0);
 }
