@@ -2,7 +2,8 @@
 "meta": {
 "dir_len": 64,
 "recorded": "2026-11-18",
-"from": "bfbc2-fbrb-tool\\FbrbTool.exe (FbrbTool.cs at f10522d); .NET 4 GZipStream (the gzip probe)"
+"from": "bfbc2-fbrb-tool\\FbrbTool.exe (FbrbTool.cs at f10522d); .NET 4 GZipStream (the gzip probe)",
+"rerecorded": "2026-11-22, suite round SPV1-fix: the pack records of zipped bundles with an empty payload (markers only, or no entries) end with DICE's 20-byte empty gzip member (FBRB-DEL-2; DICE's bytes win over FbrbTool's, which wrote none); each is FbrbTool's recorded bundle + those 20 bytes, nothing else changed"
 },
 "cases": {
 "unpack zipped=0": [0, "unpacked 5 entries (5328 bytes) to <dir>\\u; 2 of them *deleted* markers, listed in fbrb.manifest only\n", "", {"b0.fbrb": "b73cc36cf216ef0b885d09c1968495146b6d2c91", "b1.fbrb": "652f61ab45defa6d0c953413110bbb172cf47315", "u\\fbrb.manifest": "5592732d4636c6e41cf7874c84015e7e20de9306", "u\\Levels\\Test\\Empty.txt": "da39a3ee5e6b4b0d3255bfef95601890afd80709", "u\\Levels\\Test\\Test.dbx": "a7b55b2c838421edf22e2a86104f7e6777ff95ae", "u\\Terrains\\Test\\Test.Heightfield-000.res": "d647a462d5de1caa4d73a5e6b465ab5124c1cddc"}],
@@ -157,11 +158,11 @@
 "pack: UTF-16 manifest": [0, "packed 1 entries (5 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "5e08bfef21120152024fa3bdba3af7b83cd68807", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "8e1e57355aafa09302a7515bb8f0c1c52556715c", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: a non-ASCII name and type": [0, "packed 1 entries (5 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "8dc0d28c074860a0110a8d8d3d36e474637f5926", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "8993d90affbabbc1d6a8b762666d47c95fdb1616", "f\\ä.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: a name outside the BMP": [0, "packed 1 entries (5 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "164b5a5b1767bf4241a9641bbb5693a4c7d2b0a7", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "2b66966f11d8ba0dc1b59dddaec49f4ca77d8da3", "f\\😀.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
-"pack: a marker with an empty file": [0, "packed 1 entries (0 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "52abe15dafb23380dd3cce1b7305f567927bbbc6", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "455421ae13afc684120a072879aa93150a180532", "f\\gone": "da39a3ee5e6b4b0d3255bfef95601890afd80709", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
+"pack: a marker with an empty file": [0, "packed 1 entries (0 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "f1725a6f3cd52185c24576faf2c8ee3cd1739390", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "455421ae13afc684120a072879aa93150a180532", "f\\gone": "da39a3ee5e6b4b0d3255bfef95601890afd80709", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: a marker with a non-empty file": [0, "packed 1 entries (4 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "a77020c22a069dd94cc9e8a81dc09765c8631241", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "455421ae13afc684120a072879aa93150a180532", "f\\gone": "a17c9aaa61e80a1bf71d0d850af4e5baa9800bbd", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: no manifest": [1, "", "error: A file the tool needs is missing: Could not find file '<dir>\\f\\fbrb.manifest'.\n  what to do: Check the path.\n  details: <log>\n", {"f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: an empty manifest": [1, "", "error: The file is not the kind the tool reads, or it is damaged: Index was outside the bounds of the array.\n  what to do: Check it is the right file; unpack it again from the game if it is damaged.\n  details: <log>\n", {"f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "da39a3ee5e6b4b0d3255bfef95601890afd80709", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
-"pack: only the first line": [0, "packed 0 entries (0 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "977eaa693bb3e929430a72c85a2acc39055b5374", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "95d0b3d18332ccabb300aa820ad82eb675dd53ac", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
+"pack: only the first line": [0, "packed 0 entries (0 bytes) into <dir>\\o.fbrb\n", "", {"o.fbrb": "c99b0825ee96b326ea6354458ca5e5d979972e75", "f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "95d0b3d18332ccabb300aa820ad82eb675dd53ac", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: one field": [1, "", "error: The file is not the kind the tool reads, or it is damaged: Index was outside the bounds of the array.\n  what to do: Check it is the right file; unpack it again from the game if it is damaged.\n  details: <log>\n", {"f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "ce2806665385823d6f9e6d6d0728a46efd5219dc", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: two fields, a missing file": [1, "", "error: A file the tool needs is missing: Could not find file '<dir>\\f\\nofile'.\n  what to do: Check the path.\n  details: <log>\n", {"f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "d1fb59a0123fc164da740c5ff4419582544f2d1d", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
 "pack: three fields": [1, "", "error: The file is not the kind the tool reads, or it is damaged: Index was outside the bounds of the array.\n  what to do: Check it is the right file; unpack it again from the game if it is damaged.\n  details: <log>\n", {"f\\a.res": "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d", "f\\fbrb.manifest": "ef0efaf99be913736879e7a39c52fa2aaa01b7e3", "f\\b\\c.res": "50e483690ec481f4af7f6fb524b2b99eb1716565"}],
@@ -3922,8 +3923,8 @@
 "zipped": "9a70d029c121a94bb79c275b5cecd3c7a6d8a35c",
 "stored": "9a83cfbc5943abdc7b37f068b00eff91b9639a6f",
 "zipped, CR LF and a byte-order mark": "9a70d029c121a94bb79c275b5cecd3c7a6d8a35c",
-"empty payload, zipped": "e084b1c3c022ce0d1b4aed66f6e1c6e272358d15",
-"no entries, zipped": "977eaa693bb3e929430a72c85a2acc39055b5374",
+"empty payload, zipped": "b922161e2f1186ba4646e1b59477799d10fc29f1",
+"no entries, zipped": "c99b0825ee96b326ea6354458ca5e5d979972e75",
 "no entries, stored": "9ee9aed8736e6e239bafd56b40527e8305988a3a",
 "align4096 hdr=4096 plen=size2 size2=minus64": "8ccf41d1a34ac7b54769bc001a26615ba7e1a841",
 "align4096 hdr=4 plen=size2 size2=minus64": "49f7f72285334467b1c6c5395d7b17fd78a31913",
