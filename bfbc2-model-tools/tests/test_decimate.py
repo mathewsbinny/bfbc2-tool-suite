@@ -175,7 +175,7 @@ def shapes_parity():
         for ref in (False, True):
             shapes._facing = shapes._facing_reference if ref else saved
             r = rifle()
-            geos.append(shapes.Geo(*r[:4], r[4]))
+            geos.append(shapes.Geo(r[0], r[1], r[2], r[3], r[4]))
     finally:
         shapes._facing = saved
     if digest([geos[0].pos, geos[0].tris]) != digest([geos[1].pos, geos[1].tris]):

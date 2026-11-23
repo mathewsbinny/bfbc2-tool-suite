@@ -69,11 +69,18 @@ fn tree_text(r: Result<CullTree, bc2_levelwrite::culltool::CullError>) -> String
     }
 }
 
-fn same_answers(p: &str) {
-    // round PR1b-2-rest2: the document (the suite's one, EditDbx) writes back what it read, byte for byte
+/// Round PR1b-2-rest2: the document (the suite's one, `EditDbx`) writes back what it read, byte for byte (the game's
+/// and OPFOR's files: varints in their shortest form; a damaged copy's longer varint is written shortest, as
+/// `Doc.tobytes` wrote it).
+fn writes_back(p: &str) {
     if let Ok(d) = read_doc(p) {
-        assert!(d.write().unwrap() == std::fs::read(p).unwrap(), "document {p}");
+        let (got, want) = (d.write().unwrap(), std::fs::read(p).unwrap());
+        let at = got.iter().zip(&want).position(|(a, b)| a != b);
+        assert!(got == want, "document {p}: {} / {} bytes, first difference {at:?}", got.len(), want.len());
     }
+}
+
+fn same_answers(p: &str) {
     assert_eq!(level_whole(p), level_streamed(p), "level {p}");
     assert_eq!(
         tree_text(CullTree::read(p)),
@@ -123,6 +130,7 @@ fn streamed_readers_answer_as_the_whole_document() {
     for (i, f) in folders.iter().filter(|f| f.is_dir()).enumerate() {
         let lv = level_partitions(f.to_str().unwrap()).unwrap();
         for p in &lv {
+            writes_back(p);
             same_answers(p);
             levels += 1;
         }
@@ -145,6 +153,7 @@ fn streamed_readers_answer_as_the_whole_document() {
         others.sort();
         others.dedup();
         for p in &others {
+            writes_back(p);
             same_answers(p);
             trees += 1;
         }
