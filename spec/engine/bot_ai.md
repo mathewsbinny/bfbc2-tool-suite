@@ -20,7 +20,10 @@ templates of `sp_common`), quoted as structure and ranges. Round AIS-rest (2026-
 the same scratch Ghidra copy and capstone / pefile scans of the executable (six probe runs, no game launch): the AI
 body's interfaces and who writes them (BOT-CTL-6 to BOT-CTL-8), bots as scored and named players (BOT-SCO-1 to
 BOT-SCO-4), the mode entities' run-time state (BOT-GS-3, BOT-GS-4), the vehicle controls (BOT-VEH-5), the session's
-AI difficulty (BOT-DIF-4) and the order runtime (AIO-RT-1).
+AI difficulty (BOT-DIF-4) and the order runtime (AIO-RT-1). Round SPG2-rest3 (2026-11-22) read the mode entities
+the same way (the corrected classes of BOT-GS-4, tickets BOT-GS-6, the death and revive messages BOT-GS-7, Rush lives
+and stages BOT-GS-8, the M-COM's interaction BOT-GS-9) with a game-tier probe of DICE's event names against the
+executable's hashes (`spec/probes/modes.py`), and found the bot object (BOT-RT-6).
 
 ## 1. The runtime
 
@@ -105,11 +108,35 @@ squad, whose +0x20 is the squad id; +0x1C set for the squad leader), +0x98 the n
 current order and goal state: +0x60 / +0x88 the target, weak pointers) and +0x9C (the behaviour template: +0x4C
 `ReloadBelowPercent`, +0x70 a probability BehaviourFire tests against a random number). Its Kynapse side is a bot entity
 named `Entity_<soldier>` with a brain, created in 0xF27900 from the Kynapse bot description and kept at +0x1C of the
-AI's Kynapse body. The bot's class and constructor are not identified: 0xEEF450 has no caller, no jump and no pointer to
-it in the image (a debug function left unreferenced), and 0xF27900 is reached only through the Kynapse world's table
-(0x014A8DCC).
+AI's Kynapse body. 0xEEF450 has no caller, no jump and no pointer to it in the image (a debug function left
+unreferenced), and 0xF27900 is reached only through the Kynapse world's table (0x014A8DCC).
+
+The bot itself (found by round SPG2-rest3 from its constructor's stores) is a plain 0xF4-byte structure with no vtable,
+constructor 0xE6C0B0(index). The bot manager (0xB24 bytes, global `*(0x01890324)`, made by 0xE6C690 from 0xED7C20,
+constructor 0xE6C480) makes all of them up front: one per slot up to the count the AI settings holder's vtable +4
+gives (`*(0x018903EC)`, BOT-RT-1), each kept as a 12-byte entry {bot, 0, flags} of a vector; +0x14 is the slot index.
+The constructor zeroes the weak pointers and allocates the bot's parts:
+
+| Offset | Size | Constructor | What |
+|---|---|---|---|
+| +0x00 | 0xC | 0xE4BB70 | |
+| +0x6C | 0x1430 | 0xE8E3E0 (+4 = the bot) | the senses: registers the five sensing tasks 0xE8C370, 0xE8CAA0, 0xE8CE80 (`testVisionLines`, BOT-PER-4), 0xE8D130, 0xE8D680, each with weight 1.0, through 0xE87BB0; a 0x1000-byte record block at +0xB0 - +0x10B0 (the target records, inferred) |
+| +0x74 / +0x70 | 0x1C | 0xE7F430, vtable 0x014A45D8 | |
+| +0x7C / +0x78 | 4 | vtable 0x014A4618 | |
+| +0x80 | 0x80 | 0xE8A0F0 | |
+| +0x84 | 0x160 | 0xE8DFE0 | the order and goal state (above) |
+| +0x88 | 0xB0 | 0xE85650 | the readiness holder (above) |
+| +0x94 | 0x40 | 0xE6FD30 | |
+| +0xA0 | 0x38 | 0xE82920 | |
+| +0xA4 | 0x50 | 0xE855C0 | |
+| +0xA8 / +0xAC | 0x48 / 0x58 | 0xE8B060 / 0xE8B260 | |
+| +0xB0 | 0x48 | 0xE81800 | |
+
+The proxy (+0x8C), squad member (+0x90), name (+0x98) and template (+0x9C) are set when a bot takes a soldier, not
+here. The other parts' roles are not named.
 
 [exe: BFBC2Game.exe bot debug print 0xEEF450 (strings " Bot id: " 0x014A7E64, "Squad: ", " - Squad leader" 0x014A7E50, "Readiness: " 0x014A7E44, "Position: "); Kynapse bot entity 0xF27900 ("Entity_", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)]
+[exe: BFBC2Game.exe bot constructor 0xE6C0B0 (`param_1[5] = index`; allocations 0xB0 / 0x160 / 0x80 / 0x1C / 4 / 0x1430 / 0x38 / 0x50 / 0x48 / 0x48 / 0x58 / 0xC / 0x40 into +0x88 / +0x84 / +0x80 / +0x74 / +0x7C / +0x6C / +0xA0 / +0xA4 / +0xB0 / +0xA8 / +0xAC / +0x00 / +0x94; +0x8C, +0x98, +0x9C zeroed); callers 0xE6C480 (`push 0xF4` per slot, count from `[0x018903EC]` vtable +4) and 0xE6C6C0 (from 0xF10A30); 0xE6C690 (`push 0xB24`, global 0x01890324) from 0xED7C20; senses 0xE8E3E0 (+4 = bot; 0xE87BB0 x 5 with 1.0)]
 [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:202-203]
 
 ### BOT-RT-7: Goals, behaviours, plans and squad behaviours
@@ -741,15 +768,28 @@ decided where the area's player list is built: 0x724060, which has no AI test ei
 
 Status: **observed** · Variants: PC
 
-The other mode entities have server classes found by their name functions: `ServerTicketCounterEntity` (constructor
-0x66E190, vtable 0x0141FDF0, "SvTicketCounter" 0x66A250; it subscribes to four event hashes 0x87ADD7E8, 0xBB06A967,
-0x7F3E7106, 0xD0488C09 at construction and keeps state at +0x88 to +0x92), `ServerLifeCounterEntity` (0x67A030,
-vtable 0x01420320, "SvLifeCounter" 0x6695D0), `ServerMissionObjectiveEntity` (0x6740D0, vtable 0x0141FCD8,
-"SvMissionObjective" 0x669AF0; +0x84 a copy of its data's +0x80; it registers itself on server channel 0x10). Which
-field holds the ticket count, the Rush stage or an M-COM's armed and destroyed state was not read; the counters'
-events (GAME-RUSH-9) remain the way to follow them. A bot module can find every one of these objects by its vtable.
+The other mode entities have server classes, told apart by the name function in a vtable each constructor writes
+(corrected by round SPG2-rest3: round AIS-rest read the name functions of sub-object vtables and put the wrong
+constructors under two of the names):
 
-[exe: BFBC2Game.exe constructors 0x66E190 (0x68FB90 x 4 with the hashes), 0x67A030, 0x6740D0 (server object `+0x18` vtable +8 with 0x10); name functions 0x66A250, 0x6695D0, 0x669AF0 (vtable slots at 0x0141FEF8, 0x0142042C, 0x0141FDC4)]
+| Class | Constructor | Vtable (sub-objects) | Name | Data |
+|---|---|---|---|---|
+| `ServerTicketCounterEntity` | 0x66E880 | 0x0141FF18 (+0x2C 0x0141FEF0; listener +0x7C 0x0141FED0) | "SvTicketCounter" | `TicketCounterEntityData` |
+| `ServerLifeCounterEntity` | 0x67A4B0 | 0x01420450 (+0x2C 0x01420448, +0x30 0x01420424, +0x74 0x01420410; listener +0x80 0x01420404) | "SvLifeCounter" | `LifeCounterEntityData` |
+| `ServerMissionObjectiveEntity` | 0x66E190 | 0x0141FDF0 (+0x2C 0x0141FDE0, +0x38 0x0141FDBC, +0x7C 0x0141FDA8) | "SvMissionObjective" | `MissionObjectiveEntityData` |
+| `ServerKillCounterEntity` | 0x6740D0 | 0x0141FCD8 (+0x2C 0x0141FCB0; listener +0x7C 0x0141FC90) | "SvKillCounter" | `KillCounterEntityData` |
+
+The vtable 0x01420320 (constructor 0x67A030) given for the life counter before is a cutscene object's (its +0x58
+sub-object is named "SvCutsceneObjectEntityBase"). Each keeps its data at +0xC. The mission objective takes the input
+events `ShowObjective` and `Success` and raises `OnShowObjective` / `OnSuccess` (the four hashes its constructor
+registers); the kill counter counts its team's kills of the other team (death messages, BOT-GS-7) up to its copy of
+`MaxKillCount` (+0x84) and a revive takes one back; every entity's base event handler 0xFFE580 maps `Enable` and
+`Disable` to its vtable +0x7C / +0x80. The ticket counter's state: BOT-GS-6; the life counter's (Rush lives and
+bases): BOT-GS-8. A bot module can find every one of these objects by its vtable.
+
+[exe: BFBC2Game.exe constructors 0x66E880 (vtables 0x66E8C1 - 0x66E8D4; channels 0x11 / 0x10 subscribed at 0x66E8F1 / 0x66E903), 0x67A4B0 (vtables 0x67A4F9 - 0x67A513; channels 0x16 / 0x10), 0x66E190 (0x68FB90 x 4: 0x87ADD7E8, 0xBB06A967, 0x7F3E7106, 0xD0488C09), 0x6740D0 (+0x84 = data +0x80; listener 0x67D680: death (0x10, 0x11) of the other team by its team -> 0x67D620(1), revive (0x10, 0x21) -> 0x67D620(-1), clamped to 0 .. +0x84); name functions 0x66A250 / 0x6695D0 / 0x669AF0 at 0x0141FEF8 / 0x0142042C / 0x0141FDC4 (slot 2 of 0x0141FEF0, 0x01420424, 0x0141FDBC), "SvKillCounter" at slot 2 of 0x0141FCB0; 0x67A030 writes 0x01420320 and +0x58 0x014202E8; 0xFFE580 (0x8BA423E4 -> +0x7C, 0xF90216B1 -> +0x80); field descriptors KillCounterEntityData `MaxKillCount` +0x80, `TeamId` +0x84, MissionObjectiveEntityData `ObjectiveType` +0xF0]
+[data: spec/probes/modes.py, 2026-11-22: the hashes are `OnShowObjective`, `OnSuccess`, `Success`, `ShowObjective`, `Enable`, `Disable` (each found in the function named); DICE's mission objectives' connections: in `ShowObjective` 200, `Success` 97, `Disable` 19, `Enable` 1, out `OnShowObjective` 53, `OnSuccess` 74; kill counters out `OnMaxKillCount` 300]
+[test: core/tests/test_spec_probes.py::modes]
 
 ### BOT-GS-5: Bots in a capture point's area count like humans
 
@@ -764,6 +804,130 @@ count of the progress's team (+0x7C) and the largest other team with its count. 
 capture rules need no bot-specific patch. A playtest with bots alone on a flag confirms it.
 
 [exe: BFBC2Game.exe 0x724060 (player list 0x532270; soldier vtable +0x30, its +0x2C component's vtable +8 > 0; team +0xA8; 0x6CA7B0 with data +0x11C / +0x138 or 0x6E54C0; per-team counts through 0x7216E0; outputs the +0x7C team's count, the best other team and its count); no +0xD84 operand in 0x724060 - 0x72425F; caller 0x726B60]
+
+### BOT-GS-6: The ticket counter's state: a death costs one ticket, whoever died
+
+Status: **observed** · Variants: PC
+
+`ServerTicketCounterEntity` (BOT-GS-4) keeps its team's tickets as a float at +0x80. Its fields:
+
+| Offset | What |
+|---|---|
+| +0x80 | the tickets: `InitialTicketCount` (data +0x94) at the start and at a round reset (0x66EA50) |
+| +0x84 | its team's point value: set from the capture points on the first update, then moved by the capture messages |
+| +0x8C | the state: 0 counting, 1 reached zero, 2 won |
+| +0x94 | the initial tickets (a float copy of data +0x94) |
+| +0x98 | a bleed factor, 1.0 from the constructor |
+
+Its listener (+0x7C, handler 0x684050) is subscribed to server channels 0x10 and 0x11, and while the state is 0:
+
+- **a death** (channel 0x10, message 0x11, BOT-GS-7) whose victim's team (+0xA8) is the counter's `TeamId` (data +0xA0)
+  takes 1 ticket (0x681AD0(1.0));
+- **a revive** (0x10, message 0x21) of a player on its team gives 1 ticket back (+0x80 + 1.0, through 0x681A70);
+- **a capture** (0x11, message 0x17, the capture point as sender, BOT-GS-3) of a point whose progress belongs to its
+  team adds the point's area value for that team to +0x84 (0x711CD0: `AreaValueTeam1` / `AreaValueTeam2`, data +0x114 /
+  +0x118, or the point's per-team table), and **a loss** (0x11, 0x18) of a point it owned (+0x94) subtracts it.
+
+Each frame the update 0x686830 runs the bleed 0x684150(dt) while the state is 0 and tickets are left. It counts the
+capture points (0x6751D0: all of them, those fully held by another team - captured flag set, progress 100 - and the
+neutral ones):
+
+- every point neutral and no live soldier anywhere (0x675270): `TicketLossWhenLostAll` (data +0x9C) x +0x98 x dt;
+- every point held by the other side: `TicketLossWhenLostAllBases` (data +0xA8) x +0x98 x dt;
+- otherwise, with the sum of every ticket counter's +0x84 (0x675330): no loss when `HaltTicketLossOnEqualPointCount`
+  (data +0xAC) is set and the two teams' values are equal, or when the sum minus `TicketLossStart` (data +0x98) minus its
+  own value is under 1; else, with that margin m and the per-minute rate r (`TicketLossPerMin`, data +0xA4, or the
+  rate of the `TicketPercentages` entry in force, 0x680620): (m x 0.01 + 1) x r / 60 x +0x98 x dt.
+
+Taking tickets (0x681AD0) does nothing for an amount of 0 or less or at 0 tickets; setting them (0x681A70) clamps at
+0 and then (0x6805B0): at exactly 0 the state becomes 1 and `OnReachZero` is raised; when only one ticket counter in
+the level still has tickets (0x6752D0), that counter wins (0x67E3F0: state 2, `OnTeamWins`, GAME-TKT-3). The fixed
+0.01 is the code's own: `TicketLossPerMinPointCountScale` (data +0x80) is not read here.
+
+Nothing on these paths reads the AI flag (+0xD84): **a bot's death costs its team a ticket and a bot's revive gives
+one back**, like a human's; a soldier with no player posts no death message (BOT-GS-7), so a soldier the level spawns
+without a player costs nothing.
+
+[exe: BFBC2Game.exe constructor 0x66E880 (+0x98 = 1.0 from 0x14D94F0; channels 0x11 / 0x10); init (data +0x94 -> +0x94 and +0x80 at 0x66E907 - 0x66E920); reset 0x66EA50; handler 0x684050 (message (0x10, 0x11): msg +0x20 +0xA8 against data +0xA0 -> 0x681AD0(1.0) at 0x68413A; (0x10, 0x21) -> 0x681A70(+0x80 + 1.0, 0x14D94D8); (0x11, 0x17) sender +0x7C, (0x11, 0x18) sender +0x94 -> 0x711CD0 into +0x84); update 0x686830 (+0x84 = 0x675170(team) once, then 0x684150, 0x684320); bleed 0x684150 (0x6751D0, 0x675270, 0x675330, 0x6753B0, 0x680620; constants 0.01 at 0x1409E40, 1.0 at 0x14D94D8, 60.0 at 0x1412C48); 0x681AD0, 0x681A70, 0x6805B0 (hash 0xDE2783FB), 0x6752D0, 0x67E3F0 (hash 0x59CE0E1A); field descriptors TicketCounterEntityData 0x1C255D0 - 0x1C256A8]
+[data: spec/probes/modes.py, 2026-11-22: DICE's ticket counters' connections: out `OnTeamWins` 125, `OnReachTicketPercentage` 129, no inputs; `OnReachZero` (0xDE2783FB) is no event name of DICE's PC level bundles, named from the game copy's other graphs (GAME-TKT-3)]
+[test: core/tests/test_spec_probes.py::modes]
+
+### BOT-GS-7: A soldier's death and a revive are server messages on channel 0x10
+
+Status: **observed** · Variants: PC
+
+When a server soldier dies (0x6C3810, called from 0x6C49E0 and 0x6C53F0) and it has a player (+0x220), it posts on
+server channel 0x10 a message of type 0x11 (vtable 0x01423044, slot 1 returns the type): +0x20 the victim's player,
++0x24 the killer's player (0x54A4C0, null for none), +0x28 a value from the soldier's +0x3C component, +0x30 - +0x38 a
+position, +0x40 a value of the killer's; it then posts (0x14, 0x15) with the soldier. A revive (0x662F20, after its
+team and distance tests) posts type 0x21 (vtable 0x0141CD54) with two players at +0x20 and +0x24. The mode counters
+subscribe to channel 0x10 and take these (BOT-GS-4, BOT-GS-6, BOT-GS-8); the kill scoring of BOT-SCO-1 is another
+path. Neither poster tests the AI flag. A bot module that wants deaths or revives can subscribe to channel 0x10 (the
+server's message object, `*(server +0x18)` vtable +8) and read the same two pointers.
+
+[exe: BFBC2Game.exe 0x6C3810 (skip at `+0x220 == 0`; message on the stack with vtable 0x01423044 at 0x6C3B89, posted through `[server +0x18]` vtable +0x1C with 0x10 at 0x6C3BCA; then vtable +0x18 (0x14, 0x15, soldier)); type functions 0x6959A0 (0x11), 0x639FC0 (0x21); 0x662F20 (vtable 0x0141CD54 at 0x6637B2, channel 0x10)]
+
+### BOT-GS-8: Rush lives and stages: the life counter's state
+
+Status: **observed** · Variants: PC
+
+`ServerLifeCounterEntity` (BOT-GS-4) holds a Rush team's lives and, for the defenders, the stages left:
+
+| Offset | What |
+|---|---|
+| +0x84 | the lives left: `StartingLifeCount` (data +0xD8) at the start |
+| +0x88 | kills toward the next reinforcement |
+| +0x8C | lives spent |
+| +0x94 | a count from the data's reinforcement table, decremented by one unnamed event (0x27BECF7C) |
+| +0x98 | the lives cap: `StartingLifeCount` at the start, then the reinforcement table's step |
+| +0x9C | the bases (stages) left: `BaseCount` (data +0x94) at the start |
+| +0xA4 | `FallbackTime` (data +0x90) |
+| +0xA8 / +0xA9 | lost / won |
+
+Its listener (+0x80, handler 0x689320; channels 0x10 and 0x16) works while neither flag is set:
+
+- **a death** whose victim is on the counter's `TeamId` (data +0xD4) costs a life (0x689200(1)); a kill of another team's
+  player by its own team, on a counter that is not the attackers' (`Attacker` data +0xDC false), adds to +0x88
+  (0x67D740(1)) and may post a score message to the killer (0x67D890, message 0x47, when 0x6F80A0 accepts the kill for
+  one of the level's objective areas: inferred);
+- **a revive** of its team's player gives a life back (0x669690(1));
+- channel 0x16, message 0x11 adds the message's amount (+0x28) to +0x88 for a player of its team (inferred: a
+  reinforcement from another source).
+
+The input events: `DestructBase` takes a base (+0x9C); at 0 on the defenders' counter it posts message 0x46 and raises
+`OnTeamLoss` with the lost flag (0x6696B0). `Winner` sets the won flag and posts an end message (0x18) on channel
+0x2C. `DecreaseLife`
+takes a life; `IncreaseReinforce` adds a kill toward reinforcement; 0xE5A091E9 (name not found) takes the event's
+argument in lives. A life lost (0x689200) at 0 sets +0x84 to 0, raises `OnTeamLoss` and the lost flag; crossing
+`FightHarderTreshold` (data +0xB8) downwards posts (0x11, 0x20) and raises `OnFightHarder`. Reinforcement (0x67D740):
+when +0x88 reaches `ReinforceThreshold` (data +0x98) it is reduced by it, the cap +0x98 moves to the first entry of
+the reinforcement table not under the lives, and the lives grow by an amount (0xC52450, 0 when +0x94 is 0) up to the
+cap.
+
+So the run-time Rush stage is the defenders' +0x9C (`BaseCount` minus the stages taken: GAME-RUSH-2's stage index is
+`BaseCount - +0x9C`), and the attackers' tickets are their +0x84. No AI flag is read: **a bot's death costs its team a
+life** like a human's. DICE's data: 30 attacker and 30 defender counters, attackers' lives 20 - 100, defenders'
+`BaseCount` 2 - 5.
+
+[exe: BFBC2Game.exe constructor 0x67A4B0 (+0x84 / +0x98 = data +0xD8, +0x9C = data +0x94, +0xA4 = data +0x90; channels 0x16 / 0x10 at 0x67A539 / 0x67A54B); handler 0x689320 (victim msg +0x20, killer +0x24, team data +0xD4, attacker flag data +0xDC; 0x689200, 0x67D740, 0x67D890, 0x669690; channel 0x16: msg +0x28 / +0x30); event slot 6 0x6897D0 (`Winner` 0xBE6EE0AC, 0x27BECF7C, `IncreaseReinforce` 0x2CFC2C6C, `DestructBase` 0x324B3FE6 with message 0x46 and 0x6696B0, `DecreaseLife` 0xC14750A1, 0xE5A091E9); 0x689200 (`OnTeamLoss` 0x59D3259A, `OnFightHarder` 0x2CE6F2B8, message (0x11, 0x20)); 0x67D740 (data +0x98, the table through 0x13AA630 / 0x13AA650); field descriptors LifeCounterEntityData 0x1C25390 - 0x1C25498]
+[data: spec/probes/modes.py, 2026-11-22: DICE's life counters' connections: in `DestructBase` 87, `IncreaseReinforce` 78, `Winner` 60, out `OnTeamLoss` 457, `OnFightHarder` 61; 30 counters with `Attacker` true (`StartingLifeCount` 20 - 100) and 30 without (`BaseCount` 2 - 5); `DecreaseLife` is no event name of DICE's PC level bundles (named from the game copy's other graphs)]
+[test: core/tests/test_spec_probes.py::modes]
+
+### BOT-GS-9: An M-COM's arming is a game interaction entity
+
+Status: **observed** · Variants: PC
+
+An M-COM's arm and defuse (GAME-RUSH-1) are `GameInteractionEntityData` instances: `InteractionEntityType` (+0xAC,
+`IEArmSDK` 2, `IEDefuseSDK` 3 among `IEDefault`, `IEGold`, `IEDisarmTrap`, `IERelease`, `IETriangulate`, `IESyncData`),
+`TeamId` (+0xA0), `HoldToInteractTime` (+0xA4), `OnInteractionSendDelay` (+0xB0), `DelayBetweenUses` (+0xB4),
+`IsHumanAllowed` (+0xB8) and `SendOnInteractionOnAnimationStart` (+0xB9). The server class is
+`ServerInteractionEntity` (vtable 0x01423AA8; "SvInteraction" 0x68FA70 in its +0x2C sub-object's vtable 0x01423A84). Where
+the armed state and the timer live was not found: the class's own slots are the base entity's but for slots 2, 3, 33,
+34, 37 and 38, and no reader of `IsHumanAllowed` was found. Arming runs through the interaction's events and the
+M-COM's event graph (GAME-RUSH-9), which stay a bot module's interface; whether an AI soldier may interact at all is
+open (`IsHumanAllowed` suggests a per-entity filter).
+
+[exe: BFBC2Game.exe field descriptors 0x1C25D80 - 0x1C25E10 (GameInteractionEntityData), enumeration InteractionEntityType 0x1C24220 - 0x1C242C8; vtable 0x01423AA8 (slots 2 0x68F8C0, 3 0x6A83E0, 33 0x68F8D0, 34 0x68F940, 37 0x68F9D0, 38 0x68F9E0), sub-object vtables 0x01423A84 / 0x01423A70 / 0x01423A64 written at 0x6A200F and 0x6A838F]
 
 ### BOT-SCO-1: The kill handler's AI tests gate stat events, not the kill score
 
@@ -954,31 +1118,42 @@ the shared AI partitions (a Package overlay of `AI/*`). The limits are BOT-CMB-4
 ## Reverse engineering still needed
 
 In priority order (what blocks OPFOR's bots first), each with how to settle it. Round AIS-rest settled items 2, 7 and
-8 statically and most of 3 and 4; what stays open needs the game or a deeper read.
+8 statically and most of 3 and 4; round SPG2-rest3 settled the tickets and Rush counters (item 2's open half, most of
+3), found the bot object (item 4) and narrowed the fire path (item 8); what stays open needs the game or a deeper read.
 
 1. **The AI input object in a running game** (needs the game; the plan is below). Proves BOT-CTL-2, BOT-CTL-3 and
    BOT-CTL-7 and decides between the two ways of BOT-CTL-4.
-2. **Bots in captures and tickets.** Captures settled statically by round SPG2-rest2 (BOT-GS-5: the area list keeps
-   bots); which ticket counter or life counter field a bot's death changes is open. Start from the ticket counter's
-   vtable 0x0141FDF0 (its event handler for the four hashes of BOT-GS-4); then probe a capture by bots only
-   (`MinNrToTakeControl`) and a bot death with tickets.
-3. **The Rush stage and M-COM state.** The mission objective's and the life counter's fields (vtables 0x0141FCD8,
-   0x01420320) and the M-COM's armed / destroyed state; GAME-RUSH-9's events stay the interface until then.
-4. **The bot object and its senses.** BOT-RT-6's class: 0xEEF450 is unreferenced, so start from a reader of the bot's
-   +0x8C (the behaviours' +4) back to its allocation, or from the Kynapse bot entity's creation (0xF27900 via
-   0x014A8DCC); then the senses object of 0xE82D70 (+4 = the bot) and the target records of BOT-PER-4.
+2. **Bots in captures and tickets.** Settled statically: captures (BOT-GS-5, round SPG2-rest2) and tickets and Rush
+   lives (BOT-GS-6 to BOT-GS-8, round SPG2-rest3: a bot's death costs a ticket or a life, its revive gives it back).
+   The play test (steps 8 and 9 below) confirms both.
+3. **The M-COM's armed and destroyed state.** The Rush stage is the defenders' life counter +0x9C (BOT-GS-8); the
+   M-COM's arming is a `ServerInteractionEntity` (BOT-GS-9) whose armed state and timer were not found, nor any
+   reader of `IsHumanAllowed`. Next: the interaction's input side (the soldier's interaction component,
+   "ServerWorldInteractionComponent" 0x1421314) and the M-COM blueprint's event graph from `OnInteraction` to
+   `onDestroyed`.
+4. **The bot's parts.** The bot is found (BOT-RT-6: 0xF4 bytes, constructor 0xE6C0B0, all made up front by the bot
+   manager 0xE6C480) and its senses are +0x6C (0xE8E3E0, five sensing tasks); the roles of +0x80, +0x94, +0xA0 - +0xB0
+   are not named, nor the target record layout inside the senses (+0xB0 - +0x10B0, BOT-PER-4). The 0xE82D70 object
+   (+4 = the bot) that `BehaviourFire`'s score 0xECD970 calls is one of the unnamed parts.
 5. **The order and squad runtime beyond `IssueOrder`.** The issue itself (the order entity's vtable slot 52,
    0x5A5490), how a soldier's goal list takes the order's urgency modifiers, the urgency sum and arg-max (AIO-RDY-2,
    BOT-RT-8) and the squad update: read 0x5A5490 and the decision pass 0xE6D8B0's goal loop.
 6. **Who sets the seat-entry request** (proxy +0x24, BOT-CTL-8) in DICE's AI, if anything does: a scan for writes of
    the proxy's +0x24 from the AI's code.
 7. **The soldier interface's state bits** (BOT-CTL-8, 0x68E620 / 0x68E5E0) and input slot 16's value (0x58E050 ->
-   0x6ABC30): name them from the soldier's readers.
-8. **The combat fire path.** BOT-CTL-7 found `EiaFire` written only by the scripted "Fire" / "SSFire" actions; the
-   combat behaviours' fire (`BehaviourFire`, `Suppress`, `FireAtArea`) must reach the input some other way (a slot-2
-   call whose index is a register, which the scan's immediate filter skipped, or a pointer kept outside +0xC). The
-   play test's return addresses (step 2) name the site; statically, read `BehaviourFire`'s slot 13 (0xECAA90) and the
-   plan objects it calls through its +0x10.
+   0x6ABC30): name them from the soldier's readers. The soldier interface's slot 2 (0x594290) sets the soldier's
+   +0x298 bit 7 (0x68DE30, a replicated flag) unless the interface's lock byte (+8, slot 3 0x57D4D0) is set; 0xE528B0
+   unlocks, writes and relocks it.
+8. **The combat fire path.** Not found. Round SPG2-rest3 ruled out: input slots 17 / 18 (0x58E090 / 0x58E100 act only
+   for a player in a vehicle); any direct AI call of 0x612A00, 0xACC460 or 0xAD1960 (none in 0xE40000 - 0xF30000); a
+   register-indexed slot-2 call through a +0xC object (the three in the AI's code, 0xEE7240, 0xEEA410, 0xEEA460, are
+   map lookups); and 0xED2130, which reads `EiaFire` back (input slot 12) for the scripted "SSFire" action.
+   `BehaviourFire` (vtable 0x014A70A0) has the default update (slot 10 0xEC0C10) and hands everything to an action
+   object at its +0x10 (status +0x1C, update +0x20, valid +0x14, stop +0x30) that its creator (0xED2A70, 0x28
+   bytes) leaves null: the next read is whoever stores the behaviours' +0x10 (the behaviour start path) and that
+   object's update.
+   The play test's return addresses (step 2) name the site.
+9. **Award listeners and the career save** (PERS-AWD-4, PERS-SCORE-1): not read this round.
 
 ### Play-test plan for item 1 (when in-game tests resume)
 
@@ -1006,6 +1181,17 @@ seated-driver check. Each step lists what to log and what settles.
    for the bot's; the scoreboard shows each bot's row with its soldier's name and 0 score.
 7. **Record:** the log lines' counts per (site, action) go into BOT-CTL-7's table as `[data: ...]`, and BOT-CTL-2,
    BOT-CTL-3, BOT-CTL-7 and BOT-SCO-2 move to verified when a test reads the log.
+8. **Tickets** (BOT-GS-6, BOT-GS-7; a Conquest level, MOD-PATCH-1 not needed): log 0x681A70 (this, new value) and
+   0x684050 (channel, type, message +0x20 / +0x24 and their AI flags). Let a bot die with no capture changing: expect
+   one (0x10, 0x11) with the bot as +0x20 and its team's +0x80 one lower; a revive of a bot (if any medic AI revives:
+   none expected, BOT-CMB-4) one higher. Hold every flag with bots alone for a minute: the losing counter's +0x80 falls
+   by (m x 0.01 + 1) x 10 / 60 a second.
+9. **Rush lives and stages** (BOT-GS-8, `ons_mp_002`): log 0x689200 (this, amount), 0x6897D0 (event hash) and the
+   defenders' +0x9C. A bot attacker's death: the attackers' +0x84 one lower; an M-COM destroyed: `DestructBase` and
+   +0x9C one lower; the last: message 0x46 and `OnTeamLoss` (0x59D3259A). Also log 0x68FA70's class's slots 33 / 34
+   (BOT-GS-9) while a human arms an M-COM, to find where the armed state is kept.
+10. **Fire** (RE item 8): hook `BehaviourFire`'s slots 5, 10 and 13 (0xEC4FE0, 0xEC0C10, 0xECAA90) and log its
+   +0x10's vtable; then that vtable's +0x20 with the return address of every input slot-2 call it makes.
 
 ## Open questions
 

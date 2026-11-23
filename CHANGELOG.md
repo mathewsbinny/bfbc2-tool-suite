@@ -39,6 +39,20 @@ landed on `main`.
 - A NavKit build on a map without DICE path data keeps only the ground inside DICE's generator rectangle, the box of
   the level's soldier and vehicle spawns grown by 24.5 m (KYG-RECT-1; `navregress.spawn_bounds`), where it kept the
   whole sampling box. Levels with DICE path data still use DICE's extent.
+### Added
+- Specification (round SPG2-rest3, with AIS-rest2's static half): the mode entities read from the executable - the
+  ticket counter's state and what moves it (a death costs its team one ticket, a revive gives it back, the bleed's
+  formula: BOT-GS-6), the death and revive messages (BOT-GS-7), Rush lives, reinforcement and the stage as the
+  defenders' bases left (BOT-GS-8), an M-COM's arming as a game interaction entity (BOT-GS-9); bots cost tickets and
+  lives like humans. A game-tier probe (`spec/probes/modes.py`, checked by `core/tests/test_spec_probes.py`) holds
+  DICE's event names against the executable's hashes. The bot object found (BOT-RT-6); who drains the bundle mount
+  table (STRM-MNT-3); dirt build-up on client vehicles only (MAT-TEX-20); bot_ai.md's play-test plan steps 8 - 10.
+
+### Fixed
+- Specification: the server classes of the ticket counter, life counter, mission objective and kill counter
+  (BOT-GS-4: two constructors carried the wrong names) and the bundle mount record's fields (STRM-MNT-3: `VfsPath` +0,
+  `Bundle` +0xC, `IsResourcePath` +0x18) corrected; the 37-way switch 0x11DD76A named as the C runtime's `toupper`
+  (FX-PROC-4).
 
 ## [0.21.0] - 2026-11-22
 

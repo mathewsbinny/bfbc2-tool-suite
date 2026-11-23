@@ -3471,7 +3471,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 397,
+   "lines": 401,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/p...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3927,7 +3927,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 843,
+   "lines": 845,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4002,6 +4002,18 @@
    "lines": 494,
    "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
    "path": "spec/probes/menus.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 199,
+   "note": "read-only probe for spec/engine/bot_ai.md (mode entities: event names against the exe); checked in the game tier",
+   "path": "spec/probes/modes.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4436,8 +4448,8 @@
  ],
  "totals": {
   "all": {
-   "files": 364,
-   "lines": 106388
+   "files": 365,
+   "lines": 106593
   },
   "by_folder": {
    "(root)": {
@@ -4629,13 +4641,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19937,
+    "lines": 19941,
     "live": 757,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14848,
+    "test": 14852,
     "twin": 2427
    },
    "design": {
@@ -4651,23 +4663,23 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5998,
+    "lines": 6000,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5731,
+    "stays": 5733,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 10,
-    "lines": 3925,
+    "files": 11,
+    "lines": 4124,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 3925,
+    "stays": 4124,
     "test": 0,
     "twin": 0
    },
@@ -4701,12 +4713,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 58,
-    "lines": 10646
+    "files": 59,
+    "lines": 10847
    },
    "test": {
     "files": 187,
-    "lines": 50799
+    "lines": 50803
    },
    "twin": {
     "files": 55,

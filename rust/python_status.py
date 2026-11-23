@@ -677,6 +677,8 @@ TABLE: tuple[Row, ...] = (
       'read-only probe for spec/engine/materials.md'),
     R('spec/probes/menus.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier'),
+    R('spec/probes/modes.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
+      'read-only probe for spec/engine/bot_ai.md (mode entities: event names against the exe); checked in the game tier'),
     R('spec/probes/terrain.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',
       'read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier'),
     R('spec/probes/vehicles.py', DEV, 'stays', '', 'core/tests/test_spec_probes.py (game)', 'stays',

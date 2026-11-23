@@ -71,6 +71,26 @@ check (`core/tests/test_spec_probes.py`) now holds every probe's stable counts: 
 
 ## 2. What is left, in the order the queued rounds need it
 
+Round SPG2-rest3 (2026-11-22, with AIS-rest2's static half) worked section 2c's item 3 and bot_ai.md's RE list; section
+2c keeps SPG2-rest2's list as it was. Found: the ticket counter's and the life counter's state and what moves them
+(BOT-GS-6, BOT-GS-8: a bot's death costs a ticket or a life; the Rush stage is the defenders' bases left), the death
+and revive messages (BOT-GS-7), the mode classes corrected (BOT-GS-4), the bot object and its senses (BOT-RT-6), who
+drains the mount table (STRM-MNT-3, its record's fields named and corrected), which entities run the dirt build-up
+(MAT-TEX-20: client vehicles only). Left:
+
+1. **Terrain, in game** (as 2c item 1) and **the undergrowth entry's parser**: not in `VisualTerrain`'s 19 slots
+   (VEG-UG-6); next the resource factory registered with the type at 0x1375A20. VEG-UG-5 stays inferred.
+2. **Bot AI, static**: the combat fire site (bot_ai.md RE item 8: narrowed to `BehaviourFire`'s action object at
+   +0x10), the M-COM's armed state (BOT-GS-9, item 3), the bot's unnamed parts (item 4).
+3. **RE not reached this round**: the particle update (FX-PROC-4: 0x11DD76A is the C runtime's `toupper`; the other
+   switches of 36+ cases are not all read), the award listener classes and where a finished award is written
+   (PERS-AWD-4), why the career save drops the round's kills (PERS-SCORE-1), the Flash loading roots, the menus' event
+   queue and FSCommand callback (MENU-LOAD-1), the compiled anim tree's layout (ANIM-TREE-3).
+4. **Playtests**: bot_ai.md's plan grew steps 8 - 10 (tickets, Rush lives and stages, the fire behaviour's action
+   object); the rest as 2c item 4.
+
+## 2c. What was left after SPG2-rest2 (kept as written)
+
 Round SPG2-rest2 (2026-11-22) did section 2b's items 3 (in part) and 4 and wrote item 1's playtest plan; section 2b keeps
 SPG2-rest's list as it was. Left (queued as SPG2-rest3):
 

@@ -11001,3 +11001,38 @@ with them, the E2a / E3c / E3h answers unchanged:
 | sp_004_b | bd44cedb25e7c88032ef29bf47c3fdddee72032f (8,242,112) | 469a8b98dc0b44833b9318a1fc8120386b5e0931 (8,556,872) |
 | sp_008_b | 2839e515d3802f501e4dc67513becc97591201a7 (8,484,708) | 01b978717db04edd7e92aaf29553a951f0a647e9 (8,842,992) |
 | ons_mp_004 | 020d7019c061c2e1b91335d540b213f8e80598ed (7,627,988) | 76caa81b6c2577afcf722ba4a1621ab8bec56ef5 (8,020,340) |
+
+## SPG2-rest3: reverse engineering for the specification, with AIS-rest2's static half (2026-11-22, branch `spg2r3`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745) with a scratch copy of Project OPFOR's analysed Ghidra project
+(read only, headless, about 25 s a batch, 32 batches) and capstone sweeps of a scratch copy of the executable; DICE's
+data through the suite's readers. No game run (in-game tests are paused): every exe rule stays observed until a
+playtest (bot_ai.md's plan, steps 8 - 10 new). Per item:
+
+| Item | Found | Rules |
+|---|---|---|
+| ticket counter (AIS-rest2) | found: tickets a float at +0x80; a death message (channel 0x10, type 0x11) whose victim is on its team takes 1, a revive (0x21) gives 1 back, captures / losses move its point value; the bleed 0x684150 read to its formula; no AI test anywhere: a bot's death costs a ticket | BOT-GS-6, BOT-GS-7 |
+| mode classes | corrected: AIS-rest's "ticket counter" (0x66E190) is the mission objective, its "mission objective" (0x6740D0) the kill counter, its "life counter" vtable a cutscene object's; the real ticket counter 0x66E880, life counter 0x67A4B0 | BOT-GS-4 |
+| Rush stage, M-COM (AIS-rest2) | partly: the life counter's lives, reinforcement and bases left (the run-time stage); an M-COM's arming is a `ServerInteractionEntity` with `GameInteractionEntityData`'s fields; where the armed state lives not found | BOT-GS-8, BOT-GS-9 |
+| bot object and senses (AIS-rest2) | found: a 0xF4-byte structure (constructor 0xE6C0B0), all made up front by the bot manager 0xE6C480; its parts and the senses at +0x6C (five sensing tasks); the target record layout not read | BOT-RT-6 |
+| combat fire site (AIS-rest2) | not found; narrowed: not input slots 17 / 18 (vehicles only), no direct AI call of the state or weapon functions, `BehaviourFire` hands its update to an action object at +0x10 | bot_ai.md RE item 8 |
+| mount table drain | found: the game object's constructor 0x56EDE0 under `GameSettings.UseBundles`; the record is `BundleMountPoint` {`VfsPath`, `Bundle`, `IsResourcePath`} (round SPG2-rest2 had the strings swapped) | STRM-MNT-3 |
+| dirt build-up's entities | found: `ClientVehicleEntity` only (vtable slot 125) | MAT-TEX-20 |
+| undergrowth parser | not found: none of `VisualTerrain`'s 19 slots parses (job queues, draws, getters) | VEG-UG-6 |
+| particle update | not found; 0x11DD76A is the C runtime's code-page `toupper`; of the 16 switches of 36+ cases, those read are not the particle system's | FX-PROC-4 |
+| award listeners, career save, Flash roots, anim tree | not reached | - |
+
+The probe `spec/probes/modes.py` (game tier, about 20 s): DICE's 84,143 level-bundle partitions, the 74 with a
+counter type parsed; the 14 event names the rules give have their hashes in the functions named (12 of them are
+DICE's PC event names; `DecreaseLife` and `OnReachZero` come from the game copy's other graphs); 30 attacker and 30
+defender life counters. `core/tests/test_spec_probes.py` checks its 9 answers.
+
+Rules 1,269 -> 1,273 (BOT-GS-6 to BOT-GS-9 new; BOT-GS-4, BOT-RT-6, STRM-MNT-3, MAT-TEX-20, VEG-UG-6, FX-PROC-4
+changed).
+
+### What is left (SPG2-rest4, AIS-rest2)
+
+The undergrowth entry's parser (the resource factory registered with the type at 0x1375A20), the particle update,
+the award listeners and the career save, the Flash loading roots / event queue / FSCommand callback, the compiled anim
+tree; for the bots: the fire site (the fire behaviour's action object), the M-COM's armed state, the bot's unnamed
+parts; and every playtest.
