@@ -300,6 +300,9 @@ pub struct Scene {
     pub terrain: Option<Arc<TerrainMesh>>,
     /// The water (with geometry, when the level has a water mesh and it was read).
     pub water: Option<Water>,
+    /// The terrain's physics material map (round E5: `<T>-MaterialMap.res` beside the height field, when it is
+    /// there and reads); shared by the scene's clones.
+    pub material_map: Option<Arc<bc2_formats::terrain_codec::MaterialMap>>,
     /// What could not be read, as `Level.notes`.
     pub notes: Vec<String>,
     /// The partitions as read: shared by the scene's clones (never edited).
@@ -330,6 +333,7 @@ impl Scene {
             heightfield: self.heightfield.clone(),
             terrain: self.terrain.clone(),
             water: self.water.clone(),
+            material_map: self.material_map.clone(),
             notes: self.notes.clone(),
             files: Arc::clone(&self.files),
             changed,
@@ -1026,6 +1030,16 @@ pub fn load(options: &LoadOptions) -> Result<Scene> {
         Some(Ok((hf, mesh))) => {
             scene.heightfield = Some(Arc::new(hf));
             scene.terrain = Some(Arc::new(mesh));
+            // round E5: the material map beside it, for the material paint
+            if let Some(p) = options.heightfield.as_deref().and_then(material_map_beside) {
+                match std::fs::read(&p)
+                    .map_err(|e| e.to_string())
+                    .and_then(|d| bc2_formats::terrain_codec::MaterialMap::decode(&d).map_err(|e| e.to_string()))
+                {
+                    Ok(m) => scene.material_map = Some(Arc::new(m)),
+                    Err(e) => scene.notes.push(format!("material map {}: {e}", p.display())),
+                }
+            }
         }
         Some(Err(note)) => scene.notes.push(note),
         None => {}
@@ -1036,6 +1050,23 @@ pub fn load(options: &LoadOptions) -> Result<Scene> {
         None => {}
     }
     Ok(scene)
+}
+
+/// The material map beside a main height field (`MP_005.Heightfield-000.res` -> `MP_005-MaterialMap.res` in the same
+/// folder, any case); `None` when there is none.
+#[must_use]
+pub fn material_map_beside(heightfield: &Path) -> Option<PathBuf> {
+    let name = heightfield.file_name()?.to_string_lossy().to_ascii_lowercase();
+    let terrain = name.strip_suffix(".heightfield-000.res")?;
+    let want = format!("{terrain}-materialmap.res");
+    std::fs::read_dir(heightfield.parent()?)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .find(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase() == want)
+        })
 }
 
 /// `level.terrain_name`: the terrain's name from the level partition's first `TerrainEntityData`'s `TerrainAsset`

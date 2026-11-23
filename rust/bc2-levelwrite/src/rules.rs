@@ -186,9 +186,10 @@ const XVAL: &[Row] = &[
     (
         "XVAL-EDIT-5",
         Error,
-        "Terrain and paint edits are not exported yet",
-        "The project edits the terrain or paints it, and the export does not write terrain yet (round E5): it \
-         refuses the project. Undo the strokes to export the rest.",
+        "Visual paint layers are not exported yet",
+        "The project paints a visual paint layer, and the export does not write the visual terrain yet (round \
+         E5 writes the sculpted height field and the material map; the visual paint is E5-rest's): it refuses the \
+         project. Undo the paint strokes to export the rest.",
         &["XLOG-DELTA-1", "TERR-VT-5"],
         &[Edit, Build],
         "OP1",
@@ -643,10 +644,23 @@ const XVAL: &[Row] = &[
         "The terrain is the base's own, whole",
         "The visual terrain's patch shaders must be drawn with the mask atlas of their own level: patch shaders \
          from a donor whose atlas has another layout draw every tiled cell black. The level's terrain bundle must \
-         be the base's, entry for entry.",
+         be the base's, entry for entry, but for the height field and material map the project's strokes rewrote \
+         (round E5, XVAL-TERR-2).",
         &["TERR-VT-5", "TERR-NAME-1"],
         &[Stage],
         "V1",
+    ),
+    (
+        "XVAL-TERR-2",
+        Error,
+        "A sculpted or painted terrain reads back whole",
+        "The height field and material map the project's strokes rewrote (round E5) must read back as DICE's \
+         formats: the height field a main block of the base's size, bounds and depth map, its min / max tree the \
+         one its heights give, every edited sample at or over its lower envelope; the material map of the base's \
+         width and names, every cell one of them.",
+        &["TEDIT-HF-3", "TEDIT-MM-1"],
+        &[Stage],
+        "E5",
     ),
     // ---- console data
     (

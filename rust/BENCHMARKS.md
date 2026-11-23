@@ -4082,3 +4082,78 @@ Files: a 1,024 main block is 2,171,963 bytes and a 2,048 one 8,669,245 bytes (DI
   its checks are the Python readers' view of a generated terrain; TG2 retires it with the visual writer.
 - Unproven until a playtest: everything TGEN-OUT-5 lists (a generated block in game, its envelope, the depth map of
   255, the water mesh).
+
+## E5: terrain sculpt and paint (2026-11-23, branch `e5`)
+
+The map editor's Terrain workspace works: sculpt brushes and the material paint, saved as project operations,
+exported into the level's terrain bundle and checked. ROADMAP row E4-E7's E5; spec `transforms/terrain_edit.md`
+(TEDIT-HF-3 and TEDIT-MM-1 implemented, TEDIT-BR-1 and TEDIT-NAV-1 new), `transforms/validation.md` (XVAL-TERR-2
+new, XVAL-EDIT-5 now for the visual paint only).
+
+**The codec** (`bc2_formats::terrain_codec`, owned by E5 and used by TG1's generator; the coordinator's ruling):
+
+| On DICE's terrains (`rust/bc2-formats/tests/terrain_corpus.rs`, release) | Result |
+|---|---|
+| 30 main blocks decoded and encoded | 30 of 30 byte for byte; computed min / max tree = stored on 30 |
+| 288 sub-terrain blocks | computed quadtree = stored on 288 |
+| 30 material maps decoded and encoded | 30 of 30 byte for byte |
+| the whole pass | 1.7 s |
+
+Finding: MP_005's main block is 2,048 samples, not 1,024 as `terrain_edit.md` section 5 said (corrected there).
+
+**The writers** (`bc2_levelwrite::terrainedit`, `rust/bc2-levelwrite/tests/terrain_edits.rs`, release):
+
+| Level | Block | Edit | Written in | Envelope | Material map |
+|---|---|---|---|---|---|
+| MP_005 | 2,048 | a 20 m hill, a 10 m pit | 0.015 s | 233 vertices lowered; under share 1.0000 (DICE's 1.0000) | 4,096 cells, 7 names, a checkerboard painted |
+| SP_01 | 2,048 | the same | 0.016 s | 299 vertices lowered; 0.9961 (DICE's 0.9961: DICE's own poke-throughs kept) | 4,096 cells, 9 names |
+
+Nothing edited writes DICE's bytes (both files, both levels). The edited files read back with `terrain::parse`,
+`MainBlock::decode` and `MaterialMap::decode`; their tree is their heights', their edited samples lie over the
+envelope, the depth map, bounds and names are DICE's.
+
+**The export** (`sculpted_export_stages_and_checks`): EX1's canary (Atacama's Rush as Conquest) with a sculpt stroke
+and a material stroke (tiles beside the project, project format 11, saved and read back) built in 29.5 s;
+`export::check` passes; XVAL-TERR-1 holds for the terrain bundle's other entry, XVAL-TERR-2 for the two rewritten.
+MP_005GR's own terrain bundle holds neither resource (it loads MP_005's), so the export adds them to the staged
+terrain bundle, which the level loads first. `export_rules` / `export_rules_stage` unchanged (7 of 7).
+
+**The editor** (`rust/bc2-editor/tests/terrain_tools.rs`):
+
+- through the interface, both themes, on the demo level with a synthetic 256 m height field and material map: Raise
+  dragged is one `stroke` of at most 4 tiles; the heights and the mesh rise under it, nothing far away moves; Ctrl+Z /
+  Ctrl+Y; a rebuild from the tiles gives the same heights; Flatten, Smooth, Noise, a two-click Ramp, the Material
+  brush (format 11); the Paint layer greyed (E5-rest); Select back when the workspace is left;
+- on MP_005 and SP_01 as loaded (game tier): a raise dab and a material dab committed as strokes, undone to DICE's
+  heights, redone. A 20 m raise dab and its stroke (tiles kept, the log applied, the scene's heights and mesh
+  made again) 0.040 s on MP_005 and 0.057 s on SP_01; a material stroke on the 4,096-cell map 0.086 / 0.092 s
+  (debug build at opt-level 1).
+
+The stroke budget (`editor_core::stroke_budgets`, 400 strokes on a 2,048 height field): commit median 3.65 ms
+(OP1's 2.6 ms plus the scene following: the stroke's tiles copied into the scene's heights and the mesh rows over
+them), p95 6.38 ms; undo 20.3 ms, redo 15.9 ms (budgets 16 / 100 ms). A first version that compared the whole raster
+and copied the height field and mesh after every stroke took 6.9 ms alone and passed 16 ms with the other editor
+tests running; the sync now reads only the stroke's tiles and changes the scene's height field and mesh in place
+(`Arc::make_mut`, a new allocation so the ray grid is rebuilt).
+
+Live drawing: a dab writes only the vertex rows it touched into the simplified view's terrain buffer; the committed
+stroke re-uploads the terrain once and rebuilds the ray grid on the next ray. The game-accurate view takes the new
+height map at each committed stroke and undo (not during the drag).
+
+**Path data**: a sculpt counts as a collision change, so the export's path-data step samples the stage
+(`bfbc2 navkit sample --offline --stage`). The stage sampler now writes the staged height field over the base's
+terrain unpack before sampling. Not run end to end in this round (it needs a prepared base level and a built
+`bfbc2.exe`).
+
+**Left (E5-rest)**:
+- the occlusion / colour paint layer and "re-shade sculpted area" (the map is a DXT1 / L8 texture of the level bundle);
+- the visual paint layers (patch maps, atlas tiles, patch shader entries);
+- widening the height range: a sculpt is held to it and says so;
+- a material the map lacks (the grid check), the visual / material pairing, the material map drawn in the views;
+- strokes over the sub-terrain ring;
+- the game-accurate view during a drag;
+- the path-data sampling of a sculpted stage end to end;
+- the playtest (`terrain_edit.md` section 5).
+
+**Unproven until a playtest**: everything the game does with an edited terrain - drawing, collision, LOD, the
+envelope, the depth map's meaning, the material under a contact. Nothing was installed or launched.

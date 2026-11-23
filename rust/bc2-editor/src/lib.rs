@@ -98,6 +98,7 @@ pub mod prepare;
 pub mod preview;
 pub mod query;
 pub mod render;
+pub mod sculpt;
 pub mod strip_ui;
 pub mod task;
 pub mod theme;

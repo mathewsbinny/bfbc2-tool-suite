@@ -34,6 +34,7 @@ mod model_group_members;
 mod project_versions;
 mod real_levels;
 mod rush_stages;
+mod terrain_edits;
 mod vw2;
 
 /// At most this many of the binary's tests run at the same time.

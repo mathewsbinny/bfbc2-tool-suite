@@ -208,12 +208,20 @@ fn e2b_through_the_interface() {
         path_test.why,
         Some("The level has no navigation data read (show the navmesh first)")
     );
-    for (w, brushes) in [(Workspace::Terrain, 5usize), (Workspace::Vegetation, 2)] {
+    // round E5: the terrain's brushes work but for the visual paint layer
+    for (w, brushes, why) in [
+        (
+            Workspace::Terrain,
+            1usize,
+            "The visual paint layers come in round E5-rest",
+        ),
+        (Workspace::Vegetation, 2, "Coming in the"),
+    ] {
         app.run_action(&gpu, &ctx, Action::SetWorkspace(w));
         let items = menu_items(app.view().unwrap(), MenuKind::Ground, None);
         let greyed: Vec<_> = items.iter().flatten().filter(|i| i.why.is_some()).collect();
         assert_eq!(greyed.len(), brushes, "{}", w.name());
-        assert!(greyed.iter().all(|i| i.why.unwrap().starts_with("Coming in the")));
+        assert!(greyed.iter().all(|i| i.why.unwrap().starts_with(why)));
         h.settle(&mut app, 3);
         shots(&mut h, &mut app, &format!("e2b_{}_stub", w.name().to_lowercase()));
     }

@@ -885,6 +885,20 @@ impl World {
         Ok(f)
     }
 
+    /// The terrain's stored heights replaced (round E5: a sculpt seen live): the height field and the height-map
+    /// texture the patch shaders sample. `false` (nothing changed) without a terrain or for another size; the caller
+    /// lets the device's copy of [`crate::terrain::HEIGHTMAP`] go and plans the frame again.
+    pub fn set_terrain_heights(&mut self, raw: &[u16]) -> bool {
+        let Some(t) = self.terrain.as_mut() else { return false };
+        if raw.len() != t.hf.raw.len() || raw == t.hf.raw.as_slice() {
+            return false;
+        }
+        t.hf.raw = raw.to_vec();
+        t.raw
+            .insert(crate::terrain::HEIGHTMAP.to_owned(), crate::terrain::heightmap(&t.hf));
+        true
+    }
+
     /// The engine textures the frame's draws read (the terrain's height map and empty mask).
     #[must_use]
     pub fn raw(&self) -> &HashMap<String, crate::terrain::RawTexture> {

@@ -101,8 +101,10 @@ comes from, recorded in the project; the terrain itself is generated in a later 
 - **A project:** a new project gets a name and a folder (default `Documents\BFBC2 Map Projects`); the editor writes
   `<name>.mapedit.json` there at once and opens it in the **Objects** workspace. Opening a project loads its base
   map first. The workspaces: View, Objects, Gameplay (flags, spawns, vehicle spawns, objectives and areas only),
-  AI (orders, AI spawns and area points; the navmesh view), and Terrain and Vegetation (their brushes greyed until
-  their rounds). Round E2b added context menus per workspace, edit modes, sinking an object into the surface with
+  AI (orders, AI spawns and area points; the navmesh view), Terrain (round E5: raise, lower, smooth, flatten, noise
+  and ramp brushes with a radius, strength and falloff, and the Material brush for the terrain's physics material;
+  each stroke one undoable step, exported into the level's terrain bundle) and Vegetation (its brushes greyed until
+  its round). Round E2b added context menus per workspace, edit modes, sinking an object into the surface with
   Alt+wheel, deep duplicate (what an object owns comes with it), copy and paste, polygon selection, and the
   **asset browser** over the whole content set with its Spawners and Objectives modes. The project is data only - the base level, its partition's sha1, the content profile and the operation log (each
   operation with who and when, new objects named by UUIDv5 guids) - never game files; the base map is never changed.

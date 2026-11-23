@@ -216,6 +216,12 @@ pub enum Brush {
     Smooth,
     /// Flatten the terrain.
     Flatten,
+    /// Roughen the terrain with noise (round E5).
+    Noise,
+    /// A ramp between two clicked points (round E5).
+    Ramp,
+    /// Paint the physics material (round E5: the material map's cells).
+    Material,
     /// Paint a texture layer.
     Paint,
     /// Scatter vegetation.
@@ -226,11 +232,14 @@ pub enum Brush {
 
 impl Brush {
     /// Every brush: the terrain's, then the vegetation's.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 10] = [
         Self::Raise,
         Self::Lower,
         Self::Smooth,
         Self::Flatten,
+        Self::Noise,
+        Self::Ramp,
+        Self::Material,
         Self::Paint,
         Self::Scatter,
         Self::Erase,
@@ -245,7 +254,18 @@ impl Brush {
         }
     }
 
-    /// Its name (the stub toolbar).
+    /// Why it cannot be used yet, or `None` (round E5: the sculpt and material brushes work; the visual paint
+    /// layers and the vegetation's come later).
+    #[must_use]
+    pub fn coming(self) -> Option<&'static str> {
+        match self {
+            Self::Paint => Some("The visual paint layers come in round E5-rest"),
+            Self::Scatter | Self::Erase => Some("Coming in the vegetation round"),
+            _ => None,
+        }
+    }
+
+    /// Its name (the toolbar).
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
@@ -253,6 +273,9 @@ impl Brush {
             Self::Lower => "Lower",
             Self::Smooth => "Smooth",
             Self::Flatten => "Flatten",
+            Self::Noise => "Noise",
+            Self::Ramp => "Ramp",
+            Self::Material => "Material",
             Self::Paint => "Paint layer",
             Self::Scatter => "Scatter",
             Self::Erase => "Erase",
@@ -746,7 +769,7 @@ pub fn registry() -> Vec<Entry> {
             match w {
                 Workspace::View => "Looks around the map, read only",
                 Workspace::Objects => "Selects, moves, places, copies and deletes buildings, props, vehicles and more",
-                Workspace::Terrain => "Sculpts and paints the terrain (its brushes come in the terrain round)",
+                Workspace::Terrain => "Sculpts the terrain and paints its physics material",
                 Workspace::Vegetation => "Scatters and erases vegetation (its brushes come in a later round)",
                 Workspace::Gameplay => "Edits the mode's flags, spawns, objectives and areas",
                 Workspace::Ai => "Edits the bots' orders and shows their navigation",
@@ -987,17 +1010,25 @@ pub fn registry() -> Vec<Entry> {
                 Brush::Lower => "Lower terrain",
                 Brush::Smooth => "Smooth terrain",
                 Brush::Flatten => "Flatten terrain",
+                Brush::Noise => "Roughen terrain",
+                Brush::Ramp => "Ramp terrain",
+                Brush::Material => "Paint terrain material",
                 Brush::Paint => "Paint terrain layer",
                 Brush::Scatter => "Scatter vegetation",
                 Brush::Erase => "Erase vegetation",
             },
             None,
             match b {
-                Brush::Raise => "A brush that raises the terrain (the terrain round)",
-                Brush::Lower => "A brush that lowers the terrain (the terrain round)",
-                Brush::Smooth => "A brush that smooths the terrain (the terrain round)",
-                Brush::Flatten => "A brush that flattens the terrain to a height (the terrain round)",
-                Brush::Paint => "Paints a texture layer under the terrain-patch rules (the terrain round)",
+                Brush::Raise => "A brush that raises the terrain under it while the button is held",
+                Brush::Lower => "A brush that lowers the terrain under it while the button is held",
+                Brush::Smooth => "A brush that smooths the terrain towards its neighbours",
+                Brush::Flatten => "A brush that flattens the terrain to the height where the stroke began",
+                Brush::Noise => "A brush that roughens the terrain with a seeded noise",
+                Brush::Ramp => "A ramp between two clicked points, the brush's radius wide",
+                Brush::Material => {
+                    "Paints the physics material (footsteps, impacts, dust) into the terrain's material map"
+                }
+                Brush::Paint => "Paints a texture layer under the terrain-patch rules (round E5-rest)",
                 Brush::Scatter => "Scatters vegetation that passes the safe-to-place rules (a later round)",
                 Brush::Erase => "Erases scattered vegetation (a later round)",
             },

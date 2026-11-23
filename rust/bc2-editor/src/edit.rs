@@ -124,6 +124,8 @@ pub struct Doc {
     tiles: DirStore,
     /// The last operation [`Doc::refusal`] found would apply, with the files it made (round PR1b-0).
     trial: RefCell<Option<Trial>>,
+    /// Counts the changes to the scene's terrain (round E5): the views upload it again when it moves.
+    pub terrain_rev: u64,
 }
 
 /// A multi-file operation tried by [`Doc::refusal`]: the files it made from the document's at `revision`; a commit
@@ -140,6 +142,8 @@ struct Trial {
 struct DocSources<'a> {
     base: &'a Scene,
     terrain: Option<&'a Target>,
+    /// The material map's target (round E5).
+    material: Option<&'a Target>,
     tiles: &'a DirStore,
 }
 
@@ -149,6 +153,11 @@ impl Sources for DocSources<'_> {
     }
 
     fn raster(&self, target: &Target) -> Option<Raster> {
+        if Some(target) == self.material {
+            return Some(bc2_levelwrite::terrainedit::material_raster(
+                self.base.material_map.as_deref()?,
+            ));
+        }
         if Some(target) != self.terrain {
             return None;
         }
@@ -183,6 +192,51 @@ fn base_file(scene: &Scene, target: &Target) -> Option<Vec<u8>> {
                 .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(file))
         })
         .map(|(_, b)| b.to_vec())
+}
+
+/// What writes a region of the scene's heights (round E5: [`Doc::sync_terrain_in`]).
+type Writer = dyn Fn(&mut [u16], bc2_formats::terrain_codec::Region);
+
+/// The samples of `region` of an `n`-wide raster written from `get(x, z)`.
+fn copy_region(raw: &mut [u16], n: usize, region: bc2_formats::terrain_codec::Region, get: &dyn Fn(u32, u32) -> u16) {
+    for z in region.z0..region.z1 {
+        for x in region.x0..region.x1 {
+            if let Some(v) = raw.get_mut(z * n + x) {
+                *v = get(x as u32, z as u32);
+            }
+        }
+    }
+}
+
+/// A terrain mesh's vertex heights made again from a height field over `region` (round E5): the mesh holds every
+/// stride-th sample row by row ([`bc2_formats::terrain::Heightfield::mesh`]); its stride is found from its size.
+pub fn terrain_vertices(
+    verts: &mut [[f32; 3]],
+    hf: &bc2_formats::terrain::Heightfield,
+    region: bc2_formats::terrain_codec::Region,
+) {
+    let n = hf.size as usize;
+    let per_row = verts.len().isqrt();
+    let Some(stride) = (1..=n.max(1)).find(|s| n.div_ceil(*s) == per_row) else {
+        return;
+    };
+    let (lo, scale) = (
+        f64::from(hf.min[1]),
+        (f64::from(hf.max[1]) - f64::from(hf.min[1])) / 65535.0,
+    );
+    for (r, row) in (0..n).step_by(stride).enumerate() {
+        if row + stride <= region.z0 || row >= region.z1 + stride {
+            continue;
+        }
+        for (c, col) in (0..n).step_by(stride).enumerate() {
+            if col + stride <= region.x0 || col >= region.x1 + stride {
+                continue;
+            }
+            if let (Some(v), Some(&raw)) = (verts.get_mut(r * per_row + c), hf.raw.get(row * n + col)) {
+                v[1] = (lo + f64::from(raw) * scale) as f32;
+            }
+        }
+    }
 }
 
 fn index_of(scene: &Scene) -> HashMap<String, usize> {
@@ -289,6 +343,7 @@ impl Doc {
             journal: None,
             tiles: DirStore::of(Path::new("")),
             trial: RefCell::new(None),
+            terrain_rev: 0,
         };
         d.tiles = DirStore::of(&d.path);
         d.disk = bc2_levelwrite::project::disk_stamp(&d.path);
@@ -329,6 +384,9 @@ impl Doc {
         self.by_guid = c.by_guid;
         self.files = c.files;
         self.problems = c.problems;
+        // round E5: the checkpoint's height-field raster on the base's terrain (the views upload the terrain again)
+        self.terrain_rev += 1;
+        self.sync_terrain();
         let rest: Vec<Operation> = self.project.operations.get(c.applied..).unwrap_or_default().to_vec();
         self.last_replayed = rest.len();
         for (i, o) in rest.iter().enumerate() {
@@ -374,6 +432,7 @@ impl Doc {
     /// The whole log replayed from the base.
     fn replay_from_base(&mut self) {
         self.revision += 1;
+        self.terrain_rev += 1;
         self.scene = self.base.clone();
         self.deleted.clear();
         self.by_guid = index_of(&self.base);
@@ -453,9 +512,11 @@ impl Doc {
         };
         // the level's other files are read from the scene as loaded, a stroke's tiles from beside the project (OP1)
         let terrain = self.terrain_target();
+        let material = self.material_target();
         let sources = DocSources {
             base: &self.base,
             terrain: terrain.as_ref(),
+            material: material.as_ref(),
             tiles: &self.tiles,
         };
         let applied = match trial {
@@ -507,8 +568,94 @@ impl Doc {
                     }
                 }
             }
+            // round E5: the scene's terrain follows a height-field stroke
+            Op::Stroke {
+                target: Target::Terrain { .. },
+                tiles,
+                ..
+            } => self.sync_terrain_in(Some(tiles)),
             op => self.apply_scene(op),
         }
+    }
+
+    /// The scene's height field and terrain mesh made from the height-field raster the log leaves (round E5), over
+    /// the region that differs from the scene's (nothing when they are the same). The mesh is a new `Arc`, so the ray
+    /// structures built on the old one are not used for it.
+    fn sync_terrain(&mut self) {
+        self.sync_terrain_in(None);
+    }
+
+    /// [`Doc::sync_terrain`] over the tiles a stroke named (`Some`: only those samples are copied, a stroke's cost;
+    /// `None`: the whole raster compared, after an undo or a replay). The scene's height field and mesh are changed in
+    /// place when the scene alone holds them (`Arc::make_mut`: copied once after an undo, when the base shares them),
+    /// each into a new allocation, so the ray grid built on the old mesh is not used for the new one.
+    fn sync_terrain_in(&mut self, tiles: Option<&[bc2_levelwrite::delta::TileDelta]>) {
+        use bc2_formats::terrain_codec::Region;
+        let (Some(t), Some(hf)) = (self.terrain_target(), self.scene.heightfield.as_ref()) else {
+            return;
+        };
+        let n = hf.size as usize;
+        // the samples to write, and where
+        let (region, write): (Option<Region>, Box<Writer>) = match (self.files.rasters.get(&t), tiles) {
+            (Some(r), Some(tiles)) => {
+                let tile = bc2_levelwrite::delta::TILE as usize;
+                let region = tiles
+                    .iter()
+                    .map(|d| {
+                        let (x0, z0) = (d.x as usize * tile, d.y as usize * tile);
+                        Region {
+                            x0,
+                            z0,
+                            x1: (x0 + tile).min(n),
+                            z1: (z0 + tile).min(n),
+                        }
+                    })
+                    .reduce(Region::union);
+                let r = r.clone();
+                (
+                    region,
+                    Box::new(move |raw: &mut [u16], g: Region| copy_region(raw, n, g, &|x, z| r.get(x, z))),
+                )
+            }
+            (Some(r), None) => {
+                let samples = r.samples();
+                let region = bc2_levelwrite::terrainedit::changed_region(&hf.raw, &samples, n);
+                (
+                    region,
+                    Box::new(move |raw: &mut [u16], g: Region| {
+                        copy_region(raw, n, g, &|x, z| {
+                            samples.get(z as usize * n + x as usize).copied().unwrap_or(0)
+                        });
+                    }),
+                )
+            }
+            (None, _) => match self.base.heightfield.as_ref() {
+                Some(b) if !std::sync::Arc::ptr_eq(b, hf) => {
+                    let region = bc2_levelwrite::terrainedit::changed_region(&hf.raw, &b.raw, n);
+                    let b = std::sync::Arc::clone(b);
+                    (
+                        region,
+                        Box::new(move |raw: &mut [u16], g: Region| {
+                            copy_region(raw, n, g, &|x, z| {
+                                b.raw.get(z as usize * n + x as usize).copied().unwrap_or(0)
+                            });
+                        }),
+                    )
+                }
+                _ => (None, Box::new(|_: &mut [u16], _: Region| {})),
+            },
+        };
+        let Some(region) = region else { return };
+        let Some(mut hf) = self.scene.heightfield.take() else {
+            return;
+        };
+        write(&mut std::sync::Arc::make_mut(&mut hf).raw, region);
+        if let Some(mut mesh) = self.scene.terrain.take() {
+            terrain_vertices(&mut std::sync::Arc::make_mut(&mut mesh).0, &hf, region);
+            self.scene.terrain = Some(mesh);
+        }
+        self.scene.heightfield = Some(hf);
+        self.terrain_rev += 1;
     }
 
     /// What an operation of the partition changes in the scene.
@@ -840,9 +987,11 @@ impl Doc {
         }
         let mut files = self.files.clone();
         let terrain = self.terrain_target();
+        let material = self.material_target();
         let sources = DocSources {
             base: &self.base,
             terrain: terrain.as_ref(),
+            material: material.as_ref(),
             tiles: &self.tiles,
         };
         let (game, cache) = (&self.game, &self.donors);
@@ -964,6 +1113,29 @@ impl Doc {
         Some(Target::Terrain { file })
     }
 
+    /// The material map's target (round E5): beside the main height field (`terrains/mp_005/mp_005-materialmap.res`),
+    /// `None` when the scene read no material map.
+    #[must_use]
+    pub fn material_target(&self) -> Option<Target> {
+        self.base.material_map.as_ref()?;
+        let Some(Target::Terrain { file }) = self.terrain_target() else {
+            return None;
+        };
+        let stem = file.strip_suffix(".heightfield-000.res").unwrap_or(&file);
+        Some(Target::Material {
+            file: format!("{stem}-materialmap.res"),
+        })
+    }
+
+    /// The material map's names (round E5: the material brush's choices), index 0 first.
+    #[must_use]
+    pub fn material_names(&self) -> Vec<String> {
+        self.base
+            .material_map
+            .as_ref()
+            .map_or_else(Vec::new, |m| m.names.clone())
+    }
+
     /// A raster as the log leaves it (round OP1): a height field's stored values, a paint layer's weights; `None`
     /// before the first stroke on a paint layer, or for a height field the scene did not read.
     #[must_use]
@@ -972,9 +1144,11 @@ impl Doc {
             return Some(r.clone());
         }
         let terrain = self.terrain_target();
+        let material = self.material_target();
         DocSources {
             base: &self.base,
             terrain: terrain.as_ref(),
+            material: material.as_ref(),
             tiles: &self.tiles,
         }
         .raster(target)

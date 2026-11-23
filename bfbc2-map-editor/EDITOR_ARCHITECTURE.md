@@ -81,12 +81,12 @@ The log follows `navtune.json`'s proven pattern:
   operation holds edits of several files (partition operations, group members' transforms, deletes and adds) and
   applies them on copies: all or nothing, one undo step, the scene following only
   a whole apply. The export applies the log to all files at once and writes the edited group files in place of the
-  base's; a target it does not write yet (terrain before E5) refuses the export in words.
+  base's; a target it does not write yet (the visual paint layers, since E5) refuses the export in words.
 - **Brush strokes** (round OP1, audit AU1 R24 / D19): a `stroke` operation names the 64 x 64 tiles of a raster
   (height field, paint layer) it changed, by the sha1s of their files before and after; the tiles are kept once each
   in `<project>.mapedit.json.tiles` (`bc2_levelwrite::delta`). Rasters share unchanged tiles with the checkpoints,
   so a stroke and its undo cost the tiles touched. E5's brushes call `Doc::stroke(target, after, label)` with a copy
-  of `Doc::raster(target)`; the terrain view and the export of rasters are E5's.
+  of `Doc::raster(target)`; round E5 made the terrain view follow them and the export write them (below, "Round E5").
 - **Autosave** (round OP1, audit AU1 R17): an append-only journal (`bc2_levelwrite::journal`), one checksummed line
   per change after a first line holding the project; crash-safe (a torn last line is left out), resumable and
   compacted. The organisation follows each new operation instead of replaying the log.
@@ -1648,6 +1648,34 @@ section, `crate::weather_ui`). Spec RNDR-WTHR-8, -9:
 **Proof** (`rust/BENCHMARKS.md`, "VW2"): the stages against L1's on four levels; MP_009GR's filters in every view;
 MP_002SR's seven states drawn and measured against their looks; six export canaries, each against its baseline stage
 byte for byte but the intended changes, every check line passing; install and revert on a scratch copy exact.
+
+#### Round E5: terrain sculpt and paint (2026-11-23)
+
+- **The codec** (`bc2_formats::terrain_codec`, shared with round TG1's generator): `MainBlock` (heights, depth map,
+  min / max tree, lower envelope; `decode` / `encode` / `new` / `rebuild(Region)`) and `MaterialMap` (`decode` /
+  `encode` / `new`), byte for byte on DICE's 30 terrains. `bc2_levelwrite::terrainedit` is the edit layer above it:
+  `write_heights` / `write_materials` from a stroke's raster (the base's bytes when nothing changed), and the checks
+  the export runs on what it wrote (`check_heights`, `check_materials`: XVAL-TERR-2).
+- **The brushes** (`bc2_editor::sculpt`): `TerrainTool` is the Terrain workspace's `ViewTool` (`Tool::Terrain`); the
+  `Brush` actions choose its brush (Raise, Lower, Smooth, Flatten, Noise, Ramp, Material; Paint layer greyed for
+  E5-rest) and the view's toolbar its radius, strength, falloff, noise seed and material. The pointer's ground is a
+  ray marched over the stroke's own raster (`Ground::hit`), so the brush follows the heights it is making. While the
+  button is held each dab (a quarter of the radius apart) changes the working raster - a copy of `Doc::raster`, tiles
+  shared - and returns `Outcome::TerrainPreview`: the simplified view writes those vertex rows straight into the GPU's
+  terrain buffer (`SceneGpu::preview_terrain`). Letting go returns `Outcome::Stroke`, committed by `Doc::stroke` as
+  one `stroke` operation (project format 11 for a material-map target, `Target::Material`).
+- **The scene follows the log**: a height-field stroke (applied, undone, redone, replayed from a checkpoint) makes the
+  scene's height field and terrain mesh again over the changed region (`Doc::sync_terrain`, a new mesh `Arc`, so the
+  ray structures are rebuilt for it); `SceneGpu::refresh` uploads a terrain whose `Arc` changed, and the game-accurate
+  view takes the new heights (`GameView::set_terrain_heights`: the height-map texture made again).
+- **The export**: its sources read the base's terrain rasters and the project's tiles (`ExportSources`); the strokes'
+  height field and material map replace the base's entries in the staged terrain bundle (`StageRecord::terrain_edits`);
+  `mapexport check` holds the rest of the bundle byte for byte (XVAL-TERR-1) and reads the two back (XVAL-TERR-2).
+  The path-data step counts a sculpt as a collision change; the stage sampler writes the staged height field over the
+  base's terrain unpack before sampling (TEDIT-NAV-1).
+- **Left (E5-rest)**: the occlusion / colour paint layer and its re-shade, the visual paint layers, widening the height
+  range, new material names, strokes over the sub-terrain ring, and the in-game playtest (`spec/transforms/terrain_edit.md`
+  section 5).
 
 ## 4. Stage 2: new maps from imported or randomized terrain
 
