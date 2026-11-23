@@ -28,6 +28,29 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-23
+
+### Added
+- **`shaderdb.level_scan(levels, dx)`** (round OR3b): each level database's entry signatures, textures, vertex
+  layouts, main-pass skinning kinds and mesh parts - what `entry_signatures`, `entry_textures`, `entry_layouts` and
+  the parts give on the loaded database - read and answered in the Rust core (`bc2_convert::shaderlevels`), the
+  levels in parallel, without making the databases in Python. Project OPFOR's `wake_shaders --clone` and
+  `detail_layers` ask it of every stock level.
+
+### Changed
+- **The level cover index runs in the Rust core** (round OR3b, `bc2_convert::shaderlevels`,
+  `bc2_native.shadercover_levels`): `shaderdb.level_cover_prefixes` / `level_coverage` / `donor_levels` give the same
+  answers, the levels' databases read in parallel. The cache `shadercover` holds one `<24 hex>.bin` per level bundle
+  and Dx, keyed by the bundle's content key (its length, head and gzip trailer's CRC-32 of the whole payload) instead
+  of a SHA-256 of every byte of every bundle (`COVER_VERSION` 3).
+- **`shaderdb.retexture` runs in the Rust core** (`bc2_formats::shaderdb::merge::retexture`, the merge's own): the
+  same blocks, hits and refusals; a refusal naming a texture that is not UTF-8 is a `ShaderDbError` (the Python
+  raised `UnicodeDecodeError` making its message). It needs the Rust core (`bfbc2core.native.require`).
+
+### Removed
+- The cover index's Python implementation and its pickles (`shadercover\*.pkl`, a file format a tool wrote:
+  nothing reads them; the caches tool still counts and prunes those left on disk) and `retexture`'s Python twin.
+
 ## [0.22.0] - 2026-11-22
 
 ### Changed

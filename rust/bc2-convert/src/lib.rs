@@ -29,6 +29,8 @@
 //!   [`meshconv`] (`mesh.py`'s `console_layouts`, `decode`, `relayout`), `havok::convert_wrapper`,
 //!   `texcheck::check` (`texture.check`'s statistics), [`texwrite`] (`bfbc2-model-tools/texwrite.py`'s encoders),
 //!   [`skinmesh`] (`skinmesh.py`'s vertex work) and [`granny_edit`] (`granny.py`'s writing side).
+//! - Round OR3b: [`shaderlevels`] (`shaderdb.py`'s level cover index and its cache, `level_scan`): the game copy's
+//!   level shader databases read as a whole.
 //! - Round GR3: [`meshview`] (`bfbc2-mesh-viewer/meshview.py`'s index and its cache, `load_mesh`, `stack_models` and
 //!   `render`, pixel for pixel), for the map editor's asset preview.
 #![deny(unsafe_code)]
@@ -48,6 +50,7 @@ pub mod meshport;
 pub mod meshview;
 pub mod mopp;
 pub mod pyfmt;
+pub mod shaderlevels;
 pub mod skinmesh;
 pub mod terrain;
 pub mod texcheck;

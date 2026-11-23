@@ -130,7 +130,26 @@ sd.block_textures(block, db.e)          # one parameter block's textures; sd.blo
 sd.part_layouts(db)                     # {mesh-part name: vertex layout record body (0x49 bytes)}
 sd.texture_kind(name)                   # 'color', 'normal', 'specular', 'gloss', 'occlusion' or '' (by suffix)
 db.pc_guid(g)                           # a GUID of the file in PC byte order (Xbox files swap its first 3 fields)
+sd.retexture(block, {old: new}, where)  # a parameter block with texture names replaced in their fields (bytes)
 ```
+
+### The game copy's levels as a whole (from Python)
+
+```python
+sd.donor_levels(levels, need)           # the levels whose Dx9 databases cover the needed meshes (fewest, in order)
+sd.level_coverage(levels, meshes, dx)   # (level, {mesh: entries}) per level, from the cover index
+sd.level_scan(levels, dx)               # (level, LevelScan: signatures, textures, layouts, kinds, parts) per level
+```
+
+These run in the Rust core (round OR3b, `bc2_convert::shaderlevels`; `retexture` is the merge's,
+`bc2_formats::shaderdb::merge::retexture`): the levels' databases read in parallel from their bundles. The cover
+index (cache `shadercover`, one `.bin` per level bundle and Dx) keeps each database's entry-name prefixes, keyed by
+the bundle's content key (its length, head and gzip trailer), so choosing donor levels loads no database once the
+index holds the copy's levels. `level_scan` answers what `entry_signatures`, `entry_textures`, `entry_layouts`, the
+main-pass skinning kinds and the mesh parts give on each loaded database, without making the databases in Python
+(Project OPFOR's `wake_shaders --clone` asks it of every stock level on three renderers). The Python index and
+`retexture`'s Python twin were retired with the same answers on their recorded ones
+(`tests/test_shaderdb_levels.py`).
 
 The databases do not name what a texture is for: a texture record names the sampler register only, and the shaders'
 constant tables call their samplers `sampler_Texture<N>`. The sampler numbers are the same in a level's Xbox and PC
@@ -157,6 +176,10 @@ copy: mp_008cq's and ons_mp_008's databases round trip, and ONS_MP_008 merged wi
 three kinds. `--xbox` (also run by `--game`; each part skipped when its files are missing) reads every BFBC2 Xbox
 level database (`work\xbox\dist\xenon\levels`), compares the Xbox and PC Dx9 databases of mp_002, mp_005 and mp_008
 (entries, mesh parts and layouts, each entry's textures) and reads Battlefield 1943's Wake Island database.
+
+`tests\test_shaderdb_levels.py` (quick; `--game` adds every level of the game copy): `retexture`, the cover index
+and the level scan in Rust against the retired Python's recorded answers (`levels_golden.json`,
+`levels_golden_game.json`) and the Python queries.
 
 `tests\test_shaderdb_queries.py` and `test_shaderdb_native.py`: the database queries and reader in Rust against their
 Python references (round E4b); the suite's `tests\test_sd1_native.py`: the SD1 reader against its recordings
