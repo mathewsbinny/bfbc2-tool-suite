@@ -1270,7 +1270,7 @@ mod tests {
             if member {
                 let mut out = Vec::new();
                 io::Read::read_to_end(&mut flate2::read::GzDecoder::new(&b[end..]), &mut out).unwrap();
-                assert!(out.is_empty());
+                assert_eq!(out, Vec::<u8>::new());
             }
             let (_, data) = extract(&mut Cursor::new(&b)).unwrap();
             assert!(data.iter().all(Vec::is_empty));
