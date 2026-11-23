@@ -11221,3 +11221,53 @@ persistence, the terrain probe's strips and trees, the weather classification, t
 lists for `ai_corpus.rs`, 24 placement conventions (a re-run of the L1 study as a check), 23 rules half data and half
 RE, 32 measured on other corpora, 21 that need the game running, 119 read from the executable; the 37 Kynapse /
 NavKit rules are round NKG2's.
+
+## SPV1-fix: DICE's empty gzip member in the packer; the WW2 ports against SPV1's corrected rules (2026-11-22, branch `spv1fix`)
+
+**What DICE writes.** Read-only over DICE's 1,021 bundles (the game copy's `.fbrb` dated before 2013): every zipped
+bundle (1,012) has a payload gzip member right after the header region, and nothing after it; the 105 whose payload
+is empty (104 of `*deleted*` markers only, 1 with no entries; payload length field 0) have the gzip member of no data,
+20 bytes `1F 8B 08 00 00000000 00 0B 03 00 00000000 00000000` (zlib's header, the empty fixed block, zero CRC and
+length). No stored bundle has an empty payload; no other bundle kind carries an extra member. FbrbTool's .NET
+`GZipStream` writes nothing for no data, and the suite's packer followed it.
+
+**The fix.** `bc2_formats::fbrb::pack`'s payload writer appends `EMPTY_GZIP_MEMBER` (DICE's 20 bytes) when a zipped
+payload is empty; every pack path goes through it (`pack`, `pack_dir`, `pack_rows*`, `bfbc2core.fbrb.pack` /
+`pack_many`, `bfbc2 fbrbtool pack`, the level writer's bundles). The header member keeps .NET's `xfl 4 / os 0`
+(FBRB-HDR-4, every bundle), so a repack of DICE's bundle differs from DICE's file in those two bytes only.
+
+| Proof | Result |
+|---|---|
+| `spec_corpus.rs::fbrb_entries` (game tier): each of the 105 packed from its header's entries | 105 of 105: DICE's file byte for byte but for bytes 16-17 (xfl / os); the 20-byte member at DICE's place, byte for byte |
+| `test_fbrb_pack_native.py`'s game check over the 105 (unpack in Rust, pack in Rust) | 105 of 105 "identical but the header's gzip header, the empty payload member DICE's byte for byte" |
+| `pack.rs::empty_zipped_payload_is_dices_member` | zipped markers-only / no entries: the member, valid gzip of no data, reads back; stored: nothing after the header; a live payload: no extra member |
+
+**FbrbTool's goldens (DICE's bytes win).** Re-recorded only where the packer now differs: `fbrbtool_golden.json`
+`pack_built` "empty payload, zipped" and "no entries, zipped", `cases` "pack: a marker with an empty file" and
+"pack: only the first line"; `fbrbtool_golden_game.json` 56 pack records (the 105 bundles' distinct bytes, 54, and two
+temporary test bundles of a logged run, `<temp>/fbrb_unpack_01dh3d_5/b1` and `b2`, zipped with an empty payload: their
+unpacked folders rebuilt and checked against the recorded unpack digests); `cli_o1_golden.json` the files digest of
+the four `pack:` command lines with such a bundle (alone and on one pipe). Each new record was checked to be
+FbrbTool's recorded bundle + the 20 bytes (SHA-1 of the new bundle less its last 20 bytes = the recorded SHA-1; for
+`cli_o1`, the folder digest with the bundle so cut = the recorded digest, every stream and log line unchanged) before
+it was written; each file's `meta.rerecorded` says so.
+
+**The game.** It reads DICE's form (it ships it). FbrbTool's form (no member) has not been tried in game: no bundle
+OPFOR installs is one of markers only (65 OPFOR-dated bundles in the game copy, none without a live entry), so nothing
+OPFOR has shipped used it. Untested in game either way until a playtest needs one.
+
+**The WW2 oracles.** The rebuild oracle holds no bundle, and none of the install oracle's 35 staged bundles is
+without a live entry. A full rebuild on this branch (OPFOR main, OPFOR_TOOLKIT junctioned to the worktree): 55 steps
+in 19.2 min, 10,852 of 10,852 identical, QA checks ok. `wake_install.py --plan`: the install staging 21,197 of 21,197 identical to the install oracle; `game\` sha256
+snapshot before and after: the same 1,582 files and bytes.
+
+**SPV1's five corrected rules and the WW2 ports.** No OPFOR or suite code cites WPN-DMG-3, WPN-AMMO-1, WPN-SWAY-2,
+VEH-HP-4 or VEH-MAT-1, and the rule texts (2026-11-22, round SPG) postdate every value the ports set (class overrides
+2026-11-10, carried ammo 2026-11-13, rifle-grenade values 2026-11-06, the material grid's stand-ins 2026-11-09,
+dbxport's ammo conventions 2026-11-09). The values are copied from DICE's partitions at build time: the K98 /
+Springfield class fields from the M24 field for field (`bf1943_weapons.CLASS_OVERRIDES`), the Type 5 / Nambu / Type 97
+carried ammo from their US counterparts' firings (`weapons.FINITE_FIRING`), dbxport's magazines and pickups from the
+same-class template, the wrench from the power tool, the rifle grenades' anti-armour values from the bazooka / RPG
+firings, VEH material stand-ins from DICE's grids. `test_ww2_balance.py` on the rebuilt outputs: 138 class values of
+the K98 and Springfield inside DICE's five bolt-action rifles' ranges; the wrench at the power tool's rates. Nothing
+re-derived; no WW2 output changed for this item.

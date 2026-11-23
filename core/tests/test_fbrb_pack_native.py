@@ -16,7 +16,10 @@ same unpacked folder.
 
 Each game bundle is also compared with the game's own file: identical, or (for a zipped bundle DICE packed)
 identical but for the two 10-byte gzip headers (DICE's xfl 0 / os 0x0b, FbrbTool's xfl 4 / os 0): the deflate
-streams are zlib level 6 in all three. Skipped (exit 0) when the module is not built.
+streams are zlib level 6 in all three. A zipped bundle with an empty payload (DICE's 105 of markers only or no
+entries) ends with DICE's 20-byte empty gzip member, compared byte for byte (FBRB-DEL-2: the suite writes DICE's bytes
+there since round SPV1-fix, where FbrbTool wrote none; the records re-recorded so, each checked to be FbrbTool's
+bundle + those 20 bytes). Skipped (exit 0) when the module is not built.
 """
 import hashlib
 import os
@@ -47,7 +50,10 @@ import csharp_golden as cg  # noqa: E402
 
 NATIVE: Any = native.load()
 SMALL = 8
-EMPTY = 'identical but gzip headers and the empty payload stream DICE writes (FbrbTool writes none)'
+EMPTY = ("identical but the header's gzip header, the empty payload member DICE's byte for byte (FBRB-DEL-2; "
+         'FbrbTool wrote none)')
+# DICE's gzip member of no data (FBRB-DEL-2): zlib's header (xfl 0, OS 0x0B), the empty block, a zero CRC and length
+EMPTY_MEMBER = bytes.fromhex('1f8b0800' '00000000' '000b' '0300' '00000000' '00000000')
 NOT_RECORDED = 'not recorded (bytes the recording has not seen, or over 300 MiB)'
 
 
@@ -294,11 +300,12 @@ def repack_one(bundle: str) -> tuple[str, str, int, float, float]:
             return bundle, f'differs from the bundle FbrbTool packed ({want[3][:12]} / {hashlib.sha1(tb).hexdigest()[:12]})', 0, 0, 0
         with open(bundle, 'rb') as fh:
             orig = fh.read()
-        # a zipped bundle of markers only: DICE's payload is an empty 20-byte gzip stream, FbrbTool's (.NET) none
-        empty = len(orig) == len(tb) + 20 and orig[len(tb):len(tb) + 2] == b'\x1f\x8b' \
-            and zlib.decompressobj(-15).decompress(orig[len(tb) + 10:]) == b''
-        outcome = 'identical' if orig == tb else 'identical but gzip headers' if same_but_gzip_headers(orig, tb) \
-            else EMPTY if empty and same_but_gzip_headers(orig[:len(tb)], tb) \
+        # a zipped bundle with an empty payload: DICE's 20-byte empty gzip member, which the suite writes as DICE's
+        # bytes since round SPV1-fix (FbrbTool, .NET, wrote none): the member itself compared byte for byte
+        empty = orig.endswith(EMPTY_MEMBER) and tb.endswith(EMPTY_MEMBER) \
+            and _gz_payload_split(tb)[1] == len(tb) - len(EMPTY_MEMBER)
+        outcome = 'identical' if orig == tb else EMPTY if empty and same_but_gzip_headers(orig, tb) \
+            else 'identical but gzip headers' if same_but_gzip_headers(orig, tb) \
             else 'identical to FbrbTool; the game\'s file differs beyond the gzip headers'
         return bundle, outcome, len(tb), t_unpack, t_rust
     finally:
@@ -347,7 +354,8 @@ def run_bundles(bundles: list[str], check: Any, label: str) -> None:
           f'{label}: {compared} of {len(bundles)} bundles ({total / 1e9:.2f} GB) unpacked and packed again in Rust: '
           f'byte-identical to the bundle FbrbTool.exe packed for {compared - bad} (fbrbtool_golden_game.json); the '
           f'same as the game\'s file {outcomes["identical"]}, but for the gzip headers '
-          f'{outcomes["identical but gzip headers"]}  (Rust unpack {t_unpack:.0f} s, pack {t_rust:.0f} s; '
+          f'{outcomes["identical but gzip headers"]}, but for the header\'s gzip header with DICE\'s empty payload '
+          f'member {outcomes[EMPTY]}  (Rust unpack {t_unpack:.0f} s, pack {t_rust:.0f} s; '
           f'{time.time() - t:.0f} s wall, {workers} processes)',
           f'{bad} differ' if bad else 'fewer than half of the bundles were recorded')
 

@@ -13335,7 +13335,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:261-269"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:264-272"
     },
     {
      "kind": "test",
@@ -13359,7 +13359,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:262-265"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:265-268"
     },
     {
      "kind": "test",
@@ -13448,7 +13448,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:250"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:253"
     },
     {
      "kind": "test",
@@ -13472,7 +13472,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:151"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:154"
     },
     {
      "kind": "test",
@@ -13492,7 +13492,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:227-246"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:230-249"
     },
     {
      "kind": "test",
@@ -13516,7 +13516,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:256-260"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:259-263"
     },
     {
      "kind": "test",
@@ -13665,7 +13665,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:565-581"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:580-596"
     },
     {
      "kind": "test",
@@ -13777,7 +13777,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:142-144"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:145-147"
     },
     {
      "kind": "test",
@@ -13801,7 +13801,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/zlib.rs:985-989"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:437-455"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::empty_zipped_payload_is_dices_member"
     },
     {
      "kind": "test",
@@ -13809,7 +13813,11 @@
     },
     {
      "kind": "data",
-     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 104 bundles of markers only and 1 with no entries, all 105 zipped with payload length 0 and followed by the 20-byte empty gzip member"
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 104 bundles of markers only and 1 with no entries, all 105 zipped with payload length 0 and followed by the 20-byte empty gzip member; no stored bundle has an empty payload, and no zipped bundle with live entries has bytes after its payload member"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPV1-fix 2026-11-22: the suite's packer, given each of the 105 bundles' entries, writes DICE's file byte for byte but for the header member's extra flags and OS bytes (FBRB-HDR-4)"
     }
    ]
   },
@@ -13841,7 +13849,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:190-204"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:193-207"
     },
     {
      "kind": "test",
@@ -13865,7 +13873,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:262-265"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:265-268"
     },
     {
      "kind": "code",
@@ -13917,7 +13925,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:711"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:726"
     },
     {
      "kind": "test",
@@ -13953,7 +13961,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:219-269"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:222-272"
     },
     {
      "kind": "test",
@@ -24316,11 +24324,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:773-789"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:788-804"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:810-844"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:825-859"
     },
     {
      "kind": "test",
@@ -24348,7 +24356,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:560-584"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:575-599"
     },
     {
      "kind": "test",
@@ -24364,7 +24372,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:884-911"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:899-926"
     },
     {
      "kind": "code",
@@ -24479,8 +24487,16 @@
      "ref": "core/tests/test_fbrb_pack_native.py::same_but_gzip_headers"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
      "kind": "data",
      "ref": "all 1,086 bundles of the game copy (2026-11-16): 62 identical, 919 identical but for the gzip headers, 105 also but for the marker-only empty payload member"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPV1-fix 2026-11-22: DICE's 105 zipped bundles with an empty payload, unpacked and packed again: DICE's bytes but for the header member's xfl / os, the 20-byte member byte for byte"
     },
     {
      "kind": "doc",
