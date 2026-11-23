@@ -38,6 +38,12 @@ landed on `main`.
   `spec/probes/terrain_shape.py` and the throw-away prototype `spec/probes/terrain_gen_proto.py` (a seeded height
   field, material map, water mesh and rule-layer visual terrain written and read back; DICE's 30 main blocks written
   again byte for byte), both in `run_tests.py game`'s spec-probes check. No tool changes.
+- **Spec: the WW2 rebuild oracle regenerated cleanly** (round WW2-ORC1, with OPFOR; the user's ruling of
+  2026-11-23): XDEP-STEP-5 and -6 implemented, XDEP-STEP-7 new (a step that edits another step's output in place
+  depends on the version it read; OPFOR's tracker keeps such edits). OPFOR's oracle now holds what its steps
+  write: 7,945 files, the same from a seeded-empty `work\ww2` and from its main checkout. The 2,903 relics were
+  moved out; the caches are left out; the inputs no step writes are declared and checked. 18 Wake textures were
+  reconverted to DICE's L8 convention (TEX-FMT-2, TEX-FLAG-1). The install oracle is 21,149 files.
 - **Spec: the WW2 rebuild settles from empty** (round WW2-ORD1, with OPFOR): XDEP-STEP-3 implemented (no step
   reads a later step's output; the proof from a seeded-empty `work\ww2`), XDEP-STEP-5 (the inputs inside
   `work\ww2` no step writes: hand-placed files, the install plan's staging) and XDEP-STEP-6 (what the rebuild

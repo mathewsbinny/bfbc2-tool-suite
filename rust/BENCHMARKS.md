@@ -3853,3 +3853,56 @@ The first empty-folder runs exposed the fixes above. Run 1 stopped at `wake_ambi
 
 **Unproven until a playtest** (in-game tests paused): nothing is installed by this round. The 18 malformed textures
 are in the last install, and whether they show is unknown.
+
+## WW2-ORC1: the WW2 rebuild oracle regenerated cleanly (2026-11-23, branch `orc1`, with Project OPFOR's `orc1`)
+
+An OPFOR round, done on the user's ruling of 2026-11-23 ("regenerate it cleanly"), with a specification update here
+(no suite code changed): XDEP-STEP-5 and XDEP-STEP-6 implemented, XDEP-STEP-7 new. OPFOR's commits:
+- **The 18 textures**: `wake_shaders.convert_textures` converts every BF1943 texture on every run and writes it when
+  the file differs. grime.py's weathering of today's conversion is kept. The 18 kept conversions of 2026-11-05 were
+  BF1943's console DXT5A masks (format 3, flags 0) written as L8 with flags 2 and smallest levels 16 / 4 / 1. They are
+  now 16 / 8 / 4 with flags 0, as DICE's L8 textures are (TEX-FMT-2, TEX-FLAG-1). A test converts synthetic console
+  textures and checks both rules.
+- **The caches**: `rebuild_all.CACHES` (`effects_cache.pickle`) is left out of the hashes.
+- **External inputs**: `rebuild_all.EXTERNAL_INPUTS` (14 paths: the font and its licence, the weapon icons'
+  sign-off, the install plan's staging). A run stops on a missing one, naming its source; `--without-inputs` runs
+  anyway.
+- **`archive_relics.py`**: moves the files a seeded-empty rebuild does not make to `work\ww2_relics_<date>\`, with a
+  manifest.
+- **The tracker** (version 3) keeps a step's in-place edits with the version it read; a run sent back to that step
+  goes back to the version's writer (XDEP-STEP-7).
+- **`rifle_grenades.py`** no longer writes a json into `rg_projectiles`' output folder (it never settled).
+- **The oracles**: re-recorded; the old ones are kept dated.
+
+| Run | Steps | Time | Result | `--changed --dry` after |
+|---|---|---|---|---|
+| seeded from empty (14 declared inputs, 599 files), worktree | 55 | 19.0 min | 7,945 files; vs the old oracle 7,921 identical, differ 24 (18 textures, 6 atlas reports), missing 2,907 (2,903 relics, 4 caches) | 0 of 55 |
+| main: `archive_relics.py --apply` | - | - | 2,903 moved (2,798 `wake\shaders_hlsl`, 78 `wake\textures_bf1943`, 13 + 14 `textures_bf1943\Tinted`), 12 emptied folders removed | - |
+| main: `--changed` | 30 of 55 | 16.8 min | 7,945 of 7,945 = the seeded run | 1 (`rifle_grenades`, fixed) |
+| main: `--changed` again (before the tracker fix) | 18 | 18.3 min | 9 files differ: the clone pass rerun alone on the finished databases (XDEP-STEP-7) | 17 |
+| main: full rebuild | 55 | 15.8 min | 7,945 of 7,945 = the seeded run | 0 of 55 |
+| main: `--changed` | 0 | 0.3 min | 7,945 of 7,945 | - |
+| `wake_install.py --plan` | - | - | 21,117 of 21,197 against the old install oracle: differ 32, missing 48 (below); new install oracle 21,149 | - |
+
+**The new oracles.**
+- Rebuild: 7,945 files (was 10,852), from main's rebuild, identical to the seeded-empty rebuild.
+- Install: 21,149 (was 21,197). The changes:
+  - 48 relic textures that no staged file of their level names are gone (21 Wake, 13 Guadalcanal, 14 Iwo Jima);
+  - 17 of the 18 textures changed;
+  - `Sky_Beach_Generic_RGBA16f` is DICE's PC copy (mp_common's) in all four levels. A relic BF1943 conversion of
+    2026-11-07 had overridden it;
+  - 4 level bundles, 3 manifests and 4 reports changed with them.
+
+Entry by entry against the game copy's installed bundles, the new level bundles differ only there and in the Waves
+(the installed copy predates PR1b-1c). The plan left `game\` unchanged: 0 of 1,582 files by sha256.
+
+**Unproven until a playtest** (in-game tests paused):
+- nothing is installed by this round;
+- a reinstall changes Wake's 17 textures (row padding and a header flag only);
+- it changes the sky cube of all four WW2 levels to DICE's own copy, a visible change.
+
+**Proposed, not done** (XDEP-STEP-5): the plan's porting as a rebuild step (`wake_install.py --ports` before
+`wake_translate` and each level's chain), which would turn the rebuild -> plan -> rebuild cycle into an order.
+
+**Note for the merge**: tracker version 3 makes the next `--changed` on OPFOR's main checkout rerun all 55 steps
+(expected 7,945 of 7,945).

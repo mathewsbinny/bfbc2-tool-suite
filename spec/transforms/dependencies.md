@@ -212,57 +212,122 @@ With these the 19 independent steps and the level chains can run side by side; t
 
 ### XDEP-STEP-5: Inputs inside work\ww2 that no step writes
 
-Status: **observed**
+Status: **implemented**
 
 The rebuild reads three kinds of files under `work\ww2` that none of its steps produce. An empty `work\ww2` must be
 seeded with them:
-1. **Placed by hand**: `fonts\` (the Permanent Marker font, 2 files in the oracle, read by `menu_art`) and
-   `weapon_icons\confirmed` (the user's sign-off of the weapon icons, which `weapon_icons.py` keeps across its
-   rebuild).
-2. **The install plan's staging**, which `rebuild_all` lists as `NOT_REBUILT`:
+1. **Placed by hand**: `fonts\` (the Permanent Marker font and its licence, 2 files in the oracle, read by
+   `menu_art`) and `weapon_icons\confirmed` (the user's sign-off of the weapon icons, which `weapon_icons.py` keeps
+   across its rebuild).
+2. **The install plan's staging**:
    - `wake_translate` reads `install_ports\plans.json` (wake_install's `MESH_PLANS`), and `emitter_atlas` reads
      `install_ports\objects`;
    - each level's build, atlas and checks read `install_ports_<lv>\` and
      `install_<lv>\level\objects\vegetation` (`tree_billboards`).
 
-   These come from `wake_install` / `ww2_level_install --plan`, which read the rebuild's outputs. The result is a
-   rebuild -> install plan -> rebuild cycle, so from nothing, one pass cannot settle without a plan having run.
-3. **Caches** keyed by their sources: `install_*.pkl` (now untracked, XDEP-STEP-3), `material_grid*\effects_cache.pickle`
+   These come from `wake_install.py --plan`, which reads the rebuild's outputs. The result is a rebuild -> install
+   plan -> rebuild cycle, so from nothing, one pass cannot settle without a plan having run.
+3. **Caches** keyed by their sources: `install_*.pkl` (untracked, XDEP-STEP-3), `material_grid*\effects_cache.pickle`
    and `grime_refs.json`.
 
-Two ways to make (1) and (2) explicit, before a step-graph runner:
-- a declared external-input list in `rebuild_all` (the hand-placed files, and the plan's staging with its producer),
-  checked at start with a clear message;
-- or the plan's porting moved into the rebuild as its own step, which breaks the cycle.
+Since round WW2-ORC1 (2026-11-23), `rebuild_all.EXTERNAL_INPUTS` declares (1) and (2), 14 paths, each with where it
+comes from. A run checks them at start and stops (exit 2) on a missing one, naming its source; `--without-inputs`
+runs anyway, for the first rebuild of an empty `work\ww2` (then the plan, then a rebuild). `--hash`, `--qa` and
+`--dry` do not stop. The caches are left out of the hashes (`rebuild_all.CACHES`, XDEP-STEP-6). A rebuild from a
+`work\ww2` seeded with only these inputs (599 files) gives the oracle, 7,945 of 7,945.
+
+Not done (proposal, for the user): move the plan's porting into the rebuild as its own step, which would break the
+cycle. Today the plan both ports (`install_ports*`, the vegetation staging) and builds the install staging. A step
+`wake_install.py --ports` before `wake_translate` (and each level's chain) would write only the ports from the
+rebuild's outputs. The staging would become a step's output, the cycle would become an order, and an empty
+`work\ww2` would rebuild with only the hand-placed files. That needs proof that the ports read nothing the later
+steps write (`wake_translate`, `emitter_atlas` and the level builds read them).
 
 [data: OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\level\objects\vegetation, the caches); a rebuild from a work\ww2 seeded with fonts\, weapon_icons\confirmed, install_ports\, install_ports_<lv>\ and install_<lv>\level\objects\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass]
-[code: opfor:src/tools/ww2/rebuild_all.py:155]
+[data: round WW2-ORC1, 2026-11-23: a rebuild from a work\ww2 seeded with the 14 declared inputs (599 files): 55 steps in 19.0 min, 7,945 files, --changed --dry afterwards 0 of 55; the same 7,945 digests as OPFOR's main checkout after its relics were moved]
+[code: opfor:src/tools/ww2/rebuild_all.py:176-192] [code: opfor:src/tools/ww2/rebuild_all.py:605-614]
+[test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_external_inputs_cover_the_hand_placed_files_and_the_plan_staging]
+[test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_a_run_stops_on_a_missing_external_input_unless_told]
 
-### XDEP-STEP-6: The rebuild oracle holds the folder's history
+### XDEP-STEP-6: The rebuild oracle holds what the steps write
 
-Status: **observed**
+Status: **implemented**
 
-OPFOR's rebuild oracle (`src\tools\tests\data\ww2_rebuild_oracle.json`, 10,852 files) hashes `work\ww2` as it is
-after a rebuild, not only what the steps write. A rebuild from a seeded-empty `work\ww2` (XDEP-STEP-5) matches 7,921
-files. Every difference comes from the folder's history, none from the step order:
-- **2,903 relics** that no step wrote in the last rebuild:
+Until round WW2-ORC1, OPFOR's rebuild oracle (`src\tools\tests\data\ww2_rebuild_oracle.json`, then 10,852 files)
+hashed `work\ww2` as it was after a rebuild, not only what the steps write. A rebuild from a seeded-empty `work\ww2`
+(XDEP-STEP-5) matched 7,921 files. Every difference came from the folder's history, none from the step order:
+- **2,903 relics** that no step writes:
   - 2,798 `wake\shaders_hlsl` sources from manual `wake_translate --hlsl` runs (2026-11-07 - 11-15);
   - 78 `wake\textures_bf1943` textures;
   - 27 `guadal_canal` / `iwo_jima_s` `textures_bf1943\Tinted` textures.
-- **18 `wake\textures_bf1943` textures kept by a skip**: `wake_shaders.convert_textures` keeps a texture that is
-  already there. OPFOR's folder holds conversions from 2026-11-05 made by an older converter. Those break TEX-FMT-2:
-  the L8 rows of the smallest mips are unpadded (16 / 4 / 1 or 8 / 2 / 1 bytes, where DICE's own L8 textures give
-  16 / 8 / 4). They also set flag bit 1, which TEX-FLAG-1 keeps clear on a texture converted from a console copy. The
-  current converter's bytes follow both rules.
+- **18 `wake\textures_bf1943` textures kept by a skip**: `wake_shaders.convert_textures` kept a texture that was
+  already there. OPFOR's folder held conversions from 2026-11-05 made by an older converter. All 18 are BF1943's
+  console DXT5A (format 3) masks with flags 0, converted to L8 (10). Those broke TEX-FMT-2: the L8 rows of the
+  smallest mips were unpadded (16 / 4 / 1 or 8 / 2 / 1 bytes, where DICE's own L8 textures give 16 / 8 / 4). They
+  also set flag bit 1, which TEX-FLAG-1 keeps clear on a texture converted from a console copy.
 - **4 `effects_cache.pickle`**: the unpickled content is the same, the pickle bytes are not.
-- **6 emitter-atlas `manifest.json` / `report.txt`**: only the closure's file count differs (4,758 vs 4,736),
-  because the relics are counted; the atlases are the same.
+- **6 emitter-atlas `manifest.json` / `report.txt`**: only the closure's file count differed (4,758 vs 4,736),
+  because the relics were counted; the atlases were the same.
 
-The oracle matches OPFOR's own folder (10,852 of 10,852). Regenerating it is a separate ruling: archive the relics,
-skip the caches, and reconvert the 18 textures.
+The oracle was regenerated by the user's ruling (2026-11-23, "regenerate it cleanly"):
+- **The relics** were moved, never deleted, to `work\ww2_relics_2026-11-23\` with a manifest (path, sha1, size, date)
+  by `archive_relics.py`. A relic is a file `hashes()` reads that a seeded-empty rebuild does not make.
+- **The caches** are left out of the hashes (`CACHES`).
+- **The 18 textures**: `convert_textures` converts every texture on every run and writes it when the file differs.
+  grime.py's weathering of today's conversion is kept. Each of the 18 now ends 16 / 8 / 4 (8 / 4 / 4 for 64 x 32) with
+  flags 0, as DICE's L8 textures and today's converter do. The bytes grow by 7 (17 for the 512 x 1024 atlas).
+- **The new oracle**: 7,945 files, from OPFOR's main checkout after the move, identical to the seeded-empty rebuild.
+  The old one is kept as `ww2_rebuild_oracle_2026-11-23_history.json`.
+
+The install oracle followed (`ww2_install_oracle.json`, 21,197 -> 21,149 files; the old one is kept as
+`_2026-11-23_relics`). `wake_install` stages every `.res` under its OURS roots, `wake\textures_bf1943` among them, so
+the plan had staged the relics:
+- 48 relic textures that no staged file names are gone (21 Wake, 13 Guadalcanal, 14 Iwo Jima);
+- 17 of the 18 textures changed (the 18th was staged as today's already);
+- `Textures/Sky/Sky_Beach_Generic_RGBA16f` is DICE's PC copy (mp_common's, flags 2) in all four levels, no longer a
+  relic BF1943 conversion of 2026-11-07 (flags 0) that had overridden it (BFBC2 has the texture, so the pipeline
+  takes DICE's);
+- the 4 level bundles, 3 manifests and 4 reports changed with them.
+
+Against the installed bundles of the game copy, the new level bundles differ only in these entries and in the Waves
+an install before PR1b-1c holds. The plan left `game\` unchanged (sha256 of 1,582 files).
 
 [data: round WW2-ORD1, 2026-11-23: compare_oracle on the seeded-empty rebuild's hashes, 7,921 of 10,852 identical, differ 28, missing 2,903, extra 0; each missing or differing file joined to the step records of OPFOR's rebuild of 2026-11-22 / 23 (no writer for the relics, the 18 textures and the pickles); the 18 textures' headers (format 10, flags 2 vs 0, smallest mips) against DICE's format-10 textures of the game copy's level bundles; the pickles unpickled and compared]
-[inferred: the relics and the skipped conversions are left by earlier runs, so an oracle of the folder holds them]
+[data: round WW2-ORC1, 2026-11-23: the 18 textures' BF1943 sources (format 3, flags 0), the old files (flags 2, smallest levels 16 / 4 / 1 or 8 / 2 / 1) and today's conversions (flags 0, 16 / 8 / 4 or 8 / 4 / 4); archive_relics against the seeded-empty rebuild's 7,945 digests moved 2,903 files (2,798 wake\shaders_hlsl, 78 wake\textures_bf1943, 13 guadal_canal and 14 iwo_jima_s textures_bf1943), 12 emptied folders removed; main's rebuild_all --changed afterwards (30 of 55 steps) and a full rebuild each 7,945 of 7,945 against the seeded-empty rebuild, --changed --dry 0 of 55, a --changed run 0 steps and the same hashes; wake_install.py --plan: 21,117 of 21,197 against the old install oracle (differ 32, missing 48), the 48 missing names searched in every staged file of their level (none), the staged level bundles against the game copy's installed ones entry by entry, Sky_Beach_Generic_RGBA16f equal to mp_common's entry; game\ sha256 before and after the plan: 0 of 1,582 changed]
+[code: opfor:src/tools/ww2/rebuild_all.py:165-169] [code: opfor:src/tools/ww2/wake_shaders.py:734-783]
+[code: opfor:src/tools/ww2/archive_relics.py:37-58]
+[test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_hashes_leave_out_the_caches_inside_outputs]
+[test: opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_relics_are_the_files_a_seeded_rebuild_does_not_make]
+[test: opfor:src/tools/tests/test_ww2_textures.py::test_convert_textures_redoes_a_conversion_the_converter_now_writes_otherwise]
+[test: opfor:src/tools/tests/test_ww2_textures.py::test_l8_conversions_follow_dices_level_sizes_and_flags]
+
+### XDEP-STEP-7: A step that edits another step's output in place depends on the version it read
+
+Status: **implemented**
+
+Some steps read a file an earlier step wrote and rewrite it in place. The Wake shader databases
+(`wake\levels\wake_island_s\shaders\Dx9 / Dx10 / Dx11_Single.res`) are written by the full `wake_shaders` run and
+rewritten in turn by the clone pass, `wake_translate` and `wake_sky`. Such a step's output depends on the version it
+read, so rerunning it alone on a later version gives other bytes. The clone pass is deterministic: the seeded-empty
+rebuild and a full rebuild give the same databases. Rerun on the databases as `wake_sky` left them, it is not
+idempotent.
+
+The tracker dropped these reads (a file the step also wrote is its output, not an input). When a `--changed` run was
+sent back to the clone pass (`fidelity_checks` read databases a later step had rewritten), the clone pass ran alone
+on the finished databases. Its writes changed 8 shader files and `translate_wiring.json`. Since tracker version 3
+(round WW2-ORC1), a record keeps these reads as `edits`, with the version read. A step about to run whose edited file
+on disk is not the version its earlier, skipped writer recorded sends the run back to that writer (here, the full
+`wake_shaders` run).
+
+A related case: a step must not write into a folder a later step clears. `rifle_grenades.py` wrote
+`rifle_grenades\retexture_rifle_meshes.json` into `rg_projectiles.py`'s output folder, which `rg_projectiles` clears.
+A full run never kept the file. A `--changed` run that reran `rg_projectiles` alone left `rifle_grenades`' record
+expecting it, so it never settled. Nothing read the file (`wake_install` takes `RETEXTURE` from the module), and it is
+no longer written.
+
+[data: round WW2-ORC1, 2026-11-23: OPFOR's step records of the Wake shader databases - wake_shaders, the clone pass, wake_translate and wake_sky record them as outputs and none as an input, fidelity_checks reads wake_sky's / wake_translate's versions; a second --changed on main sent back to the clone pass ("its inputs from wake_shaders.py --clone were rewritten by a later step - back to 8") and left 9 files differing from the seeded-empty rebuild, which a full rebuild restored (7,945 of 7,945)]
+[code: opfor:src/tools/ww2/stepstamps.py:248-260] [code: opfor:src/tools/ww2/stepstamps.py:331-338]
+[test: opfor:src/tools/tests/test_rebuild_changed.py::test_a_step_editing_a_file_in_place_reruns_on_the_version_it_edited]
 
 ## Open questions
 
@@ -270,7 +335,7 @@ skip the caches, and reconvert the 18 textures.
   time): the graph is the data's, not the loader's.
 - Edges held outside the string table: resources that name partitions or other resources inside their own bytes
   (a mesh set's shader names, a shader database's texture names), and the VO tables' wave names.
-- Whether the rebuild should own the install plan's porting (XDEP-STEP-5), or the plan's staging should stay an
-  external input.
+- Whether the rebuild should own the install plan's porting (XDEP-STEP-5: proposed, not done), or the plan's
+  staging should stay a declared external input.
 - The stale records of steps renamed since (`ww2_level_build.py <level>` without its parts) are ignored by the probe;
   the runner should prune them.
