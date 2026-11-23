@@ -105,7 +105,7 @@
    ],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 1032,
+   "lines": 1057,
    "note": "Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions",
    "path": "bfbc2-auto-navkit/navkit.py",
    "retiring": "NK5",
@@ -285,7 +285,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 796,
+   "lines": 809,
    "note": "navkit.py's orchestration without the game: a stand-in Project OPFOR BFBC2 folder built in a temp folder (a...",
    "path": "bfbc2-auto-navkit/tests/test_navkit_offline.py",
    "retiring": "Tests in Rust",
@@ -685,7 +685,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "tool entry point",
-   "lines": 265,
+   "lines": 302,
    "note": "the regression builds call navwalk.build (Rust since NK5); left: the run, its inputs and measures in Python",
    "path": "bfbc2-auto-navkit/tools/navregress.py",
    "retiring": "NK5",
@@ -4437,7 +4437,7 @@
  "totals": {
   "all": {
    "files": 364,
-   "lines": 106313
+   "lines": 106388
   },
   "by_folder": {
    "(root)": {
@@ -4464,13 +4464,13 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 15048,
-    "live": 1815,
-    "partly": 4748,
+    "lines": 15123,
+    "live": 1852,
+    "partly": 4773,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5463,
+    "test": 5476,
     "twin": 2749
    },
    "bfbc2-automated-map-and-bot-test-harness": {
@@ -4686,11 +4686,11 @@
   "by_status": {
    "live": {
     "files": 20,
-    "lines": 5604
+    "lines": 5641
    },
    "partly": {
     "files": 20,
-    "lines": 16936
+    "lines": 16961
    },
    "ported": {
     "files": 21,
@@ -4706,7 +4706,7 @@
    },
    "test": {
     "files": 187,
-    "lines": 50786
+    "lines": 50799
    },
    "twin": {
     "files": 55,
