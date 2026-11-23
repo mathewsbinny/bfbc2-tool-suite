@@ -53,6 +53,12 @@ def main() -> int:
     fails = []
     tmp = tempfile.mkdtemp(prefix='parity_reports_')
     try:
+        # the catalogue's cache made current first (round PR1b-1e: --predict reads it; the Python's recording read
+        # its pickle, so a build's lines on stderr are not the recorded run's)
+        warm = subprocess.run([exe, 'dbxcatalogue'], cwd=tmp, capture_output=True, timeout=1800)
+        if warm.returncode != 0 and b'Project OPFOR BFBC2 not found' in warm.stderr:
+            print('SKIP: no Project OPFOR BFBC2 game copy')
+            return 0
         for key, args, files in RUNS:
             d = os.path.join(tmp, key)
             os.makedirs(d)

@@ -567,10 +567,10 @@ def main() -> int:
             where = {'objects/a.dbx': (bad, 'objects/a.dbx')}
         said: list[str] = []
         got_cat = dbxcatalogue.load(BadIx, exe='', log=said.append)
-        pkl = os.path.join(tmp, 'work', 'tools_out', 'dbx_catalogue.pkl')
-        check(got_cat.problems and not os.path.exists(pkl) and any('NOT cached' in x for x in said),
+        cached = os.path.join(tmp, 'work', 'tools_out', dbxcatalogue.CACHE)
+        check(got_cat.problems and not os.path.exists(cached) and any('NOT cached' in x for x in said),
               'dbxcatalogue: an unreadable bundle is reported and the incomplete catalogue is not cached',
-              (got_cat.problems, said, os.path.exists(pkl)))
+              (got_cat.problems, said, os.path.exists(cached)))
 
     # effectport: a reference into an emitter partition the effect ports is checked against BF1943's guids it writes,
     # not BFBC2's same-named partition (which the port replaces, and which lacks the guid): it is kept, not nulled
