@@ -391,6 +391,7 @@ impl ViewState {
         }
         if let Some(d) = &self.doc {
             let skip = |k: usize| !d.shown(k);
+            self.gpu_scene.terrain_rev = d.terrain_rev;
             self.gpu_scene.refresh(&gpu.gpu, &d.scene, palette, &skip);
             let mut without = d.deleted.clone();
             without.extend(d.filtered.iter().copied());

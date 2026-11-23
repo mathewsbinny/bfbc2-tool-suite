@@ -4073,10 +4073,12 @@ terrain bundle, which the level loads first. `export_rules` / `export_rules_stag
   made again) 0.040 s on MP_005 and 0.057 s on SP_01; a material stroke on the 4,096-cell map 0.086 / 0.092 s
   (debug build at opt-level 1).
 
-The stroke budget (`editor_core::stroke_budgets`, 400 strokes on a 2,048 height field): commit median 6.94 ms
-(OP1's 2.6 ms plus the scene following: the stroke's tiles copied into the scene's heights and the mesh made again
-over them), p95 9.20 ms; undo 74.7 ms, redo 49.6 ms (budgets 16 / 100 ms). A first version that compared the whole
-raster after every stroke went over the 16 ms budget; the sync now reads only the stroke's tiles.
+The stroke budget (`editor_core::stroke_budgets`, 400 strokes on a 2,048 height field): commit median 3.65 ms
+(OP1's 2.6 ms plus the scene following: the stroke's tiles copied into the scene's heights and the mesh rows over
+them), p95 6.38 ms; undo 20.3 ms, redo 15.9 ms (budgets 16 / 100 ms). A first version that compared the whole raster
+and copied the height field and mesh after every stroke took 6.9 ms alone and passed 16 ms with the other editor
+tests running; the sync now reads only the stroke's tiles and changes the scene's height field and mesh in place
+(`Arc::make_mut`, a new allocation so the ray grid is rebuilt).
 
 Live drawing: a dab writes only the vertex rows it touched into the simplified view's terrain buffer; the committed
 stroke re-uploads the terrain once and rebuilds the ray grid on the next ray. The game-accurate view takes the new

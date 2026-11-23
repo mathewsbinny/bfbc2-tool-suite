@@ -604,6 +604,11 @@ pub struct SceneGpu {
     terrain_mesh: Option<u32>,
     /// The terrain mesh the GPU's copy was made from (its `Arc`'s address; round E5: a sculpt replaces it).
     terrain_from: usize,
+    /// The document's terrain revision the GPU's copy was made at (round E5: [`crate::edit::Doc::terrain_rev`]; set
+    /// by the caller before [`SceneGpu::refresh`]).
+    pub terrain_rev: u64,
+    /// The revision the GPU's copy is of.
+    terrain_rev_drawn: u64,
     water_mesh: Option<u32>,
     /// The selected entities (outlined).
     selection: Vec<usize>,
@@ -701,6 +706,8 @@ impl SceneGpu {
             state_collision: HashMap::new(),
             terrain_mesh: None,
             terrain_from: 0,
+            terrain_rev: 0,
+            terrain_rev_drawn: 0,
             water_mesh: None,
             selection: Vec::new(),
             instances: Vec::new(),
@@ -850,13 +857,14 @@ impl SceneGpu {
             });
             // round E5: a sculpted (or undone) terrain is written over the GPU's copy, the same size
             if self.terrain_from != 0
-                && self.terrain_from != from
+                && (self.terrain_from != from || self.terrain_rev != self.terrain_rev_drawn)
                 && let Some(m) = meshes.get(mesh as usize)
             {
                 gpu.queue.write_buffer(&m.vertices, 0, &f32_bytes(v));
                 self.edges.remove(&mesh);
             }
             self.terrain_from = from;
+            self.terrain_rev_drawn = self.terrain_rev;
             triangles += t.len() as u64;
             let step = (v.len() / 4000).max(1);
             sample.extend(v.iter().step_by(step).map(|p| p.map(f64::from)));
