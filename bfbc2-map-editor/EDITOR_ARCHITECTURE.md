@@ -345,8 +345,11 @@ formats (bytes, and files read) and nothing else; `bc2-gamefs` is the game layer
 budget, the mesh index and the one worker pool (`workers`, `BFBC2_WORKERS`); `bc2-tools` holds the format tools'
 command lines (FbrbTool, DbxEdit); `bc2-xma` decodes the Xbox 360's XMA2 sounds (FFmpeg's decoder ported, round
 PR1b-1c; under FFmpeg's LGPL); `bc2-terragen` generates a new terrain from a seed (round TG1: a biome-shaped main
-height field, its material map and water, written through `bc2_formats::terrain_codec`) - the library Create Level's
-"Generate" and the sculpt tools call (`Terrain::new`, `Terrain::resources`, `paint::paint`). The editor reads and edits DBX through one document, `bc2_formats::dbx::edit::EditDbx`
+height field, its material map and water, written through `bc2_formats::terrain_codec`; round TG2: the sub-terrain
+ring and the visual side from a donor level, `visual::build`) - the library Create Level's "Generate" and the sculpt
+tools call (`Terrain::new`, `Terrain::resources`, `paint::paint`). Its game-accurate view: the generated files over
+the donor level's (`bc2_render::files::Files::with`, `World::load_generated`; the editor's `gameview::read_generated`,
+round TG2). The editor reads and edits DBX through one document, `bc2_formats::dbx::edit::EditDbx`
 (DbxEdit's rules through `dbxedit::read` / `serialize` in the DBX inspector), and runs its background jobs as `Task`s.
 
 The editor must be very fast and use parallelism. The user chose a **hybrid Rust core**:
@@ -1681,12 +1684,11 @@ byte for byte but the intended changes, every check line passing; install and re
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
   noise with erosion and a seed, so it can be made again.
-- **Terrain writer:** the heightfield is decoded (DESIGN.md section 7, item 1). Its tail, the level-of-detail data,
-  is not; `console-convert/terrain.py` already computes it for converted terrain. Still to do:
-  - writing the heightfield from new heights;
-  - the material map and its layers;
-  - the mask textures and VisualTerrain;
-  - water (WaterMesh / VisualWater, decoded).
+- **Terrain writer:** done for a generated terrain (rounds E5, TG1 and TG2, `spec/transforms/terrain_gen.md`): the
+  main block and the ring from new heights (`bc2_formats::terrain_codec`), the material map, a rule-layer
+  VisualTerrain and the visual water from a donor's (`visual_terrain`, `water::VisualWaterFile`), the colour /
+  occlusion map (`itexture`) and the donor's shader entries cloned under the new name (`shaderdb::terrain`). Still
+  to do: tiled layers and their mask atlas tiles (E5-rest, TG4).
 
   The terrain-patch rule applies: the material/mask atlas layout must match the donor's, or tiled cells draw black.
 - **A new-level shell:** the level-root files (shader database collection, emitter system, atlases), the material
