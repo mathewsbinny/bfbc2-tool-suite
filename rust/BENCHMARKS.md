@@ -3660,3 +3660,105 @@ loader condition, whether the start-up object reads `database.dbmanifest`.
 The 1,101 typeinfo records no rule names (`spec/CENSUS.md` section 5), the run-time semantics behind the data-side
 files' rules (each file's open questions), and the opaque insides of OccluderMesh's triangle records, AnimTreeInfo's
 blocks and the impulse responses' partitions.
+
+## NKS-deep B: DICE's node placement decoded and built, the remaining generator rules (2026-11-23, branch `nksdb`)
+
+Part B of NKS-deep (the old NKS-rest3), in the ranked order NKS-deep A left. The generator's own code in
+`BFBC2Game.exe` (Kynapse's `kymapbuilderrgg.cpp` and `kymapbuilderobstacles.cpp`, 0x01140000-0x011B8000) was read with
+headless Ghidra on a scratch copy of Project OPFOR's analysed project and capstone on a scratch copy of the executable
+(scripts in scratch, deleted); no game run, nothing written to OPFOR's `game\`.
+
+### What the executable says
+
+| Rule | Finding | Status |
+|---|---|---|
+| KYG-NODE-7 (new) | the node generator propagates breadth first from the seed points (the exploration's own seed list): each node sends **NbSectors** probes (32 coarse, 128 detailed, 64 vehicle; KYG-PAR-2 had NbSectors "not decoded") one every 2 pi / NbSectors from +x, DistPropagation + 2 pitches along the mesh, pulled back 2 pitches at an obstacle; farthest first, a probe's end becomes a node unless a node is within DistDensityMin, or within DistDensityMax and in a straight walk | verified: of the node pairs exactly one step apart, 21,709 of 21,884 coarse, 2,272 of 2,407 detailed, 341 of 359 vehicle lie on the NbSectors directions (control 243 of 15,521) |
+| KYG-NODE-8 (new) | dense edges within ConnectionDistance (unset by DICE: Kynapse takes 1.2 x DistPropagation, 4.02 m), then edges collapsed into their middles shortest first while every neighbour still walks straight to the middle within DistEdgeMax (leaves, locked nodes and two-edge apexes kept; dirty edges / OverSimplify's short edges with a 5 m-cell lock and rerouting / all edges, repeated) | observed |
+| KYG-EDGE-5 (new) | the 1.2 rule is a **removal** pass over the simplified graph's edges in order (A* inside a sphere of 1.2 x the length), not a greedy addition over every pair in sight: KYG-EDGE-3's 37 % of coarse pairs without an edge are pairs never adjacent in the simplified graph or edges whose route a later removal broke | observed |
+| KYG-AREA-4 (new) | the midline cut's trigger: an area whose built record reaches MaxLocalMapBinarySize (Kynapse's default 8,192 bytes) is dealt into four by its cells' box midlines ((min + max) >> 1), its tile and the four side neighbours rebuilt, until none does | observed (the size is the unsimplified record's: not fitted from the stored files) |
+| KYG-NODE-1 / KYG-NODE-4 | explained: nodes are propagated and then merged into middles of middles (off every grid); the step pairs are propagation nodes that never merged | - |
+| KYG-PAR-3 | StepMax / StepLength x pitch as a step tested on the raw samples (`kynapse_df`): detailed 0.156 m finds 14,616 of DICE's terrain breaks (0.175 m: 14,010) for 824,630 false ones (48,791); normal-pitch object sides 787 found / 2,180 false (0.6 m: 865 / 2,331); KYG-AREA-1 puts the link step under 0.62 m. NavKit keeps 0.6 / 0.175 m and the 0.77 slope | data added |
+
+Probes: `cargo run --release -p bc2-formats --example kynapse_place -- --only angles` (35 files, about 40 s) and the
+game-tier `kynapse_corpus.rs::step_pairs_lie_on_the_nbsectors_probe_directions` (1.2 s in release).
+
+### What changed in NavKit
+
+`bc2_navbuild::propagate` builds a sector's route graph the map builder's way on NavKit's sample grid: the sector's
+border nodes and the AI order positions in it as locked seeds (DICE has a node within 0.2 m of each order position,
+KYG-NODE-1), the probes over the sector's kept surfaces with the area link rule and the route edges' D sides, a
+point's height its cell's surface, then the dense edges, the simplification and the removal pass, nodes left without
+an edge dropped; the ladder links, group joins and order nodes follow as before. Behind `Switches::placement`
+(`navwalk.PLACEMENT`), **off** until the user rules (below). A level builds in 8-86 s.
+
+### Measured: the 15 regression levels (scratch builds, one at a time; before = the reference `regression`)
+
+| Measure (mean) | before | placement |
+|---|---:|---:|
+| `nodes_near` | 47.63 | 56.21 |
+| `ai_pairwise` | 92.67 | 95.57 |
+| `connectivity` | 98.79 | 99.06 |
+| `runtime_connectivity` | 98.80 | 99.06 |
+| `over_connection` (lower is better) | 15.31 | 15.74 |
+| `costs` | 95.29 | 84.92 |
+| `nodes_same` | 0.66 | 0.63 |
+| `edges_same` | 0.02 | 0.01 |
+| ground, extra_ground, areas, portals, outline, borders, D / F, `ai_coverage`, `strong_share` | | unchanged |
+
+| level | nodes_near | ai_pairwise | connectivity | runtime_connectivity | over_connection | costs | nodes_same |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| sp_01 | 46.12 -> 59.13 | 96.4 -> 98.9 | 98.66 -> 99.1 | 99.1 -> 99.39 | 59.94 -> 53.53 | 95.45 -> 73.33 | 1.18 -> 0.92 |
+| sp_02 | 43.51 -> 52.6 | 96.1 -> 97.7 | 99.49 -> 99.45 | 99.56 -> 99.46 | 7.78 -> 6.85 | 80 -> 100 | 0.43 -> 0.37 |
+| sp_03 | 43.37 -> 60.51 | 97.9 -> 98.1 | 98.46 -> 99.15 | 98.59 -> 99.3 | 20.7 -> 23.2 | 89.77 -> 96.43 | 1.26 -> 0.99 |
+| sp_04 | 40.63 -> 48.48 | 97.3 -> 97.3 | 99.61 -> 99.58 | 99.8 -> 99.58 | 7.57 -> 7.38 | 100 -> 100 | 0.54 -> 0.53 |
+| sp_003_b | 40.48 -> 60.23 | 70.3 -> 74.4 | 93.67 -> 95.28 | 92.67 -> 94.52 | 29.35 -> 37.02 | 89.32 -> 94.37 | 1.51 -> 1.2 |
+| sp_004_b | 56.47 -> 62.2 | 84.1 -> 88.3 | 100 -> 99.9 | 100 -> 99.87 | 18.21 -> 17.62 | 100 -> 100 | 0.41 -> 0.38 |
+| sp_005 | 41.56 -> 57.4 | 98.6 -> 98.6 | 99.42 -> 99.56 | 99.38 -> 99.54 | 14.06 -> 12.53 | 100 -> 86.44 | 1.04 -> 0.94 |
+| sp_005_b | 42.85 -> 61.93 | 95.6 -> 98.5 | 99.36 -> 99.59 | 99.37 -> 99.59 | 23.96 -> 23.34 | 96.3 -> 85.71 | 1.04 -> 0.92 |
+| sp_006 | 31.77 -> 39.97 | 94.7 -> 96.4 | 99.46 -> 99.59 | 99.63 -> 99.72 | 7.75 -> 6.65 | 85.71 -> 50 | 0.37 -> 0.34 |
+| sp_007 | 49.23 -> 58.43 | 92.7 -> 94.4 | 98.43 -> 98.22 | 98.25 -> 98 | 10.87 -> 17.47 | 92.86 -> 87.5 | 0.78 -> 0.73 |
+| sp_008 | 59.91 -> 68.59 | 96.2 -> 95.5 | 98.63 -> 98.97 | 98.96 -> 99.17 | 6.68 -> 6.12 | 100 -> 100 | 0.56 -> 0.58 |
+| sp_008_b | 61.82 -> 59.16 | 98.3 -> 98.3 | 98.69 -> 99.66 | 98.5 -> 99.56 | 11.75 -> 13.12 | 100 -> 100 | 0.38 -> 0.57 |
+| sp_009 | 41.08 -> 32.43 | 71.8 -> 97.2 | 100 -> 100 | 100 -> 100 | 0.5 -> 0.53 | 100 -> 100 | 0 -> 0.21 |
+| ons_mp_002 | 54.91 -> 56.93 | 100 -> 100 | 100 -> 99.85 | 100 -> 99.81 | 2.22 -> 2.1 | 100 -> 0 | 0.14 -> 0.3 |
+| ons_mp_004 | 60.81 -> 65.18 | 100 -> 100 | 97.9 -> 98.04 | 98.23 -> 98.42 | 8.38 -> 8.68 | 100 -> 100 | 0.26 -> 0.4 |
+
+Structure (scratch counts, sp_01; DICE / before / placement): coarse ordinary nodes 10,207 / 9,623 / 11,853, nearest
+ordinary node median 3.14 / 1.35 / 2.90 m, edges per node 2.72 / 1.88 / 2.73; detailed ordinary nodes 9,456 / 17,189
+/ 14,990, edges 36,903 / 88,665 / 50,102. sp_009: coarse edges per node 3.70 / 1.65 / 3.64, detailed nearest-node
+median 5.20 / 4.44 / 5.19 m. Both ways within 2 m (sp_01): DICE nodes with a NavKit node near 44.8 -> 58.8 %, NavKit
+nodes with a DICE node near 38.4 -> 50.8 %.
+
+**What got worse, with counts (for the user's ruling; XNAV-BLD-3 keeps the switch off until then):**
+- `over_connection`: mostly the matched sample growing. On sp_003_b the DICE group pairs NavKit wrongly joins fall
+  8,622 -> 7,629 and on sp_03 5,442 -> 4,753, while the matched DICE nodes grow 19,318 -> 29,999 and 21,654 -> 31,379
+  (the measure weighs node pairs, so more matched nodes in the same wrong joins count more). sp_007 is a real rise:
+  147 new joins between DICE groups both builds matched (942 -> 987 joined pairs), led by one 142-node DICE island at
+  (595, 150, 476) that NavKit's detailed ground joins to the main group through edges of 0.3-1.5 m beside DICE's own
+  island boundary (NavKit's ground there, not the placement, decides it); sp_008_b the same 6 joined pairs with fewer
+  matched nodes.
+- `costs`, `nodes_same`, `edges_same`: tiny samples. `costs` is the share of edges matched within 5 cm whose cost
+  word equals DICE's (a handful of edges per level); `nodes_same` counts nodes on DICE's exact positions, which
+  NavKit's old nodes met only where DICE kept a cell-centre node (KYG-NODE-1's 4 %).
+- per level: `connectivity` sp_007 -0.21, ons_mp_002 -0.15, sp_004_b -0.10, sp_02 / sp_04 -0.04 / -0.03;
+  `runtime_connectivity` likewise (sp_04 -0.22); `nodes_near` sp_009 41.08 -> 32.43 (the old build had 2.6 x DICE's
+  nodes there: the share of NavKit's nodes near a DICE node rose 23.0 -> 32.4 %) and sp_008_b 61.82 -> 59.16;
+  `ai_pairwise` sp_008 96.2 -> 95.5.
+
+### Left
+
+- KYG-AREA-4 in NavKit: needs NavKit's records sized as Kynapse's unsimplified ones, or the size fitted against
+  DICE's cut groups on part C's 0.2 m samples.
+- DICE's detailed sectors (KYG-DET-1): part C's offline sampler (on main after this round's runs) samples all 502 at
+  0.2 m; the `DICE_DETAILED` measurement is to be repeated with it, with the placement on and off.
+- KYG-NODE-8's seeds and mesh queries are NavKit's stand-ins (border nodes, order positions; the sample grid); vehicle
+  builds keep NavKit's placement (no vehicle sample run).
+- Object-side D / F: no rule appeared (the 0.6 m step stays).
+
+### Tests
+
+- `cargo test -p bc2-navbuild --lib`: 100 pass (`propagate_tests`: DICE's parameters, the probes' step and
+  directions, the density limit, open ground simplified within DistEdgeMax into one graph, the removal pass, a wall
+  passed through its gap only).
+- `kynapse_corpus` (game tier): `step_pairs_lie_on_the_nbsectors_probe_directions` new.
+- The switch is off by default: the golden builds and navregress's reference are unchanged (not re-recorded).

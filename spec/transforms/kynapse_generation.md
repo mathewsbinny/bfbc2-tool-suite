@@ -318,6 +318,14 @@ node within 7.5 m, coarse 73.7 % (DICE's same 15 files 96.4 %), detailed 97.5 % 
 unrecoverable from the output so far (the exception the parity target allows, with the evidence above and under
 Open questions).
 
+Round NKS-deep B decoded the placement from the executable (KYG-NODE-7: propagation from the seeds in NbSectors
+directions, DistPropagation apart; KYG-NODE-8: dense edges and edges collapsed into their middles), which explains
+every trace above: positions on no grid are middles of middles, the step pairs are propagated nodes that never merged,
+and the coverage follows from merging only while every neighbour stays within DistEdgeMax. NavKit builds it behind
+`Switches::placement` (off until the user rules): on the 15 levels `nodes_near` 47.63 -> 56.21 %, `ai_pairwise`
+92.67 -> 95.57 %, `connectivity` 98.79 -> 99.06 %, `over_connection` 15.31 -> 15.74 % (`rust/BENCHMARKS.md`
+"NKS-deep B").
+
 ### KYG-NODE-2: Border nodes form a band shared by two to four sectors
 
 Status: **observed**
@@ -567,7 +575,9 @@ measured in metres or in units of `GraphAccuracy`, has no sharp edge. Round NKS-
   4 edges (39 % of edges).
 
 So the infantry rule is the spanner over the nodes of the main pass, with a later step (the step pairs, and the
-removal of numbered nodes) that the spanner does not revisit. That step is not decoded.
+removal of numbered nodes) that the spanner does not revisit. That step is not decoded. Round NKS-deep B found
+it in the executable: no later step is needed, the 1.2 rule itself is a removal pass over the simplified graph's edges
+(KYG-EDGE-5), so the misses are pairs never adjacent there or edges whose route a later removal broke.
 
 NavKit today (round NKG2): each sector's walkable pairs (every pair within DistEdgeMax whose straight line is
 walkable, both pitches) go through the greedy 1.2-spanner, shortest first, ties by pair order
@@ -896,7 +906,8 @@ movement detail, then bytes):
    ids 125,145 against DICE's 103,085, in three or four sectors 6,239 against 8,352). Interior placement not: nodes moved off
    the grid toward their share's centroid and coarse coverage nodes every 7.5 m were both measured worse (KYG-NODE-1;
    coverage nodes raised `nodes_near` 47.63 -> 50.14 % but `over_connection` rose on 4 levels and ONS_MP_004's
-   `connectivity` fell 0.44): the exact placement stays a named exception.
+   `connectivity` fell 0.44): the exact placement stays a named exception. **Round NKS-deep B**: the placement decoded (KYG-NODE-7,
+   KYG-NODE-8) and built behind `Switches::placement` (off until the user rules; the measures in KYG-NODE-1).
 3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): the duplicates are gone (NKG1). 111,968 edges sit on non-owner
    border copies (DICE 8,039); the runtime uses them (KYRT-PATH-3), and with NavKit's single border row they are its
    only edges into the lower sector, so they move onto owner copies with the band (NKG2, KYG-NODE-2: round NKG1
@@ -944,24 +955,19 @@ went on with `rust/bc2-formats/examples/kynapse_rules.rs` (DICE's files alone) a
 a 1.2-spanner), which are one-way (KYG-EDGE-4, the border convention), and the rectangle (KYG-RECT-1, the spawns' box
 grown by 25 m, verified). Still open, with what the fits ruled out:
 
-- The midline cut's trigger (KYG-AREA-2): not the cell count, record size, outline length, tile, a hole crossing the
-  midline (single areas hold 3,221 such holes), the number of crossings (a tendency only) or what lies between them.
-  Next: the cut groups against the raw samples (OPFOR's `work\navsample` at pitch 0.8 / 0.2), e.g. the order in which
-  a tile's cells are grown.
-- Node placement (KYG-NODE-1): not a lattice, outline corners offset by the radius, the medial axis, area centroids,
-  the Havok collision's corners or edges offset by the radius, or a converged centroidal layout. Known: the coverage
-  (KYG-NODE-5) and the half-step moves along the axes (KYG-NODE-4). Next: where a step pair's centre comes from (its
-  two nodes' common start), against the raw samples.
-- The remaining 37 % of coarse pairs without an edge (KYG-EDGE-3): not the reach test on the sample cells, and no pair
-  order alone; they need a step after the spanner (inferred from the numbering gaps and the misses on step-pair and
-  low-degree nodes). Next: the same step as KYG-NODE-4's.
+- The midline cut (KYG-AREA-2): its trigger decoded (KYG-AREA-4, an area's built record at MaxLocalMapBinarySize);
+  open: the size of the unsimplified record, to be fitted against DICE's cut groups (part C's 0.2 m samples), before
+  NavKit can cut.
+- Node placement (KYG-NODE-1): decoded (KYG-NODE-7, KYG-NODE-8); open: DICE's exact seed list per sector and its mesh
+  queries, which NavKit stands in for (border nodes and order positions; its sample grid).
+- The remaining 37 % of coarse pairs without an edge (KYG-EDGE-3): answered by KYG-EDGE-5 (the removal pass over the
+  simplified graph).
 - The vehicle D / F rule (KYG-DF-2): needs a vehicle-shaped sample run in game (none on disk); a playtest item.
 - Detailed sectors beyond `NeedsDetailedPathfinding` (KYG-DET-1): no level-data rule (best 92.2 %); designer zones that
   are not shipped. Closed as unrecoverable for DICE's levels (their own list is the record); new maps use the stand-in
   in the gap list.
 - The rectangle on the Onslaught files (KYG-RECT-1's exception): which spawns DICE built them from.
-- Round NKS-deep A (section 9): what DistDensityMin / DistDensityMax (0.35 / 0.65 x DistPropagation) do to the
-  nodes, and whether the walkable step is StepMax / StepLength x pitch (KYG-PAR-3). Next: both against the raw
-  samples in part B; the map builder's propagation and density code (0x01140000-0x01160000) read further.
+- Round NKS-deep A (section 9): the density limits are the propagation's (KYG-NODE-7); StepMax / StepLength x pitch
+  as a step does not reproduce DICE's breaks (KYG-PAR-3, round NKS-deep B).
 
 The `formats/kynapse.md` section 6 table tracks the same questions.
