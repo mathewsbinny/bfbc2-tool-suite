@@ -10838,3 +10838,34 @@ the catalogue from the game copy each run (the pickle holds Python `dbx.Element`
   which Project OPFOR's modules unpickle; with it `--predict` could read the cache instead of building.
 - **`meshport.py`'s Porter** stays the WW2 builds' (renames, donors, poses, the shader plan); the Rust `Porter` covers
   what the parity tool reads. Moving OPFOR's ports onto it is OPFOR in Rust stage 2.
+
+## SPV1: the specification's observed rules verified on DICE's files (2026-11-22, branch `spv1`)
+
+Of the 473 observed rules, every one was classed by what would verify it (`spec/COVERAGE.md` section 4); the ones a
+count over DICE's PC files settles got a game-tier check. The corpus is DICE's: every `.fbrb` under the game copy dated
+before 2013 (1,021 bundles; OPFOR's installs and the bundles it changed are newer), each check read-only.
+
+| Check | Reads | Time | Rules verified |
+|---|---|---|---|
+| `rust/bc2-formats/tests/spec_corpus.rs` (12 tests, one shared pass) | 1,021 bundles: headers and raw gzip members, every entry (stored bundles where each entry is), 124,458 DBX files (the raw element walk and `DbxTree`), 3,826 textures, 4,265 MeshData and their mesh sets, 876 movies | about 35 - 70 s release, 3 threads | 56: FBRB 9, RES 3, DBX 7, TYPE 16, INST / REF 7, TEX 4, MESH / MSET 6, TERR 2, HAVOK 1, BIGF 1 |
+| `spec/probes/level.py` (`checks`) | DICE's 74 level partitions (Package's copy where DICE's), their two cull trees (148, 516,718 leaves) | about 70 - 90 s | 15: LEVEL 10, CULL 3, VEG-CLS-1, DECAL-SRC-2 |
+| `spec/probes/registry.py` (`checks`) | the stock `package.mft` and `bundleManifest` (OPFOR's `.opfor-orig` backups) and which bundles exist | under 1 s | 8: REG 4, BNDL 3, STRM-REG-1 |
+| SPG's probes' printed lines (`EXPECT`, now with `<head>§<line>` for a line inside one block) | the weapon, vehicle, material, destruction and lighting probes' output | as before | 48: WPN 23, VEH 11, MAT 4, DSTR 4, FX 2 (one through `emitters`), LIGHT 1, WTH 3 |
+
+`test_spec_probes.py` grows from 172 to about 700 checks (7 - 8 minutes on this PC with other rounds' builds
+running). Rules: verified 622 -> 749, observed 473 -> 346.
+
+Contradictions found (each corrected in place, the text saying so, then verified): FBRB-HDR-10 (the build overlays are
+stored), FBRB-DEL-2 (DICE's marker-only bundles end with a 20-byte empty gzip member; FbrbTool's with none),
+TYPE-ATTR-3 (14 namespaces), LEVEL-ENV-1 (0 - 3 environment maps per level), WPN-DMG-3, WPN-AMMO-1, WPN-SWAY-2,
+VEH-HP-4, VEH-MAT-1 (numbers in their tables). Counts that differed only because the earlier survey read the whole
+game copy (OPFOR's files in it) got DICE-only `[data: ...]` lines: DBX-STR-3 (no unused string in DICE's files),
+MSET-LOD-2 (no exception in DICE's), VEG-CLS-1 (Package's level copies).
+
+### What is left
+
+`spec/COVERAGE.md` section 4b: 67 rules a data probe over DICE's files could count (shader databases, animation,
+persistence, the terrain probe's strips and trees, the weather classification, the levels' descriptions), 23 AI value
+lists for `ai_corpus.rs`, 24 placement conventions (a re-run of the L1 study as a check), 23 rules half data and half
+RE, 32 measured on other corpora, 21 that need the game running, 119 read from the executable; the 37 Kynapse /
+NavKit rules are round NKG2's.

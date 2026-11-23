@@ -3471,7 +3471,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 397,
+   "lines": 784,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/p...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3927,7 +3927,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 843,
+   "lines": 847,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -3975,6 +3975,18 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
+   "lines": 320,
+   "note": "read-only probe for spec/model/level.md, the cull trees, vegetation and terrain splines; checked in the game tier",
+   "path": "spec/probes/level.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
    "lines": 342,
    "note": "read-only probe for the lighting, weather and effects specs",
    "path": "spec/probes/lighting.py",
@@ -4002,6 +4014,18 @@
    "lines": 494,
    "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
    "path": "spec/probes/menus.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 161,
+   "note": "read-only probe for spec/model/registration.md and bundles.md (the stock registries); checked in the game tier",
+   "path": "spec/probes/registry.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4436,8 +4460,8 @@
  ],
  "totals": {
   "all": {
-   "files": 364,
-   "lines": 106313
+   "files": 366,
+   "lines": 107185
   },
   "by_folder": {
    "(root)": {
@@ -4629,13 +4653,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 19937,
+    "lines": 20324,
     "live": 757,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14848,
+    "test": 15235,
     "twin": 2427
    },
    "design": {
@@ -4651,23 +4675,23 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5998,
+    "lines": 6002,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5731,
+    "stays": 5735,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 10,
-    "lines": 3925,
+    "files": 12,
+    "lines": 4406,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 3925,
+    "stays": 4406,
     "test": 0,
     "twin": 0
    },
@@ -4701,12 +4725,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 58,
-    "lines": 10646
+    "files": 60,
+    "lines": 11131
    },
    "test": {
     "files": 187,
-    "lines": 50786
+    "lines": 51173
    },
    "twin": {
     "files": 55,

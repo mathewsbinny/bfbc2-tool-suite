@@ -52,21 +52,21 @@ Evidence: [code: rust/bc2-formats/src/dbx/tree.rs:108-110] [test: rust/bc2-forma
 
 ### DBX-HDR-3: The body offset
 
-Status: **observed**
+Status: **verified**
 
 The word at 8 is 24 + *A*, the body's offset. The suite's reader does not read it - it starts the body at 24 + *A*
 from the word at 16 - and both writers write it as 24 + *A*.
 
-Evidence: [data: word 8 = 24 + word 16 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/strings.rs:32-54] [code: rust/bc2-formats/src/dbx/writer.rs:207-214] [code: rust/bc2-formats/src/dbxedit/file.rs:255-255]
+Evidence: [data: word 8 = 24 + word 16 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/strings.rs:32-54] [code: rust/bc2-formats/src/dbx/writer.rs:207-214] [code: rust/bc2-formats/src/dbxedit/file.rs:255-255] [test: rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: word 8 = 24 + word 16 in 124,458 of 124,458 `.dbx` entries]
 
 ### DBX-HDR-4: The kept word
 
-Status: **observed**
+Status: **verified**
 
 The word at 12 is 0 in every file. Its meaning is unknown; DbxEdit keeps it as it is and the suite's own writer
 writes 0.
 
-Evidence: [data: 0 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbxedit/file.rs:246-246] [code: rust/bc2-formats/src/dbx/writer.rs:209]
+Evidence: [data: 0 in 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbxedit/file.rs:246-246] [code: rust/bc2-formats/src/dbx/writer.rs:209] [test: rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 0 in 124,458 of 124,458]
 
 ## 2. String table
 
@@ -82,23 +82,23 @@ Evidence: [code: rust/bc2-formats/src/dbx/strings.rs:31-55] [test: rust/bc2-form
 
 ### DBX-STR-2: String 0 is the empty string
 
-Status: **observed**
+Status: **verified**
 
 String 0 is the empty string in every file. It must be: a tag index of 0 closes the open container (DBX-ELEM-2), so
 string 0 cannot name an element, and a writer starts its table with `""`.
 
-Evidence: [data: 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/writer.rs:86-90] [code: rust/bc2-formats/src/dbxedit/file.rs:246-254]
+Evidence: [data: 156,533 of 156,533 files] [code: rust/bc2-formats/src/dbx/writer.rs:86-90] [code: rust/bc2-formats/src/dbxedit/file.rs:246-254] [test: rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 124,458 of 124,458]
 
 ### DBX-STR-3: DICE's tables are packed but not deduplicated
 
-Status: **observed**
+Status: **verified**
 
 In DICE's files the offsets ascend and the strings are packed: each starts right after the previous one's zero, and
 *A* = 4*N* + the strings' bytes exactly. The table may hold one string twice and strings no element uses, and its
 order is not the order of first use in the tree. A writer may therefore not assume unique strings; an index, not the
 string's text, is what an element stores.
 
-Evidence: [data: offsets ascending and packed in 156,533 of 156,533 files; 44,510 files with a string twice; 4,756 with an unused string; 305 in first-use order]
+Evidence: [data: offsets ascending and packed in 156,533 of 156,533 files; 44,510 files with a string twice; 4,756 with an unused string; 305 in first-use order] [test: rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: packed in 124,458 of 124,458; a string twice in 34,819; an unused string in none and first-use order in none (the game copy's other counts came from OPFOR-written files)]
 
 ### DBX-STR-4: Indexes must be in range
 
@@ -186,19 +186,19 @@ Evidence: [code: rust/bc2-formats/src/dbx/tree.rs:168-175] [test: rust/bc2-forma
 
 ### DBX-ELEM-6: Only four kinds occur
 
-Status: **observed**
+Status: **verified**
 
 The game's files use kinds 0xA, 2, 7 and 6 only.
 
-Evidence: [data: kinds over 81.3 million elements: 7 32,626,636; 2 26,812,339; 6 11,796,795; 0xA 10,056,595; no other]
+Evidence: [data: kinds over 81.3 million elements: 7 32,626,636; 2 26,812,339; 6 11,796,795; 0xA 10,056,595; no other] [test: rust/bc2-formats/tests/spec_corpus.rs::dbx_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: kinds over 66.8 million elements: 7 27,177,620; 2 21,857,917; 6 9,575,434; 0xA 8,222,821; no other]
 
 ### DBX-ELEM-7: Nesting depth
 
-Status: **observed**
+Status: **verified**
 
 The game's partitions nest at most 9 containers deep (3 in most). DbxEdit's model refuses nesting past 256.
 
-Evidence: [data: deepest container per file: 2 29,767 files, 3 99,141, 4 14,651, 5 9,655, 6 3,311, 7-9 8] [code: rust/bc2-formats/src/dbxedit/file.rs:21]
+Evidence: [data: deepest container per file: 2 29,767 files, 3 99,141, 4 14,651, 5 9,655, 6 3,311, 7-9 8] [code: rust/bc2-formats/src/dbxedit/file.rs:21] [test: rust/bc2-formats/tests/spec_corpus.rs::dbx_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: deepest container per file: 2 22,648; 3 80,799; 4 10,852; 5 7,478; 6 2,678; 7, 8 and 9 one each]
 
 ## 4. Numbers
 
@@ -213,13 +213,13 @@ Evidence: [code: rust/bc2-formats/src/dbx/tree.rs:152-167] [code: rust/bc2-forma
 
 ### DBX-NUM-2: Sizes 4, 2 and 8
 
-Status: **observed**
+Status: **verified**
 
 Values are 4 bytes (a 32-bit float or integer: the bytes do not say which, `model/types.md` TYPE-NUM-1), 2 bytes
 (a 16-bit integer) or 8 bytes (a 64-bit value, printed as a double). Size 4 is on `field`, `complex` and `array`
 elements, sizes 2 and 8 only on `field`s.
 
-Evidence: [data: values of size 4 in 24,578,687 lists, size 2 in 8,047,646, size 8 in 303; size 4 on field 20,298,193, complex 3,963,739, array 316,755] [code: rust/bc2-formats/src/dbx/number.rs:189-213]
+Evidence: [data: values of size 4 in 24,578,687 lists, size 2 in 8,047,646, size 8 in 303; size 4 on field 20,298,193, complex 3,963,739, array 316,755] [code: rust/bc2-formats/src/dbx/number.rs:189-213] [test: rust/bc2-formats/tests/spec_corpus.rs::dbx_elements] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: size 4 on field 16,882,127, complex 3,273,333, array 104,332; size 2 on field 6,766,214; size 8 on field 240; no other]
 
 ### DBX-NUM-3: Floats are IEEE 754, big-endian
 

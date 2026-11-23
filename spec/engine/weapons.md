@@ -36,7 +36,7 @@ names an `ExplosionEntityData`. The weapon's `AimingController` names a `Soldier
 
 ### WPN-CLS-2: WeaponClass, and no pistol class
 
-Status: **observed**
+Status: **verified**
 
 `SoldierWeaponData.WeaponClass` sorts the players' weapons: `wcUgl` 82 (the underbarrel launchers, WPN-GREN-1),
 `wcAssault` 52, `wcSmg` 44, `wcShotgun` 42, `wcLmg` 34, `wcSniper` 32, `wcAt` 6, `wcHgr` 4, `wcKnife` 4, `wcC4` 3,
@@ -45,16 +45,18 @@ Status: **observed**
 `wcSmg` (9) or `wcAssault` (1) single-fire weapons with `AnimBaseSet` `wabsHg`. The kit a weapon belongs to is the
 kit's choice, not the class's.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: 321 players' weapons by WeaponClass as listed; AnimBaseSet wabsHg on 10 player firearms (wcSmg 9, wcAssault 1), all fltSingleFire]
 
 ### WPN-CLS-3: Body sets per class
 
-Status: **observed**
+Status: **verified**
 
 `AnimBaseSet` picks the soldier's third-person body set: `wabsRif` on 197 of 227 player firearms, `wabsShg` on 20 (all
 shotguns: 20 of the 42 shotgun weapons, the others `wabsRif`), `wabsHg` on 10 (the pistols); `wabsAT` on the rocket
 launchers (6 of 6), `wabsHgr` on grenades, mines and explosives, `wabsHg` on the power tool (2 of 2).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: AnimBaseSet over 227 player firearms wabsRif 197, wabsShg 20, wabsHg 10; wcAt wabsAT 6/6; wcHgr wabsHgr 4/4; wcC4 3/3 and wcATMine 2/2 wabsHgr; wcPowerTool wabsHg 2/2]
 
 ## 2. Where the balance is: the patch copies
@@ -86,13 +88,14 @@ before Dist and keeps the first bundle that holds a name, so the class overrides
 
 ### WPN-DMG-1: Damage lives on the projectile
 
-Status: **observed**
+Status: **verified**
 
 A bullet's damage is `BulletEntityData.StartDamage` up to `DamageFalloffStartDistance` and `EndDamage` from
 `DamageFalloffEndDistance` on; `Material` names its projectile material. The firing holds no damage. Explosive
 projectiles add an `ExplosionEntityData` (`BlastDamage`, `BlastRadius`, `InnerBlastRadius`). Melee weapons and the
 power tool fire bullets too: a slow, short-lived bullet with no drop (WPN-DMG-4).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: StartDamage / EndDamage / falloff distances on every BulletEntityData a player weapon fires (293 weapons over 85 partitions); 72 of them name an Explosion]
 
 ### WPN-DMG-2: Falloff between the two distances is linear
@@ -105,7 +108,7 @@ Damage falls from `StartDamage` to `EndDamage` between the two falloff distances
 
 ### WPN-DMG-3: Damage profiles per class
 
-Status: **observed**
+Status: **verified**
 
 Distinct player firings, start -> end damage over the falloff distances:
 
@@ -113,7 +116,7 @@ Distinct player firings, start -> end damage over the falloff distances:
 |---|---|---|
 | assault, automatic | 14 | 12.5-25 -> 12.5-20; falloff 18-64 m (12), 18-42 m (2) |
 | assault, single fire | 9 | 39 -> 28 over 8-64 or 12-64 m (4: the semi-automatic rifles), 14.3-33.4 -> 14.3-25 |
-| SMG, automatic | 13 | 11.2-25 -> 10-15, all over 18-42 m |
+| SMG, automatic | 13 | 14-25 -> 11.2-15, all over 18-42 m |
 | SMG, single fire (pistols) | 7 | 12.5-40 -> 9.1-33.4 over 6-12 to 42 m |
 | LMG, automatic | 14 | 11.2-20 -> 10-16.7, all over 18-64 m |
 | shotgun, pump / bolt | 15 | buckshot 14.3 or 15 -> 6 over 8-18 m (5); slug 100 -> 50 (5) or 85 -> 30 (5) over 10-36 m |
@@ -124,16 +127,18 @@ Distinct player firings, start -> end damage over the falloff distances:
 
 Buckshot fires 12 pellets a shell (`Shot.NumberOfBulletsPerShell`; 6 on 5 weapons); every other player firearm 1.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: the damage-profile section, 98 distinct player firearm firings; NumberOfBulletsPerShell 12 on 10 and 6 on 5 shotgun weapons, 1 on the other 212 player firearms]
 
 ### WPN-DMG-4: Melee and tools are slow bullets
 
-Status: **observed**
+Status: **verified**
 
 The knives fire a `BulletEntityData` of 120 (125 on one) damage at 1.75-2.25 m/s that lives 1 s with gravity 0 and
 no falloff, 52-60 a minute, magazines -1; two `wcNone` melee weapons fire 120 at 1.6 m/s. The power tool fires 6.5 a
 hit at 900 a minute (97.5 a second) at 2 m/s, its overheat limiting how long it runs; magazines -1.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: wcKnife 4 weapons: StartDamage 120 x3, 125 x1, speed 1.75 x2 / 1.8 / 2.25, TimeToLive 1, Gravity 0, RateOfFire 52 x3 / 60, NumberOfMagazines -1; wcNone StartDamage 120 x2 at 1.6; wcPowerTool 2: 6.5 at 900 rpm, speed 2, NumberOfMagazines -1; 8 player bullets with gravity 0, all of these]
 [doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:43-45]
 
@@ -141,7 +146,7 @@ hit at 900 a minute (97.5 a second) at 2 m/s, its overheat limiting how long it 
 
 ### WPN-PROJ-1: Muzzle speed is Shot.InitialSpeed
 
-Status: **observed**
+Status: **verified**
 
 A firing's muzzle velocity is the vector `FiringFunctionData.Shot.InitialSpeed` (x, y, z, w), z forward. DICE's player
 firearms fire at 600 (189 of 227); the exceptions are the underbarrel buckshot at 300 (24), shotguns at 200 (11) and
@@ -149,28 +154,31 @@ firearms fire at 600 (189 of 227); the exceptions are the underbarrel buckshot a
 thrown at 20, rifle grenades at 40, 40 mm grenades at 50. `BulletEntityData` has an `InitialSpeed` of its own (2000 on
 the M24) that the conversions leave alone (WPN-PROJ-4).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: Shot.InitialSpeed z over 227 player firearms 600 x189, 300 x26, 200 x11, 400 x1; AI clones 300 x25; MissileEntityData 25 .. 100 mode 75; GrenadeEntityData 20 x4, 40 x1; wcUgl 50 x57]
 
 ### WPN-PROJ-2: Every player firearm drops at -9.81
 
-Status: **observed**
+Status: **verified**
 
 `BulletEntityData.Gravity` is -9.81 on all 227 player firearms and all 25 AI clone firearms; 0 only on the melee
 weapons' and the power tool's bullets (WPN-DMG-4) and the tracer dart. Hand grenades (`GrenadeEntityData.Gravity`) fall at -8, the rifle
 grenade at -7, the underbarrel buckshot at -9.8, rockets at -9.81 to 0 (mode -1.5). Bullets live 2 s
 (`TimeToLive`), rockets 30 s.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: Gravity -9.81 x227 player firearms, -9.81 x25 AI clone firearms; BulletEntityData gravity 0 on 8 player weapons (4 knives, 2 wcNone, 2 power tools); GrenadeEntityData -8 x4, -7 x1; wcUgl buckshot -9.8 x24; MissileEntityData mode -1.5; TimeToLive 2 on every assault, SMG, LMG and sniper weapon, 30 on 5 of 6 wcAt]
 
 ### WPN-PROJ-3: Explosive projectiles
 
-Status: **observed**
+Status: **verified**
 
 The 40 mm underbarrel grenade is a `BulletEntityData` (125 direct damage, 50 m/s) with an explosion over 5 m: 100
 blast damage (inner 0.34 m) on 33 launchers, 0 on 24 (direct damage only). Frag shotgun shells and one sniper firing's frag round
 carry a small explosion (10-20 over 1.1 m). Hand grenades explode for 110 over 8 m (inner 1 m), the rifle grenade 102
 over 7 m; C4 and mines 290 over 5-8 m; rockets 80-100 over 2-7 m, the mortar strike 200 over 6 m.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: player weapons whose projectile names an Explosion: wcUgl 50 m/s blast 100 radius 5 inner 0.34 x33, blast 0 radius 5 x24; frag shells blast 20 x10 / 10 x4 at radius 1.1 (one a wcSniper firing); GrenadeEntityData 110 radius 8 x4, 102 radius 7 x1; ExplosionPackEntityData 290 radius 8 x4 / 5 x1; wcAt MissileEntityData 80 .. 100 radius 2 .. 7; wcMortarStrike 200 radius 6]
 
 ### WPN-PROJ-4: Which of the two speeds flies the bullet
@@ -186,24 +194,27 @@ The bullet flies at the firing's `Shot.InitialSpeed`, not at `BulletEntityData.I
 
 ### WPN-AMMO-1: Finite magazines and pickups per class
 
-Status: **observed**
+Status: **verified**
 
 `FiringFunctionData.Ammo` holds `MagazineCapacity`, `NumberOfMagazines` (spares), `AmmoPickupMinAmount` /
 `AmmoPickupMaxAmount` and the ammo box's rate. No player firearm has unlimited spares (-1) or a zero pickup. Class
-values over distinct firings: assault 4 magazines (6 on the semi-automatic rifles), pickup 30 / 60; LMG 2-3 of 100 or
-200, pickup 45 / 110; SMG 3-4, pickup 30-60 / 60-120 (pistols 5 / 10-12); shotgun 4 or 6 of 4 or 6, pickup 8 / 16;
+values over distinct firings: assault 4 magazines (6 on the semi-automatic rifles), pickup 30 / 60 on the automatic
+firings (5 - 30 / 8 - 60 on the single-fire ones); LMG 2-3 of 100 or 200, pickup 45 / 110; SMG 3-4, pickup 20-60 /
+30-120 on the automatic firings (pistols 5 / 10-12); shotgun 4 or 6 of 4 or 6, pickup 8 / 16;
 sniper 3-5 of 5, 10 or 20, pickup 3 / 8. -1 appears on the knives, the power tool, some gadgets and most AI clones.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: 227 player firearms NumberOfMagazines 2 .. 9999, none -1, AmmoPickupMin and Max both 0 on none; per-class values from the damage-profile section; AI clone firearms NumberOfMagazines mode -1]
 
 ### WPN-AMMO-2: 9999 spares on two campaign weapons
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 Two of DICE's BF1943 weapons, the Type 5 rifle and the Nambu 100 SMG (campaign-only, fired by the campaign's
 Japanese), carry 9999 spare magazines with pickups 8 / 8 and 30 / 30: unlimited in practice. Every multiplayer
 firearm's spares are 2-9.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: NumberOfMagazines 9999 on 2 player firearms, both in beach/ with copies only in sp_* bundles; every other player firearm 2 .. 9]
 [code: opfor:src/tools/ww2/weapons.py:318-332]
 
@@ -211,7 +222,7 @@ firearm's spares are 2-9.
 
 ### WPN-SWAY-1: Two recoils: gun sway and camera
 
-Status: **observed**
+Status: **verified**
 
 `GunSwayData` gives per stance (`Stand`, `Crouch`, `Prone`) and zoom (`NoZoom`, `Zoom`) a dispersion cone for
 `BaseValue`, `Moving`, `Jumping` and vaulting (`MinAngle`, `MaxAngle`, `IncreasePerShot`, `DecreasePerSecond`), the
@@ -219,33 +230,37 @@ gun's `Recoil` (`RecoilAmplitudeMax`, increase per shot, angle, decrease factor)
 `DeviationScaleFactorNoZoom` and `SuppressionModifier` are global. `FireLogic.Recoil` is the camera kick: DICE zeroed
 it (`MaxRecoilAngleX` 0) on every player firearm but three SMGs (0.5) and kept mostly its FOV kick (0-0.8).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: MaxRecoilAngleX 0 on 224 of 227 player firearms, 0.5 on 3 SMG weapons; MaxRecoilFov 0.5 on snipers, 0.6 on most others, 0.8 on 4 LMG weapons]
 
 ### WPN-SWAY-2: Class sway values
 
-Status: **observed**
+Status: **verified**
 
-Standing, unzoomed base cone (min / max): assault 1-2 / 4-5, SMG 1-1.5 / 3-5, LMG 2.5 / 7, shotgun 2 / 5, sniper
-bolt action 7 / 7 (semi-automatic 1.5-2 / 4-5); zoomed min 0. `RecoilAmplitudeMax` is 99 on assault, SMG, LMG and
+Standing, unzoomed base cone (min / max): assault 1-2 / 3-5, SMG 1-1.5 / 3-5, LMG 2.5 / 7, shotgun 2 / 5 (0 / 0 on
+two automatic and single-fire firings), sniper bolt action 7 / 7 (semi-automatic 1.5-2 / 4-5); zoomed min 0, except
+0.2-0.8 on 9 SMG weapons and 0.3 on one assault weapon. `RecoilAmplitudeMax` is 99 on assault, SMG, LMG and
 shotgun firings and 10 on the bolt-action snipers (both zoom states), whose `DeviationScaleFactorNoZoom` is 4 (1 on
 the others).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: damage-profile section: Stand.NoZoom base per class as listed; bolt-action snipers 10 of 10 firings 7 / 7, RecoilAmplitudeMax 10 / 10, DeviationScaleFactorNoZoom 4; 99 on every assault, SMG, LMG and shotgun firing]
 
 ### WPN-SWAY-3: Aim steadiness is a sniper field
 
-Status: **observed**
+Status: **verified**
 
 `SoldierAimingSimulationData.<Stand|Crouch|Prone>Pose.AimSteadiness` is 0 on every class but the snipers: 1 standing
 on 8 of 10 bolt-action firings' weapons and 4 of 8 semi-automatic ones (the M24: stand 1, crouch 0.75, prone 0).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: AimSteadiness 0 on every stance of every assault, SMG, LMG, shotgun and gadget weapon; wcSniper stand 1 on 8 of 10 bolt-action and 4 of 8 single-fire firings]
 
 ## 7. Zoom
 
 ### WPN-ZOOM-1: Two zoom levels: hip and sights
 
-Status: **observed**
+Status: **verified**
 
 Player firearms have two `ZoomLevelData` (the flamethrower, a `wcLmg` weapon, one): level 0 is the hip view (`FieldOfView` 55,
 `LookSpeedMultiplier` 1), level 1 the sights: 40 for iron sights (look speed 0.2), 45-50 for some shotguns and
@@ -253,80 +268,88 @@ launchers, 17 for 4x scopes (0.15) and 8-40 on the snipers (mode 11.5, 0.1-0.2).
 recoil (`RecoilMultiplier` 0.2 on 6 of 10 firings, `RecoilFovMultiplier` -6 on 4); `SwayPitchMultiplier` is 0 on
 every level but 18 sniper weapons' scope (0.002).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: ZoomLevels 2 on every assault, SMG, shotgun and sniper weapon, 2 x33 / 1 x1 on LMG; zoom[0] FOV 55 on all; zoom[1] FOV assault 40 x35 / 17 x14, LMG 40 x24 / 17 x9, sniper 8 .. 40 mode 11.5; SwayPitchMultiplier 0.002 on 18 sniper weapons]
 
 ### WPN-ZOOM-2: Press to zoom; hold on AI clones and knives
 
-Status: **observed**
+Status: **verified**
 
 `ZoomType` is `ztPressButtonToSwitchZoomLevel` on 226 of 227 player firearms (hold on one BFBC2 sniper rifle);
 `ztHoldButtonToZoom` on every AI clone (25 of 25 firearms), every knife (4 of 4), the flamethrower and some grenades
 and mines.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: ZoomType over player firearms press 226, hold 1 (wcSniper, bfbc2); AI clone firearms hold 25; wcKnife hold 4; wcLmg hold 1 (the 50 m/s flamethrower, not a firearm); wcHgr hold 2 of 4; wcATMine hold 1 of 2]
 
 ### WPN-ZOOM-3: Full look speed while sprinting
 
-Status: **observed**
+Status: **verified**
 
 `SprintLookSpeedMultiplier` is 1 on every zoom level of every player and AI firearm.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: SprintLookSpeedMultiplier 1 on 454 zoom levels of 227 player firearms and 50 of 25 AI clone firearms]
 
 ### WPN-ZOOM-4: AlwaysAimHead depends on the class
 
-Status: **observed**
+Status: **verified**
 
 `SoldierWeaponData.WeaponStates[].AlwaysAimHead` is true on 190 of 227 player firearms and false on 37: every sniper
 (32 of 32), four SMGs (DICE's BF1943 Thompson twice and Nambu 100, and one Vietnam SMG) and one Vietnam assault
 rifle; among the other weapons, 5 of the 6 rocket launchers.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: AlwaysAimHead true x190 / false x37 over player firearms; wcSniper false 32 of 32 (20 firings); wcSmg false 4 of 44 (beach 3, vietnam 1); wcAssault false 1 of 52 (vietnam); wcAt false 5 of 6]
 
 ## 8. Auto-aim
 
 ### WPN-AIM-1: Auto-aim is off
 
-Status: **observed**
+Status: **verified**
 
 `WeaponFiringData.UseAutoAiming` is false on 358 of the 359 firings the weapons name; the one true is a BFBC2 knife's.
 No firearm, player or AI clone, auto-aims.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: UseAutoAiming false x358, true x1 (wcKnife, bfbc2)]
 
 ## 9. Grenades and launchers
 
 ### WPN-GREN-1: Underbarrel launchers are weapons of their own
 
-Status: **observed**
+Status: **verified**
 
 An underbarrel launcher is a `SoldierWeaponData` of class `wcUgl` that the rifle lists in `SpecializationWeapons`
 (47 player weapons list one): the 40 mm grenade (57: one shot, 2 spares, pickup 1 / 1, 100 a minute, reload 2.45 s;
 WPN-PROJ-3) and the buckshot "master key" (24: 12 pellets of 16.7 at 300 m/s, falloff 8-18 m). The launcher is single fire,
 `wabsRif`, zoomed at 50; its unzoomed base cone 0 / 5 and `RecoilAmplitudeMax` 10.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: wcUgl 82 weapons (bfbc2 80, vietnam 1, beach 1): BulletEntityData 81 (50 m/s x57, 300 m/s x24), GrenadeEntityData 1; MagazineCapacity 1 x82, NumberOfMagazines 2 x82; SpecializationWeapons items on 47 player weapons]
 
 ### WPN-GREN-2: Hand grenades and rifle grenades
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 Hand grenades are `GrenadeEntityData` thrown at 20 m/s with gravity -8 (`fltHoldAndRelease`, 85 a minute, one
 carried, two on one), pickup 1 / 1. BF1943's rifle grenade on the Type 5 (`type5_rgl`, a `wcUgl` weapon) is a
 `GrenadeEntityData` at 40 m/s with gravity -7, one round and two spares.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: wcHgr 4 weapons: GrenadeEntityData, speed 20, gravity -8, fltHoldAndRelease, NumberOfMagazines 1 x3 / 2 x1; beach type5_rgl: GrenadeEntityData 40 m/s, gravity -7, mags 2, pickup 1 / 2]
 
 ## 10. Attachments
 
 ### WPN-ATT-1: Specializations, and the ones that swap the weapon
 
-Status: **observed**
+Status: **verified**
 
 `SoldierWeaponData.Specializations` lists unlock items: each names a `persistence/specializations` entry and, where the
 unlock changes the model, a `WeaponAsset` (the Kobra and scoped variants). 73 of 321 player weapons list 1-5; 48 swap
 in other weapon assets (2 each on 46, 3 on 2): assault 12, shotgun 12, sniper 8, LMG 8, SMG 8.
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: specializations per player weapon 0 x248, 1 x23, 2 x2, 3 x33, 4 x13, 5 x2; weapon-asset swaps 0 x273, 2 x46, 3 x2]
 
 ## 11. BF1943's weapons in BFBC2
@@ -347,7 +370,7 @@ Japanese M18).
 
 ### WPN-WW2-2: How DICE converted BF1943's weapons
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 DICE changed every BF1943 firearm it brought over the same way: bullet `Gravity` 0 -> -9.81, `Shot.InitialSpeed`
 400-460 -> 600, `NumberOfMagazines` -1 and pickup 0 / 0 -> finite, `UseAutoAiming` true -> false, `ZoomType` hold ->
@@ -356,6 +379,7 @@ press, `SprintLookSpeedMultiplier` 0.5 -> 1, `AlwaysAimHead` false -> the class'
 of every row. Gravity 0 and magazines -1 stay only on melee weapons, tools, gadgets and AI clones. The planes' and
 tanks' guns DICE left as BF1943 had them (VEH-WPN-2).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: the 8 firearms in beach/: Gravity -9.81 x8, InitialSpeed 600 x8, NumberOfMagazines 4 / 6 / 9999, no zero pickup, UseAutoAiming false x8, press x8, SprintLookSpeedMultiplier 1 on 16 of 16 zoom levels, AnimBaseSet wabsRif x6 / wabsHg x2]
 [doc: opfor:research/WW2_WEAPON_ANIM_AUDIT.md:23-36]
 
@@ -377,12 +401,13 @@ magazine size, reload and zoom FOVs are kept. The Rust port does the same.
 
 ### WPN-WW2-4: AlwaysAimHead true is not a universal convention
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 The ruling's "AlwaysAimHead true" holds for the classes whose DICE weapons have it. DICE's own snipers (32 of 32) and
 its BF1943 SMGs (the Thompson twice, the Nambu 100) have false, so a ported bolt-action rifle keeps false, as the M24
 does; the port sets true only where the template has true (WPN-WW2-3).
 
+[test: core/tests/test_spec_probes.py::spg_weapons]
 [data: spec/probes/weapons.py on the game copy, 2026-11-22: wcSniper AlwaysAimHead false 32 of 32; beach/ firearms true 5, false 3 (thompson, thompson_assault, nambu100)]
 [code: bfbc2-bf1943-import/dbxport.py:2191-2200]
 

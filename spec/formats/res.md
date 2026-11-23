@@ -11,7 +11,7 @@ Counts: the game copy, 2026-11-19 (FBRB's corpus: 444,286 live entries in 1,086 
 
 ### RES-TYPE-1: Resource types
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 The entry type of every live entry is one of the 37 below (plus `*deleted*` for markers, FBRB-DEL-1). Every
 resource type is on `.res` names; `<non-resource>` is on `.dbx`, `.res`, `.bin` and `.dbmanifest` names.
@@ -50,7 +50,7 @@ resource type is on `.res` names; `<non-resource>` is on `.dbx`, `.res`, `.bin` 
 | `ImpulseResponse` | 21 | - | copied only |
 | `RagdollResource` | 2 | - | copied only |
 
-Evidence: [data: 444,286 live entries of 1,086 bundles grouped by type and extension (round SP1 survey)] [code: rust/bc2-formats/src/fbrb/header.rs:20-21]
+Evidence: [data: 444,286 live entries of 1,086 bundles grouped by type and extension (round SP1 survey)] [code: rust/bc2-formats/src/fbrb/header.rs:20-21] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 392,246 live entries: 37 types (`<non-resource>` on .dbx 124,458, .res 14,694, .dbmanifest 2; every other type on .res only)]
 
 ### RES-TYPE-2: A resource's kind is its entry type, not its bytes
 
@@ -90,14 +90,14 @@ Evidence: [data: 146 `_HavokAsset.dbx` entries of the Dist level bundles, each w
 
 ### RES-NAME-2: Resources typed `<non-resource>`
 
-Status: **observed**
+Status: **verified**
 
 Not every non-DBX entry has a resource type. The `<non-resource>` entries that are not `.dbx` are: the streamed
 sound data of `streaming_sounds` / `streaming_vo_en` (14,694 `.res` under `sound/`: the `waveDataSns` blobs of
 `formats/audio.md`), the localization tables of `overlay` (25 `.bin` under `localization/`: `formats/loc.md`), and
 one `database.dbmanifest` in each `build_overlay` bundle (Dist and Package).
 
-Evidence: [data: Dist streaming_vo_en 7,513, streaming_sounds 4,744; Package streaming_vo_en 1,482, streaming_sounds 955; overlay 25 `.bin`; build_overlay 1 `.dbmanifest` in Dist and 1 in Package]
+Evidence: [data: Dist streaming_vo_en 7,513, streaming_sounds 4,744; Package streaming_vo_en 1,482, streaming_sounds 955; overlay 25 `.bin`; build_overlay 1 `.dbmanifest` in Dist and 1 in Package] [test: rust/bc2-formats/tests/spec_corpus.rs::res_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the non-DBX `<non-resource>` entries: streaming_sounds 5,699 and streaming_vo_en 8,995 `.res` under sound/, build_overlay 2 `.dbmanifest` (DICE's overlay bundles are OPFOR-changed, not in this corpus)]
 
 ## 3. The RES wrapper
 
@@ -122,13 +122,13 @@ Evidence: [code: rust/bc2-levelwrite/src/awards.rs:41-55] [code: rust/bc2-conver
 
 ### RES-WRAP-2: Only the async on-demand bundles wrap
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 The wrapper occurs in exactly two bundle families: `async/ondemand_awards` (`ITexture`: the award, rank, map-list
 and loading-screen pictures) and `async/ondemand_sounds` (`Wave`). No other `.res` or `.bin` entry of any bundle
 begins with `RES`, and the same types in other bundles are not wrapped (8,600 other `ITexture` entries).
 
-Evidence: [data: wrapped: Dist ondemand_awards 889, Package ondemand_awards 295, Dist ondemand_sounds 205, Package ondemand_sounds 14; every `.res` / `.bin` entry of the 1,086 bundles checked, no other begins with `RES`]
+Evidence: [data: wrapped: Dist ondemand_awards 889, Package ondemand_awards 295, Dist ondemand_sounds 205, Package ondemand_sounds 14; every `.res` / `.bin` entry of the 1,086 bundles checked, no other begins with `RES`] [test: rust/bc2-formats/tests/spec_corpus.rs::res_entries] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: wrapped: ITexture in ondemand_awards 889, Wave in ondemand_sounds 219; no other `.res` / `.bin` entry begins with `RES`]
 
 ### RES-WRAP-3: Readers strip it, writers of on-demand entries add it
 

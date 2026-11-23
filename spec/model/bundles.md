@@ -57,7 +57,7 @@ report it as such (`DeletedEntry`), not as a damaged file.
 
 ### BNDL-KIND-1: A level's bundles
 
-Status: **observed**
+Status: **verified**
 
 A level `<lv>` has up to five kinds of its own bundle, each `levels/<lv>/<kind>-00.fbrb`:
 
@@ -72,17 +72,19 @@ A level `<lv>` has up to five kinds of its own bundle, each `levels/<lv>/<kind>-
 The shared bundles have the same kinds under `levels/<x>_common/` (`mp_common`, `sp_common`, `mp1_common`,
 `mp2_common`, `nam_common`, and OPFOR's `ww2_common`).
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: stock package.mft: 74 levels with level, terrain, ingame and loader blocks each, and 74 x 7 vo blocks]
 [code: rust/bc2-levelwrite/src/export.rs:40-44]
 
 ### BNDL-LOC-1: Dist and Package
 
-Status: **observed**
+Status: **verified**
 
 Bundles live in two trees: `game\Dist\win32\` (the original install) and `game\Package\` (patches and downloadable
 content). Of the stock levels, 33 have their bundles in both (the Package copy an update), 41 only in Package
 (Vietnam, the Bad Company 1 maps, mode layouts such as MP_005GR, the `MP_SP_*` levels).
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: stock package.mft level sources: level / terrain / ingame / loader each 33 in Dist and Package, 41 in Package only, 0 in Dist only]
 
 ### BNDL-LOC-2: Registry names: `game:` and `package:`
@@ -97,12 +99,13 @@ The registry names a bundle `game:<path>` (under `game\Dist\win32\`) or `package
 
 ### BNDL-LOC-3: Registered bundles may be absent
 
-Status: **observed**
+Status: **verified**
 
 The stock registry names bundles that are not in the game copy: every level's and common folder's `vo/<lang>`
 bundle (518 sources) and six of the seven `streaming_vo_<lang>` bundles (only `en` installed). Stock levels load
 with them absent.
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: stock package.mft: 518 vo/lang sources with no file in Dist or Package; streaming_vo de, es, fr, it, pl, ru absent; OPFOR's English copy]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:830-831]
 
