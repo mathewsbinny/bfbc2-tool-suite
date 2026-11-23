@@ -155,6 +155,14 @@ pub fn loc_keys(lv: &str) -> (String, String) {
     (format!("{up}_NAME"), format!("{up}_DESC"))
 }
 
+/// The keys of a level's flags' spawn names (round E4-rest, GAME-CQ-12): `<LEVEL>_A` to `<LEVEL>_Z`, what an install
+/// of the level may have added and its removal takes out.
+#[must_use]
+pub fn flag_loc_keys(lv: &str) -> Vec<String> {
+    let up = lv.to_ascii_uppercase();
+    ('A'..='Z').map(|l| format!("{up}_{l}")).collect()
+}
+
 /// The on-demand entries of a level's pictures: its loading screen and its map-list picture.
 #[must_use]
 pub fn picture_entries(lv: &str) -> [String; 2] {
@@ -1389,6 +1397,18 @@ pub fn build(
         });
     }
     let _ = tree_slots;
+    // 4b. the flags' own texts (round E4-rest, GAME-CQ-12): spawn names the game has no text for under the level's
+    // keys, capture messages of letters past DICE's worded as DICE's
+    let (flag_names, flag_keys) = {
+        let langs = crate::names::Languages::read(game);
+        let own_schema = Schema::scan([&w.d]);
+        crate::gameplay::flag_texts(&mut w, &own_schema, &lv, &|k| langs.text_of(k).is_some())?
+    };
+    let (flag_messages, flag_messages_by_language) =
+        crate::names::flag_message_texts(&game.bundle("game:overlay-00.fbrb"), &flag_keys);
+    for (k, t) in flag_names.iter().chain(&flag_messages) {
+        report.push(format!("flag text: {k} = {t:?}"));
+    }
     // 5. the level partition renamed
     mpconvert::rename_strings(&mut w.d, &base, &low, &renamed)?;
     mpconvert::set_partition_guid(&mut w.d, &mpconvert::partition_guid_for(&format!("Levels/{lv}")))?;
@@ -1663,10 +1683,15 @@ pub fn build(
     let ingame = pick(ingame_bundles, &|n| n.starts_with("levels/") && n.contains("/ui/"))?;
     let loader = pick(game.level_bundles(&base, "loader"), &|n| n.starts_with("sound/"))?;
     // 8. the level's own name and pictures (round E3b)
-    let (strings, strings_by_language, pictures, previews) = match &spec.identity {
+    let (mut strings, mut strings_by_language, pictures, previews) = match &spec.identity {
         Some(id) => identity(game, spec, id, &lv, &donor_lv, &base_picture, &dd, &mut report)?,
         None => Default::default(),
     };
+    // the flags' texts (4b) with them: an install adds them to every language
+    strings.extend(flag_names.iter().chain(&flag_messages).cloned());
+    for (lang, v) in flag_messages_by_language {
+        strings_by_language.entry(lang).or_default().extend(v);
+    }
     // write the stage
     if out.is_dir() {
         for k in KINDS {
@@ -4062,7 +4087,7 @@ fn stage_names(rec: &StageRecord) -> crate::names::LevelNames {
         level: rec.level.clone(),
         folder: String::new(),
         browser: rec.title.clone(),
-        own: !rec.strings.is_empty(),
+        own: rec.strings.iter().any(|x| x.0 == nk),
         name: text(&rec.strings, &nk),
         description: text(&rec.strings, &dk),
         languages: rec
@@ -4135,7 +4160,7 @@ fn check_names(game: &Game, rec: &StageRecord, r: &mut CheckReport) {
             wrong.push(format!("bundleManifest line {}", l.split('\t').next().unwrap_or(l)));
         }
     }
-    if !rec.strings.is_empty() {
+    if rec.strings.iter().any(|x| x.0 == loc_keys(&rec.level).0) {
         let (nk, _) = loc_keys(&rec.level);
         let key_prefix = nk.find("_NAME").map_or("", |at| nk.get(..at).unwrap_or(""));
         let picture = format!("Awards/images/loadingScreens/{}.res", key_prefix.to_ascii_lowercase());
@@ -4173,7 +4198,10 @@ fn check_identity(
     ours: &[(String, EditDbx)],
     r: &mut CheckReport,
 ) -> Result<()> {
-    if rec.strings.is_empty() && rec.awards.is_empty() {
+    let (nk, dk) = loc_keys(&rec.level);
+    // the level's own name and description (the flags' texts, round E4-rest, are in `strings` too)
+    let named: Vec<&(String, String)> = rec.strings.iter().filter(|x| x.0 == nk || x.0 == dk).collect();
+    if named.is_empty() && rec.awards.is_empty() {
         r.add(
             "XVAL-NAME-9",
             true,
@@ -4181,8 +4209,7 @@ fn check_identity(
         );
         return Ok(());
     }
-    let (nk, dk) = loc_keys(&rec.level);
-    let keys: Vec<&str> = rec.strings.iter().map(|x| x.0.as_str()).collect();
+    let keys: Vec<&str> = named.iter().map(|x| x.0.as_str()).collect();
     // each text in each language's encoding (round EX1: names per language)
     let langs = crate::names::Languages::read(game);
     let all_langs: Vec<String> = if langs.tables.is_empty() {
@@ -4207,7 +4234,7 @@ fn check_identity(
         .strings_by_language
         .values()
         .flatten()
-        .all(|(k, _)| *k == nk || *k == dk);
+        .all(|(k, _)| *k == nk || *k == dk || rec.strings.iter().any(|x| x.0 == *k));
     let desc = ours.iter().find(|(n, _)| n.eq_ignore_ascii_case(&rec.description.1));
     let lvl = ours
         .iter()

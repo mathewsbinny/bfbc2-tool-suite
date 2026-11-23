@@ -108,6 +108,31 @@ pub struct SubCopy {
     pub transform: Option<Rows>,
 }
 
+/// One event connection (`LevelData.EventConnections`' item): its source, the source's event, its target and the
+/// target's event (round E4-rest: a Rush stage's wiring).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Connection {
+    /// The source (upper-case guid).
+    pub source: String,
+    /// The source's event (`OnTrigger`).
+    pub source_event: String,
+    /// The target (upper-case guid).
+    pub target: String,
+    /// The target's event (`Enable`).
+    pub target_event: String,
+}
+
+impl Connection {
+    /// The connection in words (`A.OnTrigger -> B.Enable`).
+    #[must_use]
+    pub fn describe(&self) -> String {
+        format!(
+            "{}.{} -> {}.{}",
+            self.source, self.source_event, self.target, self.target_event
+        )
+    }
+}
+
 /// A field and its value (a placed object's fields that differ from its template's).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldIs {
@@ -409,6 +434,14 @@ pub enum Op {
         /// The new object (its `owned`: [`crate::gameplay::unit`] of the template).
         item: Placed,
     },
+    /// Event connections added or taken out (round E4-rest, [`crate::write::LevelWriter::connect`]): a Rush stage's
+    /// wiring when a stage is added or taken out ([`crate::rushstage`]).
+    Connect {
+        /// The connections.
+        items: Vec<Connection>,
+        /// Added (`true`) or taken out.
+        connected: bool,
+    },
     /// An outline point inserted after another ([`crate::gameplay::insert_point`]).
     InsertPoint {
         /// The point it follows.
@@ -513,6 +546,7 @@ impl Op {
                 | Self::LinkPoint { .. }
                 | Self::SetRules { .. }
                 | Self::PlaceUnit { .. }
+                | Self::Connect { .. }
                 | Self::InsertPoint { .. }
                 | Self::RemovePoint { .. }
         )
@@ -547,6 +581,10 @@ impl Op {
             Self::LinkPoint { spawner, point, .. } => vec![spawner.as_str(), point.as_str()],
             Self::PlaceUnit { item } => std::iter::once(item.template.as_str())
                 .chain(item.owned.iter().map(|o| o.source.as_str()))
+                .collect(),
+            Self::Connect { items, .. } => items
+                .iter()
+                .flat_map(|c| [c.source.as_str(), c.target.as_str()])
                 .collect(),
             Self::InsertPoint { after, .. } => vec![after.as_str()],
             Self::RemovePoint { guid } => vec![guid.as_str()],
@@ -709,6 +747,15 @@ impl Op {
                 item.owned.len(),
                 if item.owned.len() == 1 { "" } else { "s" }
             ),
+            Self::Connect { items, connected } => match items.as_slice() {
+                [one] if *connected => format!("Connect {}", one.describe()),
+                [one] => format!("Disconnect {}", one.describe()),
+                many => format!(
+                    "{} {} event connections",
+                    if *connected { "Add" } else { "Remove" },
+                    many.len()
+                ),
+            },
             Self::InsertPoint { after, .. } => format!("Insert an outline point after {after}"),
             Self::RemovePoint { guid } => format!("Remove outline point {guid}"),
             Self::Stroke { target, tiles, .. } => format!(
@@ -892,6 +939,7 @@ impl Organisation {
             | Op::LinkSpawner { .. }
             | Op::SetTickets { .. }
             | Op::LinkPoint { .. }
+            | Op::Connect { .. }
             | Op::SetRules { .. }
             | Op::InsertPoint { .. }
             | Op::RemovePoint { .. }

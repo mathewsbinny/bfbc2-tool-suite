@@ -8177,6 +8177,58 @@ A specification round: no tool's behaviour changed. Two spec files (`spec/engine
 probes on the AI input object, the behaviours' writes, bots as scored and named players, the mode state's run-time
 objects, the bot object's class and senses, the order and squad runtime, the session's AI difficulty.
 
+## NKS-deep A: the Kynapse generator's parameters and public documentation (2026-11-22, branch `nksd`)
+
+A specification round: no tool's behaviour changed. New rules KYG-PAR-1 (verified), KYG-PAR-2 (observed), KYG-PAR-3
+(inferred), KYG-NODE-6 (verified), KYG-DOC-1 (observed), KYN-FILE-2 (verified), HPD-TAB-4 (verified); a pointer from
+KYG-NODE-4 to KYG-PAR-1 and one open question added.
+
+**Method.**
+- **The executable.** `BFBC2Game.exe` (build 795745) read statically and read-only with capstone / pefile scratch
+  scripts (deleted): DICE's configuration writer (`FUN_00F194F0`), Kynapse's map-builder parameter reader
+  (0x011483D0), its defaults (0x01146822) and info-file format (0x014C2EF8), and the HPD writer (0x011C5140). No
+  Ghidra project, no game run.
+- **DICE's settings.** The four `AI/Pathfinding` partitions read out of `sp_common` / `mp_common` `level-00.fbrb`
+  into scratch (identical in both; deleted).
+- **Data.** Scratch Python over the 35 files, then four game-tier tests in `kynapse_corpus.rs`
+  (`header_tables_and_record_layout`, `node_ids_count_from_101_in_table_order`, `sector_times_are_the_write_time`,
+  `nearest_node_at_dist_propagation`): 1.6 s together in the test profile.
+- **The web.** Searches for Kynapse manuals, SDK pages and talks; five pages opened (KYG-DOC-1 lists them).
+
+**Findings:**
+
+| Rule | Finding | Evidence |
+|---|---|---|
+| KYG-PAR-1 | DistPropagation = GraphAccuracy + 0.35 m: DICE writes GraphAccuracy before EntityRadius, and the reader derives DistPropagation from the radius it holds then (Kynapse's default 0.35). 3.35 / 0.85 / 15.35 m is KYG-NODE-4's step exactly; DistDensityMax 0.65 x it, DistDensityMin 0.35 | nearest node exactly at it: coarse 7,505 (control 96), detailed 2,455 (199), vehicle 41 (0); coarse median nearest-neighbour 3.350 m |
+| KYG-PAR-2 | DICE's settings under the generator's names: OverConnectionRatio 1.2 (= KYG-EDGE-3's spanner), MaxDeltaHeight 1000 (no height limit on edges), EdgeRadius 0.41 / 2.51, NbSectors 32 / 128 / 64, StepMax / StepLength 0.28 / 0.36 and 0.4 / 0.4; Kynapse defaults for the rest | the partitions; the reader's field offsets |
+| KYG-PAR-3 | the break slope is StepMax / StepLength (0.778): the 0.62 m link step at pitch 0.8, NKG3's 0.775-0.780 slope band, the detailed 0.156 m (measured about 0.17) | inferred |
+| KYN-FILE-2 | header words from the HPD writer: 0 = 1 = the version 2, 3 the mode, 4-7 mode-0 floats, 8-31 two tables of four {id, offset, size} data descriptors ({2, 0, 8}: the node's 8 bytes of lookup lists), 32-34 sizes, 35 the path objects' count; end slots hold the debug heap's 0xBAADF00D (83) | 35 of 35 files; 2,605 of 3,120 sectors hold an edge longer than the +20 float, so the third-party "longest edge" reading is wrong for BFBC2 |
+| KYG-NODE-6 | node ids count from 101, sector by sector in table order, ordinary and border interleaved; 80 % of the numbers used | 35 of 35 files start at 101 |
+| HPD-TAB-4 | the table's date / time are the write time (one-second steps, a file within 9 s, infantry before vehicle) | 3,120 sectors |
+| KYG-DOC-1 | no public Kynapse manual or SDK page; articles confirm the design (collision-world sampling, tiles, hierarchy); one third-party claim contradicted | five pages |
+
+**Ranked: what would raise NavKit's parity most if used (for parts B and C).**
+1. **Propagation at DistPropagation (KYG-PAR-1) for node placement.** The node generator steps 3.35 / 0.85 / 15.35 m;
+   placing NavKit's nodes by propagation from the seeds at that step (with a minimum spacing of DistDensityMin and
+   the coverage of KYG-NODE-5) is the first rule with a decoded constant for KYG-NODE-1, the largest gap
+   (`nodes_same` 0.66 %, `nodes_near` 47.6 %). Part B: fit where a propagation starts (the step pairs' centres)
+   against the raw samples; read the map builder's propagation and density code (0x01140000-0x01160000).
+2. **The walkable step StepMax / StepLength x pitch (KYG-PAR-3)** for the area link rule (0.622 m, not 0.6) and the
+   D / F break at both pitches (0.156 m detailed). It aligns NavKit's area rule with DICE's, which KYG-AREA-2 says
+   must happen before the off-grid portals can go (`portals` 6.5 %, `areas_same` 5.2 %), and gives part C's vehicle
+   run its threshold (1.0 m).
+3. **Node ids from 101 in table order with one range per sector (KYG-NODE-6)**: cheap, and the unused numbers in
+   DICE's ranges show which nodes the later step dropped, which part B can use to fit KYG-EDGE-3's 37 % of
+   unexplained missing edges.
+4. **The derived density limits** (DistDensityMax 2.1775 / 0.5525 / 9.9775 m, DistDensityMin 0.35 m): no trace in
+   the data yet; part B tests them on the raw samples before NavKit uses them.
+5. **OverConnectionRatio 1.2 and MaxDeltaHeight 1000** (KYG-PAR-2): NavKit already uses both (NKG2's spanner, no
+   height limit); now named as DICE's settings, nothing to change.
+6. **The header and record names (KYN-FILE-2, HPD-TAB-4)**: byte-level only; NavKit already writes DICE's words.
+
+**Left:** the density limits' effect, the StepMax / StepLength rule against raw samples, NbSectors, EdgeRadius and
+HoleMax's traces in the data, the map builder's propagation code, and the C portals' direction vector (KYN-C-1).
+
 ## NKS-rest2: the Kynapse generator against the levels' own data (2026-11-22, branch `nksr2`)
 
 A specification round: no tool's behaviour changed. KYG-RECT-1 answered and verified, two new rules (KYG-NODE-4
@@ -10976,6 +11028,80 @@ frame.
 - Unproven until a playtest: whether the game spawns at, captures and announces a copied flag (and shows a fifth
   letter), whether an added M-COM arms and ends its stage, and the rules' effect on a round.
 
+## E4-rest: whole Rush stages, a new flag's texts, spawners (2026-11-22, branch `e4r`)
+
+What round E4 left, items 1 to 3 of 4 (ROADMAP E4-rest). Nothing was written to `game\`; the game never launched.
+
+### What DICE's data says (read only)
+
+- **Rush stage wiring** (GAME-RUSH-11; `examples/rush_facts.rs`, `examples/rush_wiring.rs`): on 30 of the 31 Rush and
+  Squad Rush levels every stage has exactly one base counter (the stage counter whose `OnTrigger` sends
+  `DestructBase` to the defenders' life counter), `BaseCount` equals the stages on 30 of 30, and the chain is exact:
+  stage 1's base counter enabled, every later one disabled and enabled by the stage before's alone, the last enabling
+  none. The other counters (team triggers) are enabled from the start (78 of 81 later ones). A middle base counter
+  enables the next stage's forward capture point (54) and combat area (43) and disables its own (57 / 36); the last
+  disables no combat area. A stage's defenders' base comes in through the new base counter's `OnEnabled`, the
+  attackers' area through a hold-back timer, and a combat area's `OnEnabled` disables the one before. `ons_mp_005gr`
+  (the Onslaught install's) has no defenders' life counter: refused. MP_006's last counter switches on a sixth
+  forward base for a stage the level does not have.
+- **Flag texts** (GAME-CQ-12): capture messages are `HUD_MP_CQ_TOOK_BASE_<letter>` / `LOST_BASE_<letter>`; DICE's
+  localisation has A to F in all eight languages (FOXTROT kept in six); spawn names (`LocationNameSid`) are per-level
+  keys ending in the letter (`MP_001_A` = "A: COMM CENTER"). On every stock Conquest level of each set: 67 lettered flags, 208 of 208 capture
+  messages name their flag's letter, 103 of 103 spawn keys end in it, all with a text.
+- The play model (`modelayer::rush_play`, L1's) follows a stage's end in no time; a timer of the stage's M-COMs that
+  enables a spawn can land after the base counter's disable of it. `rushstage::settled` gives the base counter the
+  last word, so "what is in play during one stage only" is DICE's intent on every level.
+
+### What was built
+
+- `bc2_levelwrite::rushstage`: `stages` (the parts, refusing other wiring), `add_stage`, `remove_stage`,
+  `counterparts`, `settled`; `LevelWriter::connect` and the operation `connect` (project format 10);
+  `Ownership::owned_from_except`; `modelayer::clusters` (one graph for many clusters).
+- `gameplay::add_flag` re-letters the copied capture messages and spawn keys; `rename_flag`; `add_spawner`;
+  `flag_texts` + `names::flag_message_texts` run as the export's step 4b, their texts in the record's `strings`
+  (`mapexport overlay` and OPFOR's install add them, built from the overlay's backup; `--remove` takes out
+  `<LEVEL>_A` - `_Z`).
+- Editor: the Gameplay tool's Add stage / Add spawner, the panel's Remove stage, Add stage after the last and the
+  selected flag's name; `app::PanelRequest` for the interface tests.
+
+### Proofs
+
+- Synthetic Rush level (CI): three stages, a fourth added (13 copies), played last; taken out again; every stage taken
+  out; the log's version 10; refusals (no stages, the only stage). `connect` added, refused twice, taken out.
+- Port Valdez (`MP_012GR`, 258 copies, 27 wires) and its Squad Rush (`MP_012SR`): through the log, the partition read
+  back byte for byte.
+- Game tier, every Rush and Squad Rush level of each set (`every_rush_level_is_wired_stage_by_stage`, 427 s): 30
+  levels, 87 stages accepted, `ons_mp_005gr` refused. On each a stage added after the last (72 - 323 copies, 7 - 62
+  connections beside the copies'; 0 left unshifted on most) plays last, the others as before, its copies as the last
+  stage's objects; removed again, every instance and stage state is back (MP_006's dormant forward base goes with
+  it), the last counter keeping 1 - 35 switches. Each of the 87 stages taken out leaves the others in order with their
+  states, but one: on `nam_mp_002r`, with stage 2 out, the attackers' hold-back area `CombatArea7` (switched on by
+  stage 2's area going off) stays on in stage 3.
+- Valparaiso: flags E, F, G added; E's messages `..._E` and spawn key `MP_001_E`, renamed by the export to
+  `<LEVEL>_E` "E: FLAG E"; G's messages worded "WE HAVE TAKEN POSITION GOLF", German "WIR HABEN POSITION GOLF
+  ÜBERNOMMEN!", Russian left to the English. A spawner added to flag A (12 copies, wired as the flag's own) and
+  deleted: the level as it was (the delete now takes a spawner's points although the flag's cluster lists them).
+- Aurora (`SP_01`) as Conquest with E4's edits (`aurora_conquest_with_the_tools_edits_exports`): built in 28-39 s,
+  `export::check` holds it; the new flag E's spawner keyed `MAPEDIT_GAMEPLAY_AURORA_E` with "E: FLAG E" in the
+  record's `strings` (the stage checks of the level's own names now look at the name keys only: a first run failed
+  XVAL-NAME-8/9 when the flag texts made `strings` non-empty).
+- Editor (headless, both themes): the demo flag renamed from the panel (one operation, undone), a spawner and a stage
+  refused in words; on `MP_012GR` a fifth stage by a click on the ground ("Add Rush stage 5"), removed from the panel,
+  undone, redone, stage 2 removed. Screenshots `gameplay_rename_<theme>`, `gameplay_stage_<theme>` (session scratch).
+
+### What is left (E4-rest2)
+
+- PR1b-0's leftovers (item 4, not started): the AI workspace's nine `NavTool`s and placing from the content browser
+  onto `ViewTool`; the other 12 workers onto `Task`.
+- A stage inserted between two (a stage is added after the last; insertion is a removal and adds).
+- Removing an added stage leaves the last counter with the switches it gained (as DICE's middle counters have them):
+  semantically the level's, not byte for byte; undo is the exact way back.
+- Taking out a Vietnam Rush stage can leave a hold-back combat area on (`nam_mp_002r`, stage 2: `CombatArea7`).
+- Vehicle spawners DICE stops by `DisableSpawnPointFunctionality` that are shared between stages are not stopped by a
+  new stage's end where no counterpart is found (counted as "unshifted": 0 on most levels, up to 9 on `nam_mp_005r`).
+- Unproven until a playtest: an added or shortened stage chain playing (bases, areas, hold-back timers,
+  reinforcements, the round's end), the new texts on the HUD and the deploy screen, a spawner added to a flag.
+
 ## NKG2: NavKit's graph toward DICE's - the spanner, the owner rule and its band (2026-11-22, branch `nkg2`)
 
 The graph-and-areas half of the NavKit gap list (`spec/transforms/kynapse_generation.md`). Every candidate change was
@@ -11147,3 +11273,149 @@ persistence, the terrain probe's strips and trees, the weather classification, t
 lists for `ai_corpus.rs`, 24 placement conventions (a re-run of the L1 study as a check), 23 rules half data and half
 RE, 32 measured on other corpora, 21 that need the game running, 119 read from the executable; the 37 Kynapse /
 NavKit rules are round NKG2's.
+
+## SPV1-fix: DICE's empty gzip member in the packer; the WW2 ports against SPV1's corrected rules (2026-11-22, branch `spv1fix`)
+
+**What DICE writes.** Read-only over DICE's 1,021 bundles (the game copy's `.fbrb` dated before 2013): every zipped
+bundle (1,012) has a payload gzip member right after the header region, and nothing after it; the 105 whose payload
+is empty (104 of `*deleted*` markers only, 1 with no entries; payload length field 0) have the gzip member of no data,
+20 bytes `1F 8B 08 00 00000000 00 0B 03 00 00000000 00000000` (zlib's header, the empty fixed block, zero CRC and
+length). No stored bundle has an empty payload; no other bundle kind carries an extra member. FbrbTool's .NET
+`GZipStream` writes nothing for no data, and the suite's packer followed it.
+
+**The fix.** `bc2_formats::fbrb::pack`'s payload writer appends `EMPTY_GZIP_MEMBER` (DICE's 20 bytes) when a zipped
+payload is empty; every pack path goes through it (`pack`, `pack_dir`, `pack_rows*`, `bfbc2core.fbrb.pack` /
+`pack_many`, `bfbc2 fbrbtool pack`, the level writer's bundles). The header member keeps .NET's `xfl 4 / os 0`
+(FBRB-HDR-4, every bundle), so a repack of DICE's bundle differs from DICE's file in those two bytes only.
+
+| Proof | Result |
+|---|---|
+| `spec_corpus.rs::fbrb_entries` (game tier): each of the 105 packed from its header's entries | 105 of 105: DICE's file byte for byte but for bytes 16-17 (xfl / os); the 20-byte member at DICE's place, byte for byte |
+| `test_fbrb_pack_native.py`'s game check over the 105 (unpack in Rust, pack in Rust) | 105 of 105 "identical but the header's gzip header, the empty payload member DICE's byte for byte" |
+| `pack.rs::empty_zipped_payload_is_dices_member` | zipped markers-only / no entries: the member, valid gzip of no data, reads back; stored: nothing after the header; a live payload: no extra member |
+
+**FbrbTool's goldens (DICE's bytes win).** Re-recorded only where the packer now differs: `fbrbtool_golden.json`
+`pack_built` "empty payload, zipped" and "no entries, zipped", `cases` "pack: a marker with an empty file" and
+"pack: only the first line"; `fbrbtool_golden_game.json` 56 pack records (the 105 bundles' distinct bytes, 54, and two
+temporary test bundles of a logged run, `<temp>/fbrb_unpack_01dh3d_5/b1` and `b2`, zipped with an empty payload: their
+unpacked folders rebuilt and checked against the recorded unpack digests); `cli_o1_golden.json` the files digest of
+the four `pack:` command lines with such a bundle (alone and on one pipe). Each new record was checked to be
+FbrbTool's recorded bundle + the 20 bytes (SHA-1 of the new bundle less its last 20 bytes = the recorded SHA-1; for
+`cli_o1`, the folder digest with the bundle so cut = the recorded digest, every stream and log line unchanged) before
+it was written; each file's `meta.rerecorded` says so.
+
+**The game.** It reads DICE's form (it ships it). FbrbTool's form (no member) has not been tried in game: no bundle
+OPFOR installs is one of markers only (65 OPFOR-dated bundles in the game copy, none without a live entry), so nothing
+OPFOR has shipped used it. Untested in game either way until a playtest needs one.
+
+**The WW2 oracles.** The rebuild oracle holds no bundle, and none of the install oracle's 35 staged bundles is
+without a live entry. A full rebuild on this branch (OPFOR main, OPFOR_TOOLKIT junctioned to the worktree): 55 steps
+in 19.2 min, 10,852 of 10,852 identical, QA checks ok. `wake_install.py --plan`: the install staging 21,197 of 21,197 identical to the install oracle; `game\` sha256
+snapshot before and after: the same 1,582 files and bytes.
+
+**SPV1's five corrected rules and the WW2 ports.** No OPFOR or suite code cites WPN-DMG-3, WPN-AMMO-1, WPN-SWAY-2,
+VEH-HP-4 or VEH-MAT-1, and the rule texts (2026-11-22, round SPG) postdate every value the ports set (class overrides
+2026-11-10, carried ammo 2026-11-13, rifle-grenade values 2026-11-06, the material grid's stand-ins 2026-11-09,
+dbxport's ammo conventions 2026-11-09). The values are copied from DICE's partitions at build time: the K98 /
+Springfield class fields from the M24 field for field (`bf1943_weapons.CLASS_OVERRIDES`), the Type 5 / Nambu / Type 97
+carried ammo from their US counterparts' firings (`weapons.FINITE_FIRING`), dbxport's magazines and pickups from the
+same-class template, the wrench from the power tool, the rifle grenades' anti-armour values from the bazooka / RPG
+firings, VEH material stand-ins from DICE's grids. `test_ww2_balance.py` on the rebuilt outputs: 138 class values of
+the K98 and Springfield inside DICE's five bolt-action rifles' ranges; the wrench at the power tool's rates. Nothing
+re-derived; no WW2 output changed for this item.
+
+## OR3b: OPFOR in Rust, stage 3b - the level cover index, `retexture`, the level scan (2026-11-23, branch `or3b`, with Project OPFOR's `or3b`)
+
+What OR3a left ("What is left"): the level cover index with content keys, `retexture`'s Python twin, and the shader
+glue's heavy work in Project OPFOR's `wake_shaders` / `wake_translate` / `ww2_char_shaders`. Version **0.23.0**
+(removals: the cover index's pickles, a file format; the Python index; `retexture`'s Python body - RELEASING.md; not
+tagged here; a round merged first may take the number). Nothing was written to OPFOR's `game\`; the game never
+launched.
+
+### What moved
+
+- **The level cover index** (`shaderdb.level_cover_prefixes` / `level_coverage` / `donor_levels`):
+  `bc2_convert::shaderlevels::levels` through `bc2_native.shadercover_levels`. A level's database is found as
+  `load_levels` finds it (`level_database`: the bundle's databases, `pick_database`, the bundle cache, `open` with
+  the label and messages of `ShaderDb.parse`), its prefixes by `bc2_formats::shaderdb::levels::cover_prefixes`, the
+  levels read in parallel. The cache `shadercover`: one `<24 hex>.bin` per level bundle and Dx (named by the bundle's
+  path and the Dx; magic, version 3, the Dx, the key, the prefixes in their order or the error, a SHA-256 of all
+  before it), **keyed by the bundle's content key** (`dbxcatalogue::cache::bundle_key`: its length, its head and its
+  gzip trailer - the CRC-32 of the whole payload; the pickles hashed every byte of every bundle). A damaged file, or
+  one of another version, Dx or content, is not read and is written again. Python passes the bundles' paths (never
+  the project folder: OPFOR's rebuild tracker stamps every file under a folder a native call is given).
+- **`retexture`**: `bc2_formats::shaderdb::merge::retexture` (the merge's own) through
+  `bc2_native.shaderdb_retexture`; `hits` added to in the order the Python met the names.
+- **`shaderdb.level_scan(levels, dx)`** (new): per level, what `entry_signatures`, `entry_textures`, `entry_layouts`,
+  the main-pass skinning kinds (key byte 0x33 where byte 0x30 is 0) and the parts give on the loaded database -
+  `bc2_formats::shaderdb::levels::scan` on the parsed file, the levels in parallel, the Python dictionaries made once.
+- Project OPFOR: `wake_shaders --clone`'s donor scan (pass 1: every stock level, Dx9 / 10 / 11) and
+  `detail_layers.index_levels` on `level_scan`; `wake_shaders.donor_dbs` chooses its donors from the cover index
+  (`donor_levels` with the base's covered meshes taken out: the same choice) and loads only the chosen levels;
+  `wake_shaders.signatures` / `entry_layouts` are the suite's `entry_signatures` / `entry_layouts` (the Rust handle;
+  they are also what `detail_layers`, `kitbags` and `wake_install` call). `ww2_char_shaders.retexture` and
+  `wake_terrain` reach the Rust `retexture` through `S.retexture`. SUITE_REQUIRES 0.23.0 to below 0.24.0.
+
+### Proof
+
+- **Recorded before the deletion** (`bfbc2-shader-tools/tests/test_shaderdb_levels.py --record`, from the Python at
+  `4534f26`, `levels_golden.json`): 418 `retexture` cases (18 built: swaps, chains, a name that is the tail of a
+  longer one, an empty name, at the block's start and end, latin-1 names, too long; 400 seeded random blocks and
+  renames) - the bytes, the error, the hits; the cover index on 24 seeded stand-in game copies (150 levels: Dist and
+  Package, Package winning, no Dx9 database, two, a damaged one, the level's own among several, unknown levels, mixed
+  case) - each level's prefixes in order or its error, the index's hits and loads on a first, a second and an
+  uncached pass, `level_coverage`, `donor_levels`, and a damaged bundle's exception. `levels_golden_game.json`: every
+  level of the game copy (89), its prefixes' digest or error.
+- The Rust answers: **418 of 418** retextures (12 refusals naming a texture that is not ASCII decided: named as
+  latin-1, as every other shaderdb message; the Python read them as UTF-8, or raised `UnicodeDecodeError` making the
+  message), **the 24 copies identical** (every row, hit and load count), the game copy **89 of 89**. What only the
+  new index does: one `.bin` per bundle, a bundle rewritten in place with its old time indexed again, damaged files
+  read from the bundle again and rewritten. The level scan against the Python queries: 450 stand-in databases and
+  the game copy's 89 levels x Dx9 / 10 / 11, every dictionary and its order identical. Rust unit tests: the prefixes'
+  order and edge cases, the index file's round trip and damage, names by place and keys by content.
+- On the game copy, OPFOR's old pass 1 (its own `signatures` / `entry_layouts` / `entry_kinds` over `S.load`) against
+  the new loop over `level_scan`: the six tables equal for Dx9, Dx10 and Dx11; `donor_dbs` old against new with
+  `needs_bfbc2.txt` (166 meshes) on bases mp_005 and mp_002: the same donors (12 / 11 per Dx) and the same database
+  bytes.
+- **WW2 rebuild**: OPFOR's main checkout detached at `or3b` (b89e92d), `OPFOR_TOOLKIT` a scratch folder of junctions
+  (this worktree, version 0.23.0, fresh module and `bin\bfbc2.exe`), `OPFOR_SUITE_STRICT=1`, `--jobs 2`: all 55 steps
+  in 15.4 min; `compare_oracle` **10,852 of 10,852 identical**; `qa_checks.py` passed. **Install oracle**:
+  `wake_install.py --plan` 5.0 min, `compare_oracle --install` **21,197 of 21,197 identical**; the game copy's 1,582
+  files (11.6 GB) hashed (path, size, time, SHA-256) before the rebuild, before the plan and after it: identical.
+
+### Timings
+
+| | Python | Rust |
+|---|---:|---:|
+| cover index, the game copy's 89 levels, empty index | 6.1 s | 1.2 s |
+| cover index, from the index | 1.74 s | 0.29 s |
+| `wake_shaders --clone` pass 1, 79 stock levels (Dx9 / 10 / 11) | 8.1 / 10.5 / 8.2 s | 2.8 / 3.1 / 2.9 s |
+| `detail_layers.index_levels` (79 levels, Dx9) | 5.9 s | 1.4 s |
+| level scan vs the Python queries, 89 levels x 3 (test) | 23.8 s | 6.7 s |
+| `donor_dbs`, base mp_005 / mp_002 | 5.6 / 5.2 s | 4.4 / 2.2 s |
+
+In the rebuild: `wake_shaders` 11 s (10 s in OR3a's), `wake_shaders --clone` 49 s (59 s), `wake_translate` 18 s,
+the three level chains side by side 277 s (410 s in OR3a's, other rounds building beside it then). `detail_layers`
+took 56 s (14 s in OR3a's rebuild) though its index alone takes 1.4 s against the old 5.9 s on the same copy: the
+step's other work (its clones and merges) was not changed; not explained here - to look at in the next rebuild.
+
+### Decided
+
+- `retexture`'s refusal names its textures as latin-1 (above).
+
+### What is left (stage 3)
+
+- `wake_translate`'s translation driver (`translate_db`, `foreign_entries`, `add_missing_entries`, the terrain patch
+  and strip programs, `translate_batch`'s orchestration around the Rust translator and d3dcompiler): ~1,300 lines of
+  Python glue over Rust queries; the time is in HLSL compiles (cached) and the per-program Python.
+- `ww2_char_shaders`' soldier glue (`match_entries`, `perms`, `part_users`, `offer_kinds`, `entry_blocks`): small,
+  per database; it calls `translate_db`.
+- `wake_install.index_templates`' Dx9 scan (needs the layout records too: `level_scan` with the layouts' bodies),
+  with the install oracle.
+- OR3a's self-clone accident (PY1).
+
+### Tests
+
+- `test_shaderdb_levels.py` (quick, new entry `shaderdb-levels`; `--game`: `shaderdb-levels:game`).
+- cargo fmt; clippy `--all-targets -D warnings` on bc2-formats, bc2-convert, bc2-py, bc2-gamefs, bc2-cli and each of
+  `bfbc2.exe`'s tool groups alone; `cargo test` of the new modules (results in the round's report).

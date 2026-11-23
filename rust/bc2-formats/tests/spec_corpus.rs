@@ -657,6 +657,29 @@ fn bundle(path: &Path, rel: &str) -> Bundle {
         if h.zipped && h.payload_len == Some(0) && file[cut..] == EMPTY_MEMBER {
             t.inc("fbrb:no live entry, zipped, payload 0, an empty gzip member");
         }
+        // the suite's packer writes the same bytes from the entries (round SPV1-fix), but for the header member's
+        // extra flags and OS bytes (.NET's 04 00 where DICE's zlib wrote 00 0B: FBRB-HDR-4, kept for every bundle)
+        let items: Vec<fbrb::PackItem<'_>> = h
+            .entries
+            .iter()
+            .map(|e| fbrb::PackItem {
+                name: &e.name,
+                type_name: &e.type_name,
+                flags: e.flags,
+                size2: e.size2,
+                data: &[],
+            })
+            .collect();
+        let mut packed = fbrb::pack(&items, &fbrb::Layout::default()).unwrap();
+        if packed.ends_with(&EMPTY_MEMBER) && packed.len() == file.len() {
+            t.inc("fbrb:no live entry, packed by the suite with DICE's empty member at DICE's place");
+        }
+        if packed.get(16..18) == Some(&[4, 0][..]) {
+            packed[16..18].copy_from_slice(&file[16..18]);
+        }
+        if packed == file {
+            t.inc("fbrb:no live entry, packed by the suite as DICE's but the header member's xfl / os");
+        }
     } else if h.zipped {
         t.inc("fbrb:zipped with live entries");
         let end = live.last().map(|e| e.offset + e.size);
@@ -1009,6 +1032,15 @@ fn fbrb_entries() {
     assert_eq!((t.get("fbrb:markers only"), t.get("fbrb:no entries")), (104, 1));
     assert_eq!(
         t.get("fbrb:no live entry, zipped, payload 0, an empty gzip member"),
+        105
+    );
+    // the suite's packer: each of the 105 from its entries gives DICE's bytes (the header member's xfl / os aside)
+    assert_eq!(
+        t.get("fbrb:no live entry, packed by the suite with DICE's empty member at DICE's place"),
+        105
+    );
+    assert_eq!(
+        t.get("fbrb:no live entry, packed by the suite as DICE's but the header member's xfl / os"),
         105
     );
     // the resource types and their extensions (RES-TYPE-1)

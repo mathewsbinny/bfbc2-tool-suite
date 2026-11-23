@@ -26,7 +26,7 @@
 //! a level registered with missing bundles, or a new name not registered, and the black loading screen of a
 //! `_NAME` prefix mismatch).
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
 use bc2_formats::fbrb;
@@ -222,6 +222,102 @@ impl Languages {
     pub fn encode(&self, lang: &str, text: &str) -> Result<Vec<u8>, char> {
         bc2_formats::loc::encode(text, self.tables.get(lang).map(Vec::as_slice))
     }
+}
+
+/// Some keys' texts in every language of a bundle's localisation (round E4-rest): language -> key -> text (decoded
+/// through the language's histogram; the PC text `WIN32_<key>` first, as the game reads). Keys a language does not
+/// have are left out; a bundle that does not read gives nothing.
+#[must_use]
+pub fn language_texts(bundle: &Path, keys: &[&str]) -> BTreeMap<String, BTreeMap<String, String>> {
+    let mut out: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+    let Ok(h) = fbrb::entries_path(bundle) else {
+        return out;
+    };
+    let names: Vec<String> = h
+        .entries
+        .iter()
+        .filter(|e| !e.is_deleted() && e.name.to_ascii_lowercase().starts_with("localization/bin/language_"))
+        .map(|e| e.name.clone())
+        .collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let Ok(data) = bc2_gamefs::bundles::read_path(bundle, &refs) else {
+        return out;
+    };
+    let lang_of = |n: &str, tail: &str| {
+        n.to_ascii_lowercase()
+            .strip_prefix("localization/bin/language_")
+            .and_then(|r| r.strip_suffix(tail))
+            .map(str::to_owned)
+    };
+    let tables: BTreeMap<String, Vec<u16>> = names
+        .iter()
+        .zip(&data)
+        .filter_map(|(n, d)| Some((lang_of(n, "_histogram.bin")?, bc2_formats::loc::histogram(d).ok()?)))
+        .collect();
+    for (n, d) in names.iter().zip(&data) {
+        let Some(lang) = lang_of(n, "_normal.bin") else {
+            continue;
+        };
+        let Ok(f) = bc2_formats::loc::parse(d) else { continue };
+        let at: HashMap<u32, usize> = f.entries.iter().enumerate().map(|(i, e)| (e.0, i)).collect();
+        for k in keys {
+            let h = |k: &str| bc2_formats::loc::khash_str(k);
+            let Some(&i) = at.get(&h(&format!("WIN32_{k}"))).or_else(|| at.get(&h(k))) else {
+                continue;
+            };
+            if let Some(t) = bc2_formats::loc::decode(f.raw(d, i), tables.get(&lang).map(Vec::as_slice)) {
+                out.entry(lang.clone()).or_default().insert((*k).to_owned(), t);
+            }
+        }
+    }
+    out
+}
+
+/// The capture messages of flag letters DICE's texts do not have (round E4-rest, GAME-CQ-12): each
+/// `HUD_MP_CQ_TOOK_BASE_<letter>` / `HUD_MP_CQ_LOST_BASE_<letter>` worded as DICE's `..._F` in every language with
+/// its NATO word (`FOXTROT`) replaced by the letter's (`GOLF`); a language whose `..._F` does not hold `FOXTROT`
+/// (Russian, Japanese) takes the English. Returns the texts (English) and the languages' own, as an export record's
+/// `strings` / `strings_by_language`.
+#[must_use]
+pub fn flag_message_texts(
+    bundle: &Path,
+    keys: &[String],
+) -> (crate::gameplay::Texts, BTreeMap<String, crate::gameplay::Texts>) {
+    let models = ["HUD_MP_CQ_TOOK_BASE_F", "HUD_MP_CQ_LOST_BASE_F"];
+    let texts = language_texts(bundle, &models);
+    let mut strings = Vec::new();
+    let mut by_language: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    for k in keys {
+        let Some((head, l)) = k.rsplit_once('_') else { continue };
+        let Some(word) = l.chars().next().and_then(crate::gameplay::nato) else {
+            continue;
+        };
+        let model = format!("{head}_F");
+        let english = texts
+            .get("english")
+            .and_then(|t| t.get(&model))
+            .filter(|t| t.contains("FOXTROT"))
+            .map_or_else(
+                || {
+                    let verb = if head.contains("TOOK") { "TAKEN" } else { "LOST" };
+                    format!("WE HAVE {verb} POSITION {word}")
+                },
+                |t| t.replace("FOXTROT", word),
+            );
+        strings.push((k.clone(), english));
+        for (lang, t) in &texts {
+            if lang == "english" {
+                continue;
+            }
+            if let Some(m) = t.get(&model).filter(|m| m.contains("FOXTROT")) {
+                by_language
+                    .entry(lang.clone())
+                    .or_default()
+                    .push((k.clone(), m.replace("FOXTROT", word)));
+            }
+        }
+    }
+    (strings, by_language)
 }
 
 /// What the game copy already uses: levels, other projects' installed exports, the server browser's names, the

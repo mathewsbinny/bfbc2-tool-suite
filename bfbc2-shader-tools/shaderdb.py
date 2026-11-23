@@ -53,7 +53,7 @@ import struct
 import sys
 from collections.abc import Callable, Collection, Container, Iterable, Iterator, Sequence
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 if TYPE_CHECKING:
     from bfbc2core.dbx import Element
@@ -1037,34 +1037,17 @@ def retexture(block: bytes, textures: dict[bytes, bytes], where: str, hits: dict
     field, NUL-terminated - becomes the new one, padded with zeros to the same span (the old name, its terminator
     and the zeros after it, within the field's 0x80 bytes). The renames are simultaneous: every field is matched
     against the block's original names ({A: B, B: A} swaps them; {A: B, B: C} turns A into B, not C). hits: {old:
-    count} is added to (only once every rename fits: a refused block adds nothing)."""
+    count} is added to (only once every rename fits: a refused block adds nothing). A new name longer than the span
+    it replaces is a ShaderDbError. Runs in the Rust core (bc2_formats::shaderdb::merge::retexture, the merge's;
+    round OR3b retired the Python twin with the same answers on its recorded ones, tests/test_shaderdb_levels.py)."""
     if not textures:
         return block
-    found: list[tuple[int, int, bytes]] = []
-    for old in textures:
-        at = 0
-        while True:
-            i = block.find(old + b'\0', at)
-            if i < 0:
-                break
-            at = i + 1
-            if i > 0 and block[i - 1] != 0:          # the tail of a longer name: not this texture
-                continue
-            end = i + len(old)
-            while end < len(block) and end < i + TEXTURE_FIELD and block[end] == 0:
-                end += 1
-            new = textures[old]
-            if len(new) + 1 > end - i:
-                raise ShaderDbError(f'{where}: texture name {new.decode()} longer than the field of {old.decode()}')
-            found.append((i, end, old))
-    out = bytearray(block)
-    for i, end, old in found:
-        new = textures[old]
-        out[i:end] = new + b'\0' * (end - i - len(new))
-    if hits is not None:
-        for _i, _end, old in found:
-            hits[old] = hits.get(old, 0) + 1
-    return bytes(out)
+    from bfbc2core import native
+    got = native.require('retexture', 'shaderdb_retexture').shaderdb_retexture(
+        bytes(block), list(textures.items()), where, hits)
+    if isinstance(got, str):
+        raise ShaderDbError(got)
+    return cast(bytes, got)
 
 
 _retexture = retexture  # the earlier private name, kept for callers that still use it
@@ -1459,13 +1442,17 @@ def coverage_reference(db: ShaderDb, meshes: Iterable[str]) -> dict[str, int]:
 # loaded every stock level's database for each WW2 level, only to count entry names. The index keeps those counts:
 # for each stock level's database, {every leading '/'-joined part of an entry's lower-case name: the entries under
 # it} - coverage(db, meshes) is then {m: prefixes.get(m, 0)}, for any meshes, without the database.
+# Round OR3b: the index in the Rust core (bc2_convert::shaderlevels, bc2_native.shadercover_levels): one .bin per
+# level bundle and Dx, keyed by the bundle's content key (its length, head and gzip trailer: the CRC-32 of the whole
+# payload; the pickles hashed every byte), the levels read in parallel; the Python index and its pickles retired
+# with the same answers on their recorded ones (tests/test_shaderdb_levels.py).
 
-COVER_VERSION = 2           # the index's layout, rules and key (2: by content, round PR1b-1c): a change makes every entry stale
+COVER_VERSION = 3           # the index's layout, rules and key (3: the Rust index, round OR3b; 2: by content, PR1b-1c)
 
 
 def cover_prefixes(db: ShaderDb) -> dict[str, int]:
     """{lower-case prefix: entries} of db: for every entry, each '/'-joined leading part of its lower-case name (the
-    whole name too) counted once - coverage_reference's count of every possible mesh."""
+    whole name too) counted once, in the order first met - coverage's count of every possible mesh."""
     count: dict[str, int] = {}
     for name, _ in db.entries:
         parts = name.lower().split('/')
@@ -1486,104 +1473,24 @@ def cover_cache_dir() -> str | None:
     return caches.folder('shadercover')
 
 
-_COVER_DIGESTS: dict[tuple[str, int, int], str] = {}
-
-
-def _bundle_digest(bundle: str) -> str:
-    """The SHA-256 of a bundle's bytes, once per process for a file whose size and time stay as they were."""
-    st = os.stat(bundle)
-    k = (os.path.normcase(os.path.abspath(bundle)), st.st_size, st.st_mtime_ns)
-    if k not in _COVER_DIGESTS:
-        h = hashlib.sha256()
-        with open(bundle, 'rb') as f:
-            for chunk in iter(lambda: f.read(1 << 20), b''):
-                h.update(chunk)
-        _COVER_DIGESTS[k] = h.hexdigest()
-    return _COVER_DIGESTS[k]
-
-
-def _cover_key(bundle: str, dx: int) -> tuple[str, str]:
-    """(file name, key) of a level bundle's index entry: the file name by the bundle's path, the key by its content
-    (its SHA-256, round PR1b-1c: before, its size and modification time), the Dx and COVER_VERSION. A bundle copied,
-    restored or touched with the same bytes keeps its entry; one rewritten in place within the same second with the
-    same size no longer keeps a stale one."""
-    key = repr((COVER_VERSION, _bundle_digest(bundle), dx))
-    name = repr((COVER_VERSION, os.path.normcase(os.path.abspath(bundle)), dx))
-    return hashlib.sha1(name.encode('utf-8')).hexdigest()[:24] + '.pkl', key
-
-
-def _cover_load(folder: str | None, bundle: str, dx: int) -> dict[str, Any] | None:
-    import pickle
-    if folder is None:
-        return None
-    try:
-        name, key = _cover_key(bundle, dx)
-        p = os.path.join(folder, name)
-        with open(p, 'rb') as fh:
-            got = pickle.load(fh)
-        if not isinstance(got, dict) or got.get('key') != key:
-            return None
-        from bfbc2core import caches
-        caches.touch(p)
-        return got
-    except Exception:                                   # noqa: BLE001 - missing, old or damaged: made again
-        return None
-
-
-def _cover_save(folder: str | None, bundle: str, dx: int, row: dict[str, Any]) -> None:
-    import pickle
-    if folder is None:
-        return
-    try:
-        from bfbc2core import atomicio, caches
-        name, key = _cover_key(bundle, dx)
-        os.makedirs(folder, exist_ok=True)
-        atomicio.write_bytes(os.path.join(folder, name), pickle.dumps(dict(row, key=key),
-                                                                     protocol=pickle.HIGHEST_PROTOCOL))
-        caches.maybe_prune('shadercover', folder)
-    except OSError:
-        pass                                            # only a cache: the next run loads the database again
-
-
 COVER_STATS = {'index_hits': 0, 'loaded': 0}
 
 
 def level_cover_prefixes(levels: Iterable[str], dx: int = 9, opfor: str | None = None,
                          cache: bool = True) -> Iterator[tuple[str, dict[str, int] | ShaderDbError]]:
     """(level, cover_prefixes of its Dx<dx> database, or the ShaderDbError load_levels gives for it) for each level,
-    in order: from the index where the level's bundle is unchanged since it was indexed, the others loaded
-    (load_levels: several bundles at a time) and indexed. A bundle that cannot be read raises as load_levels does."""
+    in order: from the index where it holds the level bundle's content, the others read (in parallel, in the Rust
+    core) and indexed. A bundle that cannot be read raises as load_levels does."""
     levels = list(levels)
-    root = find_opfor(opfor) if levels else ''
-    bundles = level_bundles(root) if levels else {}
-    folder = cover_cache_dir() if cache else None
-    got: dict[str, dict[str, int] | ShaderDbError] = {}
-    todo: list[str] = []
-    for lv in levels:
-        b = bundles.get(lv.lower())
-        row = _cover_load(folder, b, dx) if b is not None else None
-        if row is None:
-            todo.append(lv)
-        elif 'error' in row:
-            got[lv] = ShaderDbError(row['error'])
-            COVER_STATS['index_hits'] += 1
-        else:
-            got[lv] = row['prefixes']
-            COVER_STATS['index_hits'] += 1
-    for lv, read in load_levels(todo, [dx], opfor):
-        db = read[dx]
-        COVER_STATS['loaded'] += 1
-        b = bundles.get(lv.lower())
-        if isinstance(db, ShaderDbError):
-            got[lv] = db
-            if b is not None and not str(db).startswith('unknown level'):
-                _cover_save(folder, b, dx, {'error': str(db)})
-            continue
-        got[lv] = prefixes = cover_prefixes(db)
-        if b is not None:
-            _cover_save(folder, b, dx, {'label': db.label, 'prefixes': prefixes})
-    for lv in levels:
-        yield lv, got[lv]
+    if not levels:
+        return
+    bundles = level_bundles(find_opfor(opfor))
+    from bfbc2core import native
+    rows = native.require('the level cover index', 'shadercover_levels').shadercover_levels(
+        [(lv, bundles.get(lv.lower())) for lv in levels], dx, cover_cache_dir() if cache else None)
+    for lv, (hit, got) in zip(levels, rows):
+        COVER_STATS['index_hits' if hit else 'loaded'] += 1
+        yield lv, ShaderDbError(got) if isinstance(got, str) else got
 
 
 def level_coverage(levels: Iterable[str], meshes: Iterable[str], dx: int = 9, opfor: str | None = None,
@@ -1612,6 +1519,39 @@ def donor_levels(levels: Iterable[str], need: Iterable[str], dx: int = 9, opfor:
             donors.append(lv)
             have |= got
     return donors
+
+
+class LevelScan(NamedTuple):
+    """A level database's entries as the queries answer them (level_scan): {entry: (constant names, samplers)}
+    (entry_signatures), {entry: [(sampler, cube, texture name)]} (entry_textures), {entry: {layout guid}}
+    (entry_layouts), {entry: {skinning kind}} of its main-pass programs (key byte 0x33 where byte 0x30 is 0), and
+    its mesh parts [(name, layout guid)]."""
+    signatures: dict[str, tuple[tuple[str, ...], int]]
+    textures: dict[str, list[TextureRef]]
+    layouts: dict[str, set[bytes]]
+    kinds: dict[str, set[int]]
+    parts: list[tuple[str, bytes]]
+
+
+def level_scan(levels: Iterable[str], dx: int = 9, opfor: str | None = None,
+               chunk: int = 16) -> Iterator[tuple[str, LevelScan | ShaderDbError]]:
+    """(level, LevelScan of its Dx<dx> database, or the ShaderDbError load(f'level:{level}', dx) raises) for each
+    level, in order - what entry_signatures, entry_textures, entry_layouts, the main-pass kinds and parts give on
+    the loaded database, read and answered in the Rust core (round OR3b: bc2_convert::shaderlevels; Project OPFOR's
+    wake_shaders --clone asked it of every stock level, three renderers, through Python queries), `chunk` levels at
+    a time in parallel. A bundle that cannot be read raises as load does; a database the queries cannot answer on
+    (an index past its section) raises ValueError."""
+    levels = list(levels)
+    if not levels:
+        return
+    bundles = level_bundles(find_opfor(opfor))
+    from bfbc2core import native
+    scan = native.require('the level scan', 'shaderdb_level_scan').shaderdb_level_scan
+    step = max(1, chunk)
+    for i in range(0, len(levels), step):
+        part = levels[i:i + step]
+        for lv, got in zip(part, scan([(lv, bundles.get(lv.lower())) for lv in part], dx)):
+            yield lv, ShaderDbError(got) if isinstance(got, str) else LevelScan(*got)
 
 
 def cmd_cover(a: argparse.Namespace) -> int:

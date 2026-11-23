@@ -454,11 +454,11 @@ TABLE: tuple[Row, ...] = (
       'meshview, xdiff; tests 7; OPFOR 6', 'OPFOR in Rust stage 3',
       'left: every drawing (shaderview.exe D3D11), the NumPy measures and the Pillow sheets'),
     R('bfbc2-shader-tools/shaderdb.py', TOOL, 'partly',
-      'bc2_formats::shaderdb (open, merge); bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb',
+      'bc2_formats::shaderdb (open, merge, levels); bc2_convert::shaderlevels; bc2_native.ShaderMerger (shaderdb.merger); bfbc2 shaderdb',
       '33 suite modules; tests 37; OPFOR 54', 'OPFOR in Rust stage 3',
-      "reader (SD1), queries (E4b), the command line and the in-process merge (OR3a: the Python Merger retired, "
-      "OPFOR's 21 sites on shaderdb.merger) are Rust; left: the level cover index (its pickle cache, with "
-      "PR1b-2-rest's content keys), retexture (OPFOR's own block edits), path glue"),
+      "reader (SD1), queries (E4b), the command line, the in-process merge (OR3a: the Python Merger retired, "
+      "OPFOR's 21 sites on shaderdb.merger), retexture, the level cover index and the level scan (OR3b: "
+      "bc2_convert::shaderlevels, the pickles retired) are Rust; left: path glue, level_meshes (DBX reading)"),
     R('bfbc2-shader-tools/xdiff.py', TOOL, 'live', 'bfbc2 xdiff (argparse, errors only)',
       'tests 5; OPFOR 4 (xdiff.main in process)', 'OPFOR in Rust stage 3',
       "the translator's differential test (xenos_exec, WARP draws)"),
@@ -473,6 +473,7 @@ TABLE: tuple[Row, ...] = (
     T('bfbc2-shader-tools/tests/test_pcbuild_batch.py'),
     T('bfbc2-shader-tools/tests/test_renderqa.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb.py'),
+    T('bfbc2-shader-tools/tests/test_shaderdb_levels.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb_merge.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb_native.py'),
     T('bfbc2-shader-tools/tests/test_shaderdb_queries.py'),
