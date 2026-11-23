@@ -88,6 +88,13 @@ def level_water(root, lv):
     return (w.vertices, w.triangles) if w is not None and len(w) else None
 
 
+def level_heightfield(root, lv):
+    """The level's terrain height field file for the build (DICE's terrain rule of D lines and F cells, KYG-DF-1),
+    or None."""
+    from bfbc2core import level as levelmod
+    return levelmod.heightfield_path(root, lv, log=lambda *a: None)
+
+
 def reference_bounds(root, lv):
     """(minX, minZ, maxX, maxZ) of DICE's path data for the level - the extent of its area outlines and portals at
     every pitch (detailed zones included: on sp_008, sp_008_b, ons_mp_005gr they reach past the normal-pitch ground) -
@@ -199,6 +206,7 @@ def build_level(root, lv, out, log=lambda *a: None):
     navwalk.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                    seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv),
+                   heightfield=level_heightfield(root, lv),
                    order_points=order_points_of(root, lv), area_orders=area_orders_of(root, lv),
                    bounds=build_bounds(root, lv), log=log,
                    detailed=detailed_of(root, lv, samples, xoff, zoff), ladders=ladders_of(root, lv))

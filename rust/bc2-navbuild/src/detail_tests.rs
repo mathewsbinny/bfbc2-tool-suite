@@ -174,3 +174,47 @@ fn nearest_f_cells_toward_the_side() {
     assert_eq!(f_point((2, 2), Axis::Z, 1, &at, &fset, &settings())[1], 4.0 + Y_OFFSET);
     assert_eq!(f_point((2, 2), Axis::Z, -1, &at, &fset, &settings())[1], 2.0 + Y_OFFSET);
 }
+
+#[test]
+fn a_side_test_decides_where_it_answers() {
+    // a flat 3 x 1 strip: no step breaks; the test breaks (0,0)|(1,0) whatever the heights (DICE's terrain rule,
+    // KYG-DF-1), and leaves (1,0)|(2,0) to the step
+    let cells = grid(|i, _| Some(if i == 2 { 1.0 } else { 0.0 }), 3, 1);
+    let test = |((i, _), (di, _)): Side| -> Option<bool> { (i + i + di == 1).then_some(true) };
+    let got = candidates_by(&cells, &[], 0.6, test);
+    let sides: BTreeSet<Side> = got
+        .iter()
+        .map(|c| match *c {
+            Candidate::Side(s) | Candidate::Leg(s) => s,
+        })
+        .collect();
+    let want: BTreeSet<Side> = [((0, 0), (1, 0)), ((1, 0), (-1, 0)), ((1, 0), (1, 0)), ((2, 0), (-1, 0))]
+        .into_iter()
+        .collect();
+    assert_eq!(sides, want, "both ways, the test's side and the step's");
+    // a test answering false keeps a side the step would break
+    let none = candidates_by(&cells, &[], 0.6, |_| Some(false));
+    assert!(none.is_empty());
+    // no test: the step rule (candidates)
+    assert_eq!(candidates(&cells, &[], 0.6).len(), 2);
+}
+
+#[test]
+fn split_rule_f_by_the_step_d_by_the_test() {
+    // a 5 x 1 strip: cell 1 a pit (stepped into and out of along x), flat elsewhere; the test breaks only (3,0)|(4,0)
+    let cells = grid(|i, _| Some(if i == 1 { -1.0 } else { 0.0 }), 5, 1);
+    let test = |((i, _), (di, _)): Side| -> Option<bool> { Some(i + i + di == 7) };
+    let r: Result<Features, ()> = detail_features_by(&cells, &[], &settings(), test, |_| Ok(true));
+    let f = r.unwrap_or_default();
+    assert_eq!(
+        f.fx,
+        [(1, 0)].into_iter().collect::<BTreeSet<_>>(),
+        "the pit is an x-F cell by its steps"
+    );
+    let d: BTreeSet<Side> = [((3, 0), (1, 0)), ((4, 0), (-1, 0))].into_iter().collect();
+    assert_eq!(f.d_sides, d, "the D sides are the test's");
+    assert!(f.broken.contains(&((1, 0), (1, 0))) && f.broken.contains(&((0, 0), (1, 0))));
+    // a test that never answers: the step rule alone, as detail_features
+    let plain: Result<Features, ()> = detail_features_by(&cells, &[], &settings(), |_| None, |_| Ok(true));
+    assert_eq!(plain.unwrap_or_default(), run(&cells, &settings()));
+}

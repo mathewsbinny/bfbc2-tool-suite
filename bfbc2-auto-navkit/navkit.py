@@ -764,6 +764,7 @@ def build_inputs(pr: Project, lv: str, log: Log = print) -> tuple[str, str, int,
               stairs_path=os.path.join(L, 'stair_tris.npy'),
               seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
               water=navregress.level_water(pr.root, lv), bounds=navregress.build_bounds(pr.root, lv),
+              heightfield=navregress.level_heightfield(pr.root, lv),
               order_points=navregress.order_points_of(pr.root, lv), area_orders=navregress.area_orders_of(pr.root, lv),
               ladders=json.load(open(os.path.join(L, 'ladders.json'))) if os.path.isfile(os.path.join(L, 'ladders.json')) else None,
               log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))

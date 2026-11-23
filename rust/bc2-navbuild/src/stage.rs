@@ -31,8 +31,10 @@
 )]
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::sync::Arc;
 
 use bc2_formats::kymesh;
+use bc2_formats::terrain::Heightfield;
 use rayon::prelude::*;
 
 use crate::detail::{self, Candidate, DetailSettings, GridCell, Side};
@@ -281,6 +283,12 @@ pub struct Switches {
     pub detail_terrain_only: (bool, bool),
     /// `navdetail.CUT_CORNERS`.
     pub cut_corners: bool,
+    /// DICE's terrain rule for D sides (KYG-DF-1): between two terrain cells of a normal-pitch area, a side is a D
+    /// side where the terrain's slope along the axis at its midpoint exceeds this ([`DF_TERRAIN_SLOPE`]), in place of
+    /// the centres' step; F cells and the route edges' blocks keep the step rule. On since round NKG3 (D precision /
+    /// recall 50.5 / 18.8 -> 56.7 / 23.9 %; the dip on `sp_02` a named exception by the user's ruling). `None`, or a
+    /// build without the height field: the step rule everywhere.
+    pub df_slope: Option<f64>,
     /// `navdetail.CHAIN_TURNS`.
     pub chain_turns: bool,
     /// `navislands`' rule when `SHADOW_ISLANDS`, else `None`.
@@ -292,6 +300,11 @@ pub struct Switches {
     /// `navwalk.OBJECTIVE_FLOOR` (the stage's log line).
     pub objective_floor: bool,
 }
+
+/// KYG-DF-1's terrain slope: a side between two terrain cells breaks where the ground's slope across it exceeds
+/// this (about 37.6 degrees; fitted on DICE's own areas, between the height field's quantised slopes 0.767, 28 %
+/// broken, and 0.778, 92 %).
+pub const DF_TERRAIN_SLOPE: f64 = 0.77;
 
 /// KYG-EDGE-3's stretch: an edge is left out when the graph already joins its nodes by a route at most this many
 /// times its length.
@@ -335,6 +348,7 @@ impl Default for Switches {
             detail_f: (true, false),
             detail_terrain_only: (false, true),
             cut_corners: true,
+            df_slope: Some(DF_TERRAIN_SLOPE),
             chain_turns: true,
             shadow: Some(graphfile::Shadow::default()),
             header: HEADER,
@@ -415,6 +429,8 @@ pub struct StageArgs {
     pub id_start: u32,
     /// Shared nodes from another stage on this stage's sectors.
     pub carried: BTreeMap<(i64, i64), Vec<(u32, P3)>>,
+    /// The level's terrain height field: DICE's terrain rule for broken sides (KYG-DF-1, `Switches::df_slope`).
+    pub terrain: Option<Arc<Heightfield>>,
 }
 
 /// One sector of a stage (`info[(X, Y)]`).
@@ -777,6 +793,15 @@ fn half_cells(level: &Level, cells: &[Cell], gi0: i64, gj0: i64) -> (Vec<(Side, 
     )
 }
 
+/// The terrain's slope along the axis `(di, dj)` at world `(x, z)`: the central difference over 1 cm each way
+/// (KYG-DF-1's measure; NaN outside the field).
+#[must_use]
+pub fn terrain_slope(hf: &Heightfield, x: f64, z: f64, (di, dj): (i64, i64)) -> f64 {
+    const E: f64 = 0.01;
+    let (ax, az) = (di.signum() as f64 * E, dj.signum() as f64 * E);
+    ((hf.height(x + ax, z + az) - hf.height(x - ax, z - az)) / (2.0 * E)).abs()
+}
+
 /// `detail_pass` for one sector's areas (`rows` its edge rows; the broken sides taken out of them; `origin` the
 /// sector's (gi0, gj0, ox, oz)).
 #[must_use]
@@ -787,6 +812,7 @@ pub fn detail_pass(
     origin: (i64, i64, f64, f64),
     cfg: &BuildSettings,
     sw: &Switches,
+    terrain: Option<&Heightfield>,
 ) -> Detailed {
     let detailed = cfg.is_detailed();
     let mut out = Detailed {
@@ -824,6 +850,12 @@ pub fn detail_pass(
         }
         let area: Vec<(GridCell, f64)> = at.iter().map(|(c, &k)| (*c, level.y(k))).collect();
         // cheap first: no two side-by-side cells more than the step apart, no broken side (the Python's candidates)
+        // DICE's terrain rule (KYG-DF-1): a side between two terrain cells of a normal-pitch area breaks where the
+        // terrain's slope along the axis at the side's midpoint exceeds `df_slope`, whatever the centres' step
+        let slope_rule = match (sw.df_slope, terrain) {
+            (Some(t), Some(hf)) if !detailed => Some((t, hf)),
+            _ => None,
+        };
         let (half, ks) = if sw.detail_half_cells {
             let (h, hks) = half_cells(level, cells, gi0, gj0);
             let mut ks = at.clone();
@@ -840,7 +872,7 @@ pub fn detail_pass(
                         .is_some_and(|&n| (level.y(n) - y).abs() > step)
                 })
             });
-            if !any {
+            if !any && slope_rule.is_none() {
                 continue;
             }
             (Vec::new(), at.clone())
@@ -857,7 +889,22 @@ pub fn detail_pass(
                     _ => false,
                 }
         };
-        let got = detail::detail_features(&area, &half, &s, |c| -> Result<bool, std::convert::Infallible> {
+        let test = |((i, j), (di, dj)): Side| -> Option<bool> {
+            let (t, hf) = slope_rule?;
+            let (&ka, &kb) = (ks.get(&(i, j))?, ks.get(&(i + di, j + dj))?);
+            if !(level.terrain(ka) && level.terrain(kb)) {
+                return None;
+            }
+            Some(
+                terrain_slope(
+                    hf,
+                    ox + (i as f64 + di as f64 / 2.0) * s.pitch,
+                    oz + (j as f64 + dj as f64 / 2.0) * s.pitch,
+                    (di, dj),
+                ) > t,
+            )
+        };
+        let keep = |c: &Candidate| -> Result<bool, std::convert::Infallible> {
             Ok(match *c {
                 Candidate::Side(((i, j), (di, dj))) => {
                     let (x, l, d, al) = side_key(i, j, di, dj);
@@ -867,10 +914,20 @@ pub fn detail_pass(
                 }
                 Candidate::Leg(((i, j), (di, dj))) => breaks((i, j), (i + di, j + dj)),
             })
-        });
-        let Ok(feats) = got;
+        };
+        let Ok(feats) = detail::detail_features_by(&area, &half, &s, test, keep);
         if !feats.broken.is_empty() && cfg.detail_blocks_edges {
-            for &((i, j), (di, dj)) in &feats.d_sides {
+            // route edges stay off the step rule's D sides: blocking the slope rule's lowered ONS_MP_004's
+            // connectivity 97.90 -> 97.76 % (round NKG3)
+            let step_feats;
+            let d_for_edges = if slope_rule.is_some() {
+                let Ok(f) = detail::detail_features(&area, &half, &s, keep);
+                step_feats = f;
+                &step_feats.d_sides
+            } else {
+                &feats.d_sides
+            };
+            for &((i, j), (di, dj)) in d_for_edges {
                 if let (Some(&a), Some(&b)) = (ks.get(&(i, j)), ks.get(&(i + di, j + dj))) {
                     out.blocked.insert((a, b));
                 }
@@ -1323,7 +1380,7 @@ pub fn stage(
         .zip(rows.par_iter_mut())
         .map(|(inf, r)| {
             if cfg.detail_features {
-                detail_pass(level, &inf.cells, r, inf.origin, cfg, sw)
+                detail_pass(level, &inf.cells, r, inf.origin, cfg, sw, args.terrain.as_deref())
             } else {
                 Detailed {
                     features: vec![(Vec::new(), Vec::new()); inf.cells.len()],

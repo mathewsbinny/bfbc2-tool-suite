@@ -131,11 +131,26 @@ impl Heights {
 /// in `SIDES` order; then the half cells' legs in the given order). `cells` holds each cell once.
 #[must_use]
 pub fn candidates(cells: &[(GridCell, f64)], half: &[(Side, f64)], step: f64) -> Vec<Candidate> {
+    candidates_by(cells, half, step, |_| None)
+}
+
+/// [`candidates`], with `test` deciding a side between two area cells where it answers (DICE's terrain rule,
+/// KYG-DF-1: the ground's slope across the side) and the step deciding where it does not.
+#[must_use]
+pub fn candidates_by(
+    cells: &[(GridCell, f64)],
+    half: &[(Side, f64)],
+    step: f64,
+    test: impl Fn(Side) -> Option<bool>,
+) -> Vec<Candidate> {
     let at: FastMap<GridCell, f64> = cells.iter().copied().collect();
     let mut out = Vec::new();
     for &((i, j), y) in cells {
         for (di, dj) in SIDES {
-            if at.get(&(i + di, j + dj)).is_some_and(|&n| (n - y).abs() > step) {
+            if at
+                .get(&(i + di, j + dj))
+                .is_some_and(|&n| test(((i, j), (di, dj))).unwrap_or((n - y).abs() > step))
+            {
                 out.push(Candidate::Side(((i, j), (di, dj))));
             }
         }
@@ -157,23 +172,92 @@ pub fn detail_features<E>(
     cells: &[(GridCell, f64)],
     half: &[(Side, f64)],
     s: &DetailSettings,
+    keep: impl FnMut(&Candidate) -> Result<bool, E>,
+) -> Result<Features, E> {
+    detail_features_by(cells, half, s, |_| None, keep)
+}
+
+/// [`detail_features`] with DICE's split rule (KYG-DF-1): the D sides from [`candidates_by`]'s sides (`test` where it
+/// answers, the step elsewhere), the F cells from the step's sides alone (a cell stepped into and out of along an
+/// axis). With a `test` that never answers this is [`detail_features`].
+///
+/// # Errors
+///
+/// `keep`'s error, which stops the pass.
+pub fn detail_features_by<E>(
+    cells: &[(GridCell, f64)],
+    half: &[(Side, f64)],
+    s: &DetailSettings,
+    test: impl Fn(Side) -> Option<bool>,
     mut keep: impl FnMut(&Candidate) -> Result<bool, E>,
 ) -> Result<Features, E> {
-    let mut broken = BTreeSet::new();
-    for c in candidates(cells, half, s.step) {
-        if keep(&c)? {
-            match c {
-                Candidate::Side(side) => {
-                    broken.insert(side);
-                }
-                Candidate::Leg(((i, j), (di, dj))) => {
-                    broken.insert(((i, j), (di, dj)));
-                    broken.insert(((i + di, j + dj), (-di, -dj)));
+    let mut kept = |list: Vec<Candidate>| -> Result<BTreeSet<Side>, E> {
+        let mut broken = BTreeSet::new();
+        for c in list {
+            if keep(&c)? {
+                match c {
+                    Candidate::Side(side) => {
+                        broken.insert(side);
+                    }
+                    Candidate::Leg(((i, j), (di, dj))) => {
+                        broken.insert(((i, j), (di, dj)));
+                        broken.insert(((i + di, j + dj), (-di, -dj)));
+                    }
                 }
             }
         }
+        Ok(broken)
+    };
+    let by_test = kept(candidates_by(cells, half, s.step, test))?;
+    let by_step = kept(candidates(cells, half, s.step))?;
+    if by_test == by_step {
+        return Ok(features(cells, half, by_test, s));
     }
-    Ok(features(cells, half, broken, s))
+    Ok(features_split(cells, half, by_test, &by_step, s))
+}
+
+/// [`features`] with the F cells from `f_broken` and the D sides from `d_broken`: the broken sides are `d_broken` and
+/// the F cells' sides along their axis.
+#[must_use]
+pub fn features_split(
+    cells: &[(GridCell, f64)],
+    half: &[(Side, f64)],
+    d_broken: BTreeSet<Side>,
+    f_broken: &BTreeSet<Side>,
+    s: &DetailSettings,
+) -> Features {
+    let h = Heights::new(cells, half);
+    let (fx, fz) = if s.with_f {
+        f_cell_sets(f_broken, &h.cells)
+    } else {
+        Default::default()
+    };
+    let f_side = |&((i, j), (di, dj)): &Side| {
+        (di != 0 && (fx.contains(&(i, j)) || fx.contains(&(i + di, j))))
+            || (dj != 0 && (fz.contains(&(i, j)) || fz.contains(&(i, j + dj))))
+    };
+    let mut broken = d_broken;
+    broken.extend(f_broken.iter().filter(|sd| f_side(sd)).copied());
+    if broken.is_empty() {
+        return Features::default();
+    }
+    let d_sides = d_sides(&broken, &fx, &fz);
+    let cuts = if s.cut_corners {
+        corner_cuts(&d_sides)
+    } else {
+        BTreeMap::new()
+    };
+    let lines = d_lines(&d_sides, &h.with_half, s, &cuts);
+    let mut fcells = f_cells(&fx, Axis::X, &h.cells, s);
+    fcells.extend(f_cells(&fz, Axis::Z, &h.cells, s));
+    Features {
+        broken,
+        fx,
+        fz,
+        d_sides,
+        lines,
+        cells: fcells,
+    }
 }
 
 /// The features from the broken sides: the F cells (`with_f`), the D sides and their lines, the F records.

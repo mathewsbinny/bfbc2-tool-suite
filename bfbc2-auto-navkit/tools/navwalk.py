@@ -540,10 +540,15 @@ def clock_words(stamp: Any) -> tuple[int, int]:
             stamp.tm_hour * 1000000 + stamp.tm_min * 10000 + stamp.tm_sec * 100)
 
 
+# DICE's terrain rule for D sides (KYG-DF-1, round NKG3): a slope threshold with the level's height field, None: the
+# step rule. On by the user's ruling (2026-11-22; sp_02's D recall 21.86 -> 21.53 % a named exception).
+DF_SLOPE: float | None = 0.77
+
+
 def switches() -> dict[str, Any]:
     """The build's switches this module owns (the stage's log line names what walkability did); the others are the
     Rust defaults."""
-    return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR))
+    return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR), df_slope=DF_SLOPE)
 
 
 def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,
@@ -554,7 +559,7 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
           max_water_depth: float | None = MAX_WATER_DEPTH, bounds: Sequence[float] | None = None,
           order_points: Sequence[Sequence[float]] | None = None, detailed: dict[str, Any] | None = None,
           ladders: Sequence[dict[str, Any]] | None = None, area_orders: Sequence[Sequence[float]] | None = None,
-          settings: dict[str, Any] | None = None) -> dict[str, Any]:
+          settings: dict[str, Any] | None = None, heightfield: str | None = None) -> dict[str, Any]:
     """A level's path data from its sample runs, written to out_path: NavKit's whole build in the Rust core
     (bc2_navbuild::build; the steps are rust/bc2-navbuild/src/stage.rs's). The log lines come through log as the build
     makes them; returns the build's counts (order nodes, ladders, D / F, shadow islands, steep ground, what was
@@ -565,6 +570,8 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
     bounds: (minX, minZ, maxX, maxZ) of the reference path data (clip_to_reference), or None.
     detailed: {'samples': a pitch-0.2 sampling run, 'high': its high-capsule run (or None), 'sectors': {(X, Y)}} -
     those sectors are built at pitch 0.2 (DICE's detailed zones) and merged with the normal build.
+    heightfield: the level's terrain .Heightfield-000.res (level.heightfield_path): D lines and F cells between
+    terrain cells follow DICE's slope rule (KYG-DF-1); None: the step rule.
     settings: build settings over the Rust defaults (e.g. {'detail_features': False}; bc2_native.navkit_settings()
     lists them), None: the defaults."""
     import time
@@ -587,7 +594,7 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
         bounds=[float(v) for v in bounds[:4]] if bounds is not None else None,
         order_points=list(order_points) if order_points is not None else None,
         area_orders=list(area_orders) if area_orders else None,
-        ladders=_ladders(ladders) if ladders is not None else None)
+        ladders=_ladders(ladders) if ladders is not None else None, heightfield=heightfield)
     if edits:
         import navedits
         regions, hand_seeds, unseeds, counts = navedits.regions_of(edits)

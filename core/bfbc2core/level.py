@@ -288,6 +288,12 @@ def heightfield_of(root: str, lv: str, log: Callable[[str], Any] = print,
     return terrain.read(path) if path else None
 
 
+def heightfield_path(root: str, lv: str, log: Callable[[str], Any] = print) -> str | None:
+    """The level's .Heightfield-000.res (heightfield_of's file, the terrain unpacked once), or None: NavKit's build
+    reads it for DICE's terrain rule of D lines and F cells (KYG-DF-1)."""
+    return _terrain_file(root, lv, log)
+
+
 def _terrain_file(root: str, lv: str, log: Callable[[str], Any] = print, name: str | None = None) -> str | None:
     """heightfield_of's file: the level's .Heightfield-000.res, its terrain bundle unpacked when the unpack is missing,
     incomplete or from another bundle; None when there is none."""

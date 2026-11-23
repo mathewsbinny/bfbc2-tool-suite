@@ -317,6 +317,11 @@ fn the_default_settings_are_the_normal_grid() {
     assert!(sw.symmetric_portals && sw.diagonal_links && sw.node_bounds && sw.owner_edges);
     assert_eq!(sw.gabriel, Gabriel::Detailed);
     assert_eq!(sw.spanner, Some(SPANNER_STRETCH));
+    assert_eq!(
+        sw.df_slope,
+        Some(DF_TERRAIN_SLOPE),
+        "KYG-DF-1's slope rule on (round NKG3, the user's ruling)"
+    );
 }
 
 #[test]
@@ -668,7 +673,7 @@ fn the_detail_pass_moves_outline_sides_in_pairs() {
     };
     let mut r = rows();
     let cfg = BuildSettings::default();
-    let det = detail_pass(&lv, &cells, &mut r, (0, 0, 0.0, 0.0), &cfg, &Switches::default());
+    let det = detail_pass(&lv, &cells, &mut r, (0, 0, 0.0, 0.0), &cfg, &Switches::default(), None);
     let e = &r[0];
     assert_eq!(e.get(&outline_key(true, 1, 1)), Some(&vec![]));
     assert_eq!(e.get(&outline_key(true, 1, -1)), Some(&vec![]));
@@ -693,6 +698,7 @@ fn the_detail_pass_moves_outline_sides_in_pairs() {
         (0, 0, 0.0, 0.0),
         &cfg.detailed(),
         &Switches::default(),
+        None,
     );
     assert!(det.features[0].0.is_empty() && det.features[0].1.is_empty());
     assert_eq!(r[0].get(&outline_key(true, 1, 1)), Some(&vec![(1, 0.95)]));
@@ -716,4 +722,24 @@ fn route_lines_do_not_step_across_a_d_side() {
         "a D side beside the line does not block"
     );
     assert!(!walk(&[(0, 1), (1, 0)], (2, 0), 2), "a straight step across a D side");
+}
+
+#[test]
+fn terrain_slope_across_a_side() {
+    // a 3 x 3 height field, 1 m squares from (0, 0): rising 0.9 m per metre along x, flat along z
+    let size = 3u32;
+    let raw: Vec<u16> = (0..9).map(|k| [0u16, 32767, 65535][k % 3]).collect();
+    let hf = Heightfield {
+        min: [0.0, 0.0, 0.0],
+        max: [3.0, 1.8, 3.0],
+        size,
+        header: bc2_formats::terrain::HeaderWords::default(),
+        raw,
+        tail: bc2_formats::terrain::Tail::Unknown(Vec::new()),
+    };
+    let sx = terrain_slope(&hf, 1.4, 1.2, (1, 0));
+    let sz = terrain_slope(&hf, 1.4, 1.2, (0, -1));
+    assert!((sx - 0.9).abs() < 1e-3, "{sx}");
+    assert!(sz.abs() < 1e-6, "{sz}");
+    assert!(sx > DF_TERRAIN_SLOPE && sz < DF_TERRAIN_SLOPE);
 }
