@@ -127,8 +127,11 @@ mod meshview;
 mod mods_cli;
 #[cfg(feature = "nav")]
 mod nav;
+// round TG1: a new terrain from a seed (`bfbc2 terrain generate`)
 #[cfg(feature = "navkit")]
 mod navkit;
+#[cfg(feature = "terrain")]
+mod terrain_cli;
 // round O4: the helpers NavKit's groups share (the OPFOR folder, original path data)
 #[cfg(any(feature = "navkit", feature = "navtools", feature = "harness"))]
 #[allow(dead_code)]
@@ -219,6 +222,7 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      gameledger status|holders|original|recover <game> ...   the game copy's install ledger\n  \
      install plan|apply|revert|marks <plan.json> ...   the game-copy installer: Project OPFOR's WW2 install\n  \
      mods list|status|enable|disable|install|uninstall|verify|restore-original|migrate ...   OPFOR's mod manager\n  \
+     terrain generate --biome <b> --size 1024|2048 --seed <n> --out <folder> ...   a new terrain from a seed\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
      exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
      hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
@@ -349,6 +353,10 @@ fn main() -> ExitCode {
     #[cfg(feature = "mods")]
     if first == "mods" {
         return mods_cli::main(rest);
+    }
+    #[cfg(feature = "terrain")]
+    if first == "terrain" {
+        return terrain_cli::main(rest);
     }
     if let Some(t) = py_tool(first) {
         return pyproc::run(t, rest);
