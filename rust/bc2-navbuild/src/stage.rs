@@ -285,8 +285,8 @@ pub struct Switches {
     pub cut_corners: bool,
     /// DICE's terrain rule for D sides (KYG-DF-1): between two terrain cells of a normal-pitch area, a side is a D
     /// side where the terrain's slope along the axis at its midpoint exceeds this ([`DF_TERRAIN_SLOPE`]), in place of
-    /// the centres' step; F cells and the route edges' blocks keep the step rule. `None` (the default: round NKG3
-    /// measured it, D precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %, but the D recall of `sp_02` 21.86 -> 21.53 %), or a
+    /// the centres' step; F cells and the route edges' blocks keep the step rule. On since round NKG3 (D precision /
+    /// recall 50.5 / 18.8 -> 56.7 / 23.9 %; the dip on `sp_02` a named exception by the user's ruling). `None`, or a
     /// build without the height field: the step rule everywhere.
     pub df_slope: Option<f64>,
     /// `navdetail.CHAIN_TURNS`.
@@ -348,7 +348,7 @@ impl Default for Switches {
             detail_f: (true, false),
             detail_terrain_only: (false, true),
             cut_corners: true,
-            df_slope: None,
+            df_slope: Some(DF_TERRAIN_SLOPE),
             chain_turns: true,
             shadow: Some(graphfile::Shadow::default()),
             header: HEADER,

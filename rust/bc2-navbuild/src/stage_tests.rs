@@ -318,8 +318,9 @@ fn the_default_settings_are_the_normal_grid() {
     assert_eq!(sw.gabriel, Gabriel::Detailed);
     assert_eq!(sw.spanner, Some(SPANNER_STRETCH));
     assert_eq!(
-        sw.df_slope, None,
-        "KYG-DF-1's slope rule measured and left off (round NKG3)"
+        sw.df_slope,
+        Some(DF_TERRAIN_SLOPE),
+        "KYG-DF-1's slope rule on (round NKG3, the user's ruling)"
     );
 }
 

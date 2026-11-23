@@ -29,13 +29,14 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
-- **NavKit: DICE's terrain rule for D lines, behind a switch** (round NKG3, spec KYG-DF-1): DICE's D sides between two
-  terrain cells follow the terrain's slope across the side (above 0.77), not the step between the cell centres; its
-  F cells follow the steps. NavKit's build reads the level's height field (`navwalk.build(heightfield=...)`,
-  `bfbc2core.level.heightfield_path`) and builds D lines by this rule when `navwalk.DF_SLOPE` (`Switches::df_slope`) is
-  set; it is off by default, so path data NavKit builds is unchanged. Measured on the 15 regression levels: D
-  precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %, every other measure unchanged but sp_02's D recall (-0.33). The
-  probe `rust/bc2-navbuild/examples/kynapse_df.rs` fits the rule on DICE's files.
+- **NavKit: DICE's terrain rule for D lines** (round NKG3, spec KYG-DF-1): DICE's D sides between two terrain cells
+  follow the terrain's slope across the side (above 0.77), not the step between the cell centres; its F cells follow
+  the steps. NavKit's build reads the level's height field (`navwalk.build(heightfield=...)`,
+  `bfbc2core.level.heightfield_path`) and builds D lines by this rule (`navwalk.DF_SLOPE`, `Switches::df_slope`, on;
+  `None` for the step rule). Path data NavKit builds changes (more D lines); navregress's reference run and the golden
+  builds were re-recorded. Measured on the 15 regression levels: D precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %,
+  every other measure unchanged but sp_02's D recall (-0.33, a named exception by the user's ruling). The probe
+  `rust/bc2-navbuild/examples/kynapse_df.rs` fits the rule on DICE's files.
 
 ### Changed
 - **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload

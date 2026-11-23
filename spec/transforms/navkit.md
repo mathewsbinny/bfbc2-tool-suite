@@ -149,7 +149,11 @@ Set by the user, 2026-11-22. "100 % parity" with DICE's path data means a full c
    `edges_same` and the D / F recall rise round by round (NKG1-NKG3) towards 100 %.
 3. **Listed exceptions only:** DICE data that describes a level as it no longer is (SP_03's 93 nodes under the PC
    ground, `navparity.stale_nodes`), where the current level wins; and any rule shown to be unrecoverable from
-   DICE's output, named with its evidence. Nothing else may stay short of the target unexplained.
+   DICE's output, named with its evidence. Nothing else may stay short of the target unexplained. Named by the user's
+   ruling (2026-11-22, round NKG3): sp_02's `df_d_recall` 21.86 -> 21.53 % under DICE's terrain rule for D sides
+   (KYG-DF-1): 43 of DICE's 12,932 sides, lost where the terrain's slope across the side is 0.60-0.77 and the centres'
+   step 0.60-0.65 m, the band where DICE breaks only 17-34 % of sides and the height field's 1 m quantisation hides
+   DICE's own slope measure; every other level's D precision and recall rose with it.
 
 Measured 2026-11-20 (15 regression levels, means): `ground` 98.22 %, `connectivity` 98.79 %, `ai_coverage`
 99.16 %, `ai_pairwise` 92.67 %, `extra_ground` 8.31 %, `over_connection` 15.31 %, `sectors_extra` 1.33;
@@ -171,10 +175,10 @@ non-owner copies 0 (DICE 7,355). Named exceptions added by NKG2 (kynapse_generat
 (KYG-NODE-3) and the exact node placement (KYG-NODE-1) are not recoverable from DICE's output so far; DICE's detailed
 sectors wait for a pitch-0.2 sampling run over DICE's list (KYG-DET-1).
 
-Measured 2026-11-22 after round NKG3 (the same levels, means): every measure unchanged (DICE's terrain rule for D
-sides, KYG-DF-1, written but off). With it on: `df_d_precision` 50.53 -> 56.71 %, `df_d_recall` 18.84 -> 23.89 %
-(normal pitch 32.80 -> 40.60 %), every other measure unchanged, but sp_02's `df_d_recall` 21.86 -> 21.53 %; it waits
-for the user's ruling (rust/BENCHMARKS.md "NKG3"). Named exception added by NKG3: DICE's slope measure within 0.01 of
+Measured 2026-11-22 after round NKG3 (the same levels, means): DICE's terrain rule for D sides (KYG-DF-1, on by the
+user's ruling): `df_d_precision` 50.53 -> 56.71 %, `df_d_recall` 18.84 -> 23.89 % (normal pitch 32.80 -> 40.60 %),
+every other measure unchanged; sp_02's `df_d_recall` 21.86 -> 21.53 % is the named exception above
+(rust/BENCHMARKS.md "NKG3"). Named exception added by NKG3: DICE's slope measure within 0.01 of
 its threshold (the height field's quantisation hides it, KYG-DF-1).
 
 ## Open questions

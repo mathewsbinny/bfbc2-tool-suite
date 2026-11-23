@@ -338,13 +338,13 @@ outline. The runtime's straight-move test reads them (spec §4.5); route edges i
   before the outline is emitted (the rule runs in the Rust core since round NK3; the two choices DICE's files never
   meet - a loop of an F group starting at a pinch, an F vertex in an empty bridge cell - follow spec rule KYM-DF-2); broken sides leave the outline only in pairs (every boundary stays closed -
   `hpdcheck.py` also checks D / F structure now). `DETAIL_STEP` 0.6 m at pitch 0.8, 0.3 m (NavKit's own link step) at pitch 0.2.
-- **DICE's terrain rule for D sides (`navwalk.DF_SLOPE`, `Switches::df_slope`; off; round NKG3, spec KYG-DF-1):**
+- **DICE's terrain rule for D sides (`navwalk.DF_SLOPE`, `Switches::df_slope`; on; round NKG3, spec KYG-DF-1):**
   DICE's D sides between two terrain cells follow the terrain's slope across the side (above 0.77, read from the
   level's height field, which `navwalk.build(heightfield=...)` takes), its F cells the centres' steps. On DICE's own
   areas the slope finds DICE's D / F sides at 91.7 / 70.8 % precision / recall (the step 77.9 / 63.2 %). On the 15
   regression levels it raises D precision / recall 50.5 / 18.8 -> 56.7 / 23.9 % with every other measure unchanged,
-  except sp_02's D recall (21.86 -> 21.53 %), so it stays off until the user rules; set `navwalk.DF_SLOPE = 0.77` to
-  build with it. Route edges stay off the step rule's D sides either way.
+  except sp_02's D recall (21.86 -> 21.53 %), a named exception by the user's ruling (2026-11-22); `navwalk.DF_SLOPE
+  = None` builds with the step rule. Route edges stay off the step rule's D sides either way.
 - **`navbuild.DETAIL_BLOCKS_EDGES`** (on): route edges do not step across a D side (straight or diagonal), as in DICE's
   graph; F cells may be crossed (DICE's edges cross F polygon sides on 0.4-0.6 %).
 - **Parity** (`tools\navdf.py`; its measures are in every `navparity` / `navregress` row as `df_*`): see the table

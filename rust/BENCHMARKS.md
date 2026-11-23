@@ -11203,8 +11203,9 @@ re-derived; no WW2 output changed for this item.
 The step-data half of the NavKit gap list (`spec/transforms/kynapse_generation.md`, item 6): DICE's D lines and F
 cells. The rule was fitted on DICE's files with a new probe, implemented in `bc2-navbuild`, and measured with
 navparity on the 15 regression levels (navregress's builds into a scratch folder, one level at a time). It raised D
-precision and recall but lowered one level's D recall, so under XNAV-BLD-3 it is written and **off**, waiting for the
-user's ruling. Default builds are unchanged: navregress's reference and the goldens were not re-recorded.
+precision and recall but lowered one level's D recall (sp_02, -0.33); the user ruled it on (2026-11-22) with that dip
+a named exception (`spec/transforms/navkit.md`, "Parity target"). navregress's reference and the goldens were
+re-recorded.
 
 ### Where DICE's D / F sides stand in NavKit's builds (before)
 
@@ -11234,10 +11235,10 @@ between terrain cells by the slope, F cells by the step.
 
 | Rule | Change | Switch |
 |---|---|---|
-| KYG-DF-1 | D sides between two terrain cells of a normal-pitch area by `stage::terrain_slope` (central difference on the level's height field at the side's midpoint) above `DF_TERRAIN_SLOPE` (0.77); F cells and the route edges' blocks by the step (`detail::detail_features_by`, `features_split`) | `Switches::df_slope` / `navwalk.DF_SLOPE`, **off** |
-| - | the build takes the level's height field: `build::Inputs.terrain`, `StageArgs.terrain`; `navwalk.build(heightfield=...)` (navregress, `navkit.py build`), `inputs::level_terrain` (bfbc2.exe, the editor) | always (unused while the switch is off) |
+| KYG-DF-1 | D sides between two terrain cells of a normal-pitch area by `stage::terrain_slope` (central difference on the level's height field at the side's midpoint) above `DF_TERRAIN_SLOPE` (0.77); F cells and the route edges' blocks by the step (`detail::detail_features_by`, `features_split`) | `Switches::df_slope` / `navwalk.DF_SLOPE` (on, 0.77) |
+| - | the build takes the level's height field: `build::Inputs.terrain`, `StageArgs.terrain`; `navwalk.build(heightfield=...)` (navregress, `navkit.py build`), `inputs::level_terrain` (bfbc2.exe, the editor) | always (no height field: the step rule) |
 
-### Parity with the switch on (15 regression levels; before = navregress's reference `regression`)
+### Parity (15 regression levels; before = NKG2's reference `regression`)
 
 Every navparity measure unchanged but these (means):
 
@@ -11269,8 +11270,8 @@ Every navparity measure unchanged but these (means):
 
 sp_02's D recall falls by 43 of DICE's 12,932 sides: `kynapse_df --before` shows the sides lost at slopes of
 0.60-0.77 with centre steps of 0.60-0.65 m (239 of DICE's D / F side keys lost, 206 of them at slopes 0.70-0.77; 233
-gained, all at slopes over 0.77 or with steps under 0.6 m), the band where DICE breaks only 17-34 % of sides. This is not a larger matched sample (NKG2's `costs` case); it is a real loss on
-one level, so the switch stays off until the user rules. No other measure moves.
+gained, all at slopes over 0.77 or with steps under 0.6 m), the band where DICE breaks only 17-34 % of sides. This is not a larger matched sample (NKG2's `costs` case) but a real loss on
+one level; the user accepted it as a named exception (2026-11-22). No other measure moves.
 
 ### Measured and left out
 
@@ -11288,6 +11289,8 @@ one level, so the switch stays off until the user rules. No other measure moves.
 - `cargo test -p bc2-navbuild --lib`: `detail_tests::a_side_test_decides_where_it_answers`,
   `detail_tests::split_rule_f_by_the_step_d_by_the_test` (and with a test that never answers, the step rule's answer),
   `stage::tests::terrain_slope_across_a_side`, the switch default.
-- Default builds unchanged: `test_navbuild_native.py --game` (the golden builds' SHA-1).
+- With the switch off the four golden builds came out as recorded (`test_navbuild_native.py --game`); with it on
+  they were re-recorded (below), and navregress's reference run saved again (the old one kept as
+  `regression_before_2026-11-22_nkg3.json`).
 - The probe: `cargo run --release -p bc2-navbuild --example kynapse_df -- [<level>...] [--cand <folder>] [--before
   <folder>]`.

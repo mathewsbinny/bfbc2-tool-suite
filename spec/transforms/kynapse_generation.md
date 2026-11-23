@@ -555,14 +555,15 @@ that NavKit's areas do not have (61,026 of 491,869 normal D unit sides have a ce
 [test: rust/bc2-navbuild/src/stage_tests.rs::terrain_slope_across_a_side] [test: rust/bc2-navbuild/src/detail_tests.rs::a_side_test_decides_where_it_answers] [test: rust/bc2-navbuild/src/detail_tests.rs::split_rule_f_by_the_step_d_by_the_test]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:939-1008]
 
-NavKit today: the step rule with corner cuts (`navdetail`; NK3 ports it to Rust); the detailed rule is implemented but
-off. Round NKG3 implemented the split rule (`Switches::df_slope`, `navwalk.DF_SLOPE`: D sides between terrain cells
+NavKit today: the split rule with corner cuts (`navdetail`, Rust since NK3); the detailed rule is implemented but off.
+Round NKG3 implemented the split rule (`Switches::df_slope`, `navwalk.DF_SLOPE`: D sides between terrain cells
 by the slope on the level's height field, F cells by the step; route edges stay off the step rule's D sides) and
 measured it on the 15 regression levels (means): `df_d_precision` 50.53 -> 56.71 %, `df_d_recall` 18.84 -> 23.89 %
 (normal pitch 32.80 -> 40.60 %), F unchanged, every other measure unchanged, D precision and recall up on 13 levels (sp_04's precision 49.54 -> 49.53 %,
 sp_009 has no normal D) - but sp_02's `df_d_recall` fell 21.86 -> 21.53 % (43 of DICE's 12,932 sides,
-lost at slopes 0.70-0.77 with centre steps of 0.60-0.65 m, the mixed band above). Under XNAV-BLD-3 it is therefore
-**off** by default, waiting for the user's ruling. Measured and left out: the slope rule for F too (F recall 33.46 ->
+lost at slopes 0.70-0.77 with centre steps of 0.60-0.65 m, the mixed band above). **On** by the user's ruling
+(2026-11-22), which accepts sp_02's dip as a named exception (`navkit.md`, "Parity target": the band where DICE breaks
+only 17-34 % of sides and its own slope measure is hidden by the height field's quantisation). Measured and left out: the slope rule for F too (F recall 33.46 ->
 31.35 %), the route edges kept off the slope rule's D sides (ONS_MP_004 `connectivity` 97.90 -> 97.76 %,
 `runtime_connectivity` 98.23 -> 98.07 %), D by slope or step (D precision down on 12 levels), the threshold at 0.755
 (D precision 50.53 -> 46.09 %). Probe: 258,379 D lines (396 with 3+ points against DICE's 8,148 on all files) and
@@ -666,7 +667,7 @@ movement detail, then bytes):
    paused. **Round NKG3**: the coarse rule decoded (KYG-DF-1: D sides between terrain cells follow the terrain's slope
    across the side, above 0.77; F cells the centres' steps), implemented behind `Switches::df_slope` and measured: D
    precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %, F and every other measure unchanged, but sp_02's D recall -0.33,
-   so off until the user rules. The detailed rule (no single measure separates DICE's breaks) and the vehicle rule
+   on by the user's ruling (2026-11-22), sp_02's dip a named exception. The detailed rule (no single measure separates DICE's breaks) and the vehicle rule
    (no vehicle-shaped sample run) stay open.
 7. **C portal directions** (KYG-SEC-2, KYN-C-1): DICE's "diagonal" and "up" values are not geometric and are read in
    no test traced; not imitated. Diagonal-neighbour links: done (NKG1, KYG-LINK-1). DICE's C records are also cut
