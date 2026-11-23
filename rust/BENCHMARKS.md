@@ -4526,50 +4526,65 @@ So the rule layers shade by the ground's height (TGEN-VIS-2): the generator take
   visual terrain, the cloned entries, the visual water, the colour / occlusion map, the donor's rule layers in game.
   Nothing was installed or launched.
 
-## OR2 (paused): OPFOR in Rust, stage 2 - the level build (2026-11-23, branch `or2`, with Project OPFOR's `or2`)
+## OR2: OPFOR in Rust, stage 2 - the level build (2026-11-23, branch `or2`, with Project OPFOR's `or2`)
 
-Paused by the user (the round with the most work left). Worktrees kept: suite `bfbc2-tool-suite-or2`, OPFOR
-`opfor-or2` (branch `or2` in each; WIP commits). Build folder kept: `rust-targets\bfbc2-tool-suite-or2`.
+What OR1 left ("Left for stage 2"): `wake_install.build` and its parts that are not the shader glue. Version
+**0.25.0** (removals: `terrain._Walk` / `ROAD_VERTEX`, the `install_index.pkl` cache; RELEASING.md). The round was
+paused once (the user, 2026-11-23) and resumed; the WIP commits stay in the history. Nothing was written to OPFOR's
+`game\`; the game never launched.
 
-**Done (WIP, not yet proven on the oracle).** New module `bc2_install::build` (feature `build`, enabled by bc2-py):
-`index` (stock_bundles, ondemand_bundles, the stock index kept per process instead of `install_index.pkl`,
-masked_names, live_entries, our_files in os.walk order, primary_type), `closure` (the walk, step for step, take's
-order as the Python's), `stage` (write_stage with the staged-record memo, fetch_stock, pack_many, patch_bundle,
-build_ww2_common with its per-process memo), `gates` (model_group_check and its helpers, level_names, icon_gate on
-bc2_menu::graft), `describe` (description, air_superiority_mode, level_list_items/xml/query through DbxEdit in
-process), `levelfiles` (edit_level with the test aids, remap_targets, patch_refs, persistence, patch_ours,
-kit_voices, sky_patch's own branch, root_files, mesh_flags, ondemand_waves, emitter_atlas, undergrowth_files),
-`terrainfiles` (terrain_files, undergrowth_scales / blocks, the VisualTerrain walk that `terrain._Walk` did).
-Bindings `bc2-py/src/ww2build.rs` (`ww2build_*`, `Ww2Index`, `Ww2PackJob`). `bc2_convert::emitteratlas::drawn` made
-public. Tests: `bc2-install/tests/levelbuild.rs` (7 tests on a fake game: all pass) and unit tests; clippy clean on
-bc2-install (feature build) and bc2-py. OPFOR `wake_install.py` (opfor-or2): the Python bodies replaced by thin
-callers (about 1,400 lines out); tests rewritten for the Rust core: test_model_groups, test_ww2_packing,
-test_ww2_install (stock index), test_ww2_terrain_strips.
+### What moved
 
-**Parity so far.** `scratchpad\or2\parity_build.py <opfor> <out>` runs `wake_install.build` for Wake with WORK /
-PATCHED / PORTS redirected to a scratch folder (reads main's game\ and work\ww2 through junctions `opfor-or2\game`,
-`opfor-or2\work`; OPFOR_TOOLKIT a scratch toolkit of junctions to this worktree, operation-rising-sun,
-bf1943-tool-suite). The old Python run (main, 234 s) is in `scratchpad\or2\old`. The new run got through the index,
-our files, patch_ours, kit_voices, edit_level, root_files and the closure, then stopped in emitter_atlas: the
-binding read the manifest's `size` as a tuple (it is a JSON list) - fixed in the source, the native module not yet
-rebuilt (the build was stopped by the pause). `compare_trees.py old new` compares the stagings file by file.
+The new module `bc2_install::levelbuild` (feature `levelbuild`, which `bc2-py` enables; `bfbc2.exe`'s installer does
+not build it) and its bindings `rust/bc2-py/src/ww2build.rs` (`bc2_native.ww2build_*`, `Ww2Index`, `Ww2PackJob`).
+OPFOR's `wake_install.py` keeps its entry points as thin callers that pass its decisions as data (the level's
+bindings, its roots and skips, REMAP, WEAPON_PERSISTENCE, TEAMS, KIT_VOICE, ROOT_FILES, UG_STANDIN, the loaded and
+masked bundles): about 1,500 lines of its Python retired.
 
-**Next steps.**
-1. `python rust\build_native.py` (about 20 min with other rounds building), rerun the new parity run, compare with
-   `old` and decode every difference (report lines, take order ties, report.json order).
-2. `terrainfiles::undergrowth_blocks`' memo: key it by the stand-ins (a test with other stand-ins left it set).
-3. `port_missing` (still Python): needs `bc2_convert::meshport::Porter` to give the plan (each part's `how` from
-   `Found`: "BFBC2 has this part", "layout of <k>", "layout of <k> (<n> element(s) left out)"; materials; sorted
-   textures; renamed {}), a bare mesh skinned to no soldier, the BF1943 Source over the Python object, dbxport for
-   PORT_PARTS, granny to_pc, plans.json as json.dump(indent=1) with CRLF.
-4. Retire the suite's `terrain._Walk` / `ROAD_VERTEX` (no user left), update PYTHON_STATUS, VERSION 0.25.0 and
-   OPFOR's SUITE_REQUIRES, CHANGELOG, ROADMAP, spec rules (LEVEL-MG-4 to verified with the Rust test; new XINST-WW2
-   rules for the build), this section.
-5. Ask the coordinator for a WW2 rebuild slot: rebuild oracle 7,945 / install oracle 21,149, game\ unchanged.
-6. Before removing the worktrees: `cmd /c rmdir` the junctions `opfor-or2\game`, `opfor-or2\work` and the scratch
-   toolkit's.
+| Project OPFOR (`wake_install.py`, Python until OR2) | `bc2_install::levelbuild` |
+|---|---|
+| `stock_bundles`, `ondemand_bundles`, `stock_index` (the pickle `install_index.pkl`), `masked_names`, `live_entries`, `our_files` (`file_sha`, `same_file_content`), `primary_type` | `index` (the stock index read on all cores and kept for the process while every bundle keeps its size and date) |
+| `closure` | `closure` |
+| `write_stage` (`_STAGED`), `fetch_stock`, `pack_level` / `finish_packs` (the packing thread), `patch_bundle`, `build_ww2_common` / `common_signature` | `stage` |
+| `model_group_check` (`havok_parts`, `group_ids`, `group_members`, `group_expects`, `member_mismatch`, `GroupError`), `loaded_names`, `level_names`, `icon_gate` (on `bc2_menu::graft`) | `gates` |
+| `description`, `air_superiority_mode`, `level_list_items` / `level_list_xml` / `level_list_query` (DbxEdit in process) | `describe` |
+| `edit_level` (`team_refs`, `vo_from`, the test aids `test_drop` / `test_spawn`), `remap_targets`, `patch_refs`, `persistence_ids`, `weapon_persistence`, `patch_ours`, `kit_voices`, `sky_patch` (its own branch; the sky's Option B stays `wake_sky`'s), `root_files`, `mesh_flags`, `ondemand_waves`, `emitter_atlas`, `undergrowth_files` | `levelfiles` |
+| `terrain_files`, `undergrowth_scales`, `undergrowth_blocks`, `_undergrowth_uses` (and the suite's `terrain._Walk` / `ROAD_VERTEX`, retired) | `terrainfiles` |
+| `port_missing` (`port_mesh`, `_PORTED`) | `ports` on `meshport::Porter::port_with` (new: the shader plan - each part's layout choice, the materials -, and a bare mesh skinned to no soldier) and `granny::to_pc`; PORT_PARTS' template ports stay `dbxport.port`'s (the suite's Rust core already) |
 
-**Learned.** DbxEdit's XML uses CRLF; DICE's reference fields put `ref` before `name` (the description's patterns
-need it). The closure's Python set orders (mesh-set starts, reached partitions) are replaced by first-seen / sorted
-orders: to be confirmed against the oracle's report ties. Heredocs mangle backslashes and wrote NUL bytes into a test
-(fixed); use script files.
+Still Python in `wake_install.py`: the shader glue (stage 3: `shader_dbs`, `autoclone`, `fix_layouts`,
+`register_parts`, `zonly_programs`, `index_templates` - OR3c's), `res_type`, `stage_textures`, `ww2_common_files`,
+`build_shared`'s gathering, `terrain_names`, `drop_instances` (wake_vo uses it) and `build()`'s orchestration.
+
+### Decided (Python-only accidents against DICE's data)
+
+- The closure's Python set orders (the partition names in our mesh sets, the reached partitions' order in the take,
+  `level_names`' partitions) are first-seen and sorted orders: every staged file and report line came out the
+  same (below), so no output depended on them.
+- A model group's `Enums` holding something that is not a number is a group problem (reported, the gate fails); the
+  Python stopped the build with a `ValueError`.
+- The staging record knows a bytes source by the object's identity kept alive with the record, as `rec[0] is src`
+  did.
+
+### Proof
+
+- **Wake, Rust against Python** (`scratchpad\or2\parity_build.py`: `wake_install.build` and the shared patches into a
+  scratch folder, OPFOR main's Python with main's suite against this branch; the game copy and `work\ww2` read only):
+  **6,260 of 6,260 staged files identical** (the level, terrain, ingame, loader and vo bundles and folders, the root
+  files, the description, the level list, ww2_common, the startup / overlay / ondemand_awards patches, the patched
+  copies, report.json); report.txt identical but for the scratch folder's own name in the DbxEdit check line. Python
+  290 s, Rust 239 s (the shader pass, still Python, is most of both).
+- **WW2 rebuild** (OPFOR main detached at `or2`, `OPFOR_TOOLKIT` a scratch folder of junctions to this worktree,
+  `OPFOR_SUITE_STRICT=1`, `--jobs 2`): all steps in 24.5 min; `compare_oracle` **7,945 of 7,945 identical**. `rebuild_all` exits 1 on one QA texture check only (`sky_beach_generic_rgba16f.res` psnr 21.22 dB against the BF1943 source: DICE's PC sky since WW2-ORC1, a stale QA baseline, not this round's).
+- **Install oracle** (`wake_install.py --plan` on the four levels): 4.7 min; `compare_oracle --install` **21,149 of 21,149 identical** (the install-time ports in Rust: 11 for Wake, the plans.json among them).
+- `game\`: its 1,582 files (11.6 GB) hashed (path, size, time, SHA-256) before the rebuild, before the plan and after it: identical; OPFOR main back on main (02278c8).
+- Tests: `bc2-install/tests/levelbuild.rs` (7 on a fake game copy: the stock bundles' order and the index, our files,
+  the closure with every case, the staging and patches, ww2_common, the model groups, the level edits and remaps,
+  the description and level list through DbxEdit, mesh flags and on-demand waves) and the module's unit tests;
+  OPFOR's test_model_groups, test_ww2_packing, test_ww2_install, test_ww2_terrain_strips, test_ww2_loading on the
+  Rust core.
+
+### Left
+
+- Stage 3c (OR3c, in parallel) and the shader glue named above; stages 4 and 5.
+- `meshport`'s renames, donors and poses (OPFOR's soldier and kit builds: stage 4).
