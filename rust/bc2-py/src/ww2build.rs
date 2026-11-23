@@ -1,5 +1,5 @@
 //! Round `OR2` ("OPFOR in Rust", stage 2: the level build): Project OPFOR's `wake_install.build` and its parts in the
-//! Rust core (`bc2_install::build`). OPFOR's `wake_install.py` keeps its entry points as thin callers that pass its
+//! Rust core (`bc2_install::levelbuild`). OPFOR's `wake_install.py` keeps its entry points as thin callers that pass its
 //! bindings (the level's constants, as JSON) and its data (our files, the take) and get the same values back.
 //!
 //! Python's shapes: our files `{lower name: (name, path)}`; a take `{lower name: (name, type or None, source)}`, the
@@ -19,9 +19,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
-use bc2_install::build::closure::{self, Src, Take};
-use bc2_install::build::index::{self, OurFile, StockIndex};
-use bc2_install::build::{OMap, describe, gates, levelfiles, stage, terrainfiles};
+use bc2_install::levelbuild::closure::{self, Src, Take};
+use bc2_install::levelbuild::index::{self, OurFile, StockIndex};
+use bc2_install::levelbuild::{OMap, describe, gates, levelfiles, stage, terrainfiles};
 use pyo3::exceptions::{PyKeyError, PySystemExit, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PySet, PyTuple};
@@ -388,7 +388,9 @@ pub fn ww2build_fetch_stock(py: Python<'_>, files: &Bound<'_, PyDict>) -> PyResu
     }
     for (b, items) in by {
         let names: Vec<String> = items.iter().map(|(_, n)| n.clone()).collect();
-        let data = py.detach(|| bc2_install::build::bundle_read(&b, &names)).map_err(err)?;
+        let data = py
+            .detach(|| bc2_install::levelbuild::bundle_read(&b, &names))
+            .map_err(err)?;
         for (k, n) in items {
             let v = files.get_item(&k)?.ok_or_else(|| PyKeyError::new_err("gone"))?;
             let t = v.cast::<PyTuple>()?;

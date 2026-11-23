@@ -112,7 +112,10 @@ pub fn undergrowth_uses(pc: &[u8]) -> Result<(Vec<(String, usize)>, Vec<(String,
     Ok((uses, strips))
 }
 
-static BLOCKS: LazyLock<Mutex<Option<Vec<(String, Vec<u8>)>>>> = LazyLock::new(|| Mutex::new(None));
+/// The blocks found, by the stand-ins they were found for (another list of stand-ins is looked up again).
+type Blocks = (Vec<(String, String)>, Vec<(String, Vec<u8>)>);
+
+static BLOCKS: LazyLock<Mutex<Option<Blocks>>> = LazyLock::new(|| Mutex::new(None));
 
 /// `undergrowth_blocks()`: {stand-in mesh: the 12 parameters (bytes) its donor level's VisualTerrain uses most for the
 /// donor mesh} (the first such block met on a tie), kept for the process.
@@ -120,7 +123,9 @@ static BLOCKS: LazyLock<Mutex<Option<Vec<(String, Vec<u8>)>>>> = LazyLock::new(|
 /// # Errors
 /// A donor in no VisualTerrain of its folder, or a VisualTerrain that cannot be read.
 pub fn undergrowth_blocks(standins: &[(String, String)], index: &StockIndex) -> Result<Vec<(String, Vec<u8>)>> {
-    if let Some(b) = BLOCKS.lock().unwrap_or_else(PoisonError::into_inner).as_ref() {
+    if let Some((k, b)) = BLOCKS.lock().unwrap_or_else(PoisonError::into_inner).as_ref()
+        && k.as_slice() == standins
+    {
         return Ok(b.clone());
     }
     let vts: Vec<(&str, &str)> = index
@@ -163,7 +168,7 @@ pub fn undergrowth_blocks(standins: &[(String, String)], index: &StockIndex) -> 
             .ok_or_else(|| format!("undergrowth: {donor} is in no VisualTerrain of {folder}"))?;
         out.push((new.clone(), best));
     }
-    *BLOCKS.lock().unwrap_or_else(PoisonError::into_inner) = Some(out.clone());
+    *BLOCKS.lock().unwrap_or_else(PoisonError::into_inner) = Some((standins.to_vec(), out.clone()));
     Ok(out)
 }
 

@@ -1,4 +1,4 @@
-//! The WW2 level build's parts (round OR2, feature `build`) on a fake game copy and fake builds: the stock bundles'
+//! The WW2 level build's parts (round OR2, feature `levelbuild`) on a fake game copy and fake builds: the stock bundles'
 //! order and the index (an unreadable bundle left out and not kept), our files (the later root winning, nested roots,
 //! the skips), the closure (ours, stock partitions with their resources, the loaded bundles' resources, a level-local
 //! copy, DICE's conventions, unresolved and dangling references), the staging and its manifest, a shared bundle's
@@ -6,7 +6,7 @@
 //! members, the level's own edits and our copies' remaps, the description and the menus' level list through
 //! DbxEdit. Project OPFOR's install oracle holds the whole on the real game copy.
 
-#![cfg(feature = "build")]
+#![cfg(feature = "levelbuild")]
 #![allow(
     clippy::indexing_slicing,
     clippy::panic,
@@ -23,9 +23,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use bc2_formats::dbx::{self, DbxFile, Element};
-use bc2_install::build::closure::{self, ClosureSpec, Src, Take};
-use bc2_install::build::index::{self, OursSpec};
-use bc2_install::build::{OMap, describe, gates, levelfiles, stage};
+use bc2_install::levelbuild::closure::{self, ClosureSpec, Src, Take};
+use bc2_install::levelbuild::index::{self, OursSpec};
+use bc2_install::levelbuild::{OMap, describe, gates, levelfiles, stage};
 
 const G1: &str = "11111111-1111-1111-1111-111111111111";
 const G2: &str = "22222222-2222-2222-2222-222222222222";

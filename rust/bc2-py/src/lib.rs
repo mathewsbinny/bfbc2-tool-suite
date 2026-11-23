@@ -450,7 +450,7 @@ mod bc2_native {
     #[pymodule_export]
     use super::shaderdb_levels::{shadercover_levels, shaderdb_level_scan, shaderdb_retexture};
 
-    // round OR2: OPFOR's WW2 level build (wake_install.build's parts, bc2_install::build)
+    // round OR2: OPFOR's WW2 level build (wake_install.build's parts, bc2_install::levelbuild)
     #[pymodule_export]
     use super::shaderdb_merge::ShaderMerger;
     #[pymodule_export]
