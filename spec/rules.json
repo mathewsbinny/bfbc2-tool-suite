@@ -28744,8 +28744,16 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:111-117"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:649-676"
     }
    ]
   },
@@ -28761,8 +28769,20 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:94-122"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/rng.rs:1-46"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/terrain_cli.rs:120-151"
     }
    ]
   },
@@ -28787,12 +28807,62 @@
    "id": "TGEN-GEN-3",
    "title": "What the real generator adds (round TG1)",
    "file": "spec/transforms/terrain_gen.md",
-   "status": "inferred",
+   "status": "implemented",
    "variants": "PC",
    "evidence": [
     {
-     "kind": "inferred",
-     "ref": "TGEN-SHAPE-1 - 3 (what DICE has), TGEN-SHAPE-2 (what the prototype misses), TGEN-PLAY-1 / -2, A3's ROADMAP row"
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:146-203"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:209-419"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:426-524"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:564-676"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-4",
+   "title": "TG1's terrains fall on DICE's biome medians",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py's shape() on bfbc2 terrain generate's main blocks and the prototype's terrains, 2026-11-23, as tabled; DICE's medians from the same probe's run on the 30 terrains"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-5",
+   "title": "The library the editor and the command line call",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/lib.rs:118-139"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/terrain_cli.rs:153-216"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
     }
    ]
   },
@@ -28806,6 +28876,10 @@
     {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:53-59"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/biome.rs:114-122"
     }
    ]
   },
@@ -28819,6 +28893,14 @@
     {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:208-219"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/paint.rs:27-53"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
     }
    ]
   },
@@ -28847,6 +28929,10 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:127-178"
     }
@@ -28864,6 +28950,10 @@
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
      "kind": "code",
      "ref": "spec/probes/terrain_gen_proto.py:192-205"
     }
@@ -28879,6 +28969,14 @@
     {
      "kind": "test",
      "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/water.rs:7-23"
     },
     {
      "kind": "code",
