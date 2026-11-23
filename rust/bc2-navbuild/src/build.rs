@@ -95,6 +95,8 @@ pub struct Inputs {
     pub detailed: Option<DetailedInputs>,
     /// The ladders.
     pub ladders: Option<Vec<Ladder>>,
+    /// The level's terrain height field (KYG-DF-1's terrain rule for D lines and F cells; `None`: the step rule).
+    pub terrain: Option<std::sync::Arc<bc2_formats::terrain::Heightfield>>,
 }
 
 impl Inputs {
@@ -321,6 +323,7 @@ pub fn build_graphs(
         zoff: inp.zoff,
         order_points: inp.order_points.clone().unwrap_or_default(),
         id_start: 1,
+        terrain: inp.terrain.clone(),
         ..StageArgs::default()
     };
     let a = stage::stage(ground, &args, cfg, sw, &mut report.stats, log)?;
@@ -356,6 +359,7 @@ pub fn build_graphs(
                 grid_min: Some(grid_min),
                 id_start: a.next_id,
                 carried,
+                terrain: inp.terrain.clone(),
             };
             let b = stage::stage(ground, &bargs, &dcfg, sw, &mut report.stats, log)?;
             stop(log)?;

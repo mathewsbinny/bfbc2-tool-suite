@@ -370,6 +370,15 @@ fn inputs_of(d: &Bound<'_, PyDict>) -> PyResult<Inputs> {
         area_orders: opt_points("area_orders")?,
         detailed,
         ladders: ladders.map(|l| l.into_iter().map(|(lo, hi)| Ladder { lo, hi }).collect()),
+        terrain: match path(d, "heightfield")? {
+            None => None,
+            Some(p) => {
+                let data = std::fs::read(&p).map_err(|e| value_error(format!("{}: {e}", p.display())))?;
+                let hf =
+                    bc2_formats::terrain::parse(&data).map_err(|e| value_error(format!("{}: {e}", p.display())))?;
+                Some(std::sync::Arc::new(hf))
+            }
+        },
     })
 }
 
@@ -692,7 +701,7 @@ pub fn detail_pass_py<'py>(
         return Err(value_error("one row set per area needed"));
     }
     let det = if cfg.detail_features {
-        stage::detail_pass(level, cells, &mut rows, origin, &cfg, &sw)
+        stage::detail_pass(level, cells, &mut rows, origin, &cfg, &sw, None)
     } else {
         stage::Detailed {
             features: vec![(Vec::new(), Vec::new()); cells.len()],

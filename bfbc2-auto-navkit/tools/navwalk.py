@@ -554,7 +554,7 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
           max_water_depth: float | None = MAX_WATER_DEPTH, bounds: Sequence[float] | None = None,
           order_points: Sequence[Sequence[float]] | None = None, detailed: dict[str, Any] | None = None,
           ladders: Sequence[dict[str, Any]] | None = None, area_orders: Sequence[Sequence[float]] | None = None,
-          settings: dict[str, Any] | None = None) -> dict[str, Any]:
+          settings: dict[str, Any] | None = None, heightfield: str | None = None) -> dict[str, Any]:
     """A level's path data from its sample runs, written to out_path: NavKit's whole build in the Rust core
     (bc2_navbuild::build; the steps are rust/bc2-navbuild/src/stage.rs's). The log lines come through log as the build
     makes them; returns the build's counts (order nodes, ladders, D / F, shadow islands, steep ground, what was
@@ -565,6 +565,8 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
     bounds: (minX, minZ, maxX, maxZ) of the reference path data (clip_to_reference), or None.
     detailed: {'samples': a pitch-0.2 sampling run, 'high': its high-capsule run (or None), 'sectors': {(X, Y)}} -
     those sectors are built at pitch 0.2 (DICE's detailed zones) and merged with the normal build.
+    heightfield: the level's terrain .Heightfield-000.res (level.heightfield_path): D lines and F cells between
+    terrain cells follow DICE's slope rule (KYG-DF-1); None: the step rule.
     settings: build settings over the Rust defaults (e.g. {'detail_features': False}; bc2_native.navkit_settings()
     lists them), None: the defaults."""
     import time
@@ -587,7 +589,7 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
         bounds=[float(v) for v in bounds[:4]] if bounds is not None else None,
         order_points=list(order_points) if order_points is not None else None,
         area_orders=list(area_orders) if area_orders else None,
-        ladders=_ladders(ladders) if ladders is not None else None)
+        ladders=_ladders(ladders) if ladders is not None else None, heightfield=heightfield)
     if edits:
         import navedits
         regions, hand_seeds, unseeds, counts = navedits.regions_of(edits)

@@ -174,3 +174,27 @@ fn nearest_f_cells_toward_the_side() {
     assert_eq!(f_point((2, 2), Axis::Z, 1, &at, &fset, &settings())[1], 4.0 + Y_OFFSET);
     assert_eq!(f_point((2, 2), Axis::Z, -1, &at, &fset, &settings())[1], 2.0 + Y_OFFSET);
 }
+
+#[test]
+fn a_side_test_decides_where_it_answers() {
+    // a flat 3 x 1 strip: no step breaks; the test breaks (0,0)|(1,0) whatever the heights (DICE's terrain rule,
+    // KYG-DF-1), and leaves (1,0)|(2,0) to the step
+    let cells = grid(|i, _| Some(if i == 2 { 1.0 } else { 0.0 }), 3, 1);
+    let test = |((i, _), (di, _)): Side| -> Option<bool> { (i + i + di == 1).then_some(true) };
+    let got = candidates_by(&cells, &[], 0.6, test);
+    let sides: BTreeSet<Side> = got
+        .iter()
+        .map(|c| match *c {
+            Candidate::Side(s) | Candidate::Leg(s) => s,
+        })
+        .collect();
+    let want: BTreeSet<Side> = [((0, 0), (1, 0)), ((1, 0), (-1, 0)), ((1, 0), (1, 0)), ((2, 0), (-1, 0))]
+        .into_iter()
+        .collect();
+    assert_eq!(sides, want, "both ways, the test's side and the step's");
+    // a test answering false keeps a side the step would break
+    let none = candidates_by(&cells, &[], 0.6, |_| Some(false));
+    assert!(none.is_empty());
+    // no test: the step rule (candidates)
+    assert_eq!(candidates(&cells, &[], 0.6).len(), 2);
+}

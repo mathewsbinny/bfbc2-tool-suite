@@ -791,6 +791,22 @@ pub fn heightfield_of(root: &str, lv: &str, log: &mut dyn FnMut(&str) -> Res<()>
     Ok(name)
 }
 
+/// The level's terrain height field (`heightfield_of`'s unpack), or `None` (no terrain).
+fn level_terrain(root: &str, lv: &str, tool: ToolRun<'_>) -> Res<Option<bc2_formats::terrain::Heightfield>> {
+    let name = heightfield_of(root, lv, &mut |_| Ok(()), tool)?;
+    let dest = join(root, &["work", "levels", lv, "terrain"])?;
+    if !os::isdir(&dest) {
+        return Ok(None);
+    }
+    let Some(p) = terrain_find(&dest, &name)? else {
+        return Ok(None);
+    };
+    let data = os::read(&p)?;
+    bc2_formats::terrain::parse(&data)
+        .map(Some)
+        .map_err(|e| raise("ValueError", format!("{p}: {e}")))
+}
+
 /// `level.water_of(root, lv)` as `navregress.level_water` takes it: (vertices, triangles), or `None` (no water).
 fn level_water(root: &str, lv: &str, tool: ToolRun<'_>) -> Res<Option<WaterMesh>> {
     let name = heightfield_of(root, lv, &mut |_| Ok(()), tool)?.to_lowercase();
@@ -1044,6 +1060,7 @@ pub fn build_inputs(r: &Root, lv: &str, tool: ToolRun<'_>) -> Res<Gathered> {
     inp.high = Some(PathBuf::from(format!("{}_hi.bin", &s08[..s08.len() - 4])));
     inp.seeds = points(&load_json(&join2(&l, "soldier_spawns.json")?)?)?;
     inp.water = level_water(&r.root, lv, tool)?;
+    inp.terrain = level_terrain(&r.root, lv, tool)?.map(std::sync::Arc::new);
     inp.bounds = build_bounds(r, lv)?;
     let op = join2(&l, "order_points.json")?;
     inp.order_points = if os::isfile(&op) {

@@ -131,11 +131,26 @@ impl Heights {
 /// in `SIDES` order; then the half cells' legs in the given order). `cells` holds each cell once.
 #[must_use]
 pub fn candidates(cells: &[(GridCell, f64)], half: &[(Side, f64)], step: f64) -> Vec<Candidate> {
+    candidates_by(cells, half, step, |_| None)
+}
+
+/// [`candidates`], with `test` deciding a side between two area cells where it answers (DICE's terrain rule,
+/// KYG-DF-1: the ground's slope across the side) and the step deciding where it does not.
+#[must_use]
+pub fn candidates_by(
+    cells: &[(GridCell, f64)],
+    half: &[(Side, f64)],
+    step: f64,
+    test: impl Fn(Side) -> Option<bool>,
+) -> Vec<Candidate> {
     let at: FastMap<GridCell, f64> = cells.iter().copied().collect();
     let mut out = Vec::new();
     for &((i, j), y) in cells {
         for (di, dj) in SIDES {
-            if at.get(&(i + di, j + dj)).is_some_and(|&n| (n - y).abs() > step) {
+            if at
+                .get(&(i + di, j + dj))
+                .is_some_and(|&n| test(((i, j), (di, dj))).unwrap_or((n - y).abs() > step))
+            {
                 out.push(Candidate::Side(((i, j), (di, dj))));
             }
         }
@@ -157,10 +172,25 @@ pub fn detail_features<E>(
     cells: &[(GridCell, f64)],
     half: &[(Side, f64)],
     s: &DetailSettings,
+    keep: impl FnMut(&Candidate) -> Result<bool, E>,
+) -> Result<Features, E> {
+    detail_features_by(cells, half, s, |_| None, keep)
+}
+
+/// [`detail_features`] on [`candidates_by`]'s sides.
+///
+/// # Errors
+///
+/// `keep`'s error, which stops the pass.
+pub fn detail_features_by<E>(
+    cells: &[(GridCell, f64)],
+    half: &[(Side, f64)],
+    s: &DetailSettings,
+    test: impl Fn(Side) -> Option<bool>,
     mut keep: impl FnMut(&Candidate) -> Result<bool, E>,
 ) -> Result<Features, E> {
     let mut broken = BTreeSet::new();
-    for c in candidates(cells, half, s.step) {
+    for c in candidates_by(cells, half, s.step, test) {
         if keep(&c)? {
             match c {
                 Candidate::Side(side) => {
