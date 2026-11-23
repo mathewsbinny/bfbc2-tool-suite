@@ -31,11 +31,15 @@
 //!   [`skinmesh`] (`skinmesh.py`'s vertex work) and [`granny_edit`] (`granny.py`'s writing side).
 //! - Round GR3: [`meshview`] (`bfbc2-mesh-viewer/meshview.py`'s index and its cache, `load_mesh`, `stack_models` and
 //!   `render`, pixel for pixel), for the map editor's asset preview.
+//! - Round PR1b-2-rest2: [`decimate`] (`bfbc2-model-tools/decimate.py`'s edge collapses) and [`shapes`]
+//!   (`shapes.py`'s products, tangents and windings), `OpenBLAS`' products written out as the reference machine's
+//!   kernels compute them.
 #![deny(unsafe_code)]
 
 pub mod audio;
 pub mod dbxcatalogue;
 pub mod dbxport;
+pub mod decimate;
 pub mod emitteratlas;
 pub mod granny;
 pub mod granny_edit;
@@ -48,6 +52,7 @@ pub mod meshport;
 pub mod meshview;
 pub mod mopp;
 pub mod pyfmt;
+pub mod shapes;
 pub mod skinmesh;
 pub mod terrain;
 pub mod texcheck;

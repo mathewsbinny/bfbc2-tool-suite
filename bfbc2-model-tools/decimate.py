@@ -13,8 +13,16 @@ bones. max_cost (optional) stops short of the target once the cheapest collapse 
 squared distance times area, m^4): where seams keep the cheap collapses from happening, the target would otherwise be
 reached by collapsing large shapes. A collapse that would turn a triangle over (normal off by more than ~80 degrees) or leave a sliver is
 refused. Open edges (the rims of open surfaces) weigh as planes across them, so outlines keep their shape.
+
+Round PR1b-2-rest2: the collapses run in the suite's Rust core (bc2_native.model_decimate: bc2_convert::decimate).
+NumPy's products here go through OpenBLAS, whose kernels' operation order and fused multiply-adds depend on the
+processor; the core writes out the kernels of the machine that recorded Project OPFOR's WW2 weapon LODs (OpenBLAS
+0.3.34 SkylakeX: ddot's scalar tail, dgemv's 4 x 4 order), so it gives those LODs on any processor (spec rule
+XWW2-MOD-1). decimate_reference is the NumPy original, kept as the tests' reference.
 """
 import heapq
+import os
+import sys
 from typing import Any
 
 import numpy as np
@@ -30,7 +38,33 @@ def _plane_quadric(a, b, c):
     return np.outer(p, p) * area
 
 
+def _native() -> Any:
+    """The Rust core (NativeMissing, saying how to get it, without it)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('decimate.py (the edge collapses)', 'model_decimate')
+
+
 def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0, max_cost=None):
+    """(pos, nrm, uv, tris, bone) of the mesh with at most `target` triangles (see the module), from the Rust core:
+    the same arrays as decimate_reference on the machine that recorded the WW2 oracle."""
+    pos, nrm, uv = (np.asarray(x, float) for x in (pos, nrm, uv))
+    tris = np.asarray(tris, np.int64).reshape(-1, 3)
+    bone = np.asarray(bone, np.int64)
+    used, t = _native().model_decimate(np.ascontiguousarray(pos, '<f8').tobytes(),
+                                       np.ascontiguousarray(tris, '<i8').tobytes(),
+                                       np.ascontiguousarray(bone, '<i8').tobytes(), int(target),
+                                       float(boundary_weight), None if max_cost is None else float(max_cost))
+    used = np.frombuffer(used, np.int64)
+    return pos[used], nrm[used], uv[used], np.frombuffer(t, np.int64).reshape(-1, 3).copy(), bone[used]
+
+
+def decimate_reference(pos, nrm, uv, tris, bone, target, boundary_weight=10.0, max_cost=None):
+    """The NumPy original (its products are OpenBLAS': the processor's kernels decide their last bits)."""
     pos, nrm, uv = (np.asarray(x, float) for x in (pos, nrm, uv))
     tris = np.asarray(tris, np.int64).copy()
     bone = np.asarray(bone, np.int64)

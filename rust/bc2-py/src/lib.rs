@@ -564,6 +564,11 @@ mod bc2_native {
         texwrite_levels, texwrite_resource, texwrite_wrapped,
     };
 
+    // round PR1b-2-rest2: decimate.py's edge collapses and shapes.py's products, tangents and windings
+    // (bfbc2-model-tools)
+    #[pymodule_export]
+    use super::converters::{model_decimate, shapes_matmul, shapes_tangents, shapes_turn_over};
+
     // round PR1b-2-rest: the mesh viewer's Python API on its Rust port (bfbc2-mesh-viewer\meshview.py; round O3's
     // meshview_index went with the pickle cache)
     #[pymodule_export]

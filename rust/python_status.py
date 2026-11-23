@@ -425,10 +425,12 @@ TABLE: tuple[Row, ...] = (
     T('bfbc2-mesh-viewer/tests/test_meshview_index.py'),
 
     # --- bfbc2-model-tools
-    R('bfbc2-model-tools/decimate.py', LIB, 'live', '', 'tests 1; OPFOR 2 (type38, winchester1897)',
-      'PR1b-2', 'quadric edge collapses for weapon LODs; not ported'),
-    R('bfbc2-model-tools/shapes.py', LIB, 'live', '', 'tests 2; OPFOR 1 (type100)', 'PR1b-2',
-      'simple solids for weapon parts (lathe, extrude); not ported'),
+    R('bfbc2-model-tools/decimate.py', LIB, 'twin', 'bc2_convert decimate', 'tests 1; OPFOR 2 (type38, winchester1897)',
+      'PR1b-2-rest2', 'Rust since PR1b-2-rest2 (OpenBLAS products written out: XWW2-MOD-1); the NumPy original '
+      'kept as decimate_reference'),
+    R('bfbc2-model-tools/shapes.py', LIB, 'partly', 'bc2_convert shapes', 'tests 2; OPFOR 1 (type100)', 'PR1b-2-rest2',
+      'products, tangents and windings in Rust since PR1b-2-rest2 (XWW2-MOD-1; *_reference the NumPy originals); '
+      'the builders (lathe, extrude) plain Python floats'),
     R('bfbc2-model-tools/skinmesh.py', LIB, 'twin', 'bc2_convert skinmesh', 'tests 2; OPFOR 3', 'PR1b-2',
       'Rust since F2a; its references kept (OPFOR feeds objects it builds)'),
     R('bfbc2-model-tools/texwrite.py', LIB, 'twin', 'bc2_convert texwrite', 'emitteratlas; tests 7; OPFOR 11',
