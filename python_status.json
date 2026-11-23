@@ -995,11 +995,11 @@
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "tool entry point",
-   "lines": 310,
-   "note": "the pass is Rust (F2b); left by decision: the pickle of dbx.Element trees OPFOR's modules unpickle",
+   "lines": 288,
+   "note": "the pass is Rust (F2b), the cache Rust's own file (PR1b-1e: the pickle retired); left: the Catalogue class OPFOR's WW2 modules and dbxport's Python ask, and build_reference (the reference)",
    "path": "bfbc2-bf1943-import/dbxcatalogue.py",
-   "retiring": "PR1b-1c",
-   "rust": "bc2_convert::dbxcatalogue (catalogue_build); bfbc2 dbxcatalogue",
+   "retiring": "proposed: OPFOR in Rust stage 2",
+   "rust": "bc2_convert::dbxcatalogue (catalogue_build) and its cache (catalogue_load); bfbc2 dbxcatalogue",
    "status": "partly"
   },
   {
@@ -1271,7 +1271,7 @@
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "test",
-   "lines": 76,
+   "lines": 82,
    "note": "The parity tools' reports on the user's files (game tier; skipped without the Rising Sun workspace, the gam...",
    "path": "bfbc2-bf1943-import/tests/test_parity_reports.py",
    "retiring": "Tests in Rust",
@@ -2643,7 +2643,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "tool entry point",
-   "lines": 944,
+   "lines": 945,
    "note": "the cache budget's twin; the command line is Rust (O3); one implementation needs PR1b-2's library crate",
    "path": "core/bfbc2core/caches.py",
    "retiring": "PR1b-2",
@@ -2907,7 +2907,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test helper or golden recorder",
-   "lines": 141,
+   "lines": 147,
    "note": "Round O3's bf1943 group: the command lines test_cli_o3.py replays for bfbc2-bf1943-import's dbxcatalogue.py...",
    "path": "core/tests/cli_o3_bf1943.py",
    "retiring": "Tests in Rust",
@@ -3315,7 +3315,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 336,
+   "lines": 344,
    "note": "The Rust bundle packer (rust/bc2-formats fbrb::pack and zlib, through the bc2_native module) against what F...",
    "path": "core/tests/test_fbrb_pack_native.py",
    "retiring": "Tests in Rust",
@@ -3471,8 +3471,8 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 397,
-   "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest): the stable facts the probes of `spec/p...",
+   "lines": 788,
+   "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
    "rust": "",
@@ -3927,7 +3927,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 843,
+   "lines": 851,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -3975,6 +3975,18 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
+   "lines": 320,
+   "note": "read-only probe for spec/model/level.md, the cull trees, vegetation and terrain splines; checked in the game tier",
+   "path": "spec/probes/level.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
    "lines": 342,
    "note": "read-only probe for the lighting, weather and effects specs",
    "path": "spec/probes/lighting.py",
@@ -4002,6 +4014,30 @@
    "lines": 494,
    "note": "read-only probe for spec/engine/menus.md (the action script of the movies, the runtime); checked in the game tier",
    "path": "spec/probes/menus.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 199,
+   "note": "read-only probe for spec/engine/bot_ai.md (mode entities: event names against the exe); checked in the game tier",
+   "path": "spec/probes/modes.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 161,
+   "note": "read-only probe for spec/model/registration.md and bundles.md (the stock registries); checked in the game tier",
+   "path": "spec/probes/registry.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4436,8 +4472,8 @@
  ],
  "totals": {
   "all": {
-   "files": 364,
-   "lines": 106388
+   "files": 367,
+   "lines": 107466
   },
   "by_folder": {
    "(root)": {
@@ -4486,13 +4522,13 @@
    },
    "bfbc2-bf1943-import": {
     "files": 26,
-    "lines": 10524,
+    "lines": 10508,
     "live": 546,
-    "partly": 1562,
+    "partly": 1540,
     "ported": 56,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5087,
+    "test": 5093,
     "twin": 3273
    },
    "bfbc2-console-convert": {
@@ -4629,14 +4665,14 @@
    },
    "core": {
     "files": 76,
-    "lines": 19937,
+    "lines": 20343,
     "live": 757,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 14848,
-    "twin": 2427
+    "test": 15253,
+    "twin": 2428
    },
    "design": {
     "files": 1,
@@ -4651,23 +4687,23 @@
    },
    "rust": {
     "files": 33,
-    "lines": 5998,
+    "lines": 6006,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5731,
+    "stays": 5739,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 10,
-    "lines": 3925,
+    "files": 13,
+    "lines": 4605,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 3925,
+    "stays": 4605,
     "test": 0,
     "twin": 0
    },
@@ -4690,7 +4726,7 @@
    },
    "partly": {
     "files": 20,
-    "lines": 16961
+    "lines": 16939
    },
    "ported": {
     "files": 21,
@@ -4701,16 +4737,16 @@
     "lines": 310
    },
    "stays": {
-    "files": 58,
-    "lines": 10646
+    "files": 61,
+    "lines": 11334
    },
    "test": {
     "files": 187,
-    "lines": 50799
+    "lines": 51210
    },
    "twin": {
     "files": 55,
-    "lines": 19451
+    "lines": 19452
    }
   }
  }

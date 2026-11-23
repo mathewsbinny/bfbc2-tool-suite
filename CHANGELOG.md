@@ -38,6 +38,36 @@ landed on `main`.
   probe `rust/bc2-navbuild/examples/kynapse_df.rs` fits the rule on DICE's files.
 
 ### Changed
+- **The bundle packer writes DICE's empty gzip member** (round SPV1-fix, FBRB-DEL-2): a zipped bundle whose payload
+  is empty (only `*deleted*` markers, or no entries) now ends with the 20-byte gzip member of no data that DICE's 105
+  such bundles end with, where FbrbTool (and the suite after it) wrote nothing. `bfbc2core.fbrb.pack` / `pack_many`,
+  `bfbc2 fbrbtool pack` and `bc2_formats::fbrb::pack` (new constant `EMPTY_GZIP_MEMBER`) all write it; repacking each
+  of DICE's 105 gives DICE's bytes but for the header member's two header bytes (FBRB-HDR-4). FbrbTool's recorded
+  pack results for such bundles were re-recorded (each FbrbTool's bundle + those 20 bytes). Every other bundle is
+  unchanged.
+
+## [0.22.0] - 2026-11-22
+
+### Changed
+- **The DBX catalogue's cache is the Rust core's own file** (round PR1b-1e): `work\tools_out\dbx_catalogue.bin`
+  (`bc2_convert::dbxcatalogue::cache`), read and written by `bfbc2 dbxcatalogue`, `bfbc2 dbxparity --predict` and,
+  through `bc2_native.catalogue_load`, `dbxcatalogue.load` (Project OPFOR's WW2 tools: the same `Catalogue`, the same
+  tables and elements). It is keyed by the content of what the pass reads - each bundle's entry names and content key
+  (its length, its header and its gzip trailer's CRC-32 of the whole payload; a bundle stored unzipped hashed whole),
+  the executable's SHA-256 - so a moved or copied game copy keeps it and a bundle rewritten at the old time does not.
+  `dbxparity --predict` reads it instead of building the catalogue every run (about 15 s -> 5 s; the retired Python took 12 s), and
+  `bfbc2 dbxcatalogue` builds it in Rust when the game copy changed (no longer handed to the Python). A bundle the
+  pass cannot read is now a problem in the Python's words from the Rust pass too (it made the Python run its
+  reference); an incomplete catalogue is still used but not cached.
+- `bc2_gamefs::budget::maybe_prune(spec, top, opfor)` runs the overall budget after a folder it pruned (as
+  `caches.maybe_prune`) and says whether it pruned.
+
+### Removed
+- The catalogue's pickle `work\tools_out\dbx_catalogue.pkl` (a file format a tool wrote): nothing reads or writes it;
+  the caches tool still counts and clears one left on disk. `dbxcatalogue.CACHE_VERSION` and `_signature` are gone
+  (`dbxcatalogue.CACHE` names the new file); without the Rust core `dbxcatalogue.load` builds the catalogue each time.
+
+### Changed
 - **NavKit's route graphs follow DICE's edge rules** (round NKG2, `spec/transforms/kynapse_generation.md`): each
   sector's walkable pairs are pruned to DICE's greedy 1.2-spanner (KYG-EDGE-3) instead of keeping every pair (coarse)
   or the Gabriel graph (detailed), and every edge lives on its source's owner copy (KYG-EDGE-4): an edge out of a
@@ -48,6 +78,27 @@ landed on `main`.
 - A NavKit build on a map without DICE path data keeps only the ground inside DICE's generator rectangle, the box of
   the level's soldier and vehicle spawns grown by 24.5 m (KYG-RECT-1; `navregress.spawn_bounds`), where it kept the
   whole sampling box. Levels with DICE path data still use DICE's extent.
+### Added
+- Specification (round SPG2-rest3, with AIS-rest2's static half): the mode entities read from the executable - the
+  ticket counter's state and what moves it (a death costs its team one ticket, a revive gives it back, the bleed's
+  formula: BOT-GS-6), the death and revive messages (BOT-GS-7), Rush lives, reinforcement and the stage as the
+  defenders' bases left (BOT-GS-8), an M-COM's arming as a game interaction entity (BOT-GS-9); bots cost tickets and
+  lives like humans. A game-tier probe (`spec/probes/modes.py`, checked by `core/tests/test_spec_probes.py`) holds
+  DICE's event names against the executable's hashes. The bot object found (BOT-RT-6); who drains the bundle mount
+  table (STRM-MNT-3); dirt build-up on client vehicles only (MAT-TEX-20); bot_ai.md's play-test plan steps 8 - 10.
+
+### Fixed
+- Specification: the server classes of the ticket counter, life counter, mission objective and kill counter
+  (BOT-GS-4: two constructors carried the wrong names) and the bundle mount record's fields (STRM-MNT-3: `VfsPath` +0,
+  `Bundle` +0xC, `IsResourcePath` +0x18) corrected; the 37-way switch 0x11DD76A named as the C runtime's `toupper`
+  (FX-PROC-4).
+### Added
+- Specification (round SPV1): 127 rules verified against DICE's own files by game-tier checks - the Rust corpus test
+  `rust/bc2-formats/tests/spec_corpus.rs` (DICE's 1,021 bundles: containers, resources, DBX, types, instances and
+  references, textures, meshes, BIGF) and `core/tests/test_spec_probes.py` (new probes for the level partitions,
+  cull trees, vegetation, terrain splines and the stock registries; the weapon, vehicle, material, destruction,
+  lighting and weather probes' counts); nine rules corrected where the data contradicted them; `spec/COVERAGE.md`
+  section 4, the census of every rule still observed and what would verify it.
 
 ## [0.21.0] - 2026-11-22
 

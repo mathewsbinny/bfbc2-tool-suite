@@ -110,7 +110,7 @@ for one side as the source.
 
 ### MAT-GRID-7: The damage fields and their ranges
 
-Status: **observed**
+Status: **verified**
 
 `MaterialRelationDamageData` holds six floats and two booleans; DICE's values (all instances of DICE's grids):
 
@@ -127,6 +127,7 @@ Status: **observed**
 
 Values are read from the binary numbers, not the XML text (the XML misprints denormals, DBX's number rules).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: 162,950 MaterialRelationDamageData instances of DICE's 74 grids, the ranges above]
 
 ### MAT-GRID-8: Damage is multiplied by the relation and cut by its threshold
@@ -144,7 +145,7 @@ against Brick "1/290"); `CollisionDamageMultiplier` / `Threshold` play the same 
 
 ### MAT-GRID-9: Material properties DICE leaves at constants
 
-Status: **observed**
+Status: **verified**
 
 The material property data (the `MaterialProperty*` classes among a relation's data) is nearly constant in DICE's
 grids:
@@ -155,6 +156,7 @@ grids:
 `MaterialSoldierSoundSettings` with `FootStepSound` (2,067 set) and `LandSound` (all 2,167); `ProneSound` is null on
 all.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: DICE's grids, the counts above]
 
 ## 2. Material slots
@@ -188,7 +190,7 @@ disagree.
 
 ### MAT-SLOT-3: DICE's part materials
 
-Status: **observed**
+Status: **verified**
 
 DICE's 4,454 parts use 65 materials, every one in some DICE grid. The most used: brick 898, metal 425,
 wood_furniture 350, glass_breakable 332, wood 190, wood_fragile 182, concrete 174, defaultmaterial 167,
@@ -196,17 +198,19 @@ tree_banger_branch 125, concrete_indestructible 122. 1,264 parts are on a Penetr
 one, 427 on a ClientDestructible one. Brick is DICE's standard material for destructible building walls, whatever
 their faces show (hangar walls: Brick parts, metal_light faces).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: PartInfoDatas of the 1,183 DICE physics assets: 4,454 parts, 65 distinct materials, none outside DICE's grids]
 [doc: opfor:research/PHYSICS_MATERIALS.md:141-145]
 
 ### MAT-SLOT-4: Face lists
 
-Status: **observed**
+Status: **verified**
 
 A physics asset's `FaceMaterials` (the face materials its mesh subparts use) holds 1 - 9 names (1 in 532 files, 2 in
 337, 3 in 183); in 525 of 1,183 files it equals `MaterialMappings`, in the rest the part materials and face materials
 differ (the list in the wrapper and the packfile's `HavokMaterials` are `MaterialMappings`, HAVOK-MAT-1).
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: FaceMaterials items per file 1 - 9 over 1,183 files; equal to MaterialMappings in 525]
 
 ### MAT-SLOT-5: Damage reads the part material; an object without parts its default material
@@ -649,14 +653,17 @@ under it and that material's `MaterialPropertyTerrainData` (MAT-TEX-7; none: not
 - colour = colour x (1 - a) + `DirtTriggerColor` x a.
 
 So DICE's 0.1 dirties a vehicle fully in 10 s of driving at 5 m/s or more, grass (0.001) in about 17 minutes, and the
-colour fades towards the last ground driven on (which entity classes run it was not traced past the caller
-0x893E50). Nothing in that code lowers the factor: no washing in water or
+colour fades towards the last ground driven on. Only the client vehicle runs it (round SPG2-rest3):
+`ClientVehicleEntity` (vtable 0x01436C38, "ClVehicle" in its slot 43) has 0x8C0210 in slot 125, which calls 0x893E50
+-> 0x884C20 when its flags argument has bit 0 set; no other vtable holds 0x8C0210 and 0x893E50 has no other caller,
+so soldiers, debris and server entities never get dirty. Nothing in that code lowers the factor: no washing in water or
 decay was found (the factor's only other writer is the entity's set-up). The drawing reads the two through getters
 (0x877520 the factor, 0x877530 the colour), copies them into the drawn instance (+0xEC or +0xDC the factor, +0xB0 the
 colour) and sets the shader constants `dirtFactor` / `dirtColor` (MAT-TEX-6) through the handles the instance's table
 looked up by name. A RenderDoc capture before and after driving over Mud confirms the values.
 
 [exe: BFBC2Game.exe 0x884C20 (speed `sqrt(v.v)` against 5.0 at 0x14D9450; material 0x7BF160 -> 0x6C94E0 -> 0x6F0250, the terrain property at +0x10 with DirtTriggerColor +0x10 and DirtTriggerFactor +0x20 as MaterialPropertyTerrainData's field descriptors 0x1C35A88 / 0x1C35AB8 give; clamp with 0 and 1.0 at 0x14D94F0; the colour blend 0x884D28 - 0x884DB5), called from 0x893E9C; getters 0x877520 (+0x1D0) / 0x877530 (+0x180); copies 0x5EA24E - 0x5EA27B and 0x5EFB81 - 0x5EFBA9; constants set 0x5CB733 / 0x5CB7A7 (handles +0x6D0 / +0x6D4 of the table 0x5BF470 fills: dirtFactor, dirtColor, trackOffset ...; built by 0x5DD9D0)]
+[exe: BFBC2Game.exe 0x893E50 (only caller 0x8C0282 in 0x8C0210, `test flags, 1`); 0x8C0210 is slot 125 of vtable 0x01436C38 (175 slots; slot 43 returns "ClVehicle"), its only pointer in the image (0x01436E2C)]
 
 ## 6. OPFOR's WW2 materials
 
@@ -738,8 +745,7 @@ take BF1943's `SoldierBody` / `SoldierHead` relations; every other weapon keeps 
   entity data class's field table in the executable would show it.
 - **OcRGB channels** (MAT-TEX-3): a disassembly of one OcRGB prop's pixel shader (which channel scales which
   sampler) would make the rule observed.
-- **Dirt in game** (MAT-TEX-20 is read statically): which entity classes run the build-up (its caller 0x893E50 was
-  not followed to a class), and a RenderDoc capture of a vehicle before and after driving over Mud to confirm the
+- **Dirt in game** (MAT-TEX-20 is read statically; client vehicles only, round SPG2-rest3): a RenderDoc capture of a vehicle before and after driving over Mud to confirm the
   constants. Which DirtMaskRGB channel a dirt shader reads is unread.
 - **Who makes the per-level camo** (MAT-TEX-10, MAT-TEX-11): no shipped DBX names the soldier camo textures, so the
   level's choice was made by DICE's content build; a level added by a modder needs its database compiled (or merged)

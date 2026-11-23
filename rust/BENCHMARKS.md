@@ -10838,6 +10838,86 @@ the catalogue from the game copy each run (the pickle holds Python `dbx.Element`
   which Project OPFOR's modules unpickle; with it `--predict` could read the cache instead of building.
 - **`meshport.py`'s Porter** stays the WW2 builds' (renames, donors, poses, the shader plan); the Rust `Porter` covers
   what the parity tool reads. Moving OPFOR's ports onto it is OPFOR in Rust stage 2.
+
+## PR1b-1e: the DBX catalogue's cache in Rust (2026-11-22, branch `pr1b1e`, with Project OPFOR's `pr1b1e`)
+
+What PR1b-1d left ("What is left", first item). Version **0.22.0** (a file format removed, the pickle; and
+`bc2_gamefs::budget::maybe_prune`'s signature: `RELEASING.md`; not tagged here).
+
+### The file
+
+`work\tools_out\dbx_catalogue.bin`, `bc2_convert::dbxcatalogue::cache` (format version 1): the magic, the version, the
+key, one string table (736,760 strings on the user's copy), `Built`'s tables in their insertion order, the 463
+partitions whose elements the catalogue keeps (65.0 MB as they are, each deflated at the fast level), the executable's
+identifiers, a SHA-256 of all before it. 78.5 MB on the user's copy (the pickle: 72.8 MB; without the deflate 116.0
+MB). Read by `bfbc2 dbxcatalogue`, `bfbc2 dbxparity --predict` and `dbxcatalogue.load` (through the new
+`bc2_native.catalogue_load`: the same `Catalogue`, its tables and `dbx.Element` trees made as `catalogue_build` makes
+them); written by whichever builds it first, under the file's lock (`bc2_gamefs::atomic::locked`, which excludes the
+Python's `atomicio.locked`), then the `dbxcatalogue` cache folder and the overall budget pruned. An incomplete
+catalogue (a read problem) is used and not cached, as before.
+
+**The key, by content** (as PR1b-1c keyed the culltree rows and the cover index, but not by hashing whole bundles: the
+catalogue's 143 bundles are several GB, more than the catalogue costs to build): SHA-256 over each bundle's path below
+the project folder, the entry names the index gives it (in order) and its content key - its length, the SHA-256 of its
+first 64 KiB or its whole compressed header if longer, and its last 8 bytes, which are the gzip trailer (the CRC-32 of
+the whole decompressed payload and its length) - and the executable's SHA-256. Checked on the user's copy: of the 143
+bundles 142 are zipped with the gzip member ending the file (each decompressed to its end), one is stored, and a
+stored bundle (or anything that is not a bundle) is hashed whole. The key takes 0.06 s. A copied or moved game copy
+keeps its catalogue (the paths are relative); a bundle rewritten with other bytes at the old time does not. The bundle
+cache's points files are keyed the same way (`bc2_gamefs::bundles::ContentKey`).
+
+The project folder is never a native call's argument: `bc2_native.catalogue_load` / `catalogue_key` take it from the
+cache file's path, because Project OPFOR's rebuild tracker (`stepstamps_hook`) stamps every file under any folder a
+native call is given (it skips `work\tools_out`).
+
+### The 8 O3 lines: answered in Rust
+
+A chunk the pass cannot read made the Rust pass refuse, so the Python's reference ran and wrote its problem. The pass
+now writes the reference's problem itself - `<bundle>: <n> partitions not read (<exception>: <text>)`, the exception as
+`bc2_py`'s `fbrb_error` and PyO3's `io::Error` conversion raise it (`ValueError` for a damaged bundle, `KeyError` with
+Python's `repr` for a missing entry, named in the order the reference asked; `FileNotFoundError`, `PermissionError`
+... for the operating system's errors) - in the walk's order among the parse problems.
+`core\tests\test_cli_o3.py --group bf1943 --who`: dbxcatalogue 32 of 32 Rust, Python 0 (the 8 lines were Python's);
+104 of 104 as recorded, `--live` the same both ways. The catalogue's lines recorded again from the Python
+(`--record --only catalogue`, 32: its cache file is the new one; every stdout and stderr the same text as before, now
+through the Rust pass), one line added (`catalogue, only the retired pickle`); the 72 parity lines' `files` digest moved
+with the case folder's cache file (they read none of it; their recordings are the retired Python's otherwise).
+
+### Proof
+
+- **The same catalogue**: `dbxcatalogue.load` through the new file against the retired pickle (main's, current for the
+  copy), every table equal and in the same order (`classes`, `order`, `shapes` / `texts` / `numeric` with their
+  Counters' order, `guids`, `primary`, `exe_names`, `partitions`, `problems`), every kept element equal as a tree
+  (`protos`, `defaults`, `others`), and the 341 prototypes inside a kept instance the same objects there in both.
+  `bfbc2 dbxcatalogue`'s counts are the Python's on the pickle: 84,739 partitions, 631 classes, 607,100 guids, 9,657
+  paths, 17,218 executable names.
+- **The reports**: `test_parity_reports.py` (game tier) passes - `dbxparity`, `dbxparity --predict`, `portparity`
+  byte for byte the retired Python's (PR1b-1d's digests), every run Rust. The test now runs `bfbc2 dbxcatalogue` first
+  (the recorded runs read a current cache: a build's lines on stderr are not theirs).
+- `test_dbxcatalogue_native.py` (seeded games with damaged bundles: every table and problem the reference's),
+  `test_dbxport_rules.py` (an unreadable bundle reported, the catalogue not cached), the cache's Rust tests (round
+  trip, damage refused, keys follow content and not place).
+
+### Speed (release `bfbc2.exe`, this PC, other rounds building; seconds)
+
+| run | before | after |
+|---|---:|---:|
+| `bfbc2 dbxparity --predict` | 14.9, 16.8 (main 0.21.0 today; 26.7 at PR1b-1d; the Python 12) | 4.6, 5.2, 5.3 (the cache read) |
+| `bfbc2 dbxcatalogue`, cache current | 3.6, 3.5 (main: the pickle read with `bc2_pyrt::pickle`) | 1.5, 1.7 |
+| `bfbc2 dbxcatalogue`, cache stale | handed to the Python | 13.9, 17.2 (the pass 12, then the file written) |
+| `dbxcatalogue.load` (Python), cache current | 0.9 (unpickling) | 2.7 - 3.8 |
+
+The Python's load is slower than unpickling: the file is read in 0.8 s (`from_cache_bytes`: the digest, the string
+table, the deflated partitions on all cores), and the rest is making the Python objects (607,100 guids, the Counters,
+the element trees), which a pickle makes faster. A WW2 rebuild loads the catalogue in a handful of steps; worth a
+later look (a lazily made `Catalogue` on the Rust tables) if it shows.
+
+### What is left
+
+- The Python `Catalogue` itself (OPFOR's WW2 modules and dbxport's Python ask it) and `build_reference`: OPFOR in Rust
+  stage 2. Without the Rust core `dbxcatalogue.load` builds each time (no cache).
+- Unproven until the next WW2 rebuild: none of its outputs can change (the catalogue is the pickle's, table for table
+  and element for element), so no rebuild was run for this round.
 ## E4: the map editor's gameplay tools (2026-11-22, branch `e4`)
 
 Round E4 (ROADMAP item 7): flags, spawn points and M-COMs added, carried and deleted with their units, teams and the
@@ -11001,6 +11081,122 @@ with them, the E2a / E3c / E3h answers unchanged:
 | sp_004_b | bd44cedb25e7c88032ef29bf47c3fdddee72032f (8,242,112) | 469a8b98dc0b44833b9318a1fc8120386b5e0931 (8,556,872) |
 | sp_008_b | 2839e515d3802f501e4dc67513becc97591201a7 (8,484,708) | 01b978717db04edd7e92aaf29553a951f0a647e9 (8,842,992) |
 | ons_mp_004 | 020d7019c061c2e1b91335d540b213f8e80598ed (7,627,988) | 76caa81b6c2577afcf722ba4a1621ab8bec56ef5 (8,020,340) |
+
+## SPG2-rest3: reverse engineering for the specification, with AIS-rest2's static half (2026-11-22, branch `spg2r3`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745) with a scratch copy of Project OPFOR's analysed Ghidra project
+(read only, headless, about 25 s a batch, 32 batches) and capstone sweeps of a scratch copy of the executable; DICE's
+data through the suite's readers. No game run (in-game tests are paused): every exe rule stays observed until a
+playtest (bot_ai.md's plan, steps 8 - 10 new). Per item:
+
+| Item | Found | Rules |
+|---|---|---|
+| ticket counter (AIS-rest2) | found: tickets a float at +0x80; a death message (channel 0x10, type 0x11) whose victim is on its team takes 1, a revive (0x21) gives 1 back, captures / losses move its point value; the bleed 0x684150 read to its formula; no AI test anywhere: a bot's death costs a ticket | BOT-GS-6, BOT-GS-7 |
+| mode classes | corrected: AIS-rest's "ticket counter" (0x66E190) is the mission objective, its "mission objective" (0x6740D0) the kill counter, its "life counter" vtable a cutscene object's; the real ticket counter 0x66E880, life counter 0x67A4B0 | BOT-GS-4 |
+| Rush stage, M-COM (AIS-rest2) | partly: the life counter's lives, reinforcement and bases left (the run-time stage); an M-COM's arming is a `ServerInteractionEntity` with `GameInteractionEntityData`'s fields; where the armed state lives not found | BOT-GS-8, BOT-GS-9 |
+| bot object and senses (AIS-rest2) | found: a 0xF4-byte structure (constructor 0xE6C0B0), all made up front by the bot manager 0xE6C480; its parts and the senses at +0x6C (five sensing tasks); the target record layout not read | BOT-RT-6 |
+| combat fire site (AIS-rest2) | not found; narrowed: not input slots 17 / 18 (vehicles only), no direct AI call of the state or weapon functions, `BehaviourFire` hands its update to an action object at +0x10 | bot_ai.md RE item 8 |
+| mount table drain | found: the game object's constructor 0x56EDE0 under `GameSettings.UseBundles`; the record is `BundleMountPoint` {`VfsPath`, `Bundle`, `IsResourcePath`} (round SPG2-rest2 had the strings swapped) | STRM-MNT-3 |
+| dirt build-up's entities | found: `ClientVehicleEntity` only (vtable slot 125) | MAT-TEX-20 |
+| undergrowth parser | not found: none of `VisualTerrain`'s 19 slots parses (job queues, draws, getters) | VEG-UG-6 |
+| particle update | not found; 0x11DD76A is the C runtime's code-page `toupper`; of the 16 switches of 36+ cases, those read are not the particle system's | FX-PROC-4 |
+| award listeners, career save, Flash roots, anim tree | not reached | - |
+
+The probe `spec/probes/modes.py` (game tier, about 20 s): DICE's 84,143 level-bundle partitions, the 74 with a
+counter type parsed; the 14 event names the rules give have their hashes in the functions named (12 of them are
+DICE's PC event names; `DecreaseLife` and `OnReachZero` come from the game copy's other graphs); 30 attacker and 30
+defender life counters. `core/tests/test_spec_probes.py` checks its 9 answers.
+
+Rules 1,269 -> 1,273 (BOT-GS-6 to BOT-GS-9 new; BOT-GS-4, BOT-RT-6, STRM-MNT-3, MAT-TEX-20, VEG-UG-6, FX-PROC-4
+changed).
+
+### What is left (SPG2-rest4, AIS-rest2)
+
+The undergrowth entry's parser (the resource factory registered with the type at 0x1375A20), the particle update,
+the award listeners and the career save, the Flash loading roots / event queue / FSCommand callback, the compiled anim
+tree; for the bots: the fire site (the fire behaviour's action object), the M-COM's armed state, the bot's unnamed
+parts; and every playtest.
+
+## SPV1: the specification's observed rules verified on DICE's files (2026-11-22, branch `spv1`)
+
+Of the 473 observed rules, every one was classed by what would verify it (`spec/COVERAGE.md` section 4); the ones a
+count over DICE's PC files settles got a game-tier check. The corpus is DICE's: every `.fbrb` under the game copy dated
+before 2013 (1,021 bundles; OPFOR's installs and the bundles it changed are newer), each check read-only.
+
+| Check | Reads | Time | Rules verified |
+|---|---|---|---|
+| `rust/bc2-formats/tests/spec_corpus.rs` (12 tests, one shared pass) | 1,021 bundles: headers and raw gzip members, every entry (stored bundles where each entry is), 124,458 DBX files (the raw element walk and `DbxTree`), 3,826 textures, 4,265 MeshData and their mesh sets, 876 movies | about 35 - 70 s release, 3 threads | 56: FBRB 9, RES 3, DBX 7, TYPE 16, INST / REF 7, TEX 4, MESH / MSET 6, TERR 2, HAVOK 1, BIGF 1 |
+| `spec/probes/level.py` (`checks`) | DICE's 74 level partitions (Package's copy where DICE's), their two cull trees (148, 516,718 leaves) | about 70 - 90 s | 15: LEVEL 10, CULL 3, VEG-CLS-1, DECAL-SRC-2 |
+| `spec/probes/registry.py` (`checks`) | the stock `package.mft` and `bundleManifest` (OPFOR's `.opfor-orig` backups) and which bundles exist | under 1 s | 8: REG 4, BNDL 3, STRM-REG-1 |
+| SPG's probes' printed lines (`EXPECT`, now with `<head>§<line>` for a line inside one block) | the weapon, vehicle, material, destruction and lighting probes' output | as before | 48: WPN 23, VEH 11, MAT 4, DSTR 4, FX 2 (one through `emitters`), LIGHT 1, WTH 3 |
+
+`test_spec_probes.py` grows from 172 to about 700 checks (7 - 8 minutes on this PC with other rounds' builds
+running). Rules: verified 622 -> 749, observed 473 -> 346.
+
+Contradictions found (each corrected in place, the text saying so, then verified): FBRB-HDR-10 (the build overlays are
+stored), FBRB-DEL-2 (DICE's marker-only bundles end with a 20-byte empty gzip member; FbrbTool's with none),
+TYPE-ATTR-3 (14 namespaces), LEVEL-ENV-1 (0 - 3 environment maps per level), WPN-DMG-3, WPN-AMMO-1, WPN-SWAY-2,
+VEH-HP-4, VEH-MAT-1 (numbers in their tables). Counts that differed only because the earlier survey read the whole
+game copy (OPFOR's files in it) got DICE-only `[data: ...]` lines: DBX-STR-3 (no unused string in DICE's files),
+MSET-LOD-2 (no exception in DICE's), VEG-CLS-1 (Package's level copies).
+
+### What is left
+
+`spec/COVERAGE.md` section 4b: 67 rules a data probe over DICE's files could count (shader databases, animation,
+persistence, the terrain probe's strips and trees, the weather classification, the levels' descriptions), 23 AI value
+lists for `ai_corpus.rs`, 24 placement conventions (a re-run of the L1 study as a check), 23 rules half data and half
+RE, 32 measured on other corpora, 21 that need the game running, 119 read from the executable; the 37 Kynapse /
+NavKit rules are round NKG2's.
+
+## SPV1-fix: DICE's empty gzip member in the packer; the WW2 ports against SPV1's corrected rules (2026-11-22, branch `spv1fix`)
+
+**What DICE writes.** Read-only over DICE's 1,021 bundles (the game copy's `.fbrb` dated before 2013): every zipped
+bundle (1,012) has a payload gzip member right after the header region, and nothing after it; the 105 whose payload
+is empty (104 of `*deleted*` markers only, 1 with no entries; payload length field 0) have the gzip member of no data,
+20 bytes `1F 8B 08 00 00000000 00 0B 03 00 00000000 00000000` (zlib's header, the empty fixed block, zero CRC and
+length). No stored bundle has an empty payload; no other bundle kind carries an extra member. FbrbTool's .NET
+`GZipStream` writes nothing for no data, and the suite's packer followed it.
+
+**The fix.** `bc2_formats::fbrb::pack`'s payload writer appends `EMPTY_GZIP_MEMBER` (DICE's 20 bytes) when a zipped
+payload is empty; every pack path goes through it (`pack`, `pack_dir`, `pack_rows*`, `bfbc2core.fbrb.pack` /
+`pack_many`, `bfbc2 fbrbtool pack`, the level writer's bundles). The header member keeps .NET's `xfl 4 / os 0`
+(FBRB-HDR-4, every bundle), so a repack of DICE's bundle differs from DICE's file in those two bytes only.
+
+| Proof | Result |
+|---|---|
+| `spec_corpus.rs::fbrb_entries` (game tier): each of the 105 packed from its header's entries | 105 of 105: DICE's file byte for byte but for bytes 16-17 (xfl / os); the 20-byte member at DICE's place, byte for byte |
+| `test_fbrb_pack_native.py`'s game check over the 105 (unpack in Rust, pack in Rust) | 105 of 105 "identical but the header's gzip header, the empty payload member DICE's byte for byte" |
+| `pack.rs::empty_zipped_payload_is_dices_member` | zipped markers-only / no entries: the member, valid gzip of no data, reads back; stored: nothing after the header; a live payload: no extra member |
+
+**FbrbTool's goldens (DICE's bytes win).** Re-recorded only where the packer now differs: `fbrbtool_golden.json`
+`pack_built` "empty payload, zipped" and "no entries, zipped", `cases` "pack: a marker with an empty file" and
+"pack: only the first line"; `fbrbtool_golden_game.json` 56 pack records (the 105 bundles' distinct bytes, 54, and two
+temporary test bundles of a logged run, `<temp>/fbrb_unpack_01dh3d_5/b1` and `b2`, zipped with an empty payload: their
+unpacked folders rebuilt and checked against the recorded unpack digests); `cli_o1_golden.json` the files digest of
+the four `pack:` command lines with such a bundle (alone and on one pipe). Each new record was checked to be
+FbrbTool's recorded bundle + the 20 bytes (SHA-1 of the new bundle less its last 20 bytes = the recorded SHA-1; for
+`cli_o1`, the folder digest with the bundle so cut = the recorded digest, every stream and log line unchanged) before
+it was written; each file's `meta.rerecorded` says so.
+
+**The game.** It reads DICE's form (it ships it). FbrbTool's form (no member) has not been tried in game: no bundle
+OPFOR installs is one of markers only (65 OPFOR-dated bundles in the game copy, none without a live entry), so nothing
+OPFOR has shipped used it. Untested in game either way until a playtest needs one.
+
+**The WW2 oracles.** The rebuild oracle holds no bundle, and none of the install oracle's 35 staged bundles is
+without a live entry. A full rebuild on this branch (OPFOR main, OPFOR_TOOLKIT junctioned to the worktree): 55 steps
+in 19.2 min, 10,852 of 10,852 identical, QA checks ok. `wake_install.py --plan`: the install staging 21,197 of 21,197 identical to the install oracle; `game\` sha256
+snapshot before and after: the same 1,582 files and bytes.
+
+**SPV1's five corrected rules and the WW2 ports.** No OPFOR or suite code cites WPN-DMG-3, WPN-AMMO-1, WPN-SWAY-2,
+VEH-HP-4 or VEH-MAT-1, and the rule texts (2026-11-22, round SPG) postdate every value the ports set (class overrides
+2026-11-10, carried ammo 2026-11-13, rifle-grenade values 2026-11-06, the material grid's stand-ins 2026-11-09,
+dbxport's ammo conventions 2026-11-09). The values are copied from DICE's partitions at build time: the K98 /
+Springfield class fields from the M24 field for field (`bf1943_weapons.CLASS_OVERRIDES`), the Type 5 / Nambu / Type 97
+carried ammo from their US counterparts' firings (`weapons.FINITE_FIRING`), dbxport's magazines and pickups from the
+same-class template, the wrench from the power tool, the rifle grenades' anti-armour values from the bazooka / RPG
+firings, VEH material stand-ins from DICE's grids. `test_ww2_balance.py` on the rebuilt outputs: 138 class values of
+the K98 and Springfield inside DICE's five bolt-action rifles' ranges; the wrench at the power tool's rates. Nothing
+re-derived; no WW2 output changed for this item.
 
 ## NKG3: NavKit's step data toward DICE's - the terrain rule for D sides (2026-11-22, branch `nkg3`)
 

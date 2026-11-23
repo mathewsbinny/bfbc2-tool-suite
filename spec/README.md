@@ -358,3 +358,21 @@ to 1,051 in 59 files before it):
 - **Open, recorded as such**: PERS-SCORE-1 against AI-NEED-5 (settled statically by round AIS-rest, BOT-SCO-3; a
   playtest confirms); the main height-field tail (E7); the material map; the undergrowth numbers; the processor semantics; the mount
   functions.
+
+**After round SPV1** (2026-11-22: 1,269 rules - 749 verified, 127 implemented, 346 observed, 47 inferred; 127 observed
+rules verified by game-tier checks, nine of them corrected in place first):
+
+- **The checks**: `rust/bc2-formats/tests/spec_corpus.rs` (DICE's 1,021 bundles in one pass: FBRB, RES, DBX, the
+  type system, instances and references, textures, meshes, BIGF) and `core/tests/test_spec_probes.py` (new probes
+  `probes/level.py` and `probes/registry.py`; SPG's probes' printed counts for the weapon, vehicle, material,
+  destruction, lighting and weather rules). The corpus is DICE's files only (the game copy's bundles dated before
+  2013): where a rule's count was the whole game copy's, a `[data: ...]` line now gives DICE's.
+- **Corrected** (the data contradicted the wording): FBRB-HDR-10 (the build overlays are stored too), FBRB-DEL-2
+  (DICE writes an empty gzip member after a bundle of markers; FbrbTool writes none), TYPE-ATTR-3 (14 namespaces, not
+  12), LEVEL-ENV-1 (not one per level: 6 levels have none, 2 have three), WPN-DMG-3 (the SMG automatic row), WPN-AMMO-1
+  (pickups), WPN-SWAY-2 (cones; the zoomed minimum), VEH-HP-4 (the chassis states), VEH-MAT-1 (a boat's material).
+- **Left**: `COVERAGE.md` section 4 lists every rule still observed with the kind of evidence that would verify it -
+  67 more data probes over DICE's files, 23 AI value lists for `ai_corpus.rs`, 24 placement conventions (a re-run
+  of the L1 study), 23 half-data / half-RE, 32 on other corpora (Xbox 360, BF1943, OPFOR's builds, research
+  scripts), 21 needing the game running, 119 read from the executable, and the 37 Kynapse / NavKit rules (round
+  NKG2's files).

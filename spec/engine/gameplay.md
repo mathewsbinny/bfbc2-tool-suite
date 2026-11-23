@@ -351,7 +351,8 @@ A `TicketCounterEntityData` per team carries `InitialTicketCount`, `TicketLossPe
 `TicketLossWhenLostAll` (BFBC2 only), `TicketLossPerMinPointCountScale` (100), `TicketLossStart`,
 `HaltTicketLossOnEqualPointCount` (true on BFBC2's Conquest, false on BF1943's) and `TicketPercentages`: entries of
 {`VOEvent`, `TicketLossPerMin`, `MaxPercentOfTicketsLeft`}. A capture point's area value decides which team
-out-points the other and bleeds it. A death costs a ticket without any field saying so (engine behaviour).
+out-points the other and bleeds it. A death costs a ticket without any field saying so (engine behaviour: the
+server counter's code, BOT-GS-6, which also gives the bleed's formula).
 
 [data: Atacama Conquest, Wake Island (BF1943) and Coral Sea counters compared field by field]
 [exe: BFBC2Game.exe: TicketCountPercentage {VOEvent +0, TicketLossPerMin +4, MaxPercentOfTicketsLeft +8}, TicketCounterEntityData.TicketPercentages at +0x84]

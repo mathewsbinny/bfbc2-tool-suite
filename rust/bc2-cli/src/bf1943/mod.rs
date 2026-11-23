@@ -1,9 +1,10 @@
 //! Round O3's `bf1943` group: `bfbc2-bf1943-import`'s `dbxcatalogue.py`, `dbxparity.py` and `portparity.py` as
 //! command lines.
 //!
-//! - `bfbc2 dbxcatalogue`: the catalogue's summary line from its cache (`work\tools_out\dbx_catalogue.pkl`, read with
-//!   `bc2_pyrt::pickle`, over the index's cache: [`crate::gameindex`]). Building a missing catalogue or index (minutes,
-//!   once; the Python writes the cache) is handed to the Python.
+//! - `bfbc2 dbxcatalogue`: the catalogue's summary line, from its cache (`work\tools_out\dbx_catalogue.bin`,
+//!   `bc2_convert::dbxcatalogue::cache`, round PR1b-1e: the Python's pickle retired) over the index's cache
+//!   ([`crate::gameindex`]), or built here and cached when the game copy changed (only a build the Rust refuses is
+//!   handed to the Python).
 //! - `bfbc2 dbxparity|portparity`: their `argparse` command lines in full ([`argp`]: help, usage errors at the
 //!   console's width or `COLUMNS` [`crate::argfmt`]'s texts, round RT2) and their runs (round PR1b-1d, nothing
 //!   handed to the Python): [`dbxparity`] (the field-by-field comparison and `--predict`) and [`portparity`]
@@ -15,8 +16,9 @@ mod dbxparity;
 mod portparity;
 
 use std::fmt::Write as _;
+use std::path::Path;
 
-use bc2_pyrt::pickle::{self, Value};
+use bc2_convert::dbxcatalogue::{Job, cache};
 use bc2_pyrt::py::join;
 
 use crate::gameindex;
@@ -45,53 +47,56 @@ pub const TOOLS: &[Tool] = &[
     },
 ];
 
-/// `dbxcatalogue.CACHE_VERSION`
-const CACHE_VERSION: i64 = 3;
-
-/// `dbxcatalogue._signature(ix, exe)`: SHA-1 over each bundle of the index (sorted) and the exe, `path|size|mtime`.
-fn signature(ix: &gameindex::Index, exe: &str) -> String {
-    let mut bundles: Vec<&str> = ix.bundles().collect();
-    bundles.sort_unstable();
-    bundles.dedup();
-    bundles.push(exe);
-    let mut h = sha1_smol::Sha1::new();
-    for b in bundles {
-        let line = match fsx::stat(b) {
-            Ok(st) => format!("{b}|{}|{}\n", st.size, st.mtime.trunc()),
-            Err(_) => format!("{b}|missing\n"),
-        };
-        h.update(line.as_bytes());
+/// `dbxcatalogue._names(ix)`: the index's partitions (`.dbx` keys) by bundle, in the index's order, build overlays
+/// left out.
+#[allow(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "the index's keys are lower case; Python's endswith('.dbx')"
+)]
+fn catalogue_jobs<'a>(rows: impl Iterator<Item = (&'a str, &'a str, &'a str)>) -> Vec<Job> {
+    let mut jobs: Vec<Job> = Vec::new();
+    let mut at: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (k, b, n) in rows {
+        if !k.ends_with(".dbx") || b.to_lowercase().contains("build_overlay") {
+            continue;
+        }
+        let i = *at.entry(b).or_insert_with(|| {
+            jobs.push((b.to_owned(), Vec::new()));
+            jobs.len() - 1
+        });
+        if let Some(j) = jobs.get_mut(i) {
+            j.1.push(n.to_owned());
+        }
     }
-    h.digest().to_string()
+    jobs
+}
+
+/// `dbxcatalogue.load(ix)` over `jobs`: from its cache (`work\tools_out\dbx_catalogue.bin`, round PR1b-1e) when it
+/// is this game copy's, else built and cached ([`cache::load`]; its lines on stderr, as the Python prints them).
+/// `None`: the build refused (the Python's reference would run).
+fn catalogue(py: &mut Py, jobs: &[Job], root: &str) -> Option<cache::Loaded> {
+    let exe = join(root, &["game", "BFBC2Game.exe"]);
+    let path = join(root, &["work", "tools_out", cache::FILE]);
+    cache::load(jobs, Some(&exe), root, Some(Path::new(&path)), &mut |_, line| {
+        py.eprint(line);
+    })
 }
 
 /// `python dbxcatalogue.py`: `load(meshview.Index(shaderdb.find_opfor(None)))` and its counts (any arguments are
-/// ignored, as the Python ignores them).
+/// ignored, as the Python ignores them). A build the Rust refuses is handed to the Python (its reference).
 fn dbxcatalogue(py: &mut Py, _argv: &[String]) -> PyResult<i32> {
     let t = fsx::now();
     let root = gameindex::find_opfor(None)?;
     let ix = gameindex::load(py, &root)?;
-    let exe = join(&root, &["game", "BFBC2Game.exe"]);
-    let sig = signature(&ix, &exe);
-    let path = join(&root, &["work", "tools_out", "dbx_catalogue.pkl"]);
-    let data = std::fs::read(&path).map_err(|_| Fail::Python)?;
-    let c = pickle::loads(&data).map_err(|_| Fail::Python)?;
-    if c.get("version").and_then(|v| v.as_int()) != Some(CACHE_VERSION)
-        || c.get("sig").and_then(|s| s.as_str().map(str::to_owned)).as_deref() != Some(sig.as_str())
-    {
-        return Err(Fail::Python);
-    }
-    let cat = c.get("catalogue").ok_or(Fail::Python)?;
-    let len = |k: &str| cat.get(k).and_then(|v| v.len()).ok_or(Fail::Python);
-    let Some(Value::Int(partitions)) = cat.get("partitions") else {
-        return Err(Fail::Python);
-    };
+    let jobs = catalogue_jobs(ix.rows());
+    let c = catalogue(py, &jobs, &root).ok_or(Fail::Python)?.catalogue;
     let line = format!(
-        "{partitions} partitions, {} classes, {} guids, {} paths, {} executable names ({:.0} s)",
-        len("classes")?,
-        len("guids")?,
-        len("shapes")?,
-        len("exe_names")?,
+        "{} partitions, {} classes, {} guids, {} paths, {} executable names ({:.0} s)",
+        c.built.partitions,
+        c.built.classes.len(),
+        c.built.guids.len(),
+        c.built.shapes.len(),
+        c.exe_names.len(),
         fsx::now() - t
     );
     py.print(&line)?;

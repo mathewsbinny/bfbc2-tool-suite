@@ -49,7 +49,7 @@
 //! `harness_sessions_file`, `crash_log_before`, `harness_pair_bits`, `HarnessCells` and `ExeHandle`.
 //!
 //! Round F2b (`importer.rs`): `mopp_*`, `havokport_*` / `PortLayouts`, `catalogue_build` /
-//! `catalogue_exe_identifiers`, `emitteratlas_*`, `MeshLayouts` for `bfbc2-bf1943-import` (through `importcore.py`);
+//! `catalogue_exe_identifiers` / `catalogue_load` / `catalogue_key` / `catalogue_cache_bytes` (PR1b-1e), `emitteratlas_*`, `MeshLayouts` for `bfbc2-bf1943-import` (through `importcore.py`);
 //! `pefile.rs`: `pe_raw_*` for `menucommon.PEImage`; `coretext.rs`: `xmlinst_*` and `navtune_*` for `bfbc2core`.
 //!
 //! Round F3 (`aim_pathmesh_audio.rs`): `aimanim_*`, `hpd_mesh_layout` / `hpd_mesh_coverage`, `audio_xma_parts` /
@@ -484,12 +484,13 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::importer::{
-        MeshLayouts, PortLayouts, catalogue_build, catalogue_exe_identifiers, emitteratlas_build, emitteratlas_prove,
-        emitteratlas_same_but_uv, havokport_bodies, havokport_finish, havokport_havok_materials,
-        havokport_part_materials, havokport_part_run, havokport_restructure, havokport_run_table,
-        havokport_run_table_to_pc, havokport_subparts, havokport_ufloat8_table, havokport_with_face_materials,
-        havokport_with_havok_materials, havokport_with_part_materials, havokport_wrapper, mopp_complete, mopp_query,
-        mopp_query_box, mopp_ray_cast, mopp_ray_cast_brute,
+        MeshLayouts, PortLayouts, catalogue_build, catalogue_cache_bytes, catalogue_exe_identifiers, catalogue_key,
+        catalogue_load, emitteratlas_build, emitteratlas_prove, emitteratlas_same_but_uv, havokport_bodies,
+        havokport_finish, havokport_havok_materials, havokport_part_materials, havokport_part_run,
+        havokport_restructure, havokport_run_table, havokport_run_table_to_pc, havokport_subparts,
+        havokport_ufloat8_table, havokport_with_face_materials, havokport_with_havok_materials,
+        havokport_with_part_materials, havokport_wrapper, mopp_complete, mopp_query, mopp_query_box, mopp_ray_cast,
+        mopp_ray_cast_brute,
     };
 
     #[pymodule_export]

@@ -25,17 +25,25 @@ global bundle with a virtual path and calls 0x4E48E0 for each pair, in this orde
 
 Status: **observed** · Variants: PC
 
-0x5657B0 does not open the bundles: it appends one 0x1C-byte record per pair to a table it gets from 0x1386AE0 (0x4E48E0
-is the table's grow call, a virtual call at +0xC): the bundle name (+0), the virtual path (+0xC) and a flag byte (+0x18),
-0 for `streaming_sounds` and 1 for the two `async/ondemand_*` bundles (the on-demand ones, read when asked for). The
-mount itself is 0x464B10 (bundle name, path), the one STRM-MNT-2's voice bundle goes through: it makes a 0x238-byte
-bundle object (0x4DE490) that reads the bundle's entry names and indexes them by a case-insensitive hash (h = 5381;
-h = h x 33 ^ lower(c) per byte) in a sorted table of 0x20-byte records searched by halves, then attaches it at the
-path (0x4DCF30 -> 0x4DCCB0). A name is therefore found in a mounted bundle whatever its case, and two names that
-differ only in case are one entry to the engine. Which code drains the table into 0x464B10 was not followed.
+0x5657B0 does not open the bundles: it appends one 0x1C-byte `BundleMountPoint` record per pair to a table it gets
+from 0x1386AE0 (0x4E48E0 is the table's grow call, a virtual call at +0xC). The record's fields are named by the type
+information: `VfsPath` (+0, the virtual path), `Bundle` (+0xC, the bundle name) and `IsResourcePath` (+0x18), false for
+`streaming_sounds` and true for the two `async/ondemand_*` bundles (corrected by round SPG2-rest3: round SPG2-rest2 had
+the two strings the other way round and called the flag "on demand"). The mount itself is 0x464B10 (file system,
+bundle name, path), the one STRM-MNT-2's voice bundle goes through: it makes a 0x238-byte bundle object (0x4DE490)
+that reads the bundle's entry names and indexes them by a case-insensitive hash (h = 5381; h = h x 33 ^ lower(c) per
+byte) in a sorted table of 0x20-byte records searched by halves, then attaches it at the path (0x4DCF30 -> 0x4DCCB0).
+A name is therefore found in a mounted bundle whatever its case, and two names that differ only in case are one entry
+to the engine.
 
-[exe: BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns at +0 / +0xC, flag stores 0x565CFD (0), uStack 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC]`); 0x464B10 (alloc 0x238, 0x4DE490, 0x4C4410, 0x4DCF30); 0x4DE490 (hash loop: 0x1505, `* 0x21 ^ c`, upper case folded; binary search over 0x20-byte records); 0x4DCF30 -> 0x4DCCB0]
-[inferred: "drained later" from the table being filled with no open call in 0x5657B0; the flag's meaning from which bundles carry 1]
+The table is drained by the game object's constructor 0x56EDE0 ("Battlefield", vtable 0x01418170), right after
+0x566050 (which runs 0x5657B0): when the "Game" settings' `UseBundles` (+0x94) is set, it mounts every record in
+order through 0x464B10(file system, `Bundle`, `VfsPath`), and hands each record whose `IsResourcePath` is set to the
+resource manager as well (`*(0x0154C444)` vtable +0x38 with the record and 0). The same constructor then mounts the
+voice bundle (STRM-MNT-2). With `UseBundles` off nothing is mounted from the table.
+
+[exe: BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns, flag stores 0x565CFD (0), then 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC]`); 0x464B10 (alloc 0x238, 0x4DE490, 0x4C4410, 0x4DCF30); 0x4DE490 (hash loop: 0x1505, `* 0x21 ^ c`, upper case folded; binary search over 0x20-byte records); 0x4DCF30 -> 0x4DCCB0; field descriptors 0x1C149E0 `Bundle` +0xC, 0x1C149F8 `VfsPath` +0, 0x1C14A10 `IsResourcePath` +0x18, GameSettings `UseBundles` +0x94 (0x1C14FB0), `BundleMountPoints` +0x20 (0x1C14FC8)]
+[exe: BFBC2Game.exe 0x56EDE0 (0x566050 at 0x56EF03; settings group "Game" 0x1410BA0 through 0x4F4C80 at 0x56F033, `cmp byte [+0x94]`; the loop 0x56F087 - 0x56F0D2: `push [rec]; push [rec+0xC]; push fs; call 0x464B10` at 0x56F0A6, `cmp byte [rec+0x18], 0` then `[0x154C444]` vtable +0x38; records 0x1C apart); the voice bundle at 0x56F43D; 0x800200 the same voice mount when the language changes (0x800282)]
 
 ### STRM-MNT-2: One streamed voice bundle per session, by language
 
@@ -77,13 +85,14 @@ cutscenes) plus the same three, and none of the 32 Package-only weapon bundles.
 
 ### STRM-REG-1: The registry's spelling of the global bundles
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 `bundleManifest` writes the streamed and on-demand bundles with a leading slash (`/streaming_vo_<lang>` x 7,
 `/streaming_sounds`, `/async/ondemand_sounds`, `/async/ondemand_awards`), `async/startup` without one and the root
 voice bundle as `VO`; `package.mft` lists the seven `streaming_vo` and `streaming_sounds` as `game:` sources with
 `package:` then `game:` targets. Whether the slash matters is not known.
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: the game copy's Dist bundleManifest and package.mft, 2026-11-22: the lines as described]
 
 ### STRM-CNT-1: What each global bundle holds
@@ -127,8 +136,9 @@ overrides are not seen there.
 
 ## Open questions
 
-- 0x4E48E0 and 0x464B10 are read (STRM-MNT-3); 0x465530, the code that drains the mount table, and whether a mount
-  point shadows a level's own `sound/...` names are not.
+- The mount and its drain are read (STRM-MNT-3, round SPG2-rest3: 0x56EDE0 under `UseBundles`); whether a mount
+  point shadows a level's own `sound/...` names, and what the resource manager does with an `IsResourcePath` mount,
+  are not.
 - When the weapon and cutscene bundles are opened (kit selection, first spawn, the cutscene's start), and whether a
   level's bundle stack consults them for names.
 - Whether `Core.DiskLayoutEmulation` and the registry's leading slash affect lookup.

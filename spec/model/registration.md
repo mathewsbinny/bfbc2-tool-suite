@@ -14,12 +14,13 @@ Pacific War and map-editor installs). Structure and counts only.
 
 ### REG-MFT-1: File form
 
-Status: **observed**
+Status: **verified**
 
 `package.mft` is ASCII text with CRLF line ends and no byte-order mark. It starts with a head block, the line
 `Signature <40 hexadecimal digits>`, the line `Authorative` (no value) and a blank line; then the bundle blocks,
 each preceded by a blank line.
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: stock: 136,251 bytes, 3,493 lines all CRLF, no BOM; line 1 Signature with a 40-digit hex value, line 2 Authorative, 900 blank lines, 899 BundleSource lines each after a blank line, 1,692 BundleTarget lines; current: 960 blocks, 1,817 targets, same form]
 
 ### REG-MFT-2: A block
@@ -36,12 +37,13 @@ line and leaves the head block alone; a block with an empty or whitespace-only l
 
 ### REG-MFT-3: Sources are `game:` names, unique
 
-Status: **observed**
+Status: **verified**
 
 Every `BundleSource` is a `game:` name, also for a bundle that exists only under `game\Package` (the 41
 Package-only levels). No source appears twice. The source names the bundle being loaded; the targets say where
 its contents come from.
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: stock: 899 of 899 sources game:, 0 duplicates; of the level, terrain, ingame and loader sources 33 x 4 have files in Dist and Package, 41 x 4 in Package only]
 [code: rust/bc2-editor/src/package.rs:106-114]
 
@@ -60,11 +62,12 @@ block whose targets are only common bundles describes a bundle with no own copy 
 
 ### REG-MFT-5: What is registered
 
-Status: **observed**
+Status: **verified**
 
 Stock registers, per level (74), `level`, `terrain`, `ingame`, `loader` and seven `vo/<lang>` bundles; 50 `async`
 bundles; 25 `menu` bundles; `vo-00`, `build_overlay-00`, `streaming_sounds-00` and seven `streaming_vo_<lang>-00`.
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: stock source kinds: level, terrain, ingame, loader 74 each; vo/lang 518; async 50; menu 25; 10 root bundles]
 
 ### REG-MFT-6: The Signature is not checked against the content
@@ -96,13 +99,14 @@ repairs it).
 
 ### REG-BM-2: What stock lists
 
-Status: **observed**
+Status: **verified**
 
 Stock `bundleManifest` lists the Dist install's bundles: the 33 Dist levels' `level`, `terrain`, `ingame`, `loader`
 and seven `vo/<lang>` each, 443 `async` bundles (weapons and the campaign's cutscenes among them), 17 `menu`
 bundles, and a few root bundles. It lists **no** Package-only level, and 237 of its lines name bundles not in the
 game copy (the voice-over bundles). The lines are in no sorted order.
 
+[test: core/tests/test_spec_probes.py::registries]
 [data: stock: levels 33, all with Dist bundles, 0 Package-only; 598 lines with a Dist file, 237 without; 397 of 835 lines are also package.mft sources]
 
 ### REG-BM-3: The suite adds a line per bundle of a new level

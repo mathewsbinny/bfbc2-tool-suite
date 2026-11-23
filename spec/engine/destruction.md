@@ -103,16 +103,17 @@ object's `onDestroyed` (GAME-DMG-1); `ManyPartsDestroyedPercentage` is a second,
 
 ### DSTR-PART-1: Part flags and links
 
-Status: **observed**
+Status: **verified**
 
 A part's flags: `CanCollapse` (set on 3,103 of 3,135), `CanTriggerCollapse` (2,904), `IsFragile` (196),
 `IsSupported` (181), `IsLoadBearing` (1). `NeighbourLinks` lists the part's neighbours by index.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: 3,135 parts, the flag counts above]
 
 ### DSTR-PART-2: Bangers
 
-Status: **observed**
+Status: **verified**
 
 A **banger** is a separate blueprint a health state spawns (`SpawnedBanger`, a reference to its partition): a loose,
 simulated piece (a fallen sign, a tree top, a mast). 36 states spawn one (35 distinct targets, 20 references to
@@ -120,6 +121,7 @@ blueprints named `*_Banger`); 44 blueprints have `banger` in their name. `CopyDa
 states. Other state contents are rare: `Explosion` 22, `LoosePartPhysics` 20, `LoosePartPhysicsArray` items 96;
 `PreferedShapeType` is `STBox` on 5,945 of 5,952.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: SpawnedBanger on 36 states, 35 targets (20 named *_banger, 16 references to other names); blueprints whose name contains banger 44; the state counts above]
 
 ### DSTR-PART-3: A part loses health by its material's relation
@@ -175,11 +177,12 @@ parts, DSTR-STATE-6).
 
 ### DSTR-MESH-4: Soot
 
-Status: **observed**
+Status: **verified**
 
 Every DICE Dx11 shader database holds the soot programs (`SootPerPixel`, `SootPerVertex`), and the game ships
 `SootMesh` resources (TERR-SOOT-1); explosion soot is presumably drawn through them on meshes near a blast.
 
+[test: core/tests/test_spec_probes.py::spg_materials]
 [data: spec/probes/materials.py, 2026-11-22: SootPerPixel and SootPerVertex in 74 of 74 DICE Dx11 databases]
 
 ## 4. Terrain destruction
@@ -234,12 +237,13 @@ Status: **verified**
 
 ### DSTR-MG-1: Most static group members are destructible
 
-Status: **observed**
+Status: **verified**
 
 1,837 of the 2,583 static model-group member types (80,239 placed instances) name a blueprint with destructible
 parts, as do all 396 tree member types; middle-growth and rigid group members have one physics part per instance.
 Static members have 1 - 14 physics parts per instance (1 x 1,725 types, 2 x 375, 5 x 174), tree members 1 - 5.
 
+[test: core/tests/test_spec_probes.py::spg_destruction]
 [data: spec/probes/destruction.py, 2026-11-22: 74 level partitions: member types static 2,583 (97,112 instances), tree 396 (97,190), middle-growth 341 (82,908), rigid 32 (760); PhysicsPartCountPerInstance static 1 x 1,725, 2 x 375, 3 x 91, 4 x 85, 5 x 174, 6 x 88, 8 x 10, 9 x 4, 14 x 31; tree 1 - 5; middle-growth and rigid 1]
 
 ### DSTR-MG-2: A member's parts are the type's parts, laid out per instance

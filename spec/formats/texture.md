@@ -32,12 +32,12 @@ Evidence: [code: rust/bc2-convert/src/texture.rs:43-45] [code: rust/bc2-convert/
 
 ### TEX-HDR-2: PC level sizes and file length
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 On the PC the *i*-th level size is the byte length of level *i* of one face; sizes after the last level are 0. The
 file is exactly `92 + faces x (sum of the m level sizes)` bytes, faces 6 for a cube map, else 1.
 
-Evidence: [data: 1,826 of 1,826 unwrapped and 1,184 of 1,184 wrapped (TEX-WRAP-1) PC textures of the game copy (2026-11-19)] [code: rust/bc2-render/src/material.rs:426-454]
+Evidence: [data: 1,826 of 1,826 unwrapped and 1,184 of 1,184 wrapped (TEX-WRAP-1) PC textures of the game copy (2026-11-19)] [code: rust/bc2-render/src/material.rs:426-454] [test: rust/bc2-formats/tests/spec_corpus.rs::textures] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 3,826 distinct ITexture names: level sizes and file length as stated in 3,826 (889 wrapped read after TEX-WRAP-1)]
 
 ### TEX-HDR-3: Dimensions and mip chains
 
@@ -51,7 +51,7 @@ Evidence: [code: rust/bc2-convert/src/texture.rs:277-285] [code: rust/bc2-render
 
 ### TEX-WRAP-1: The 64-byte RES header on award pictures
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 Some `ITexture` entries start with a 64-byte resource header before the 92-byte texture header: bytes 0-3 `RES` and
 the byte 0x02, then the type name `ITexture` zero-padded to offset 0x24, five zero u32s (0x24-0x37), then two LE u32s
@@ -59,7 +59,7 @@ at 0x38 and 0x3C, both the length of what follows the 64 bytes. The texture afte
 Every `ITexture` under `awards/` (rank, award, loading-screen and level pictures) is wrapped so; no other is. A
 reader of textures must skip the 64 bytes when the entry starts with `RES` (see `formats/res.md`).
 
-Evidence: [data: 1,184 of 1,184 distinct `awards/` ITextures of the game copy wrapped, 0 of 1,826 others (2026-11-19; the 9 bundles over 200 MB not read); both length words equal the inner length in all 1,184] [code: rust/bc2-editor/src/catalog.rs:185-190] [test: rust/bc2-editor/src/catalog.rs::a_texture_decoded]
+Evidence: [data: 1,184 of 1,184 distinct `awards/` ITextures of the game copy wrapped, 0 of 1,826 others (2026-11-19; the 9 bundles over 200 MB not read); both length words equal the inner length in all 1,184] [code: rust/bc2-editor/src/catalog.rs:185-190] [test: rust/bc2-editor/src/catalog.rs::a_texture_decoded] [test: rust/bc2-formats/tests/spec_corpus.rs::textures] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 889 of 889 distinct `awards/` ITextures wrapped, 0 of 2,937 others; both length words equal the inner length in all 889]
 
 ## Formats and flags
 
@@ -84,24 +84,24 @@ Evidence: [code: rust/bc2-convert/src/texture.rs:75-85] [test: rust/bc2-convert/
 
 ### TEX-FMT-2: PC level size by format
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 A PC level of `lw x lh` texels takes `ceil(lw / e) x ceil(lh / e) x bytes per unit` bytes (TEX-FMT-1, `e` the unit's
 edge), except L8 (10), whose rows are padded with zeros to a multiple of 4 bytes: `ceil(lw / 4) x 4 x lh` (a 2 x 2
 level is 8 bytes, a 1 x 1 level 4).
 
-Evidence: [data: every level of 1,826 unwrapped PC textures matches, per format: 0 x 871, 2 x 288, 18 x 255, 10 x 226, 20 x 89, 9 x 48, 1 x 24, 19 x 24, 13 x 1 (2026-11-19)] [code: rust/bc2-convert/src/texture.rs:243-255] [doc: bfbc2-console-convert/FORMAT.md:147-149]
+Evidence: [data: every level of 1,826 unwrapped PC textures matches, per format: 0 x 871, 2 x 288, 18 x 255, 10 x 226, 20 x 89, 9 x 48, 1 x 24, 19 x 24, 13 x 1 (2026-11-19)] [code: rust/bc2-convert/src/texture.rs:243-255] [doc: bfbc2-console-convert/FORMAT.md:147-149] [test: rust/bc2-formats/tests/spec_corpus.rs::textures] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: every level of 3,826 distinct PC textures matches; unwrapped formats 0 x 1,537, 2 x 486, 18 x 375, 10 x 289, 20 x 86, 19 x 74, 9 x 59, 1 x 30, 13 x 1]
 
 ### TEX-FLAG-1: Header flags
 
-Status: **observed** · Variants: PC, Xbox 360, BF1943
+Status: **verified** · Variants: PC, Xbox 360, BF1943
 
 Bit 0 (1): sRGB - the PC renderer binds the texture through an sRGB view. Bit 1 (2): a texture DICE's build halves
 for the console; set only on PC copies (the console build halves and clears it). Of BFBC2's 1,468 textures with an Xbox
 360 and a PC copy, all 539 whose console copy is smaller have it on the PC, and 11 of the other 929. A converted
 console texture is at the console's size, so it keeps the console's flags with bit 1 clear.
 
-Evidence: [data: flags over 1,826 unwrapped PC textures of the game copy (2026-11-19): 0 x 620, 1 x 665, 3 x 335, 2 x 206; no other bit set] [code: rust/bc2-convert/src/texture.rs:52-53] [code: rust/bc2-convert/src/texture.rs:388-397] [doc: bfbc2-console-convert/FORMAT.md:83-91]
+Evidence: [data: flags over 1,826 unwrapped PC textures of the game copy (2026-11-19): 0 x 620, 1 x 665, 3 x 335, 2 x 206; no other bit set] [code: rust/bc2-convert/src/texture.rs:52-53] [code: rust/bc2-convert/src/texture.rs:388-397] [doc: bfbc2-console-convert/FORMAT.md:83-91] [test: rust/bc2-formats/tests/spec_corpus.rs::textures] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: flags over 2,937 distinct unwrapped PC textures: 0 x 890, 1 x 1,110, 3 x 563, 2 x 374; no other bit]
 
 ## PC data
 

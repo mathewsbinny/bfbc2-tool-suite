@@ -1108,6 +1108,10 @@
      "ref": "BFBC2Game.exe bot debug print 0xEEF450 (strings \" Bot id: \" 0x014A7E64, \"Squad: \", \" - Squad leader\" 0x014A7E50, \"Readiness: \" 0x014A7E44, \"Position: \"); Kynapse bot entity 0xF27900 (\"Entity_\", thunk 0x109EAC0, registration 0x109DFF0); the bot +0x8C reads of BehaviourReload 0xEC6650 (target - 4, then +0xC = the AI input object), BehaviourChangePose 0xEC4EE0 / 0xEC4F60, BehaviourFire 0xEC4FE0 (+0x84 +0x88), BehaviourReload 0xEC64E0 (+0x9C +0x4C); no reference to 0xEEF450 in the image (AIS-rest byte scan for E8 / E9 targets and 32-bit pointers)"
     },
     {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe bot constructor 0xE6C0B0 (`param_1[5"
+    },
+    {
      "kind": "doc",
      "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:202-203"
     }
@@ -1703,7 +1707,15 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe constructors 0x66E190 (0x68FB90 x 4 with the hashes), 0x67A030, 0x6740D0 (server object `+0x18` vtable +8 with 0x10); name functions 0x66A250, 0x6695D0, 0x669AF0 (vtable slots at 0x0141FEF8, 0x0142042C, 0x0141FDC4)"
+     "ref": "BFBC2Game.exe constructors 0x66E880 (vtables 0x66E8C1 - 0x66E8D4; channels 0x11 / 0x10 subscribed at 0x66E8F1 / 0x66E903), 0x67A4B0 (vtables 0x67A4F9 - 0x67A513; channels 0x16 / 0x10), 0x66E190 (0x68FB90 x 4: 0x87ADD7E8, 0xBB06A967, 0x7F3E7106, 0xD0488C09), 0x6740D0 (+0x84 = data +0x80; listener 0x67D680: death (0x10, 0x11) of the other team by its team -> 0x67D620(1), revive (0x10, 0x21) -> 0x67D620(-1), clamped to 0 .. +0x84); name functions 0x66A250 / 0x6695D0 / 0x669AF0 at 0x0141FEF8 / 0x0142042C / 0x0141FDC4 (slot 2 of 0x0141FEF0, 0x01420424, 0x0141FDBC), \"SvKillCounter\" at slot 2 of 0x0141FCB0; 0x67A030 writes 0x01420320 and +0x58 0x014202E8; 0xFFE580 (0x8BA423E4 -> +0x7C, 0xF90216B1 -> +0x80); field descriptors KillCounterEntityData `MaxKillCount` +0x80, `TeamId` +0x84, MissionObjectiveEntityData `ObjectiveType` +0xF0"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/modes.py, 2026-11-22: the hashes are `OnShowObjective`, `OnSuccess`, `Success`, `ShowObjective`, `Enable`, `Disable` (each found in the function named); DICE's mission objectives' connections: in `ShowObjective` 200, `Success` 97, `Disable` 19, `Enable` 1, out `OnShowObjective` 53, `OnSuccess` 74; kill counters out `OnMaxKillCount` 300"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::modes"
     }
    ]
   },
@@ -1717,6 +1729,74 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe 0x724060 (player list 0x532270; soldier vtable +0x30, its +0x2C component's vtable +8 > 0; team +0xA8; 0x6CA7B0 with data +0x11C / +0x138 or 0x6E54C0; per-team counts through 0x7216E0; outputs the +0x7C team's count, the best other team and its count); no +0xD84 operand in 0x724060 - 0x72425F; caller 0x726B60"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-6",
+   "title": "The ticket counter's state: a death costs one ticket, whoever died",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe constructor 0x66E880 (+0x98 = 1.0 from 0x14D94F0; channels 0x11 / 0x10); init (data +0x94 -> +0x94 and +0x80 at 0x66E907 - 0x66E920); reset 0x66EA50; handler 0x684050 (message (0x10, 0x11): msg +0x20 +0xA8 against data +0xA0 -> 0x681AD0(1.0) at 0x68413A; (0x10, 0x21) -> 0x681A70(+0x80 + 1.0, 0x14D94D8); (0x11, 0x17) sender +0x7C, (0x11, 0x18) sender +0x94 -> 0x711CD0 into +0x84); update 0x686830 (+0x84 = 0x675170(team) once, then 0x684150, 0x684320); bleed 0x684150 (0x6751D0, 0x675270, 0x675330, 0x6753B0, 0x680620; constants 0.01 at 0x1409E40, 1.0 at 0x14D94D8, 60.0 at 0x1412C48); 0x681AD0, 0x681A70, 0x6805B0 (hash 0xDE2783FB), 0x6752D0, 0x67E3F0 (hash 0x59CE0E1A); field descriptors TicketCounterEntityData 0x1C255D0 - 0x1C256A8"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/modes.py, 2026-11-22: DICE's ticket counters' connections: out `OnTeamWins` 125, `OnReachTicketPercentage` 129, no inputs; `OnReachZero` (0xDE2783FB) is no event name of DICE's PC level bundles, named from the game copy's other graphs (GAME-TKT-3)"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::modes"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-7",
+   "title": "A soldier's death and a revive are server messages on channel 0x10",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x6C3810 (skip at `+0x220 == 0`; message on the stack with vtable 0x01423044 at 0x6C3B89, posted through `[server +0x18"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-8",
+   "title": "Rush lives and stages: the life counter's state",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe constructor 0x67A4B0 (+0x84 / +0x98 = data +0xD8, +0x9C = data +0x94, +0xA4 = data +0x90; channels 0x16 / 0x10 at 0x67A539 / 0x67A54B); handler 0x689320 (victim msg +0x20, killer +0x24, team data +0xD4, attacker flag data +0xDC; 0x689200, 0x67D740, 0x67D890, 0x669690; channel 0x16: msg +0x28 / +0x30); event slot 6 0x6897D0 (`Winner` 0xBE6EE0AC, 0x27BECF7C, `IncreaseReinforce` 0x2CFC2C6C, `DestructBase` 0x324B3FE6 with message 0x46 and 0x6696B0, `DecreaseLife` 0xC14750A1, 0xE5A091E9); 0x689200 (`OnTeamLoss` 0x59D3259A, `OnFightHarder` 0x2CE6F2B8, message (0x11, 0x20)); 0x67D740 (data +0x98, the table through 0x13AA630 / 0x13AA650); field descriptors LifeCounterEntityData 0x1C25390 - 0x1C25498"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/modes.py, 2026-11-22: DICE's life counters' connections: in `DestructBase` 87, `IncreaseReinforce` 78, `Winner` 60, out `OnTeamLoss` 457, `OnFightHarder` 61; 30 counters with `Attacker` true (`StartingLifeCount` 20 - 100) and 30 without (`BaseCount` 2 - 5); `DecreaseLife` is no event name of DICE's PC level bundles (named from the game copy's other graphs)"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::modes"
+    }
+   ]
+  },
+  {
+   "id": "BOT-GS-9",
+   "title": "An M-COM's arming is a game interaction entity",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field descriptors 0x1C25D80 - 0x1C25E10 (GameInteractionEntityData), enumeration InteractionEntityType 0x1C24220 - 0x1C242C8; vtable 0x01423AA8 (slots 2 0x68F8C0, 3 0x6A83E0, 33 0x68F8D0, 34 0x68F940, 37 0x68F9D0, 38 0x68F9E0), sub-object vtables 0x01423A84 / 0x01423A70 / 0x01423A64 written at 0x6A200F and 0x6A838F"
     }
    ]
   },
@@ -1932,9 +2012,17 @@
    "id": "DECAL-SRC-2",
    "title": "The level partition's terrain splines",
    "file": "spec/engine/decals.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions: TerrainSplineData 1,360, TerrainSplinePointData 14,449, TerrainSplinePlaneData 1,372 (all with the water fields), TerrainSplinePlanePointData 44,132 (all with WaterSpeed)"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: the four spline classes' counts and fields as listed"
@@ -2074,8 +2162,12 @@
    "id": "DSTR-PART-1",
    "title": "Part flags and links",
    "file": "spec/engine/destruction.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/destruction.py, 2026-11-22: 3,135 parts, the flag counts above"
@@ -2086,8 +2178,12 @@
    "id": "DSTR-PART-2",
    "title": "Bangers",
    "file": "spec/engine/destruction.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/destruction.py, 2026-11-22: SpawnedBanger on 36 states, 35 targets (20 named *_banger, 16 references to other names); blueprints whose name contains banger 44; the state counts above"
@@ -2170,8 +2266,12 @@
    "id": "DSTR-MESH-4",
    "title": "Soot",
    "file": "spec/engine/destruction.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/materials.py, 2026-11-22: SootPerPixel and SootPerVertex in 74 of 74 DICE Dx11 databases"
@@ -2252,8 +2352,12 @@
    "id": "DSTR-MG-1",
    "title": "Most static group members are destructible",
    "file": "spec/engine/destruction.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/destruction.py, 2026-11-22: 74 level partitions: member types static 2,583 (97,112 instances), tree 396 (97,190), middle-growth 341 (82,908), rigid 32 (760); PhysicsPartCountPerInstance static 1 x 1,725, 2 x 375, 3 x 91, 4 x 85, 5 x 174, 6 x 88, 8 x 10, 9 x 4, 14 x 31; tree 1 - 5; middle-growth and rigid 1"
@@ -2358,9 +2462,13 @@
    "id": "FX-CLS-3",
    "title": "Effect instance and culling settings",
    "file": "spec/engine/effects.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/lighting.py emitters: MaxInstanceCount and CullDistance over 998 EffectEntityData"
@@ -2553,9 +2661,13 @@
    "id": "FX-PROC-3",
    "title": "What an emitter draws",
    "file": "spec/engine/effects.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::emitters"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/effects_chain.py, 2026-11-22: EmittableType over 50,141 templates"
@@ -2571,7 +2683,7 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; 0x11DD76A (37) unread"
+     "ref": "BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; round SPG2-rest3: 0x11DD76A (37) is `toupper` for code-page bytes (low half through the CRT's `toupper`, the switch maps 0x9A / 0x9C / 0x9E / 0xE0 - 0xFE, 0xFF -> 0x9F), Ghidra's switch census of 36+ targets: 0x76ECC1, 0x776569, 0x77BC8C, 0x83B9BD, 0x85D53A, 0x95A2B7, 0x95E743, 0x98B8A1, 0x9AF960, 0x1198550, 0x11B39B3, 0x11B3A29, 0x11DD7BF, 0x11FD505, 0x1205000, 0x13633AB"
     },
     {
      "kind": "inferred",
@@ -4059,9 +4171,13 @@
    "id": "LIGHT-BAKE-3",
    "title": "Objects carry occlusion textures by DICE's suffixes",
    "file": "spec/engine/lighting.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/lighting.py baked on the game copy, 2026-11-22: distinct ITexture names by suffix as listed"
@@ -4891,8 +5007,12 @@
    "id": "MAT-GRID-7",
    "title": "The damage fields and their ranges",
    "file": "spec/engine/materials.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/materials.py, 2026-11-22: 162,950 MaterialRelationDamageData instances of DICE's 74 grids, the ranges above"
@@ -4919,8 +5039,12 @@
    "id": "MAT-GRID-9",
    "title": "Material properties DICE leaves at constants",
    "file": "spec/engine/materials.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/materials.py, 2026-11-22: DICE's grids, the counts above"
@@ -4971,8 +5095,12 @@
    "id": "MAT-SLOT-3",
    "title": "DICE's part materials",
    "file": "spec/engine/materials.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/materials.py, 2026-11-22: PartInfoDatas of the 1,183 DICE physics assets: 4,454 parts, 65 distinct materials, none outside DICE's grids"
@@ -4987,8 +5115,12 @@
    "id": "MAT-SLOT-4",
    "title": "Face lists",
    "file": "spec/engine/materials.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/materials.py, 2026-11-22: FaceMaterials items per file 1 - 9 over 1,183 files; equal to MaterialMappings in 525"
@@ -5613,6 +5745,10 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe 0x884C20 (speed `sqrt(v.v)` against 5.0 at 0x14D9450; material 0x7BF160 -> 0x6C94E0 -> 0x6F0250, the terrain property at +0x10 with DirtTriggerColor +0x10 and DirtTriggerFactor +0x20 as MaterialPropertyTerrainData's field descriptors 0x1C35A88 / 0x1C35AB8 give; clamp with 0 and 1.0 at 0x14D94F0; the colour blend 0x884D28 - 0x884DB5), called from 0x893E9C; getters 0x877520 (+0x1D0) / 0x877530 (+0x180); copies 0x5EA24E - 0x5EA27B and 0x5EFB81 - 0x5EFBA9; constants set 0x5CB733 / 0x5CB7A7 (handles +0x6D0 / +0x6D4 of the table 0x5BF470 fills: dirtFactor, dirtColor, trackOffset ...; built by 0x5DD9D0)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x893E50 (only caller 0x8C0282 in 0x8C0210, `test flags, 1`); 0x8C0210 is slot 125 of vtable 0x01436C38 (175 slots; slot 43 returns \"ClVehicle\"), its only pointer in the image (0x01436E2C)"
     }
    ]
   },
@@ -8746,11 +8882,11 @@
    "evidence": [
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns at +0 / +0xC, flag stores 0x565CFD (0), uStack 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC"
+     "ref": "BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns, flag stores 0x565CFD (0), then 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC"
     },
     {
-     "kind": "inferred",
-     "ref": "\"drained later\" from the table being filled with no open call in 0x5657B0; the flag's meaning from which bundles carry 1"
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x56EDE0 (0x566050 at 0x56EF03; settings group \"Game\" 0x1410BA0 through 0x4F4C80 at 0x56F033, `cmp byte [+0x94"
     }
    ]
   },
@@ -8809,9 +8945,13 @@
    "id": "STRM-REG-1",
    "title": "The registry's spelling of the global bundles",
    "file": "spec/engine/streaming.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "the game copy's Dist bundleManifest and package.mft, 2026-11-22: the lines as described"
@@ -8868,9 +9008,21 @@
    "id": "VEG-CLS-1",
    "title": "Forest, middlegrowth and undergrowth",
    "file": "spec/engine/vegetation.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's): ForestEntityData 74 in 74, TreeMemberData 396 (InstanceCount sum 97,199), TreeMeshEntityData 737, MiddlegrowthModelGroupEntityData 93 in 71, MiddlegrowthModelGroupMemberData 341 (82,916); the member folders as listed (the table's 97,190 and 82,908 are the Dist copies'); the undergrowth row is VEG-UG-1's check"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: ForestEntityData 74, TreeMemberData 396 (InstanceCount sum 97,190), TreeMeshEntityData 737, MiddlegrowthModelGroupEntityData 93 (in 71 partitions), MiddlegrowthModelGroupMemberData 341 (82,908); member types by the MemberType's first folder as listed"
@@ -9033,6 +9185,10 @@
     {
      "kind": "exe",
      "ref": "BFBC2Game.exe field descriptors 0x1C3C940 - 0x1C3CA90 (name, type, offset; MinScale +0x1C, MaxScale +0x14, MinMaskScaleFactor +0x0C with type 0x155D02C; Mesh +0x3C, MeshShaderSet +0x38, CacheShader +0x44, Density +0x40, Variation +0x34, MinMask +0x28, MaxMask +0x24, WindScale +0x30, ViewDistance +0x2C, Enable +0x4A, RotateEnable +0x49, SkewEnable +0x48); \".Visual\" 0x144F98C pushed at 0xA15AAD; IVisualTerrain type 0x1BF808C (registered 0x13759A0), the VisualTerrain type 0x1BF80FC (0x1375A20, getType 0xA01830 in vtable 0x144FCF0); round SPG2-rest2's sweep of 0x9F0000 - 0xA40000 for byte accesses at +0x48 - +0x4A (one constructor, 0x9E9530, of another class) and of every `push 0x4C` factory"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtable 0x144FCF0 read slot by slot (round SPG2-rest3): 0 0xA017E0, 1 0xA089F0, 2 0xA01830 (type), 3 0xA296E0, 4 0xA10460, 5 0xA10470, 6 0xA1CB00, 7 0xA25E90 (`push 0xC00`, 0xA1F7F0), 8 0xA2D690 (the job names), 9 0xA08D10, 10 0xA25EC0, 11 0xA2A180 (\"terrainCullView\", \"occluderTerrain\"), 12 0xA16500, 13 0xA26000, 14 0xA2F6D0, 15 0xA08D40, 16 0xA10480, 17 0xA091F0, 18 0xA091D0; none is a parser (no string read, no run of twelve floats)"
     }
    ]
   },
@@ -9114,8 +9270,12 @@
    "id": "VEH-PHYS-1",
    "title": "Chassis configuration and engine classes",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: engine configs Car CombustionEngineConfigData 22, Tank 11, Helicopter PropellerEngineConfigData 38, Dummy Propeller 11, UAV Propeller 6, Boat JetEngineConfigData 9; GearboxConfigData on every driven vehicle"
@@ -9126,8 +9286,12 @@
    "id": "VEH-PHYS-2",
    "title": "Mass, gears and wheels per class",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: body mass Car 1000 x2 / 1500 x15 / 2500 x5, Tank 4000 .. 9000, Helicopter 5000 x17 / 4000 x1, Boat 750 x4 / 1000 x3 / 2500 / 4500; forward gears Car 3 x6 / 4 x11 / 5 x5, Tank 3 x6 / 4 x5, Helicopter 5 x18, Boat 1 x3 / 2 x2 / 3 x4; wheels Car 4 x16 / 6 x5 / 3 x1, Tank 14 .. 26, Helicopter 3 x17 / 2 x1"
@@ -9138,8 +9302,12 @@
    "id": "VEH-HP-1",
    "title": "Four health zones that share damage",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: HealthZonesShareDamage true x97; FrontHealthZone MaxHealth Tank 1250 x8 / 500 / 1000 / 1200, Helicopter 500 x9 .. 1600, Car 200 .. 1250 mode 500, Boat 100 .. 1000, Stationary 125 x15, Strategic 200 x3 / 500, UAV 50 x2 / 100; LowHealthTreshold / MaxHealth Tank mode 0.27, Car and Helicopter mode 0.3, Stationary 0.4 x15"
@@ -9150,8 +9318,12 @@
    "id": "VEH-HP-2",
    "title": "Armour angles only on tanks",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: UseDamageAngleCalculation true x10 / false x1 on Tank, false on all 86 others; Tank front MinDamageAngle 1 x8, multiplier 1 x9 / 0.75 x2; rear multiplier 2 x8 / 3 x1 / 1 x2; side multiplier 2 x9, MinDamageAngle 0.43 .. 0.6"
@@ -9174,8 +9346,12 @@
    "id": "VEH-HP-4",
    "title": "Health states of the chassis and the parts",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: chassis HealthStates ending in 100000 on 93 of 97 (0/100000 on Car 22, Tank 11, Stationary 15, StationaryUAV 4, Strategic 4, Helicopter 10, Boat 5, Dummy 7); PartComponentData per vehicle as listed; Helicopter parts' first state 0 x334 of 364"
@@ -9202,8 +9378,12 @@
    "id": "VEH-SEAT-1",
    "title": "Seats are entry components in EntryOrderNumber order",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: player entries per vehicle Car 1 .. 5 (4 x11), Tank 2 x3 / 4 x8, Helicopter 2 x12 / 3 x6, Boat 1 .. 4; soldier entries on Car 16 of 22, Helicopter 14 of 18, Boat 4 of 9, Tank 0; EntryOrderNumber sequences as listed; Stationary [1"
@@ -9214,8 +9394,12 @@
    "id": "VEH-SEAT-2",
    "title": "The input each seat names, by role",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: seat input folders per HUD type and folder as listed in the seats section; e.g. Helicopter (air): driver BFBC2AirInputMapping x17, other BFBC2GunnerInputMapping x20; Stationary (stationary weapons): BFBC2GunnerInputMapping x13; Tank (beach): venice concepts x2; Dummy (beach): null x2"
@@ -9243,8 +9427,12 @@
    "id": "VEH-WPN-1",
    "title": "Vehicle weapons are weapon components with firings",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: WeaponComponentData per vehicle Tank 3 .. 13 mode 10, Helicopter 2 .. 8 mode 3, Car 0 x4 / 1 x7 / 2 x10 / 3 x1, Boat 0 .. 3, Stationary 1 x15; projectiles Tank BulletEntityData 109 / MissileEntityData 3, Helicopter 39 / 26 / TracerDart 2, StationaryUAV VehicleProjectileEntityData 3"
@@ -9276,8 +9464,12 @@
    "id": "VEH-MAT-1",
    "title": "The entity's material per class",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: Material per HUD type as listed; beach zero_fighter Attack_Helo, us_corsair default"
@@ -9349,9 +9541,13 @@
    "id": "VEH-WW2-1",
    "title": "DICE's BF1943 vehicles are campaign vehicles",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: 8 VehicleEntityData under beach/, every copy in sp_* bundles; HUD types Dummy 2, Car 2, Tank 1, Strategic 1, Stationary 2; the planes' seats name no InputMapping"
@@ -9396,9 +9592,13 @@
    "id": "VEH-CON-1",
    "title": "The Mark V boat is console-only",
    "file": "spec/engine/vehicles.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, Xbox 360",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_vehicles"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/vehicles.py on the game copy, 2026-11-22: 47 entry names containing markv in DICE's bundles: animations/cutscenes/rome 32, objects/objects/distant_ships 8 (2 level folders), objects/mesh_particles/specific 3 (2 level folders), sound 2, textures 2; under objects/vehicles/ 0; VehicleEntityData 0"
@@ -9429,8 +9629,12 @@
    "id": "WPN-CLS-2",
    "title": "WeaponClass, and no pistol class",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: 321 players' weapons by WeaponClass as listed; AnimBaseSet wabsHg on 10 player firearms (wcSmg 9, wcAssault 1), all fltSingleFire"
@@ -9441,8 +9645,12 @@
    "id": "WPN-CLS-3",
    "title": "Body sets per class",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AnimBaseSet over 227 player firearms wabsRif 197, wabsShg 20, wabsHg 10; wcAt wabsAT 6/6; wcHgr wabsHgr 4/4; wcC4 3/3 and wcATMine 2/2 wabsHgr; wcPowerTool wabsHg 2/2"
@@ -9485,8 +9693,12 @@
    "id": "WPN-DMG-1",
    "title": "Damage lives on the projectile",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: StartDamage / EndDamage / falloff distances on every BulletEntityData a player weapon fires (293 weapons over 85 partitions); 72 of them name an Explosion"
@@ -9509,8 +9721,12 @@
    "id": "WPN-DMG-3",
    "title": "Damage profiles per class",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: the damage-profile section, 98 distinct player firearm firings; NumberOfBulletsPerShell 12 on 10 and 6 on 5 shotgun weapons, 1 on the other 212 player firearms"
@@ -9521,8 +9737,12 @@
    "id": "WPN-DMG-4",
    "title": "Melee and tools are slow bullets",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcKnife 4 weapons: StartDamage 120 x3, 125 x1, speed 1.75 x2 / 1.8 / 2.25, TimeToLive 1, Gravity 0, RateOfFire 52 x3 / 60, NumberOfMagazines -1; wcNone StartDamage 120 x2 at 1.6; wcPowerTool 2: 6.5 at 900 rpm, speed 2, NumberOfMagazines -1; 8 player bullets with gravity 0, all of these"
@@ -9537,8 +9757,12 @@
    "id": "WPN-PROJ-1",
    "title": "Muzzle speed is Shot.InitialSpeed",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: Shot.InitialSpeed z over 227 player firearms 600 x189, 300 x26, 200 x11, 400 x1; AI clones 300 x25; MissileEntityData 25 .. 100 mode 75; GrenadeEntityData 20 x4, 40 x1; wcUgl 50 x57"
@@ -9549,8 +9773,12 @@
    "id": "WPN-PROJ-2",
    "title": "Every player firearm drops at -9.81",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: Gravity -9.81 x227 player firearms, -9.81 x25 AI clone firearms; BulletEntityData gravity 0 on 8 player weapons (4 knives, 2 wcNone, 2 power tools); GrenadeEntityData -8 x4, -7 x1; wcUgl buckshot -9.8 x24; MissileEntityData mode -1.5; TimeToLive 2 on every assault, SMG, LMG and sniper weapon, 30 on 5 of 6 wcAt"
@@ -9561,8 +9789,12 @@
    "id": "WPN-PROJ-3",
    "title": "Explosive projectiles",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: player weapons whose projectile names an Explosion: wcUgl 50 m/s blast 100 radius 5 inner 0.34 x33, blast 0 radius 5 x24; frag shells blast 20 x10 / 10 x4 at radius 1.1 (one a wcSniper firing); GrenadeEntityData 110 radius 8 x4, 102 radius 7 x1; ExplosionPackEntityData 290 radius 8 x4 / 5 x1; wcAt MissileEntityData 80 .. 100 radius 2 .. 7; wcMortarStrike 200 radius 6"
@@ -9589,8 +9821,12 @@
    "id": "WPN-AMMO-1",
    "title": "Finite magazines and pickups per class",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: 227 player firearms NumberOfMagazines 2 .. 9999, none -1, AmmoPickupMin and Max both 0 on none; per-class values from the damage-profile section; AI clone firearms NumberOfMagazines mode -1"
@@ -9601,9 +9837,13 @@
    "id": "WPN-AMMO-2",
    "title": "9999 spares on two campaign weapons",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: NumberOfMagazines 9999 on 2 player firearms, both in beach/ with copies only in sp_* bundles; every other player firearm 2 .. 9"
@@ -9618,8 +9858,12 @@
    "id": "WPN-SWAY-1",
    "title": "Two recoils: gun sway and camera",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: MaxRecoilAngleX 0 on 224 of 227 player firearms, 0.5 on 3 SMG weapons; MaxRecoilFov 0.5 on snipers, 0.6 on most others, 0.8 on 4 LMG weapons"
@@ -9630,8 +9874,12 @@
    "id": "WPN-SWAY-2",
    "title": "Class sway values",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: damage-profile section: Stand.NoZoom base per class as listed; bolt-action snipers 10 of 10 firings 7 / 7, RecoilAmplitudeMax 10 / 10, DeviationScaleFactorNoZoom 4; 99 on every assault, SMG, LMG and shotgun firing"
@@ -9642,8 +9890,12 @@
    "id": "WPN-SWAY-3",
    "title": "Aim steadiness is a sniper field",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AimSteadiness 0 on every stance of every assault, SMG, LMG, shotgun and gadget weapon; wcSniper stand 1 on 8 of 10 bolt-action and 4 of 8 single-fire firings"
@@ -9654,8 +9906,12 @@
    "id": "WPN-ZOOM-1",
    "title": "Two zoom levels: hip and sights",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: ZoomLevels 2 on every assault, SMG, shotgun and sniper weapon, 2 x33 / 1 x1 on LMG; zoom[0"
@@ -9666,8 +9922,12 @@
    "id": "WPN-ZOOM-2",
    "title": "Press to zoom; hold on AI clones and knives",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: ZoomType over player firearms press 226, hold 1 (wcSniper, bfbc2); AI clone firearms hold 25; wcKnife hold 4; wcLmg hold 1 (the 50 m/s flamethrower, not a firearm); wcHgr hold 2 of 4; wcATMine hold 1 of 2"
@@ -9678,8 +9938,12 @@
    "id": "WPN-ZOOM-3",
    "title": "Full look speed while sprinting",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: SprintLookSpeedMultiplier 1 on 454 zoom levels of 227 player firearms and 50 of 25 AI clone firearms"
@@ -9690,8 +9954,12 @@
    "id": "WPN-ZOOM-4",
    "title": "AlwaysAimHead depends on the class",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AlwaysAimHead true x190 / false x37 over player firearms; wcSniper false 32 of 32 (20 firings); wcSmg false 4 of 44 (beach 3, vietnam 1); wcAssault false 1 of 52 (vietnam); wcAt false 5 of 6"
@@ -9702,8 +9970,12 @@
    "id": "WPN-AIM-1",
    "title": "Auto-aim is off",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: UseAutoAiming false x358, true x1 (wcKnife, bfbc2)"
@@ -9714,8 +9986,12 @@
    "id": "WPN-GREN-1",
    "title": "Underbarrel launchers are weapons of their own",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcUgl 82 weapons (bfbc2 80, vietnam 1, beach 1): BulletEntityData 81 (50 m/s x57, 300 m/s x24), GrenadeEntityData 1; MagazineCapacity 1 x82, NumberOfMagazines 2 x82; SpecializationWeapons items on 47 player weapons"
@@ -9726,9 +10002,13 @@
    "id": "WPN-GREN-2",
    "title": "Hand grenades and rifle grenades",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcHgr 4 weapons: GrenadeEntityData, speed 20, gravity -8, fltHoldAndRelease, NumberOfMagazines 1 x3 / 2 x1; beach type5_rgl: GrenadeEntityData 40 m/s, gravity -7, mags 2, pickup 1 / 2"
@@ -9739,8 +10019,12 @@
    "id": "WPN-ATT-1",
    "title": "Specializations, and the ones that swap the weapon",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: specializations per player weapon 0 x248, 1 x23, 2 x2, 3 x33, 4 x13, 5 x2; weapon-asset swaps 0 x273, 2 x46, 3 x2"
@@ -9772,9 +10056,13 @@
    "id": "WPN-WW2-2",
    "title": "How DICE converted BF1943's weapons",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: the 8 firearms in beach/: Gravity -9.81 x8, InitialSpeed 600 x8, NumberOfMagazines 4 / 6 / 9999, no zero pickup, UseAutoAiming false x8, press x8, SprintLookSpeedMultiplier 1 on 16 of 16 zoom levels, AnimBaseSet wabsRif x6 / wabsHg x2"
@@ -9818,9 +10106,13 @@
    "id": "WPN-WW2-4",
    "title": "AlwaysAimHead true is not a universal convention",
    "file": "spec/engine/weapons.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcSniper AlwaysAimHead false 32 of 32; beach/ firearms true 5, false 3 (thompson, thompson_assault, nambu100)"
@@ -9935,9 +10227,13 @@
    "id": "WTH-CLS-1",
    "title": "System, setup, settings, states",
    "file": "spec/engine/weather.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/lighting.py weather on the game copy, 2026-11-22: primary classes of the weather/ partitions - WeatherSystemState 355, DynamicOutdoorLightData / DynamicSkyData / DynamicPostProcessData / DynamicSunData / DynamicFogData 353 each, DynamicCloudLayerData 352, DynamicLensFlareData 35, WeatherSystemSettings 30, StaticCloudLayerData / WeatherSystemSetup / WeatherSystemData 28, StaticOutdoorLightData / StaticFogData 27, WeatherSystemEntityData 24, ObjectBlueprint 3, TextureAsset 2, StaticLensFlareData 1"
@@ -9952,9 +10248,13 @@
    "id": "WTH-CLS-2",
    "title": "A state is values and six component partitions, no textures",
    "file": "spec/engine/weather.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, BF1943",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/lighting.py weather: 355 WeatherSystemState, 353 of each component class, 352 cloud layers"
@@ -10028,9 +10328,13 @@
    "id": "WTH-STATE-3",
    "title": "The value ranges of DICE's states",
    "file": "spec/engine/weather.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/lighting.py weather on the game copy, 2026-11-22: the ranges as given, over DICE's state and component partitions"
@@ -11611,9 +11915,17 @@
    "id": "BIGF-DAT-1",
    "title": "Member data follows the index, 4-byte aligned, in index order",
    "file": "spec/formats/bigf.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::bigf_members"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013), round SPV1 2026-11-22: 876 of 876 SwfMovie entries as described"
+    },
     {
      "kind": "data",
      "ref": "1,027 of 1,027 SwfMovies: member offsets ascending and multiples of 4, the last member ending at the archive's end"
@@ -11804,8 +12116,16 @@
    "id": "CULL-LVL-1",
    "title": "A level's two trees",
    "file": "spec/formats/culltree.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22: DICE's 74 level partitions name both trees, each a partition of the level's own bundle holding one World.StaticCullTreeData (148); ClientTreeStaticCullTree null on 74"
+    },
     {
      "kind": "data",
      "ref": "37 of 37 stock levels have both partitions and a null ClientTreeStaticCullTree"
@@ -12000,8 +12320,16 @@
    "id": "CULL-SPH-2",
    "title": "Leaf spheres",
    "file": "spec/formats/culltree.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22: 516,718 of 516,718 leaves of DICE's 148 trees with W >= 4 x Max + 0.5; above 1.5 m W - ceil(4 x Max) = 0 on 84,356, 1 on 314,876"
+    },
     {
      "kind": "data",
      "ref": "123,585 of 123,585 stock leaves satisfy W >= 4 x Max + 0.5; W - ceil(4 x Max) is 0 or 1 above 1.5 m"
@@ -12020,8 +12348,16 @@
    "id": "CULL-SPH-3",
    "title": "Internal spheres",
    "file": "spec/formats/culltree.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22: 395,342 of 1,033,140 child spheres (38 %) stick out of their parent's decoded sphere, at most 1.10 m"
+    },
     {
      "kind": "data",
      "ref": "stock trees: 38 % of child spheres stick out of their parent's decoded sphere, at most 1.1 m"
@@ -12241,7 +12577,7 @@
    "id": "DBX-HDR-3",
    "title": "The body offset",
    "file": "spec/formats/dbx.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -12258,6 +12594,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/dbxedit/file.rs:255-255"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: word 8 = 24 + word 16 in 124,458 of 124,458 `.dbx` entries"
     }
    ]
   },
@@ -12265,7 +12609,7 @@
    "id": "DBX-HDR-4",
    "title": "The kept word",
    "file": "spec/formats/dbx.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -12278,6 +12622,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/dbx/writer.rs:209"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 0 in 124,458 of 124,458"
     }
    ]
   },
@@ -12313,7 +12665,7 @@
    "id": "DBX-STR-2",
    "title": "String 0 is the empty string",
    "file": "spec/formats/dbx.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -12326,6 +12678,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/dbxedit/file.rs:246-254"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 124,458 of 124,458"
     }
    ]
   },
@@ -12333,11 +12693,19 @@
    "id": "DBX-STR-3",
    "title": "DICE's tables are packed but not deduplicated",
    "file": "spec/formats/dbx.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
      "ref": "offsets ascending and packed in 156,533 of 156,533 files; 44,510 files with a string twice; 4,756 with an unused string; 305 in first-use order"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: packed in 124,458 of 124,458; a string twice in 34,819; an unused string in none and first-use order in none (the game copy's other counts came from OPFOR-written files)"
     }
    ]
   },
@@ -12513,11 +12881,19 @@
    "id": "DBX-ELEM-6",
    "title": "Only four kinds occur",
    "file": "spec/formats/dbx.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
      "ref": "kinds over 81.3 million elements: 7 32,626,636; 2 26,812,339; 6 11,796,795; 0xA 10,056,595; no other"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: kinds over 66.8 million elements: 7 27,177,620; 2 21,857,917; 6 9,575,434; 0xA 8,222,821; no other"
     }
    ]
   },
@@ -12525,7 +12901,7 @@
    "id": "DBX-ELEM-7",
    "title": "Nesting depth",
    "file": "spec/formats/dbx.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -12534,6 +12910,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/dbxedit/file.rs:21"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: deepest container per file: 2 22,648; 3 80,799; 4 10,852; 5 7,478; 6 2,678; 7, 8 and 9 one each"
     }
    ]
   },
@@ -12569,7 +12953,7 @@
    "id": "DBX-NUM-2",
    "title": "Sizes 4, 2 and 8",
    "file": "spec/formats/dbx.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -12578,6 +12962,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/dbx/number.rs:189-213"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: size 4 on field 16,882,127, complex 3,273,333, array 104,332; size 2 on field 6,766,214; size 8 on field 240; no other"
     }
    ]
   },
@@ -12883,7 +13275,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:261-269"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:264-272"
     },
     {
      "kind": "test",
@@ -12899,7 +13291,7 @@
    "id": "FBRB-HDR-3",
    "title": "The header part is one gzip member, then zeros",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -12907,7 +13299,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:262-265"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:265-268"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 1,017 with nothing after the header member, 4 with zero bytes only"
     }
    ]
   },
@@ -12915,7 +13315,7 @@
    "id": "FBRB-HDR-4",
    "title": "The gzip members' header bytes",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -12928,6 +13328,14 @@
     {
      "kind": "doc",
      "ref": "rust/BENCHMARKS.md:2552"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: header members 1,021 of 1,021 and payload members 907 of 907 `1F 8B 08 00 00000000 00 0B` (DICE's form)"
     }
    ]
   },
@@ -12967,7 +13375,7 @@
    "id": "FBRB-HDR-6",
    "title": "Version",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -12980,7 +13388,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:250"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:253"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 2 in 1,021 of 1,021"
     }
    ]
   },
@@ -12996,7 +13412,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:151"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:154"
     },
     {
      "kind": "test",
@@ -13016,7 +13432,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:227-246"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:230-249"
     },
     {
      "kind": "test",
@@ -13040,7 +13456,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:256-260"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:259-263"
     },
     {
      "kind": "test",
@@ -13060,7 +13476,7 @@
    "id": "FBRB-HDR-10",
    "title": "The zipped byte",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "code",
@@ -13069,6 +13485,14 @@
     {
      "kind": "data",
      "ref": "1,075 zipped; 11 stored: Dist 6, Package 5 (the async ondemand and streaming bundles)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 1,012 zipped; 9 stored: async/ondemand_awards (Dist), async/ondemand_sounds, streaming_sounds, streaming_vo_en and build_overlay (Dist and Package each)"
     }
    ]
   },
@@ -13097,7 +13521,7 @@
    "id": "FBRB-ENT-2",
    "title": "Names",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -13114,6 +13538,14 @@
     {
      "kind": "test",
      "ref": "rust/bc2-formats/src/fbrb/pack.rs::safe_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 392,246 live entries: no backslash, none empty or rooted; no bundle with a case-insensitive duplicate"
     }
    ]
   },
@@ -13121,7 +13553,7 @@
    "id": "FBRB-ENT-3",
    "title": "Types",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -13130,6 +13562,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/fbrb/header.rs:20-21"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 37 types besides `*deleted*` over 392,246 live entries; every resource type on `.res` names"
     }
    ]
   },
@@ -13137,7 +13577,7 @@
    "id": "FBRB-ENT-4",
    "title": "Flags",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -13146,6 +13586,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-tools/src/fbrbtool.rs:901-906"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 0x00010000 on 392,246 live entries, 0 on 286,000 markers, no other value"
     }
    ]
   },
@@ -13157,7 +13605,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:565-581"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:580-596"
     },
     {
      "kind": "test",
@@ -13189,7 +13637,7 @@
    "id": "FBRB-ENT-7",
    "title": "Offsets ascend in archive order",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -13202,6 +13650,14 @@
     {
      "kind": "test",
      "ref": "rust/bc2-formats/src/fbrb/read.rs::overlapping_entries"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 1,021 of 1,021 bundles ascending (equal offsets only at zero-size entries); 907 of 907 zipped bundles with live entries contiguous from 0, the last ending at the payload length"
     }
    ]
   },
@@ -13261,7 +13717,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:142-144"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:145-147"
     },
     {
      "kind": "test",
@@ -13277,7 +13733,7 @@
    "id": "FBRB-DEL-2",
    "title": "Bundles of markers only",
    "file": "spec/formats/fbrb.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
@@ -13285,7 +13741,23 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/zlib.rs:985-989"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:437-455"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs::empty_zipped_payload_is_dices_member"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 104 bundles of markers only and 1 with no entries, all 105 zipped with payload length 0 and followed by the 20-byte empty gzip member; no stored bundle has an empty payload, and no zipped bundle with live entries has bytes after its payload member"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPV1-fix 2026-11-22: the suite's packer, given each of the 105 bundles' entries, writes DICE's file byte for byte but for the header member's extra flags and OS bytes (FBRB-HDR-4)"
     }
    ]
   },
@@ -13317,7 +13789,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:190-204"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:193-207"
     },
     {
      "kind": "test",
@@ -13341,7 +13813,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:262-265"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:265-268"
     },
     {
      "kind": "code",
@@ -13393,7 +13865,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:711"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:726"
     },
     {
      "kind": "test",
@@ -13429,7 +13901,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:219-269"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:222-272"
     },
     {
      "kind": "test",
@@ -13653,8 +14125,16 @@
    "id": "HAVOK-RES-1",
    "title": "Names",
    "file": "spec/formats/havok.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::resource_names"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 2,584 `_Havok.res`, 448 `_HavokAsset.res`, 3 `_Havok_Havok.res`, no other name; all in level bundles"
+    },
     {
      "kind": "data",
      "ref": "game copy: 3,595 `_Havok.res`, 529 `_HavokAsset.res`, 4 `_Havok_Havok.res`; all 4,128 of type HavokPhysicsData in level bundles"
@@ -15616,12 +16096,20 @@
    "id": "MESH-HDR-2",
    "title": "`h0` is the mesh kind",
    "file": "spec/formats/mesh.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
      "kind": "data",
      "ref": "game copy 2026-11-19: every MeshData named `<set>_lod<i>_data.res` of 1,507 PC mesh sets: RigidMeshSet 1,505 LODs all 0, SkinnedMeshSet 378 all 1, CompositeMeshSet 471 all 2, TreeMeshSet 86 all 4; over 2,255 distinct MeshData: 0 x 1,451, 2 x 466, 1 x 255, 4 x 83"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 4,265 distinct MeshData: h0 0 x 2,610, 2 x 879, 1 x 618, 4 x 158; every mesh set LOD's MeshData has its set's kind (rigid 0, skinned 1, composite 2, tree 4)"
     }
    ]
   },
@@ -15650,7 +16138,7 @@
    "id": "MESH-HDR-4",
    "title": "PC MeshData use 16-bit indices",
    "file": "spec/formats/mesh.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -15664,6 +16152,14 @@
     {
      "kind": "doc",
      "ref": "bfbc2-console-convert/FORMAT.md:197-198"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: wide = 0 and I even in 4,265 of 4,265 distinct PC MeshData"
     }
    ]
   },
@@ -15692,7 +16188,7 @@
    "id": "MESH-PART-2",
    "title": "`fb` equals the bone count",
    "file": "spec/formats/mesh.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -15702,6 +16198,14 @@
     {
      "kind": "doc",
      "ref": "bfbc2-console-convert/FORMAT.md:167"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 13,355 of 13,355 parts of 4,265 distinct PC MeshData"
     }
    ]
   },
@@ -16039,7 +16543,7 @@
    "id": "MSET-LOD-2",
    "title": "A LOD's size is its MeshData's buffers + 12",
    "file": "spec/formats/mesh.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, Xbox 360",
    "evidence": [
     {
@@ -16049,6 +16553,14 @@
     {
      "kind": "doc",
      "ref": "bfbc2-console-convert/FORMAT.md:218-219"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 4,265 of 4,265 distinct mesh set LODs with their MeshData (rigid 2,610, composite 879, skinned 618, tree 158): no exception in DICE's files (the 14 skinned LODs of the 2026-11-19 count were not DICE's)"
     }
    ]
   },
@@ -16081,7 +16593,7 @@
    "id": "MSET-LOD-4",
    "title": "Shader names per part",
    "file": "spec/formats/mesh.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -16091,6 +16603,14 @@
     {
      "kind": "inferred",
      "ref": "the Type 38 port kept a donor's shader names in the .res and drew with the donor's entry, though its partition named its own (OPFOR's 2026-11-08 weapon port notes)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: n equals the part count in 4,265 of 4,265 LODs"
     }
    ]
   },
@@ -16098,12 +16618,20 @@
    "id": "MSET-PART-1",
    "title": "Composite and tree part hashes",
    "file": "spec/formats/mesh.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
      "kind": "data",
      "ref": "6,916 of 6,916 parts of the game copy's distinct PC composite (6,579) and tree (337) mesh sets (2026-11-19)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 10,894 of 10,894 parts of the distinct composite and tree mesh sets"
     }
    ]
   },
@@ -16333,7 +16861,7 @@
    "id": "RES-TYPE-1",
    "title": "Resource types",
    "file": "spec/formats/res.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -16343,6 +16871,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/fbrb/header.rs:20-21"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 392,246 live entries: 37 types (`<non-resource>` on .dbx 124,458, .res 14,694, .dbmanifest 2; every other type on .res only)"
     }
    ]
   },
@@ -16411,11 +16947,19 @@
    "id": "RES-NAME-2",
    "title": "Resources typed `<non-resource>`",
    "file": "spec/formats/res.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
     {
      "kind": "data",
      "ref": "Dist streaming_vo_en 7,513, streaming_sounds 4,744; Package streaming_vo_en 1,482, streaming_sounds 955; overlay 25 `.bin`; build_overlay 1 `.dbmanifest` in Dist and 1 in Package"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::res_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the non-DBX `<non-resource>` entries: streaming_sounds 5,699 and streaming_vo_en 8,995 `.res` under sound/, build_overlay 2 `.dbmanifest` (DICE's overlay bundles are OPFOR-changed, not in this corpus)"
     }
    ]
   },
@@ -16452,12 +16996,20 @@
    "id": "RES-WRAP-2",
    "title": "Only the async on-demand bundles wrap",
    "file": "spec/formats/res.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
      "kind": "data",
      "ref": "wrapped: Dist ondemand_awards 889, Package ondemand_awards 295, Dist ondemand_sounds 205, Package ondemand_sounds 14; every `.res` / `.bin` entry of the 1,086 bundles checked, no other begins with `RES`"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::res_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: wrapped: ITexture in ondemand_awards 889, Wave in ondemand_sounds 219; no other `.res` / `.bin` entry begins with `RES`"
     }
    ]
   },
@@ -17424,8 +17976,16 @@
    "id": "TERR-NAME-1",
    "title": "Terrain resources live in the level's terrain bundle",
    "file": "spec/formats/terrain.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::resource_names"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 450 heightfields, 42 material maps, 83 visual terrains, 42 water meshes, 42 visual waters with data, all in terrain-00.fbrb and named as described"
+    },
     {
      "kind": "data",
      "ref": "game copy: 527 / 527 heightfields, 53 / 53 material maps, 97 / 97 visual terrains, 53 water meshes and 52 visual waters, all in terrain-00.fbrb; heightfield suffixes -000 (71 files) to -036"
@@ -17440,8 +18000,16 @@
    "id": "TERR-NAME-2",
    "title": "The Terrain entry has no data",
    "file": "spec/formats/terrain.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::resource_names"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 42 Terrain entries, all 0 bytes, all `.res`"
+    },
     {
      "kind": "data",
      "ref": "game copy: 53 Terrain entries, 53 of them 0 bytes, type Terrain, name `<Terrain>.res`"
@@ -18021,7 +18589,7 @@
    "id": "TEX-HDR-2",
    "title": "PC level sizes and file length",
    "file": "spec/formats/texture.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -18031,6 +18599,14 @@
     {
      "kind": "code",
      "ref": "rust/bc2-render/src/material.rs:426-454"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 3,826 distinct ITexture names: level sizes and file length as stated in 3,826 (889 wrapped read after TEX-WRAP-1)"
     }
    ]
   },
@@ -18063,7 +18639,7 @@
    "id": "TEX-WRAP-1",
    "title": "The 64-byte RES header on award pictures",
    "file": "spec/formats/texture.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -18077,6 +18653,14 @@
     {
      "kind": "test",
      "ref": "rust/bc2-editor/src/catalog.rs::a_texture_decoded"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 889 of 889 distinct `awards/` ITextures wrapped, 0 of 2,937 others; both length words equal the inner length in all 889"
     }
    ]
   },
@@ -18109,7 +18693,7 @@
    "id": "TEX-FMT-2",
    "title": "PC level size by format",
    "file": "spec/formats/texture.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
     {
@@ -18123,6 +18707,14 @@
     {
      "kind": "doc",
      "ref": "bfbc2-console-convert/FORMAT.md:147-149"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: every level of 3,826 distinct PC textures matches; unwrapped formats 0 x 1,537, 2 x 486, 18 x 375, 10 x 289, 20 x 86, 19 x 74, 9 x 59, 1 x 30, 13 x 1"
     }
    ]
   },
@@ -18130,7 +18722,7 @@
    "id": "TEX-FLAG-1",
    "title": "Header flags",
    "file": "spec/formats/texture.md",
-   "status": "observed",
+   "status": "verified",
    "variants": "PC, Xbox 360, BF1943",
    "evidence": [
     {
@@ -18148,6 +18740,14 @@
     {
      "kind": "doc",
      "ref": "bfbc2-console-convert/FORMAT.md:83-91"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::textures"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: flags over 2,937 distinct unwrapped PC textures: 0 x 890, 1 x 1,110, 3 x 563, 2 x 374; no other bit"
     }
    ]
   },
@@ -19105,8 +19705,12 @@
    "id": "BNDL-KIND-1",
    "title": "A level's bundles",
    "file": "spec/model/bundles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "stock package.mft: 74 levels with level, terrain, ingame and loader blocks each, and 74 x 7 vo blocks"
@@ -19121,8 +19725,12 @@
    "id": "BNDL-LOC-1",
    "title": "Dist and Package",
    "file": "spec/model/bundles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "stock package.mft level sources: level / terrain / ingame / loader each 33 in Dist and Package, 41 in Package only, 0 in Dist only"
@@ -19153,8 +19761,12 @@
    "id": "BNDL-LOC-3",
    "title": "Registered bundles may be absent",
    "file": "spec/model/bundles.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "stock package.mft: 518 vo/lang sources with no file in Dist or Package; streaming_vo de, es, fr, it, pl, ru absent; OPFOR's English copy"
@@ -19337,8 +19949,16 @@
    "id": "LEVEL-PART-1",
    "title": "The level partition and its primary instance",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 74 of 74 with one LevelData, the primary and first instance, id = the level's name"
+    },
     {
      "kind": "data",
      "ref": "28 level partitions: primary instance type LevelData in 28, at index 0 in 28, id equal to the level name in 28, exactly one LevelData in 28"
@@ -19353,8 +19973,16 @@
    "id": "LEVEL-PART-2",
    "title": "No layers or sub-worlds",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): no instance type containing SubWorld or Layer"
+    },
     {
      "kind": "data",
      "ref": "32 level partitions: no instance type containing SubWorld or Layer; the World-named types are WorldObjectListData 159 and BigWorldSetting 6"
@@ -19369,8 +19997,16 @@
    "id": "LEVEL-PART-3",
    "title": "Instances in the level partition",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): Objects items per level 1,690 - 8,419"
+    },
     {
      "kind": "data",
      "ref": "28 level partitions: Objects items per level between 1,500 and 8,500; top listed types ReferenceObjectData 58,054, AreaGeometryEntityData 14,621, GameEffectEntityData 6,089"
@@ -19381,8 +20017,16 @@
    "id": "LEVEL-DATA-1",
    "title": "LevelData's members",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): every member present in 74 of 74 LevelData instances with the kind listed"
+    },
     {
      "kind": "data",
      "ref": "28 level partitions: each of these members present in 28 of 28 LevelData instances, with the same kind in all"
@@ -19469,8 +20113,16 @@
    "id": "LEVEL-OBJ-1",
    "title": "What is listed",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 230,818 Objects items, all local; 445 world objects, all listed; LevelData never listed"
+    },
     {
      "kind": "data",
      "ref": "28 level partitions: 103,749 Objects items, all local; unlisted types include TerrainSplinePlanePointData 17,847, StaticModelGroupMemberData 1,240, ObjectSet 1,154, HavokAsset 129, LevelData 28"
@@ -19553,8 +20205,16 @@
    "id": "LEVEL-EVT-1",
    "title": "Where and what",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): EventConnections only on LevelData; 57,667 connections, all with Source, Target, SourceEvent, TargetEvent; 115,334 event complexes, all Name (text), Id (numbers)"
+    },
     {
      "kind": "data",
      "ref": "28 level partitions: EventConnections only on LevelData (28), 26,892 connections, every one with the members Source, Target, SourceEvent, TargetEvent; all 53,784 event complexes are Name (text), Id (numbers)"
@@ -19569,8 +20229,16 @@
    "id": "LEVEL-EVT-2",
    "title": "Connection ends",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): Source local 57,661, external 6; Target local 55,934, external 1,733; no null end"
+    },
     {
      "kind": "data",
      "ref": "28 level partitions: Source local 26,889, external 3; Target local 26,517, external 375; no null end"
@@ -19621,8 +20289,16 @@
    "id": "LEVEL-SLOT-2",
    "title": "Nonzero slots are unique",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): duplicate nonzero placed-object slots 0"
+    },
     {
      "kind": "data",
      "ref": "32 level partitions: duplicate nonzero slots 0"
@@ -19697,8 +20373,16 @@
    "id": "LEVEL-MG-1",
    "title": "Groups and members",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 299 groups, all with Transform, Enumeration, MemberDatas and a local PhysicsEntityData; 3,352 members, all local and unlisted, with a local mesh entity, an external MemberType under objects/, vegetation/ or terrains/, and the four counts"
+    },
     {
      "kind": "data",
      "ref": "32 level partitions: 146 groups, 1,676 members; PhysicsData local PhysicsEntityData on all 146; MeshEntityType local on all members; MemberType external on all members"
@@ -19861,8 +20545,16 @@
    "id": "LEVEL-ENV-1",
    "title": "The static environment map",
    "file": "spec/model/level.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's, else Dist's): 72 StaticEnvmapEntityData in 68 levels (66 with one, 2 with three, 6 with none), all listed; StaticEnvmap external under terrains/ on 68, null on 4"
+    },
     {
      "kind": "data",
      "ref": "28 StaticEnvmapEntityData in 32 level partitions, all listed, StaticEnvmap external under terrains/"
@@ -19889,8 +20581,16 @@
    "id": "INST-GUID-1",
    "title": "GUID text form",
    "file": "spec/model/references.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,916,899 instance and 120,466 partition guid and primaryInstance attributes, all 36-character upper-case GUIDs"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 2,313,497 instance and 79,526 partition guid attributes all 36-character GUIDs, all upper case; primaryInstance upper case on the 25,565 partitions of the mp_0* bundles checked"
@@ -19901,8 +20601,16 @@
    "id": "INST-GUID-2",
    "title": "Unique within a partition",
    "file": "spec/model/references.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: a duplicate instance GUID in 0 of 120,466 partitions"
+    },
     {
      "kind": "data",
      "ref": "level corpus: duplicate instance GUIDs in 0 of 79,526 partitions"
@@ -19913,8 +20621,16 @@
    "id": "INST-GUID-3",
    "title": "Not unique across partitions",
    "file": "spec/model/references.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus, one copy per partition name (84,143 names): 563,963 distinct instance GUIDs, 125,465 of them in more than one partition name; 27,853 distinct partition GUIDs, 2,049 of them on partitions of different names"
+    },
     {
      "kind": "data",
      "ref": "level corpus, one copy per partition name: 439,450 distinct instance GUIDs, 79,802 of them in more than one partition name; 1,567 partition GUIDs shared by partitions of different names"
@@ -19969,8 +20685,16 @@
    "id": "INST-PRIM-1",
    "title": "Every partition names its primary instance",
    "file": "spec/model/references.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: primaryInstance names an instance in 120,464 of 120,466 partitions; the first instance in 46,148, a later one in 74,316"
+    },
     {
      "kind": "data",
      "ref": "level corpus: primaryInstance names an instance of the file in 79,524 of 79,526 partitions; it is the first instance in 30,958, a later one in 48,566"
@@ -19981,8 +20705,16 @@
    "id": "INST-PRIM-2",
    "title": "Two partitions name no instance",
    "file": "spec/model/references.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 2 partitions, primaryInstance unmatched, no id attribute"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 2 partitions, primaryInstance unmatched, no id attribute in either"
@@ -19993,8 +20725,16 @@
    "id": "INST-PRIM-3",
    "title": "The id attribute marks the primary instance",
    "file": "spec/model/references.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: id on 120,464 instances, once per partition, always the primary instance; equal to the entry's stem in 50,634, ignoring case in 69,830, other 0"
+    },
     {
      "kind": "data",
      "ref": "level corpus: id on 79,524 instances, 1 per partition, always the primary instance; equal to the entry's stem in 33,062, equal ignoring case in 46,462, other 0"
@@ -20025,8 +20765,16 @@
    "id": "REF-FORM-2",
    "title": "Three forms",
    "file": "spec/model/references.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 6,383,103 local (lower case), 5,535,169 null, 1,646,007 external (lower-case paths ending in a GUID), 0 other"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 3,836,345 local (all lower case), 3,286,524 null, 800,086 external (all lower-case paths, each ending in a 36-character GUID), 0 other"
@@ -20229,8 +20977,12 @@
    "id": "REG-MFT-1",
    "title": "File form",
    "file": "spec/model/registration.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "stock: 136,251 bytes, 3,493 lines all CRLF, no BOM; line 1 Signature with a 40-digit hex value, line 2 Authorative, 900 blank lines, 899 BundleSource lines each after a blank line, 1,692 BundleTarget lines; current: 960 blocks, 1,817 targets, same form"
@@ -20269,8 +21021,12 @@
    "id": "REG-MFT-3",
    "title": "Sources are `game:` names, unique",
    "file": "spec/model/registration.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "stock: 899 of 899 sources game:, 0 duplicates; of the level, terrain, ingame and loader sources 33 x 4 have files in Dist and Package, 41 x 4 in Package only"
@@ -20309,8 +21065,12 @@
    "id": "REG-MFT-5",
    "title": "What is registered",
    "file": "spec/model/registration.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "stock source kinds: level, terrain, ingame, loader 74 each; vo/lang 518; async 50; menu 25; 10 root bundles"
@@ -20361,8 +21121,12 @@
    "id": "REG-BM-2",
    "title": "What stock lists",
    "file": "spec/model/registration.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
     {
      "kind": "data",
      "ref": "stock: levels 33, all with Dist bundles, 0 Package-only; 598 lines with a Dist file, 237 without; 397 of 835 lines are also package.mft sources"
@@ -20569,8 +21333,16 @@
    "id": "TYPE-ELEM-1",
    "title": "Six tags make every partition",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the level corpus (every `.dbx` copy in DICE's `levels/` bundles: 120,466 partitions): six tags, no other"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 26,113,943 field, 3,235,928 complex, 2,313,497 instance, 2,027,833 item, 1,102,409 array, 79,526 partition; no other tag"
@@ -20581,8 +21353,16 @@
    "id": "TYPE-ELEM-2",
    "title": "Nesting",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: the nine parent > child pairs listed, no other"
+    },
     {
      "kind": "data",
      "ref": "level corpus parent>child counts: instance>field 19,266,821; complex>field 6,847,122; partition>instance 2,313,497; array>item 2,027,833; instance>complex 1,887,137; array>complex 1,134,815; instance>array 1,078,337; complex>complex 213,976; complex>array 24,072; no other pair"
@@ -20613,8 +21393,16 @@
    "id": "TYPE-ELEM-4",
    "title": "Element kinds by tag",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus tag:kind: field:7 21,629,540; field:2 16,295,493; field:6 9,514,955; instance:0xA 3,916,895; item:2 3,675,001; complex:7 3,262,950; complex:0xA 3,260,507; array:2 1,413,523; array:0xA 548,802; array:7 255,664; partition:0xA 120,466; instance:2 4"
+    },
     {
      "kind": "data",
      "ref": "level corpus tag:kind counts: field:7 10,534,080; field:2 9,710,414; field:6 5,869,449; instance:0xA 2,313,493; item:2 2,027,833; complex:7 1,858,095; complex:0xA 1,377,833; array:2 664,969; array:0xA 285,441; array:7 151,999; partition:0xA 79,526; instance:2 4"
@@ -20625,8 +21413,16 @@
    "id": "TYPE-ELEM-5",
    "title": "The container byte is always 0",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the container byte 0 on all 8,222,821 containers of 124,458 files"
+    },
     {
      "kind": "data",
      "ref": "dbx-tools FORMAT.md section 6: 0 on all 43,289 game files of that count"
@@ -20641,8 +21437,16 @@
    "id": "TYPE-ELEM-6",
    "title": "Empty instances",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 4 instances of kind 2, all with empty text"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 4 instances of kind 2, all with empty text"
@@ -20653,8 +21457,16 @@
    "id": "TYPE-ATTR-1",
    "title": "Attribute sets per tag",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: the ten tag:attribute lists of the table, no other"
+    },
     {
      "kind": "data",
      "ref": "level corpus tag:attribute-list counts: field:name 20,206,769; field:ref,name 5,907,174; instance:guid,type 2,233,973; instance:guid,type,id 79,524; complex:name 2,101,113; complex:(none) 1,134,815; array:name 1,102,409; item:ref 2,015,781; item:(none) 12,052; partition:guid,primaryInstance,exportMode 79,526"
@@ -20685,8 +21497,16 @@
    "id": "TYPE-ATTR-3",
    "title": "The instance type is `<Namespace>.<Class>`",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,916,899 types, every one with one dot; 14 namespaces"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 14 distinct namespace prefixes; the largest Emitter 1,378,673 instances, GameSharedResources 357,107, Entity 266,203"
@@ -20705,8 +21525,16 @@
    "id": "TYPE-ATTR-4",
    "title": "exportMode",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: exportMode=All on 120,466 of 120,466"
+    },
     {
      "kind": "data",
      "ref": "level corpus: exportMode=All on 79,526 of 79,526 partitions"
@@ -20737,8 +21565,16 @@
    "id": "TYPE-VAL-2",
    "title": "Booleans and bytes are two-byte scalars",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus scalars: kind 6 with 01 00 5,828,726; 01 01 3,684,061; 01 02 1,874; 01 06 292; 01 04 2; no other"
+    },
     {
      "kind": "data",
      "ref": "level corpus scalars: kind 6 with bytes 01 00 3,542,382; 01 01 2,325,640; 01 02 1,169; 01 06 256; 01 04 2; no other kind or first byte"
@@ -20753,8 +21589,16 @@
    "id": "TYPE-VAL-3",
    "title": "Text values",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus non-reference text fields: 5,866,379 non-empty, 522,898 empty"
+    },
     {
      "kind": "data",
      "ref": "level corpus non-reference text fields: 3,574,809 non-empty, 228,431 empty"
@@ -20837,8 +21681,16 @@
    "id": "TYPE-NUM-4",
    "title": "Sizes 2 and 8",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus number elements: size 4 18,381,844, size 2 6,766,070 (one value each, only on SphereKeyX / Y / Z / W, SourceId, TargetId), size 8 240 (one value each, on the AI's sensing times), no other size; 151,371 empty (count 0)"
+    },
     {
      "kind": "data",
      "ref": "level corpus number elements by count x size: 1x4 7,145,451; 1x2 3,003,402; 4x4 1,566,863; 16x4 240,726; 2x4 52,087; 1x8 68; empty 0x0 95,341"
@@ -20901,8 +21753,16 @@
    "id": "TYPE-CPLX-3",
    "title": "Transform lists",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 494 CompositeHavokAsset instances, Transforms 16 values per Assets item in 494"
+    },
     {
      "kind": "data",
      "ref": "the level corpus's 232 CompositeHavokAsset instances: Transforms has 16 values per Assets item in 232 of 232"
@@ -20917,8 +21777,16 @@
    "id": "TYPE-ARR-1",
    "title": "Items are references or strings",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,658,063 items with ref and empty text, 16,938 string items, none of another kind"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 2,015,781 items with ref and empty text, 12,052 string items, none of another kind"
@@ -20929,8 +21797,16 @@
    "id": "TYPE-ARR-2",
    "title": "An empty array is an empty text element",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 1,413,523 arrays of kind 2, all with empty text; 548,802 container arrays, all with children"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 664,969 arrays of kind 2, all with empty text; 285,441 container arrays, all with 1 or more children"
@@ -20941,8 +21817,16 @@
    "id": "TYPE-ARR-3",
    "title": "Number arrays",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 255,664 arrays of kind 7"
+    },
     {
      "kind": "data",
      "ref": "level corpus: 151,999 arrays of kind 7; MP_005: 0-count number arrays on 10 field names, CompositeMeshPartNames 1,656"
@@ -20953,8 +21837,16 @@
    "id": "TYPE-ARR-4",
    "title": "Arrays of structures",
    "file": "spec/model/types.md",
-   "status": "observed",
+   "status": "verified",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: array>complex 2,671,667; unnamed complex elements 2,671,667, all in arrays"
+    },
     {
      "kind": "data",
      "ref": "level corpus: array>complex 1,134,815; complex elements without a name 1,134,815"
@@ -23372,11 +24264,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:773-789"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:788-804"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:810-844"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:825-859"
     },
     {
      "kind": "test",
@@ -23404,7 +24296,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:560-584"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:575-599"
     },
     {
      "kind": "test",
@@ -23420,7 +24312,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/fbrb/pack.rs:884-911"
+     "ref": "rust/bc2-formats/src/fbrb/pack.rs:899-926"
     },
     {
      "kind": "code",
@@ -23535,8 +24427,16 @@
      "ref": "core/tests/test_fbrb_pack_native.py::same_but_gzip_headers"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
      "kind": "data",
      "ref": "all 1,086 bundles of the game copy (2026-11-16): 62 identical, 919 identical but for the gzip headers, 105 also but for the marker-only empty payload member"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPV1-fix 2026-11-22: DICE's 105 zipped bundles with an empty payload, unpacked and packed again: DICE's bytes but for the header member's xfl / os, the 20-byte member byte for byte"
     },
     {
      "kind": "doc",

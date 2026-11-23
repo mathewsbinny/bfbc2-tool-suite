@@ -70,7 +70,7 @@ keeps BF1943's the same way (not remapped, not nulled).
 
 ### DECAL-SRC-2: The level partition's terrain splines
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 DICE's level partitions hold `TerrainSplineData` objects (1,360 splines, 14,449 `TerrainSplinePointData` points,
 1,372 `TerrainSplinePlaneData` planes, 44,132 `TerrainSplinePlanePointData`), with water-surface fields on the planes
@@ -78,6 +78,7 @@ DICE's level partitions hold `TerrainSplineData` objects (1,360 splines, 14,449 
 the road decals' splines (those are in `levels/<LV>/roads`, which does not ship). What the game uses them for is not
 traced.
 
+[test: core/tests/test_spec_probes.py::level_partitions] [data: spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions: TerrainSplineData 1,360, TerrainSplinePointData 14,449, TerrainSplinePlaneData 1,372 (all with the water fields), TerrainSplinePlanePointData 44,132 (all with WaterSpeed)]
 [data: spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: the four spline classes' counts and fields as listed]
 
 ## 3. Impact decals

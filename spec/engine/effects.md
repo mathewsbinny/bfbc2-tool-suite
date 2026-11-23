@@ -46,12 +46,13 @@ transform times the emitter entity's). The editor's Effects overlay draws these 
 
 ### FX-CLS-3: Effect instance and culling settings
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 An `EffectEntityData` caps its live instances with `MaxInstanceCount` (1 - 100 over DICE's 998 effects: 10 x 237,
 50 x 214, 30 x 172, 20 x 147) and culls by `CullDistance` (0, no distance cull, on 977; 300 m on 11, 350 m on 3).
 What the cap does when more placements are alive than it allows is open (LIGHT-PT-7).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py emitters: MaxInstanceCount and CullDistance over 998 EffectEntityData]
 
 ## 2. Emitters belong to a level
@@ -201,11 +202,12 @@ over the particle's life comes from its `Pre` evaluator: `PolynomialData` (189,1
 
 ### FX-PROC-3: What an emitter draws
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 The template's `EmittableType` is `ScreenAlignedQuad` (30,443 emitters), `DirectionAlignedQuad` (7,830),
 `ParticleMesh` (7,339: a `Mesh`, with `CompositeMeshPartNames`) or `Quad` (4,529).
 
+[test: core/tests/test_spec_probes.py::emitters]
 [data: spec/probes/effects_chain.py, 2026-11-22: EmittableType over 50,141 templates]
 
 ### FX-PROC-4: The executable's processor and evaluator types
@@ -228,9 +230,13 @@ the operator classes add `ExpressionType` (`PolynomialExpression`, `SineExpressi
 `EvaluatorInput` values step like byte offsets into a particle record (`EfVelocity` 0x50, `EfNormTime` 0x70,
 `EfSpeed` 0x78, `EfNone` 0x7C): presumably the input is read at that offset of the particle. The evaluation itself
 (the polynomial's form, whether the clamp follows the scale) was not found: of the executable's 12- and 37-way
-switches the ones read are not the particle system's, and one 37-way one (0x11DD76A) was not read.
+switches the ones read are not the particle system's. The 37-way switch at 0x11DD76A, left unread by round
+SPG2-rest2, is the C runtime's code-page upper-casing (`toupper` for bytes 0x80 and up: 0x9A -> 0x8A, 0xE0 - 0xFE ->
+0xC0 - 0xDE), not the particle update. Round SPG2-rest3's census of the switches with 36 or more cases found 16; of
+those read none is the particle update's (0x98B7F0, 38 cases, copies dirty render states; 0x77BC8C is the main menu's
+command dispatcher; 0x1363390 and 0x11B31C0 as before), and 0x9AF940 (41 cases) and the rest were not read.
 
-[exe: BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; 0x11DD76A (37) unread]
+[exe: BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; round SPG2-rest3: 0x11DD76A (37) is `toupper` for code-page bytes (low half through the CRT's `toupper`, the switch maps 0x9A / 0x9C / 0x9E / 0xE0 - 0xFE, 0xFF -> 0x9F), Ghidra's switch census of 36+ targets: 0x76ECC1, 0x776569, 0x77BC8C, 0x83B9BD, 0x85D53A, 0x95A2B7, 0x95E743, 0x98B8A1, 0x9AF960, 0x1198550, 0x11B39B3, 0x11B3A29, 0x11DD7BF, 0x11FD505, 0x1205000, 0x13633AB]
 [inferred: "the input is an offset" from the values' spacing (0x48, 0x4C, 0x50, 0x60, 0x70 ... matching floats and vectors laid out in a record)]
 
 ## Open questions

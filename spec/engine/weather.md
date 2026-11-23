@@ -18,7 +18,7 @@ Nothing here was measured in game.
 
 ### WTH-CLS-1: System, setup, settings, states
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 A weather system is a `Weather.WeatherSystemData` partition: its `States` array (references to
 `Weather.WeatherSystemState` partitions) and its `Setup` (a `Weather.WeatherSystemSetup`: the data all states share -
@@ -30,12 +30,13 @@ its `WeatherSystemEntityData` (RNDR-WTHR-5). DICE's data: 28 systems, 28 setups,
 27 static outdoor lights and static fogs (the setups' static Sun / Sky partitions are named but exist in no bundle:
 the game runs without them), 24 weather entities as partitions and 3 weather blueprints.
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py weather on the game copy, 2026-11-22: primary classes of the weather/ partitions - WeatherSystemState 355, DynamicOutdoorLightData / DynamicSkyData / DynamicPostProcessData / DynamicSunData / DynamicFogData 353 each, DynamicCloudLayerData 352, DynamicLensFlareData 35, WeatherSystemSettings 30, StaticCloudLayerData / WeatherSystemSetup / WeatherSystemData 28, StaticOutdoorLightData / StaticFogData 27, WeatherSystemEntityData 24, ObjectBlueprint 3, TextureAsset 2, StaticLensFlareData 1]
 [code: rust/bc2-render/src/weather.rs:231-265]
 
 ### WTH-CLS-2: A state is values and six component partitions, no textures
 
-Status: **observed** · Variants: PC, BF1943
+Status: **verified** · Variants: PC, BF1943
 
 A `WeatherSystemState` holds its own values (`ViewDistance`, `WorldViewDistance`, `ShadowViewDistance`, `Wind`,
 `ApplyFog`, LOD scales, fade distances) and references to six component partitions - `Sky`
@@ -45,6 +46,7 @@ optionally a `LensFlare`. No state names a texture: a state's closure is its own
 (8 partitions for `ons_mp_002_night`), which is what makes a state cheap to borrow (RNDR-WTHR-8). Two state
 partitions lack some components (355 states against 353 of each component class).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py weather: 355 WeatherSystemState, 353 of each component class, 352 cloud layers]
 [data: research round WX0: the closure of ons_mp_002_night, 8 partitions under weather/, no resources]
 [test: rust/bc2-levelwrite/tests/vw2.rs::the_night_template_resolves]
@@ -92,7 +94,7 @@ state. "Rain" states are darker, flatter, foggier values: no state or shader has
 
 ### WTH-STATE-3: The value ranges of DICE's states
 
-Status: **observed** · Variants: PC
+Status: **verified** · Variants: PC
 
 Over DICE's 348 component partitions of each kind (350 states): key light intensity 0 - 10 (3 x 60), top 0 - 3,
 bottom 0 - 5, key colour components 0 - 10, top / bottom colours 0 - 1; `KeySpecularScale` 0 - 10;
@@ -104,6 +106,7 @@ bottom 0 - 5, key colour components 0 - 10, top / bottom colours 0 - 1; `KeySpec
 315 (-1 in 155). `ApplyFog` is false in all 350. These are the ranges a state edited in the suite is held to, with a
 warning outside them (VW3).
 
+[test: core/tests/test_spec_probes.py::spg_lighting]
 [data: spec/probes/lighting.py weather on the game copy, 2026-11-22: the ranges as given, over DICE's state and component partitions]
 
 ### WTH-STATE-4: Placeholder ActiveStates are dark by value

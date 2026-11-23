@@ -52,8 +52,8 @@ pub use build::build;
 pub use error::{FbrbError, Result};
 pub use header::{DELETED, Entry, Header, MAGIC, parse_header_fields, read_header};
 pub use pack::{
-    Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, SourceRow, decode_text,
-    entry_path, pack, pack_dir, pack_rows, pack_rows_into, parse_manifest,
+    EMPTY_GZIP_MEMBER, Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, SourceRow,
+    decode_text, entry_path, pack, pack_dir, pack_rows, pack_rows_into, parse_manifest,
 };
 pub use read::{entries_path, extract, extract_path_uncached, read, read_path_uncached, read_payload, stream_payload};
 

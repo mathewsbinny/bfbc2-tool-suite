@@ -5,9 +5,9 @@
 //! BENCHMARKS.md "PR1b-1d"): every instance flattened as `flatten` flattens it (`dbx.value` of each field, stripped
 //! as `str.strip` strips), the classes counted and their examples kept in the order the Python's dicts and Counters
 //! keep them. `--predict` ports with the Rust `dbxport` (`bc2_convert::dbxport::port`, the port the Python called
-//! through `bc2_native`) on templates read from the game copy, with the catalogue built in Rust
-//! (`bc2_convert::dbxcatalogue::build`: every table equal to the Python's, in order; its cache, the Python's pickle,
-//! is not read or written here) and the class defaults swapped per partition (`fair_catalogue`).
+//! through `bc2_native`) on templates read from the game copy, with the catalogue `dbxcatalogue.load` gives (its
+//! cache, `bc2_convert::dbxcatalogue::cache`, round PR1b-1e; built in Rust when the game copy changed: every table
+//! equal to the Python's, in order) and the class defaults swapped per partition (`fair_catalogue`).
 
 #![allow(
     clippy::too_many_lines,
@@ -22,7 +22,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-use bc2_convert::dbxcatalogue as dc;
 use bc2_convert::dbxport::{self, Arena, Bones, CatView, Catalogue, Fail as PortFail, Id, Options, Ours, Templates};
 use bc2_convert::meshview::Index;
 use bc2_convert::pyfmt::OrderedMap;
@@ -520,33 +519,22 @@ struct Cat {
     others: HashMap<String, (String, Id)>,
 }
 
-/// `dbxcatalogue.build(ix, exe)` in Rust (`_names(ix)`: the index's partitions by bundle, build overlays left out).
-fn catalogue(ix: &Index, exe: &str) -> PyResult<Cat> {
-    let mut jobs: Vec<(String, Vec<String>)> = Vec::new();
-    let mut at: HashMap<String, usize> = HashMap::new();
-    for (k, b, n) in ix.rows() {
-        if !k.ends_with(".dbx") || b.to_lowercase().contains("build_overlay") {
-            continue;
-        }
-        let i = *at.entry(b.to_owned()).or_insert_with(|| {
-            jobs.push((b.to_owned(), Vec::new()));
-            jobs.len() - 1
-        });
-        if let Some(j) = jobs.get_mut(i) {
-            j.1.push(n.to_owned());
-        }
-    }
-    let built = dc::build(&jobs, 8).ok_or_else(|| {
+/// `dbxcatalogue.load(ix)` in Rust: from its cache (`work\tools_out\dbx_catalogue.bin`, round PR1b-1e) when it is
+/// this game copy's, else built and cached ([`super::catalogue`]).
+fn catalogue(py: &mut Py, ix: &Index, root: &str) -> PyResult<Cat> {
+    let jobs = super::catalogue_jobs(ix.rows());
+    let loaded = super::catalogue(py, &jobs, root).ok_or_else(|| {
         Fail::Err(PyErr::new(
             "OSError",
-            "the catalogue's build could not read a bundle of the game copy (is the game running?)",
+            "the catalogue's build refused a partition of the game copy (its Python reference is retired here)",
         ))
     })?;
-    let mut t = Catalogue::default();
-    if let Ok(d) = std::fs::read(exe) {
-        t.exe_names = dc::exe_identifiers(&d).into_iter().collect();
-    }
-    t.classes = built.classes.iter().cloned().collect();
+    let built = loaded.catalogue.built;
+    let mut t = Catalogue {
+        exe_names: loaded.catalogue.exe_names.into_iter().collect(),
+        classes: built.classes.iter().cloned().collect(),
+        ..Catalogue::default()
+    };
     for (k, v) in built.order.iter() {
         t.order.insert(k.clone(), v.clone());
     }
@@ -732,8 +720,7 @@ fn predict(py: &mut Py, run: &Run, src: &Source, ix: &Index, root: &str) -> PyRe
         .cloned()
         .collect();
     names.sort();
-    let exe = bc2_pyrt::py::join(root, &["game", "BFBC2Game.exe"]);
-    let cat = catalogue(ix, &exe)?;
+    let cat = catalogue(py, ix, root)?;
     let bones = ske01(src, ix)?;
     let rules = dbxport::rules::Rules::default();
     let bc2: HashSet<String> = ix

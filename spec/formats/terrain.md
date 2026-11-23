@@ -17,23 +17,25 @@ Counts below are of the game copy (2026-11-19): 527 TerrainHeightfield, 53 Terra
 
 ### TERR-NAME-1: Terrain resources live in the level's terrain bundle
 
-Status: **observed**
+Status: **verified**
 
 Every TerrainHeightfield, TerrainMaterialMap, VisualTerrain, WaterMesh and VisualWater entry with data is in a
 bundle named `terrain-00.fbrb` (the level's own, or a shared `_common` level's). Names follow
 `Terrains/<Terrain>/<Terrain>.Heightfield-<nnn>.res` (block `000` the main block, `001` ... the sub-terrains),
 `<Terrain>.Visual.res`, `<Terrain>.Water.Mesh.res`, `<Terrain>.Water.res`; the material map is a plain `.res`.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::resource_names] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 450 heightfields, 42 material maps, 83 visual terrains, 42 water meshes, 42 visual waters with data, all in terrain-00.fbrb and named as described]
 [data: game copy: 527 / 527 heightfields, 53 / 53 material maps, 97 / 97 visual terrains, 53 water meshes and 52 visual waters, all in terrain-00.fbrb; heightfield suffixes -000 (71 files) to -036]
 [doc: rust/bc2-formats/src/terrain.rs:1-3]
 
 ### TERR-NAME-2: The Terrain entry has no data
 
-Status: **observed**
+Status: **verified**
 
 Every entry of type `Terrain` is zero bytes long (but is not a `*deleted*` marker: its type is `Terrain`). The
 terrain's settings are in the level's DBX partitions; this entry only names the resource.
 
+[test: rust/bc2-formats/tests/spec_corpus.rs::resource_names] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 42 Terrain entries, all 0 bytes, all `.res`]
 [data: game copy: 53 Terrain entries, 53 of them 0 bytes, type Terrain, name `<Terrain>.res`]
 
 ## 2. TerrainHeightfield
