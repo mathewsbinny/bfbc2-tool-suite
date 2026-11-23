@@ -1,7 +1,7 @@
 r"""NavKit's offline sampler (tools\navsample_offline.py) on geometry built here (no game data): the cast loop
 (layers top to bottom, the 0.1 m gap, the step through thin solids, nothing under the terrain, convex pieces solid,
 mesh triangles hit from both sides with the normal facing the ray, the sphere touching an edge), the capsule test
-(walls, ceilings, steep terrain; the exact capsule-triangle interval against brute force), the file written in
+(walls, ceilings, steep terrain), the file written in
 navsample.cpp's version-3 format and read back by navsample.py, the grid alignment of navsample.cpp, and the
 destroyed-state parts of a blueprint.
 
@@ -150,25 +150,8 @@ def main(argv):
     check(abs(y - (float(hf.height(0.0, 0.0)) + no.RAY_RADIUS * (1 - math.cos(math.radians(45))))) < 0.002,
           f'terrain lift on a 45 deg slope: {y}')
 
-    # 8. the capsule-triangle interval against brute force (random triangles, random vertical lines)
-    rng = np.random.default_rng(3)
-    T = rng.uniform(-1, 1, (300, 3, 3))
-    T[:100, :, 1] = 0.2                      # some flat
-    T[100:150, :, 0] = T[100:150, :1, 0]     # some vertical (one x)
-    px, pz = rng.uniform(-1.2, 1.2, 300), rng.uniform(-1.2, 1.2, 300)
-    lo, hi = no._line_tri_interval(T, px, pz, 0.4)
-    hs = np.linspace(-2, 2, 2001)
-    bad = 0
-    for k in range(300):
-        P = np.stack([np.full_like(hs, px[k]), hs, np.full_like(hs, pz[k])], 1)
-        d = np.array([point_tri_dist(p, T[k]) for p in P[::10]])
-        inside = hs[::10][d <= 0.4]
-        if len(inside):
-            bad += not (lo[k] <= inside.min() + 0.021 and hi[k] >= inside.max() - 0.021 and
-                        lo[k] >= inside.min() - 0.021 and hi[k] <= inside.max() + 0.021)
-        else:
-            bad += lo[k] <= hi[k] and (hi[k] - lo[k]) > 0.03
-    check(bad == 0, f'capsule interval against brute force on 300 triangles: {bad} wrong')
+    # 8. (the capsule-triangle interval against brute force: a Rust test since round NKS-deep C,
+    #    bc2_navbuild::sampler::geom::tests::the_interval_against_brute_force)
 
     # 9. the file: navsample.cpp's version-3 layout, read back by navsample.py
     g = geometry([(slab(-2.1, -2.1, 2.1, 2.1, 2.7, 3.0), no.KIND_MESH)])
@@ -250,25 +233,6 @@ def main(argv):
 
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
-
-
-def point_tri_dist(p, t):
-    """Distance from p to triangle t (brute force: the plane inside, else the nearest edge)."""
-    a, b, c = t
-    n = np.cross(b - a, c - a)
-    ln = np.linalg.norm(n)
-    best = np.inf
-    if ln > 1e-12:
-        n = n / ln
-        q = p - np.dot(p - a, n) * n
-        ok = all(np.dot(np.cross(v - u, q - u), n) >= -1e-12 for u, v in ((a, b), (b, c), (c, a)))
-        if ok:
-            best = abs(np.dot(p - a, n))
-    for u, v in ((a, b), (b, c), (c, a)):
-        e = v - u
-        s = np.clip(np.dot(p - u, e) / max(np.dot(e, e), 1e-12), 0, 1)
-        best = min(best, np.linalg.norm(p - (u + s * e)))
-    return best
 
 
 if __name__ == '__main__':

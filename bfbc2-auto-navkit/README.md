@@ -5,8 +5,8 @@ levels – including multiplayer maps that never shipped with any – so the gam
 them. Developed for Project OPFOR BFBC2 and published for other modders as `bfbc2-auto-navkit`, the automated
 navigation-data generator of the BFBC2 suite. It measures levels through Project OPFOR BFBC2's in-game sampler,
 so it needs an OPFOR install, plus the suite's FbrbTool and DbxEdit. Since 2026-10-26 the same measurements can
-also be computed without the game (`tools\navsample_offline.py`, "Standalone sampling"; not yet part of
-`navkit.py` or the window).
+also be computed without the game ("Standalone sampling": `bfbc2 navkit sample <level> --offline` or `navkit.py
+sample <level> --offline`, the Rust core's sampler since round NKS-deep C; not yet in the window).
 
 **To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `navkitGUI.pyw` for the window, or
 run `python navkit.py` from a command prompt.
@@ -106,7 +106,20 @@ src\                 (reserved, empty)
 
 `tools\navsample_offline.py` writes the same files as OPFOR's `[dev] navsample` (version 3, both capsule runs, 0.8 m
 and 0.2 m over the detailed sectors) without starting the game, into `work\navsample_offline\`. NavKit's build takes
-them unchanged (`navwalk.build` with those paths).
+them unchanged (`navwalk.build` with those paths). Since round NKS-deep C (2026-11-23) the sampling is the Rust
+core's (`bc2_navbuild::sampler`: the same files byte for byte, 3-30 times faster in a tenth of the memory), with its
+own command line:
+
+```
+bfbc2 navkit sample <level> --offline [--pitch 0.8|0.2] [--dice] [--vehicle] [--out <folder>]
+                       0.8 m pair, then 0.2 m over the detailed sectors (--dice: DICE's own too); --vehicle: a
+                       vehicle-shaped run at 1 m (<level>_navkit_veh.bin: radius 2.5, height 4, step 0.4)
+bfbc2 navkit sample <level> --offline --like <in-game.bin> ...   the in-game files' grids, compared per column
+                       (<level>_validate.json)
+bfbc2 navkit sample <staged level> --offline --stage <stage folder> --base <base level>   an export's stage
+```
+
+The research drivers stay in `tools\navsample_offline.py` (its sampling calls the Rust core):
 
 ```
 python tools\navsample_offline.py all <level>                   prepare + sample 0.8 / 0.2 + build + check

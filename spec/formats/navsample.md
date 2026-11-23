@@ -134,16 +134,65 @@ column of more than 255.
 
 ### NAVS-SMP-1: What a sample is
 
-Status: **implemented**
+Status: **verified**
 
 Per column a sphere of the ray radius is cast straight down from y top; after a hit at y the next cast starts just
 below it, so every surface of the column is found (storeys, bridges, terrain under overhangs). A cast that hits within
 about the ray radius of its start began inside geometry and is not recorded: the start steps down 0.5 m, at most 10 m
 in a row. Each surface is then tested with a capsule of the run's radius from y + bottom to y + top (flag bit 0). The
-offline sampler reproduces this from the triangles of the terrain and the placed objects' collision.
+offline sampler reproduces this from the triangles of the terrain and the placed objects' collision: since round
+NKS-deep C in Rust (`bc2_navbuild::sampler`, `bfbc2 navkit sample <level> --offline`), bit for bit the NumPy it
+replaced (`navsample_offline.py`'s sampling, now a call into it).
 
-[code: opfor:src/dll/navsample.cpp:144-195] [code: bfbc2-auto-navkit/tools/navsample_offline.py:985]
+[code: opfor:src/dll/navsample.cpp:144-195] [code: rust/bc2-navbuild/src/sampler/mod.rs:682-785]
+[code: rust/bc2-navbuild/src/sampler/mod.rs:839-1145]
+[test: rust/bc2-navbuild/src/sampler/tests.rs::the_cast_layers] [test: rust/bc2-navbuild/src/sampler/tests.rs::the_capsule]
+[test: rust/bc2-navbuild/src/sampler/geom.rs::the_interval_against_brute_force]
+[test: rust/bc2-navbuild/src/sampler/tests.rs::the_file_is_write_v3s]
+[data: round NKS-deep C: the Rust sampler's files against the Python's (NumPy) on the 15 regression levels at pitch 0.8, both capsule runs: 30 of 30 byte-identical; at pitch 0.2 over the detailed sectors (sp_009, sp_004_b, ons_mp_004): 6 of 6; on the in-game files' grids (`like`; sp_009, sp_004_b, 0.8 and 0.2, both runs): 8 of 8]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:168-184]
+
+### NAVS-SMP-2: The offline geometry covers every square a run samples
+
+Status: **implemented**
+
+The offline sampler crops the level's collision to a box before sampling (objects within 300 m, triangles within
+2 m). The crop covers every square the run samples: the level's box, the sector squares it touches, the flagged
+detailed sectors and DICE's (KYG-DET-1). A 0.2 m run over a detailed sector outside the level's box (sp_009: 6
+flagged sectors at x 500-600, the box ends at x 100) otherwise samples that sector's terrain without its objects -
+`navsample_offline.sample_level` and `stage` cropped to the level's box until round NKS-deep C (its `sample --pitch
+0.2` cropped to the detailed box, and so was right). A wider crop leaves every run inside the box the same bytes: no
+triangle 2 m outside a box reaches its columns (the widest reach is the capsule's 0.4 m).
+
+[code: rust/bc2-navbuild/src/sampler/level.rs:758-790]
+[data: round NKS-deep C: sp_009's 0.2 m run cropped to the level's box against the detailed box: 1,678,603 against 1,723,700 surfaces, 20,768 columns differing, all in the flagged sectors east of x 500; with the wider crop the 0.8 m runs of the 15 regression levels are unchanged (30 of 30 identical)]
+
+### NAVS-SMP-3: A vehicle-shaped run
+
+Status: **inferred**
+
+A vehicle run samples the same casts at the vehicle pitch (1.0 m) and tests each surface with the vehicle type's
+entity (KYG-PAR-2: EntityRadius 2.5, EntityHeight 4, StepMax 0.4; CollisionModel cylinder): a vertical cylinder of
+radius 2.5 from 0.4 to 4 m above the surface (a 32-sided prism inscribed in it, within 1.2 cm) meets no collision
+triangle, and the height field under it rises no more than 0.4 m above the surface's own plane (slopes are the
+build's GroundSlope rule, not the entity's). The header records radius 2.5, bottom 0.4, top 4; the file is
+`<level>_navkit_veh.bin`. No in-game vehicle-shaped run exists to check it against (KYG-DF-2).
+
+[inferred: KYG-PAR-2's vehicle settings and its cylinder collision model; the step against the surface's plane as navvehicle's obstacle rule takes it (CLEAR_LOW above the local ground plane)]
+[code: rust/bc2-navbuild/src/sampler/mod.rs:600-632]
+[test: rust/bc2-navbuild/src/sampler/tests.rs::the_vehicle_cylinder]
+
+### NAVS-SMP-4: How far the offline samples agree with the in-game ones
+
+Status: **observed**
+
+On the in-game files' own grids (`bfbc2 navkit sample <level> --offline --like <files>`), over the 15 regression
+levels, per in-game surface: a partner within 0.1 m in the same column 95.3-99.7 % at 0.8 m and 95.4-99.3 % at 0.2
+m; the walkable flag agreeing on matched surfaces 96.3-99.7 %; the blocked flag 96.6-99.7 %; object surfaces found
+82.4-97.2 % (the weakest: sp_01, sp_03, sp_003_b, ONS_MP_002 - surfaces of objects the in-game world holds and the
+offline geometry does not, or holds elsewhere; not decoded per object).
+
+[data: round NKS-deep C, rust/BENCHMARKS.md "NKS-deep C": 60 in-game files (0.8 m and 0.2 m, both capsule runs, 15 levels; 0.2 m: 1.6 to 25.6 million sampled columns a file), the measures of `navsample_offline.compare`]
 
 ## Open questions
 

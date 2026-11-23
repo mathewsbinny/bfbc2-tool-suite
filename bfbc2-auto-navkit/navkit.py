@@ -5,6 +5,13 @@
                                               choose the sampling box and sector offsets
   python navkit.py sample  SP_01 [--yes]      in-game collision sampling (launches the game): two runs at 0.8 m,
                                               then two at 0.2 m over the level's detailed zones (if it has any)
+  python navkit.py sample  SP_01 --offline [--dice] [--vehicle]
+                                              the same samples computed from the level's own collision and
+                                              terrain, without the game (the Rust core's offline sampler) into
+                                              work\\navsample_offline; --dice: DICE's own detailed sectors at 0.2 m
+                                              too; --vehicle: a vehicle-shaped run at 1 m (<level>_navkit_veh.bin).
+                                              bfbc2 navkit sample also takes --like <in-game files> (validate) and
+                                              --stage <folder> --base <level> (an export's stage)
   python navkit.py build   SP_01              generate pathdata.hpd
   python navkit.py check   SP_01              score it (against DICE's file if the level has one)
   python navkit.py apply   SP_01 [--navtune file] [--out file] [--install]
@@ -1117,6 +1124,25 @@ def status(pr: Project, lv: str, log: Log = print) -> None:
     del L
 
 
+def sample_offline(pr: Project, lv: str, pitch: float | None = None, dice: bool = False, vehicle: bool = False,
+                   out: str | None = None, log: Log = print) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """sample --offline: the level sampled without the game by the Rust core's offline sampler (round NKS-deep C,
+    bc2_navbuild::sampler: navsample_offline's sampling in Rust): the 0.8 m pair over the level's box and the 0.2 m
+    pair over its detailed sectors (pitch: one of them; dice: DICE's own detailed sectors too), the vehicle run, into
+    work\\navsample_offline (or out). Returns (the detailed sectors sampled at 0.2, of them DICE's only)."""
+    from bfbc2core import native
+    m = native.require('the offline sampler (navkit.py sample --offline)', 'navkit_offline_sample_level')
+    if pitch is not None and abs(pitch - 0.8) > 1e-6 and abs(pitch - 0.2) > 1e-6:
+        raise NavKitError(f'{lv}: the offline sampler runs at pitch 0.8 or 0.2, not {pitch:g}')
+    coarse = pitch is None or abs(pitch - 0.8) < 1e-6
+    fine = pitch is None or abs(pitch - 0.2) < 1e-6
+    try:
+        got = m.navkit_offline_sample_level(pr.root, lv, coarse, fine, dice, vehicle, out, log)
+    except ValueError as e:
+        raise NavKitError(str(e)) from None
+    return [tuple(x) for x in got[0]], [tuple(x) for x in got[1]]
+
+
 def ask(question: str) -> bool:
     return input(question + ' [y/N] ').strip().lower() in ('y', 'yes')
 
@@ -1156,6 +1182,9 @@ def main(argv: list[str]) -> int:
             navwalk.require_native()       # the build runs in the Rust core: say so before preparing or sampling
         if cmd == 'prepare':
             prepare(pr, lv, box=box, y=y)
+        elif cmd == 'sample' and '--offline' in args:
+            sample_offline(pr, lv, pitch=float(opts['--pitch']) if '--pitch' in opts else None, dice='--dice' in args,
+                           vehicle='--vehicle' in args, out=opts.get('--out'))
         elif cmd == 'sample':
             if '--pitch' in opts:
                 sample(pr, lv, confirm=confirm, box=box, y=y, pitch=float(opts['--pitch']))

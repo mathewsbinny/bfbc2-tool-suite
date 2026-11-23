@@ -96,8 +96,9 @@ TABLE: tuple[Row, ...] = (
     # --- bfbc2-auto-navkit (NK4 / NK5 in progress)
     R(f'{NAV}/navkit.py', TOOL, 'partly', 'bfbc2 navkit (bc2-cli navkit: driver, prepare, apply)',
       'hub, navkitGUI.pyw, navparity, navregress, harness; tests 23', 'NK5',
-      'Rust answers every command but sample (it starts the game; all runs it as a child): build, all and apply on a '
-      'NavKit base since NK5 (bc2_navbuild::build); left: the GUI and the tests call its functions'),
+      'Rust answers every command but the in-game sample (it starts the game; all runs it as a child): build, all and '
+      'apply on a NavKit base since NK5 (bc2_navbuild::build), sample --offline since NKS-deep C '
+      '(bc2_navbuild::sampler); left: the GUI and the tests call its functions'),
     R(f'{NAV}/tools/detailed.py', TOOL, 'partly', 'bfbc2 detailed (bc2-cli navtools::detailed)',
       'navkit.py, navregress, navsample_offline, sample_all; tests 4', 'NK5',
       'the choice is Rust (O5); left: --score (evaluation only) and the library calls of build_inputs'),
@@ -156,9 +157,12 @@ TABLE: tuple[Row, ...] = (
     R(f'{NAV}/tools/navsample.py', TOOL, 'partly', 'bc2_navbuild navsample (navkit_navsample_parse, _v3)',
       'navkit.py, navwalk, detailed, navparity, navsample_offline, navvehicle; tests 8', 'NK4',
       'load is Rust (versions 1-3; version 3 streamed, NK4); left: flood / compare and the info / compare command line'),
-    R(f'{NAV}/tools/navsample_offline.py', TOOL, 'partly', 'bc2_navbuild offline / hulls',
-      "tests 6; the export's path-data step (bc2_levelwrite::pathdata::sample_stage: `stage`)", 'A2-rest',
-      'file_bytes and the raster in Rust; left: asset_bodies (NumPy hulls), the level geometry, the command line'),
+    R(f'{NAV}/tools/navsample_offline.py', TOOL, 'partly',
+      'bc2_navbuild sampler / offline / hulls (navkit_offline_sample, navkit_offline_sample_level); bfbc2 navkit '
+      'sample --offline', 'tests 6', 'proposed: NKS-deep C-rest',
+      'the sampling (casts, capsule, terrain), the level geometry, like / validate / compare and stage in Rust (NKS-deep '
+      "C: bfbc2 navkit sample --offline; the export's stage step runs it); left: the research drivers (parity, "
+      'stockmp, build, check, all) and the asset_bodies reference the F3 / F4 tests call'),
     R(f'{NAV}/tools/navvehicle.py', TOOL, 'partly', 'bc2_navbuild vehicle (navkit_obstacle_distance)',
       'navdomains; tests 5', 'proposed: A3', 'obstacle distance (E4e) and stage_on_grid / write (NK5: '
       'navkit_stage_grid; NK5-rest: its settings as overrides of the Rust defaults) in Rust; left: the flood, the seeds '

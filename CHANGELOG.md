@@ -46,6 +46,17 @@ landed on `main`.
   builds were re-recorded. Measured on the 15 regression levels: D precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %,
   every other measure unchanged but sp_02's D recall (21.86 -> 21.53 %, 0.33 points lower: a named exception by the
   user's ruling). The probe `rust/bc2-navbuild/examples/kynapse_df.rs` fits the rule on DICE's files.
+- **NavKit's offline sampler in Rust** (round NKS-deep C, spec NAVS-SMP-1 to 4): `bfbc2 navkit sample <level>
+  --offline` (and `navkit.py sample <level> --offline`) samples a prepared level from its own Havok collision and
+  terrain without starting the game - the 0.8 m pair over the level's box, then the 0.2 m pair over its detailed
+  sectors (`--pitch` one of them), into `work\navsample_offline` (`--out`). `--dice` samples DICE's own detailed
+  sectors too (all 502 of the 15 regression levels, 40 of them never sampled in game); `--vehicle` adds a
+  vehicle-shaped run at 1 m (`<level>_navkit_veh.bin`: KYG-PAR-2's radius 2.5, height 4, step 0.4; not validated, no
+  in-game run exists); `--like <in-game files>` samples their grids and compares (`<level>_validate.json`). The
+  library (`bc2_navbuild::sampler`) takes the collision and height field in memory; the bindings
+  `navkit_offline_sample` / `navkit_offline_sample_level`. The same files as the Python on the 15 regression levels
+  (30 of 30 at 0.8 m, 6 of 6 at 0.2 m, 8 of 8 on in-game grids), 3-30 times faster in a tenth of the memory (sp_006:
+  0.2 m over 90 sectors and the vehicle run in 29 s, 0.85 GB).
 - **The network layer in the specification** (round NET2, documentation only): `spec/engine/network.md` grows from 9 to
   25 rules (the transports and connection layer, network settings and start-up options, versions and disconnect
   reasons, PunkBuster, the server's listen path, the join by address, EA's Plasma back-end and its LAN mode, all read
@@ -66,6 +77,17 @@ landed on `main`.
   files of the game folder (the aerial height map, `database.dbmanifest`, `dfe`, the patcher's record), the soldier,
   squads, the HUD's data, the campaign, text and fonts, sound graphs and voice-over, engine internals and the remaining
   classes by system; a second probe, `spec/probes/resources.py`, holds the formats' counts in the game tier.
+
+### Changed
+- `navsample_offline.sample_grid` runs in the Rust core (its NumPy casts, capsule test and helpers -
+  `raster_hits`, `cast_columns`, `Intervals`, `capsule_blocked`, `_line_tri_interval`, `_edge_dist2`, `terrain_at` -
+  are gone; no other project imports them). The export's stage step (`bc2_levelwrite::pathdata::sample_stage`) runs
+  `bfbc2.exe navkit sample --offline --stage` instead of `navsample_offline.py stage`.
+
+### Fixed
+- The offline sampler's 0.2 m runs from `navsample_offline.py all` / `stockmp` and an export's stage sampled a
+  detailed sector outside the level's box without its objects (the geometry was cropped to the level's box; sp_009's
+  6 flagged sectors east of x 500): the geometry now covers every square a run samples (NAVS-SMP-2).
 
 ## [0.24.0] - 2026-11-23
 

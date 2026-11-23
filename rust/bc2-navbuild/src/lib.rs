@@ -64,6 +64,7 @@ pub mod pyjson;
 pub mod pymath;
 pub mod route;
 pub mod rules;
+pub mod sampler;
 pub mod sector;
 pub mod stage;
 pub mod trace;
