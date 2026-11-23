@@ -764,7 +764,7 @@ game copy, replaced when its inputs change, and deleted by deleting the file or 
 | What | Where | Key | Written by | Eviction | Typical size |
 |---|---|---|---|---|---|
 | mesh viewer index | `work\tools_out\meshview_index.bin` (PR1b-2-rest; was `.pkl`) | the game copy's bundles (signature), format version 4, a SHA-1 of the file | `bc2_gamefs::meshindex` (built under a lock; `meshview.Index`, `bfbc2.exe`, the editor) | one file, rebuilt when stale | 33 MB |
-| DBX catalogue | `work\tools_out\dbx_catalogue.pkl` | as the mesh viewer index | `dbxcatalogue` | one file, rebuilt when stale | 70 MB |
+| DBX catalogue | `work\tools_out\dbx_catalogue.bin` (PR1b-1e; was `.pkl`) | the content of what it reads: each bundle's entry names and content key (length, header, gzip trailer), the executable's SHA-256; format version 1, a SHA-256 of the file | `bc2_convert::dbxcatalogue::cache` (built under a lock; `dbxcatalogue.load`, `bfbc2.exe dbxcatalogue`, `dbxparity`) | one file, rebuilt when stale | SIZE_TBD |
 | renderqa | suite `build\meshview_index.bin`, `build\renderqa_truth.pkl` | as the mesh viewer index | `renderqa` | one file each | 33 MB, 0.2 MB |
 | terrain unpack | `work\levels\<lv>\terrain\` (with its stamp) | the terrain bundle's size and time | `level.heightfield_of` (under a lock) | one per level, replaced when stale | 4-50 MB per level (37 levels here) |
 | path data cells | `work\navstudio\cache`, `work\harness\cache\navdata`, `work\navwater\cache` (`<key>.npz`, `<key>.navdata.pkl`) | the file's path, size and time, the height source, `CACHE_VERSION` and the code | `navdata.load(cache_dir=)` | LRU to the caps above (E3q) | 1.3 GB, 2.1 GB (the whole harness cache), 274 MB |

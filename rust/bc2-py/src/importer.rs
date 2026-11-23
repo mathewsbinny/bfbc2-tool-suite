@@ -555,6 +555,140 @@ pub fn catalogue_build<'py>(
     let Some(b) = py.detach(|| dbxcatalogue::build(&jobs, group)) else {
         return Ok(None);
     };
+    Ok(Some(PyTuple::new(py, [tables(py, &b, element_cls)?])?))
+}
+
+/// `dbxcatalogue.load`'s catalogue (round PR1b-1e): from the cache file `cache` (`<project>\work\tools_out\...`) when
+/// it is this game copy's, else built and written there ([`dbxcatalogue::cache::load`]: its content key over `jobs`
+/// and `exe`, the paths taken below the project folder the cache's path names; its lock, the budget). The project
+/// folder is not an argument: Project OPFOR's rebuild tracker stamps every file under a folder a native call is
+/// given. Returns `(dict,)` as [`catalogue_build`] with `exe_names` (a list, each once) and `built` (built now)
+/// added; `None` where the build refuses (the caller runs the reference). `say(start, line)` hears the build's lines
+/// (`start`: the line the Python prints on stderr whatever its log).
+#[pyfunction]
+#[pyo3(signature = (jobs, exe, cache, element_cls, say))]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn catalogue_load<'py>(
+    py: Python<'py>,
+    jobs: Vec<(String, Vec<String>)>,
+    exe: Option<String>,
+    cache: Option<String>,
+    element_cls: &Bound<'py, PyAny>,
+    say: &Bound<'py, PyAny>,
+) -> PyResult<Option<Bound<'py, PyTuple>>> {
+    use dbxcatalogue::cache::{self, Said};
+    let say = say.clone().unbind();
+    let mut failed: Option<PyErr> = None;
+    let got = py.detach(|| {
+        let mut hear = |w: Said, line: &str| {
+            if failed.is_none()
+                && let Err(e) = Python::attach(|py| say.call1(py, (w == Said::Start, line)))
+            {
+                failed = Some(e);
+            }
+        };
+        let cache = cache.as_deref().filter(|c| !c.is_empty()).map(std::path::Path::new);
+        let root = cache.map_or_default(cache::project_of);
+        cache::load(&jobs, exe.as_deref().filter(|e| !e.is_empty()), &root, cache, &mut hear)
+    });
+    if let Some(e) = failed {
+        return Err(e);
+    }
+    let Some(got) = got else {
+        return Ok(None);
+    };
+    let d = tables(py, &got.catalogue.built, element_cls)?;
+    d.set_item("exe_names", &got.catalogue.exe_names)?;
+    d.set_item("built", got.built)?;
+    Ok(Some(PyTuple::new(py, [d])?))
+}
+
+/// The key [`catalogue_load`] gives a cache file at `cache` for `jobs` and `exe` ([`dbxcatalogue::cache::key`]);
+/// `None` when a bundle cannot be read.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn catalogue_key(
+    py: Python<'_>,
+    jobs: Vec<(String, Vec<String>)>,
+    exe: Option<String>,
+    cache: String,
+) -> Option<String> {
+    py.detach(|| {
+        let root = dbxcatalogue::cache::project_of(std::path::Path::new(&cache));
+        dbxcatalogue::cache::key(&jobs, exe.as_deref().filter(|e| !e.is_empty()), &root)
+    })
+}
+
+/// A catalogue cache file's bytes for tables made by hand (the tests' made-up catalogues: no kept elements):
+/// `d` as [`catalogue_load`] gives it, without `protos`, `defaults` and `others`; `version` another format's number
+/// (a file of an old version).
+#[pyfunction]
+#[pyo3(signature = (key, d, version=None))]
+pub fn catalogue_cache_bytes<'py>(
+    py: Python<'py>,
+    key: &str,
+    d: &Bound<'py, PyDict>,
+    version: Option<u32>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    fn item<'py>(d: &Bound<'py, PyDict>, k: &str) -> PyResult<Bound<'py, PyAny>> {
+        d.get_item(k)?
+            .ok_or_else(|| PyValueError::new_err(format!("catalogue: no {k}")))
+    }
+    fn counters(d: &Bound<'_, PyAny>) -> PyResult<OrderedMap<Key, OrderedMap<String, u64>>> {
+        let mut m = OrderedMap::new();
+        for (k, v) in d.cast::<PyDict>()?.iter() {
+            let mut c = OrderedMap::new();
+            for (n, x) in v.cast::<PyDict>()?.iter() {
+                c.insert(n.extract::<String>()?, x.extract::<u64>()?);
+            }
+            m.insert(k.extract::<(String, String)>()?, c);
+        }
+        Ok(m)
+    }
+    let mut b = dbxcatalogue::Built {
+        partitions: item(d, "partitions")?.extract()?,
+        classes: item(d, "classes")?.extract()?,
+        shapes: counters(&item(d, "shapes")?)?,
+        texts: counters(&item(d, "texts")?)?,
+        numeric: counters(&item(d, "numeric")?)?,
+        ..dbxcatalogue::Built::default()
+    };
+    for (k, v) in item(d, "order")?.cast::<PyDict>()?.iter() {
+        b.order.insert(k.extract()?, v.extract()?);
+    }
+    for (k, v) in item(d, "guids")?.cast::<PyDict>()?.iter() {
+        let parts: Vec<String> = match v.extract::<String>() {
+            Ok(one) => vec![one],
+            Err(_) => v.extract()?,
+        };
+        b.guids.insert(k.extract()?, parts);
+    }
+    for (k, v) in item(d, "primary")?.cast::<PyDict>()?.iter() {
+        b.primary.insert(k.extract()?, v.extract()?);
+    }
+    let c = dbxcatalogue::cache::Catalogue {
+        built: b,
+        exe_names: item(d, "exe_names")?.extract()?,
+    };
+    let mut bytes = dbxcatalogue::cache::cache_bytes(&c, key);
+    if let Some(v) = version {
+        bytes = dbxcatalogue::cache::with_version(&bytes, v);
+    }
+    Ok(PyBytes::new(py, &bytes))
+}
+
+/// The catalogue's tables as the Python's dicts, its kept elements made with `element_cls`.
+fn tables<'py>(
+    py: Python<'py>,
+    b: &dbxcatalogue::Built,
+    element_cls: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyDict>> {
     // the kept elements, partition by partition
     let mut wanted: HashMap<usize, Vec<usize>> = HashMap::new();
     for (_, (_, (pi, ei))) in b.defaults.iter().chain(b.others.iter()) {
@@ -635,7 +769,7 @@ pub fn catalogue_build<'py>(
         out.set_item(key, d)?;
     }
     out.set_item("problems", &b.problems)?;
-    Ok(Some(PyTuple::new(py, [out])?))
+    Ok(out)
 }
 
 /// `dbxcatalogue.exe_identifiers`' scan of the executable's bytes (the caller makes the frozenset).

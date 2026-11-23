@@ -10838,6 +10838,86 @@ the catalogue from the game copy each run (the pickle holds Python `dbx.Element`
   which Project OPFOR's modules unpickle; with it `--predict` could read the cache instead of building.
 - **`meshport.py`'s Porter** stays the WW2 builds' (renames, donors, poses, the shader plan); the Rust `Porter` covers
   what the parity tool reads. Moving OPFOR's ports onto it is OPFOR in Rust stage 2.
+
+## PR1b-1e: the DBX catalogue's cache in Rust (2026-11-22, branch `pr1b1e`, with Project OPFOR's `pr1b1e`)
+
+What PR1b-1d left ("What is left", first item). Version **0.22.0** (a file format removed, the pickle; and
+`bc2_gamefs::budget::maybe_prune`'s signature: `RELEASING.md`; not tagged here).
+
+### The file
+
+`work\tools_out\dbx_catalogue.bin`, `bc2_convert::dbxcatalogue::cache` (format version 1): the magic, the version, the
+key, one string table (736,760 strings on the user's copy), `Built`'s tables in their insertion order, the 463
+partitions whose elements the catalogue keeps (65.0 MB as they are, each deflated at the fast level), the executable's
+identifiers, a SHA-256 of all before it. 78.5 MB on the user's copy (the pickle: 72.8 MB; without the deflate 116.0
+MB). Read by `bfbc2 dbxcatalogue`, `bfbc2 dbxparity --predict` and `dbxcatalogue.load` (through the new
+`bc2_native.catalogue_load`: the same `Catalogue`, its tables and `dbx.Element` trees made as `catalogue_build` makes
+them); written by whichever builds it first, under the file's lock (`bc2_gamefs::atomic::locked`, which excludes the
+Python's `atomicio.locked`), then the `dbxcatalogue` cache folder and the overall budget pruned. An incomplete
+catalogue (a read problem) is used and not cached, as before.
+
+**The key, by content** (as PR1b-1c keyed the culltree rows and the cover index, but not by hashing whole bundles: the
+catalogue's 143 bundles are several GB, more than the catalogue costs to build): SHA-256 over each bundle's path below
+the project folder, the entry names the index gives it (in order) and its content key - its length, the SHA-256 of its
+first 64 KiB or its whole compressed header if longer, and its last 8 bytes, which are the gzip trailer (the CRC-32 of
+the whole decompressed payload and its length) - and the executable's SHA-256. Checked on the user's copy: of the 143
+bundles 142 are zipped with the gzip member ending the file (each decompressed to its end), one is stored, and a
+stored bundle (or anything that is not a bundle) is hashed whole. The key takes 0.06 s. A copied or moved game copy
+keeps its catalogue (the paths are relative); a bundle rewritten with other bytes at the old time does not. The bundle
+cache's points files are keyed the same way (`bc2_gamefs::bundles::ContentKey`).
+
+The project folder is never a native call's argument: `bc2_native.catalogue_load` / `catalogue_key` take it from the
+cache file's path, because Project OPFOR's rebuild tracker (`stepstamps_hook`) stamps every file under any folder a
+native call is given (it skips `work\tools_out`).
+
+### The 8 O3 lines: answered in Rust
+
+A chunk the pass cannot read made the Rust pass refuse, so the Python's reference ran and wrote its problem. The pass
+now writes the reference's problem itself - `<bundle>: <n> partitions not read (<exception>: <text>)`, the exception as
+`bc2_py`'s `fbrb_error` and PyO3's `io::Error` conversion raise it (`ValueError` for a damaged bundle, `KeyError` with
+Python's `repr` for a missing entry, named in the order the reference asked; `FileNotFoundError`, `PermissionError`
+... for the operating system's errors) - in the walk's order among the parse problems.
+`core\tests\test_cli_o3.py --group bf1943 --who`: dbxcatalogue 32 of 32 Rust, Python 0 (the 8 lines were Python's);
+104 of 104 as recorded, `--live` the same both ways. The catalogue's lines recorded again from the Python
+(`--record --only catalogue`, 32: its cache file is the new one; every stdout and stderr the same text as before, now
+through the Rust pass), one line added (`catalogue, only the retired pickle`); the 72 parity lines' `files` digest moved
+with the case folder's cache file (they read none of it; their recordings are the retired Python's otherwise).
+
+### Proof
+
+- **The same catalogue**: `dbxcatalogue.load` through the new file against the retired pickle (main's, current for the
+  copy), every table equal and in the same order (`classes`, `order`, `shapes` / `texts` / `numeric` with their
+  Counters' order, `guids`, `primary`, `exe_names`, `partitions`, `problems`), every kept element equal as a tree
+  (`protos`, `defaults`, `others`), and the 341 prototypes inside a kept instance the same objects there in both.
+  `bfbc2 dbxcatalogue`'s counts are the Python's on the pickle: 84,739 partitions, 631 classes, 607,100 guids, 9,657
+  paths, 17,218 executable names.
+- **The reports**: `test_parity_reports.py` (game tier) passes - `dbxparity`, `dbxparity --predict`, `portparity`
+  byte for byte the retired Python's (PR1b-1d's digests), every run Rust. The test now runs `bfbc2 dbxcatalogue` first
+  (the recorded runs read a current cache: a build's lines on stderr are not theirs).
+- `test_dbxcatalogue_native.py` (seeded games with damaged bundles: every table and problem the reference's),
+  `test_dbxport_rules.py` (an unreadable bundle reported, the catalogue not cached), the cache's Rust tests (round
+  trip, damage refused, keys follow content and not place).
+
+### Speed (release `bfbc2.exe`, this PC, other rounds building; seconds)
+
+| run | before | after |
+|---|---:|---:|
+| `bfbc2 dbxparity --predict` | 14.9, 16.8 (main 0.21.0 today; 26.7 at PR1b-1d; the Python 12) | 4.6, 5.2, 5.3 (the cache read) |
+| `bfbc2 dbxcatalogue`, cache current | 3.6, 3.5 (main: the pickle read with `bc2_pyrt::pickle`) | 1.5, 1.7 |
+| `bfbc2 dbxcatalogue`, cache stale | handed to the Python | 13.9, 17.2 (the pass 12, then the file written) |
+| `dbxcatalogue.load` (Python), cache current | 0.9 (unpickling) | 2.7 - 3.8 |
+
+The Python's load is slower than unpickling: the file is read in 0.8 s (`from_cache_bytes`: the digest, the string
+table, the deflated partitions on all cores), and the rest is making the Python objects (607,100 guids, the Counters,
+the element trees), which a pickle makes faster. A WW2 rebuild loads the catalogue in a handful of steps; worth a
+later look (a lazily made `Catalogue` on the Rust tables) if it shows.
+
+### What is left
+
+- The Python `Catalogue` itself (OPFOR's WW2 modules and dbxport's Python ask it) and `build_reference`: OPFOR in Rust
+  stage 2. Without the Rust core `dbxcatalogue.load` builds each time (no cache).
+- Unproven until the next WW2 rebuild: none of its outputs can change (the catalogue is the pickle's, table for table
+  and element for element), so no rebuild was run for this round.
 ## E4: the map editor's gameplay tools (2026-11-22, branch `e4`)
 
 Round E4 (ROADMAP item 7): flags, spawn points and M-COMs added, carried and deleted with their units, teams and the

@@ -157,8 +157,9 @@ PROJECT_CACHES: dict[str, Spec] = {s.name: s for s in (
     # round PR1b-1c: the last pickles outside the budget. dbxcatalogue's catalogue of the game copy (one file, made
     # again in minutes; beside meshview's index in tools_out), Project OPFOR's WW2 QA pickles (qa_checks.py: the
     # stock and bundle indexes it reads again run after run, 2.1 GB in 148 files) and its install's indexes
-    # (wake_install.py: the BF1943 index, the templates, the database names)
-    Spec('dbxcatalogue', '', ('dbx_catalogue.pkl',), 'BFBC2_DBXCATALOGUE_CACHE_MB', MB, 256,
+    # (wake_install.py: the BF1943 index, the templates, the database names). Round PR1b-1e: the catalogue's own
+    # file (bc2_convert::dbxcatalogue::cache, .bin); the retired pickle (.pkl) left on disk counted and cleared too
+    Spec('dbxcatalogue', '', ('dbx_catalogue.bin', 'dbx_catalogue.pkl'), 'BFBC2_DBXCATALOGUE_CACHE_MB', MB, 256,
          "BFBC2's DBX catalogue of the game copy (dbxcatalogue.load)", project=('work', 'tools_out')),
     Spec('ww2qa', '', ('.pkl',), 'BFBC2_WW2QA_CACHE_MB', MB, 4096,
          "Project OPFOR's WW2 QA indexes of the stock and built bundles (qa_checks.py)",
