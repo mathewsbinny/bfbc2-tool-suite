@@ -59,7 +59,7 @@ mod audio;
 #[cfg(feature = "bf1943")]
 mod bf1943;
 // round O5: BF1943's bundles as bf1943import.Source opens them (the importer's command line, texqa's sources)
-#[cfg(any(feature = "import", feature = "texqa"))]
+#[cfg(any(feature = "import", feature = "texqa", feature = "bf1943"))]
 #[allow(dead_code)]
 mod bf1943src;
 // round O3: the caches' overall budget after a bundle read (fbrb._budget), for the ports that read bundles

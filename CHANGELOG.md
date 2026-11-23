@@ -40,6 +40,60 @@ landed on `main`.
   the level's soldier and vehicle spawns grown by 24.5 m (KYG-RECT-1; `navregress.spawn_bounds`), where it kept the
   whole sampling box. Levels with DICE path data still use DICE's extent.
 
+## [0.21.0] - 2026-11-22
+
+### Fixed
+- **Console conversion of a visual terrain with a set undergrowth string** (round SPG2-rest2): `bc2-convert`'s
+  visual-terrain walk (`terrain.visual_terrain` / `visual_terrain_parts` in console-convert) read the undergrowth
+  entry's second string as one byte; it reads it as the string it is (spec VEG-UG-2). DICE's PC NAM_MP_003 now walks
+  (30 of 30 PC visual terrains); the Xbox and Battlefield 1943 conversions are unchanged (their strings are empty).
+
+### Added
+- Specification (round SPG2-rest2): nine rules from the executable - how `OnlyTakeableByTeam` freezes a capture point
+  (ONS-CAP-3) and the capture rules frame by frame (GAME-CQ-10), bots counting in a capture area (BOT-GS-5), vehicles'
+  dirt build-up (MAT-TEX-20), the bundle mount (STRM-MNT-3), the award tree's loading (PERS-AWD-4), a level's loading
+  video (MENU-LOAD-1, with a probe check), the particle processor and evaluator types (FX-PROC-4), the undergrowth
+  type's fields (VEG-UG-6); the terrain playtest plan for E5 / E7 (`spec/transforms/terrain_edit.md` section 5).
+
+### Changed
+- **`bfbc2 dbxparity` and `bfbc2 portparity` run in Rust** (round PR1b-1d): BF1943's partitions against DICE's own field
+  by field (and `--predict`, dbxport's passes scored on fair pools), and the importer's model conversions against
+  DICE's PC files, without Python. Their reports, JSON and console lines are the Python tools' byte for byte on
+  the user's BF1943 and game copy; `--predict` builds the DBX catalogue in process (it neither reads nor writes
+  `work\tools_out\dbx_catalogue.pkl`), and a stale BF1943 source index is read as the Python read it but not
+  written (the next Python open writes it). Every argparse form of their command lines is answered in Rust
+  (`--`, attached values, positionals around options). A `float2` vertex element is compared as two singles (the
+  Python read three; no compared part has one: spec rule XWW2-PAR-3).
+
+### Removed
+- `bfbc2-bf1943-import\dbxparity.py` and `portparity.py` (their command lines and `dbxparity.compare` / `predict`):
+  `bfbc2 dbxparity|portparity` answer alone (`RETIRED.md`). The library is `bfbc2-bf1943-import\dbxparitylib.py`
+  (`instances`, `flatten`, `FAIR_POOLS`, `family`, `fair_pool`, `fair_catalogue`); Project OPFOR's WW2 QA imports it
+  from 0.21.0 on.
+### Added
+- **The map editor's gameplay tools** (round E4, `EDITOR_ARCHITECTURE.md` 3.4): in the Gameplay workspace a
+  **Gameplay tool** on the views adds a flag (a copy of the level's smallest flag with its zone, marker, spawns and
+  capture announcements, wired as it is, lettered next and owned by the picker's team), a spawn point to the selected
+  spawner (or the selected or nearest flag's), or an M-COM to a Rush stage (the stage's counters count it), and
+  **carries** a flag, base, spawner or M-COM with what moves with it; **Delete** there takes the selection with its
+  unit (a team's last base, the last flag and a stage's last M-COM are refused in words). A **Gameplay panel**
+  (Commands: "Show gameplay") lists the capture points with their letters, teams and spawn points, sets the selection's
+  team, lists the Rush stages, and edits the **round's rules** - tickets and their loss, the time to take a flag,
+  Rush's lives, Squad Deathmatch's kills - with DICE's values as the choices and DICE's rules for the mode and era as
+  the default ("DICE's defaults"). Each edit is one operation of the log (one undo step) and the export writes it
+  through its existing path. Nothing of it has been tried in game yet (in-game tests are paused).
+- levelwrite: `gameplay::{unit, add_flag, add_spawn_point, add_mcom, delete_unit, carry_unit, link_point,
+  stage_counters, Rules, stock, choices, rules_of, set_rules}`, `LevelWriter::place_unit`,
+  `LevelWriter::ownership_with_events`, `Ownership::owned_from`; the operations `place-unit`, `link-point` and
+  `set-rules`.
+
+### Changed
+- The map project format is version 9 (round E4's operations); a version-8 project loads as it is. A file whose log
+  holds the new operations asks for an editor of version 9 (`min_reader`), also inside a multi-file operation.
+- A field set on an instance the scanned partitions do not show (a mode layer grafted from a donor) takes a number's
+  type from the instance's own value when the schema has no evidence (the same `looks_whole` rule), where it was
+  refused for any value but 0.
+
 ## [0.20.0] - 2026-11-22
 
 ### Added

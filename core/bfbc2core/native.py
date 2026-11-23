@@ -609,7 +609,8 @@ def cli_exe() -> str | None:
 # tests\test_native_required.py checks it; leveldiff is not a Python port, so it is not in pyproc's list). A module's
 # binding follows the same rule: None (its Python reference answers) while the reference is alive, Refused after.
 RETIRED_ROUND = {'graphstats': 'RT1', 'prepare_level': 'RT1', 'leveldiff': 'EX1', 'aptrefs': 'RT3', 'xiso': 'RT3',
-                 'culltree': 'RT3', 'stockmp': 'RT3', 'crashreader': 'RT3'}
+                 'culltree': 'RT3', 'stockmp': 'RT3', 'crashreader': 'RT3', 'dbxparity': 'PR1b-1d',
+                 'portparity': 'PR1b-1d'}
 RETIRED_CLI = frozenset(RETIRED_ROUND)
 
 

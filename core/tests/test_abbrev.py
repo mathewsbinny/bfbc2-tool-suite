@@ -148,6 +148,10 @@ def main() -> int:
     if os.path.isfile(GOLDEN) and not RECORD:
         with open(GOLDEN, encoding='utf-8') as f:
             golden = json.load(f)
+    kept = golden
+    if RECORD and os.path.isfile(GOLDEN):
+        with open(GOLDEN, encoding='utf-8') as f:
+            kept = json.load(f)
     tmp = tempfile.mkdtemp(prefix='abbrev_')
     env = {k: v for k, v in os.environ.items() if k not in ('COLUMNS', 'BFBC2_CLI_TRACE', 'BFBC2_CLI_PYTHON')}
     env.update(LOCALAPPDATA=tmp, BFBC2_FBRB_CACHE='0', PYTHONIOENCODING='utf-8')
@@ -158,7 +162,10 @@ def main() -> int:
     try:
         for tool, args, _ in rows:
             k = json.dumps([tool, args])
-            if LIVE:
+            if LIVE and tool in native.RETIRED_CLI:
+                if k in kept:                        # no Python command line any more: its recording stays
+                    rec[k] = kept[k]
+            elif LIVE:
                 py = run([sys.executable, native.CLI_TOOLS[tool], *args], env)
                 rec[k] = py
                 if not RECORD and golden.get(k) != py:

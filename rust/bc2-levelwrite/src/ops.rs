@@ -384,6 +384,31 @@ pub enum Op {
         /// Its values after.
         to: crate::gameplay::Tickets,
     },
+    /// A spawn point linked to a soldier spawner or unlinked from it (round E4, [`crate::gameplay::link_point`]).
+    LinkPoint {
+        /// The spawner.
+        spawner: String,
+        /// The spawn point (`AlternateSpawnEntityData`).
+        point: String,
+        /// Linked (put in the spawner's `AlternativeSpawnPoints`) or unlinked (taken out).
+        linked: bool,
+    },
+    /// The round's rules set (round E4, [`crate::gameplay::set_rules`]): tickets and their loss, capture time,
+    /// Rush's lives, Squad Deathmatch's kills; a value left `None` is not changed.
+    SetRules {
+        /// The rules before (for the History; `None` where they were not read).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from: Option<crate::gameplay::Rules>,
+        /// The rules after.
+        to: crate::gameplay::Rules,
+    },
+    /// A gameplay object placed with its logic (round E4, [`crate::write::LevelWriter::place_unit`]): a flag, a
+    /// spawner or an M-COM copied with what it owns through references and events, wired to the level's shared
+    /// logic as its template is.
+    PlaceUnit {
+        /// The new object (its `owned`: [`crate::gameplay::unit`] of the template).
+        item: Placed,
+    },
     /// An outline point inserted after another ([`crate::gameplay::insert_point`]).
     InsertPoint {
         /// The point it follows.
@@ -485,6 +510,9 @@ impl Op {
                 | Self::SetTeam { .. }
                 | Self::LinkSpawner { .. }
                 | Self::SetTickets { .. }
+                | Self::LinkPoint { .. }
+                | Self::SetRules { .. }
+                | Self::PlaceUnit { .. }
                 | Self::InsertPoint { .. }
                 | Self::RemovePoint { .. }
         )
@@ -516,6 +544,10 @@ impl Op {
             Self::SetTeam { items } => items.iter().map(|t| t.guid.as_str()).collect(),
             Self::LinkSpawner { point, spawner, .. } => vec![point.as_str(), spawner.as_str()],
             Self::SetTickets { counter, .. } => vec![counter.as_str()],
+            Self::LinkPoint { spawner, point, .. } => vec![spawner.as_str(), point.as_str()],
+            Self::PlaceUnit { item } => std::iter::once(item.template.as_str())
+                .chain(item.owned.iter().map(|o| o.source.as_str()))
+                .collect(),
             Self::InsertPoint { after, .. } => vec![after.as_str()],
             Self::RemovePoint { guid } => vec![guid.as_str()],
             Self::AddLayer { .. }
@@ -525,6 +557,7 @@ impl Op {
             | Self::SetStrip { .. }
             | Self::SetNames { .. }
             | Self::SetWeather { .. }
+            | Self::SetRules { .. }
             | Self::NavAdd { .. }
             | Self::NavRemove { .. }
             | Self::NavLoad { .. }
@@ -546,6 +579,9 @@ impl Op {
                 .flat_map(|p| std::iter::once(p.guid.as_str()).chain(p.owned.iter().map(|o| o.guid.as_str())))
                 .collect(),
             Self::SetMode { to } => to.items.iter().map(|i| i.guid.as_str()).collect(),
+            Self::PlaceUnit { item } => std::iter::once(item.guid.as_str())
+                .chain(item.owned.iter().map(|o| o.guid.as_str()))
+                .collect(),
             Self::InsertPoint { guid, .. } => vec![guid.as_str()],
             _ => Vec::new(),
         }
@@ -658,6 +694,20 @@ impl Op {
             Self::SetTickets { to, .. } => format!(
                 "Set tickets to {}, losing {} a minute",
                 to.initial, to.loss_per_min as f32
+            ),
+            Self::LinkPoint { spawner, point, linked } => {
+                if *linked {
+                    format!("Link spawn point {point} to spawner {spawner}")
+                } else {
+                    format!("Unlink spawn point {point} from spawner {spawner}")
+                }
+            }
+            Self::SetRules { to, .. } => format!("Round rules: {}", to.describe()),
+            Self::PlaceUnit { item } => format!(
+                "Place a copy of {} with its logic ({} owned object{})",
+                item.template,
+                item.owned.len(),
+                if item.owned.len() == 1 { "" } else { "s" }
             ),
             Self::InsertPoint { after, .. } => format!("Insert an outline point after {after}"),
             Self::RemovePoint { guid } => format!("Remove outline point {guid}"),
@@ -841,6 +891,8 @@ impl Organisation {
             | Op::SetTeam { .. }
             | Op::LinkSpawner { .. }
             | Op::SetTickets { .. }
+            | Op::LinkPoint { .. }
+            | Op::SetRules { .. }
             | Op::InsertPoint { .. }
             | Op::RemovePoint { .. }
             | Op::SetStrip { .. }
@@ -855,6 +907,11 @@ impl Organisation {
                     if let Some(pl) = p.placement {
                         self.placement.insert(up(&p.guid), pl);
                     }
+                }
+            }
+            Op::PlaceUnit { item } => {
+                if let Some(pl) = item.placement {
+                    self.placement.insert(up(&item.guid), pl);
                 }
             }
             Op::Hide { guids, hidden } => {

@@ -653,6 +653,21 @@ impl ViewState {
             }
             Action::Delete => {
                 let Some(d) = &self.doc else { return true };
+                // round E4: in the Gameplay workspace a flag, spawner or M-COM goes with its unit (its zone, marker,
+                // spawns and logic; an M-COM's stage counting one fewer), refused in words where the mode needs it
+                if self.workspace == Workspace::Gameplay
+                    && !sel.is_empty()
+                    && sel.iter().all(|&k| crate::gameplay::is_unit_root(d, k))
+                {
+                    match crate::gameplay::delete_op(d, &sel) {
+                        Ok(op) => {
+                            self.selection.clear();
+                            self.commit(gpu, palette, op, "Delete with what belongs to it");
+                        }
+                        Err(why) => self.message = format!("Not deleted: {why}"),
+                    }
+                    return true;
+                }
                 let guids: Vec<String> = sel.iter().filter_map(|&k| d.guid(k).map(str::to_owned)).collect();
                 self.selection.clear();
                 self.commit(gpu, palette, Op::Delete { guids }, "");

@@ -48,6 +48,7 @@ mod create;
 mod diffui;
 mod displayui;
 mod editui;
+mod gameplayui;
 mod inspectui;
 mod modes;
 mod navui;
@@ -105,6 +106,8 @@ pub enum Tab {
     Preview,
     /// The Gameplay workspace's auto layout: the mode's layer laid out on the ground, proposed (round A1).
     AutoLayout,
+    /// The Gameplay workspace's tools and the round's rules (round E4).
+    Gameplay,
 }
 
 impl Tab {
@@ -124,6 +127,7 @@ impl Tab {
             Self::Diff => "Diff",
             Self::Preview => "Asset preview",
             Self::AutoLayout => "Auto layout",
+            Self::Gameplay => "Gameplay",
         }
     }
 }
@@ -145,6 +149,7 @@ pub fn default_layout() -> DockState<Tab> {
             Tab::Diff,
             Tab::Preview,
             Tab::AutoLayout,
+            Tab::Gameplay,
         ],
     );
     let [_, _] = s.split_below(right, 0.6, vec![Tab::Links, Tab::NavEdits, Tab::NavIslands]);
@@ -259,6 +264,8 @@ pub struct ViewState {
     pub live: crate::validation::Live,
     /// The Gameplay workspace's auto layout and its proposal (round A1).
     pub autolayout: crate::autolayout::AutoLayout,
+    /// The Gameplay panel's rules being edited (round E4).
+    pub gameplay: gameplayui::GameplayPanel,
     load_seconds: f64,
     /// The selection changed in the view: the outliner shows its row.
     reveal: bool,
@@ -1015,7 +1022,7 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }
             Action::ToggleDiffMarks
-            | Action::ShowPanel(PanelKind::Diff | PanelKind::Preview | PanelKind::AutoLayout)
+            | Action::ShowPanel(PanelKind::Diff | PanelKind::Preview | PanelKind::AutoLayout | PanelKind::Gameplay)
                 if !open =>
             {
                 Some("Open a map first")
@@ -1232,6 +1239,7 @@ impl EditorApp {
                     PanelKind::Diff => Tab::Diff,
                     PanelKind::Preview => Tab::Preview,
                     PanelKind::AutoLayout => Tab::AutoLayout,
+                    PanelKind::Gameplay => Tab::Gameplay,
                 };
                 if let Some(path) = self.dock.find_tab(&tab) {
                     let _ = self.dock.set_active_tab(path);
@@ -1771,6 +1779,7 @@ impl EditorApp {
             notes,
             live: crate::validation::Live::default(),
             autolayout: crate::autolayout::AutoLayout::default(),
+            gameplay: gameplayui::GameplayPanel::default(),
             load_seconds: secs,
             reveal: false,
             labels: true,
@@ -3148,7 +3157,7 @@ impl ViewState {
     }
 
     /// How far above its position an entity's marker's middle is (markers stand on their position).
-    fn marker_offset(&self, entity: usize) -> f64 {
+    pub(crate) fn marker_offset(&self, entity: usize) -> f64 {
         let Some(e) = self.scene().entities.get(entity) else {
             return 0.0;
         };
@@ -3202,6 +3211,7 @@ impl TabViewer for Tabs<'_> {
             Tab::Diff => self.diff(ui),
             Tab::Preview => self.preview_panel(ui),
             Tab::AutoLayout => self.auto_layout(ui),
+            Tab::Gameplay => self.gameplay_panel(ui),
         }
     }
 
@@ -3220,6 +3230,7 @@ impl TabViewer for Tabs<'_> {
                     | Tab::Diff
                     | Tab::Preview
                     | Tab::AutoLayout
+                    | Tab::Gameplay
             )
     }
 

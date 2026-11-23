@@ -10744,6 +10744,158 @@ saved, not the step's time.
 - **The collision alias cache** stays keyed by file stamps (decided above); the culltree folder listing
   (`list-<sha1>.pkl`, bfbc2.exe's own) likewise: it exists to skip reading files whose size and time are unchanged.
 
+## SPG2-rest2: reverse engineering for the specification (2026-11-22, branch `spg2r2`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745) with a scratch copy of Project OPFOR's analysed Ghidra project
+(read only, headless, about 20 s a batch) and capstone sweeps of the executable's code; DICE's data through the suite's
+readers. No game run (in-game tests are paused). Per item:
+
+| Item | Found | Rules |
+|---|---|---|
+| `OnlyTakeableByTeam` | data +0x84, read once, by the capture update 0x726B60: the point is skipped while its progress belongs to the named team; the progress's team becomes the lowering team at neutral, so a point the named team lowers freezes at neutral (the 2026-10-29 playtest's three results); the data class's generated getters (0x6F5740 -) are dead, the reads inlined | ONS-CAP-3, GAME-CQ-10; BOT-GS-3 corrected (progress 0 - 100) |
+| bots in captures | the area list 0x724060 has no AI-flag test | BOT-GS-5 |
+| dirt build-up | 0x884C20: at 5 m/s and up on a material with `MaterialPropertyTerrainData`, factor += `DirtTriggerFactor` x dt (clamped 0 - 1), colour blended towards `DirtTriggerColor`; nothing lowers it; drawn as `dirtFactor` / `dirtColor` through the instance's handle table | MAT-TEX-20 |
+| mount functions | 0x5657B0 fills a table (0x4E48E0 is its grow call); 0x464B10 mounts: a 0x238-byte bundle object indexing names by a case-insensitive djb2-xor hash | STRM-MNT-3 |
+| award evaluator | the scoring object (made at every level start) loads `MP_Awards` / `SP_Awards` and links criteria to stats; awards move only on the per-player stat events (humans only, scoring flag) | PERS-AWD-4 |
+| menus' loading roots | `LevelDescription.LoadingMovie` is a Bink video (40 of 74 DICE levels), not the Flash root; the roots stay unnamed; a `_loading` movie gets one extra player call | MENU-LOAD-1 (probe check `level_loading_movies`) |
+| emitter processors | the 37 processor and 12 evaluator types and the polynomial's fields from the type information; the particle update not found | FX-PROC-4 |
+| undergrowth loader | the type's field order (pairs first) is not the file's; no code touches the type's flag bytes in the terrain module: not found | VEG-UG-6 |
+| one-byte undergrowth reading | `bc2-convert`'s walk reads the second string; DICE's PC visual terrains 29 -> 30 of 30 (main refuses NAM_MP_003 "runs past the end at 0x2f65c"); the 20 console twins and BF1943's three terrains convert as before | VEG-UG-2, TERR-VT-3 (tests `undergrowth_second_string_is_a_string`, `pc_visual_terrains`) |
+| terrain playtest | the plan, 8 steps, `spec/transforms/terrain_edit.md` section 5 | - |
+
+Rules 1,258 -> 1,267 (verified 619 -> 620, observed 465 -> 473).
+
+### What is left (SPG2-rest3)
+
+The undergrowth entry's parser (start from the `VisualTerrain` vtable 0x144FCF0's 19 slots), the particle update
+(a reader of a polynomial's `Coefficients` beside `ScaleValue`; the 37-way switch 0x11DD76A is unread), the Flash
+loading roots and the menus' event queue / FSCommand callback, who drains the mount table, the award listener
+classes, which entities run the dirt build-up; and every playtest: the terrain plan, ONS-CAP-3's patch, a RenderDoc
+capture for MAT-TEX-20, bots on a flag (BOT-GS-5).
+## PR1b-1d: the parity tools in Rust (2026-11-22, branch `pr1b1d`, with Project OPFOR's `pr1b1d`)
+
+What PR1b-1c left (above, "What is left"), item 2: `dbxparity.py` and `portparity.py` ported behind
+`bfbc2 dbxparity|portparity`, then retired. Version **0.21.0** (a removal: `RELEASING.md`; not tagged here).
+
+### What runs where
+
+| Python (retired) | Rust | Reused |
+|---|---|---|
+| the command lines (`argparse`) | `rust/bc2-cli/src/bf1943/argp.rs`: Python 3.13's `_parse_known_args` for the three options and `names` in full (abbreviations and their ambiguity, `--x=v`, `-oX`, `-ho`, `--`, negative numbers, positionals around options) | `argfmt` (the texts) |
+| `bf1943import.Source`, `meshview.Index` | `bf1943src::Source::open_reading` (a stale source index is read, not written: its pickle is the Python's), `gameindex::load_full` | `bc2_formats::bf1943`, `bc2_convert::meshview::Index` (`rows`, `contains`, `part_names` added) |
+| `compare`, `flatten`, `instances` | `bf1943/dbxparity.rs` (Python's dicts and Counters as `OrderedMap`s, `str.strip`'s whitespace) | `bc2_formats::dbx::{parse, value}` |
+| `predict`, `fair_catalogue`, `BoneTables.ske01`, `Templates.from_index`, `guids_of` | `bf1943/dbxparity.rs` (the catalogue built in process and copied as `bc2_native.DbxCatalogue` copies it; the class defaults swapped per partition) | `bc2_convert::dbxport::port` and `rules::Rules::default()`, `dbxcatalogue::build`, `granny::bone_names` (new) |
+| `meshport.Porter.port` (no renames, donors, poses or shader plan: the tool reads none) | `bc2_convert::meshport::Porter` (new, over a `Source` trait) | `meshport::Index::search`, `meshconv::console_layouts`, `granny::bone_map` (new), `texture::convert` |
+| `mesh.convert(b, pairs, reorder='drop', bones=...)` | `bc2_convert::meshconv::convert` (new; the Python glue keeps calling `mesh_vertices`) | `mesh::convert_vertices`, `meshdata::{parse_mesh, write_mesh}`, `strip_to_list` |
+| `meshset.parse` / `write` / `lod_size`, `texture.levels` / `decode` | - | `meshdata::{parse_set, write_set}`, `texcheck::{levels, decode}` |
+| NumPy in `compare_part` / `compare_texture` | `bf1943/portparity.rs`: float64 from halves and singles, row sums in order, the picture's MSE by NumPy's pairwise summation, `np.round` (multiply, round half even, divide), `.4g` / `.3f` / `repr` as Python formats them | `pyfmt::fixed`, `float_repr`, `json::dumps` |
+
+### Proof
+
+On the user's BF1943 copy (Project Rising Sun's `dist\xenon`) and game copy, each tool run by the Python (0434c22)
+and by `bin\bfbc2.exe` with the same arguments:
+
+| run | what was compared | result |
+|---|---|---|
+| `dbxparity` | 2,353 partitions, 16,249 instances: the report (229,707 bytes), `dbxparity_enums.json`, stdout | byte for byte |
+| `dbxparity --predict` | 173 weapon and vehicle partitions ported three ways: the report, stdout | byte for byte |
+| `portparity` | 148 models (147 ported, 1 PortError row, 1 not compared): the report, `portparity.json`, the 148 progress lines | byte for byte |
+| the 147 ports themselves | every LOD's MeshData, the mesh set, every texture (SHA-256, against `meshport.Porter.port`) | identical |
+| 8 filtered runs (`zero`, `corsair kurogane --predict`, names that match nothing, `uibackground parachute`, an upper-case filter, default `-o`) | files and both streams in an empty folder | the same |
+
+`bfbc2-bf1943-import\tests\test_parity_reports.py` (game tier, `parityreports:game`) keeps the digests
+(`parity_reports_golden.json`, the Python's) and checks every run is answered in Rust. The library moved to
+`dbxparitylib.py` gives `instances` the same answers on 2,730 stock partitions (every `weather/` one and the beach
+vehicles': one SHA-256 over the reprs, old module against new).
+
+**O3's bf1943 group** (`core\tests\test_cli_o3.py --group bf1943 --who`): 102 of 102 as recorded; dbxparity 36 of 36
+and portparity 36 of 36 answered in Rust (Python 0; 24 of their 72 were handed over before: runs, `--`, attached values and
+positionals around options were handed over). Left with the Python: dbxcatalogue's 8 lines that build the catalogue's
+cache (a stale, damaged or old cache, a stale index) - that tool's pickle build, not this round's. `test_argfmt` 943 of
+943, `test_abbrev` 193 of 193 (all `dbxparity` / `portparity` lines Rust). `argp.rs`'s 1,200 random command lines
+(`argp_cases.json`) give argparse's answers.
+
+### Decided against DICE (PY1's rule)
+
+- **A float2 element** (format 0x02, 8 bytes) is compared as two singles (spec XWW2-PAR-3). The Python's `DTYPE` read
+  it as three (12 bytes, the next element's first four with it). No compared part has one at stream 0: run with the
+  Python's table changed, its reader saw 0 float2 elements and the report was the same.
+
+### Speed (release `bfbc2.exe`, the same PC, other rounds building)
+
+| run | Python | Rust |
+|---|---:|---:|
+| `dbxparity` | 14 s | 4.9 s |
+| `dbxparity --predict` | 12 s (the catalogue from its pickle cache) | 26.7 s (the catalogue built in process: about 20 s) |
+| `portparity` | 7 s | 6.7 s |
+
+`--predict` is slower: the Python unpickles the catalogue cache (`work\tools_out\dbx_catalogue.pkl`), the Rust builds
+the catalogue from the game copy each run (the pickle holds Python `dbx.Element` objects; reading it in Rust is left).
+
+### What is left
+
+- **dbxcatalogue's cache build** in Rust (the 8 O3 lines above): the pickle of `Catalogue` with `dbx.Element` trees,
+  which Project OPFOR's modules unpickle; with it `--predict` could read the cache instead of building.
+- **`meshport.py`'s Porter** stays the WW2 builds' (renames, donors, poses, the shader plan); the Rust `Porter` covers
+  what the parity tool reads. Moving OPFOR's ports onto it is OPFOR in Rust stage 2.
+## E4: the map editor's gameplay tools (2026-11-22, branch `e4`)
+
+Round E4 (ROADMAP item 7): flags, spawn points and M-COMs added, carried and deleted with their units, teams and the
+round's rules, on the editor's tool trait; operations `place-unit`, `link-point`, `set-rules` (project format 9).
+Nothing was written to `game\`; the game never launched.
+
+### What the data says (measured on the game copy, read only)
+
+- **A flag's unit is its own** (GAME-CQ-11): on 19 Conquest levels of every set, none of 67 flags' units (what moves
+  with it plus what only its references and events reach) shares an instance with another capture point's; 246 team
+  filters sit in them. A first check by event pattern found no shared announcer glue: each flag has its own two team
+  filters per team, its own capture messages (`HUD_MP_CQ_TOOK_BASE_<letter>`) and voice-over entities. So a new flag is
+  a copy of a whole unit, and "copy only the connections inside the copy" (E2b's placement) would have left it mute.
+- **Rush stage counters count their M-COMs** (GAME-RUSH-10): 221 counters on 31 Rush and Squad Rush levels, every
+  `TriggerAmount` equal to the M-COMs whose `onDestroyed` reaches it (91 of 91 first on OPFOR's XML dumps).
+- **No server preset sets tickets** (GAME-RULES-1): the executable's `Server.*` settings are hardcore, friendly fire,
+  kill cam, minimap, spotting, crosshair, third-person vehicle cameras, autobalance; the round's rules live in the
+  mode layer's counters and flags, so the "preset options" are DICE's own values (Conquest 200 / 250 / 350 tickets,
+  20 / 25 s; WW2 130, 10 s; Rush 100 or 75 against 1,500; Squad Rush 20 against 1,000; Squad Deathmatch 50).
+
+### Proofs
+
+- Valparaiso (`MP_001`): flag C's unit (31 instances) copied 60 m off - every one of the template unit's 15 event
+  connections has its copy (members mapped, shared ends kept), no connection more; deleted again, the instances and
+  connections are the level's. Port Valdez Rush (`MP_012GR`): an M-COM added to stage 1 (unit: two interactions, an
+  award, three delay triggers, marker, alarm, six messages, seven voice-over lines), the stage's counters count 3, the
+  play order unchanged; taken out, the level's instances again. Every partition written and read back byte for byte.
+- The export: Operation Aurora (`SP_01`) as BFBC2 Conquest with a flag E, a spawn point on its spawner and the rules
+  250 tickets / 25 s, built by `export::build` in 24-26 s and held by `export::check`; the staged `Levels/...dbx`
+  reads back byte for byte with 5 flags (letters B, D, A, C, E), the point and the rules. This export first failed:
+  the base's schema (a campaign level) has no evidence for the grafted layer's numbers (`Index` refused but 0); a
+  field set now takes the type of the instance's own nonzero value there (XLOG-APP-5's rule, applied to it).
+- In the editor (headless, demo level, both themes): the tool's click adds a flag (one operation, selected, its zone
+  drawn), Delete takes its unit, Ctrl+Z brings it back, Carry moves the flag with its ring and marker, Esc drops it, a
+  spawn point with no spawner is refused in words (`tests/gameplay_tools.rs`; screenshots `gameplay_flag_<theme>`,
+  `gameplay_panel_<theme>` with `BC2_EDITOR_SHOTS`, kept in the session's scratch folder).
+- Synthetic level (no game data, CI): `the_tools_on_a_synthetic_level` - unit, wiring to a shared voice-over line,
+  carried spawn points, delete, rules, version 8 -> 9.
+
+### The object grid for rays (PR1b-0's leftover): not built
+
+The Gameplay tool casts one ray per frame for its ghost and one per click. PR1b-0 measured a pick at 0.64 ms on
+SP_01 (5,924 collision meshes): under a millisecond a frame, so a grid of the objects' spheres (which needs an edit
+generation on `Scene`) buys nothing visible for E4. It stays a candidate for E5's brushes, which cast many rays a
+frame.
+
+### What is left (E4-rest)
+
+- A whole Rush stage added or taken out (its counters, bases, combat areas and the enable chain); the tools refuse a
+  stage's last M-COM.
+- A new flag's own texts: its capture messages keep the template's `HUD_MP_CQ_TOOK_BASE_<letter>` keys and its spawns'
+  names the template's; letters past the level's need loc keys.
+- Soldier spawners added to a flag or base by the tool (the asset browser's tile places one; `link-spawner` links it).
+- PR1b-0's leftovers: the AI workspace's nine `NavTool`s and placing from the content browser onto `ViewTool`; the
+  other 12 workers onto `Task`.
+- Unproven until a playtest: whether the game spawns at, captures and announces a copied flag (and shows a fifth
+  letter), whether an added M-COM arms and ends its stage, and the rules' effect on a round.
+
 ## NKG2: NavKit's graph toward DICE's - the spanner, the owner rule and its band (2026-11-22, branch `nkg2`)
 
 The graph-and-areas half of the NavKit gap list (`spec/transforms/kynapse_generation.md`). Every candidate change was

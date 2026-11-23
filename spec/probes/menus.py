@@ -10,9 +10,10 @@ OPFOR's pristine copy of DICE's Package main menu (`original/Package/menu/main/m
 is OPFOR's patched one). Each distinct movie (by content) is decoded once with the suite's APT reader
 (`bfbc2-console-readers/apt/apt.py`, the Rust core when built) and scanned with the suite's `aptrefs` scan
 (`bfbc2-menu-tools/aptrefslib.py`: `extern.<name>` reads, FSCommands, engine events). From the same bundles, the
-first copy of each `Menu/<name>.dbx` (`UI.UIAsset`) and `GameModes/*.dbx` (`GameSharedResources.GameModeData`)
-partition. From `game/BFBC2Game.exe` (PC build 795745 only, data read, no code run): the action interpreter's handler
-table and dispatch bytes, the FSCommand prefix, the event function name and the extern / FSCommand name table.
+first copy of each `Menu/<name>.dbx` (`UI.UIAsset`), `Levels/<level>.dbx` (its `LevelDescription.LoadingMovie`) and
+`GameModes/*.dbx` (`GameSharedResources.GameModeData`) partition. From `game/BFBC2Game.exe` (PC build 795745 only,
+data read, no code run): the action interpreter's handler table and dispatch bytes, the FSCommand prefix, the event
+function name and the extern / FSCommand name table.
 
 Prints structure, counts and identifiers only (opcode, class, property, event and movie names; no text, no bytes):
 
@@ -99,7 +100,8 @@ class Found:
 
 
 def wanted_partition(low: str) -> bool:
-    return low.endswith('.dbx') and (low.startswith('gamemodes/') or re.fullmatch(r'menu/[^/]+\.dbx', low) is not None)
+    return low.endswith('.dbx') and (low.startswith('gamemodes/') or re.fullmatch(r'(menu|levels)/[^/]+\.dbx', low)
+                                     is not None)
 
 
 def corpus(game: Path) -> tuple[int, int, list[Found], dict[str, bytes]]:
@@ -212,6 +214,7 @@ class Stats:
         self.exported: dict[str, set[str]] = collections.defaultdict(set)    # movie -> the names it exports
         self.assets: dict[str, tuple[tuple[str, ...], str]] = {}     # movie -> (instance types, SourceFile)
         self.modes: dict[str, dict[str, str]] = {}                   # GameModes/<mode> -> HUD movie names
+        self.loading: dict[str, str] = {}                 # level -> its LevelDescription.LoadingMovie partition ('')
         self.exe: dict[str, Any] = {}
 
     @property
@@ -288,6 +291,13 @@ def partitions(st: Stats, parts: dict[str, bytes]) -> None:
                 if i.attr('type') == 'GameSharedResources.GameModeData':
                     fields = {k: i.child(k) for k in HUD_FIELDS}
                     st.modes[n[len('gamemodes/'):-4]] = {k: e.text if e is not None else '' for k, e in fields.items()}
+        elif n.startswith('levels/'):
+            for i in f.instances:
+                if (i.attr('type') or '').endswith('.LevelData'):
+                    desc = i.child('LevelDescription')
+                    lm = desc.child('LoadingMovie') if desc is not None else None
+                    ref = (lm.attr('ref') or '') if lm is not None else ''
+                    st.loading[n[len('levels/'):-4]] = ref.rsplit('/', 1)[0].lower() if '/' in ref else ''
         elif 'UI.UIAsset' in types:
             src = next((i.child('SourceFile') for i in f.instances if i.attr('type') == 'UI.UIAsset'), None)
             st.assets[n[len('menu/'):-4]] = (types, src.text if src is not None else '')
@@ -392,6 +402,9 @@ def summary(st: Stats) -> dict[str, Any]:
         'source_not_own': sorted(n for n, (_t, s) in st.assets.items() if s.lower() != f'menu/{n}.swf'),
         'config_roots': sorted(n for n, (t, _s) in st.assets.items() if 'UI.UIConfig' in t),
         'modes': len(st.modes),
+        'level_loading_movies': {'set': sum(bool(v) for v in st.loading.values()),
+                                 'unset': sum(not v for v in st.loading.values())},
+        'loading_movies_in_level_ui': all(v.startswith('levels/') and '/ui/' in v for v in st.loading.values() if v),
         'mode_hud_movies': sorted({v for f in st.modes.values() for v in f.values()}),
         'mode_hud_known': all(v in st.names for f in st.modes.values() for v in f.values()),
         'handler_table': st.exe.get('table'), 'handled': len(handled) if handled is not None else None,
@@ -422,6 +435,7 @@ EXPECTED: dict[str, Any] = {
     'ui_assets': 55, 'movies_without_asset': [], 'source_not_own': ['nam_hud_root'],
     'config_roots': ['hud_root', 'main_root', 'nam_hud_root'],
     'modes': 10, 'mode_hud_known': True,
+    'level_loading_movies': {'set': 40, 'unset': 34}, 'loading_movies_in_level_ui': True,
     'handler_table': 185, 'handled': 132, 'used_unhandled': [], 'dispatch_bytes': True, 'fscommand_prefix_len': 10,
     'event_function': True, 'missing_names': {'extern': 9, 'extern_param': 0, 'fscommand': 6},
 }
@@ -445,6 +459,7 @@ RULES: dict[str, str] = {
     'fscommand_prefix_len': 'MENU-RT-4',
     'event_function': 'MENU-EVT-2', 'root_event': 'MENU-EVT-2',
     'modes': 'MENU-HUD-1', 'mode_hud_known': 'MENU-HUD-1',
+    'level_loading_movies': 'MENU-LOAD-1', 'loading_movies_in_level_ui': 'MENU-LOAD-1',
     'movie_ids': 'MENU-HUD-2', 'hud_states': 'MENU-HUD-3',
 }
 

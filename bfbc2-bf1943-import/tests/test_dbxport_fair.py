@@ -37,7 +37,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('bf1943-import', 'core')
-import dbxparity  # noqa: E402
+import dbxparitylib as dbxparity  # noqa: E402
 import dbxport  # noqa: E402
 from bfbc2core import dbx  # noqa: E402
 

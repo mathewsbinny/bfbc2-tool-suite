@@ -198,6 +198,63 @@ pub fn to_pc_all<S: BuildHasher + Sync>(items: &[Job<'_, S>]) -> Vec<Result<Vec<
     items.par_iter().map(|(b, bones)| to_pc(b, *bones)).collect()
 }
 
+/// A skeleton resource's bone names (`[b['Name'] for b in Granny(b).root()['Skeletons'][0]['Bones']]`, latin-1;
+/// a string index past the table as `#<index>`), any byte order (round PR1b-1d: `BoneTables` and `bone_map` of the
+/// parity tools).
+///
+/// # Errors
+/// The resource does not read, or holds no skeleton with bones.
+pub fn bone_names(b: &[u8]) -> Result<Vec<String>, GrannyError> {
+    use bc2_formats::granny::{Text, Value};
+    fn text(g: &Granny<'_>, t: Text<'_>) -> String {
+        match t {
+            Text::Missing(i) => format!("#{i}"),
+            _ => g.text_bytes(t).iter().map(|&c| char::from(c)).collect(),
+        }
+    }
+    fn field<'a>(g: &Granny<'_>, v: &Value<'a>, name: &str) -> Option<Value<'a>> {
+        let Value::Object(o) = v else { return None };
+        o.fields
+            .iter()
+            .find(|(k, _)| text(g, *k) == name)
+            .map(|(_, v)| v.clone())
+    }
+    let g = Granny::parse(b)?;
+    let root = g.root(64)?;
+    let none = || GrannyError("no skeleton bones in the resource".into());
+    let Some(Value::List(skels)) = field(&g, &root, "Skeletons") else {
+        return Err(none());
+    };
+    let Some(Value::List(bones)) = skels.first().and_then(|s| field(&g, s, "Bones")) else {
+        return Err(none());
+    };
+    bones
+        .iter()
+        .map(|b| match field(&g, b, "Name") {
+            Some(Value::Text(t)) => Ok(text(&g, t)),
+            _ => Err(none()),
+        })
+        .collect()
+}
+
+/// `granny.bone_map(src_skeleton, dst_skeleton)`: `{index in src: index in dst}` by bone name (a name the target has
+/// twice: its last index).
+///
+/// # Errors
+/// As [`bone_names`].
+pub fn bone_map(src: &[u8], dst: &[u8]) -> Result<HashMap<u32, u32>, GrannyError> {
+    let s = bone_names(src)?;
+    let d = bone_names(dst)?;
+    let mut at: HashMap<&str, u32> = HashMap::with_capacity(d.len());
+    for (i, n) in d.iter().enumerate() {
+        at.insert(n.as_str(), u32::try_from(i).unwrap_or(u32::MAX));
+    }
+    Ok(s.iter()
+        .enumerate()
+        .filter_map(|(i, n)| at.get(n.as_str()).map(|&j| (u32::try_from(i).unwrap_or(u32::MAX), j)))
+        .collect())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {

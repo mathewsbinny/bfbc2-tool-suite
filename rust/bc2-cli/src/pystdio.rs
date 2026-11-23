@@ -71,6 +71,18 @@ pub(crate) fn cp1252(c: char) -> Option<u8> {
         .and_then(|i| u8::try_from(0x80 + i).ok())
 }
 
+/// `text` as Python's `open(path, 'w')` writes it (the ANSI code page, strict): UTF-8 bytes on a UTF-8 page, cp1252's
+/// on 1252; Err the `UnicodeEncodeError` message for a character the page lacks (another page: ASCII text only).
+#[cfg(feature = "bf1943")]
+pub(crate) fn encode_ansi(text: &str) -> Result<Vec<u8>, String> {
+    match ansi_code_page() {
+        65001 => Ok(text.as_bytes().to_vec()),
+        1252 => encode(text, Codec::Cp1252, false).map_err(|u| u.message()),
+        _ if text.is_ascii() => Ok(text.as_bytes().to_vec()),
+        _ => Err("'charmap' codec can't encode the text: the ANSI code page is not one bfbc2.exe writes".to_owned()),
+    }
+}
+
 #[cfg(windows)]
 #[allow(unsafe_code)]
 fn ansi_code_page() -> u32 {

@@ -1708,6 +1708,19 @@
    ]
   },
   {
+   "id": "BOT-GS-5",
+   "title": "Bots in a capture point's area count like humans",
+   "file": "spec/engine/bot_ai.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x724060 (player list 0x532270; soldier vtable +0x30, its +0x2C component's vtable +8 > 0; team +0xA8; 0x6CA7B0 with data +0x11C / +0x138 or 0x6E54C0; per-team counts through 0x7216E0; outputs the +0x7C team's count, the best other team and its count); no +0xD84 operand in 0x724060 - 0x72425F; caller 0x726B60"
+    }
+   ]
+  },
+  {
    "id": "BOT-SCO-1",
    "title": "The kill handler's AI tests gate stat events, not the kill score",
    "file": "spec/engine/bot_ai.md",
@@ -2550,6 +2563,23 @@
    ]
   },
   {
+   "id": "FX-PROC-4",
+   "title": "The executable's processor and evaluator types",
+   "file": "spec/engine/effects.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; 0x11DD76A (37) unread"
+    },
+    {
+     "kind": "inferred",
+     "ref": "\"the input is an offset\" from the values' spacing (0x48, 0x4C, 0x50, 0x60, 0x70 ... matching floats and vectors laid out in a record)"
+    }
+   ]
+  },
+  {
    "id": "GAME-MODE-1",
    "title": "A mode is a GameModeData partition and the level's entities",
    "file": "spec/engine/gameplay.md",
@@ -2982,6 +3012,43 @@
    ]
   },
   {
+   "id": "GAME-CQ-10",
+   "title": "How a capture point moves, frame by frame",
+   "file": "spec/engine/gameplay.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x726B60 (update: +0xAD, data +0x13A, data +0x84, 0x724060, 0x725D40, data +0x136); 0x725D40 (factor > 0 -> 0x725630, < 0 -> 0x711AA0, 0 -> +0x98 = 0); 0x7066B0 (data +0x80 ReturnMultiplier, +0x88 MinNrToTakeControl, +0x134 SeesawCapturing, +0xB8 MaxCaptureMultiplier, +0xBC AddedMultiplierPerPlayer; constants 1.0 at 0x14D94F0, -1.0 at 0x14D9420); 0x725630 (100.0 at 0x14D9638 over data +0x9C); 0x711AA0 (data +0xA0); 0x7118E0 (+0x9C = 0 when data +0x132 StartAtBottom, else 100); field descriptors 0x1C25750 - 0x1C25A68"
+    }
+   ]
+  },
+  {
+   "id": "GAME-CQ-11",
+   "title": "A flag's unit is its own",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4: 19 Conquest levels of every set, 67 flags: no unit shares an instance with another capture point's; 246 team filters in the units; Valparaiso's flag C (MP_01_Factory): 31 instances - its box, marker, spawner, 10 spawn points, 4 team filters, 4 messages, 4 voice-over entities and their lines, one vehicle spawner"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::every_conquest_flag_has_a_unit_of_its_own"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::a_flag_added_wired_and_deleted_on_valparaiso"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:435-450"
+    }
+   ]
+  },
+  {
    "id": "GAME-TKT-1",
    "title": "Conquest tickets",
    "file": "spec/engine/gameplay.md",
@@ -3254,6 +3321,50 @@
     {
      "kind": "doc",
      "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-163"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-10",
+   "title": "A stage's counters count its M-COMs",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4: 31 Rush and Squad Rush levels of every set, 221 stage counters, all equal"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::every_rush_stage_counter_counts_its_mcoms"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::an_mcom_added_to_a_rush_stage_and_taken_out"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:479-500"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RULES-1",
+   "title": "The round's rules and DICE's values for them",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings: Server.IsHardcore, Server.FriendlyFireEnabled, Server.KillCam, Server.Minimap, Server.MinimapSpotting, Server.ThreeDSpotting, Server.Crosshair, Server.ThirdPersonVehicleCameras; no ticket or round-length setting"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::round_rules_stock_set_and_refused"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:656-760"
     }
    ]
   },
@@ -5148,7 +5259,7 @@
     },
     {
      "kind": "exe",
-     "ref": "BFBC2Game.exe string table, file offsets 0x101AF78 - 0x101B1A2: destruction_factor, PickupSpec, LightMap, edgeModelSize, edgeModelPos, edgeModelDir, statModPrimDraw, statModPrimBuil, weaponSpecialization, cameraRoll, cameraPitch, compassRotation, turretRotation, lockWarning, healthWarning, reloadPercentage, weaponHeat, isReloading, lightPower, trackOffset, dirtColor, dirtFactor (each once in the file); the code reading the run was not traced"
+     "ref": "BFBC2Game.exe string table, file offsets 0x101AF78 - 0x101B1A2: destruction_factor, PickupSpec, LightMap, edgeModelSize, edgeModelPos, edgeModelDir, statModPrimDraw, statModPrimBuil, weaponSpecialization, cameraRoll, cameraPitch, compassRotation, turretRotation, lockWarning, healthWarning, reloadPercentage, weaponHeat, isReloading, lightPower, trackOffset, dirtColor, dirtFactor (each once in the file); the run is looked up by 0x5BF470 and set per drawn instance (MAT-TEX-20)"
     },
     {
      "kind": "inferred",
@@ -5493,6 +5604,19 @@
    ]
   },
   {
+   "id": "MAT-TEX-20",
+   "title": "Dirt builds up while a vehicle moves over a dirt-trigger material",
+   "file": "spec/engine/materials.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x884C20 (speed `sqrt(v.v)` against 5.0 at 0x14D9450; material 0x7BF160 -> 0x6C94E0 -> 0x6F0250, the terrain property at +0x10 with DirtTriggerColor +0x10 and DirtTriggerFactor +0x20 as MaterialPropertyTerrainData's field descriptors 0x1C35A88 / 0x1C35AB8 give; clamp with 0 and 1.0 at 0x14D94F0; the colour blend 0x884D28 - 0x884DB5), called from 0x893E9C; getters 0x877520 (+0x1D0) / 0x877530 (+0x180); copies 0x5EA24E - 0x5EA27B and 0x5EFB81 - 0x5EFBA9; constants set 0x5CB733 / 0x5CB7A7 (handles +0x6D0 / +0x6D4 of the table 0x5BF470 fills: dirtFactor, dirtColor, trackOffset ...; built by 0x5DD9D0)"
+    }
+   ]
+  },
+  {
    "id": "MAT-WW2-1",
    "title": "The merged grid: DICE's relation first, then BF1943's, then a stand-in",
    "file": "spec/engine/materials.md",
@@ -5818,6 +5942,27 @@
     {
      "kind": "inferred",
      "ref": "dice.ImageManager asks the engine for a texture by FSCommand, waits for asyncF and loads it with a MovieClipLoader: the four always occur together"
+    }
+   ]
+  },
+  {
+   "id": "MENU-LOAD-1",
+   "title": "A level's loading picture is a Bink video its description names; the Flash loading roots are not",
+   "file": "spec/engine/menus.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: LoadingMovie set on 40 of 74 DICE level partitions, all under Levels/<level>/UI/; the two read by hand (MP05_CQ, SP_02's LoadingMovie) are Render.BinkMemoryAsset with a BinkMemory resource"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe LevelDescription's field descriptors 0x1C23758 - 0x1C23848 (Name +0xF4, Description +0xE8, LoadingScreens +0x104, LoadingMovie +0x100, LoadingMovieTopLeft / LoadingMovieDimensions +0x8 / +0x0, LoopBeginFrame +0xD4, LoopEndFrame +0xD0, AttackerTeam +0xE4, LoadingTime +0xD8, Music +0x114); 0xFDBE30 (substring test 0x50E8E0 with \"_loading\" 0x14B2710)"
     }
    ]
   },
@@ -6953,6 +7098,23 @@
    ]
   },
   {
+   "id": "ONS-CAP-3",
+   "title": "OnlyTakeableByTeam T freezes a point whose progress belongs to team T",
+   "file": "spec/engine/onslaught.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x726B60 (`data +0x84 == 0 || data +0x84 != this +0x7C`, after the +0xAD and data +0x13A tests; data at this +0xC); 0x711AA0 (+0x7C set to its argument at progress 0); field descriptor 0x1C25870 (OnlyTakeableByTeam, offset 0x84, the i32 type 0x1BF03B4); the data class's getters 0x6F5740 - 0x6F58D0 (0x6F5760 reads +0x84) are called and pointed to nowhere: the reads are inlined"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR playtest 2026-10-29: flag A with OnlyTakeableByTeam 1, 2 and 0 (ONS-CAP-1)"
+    }
+   ]
+  },
+  {
    "id": "ONS-CAP-2",
    "title": "Door pre-destructions and the console's explosive objects are left out",
    "file": "spec/engine/onslaught.md",
@@ -7404,6 +7566,19 @@
     {
      "kind": "data",
      "ref": "round SPG2's read: BFBC2's PointSystemParams has 4 instances, no rank instances; BF1943's table (awards.json) 92 flat PointsFor* / StringFor* keys"
+    }
+   ]
+  },
+  {
+   "id": "PERS-AWD-4",
+   "title": "The award tree is loaded at every level start and driven by the per-player stat events",
+   "file": "spec/engine/persistence.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86B4B4 (`push 0x1454`, then 0x86A660(server +0x2C, +0xC, byte +0x1E)); 0x86A660 (+0xC the flag; 0x86A796 call 0x86A0F0); 0x86A0F0 (\"Persistence/MP_Awards\" 0x1433BFC, \"Persistence/SP_Awards\" 0x1433C14 by the flag; 0x869360); 0x869360 (0x863E70 collects the awards, hash by id, 0x8669B0 per criterion: criterion +0xC key, +0x14 flag); 0x8584D0 (listener lookup 0x844410 by (player, event), call vtable +4); callers of 0x8584D0: 0x85A030, 0x8684F0, 0x86DC90"
     }
    ]
   },
@@ -8563,6 +8738,23 @@
    ]
   },
   {
+   "id": "STRM-MNT-3",
+   "title": "The mount table and the mount: a hashed entry index at a virtual path",
+   "file": "spec/engine/streaming.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns at +0 / +0xC, flag stores 0x565CFD (0), uStack 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC"
+    },
+    {
+     "kind": "inferred",
+     "ref": "\"drained later\" from the table being filled with no open call in 0x5657B0; the flag's meaning from which bundles carry 1"
+    }
+   ]
+  },
+  {
    "id": "STRM-MNT-2",
    "title": "One streamed voice bundle per session, by language",
    "file": "spec/engine/streaming.md",
@@ -8782,6 +8974,22 @@
     {
      "kind": "code",
      "ref": "rust/bc2-render/src/terrain.rs:245-280"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::undergrowth_second_string_is_a_string"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::pc_visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "SPG2-rest2, 2026-11-22: bc2-convert's walk over DICE's 30 PC visual terrains: main's 29 (NAM_MP_003 refused, \"runs past the end at 0x2f65c\"), this round's 30; the console twins (20 levels) and BF1943's Wake, Iwo Jima, Guadalcanal convert as before"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:427-436"
     }
    ]
   },
@@ -8811,7 +9019,20 @@
     },
     {
      "kind": "inferred",
-     "ref": "the fields of VEG-UG-3 matched to the positions by the count (6 floats and 3 pairs), the order of the type's field list, and DICE's ranges and orderings; the loader that reads the entry was not traced, so the order inside a pair and the two flags are not confirmed"
+     "ref": "the fields of VEG-UG-3 matched to the positions by the count (6 floats and 3 pairs), the order of the type's field list, and DICE's ranges and orderings; the loader that reads the entry was not found (VEG-UG-6), so the order inside a pair and the two flags are not confirmed"
+    }
+   ]
+  },
+  {
+   "id": "VEG-UG-6",
+   "title": "The type's field list does not give the file's order, and the loader keeps no copy of the type",
+   "file": "spec/engine/vegetation.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field descriptors 0x1C3C940 - 0x1C3CA90 (name, type, offset; MinScale +0x1C, MaxScale +0x14, MinMaskScaleFactor +0x0C with type 0x155D02C; Mesh +0x3C, MeshShaderSet +0x38, CacheShader +0x44, Density +0x40, Variation +0x34, MinMask +0x28, MaxMask +0x24, WindScale +0x30, ViewDistance +0x2C, Enable +0x4A, RotateEnable +0x49, SkewEnable +0x48); \".Visual\" 0x144F98C pushed at 0xA15AAD; IVisualTerrain type 0x1BF808C (registered 0x13759A0), the VisualTerrain type 0x1BF80FC (0x1375A20, getType 0xA01830 in vtable 0x144FCF0); round SPG2-rest2's sweep of 0x9F0000 - 0xA40000 for byte accesses at +0x48 - +0x4A (one constructor, 0x9E9530, of another class) and of every `push 0x4C` factory"
     }
    ]
   },
@@ -17639,6 +17860,10 @@
     },
     {
      "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::undergrowth_second_string_is_a_string"
+    },
+    {
+     "kind": "test",
      "ref": "rust/bc2-render/tests/visual_terrains.rs::every_dice_visual_terrain_reads_with_its_undergrowth"
     },
     {
@@ -23792,6 +24017,58 @@
    ]
   },
   {
+   "id": "XLOG-GAME-1",
+   "title": "A gameplay object is added and deleted with its unit, wired as its template",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:938-1347"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:935-975"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/tool.rs:347-500"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::the_tools_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::a_spawn_point_added_and_deleted"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::aurora_conquest_with_the_tools_edits_exports"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-GAME-2",
+   "title": "The tools in the editor: one operation, one undo step",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/gameplay.rs:295-530"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/app/gameplayui.rs:1-60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/gameplay_tools.rs::gameplay_tools_through_the_interface"
+    }
+   ]
+  },
+  {
    "id": "XSH-SCOPE-1",
    "title": "Dx10 / Dx11 entries of ported objects, terrain patches and strips",
    "file": "spec/transforms/shaders.md",
@@ -26132,6 +26409,64 @@
     {
      "kind": "doc",
      "ref": "rust/BENCHMARKS.md:1598-1606"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PAR-2",
+   "title": "The parity tools measure the importer against DICE's own ports, in Rust",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the user's BF1943 and game copy, 2026-11-22: 2,353 partitions and 16,249 instances compared, 173 partitions predicted, 148 models (147 ported) - every report, JSON and console line the same SHA-256 as dbxparity.py / portparity.py at 0434c22; the 147 ports' LODs, mesh sets and textures identical to meshport.Porter's"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_parity_reports.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/src/bf1943/argp.rs::every_recorded_answer"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/meshconv.rs::converts_as_mesh_convert"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/dbxparity.rs:151-260"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs:252-360"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshport.rs:450-560"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PAR-3",
+   "title": "A float2 vertex element is compared as two singles",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "portparity over the 148 shared models with the Python's table changed to two singles: the same report, and its element reader was called 0 times for a float2"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs::float2_is_two_singles"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs:44-64"
     }
    ]
   },

@@ -22,6 +22,7 @@ use eframe::egui::{self, CornerRadius, FontId, Pos2, Rect, Stroke, Vec2};
 use bc2_levelwrite::Op;
 
 use crate::camera::{Projection, View};
+use crate::gameplay::GameplayKind;
 use crate::gizmo::Tool;
 use crate::math::{self, V3};
 use crate::query::{self, Hit};
@@ -38,6 +39,8 @@ pub enum Outcome {
     Select(Vec<usize>, String),
     /// An operation committed to the project (with its History label; empty: the operation's own name).
     Commit(Box<Op>, String),
+    /// An operation committed, then the objects it made (these guids) selected (round E4: a flag added).
+    CommitSelect(Box<Op>, String, Vec<String>),
 }
 
 /// Where in a view's overlays a tool draws (the order the views draw them in).
@@ -64,6 +67,8 @@ pub struct Pointer {
     pub double_clicked: bool,
     /// Where the button went down, when it did.
     pub at: Option<Pos2>,
+    /// Where the pointer is over the view, when it is (round E4: the gameplay tool's ghost).
+    pub hover: Option<Pos2>,
     /// A document is open and the workspace moves objects (the object tools' input is live).
     pub editing: bool,
 }
@@ -334,6 +339,170 @@ impl ViewTool for PolygonTool {
     }
 }
 
+/// The Gameplay workspace's tool (round E4): a click adds a flag, a spawn point or an M-COM where the pointer meets
+/// the ground (one operation each, [`crate::gameplay::place_op`]), or picks up a flag, base, spawner or M-COM and puts
+/// it down at the next click with what moves with it ([`crate::gameplay::carry_op`]); what it does is chosen in the
+/// Gameplay panel ([`GameplayKind`]). The team is the asset browser's team picker's.
+#[derive(Debug, Default)]
+pub struct GameplayTool {
+    /// What a click does.
+    pub kind: GameplayKind,
+    /// The object being carried: its guid, its index and where it stood.
+    pub carrying: Option<(String, usize, V3)>,
+    /// Where the pointer meets the ground (this frame's), for the ghost.
+    hover: Option<(Projection, V3)>,
+}
+
+impl GameplayTool {
+    /// The entity whose marker is nearest a screen point (within 12 points), else the one the ray meets.
+    fn pick(pointer: &Pointer, at: Pos2, v: &crate::app::ViewState) -> Option<usize> {
+        let mut best: Option<(f32, usize)> = None;
+        for e in &v.scene().entities {
+            if v.doc.as_ref().is_some_and(|d| !d.shown(e.index)) || !v.selectable(e.index) {
+                continue;
+            }
+            let Some(p) = e.position() else { continue };
+            let off = v.marker_offset(e.index);
+            let Some(s) = pointer.view.project([p[0], p[1] + off, p[2]]) else {
+                continue;
+            };
+            let d = (pointer.rect.min + Vec2::new(s[0] as f32, s[1] as f32)).distance(at);
+            if d < 12.0 && best.is_none_or(|(b, _)| d < b) {
+                best = Some((d, e.index));
+            }
+        }
+        best.map(|(_, k)| k).or_else(|| {
+            let (o, dir) = pointer.view.ray(local(pointer.rect, at));
+            let skip = |k: usize| v.doc.as_ref().is_some_and(|d| !d.shown(k));
+            query::ray_hit_except(v.scene(), o, dir, &skip)
+                .and_then(|h| h.entity)
+                .filter(|&k| v.selectable(k))
+        })
+    }
+
+    /// Where the ray under a screen point meets the ground or an object's top (the carried object left out).
+    fn ground(&self, pointer: &Pointer, at: Pos2, v: &crate::app::ViewState) -> Option<V3> {
+        let (o, dir) = pointer.view.ray(local(pointer.rect, at));
+        let carried = self.carrying.as_ref().map(|c| c.1);
+        let skip = |k: usize| v.doc.as_ref().is_some_and(|d| !d.shown(k)) || carried == Some(k);
+        query::ray_hit_except(v.scene(), o, dir, &skip).map(|h| h.point)
+    }
+}
+
+/// A screen point in a view's own pixels.
+fn local(rect: Rect, p: Pos2) -> [f64; 2] {
+    [f64::from(p.x - rect.min.x), f64::from(p.y - rect.min.y)]
+}
+
+impl ViewTool for GameplayTool {
+    fn id(&self) -> Tool {
+        Tool::Gameplay
+    }
+
+    fn boxes(&self) -> bool {
+        false
+    }
+
+    fn input(&mut self, pointer: &Pointer, v: &crate::app::ViewState) -> Option<Outcome> {
+        if !pointer.editing {
+            return None;
+        }
+        self.hover = pointer
+            .hover
+            .and_then(|h| self.ground(pointer, h, v))
+            .map(|p| (pointer.projection, p));
+        if !pointer.clicked {
+            return None;
+        }
+        let at = pointer.at?;
+        let doc = v.doc.as_ref()?;
+        if self.kind == GameplayKind::Carry {
+            if let Some((g, _, _)) = self.carrying.clone() {
+                let Some(to) = self.ground(pointer, at, v) else {
+                    return Some(Outcome::Message("Nothing under the pointer to put it on".into()));
+                };
+                self.carrying = None;
+                return Some(match crate::gameplay::carry_op(doc, &g, to) {
+                    Some(op) => Outcome::Commit(Box::new(op), "Carry".into()),
+                    None => Outcome::Message(format!("{g} has no position to carry")),
+                });
+            }
+            let Some(k) = Self::pick(pointer, at, v) else {
+                return Some(Outcome::Message(
+                    "Click a flag, base, spawner or M-COM to carry it".into(),
+                ));
+            };
+            if !crate::gameplay::is_unit_root(doc, k) {
+                return Some(Outcome::Message(
+                    "Only flags, bases, spawners, spawn points and M-COMs are carried; the Move tool moves the rest"
+                        .into(),
+                ));
+            }
+            let (Some(g), Some(p)) = (
+                doc.guid(k),
+                v.scene().entities.get(k).and_then(bc2_scene::scene::Entity::position),
+            ) else {
+                return Some(Outcome::Done);
+            };
+            self.carrying = Some((g.to_owned(), k, p));
+            return Some(Outcome::Select(
+                vec![k],
+                "Carrying it: click where to put it down (Esc drops it)".into(),
+            ));
+        }
+        let Some(p) = self.ground(pointer, at, v) else {
+            return Some(Outcome::Message("Nothing under the pointer to place on".into()));
+        };
+        let team = crate::gameplay::team_of_picker(v.browser.place_team);
+        Some(match crate::gameplay::place_op(doc, self.kind, p, team, &v.selection) {
+            Ok((op, label, guid)) => Outcome::CommitSelect(Box::new(op), label, vec![guid]),
+            Err(why) => Outcome::Message(format!("Not added: {why}")),
+        })
+    }
+
+    fn draw(&self, d: &Draw<'_>, layer: Layer) {
+        if layer != Layer::Tools {
+            return;
+        }
+        let Some((_, w)) = self.hover.filter(|(p, _)| *p == d.projection) else {
+            return;
+        };
+        let Some(q) = d.to_screen(w) else { return };
+        let p = d.palette;
+        let glyph = match self.kind {
+            GameplayKind::Flag => "F",
+            GameplayKind::SpawnPoint => "S",
+            GameplayKind::Mcom(_) => "M",
+            GameplayKind::Carry => "",
+        };
+        if let Some((_, _, from)) = &self.carrying
+            && let Some(a) = d.to_screen(*from)
+        {
+            d.painter.line_segment([a, q], Stroke::new(1.5, p.view_selection));
+            d.painter.circle_stroke(q, 7.0, Stroke::new(2.0, p.view_selection));
+        } else if !glyph.is_empty() {
+            d.painter.circle_stroke(q, 9.0, Stroke::new(2.0, p.view_selection));
+            let g = d
+                .painter
+                .layout_no_wrap(glyph.to_owned(), FontId::monospace(11.0), p.view_selection);
+            d.painter.galley(q - g.size() / 2.0, g, p.view_selection);
+        }
+    }
+
+    fn transient(&self) -> bool {
+        self.carrying.is_some()
+    }
+
+    fn cancel(&mut self) {
+        self.carrying = None;
+    }
+
+    fn left(&mut self) {
+        self.carrying = None;
+        self.hover = None;
+    }
+}
+
 /// Every tool's state; the chosen one is [`crate::app::ViewState::tool`].
 #[derive(Debug)]
 pub struct Tools {
@@ -344,6 +513,8 @@ pub struct Tools {
     pub ruler: RulerTool,
     /// The polygon selection.
     pub polygon: PolygonTool,
+    /// The Gameplay workspace's tool (round E4).
+    pub gameplay: GameplayTool,
 }
 
 impl Default for Tools {
@@ -354,6 +525,7 @@ impl Default for Tools {
             rotating: GizmoTool { rotate: true },
             ruler: RulerTool::default(),
             polygon: PolygonTool::default(),
+            gameplay: GameplayTool::default(),
         }
     }
 }
@@ -368,6 +540,7 @@ impl Tools {
             Tool::Rotate => &self.rotating,
             Tool::Ruler => &self.ruler,
             Tool::Polygon => &self.polygon,
+            Tool::Gameplay => &self.gameplay,
         }
     }
 
@@ -379,24 +552,39 @@ impl Tools {
             Tool::Rotate => &mut self.rotating,
             Tool::Ruler => &mut self.ruler,
             Tool::Polygon => &mut self.polygon,
+            Tool::Gameplay => &mut self.gameplay,
         }
     }
 
     /// Every tool, in the toolbar's order.
     #[must_use]
-    pub fn all(&self) -> [&dyn ViewTool; 5] {
-        [&self.select, &self.moving, &self.rotating, &self.ruler, &self.polygon]
+    pub fn all(&self) -> [&dyn ViewTool; 6] {
+        [
+            &self.select,
+            &self.moving,
+            &self.rotating,
+            &self.ruler,
+            &self.polygon,
+            &self.gameplay,
+        ]
     }
 
     /// Every tool, to tell each of them something.
-    pub fn all_mut(&mut self) -> [&mut dyn ViewTool; 5] {
+    pub fn all_mut(&mut self) -> [&mut dyn ViewTool; 6] {
         [
             &mut self.select,
             &mut self.moving,
             &mut self.rotating,
             &mut self.ruler,
             &mut self.polygon,
+            &mut self.gameplay,
         ]
+    }
+
+    /// The entity the gameplay tool carries, if it carries one.
+    #[must_use]
+    pub fn gameplay_carried(&self) -> Option<usize> {
+        self.gameplay.carrying.as_ref().map(|c| c.1)
     }
 
     /// `t` chosen: every other tool is told it was left.
@@ -465,7 +653,14 @@ mod tests {
     #[test]
     fn every_tool_is_its_id_and_the_toolbar_keys_are_kept() {
         let tools = Tools::default();
-        for t in [Tool::Select, Tool::Move, Tool::Rotate, Tool::Ruler, Tool::Polygon] {
+        for t in [
+            Tool::Select,
+            Tool::Move,
+            Tool::Rotate,
+            Tool::Ruler,
+            Tool::Polygon,
+            Tool::Gameplay,
+        ] {
             assert_eq!(tools.get(t).id(), t);
         }
         let keys: Vec<(Tool, &str)> = tools.all().iter().filter_map(|t| Some((t.id(), t.key()?))).collect();

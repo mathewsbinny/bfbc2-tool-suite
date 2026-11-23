@@ -208,12 +208,39 @@ The template's `EmittableType` is `ScreenAlignedQuad` (30,443 emitters), `Direct
 
 [data: spec/probes/effects_chain.py, 2026-11-22: EmittableType over 50,141 templates]
 
+### FX-PROC-4: The executable's processor and evaluator types
+
+Status: **observed** · Variants: PC
+
+The type information enumerates 37 processor types, `ProcessorType` 0 - 0x24: `PtBaseEmitter`, `PtSpawnRate`,
+`PtPreSpawn`, `PtSpawnCompositeMeshParts`, `PtSpawnSpeed`, `PtSpawnPosition`, `PtSpawnDirection`, `PtSpawnSize`,
+`PtSpawnAnimation`, `PtSpawnAnimationFrame`, `PtSpawnRotation`, `PtSpawnRotationSpeed`, `PtUpdatePosition`,
+`PtUpdateAge`, `PtTurbulance`, `PtGravity`, `PtLocalForce`, `PtAirResistance`, `PtUpdateLinearVelocity`,
+`PtUpdateCollision`, `PtUpdateOrientation`, `PtEmitter`, `PtUpdateBoundingBox`, `PtUpdateColor`, `PtUpdateColorLeaf`,
+`PtUpdateTransparency`, `PtUpdateTextureCoords`, `PtCycleAnimations`, `PtUpdateRotation`, `PtUpdateSizeX` / `Y` / `Z`,
+`PtUpdateSize`, `PtUpdateAlphaLevelMin` / `Max` / `Scale`, `PtUpdateClipScale`; DICE's emitters use 31 of them
+(FX-PROC-1), so a previewer that implements those 31 draws every DICE emitter. The evaluators are 12 types,
+`EvaluatorType` 0 - 0xB: `EtDefault`, `EtBox`, `EtMesh`, `EtPolynomial`, `EtPolynomialOperator`, `EtRandom`,
+`EtRandomXYZ`, `EtRotateVector`, `EtSampleTexture`, `EtSphere`, `EtConstant`, `EtPolynomialColorInterp` (DICE uses 8,
+FX-PROC-2). A polynomial evaluator's fields are `Coefficients` (one Vec4), `ScaleValue`, `MinClamp`, `MaxClamp`, and
+the operator classes add `ExpressionType` (`PolynomialExpression`, `SineExpression`, `CosineExpression`) and
+`Operator` (none, add, sub; `Multiplication` / `Addition` / `Subtraction` for the polynomial operator). The
+`EvaluatorInput` values step like byte offsets into a particle record (`EfVelocity` 0x50, `EfNormTime` 0x70,
+`EfSpeed` 0x78, `EfNone` 0x7C): presumably the input is read at that offset of the particle. The evaluation itself
+(the polynomial's form, whether the clamp follows the scale) was not found: of the executable's 12- and 37-way
+switches the ones read are not the particle system's, and one 37-way one (0x11DD76A) was not read.
+
+[exe: BFBC2Game.exe enum records 0x1C1D500 - 0x1C1DB48 (EvaluatorInput, the particle vertex layout, EvaluatorType, ProcessorType, name and value each); field descriptors 0x1C1E328 - 0x1C1E3A0 and 0x1C1E898 - 0x1C1E988 (ExpressionType, Operator, Coefficients with the Vec4 type 0x1561CE0, ScaleValue, MinClamp, MaxClamp; Multiplication, Addition, Subtraction); round SPG2-rest2's switch scan (Ghidra, 12- to 38-target jump tables): 0xA5D370, 0xA5D480 (13 targets) are vertex-format conversions and 0x1363390 (37) a settings switch, 0x11B31C0 (37) Kynapse's; 0x11DD76A (37) unread]
+[inferred: "the input is an offset" from the values' spacing (0x48, 0x4C, 0x50, 0x60, 0x70 ... matching floats and vectors laid out in a record)]
+
 ## Open questions
 
 - **The effect instance cap** (FX-CLS-3, LIGHT-PT-7).
 - **Appending images to a target's own atlas** (FX-ATL-4) instead of a merge: room in DICE's atlases is not measured
   (the merged Wake atlas is 82 % full).
-- **The processor chain's semantics** (FX-PROC-1, FX-PROC-2): the chain's structure and classes are counted; what each
-  processor computes from its evaluator (the polynomial's form, the random range) is not traced in the executable.
+- **The processor chain's semantics** (FX-PROC-1, FX-PROC-2, FX-PROC-4): the chain's structure, classes and the
+  executable's enums are known; what each processor computes from its evaluator (the polynomial's form, the random
+  range) is not traced: the particle update was not found (start from a reader of `Coefficients` +0x10 / +0x20 with
+  `ScaleValue` beside it, or from the emitter template's `RootProcessor` +0xB4).
 - **The 1,092 `BaseEmitterData` outside any chain** and the documents whose root starts there.
 - **Cost** of camera-proximity grids and of many lights: a playtest.

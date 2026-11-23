@@ -4,21 +4,24 @@
 //! - `bfbc2 dbxcatalogue`: the catalogue's summary line from its cache (`work\tools_out\dbx_catalogue.pkl`, read with
 //!   `bc2_pyrt::pickle`, over the index's cache: [`crate::gameindex`]). Building a missing catalogue or index (minutes,
 //!   once; the Python writes the cache) is handed to the Python.
-//! - `bfbc2 dbxparity|portparity`: their `argparse` command lines (help, usage errors; at the console's width or
-//!   `COLUMNS` [`crate::argfmt`]'s texts, round RT2); a run
-//!   (BF1943's source, dbxport's / meshport's ports, NumPy) is handed to the Python, as are `--`, attached values
-//!   and positionals on both sides of an option. Option abbreviations resolve as argparse resolves them, with its
-//!   ambiguity error (round RT3).
+//! - `bfbc2 dbxparity|portparity`: their `argparse` command lines in full ([`argp`]: help, usage errors at the
+//!   console's width or `COLUMNS` [`crate::argfmt`]'s texts, round RT2) and their runs (round PR1b-1d, nothing
+//!   handed to the Python): [`dbxparity`] (the field-by-field comparison and `--predict`) and [`portparity`]
+//!   (meshport's conversions against DICE's own), over BF1943's source (`crate::bf1943src`) and the game copy's
+//!   index (`bc2_convert::meshview::Index`), their reports byte for byte the Python's.
+
+mod argp;
+mod dbxparity;
+mod portparity;
 
 use std::fmt::Write as _;
 
 use bc2_pyrt::pickle::{self, Value};
 use bc2_pyrt::py::join;
 
-use crate::argfmt::Long;
 use crate::gameindex;
 use crate::pyos::files as fsx;
-use crate::pyproc::{Fail, Py, PyResult, Tool};
+use crate::pyproc::{Fail, Py, PyErr, PyResult, Tool};
 
 /// The group's tools.
 pub const TOOLS: &[Tool] = &[
@@ -95,12 +98,13 @@ fn dbxcatalogue(py: &mut Py, _argv: &[String]) -> PyResult<i32> {
     Ok(0)
 }
 
-/// A parity tool's `argparse` parser: `names` (`*`), `-o` (default `<tool>.txt`), and `--predict` (dbxparity).
+/// A parity tool's parser: its texts.
 struct Parser {
     prog: &'static str,
     usage: &'static str,
     help: &'static str,
     predict: bool,
+    default_o: &'static str,
 }
 
 const DBXPARITY: Parser = Parser {
@@ -111,6 +115,7 @@ const DBXPARITY: Parser = Parser {
            options:\n  -h, --help  show this help message and exit\n  -o O\n  --predict   score dbxport's value passes \
            and DICE's conventions\n",
     predict: true,
+    default_o: "dbxparity.txt",
 };
 
 const PORTPARITY: Parser = Parser {
@@ -120,91 +125,44 @@ const PORTPARITY: Parser = Parser {
            come to DICE's own.\nBFBC2 ships PC versions of many\n\npositional arguments:\n  names\n\noptions:\n  -h, \
            --help  show this help message and exit\n  -o O\n",
     predict: false,
+    default_o: "portparity.txt",
 };
 
+/// A parsed command line: the name filters, the report path and `--predict`.
+pub struct Run {
+    pub names: Vec<String>,
+    pub o: String,
+    pub predict: bool,
+}
+
 fn dbxparity(py: &mut Py, argv: &[String]) -> PyResult<i32> {
-    parse(py, &DBXPARITY, argv)
+    match parse(py, &DBXPARITY, argv)? {
+        Ok(run) => dbxparity::run(py, &run),
+        Err(code) => Ok(code),
+    }
 }
 
 fn portparity(py: &mut Py, argv: &[String]) -> PyResult<i32> {
-    parse(py, &PORTPARITY, argv)
+    match parse(py, &PORTPARITY, argv)? {
+        Ok(run) => portparity::run(py, &run),
+        Err(code) => Ok(code),
+    }
 }
 
-/// An option string to `argparse` ('O') rather than a value ('A'): starts with '-', is not '-' alone, and is not a
-/// negative number (the parsers have no option that looks like one).
-fn is_option(a: &str) -> bool {
-    let Some(rest) = a.strip_prefix('-') else { return false };
-    if rest.is_empty() {
-        return false;
-    }
-    let digits = |s: &str| s.chars().all(|c| c.is_ascii_digit());
-    let neg = match rest.split_once('.') {
-        None => digits(rest),
-        Some((i, f)) => digits(i) && !f.is_empty() && digits(f),
-    };
-    !neg
-}
-
-/// `ap.parse_args(argv)` of a parity tool: the help (exit 0) or a usage error (exit 2) here; a command line that
-/// parses runs in the Python (BF1943's source, the ports, NumPy).
-fn parse(py: &mut Py, p: &Parser, argv: &[String]) -> PyResult<i32> {
-    let mut extras: Vec<&str> = Vec::new();
-    let mut names_done = false;
-    let mut in_run = false;
-    let mut i = 0;
-    while let Some(a) = argv.get(i).map(String::as_str) {
-        if !is_option(a) {
-            if names_done && !in_run {
-                return Err(Fail::Python); // a second run of positionals: argparse's own rules
-            }
-            names_done = true;
-            in_run = true;
-            i += 1;
-            continue;
+/// `ap.parse_args(argv)`: the values, or the exit code of the help (0) or a usage error (2), printed here.
+fn parse(py: &mut Py, p: &Parser, argv: &[String]) -> PyResult<Result<Run, i32>> {
+    match argp::parse(argv, p.predict, p.default_o) {
+        argp::Outcome::Run(a) => Ok(Ok(Run {
+            names: a.names,
+            o: a.o,
+            predict: a.predict,
+        })),
+        argp::Outcome::Help => {
+            py.write(&crate::argfmt::help_or(p.prog, p.help)?)?;
+            Ok(Err(0))
         }
-        in_run = false;
-        match a {
-            "-h" | "--help" => {
-                py.write(&crate::argfmt::help_or(p.prog, p.help)?)?;
-                return Ok(0);
-            }
-            "--predict" if p.predict => {}
-            "-o" => match argv.get(i + 1) {
-                Some(v) if !is_option(v) => i += 1,
-                Some(v) if v == "--" => return Err(Fail::Python),
-                _ => return error(py, p, "argument -o: expected one argument"),
-            },
-            _ => {
-                // round RT3: a long option resolved as argparse resolves it (an abbreviation, or its ambiguity
-                // error); single-dash forms (-oX) and `--` are argparse's own
-                if !a.starts_with("--") || a.len() == 2 {
-                    return Err(Fail::Python);
-                }
-                let strings: &[&'static str] = if p.predict {
-                    &["-h", "--help", "-o", "--predict"]
-                } else {
-                    &["-h", "--help", "-o"]
-                };
-                let inline = a.contains('=');
-                match crate::argfmt::long_option(a, strings) {
-                    Long::Found("--help") if !inline => {
-                        py.write(&crate::argfmt::help_or(p.prog, p.help)?)?;
-                        return Ok(0);
-                    }
-                    Long::Found("--predict") if !inline => {}
-                    Long::Ambiguous(m) => return error(py, p, &m),
-                    Long::Unknown => extras.push(a),
-                    _ => return Err(Fail::Python), // a flag given a value, an argument with a space
-                }
-            }
-        }
-        i += 1;
+        argp::Outcome::Error(m) => error(py, p, &m).map(Err),
     }
-    if !extras.is_empty() {
-        return error(py, p, &format!("unrecognized arguments: {}", extras.join(" ")));
-    }
-    // every command line that parses: the run is the Python's
-    Err(Fail::Python)
 }
 
 /// `parser.error(message)`: the usage (at the console's width) and the message on stderr, exit code 2.
@@ -218,4 +176,55 @@ fn error(py: &mut Py, p: &Parser, message: &str) -> PyResult<i32> {
     );
     py.eprint(&s);
     Ok(2)
+}
+
+/// `bf1943import.Source(bf1943import.default_source())` and `meshview.Index(shaderdb.find_opfor(None))`, as both
+/// tools open them (the source first: its error is the run's when both are missing); the OPFOR folder too.
+fn open(py: &mut Py) -> PyResult<(crate::bf1943src::Source, bc2_convert::meshview::Index, String)> {
+    let suite = bc2_pyrt::py::suite_root().to_string_lossy().into_owned();
+    let folder = crate::bf1943src::default_source(&suite);
+    let src = crate::bf1943src::Source::open_reading(&folder, &suite).map_err(|e| match e {
+        // uncaught here: the traceback names the module's class
+        Fail::Err(mut e) if e.kind == "Bf1943ImportError" => {
+            "bf1943import.Bf1943ImportError".clone_into(&mut e.kind);
+            Fail::Err(e)
+        }
+        other => other,
+    })?;
+    let root = gameindex::find_opfor(None)?;
+    let ix = gameindex::load_full(py, &root)?;
+    Ok((src, ix, root))
+}
+
+/// `open(path, 'w', encoding=...)` and the text written: `\n` as `\r\n`, UTF-8 (`utf8`) or the ANSI code page
+/// (Python's default `open()`; a character the page lacks is its `UnicodeEncodeError`). Written whole through
+/// `atomicio` (`bc2_gamefs::atomic`).
+fn write_report(path: &str, text: &str, utf8: bool) -> PyResult<()> {
+    let text = text.replace('\n', "\r\n");
+    let bytes = if utf8 {
+        text.into_bytes()
+    } else {
+        crate::pystdio::encode_ansi(&text).map_err(|m| Fail::Err(PyErr::new("UnicodeEncodeError", m)))?
+    };
+    crate::pyos::atomic_write(path, &bytes)
+}
+
+/// `str(dict(...))` of (repr of key, str of value) pairs.
+fn py_dict(items: impl Iterator<Item = (String, String)>) -> String {
+    let parts: Vec<String> = items.map(|(k, v)| format!("{k}: {v}")).collect();
+    format!("{{{}}}", parts.join(", "))
+}
+
+impl bc2_convert::meshport::Source for crate::bf1943src::Source {
+    fn entry(&self, key: &str) -> Option<(&str, &str)> {
+        crate::bf1943src::Source::entry(self, key).map(|(_, e)| (e.kind.as_str(), e.name.as_str()))
+    }
+
+    fn data(&self, key: &str) -> Option<Vec<u8>> {
+        crate::bf1943src::Source::data(self, key)
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.entries.keys().map(String::as_str).collect()
+    }
 }

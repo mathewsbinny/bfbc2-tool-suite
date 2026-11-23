@@ -72,12 +72,37 @@ Status: **observed** · Variants: PC
 The console's flags set `OnlyTakeableByTeam` 1 (the defenders cannot retake them); every PC Conquest flag sets 0. In a
 playtest (2026-10-29) with 1 the attackers lowered flag A to neutral but could not raise their own; with 2 they could
 not take it either; with 0 they could. OPFOR writes 0 on every Onslaught flag, so the console's "defenders cannot
-retake" is lost until the module handles it. The field's reader in the executable is not found (gameplay.md's open
-point).
+retake" is lost until the module handles it. The field's reader is the capture point's update (round SPG2-rest2:
+ONS-CAP-3, GAME-CQ-10), which explains all three results.
 
 [doc: opfor:DEVELOPMENT_NOTES.md:334]
 [data: OPFOR playtest 2026-10-29 on a console-ported level: flag A with OnlyTakeableByTeam 1, 2 and 0, as described]
 [code: opfor:src/tools/onslaught/console_mode.py:41-46]
+
+### ONS-CAP-3: OnlyTakeableByTeam T freezes a point whose progress belongs to team T
+
+Status: **observed** · Variants: PC
+
+`OnlyTakeableByTeam` is `CapturePointEntityData` +0x84 (an i32 between `ReturnMultiplier` +0x80 and
+`MinNrToTakeControl` +0x88). Its one reader is the server capture point's update 0x726B60: the update runs only while
+the point is enabled (+0xAD), `UnableToChangeTeam` (data +0x13A) is clear, and `OnlyTakeableByTeam` is 0 **or differs
+from the team the progress belongs to** (+0x7C, BOT-GS-3); otherwise the point is left as it is for that frame. The
+progress's team is not the owner: when a point is lowered to neutral, 0x711AA0 sets +0x7C to the team that lowered it,
+and that team then raises it (GAME-CQ-10). So with T set:
+
+| The point | What happens |
+|---|---|
+| held by T (+0x7C = T) | frozen: nobody can lower it (the "defenders cannot retake" reading, from T's side) |
+| held by the other team | lowered as usual; at neutral +0x7C becomes the lowering team: if that is T, frozen at neutral |
+
+The 2026-10-29 playtest is this: with 1 the attackers (team 1) lowered flag A (held by team 2) to neutral and could not
+raise it (their own progress, +0x7C = 1, froze it); with 2 the flag, held by team 2, could not be touched; with 0 the
+test never skips. The console's "defenders cannot retake" (the attackers' flags locked once raised) is not what the
+PC's test gives, because the PC freezes T's progress already at neutral. To restore it the module would replace the
+test with "skip when +0x7C = T and the point is captured (+0xAC set)"; inferred, untested.
+
+[exe: BFBC2Game.exe 0x726B60 (`data +0x84 == 0 || data +0x84 != this +0x7C`, after the +0xAD and data +0x13A tests; data at this +0xC); 0x711AA0 (+0x7C set to its argument at progress 0); field descriptor 0x1C25870 (OnlyTakeableByTeam, offset 0x84, the i32 type 0x1BF03B4); the data class's getters 0x6F5740 - 0x6F58D0 (0x6F5760 reads +0x84) are called and pointed to nowhere: the reads are inlined]
+[data: OPFOR playtest 2026-10-29: flag A with OnlyTakeableByTeam 1, 2 and 0 (ONS-CAP-1)]
 
 ### ONS-CAP-2: Door pre-destructions and the console's explosive objects are left out
 
@@ -213,7 +238,8 @@ without `work\backups\napisal_ons_*`. ONS_MP_005GR exists only as Napisal's.
 
 ## Open questions
 
-- The executable's reader of `OnlyTakeableByTeam` (ONS-CAP-1) and how to restore "defenders cannot retake".
+- Restoring "defenders cannot retake": ONS-CAP-3's patch (test the captured flag too) is inferred; a module patch and
+  a playtest.
 - The 0x56C58A crash with the console's explosive objects (ONS-CAP-2).
 - Whether DICE's night state survives in the console port's weather (it uses MP_002's PC weather system).
 - The flag counts of the installed ONS_MP_004 / 005 / 008 ports (an unpack each).
