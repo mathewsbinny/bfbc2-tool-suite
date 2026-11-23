@@ -289,6 +289,10 @@ pub struct Switches {
     /// recall 50.5 / 18.8 -> 56.7 / 23.9 %; the dip on `sp_02` a named exception by the user's ruling). `None`, or a
     /// build without the height field: the step rule everywhere.
     pub df_slope: Option<f64>,
+    /// DICE's node placement (round NKS-deep B; KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5): the propagation at `DistPropagation`,
+    /// the dense edges, the simplification and the over-connection pass of Kynapse's map builder
+    /// ([`crate::propagate`]) in place of NavKit's centre, portal and coverage nodes and its spanner.
+    pub placement: bool,
     /// `navdetail.CHAIN_TURNS`.
     pub chain_turns: bool,
     /// `navislands`' rule when `SHADOW_ISLANDS`, else `None`.
@@ -349,6 +353,7 @@ impl Default for Switches {
             detail_terrain_only: (false, true),
             cut_corners: true,
             df_slope: Some(DF_TERRAIN_SLOPE),
+            placement: false,
             chain_turns: true,
             shadow: Some(graphfile::Shadow::default()),
             header: HEADER,
@@ -1549,6 +1554,9 @@ pub fn stage(
         order_nodes: cfg.order_nodes,
         order_node_min: sw.order_node_min,
         grid_min: (g.min_x, g.min_z),
+        placement: sw
+            .placement
+            .then(|| crate::propagate::Params::at_pitch(cfg.pitch, cfg.dist_edge_max)),
     };
     let level = &st.ground.level;
     let mut jobs = Vec::with_capacity(st.sectors.len());

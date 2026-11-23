@@ -447,6 +447,7 @@ pub fn graph_many<'py>(
         order_nodes,
         order_node_min,
         grid_min,
+        placement: None,
     };
     let sectors = store.read()?;
     let prepared = jobs

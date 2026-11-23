@@ -192,6 +192,28 @@ link rule (`LINK_RULE` slope) connects where the 0.6 m area rule splits them, so
 (`connectivity`) until the area rule and the link rule agree as DICE's do. Both wait for the raw-sample fit the Open
 questions name.
 
+Round NKS-deep B found the trigger in the executable (KYG-AREA-4): not a property of the ground but the area's size in
+bytes while the mesh is built.
+
+### KYG-AREA-4: An area too large in bytes is split at its cells' box midlines
+
+Status: **observed**
+
+After the AI mesh's tiles are built (`kymapbuilderobstacles.cpp`), the builder sums each local map's (a tile's areas')
+binary sizes and tests every area against **MaxLocalMapBinarySize** (Kynapse's default 8,192 bytes; DICE does not set
+it; at least 4,096). An area at or over it marks its tile and the four side-neighbour tiles for a rebuild, and the
+area's cells are dealt into four groups by the middle of their cell box (x above (min + max) / 2 on the integer cell
+indices, z likewise): each group becomes an area of its own, so the area is cut on its box's midlines, which for an
+area that fills its tile are the tile's midlines (KYG-AREA-2's 20 m into a 40 m tile). The tiles are rebuilt and
+tested again until no area reaches the limit. A cut through only one axis is a split whose cells lie in two of the
+four groups; ground that meets across the midline in several stretches (KYG-AREA-2's crossings) is ground with long
+outlines, the size the test counts. The size is the area's record as built, before the outlines are simplified, so
+the stored records (uncut areas up to 14 KB, KYG-AREA-2) do not show the threshold; it is not fitted from the files,
+and NavKit (whose records are its own) does not cut yet.
+
+[exe: the size test 0x011AD550 (MaxLocalMapBinarySize +0x598: default 0x2000 at 0x01146ACB, the reader 0x0114A579 keeps values from 0x1000; the tiles +0x5D4 x +0x5D8, each map's area sizes summed; an area at or over the limit marks its tile and the four side neighbours in +0x6A4 and is listed in +0x698); the split 0x011B4BB0 (the cells' integer box, mid = (min + max) >> 1 at 0x011B4D16 / 0x011B4D18, four groups by x > mid and z > mid at 0x011B4D42-0x011B4D6A); the rebuild loop 0x011B2160 (the size test, then the split and the marked tiles built again)]
+[data: round NKS-rest: stored records of cut groups 1-32 KB, uncut areas 0-14 KB; cuts on the tile midline 16,159 coarse B portals]
+
 ### KYG-AREA-3: Area heights
 
 Status: **observed**
@@ -425,6 +447,59 @@ the dropped numbers mark where the later step removed nodes, which part B can co
 [test: rust/bc2-formats/tests/kynapse_corpus.rs::node_ids_count_from_101_in_table_order]
 [data: first id 101 in 35 of 35 files; the new-id ranges of the 3,094 sectors that number new ids (the other 26 hold only border ids numbered in an earlier sector) rise in table order without overlap; 468,913 of 586,397 numbers used; a gap of 0 before 1,136 ranges, 1-9 before 1,835, 10 or more before 123 (the first sector's measured from 100)]
 
+### KYG-NODE-7: Nodes propagate from the seeds in NbSectors directions, DistPropagation apart
+
+Status: **verified**
+
+Round NKS-deep B read the node generator in `BFBC2Game.exe` (Kynapse's `kymapbuilderrgg.cpp`, the map builder's
+"random graph" stage). It starts with one node at every seed point (the same list the exploration seeds from,
+KYG-SEED-1: the builder refuses to run with "No seed defined" when it is empty) and the seed graphs' nodes, then
+propagates breadth first: each node taken from the front of the queue sends **NbSectors** probes, probe i in
+direction (cos a, 0, sin a) with a = i x 2 pi / NbSectors, from +x towards +z. A probe walks the built mesh
+DistPropagation + 2 x Pitch along its direction; where it stops at the mesh's edge, it is pulled back 2 x Pitch; its
+end (DistPropagation from the node in open ground, nearer before an obstacle) is a candidate. The candidates are
+sorted farthest first (a stable insertion sort of the 32 / 128 / 64) and each becomes a node and joins the queue
+unless the end's ground is not found (its height is read from the explored samples of its area), an existing node
+lies within **DistDensityMin** (3-D), or an existing node within **DistDensityMax** is in a straight walk of it either
+way (KYG-PAR-1's 0.35 / 2.1775 m coarse). So NbSectors is the probe count (32 coarse, 128 in the detailed zones, 64
+vehicle; KYG-PAR-2 had it "not decoded"), and a node kept from the propagation sits exactly DistPropagation from its
+parent, on one of the NbSectors directions: KYG-NODE-4's step pairs, which are not only axis pairs (the axes are
+directions 0, 8, 16, 24 of 32).
+
+On DICE's 35 files, the ordinary node pairs of a sector exactly one step apart in plan (+- 2 mm) lie on the
+NbSectors directions within 0.01 degree in 21,709 of 21,884 coarse pairs, 2,272 of 2,407 detailed and 341 of 359
+vehicle pairs, about half of them on the odd directions (9,396 / 1,138 / 163), so the count is NbSectors and not half
+of it; of the control pairs 1.02-1.10 steps apart, 243 of 15,521 coarse lie on a direction.
+
+[exe: propagation 0x0115D520 (100 nodes a call; NbSectors +0x55C probes; the angle i x 6.2831855 (double 0x01412670) / NbSectors; sin / cos; the probe 0x01153000 (EntityRadius +0x4E0, EdgeRadius +0x56C, Pitch +0x520, DistPropagation +0x560): reach DistPropagation + 2 x Pitch, the end pulled back 2 x Pitch; NeighbourInfo sorted by its squared distance, farthest first (0x0115BDC0); the candidate test and insertion 0x01158BA0 (ground height 0x011545E0, DistDensityMin +0x568, DistDensityMax +0x564, the straight-walk test 0x013565E0 both ways, a 5 m node grid); the seeds 0x0115AC40 (seed points +0x420, count +0x428: "No seed defined" at 0x01143658 when 0; seed graphs +0x450); driver 0x0115D980]
+[test: rust/bc2-formats/tests/kynapse_corpus.rs::step_pairs_lie_on_the_nbsectors_probe_directions]
+[data: round NKS-deep B, `kynapse_place --only angles` over the 35 files: step pairs on the directions coarse 21,709 / detailed 2,272 / vehicle 341, off 175 / 135 / 18, on odd directions 9,396 / 1,138 / 163; control on 243 of 15,521 / 26 of 2,926 / 5 of 3,051]
+[code: rust/bc2-navbuild/src/propagate.rs:1-40]
+
+### KYG-NODE-8: Dense edges, then edges collapsed into their middles
+
+Status: **observed**
+
+After the propagation the builder joins every node to every node within **ConnectionDistance** across (DICE leaves
+it unset: Kynapse then takes 1.2 x DistPropagation, 4.02 m coarse), at least DistDensityMin away in 3-D, in a straight
+walk with EdgeRadius; and nodes closer than that across but stacked (the vertical links). Then it simplifies the graph
+by **collapsing edges into their middles**: the edges in a list sorted by length, shortest first; an edge is collapsed
+when neither end is locked (seed-graph nodes), neither end is a leaf (one neighbour), no two-edge node is joined to
+exactly its two ends (unless in the last phase), the middle has ground (found by a walk from the first end), and every
+other neighbour of the two ends walks straight to the middle within DistEdgeMax across (and MaxDeltaHeight in height).
+The first end moves to the middle, the second goes, and the first takes the neighbours' edges. New edges are marked;
+passes run over the marked edges until one collapses nothing; then (OverSimplify, on by default) the edges under 4 m
+with a spatial lock (after a collapse no edge within 2 lock cells of 5 m collapses in that pass) and, where a
+neighbour cannot reach the middle, its edge rerouted to the ends' other neighbours; then every edge without the
+two-edge test; and after any collapse again from the marked edges, until a pass over every edge collapses nothing.
+So nodes merge until a merge would leave a neighbour beyond DistEdgeMax or out of a straight walk: the coarse nodes'
+7-8 m spacing in open ground (KYG-NODE-5) and their positions off every grid (KYG-NODE-1: middles of middles), with the
+step pairs (KYG-NODE-7) the propagation's nodes that never merged.
+
+[exe: dense edges 0x01154B00 (ConnectionDistance +0x588; set to DistPropagation x 1.2 (double 0x0142EE90) at 0x0114E2B1 when not positive; Kynapse's default -1 at 0x01146AEF); the simplification 0x0115B3C0 (its graph 0x011B81D0, edges sorted by `CSimplifyEdgeLess` 0x011B8030, a new edge dirty with its length 0x01152C00; state word +0x83C: 0 dirty edges, 1 OverSimplify's edges under (2 OneMeter)^2 = 4 with the cell lock +0x28 of the 5 m grid and rerouting, 2 every edge; leaves 0x011B64C0; the two-edge apex 0x011B6500; the collapse test 0x01158510 with 0x01157CA0 / 0x01158100: DistEdgeMax^2 +0x558, MaxDeltaHeight +0x578, the straight walk 0x01351F80 with EdgeRadius); the graph rebuilt 0x011B6740]
+[data: round NKS-deep B, NavKit with this placement (`Switches::placement`) against DICE's files of the 15 regression levels: the structure counts and parity in `rust/BENCHMARKS.md` "NKS-deep B"]
+[code: rust/bc2-navbuild/src/propagate.rs:1-40]
+
 ## 6. Route edges
 
 ### KYG-EDGE-1: Edges join nodes within DistEdgeMax across
@@ -529,6 +604,24 @@ they are not a drop rule.
 NavKit today (round NKG2): the same convention. Each edge lives on its source's owner copy (KYG-NODE-2's
 relocation), so an edge into a non-owner copy has its way back in the far end's owner sector; by id the graph stays
 symmetric (every pair is written both ways, each way in its source's owner).
+
+### KYG-EDGE-5: The 1.2 rule removes edges in order from the simplified graph
+
+Status: **observed**
+
+KYG-EDGE-3's spanner is not a greedy addition over every pair in sight. The builder's edges are the simplified graph's
+(KYG-NODE-8: the dense edges carried through the collapses), and the over-connection pass then takes them in order
+(the graph's edge table) and removes an edge, with its reverse, when an A* search from its source to its target,
+without it and inside a sphere of OverConnectionRatio x its length around the source, finds a route at most
+OverConnectionRatio (1.2) times its length. Both halves of KYG-EDGE-3 follow: an edge left has no such route when it
+was tested (later removals only lengthen routes, so 0.19 % keep one), and a pair in sight without an edge is either
+never adjacent in the simplified graph (nodes in sight within DistEdgeMax are not all neighbours there) or a removed
+edge whose route a later removal broke. That is KYG-EDGE-3's 37 % of coarse pairs "without an explanation": no node
+numbering gap or later step is needed.
+
+[exe: the over-connection pass 0x01155FA0 (only when OverConnectionRatio +0x58C > 1; each edge of the table +0x6E0 in order, not a seed graph's; removal 0x010DA6E0 of it and its reverse); the route test 0x01155150 (`CHeuristicEuclidianDistance`, `CMySphereConstraint` of radius ratio x length around the source, the A* 0x010EB1F0, the path's lengths summed against ratio x length); then nodes without an edge removed 0x011578B0 (ComponentSizeMin +0x57C, default 1)]
+[data: round NKS-deep B: NavKit with the placement and this pass (`Switches::placement`) against DICE's files, `rust/BENCHMARKS.md` "NKS-deep B"]
+[code: rust/bc2-navbuild/src/propagate.rs:1-40]
 
 ## 7. D lines and F cells
 
@@ -736,6 +829,16 @@ on DICE's infantry data without a known source sit at that slope:
 So the generator's walkable step between two samples one pitch apart is most likely StepMax / StepLength x pitch (a
 slope limit expressed as a step over a step length). For vehicles that is 1.0 m at pitch 1.0, which the vehicle D / F
 fit (KYG-DF-2) can test once a vehicle-shaped sample run exists. Part B tests the rule on the raw samples.
+
+Round NKS-deep B tested it as a step on the raw samples (`kynapse_df`, the 15 regression levels, every in-area side
+of DICE's areas against DICE's D / F label): it does not take the place of the measured steps. At pitch 0.2,
+0.156 m instead of 0.175 m finds a few more of DICE's breaks (terrain 14,616 against 14,010) for seventeen times the
+false ones (824,630 against 48,791; objects 220,430 against 181,096); at pitch 0.8 on object sides, 0.622 m instead
+of 0.6 m finds fewer (787 against 865) at no better precision (26.5 against 27.1 %); and KYG-AREA-1's own fit puts
+the area link step below 0.62 m (DICE's unlinked steps start there, so 0.622 m would link some). The slope near
+0.778 (KYG-DF-1) stays the one trace of StepMax / StepLength; NavKit keeps 0.6 m, 0.175 m and the 0.77 slope.
+
+[data: round NKS-deep B, `rust/bc2-navbuild/examples/kynapse_df.rs` (the rule "step > StepMax / StepLength x pitch"): detailed terrain true / false 14,616 / 824,630 against the 0.175 m step's 14,010 / 48,791, detailed objects 3,398 / 220,430 against 2,451 / 181,096, normal-pitch objects found 787 / false 2,180 against 865 / 2,331]
 
 [inferred: three independently measured thresholds (0.62 m link step at pitch 0.8, the 0.775-0.780 slope band, about 0.17 m at pitch 0.2) agree with 0.28 / 0.36 = 0.778 within their measurement steps; the code that applies StepMax / StepLength was not traced]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:629-652]

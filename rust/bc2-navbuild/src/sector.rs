@@ -15,7 +15,7 @@ use std::collections::HashSet;
 
 use crate::route::{self, Node, RouteCfg};
 use crate::trace::P3;
-use crate::{Cell, FastMap, FastSet, Level, NavError, graph, pick, pymath};
+use crate::{Cell, FastMap, FastSet, Level, NavError, graph, pick, propagate, pymath};
 
 /// The build's settings a sector graph reads (`cfg`, the module's switches).
 #[derive(Debug, Clone, Copy)]
@@ -43,6 +43,9 @@ pub struct GraphCfg {
     pub order_node_min: f64,
     /// The sample grid's minimum (`s.min_x`, `s.min_z`): the order points' columns.
     pub grid_min: (f64, f64),
+    /// DICE's placement (KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5, [`propagate`]) with these parameters in place of the centre,
+    /// portal and coverage nodes, the walkable pairs and their pruning; `None`: NavKit's own.
+    pub placement: Option<propagate::Params>,
 }
 
 /// One sector's inputs besides its areas.
@@ -162,90 +165,16 @@ pub fn build_graph(level: &Level, areas: &[Vec<Cell>], job: &GraphJob, cfg: &Gra
         taken: job.borders.iter().map(|b| b.1).collect(),
         taken_pos: job.borders.iter().map(|b| key(b.0)).collect::<Result<_, _>>()?,
     };
-    // the centre node of every area of 4+ cells
-    for cells in areas.iter().filter(|c| c.len() >= 4) {
-        let ij: Vec<(i64, i64)> = cells.iter().map(|c| (c.0, c.1)).collect();
-        let n = pick::centre_cell(&ij).ok_or_else(|| NavError::Shape("an area's centre cell".into()))?;
-        let &(i, j, k) = cells
-            .get(n)
-            .ok_or_else(|| NavError::Shape("an area's centre cell".into()))?;
-        st.add((i, j), k, at(i, j, k))?;
-    }
+    let mut pairs = if let Some(pp) = cfg.placement {
+        place_dice(level, areas, job, cfg, &pp, &mut st)?
+    } else {
+        own_nodes(level, areas, job, cfg, route_cfg, &mut st)?
+    };
     // surface -> cell, the last area's where two hold it (the reference's dict)
     let mut cell_of: FastMap<usize, (i64, i64)> = FastMap::default();
     cell_of.reserve(areas.iter().map(Vec::len).sum());
     for c in areas.iter().flatten() {
         cell_of.insert(c.2, (c.0, c.1));
-    }
-    // a node per portal, on the area's cell nearest the portal's middle
-    for (ai, mids) in job.mids.iter().enumerate() {
-        if mids.is_empty() {
-            continue;
-        }
-        let cells = areas
-            .get(ai)
-            .ok_or_else(|| NavError::Shape("portal middles of an area that is not there".into()))?;
-        let ij: Vec<(i64, i64)> = cells.iter().map(|c| (c.0, c.1)).collect();
-        let picks = pick::nearest_cells(&ij, ox, oz, pitch, mids)
-            .ok_or_else(|| NavError::Shape("an area with portals and no cells".into()))?;
-        for n in picks {
-            let &(i, j, k) = cells.get(n).ok_or_else(|| NavError::Shape("a portal cell".into()))?;
-            st.add((i, j), k, at(i, j, k))?;
-        }
-    }
-    // the border nodes, on their surface's cell (a carried node's position may be off it)
-    for (b, &(pos, k)) in job.borders.iter().enumerate() {
-        let cell = match cell_of.get(&k) {
-            Some(&c) => c,
-            None => (
-                round_int((pos.0 - ox) / pitch).ok_or_else(|| NavError::Shape("a border node's cell".into()))?,
-                round_int((pos.2 - oz) / pitch).ok_or_else(|| NavError::Shape("a border node's cell".into()))?,
-            ),
-        };
-        st.nodes.push(GraphNode {
-            border: Some(b),
-            node: Node { k, cell, pos },
-            order: false,
-        });
-    }
-    // coverage nodes
-    if let Some(cover) = cfg.cover {
-        let cover_areas: Vec<graph::CoverArea> = areas
-            .iter()
-            .map(|cells| cells.iter().map(|&(i, j, k)| at(i, j, k)).collect())
-            .collect();
-        let mut positions: Vec<P3> = st.nodes.iter().map(|n| n.node.pos).collect();
-        let mut failed: Option<NavError> = None;
-        let mut add = |ai: usize, w: usize| -> Vec<P3> {
-            if failed.is_some() {
-                return Vec::new();
-            }
-            let Some(&(i, j, k)) = areas.get(ai).and_then(|c| c.get(w)) else {
-                return Vec::new();
-            };
-            match st.add((i, j), k, at(i, j, k)) {
-                Ok(p) => p.into_iter().collect(),
-                Err(e) => {
-                    failed = Some(e);
-                    Vec::new()
-                }
-            }
-        };
-        graph::cover_nodes(&cover_areas, &mut positions, cover, &mut add);
-        if let Some(e) = failed {
-            return Err(e);
-        }
-    }
-    // the walkable pairs, pruned to the Gabriel graph where the build says so
-    let mut pairs = route::edge_pairs(level, &st.plain(), route_cfg, &job.blocked)?;
-    if let Some(stretch) = cfg.spanner {
-        let keep = graph::spanner_prune(st.nodes.len(), &pairs, stretch)
-            .ok_or_else(|| NavError::Shape("spanner_prune".into()))?;
-        pairs = keep.into_iter().filter_map(|n| pairs.get(n).copied()).collect();
-    } else if cfg.gabriel {
-        let pos: Vec<P3> = st.nodes.iter().map(|n| n.node.pos).collect();
-        let keep = graph::gabriel_prune(&pos, &pairs).ok_or_else(|| NavError::Shape("gabriel_prune".into()))?;
-        pairs = keep.into_iter().filter_map(|n| pairs.get(n).copied()).collect();
     }
     // ladder links: a node at each end (the first on its surface, else a new one), joined directly
     for &(kf, kt) in &job.ladders {
@@ -351,4 +280,218 @@ pub fn build_graph(level: &Level, areas: &[Vec<Cell>], job: &GraphJob, cfg: &Gra
         }
     }
     Ok(Graph { nodes: st.nodes, pairs })
+}
+
+/// NavKit's own nodes and pairs (before round NKS-deep B): the centre and portal nodes, the border nodes, the
+/// coverage nodes, the walkable pairs pruned to the spanner or the Gabriel graph.
+fn own_nodes(
+    level: &Level,
+    areas: &[Vec<Cell>],
+    job: &GraphJob,
+    cfg: &GraphCfg,
+    route_cfg: RouteCfg,
+    st: &mut Nodes,
+) -> Result<Vec<(usize, usize, f64)>, NavError> {
+    let (ox, oz) = job.origin;
+    let pitch = cfg.pitch;
+    let at =
+        |i: i64, j: i64, k: usize| -> P3 { (ox + i as f64 * pitch, level.y(k) + cfg.y_offset, oz + j as f64 * pitch) };
+    // the centre node of every area of 4+ cells
+    for cells in areas.iter().filter(|c| c.len() >= 4) {
+        let ij: Vec<(i64, i64)> = cells.iter().map(|c| (c.0, c.1)).collect();
+        let n = pick::centre_cell(&ij).ok_or_else(|| NavError::Shape("an area's centre cell".into()))?;
+        let &(i, j, k) = cells
+            .get(n)
+            .ok_or_else(|| NavError::Shape("an area's centre cell".into()))?;
+        st.add((i, j), k, at(i, j, k))?;
+    }
+    // surface -> cell, the last area's where two hold it (the reference's dict)
+    let mut cell_of: FastMap<usize, (i64, i64)> = FastMap::default();
+    cell_of.reserve(areas.iter().map(Vec::len).sum());
+    for c in areas.iter().flatten() {
+        cell_of.insert(c.2, (c.0, c.1));
+    }
+    // a node per portal, on the area's cell nearest the portal's middle
+    for (ai, mids) in job.mids.iter().enumerate() {
+        if mids.is_empty() {
+            continue;
+        }
+        let cells = areas
+            .get(ai)
+            .ok_or_else(|| NavError::Shape("portal middles of an area that is not there".into()))?;
+        let ij: Vec<(i64, i64)> = cells.iter().map(|c| (c.0, c.1)).collect();
+        let picks = pick::nearest_cells(&ij, ox, oz, pitch, mids)
+            .ok_or_else(|| NavError::Shape("an area with portals and no cells".into()))?;
+        for n in picks {
+            let &(i, j, k) = cells.get(n).ok_or_else(|| NavError::Shape("a portal cell".into()))?;
+            st.add((i, j), k, at(i, j, k))?;
+        }
+    }
+    // the border nodes, on their surface's cell (a carried node's position may be off it)
+    for (b, &(pos, k)) in job.borders.iter().enumerate() {
+        let cell = match cell_of.get(&k) {
+            Some(&c) => c,
+            None => (
+                round_int((pos.0 - ox) / pitch).ok_or_else(|| NavError::Shape("a border node's cell".into()))?,
+                round_int((pos.2 - oz) / pitch).ok_or_else(|| NavError::Shape("a border node's cell".into()))?,
+            ),
+        };
+        st.nodes.push(GraphNode {
+            border: Some(b),
+            node: Node { k, cell, pos },
+            order: false,
+        });
+    }
+    // coverage nodes
+    if let Some(cover) = cfg.cover {
+        let cover_areas: Vec<graph::CoverArea> = areas
+            .iter()
+            .map(|cells| cells.iter().map(|&(i, j, k)| at(i, j, k)).collect())
+            .collect();
+        let mut positions: Vec<P3> = st.nodes.iter().map(|n| n.node.pos).collect();
+        let mut failed: Option<NavError> = None;
+        let mut add = |ai: usize, w: usize| -> Vec<P3> {
+            if failed.is_some() {
+                return Vec::new();
+            }
+            let Some(&(i, j, k)) = areas.get(ai).and_then(|c| c.get(w)) else {
+                return Vec::new();
+            };
+            match st.add((i, j), k, at(i, j, k)) {
+                Ok(p) => p.into_iter().collect(),
+                Err(e) => {
+                    failed = Some(e);
+                    Vec::new()
+                }
+            }
+        };
+        graph::cover_nodes(&cover_areas, &mut positions, cover, &mut add);
+        if let Some(e) = failed {
+            return Err(e);
+        }
+    }
+    // the walkable pairs, pruned to the Gabriel graph where the build says so
+    let mut pairs = route::edge_pairs(level, &st.plain(), route_cfg, &job.blocked)?;
+    if let Some(stretch) = cfg.spanner {
+        let keep = graph::spanner_prune(st.nodes.len(), &pairs, stretch)
+            .ok_or_else(|| NavError::Shape("spanner_prune".into()))?;
+        pairs = keep.into_iter().filter_map(|n| pairs.get(n).copied()).collect();
+    } else if cfg.gabriel {
+        let pos: Vec<P3> = st.nodes.iter().map(|n| n.node.pos).collect();
+        let keep = graph::gabriel_prune(&pos, &pairs).ok_or_else(|| NavError::Shape("gabriel_prune".into()))?;
+        pairs = keep.into_iter().filter_map(|n| pairs.get(n).copied()).collect();
+    }
+    Ok(pairs)
+}
+
+/// DICE's placement ([`propagate::place`]): the border nodes as locked seeds, the propagated, simplified nodes after
+/// them, and the edges the over-connection pass leaves.
+fn place_dice(
+    level: &Level,
+    areas: &[Vec<Cell>],
+    job: &GraphJob,
+    cfg: &GraphCfg,
+    pp: &propagate::Params,
+    st: &mut Nodes,
+) -> Result<Vec<(usize, usize, f64)>, NavError> {
+    let (ox, oz) = job.origin;
+    let pitch = cfg.pitch;
+    let ground = propagate::Ground::of(
+        level,
+        areas,
+        job.gi0,
+        job.gj0,
+        (ox, oz),
+        pitch,
+        cfg.y_offset,
+        cfg.rule,
+        &job.blocked,
+    );
+    let mut seeds = Vec::with_capacity(job.borders.len());
+    for (b, &(pos, k)) in job.borders.iter().enumerate() {
+        let cell = match ground.cell_of.get(&k) {
+            Some(&c) => c,
+            None => (
+                round_int((pos.0 - ox) / pitch).ok_or_else(|| NavError::Shape("a border node's cell".into()))?,
+                round_int((pos.2 - oz) / pitch).ok_or_else(|| NavError::Shape("a border node's cell".into()))?,
+            ),
+        };
+        st.nodes.push(GraphNode {
+            border: Some(b),
+            node: Node { k, cell, pos },
+            order: false,
+        });
+        seeds.push(propagate::PNode {
+            k,
+            cell,
+            pos,
+            locked: true,
+        });
+    }
+    // the AI order positions as seeds too (KYG-NODE-1: DICE has a node within 0.2 m of each), each on the kept
+    // surface of its column in this sector's areas nearest its height (within 1 m), as the order nodes find theirs
+    for &(x, y, z) in &job.orders {
+        let (Some(gi), Some(gj)) = (
+            round_int((x - cfg.grid_min.0) / pitch),
+            round_int((z - cfg.grid_min.1) / pitch),
+        ) else {
+            return Err(NavError::Shape("an order point's column".into()));
+        };
+        let mut best: Option<(usize, f64)> = None;
+        for k in level.surfaces(gi, gj) {
+            let dy = (level.y(k) - y).abs();
+            if ground.cell_of.contains_key(&k) && dy <= 1.0 && best.is_none_or(|(_, b)| dy < b) {
+                best = Some((k, dy));
+            }
+        }
+        let Some((k, _)) = best else { continue };
+        if seeds.iter().any(|q: &propagate::PNode| q.k == k) {
+            continue;
+        }
+        let cell = (gi - job.gi0, gj - job.gj0);
+        seeds.push(propagate::PNode {
+            k,
+            cell,
+            pos: (
+                ox + cell.0 as f64 * pitch,
+                level.y(k) + cfg.y_offset,
+                oz + cell.1 as f64 * pitch,
+            ),
+            locked: true,
+        });
+    }
+    let borders = job.borders.len();
+    let placed = propagate::place(&ground, pp, &seeds, areas);
+    // the placed nodes past the seeds, in order; the edges between kept nodes
+    let mut index: Vec<Option<usize>> = (0..borders).map(Some).collect();
+    for (q, n) in placed.nodes.iter().enumerate().skip(borders) {
+        match n {
+            Some(n) => {
+                st.taken.insert(n.k);
+                st.taken_pos.insert(key(n.pos)?);
+                index.push(Some(st.nodes.len()));
+                st.nodes.push(GraphNode {
+                    border: None,
+                    node: Node {
+                        k: n.k,
+                        cell: n.cell,
+                        pos: n.pos,
+                    },
+                    order: q < seeds.len(),
+                });
+            }
+            None => index.push(None),
+        }
+    }
+    let mut pairs = Vec::with_capacity(placed.edges.len());
+    for &(a, b, _) in &placed.edges {
+        let (Some(Some(u)), Some(Some(v))) = (index.get(a), index.get(b)) else {
+            continue;
+        };
+        let (Some(na), Some(nb)) = (st.nodes.get(*u), st.nodes.get(*v)) else {
+            continue;
+        };
+        pairs.push((*u, *v, pymath::dist3(na.node.pos, nb.node.pos)));
+    }
+    Ok(pairs)
 }
