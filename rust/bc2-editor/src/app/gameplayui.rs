@@ -5,7 +5,10 @@
 //!   browser's team picker); Delete takes the selection with its units.
 //! - **Capture points**: the level's bases and flags with their letters, teams and spawn points; a row selects one;
 //!   the selected ones' team set (one operation).
-//! - **Rush stages**: each stage's M-COMs, an M-COM added to it with the tool.
+//! - **Rush stages**: each stage's M-COMs, an M-COM added to it with the tool; a whole stage added after the last
+//!   with the tool (round E4-rest) or taken out with what belongs to it.
+//! - **The selected flag's name** (round E4-rest): its name in DICE's form (`E: Harbor`); the export makes the deploy
+//!   screen's text from it.
 //! - **Round rules**: the mode's rules as the level holds them, each with DICE's values to choose from and a value of
 //!   one's own, DICE's for the mode and era by default; applied as one operation of the log.
 
@@ -26,6 +29,20 @@ pub struct GameplayPanel {
     pub rules: Option<Rules>,
     /// The log (operations, redo) the rules were read at.
     read_at: Option<(usize, usize)>,
+    /// The selected flag's name being edited, and the flag (round E4-rest).
+    pub name: Option<(usize, String)>,
+    /// A button's request made from outside the panel (the interface tests: what a click on it asks), done the next
+    /// time the panel is drawn.
+    pub request: Option<PanelRequest>,
+}
+
+/// What one of the panel's buttons asks (round E4-rest).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PanelRequest {
+    /// "Remove stage" on stage `k` (play order, from 0).
+    RemoveStage(usize),
+    /// "Rename" of a flag (its guid) to a name.
+    Rename(String, String),
 }
 
 /// What the panel's buttons asked for this frame.
@@ -36,6 +53,8 @@ struct Asked {
     team: Option<Team>,
     apply: bool,
     delete: bool,
+    remove_stage: Option<usize>,
+    rename: Option<(String, String)>,
 }
 
 /// One capture point's row.
@@ -114,6 +133,11 @@ impl Tabs<'_> {
         let kind = self.view.tools.gameplay.kind;
         let editing = self.view.workspace == Workspace::Gameplay;
         let mut asked = Asked::default();
+        match self.view.gameplay.request.take() {
+            Some(PanelRequest::RemoveStage(k)) => asked.remove_stage = Some(k),
+            Some(PanelRequest::Rename(g, n)) => asked.rename = Some((g, n)),
+            None => {}
+        }
         let mut team = self.view.browser.place_team;
         let selected: Vec<usize> = self.view.selection.clone();
         let sel_team = selected
@@ -139,7 +163,12 @@ impl Tabs<'_> {
                     // the tool
                     ui.label(RichText::new("Tool").text_style(style("body-strong")).color(p.ink));
                     ui.horizontal_wrapped(|ui| {
-                        for k in [GameplayKind::Flag, GameplayKind::SpawnPoint, GameplayKind::Carry] {
+                        for k in [
+                            GameplayKind::Flag,
+                            GameplayKind::SpawnPoint,
+                            GameplayKind::Spawner,
+                            GameplayKind::Carry,
+                        ] {
                             if ui
                                 .add_enabled(editing, egui::Button::selectable(tool_on && kind == k, k.name()))
                                 .on_hover_text(k.hint())
@@ -221,6 +250,30 @@ impl Tabs<'_> {
                             }
                         });
                     }
+                    // the selected flag's name (round E4-rest)
+                    if let [one] = selected.as_slice()
+                        && let Some(r) = rows.iter().find(|r| r.k == *one && !r.base)
+                    {
+                        let mut edit = match self.view.gameplay.name.take() {
+                            Some((k, t)) if k == r.k => t,
+                            _ => r.name.clone(),
+                        };
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Name").color(p.ink_muted));
+                            ui.add_enabled(editing, egui::TextEdit::singleline(&mut edit).desired_width(160.0))
+                                .on_hover_text(
+                                    "The flag's name (DICE's form: \"E: Harbor\"); the export makes the deploy                                      screen's text from it",
+                                );
+                            if ui
+                                .add_enabled(editing && edit.trim() != r.name, egui::Button::new("Rename"))
+                                .clicked()
+                                && let Some(g) = self.view.doc.as_ref().and_then(|d| d.guid(r.k))
+                            {
+                                asked.rename = Some((g.to_owned(), edit.clone()));
+                            }
+                        });
+                        self.view.gameplay.name = Some((r.k, edit));
+                    }
                     if ui
                         .add_enabled(
                             editing && !selected.is_empty(),
@@ -264,7 +317,27 @@ impl Tabs<'_> {
                                 {
                                     asked.kind = Some(mine);
                                 }
+                                if ui
+                                    .add_enabled(editing && stages.len() > 1, egui::Button::new("Remove stage"))
+                                    .on_hover_text(
+                                        "Takes the stage out with its M-COMs, bases, spawns, combat areas and                                          counters; the stage before hands on to the next (one undo step)",
+                                    )
+                                    .clicked()
+                                {
+                                    asked.remove_stage = Some(k);
+                                }
                             });
+                        }
+                        let add = GameplayKind::Stage;
+                        if ui
+                            .add_enabled(
+                                editing && stages.len() > 1,
+                                egui::Button::selectable(tool_on && kind == add, "Add stage after the last"),
+                            )
+                            .on_hover_text(add.hint())
+                            .clicked()
+                        {
+                            asked.kind = Some(add);
                         }
                     }
                     // the round's rules
@@ -400,6 +473,27 @@ impl Tabs<'_> {
         }
         if asked.delete {
             self.view.edit_action(gpu, &palette, Action::Delete);
+        }
+        if let Some(k) = asked.remove_stage
+            && let Some(d) = self.view.doc.as_ref()
+        {
+            match crate::gameplay::remove_stage_op(d, k) {
+                Ok(op) => {
+                    self.view.commit(gpu, &palette, op, &format!("Remove Rush stage {}", k + 1));
+                }
+                Err(why) => self.view.message = format!("Stage {} not removed: {why}", k + 1),
+            }
+        }
+        if let Some((g, name)) = asked.rename
+            && let Some(d) = self.view.doc.as_ref()
+        {
+            match crate::gameplay::rename_op(d, &g, &name) {
+                Ok(op) => {
+                    self.view.commit(gpu, &palette, op, "Rename flag");
+                    self.view.gameplay.name = None;
+                }
+                Err(why) => self.view.message = format!("Not renamed: {why}"),
+            }
         }
     }
 }

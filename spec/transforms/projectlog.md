@@ -346,12 +346,42 @@ step; the views follow (new entities, their zones, team colours).
 [code: rust/bc2-editor/src/gameplay.rs:295-530] [code: rust/bc2-editor/src/app/gameplayui.rs:1-60]
 [test: rust/bc2-editor/tests/gameplay_tools.rs::gameplay_tools_through_the_interface]
 
+### XLOG-GAME-3: A Rush stage is added and taken out whole, and event connections are operations
+
+Status: **verified**
+
+`connect` (project format 10) adds event connections (each a copy of one with the same two event names, its ends
+and names set; refused when it is there) or takes them out. A stage added after the last (one `files` operation: a
+`place` of the last stage's set - its M-COMs with their units, its counters, what is in play during it only and what
+only these own and reach - with the connections among the copies only, moved so the M-COMs' middle stands at the
+click, each copy keeping its height above the ground; the `connect` of its wiring; the defenders' `BaseCount` one
+more) is wired as GAME-RUSH-11 says: the copies to the level's shared logic as the last stage is, to the last stage
+by the last stage's wiring to the one before shifted by one stage (each object of the stage before mapped to the last
+stage's that comes into play the same way, else of its type and team), and where the play would leave an object of
+the last stage in play during the new one (or the reverse) the last stage's counter switches it. A stage taken out
+(one operation: the `connect` of what it handed on, its set deleted, `BaseCount` one fewer) has what it did as it
+ended done by the stage before's counter and what its objects did as they came into play done by the next stage's
+counterparts; taking out stage 1 starts the round as stage 2 started (each remaining object's `Enabled` as it was
+then). Each is checked as it is made: the stages are played in one order, the new stage last with its copies as the
+last stage's objects were, every other stage as before; a level whose stages are not wired as DICE's is refused in
+words. On 30 of DICE's 31 Rush and Squad Rush levels a stage added and taken out again gives back every instance and
+connection and the stages' play (the last stage's counter keeps the switches it gained, as a middle stage's has them;
+MP_006's dormant sixth forward base goes with the added stage), and each stage taken out leaves the others played in
+their order with their states.
+
+[code: rust/bc2-levelwrite/src/rushstage.rs:1-2] [code: rust/bc2-levelwrite/src/write.rs:1-2]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::connections_added_and_taken_out]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::a_stage_added_and_taken_out_on_port_valdez]
+[test: rust/bc2-editor/tests/rush_stage_tools.rs::a_rush_stage_through_the_interface]
+
 ## Open questions
 
-- The gameplay tools (round E4) in game: whether the HUD shows a fifth letter's flag (its capture messages keep the
-  template's `HUD_MP_CQ_TOOK_BASE_<letter>` keys: new letters need their own texts), whether a copied flag's
-  `Index` matters, whether an M-COM added to a stage arms, alarms and ends its stage, and the rules' effect on a round
-  (in-game tests paused, 2026-11-20).
+- The gameplay tools (rounds E4, E4-rest) in game: whether the HUD shows a fifth (or later) letter's flag and the
+  export's new texts (spawn names, capture messages past F), whether a copied flag's `Index` matters, whether an M-COM
+  added to a stage arms, alarms and ends its stage, whether an added Rush stage plays (its bases, combat areas and
+  hold-back timers switching, the attackers' reinforcement, the round's end after it), whether a stage taken out
+  hands on, and the rules' effect on a round (in-game tests paused, 2026-11-20).
 
 - Static group members (round SG1, XLOG-MEM-1 - XLOG-MEM-3): whether the game accepts a member type with no
   instance (the editor refuses the last of a kind until it is known), whether a member whose leaf sits far from its

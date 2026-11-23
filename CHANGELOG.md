@@ -107,10 +107,29 @@ landed on `main`.
   stage_counters, Rules, stock, choices, rules_of, set_rules}`, `LevelWriter::place_unit`,
   `LevelWriter::ownership_with_events`, `Ownership::owned_from`; the operations `place-unit`, `link-point` and
   `set-rules`.
+- **Whole Rush stages, a new flag's own texts and spawners in the gameplay tools** (round E4-rest,
+  `EDITOR_ARCHITECTURE.md` 3.4): the Gameplay tool's **Add stage** adds a Rush or Squad Rush stage after the last - a
+  copy of the last stage with its M-COMs, counters, bases, spawns and combat areas, its M-COMs' middle where the click
+  is, wired to the last stage as DICE wires its stages (spec GAME-RUSH-11: one base counter per stage, the enable
+  chain, the switches of what each stage has in play) and the defenders' `BaseCount` one more; the panel's **Remove
+  stage** takes a stage out with what belongs to it, the stage before handing on to the next (taking out the first,
+  the round starts as the second did). A flag added takes its own letter's capture messages
+  (`HUD_MP_CQ_TOOK_BASE_<letter>`) and spawn-name key, the panel renames the selected flag in DICE's form
+  ("E: Harbor"), and the export words what the game has no text for (GAME-CQ-12): the deploy screen's names under the
+  level's own keys and the capture messages of letters past F from DICE's F in each language. **Add spawner** adds a
+  soldier spawner with its spawn points to the selected (or nearest) flag or base, wired as the flag's own. Each is
+  one operation; nothing of it has been tried in game yet (in-game tests are paused).
+- levelwrite: `rushstage::{stages, add_stage, remove_stage, counterparts, connections, settled}`,
+  `gameplay::{add_spawner, rename_flag, flag_texts, nato}`, `names::{language_texts, flag_message_texts}`,
+  `export::flag_loc_keys`, `LevelWriter::connect`, `Ownership::owned_from_except`, `modelayer::clusters`; the operation
+  `connect` (event connections added or taken out).
 
 ### Changed
 - The map project format is version 9 (round E4's operations); a version-8 project loads as it is. A file whose log
   holds the new operations asks for an editor of version 9 (`min_reader`), also inside a multi-file operation.
+- The map project format is version 10 (round E4-rest's `connect`); a version-9 project loads as it is.
+- A soldier spawner deleted with its unit takes its spawn points although its flag's cluster lists them (round
+  E4-rest); `mapexport overlay --remove <LEVEL>` also takes out the level's flag spawn names (`<LEVEL>_A` to `_Z`).
 - A field set on an instance the scanned partitions do not show (a mode layer grafted from a donor) takes a number's
   type from the instance's own value when the schema has no evidence (the same `looks_whole` rule), where it was
   refused for any value but 0.

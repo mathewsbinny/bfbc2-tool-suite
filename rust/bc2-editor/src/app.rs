@@ -58,6 +58,7 @@ mod tools;
 
 pub use crate::workspace::Workspace;
 pub use create::HeightmapForm;
+pub use gameplayui::{GameplayPanel, PanelRequest};
 pub use modes::StartPage;
 pub use navui::NAV_RUNNING;
 pub use previewui::{PreviewShown, preview_colours};
