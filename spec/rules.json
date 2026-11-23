@@ -3161,6 +3161,38 @@
    ]
   },
   {
+   "id": "GAME-CQ-12",
+   "title": "A flag's texts are keyed by its letter",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest, 2026-11-22: every stock Conquest level of each set, 67 lettered flags: 208 of 208 capture messages name their flag's letter, 103 of 103 soldier spawners' LocationNameSid end in it, all 103 with a text; HUD_MP_CQ_TOOK_BASE_A - F and LOST_BASE_A - F in all 8 languages, G on none"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::every_conquest_flags_texts_name_its_letter"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_valparaiso"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_a_synthetic_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:1115-1283"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:227-322"
+    }
+   ]
+  },
+  {
    "id": "GAME-TKT-1",
    "title": "Conquest tickets",
    "file": "spec/engine/gameplay.md",
@@ -3457,6 +3489,34 @@
     {
      "kind": "code",
      "ref": "rust/bc2-levelwrite/src/gameplay.rs:479-500"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-11",
+   "title": "A stage is wired to the next by its base counter",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest: rust/bc2-levelwrite/examples/rush_facts.rs on 31 Rush and Squad Rush levels, 2026-11-22: 30 levels with one base counter per stage and the exact chain (87 stages), BaseCount equal on 30 of 30; base counters' `OnTrigger` CapturePoint `Enable` of the next stage's 54 of 57 middle stages, CombatArea `Enable` 43, `Disable` of its own 36 (0 on the last); 78 later stages' other counters enabled from the start, 3 not; `ons_mp_005gr` (the Onslaught install's) has no defenders' life counter"
+    },
+    {
+     "kind": "data",
+     "ref": "E4-rest sweep, 2026-11-22: on all 30 levels a stage added after the last plays last with its copies as the last stage's objects (72 - 323 copies, 7 - 62 connections added) and, taken out again, gives back every instance and stage state; each of the 87 stages taken out leaves the others in their order and states but one hold-back combat area on nam_mp_002r"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-873"
     }
    ]
   },
@@ -12760,11 +12820,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:2317-2328"
-    },
-    {
-     "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:875"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:837-873"
     },
     {
      "kind": "test",
@@ -12812,7 +12868,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:2329-2347"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2196-2213"
     },
     {
      "kind": "test",
@@ -12832,11 +12888,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:56"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:59"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:2348-2352"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2215-2219"
     },
     {
      "kind": "exe",
@@ -13060,7 +13116,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/culltree.rs:100-182"
+     "ref": "rust/bc2-formats/src/culltree.rs:166-236"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/culltree.rs:332-386"
     },
     {
      "kind": "test",
@@ -13069,6 +13129,10 @@
     {
      "kind": "test",
      "ref": "rust/bc2-formats/src/culltree.rs::edges"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/culltree.rs::document_writes_back"
     },
     {
      "kind": "test",
@@ -15421,6 +15485,22 @@
    ]
   },
   {
+   "id": "HPD-TAB-4",
+   "title": "The date and time words are the file's write time",
+   "file": "spec/formats/hpd.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::sector_times_are_the_write_time"
+    },
+    {
+     "kind": "data",
+     "ref": "35 of 35 files: one date, times non-decreasing in table order, at most 9 s from the first sector to the last, hundredths 0 in 3,120 of 3,120 sectors; the vehicle file's time later than the infantry file's on 17 of 17 levels with both"
+    }
+   ]
+  },
+  {
    "id": "HPD-BLK-1",
    "title": "Block layout",
    "file": "spec/formats/hpd.md",
@@ -16153,6 +16233,26 @@
     {
      "kind": "data",
      "ref": "word 0 = 2, word 3 = 1, words 32 / 33 = 36 / 12 and word 35 = 0 in 35 of 35 files"
+    }
+   ]
+  },
+  {
+   "id": "KYN-FILE-2",
+   "title": "The header as the generator writes it, and the node record's parts",
+   "file": "spec/formats/kynapse.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::header_tables_and_record_layout"
+    },
+    {
+     "kind": "exe",
+     "ref": "the HPD writer 0x011C5140: magic 0x014C7180, words 0 and 1 from linker +0x50, word 2 from +0x10, word 3 from +0x4C, words 4-7 floats +0x18 / +0x1C / +0x20 / +0x24 only when +0x4C = 0 (0x011C52B7), words 8-19 from the arrays at +0x28 / +0x2C / +0x30 and words 20-31 from +0x34 / +0x38 / +0x3C (four entries each, 0x011C54C8-0x011C55C8), words 32-34 from +0x40 / +0x44 / +0x48, word 35 the count at +0x0C of the path-objects data at +0x54 (error string 0x014C72A4); runtime search for descriptor 2 at 0x0108E689-0x0108E69E"
+    },
+    {
+     "kind": "data",
+     "ref": "words 0 = 1 = 2, 3 = 1, 4-7 zero, 8-10 = 2 / 0 / 8, 11-31 zero, 32 = 28 + 8, 34 = 1 in 35 of 35 files; the first node's +20 float equals DistEdgeMax in 3,120 of 3,120 sectors and is shorter than the sector's longest edge in 2,605; 83 end slots 0xBAADF00D"
     }
    ]
   },
@@ -24573,6 +24673,22 @@
    ]
   },
   {
+   "id": "KYG-NODE-6",
+   "title": "Node ids count from 101, sector by sector in table order",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::node_ids_count_from_101_in_table_order"
+    },
+    {
+     "kind": "data",
+     "ref": "first id 101 in 35 of 35 files; the new-id ranges of the 3,094 sectors that number new ids (the other 26 hold only border ids numbered in an earlier sector) rise in table order without overlap; 468,913 of 586,397 numbers used; a gap of 0 before 1,136 ranges, 1-9 before 1,835, 10 or more before 123 (the first sector's measured from 100)"
+    }
+   ]
+  },
+  {
    "id": "KYG-EDGE-1",
    "title": "Edges join nodes within DistEdgeMax across",
    "file": "spec/transforms/kynapse_generation.md",
@@ -24717,6 +24833,74 @@
     {
      "kind": "data",
      "ref": "16,450 link entries (6,263 to diagonal neighbours), 55,008 objects all resolved"
+    }
+   ]
+  },
+  {
+   "id": "KYG-PAR-1",
+   "title": "DistPropagation is GraphAccuracy + 0.35 m, because DICE sets the radius after the accuracy",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::nearest_node_at_dist_propagation"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis"
+    },
+    {
+     "kind": "exe",
+     "ref": "DICE's configuration writer 0x00F1A94D-0x00F1B028 (GraphAccuracy from settings +0x64 at 0x00F1AC33, EntityRadius from the type's +0x2C at 0x00F1AF72); the map builder's parameter reader 0x011483D0 (one name per call, `ret 4`): GraphAccuracy at 0x011494E7-0x01149553 (DistPropagation +0x560 = value + EntityRadius +0x4E0; DistDensityMax +0x564 = x 0.65 (double 0x014C2820); DistDensityMin +0x568 = EntityRadius or DistDensityMax x 0.5 (0x014D9488)); EntityRadius at 0x0114A742-0x0114A768 stores +0x4E0 only; defaults 0x01146822-0x01146B3D: EntityRadius 0.35 (double 0x0145A4C8), EntityHeight 1.75, DistPropagation 1.5, DistEdgeMax 15, NbSectors 16, OverConnectionRatio 1.2; the generator's info-file format 0x014C2EF8 (printed at 0x0115553D) lists the same fields"
+    },
+    {
+     "kind": "data",
+     "ref": "nearest ordinary node of the same floor exactly at DistPropagation (+- 2 mm): coarse 7,505 (at 1.05 x: 96), detailed 2,455 (199), vehicle 41 (0); coarse nearest-neighbour median 3.350 m; at DistDensityMax: coarse 234 (control 306), detailed 172 (187), vehicle 0"
+    }
+   ]
+  },
+  {
+   "id": "KYG-PAR-2",
+   "title": "DICE's settings, as the generator receives them, and what each explains",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "parameter reader 0x011483D0: the names and the fields they store (EdgeRadius +0x56C, EntityHeight +0x4DC, Pitch +0x520, StepLength +0x4E4, StepMax +0x4E8, HoleMax +0x4EC, GroundSlopeMax +0x4F4, GroundSlopeMin +0x4F8, NbSectors +0x55C, DistPropagation +0x560, DistDensityMax +0x564, DistDensityMin +0x568, DistEdgeMax +0x554 and its square +0x558, MaxDeltaHeight +0x578, OverConnectionRatio +0x58C, OverSimplify +0x584, FirstStep +0x5A4, LastStep +0x5A8); DICE's writer 0x00F1A94D-0x00F1B028 reads them from `PathfindingSettings` +0x48 / +0x54 / +0x58 / +0x5C / +0x4C / +0x50 / +0x68 / +0x60 / +0x64 / +0x44 / +0x24 / +0x28 / +0x73 / +0x70 and the type's +0x20 / +0x2C"
+    },
+    {
+     "kind": "data",
+     "ref": "`AI/Pathfinding/Infantry`, `Vehicles`, `InfantryData`, `VehicleData` read from sp_common and mp_common `level-00.fbrb` (identical): the values in the table; MaxDeltaHeight 1000 and OverConnectionRatio 1.2 in both settings"
+    }
+   ]
+  },
+  {
+   "id": "KYG-PAR-3",
+   "title": "The break slope is StepMax / StepLength",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "three independently measured thresholds (0.62 m link step at pitch 0.8, the 0.775-0.780 slope band, about 0.17 m at pitch 0.2) agree with 0.28 / 0.36 = 0.778 within their measurement steps; the code that applies StepMax / StepLength was not traced"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:629-652"
+    }
+   ]
+  },
+  {
+   "id": "KYG-DOC-1",
+   "title": "What public Kynapse documentation adds",
+   "file": "spec/transforms/kynapse_generation.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "five pages opened; each fact checked against DICE's 35 files where it applies (KYN-FILE-2's +20 float contradicted: 2,605 of 3,120 sectors hold a longer edge)"
     }
    ]
   },
@@ -25689,6 +25873,38 @@
     {
      "kind": "test",
      "ref": "rust/bc2-editor/tests/gameplay_tools.rs::gameplay_tools_through_the_interface"
+    }
+   ]
+  },
+  {
+   "id": "XLOG-GAME-3",
+   "title": "A Rush stage is added and taken out whole, and event connections are operations",
+   "file": "spec/transforms/projectlog.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-873"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:939-1034"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::connections_added_and_taken_out"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::a_stage_added_and_taken_out_on_port_valdez"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/rush_stage_tools.rs::a_rush_stage_through_the_interface"
     }
    ]
   },
@@ -28208,6 +28424,39 @@
     {
      "kind": "test",
      "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_opaque_wave_and_bunker_programs"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-MOD-1",
+   "title": "The weapon tools' NumPy products are the reference machine's OpenBLAS kernels, written out",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_decimate.py::parity"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_decimate.py::shapes_parity"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/decimate.rs::blas_forms"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/decimate.rs:54-68"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shapes.rs:33-62"
+    },
+    {
+     "kind": "data",
+     "ref": "200,000 ddot and 100,000 quadric costs, 3,000 dgemv vectors, dgemm rows of n = 2 ... 1,000: all equal to NumPy on the reference machine"
     }
    ]
   },

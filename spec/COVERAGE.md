@@ -74,7 +74,7 @@ After SPG2-rest (2026-11-22): 1,231 rules in 68 files (from 1,183 at its start, 
 verified, 116 -> 126 implemented, 487 -> 453 observed, 49 -> 47 inferred); covered 36, thin 0, none 0. The game-tier
 check (`core/tests/test_spec_probes.py`) now holds every probe's stable counts: 172 checks, about 3.5 minutes.
 
-After SPG3 (2026-11-23): 1,321 rules in 72 files (43 new in four new files: 17 verified, 2 implemented, 16 observed, 8
+After SPG3 (2026-11-23): 1,332 rules in 72 files with main's of the same day (43 new in four new files: 17 verified, 2 implemented, 16 observed, 8
 inferred); 40 systems (four new: options and settings, input, scriptability, dependency graphs), all covered. The
 game-tier check gained three probes' `checks()` (`options`, `scripting`, `dependencies`: about 40 seconds more).
 

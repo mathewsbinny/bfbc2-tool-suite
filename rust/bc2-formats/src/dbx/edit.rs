@@ -153,6 +153,20 @@ impl Nodes {
         Arc::make_mut(self.chunks.get_mut(i / CHUNK)?).get_mut(i % CHUNK)
     }
 
+    fn truncate(&mut self, len: usize) {
+        if len >= self.len {
+            return;
+        }
+        self.chunks.truncate(len.div_ceil(CHUNK));
+        let keep = len - self.chunks.len().saturating_sub(1) * CHUNK;
+        if let Some(c) = self.chunks.last_mut()
+            && c.len() > keep
+        {
+            Arc::make_mut(c).truncate(keep);
+        }
+        self.len = len;
+    }
+
     fn push(&mut self, e: ENode) {
         match self.chunks.last_mut() {
             Some(c) if c.len() < CHUNK => Arc::make_mut(c).push(e),
@@ -667,6 +681,12 @@ impl EditDbx {
     /// The bytes after the tree, set.
     pub(crate) fn set_trailing(&mut self, trailing: Vec<u8>) {
         self.trailing = trailing;
+    }
+
+    /// The arena cut back to its first `len` elements (the cull tree reader's streamed read: an element handed out
+    /// and dropped; nothing may still name the elements cut).
+    pub(crate) fn truncate_nodes(&mut self, len: usize) {
+        self.nodes.truncate(len);
     }
 
     /// `Element.children` (`None` for anything but a container).

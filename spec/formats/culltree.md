@@ -76,7 +76,7 @@ Status: **verified**
 The leaf indices run 1 .. L, each exactly once, and the used nodes number 2 x L - 1 (every internal node has two
 children).
 
-[code: rust/bc2-levelwrite/src/culltool.rs:2317-2328] [code: rust/bc2-levelwrite/src/culltool.rs:875]
+[code: rust/bc2-levelwrite/src/culltool.rs:837-873]
 [test: bfbc2-culltree/tests/test_culltree.py::main] [data: 37 of 37 stock tree pairs]
 
 ### CULL-NODE-3: Spare nodes
@@ -96,7 +96,7 @@ Status: **verified**
 A leaf's `Max` is its object's unquantized bounding radius (a float, the same for every instance of a blueprint); an
 internal node's `Max` is the largest `Max` of its subtree, which equals the larger of its two children's.
 
-[code: rust/bc2-levelwrite/src/culltool.rs:2329-2347] [test: bfbc2-culltree/tests/test_culltree.py::main]
+[code: rust/bc2-levelwrite/src/culltool.rs:2196-2213] [test: bfbc2-culltree/tests/test_culltree.py::main]
 [data: 263,653 internal nodes of the stock trees, no exception]
 
 ### CULL-NODE-5: Depth
@@ -105,7 +105,7 @@ Status: **implemented**
 
 The traversal keeps an explicit stack of 128 node pointers, so no path may need more entries (stock depth about 12).
 
-[code: rust/bc2-levelwrite/src/culltool.rs:56] [code: rust/bc2-levelwrite/src/culltool.rs:2348-2352]
+[code: rust/bc2-levelwrite/src/culltool.rs:59] [code: rust/bc2-levelwrite/src/culltool.rs:2215-2219]
 [exe: 0x0056C4E0 keeps 128 dwords at +0x20 of the query object, the count at +0x220]
 
 ## 3. Spheres
@@ -246,10 +246,13 @@ varint tag (0 closes the open container; at the top level it ends the stream), a
 attribute count in the low), varint attribute pairs, then by kind a container's extra byte (children follow), a text
 varint, a numbers value (varint count, varint size, count x size bytes) or two bytes. The bytes after the stream are
 kept as the trailer. This is the general DBX element tree (`dbx.md`); the cull tools keep every byte, so an unchanged
-partition is written back exactly.
+partition is written back exactly. Since round PR1b-2-rest2 the one walk (`bc2_formats::culltree::walk`) reads it
+into the suite's one editable document, `EditDbx` (`document`, and `stream` for one root child at a time), under
+these rules: string indexes kept as stored and checked where they are read, every value's bytes kept, the trailer
+kept; `bfbc2.exe culltree`'s model (`bc2_levelwrite::culltool`) reads and writes its trees and levels with it.
 
-[code: rust/bc2-formats/src/culltree.rs:100-182] [test: rust/bc2-formats/src/culltree.rs::reads_a_stream]
-[test: rust/bc2-formats/src/culltree.rs::edges] [test: bfbc2-culltree/tests/test_culltree_native.py::main]
+[code: rust/bc2-formats/src/culltree.rs:166-236] [code: rust/bc2-formats/src/culltree.rs:332-386] [test: rust/bc2-formats/src/culltree.rs::reads_a_stream]
+[test: rust/bc2-formats/src/culltree.rs::edges] [test: rust/bc2-formats/src/culltree.rs::document_writes_back] [test: bfbc2-culltree/tests/test_culltree_native.py::main]
 [data: 1,269 trees and level partitions of the game copy and OPFOR's work folders read the same by the Rust and the Python]
 
 ## Open questions

@@ -204,6 +204,7 @@ fn run(args: &[String]) -> Result<bool, String> {
                         let lv = args.get(i + 1).ok_or("--remove <LEVEL>")?;
                         let (n, d) = export::loc_keys(lv);
                         remove_keys.extend([n, d]);
+                        remove_keys.extend(export::flag_loc_keys(lv));
                         remove_pics.extend(export::picture_entries(lv));
                         i += 2;
                     }

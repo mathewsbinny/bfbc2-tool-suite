@@ -13,11 +13,13 @@ use bc2_formats::apt::{self, Instruction, Record};
 use bc2_formats::aptscan::{self, hex6};
 
 use super::common::{
-    self as mc, Members, Movie, OMap, apply_patch, basename, glob, isfile, menu_err, parse_patch, resolve, splitext,
-    take, take_flag,
+    self as mc, Members, Movie, OMap, apply_patch, basename, glob, isfile, parse_patch, resolve, splitext, take,
+    take_flag,
 };
+use super::menu_err;
 use crate::pyfmt::docstring;
 use crate::pyproc::{Fail, Py, PyErr, PyResult};
+use bc2_menu::error::MenuError;
 
 const SOURCE: &str = include_str!("../../../../bfbc2-menu-tools/aptcheck.py");
 
@@ -707,10 +709,10 @@ fn cmd_lint(py: &mut Py, args: &mut Vec<String>, opfor: Option<&str>) -> PyResul
                         false,
                     );
                 }
-                Err(Fail::Err(e)) if e.kind == "MenuToolError" => {
-                    rep.add("note", &format!("installed movie not compared: {}", e.msg), false);
+                Err(MenuError::Menu(msg)) => {
+                    rep.add("note", &format!("installed movie not compared: {msg}"), false);
                 }
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             }
         }
         rep.show(py)?;
@@ -758,7 +760,7 @@ fn cmd_check(py: &mut Py, args: &[String], opfor: Option<&str>) -> PyResult<usiz
         errors += rep.errors;
     }
     if let Some(e) = failure {
-        return Err(e);
+        return Err(e.into());
     }
     Ok(usize::from(errors > 0))
 }

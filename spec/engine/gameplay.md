@@ -331,6 +331,25 @@ is deleted with its unit (the editor's gameplay tools, XLOG-GAME-1).
 [test: rust/bc2-levelwrite/tests/gameplay_tools.rs::a_flag_added_wired_and_deleted_on_valparaiso]
 [code: rust/bc2-levelwrite/src/gameplay.rs:435-450]
 
+### GAME-CQ-12: A flag's texts are keyed by its letter
+
+Status: **verified**
+
+A flag's texts name it by its letter (its marker's `Sid`, GAME-CQ-11): its capture messages' `MessageSid` is
+`HUD_MP_CQ_TOOK_BASE_<letter>` / `HUD_MP_CQ_LOST_BASE_<letter>` ("WE HAVE TAKEN POSITION ALPHA"), keys DICE's
+localisation has for A to F in all eight languages (the NATO word, FOXTROT, kept in six of them), and its soldier
+spawners' `LocationNameSid` (the deploy screen's name) is a key of the level ending in the letter (`MP_001_A` = "A:
+COMM CENTER"). So a new flag's messages take its own letter's keys and its spawners the level's key for it; where the
+game has no text, the export adds one: a spawn name `<LEVEL>_<letter>` worded as DICE's ("E: HARBOR", the flag's name
+in capitals) and the messages of a letter past F worded as DICE's F with the letter's NATO word in each language that
+says FOXTROT (German "WIR HABEN POSITION GOLF ÜBERNOMMEN!"), English where it does not (Russian, Japanese).
+
+[data: E4-rest, 2026-11-22: every stock Conquest level of each set, 67 lettered flags: 208 of 208 capture messages name their flag's letter, 103 of 103 soldier spawners' LocationNameSid end in it, all 103 with a text; HUD_MP_CQ_TOOK_BASE_A - F and LOST_BASE_A - F in all 8 languages, G on none]
+[test: rust/bc2-levelwrite/tests/flag_texts.rs::every_conquest_flags_texts_name_its_letter]
+[test: rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_valparaiso]
+[test: rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_a_synthetic_level]
+[code: rust/bc2-levelwrite/src/gameplay.rs:1115-1283] [code: rust/bc2-levelwrite/src/names.rs:227-322]
+
 ## 4. Tickets and the end of the round
 
 ### GAME-TKT-1: Conquest tickets
@@ -517,6 +536,32 @@ destroyed. An M-COM added to a stage makes every counter of the stage count one 
 [test: rust/bc2-levelwrite/tests/gameplay_tools.rs::every_rush_stage_counter_counts_its_mcoms]
 [test: rust/bc2-levelwrite/tests/gameplay_tools.rs::an_mcom_added_to_a_rush_stage_and_taken_out]
 [code: rust/bc2-levelwrite/src/gameplay.rs:479-500]
+
+### GAME-RUSH-11: A stage is wired to the next by its base counter
+
+Status: **verified**
+
+Every stage of a DICE Rush or Squad Rush level has one **base counter**: the counter (GAME-RUSH-10) its M-COMs reach
+whose `OnTrigger` takes a base from the defenders (`DestructBase` on their `LifeCounterEntityData`, BOT-GS-8), as
+many as the defenders' `BaseCount`. They form the **enable chain**: stage 1's starts enabled, every later one
+disabled; stage k's `OnTrigger` enables stage k+1's and nothing else enables it; the last stage's enables no counter.
+A stage's other counters (the team triggers starting the announcer) are enabled from the start. What is in play
+during one stage only - its defenders' base with its spawns, the attackers' forward base, the two combat areas, the
+markers and interactions of its M-COMs - is switched on as the stage before ends: the forward base and the defenders'
+area by the stage before's base counter (`Enable`), the defenders' base by the stage's own base counter's
+`OnEnabled`, the attackers' area by its hold-back timer; the stage's base counter switches its own off (`Disable`,
+and `DisableSpawnPointFunctionality` on its vehicle spawners) as the stage ends, and a combat area's `OnEnabled`
+disables the one it replaces. DICE's last stages leave the forward base and the combat areas on (21 of 30 still give
+the attackers their reinforcement, `IncreaseReinforce`); MP_006's last counter switches on a sixth forward base for a
+stage the level does not have. The play's model follows a stage's end in no time, so a timer of the M-COMs that
+enables a spawn (DICE's "Enable spawns in B") can come after the base counter's disable of it: the base counter has
+the last word. A stage added after the last is a copy of the last stage wired so (XLOG-GAME-3).
+
+[data: E4-rest: rust/bc2-levelwrite/examples/rush_facts.rs on 31 Rush and Squad Rush levels, 2026-11-22: 30 levels with one base counter per stage and the exact chain (87 stages), BaseCount equal on 30 of 30; base counters' `OnTrigger` CapturePoint `Enable` of the next stage's 54 of 57 middle stages, CombatArea `Enable` 43, `Disable` of its own 36 (0 on the last); 78 later stages' other counters enabled from the start, 3 not; `ons_mp_005gr` (the Onslaught install's) has no defenders' life counter]
+[data: E4-rest sweep, 2026-11-22: on all 30 levels a stage added after the last plays last with its copies as the last stage's objects (72 - 323 copies, 7 - 62 connections added) and, taken out again, gives back every instance and stage state; each of the 87 stages taken out leaves the others in their order and states but one hold-back combat area on nam_mp_002r]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage]
+[test: rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level]
+[code: rust/bc2-levelwrite/src/rushstage.rs:1-873]
 
 ### GAME-RULES-1: The round's rules and DICE's values for them
 

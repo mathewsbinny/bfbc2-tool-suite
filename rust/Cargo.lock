@@ -556,6 +556,7 @@ dependencies = [
  "bc2-formats",
  "bc2-gamefs",
  "bc2-pyrt",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

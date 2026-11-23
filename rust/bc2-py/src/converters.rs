@@ -897,3 +897,150 @@ pub fn granny_orientation_plan<'py>(
     };
     Ok(Some(puts(py, &p, &msg)?))
 }
+
+/// `decimate.decimate`'s choice (round PR1b-2-rest2, `bc2_convert::decimate`): `pos` float64 x 3, `tris` int64 x 3
+/// and `bone` int64 as little-endian bytes; `(used, tris)`, int64 bytes: the vertices kept (ascending) and the
+/// triangles over them.
+///
+/// # Errors
+/// `ValueError`: no vertices, arrays of the wrong size; `IndexError`: a triangle naming a vertex that is not there.
+#[pyfunction]
+#[pyo3(signature = (pos, tris, bone, target, boundary_weight=10.0, max_cost=None))]
+pub fn model_decimate<'py>(
+    py: Python<'py>,
+    pos: &Bound<'py, PyBytes>,
+    tris: &Bound<'py, PyBytes>,
+    bone: &Bound<'py, PyBytes>,
+    target: i64,
+    boundary_weight: f64,
+    max_cost: Option<f64>,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    use bc2_convert::decimate::{DecimateError, decimate};
+    let (pb, tb, bb) = (pos.as_bytes(), tris.as_bytes(), bone.as_bytes());
+    if pb.len() % 24 != 0 || tb.len() % 24 != 0 || bb.len() % 8 != 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err("arrays of the wrong size"));
+    }
+    let p: Vec<[f64; 3]> = pb
+        .as_chunks::<24>()
+        .0
+        .iter()
+        .map(|c| std::array::from_fn(|i| f64::from_le_bytes(c[8 * i..8 * i + 8].try_into().unwrap_or_default())))
+        .collect();
+    let t: Vec<[i64; 3]> = tb
+        .as_chunks::<24>()
+        .0
+        .iter()
+        .map(|c| std::array::from_fn(|i| i64::from_le_bytes(c[8 * i..8 * i + 8].try_into().unwrap_or_default())))
+        .collect();
+    let b: Vec<i64> = bb.as_chunks::<8>().0.iter().map(|c| i64::from_le_bytes(*c)).collect();
+    let d = py
+        .detach(|| decimate(&p, &t, &b, target, boundary_weight, max_cost))
+        .map_err(|e| match e {
+            DecimateError::Index(..) => pyo3::exceptions::PyIndexError::new_err(e.to_string()),
+            e => pyo3::exceptions::PyValueError::new_err(e.to_string()),
+        })?;
+    let used: Vec<u8> = d.used.iter().flat_map(|&u| (u as i64).to_le_bytes()).collect();
+    let tris: Vec<u8> = d
+        .tris
+        .iter()
+        .flatten()
+        .flat_map(|&u| (u as i64).to_le_bytes())
+        .collect();
+    Ok((PyBytes::new(py, &used), PyBytes::new(py, &tris)))
+}
+
+/// Rows of little-endian float64s, `N` to a row (a length that is not whole rows: `ValueError`).
+fn f64_rows<const N: usize>(b: &[u8]) -> PyResult<Vec<[f64; N]>> {
+    if !b.len().is_multiple_of(8 * N) {
+        return Err(pyo3::exceptions::PyValueError::new_err("arrays of the wrong size"));
+    }
+    Ok(b.chunks_exact(8 * N)
+        .map(|c| std::array::from_fn(|i| f64::from_le_bytes(c[8 * i..8 * i + 8].try_into().unwrap_or_default())))
+        .collect())
+}
+
+fn i64_rows(b: &[u8]) -> PyResult<Vec<[i64; 3]>> {
+    if !b.len().is_multiple_of(24) {
+        return Err(pyo3::exceptions::PyValueError::new_err("arrays of the wrong size"));
+    }
+    Ok(b.chunks_exact(24)
+        .map(|c| std::array::from_fn(|i| i64::from_le_bytes(c[8 * i..8 * i + 8].try_into().unwrap_or_default())))
+        .collect())
+}
+
+fn f64_bytes<const N: usize>(rows: &[[f64; N]]) -> Vec<u8> {
+    rows.iter().flatten().flat_map(|v| v.to_le_bytes()).collect()
+}
+
+/// `points @ m` (`shapes.py`'s `Geo.moved`, round PR1b-2-rest2: `bc2_convert::shapes::matmul`): float64 bytes,
+/// rows of 3, and the 3 x 3 matrix's 9 values by rows.
+///
+/// # Errors
+/// `ValueError`: arrays of the wrong size.
+#[pyfunction]
+pub fn shapes_matmul<'py>(py: Python<'py>, points: &Bound<'py, PyBytes>, m: [f64; 9]) -> PyResult<Bound<'py, PyBytes>> {
+    let p = f64_rows::<3>(points.as_bytes())?;
+    let m = [[m[0], m[1], m[2]], [m[3], m[4], m[5]], [m[6], m[7], m[8]]];
+    Ok(PyBytes::new(py, &f64_bytes(&bc2_convert::shapes::matmul(&p, &m))))
+}
+
+/// `Geo.tangents()` (`bc2_convert::shapes::tangents`): `(tangents, binormals)` as float64 bytes, rows of 3.
+///
+/// # Errors
+/// `ValueError`: arrays of the wrong size; `IndexError`: a triangle naming a vertex that is not there.
+#[pyfunction]
+pub fn shapes_tangents<'py>(
+    py: Python<'py>,
+    pos: &Bound<'py, PyBytes>,
+    nrm: &Bound<'py, PyBytes>,
+    uv: &Bound<'py, PyBytes>,
+    tris: &Bound<'py, PyBytes>,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    let (p, n, u, t) = (
+        f64_rows::<3>(pos.as_bytes())?,
+        f64_rows::<3>(nrm.as_bytes())?,
+        f64_rows::<2>(uv.as_bytes())?,
+        i64_rows(tris.as_bytes())?,
+    );
+    let (tg, bn) = bc2_convert::shapes::tangents(&p, &n, &u, &t)
+        .map_err(|e| pyo3::exceptions::PyIndexError::new_err(e.to_string()))?;
+    Ok((PyBytes::new(py, &f64_bytes(&tg)), PyBytes::new(py, &f64_bytes(&bn))))
+}
+
+/// The triangles `_facing` / `outward` / `fix_winding` turn over (`bc2_convert::shapes::turn_over`): one byte per
+/// triangle (1: turn it). `mode` is `'normal'` (`v` the direction), `'outward'` (`v` the inside point) or
+/// `'normals'` (the corners' normals; `v` unused).
+///
+/// # Errors
+/// `ValueError`: arrays of the wrong size or an unknown mode; `IndexError`: a triangle naming a vertex that is not
+/// there.
+#[pyfunction]
+pub fn shapes_turn_over<'py>(
+    py: Python<'py>,
+    pos: &Bound<'py, PyBytes>,
+    nrm: &Bound<'py, PyBytes>,
+    tris: &Bound<'py, PyBytes>,
+    mode: &str,
+    v: [f64; 3],
+) -> PyResult<Bound<'py, PyBytes>> {
+    use bc2_convert::shapes::{Facing, turn_over};
+    let facing = match mode {
+        "normal" => Facing::Normal(v),
+        "outward" => Facing::Outward(v),
+        "normals" => Facing::Normals,
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{mode:?}: no such facing"
+            )));
+        }
+    };
+    let flips = turn_over(
+        &f64_rows::<3>(pos.as_bytes())?,
+        &f64_rows::<3>(nrm.as_bytes())?,
+        &i64_rows(tris.as_bytes())?,
+        facing,
+    )
+    .map_err(|e| pyo3::exceptions::PyIndexError::new_err(e.to_string()))?;
+    let out: Vec<u8> = flips.into_iter().map(u8::from).collect();
+    Ok(PyBytes::new(py, &out))
+}

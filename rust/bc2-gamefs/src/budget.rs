@@ -158,7 +158,8 @@ pub const SPECS: &[Spec] = &[
     suite(
         "shadercover",
         "BFBC2_SHADERCOVER_CACHE",
-        &[".pkl"],
+        // round OR3b: bc2_convert::shaderlevels' index files, and the retired Python index's pickles
+        &[".bin", ".pkl"],
         "BFBC2_SHADERCOVER_CACHE_MB",
         MB,
         64.0,
