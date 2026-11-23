@@ -56,6 +56,39 @@ NavKit today: seeds terrain perimeters, soldier spawns, and objects too. The obj
 afterwards by the shadow-island rule (NK2, `graphfile::shadow_islands`). Measures: `navparity:islands_candidate`
 against `islands_reference` (402 / 424 mean), `over_connection` 15.31 %.
 
+### KYG-SEED-2: A sector's seed list: its spawns and its perimeter autoseeds, snapped, dropped and never locked
+
+Status: **observed**
+
+Round NKS-deep E read where the node generator's seeds (KYG-NODE-7) come from. The map builder does not compute
+them: each sector's MapBuilder configuration lists them as `SeedPoint` (and `SeedGraph`) elements, which the
+configuration parser copies to the builder (+0x420 points, +0x450 graphs). The sectors maker writes a sector's
+configuration with the sector's box and one `SeedPoint` for every point of the step's global seed list inside that
+box (inclusive on x, y and z, in the list's order); BC2's job hands it the spawn seeds (the list KYG-RECT-1 boxes by
+25 m). The map builder step then merges the sector's `.autoseed` file, written once per sector by the Frostbite
+autoseed step from the perimeter probes of KYG-SEED-1 (four lists, entries flagged at +0x14 skipped; the order, the
+sectors maker's seeds first, is inferred). Seed graphs are files named in the build configuration; BC2 writes them
+only when its job lists one, so a sector's propagation does not start from its neighbours' nodes.
+
+Before the exploration BC2's builder snaps every seed point inside the map box to the sample grid, x' = min x +
+int((x - min x + Pitch / 2) / Pitch) x Pitch (z likewise), and drops it onto the ground (an entity-collision walk
+down within 50 m, bisected, then EntityHeight / 2 - EntityRadius above it); nothing is filtered or deduplicated. The
+graph's seeding takes seed-graph nodes first (on the map and on the built mesh; these and their edges are locked),
+then the seed points in configuration order, each made a node where it lies on the built mesh, with no density test
+and **not locked**: the simplification (KYG-NODE-8) may collapse them. The detailed zones' perimeter lines lie two
+pitches inside the square (0.4 m), as the coarse ones do (1.6 m): of DICE's detailed ordinary nodes on the sample
+grid, 584 of 1,610 lie on those lines (0.8 % of the grid points do), seeds the simplification never moved; coarse
+grid nodes are not enriched there (279 of 7,562 against 3.2 %): coarse seeds merge.
+
+[exe: the parser 0x011483D0 (`SeedPoint` pushed at 0x011485A1 into +0x41C; `PropagationSeedPoint` +0x42C, exploration only; `SeedGraph` +0x44C loaded by 0x010A7170; AllowSimplification +0x45C, RemoveOutVertices +0x46C, ConnectSlightlyOutsideSeeds +0x47C; BC2's override 0x00EFF710); the sectors maker 0x0109B260 (`kybcsectorsmakerstep.cpp`: the box test inclusive on x, y, z; a seed graph emitted when any node lies in the box in x and z); BC2's step creator 0x00F194F0 (the `<SeedPoints>` block from its job, the list 0x00F07590 boxes by 25 m, 0x014309B8); the autoseed merge in `kybcmapbuilderstep.cpp` 0x01066BF7-0x01066D18 ("Could not read autoseed file [%s]", 0x01052F20) and its writer 0x01061B40 (`%s.autoseed`); an empty sector 0x01066EE0 ("No seed found, write empty pathdata"); the seed preparation (builder slot +0x30: BC2's 0x00F07960 over Kynapse's 0x01160E60, once, byte +0x4AD): the snap 0x00EFFDF0 (Pitch +0x520, 0.5 at 0x014D9488), the drop 0x00EFFC00 (step +0x570, 50 m at 0x01423BA0, the collision test 0x0114EDE0, bisection 0x00EFFB70); the graph seeding 0x0115AC40 (seed-graph nodes through 0x01158990, locked up to +0x7E8; the seed points last at 0x0115B320-0x0115B359 through 0x013514E0 and 0x01158830, no deduplication)]
+[data: round NKS-deep E, `cargo run --release -p bc2-formats --example kynapse_seeds` over the 35 files: ordinary nodes on the sample grid (5 mm) on the lines two pitches inside a 100 m square / elsewhere: detailed 584 (+ 9 on the 1.6 m lines) / 1,017 of 147,130; coarse 279 / 7,283 of 197,599; vehicle 0 / 84]
+
+NavKit (round NKS-deep E, measured; `rust/BENCHMARKS.md` "NKS-deep E"): NavKit's sectors have no margins and no
+linking stage, so its border nodes (KYG-NODE-2) stand in for what DICE's linking joins, and they and the AI order
+positions stay the propagation's locked first seeds (round NKS-deep B). DICE's list (the soldier spawns in the
+square, then the perimeter cells two pitches inside it, unlocked) was built behind a build experiment and measured
+on the 15 regression levels: see the gap list (item 2) for the result.
+
 ## 2. The generator's rectangle and the sectors
 
 ### KYG-RECT-1: Ground stops at the spawns' box grown by 25 m
@@ -207,12 +240,34 @@ indices, z likewise): each group becomes an area of its own, so the area is cut 
 area that fills its tile are the tile's midlines (KYG-AREA-2's 20 m into a 40 m tile). The tiles are rebuilt and
 tested again until no area reaches the limit. A cut through only one axis is a split whose cells lie in two of the
 four groups; ground that meets across the midline in several stretches (KYG-AREA-2's crossings) is ground with long
-outlines, the size the test counts. The size is the area's record as built, before the outlines are simplified, so
-the stored records (uncut areas up to 14 KB, KYG-AREA-2) do not show the threshold; it is not fitted from the files,
-and NavKit (whose records are its own) does not cut yet.
+outlines, the size the test counts. The size is the area's in-place record (KYG-AREA-5), measured after the
+per-area chain simplification (round NKS-deep E corrected round B's "before"), in the in-place layout, not the
+stored runtime record's (KYG-AREA-2's 0-14 KB uncut are stored sizes).
 
 [exe: the size test 0x011AD550 (MaxLocalMapBinarySize +0x598: default 0x2000 at 0x01146ACB, the reader 0x0114A579 keeps values from 0x1000; the tiles +0x5D4 x +0x5D8, each map's area sizes summed; an area at or over the limit marks its tile and the four side neighbours in +0x6A4 and is listed in +0x698); the split 0x011B4BB0 (the cells' integer box, mid = (min + max) >> 1 at 0x011B4D16 / 0x011B4D18, four groups by x > mid and z > mid at 0x011B4D42-0x011B4D6A); the rebuild loop 0x011B2160 (the size test, then the split and the marked tiles built again)]
 [data: round NKS-rest: stored records of cut groups 1-32 KB, uncut areas 0-14 KB; cuts on the tile midline 16,159 coarse B portals]
+
+### KYG-AREA-5: The size test counts the in-place record: 100 + 28 per portal segment + 20 per line + 12 per segment
+
+Status: **observed**
+
+The size KYG-AREA-4 tests is the area's record in Kynapse's in-place mesh ("Kynogon InPlace Mesh"), its serialiser
+run without a buffer, which counts bytes: per area 100 bytes, 28 per segment of its portal chains (the area's
+portals within and across tiles), 52 per C entry (none at the test), 20 per D or E chain (step lines, outline) and
+12 per segment of them (a chain of n segments stores n + 1 points of 12 bytes), and 32 per F polygon and 12 per
+segment. It is measured after each tile's chains are simplified (0x011ACE20) and before the runtime record is
+written, whose layout differs (an 0x50 header, 32-byte B portals, 44-byte C portals), so the stored files do not
+show the 8,192 threshold exactly: the stored counts put in the formula (C border portals left out) separate DICE's
+coarse cut groups from uncut areas only in part. Grouping the cut pieces by their union's box midline (KYG-AREA-4, not the
+tile's midline), 807 of 872 coarse cut groups reach 8,192 bytes merged back (the pieces summed, less 100 per extra
+piece and 28 per portal segment between them; median 15.2 KB) against 1,211 of 115,713 uncut areas (p99 8.3 KB).
+
+[exe: the size call in 0x011AD550 (0x011AD634: the in-place mesh +0x5B4, `FUN_0134EDA0(0, sizes)`); the serialiser 0x0134EDA0 (`sizes[k] = (offset after - offset before) + 100`; points 0x0134CD60 / 0x0134EAB0 at 12 bytes, links 0x0134D040, C entries 0x0134CE70 at 28); the record built by 0x011AB300 from the chain lists (+0x34 type 3, +0x44 type 4: portals; +0x54 type 1, +0x64 type 2: D and E lines; +0x74: F) filed by 0x011B1F70; the simplification 0x011ACE20 (0x011AA3A0 / 0x011AC9E0 on D / E, 0x011A9D20 on the portals) before 0x011AB300 and the test in 0x011B2160]
+[data: round NKS-deep E, `cargo run --release -p bc2-formats --example kynapse_cut` over the 35 files (C portals not counted; groups by the union's box midline): coarse uncut 115,713 (max 14,428, p99 8,292, 1,211 at or over 8,192), cut groups 872 (p10 9,524, p50 15,184, 65 under 8,192); grouped by the tile midline instead (KYG-AREA-2's groups) 311 of 1,064 coarse cut groups stay under 8,192; detailed uncut 50,624 (p99 7,716, 379 over), box-midline groups 227 (p50 2,536, 199 under); vehicle uncut 15,352 (max 8,396, 2 over), groups 1,022 (p50 1,540, 1,009 under): in the detailed and vehicle files the straight portals on a union's box midline are mostly not size cuts]
+
+NavKit (round NKS-deep E): the cut built (`Switches::midline_cut`, `stage::stage_cut`: the stage built again while
+an area's record by this formula reaches 8,192 bytes, that area dealt into four on its cells' box midlines) and
+measured; see the gap list (item 4).
 
 ### KYG-AREA-3: Area heights
 
@@ -899,7 +954,15 @@ movement detail, then bytes):
    and overridable per sector. **Round NKG2**: written (`DICE_DETAILED`) and measured, but off: 40 of DICE's 502 were
    never sampled at pitch 0.2, and with the other 462 eight means got worse (KYG-DET-1). Open: a pitch-0.2 sampling
    run over DICE's list (in game) and a coarse build as good as the detailed one in the 293 sectors only NavKit makes
-   detailed; the new-map stand-in is not changed (the level's flag and stacked-floor choice stays).
+   detailed; the new-map stand-in is not changed (the level's flag and stacked-floor choice stays). **Round NKS-deep
+   E**: measured again with all 502 sampled at 0.2 m by part C's offline sampler (the control: NavKit's own choice
+   from the same offline run): placement on, ground 98.14 -> 98.38, areas_same 5.16 -> 5.40, nodes_near 56.90 ->
+   57.05, connectivity 98.33 -> 98.36, ai_pairwise 93.84 -> 94.38, D / F recall 23.89 / 33.46 -> 28.40 / 39.96,
+   over_connection 15.70 -> 15.56, detailed areas 9,913 -> 8,261 (DICE 3,099), but portals 6.43 -> 6.16, outline
+   97.96 -> 97.57, costs and nodes_paired 23.48 -> 23.30 lower; placement off the node measures fall too (nodes_near
+   47.77 -> 46.38). The offline 0.2 m samples are themselves worse than the in-game ones for NavKit's own choice
+   (connectivity 99.06 -> 98.33, ai_pairwise 95.57 -> 93.84), so `DICE_DETAILED` stays off: a ruling for the user
+   (`rust/BENCHMARKS.md` "NKS-deep E").
 2. **Node placement** (KYG-NODE-1, KYG-NODE-2): every NavKit node on a cell centre against DICE's 4 %; a sparse border
    row against DICE's band; corner sharing 288 against 9,426. The go-to's resolver takes the first node in lookup-list
    order within 15 m that passes a straight-line test (KYRT-NODE-1, KYRT-NODE-2), so placement decides routes
@@ -914,6 +977,13 @@ movement detail, then bytes):
    coverage nodes raised `nodes_near` 47.63 -> 50.14 % but `over_connection` rose on 4 levels and ONS_MP_004's
    `connectivity` fell 0.44): the exact placement stays a named exception. **Round NKS-deep B**: the placement decoded (KYG-NODE-7,
    KYG-NODE-8) and built behind `Switches::placement`, on by the user's ruling (2026-11-23; the measures in KYG-NODE-1).
+   **Round NKS-deep E**: the seeds decoded (KYG-SEED-2: the sector's spawns and perimeter autoseeds, unlocked; no
+   border nodes) and built behind `Switches::dice_seeds` (off). On the 6 levels measured before the build of sp_005
+   passed 50 minutes, `nodes_near` 57.19 -> 58.39, `nodes_paired` 26.14 -> 27.70, `edges_paired` 5.78 -> 6.14, but
+   `connectivity` lower on 5 of 6 (mean 98.74 -> 98.60), `over_connection` 24.27 -> 24.60; the screen variants
+   (perimeter on terrain only, without the order positions, border nodes held back until the sector's own seeds
+   propagated, seeds locked) each made another measure worse (locked seeds: 4-7 x the nodes). NavKit's sectors have
+   no margins and no linking stage, so its border nodes stand in for both; the switch stays off.
 3. **Edges** (KYG-EDGE-1, KYG-EDGE-3, KYG-EDGE-4): the duplicates are gone (NKG1). 111,968 edges sit on non-owner
    border copies (DICE 8,039); the runtime uses them (KYRT-PATH-3), and with NavKit's single border row they are its
    only edges into the lower sector, so they move onto owner copies with the band (NKG2, KYG-NODE-2: round NKG1
@@ -926,7 +996,11 @@ movement detail, then bytes):
    5.2 %). The cut's trigger is still open (size, tile, hole, crossing count and what lies between the crossings
    excluded); NKG2 can take the off-grid portals (KYG-AREA-1's step boundaries DICE does not link) first. **Round
    NKG2**: not changed (KYG-AREA-2: the trigger is undecoded, and the off-grid portals carry routes until NavKit's
-   area and link rules agree); both wait for the raw-sample fit.
+   area and link rules agree); both wait for the raw-sample fit. **Round NKS-deep E**: the trigger's size decoded
+   (KYG-AREA-5) and the cut built behind `Switches::midline_cut` (off): NavKit's records are far larger than DICE's
+   (detailed areas up to 48 KB against DICE's 14.7 KB), so the test fires on hundreds of areas a level: areas
+   14,267 -> 27,400 (DICE 10,960), `areas_same` unchanged, `ai_coverage` 99.16 -> 97.27, `ai_pairwise` 95.57 ->
+   92.99. The cut waits for NavKit's own records to be DICE-sized (its outlines and portals).
 5. **The rectangle** (KYG-RECT-1): a borrowed bound on DICE levels, none on new maps. **NKG2's target**: the rule,
    verified on the 13 campaign levels: the box of the soldier and vehicle spawns grown by 25 m, sample points kept up
    to about 24.5 m beyond the outermost spawn (infantry; about 22.2 m on vehicle files), the same on new maps. It
@@ -961,11 +1035,12 @@ went on with `rust/bc2-formats/examples/kynapse_rules.rs` (DICE's files alone) a
 a 1.2-spanner), which are one-way (KYG-EDGE-4, the border convention), and the rectangle (KYG-RECT-1, the spawns' box
 grown by 25 m, verified). Still open, with what the fits ruled out:
 
-- The midline cut (KYG-AREA-2): its trigger decoded (KYG-AREA-4, an area's built record at MaxLocalMapBinarySize);
-  open: the size of the unsimplified record, to be fitted against DICE's cut groups (part C's 0.2 m samples), before
-  NavKit can cut.
-- Node placement (KYG-NODE-1): decoded (KYG-NODE-7, KYG-NODE-8); open: DICE's exact seed list per sector and its mesh
-  queries, which NavKit stands in for (border nodes and order positions; its sample grid).
+- The midline cut (KYG-AREA-2): its trigger decoded (KYG-AREA-4) and its size (KYG-AREA-5, the in-place record
+  after simplification); open: the in-place chains' simplification exactly (0x011AA3A0 / 0x011AC9E0), so the size can
+  be computed from samples rather than from the stored counts, and NavKit's records made DICE-sized before it cuts.
+- Node placement (KYG-NODE-1): decoded (KYG-NODE-7, KYG-NODE-8) and its seeds (KYG-SEED-2); open: the sector maps'
+  margins and the linking stage that joins sectors' graphs (NavKit's border nodes stand in), the autoseed file's
+  skip flag and merge order, and the mesh queries (NavKit's sample grid).
 - The remaining 37 % of coarse pairs without an edge (KYG-EDGE-3): answered by KYG-EDGE-5 (the removal pass over the
   simplified graph).
 - The vehicle D / F rule (KYG-DF-2): needs a vehicle-shaped sample run in game (none on disk); a playtest item.

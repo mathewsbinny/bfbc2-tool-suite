@@ -743,3 +743,74 @@ fn terrain_slope_across_a_side() {
     assert!(sz.abs() < 1e-6, "{sz}");
     assert!(sx > DF_TERRAIN_SLOPE && sz < DF_TERRAIN_SLOPE);
 }
+
+#[test]
+fn inplace_size_counts_the_in_place_record() {
+    // KYG-AREA-5: 100 + 28 per portal + 20 per D / E chain + 12 per segment + 32 per F polygon + 12 per segment
+    let p = |x: f32, z: f32| [x, 0.0, z];
+    let a = kymesh::Area {
+        ids: [0; 4],
+        values: [0.4, 0.8, 1.0, 0.0],
+        portals: vec![
+            kymesh::Portal {
+                p0: p(0.0, 0.0),
+                p1: p(0.0, 4.0),
+                target: 1,
+            };
+            3
+        ],
+        border_portals: Vec::new(),
+        d_lines: vec![vec![p(0.0, 0.0), p(1.0, 0.0)]],
+        outline: vec![
+            vec![p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
+            vec![p(1.0, 1.0)],
+        ],
+        cells: vec![kymesh::Cell {
+            direction: p(1.0, 0.0),
+            points: vec![p(0.0, 0.0), p(0.8, 0.0), p(0.8, 0.8), p(0.0, 0.8), p(0.0, 0.0)],
+        }],
+        end_row: [0.0; 3],
+        null_offsets: Vec::new(),
+    };
+    // portals 3 x 28; chains: D 1 (1 segment), E 1 counted (3 segments; the one-point line is no chain); F 1 (4)
+    assert_eq!(inplace_size(&a), 100 + 84 + 20 * 2 + 12 * 4 + 32 + 12 * 4);
+}
+
+#[test]
+fn the_midline_cut_leaves_no_area_at_the_size_limit() {
+    // KYG-AREA-4 through stage_cut: off, the stage itself; on, built again until no record reaches 8,192 bytes
+    let cfg = BuildSettings::default();
+    let args = StageArgs {
+        id_start: 1,
+        ..StageArgs::default()
+    };
+    let run = |sw: &Switches| {
+        let mut log = Lines(Vec::new());
+        let st = stage_cut(flat(&cfg), &args, &cfg, sw, &mut BuildStats::default(), &mut log).unwrap();
+        (st, log.0)
+    };
+    let (off, _) = run(&Switches::default());
+    let plain = stage(
+        flat(&cfg),
+        &args,
+        &cfg,
+        &Switches::default(),
+        &mut BuildStats::default(),
+        &mut Lines(Vec::new()),
+    )
+    .unwrap();
+    assert_eq!(off.graphs.len(), plain.graphs.len());
+    assert!(off.graphs.iter().zip(&plain.graphs).all(|(a, b)| a.mesh == b.mesh));
+    let sw = Switches {
+        midline_cut: true,
+        ..Switches::default()
+    };
+    let (on, log) = run(&sw);
+    assert!(log.iter().any(|l| l.starts_with("midline cuts (KYG-AREA-4): ")));
+    let big = on
+        .graphs
+        .iter()
+        .flat_map(|g| &g.mesh.areas)
+        .filter(|a| inplace_size(a) >= MAX_LOCAL_MAP_BINARY_SIZE);
+    assert_eq!(big.count(), 0);
+}

@@ -46,6 +46,9 @@ pub struct GraphCfg {
     /// DICE's placement (KYG-NODE-7, KYG-NODE-8, KYG-EDGE-5, [`propagate`]) with these parameters in place of the centre,
     /// portal and coverage nodes, the walkable pairs and their pruning; `None`: NavKit's own.
     pub placement: Option<propagate::Params>,
+    /// DICE's seed list besides the border nodes and order positions (KYG-SEED-2, `Switches::dice_seeds`): the
+    /// sector's soldier spawns and its perimeter cells two pitches inside its square, unlocked.
+    pub dice_seeds: bool,
 }
 
 /// One sector's inputs besides its areas.
@@ -63,6 +66,8 @@ pub struct GraphJob {
     pub borders: Vec<(P3, usize)>,
     /// The AI order points (x, y, z) on this sector.
     pub orders: Vec<P3>,
+    /// The soldier spawns (x, y, z) in this sector's square (its edges included, as DICE's sectors maker boxes them).
+    pub spawns: Vec<P3>,
     /// The ladder links: (foot surface, top surface).
     pub ladders: Vec<(usize, usize)>,
     /// The sector's D sides (`level.blocked`).
@@ -386,6 +391,10 @@ fn own_nodes(
 
 /// DICE's placement ([`propagate::place`]): the border nodes as locked seeds, the propagated, simplified nodes after
 /// them, and the edges the over-connection pass leaves.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the seed lists in DICE's order, one after the other"
+)]
 fn place_dice(
     level: &Level,
     areas: &[Vec<Cell>],
@@ -428,28 +437,23 @@ fn place_dice(
             locked: true,
         });
     }
-    // the AI order positions as seeds too (KYG-NODE-1: DICE has a node within 0.2 m of each), each on the kept
-    // surface of its column in this sector's areas nearest its height (within 1 m), as the order nodes find theirs
-    for &(x, y, z) in &job.orders {
+    let column_seed = |x: f64, y: f64, z: f64, dy_max: f64| -> Result<Option<propagate::PNode>, NavError> {
         let (Some(gi), Some(gj)) = (
             round_int((x - cfg.grid_min.0) / pitch),
             round_int((z - cfg.grid_min.1) / pitch),
         ) else {
-            return Err(NavError::Shape("an order point's column".into()));
+            return Err(NavError::Shape("a seed point's column".into()));
         };
         let mut best: Option<(usize, f64)> = None;
         for k in level.surfaces(gi, gj) {
             let dy = (level.y(k) - y).abs();
-            if ground.cell_of.contains_key(&k) && dy <= 1.0 && best.is_none_or(|(_, b)| dy < b) {
+            if ground.cell_of.contains_key(&k) && dy <= dy_max && best.is_none_or(|(_, b)| dy < b) {
                 best = Some((k, dy));
             }
         }
-        let Some((k, _)) = best else { continue };
-        if seeds.iter().any(|q: &propagate::PNode| q.k == k) {
-            continue;
-        }
+        let Some((k, _)) = best else { return Ok(None) };
         let cell = (gi - job.gi0, gj - job.gj0);
-        seeds.push(propagate::PNode {
+        Ok(Some(propagate::PNode {
             k,
             cell,
             pos: (
@@ -458,7 +462,63 @@ fn place_dice(
                 oz + cell.1 as f64 * pitch,
             ),
             locked: true,
-        });
+        }))
+    };
+    let push = |seeds: &mut Vec<propagate::PNode>, n: propagate::PNode| {
+        if !seeds.iter().any(|q| q.k == n.k) {
+            seeds.push(n);
+        }
+    };
+    // the AI order positions as seeds too (KYG-NODE-1: DICE has a node within 0.2 m of each), each on the kept
+    // surface of its column in this sector's areas nearest its height (within 1 m), as the order nodes find theirs
+    for &(x, y, z) in &job.orders {
+        if let Some(n) = column_seed(x, y, z, 1.0)? {
+            push(&mut seeds, n);
+        }
+    }
+    let orders_end = seeds.len();
+    // DICE's own seed points (KYG-SEED-2): the spawns in the square, then the perimeter autoseeds (the cells two
+    // pitches inside the square, side by side), each on its sample point, unlocked (the simplification may merge them)
+    if cfg.dice_seeds {
+        for &(x, y, z) in &job.spawns {
+            if let Some(mut n) = column_seed(x, y, z, 1.5)? {
+                n.locked = false;
+                push(&mut seeds, n);
+            }
+        }
+        let last = round_int(100.0 / pitch).ok_or_else(|| NavError::Shape("the pitch".into()))? - 2;
+        let mut sides: [Vec<(i64, i64, usize)>; 4] = Default::default();
+        for a in areas {
+            for &(i, j, k) in a {
+                if !(0..=last + 2).contains(&i) || !(0..=last + 2).contains(&j) {
+                    continue;
+                }
+                for (side, on, along) in [(0, i == 2, j), (1, i == last, j), (2, j == 2, i), (3, j == last, i)] {
+                    if on && let Some(list) = sides.get_mut(side) {
+                        list.push((along, i64::try_from(k).unwrap_or(i64::MAX), k));
+                    }
+                }
+            }
+        }
+        for side in &mut sides {
+            side.sort_unstable();
+            for &(_, _, k) in side.iter() {
+                let Some(&cell) = ground.cell_of.get(&k) else { continue };
+                push(
+                    &mut seeds,
+                    propagate::PNode {
+                        k,
+                        cell,
+                        pos: (
+                            ox + cell.0 as f64 * pitch,
+                            level.y(k) + cfg.y_offset,
+                            oz + cell.1 as f64 * pitch,
+                        ),
+                        locked: false,
+                    },
+                );
+            }
+        }
     }
     let borders = job.borders.len();
     let placed = propagate::place(&ground, pp, &seeds, areas);
@@ -477,7 +537,7 @@ fn place_dice(
                         cell: n.cell,
                         pos: n.pos,
                     },
-                    order: q < seeds.len(),
+                    order: q < orders_end,
                 });
             }
             None => index.push(None),

@@ -6,13 +6,13 @@
      "candidate": "20f9b284871d45babd98d92d232de96693601421",
      "connectivity": 99.9,
      "ground": 98.49,
-     "row": "7abc315d19143bb743c0b021bd5e769d43403168"
+     "row": "a68e3883fbef6b59818201b495a76befab654975"
     },
     "sp_009": {
      "candidate": "65e1f51d18c32350f6f549f86536081da2a69735",
      "connectivity": 100.0,
      "ground": 99.97,
-     "row": "9312426194d03916ab4a848a0aef4fb9a6c955dc"
+     "row": "77e7e4cbd55d6f4ade6e9039683c23c98365bff5"
     }
    },
    "inputs": {

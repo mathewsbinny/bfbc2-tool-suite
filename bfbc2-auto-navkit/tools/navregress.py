@@ -43,6 +43,7 @@ import navparity  # noqa: E402
 import navwalk  # noqa: E402
 
 HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near', 'edges_same',
+          'nodes_paired', 'edges_paired', 'costs_paired', 'nodes_paired_candidate',    # all nodes and edges (NKS-deep E)
           'connectivity', 'runtime_connectivity', 'strong_share', 'ai_coverage', 'ai_pairwise',
           'df_d_precision', 'df_d_recall', 'df_f_precision', 'df_f_recall']     # D lines / F cells (navdf.py)
 LOWER = ['extra_ground', 'over_connection', 'sectors_missing']

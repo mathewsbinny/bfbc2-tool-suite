@@ -150,6 +150,7 @@ fn cfg() -> GraphCfg {
         order_node_min: 3.0,
         grid_min: (0.0, 0.0),
         placement: None,
+        dice_seeds: false,
     }
 }
 
@@ -166,6 +167,7 @@ fn sector_graph_basics() {
         mids: vec![vec![]],
         borders: vec![((0.0, 0.95, 0.0), 0)],
         orders: vec![(7.2, 0.0, 7.2), (7.2, 0.0, 0.8)], // the first: on the ladder node's surface (skipped)
+        spawns: vec![],
         ladders: vec![(0, 99)],
         blocked: HashSet::new(),
     };
@@ -224,4 +226,27 @@ fn sector_graph_dedups_and_covers() {
     assert!(g.nodes.len() > 10); // cover nodes every 2 m
     let mut seen = HashSet::new();
     assert!(g.nodes.iter().all(|n| seen.insert(n.node.k)));
+}
+
+#[test]
+fn split_box_deals_an_area_into_four_on_its_box_midlines() {
+    // KYG-AREA-4: cells 0..9 x 0..9, mid = (0 + 9) >> 1 = 4: x 5..9 and z 5..9 above it, four 5 x 5 quarters
+    let l = flat_level(10, 10);
+    let cells: Vec<Cell> = (0..100).map(|k| ((k % 10) as i64, (k / 10) as i64, k)).collect();
+    let pieces = l.split_box(&cells, 0, 0, Rule::Slope);
+    assert_eq!(pieces.len(), 4);
+    assert!(pieces.iter().all(|p| p.len() == 25));
+    let lo = |p: &Vec<Cell>| {
+        (
+            p.iter().map(|c| c.0).min().unwrap(),
+            p.iter().map(|c| c.1).min().unwrap(),
+        )
+    };
+    let mut starts: Vec<(i64, i64)> = pieces.iter().map(lo).collect();
+    starts.sort_unstable();
+    assert_eq!(starts, [(0, 0), (0, 5), (5, 0), (5, 5)]);
+    // a strip one cell deep: (0 + 0) >> 1 = 0 on z, so the cut runs across x only
+    let strip: Vec<Cell> = (0..10).map(|k| (k as i64, 0, k)).collect();
+    let halves = l.split_box(&strip, 0, 0, Rule::Slope);
+    assert_eq!(halves.iter().map(Vec::len).collect::<Vec<_>>(), [5, 5]);
 }

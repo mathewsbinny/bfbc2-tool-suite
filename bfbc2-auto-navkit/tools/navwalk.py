@@ -549,12 +549,18 @@ DF_SLOPE: float | None = 0.77
 # named exceptions in spec/transforms/navkit.md, "Parity target").
 PLACEMENT: bool = True
 
+# DICE's seed list in the placement (KYG-SEED-2, round NKS-deep E): the sector's soldier spawns and perimeter cells as
+# unlocked seeds after the border nodes and order positions; KYG-AREA-4's midline cut (KYG-AREA-5's record size).
+# Both measured and off: neither leaves every measure at least as good (rust/BENCHMARKS.md "NKS-deep E").
+DICE_SEEDS: bool = False
+MIDLINE_CUT: bool = False
+
 
 def switches() -> dict[str, Any]:
     """The build's switches this module owns (the stage's log line names what walkability did); the others are the
     Rust defaults."""
     return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR), df_slope=DF_SLOPE,
-                placement=bool(PLACEMENT))
+                placement=bool(PLACEMENT), dice_seeds=bool(DICE_SEEDS), midline_cut=bool(MIDLINE_CUT))
 
 
 def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,
