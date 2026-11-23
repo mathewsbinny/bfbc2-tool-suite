@@ -476,8 +476,10 @@ A side between two straight-neighbour cells of the same area whose ground height
 is an F cell of that axis; F cells form 8-connected polygons stored twice, once per direction (-axis then +axis), each
 corner at the mean height of the cells on that side; per area all -x records, then +x, -z, +z. A broken side that is not
 an F side is a D side, stored once per owning cell (two facing lines), its owner on the right, collinear runs merged,
-vertices at the mean height of the owner's cells + 0.95 m. Outline never runs along a broken side. At pitch 0.2 only
-terrain-terrain sides break (from about 0.17 m). Vehicle files do not follow the infantry rule (open).
+vertices at the mean height of the owner's cells + 0.95 m. Outline never runs along a broken side. Between two
+terrain cells DICE's D sides follow the terrain's slope across the side (above 0.77) rather than the centres' step,
+while its F cells follow the steps (KYG-DF-1, round NKG3). At pitch 0.2 only terrain-terrain sides break (from about
+0.17 m). Vehicle files do not follow the infantry rule (open).
 
 The runtime uses D and E as obstacle edges and F with its heights in its straight-move test within an area; path
 search itself (areas, portals, route graph) does not need them, so a file with no D or F routes.

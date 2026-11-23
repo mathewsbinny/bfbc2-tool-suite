@@ -171,6 +171,12 @@ non-owner copies 0 (DICE 7,355). Named exceptions added by NKG2 (kynapse_generat
 (KYG-NODE-3) and the exact node placement (KYG-NODE-1) are not recoverable from DICE's output so far; DICE's detailed
 sectors wait for a pitch-0.2 sampling run over DICE's list (KYG-DET-1).
 
+Measured 2026-11-22 after round NKG3 (the same levels, means): every measure unchanged (DICE's terrain rule for D
+sides, KYG-DF-1, written but off). With it on: `df_d_precision` 50.53 -> 56.71 %, `df_d_recall` 18.84 -> 23.89 %
+(normal pitch 32.80 -> 40.60 %), every other measure unchanged, but sp_02's `df_d_recall` 21.86 -> 21.53 %; it waits
+for the user's ruling (rust/BENCHMARKS.md "NKG3"). Named exception added by NKG3: DICE's slope measure within 0.01 of
+its threshold (the height field's quantisation hides it, KYG-DF-1).
+
 ## Open questions
 
 - The levels where NavKit's coverage still falls short of DICE's (KYNAPSE_SPEC.md and the parity runs); the goal is

@@ -433,6 +433,7 @@ fn main() {
     let mut levels = Vec::new();
     let mut opfor = None;
     let mut cand_dir: Option<String> = None;
+    let mut before_dir: Option<String> = None;
     let mut k = 0;
     while k < args.len() {
         match args[k].as_str() {
@@ -442,6 +443,10 @@ fn main() {
             }
             "--cand" => {
                 cand_dir = args.get(k + 1).cloned();
+                k += 1;
+            }
+            "--before" => {
+                before_dir = args.get(k + 1).cloned();
                 k += 1;
             }
             s => levels.push(s.to_owned()),
@@ -488,10 +493,10 @@ fn main() {
         let n02 = pick(&[&format!("{lv}_navkit_p02.bin")]).and_then(|p| Run::load(&p));
         let hf = heightfield(&root, lv);
         println!(
-            "{lv}: runs 0.8 {}, 0.2 {}, height field {}",
+            "{lv}: runs 0.8 {}, 0.2 {}, height field {:?}",
             n08.is_some(),
             n02.is_some(),
-            hf.is_some()
+            hf.as_ref().map(|h| (h.cell(), h.min, h.size))
         );
         if let Some(cd) = &cand_dir {
             let Ok(cdata) = fs::read(Path::new(cd).join(format!("{lv}.hpd"))) else {
@@ -500,6 +505,42 @@ fn main() {
             };
             let (di, ci) = (index(&data), index(&cdata));
             cross(&mut c, &di, &ci, n08.as_ref(), n02.as_ref());
+            // DICE's sides an earlier build matched and this one does not (and the reverse), by the side's slope
+            if let (Some(bd), Some(hf)) = (&before_dir, &hf) {
+                let Ok(bdata) = fs::read(Path::new(bd).join(format!("{lv}.hpd"))) else {
+                    continue;
+                };
+                let bi = index(&bdata);
+                for (&key, hs) in &di.df {
+                    let h = hs.first().copied().unwrap_or(f64::NAN);
+                    let (was, is) = (
+                        classify(&bi, key, h, None) == "match",
+                        classify(&ci, key, h, None) == "match",
+                    );
+                    if was == is || key.0 != 0 {
+                        continue;
+                    }
+                    let (_, lo, axis) = key;
+                    let dir = if axis == 0 { (1, 0) } else { (0, 1) };
+                    let (mx, mz) = (
+                        (lo.0 as f64 + dir.0 as f64 / 2.0) * 0.8,
+                        (lo.1 as f64 + dir.1 as f64 / 2.0) * 0.8,
+                    );
+                    let g = terrain_slope(hf, mx, mz, dir);
+                    let hi = (lo.0 + dir.0, lo.1 + dir.1);
+                    let st = n08.as_ref().and_then(|r| {
+                        let a = r.near(lo.0, lo.1, h, 1.5)?;
+                        let b = r.near(hi.0, hi.1, a.0, 1.5)?;
+                        Some(((a.0 - b.0).abs(), a.2 & b.2 & 0x80 != 0))
+                    });
+                    c.inc(&format!(
+                        "{lv} {} slope {} step {:?}",
+                        if was { "lost" } else { "gained" },
+                        bin(g, 0.05, 1.5),
+                        st.map(|(s, t)| (bin(s, 0.05, 1.5), t))
+                    ));
+                }
+            }
             continue;
         }
         for s in &f.sectors {
@@ -554,6 +595,34 @@ fn main() {
                             let g = terrain_slope(hf, mx, mz, dir);
                             let slope_t = if cls == "d" { 0.915 } else { DF_TERRAIN_SLOPE };
                             rule(&mut c, &format!("{cls} terrain slope > {slope_t}"), g > slope_t, lab);
+                            rule(
+                                &mut c,
+                                &format!("{cls} terrain slope or step"),
+                                g > slope_t || step > step_t,
+                                lab,
+                            );
+                            for lo in [0.6, 0.65, 0.7, 0.74] {
+                                rule(
+                                    &mut c,
+                                    &format!("{cls} terrain slope, or step and slope > {lo}"),
+                                    g > slope_t || (step > step_t && g > lo),
+                                    lab,
+                                );
+                            }
+                            // F cells by the step (both sides of the axis), D sides by the slope
+                            let stepf = |a: Cell| {
+                                let y = hs.get(&a).map(|s| s.0);
+                                let up = hs.get(&(a.0 + dir.0, a.1 + dir.1)).map(|s| s.0);
+                                let dn = hs.get(&(a.0 - dir.0, a.1 - dir.1)).map(|s| s.0);
+                                matches!((y, up, dn), (Some(y), Some(u), Some(d)) if (u - y).abs() > step_t && (d - y).abs() > step_t)
+                            };
+                            let fside = stepf(cell) || stepf(nb);
+                            rule(
+                                &mut c,
+                                &format!("{cls} terrain F by step, D by slope"),
+                                fside || g > slope_t,
+                                lab,
+                            );
                             if (0.74..0.80).contains(&g) {
                                 let b = (g * 200.0).floor() / 200.0;
                                 c.inc(&format!(

@@ -540,10 +540,15 @@ def clock_words(stamp: Any) -> tuple[int, int]:
             stamp.tm_hour * 1000000 + stamp.tm_min * 10000 + stamp.tm_sec * 100)
 
 
+# DICE's terrain rule for D sides (KYG-DF-1, round NKG3): a slope threshold (0.77) with the level's height field, None:
+# the step rule. Off: measured better on 14 of 15 regression levels, but SP_02's D recall fell 21.86 -> 21.53 %.
+DF_SLOPE: float | None = None
+
+
 def switches() -> dict[str, Any]:
     """The build's switches this module owns (the stage's log line names what walkability did); the others are the
     Rust defaults."""
-    return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR))
+    return dict(roof_prune=bool(ROOF_PRUNE), objective_floor=bool(OBJECTIVE_FLOOR), df_slope=DF_SLOPE)
 
 
 def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,

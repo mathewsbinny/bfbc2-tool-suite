@@ -514,47 +514,59 @@ symmetric (every pair is written both ways, each way in its source's owner).
 
 Status: **observed**
 
-In coarse areas, a side between two cells of one area is broken where the ground is too steep **across the side**:
-between two terrain cells, where the terrain's slope along the axis at the side's midpoint exceeds 0.77 (about
-37.6 degrees; round NKG3), whatever the step between the two cell centres; between cells where either is an object
-surface, where the centres' step exceeds the link step (0.6 m). A cell with both sides of one axis broken is an F
-cell. F polygons are stored twice, -axis then +axis, ordered -x, +x, -z, +z (KYN-DF-2). Other broken sides are D
-lines, one per owning cell, owner on the right, collinear runs merged, corners cut where a cell owns two perpendicular
-D sides (the 3-point "L" lines). In detailed areas only terrain-terrain sides break, from about 0.17 m, and F is rare
-(KYM-DF-1).
+In coarse areas a side between two cells of one area can be broken in two ways. **D sides follow the ground across
+the side:** between two terrain cells, a side is a D side where the terrain's slope along the axis at the side's
+midpoint exceeds 0.77 (about 37.6 degrees; round NKG3), whatever the step between the two cell centres; where either
+cell is an object surface, where the centres' step exceeds the link step (0.6 m). **F cells follow the centres'
+steps:** a cell stepped into and out of along one axis (both centre steps over 0.6 m) is an F cell of that axis. F
+polygons are stored twice, -axis then +axis, ordered -x, +x, -z, +z (KYN-DF-2). D sides that are an F cell's side
+along its axis are not D lines; the rest are, one per owning cell, owner on the right, collinear runs merged, corners
+cut where a cell owns two perpendicular D sides (the 3-point "L" lines). In detailed areas only terrain-terrain sides
+break, from about 0.17 m, and F is rare (KYM-DF-1).
 
-The centres' step is the mean slope over a whole pitch; the side's slope is the terrain's where the side lies, and it
-is what DICE's breaks follow. On the 15 regression levels' DICE infantry files, every in-area side of a normal-pitch
-area whose two cells are terrain samples (`kynapse_df`: DICE's cells from the area boundaries, heights from NavKit's
+The centres' step is the mean slope over a whole pitch; the side's slope is the terrain's where the side lies, and
+DICE's D sides follow it. On the 15 regression levels' DICE infantry files, every in-area side of a normal-pitch area
+whose two cells are terrain samples (`kynapse_df`: DICE's cells from the area boundaries, heights from NavKit's
 pitch-0.8 sample run, the slope from the level's height field), against DICE's label (a D side either way, or a side
 of an F cell along its axis):
 
-| Rule | broken and DICE's | broken, DICE has none | DICE's missed | precision | recall |
-|---|---:|---:|---:|---:|---:|
-| centres' step > 0.6 m | 178,348 | 50,572 | 103,895 | 77.9 % | 63.2 % |
-| side's slope > 0.77 | 199,918 | 18,025 | 82,325 | 91.7 % | 70.8 % |
+| Rule | broken and DICE's | broken, DICE has none | DICE's missed | precision | recall | D found | F found |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| centres' step > 0.6 m | 178,348 | 50,572 | 103,895 | 77.9 % | 63.2 % | 124,842 | 53,506 |
+| side's slope > 0.77 | 199,918 | 18,025 | 82,325 | 91.7 % | 70.8 % | 147,795 | 52,123 |
 
-The threshold sits between the height field's quantised slopes: sides with a slope of 0.760-0.765 are D / F in 17 %
-(6,932 of 40,538), 0.765-0.770 in 34 %, 0.770-0.775 in 54 %, 0.775-0.780 in 91 % (52,329 of 57,222). The slope rule
-finds 147,795 D sides and 52,123 F sides (the step rule 124,842 and 53,506). Object sides keep the step rule (2,331
-false positives against 865 found: the object rule is open). In detailed areas neither rule separates DICE's breaks
-(the slope at 0.915: precision 29 %, recall 43 %; the step at 0.175 m: 22 %, 43 %), so the detailed rule stays open
-too.
+The slope finds more D sides with a third of the false breaks; the step finds more F sides. Taking F cells from the
+steps and D sides from the slope (sp_02 and sp_006, 2 levels): 29,608 found against 8,025 false (the slope alone
+27,689 / 3,108, the step 28,892 / 12,076), F found 13,288 (the step 13,035, the slope 11,610). The slope threshold
+sits between the height field's quantised slopes (1 m squares): sides with a slope of 0.760-0.765 are D / F in 17 %
+(6,932 of 40,538), 0.765-0.770 in 34 %, 0.770-0.775 in 54 %, 0.775-0.780 in 91 % (52,329 of 57,222). Object sides
+keep the step rule (2,331 false positives against 865 found: the object rule is open). In detailed areas neither rule
+separates DICE's breaks (the slope at 0.915: precision 29 %, recall 43 %; the step at 0.175 m: 22 %, 43 %), so the
+detailed rule stays open too.
 
 What the slope rule leaves (8 % of its breaks not DICE's, 29 % of DICE's not found) is not in the samples or the height
-field alone: within 0.01 of the threshold the label is mixed, and DICE's lines are cut at 45-degree half cells that
-NavKit's areas do not have (61,026 of 491,869 normal D unit sides have a cell outside the area raster).
+field alone: within 0.01 of the threshold the label is mixed (a named exception: DICE's own measure of the slope is not
+recoverable from its output past the height field's quantisation), and DICE's lines are cut at 45-degree half cells
+that NavKit's areas do not have (61,026 of 491,869 normal D unit sides have a cell outside the area raster).
 
 [data: coarse D lines 431,972 (98.1 % 2 points, 7,880 with 3, 268 with 4 or more), F records 40,908; detailed 81,158 and 3,472]
-[data: round NKG3, `rust/bc2-navbuild/examples/kynapse_df.rs` on the 15 regression levels: the table above]
-[code: rust/bc2-navbuild/src/stage.rs::terrain_slope] [code: rust/bc2-navbuild/src/detail.rs::candidates_by]
-[test: rust/bc2-navbuild/src/stage_tests.rs::terrain_slope_across_a_side] [test: rust/bc2-navbuild/src/detail_tests.rs::a_side_test_decides_where_it_answers]
+[data: round NKG3, `rust/bc2-navbuild/examples/kynapse_df.rs` on the 15 regression levels: the tables above]
+[code: rust/bc2-navbuild/src/stage.rs:796-803] [code: rust/bc2-navbuild/src/detail.rs:136-261]
+[test: rust/bc2-navbuild/src/stage_tests.rs::terrain_slope_across_a_side] [test: rust/bc2-navbuild/src/detail_tests.rs::a_side_test_decides_where_it_answers] [test: rust/bc2-navbuild/src/detail_tests.rs::split_rule_f_by_the_step_d_by_the_test]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:939-1008]
 
-NavKit today: the coarse rule with corner cuts (`navdetail`; NK3 ports it to Rust); the detailed rule is implemented but
-off. Probe: 258,379 D lines (396 with 3+ points against DICE's 8,148 on all files) and 40,588 F records on the 15
-levels; F order and twins hold. Measures: `navparity:df_d_precision` / `df_d_recall` 50.5 / 18.8 %,
-`df_f_precision` / `df_f_recall` 34.0 / 33.5 %.
+NavKit today: the step rule with corner cuts (`navdetail`; NK3 ports it to Rust); the detailed rule is implemented but
+off. Round NKG3 implemented the split rule (`Switches::df_slope`, `navwalk.DF_SLOPE`: D sides between terrain cells
+by the slope on the level's height field, F cells by the step; route edges stay off the step rule's D sides) and
+measured it on the 15 regression levels (means): `df_d_precision` 50.53 -> 56.71 %, `df_d_recall` 18.84 -> 23.89 %
+(normal pitch 32.80 -> 40.60 %), F unchanged, every other measure unchanged, D precision and recall up on 13 levels (sp_04's precision 49.54 -> 49.53 %,
+sp_009 has no normal D) - but sp_02's `df_d_recall` fell 21.86 -> 21.53 % (43 of DICE's 12,932 sides,
+lost at slopes 0.70-0.77 with centre steps of 0.60-0.65 m, the mixed band above). Under XNAV-BLD-3 it is therefore
+**off** by default, waiting for the user's ruling. Measured and left out: the slope rule for F too (F recall 33.46 ->
+31.35 %), the route edges kept off the slope rule's D sides (ONS_MP_004 `connectivity` 97.90 -> 97.76 %,
+`runtime_connectivity` 98.23 -> 98.07 %), D by slope or step (D precision down on 12 levels), the threshold at 0.755
+(D precision 50.53 -> 46.09 %). Probe: 258,379 D lines (396 with 3+ points against DICE's 8,148 on all files) and
+40,588 F records on the 15 levels; F order and twins hold.
 
 ### KYG-DF-2: Vehicle D / F follow another rule
 
@@ -651,7 +663,11 @@ movement detail, then bytes):
    target** stays the coarse rule's recall. The vehicle rule cannot be fitted from the files on disk (no vehicle-shaped
    sample run exists, KYG-DF-2): NKG3 needs one in-game `[dev] navsample` run at the vehicle settings (pitch 1.0 m, a
    cylinder of radius 2.5 m, height 4 m) on sp_04 or sp_02 first, so it is a playtest item while in-game runs are
-   paused.
+   paused. **Round NKG3**: the coarse rule decoded (KYG-DF-1: D sides between terrain cells follow the terrain's slope
+   across the side, above 0.77; F cells the centres' steps), implemented behind `Switches::df_slope` and measured: D
+   precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %, F and every other measure unchanged, but sp_02's D recall -0.33,
+   so off until the user rules. The detailed rule (no single measure separates DICE's breaks) and the vehicle rule
+   (no vehicle-shaped sample run) stay open.
 7. **C portal directions** (KYG-SEC-2, KYN-C-1): DICE's "diagonal" and "up" values are not geometric and are read in
    no test traced; not imitated. Diagonal-neighbour links: done (NKG1, KYG-LINK-1). DICE's C records are also cut
    differently (17 % cross a square line; its 45-degree corner cuts), which follows its tracing (NKG2).

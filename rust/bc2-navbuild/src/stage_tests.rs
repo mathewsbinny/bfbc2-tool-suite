@@ -317,6 +317,10 @@ fn the_default_settings_are_the_normal_grid() {
     assert!(sw.symmetric_portals && sw.diagonal_links && sw.node_bounds && sw.owner_edges);
     assert_eq!(sw.gabriel, Gabriel::Detailed);
     assert_eq!(sw.spanner, Some(SPANNER_STRETCH));
+    assert_eq!(
+        sw.df_slope, None,
+        "KYG-DF-1's slope rule measured and left off (round NKG3)"
+    );
 }
 
 #[test]

@@ -283,9 +283,11 @@ pub struct Switches {
     pub detail_terrain_only: (bool, bool),
     /// `navdetail.CUT_CORNERS`.
     pub cut_corners: bool,
-    /// DICE's terrain rule for broken sides (KYG-DF-1): between two terrain cells of a normal-pitch area, a side
-    /// breaks where the terrain's slope along the axis at its midpoint exceeds this ([`DF_TERRAIN_SLOPE`]), in place
-    /// of the centres' step; `None`, or a build without the height field: the step rule everywhere.
+    /// DICE's terrain rule for D sides (KYG-DF-1): between two terrain cells of a normal-pitch area, a side is a D
+    /// side where the terrain's slope along the axis at its midpoint exceeds this ([`DF_TERRAIN_SLOPE`]), in place of
+    /// the centres' step; F cells and the route edges' blocks keep the step rule. `None` (the default: round NKG3
+    /// measured it, D precision / recall 50.5 / 18.8 -> 56.7 / 23.9 %, but the D recall of `sp_02` 21.86 -> 21.53 %), or a
+    /// build without the height field: the step rule everywhere.
     pub df_slope: Option<f64>,
     /// `navdetail.CHAIN_TURNS`.
     pub chain_turns: bool,
@@ -346,7 +348,7 @@ impl Default for Switches {
             detail_f: (true, false),
             detail_terrain_only: (false, true),
             cut_corners: true,
-            df_slope: Some(DF_TERRAIN_SLOPE),
+            df_slope: None,
             chain_turns: true,
             shadow: Some(graphfile::Shadow::default()),
             header: HEADER,
@@ -902,7 +904,7 @@ pub fn detail_pass(
                 ) > t,
             )
         };
-        let got = detail::detail_features_by(&area, &half, &s, test, |c| -> Result<bool, std::convert::Infallible> {
+        let keep = |c: &Candidate| -> Result<bool, std::convert::Infallible> {
             Ok(match *c {
                 Candidate::Side(((i, j), (di, dj))) => {
                     let (x, l, d, al) = side_key(i, j, di, dj);
@@ -912,10 +914,20 @@ pub fn detail_pass(
                 }
                 Candidate::Leg(((i, j), (di, dj))) => breaks((i, j), (i + di, j + dj)),
             })
-        });
-        let Ok(feats) = got;
+        };
+        let Ok(feats) = detail::detail_features_by(&area, &half, &s, test, keep);
         if !feats.broken.is_empty() && cfg.detail_blocks_edges {
-            for &((i, j), (di, dj)) in &feats.d_sides {
+            // route edges stay off the step rule's D sides: blocking the slope rule's lowered ONS_MP_004's
+            // connectivity 97.90 -> 97.76 % (round NKG3)
+            let step_feats;
+            let d_for_edges = if slope_rule.is_some() {
+                let Ok(f) = detail::detail_features(&area, &half, &s, keep);
+                step_feats = f;
+                &step_feats.d_sides
+            } else {
+                &feats.d_sides
+            };
+            for &((i, j), (di, dj)) in d_for_edges {
                 if let (Some(&a), Some(&b)) = (ks.get(&(i, j)), ks.get(&(i + di, j + dj))) {
                     out.blocked.insert((a, b));
                 }

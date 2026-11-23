@@ -198,3 +198,23 @@ fn a_side_test_decides_where_it_answers() {
     // no test: the step rule (candidates)
     assert_eq!(candidates(&cells, &[], 0.6).len(), 2);
 }
+
+#[test]
+fn split_rule_f_by_the_step_d_by_the_test() {
+    // a 5 x 1 strip: cell 1 a pit (stepped into and out of along x), flat elsewhere; the test breaks only (3,0)|(4,0)
+    let cells = grid(|i, _| Some(if i == 1 { -1.0 } else { 0.0 }), 5, 1);
+    let test = |((i, _), (di, _)): Side| -> Option<bool> { Some(i + i + di == 7) };
+    let r: Result<Features, ()> = detail_features_by(&cells, &[], &settings(), test, |_| Ok(true));
+    let f = r.unwrap_or_default();
+    assert_eq!(
+        f.fx,
+        [(1, 0)].into_iter().collect::<BTreeSet<_>>(),
+        "the pit is an x-F cell by its steps"
+    );
+    let d: BTreeSet<Side> = [((3, 0), (1, 0)), ((4, 0), (-1, 0))].into_iter().collect();
+    assert_eq!(f.d_sides, d, "the D sides are the test's");
+    assert!(f.broken.contains(&((1, 0), (1, 0))) && f.broken.contains(&((0, 0), (1, 0))));
+    // a test that never answers: the step rule alone, as detail_features
+    let plain: Result<Features, ()> = detail_features_by(&cells, &[], &settings(), |_| None, |_| Ok(true));
+    assert_eq!(plain.unwrap_or_default(), run(&cells, &settings()));
+}

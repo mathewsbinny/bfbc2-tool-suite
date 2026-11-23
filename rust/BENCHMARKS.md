@@ -11001,3 +11001,97 @@ with them, the E2a / E3c / E3h answers unchanged:
 | sp_004_b | bd44cedb25e7c88032ef29bf47c3fdddee72032f (8,242,112) | 469a8b98dc0b44833b9318a1fc8120386b5e0931 (8,556,872) |
 | sp_008_b | 2839e515d3802f501e4dc67513becc97591201a7 (8,484,708) | 01b978717db04edd7e92aaf29553a951f0a647e9 (8,842,992) |
 | ons_mp_004 | 020d7019c061c2e1b91335d540b213f8e80598ed (7,627,988) | 76caa81b6c2577afcf722ba4a1621ab8bec56ef5 (8,020,340) |
+
+## NKG3: NavKit's step data toward DICE's - the terrain rule for D sides (2026-11-22, branch `nkg3`)
+
+The step-data half of the NavKit gap list (`spec/transforms/kynapse_generation.md`, item 6): DICE's D lines and F
+cells. The rule was fitted on DICE's files with a new probe, implemented in `bc2-navbuild`, and measured with
+navparity on the 15 regression levels (navregress's builds into a scratch folder, one level at a time). It raised D
+precision and recall but lowered one level's D recall, so under XNAV-BLD-3 it is written and **off**, waiting for the
+user's ruling. Default builds are unchanged: navregress's reference and the goldens were not re-recorded.
+
+### Where DICE's D / F sides stand in NavKit's builds (before)
+
+`kynapse_df --cand work\navkit\regress` (NKG2's builds): of DICE's 323,071 normal-pitch D / F sides, 117,629 (36 %)
+are matched; 93,963 (29 %) have both cells in one NavKit area with no break (the rule); 52,138 (16 %) one cell not
+NavKit ground; 27,763 (9 %) lie where NavKit builds the other pitch (its detailed sectors, KYG-DET-1); 23,687 (7 %)
+neither cell ground; 3,989 split between areas. The mean `df_d_recall` of 18.8 % also counts DICE's detailed lines,
+which NavKit never writes (sp_009: 0 %).
+
+### The rule (KYG-DF-1)
+
+Every in-area side of DICE's normal-pitch areas whose two cells are terrain samples, against DICE's label, 15 levels:
+
+| Rule | broken and DICE's | false | missed | precision | recall | D found | F found |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| centres' step > 0.6 m (NavKit today) | 178,348 | 50,572 | 103,895 | 77.9 % | 63.2 % | 124,842 | 53,506 |
+| the terrain's slope across the side > 0.77 | 199,918 | 18,025 | 82,325 | 91.7 % | 70.8 % | 147,795 | 52,123 |
+
+Ruled out as the deciding measure (F1 on sp_01 / sp_004_b / sp_03): the sample normals' slopes (0.51), the step
+corrected by the normals, the full 3-D gradient (0.49), footprint min / max steps (0.53), the high-capsule and
+clearance flags; the step across the side over +-0.05 to +-0.2 m acts as the slope (0.816), wider spans fall back
+towards the centres' step. The threshold holds out of sample (sp_02, sp_006, ons_mp_002: best at 0.767-0.77, 89.8 /
+71.9 %). F cells follow the steps (the step finds more F sides), so the rule NavKit implements splits: D sides
+between terrain cells by the slope, F cells by the step.
+
+### What changed in NavKit
+
+| Rule | Change | Switch |
+|---|---|---|
+| KYG-DF-1 | D sides between two terrain cells of a normal-pitch area by `stage::terrain_slope` (central difference on the level's height field at the side's midpoint) above `DF_TERRAIN_SLOPE` (0.77); F cells and the route edges' blocks by the step (`detail::detail_features_by`, `features_split`) | `Switches::df_slope` / `navwalk.DF_SLOPE`, **off** |
+| - | the build takes the level's height field: `build::Inputs.terrain`, `StageArgs.terrain`; `navwalk.build(heightfield=...)` (navregress, `navkit.py build`), `inputs::level_terrain` (bfbc2.exe, the editor) | always (unused while the switch is off) |
+
+### Parity with the switch on (15 regression levels; before = navregress's reference `regression`)
+
+Every navparity measure unchanged but these (means):
+
+| Measure | before | after |
+|---|---:|---:|
+| `df_d_precision` | 50.53 | 56.71 |
+| `df_d_recall` | 18.84 | 23.89 |
+| `df_d_recall_n` (normal pitch) | 32.80 | 40.60 |
+| `df_d_recall_shared` | 21.34 | 26.96 |
+| D sides written (`df_d_candidate`) | 17,225 | 20,960 |
+
+| level | D precision | | D recall | | D sides | |
+|---|---:|---:|---:|---:|---:|---:|
+| sp_01 | 44.70 | 51.06 | 22.84 | 29.45 | 12,924 | 15,442 |
+| sp_02 | 40.43 | 53.35 | 21.86 | **21.53** | 7,054 | 5,664 |
+| sp_03 | 50.28 | 57.11 | 28.48 | 38.69 | 36,814 | 46,706 |
+| sp_04 | 49.54 | 49.53 | 27.96 | 34.80 | 19,347 | 24,296 |
+| sp_003_b | 50.10 | 56.21 | 31.25 | 42.07 | 47,189 | 59,521 |
+| sp_004_b | 59.30 | 61.93 | 19.05 | 24.24 | 1,320 | 1,618 |
+| sp_005 | 53.88 | 57.44 | 28.49 | 37.40 | 45,212 | 56,904 |
+| sp_005_b | 54.86 | 57.65 | 25.97 | 34.89 | 38,741 | 50,363 |
+| sp_006 | 45.56 | 54.27 | 28.89 | 31.19 | 30,171 | 28,627 |
+| sp_007 | 53.29 | 56.36 | 20.88 | 27.65 | 15,141 | 19,848 |
+| sp_008 | 57.95 | 61.78 | 13.63 | 19.14 | 1,866 | 2,538 |
+| sp_008_b | 34.88 | 60.00 | 2.11 | 3.80 | 62 | 72 |
+| sp_009 | 100 | 100 | 0 | 0 | 0 | 0 |
+| ons_mp_002 | 49.73 | 55.52 | 10.35 | 11.89 | 2,124 | 2,238 |
+| ons_mp_004 | 13.50 | 18.48 | 0.84 | 1.55 | 414 | 564 |
+
+sp_02's D recall falls by 43 of DICE's 12,932 sides: `kynapse_df --before` shows the sides lost at slopes of
+0.60-0.77 with centre steps of 0.60-0.65 m (239 of DICE's D / F side keys lost, 206 of them at slopes 0.70-0.77; 233
+gained, all at slopes over 0.77 or with steps under 0.6 m), the band where DICE breaks only 17-34 % of sides. This is not a larger matched sample (NKG2's `costs` case); it is a real loss on
+one level, so the switch stays off until the user rules. No other measure moves.
+
+### Measured and left out
+
+| Item | What was tried | Result |
+|---|---|---|
+| The slope for F too | every break by the slope | `df_f_recall` 33.46 -> 31.35 (9 levels worse; sp_02 37.45 -> 26.37), F precision 34.0 -> 47.8 |
+| Route edges off the slope's D sides | the slope's D sides block edges (DICE's graph never crosses a D line) | ONS_MP_004 `connectivity` 97.90 -> 97.76, `runtime_connectivity` 98.23 -> 98.07; `over_connection` sp_003_b 29.35 -> 29.60 |
+| D by slope or step | the union | `df_d_precision` 50.53 -> 49.94 (12 levels worse), recall 25.43 |
+| A lower threshold | 0.755 | `df_d_precision` 50.53 -> 46.09 (11 levels worse) |
+| Detailed D / F | the slope (0.915) or the step (0.175 m) on DICE's own detailed areas | precision 29 / 22 %, recall 43 / 43 %: no rule; stays off |
+| Vehicle D / F | - | needs an in-game vehicle-shaped sample run (KYG-DF-2); a playtest item |
+
+### Tests
+
+- `cargo test -p bc2-navbuild --lib`: `detail_tests::a_side_test_decides_where_it_answers`,
+  `detail_tests::split_rule_f_by_the_step_d_by_the_test` (and with a test that never answers, the step rule's answer),
+  `stage::tests::terrain_slope_across_a_side`, the switch default.
+- Default builds unchanged: `test_navbuild_native.py --game` (the golden builds' SHA-1).
+- The probe: `cargo run --release -p bc2-navbuild --example kynapse_df -- [<level>...] [--cand <folder>] [--before
+  <folder>]`.
