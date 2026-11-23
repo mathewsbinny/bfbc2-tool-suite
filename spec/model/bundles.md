@@ -132,7 +132,7 @@ bundle has 4,334 markers among 6,692 entries) and to let a level's own copy repl
 
 [code: rust/bc2-levelwrite/src/export.rs:254-273] [code: rust/bc2-editor/src/package.rs:448-470]
 [test: rust/bc2-editor/tests/g3.rs::stand_in_package_levels]
-[doc: bfbc2-fbrb-tool/README.md:29-31] [doc: rust/BENCHMARKS.md:3720-3722]
+[doc: bfbc2-fbrb-tool/README.md:29-31] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3720-3722]
 
 ### BNDL-DEL-3: A live entry beats a marker of the same bundle
 

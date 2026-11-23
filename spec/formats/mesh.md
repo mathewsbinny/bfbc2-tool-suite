@@ -38,7 +38,7 @@ Status: **verified** · Variants: PC, Xbox 360, BF1943
 
 The u32 and u16 fields are in the platform's byte order.
 
-Evidence: [code: rust/bc2-formats/src/meshdata.rs:117-155] [test: rust/bc2-formats/src/meshdata.rs::mesh_header_round_trip] [test: bfbc2-console-convert/tests/test_meshdata_native.py::main] [data: 2,255 distinct PC MeshData resources of the game copy parsed with this grammar, 0 failures (2026-11-19); 7,276 game MeshData and 2,571 Xbox 360 Onslaught MeshData parse (doc)] [doc: bfbc2-console-convert/FORMAT.md:162-171] [doc: rust/BENCHMARKS.md:3158]
+Evidence: [code: rust/bc2-formats/src/meshdata.rs:117-155] [test: rust/bc2-formats/src/meshdata.rs::mesh_header_round_trip] [test: bfbc2-console-convert/tests/test_meshdata_native.py::main] [data: 2,255 distinct PC MeshData resources of the game copy parsed with this grammar, 0 failures (2026-11-19); 7,276 game MeshData and 2,571 Xbox 360 Onslaught MeshData parse (doc)] [doc: bfbc2-console-convert/FORMAT.md:162-171] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3158]
 
 ### MESH-HDR-2: `h0` is the mesh kind
 
@@ -234,7 +234,7 @@ console region each get the window of vertices they use, at an offset that keeps
 vertex no element fills are zero. The index buffer is converted whole: byte-swapped, 32-bit console indices narrowed
 to 16 bits.
 
-Evidence: [code: rust/bc2-convert/src/mesh.rs:236] [test: rust/bc2-convert/src/mesh_tests.rs::vertices_in_order_with_zeroed_gaps] [test: bfbc2-console-convert/tests/test_mesh_decode.py::bfbc2_xbox] [doc: bfbc2-console-convert/FORMAT.md:194-200] [doc: rust/BENCHMARKS.md:766-767]
+Evidence: [code: rust/bc2-convert/src/mesh.rs:236] [test: rust/bc2-convert/src/mesh_tests.rs::vertices_in_order_with_zeroed_gaps] [test: bfbc2-console-convert/tests/test_mesh_decode.py::bfbc2_xbox] [doc: bfbc2-console-convert/FORMAT.md:194-200] [doc: rust/BENCHMARKS_ARCHIVE_1.md:766-767]
 
 ## Mesh sets
 

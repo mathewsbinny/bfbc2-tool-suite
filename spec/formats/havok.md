@@ -250,7 +250,7 @@ its subpart classes: 3,878). 70 distinct names occur. The data section holds no 
 are not in the files (HAVOK-CLS-1).
 
 [data: game copy: class-name census over 4,128 packfiles]
-[doc: rust/BENCHMARKS.md:4058]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:4058]
 
 ### HAVOK-CLS-1: Class layouts come from the executable
 

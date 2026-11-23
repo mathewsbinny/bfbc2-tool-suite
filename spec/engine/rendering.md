@@ -266,7 +266,7 @@ placeholder height scale (RNDR-TERR-5), the lagoon's water did not read the heig
 floor's `Wake_Grey` layer is black by design under at least 11.6 m of water.
 
 [data: MP_005 patch map header (66, 1, 15, 7, 128); Wake Island in R5c: tiled-mask cells black, everything else drawn]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:627-632] [doc: rust/BENCHMARKS.md:3672-3680]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:627-632] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3672-3680]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1298]
 
 ### RNDR-TERR-4: Roads and decals are baked strips; undergrowth has its own entries
@@ -381,7 +381,7 @@ since round R5d (RNDR-SKY-1); the haze over the scene (`EnvironmentHalfResMain` 
 yet.
 
 [data: MP_005's Dx11 database: no main-pass program's reflection names a fog variable; EnvironmentMain's reflection: the twelve g_* constants, the depth buffer and mp05_Skydome]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:649-653] [doc: rust/BENCHMARKS.md:3678-3679]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:649-653] [doc: rust/BENCHMARKS_ARCHIVE_1.md:3678-3679]
 
 ### RNDR-WTHR-4: The sun's direction is the engine's
 

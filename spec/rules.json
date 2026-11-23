@@ -270,7 +270,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:5684-5692"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:5684-5692"
     }
    ]
   },
@@ -2384,7 +2384,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:7277-7281"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:7277-7281"
     }
    ]
   },
@@ -3636,7 +3636,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:8167-8186"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:8167-8186"
     }
    ]
   },
@@ -3652,7 +3652,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:8167-8186"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:8167-8186"
     }
    ]
   },
@@ -8749,7 +8749,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3672-3680"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3672-3680"
     },
     {
      "kind": "doc",
@@ -8937,7 +8937,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3678-3679"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3678-3679"
     }
    ]
   },
@@ -11258,7 +11258,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:6419-6450"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:6419-6450"
     }
    ]
   },
@@ -14175,7 +14175,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:2552"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:2552"
     },
     {
      "kind": "test",
@@ -14215,7 +14215,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:2551"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:2551"
     }
    ]
   },
@@ -15296,7 +15296,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:4058"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:4058"
     }
    ]
   },
@@ -16972,7 +16972,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3158"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3158"
     }
    ]
   },
@@ -17365,7 +17365,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:766-767"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:766-767"
     }
    ]
   },
@@ -19864,7 +19864,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:574-580"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:574-580"
     }
    ]
   },
@@ -20709,7 +20709,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3720-3722"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3720-3722"
     }
    ]
   },
@@ -23256,7 +23256,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:331-333"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:331-333"
     }
    ]
   },
@@ -25600,7 +25600,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:333-336"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:333-336"
     }
    ]
   },
@@ -29020,7 +29020,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:1598-1606"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:1598-1606"
     }
    ]
   },

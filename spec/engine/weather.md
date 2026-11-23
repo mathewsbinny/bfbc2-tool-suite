@@ -176,7 +176,7 @@ refused unless "Build it anyway" is set; rain and snow effects (WTH-FX-1) and so
 
 [code: rust/bc2-levelwrite/src/weather.rs:546-815]
 [test: rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it]
-[doc: rust/BENCHMARKS.md:6419-6450]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:6419-6450]
 
 ### WTH-SUITE-2: A borrowed state keeps the target's sky
 
