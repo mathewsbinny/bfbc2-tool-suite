@@ -29,6 +29,15 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Project OPFOR's WW2 level build in Rust** ("OPFOR in Rust" stage 2, round OR2): the new module
+  `bc2_install::levelbuild` (feature `levelbuild`) and `bc2_native.ww2build_*` / `Ww2Index` / `Ww2PackJob` -
+  `wake_install.build`'s stock index (kept for the process; the `install_index.pkl` pickle retired), our builds'
+  files, the closure, the level partition's and our copies' edits (teams, material grid, sky dome, voice-over,
+  remaps, weapon unlock entries, kit voices, sky states), the level-root files, the install-time BF1943 ports
+  (`meshport::Porter::port_with`: the shader plan and a bare mesh), the terrain files and undergrowth stand-ins, the
+  staging folders and their packs, ww2_common, the shared bundles' patches, the description, the Air Superiority
+  mode, the menus' level list and the model-group and icon gates. Project OPFOR's Python keeps thin callers; on the
+  real game copy a Wake build gives every staged file of the Python build (6,260 files) byte for byte.
 - **NavKit: the graph measured over every DICE node and edge** (round NKS-deep E, spec XNAV-MEAS-1): `navparity`
   and `navregress` pair each DICE route node one to one with its nearest NavKit node of the sector (within half a
   propagation step: 1.675 m coarse, 0.425 m detailed) and report `nodes_paired`, `nodes_paired_candidate` (the
@@ -197,6 +206,8 @@ landed on `main`.
   6 flagged sectors east of x 500): the geometry now covers every square a run samples (NAVS-SMP-2).
 
 ### Removed
+- `terrain._Walk` and `terrain.ROAD_VERTEX` (bfbc2-console-convert, round OR2): only Project OPFOR's
+  `wake_install` used them; its VisualTerrain walk is `bc2_install::levelbuild::terrainfiles`.
 - `bc2_native.granny_header`, `granny_index` and `granny_with_crc` (round PR1b-2-rest3): the Python `Granny`'s
   hand-offs to the Rust core, replaced by `bc2_native.Granny`; nothing else called them. `granny.Granny` is a
   function returning that object (or a `GrannyReference`), no longer a class. A removal: the merge bumps MINOR.

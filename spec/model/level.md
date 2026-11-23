@@ -295,7 +295,7 @@ from the height field.
 
 ### LEVEL-MG-4: The group's part counts must match the member's physics
 
-Status: **observed**
+Status: **verified**
 
 A group's physics resource lists one entry per placement and part, so it indexes each member's physics parts. For
 static, rigid and middle-growth groups the group uses exactly the member blueprint's physics part count; forest
@@ -304,6 +304,7 @@ count crashes the load at 0xAB4E58 (a part bitset set out of range).
 
 [data: every stock level's groups: 4,356 of 4,356 member types of static, rigid and middle-growth groups use exactly the member's part count]
 [exe: BFBC2Game.exe 0xAB4E58] [doc: opfor:DEVELOPMENT_NOTES.md:1465-1476]
+[code: rust/bc2-install/src/levelbuild/gates.rs:198-290] [test: rust/bc2-install/tests/levelbuild.rs::model_groups_against_their_members]
 
 ### LEVEL-MG-5: Member types lay the group file out in order
 

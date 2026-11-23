@@ -1075,15 +1075,15 @@
    "status": "ported"
   },
   {
-   "callers": "tests 4; OPFOR 6",
+   "callers": "tests 4; OPFOR 5",
    "embedded_by": [],
    "folder": "bfbc2-bf1943-import",
    "kind": "library",
    "lines": 375,
-   "note": "searches in Rust; the Porter in Rust too (PR1b-1d, without renames, donors, poses or the shader plan); left: OPFOR's ports through the Python Porter",
+   "note": "searches in Rust; the Porter in Rust too (PR1b-1d; its shader plan and bare meshes OR2: OPFOR's install ports, bc2_install::levelbuild::ports); left: renames, donors and poses (OPFOR's soldier and kit builds)",
    "path": "bfbc2-bf1943-import/meshport.py",
-   "retiring": "proposed: OPFOR in Rust stage 2",
-   "rust": "bc2_convert::meshport (the searches; Porter for bfbc2 portparity)",
+   "retiring": "OPFOR in Rust stage 4 (the soldiers' and kits' renamed ports)",
+   "rust": "bc2_convert::meshport (the searches; Porter for bfbc2 portparity and OPFOR's install ports)",
    "status": "partly"
   },
   {
@@ -1367,8 +1367,8 @@
    "embedded_by": [],
    "folder": "bfbc2-console-convert",
    "kind": "library",
-   "lines": 205,
-   "note": "Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens",
+   "lines": 167,
+   "note": "Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens; _Walk and ROAD_VERTEX retired (OR2: OPFOR's VisualTerrain walk is bc2_install::levelbuild::terrainfiles)",
    "path": "bfbc2-console-convert/terrain.py",
    "retiring": "PR1b-1c",
    "rust": "bc2_convert::terrain",
@@ -3939,7 +3939,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 871,
+   "lines": 873,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4557,7 +4557,7 @@
  "totals": {
   "all": {
    "files": 374,
-   "lines": 109840
+   "lines": 109804
   },
   "by_folder": {
    "(root)": {
@@ -4617,14 +4617,14 @@
    },
    "bfbc2-console-convert": {
     "files": 24,
-    "lines": 6536,
+    "lines": 6498,
     "live": 0,
     "partly": 1817,
     "ported": 36,
     "retired-pending": 0,
     "stays": 0,
     "test": 3436,
-    "twin": 1247
+    "twin": 1209
    },
    "bfbc2-console-readers": {
     "files": 5,
@@ -4771,12 +4771,12 @@
    },
    "rust": {
     "files": 33,
-    "lines": 6026,
+    "lines": 6028,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5759,
+    "stays": 5761,
     "test": 267,
     "twin": 0
    },
@@ -4822,7 +4822,7 @@
    },
    "stays": {
     "files": 67,
-    "lines": 13240
+    "lines": 13242
    },
    "test": {
     "files": 188,
@@ -4830,7 +4830,7 @@
    },
    "twin": {
     "files": 56,
-    "lines": 19708
+    "lines": 19670
    }
   }
  }

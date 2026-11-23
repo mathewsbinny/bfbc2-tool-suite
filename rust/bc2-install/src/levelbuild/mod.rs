@@ -15,6 +15,7 @@
 //! | `model_group_check` (`havok_parts`, `group_ids`, `group_members`, `group_expects`, `member_mismatch`, `loaded_names`), `level_names`, `icon_gate` | [`gates`] |
 //! | `description`, `air_superiority_mode`, `level_list_items` / `level_list_xml` / `level_list_query` | [`describe`] |
 //! | `edit_level`, `team_refs`, `remap_targets`, `patch_refs`, `persistence_ids`, `weapon_persistence`, `patch_ours`, `kit_voices`, `sky_patch`, `root_files`, `mesh_flags`, `ondemand_waves`, `emitter_atlas`, `undergrowth_files` | [`levelfiles`] |
+//! | `port_missing` (the PORT_PARTS template ports stay `dbxport.port`'s, the suite's) | [`ports`] |
 //! | `terrain_files`, `undergrowth_scales` / `undergrowth_blocks` / `_undergrowth_uses` (and the suite's `terrain._Walk` it used) | [`terrainfiles`] |
 
 #![allow(
@@ -34,6 +35,7 @@ pub mod describe;
 pub mod gates;
 pub mod index;
 pub mod levelfiles;
+pub mod ports;
 
 pub mod stage;
 pub mod terrainfiles;

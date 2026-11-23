@@ -937,3 +937,71 @@ pub fn ww2build_undergrowth_scales<'py>(
 pub fn ww2build_forget_undergrowth() {
     terrainfiles::forget_blocks();
 }
+
+/// BF1943's source (`bf1943import.Source`) as the porter reads it: its entries (taken once) and each entry's
+/// bytes from the Python object, with the interpreter held.
+struct PySource {
+    entries: HashMap<String, (String, String)>,
+    obj: Py<PyAny>,
+}
+
+impl bc2_convert::meshport::Source for PySource {
+    fn entry(&self, key: &str) -> Option<(&str, &str)> {
+        self.entries.get(key).map(|(t, n)| (t.as_str(), n.as_str()))
+    }
+
+    fn data(&self, key: &str) -> Option<Vec<u8>> {
+        Python::attach(|py| {
+            let b = self.obj.bind(py).call_method1("data", (key,)).ok()?;
+            b.extract::<Vec<u8>>().ok()
+        })
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.entries.keys().map(String::as_str).collect()
+    }
+}
+
+fn py_source(src: &Bound<'_, PyAny>) -> PyResult<PySource> {
+    let mut entries = HashMap::new();
+    for (k, v) in src.getattr("entries")?.cast::<PyDict>()?.iter() {
+        let t = v.cast::<PyTuple>()?;
+        let e = t.get_item(1)?;
+        let name: String = e.get_item("name")?.extract()?;
+        let ty: Option<String> = e.call_method1("get", ("type",))?.extract()?;
+        entries.insert(k.extract()?, (ty.unwrap_or_default(), name));
+    }
+    Ok(PySource {
+        entries,
+        obj: src.clone().unbind(),
+    })
+}
+
+/// `port_missing(ours, index, src, report)`: the ports root written (`parts`: `PORT_PARTS`' partitions already
+/// ported - (entry name, lower name, bytes)); the lines. `source`: the BF1943 source's folder (the ports are kept
+/// for the process by it); `opfor`: the checkout whose game copy the mesh index reads.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn ww2build_port_missing(
+    ports: &str,
+    source: &str,
+    opfor: &str,
+    templated: Vec<(String, String, Vec<u8>)>,
+    ours: &Bound<'_, PyAny>,
+    src: &Bound<'_, PyAny>,
+) -> PyResult<Vec<String>> {
+    let ours = ours_from(ours)?;
+    let bf = py_source(src)?;
+    let spec = bc2_install::levelbuild::ports::PortsSpec {
+        ports,
+        source,
+        parts: &templated,
+    };
+    let ix = || bc2_convert::meshview::Index::load(opfor, &mut |_| {}).map_err(|e| e.to_string());
+    let mut report = Vec::new();
+    bc2_install::levelbuild::ports::port_missing(&spec, &ours, &bf, &ix, &mut report).map_err(err)?;
+    Ok(report)
+}

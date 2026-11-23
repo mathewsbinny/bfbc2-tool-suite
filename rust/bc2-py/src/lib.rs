@@ -466,9 +466,9 @@ mod bc2_native {
         ww2build_loaded_names, ww2build_masked_names, ww2build_mesh_flags, ww2build_model_group_check,
         ww2build_ondemand_bundles, ww2build_ondemand_waves, ww2build_our_files, ww2build_pack_lines,
         ww2build_pack_many, ww2build_pack_start, ww2build_patch_bundle, ww2build_patch_ours, ww2build_patch_refs,
-        ww2build_primary_type, ww2build_remap_targets, ww2build_root_files, ww2build_sky_patch, ww2build_stage_reset,
-        ww2build_stock_bundles, ww2build_stock_index, ww2build_terrain_files, ww2build_undergrowth_files,
-        ww2build_undergrowth_scales, ww2build_write_stage, ww2build_ww2_common,
+        ww2build_port_missing, ww2build_primary_type, ww2build_remap_targets, ww2build_root_files, ww2build_sky_patch,
+        ww2build_stage_reset, ww2build_stock_bundles, ww2build_stock_index, ww2build_terrain_files,
+        ww2build_undergrowth_files, ww2build_undergrowth_scales, ww2build_write_stage, ww2build_ww2_common,
     };
 
     #[pymodule_export]

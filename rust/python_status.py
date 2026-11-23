@@ -270,10 +270,11 @@ TABLE: tuple[Row, ...] = (
       'Rust since F2b; its Python reference waits for recorded goldens (RT1)'),
     R(f'{IMP}/importcore.py', SHIM, 'ported', "bc2_native (the importer's functions)",
       'dbxcatalogue, emitteratlas, havokport, meshport, mopp; tests 3', 'PR1b-2', "the importer's native loader"),
-    R(f'{IMP}/meshport.py', LIB, 'partly', 'bc2_convert::meshport (the searches; Porter for bfbc2 portparity)',
-      'tests 4; OPFOR 6', 'proposed: OPFOR in Rust stage 2',
-      'searches in Rust; the Porter in Rust too (PR1b-1d, without renames, donors, poses or the shader plan); '
-      "left: OPFOR's ports through the Python Porter"),
+    R(f'{IMP}/meshport.py', LIB, 'partly',
+      "bc2_convert::meshport (the searches; Porter for bfbc2 portparity and OPFOR's install ports)",
+      'tests 4; OPFOR 5', "OPFOR in Rust stage 4 (the soldiers' and kits' renamed ports)",
+      "searches in Rust; the Porter in Rust too (PR1b-1d; its shader plan and bare meshes OR2: OPFOR's install "
+      "ports, bc2_install::levelbuild::ports); left: renames, donors and poses (OPFOR's soldier and kit builds)"),
     R(f'{IMP}/mopp.py', LIB, 'twin', 'bc2_convert::mopp', 'havokport; tests 3', 'PR1b-1c',
       'Rust since F2b; its Python reference waits for recorded goldens (RT1)'),
     T(f'{IMP}/tests/test_bf1943import.py'),
@@ -311,7 +312,8 @@ TABLE: tuple[Row, ...] = (
       'a thin call into the Rust core (F2a)'),
     R(f'{CONV}/terrain.py', LIB, 'twin', 'bc2_convert::terrain',
       'navparity, navsample_offline, soot, renderqa, level; tests 10; OPFOR 2', 'PR1b-1c',
-      'Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens'),
+      'Rust since F2a; road_positions / quadtree_nodes still Python; references until goldens; _Walk and '
+      "ROAD_VERTEX retired (OR2: OPFOR's VisualTerrain walk is bc2_install::levelbuild::terrainfiles)"),
     R(f'{CONV}/texqa.py', TOOL, 'partly', 'bfbc2 texqa (bc2-cli texqa: the measures)',
       'tests 9; OPFOR 1 (qa_checks)', 'PR1b-1c',
       "the measures are Rust; left: DICE's copies, BF1943 sources, the PIL contact sheets, argparse errors"),
