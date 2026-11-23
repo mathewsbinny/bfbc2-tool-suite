@@ -9,7 +9,7 @@ use bc2_convert::shaderlevels::{self, Cover, ReadFailure, Row, ScanRow};
 use bc2_formats::shaderdb::merge::retexture;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PySet, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyFrozenSet, PyList, PySet, PyTuple};
 
 use crate::shaders::latin1;
 
@@ -112,9 +112,10 @@ pub fn shadercover_levels(
     }
 }
 
-/// The level scan of each `(level, bundle or None)` on Dx `dx`: `[(signatures, textures, layouts, kinds, parts) or
-/// the error's message]` in order - `{entry: (constant names, samplers)}`, `{entry: [(sampler, cube, name)]}`,
-/// `{entry: {layout guid}}`, `{entry: {kind}}` (main-pass programs), `[(part, layout guid)]`. The first bundle that
+/// The level scan of each `(level, bundle or None)` on Dx `dx`: `[(signatures, textures, layouts, kinds, parts,
+/// layout records) or the error's message]` in order - `{entry: (constant names, samplers)}`, `{entry: [(sampler,
+/// cube, name)]}`, `{entry: {layout guid}}`, `{entry: {kind}}` (main-pass programs), `[(part, layout guid)]`,
+/// `{entry: frozenset(layout record bodies)}` (round `OR3c`). The first bundle that
 /// cannot be read raises as `load` raises it; a database the queries cannot answer on raises `ValueError`.
 #[pyfunction]
 #[expect(
@@ -139,6 +140,7 @@ pub fn shaderdb_level_scan(
             ScanRow::Error(m) => out.append(m)?,
             ScanRow::Scan(s) => {
                 let (sig, tex, lay, kinds) = (PyDict::new(py), PyDict::new(py), PyDict::new(py), PyDict::new(py));
+                let records = PyDict::new(py);
                 for e in &s.entries {
                     let name = latin1(py, &e.name);
                     let consts = PyTuple::new(py, e.constants.iter().map(|c| latin1(py, c)))?;
@@ -150,12 +152,14 @@ pub fn shaderdb_level_scan(
                     tex.set_item(&name, t)?;
                     lay.set_item(&name, PySet::new(py, e.layouts.iter().map(|g| PyBytes::new(py, g)))?)?;
                     kinds.set_item(&name, PySet::new(py, &e.kinds)?)?;
+                    let recs = e.layout_records.iter().map(|r| PyBytes::new(py, r));
+                    records.set_item(&name, PyFrozenSet::new(py, recs)?)?;
                 }
                 let parts = PyList::empty(py);
                 for (n, g) in &s.parts {
                     parts.append((latin1(py, n), PyBytes::new(py, g)))?;
                 }
-                out.append((sig, tex, lay, kinds, parts))?;
+                out.append((sig, tex, lay, kinds, parts, records))?;
             }
         }
     }
