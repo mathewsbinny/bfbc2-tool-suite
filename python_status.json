@@ -3315,7 +3315,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 336,
+   "lines": 344,
    "note": "The Rust bundle packer (rust/bc2-formats fbrb::pack and zlib, through the bc2_native module) against what F...",
    "path": "core/tests/test_fbrb_pack_native.py",
    "retiring": "Tests in Rust",
@@ -4473,7 +4473,7 @@
  "totals": {
   "all": {
    "files": 367,
-   "lines": 107458
+   "lines": 107466
   },
   "by_folder": {
    "(root)": {
@@ -4665,13 +4665,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20335,
+    "lines": 20343,
     "live": 757,
     "partly": 0,
     "ported": 1905,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15245,
+    "test": 15253,
     "twin": 2428
    },
    "design": {
@@ -4742,7 +4742,7 @@
    },
    "test": {
     "files": 187,
-    "lines": 51202
+    "lines": 51210
    },
    "twin": {
     "files": 55,
