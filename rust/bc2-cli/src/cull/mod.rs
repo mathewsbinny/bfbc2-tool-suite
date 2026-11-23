@@ -434,10 +434,10 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
     })
     .map_err(|e| sink.take().unwrap_or_else(|| e.into()))?;
     t.write(&out_tree)?;
-    lv.doc.write(&out_level)?;
+    ct::write_doc(&lv.doc, &out_level)?;
     // the documents are not used once written (round CT1: their memory freed before the files are read back)
-    t.doc.release();
-    lv.doc.release();
+    t.doc = bc2_formats::dbx::edit::EditDbx::default();
+    lv.doc = bc2_formats::dbx::edit::EditDbx::default();
     let used = t.arena.flatten(t.root).len();
     out.log(&format!(
         "tree: {} -> {used} used nodes, {} -> {} leaves, {SPARE} spare; written {out_tree}",

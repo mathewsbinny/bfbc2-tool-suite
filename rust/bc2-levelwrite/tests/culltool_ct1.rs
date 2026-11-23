@@ -1,8 +1,9 @@
 //! Round CT1's proof that the streamed readers answer as the whole-document ones: `scan_level` against
 //! `Level::read` and `CullTree::read_only` against `CullTree::read`, on every level partition and cull tree of
 //! Project OPFOR's `work\levels` (found beside the suite, or `OPFOR_ROOT`), and on damaged copies of some of them
-//! (cut short, bytes changed) - the same values, or the same error (kind and text). Writes only a temporary
-//! folder; skipped where there is no `work\levels`.
+//! (cut short, bytes changed) - the same values, or the same error (kind and text); and (round PR1b-2-rest2) every
+//! file the document reads written back byte for byte. Writes only a temporary folder; skipped where there is no
+//! `work\levels`.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -13,7 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
-use bc2_levelwrite::culltool::{CullTree, Level, level_partitions, scan_level};
+use bc2_levelwrite::culltool::{CullTree, Level, level_partitions, read_doc, scan_level};
 
 fn levels_dir() -> Option<PathBuf> {
     if let Some(r) = std::env::var_os("OPFOR_ROOT") {
@@ -69,6 +70,10 @@ fn tree_text(r: Result<CullTree, bc2_levelwrite::culltool::CullError>) -> String
 }
 
 fn same_answers(p: &str) {
+    // round PR1b-2-rest2: the document (the suite's one, EditDbx) writes back what it read, byte for byte
+    if let Ok(d) = read_doc(p) {
+        assert!(d.write().unwrap() == std::fs::read(p).unwrap(), "document {p}");
+    }
     assert_eq!(level_whole(p), level_streamed(p), "level {p}");
     assert_eq!(
         tree_text(CullTree::read(p)),
