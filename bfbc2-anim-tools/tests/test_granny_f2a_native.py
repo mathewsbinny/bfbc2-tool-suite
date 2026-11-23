@@ -36,7 +36,7 @@ from bfbc2core import native, paths  # noqa: E402
 from f0_parity import Checks, outcome, stdout_utf8  # noqa: E402
 from f2a_parity import Tally, bundle_entries, damaged, watch, watched  # noqa: E402
 
-N = native.require('granny.py writing (round F2a)', 'granny_add_tracks')
+N = native.require('granny.py writing (round F2a)', 'Granny')
 ANIMS = re.compile(r'animations/weapons/handheld/(m1garand|m1garand_rgl|beach/jap_type5|beach/jap_type5_rgl)/.*\.res$')
 DONOR = 'animations/weapons/handheld/m1garand/3p/standundeploy.res'
 # the position formats shift_position moves (the others raise: unsupported - checked by unsupported())
@@ -108,6 +108,25 @@ def adds(b: bytes, donor: bytes, seed: int, clash: bool = False) -> Any:
     return granny.add_tracks(b, spec, donor)
 
 
+def agree(rs: Any, py: Any) -> bool:
+    """The same outcome both ways; or a resource the Rust core's Granny refuses to read (a GrannyError saying why,
+    GRANNY-EDIT-2) where the Python reader fails too (its own exception): a refusal both ways."""
+    if rs == py:
+        return True
+    if refused(rs) and rs[1] == 'GrannyError' and refused(py) and py[1] != 'GrannyError':
+        REFUSALS[0] += 1
+        return True
+    return False
+
+
+REFUSALS = [0]
+
+
+def refused(o: Any) -> bool:
+    """An outcome that is an error."""
+    return isinstance(o, tuple) and bool(o) and o[0] == 'error'
+
+
 def both(t: Tally, label: str, fn: Any, *args: Any) -> list[float]:
     times, res = [], []
     native = True
@@ -123,25 +142,28 @@ def both(t: Tally, label: str, fn: Any, *args: Any) -> list[float]:
         finally:
             granny.use_native(True)
         times.append(time.perf_counter() - t0)
-    t.add(res[0] == res[1], label if res[0] == res[1] else f'{label}: {repr(res[0])[:100]} / {repr(res[1])[:100]}', res[1][0] == 'error', native)
+    ok = agree(res[0], res[1])
+    t.add(ok, label if ok else f'{label}: {repr(res[0])[:100]} / {repr(res[1])[:100]}', res[1][0] == 'error', native)
     return times
 
 
 def built_crc(t: Tally) -> None:
+    """to_bytes (the Granny CRC recomputed) of resources cut short and of headers whose CRC range runs past the
+    data, both ways: the same bytes or the same refusal."""
+    sys.path.insert(0, HERE)
+    import test_granny_native as tn
+    base = tn.built('<')
     rng = random.Random(0xC2C)
     for i in range(300):
-        data = bytearray(rng.randbytes(rng.randrange(40, 200)))
-        g0, cf, tot = rng.randrange(0, 60), rng.randrange(0, 80), rng.randrange(0, 300)
-        a = N.granny_with_crc(data, g0, cf, tot)
-        import zlib
-        ref: Any
-        try:
-            d = bytearray(data)
-            struct.pack_into('<I', d, g0 + 40, zlib.crc32(bytes(d[g0 + cf:g0 + tot])) & 0xFFFFFFFF)
-            ref = bytes(d)
-        except struct.error:
-            ref = None
-        t.add(a == ref, f'crc {i}', ref is None)
+        b = bytearray(base)
+        g0 = len(b) - len(base) + base.find(granny.MAGIC)
+        if i % 3 == 0:
+            struct.pack_into('<I', b, g0 + 36, rng.randrange(0, 2 * len(b)))        # total
+        elif i % 3 == 1:
+            struct.pack_into('<I', b, g0 + 40, rng.randrange(1 << 32))             # an old CRC
+        else:
+            del b[rng.randrange(g0 + 44, len(b)):]
+        both(t, f'crc {i}', lambda d=bytes(b): granny.Granny(d).to_bytes())
 
 
 def main(argv: list[str]) -> int:
@@ -198,6 +220,8 @@ def main(argv: list[str]) -> int:
     c.check(not td.ndiff, f'damaged animations: {td.text()}', '; '.join(td.differ))
     c.check(not tu.ndiff, f'curves shift_position does not move, track specs add_tracks refuses: {tu.text()}',
             '; '.join(tu.differ))
+    print(f'{REFUSALS[0]} damaged resources the Rust core refuses to read (a GrannyError saying why) where the Python '
+          'reader failed with its own exception')
     print(f'timing: the edits Python {t_edit[1]:.2f} s, Rust {t_edit[0]:.2f} s; add_tracks Python {t_add[1]:.2f} s, '
           f'Rust {t_add[0]:.2f} s (each with its reads)')
     return c.done()

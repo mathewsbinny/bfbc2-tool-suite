@@ -54,11 +54,14 @@ M1911's undeploy, and - when extracted into
 OPFOR's `work\bf1943\skeleton` - BF1943's skeleton against the PC one) and `tests\test_granny_port.py` (quick: the
 bone tables; `--game`: the Xbox corpus and BF1943).
 
-**The Rust core** (round E3i, `rust/BENCHMARKS.md`). With the suite's Rust core built, `Granny(b)` reads its tables
-and `root()` its object tree in Rust (`bc2_formats::granny`): the same trees (every value and type, every dict's key
-order) as the Python reader here, which stays the format's reference and the fallback (`use_native(False)`,
-`BFBC2_PURE_PYTHON=1`; `backend()`). A Granny written to (`put`, `to_bytes`: `shift`, `set_orientations`) reads in
-Python from then on; a resource the Rust reader refuses goes to the Python reader, which raises what it raises.
+**The Rust core** (rounds E3i, PR1b-2-rest3, `rust/BENCHMARKS.md`). With the suite's Rust core built, `Granny(b)` is
+the Rust core's object (`bc2_native.Granny` over `bc2_formats::granny`): the resource's bytes, its tables, `root()` /
+`read()` (the same trees - every value and type, every dict's key order - as the Python reader), `field` /
+`array_at`, and the writes `put` / `to_bytes` (`shift`, `set_orientations`). `GrannyReference`, the Python reader
+and writer here, stays the format's reference and the fallback (`use_native(False)`, `BFBC2_PURE_PYTHON=1`;
+`backend()`); a resource the Rust reader refuses goes to it, which raises what it raises. Decided against the Python
+(spec GRANNY-EDIT-2): `put` writes little-endian formats only (`'<'` first) and nothing outside the section, and a
+damaged resource whose tree does not read is a `GrannyError` saying why.
 `to_pc` converts in Rust only (`bc2_convert::granny`; `granny.require()`): its Python was retired on 2026-11-18,
 after the full test tier, its results recorded in `tests\granny_golden.json`; a resource it does not convert is a
 `GrannyError` saying why. For many files: `to_pc_many(items, errors='raise' | 'return')` and `roots(blobs)` (all

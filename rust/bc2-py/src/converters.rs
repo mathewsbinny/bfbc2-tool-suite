@@ -696,23 +696,6 @@ pub fn skin_bounds(parts: Vec<(Vec<u8>, usize, Vec<u8>)>) -> Option<[f64; 6]> {
 
 // ------------------------------------------------------------------------------------------------ granny
 
-/// `Granny.to_bytes()`'s resource (the CRC recomputed), or `None`.
-#[pyfunction]
-pub fn granny_with_crc<'py>(
-    py: Python<'py>,
-    data: &Bound<'py, PyAny>,
-    gr2: usize,
-    crc_from: usize,
-    total: usize,
-) -> Option<Bound<'py, PyBytes>> {
-    let v = if let Ok(b) = data.cast::<PyByteArray>() {
-        b.to_vec()
-    } else {
-        data.cast::<PyBytes>().ok()?.as_bytes().to_vec()
-    };
-    granny_edit::with_crc(&v, gr2, crc_from, total).map(|o| PyBytes::new(py, &o))
-}
-
 fn at_pair(o: &Bound<'_, PyAny>) -> Option<(u32, u64)> {
     let v = items(o)?;
     let [a, b] = v.as_slice() else { return None };
