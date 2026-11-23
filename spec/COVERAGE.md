@@ -50,13 +50,27 @@ short names (`bf1943-import`: dbxport, havokport, emitteratlas, xenos; `console-
 | **AI and navigation** (Kynapse) | auto-navkit, stockmp-ai, editor AI workspace, DLL navgen / navquery / forceai | **NKS (now)**, NK3-NK5, A1, WW2 navmesh (hold) | formats/hpd (36), navsample (8), engine/ai (16), engine/bot_ai (41, round AIS), model/ai_orders (16, AIS), transforms/navkit (8), stockmp (7) | covered (generator rules in NKS) | covered; NKS owns the rest | as after SPG |
 | **Cull trees** | culltree, bc2-formats | PR1b-1 | formats/culltree (17), transforms/culltree (8) | covered | covered | as after SPG |
 | **Menus, HUD, APT** | menu-tools, aptgraft, OPFOR menus, DLL menutree / onslaught_hud | IN1 diagnostics | formats/apt (31), engine/menus (4) | thin (runtime) | thin (the action-script runtime and the HUD patches) | SPG2-rest: covered (data side): engine/menus (30): the movies' action script measured, the interpreter's handler table, events and externs, the HUD movies, OPFOR's DLL patches, what a menu edit must keep |
-| **Networking and hosting** | DLL net / server_browser / patches | - | engine/network (9) | covered | covered | as after SPG |
+| **Networking and hosting** | DLL net / server_browser / patches | NET2 (2026-11-23); remote play studied, not queued | engine/network (9) | covered | covered | as after SPG; NET2: covered statically, engine/network (25): the transports, the connection layer, settings and start-up options, versions and disconnect reasons, PunkBuster, the server's listen path, the join by address, the Plasma back-end and its LAN mode; remote play in engine/network_feasibility (study); thin at run time (nothing NET2 adds was run) |
 | **Persistence** (stats, ranks, unlocks, licences, awards) | DLL persistence, stats_screens; OPFOR ww2_awards | Pacific War awards (decided 2026-11-15) | GAME-AWARD-1 (1) -> **engine/persistence (7)** | none | thin: the game's path and OPFOR's hooks; the award engine and `Persistence/*.dbx` classes not written | covered: PERS-DATA / RANK / AWD / SCORE / WW2 (12 more); the award engine not built |
 | **OPFOR's game module: patch points** (27 files, about 170 addresses in `BFBC2Game.exe`) | `src/dll` | air raid, repair stations (hold) | network, persistence, AI-NEED-5, GAME-AWARD-1, crashes index | thin | thin (plan, section 2) | covered: engine/module (15): 221 addresses |
 | **Streaming** (`async`, `streaming_*`, `ondemand_*`) | bc2-formats | - | SND-WAVE-2, SND-OD-1 | thin | thin | covered: engine/streaming (7); the mount functions not traced |
 | **BF1943 as a source** (bundles, Havok 4.6.1, DBX classes, Xenos) | bf1943-import, OPFOR ww2 | Pacific War (hold) | HAVOK-V461 (2), XWW2 (9), WPN-WW2, VEH-WW2, MAT-WW2, LIGHT-SKY-4 | thin | thin (a source-side file still missing, section 2) | covered: formats/bf1943 (7, an index of the rest) |
 | **Xbox 360 / Onslaught DLC data** | console-convert, console-readers, OPFOR onslaught (14 stages) | Onslaught without Napisal (hold), OPFOR in Rust 5 | transforms/console (8), TEX-X / MESH-CONV / HAVOK-X360 / GRANNY-CONV, LIGHT-PT-3 / 4 | thin | thin (Onslaught's mode rules and the DLC's content list) | covered: engine/onslaught (14); the DLC's full content list per port open |
 | **Install, export, project log** | bc2-install, levelwrite, editor | IN1 | transforms/install (20), export (12), projectlog (20), pack (9), dbx (8), ww2 (9) | covered | covered | as after SPG |
+| **Options and settings** (`settings.ini`, `GameSettings.ini` / `.bin` and their defaults, the engine settings objects, the command line, the options screens) | OPFOR's DLL (the user-data redirect, `stats_screens`'s getters) | - | engine/settings (11) | none | none | none; **SPG3: covered** (the files, sections and keys, the defaults partition, the read / write paths, the menus' getters and commands); thin on `GameSettings.bin` and on what a bad value does (open) |
+| **Input** (entry input actions, concepts, device bindings, mappings, the user's binding files, the controls screen, the pad path, tuning data) | OPFOR's DLL (`input`, `prompts`, `padaimer`), `src/tools/controller` | controller presets, rumble, PlayStation pads (OPFOR's CONTROLLER_PLAN) | engine/input (12), BOT-CTL-3, MOD-IN-1, VEH-SEAT-2 | none | thin (MOD-IN-1 only) | thin (BOT-CTL-3, MOD-IN-1); **SPG3: covered** (both enumerations, the three data layers, the user files' load / save and version gate, the controls screen, the PC pad path); the sensitivity sliders' consumers and the schemes open |
+| **Scriptability** (the authoring layers, the level event graph's classes, data entities that reach the engine, consoles, server administration) | the data (editor, levelwrite), OPFOR's menu patches and DLL hooks | a modder-facing scripting layer (none queued) | engine/scripting (9), LEVEL-EVT (model/level), MENU-*, MOD-* | none | none | none; **SPG3: covered as a survey**: the 107 entity classes DICE's graphs never use and the console / settings entities' handlers open; the dedicated server is not on this PC |
+| **Dependency graphs** (the asset graph; the WW2 rebuild's step graph) | levelwrite's closure (XEXP-CLO-1), OPFOR's `rebuild_all` / `stepstamps` | OPFOR in Rust: `rebuild_all` as a step graph | transforms/dependencies (11) | none | none | none; **SPG3: covered**: the asset graph measured over DICE's bundles (verified), the step graph from the records (observed) and a runner's constraints; resources' internal name references open |
+| **Game folder files outside the bundles** (movies, the aerial height map, `database.dbmanifest`, `dfe`, the patcher's files, the DLLs) | none (copied) | - | formats/game_folder (6), bink (4) | none | none | none; **SPG4: covered**: every DICE file kind specified or out of scope (DirectX, `winui.dll`, `Support`), the census its gate |
+| **Remaining resource types** (OccluderMesh, SootMesh, AnimTreeInfo, ImpulseResponse, RagdollResource, the shader types) | copied; `soot_mesh` converts | - | formats/occluder (3), soot (3), animtree (2), IR-HDR-1, HAVOK-RAG-1, SHDB-TYPE-1 | none | none | none; **SPG4: covered** (header and structure, verified on every DICE entry; opaque insides listed) |
+| **The soldier** (character controller, stances, sprint, cameras, view recoil, FOV, aim assistance, spotting) | OPFOR's controller patch, kits | controller presets (OPFOR) | engine/soldier (9) | none | none | none; **SPG4: covered (data side)**; the controller's run-time open |
+| **Teams and squads** | - | - | engine/squads (3), BOT-SQD | none | none | none; **SPG4: covered (data side)**; the squad manager's code open |
+| **HUD data** (minimap, markers, nametags, screen effects, spectator, kill cam) | menu-tools, OPFOR's HUD patches | - | engine/hud (7), MENU-HUD | thin | thin | thin; **SPG4: covered (data side)** |
+| **Single-player campaign** (objectives, saves, cutscenes, triggers, waypoints) | editor (event graph) | - | engine/campaign (6) | none | none | none; **SPG4: covered (data side)**; the save file open |
+| **Text and fonts** (fonts, text databases, atlases, subtitles) | bc2loc (loc tables) | - | engine/text (4), formats/loc (7) | thin | thin | thin; **SPG4: covered** |
+| **Sound graphs, voice-over trees, the mix** | console-convert (Waves), OPFOR wake_vo | - | engine/sound_graph (5), engine/audio | thin | thin | thin; **SPG4: covered (data side)**; node semantics open |
+| **Engine internals** (typeinfo, memory, jobs, scenes) | the census | - | engine/internals (7) | none | none | none; **SPG4: covered**: the typeinfo records decoded (1,900, 22 modules); 1,101 records no rule names yet (CENSUS.md section 5) |
+| **Every DBX class** (the long tail: emitter updates, tree parameters, vehicle physics parts, gadgets, AI constants, matchmaking, edge models) | the DBX readers | - | engine/data_classes (10) | - | - | **SPG4: 630 of 630 classes named by a rule** (304 before) |
 
 **Totals** (36 systems). Before SPG: 769 rules in 46 files; covered 15, thin 13, none 8 (point lights, effects,
 weapons, vehicles, materials, destruction, grime / camo, persistence - the last with one crash rule). After SPG: 933
@@ -70,7 +84,49 @@ After SPG2-rest (2026-11-22): 1,231 rules in 68 files (from 1,183 at its start, 
 verified, 116 -> 126 implemented, 487 -> 453 observed, 49 -> 47 inferred); covered 36, thin 0, none 0. The game-tier
 check (`core/tests/test_spec_probes.py`) now holds every probe's stable counts: 172 checks, about 3.5 minutes.
 
+After SPG3 (2026-11-23): 1,332 rules in 72 files with main's of the same day (43 new in four new files: 17 verified, 2 implemented, 16 observed, 8
+inferred); 40 systems (four new: options and settings, input, scriptability, dependency graphs), all covered. The
+game-tier check gained three probes' `checks()` (`options`, `scripting`, `dependencies`: about 40 seconds more).
+
+After SPG4 (2026-11-23): 1,420 rules in 85 files (72 new: 13 new files, three extended); 50 systems (ten new rows: the
+game folder's files, the remaining resource types, the soldier, squads, HUD data, the campaign, text, sound graphs,
+internals, every DBX class). The game tier gained `resources.py`'s and `census.py`'s checks (about 3 minutes more).
+
 ## 2. What is left, in the order the queued rounds need it
+
+Round SPG4 (2026-11-23) made the spec's coverage measurable: `spec/CENSUS.md` (generated by `spec/probes/census.py`)
+lists everything in DICE's game files - 16 file kinds outside the bundles, 37 bundle entry types, 630 DBX classes,
+1,900 typeinfo records in 22 modules - with the rules that cover each, and the quick tier's `spec-census` fails when
+a file kind, entry type, class (10+ instances) or module has none. Before: 6 / 16 file kinds, 28 / 37 entry types,
+304 / 630 classes, 19 / 22 modules; after: 13 + 3 out of scope, 37, 630, 22 (the ten rows above the totals). Left for
+SPG4-rest, by value: the 1,101 typeinfo records no rule names (CENSUS.md section 5: `GameSharedResources`' value types
+and enumerations, `GameDll`'s run-time entities), then the run-time semantics behind the new data-side rules (each new
+file's open questions: the character controller, the squad manager, the kill cam, the sound nodes, the save file), then
+the opaque insides of OccluderMesh's triangle records, AnimTreeInfo's blocks and the impulse responses' partitions.
+
+
+Round NET2 (2026-11-23, static only) extended `engine/network.md` from 9 to 25 rules (23 observed, 2 inferred) and
+wrote `engine/network_feasibility.md`, a study of locally hosted play, Direct IP, VLAN and LAN with no rules of its
+own. Left for networking, in its order: one diagnostic run with the socket transport to settle why the in-process
+server never listened, its port defaults and `Network.Version` (network.md's open questions); then, if the user takes
+remote play up, the listen server and Direct IP as one milestone (the study's sections 4 and 5). Statically still
+open: transport 2's path, the server's compare sites for the version, title and level digest, and whether Plasma's
+GameManager is ever created on PC.
+Round SPG3 (2026-11-23) added the four systems above (section 1's last rows); what it left is in the four files' open
+questions and here:
+
+1. **Settings**: `GameSettings.bin`'s layout; the parsers' behaviour on a bad value; whether `-<Object>.<Field>` sets
+   the engine settings (SET-CLI-1); which slider writes `Sensitivity0` - `Sensitivity2` (INP-SET-1). The first two
+   need a test start with copies of the files (paused).
+2. **Scripting**: the handlers of `GameSettingEntityData` and `ConsoleCommandEntityData` and the events of the 107
+   entity classes DICE's graphs do not use (SCR-EVT-2, SCR-CMD-1); whether the debug document server starts.
+3. **Step graph**: the three read-before-write steps (XDEP-STEP-3: `wake_translate` reads `material_grid`'s and
+   `bf1943_jp_bazooka`'s outputs, `material_grid` reads `wake_vo`'s) - OPFOR's order to fix or declare before the
+   step-graph runner; the stale records of renamed steps.
+4. **Asset graph**: references held inside resources (mesh sets' shader names, shader databases' texture names, the
+   VO tables' waves), which the string-table listing does not see (XDEP-RES-1).
+
+The rest of this section is SPG2-rest3's list, as it was.
 
 Round SPG2-rest3 (2026-11-22, with AIS-rest2's static half) worked section 2c's item 3 and bot_ai.md's RE list; section
 2c keeps SPG2-rest2's list as it was. Found: the ticket counter's and the life counter's state and what moves them
@@ -206,7 +262,7 @@ Over the 1,269 rules SPV1 started from (round E4's five new rules, merged beside
 | `engine/materials.md` | 21 -> 25 | 8 | 11 -> 7 | 6 |
 | `engine/menus.md` | 20 | 7 | 4 | 0 |
 | `engine/module.md` | 0 | 14 | 1 | 0 |
-| `engine/network.md` | 0 | 0 | 9 | 0 |
+| `engine/network.md` | 0 | 0 | 9 (NET2: 23) | 0 (NET2: 2) |
 | `engine/onslaught.md` | 0 | 7 | 8 | 0 |
 | `engine/persistence.md` | 3 | 3 | 14 | 0 |
 | `engine/rendering.md` | 25 | 4 | 14 | 2 |
@@ -298,7 +354,7 @@ Over the 1,269 rules SPV1 started from (round E4's five new rules, merged beside
 | `engine/materials.md` | 7 | P: MAT-TEX-2; X: MAT-WW2-2; R: MAT-SLOT-5, MAT-TEX-20 |
 | `engine/menus.md` | 4 | R: MENU-CAT-1, MENU-EVT-1, MENU-RT-3, MENU-UNL-1 |
 | `engine/module.md` | 1 | X: MOD-CNT-1 |
-| `engine/network.md` | 9 | R: NET-JOIN-1, NET-SB-1, NET-SB-2, NET-SB-3, NET-SES-1, NET-SES-2, NET-SES-3, NET-SES-4, NET-SES-5 |
+| `engine/network.md` | 9 (NET2: 23) | R: NET-JOIN-1, NET-SB-1, NET-SB-2, NET-SB-3, NET-SES-1, NET-SES-2, NET-SES-3, NET-SES-4, NET-SES-5; NET2 adds R: NET-AC-1, NET-CFG-1, NET-CFG-2, NET-CFG-3, NET-ONL-1, NET-ONL-2, NET-SRV-1, NET-SRV-3, NET-TRN-1, NET-TRN-2, NET-TRN-3, NET-VER-1, NET-VER-2, NET-VER-3 |
 | `engine/onslaught.md` | 8 | X: ONS-LVL-1, ONS-PORT-1, ONS-PORT-3, ONS-REG-1, ONS-WAVE-1; G: ONS-CAP-1, ONS-CAP-3; R: ONS-MODE-1 |
 | `engine/persistence.md` | 14 | P: PERS-AWD-1, PERS-AWD-3, PERS-DATA-1, PERS-DATA-2, PERS-DATA-3, PERS-RANK-1; R: PERS-AWD-4, PERS-JOIN-1, PERS-LIC-1, PERS-OPF-3, PERS-SAVE-1, PERS-SCORE-1, PERS-UNLK-1 |
 | `engine/rendering.md` | 14 | P: RNDR-DB-2, RNDR-LIGHT-1, RNDR-SHAD-1, RNDR-SKY-3, RNDR-TERR-3, RNDR-WTHR-3, RNDR-WTHR-4; X: RNDR-DB-3, RNDR-WTHR-6; R: RNDR-CRASH-1, RNDR-CRASH-2, RNDR-DRAW-6, RNDR-DRAW-7, RNDR-POST-3 |

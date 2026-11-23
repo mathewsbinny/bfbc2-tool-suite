@@ -52,7 +52,7 @@ reference recorded before the change: 273 of 273 mesh ports, 202 of 202 physics 
 and seeded built inputs (console meshes, random packfiles cut short or changed, layout searches).
 
 [test: bfbc2-bf1943-import/tests/test_ports_native.py::game] [test: bfbc2-bf1943-import/tests/test_ports_native.py::quick_havok] [test: bfbc2-bf1943-import/tests/test_ports_native.py::quick_mesh]
-[doc: rust/BENCHMARKS.md:1598-1606]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:1598-1606]
 
 ### XWW2-PAR-2: The parity tools measure the importer against DICE's own ports, in Rust
 

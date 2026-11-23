@@ -196,7 +196,7 @@ Block formats and L8 / RGBA16F convert by moving units from their tiled place to
 with bit 1 of the flags cleared, RGB565 (5) to PC format 9 (B, G, R, 255, channels widened by bit replication), and
 console format 9 to PC B, G, R, A.
 
-Evidence: [code: rust/bc2-convert/src/texture.rs:360-538] [test: rust/bc2-convert/src/texture_tests.rs::conversions_as_the_reference] [test: bfbc2-console-convert/tests/test_texture_native.py::quick] [test: bfbc2-console-convert/tests/test_texture.py::test_argb8_console_texels_become_pc_bgra] [data: every XenonTexture of BF1943's source (704) and OPFOR's Onslaught builds (451) converted, 0 refused (doc)] [doc: rust/BENCHMARKS.md:574-580]
+Evidence: [code: rust/bc2-convert/src/texture.rs:360-538] [test: rust/bc2-convert/src/texture_tests.rs::conversions_as_the_reference] [test: bfbc2-console-convert/tests/test_texture_native.py::quick] [test: bfbc2-console-convert/tests/test_texture.py::test_argb8_console_texels_become_pc_bgra] [data: every XenonTexture of BF1943's source (704) and OPFOR's Onslaught builds (451) converted, 0 refused (doc)] [doc: rust/BENCHMARKS_ARCHIVE_1.md:574-580]
 
 ### TEX-X-7: What the converter refuses
 

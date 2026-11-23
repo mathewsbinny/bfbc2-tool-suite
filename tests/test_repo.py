@@ -31,6 +31,9 @@ SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 GAME_TYPES = re.compile(r'\.(dbx|res|fbrb|hpd|sb|raw|bik|fsb|fev|dds|tga|hkx)$', re.I)
 MAX_BLOB = 1_000_000
 LARGE_ALLOWED = {'bfbc2-dbx-tools/tests/fingerprints_795745.txt'}       # SHA-1 hashes only
+# single historical blobs, by object id: rust/BENCHMARKS.md's version of 2026-11-23 (1,000,626 bytes, pushed before the
+# file was split into BENCHMARKS.md + BENCHMARKS_ARCHIVE_1.md); the path itself stays under the limit
+LARGE_ALLOWED_BLOBS = {'40dc6621808d1435705e899a98f42f046ed6548c'}
 ATTRIBUTION = re.compile(r'co-authored-by|generated with \[?claude|noreply@anthropic', re.I)
 TRACKED_NEVER = re.compile(r'(\.exe|\.pyc|\.dll|\.pdb)$|(^|/)__pycache__/', re.I)
 
@@ -345,7 +348,7 @@ def main(argv: list[str]) -> int:
             continue
         if GAME_TYPES.search(path):
             game_files.add(path)
-        if int(size) > MAX_BLOB and path not in LARGE_ALLOWED:
+        if int(size) > MAX_BLOB and path not in LARGE_ALLOWED and sha not in LARGE_ALLOWED_BLOBS:
             large.add(f'{path} ({int(size):,} bytes)')
     results.append(('no game file types in the history', sorted(game_files)))
     results.append((f'no files over {MAX_BLOB:,} bytes in the history (allowed: {", ".join(sorted(LARGE_ALLOWED))})', sorted(large)))

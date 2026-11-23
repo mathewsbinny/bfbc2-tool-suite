@@ -49,7 +49,7 @@ Python writer raised one.
 [code: rust/bc2-formats/src/dbx/writer.rs:268] [test: rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree]
 [test: rust/bc2-formats/src/dbx/writer.rs::refuses_unwritable_elements] [test: rust/bc2-formats/tests/robustness.rs::write_then_read_keeps_the_tree]
 [test: core/tests/test_dbx_write_native.py::edge_trees] [test: core/tests/test_dbx_write_native.py::random_trees]
-[doc: rust/BENCHMARKS.md:331-333]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:331-333]
 
 ### XDBX-WR-2: The byte-keeping writers return an unchanged file exactly
 

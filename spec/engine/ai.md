@@ -196,7 +196,7 @@ against the path data the AI workspace reads (a node within 15 m in plan and 4 m
 spawns to the graph).
 
 [inferred: Kynapse answers a go-to from the graph of the path data's sectors (AI-KY-3); points not connected to the requester's node have no route; GR2's island and spawn tables show DICE's own campaign files with islands besides the main network]
-[doc: rust/BENCHMARKS.md:5684-5692]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:5684-5692]
 
 ## 4. Crashes and hangs
 

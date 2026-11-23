@@ -644,7 +644,7 @@ container - not in a solid), 13 of 1,475 stand a little inside an object's colli
 point past those bounds.
 
 [data: A1: 1,475 spawn points of 27 levels (mp_001 to mp_012sr of game Dist; mp_005gr, nam_mp_002cq, nam_mp_005r, and OPFOR's WW2 ports wake_island_s, guadal_canal, iwo_jima_s) against their height field, water mesh and static collision: 0 over water deeper than 1.2 m, 0 outside the terrain, deepest under the ground 4.6 m, 13 buried 0.01 to 4.24 m]
-[doc: rust/BENCHMARKS.md:8167-8186]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:8167-8186]
 
 ### GAME-VEH-1: Vehicle spawners have their vehicle's room and domain
 
@@ -658,7 +658,7 @@ may stand outside the terrain; land and sea vehicles stand up to 142 m outside e
 that drive in). The export's XVAL-PLACE-3 and XVAL-PLACE-4 report a spawner past those bounds.
 
 [data: A1: 707 vehicle spawners of the same 27 levels by L1's vehicle class (247 emplacements, 111 ambient, 64 tanks, 54 helicopters, 52 quads, 48 boats, 42 IFVs, 37 cars, 36 UAV stations, 15 planes): the tightest room per class as above]
-[doc: rust/BENCHMARKS.md:8167-8186]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:8167-8186]
 
 ### GAME-VEH-2: DICE's vehicles can leave their spawners, in counts per mode
 

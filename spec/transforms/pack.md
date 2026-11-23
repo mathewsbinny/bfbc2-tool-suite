@@ -125,7 +125,7 @@ compressed bytes themselves agree.
 [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries]
 [data: all 1,086 bundles of the game copy (2026-11-16): 62 identical, 919 identical but for the gzip headers, 105 also but for the marker-only empty payload member]
 [data: round SPV1-fix 2026-11-22: DICE's 105 zipped bundles with an empty payload, unpacked and packed again: DICE's bytes but for the header member's xfl / os, the 20-byte member byte for byte]
-[doc: rust/BENCHMARKS.md:333-336]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:333-336]
 
 ## Open questions
 

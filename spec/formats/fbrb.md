@@ -63,7 +63,7 @@ reproduces it) writes extra flags 4 and OS 0, but for the empty payload member, 
 (FBRB-DEL-2). The game accepts both. The trailer is the CRC-32 and the uncompressed
 length modulo 2^32 (LE), as RFC 1952 has it.
 
-Evidence: [data: header members: 1,024 with `1F 8B 08 00 00000000 00 0B` (DICE), 62 with `... 04 00` (FbrbTool), 1 other tool's (a set modification time, OS 0xFF); payload members 1,015 / 60 / 1, 11 payloads stored or empty] [code: rust/bc2-formats/src/zlib.rs:985-990] [doc: rust/BENCHMARKS.md:2552] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: header members 1,021 of 1,021 and payload members 907 of 907 `1F 8B 08 00 00000000 00 0B` (DICE's form)]
+Evidence: [data: header members: 1,024 with `1F 8B 08 00 00000000 00 0B` (DICE), 62 with `... 04 00` (FbrbTool), 1 other tool's (a set modification time, OS 0xFF); payload members 1,015 / 60 / 1, 11 payloads stored or empty] [code: rust/bc2-formats/src/zlib.rs:985-990] [doc: rust/BENCHMARKS_ARCHIVE_1.md:2552] [test: rust/bc2-formats/tests/spec_corpus.rs::fbrb_headers] [data: DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: header members 1,021 of 1,021 and payload members 907 of 907 `1F 8B 08 00 00000000 00 0B` (DICE's form)]
 
 ### FBRB-HDR-5: The suite's gzip reading rules
 
@@ -76,7 +76,7 @@ bytes are fed). FbrbTool's own commands read gzip as .NET Framework's `GZipStrea
 bundles are refused exactly where the retired tools refused them. These are the suite's rules, not the game's: a
 well-formed bundle reads the same under all of them.
 
-Evidence: [code: rust/bc2-formats/src/fbrb/gzip.rs:1-10] [code: rust/bc2-formats/src/fbrb/read.rs:13] [test: rust/bc2-formats/src/fbrb/gzip.rs::python_reader_rules] [test: rust/bc2-formats/src/fbrb/gzip.rs::member_rules] [test: rust/bc2-formats/src/fbrb/netgzip.rs::damage] [doc: rust/BENCHMARKS.md:2551]
+Evidence: [code: rust/bc2-formats/src/fbrb/gzip.rs:1-10] [code: rust/bc2-formats/src/fbrb/read.rs:13] [test: rust/bc2-formats/src/fbrb/gzip.rs::python_reader_rules] [test: rust/bc2-formats/src/fbrb/gzip.rs::member_rules] [test: rust/bc2-formats/src/fbrb/netgzip.rs::damage] [doc: rust/BENCHMARKS_ARCHIVE_1.md:2551]
 
 ## 2. The decompressed header
 

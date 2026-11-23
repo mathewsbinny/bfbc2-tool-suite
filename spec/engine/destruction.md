@@ -258,7 +258,7 @@ thus the blueprint's, part for part; adding or deleting a member re-lays only th
 [code: rust/bc2-levelwrite/src/members.rs:575-790]
 [test: rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays]
 [test: rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules]
-[doc: rust/BENCHMARKS.md:7277-7281]
+[doc: rust/BENCHMARKS_ARCHIVE_1.md:7277-7281]
 
 ### DSTR-MG-3: The members' health-state arrays are empty in the files
 

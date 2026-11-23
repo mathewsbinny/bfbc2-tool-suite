@@ -270,7 +270,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:5684-5692"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:5684-5692"
     }
    ]
   },
@@ -1933,6 +1933,282 @@
    ]
   },
   {
+   "id": "CAMP-FLOW-1",
+   "title": "Objectives and saves",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above; MissionObjectiveEntityData's members"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings Checkpoint, DisableCheckpoints, canRestartFromCheckpoint, PersistentValueWritePolicy_Checkpoint"
+    }
+   ]
+  },
+  {
+   "id": "CAMP-FLOW-2",
+   "title": "Fades, input restrictions, videos and scripted fire",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "CAMP-TRIG-1",
+   "title": "The trigger entities",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "CAMP-CUT-1",
+   "title": "A cutscene is an entity with soldier, vehicle, object and camera tracks",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "CAMP-WORLD-1",
+   "title": "Waypoints, animated soldiers, ambient models and fire targets",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "CAMP-DESC-1",
+   "title": "Level descriptions and rich presence",
+   "file": "spec/engine/campaign.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-FX-1",
+   "title": "The emitter update processors",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-ANIM-1",
+   "title": "Tree parameters, expressions and specific trees",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-ANIM-2",
+   "title": "Influence maps, aim bones and the AI's animations",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-VEH-1",
+   "title": "Vehicle physics components beyond the chassis",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-VEH-2",
+   "title": "Vehicle components: effects, weapons routing, remote entries",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-WPN-1",
+   "title": "Gadgets, thrown objects and the weapon effects that hold the spot cones",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-AI-1",
+   "title": "`AI/Settings`' constants, vehicle types and the path data's sector offsets",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-MM-1",
+   "title": "The match maker's parameters",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-DSTR-1",
+   "title": "Edge models, tree health, decal templates, the mesh asset's build settings",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "DATA-LVL-1",
+   "title": "Transform modifiers, award entities, the level list query, the empty input mapping",
+   "file": "spec/engine/data_classes.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
    "id": "DECAL-STRIP-1",
    "title": "Roads and terrain decals are strips in the visual terrain",
    "file": "spec/engine/decals.md",
@@ -2384,7 +2660,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:7277-7281"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:7277-7281"
     }
    ]
   },
@@ -3636,7 +3912,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:8167-8186"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:8167-8186"
     }
    ]
   },
@@ -3652,7 +3928,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:8167-8186"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:8167-8186"
     }
    ]
   },
@@ -3762,6 +4038,472 @@
     {
      "kind": "doc",
      "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:209-230"
+    }
+   ]
+  },
+  {
+   "id": "HUD-CFG-1",
+   "title": "Two HUD configurations and the shared UI configuration",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ]
+  },
+  {
+   "id": "HUD-MENU-1",
+   "title": "The menu configuration, movies, tips and the 3D menu scene",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "HUD-MAP-1",
+   "title": "The minimap: the level's settings, the icon atlas and the zoom states",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above; LevelData member MinimapSettings; CapturePointEntityData members MapMarker, ShowOnMinimap"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings UIMinimapZoomState_None ... UIMinimapZoomState_Artillery, UIMinimapShapeType_Circle ... _Square, enableMinimap, hideMinimap, setMinimapState, zoomMinimap, MinimapCameraOffsetData"
+    }
+   ]
+  },
+  {
+   "id": "HUD-MARK-1",
+   "title": "Map markers, tooltips, counters and objective cameras",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above; MissionObjectiveEntityData member MapMarkers"
+    }
+   ]
+  },
+  {
+   "id": "HUD-FX-1",
+   "title": "Camera screen effects: CRT views, scope filters, level screen effects",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "HUD-SPEC-1",
+   "title": "The spectator is a level entity with camera indices per target kind",
+   "file": "spec/engine/hud.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: SpectateEntityData 227 instances"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings ClientSpectateEntity, ServerSpectateEntity, doSpectate, MieSpectate"
+    }
+   ]
+  },
+  {
+   "id": "HUD-KILL-1",
+   "title": "The kill cam has no data class",
+   "file": "spec/engine/hud.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: no class or member name containing KillCam; a UITextureAtlasData in Menu/MP_Killcam_Textures_Win32"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe one string \"KillCam\"; no typeinfo record of that name"
+    }
+   ]
+  },
+  {
+   "id": "INP-ENUM-1",
+   "title": "Fifty entry input actions",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe EntryInputActionEnum field table 0x01C27C58 (50 records, EiaThrottle 0 ... EiaUndefined 49)"
+    }
+   ]
+  },
+  {
+   "id": "INP-ENUM-2",
+   "title": "Seventy-seven input concepts",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the concept enumeration's field table from 0x01C2F140 (77 records)"
+    }
+   ]
+  },
+  {
+   "id": "INP-ENUM-3",
+   "title": "The device enumerations",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field tables: IDK_W 0x01C2FF68, IDB_Rdown 0x01C2FB48, IDA_Axis0Y 0x01C2F890, IampXenon 0x01C285B8, IAMESlot1 0x01C28600"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:71-89"
+    }
+   ]
+  },
+  {
+   "id": "INP-DATA-1",
+   "title": "Concept partitions: device bindings per concept",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: DICE's startup bundle, the eight concept partitions' instance counts above"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    }
+   ]
+  },
+  {
+   "id": "INP-DATA-2",
+   "title": "Mapping partitions: concept to entry input action, per player entry",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: mp_common's level-00 bundle, the five mapping partitions' pairs"
+    }
+   ]
+  },
+  {
+   "id": "INP-CFG-1",
+   "title": "The input configuration: four user maps and the controls screen's layout",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: Input/InputConfiguration: 4 maps, 36 / 18 / 15 / 12 rows, 33 + 49 editable actions, 81 listed"
+    }
+   ]
+  },
+  {
+   "id": "INP-FILE-1",
+   "title": "One XML file per user map, used when its version is 11 or more",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5B14C0 (0x6E3E90; per map 0x59B340 at 0x5B155E; version test 0x5B1567; default 0x4FC6F0 / 0x13B3600; maps +0x38 / +0x54 via 0x5AD5C0); load 0x59B340 (\"/data/local/input/\" 0x1419E08 + name + \".dbx\" 0x140BA60; 0x4DDC10 open; 0x466670 XML read); save 0x59B420 (0x4DDBF0, 0x47B1E0); 0x5AE8F0 (callers 0x5B1801, 0x5B1908, 0x5B1931, 0x5B325E); name list 0x1570EF0 (\"shared\" 0x141A160, \"infantry\" 0x141A154, \"land\" 0x141A14C, \"air\" 0x141A148)"
+    },
+    {
+     "kind": "data",
+     "ref": "the element and field names of one per-user input file (read only): EntryInputActionMapDataVersion with MapDataVersion and EntryInputActionMapData, one EntryInputActionMapData (PlatformSpecific, Slot), InputActionsData, Keyboard- / Mouse- / PadInputActionData"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    }
+   ]
+  },
+  {
+   "id": "INP-UI-1",
+   "title": "The controls screen's names",
+   "file": "spec/engine/input.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table 0x0143C898; dispatcher 0x95E680 cases 0xC6 -> 0x9633DA (0x5B1810), 0xC7 -> 0x9633F1 (0x5B1920), 0xC8 -> 0x963408, 0xC9 -> 0x9631BC, 0xCC -> 0x962F37, 0xCD -> 0x962D45, 0xAA -> 0x962B2C; extern switch 0x13C -> 0x95AF2E, 0x10A -> 0x95C93F, 0x13D -> 0x95A63B, 0x13E -> 0x95A558"
+    }
+   ]
+  },
+  {
+   "id": "INP-SET-1",
+   "title": "The input game settings",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7C3E70 (caller 0x596CD2 in 0x596BA0; \"Sensitivity0\" - \"5\", \"InvertScrollWheel\" between 0x7C3F00 and 0x7C4A80; getter 0x80D0C0 at 0x7C401C ... 0x7C485A); setters 0x7CC820 / 0x7CC840; 0x8301D0 (caller 0x955C73) reads Vibration, Scheme*, AimAssist, Crouch"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:83-89"
+    }
+   ]
+  },
+  {
+   "id": "INP-PAD-1",
+   "title": "The PC reads one pad through DirectInput; the console's XInput path is present but not connected",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7E7D50 (reached by the jump at 0x7E845C); 0x7CC4A0 (caller 0x7D2504); XInput device constructor 0x7D6890, motors 0x7CC010 / 0x7CC050, switch 0x7BA010: no call and no absolute reference in the round's call index and reference search; 0x7BA120 reached only by the jump at 0x7CBFFD; XINPUT1_3 imports IAT 0x1405A54 - 0x1405A5C, read only at 0xE42CE2 - 0xE42CEE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:71-121"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500"
+    }
+   ]
+  },
+  {
+   "id": "INP-TUNE-1",
+   "title": "Dead zones, sensitivities and curves live in the data",
+   "file": "spec/engine/input.md",
+   "status": "observed",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field tables: the deadzone fields 0x01C1A788 - 0x01C1A7E8 (+0x28 - +0x38); the camera sensitivities 0x01C2F020 - 0x01C2F068 (+0xC0 - +0xD0); IsPadRumbleEnabled 0x01C142D8 (a Client field)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:43-70"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:484-500"
+    }
+   ]
+  },
+  {
+   "id": "INP-MOD-1",
+   "title": "OPFOR replaces the pad read and writes the console layouts into the user files",
+   "file": "spec/engine/input.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/controller/make_pad_bindings.py:1-16"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:211-252"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:184-201"
+    }
+   ]
+  },
+  {
+   "id": "ENG-TI-1",
+   "title": "The `typeinfo` section: one 24-byte record per reflected type",
+   "file": "spec/engine/internals.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/census.py --measure, 2026-11-23 (spec/census.json engine): 1,900 records; 630 of 630 DBX classes among them"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C25870"
+    }
+   ]
+  },
+  {
+   "id": "ENG-TI-2",
+   "title": "Kinds: classes, value types, enumerations, arrays, primitives",
+   "file": "spec/engine/internals.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: kinds class 1,362, value type 289, enumeration 231, array 3, primitive 14, void 1"
+    }
+   ]
+  },
+  {
+   "id": "ENG-TI-3",
+   "title": "Twenty-two modules",
+   "file": "spec/engine/internals.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the modules and their record counts"
+    }
+   ]
+  },
+  {
+   "id": "ENG-MEM-1",
+   "title": "Memory report groups, heaps and pools",
+   "file": "spec/engine/internals.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: MemoryReportGroup a member of 117 classes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings CutsceneLargeHeapSize, CutsceneSmallHeapSize, WeaponAsyncHeapSize, AllowAllAnimationsHeaps, SmallBlockAllocatorPool, ThreadCachedSmallBlockAllocator, ObstaclePoolSize, PolylinePoolSize, LocalMapPoolSize, PathObjectsPool, FrameVertexBufferPool, DynamicMaskPoolWidth, DynamicMaskPoolHeight"
+    }
+   ]
+  },
+  {
+   "id": "ENG-JOB-1",
+   "title": "The job system's switches; the console paths are compiled in",
+   "file": "spec/engine/internals.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings JobThreadCount, JobEnable, JobsEnable, EnableJobs, JobPriority, RenderJobAffinity, ThreadedLoadingEnable, OccluderMeshJobCount, PrioritizeCullJobsEnable, UndergrowthBuildJobCount, SortJobEnable, BuildJobCount, RasterizeJobCount, CollideJobCount, SpuJobEnable, XenonJobThread0Enable ... XenonJobThread5Enable"
+    }
+   ]
+  },
+  {
+   "id": "ENG-SCENE-1",
+   "title": "The menu background is a scene, not a level",
+   "file": "spec/engine/internals.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above; the Scene module's records SceneData, SceneObjectData, SceneSettings, WorldBuildView, WorldSubSection"
+    }
+   ]
+  },
+  {
+   "id": "ENG-REND-1",
+   "title": "Effect rendering and overgrowth settings records",
+   "file": "spec/engine/internals.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo EmitterSystemSettings 0x1C08604, ClientEmitterEntity 0x1C08654, DebrisContainerEntity 0x1C0866C, OvergrowthSettings 0x1C086F4, TreeMeshEntity 0x1C08744"
     }
    ]
   },
@@ -7193,6 +7935,234 @@
    ]
   },
   {
+   "id": "NET-TRN-1",
+   "title": "The transport is a socket factory installed for the whole process",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe setTransportMode 0x650E60; factories 0x4F1E00 (vtable 0x1411934), 0x4F1E60 (vtable 0x1411960), 0x5F0F40 -> 0x5F0D50 (vtable 0x141BE04); shared base vtable 0x141128C; UDP create methods 0x4F5280 / 0x4F5380 / 0x4F54A0 -> 0x4F1EC0; in-memory create 0x4F5020 -> 0x4F1D60"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/notes/srv8.txt:1"
+    }
+   ]
+  },
+  {
+   "id": "NET-TRN-2",
+   "title": "The game's own sockets are UDP only",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe UDP socket methods 0x4E3290 (socket 0x4E32E9, bind 0x4E3301), 0x4E3350 (socket 0x4E337F, bind 0x4E33B6), sendto 0x4E3025, recvfrom 0x4EF52F; Havok socket 0xC6A3C0 (string 0x1481F80); DirtySock thunks 0xC55604-0xC5568E called from 0xD7DB7A-0xD7F963; WS2_32 IAT 0x14059AC-0x1405A4C"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:321-349"
+    }
+   ]
+  },
+  {
+   "id": "NET-TRN-3",
+   "title": "The connection layer: a challenge handshake, ghosts, moves and voice",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe connection state names 0xC02AF0-0xC02B5F (strings 0x147D360-0x147D4D4); \"ConnectionManager\" 0x147D888; managers Ghost / MoveClient / MoveServer / Voice 0x147DA6C-0x147DAA8; recorder states 0x147D2CC-0x147D310; packing types 0x140BB2C-0x140BBC8; frame / timeout setting names 0x1417DE0-0x1418394, 0x141D810-0x141D8D8"
+    }
+   ]
+  },
+  {
+   "id": "NET-CFG-1",
+   "title": "The network settings the executable reads",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field names 0x142CC84-0x142CE80 (network / core), 0x142D100-0x142D714 (client / server), 0x142DC00-0x142DDB0 (game); setting strings 0x14183E4, 0x141D9FC, 0x1418624, 0x141D8F4, 0x141D9EC; readers 0x565654, 0x55D0EF, 0x561D9B, 0x8587CC, 0x6561A1"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/notes/srv5.txt:1-10"
+    }
+   ]
+  },
+  {
+   "id": "NET-CFG-2",
+   "title": "Start-up options are looked up by name",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe option lookup 0x4F4CF0 over 0x155D008; call sites listen 0x86B19F, dedicated 0x55D52B, port 0x5FC429, pingInterval 0x5FC374, heartBeatInterval 0x570488, maxQueriesPerSecond 0x856992, queryPortOffset 0x8569B5, networkProtocolId 0x565A07, loginToken 0x5623C6 / 0x56B7E1 / 0x580010 / 0x5889D9 / 0x5B104A, requestState 0x5B4EF5, requestStateParams 0x5B4F36"
+    }
+   ]
+  },
+  {
+   "id": "NET-CFG-3",
+   "title": "Three switches in WinMain decide the instance mutex",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe WinMain helper 0x401EE0 (called from 0xC51FBB): compares at 0x401F11 / 0x401F2E / 0x401F4D / 0x401F6A against strings 0x1409838, 0x140982C, 0x1409824; CreateMutexA 0x401FB7; error checks 0xB7 and 5 at 0x401FC7 / 0x401FD4"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-1",
+   "title": "Network.Version is the build's string unless an option overrides it",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5657B0 (strings 0x1418614 \"ROMEPC795745\", 0x1418604 \"ROMEPC784592\", 0x14185E8, option 0x14185F0); setter 0x4F4BD0; readers of 0x1418624 at 0x565869, 0x565949, 0x565A43, 0x5FE3BD, 0x60010E, 0x600522, 0x600689, 0x853F0C"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-2",
+   "title": "A refused or dropped client gets one of fourteen reasons",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x54BBA0 (jump table 0x54BC70, 14 entries), strings 0x1417960-0x1417A4C, log 0x141793C; second user 0x558FA4; menu strings 0x141A2C4-0x141A32C, 0x1418CA0-0x1418CB8"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-3",
+   "title": "Both ends read the title id and the protocol version",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x650CBB, 0x65620E, 0x6561A2, 0x86B267, 0x86B345"
+    }
+   ]
+  },
+  {
+   "id": "NET-VER-4",
+   "title": "The level checksum is computed on both load paths",
+   "file": "spec/engine/network.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "two callers of the checksum at 0x5681AB and 0x829D7D, a stored 16-byte digest, the setting name at 0x142CD70 and reason 12 at 0x14179D0; no compare site found"
+    }
+   ]
+  },
+  {
+   "id": "NET-AC-1",
+   "title": "PunkBuster loads only from its folder",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0x5B83EC-0x5B89BA (strings 0x141AC90-0x141ADAC); settings 0x143C22C, 0x141B750; commands 0x141AE3C, 0x141AF4C"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:182-183"
+    }
+   ]
+  },
+  {
+   "id": "NET-SRV-1",
+   "title": "The server listens where `-listen` says, else on Network.ServerPort",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86B0D0 (category compare at 0x86B0D6, types 0x86B0EE); listen option 0x86B19F; parser 0x8585E0 (':' at 0x858607, '-' at 0x858690, atoi 0x85869D); host default at 0x86B1E7-0x86B1F8 (string 0x141240C); TitleId 0x86B267, ProtocolVersion 0x86B345"
+    }
+   ]
+  },
+  {
+   "id": "NET-SRV-2",
+   "title": "The client executable has the server, not the dedicated server's front end",
+   "file": "spec/engine/network.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "0x55D502-0x55D545 (strings 0x1416738 \"win32\", 0x1418490 \"dedicated\", 0x1416724 \"linux\"); no string \"ServerOptions\" / \"RemoteAdminPort\" in the executable; setting names 0x142D568-0x142D688"
+    }
+   ]
+  },
+  {
+   "id": "NET-SRV-3",
+   "title": "A client can join a server by address",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x55CE50 (event 10 -> 0x55D040); setting 0x14183F8 read at 0x55D07F, ':' search 0x55D0C6, ServerPort 0x55D0EF, format \":%d\" 0x14183E0; message 0x551480 (type 0x14 at 0x551483, vtable 0x1417D20); post 0x55D17F; other constructors' callers 0x5B3FF5, 0x5B43C4, 0x952413, 0x95E5C2, 0x95F267"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/notes/srv6.txt:1-60"
+    }
+   ]
+  },
+  {
+   "id": "NET-ONL-1",
+   "title": "The back-end is Plasma: FESL first, Theater from FESL",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe client strings 0x141C2BC-0x141C2FC; host parts 0x149D080 / 0x149D088 used at 0xDDC39C / 0xDDC31E; 0x149C7D0 at 0xDD6EC9; theaterIp / theaterPort 0x149B5E0 / 0x149B5FC; overrides 0x149A235-0x149A2E5; states 0x1505214-0x1505394; requestState 0x5B4EF5"
+    }
+   ]
+  },
+  {
+   "id": "NET-ONL-2",
+   "title": "Plasma's GameManager carries a LAN broadcast mode",
+   "file": "spec/engine/network.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xDBAB60 (socket 0xDBABED, bind 0xDBAC6F, broadcast address 0xDBACA9-0xDBACED); init 0xDBAD00 (object 0x4954 bytes, constructor 0xDB7110) called at 0xE0110E; caller 0xE01070 in vtable 0x14A022C; strings 0x1498578, 0x1498C74, 0x1498C9C, 0x1498DC4, 0x149A8E5; session types 0x146E970-0x146E9F4"
+    }
+   ]
+  },
+  {
    "id": "ONS-LVL-1",
    "title": "Four levels on four multiplayer maps",
    "file": "spec/engine/onslaught.md",
@@ -8297,7 +9267,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3672-3680"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3672-3680"
     },
     {
      "kind": "doc",
@@ -8485,7 +9455,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3678-3679"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3678-3679"
     }
    ]
   },
@@ -8921,6 +9891,635 @@
    ]
   },
   {
+   "id": "SCR-LAY-1",
+   "title": "Six layers author behaviour, each with its own reach",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the rules cited per row and SCR-EVT-1 - SCR-CMD-1"
+    }
+   ]
+  },
+  {
+   "id": "SCR-EVT-1",
+   "title": "DICE's event graphs use 77 classes and 186 event names",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: 74 levels, 57,667 connections, 1,739 external ends, 56 source and 72 target classes (77), 82 + 104 event names (186), the eight classes above by connection ends"
+    }
+   ]
+  },
+  {
+   "id": "SCR-EVT-2",
+   "title": "180 entity data classes exist; DICE's graphs use 73 of them",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: 180 `...EntityData` type names in the exe; 73 of the graphs' 77 classes"
+    }
+   ]
+  },
+  {
+   "id": "SCR-CMD-1",
+   "title": "Entities that set a setting or run a command; the debug menu in DICE's data",
+   "file": "spec/engine/scripting.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe type records: ConsoleCommandEntityData 0x01C05DC0, DebugMenuSubMenuEntityData 0x01C05DD8, GameSettingEntityData 0x01BFDF0C, ChangeGameSettingType 0x01BFDEF0, ServerConsoleCommandEntity 0x01BF1DD8"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: instance counts of the six classes in DICE's 74 level partitions; DebugMenuItemEntityData in mp_002, mp_004, mp_005gr, mp_006, mp_007gr, mp_008, mp_009gr, mp_012gr and 13 campaign levels"
+    }
+   ]
+  },
+  {
+   "id": "SCR-DEV-1",
+   "title": "No developer console in the PC client; developer options and debug pages are switched off",
+   "file": "spec/engine/scripting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table entries enableDevOpts 0xF3, debugdata 0xD2, consoleTrace 0x8C; Client field IsMenuDevOptsEnabled +0xF4 (field table 0x01C14338); \"/settings\" 0x14123A0 and \"/settings/*\" 0x1412394 registered in 0x501BF0 (handlers 0x4FFEC0, 0x4FFC60, \"Settings - %s\"); \"/stats\" 0x1411DA4, \"/types\" 0x140FDF8; \"Unknown command - This mopp data has been corrupted\" 0x148EF90 (Havok)"
+    }
+   ]
+  },
+  {
+   "id": "SCR-SRV-1",
+   "title": "Server administration: traces only; the server build is not on this PC",
+   "file": "spec/engine/scripting.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe \"-dedicated\" 0x140982C (0x401F29, 0x401F65), \"-server\" 0x1409824 (0x401F48); \"BFBC2Server-124DD424-...\" pushed at 0x401FA5; \"set_cl_punkbuster\" 0x141AE3C, \"set_sv_punkbuster\" 0x141AF4C, \"punkbuster kick\" 0x1417978; name table kickPlayer 0xB4, voteKickPlayer 0x39, playerKickedReason 0x13F"
+    }
+   ]
+  },
+  {
+   "id": "SCR-AS-1",
+   "title": "The menus' script reaches the game only through the name table",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from MENU-RT-1 - MENU-RT-5, MENU-EVT-1 - MENU-EVT-3, APT-LOAD-3 and MENU-ED-3"
+    }
+   ]
+  },
+  {
+   "id": "SCR-DLL-1",
+   "title": "Hooks reach everything, for one build",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from MOD-EXE-1, MOD-CNT-1, MOD-HOOK-1 - MOD-HOOK-3, BOT-CTL-5"
+    }
+   ]
+  },
+  {
+   "id": "SCR-NEED-1",
+   "title": "What a scripting layer for modders would need",
+   "file": "spec/engine/scripting.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from SCR-LAY-1 - SCR-DLL-1 and the bot module plan (BOT-CTL-4)"
+    }
+   ]
+  },
+  {
+   "id": "SET-FILE-1",
+   "title": "One per-user folder under Documents",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe imports SHGetSpecialFolderPathA (IAT 0x14057C4, called at 0x4E25BB and 0x518174); \"/data/local/\" 0x14107C8, \"/data/local/input/\" 0x1419E08, \"/data/local/GameSettings.ini\" 0x1432448, \"\\settings.ini\" 0x142FABC, \"/data/local/Screenshots/\" 0x147737C, \"/data/local/crashreport.xml\" 0x1419CF8"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/userdata.cpp:170-200"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:187-205"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+    }
+   ]
+  },
+  {
+   "id": "SET-INI-1",
+   "title": "settings.ini: four sections, 29 keys",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe key table 0x1570FA8 - 0x1571134 (33 records of {begin, end, capacity}); initialisers 0x1372AA0 - 0x13735C0 (\"RefreshRate\", \"Overgrowth\" and \"MSAA\" through records whose push the probe reads as lengths); GetPrivateProfileStringA IAT 0x14051D8, WritePrivateProfileStringA IAT 0x14051D4"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: every section and key name a C string of the exe, the table 33 records"
+    },
+    {
+     "kind": "data",
+     "ref": "the key names of one settings.ini the game wrote (read only, no value read): the four sections and 29 keys above, in this order"
+    }
+   ]
+  },
+  {
+   "id": "SET-INI-2",
+   "title": "settings.ini is read at start-up and written by the options and the recommended settings",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reader 0x7DBD60 (caller 0x570430 in 0x5703E0); writer 0x7DD1F0 (callers 0x56AE02, 0x570442, 0x9124ED, 0x960946, 0x960FF9); \"low\" / \"medium\" / \"high\" / \"custom\" pushed in 0x7DD100 - 0x7DDA00; \"custom\" -> MainQuality at 0x7D7339 and 0x7D73F0; \"auto\" in the reader"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:179"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-1",
+   "title": "The game settings' defaults are the GameSettings partition",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: DICE's startup bundle, Settings/GameSettings: the categories, 14 / 34 / 11 / 0 settings per type, 45 UserExposed, the 14 names above"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-2",
+   "title": "Nine categories, one INI section each",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x80D970 (`cmp eax, 8`, jump table 0x80D9E0; \"unknown\" 0x1431B88)"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-3",
+   "title": "GameSettings.ini is read setting by setting, typed, and written whole with GameSettings.bin",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reader 0x831ED0 (0x80D970 section name, flag +0x28 at 0x831FB0, GetPrivateProfileStringA at 0x831FDC, type switch 0x831FEA - 0x832241, \"GameSettings.bin\" 0x83215F -> 0x815870); writer 0x833FD0 (\"/data/local/GameSettings.ini\" 0x834330, \"GameSettings.bin\" 0x83446D; callers 0x8347CF, 0x920623); 0x9205A0 callers 0x932E5C, 0x95993D, 0x95FB65, 0x95FEFD, 0x962D33, 0x962F0D, 0x96316E, 0x963336"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+    }
+   ]
+  },
+  {
+   "id": "SET-GS-4",
+   "title": "Which keys the file holds",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe getters 0x80D2E0 and 0x80D0C0 (call sites listed by the round's call index); \"ToggleCrouch\" pushed at 0x814722 before 0x80D2E0; \"KitConfig_0\" - \"_7\" and \"CurrentKit\" at 0x77898A - 0x778AFA and 0x778970 in 0x777AA0; \"ServerFilterSettings\" / \"ServerDropDownSettings\" at 0x95D5BA / 0x95D495"
+    },
+    {
+     "kind": "data",
+     "ref": "the key names of one GameSettings.ini the game wrote (read only, no value read): GstAudio 10, GstGameplay 19, GstInput 19, GstPersistence 5, GstPlayerProfile 4, GstRender 2 keys; none of the 14 hidden names; the extra names above"
+    }
+   ]
+  },
+  {
+   "id": "SET-ENG-1",
+   "title": "Engine settings are reflected objects looked up by name",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe lookup 0x4F4C40 (ECX = *(0x0155CFDC); the boolean type object 0x01BF0354); the GameSettings field table around 0x01C15250 (InputConfiguration +0x78, ToggleCrouch +0x8E, HoldToZoom +0x90, InputTapMaxTime +0x1C, InputHoldMinTime +0x84); type names \"CoreSettings\" 0x1412FB8, \"GameSettings\" 0x142CD30, \"ClientSettings\" 0x142CEB4, \"ServerSettings\" 0x142D4C0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:69-86"
+    }
+   ]
+  },
+  {
+   "id": "SET-CLI-1",
+   "title": "Command-line options",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 40 callers (the names pushed before each); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; \"-noAsync\" 0x14123AC at 0x501F86, \"-host\" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438"
+    }
+   ]
+  },
+  {
+   "id": "SET-UI-1",
+   "title": "The options pages talk to the engine by name: getters per category, commands, events",
+   "file": "spec/engine/settings.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table 0x0143C898 (ids as above); command dispatcher 0x95E680 (`id - 0xB`, byte table 0x963F24, jump table 0x963DA4: 0x5B -> 0x9607C5 ... 0x60 -> 0x960934); extern switch in 0x95A1B0 (`id - 1`, byte table 0x95DB68, jump table 0x95D98C: 0x9C - 0xA1 -> 0x95B325 - 0x95B36B, each 0x9430C0(n)); setSetting 0x9607F6 (split at \",\") -> 0x929D30"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG3's scan of DICE's 91 movies (spec/probes/menus.py's corpus): the settings names in 11 movies' constants; `settings` names _settings, resetSettings, changeResolution, adapterResolutions, confirmKeySwitch and cancelKeySwitch"
+    }
+   ]
+  },
+  {
+   "id": "SET-UI-2",
+   "title": "Graphics pages set items; the controls pages save at once",
+   "file": "spec/engine/settings.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x929D30 callers 0x961121 - 0x9627AB (37 sites); 0x962F37 / 0x962D45 / 0x9631BC: `push 0x1B; push 0x2B; call [vtable+0x18"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-PHYS-1",
+   "title": "One character physics per soldier family, a state per movement mode",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes' instances, partitions and members above"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo module Physics: CharacterPhysicsData, CharacterPoseData, CharacterStatePoseInfo and the nine *StateData classes; strings StandToCrouch, CrouchToProne, ProneToCrouch, ProneToStand, ProneToStandOnJump, StandToProne, CrouchToStand"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-SPR-1",
+   "title": "Sprint is a power budget and a field-of-view change",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: CharacterSprintData 2, SoldierSprintSettingsData 2 (soldiers and Vietnam soldiers)"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-COL-1",
+   "title": "The head and bone collision, fake springs, the soldier's sounds",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-RAG-1",
+   "title": "Ragdoll settings",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-CAM-1",
+   "title": "The first-person camera and its springs",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-FOV-1",
+   "title": "The field of view: a level default, an infantry multiplier, the sprint and zoom changes",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: LevelData members DefaultFOV and InfantryFOVMultiplier; SoldierSprintSettingsData member Fov; AlternateCameraViewData member FieldOfView"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings DefaultFOV, InfantryFOVMultiplier, FovModifier, ForceFov, RenderFov, ZoomRenderFov, FovInDelay, FovOutDelay, FovOutTime"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-CAM-2",
+   "title": "Vehicle and turret cameras: chase, static, alternate views",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-AIM-1",
+   "title": "Auto-aim, the halo aimer and the aiming constraints",
+   "file": "spec/engine/soldier.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SOLD-SPOT-1",
+   "title": "Spotting is per-soldier timing and per-weapon cone settings",
+   "file": "spec/engine/soldier.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: SoldierEntityData members ActiveSpottedTime, PassiveSpottedTime, LastKnownSpottedTime, IsSpottedWhenDamaged"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings SpottingConeFov, SpottingConeFalloff, SpottingDistance, AutoSpotOnFire, AutoSpotOnZoom, IsSpotWhenZoomedEnabled, MinimapSpotting, SpottingSound, CanSpotAndOrder, SpotAssistScore, OnSpottedType, SoldierOnSpottedType"
+    }
+   ]
+  },
+  {
+   "id": "SGR-WIRE-1",
+   "title": "A sound is a node graph wired by ports and connections",
+   "file": "spec/engine/sound_graph.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SGR-NODE-1",
+   "title": "Samplers play waves; processing nodes shape them",
+   "file": "spec/engine/sound_graph.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SGR-OUT-1",
+   "title": "Outputs and emitters place the sound in the world",
+   "file": "spec/engine/sound_graph.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SGR-VO-1",
+   "title": "Voice-over trees, dialog lines and the trigger tables",
+   "file": "spec/engine/sound_graph.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SGR-MIX-1",
+   "title": "Sound states, the HDR mix, mixer groups, stream pools, master settings",
+   "file": "spec/engine/sound_graph.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SQD-TEAM-1",
+   "title": "A team is a faction with its kits and player caps",
+   "file": "spec/engine/squads.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SQD-SQ-1",
+   "title": "Squad types, formations and the campaign's squad ghosts",
+   "file": "spec/engine/squads.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "SQD-PLAY-1",
+   "title": "The player's squad: join, lead, spawn on, chat, score",
+   "file": "spec/engine/squads.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings joinSquad, leaveSquad, doJoinSquad, autojoinSquad, isSquadLeader, makeSquadLeader, selectSquadSpawn, SetBestSquadSpawner, SquadSpawnRadius, SquadSpawnCamera, TextChatGroup_Squad, VoiceChannel_Squad, SquadReviveScore, SquadAttackOrderScore, SquadDefendOrderScore, StatEvent_SquadSpawn, SquadManagerEntityData, SquadEntityData, JoinSquadOrderEntityData"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: no DBX class for the players' squads: the six Squad classes with instances (SquadAsset, SquadData, SquadTypeData, SquadEntityData, SquadGhostEntityData, JoinSquadOrderEntityData) are the AI's; SquadManagerEntityData is a typeinfo class with no instance in DICE's partitions"
+    }
+   ]
+  },
+  {
    "id": "STRM-MNT-1",
    "title": "The global sound and award bundles are mounted at fixed paths",
    "file": "spec/engine/streaming.md",
@@ -9061,6 +10660,78 @@
     {
      "kind": "code",
      "ref": "bfbc2-console-convert/audio.py:46"
+    }
+   ]
+  },
+  {
+   "id": "TEXT-FONT-1",
+   "title": "Fonts are pre-rendered glyph sheets per language, size and style",
+   "file": "spec/engine/text.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings UIFontStyle_Regular, UIFontStyle_Bold, UIFontEffect_None, UIFontEffect_Glow, UIFontMapProxy, loadEulaFonts, unloadEulaFonts, unloadStoreFonts, CreateFontIndirectA"
+    }
+   ]
+  },
+  {
+   "id": "TEXT-DB-1",
+   "title": "The text databases and the localization asset",
+   "file": "spec/engine/text.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ]
+  },
+  {
+   "id": "TEXT-ATL-1",
+   "title": "UI texture atlases",
+   "file": "spec/engine/text.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: UITextureAtlasData 52"
+    }
+   ]
+  },
+  {
+   "id": "TEXT-SUB-1",
+   "title": "Subtitles map a voice line's wave to timed strings, per language",
+   "file": "spec/engine/text.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above; LevelData member SubtitleAsset; CutsceneEntityData member Subtitle"
     }
    ]
   },
@@ -10474,7 +12145,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:6419-6450"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:6419-6450"
     }
    ]
   },
@@ -10579,6 +12250,44 @@
     {
      "kind": "code",
      "ref": "rust/bc2-formats/src/aimanim.rs:213-250"
+    }
+   ]
+  },
+  {
+   "id": "ATREE-HDR-1",
+   "title": "A 20-byte header and three blocks",
+   "file": "spec/formats/animtree.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 1,926 distinct AnimTreeInfo entries (2,594 live), version 6 in all, 20 + A + B + C = size in 1,926, every block a multiple of 16"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo records `AnimTreeInfo` (module Animation, 36 bytes) at 0x1C0B8E4 and `AnimTreeReplacementInfo` (20 bytes) at 0x1C0B8FC"
+    }
+   ]
+  },
+  {
+   "id": "ATREE-PTR-1",
+   "title": "Pointers are absolute in the compiler's image",
+   "file": "spec/formats/animtree.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: in 1,926 of 1,926 every word in [base, base + size) is 4-aligned and at most A + B + C from block A"
     }
    ]
   },
@@ -11779,6 +13488,27 @@
    ]
   },
   {
+   "id": "IR-HDR-1",
+   "title": "A big-endian `irf1` header and FFT partitions",
+   "file": "spec/formats/audio.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 5 distinct ImpulseResponse entries (17 live): header irf1, 1, 2 channels, 48,000 Hz, 1,024, 1,024, 2,048, 1 in all; 48 + partitions x 8,224 = size in 5 of 5"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo record `ImpulseResponse` (module Audio, 20 bytes) at 0x1C0E804; settings and fields `ReverbIR`, `ReverbArea`, `SoundAreaReverbs`"
+    }
+   ]
+  },
+  {
    "id": "B43-SRC-1",
    "title": "The suite reads BF1943 from the user's extracted copy, read only",
    "file": "spec/formats/bf1943.md",
@@ -11993,6 +13723,82 @@
     {
      "kind": "doc",
      "ref": "bfbc2-menu-tools/aptgraft.py:100-101"
+    }
+   ]
+  },
+  {
+   "id": "BINK-HDR-1",
+   "title": "Every payload is a Bink 1 file of revision `i`",
+   "file": "spec/formats/bink.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's files, 2026-11-23: 56 distinct BinkMemory entries (57 live): BIKi 1280 x 720, 25 fps x 40, 29.97 fps x 16, no audio, the size word fits in 56; 33 movies: BIKi in 33, the size word fits in 33, one audio track in 7"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe imports from binkw32.dll BinkOpen, BinkClose, BinkDoFrame, BinkNextFrame, BinkWait, BinkGoto, BinkPause, BinkSetVolume, BinkSetSoundSystem, BinkOpenWaveOut, BinkGetFrameBuffersInfo, BinkRegisterFrameBuffers (12 functions)"
+    }
+   ]
+  },
+  {
+   "id": "BINK-RES-1",
+   "title": "A `BinkMemory` resource is the bare payload",
+   "file": "spec/formats/bink.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 56 of 56 BinkMemory entries begin with BIKi"
+    }
+   ]
+  },
+  {
+   "id": "BINK-OUT-1",
+   "title": "An out-of-bundle movie is a RES wrapper with zero lengths",
+   "file": "spec/formats/bink.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 33 movies (DICE's, 2010 - 2012): RES version 2 with both length words 0 in 33; BinkMemory 22, BinkTexture 11 (prefix 0, 0 x 10, 1, 1 x 1); the Bink size word fits in 33"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's partitions, round SPG4 census: BinkTextureAsset 11 instances under movies/, BinkMemoryAsset 56 (16 under movies/introtransitions)"
+    }
+   ]
+  },
+  {
+   "id": "BINK-DLL-1",
+   "title": "`binkw32.dll` is RAD's player, loaded by the executable",
+   "file": "spec/formats/bink.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe import table names binkw32.dll with _BinkOpen@8 ... _BinkWait@4"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: binkw32.dll dated 2010-01-12, 175,616 bytes"
     }
    ]
   },
@@ -13391,7 +15197,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:2552"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:2552"
     },
     {
      "kind": "test",
@@ -13431,7 +15237,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:2551"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:2551"
     }
    ]
   },
@@ -13982,6 +15788,124 @@
    ]
   },
   {
+   "id": "GFILE-KIND-1",
+   "title": "Sixteen kinds of file",
+   "file": "spec/formats/game_folder.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "test",
+     "ref": "spec/probes/census.py::check"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/census.py --measure on the game copy, 2026-11-23 (spec/census.json): the kinds and counts above"
+    }
+   ]
+  },
+  {
+   "id": "GFILE-AHM-1",
+   "title": "The aerial height map: a 28-byte header and 16-bit heights",
+   "file": "spec/formats/game_folder.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 1 file, cell 8.0, 512 x 512, origin (-2,048, -2,048), 28 + 2 x 512 x 512 = 524,316 bytes; DICE's 74 LevelData: HasFlyingAI true only in SP_006 (cell size 8, quality 1)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x59A140: push \"/AerialHeightmap.res\" (0x1419CB8), concatenate (0x45AEC0), open through [0x154C444"
+    }
+   ]
+  },
+  {
+   "id": "GFILE-DBM-1",
+   "title": "`database.dbmanifest` is DICE's editor database manifest",
+   "file": "spec/formats/game_folder.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: root element Database; the root file equal to build_overlay's entry in 2 of 2 bundles"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe \"database.dbmanifest\" 0x14100BC, pushed at 0x4BA015 for 0x4A8810"
+    }
+   ]
+  },
+  {
+   "id": "GFILE-DFE-1",
+   "title": "`dfe` is 1,000 opaque bytes no game file names",
+   "file": "spec/formats/game_folder.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 1,000 bytes, entropy above 7.5 bits per byte; no `dfe` name in BFBC2Game.exe, binkw32.dll, winui.dll or the Support executables (round SPG4 search)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a 1,000-byte random-looking file in the root that the game never opens is a distribution client's token or key"
+    }
+   ]
+  },
+  {
+   "id": "GFILE-INST-1",
+   "title": "`InstallationData.xml` and `UpdateHistory.log` are the patcher's record",
+   "file": "spec/formats/game_folder.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: InstallationData's six elements, CurrentVersion 795745; UpdateHistory one patch line 515195 -> 795745; neither name in BFBC2Game.exe"
+    }
+   ]
+  },
+  {
+   "id": "GFILE-LOGO-1",
+   "title": "`dialoglogo128x128.jpg` is a 128 x 128 JPEG nothing in the folder names",
+   "file": "spec/formats/game_folder.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: JPEG 128 x 128; \"dialoglogo\" not in BFBC2Game.exe"
+    }
+   ]
+  },
+  {
    "id": "GRANNY-WRAP-1",
    "title": "DICE's wrapper",
    "file": "spec/formats/granny.md",
@@ -14512,7 +16436,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:4058"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:4058"
     }
    ]
   },
@@ -14765,6 +16689,23 @@
     {
      "kind": "data",
      "ref": "88 shared physics files: 54,245 triangles of BF1943's 236 converted codes all reach their terminals; 11,800 rays equal brute force; a triangle's own box returns 28.3 % of the keys against DICE's 27.7 %"
+    }
+   ]
+  },
+  {
+   "id": "HAVOK-RAG-1",
+   "title": "The ragdoll is a bare 5.5.0 packfile",
+   "file": "spec/formats/havok.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 1 distinct RagdollResource (2 live), 16,944 bytes, packfile magic at 0, Havok-5.5.0-r1 at 40"
     }
    ]
   },
@@ -16188,7 +18129,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3158"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3158"
     }
    ]
   },
@@ -16581,7 +18522,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:766-767"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:766-767"
     }
    ]
   },
@@ -16954,6 +18895,61 @@
     {
      "kind": "doc",
      "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:168-184"
+    }
+   ]
+  },
+  {
+   "id": "OCC-HDR-1",
+   "title": "A box, a length and one part header",
+   "file": "spec/formats/occluder.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 361 distinct OccluderMesh entries (636 live); 361 of 361 fit the layout to the last byte, the length word = size - 28 in 361, vertices inside the box in 361, indices below v in 360 (1 empty)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe names the resource suffix `_occluderMesh` and the settings `OccluderMeshEnable`, `OccluderAlphaMeshEnable`, `OccluderJobEnable`, `OccluderSpuJobEnable`, `OccluderMeshJobCount`, `HighPriorityOccluderMesh`, `DrawProcessedOccluders`, `DrawOccluderMeshesWireframe`; typeinfo record `OccluderMesh` (module Render, 64 bytes) at 0x1BF6050"
+    }
+   ]
+  },
+  {
+   "id": "OCC-VTX-1",
+   "title": "A vertex is four floats; the fourth is one value per mesh",
+   "file": "spec/formats/occluder.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: one fourth-word value per mesh in 360 of 360 non-empty meshes: 1.0 with a triangle block 321, k x 12.75 without one 39"
+    }
+   ]
+  },
+  {
+   "id": "OCC-TRI-1",
+   "title": "The triangle block: 24-byte records, at least one per triangle",
+   "file": "spec/formats/occluder.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: block present 321 (+1 present and empty), absent 39; records = triangles in 253, more in 68"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the meshes with a block are the destructible buildings' (their records' set bits differ triangle by triangle); those without are static (bridges, silos), whose fourth vertex word differs instead"
     }
    ]
   },
@@ -17961,6 +19957,82 @@
     {
      "kind": "doc",
      "ref": "bfbc2-shader-tools/XENOS.md:82-110"
+    }
+   ]
+  },
+  {
+   "id": "SHDB-TYPE-1",
+   "title": "Nine shader resource types",
+   "file": "spec/formats/shaderdb.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/census.py on DICE's bundles, 2026-11-23 (spec/census.json): the nine types' live entries and distinct names as above"
+    }
+   ]
+  },
+  {
+   "id": "SOOT-HDR-1",
+   "title": "Header, boxes, buffer sizes, buffers, a 256-byte tail",
+   "file": "spec/formats/soot.md",
+   "status": "verified",
+   "variants": "PC, Xbox 360",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:647-704"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 40 distinct SootMesh entries (90 live), 40 of 40 fit to the last byte; first word 18 in all; boxes 2, 4, 8, 10 or 27; indices below the vertex count in 40"
+    }
+   ]
+  },
+  {
+   "id": "SOOT-VTX-1",
+   "title": "Two vertex forms: half positions or float positions",
+   "file": "spec/formats/soot.md",
+   "status": "verified",
+   "variants": "PC, Xbox 360, BF1943",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:678-683"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: stride 12 x 34, 16 x 6"
+    }
+   ]
+  },
+  {
+   "id": "SOOT-TAIL-1",
+   "title": "The tail: the box count, the triangle count, 60 words",
+   "file": "spec/formats/soot.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: tail = (0, n, triangles, 60) in 40 of 40"
     }
    ]
   },
@@ -19080,7 +21152,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:574-580"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:574-580"
     }
    ]
   },
@@ -19925,7 +21997,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:3720-3722"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3720-3722"
     }
    ]
   },
@@ -22472,7 +24544,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:331-333"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:331-333"
     }
    ]
   },
@@ -22597,6 +24669,174 @@
     {
      "kind": "test",
      "ref": "rust/bc2-gamefs/src/atomic.rs::other_errors_are_not_retried"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-NODE-1",
+   "title": "The nodes",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from REF-FORM-4, PART-NAME-1 - PART-NAME-3, BNDL-LOC-1, REG-MFT-2, REG-BM-1"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REF-1",
+   "title": "Partition edges are the external references in the string table",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 1,021 bundles, 124,458 .dbx entries, 84,641 partitions, 266,618 edges, 5,254 without an out-edge, 60,372 without an in-edge"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REF-2",
+   "title": "Two edges in five point at no partition the game ships",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 113,597 dangling edges to 7,652 names; by top folder as above"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REF-3",
+   "title": "The graph has eleven small cycles",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 11 components, sizes 10, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-RES-1",
+   "title": "A resource belongs to a partition by name",
+   "file": "spec/transforms/dependencies.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 80,991 resources, the counts per rule above"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-REG-1",
+   "title": "Bundle and registry edges",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from REG-MFT-4, REG-BM-1, REG-NEW-1, REF-RES-2, BNDL-DEL-2, PART-NAME-3"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-ALG-1",
+   "title": "Computing a closure",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from XEXP-CLO-1, XDEP-REF-1 - XDEP-RES-1, REF-DEL-1, REF-DEL-2; the probe's run time on this PC"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-1",
+   "title": "Steps, records and what a record holds",
+   "file": "spec/transforms/dependencies.md",
+   "status": "implemented",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:1-38"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:191-262"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:266-309"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-126"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:413-470"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-2",
+   "title": "The measured graph",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23, OPFOR's 55 step records of the rebuild of 2026-11-22 / 23: the counts above (they change with every rebuild and step change: the probe prints them, its checks() do not hold them)"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-3",
+   "title": "Three steps read an output a later step writes",
+   "file": "spec/transforms/dependencies.md",
+   "status": "observed",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2)"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:97-117"
+    }
+   ]
+  },
+  {
+   "id": "XDEP-STEP-4",
+   "title": "What a step-graph runner must keep",
+   "file": "spec/transforms/dependencies.md",
+   "status": "inferred",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE"
     }
    ]
   },
@@ -24648,7 +26888,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:333-336"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:333-336"
     }
    ]
   },
@@ -25890,6 +28130,526 @@
     {
      "kind": "inferred",
      "ref": "LIGHT-BAKE-2 and LIGHT-BAKE-6"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-1",
+   "title": "A level's terrain is eight kinds of data, most of them in the terrain bundle",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 30 DICE terrains, each with a main block, a material map, a visual terrain and a water mesh read from the same bundle; terrain_edit.md's corpus counts for the rest (TEDIT-SRC-1, TEDIT-BLK-1)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-2",
+   "title": "DICE's limits: 1 or 2 km squares of 1 m samples, centred on the origin, heights from 0",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: sizes (n, spacing) (1024, 1 m) x 11, (2048, 1 m) x 19; 30 of 30 bounds -n/2 .. n/2 with min y 0"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/heightmap.rs:26-27"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-3",
+   "title": "Generated, derived, reused, or the engine's",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TEDIT-SRC-2's table extended to a whole new terrain; TERR-VT-3 (rule layers are computed), VEG-UG-3 (undergrowth generated at run time), LIGHT-BAKE-1 / -2 (what is baked), XCULL-RES-1 (the export reslots new objects)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-4",
+   "title": "A new terrain takes its own name everywhere",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TERR-NAME-1 and TERR-VT-3's naming; LVL-MODE-2; OPFOR's Wake Island install retargets cloned patch shaders by name the same way (TEDIT-SH-2)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-5",
+   "title": "The export registers the new level's own terrain bundle",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "XEXP-BLD-2 (base bundles read at run time), XEXP-REG-1, XEXP-CHK-1; LVL-MODE-2"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-6",
+   "title": "Collision, water, navigation and cull trees",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "COLL-TERR-1, WATER-MESH-1, CULL-LVL-1, XCULL-RES-1; bfbc2-auto-navkit/tools/navsample_offline.py's `stage` command (round NK6)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/tools/navsample_offline.py:19-21"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-REQ-7",
+   "title": "Lighting: one map to generate, nothing to re-bake",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "LIGHT-BAKE-1, LIGHT-BAKE-2, LIGHT-BAKE-6, LIGHT-IRR-2"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-1",
+   "title": "A terrain's biome is its levels' vegetation set",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:48-63"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: biomes {arid 5, jungle 9, snow 6, temperate 5, vietnam 5}; materials agree on 30 of 30"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-2",
+   "title": "What each biome offers a generator",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: \"TGEN-ASSET per biome\" (materials, atlas layouts, undergrowth meshes, forest / middlegrowth / blueprint types and instances by folder, rock / cliff names) over the 30 terrains and the 74 DICE level partitions on them"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-3",
+   "title": "The pacific biome is OPFOR's conversions of BF1943",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "observed",
+   "variants": "PC, BF1943",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py --ww2, 2026-11-23: per terrain n, range, under-water share 0.915 - 0.963, atlas, patch shaders, undergrowth meshes, materials, forest / middlegrowth / blueprint folders as printed"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-BIOME-4",
+   "title": "One donor visual terrain per generated terrain",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TERR-VT-5, TEDIT-SH-1 - 3, VEG-UG-1, VEG-UG-4, MAT-GRID-2; the Wake Island install's single donor (MP_009CQ)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VIS-1",
+   "title": "Rule-only patch shaders draw a terrain with no atlas tiles",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:251-271"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: rule-only patch shaders (tiled count 0) on 30 of 30 terrains, 1 (MP_006, NAM_MP_006, SP_005, SP_005_B) to 20 (SP_01)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VIS-2",
+   "title": "The donor's rule layers expect the donor's heights",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "RNDR-TERR-2 (literal weights), RNDR-TERR-5 (Wake Island's sea floor shaded against its water at 215 m); the donor's water level from spec/probes/terrain_shape.py"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-1",
+   "title": "Elevation: low basins and a long upper tail",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:107-138"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: per terrain elevation percentiles, hypsometric integral, slope percentiles and shares, relief, beta, water level, under-water share, coastline, border minus centre; per biome medians and ranges as tabled; 99th height percentile over the range 0.02 - 0.90, median 0.48"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-2",
+   "title": "Slopes: a flat floor and a heavy steep tail",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: median of median slopes 20.4; per terrain p10 / p90 / p99 as printed; biome medians of the 99th percentile arid 52.8, jungle 75.0, snow 71.1, temperate 75.1, vietnam 64.6; the prototype's five biomes (seed 7, n 1,024): p99 20.1 / 45.9 / 56.1 / 48.3 / 33.5 degrees, 66 m relief 0.87 / 2.46 / 3.23 / 2.80 / 1.52 m"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-3",
+   "title": "The spectrum is steep and the same in every biome",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:79-96"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: beta 3.16 (SP_005) - 4.56 (SP_004_B, SP_04); 10 m relief per terrain as printed"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-SHAPE-4",
+   "title": "Water and the border",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "observed",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: under-water share, coastline length, water level and border minus centre per terrain as printed; water meshes with no vertices on SP_006 and SP_009"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAY-1",
+   "title": "Combat areas are 1 - 22 % of the terrain, roughly convex, near the middle",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:286-344"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 61 levels (modes from OPFOR's maps.ini); per mode as tabled; inside flatter than outside on 14 / 14 / 10 / 14 levels by mode; under-water share inside, median 0.17 / 0.17 / 0.12 / 0.15"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/l1_distributions.md:42"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAY-2",
+   "title": "Conquest flags stand on flat ground at any height",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 50 flags of 16 Conquest levels: slope, height percentile, relief against 100 m and distance to water percentiles as given; 92 % under 10 degrees"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAY-3",
+   "title": "The generator flattens objective pads",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:111-117"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-1",
+   "title": "A seed and settings give the same terrain, byte for byte",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:94-122"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-2",
+   "title": "The prototype's pipeline matches DICE's medians",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:46-122"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-GEN-3",
+   "title": "What the real generator adds (round TG1)",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TGEN-SHAPE-1 - 3 (what DICE has), TGEN-SHAPE-2 (what the prototype misses), TGEN-PLAY-1 / -2, A3's ROADMAP row"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-MAT-1",
+   "title": "Material names come from the donor level's grid",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:53-59"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-MAT-2",
+   "title": "Materials are painted from height and slope; visual layers follow the same rules",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:208-219"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-VEG-1",
+   "title": "Vegetation and props are placed as the level's model groups",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "VEG-CLS-1 / -2, VEG-UG-1 / -3, COLL-MG-2, XCULL-RES-1; the per-biome instance counts of TGEN-BIOME-2"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-1",
+   "title": "A generated main block reads back in the suite's readers",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:127-178"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-2",
+   "title": "A generated material map decodes and re-encodes byte for byte",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:192-205"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-3",
+   "title": "A generated water mesh reads in the Rust reader",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:222-227"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-4",
+   "title": "The writer canary: DICE's 30 main blocks written again",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_generator_prototype"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:181-189"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_gen_proto.py:331-353"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-OUT-5",
+   "title": "The proof plan",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "terrain_edit.md section 5; XEXP-CHK-1; XNAV-BLD-1 - 4; NavKit's parity target (navkit.md)"
+    }
+   ]
+  },
+  {
+   "id": "TGEN-PLAN-1",
+   "title": "Verdict per part, and rounds TG1 - TG5",
+   "file": "spec/transforms/terrain_gen.md",
+   "status": "inferred",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the verdicts from the rules cited per row; the order from the dependencies (writer, then drawing, then export, then content)"
     }
    ]
   },
@@ -27548,7 +30308,7 @@
     },
     {
      "kind": "doc",
-     "ref": "rust/BENCHMARKS.md:1598-1606"
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:1598-1606"
     }
    ]
   },
