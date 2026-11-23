@@ -3,10 +3,10 @@
   "measures": {
    "got": {
     "sp_004_b": {
-     "candidate": "469a8b98dc0b44833b9318a1fc8120386b5e0931",
+     "candidate": "8d0e8305700314ad62eda32c896472f1bb5fbfb1",
      "connectivity": 100.0,
      "ground": 98.49,
-     "row": "bbf7ec6a2dfcbf13dbe47588da651e5159a671d0"
+     "row": "e9a996a8a8804c419779a1701e29c1abbdac5854"
     },
     "sp_009": {
      "candidate": "7f5f994c100e439d42810258295a8edc0f6329a5",
@@ -55,5 +55,5 @@
    }
   }
  },
- "recorded": "2026-11-22"
+ "recorded": "2026-11-23"
 }

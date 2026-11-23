@@ -11625,3 +11625,18 @@ one level; the user accepted it as a named exception (2026-11-22). No other meas
   `regression_before_2026-11-22_nkg3.json`).
 - The probe: `cargo run --release -p bc2-navbuild --example kynapse_df -- [<level>...] [--cand <folder>] [--before
   <folder>]`.
+
+The golden builds (`navbuild_golden.json`, old -> new SHA-1, bytes; the files grow by the slope rule's D lines; sp_009
+has no normal-pitch terrain D side and is unchanged):
+
+| level | old | new |
+|---|---|---|
+| sp_009 | 7f5f994c100e439d42810258295a8edc0f6329a5 (453,264) | unchanged |
+| sp_004_b | 469a8b98dc0b44833b9318a1fc8120386b5e0931 (8,556,872) | 8d0e8305700314ad62eda32c896472f1bb5fbfb1 (8,565,240) |
+| sp_008_b | 01b978717db04edd7e92aaf29553a951f0a647e9 (8,842,992) | 19c2ac0ff612d3fb8db61b8b37b7a19158ed13ed (8,843,220) |
+| ons_mp_004 | 76caa81b6c2577afcf722ba4a1621ab8bec56ef5 (8,020,340) | 326b162973db3fc5d41d072df7655db8f6fb75b3 (8,023,856) |
+
+`test_navtools_native.py --record --game --only vehicle,measures`: ONS_MP_002's vehicle path data unchanged (vehicle
+builds write no D / F); sp_004_b's parity row re-recorded (its candidate is the new golden build). navregress's
+reference `regression` saved again (exit 1 only for the ruled exception, sp_02 `df_d_recall` 21.86 -> 21.53); the old
+one kept as `regression_before_2026-11-22_nkg3.json`.
