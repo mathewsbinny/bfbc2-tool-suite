@@ -1185,7 +1185,7 @@ pub fn rename_flag(w: &LevelWriter, point: &str, name: &str) -> Result<Op> {
         return Err(refused("a flag's name is not empty"));
     }
     let g = point.to_ascii_uppercase();
-    let letter = marker_of(w, &g).map(|m| text_of(w, &m, b"Sid")).unwrap_or_default();
+    let letter = marker_of(w, &g).map_or_default(|m| text_of(w, &m, b"Sid"));
     let full = if letter.is_empty() || name.starts_with(&format!("{letter}:")) {
         name.to_owned()
     } else {
@@ -1212,6 +1212,9 @@ pub fn rename_flag(w: &LevelWriter, point: &str, name: &str) -> Result<Op> {
     Ok(Op::SetField { items })
 }
 
+/// Texts by loc key: (key, text).
+pub type Texts = Vec<(String, String)>;
+
 /// The texts a level's flags need that the game does not have (round E4-rest, GAME-CQ-12), its spawners' keys
 /// renamed to the exported level's: each soldier spawner of a lettered capture point whose `LocationNameSid` has no
 /// text gets `<LEVEL>_<letter>` with the point's name in capitals (`E: HARBOR`, DICE's form); each capture message
@@ -1227,11 +1230,11 @@ pub fn flag_texts(
     schema: &Schema,
     level: &str,
     has_text: &dyn Fn(&str) -> bool,
-) -> Result<(Vec<(String, String)>, Vec<String>)> {
+) -> Result<(Texts, Vec<String>)> {
     let mut names: Vec<(String, String)> = Vec::new();
     let mut keys: Vec<String> = Vec::new();
     for p in all_of(w, CAPTURE_POINT, |_, _| true) {
-        let letter = marker_of(w, &p).map(|m| text_of(w, &m, b"Sid")).unwrap_or_default();
+        let letter = marker_of(w, &p).map_or_default(|m| text_of(w, &m, b"Sid"));
         let Some(l) = letter
             .chars()
             .next()
@@ -1347,25 +1350,19 @@ pub fn add_spawner(
     let is_soldier = |g: &String| w.find(g).is_some_and(|e| w.type_of(e).ends_with(SOLDIER_SPAWN));
     let own: Vec<String> = spawners(w, point).into_iter().filter(is_soldier).collect();
     let d2 = |g: &str| {
-        w.transform(g).map_or(f32::INFINITY, |r| {
-            (r[3][0] - at[0]).powi(2) + (r[3][2] - at[2]).powi(2)
-        })
+        w.transform(g)
+            .map_or(f32::INFINITY, |r| (r[3][0] - at[0]).powi(2) + (r[3][2] - at[2]).powi(2))
     };
-    let (template, wired) = match own
-        .iter()
-        .find(|s| team_of(w, s) == Some(team))
-        .or_else(|| own.first())
-    {
-        Some(t) => (t.clone(), true),
-        None => {
-            let mut all = all_of(w, SOLDIER_SPAWN, |w, e| w.d.child(e, b"Transform").is_some());
-            all.sort_by(|a, b| d2(a).total_cmp(&d2(b)));
-            let t = all
-                .into_iter()
-                .next()
-                .ok_or_else(|| refused("the level has no soldier spawner to copy a new one from"))?;
-            (t, false)
-        }
+    let (template, wired) = if let Some(t) = own.iter().find(|s| team_of(w, s) == Some(team)).or_else(|| own.first()) {
+        (t.clone(), true)
+    } else {
+        let mut all = all_of(w, SOLDIER_SPAWN, |w, e| w.d.child(e, b"Transform").is_some());
+        all.sort_by(|a, b| d2(a).total_cmp(&d2(b)));
+        let t = all
+            .into_iter()
+            .next()
+            .ok_or_else(|| refused("the level has no soldier spawner to copy a new one from"))?;
+        (t, false)
     };
     let at = &standing(w, &template, at);
     let new = guid(&template);

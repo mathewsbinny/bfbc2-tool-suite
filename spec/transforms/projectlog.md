@@ -369,7 +369,7 @@ connection and the stages' play (the last stage's counter keeps the switches it 
 MP_006's dormant sixth forward base goes with the added stage), and each stage taken out leaves the others played in
 their order with their states.
 
-[code: rust/bc2-levelwrite/src/rushstage.rs:1-2] [code: rust/bc2-levelwrite/src/write.rs:1-2]
+[code: rust/bc2-levelwrite/src/rushstage.rs:1-873] [code: rust/bc2-levelwrite/src/write.rs:939-1034]
 [test: rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level]
 [test: rust/bc2-levelwrite/tests/rush_stages.rs::connections_added_and_taken_out]
 [test: rust/bc2-levelwrite/tests/rush_stages.rs::a_stage_added_and_taken_out_on_port_valdez]

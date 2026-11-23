@@ -255,7 +255,9 @@ pub fn language_texts(bundle: &Path, keys: &[&str]) -> BTreeMap<String, BTreeMap
         .filter_map(|(n, d)| Some((lang_of(n, "_histogram.bin")?, bc2_formats::loc::histogram(d).ok()?)))
         .collect();
     for (n, d) in names.iter().zip(&data) {
-        let Some(lang) = lang_of(n, "_normal.bin") else { continue };
+        let Some(lang) = lang_of(n, "_normal.bin") else {
+            continue;
+        };
         let Ok(f) = bc2_formats::loc::parse(d) else { continue };
         let at: HashMap<u32, usize> = f.entries.iter().enumerate().map(|(i, e)| (e.0, i)).collect();
         for k in keys {
@@ -280,7 +282,7 @@ pub fn language_texts(bundle: &Path, keys: &[&str]) -> BTreeMap<String, BTreeMap
 pub fn flag_message_texts(
     bundle: &Path,
     keys: &[String],
-) -> (Vec<(String, String)>, BTreeMap<String, Vec<(String, String)>>) {
+) -> (crate::gameplay::Texts, BTreeMap<String, crate::gameplay::Texts>) {
     let models = ["HUD_MP_CQ_TOOK_BASE_F", "HUD_MP_CQ_LOST_BASE_F"];
     let texts = language_texts(bundle, &models);
     let mut strings = Vec::new();

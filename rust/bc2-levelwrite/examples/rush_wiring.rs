@@ -7,7 +7,10 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::too_many_lines
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::iter_over_hash_type,
+    clippy::similar_names
 )]
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -39,31 +42,53 @@ fn main() {
                     .map_or_else(String::new, |t| String::from_utf8_lossy(t).into_owned())
             };
             if let (Some(s), Some(t)) = (end(b"Source"), end(b"Target")) {
-                out.entry(s.clone()).or_default().push((ev(b"SourceEvent"), t.clone(), ev(b"TargetEvent")));
-                inn.entry(t).or_default().push((ev(b"SourceEvent"), s, ev(b"TargetEvent")));
+                out.entry(s.clone())
+                    .or_default()
+                    .push((ev(b"SourceEvent"), t.clone(), ev(b"TargetEvent")));
+                inn.entry(t)
+                    .or_default()
+                    .push((ev(b"SourceEvent"), s, ev(b"TargetEvent")));
             }
         }
     }
     let label = |g: &str| -> String {
         let Some(e) = w.find(g) else { return format!("{g}(ext)") };
         let ty = w.type_of(e);
-        let ty = ty.rsplit('.').next().unwrap_or(&ty).trim_end_matches("EntityData").to_owned();
+        let ty = ty
+            .rsplit('.')
+            .next()
+            .unwrap_or(&ty)
+            .trim_end_matches("EntityData")
+            .to_owned();
         let name = ["Name", "Sid", "StringId"]
             .iter()
             .find_map(|f| w.d.child(e, f.as_bytes()).and_then(|x| w.d.text(x)))
             .map_or_else(String::new, |t| String::from_utf8_lossy(t).into_owned());
         let en = modelayer::bool_field(&w, e, b"Enabled").map_or("", |b| if b { "" } else { " [off]" });
-        let bp = w
-            .d
-            .child(e, b"ReferencedObject")
-            .and_then(|x| w.d.attr(x, b"ref"))
-            .map_or_else(String::new, |r| format!(" <{}>", String::from_utf8_lossy(r)));
-        format!("{ty}:{}{}{}{}", &g[..8.min(g.len())], if name.is_empty() { String::new() } else { format!(" '{name}'") }, en, bp)
+        let bp =
+            w.d.child(e, b"ReferencedObject")
+                .and_then(|x| w.d.attr(x, b"ref"))
+                .map_or_else(String::new, |r| format!(" <{}>", String::from_utf8_lossy(r)));
+        format!(
+            "{ty}:{}{}{}{}",
+            &g[..8.min(g.len())],
+            if name.is_empty() {
+                String::new()
+            } else {
+                format!(" '{name}'")
+            },
+            en,
+            bp
+        )
     };
     let (play, unc) = modelayer::rush_play(&w);
     println!("{lv}: {} stages, uncertain {unc}", play.len());
     for (k, s) in play.iter().enumerate() {
-        println!("== stage {} M-COMs {:?}", k + 1, s.mcoms.iter().map(|m| label(m)).collect::<Vec<_>>());
+        println!(
+            "== stage {} M-COMs {:?}",
+            k + 1,
+            s.mcoms.iter().map(|m| label(m)).collect::<Vec<_>>()
+        );
         let mut seen: HashSet<String> = HashSet::new();
         let mut q: VecDeque<(String, usize)> = VecDeque::new();
         for m in &s.mcoms {
@@ -86,7 +111,13 @@ fn main() {
     }
     // who enables / disables each counter, base and combat area
     println!("== Enable/Disable targets by type");
-    for t in ["MultipleTrigger", "CapturePoint", "CombatAreaTrigger", "LifeCounter", "SoldierSpawn"] {
+    for t in [
+        "MultipleTrigger",
+        "CapturePoint",
+        "CombatAreaTrigger",
+        "LifeCounter",
+        "SoldierSpawn",
+    ] {
         for e in w.d.of_type(format!(".{t}EntityData").as_bytes()) {
             let g = named(w.d.attr(e, b"guid").unwrap());
             let ins: Vec<String> = inn

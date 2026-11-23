@@ -953,8 +953,7 @@ impl LevelWriter {
             w.d.child(c, f)
                 .and_then(|x| w.d.child(x, b"Name"))
                 .and_then(|x| w.d.text(x))
-                .map(<[u8]>::to_vec)
-                .unwrap_or_default()
+                .map_or_default(<[u8]>::to_vec)
         };
         let end_of = |w: &Self, c: NodeId, f: &[u8]| -> String {
             w.d.child(c, f)
@@ -1018,7 +1017,10 @@ impl LevelWriter {
                 })?;
                 self.d.set_ref(x, g.to_ascii_lowercase().as_bytes())?;
             }
-            for (f, name) in [(&b"SourceEvent"[..], &c.source_event), (b"TargetEvent", &c.target_event)] {
+            for (f, name) in [
+                (&b"SourceEvent"[..], &c.source_event),
+                (b"TargetEvent", &c.target_event),
+            ] {
                 if name_of(self, copy, f) != name.as_bytes()
                     && let Some(x) = self.d.child(copy, f).and_then(|e| self.d.child(e, b"Name"))
                 {
@@ -1146,7 +1148,12 @@ impl Ownership {
         let is_root = |g: &str| roots.iter().any(|r| r == g);
         // the greatest set: reachable from the objects, every referrer inside it
         let mut dead: HashSet<&str> = self.level.iter().map(String::as_str).collect();
-        dead.extend(except.iter().map(String::as_str).filter(|g| !roots.iter().any(|r| r == g)));
+        dead.extend(
+            except
+                .iter()
+                .map(String::as_str)
+                .filter(|g| !roots.iter().any(|r| r == g)),
+        );
         loop {
             let mut reach: HashSet<&str> = roots.iter().map(String::as_str).collect();
             let mut todo: Vec<&str> = roots.iter().map(String::as_str).collect();

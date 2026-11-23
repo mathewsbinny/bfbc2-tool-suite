@@ -31,7 +31,7 @@
 //! before. Where the shifted wiring leaves an object of the last stage in play during the new one (or the reverse),
 //! the last stage's base counter switches it (`Enable` / `Disable`).
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::files::FileEdit;
 use crate::modelayer::{self, RushStage};
@@ -130,6 +130,10 @@ fn enabled(w: &LevelWriter, g: &str) -> Option<bool> {
 /// # Errors
 /// The level has no Rush stages, its play order is ambiguous, it has no one defenders' life counter, a stage has no
 /// one base counter, or the base counters are not chained as DICE's are.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the stages, their counters, chain, own objects and sets in one reading"
+)]
 pub fn stages(w: &LevelWriter) -> Result<Stages> {
     let (play, uncertain) = modelayer::rush_play(w);
     if play.is_empty() {
@@ -144,11 +148,7 @@ pub fn stages(w: &LevelWriter) -> Result<Stages> {
     let lifes = of_type(w, LIFE_COUNTER);
     let defenders: Vec<String> = lifes
         .iter()
-        .filter(|g| {
-            w.find(g)
-                .and_then(|e| modelayer::bool_field(w, e, b"Attacker"))
-                != Some(true)
-        })
+        .filter(|g| w.find(g).and_then(|e| modelayer::bool_field(w, e, b"Attacker")) != Some(true))
         .cloned()
         .collect();
     let [defenders] = defenders.as_slice() else {
@@ -195,7 +195,11 @@ pub fn stages(w: &LevelWriter) -> Result<Stages> {
             .filter(|c| c.target == *b && c.target_event == "Enable")
             .map(|c| &c.source)
             .collect();
-        let want: Vec<&String> = if k == 0 { Vec::new() } else { bases.get(k - 1).into_iter().collect() };
+        let want: Vec<&String> = if k == 0 {
+            Vec::new()
+        } else {
+            bases.get(k - 1).into_iter().collect()
+        };
         if by != want {
             return Err(refused(format!(
                 "stage {}'s base counter is not enabled by the stage before's alone",
@@ -225,8 +229,7 @@ pub fn stages(w: &LevelWriter) -> Result<Stages> {
         })
         .collect();
     let on = |k: usize, g: &str| {
-        states.get(k).and_then(|s| s.get(g).copied()).unwrap_or(true)
-            || during.get(k).is_some_and(|d| d.contains(g))
+        states.get(k).and_then(|s| s.get(g).copied()).unwrap_or(true) || during.get(k).is_some_and(|d| d.contains(g))
     };
     // what a stage's base counter switches on as the stage ends outlives it
     let outlives = |k: usize, g: &str| {
@@ -252,11 +255,7 @@ pub fn stages(w: &LevelWriter) -> Result<Stages> {
                 .collect()
         })
         .collect();
-    let shared: HashSet<String> = lifes
-        .iter()
-        .cloned()
-        .chain(of_type(w, ".LevelData"))
-        .collect();
+    let shared: HashSet<String> = lifes.iter().cloned().chain(of_type(w, ".LevelData")).collect();
     let ownership = w.ownership_with_events();
     // each stage's roots: its M-COMs, its counters (they stay enabled once their stage is played: not its own) and
     // its own objects
@@ -271,8 +270,13 @@ pub fn stages(w: &LevelWriter) -> Result<Stages> {
         .collect();
     let roots: Vec<Vec<String>> = (0..n)
         .map(|k| {
-            let mut r: Vec<String> = play.get(k).map(|s| s.mcoms.clone()).unwrap_or_default();
-            for g in counters.get(k).into_iter().flatten().chain(owns.get(k).into_iter().flatten()) {
+            let mut r: Vec<String> = play.get(k).map_or_default(|s| s.mcoms.clone());
+            for g in counters
+                .get(k)
+                .into_iter()
+                .flatten()
+                .chain(owns.get(k).into_iter().flatten())
+            {
                 if !r.contains(g) {
                     r.push(g.clone());
                 }
@@ -301,23 +305,24 @@ pub fn stages(w: &LevelWriter) -> Result<Stages> {
     }
     // an instance in two stages' sets stays with the stage it is a root of, else with neither
     let roots: Vec<HashSet<String>> = roots.into_iter().map(|r| r.into_iter().collect()).collect();
-    let mut count: HashMap<&String, usize> = HashMap::new();
+    let mut membership: HashMap<&String, usize> = HashMap::new();
+    #[allow(clippy::iter_over_hash_type, reason = "counting: the order does not matter")]
     for s in &raw {
         for g in s {
-            *count.entry(g).or_default() += 1;
+            *membership.entry(g).or_default() += 1;
         }
     }
-    let mut stages = Vec::new();
+    let mut parts = Vec::new();
     for (k, s) in play.iter().enumerate() {
         let set: Vec<String> = order
             .iter()
             .filter(|g| {
                 raw.get(k).is_some_and(|r| r.contains(*g))
-                    && (count.get(g).copied().unwrap_or(0) == 1 || roots.get(k).is_some_and(|r| r.contains(*g)))
+                    && (membership.get(g).copied().unwrap_or(0) == 1 || roots.get(k).is_some_and(|r| r.contains(*g)))
             })
             .cloned()
             .collect();
-        stages.push(StageParts {
+        parts.push(StageParts {
             mcoms: s.mcoms.clone(),
             base: bases.get(k).cloned().unwrap_or_default(),
             own: owns.get(k).cloned().unwrap_or_default(),
@@ -325,7 +330,7 @@ pub fn stages(w: &LevelWriter) -> Result<Stages> {
         });
     }
     Ok(Stages {
-        stages,
+        stages: parts,
         play,
         states,
         defenders: defenders.clone(),
@@ -344,6 +349,10 @@ pub fn settled(play: &[RushStage], bases: &[String], conns: &[Connection]) -> Ve
         let mut state = match (out.last(), k.checked_sub(1).and_then(|p| play.get(p))) {
             (Some(prev), Some(raw_prev)) => {
                 let mut st = prev.clone();
+                #[allow(
+                    clippy::iter_over_hash_type,
+                    reason = "each object set once: the order does not matter"
+                )]
                 for (g, on) in &s.enabled {
                     if raw_prev.enabled.get(g) != Some(on) {
                         st.insert(g.clone(), *on);
@@ -371,6 +380,9 @@ pub fn settled(play: &[RushStage], bases: &[String], conns: &[Connection]) -> Ve
     out
 }
 
+/// How an object comes into play: its type, team and enabling roles ([`signature`]).
+type Signature = (String, String, BTreeSet<String>);
+
 /// An instance's team as its data names it (`Team`, `InitialOwnerTeam`, `TeamId` or `AllowTeam`).
 fn team(w: &LevelWriter, g: &str) -> String {
     let Some(e) = w.find(g) else { return String::new() };
@@ -391,7 +403,7 @@ fn short_type(w: &LevelWriter, g: &str) -> String {
 /// source's role (`B` the stage's base counter, `P` the stage before's, `S:<type>` an object of the stage's set,
 /// `O:<type>` any other). Stage 1's objects that nothing of their stage enables come into play with the round, as
 /// a later stage's do with the stage before's counter (`P`).
-fn signature(w: &LevelWriter, st: &Stages, conns: &[Connection], k: usize, x: &str) -> (String, String, BTreeSet<String>) {
+fn signature(w: &LevelWriter, st: &Stages, conns: &[Connection], k: usize, x: &str) -> Signature {
     let Some(s) = st.stages.get(k) else {
         return Default::default();
     };
@@ -426,14 +438,14 @@ pub fn counterparts(w: &LevelWriter, st: &Stages, from: usize, to: usize) -> Has
         return out;
     };
     out.insert(a.base.clone(), b.base.clone());
-    let sig_b: Vec<(String, (String, String, BTreeSet<String>))> = b
+    let sig_b: Vec<(String, Signature)> = b
         .own
         .iter()
         .filter(|g| **g != b.base)
         .map(|g| (g.clone(), signature(w, st, &conns, to, g)))
         .collect();
     let mut taken: HashSet<String> = HashSet::new();
-    let mut left: Vec<(String, (String, String, BTreeSet<String>))> = Vec::new();
+    let mut left: Vec<(String, Signature)> = Vec::new();
     for x in a.own.iter().filter(|g| **g != a.base) {
         let sx = signature(w, st, &conns, from, x);
         let same: Vec<&String> = sig_b.iter().filter(|(_, s)| *s == sx).map(|(g, _)| g).collect();
@@ -497,7 +509,7 @@ fn base_count(w: &LevelWriter, schema: &Schema, defenders: &str, by: i64) -> Res
 }
 
 fn v_type(w: &LevelWriter, g: &str) -> String {
-    w.find(g).map(|e| w.type_of(e)).unwrap_or_default()
+    w.find(g).map_or_default(|e| w.type_of(e))
 }
 
 fn applied(w: &LevelWriter, schema: &Schema, op: &Op) -> Result<LevelWriter> {
@@ -536,7 +548,10 @@ pub struct NewStage {
 /// # Errors
 /// [`stages`] refuses the level, it has one stage only (a new stage copies the wiring between the last two), or the
 /// new stage does not play as the last one did.
-#[allow(clippy::too_many_lines, reason = "the stage's copy, its wiring and its check in one piece")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the stage's copy, its wiring and its check in one piece"
+)]
 pub fn add_stage(
     w: &LevelWriter,
     schema: &Schema,
@@ -568,7 +583,9 @@ pub fn add_stage(
     #[allow(clippy::cast_precision_loss, reason = "a handful of M-COMs")]
     let mid = {
         let k = pts.len() as f32;
-        let s = pts.iter().fold([0.0f32; 3], |a, p| [a[0] + p[0], a[1] + p[1], a[2] + p[2]]);
+        let s = pts
+            .iter()
+            .fold([0.0f32; 3], |a, p| [a[0] + p[0], a[1] + p[1], a[2] + p[2]]);
         [s[0] / k, s[1] / k, s[2] / k]
     };
     let d = [at[0] - mid[0], at[1] - mid[1], at[2] - mid[2]];
@@ -587,7 +604,9 @@ pub fn add_stage(
     let Some(root) = last.mcoms.first() else {
         return Err(refused("the last stage has no M-COM"));
     };
-    let root_rows = w.transform(root).ok_or_else(|| refused("the last stage's M-COM has no position"))?;
+    let root_rows = w
+        .transform(root)
+        .ok_or_else(|| refused("the last stage's M-COM has no position"))?;
     let owned: Vec<SubCopy> = last
         .set
         .iter()
@@ -618,12 +637,7 @@ pub fn add_stage(
     let phi = counterparts(w, &st, n - 2, n - 1);
     let in_last: HashSet<&String> = last.set.iter().collect();
     let in_prev: HashSet<&String> = prev.set.iter().collect();
-    let in_other: HashSet<&String> = st
-        .stages
-        .iter()
-        .take(n - 2)
-        .flat_map(|s| s.set.iter())
-        .collect();
+    let in_other: HashSet<&String> = st.stages.iter().take(n - 2).flat_map(|s| s.set.iter()).collect();
     let mut wires: Vec<Connection> = Vec::new();
     let push = |x: Connection, wires: &mut Vec<Connection>| {
         if !have.contains(&x) && !wires.contains(&x) {
@@ -701,9 +715,16 @@ pub fn add_stage(
                 if uncertain { ", in no certain order" } else { "" }
             )));
         }
-        let Some(now) = play.get(n) else { break };
+        // the new stage as the counters leave it (as [`stages`] reads it)
+        let bases_v: Vec<String> = st
+            .stages
+            .iter()
+            .map(|s| s.base.clone())
+            .chain(std::iter::once(c(&last.base)))
+            .collect();
+        let states = settled(&play, &bases_v, &connections(&v));
+        let Some(now) = states.get(n) else { break };
         let mut wrong: Vec<(String, bool)> = now
-            .enabled
             .iter()
             .filter_map(|(g, on)| want(g).filter(|w| w != on).map(|w| (g.clone(), w)))
             .collect();
@@ -785,14 +806,21 @@ pub fn remove_stage(w: &LevelWriter, schema: &Schema, k: usize) -> Result<Op> {
             .get(k - 1)
             .map(|s| s.base.clone())
             .ok_or_else(|| refused("no stage before"))?;
-        let prev_set: HashSet<&String> = st.stages.get(k - 1).map(|s| s.set.iter().collect()).unwrap_or_default();
-        let next = if k + 1 < n { counterparts(w, &st, k, k + 1) } else { HashMap::new() };
+        let prev_set: HashSet<&String> = st.stages.get(k - 1).map_or_default(|s| s.set.iter().collect());
+        let next = if k + 1 < n {
+            counterparts(w, &st, k, k + 1)
+        } else {
+            HashMap::new()
+        };
         let mut push = |x: Connection| {
             if x.source != x.target && !have.contains(&x) && !wires.contains(&x) {
                 wires.push(x);
             }
         };
-        for e in conns.iter().filter(|e| dead.contains(&e.source) && !dead.contains(&e.target)) {
+        for e in conns
+            .iter()
+            .filter(|e| dead.contains(&e.source) && !dead.contains(&e.target))
+        {
             if e.source_event == "OnEnabled" && prev_set.contains(&e.target) {
                 // a stage-k object coming into play acted on the stage before's: the next stage's counterpart does
                 if let Some(s) = next.get(&e.source) {
@@ -842,27 +870,4 @@ pub fn remove_stage(w: &LevelWriter, schema: &Schema, k: usize) -> Result<Op> {
         ));
     }
     Ok(op)
-}
-
-/// What the module's sweep measures per level (GAME-RUSH-11's game-tier test): the stage count, the defenders'
-/// `BaseCount`, the base counters' chain and each stage's own objects by type.
-#[must_use]
-pub fn census(w: &LevelWriter, schema: &Schema) -> Option<(usize, Option<i64>, Vec<BTreeMap<String, usize>>)> {
-    let st = stages(w).ok()?;
-    let count = match w.get_field(schema, &st.defenders, "BaseCount").ok()?.1 {
-        Some(FieldValue::Int(i)) => Some(i),
-        _ => None,
-    };
-    let owns = st
-        .stages
-        .iter()
-        .map(|s| {
-            let mut m: BTreeMap<String, usize> = BTreeMap::new();
-            for g in &s.own {
-                *m.entry(short_type(w, g)).or_default() += 1;
-            }
-            m
-        })
-        .collect();
-    Some((st.stages.len(), count, owns))
 }

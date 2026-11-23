@@ -344,11 +344,11 @@ game has no text, the export adds one: a spawn name `<LEVEL>_<letter>` worded as
 in capitals) and the messages of a letter past F worded as DICE's F with the letter's NATO word in each language that
 says FOXTROT (German "WIR HABEN POSITION GOLF ÜBERNOMMEN!"), English where it does not (Russian, Japanese).
 
-[data: E4-rest: 2026-11-22 sweep pending]
+[data: E4-rest, 2026-11-22: every stock Conquest level of each set, 67 lettered flags: 208 of 208 capture messages name their flag's letter, 103 of 103 soldier spawners' LocationNameSid end in it, all 103 with a text; HUD_MP_CQ_TOOK_BASE_A - F and LOST_BASE_A - F in all 8 languages, G on none]
 [test: rust/bc2-levelwrite/tests/flag_texts.rs::every_conquest_flags_texts_name_its_letter]
 [test: rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_valparaiso]
 [test: rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_a_synthetic_level]
-[code: rust/bc2-levelwrite/src/gameplay.rs:1-2] [code: rust/bc2-levelwrite/src/names.rs:1-2]
+[code: rust/bc2-levelwrite/src/gameplay.rs:1115-1283] [code: rust/bc2-levelwrite/src/names.rs:227-322]
 
 ## 4. Tickets and the end of the round
 
@@ -557,10 +557,11 @@ stage the level does not have. The play's model follows a stage's end in no time
 enables a spawn (DICE's "Enable spawns in B") can come after the base counter's disable of it: the base counter has
 the last word. A stage added after the last is a copy of the last stage wired so (XLOG-GAME-3).
 
-[data: E4-rest: rust/bc2-levelwrite/examples/rush_facts.rs on 31 Rush and Squad Rush levels, 2026-11-22: 30 levels with one base counter per stage and the exact chain (88 stages), BaseCount equal on 30 of 30; base counters' `OnTrigger` CapturePoint `Enable` of the next stage's 54 of 57 middle stages, CombatArea `Enable` 43, `Disable` of its own 36 (0 on the last); 78 later stages' other counters enabled from the start, 3 not; `ons_mp_005gr` (the Onslaught install's) has no defenders' life counter]
+[data: E4-rest: rust/bc2-levelwrite/examples/rush_facts.rs on 31 Rush and Squad Rush levels, 2026-11-22: 30 levels with one base counter per stage and the exact chain (87 stages), BaseCount equal on 30 of 30; base counters' `OnTrigger` CapturePoint `Enable` of the next stage's 54 of 57 middle stages, CombatArea `Enable` 43, `Disable` of its own 36 (0 on the last); 78 later stages' other counters enabled from the start, 3 not; `ons_mp_005gr` (the Onslaught install's) has no defenders' life counter]
+[data: E4-rest sweep, 2026-11-22: on all 30 levels a stage added after the last plays last with its copies as the last stage's objects (72 - 323 copies, 7 - 62 connections added) and, taken out again, gives back every instance and stage state; each of the 87 stages taken out leaves the others in their order and states but one hold-back combat area on nam_mp_002r]
 [test: rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage]
 [test: rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level]
-[code: rust/bc2-levelwrite/src/rushstage.rs:1-2]
+[code: rust/bc2-levelwrite/src/rushstage.rs:1-873]
 
 ### GAME-RULES-1: The round's rules and DICE's values for them
 

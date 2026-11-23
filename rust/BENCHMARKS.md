@@ -10976,6 +10976,80 @@ frame.
 - Unproven until a playtest: whether the game spawns at, captures and announces a copied flag (and shows a fifth
   letter), whether an added M-COM arms and ends its stage, and the rules' effect on a round.
 
+## E4-rest: whole Rush stages, a new flag's texts, spawners (2026-11-22, branch `e4r`)
+
+What round E4 left, items 1 to 3 of 4 (ROADMAP E4-rest). Nothing was written to `game\`; the game never launched.
+
+### What DICE's data says (read only)
+
+- **Rush stage wiring** (GAME-RUSH-11; `examples/rush_facts.rs`, `examples/rush_wiring.rs`): on 30 of the 31 Rush and
+  Squad Rush levels every stage has exactly one base counter (the stage counter whose `OnTrigger` sends
+  `DestructBase` to the defenders' life counter), `BaseCount` equals the stages on 30 of 30, and the chain is exact:
+  stage 1's base counter enabled, every later one disabled and enabled by the stage before's alone, the last enabling
+  none. The other counters (team triggers) are enabled from the start (78 of 81 later ones). A middle base counter
+  enables the next stage's forward capture point (54) and combat area (43) and disables its own (57 / 36); the last
+  disables no combat area. A stage's defenders' base comes in through the new base counter's `OnEnabled`, the
+  attackers' area through a hold-back timer, and a combat area's `OnEnabled` disables the one before. `ons_mp_005gr`
+  (the Onslaught install's) has no defenders' life counter: refused. MP_006's last counter switches on a sixth
+  forward base for a stage the level does not have.
+- **Flag texts** (GAME-CQ-12): capture messages are `HUD_MP_CQ_TOOK_BASE_<letter>` / `LOST_BASE_<letter>`; DICE's
+  localisation has A to F in all eight languages (FOXTROT kept in six); spawn names (`LocationNameSid`) are per-level
+  keys ending in the letter (`MP_001_A` = "A: COMM CENTER"). On every stock Conquest level of each set: 67 lettered flags, 208 of 208 capture
+  messages name their flag's letter, 103 of 103 spawn keys end in it, all with a text.
+- The play model (`modelayer::rush_play`, L1's) follows a stage's end in no time; a timer of the stage's M-COMs that
+  enables a spawn can land after the base counter's disable of it. `rushstage::settled` gives the base counter the
+  last word, so "what is in play during one stage only" is DICE's intent on every level.
+
+### What was built
+
+- `bc2_levelwrite::rushstage`: `stages` (the parts, refusing other wiring), `add_stage`, `remove_stage`,
+  `counterparts`, `settled`; `LevelWriter::connect` and the operation `connect` (project format 10);
+  `Ownership::owned_from_except`; `modelayer::clusters` (one graph for many clusters).
+- `gameplay::add_flag` re-letters the copied capture messages and spawn keys; `rename_flag`; `add_spawner`;
+  `flag_texts` + `names::flag_message_texts` run as the export's step 4b, their texts in the record's `strings`
+  (`mapexport overlay` and OPFOR's install add them, built from the overlay's backup; `--remove` takes out
+  `<LEVEL>_A` - `_Z`).
+- Editor: the Gameplay tool's Add stage / Add spawner, the panel's Remove stage, Add stage after the last and the
+  selected flag's name; `app::PanelRequest` for the interface tests.
+
+### Proofs
+
+- Synthetic Rush level (CI): three stages, a fourth added (13 copies), played last; taken out again; every stage taken
+  out; the log's version 10; refusals (no stages, the only stage). `connect` added, refused twice, taken out.
+- Port Valdez (`MP_012GR`, 258 copies, 27 wires) and its Squad Rush (`MP_012SR`): through the log, the partition read
+  back byte for byte.
+- Game tier, every Rush and Squad Rush level of each set (`every_rush_level_is_wired_stage_by_stage`, 427 s): 30
+  levels, 87 stages accepted, `ons_mp_005gr` refused. On each a stage added after the last (72 - 323 copies, 7 - 62
+  connections beside the copies'; 0 left unshifted on most) plays last, the others as before, its copies as the last
+  stage's objects; removed again, every instance and stage state is back (MP_006's dormant forward base goes with
+  it), the last counter keeping 1 - 35 switches. Each of the 87 stages taken out leaves the others in order with their
+  states, but one: on `nam_mp_002r`, with stage 2 out, the attackers' hold-back area `CombatArea7` (switched on by
+  stage 2's area going off) stays on in stage 3.
+- Valparaiso: flags E, F, G added; E's messages `..._E` and spawn key `MP_001_E`, renamed by the export to
+  `<LEVEL>_E` "E: FLAG E"; G's messages worded "WE HAVE TAKEN POSITION GOLF", German "WIR HABEN POSITION GOLF
+  ÜBERNOMMEN!", Russian left to the English. A spawner added to flag A (12 copies, wired as the flag's own) and
+  deleted: the level as it was (the delete now takes a spawner's points although the flag's cluster lists them).
+- Aurora (`SP_01`) as Conquest with E4's edits (`aurora_conquest_with_the_tools_edits_exports`): built in 28-39 s,
+  `export::check` holds it; the new flag E's spawner keyed `MAPEDIT_GAMEPLAY_AURORA_E` with "E: FLAG E" in the
+  record's `strings` (the stage checks of the level's own names now look at the name keys only: a first run failed
+  XVAL-NAME-8/9 when the flag texts made `strings` non-empty).
+- Editor (headless, both themes): the demo flag renamed from the panel (one operation, undone), a spawner and a stage
+  refused in words; on `MP_012GR` a fifth stage by a click on the ground ("Add Rush stage 5"), removed from the panel,
+  undone, redone, stage 2 removed. Screenshots `gameplay_rename_<theme>`, `gameplay_stage_<theme>` (session scratch).
+
+### What is left (E4-rest2)
+
+- PR1b-0's leftovers (item 4, not started): the AI workspace's nine `NavTool`s and placing from the content browser
+  onto `ViewTool`; the other 12 workers onto `Task`.
+- A stage inserted between two (a stage is added after the last; insertion is a removal and adds).
+- Removing an added stage leaves the last counter with the switches it gained (as DICE's middle counters have them):
+  semantically the level's, not byte for byte; undo is the exact way back.
+- Taking out a Vietnam Rush stage can leave a hold-back combat area on (`nam_mp_002r`, stage 2: `CombatArea7`).
+- Vehicle spawners DICE stops by `DisableSpawnPointFunctionality` that are shared between stages are not stopped by a
+  new stage's end where no counterpart is found (counted as "unshifted": 0 on most levels, up to 9 on `nam_mp_005r`).
+- Unproven until a playtest: an added or shortened stage chain playing (bases, areas, hold-back timers,
+  reinforcements, the round's end), the new texts on the HUD and the deploy screen, a spawner added to a flag.
+
 ## NKG2: NavKit's graph toward DICE's - the spanner, the owner rule and its band (2026-11-22, branch `nkg2`)
 
 The graph-and-areas half of the NavKit gap list (`spec/transforms/kynapse_generation.md`). Every candidate change was

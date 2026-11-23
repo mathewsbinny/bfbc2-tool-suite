@@ -479,7 +479,8 @@ impl Tabs<'_> {
         {
             match crate::gameplay::remove_stage_op(d, k) {
                 Ok(op) => {
-                    self.view.commit(gpu, &palette, op, &format!("Remove Rush stage {}", k + 1));
+                    self.view
+                        .commit(gpu, &palette, op, &format!("Remove Rush stage {}", k + 1));
                 }
                 Err(why) => self.view.message = format!("Stage {} not removed: {why}", k + 1),
             }

@@ -4087,7 +4087,7 @@ fn stage_names(rec: &StageRecord) -> crate::names::LevelNames {
         level: rec.level.clone(),
         folder: String::new(),
         browser: rec.title.clone(),
-        own: !rec.strings.is_empty(),
+        own: rec.strings.iter().any(|x| x.0 == nk),
         name: text(&rec.strings, &nk),
         description: text(&rec.strings, &dk),
         languages: rec
@@ -4160,7 +4160,7 @@ fn check_names(game: &Game, rec: &StageRecord, r: &mut CheckReport) {
             wrong.push(format!("bundleManifest line {}", l.split('\t').next().unwrap_or(l)));
         }
     }
-    if !rec.strings.is_empty() {
+    if rec.strings.iter().any(|x| x.0 == loc_keys(&rec.level).0) {
         let (nk, _) = loc_keys(&rec.level);
         let key_prefix = nk.find("_NAME").map_or("", |at| nk.get(..at).unwrap_or(""));
         let picture = format!("Awards/images/loadingScreens/{}.res", key_prefix.to_ascii_lowercase());
@@ -4198,7 +4198,10 @@ fn check_identity(
     ours: &[(String, EditDbx)],
     r: &mut CheckReport,
 ) -> Result<()> {
-    if rec.strings.is_empty() && rec.awards.is_empty() {
+    let (nk, dk) = loc_keys(&rec.level);
+    // the level's own name and description (the flags' texts, round E4-rest, are in `strings` too)
+    let named: Vec<&(String, String)> = rec.strings.iter().filter(|x| x.0 == nk || x.0 == dk).collect();
+    if named.is_empty() && rec.awards.is_empty() {
         r.add(
             "XVAL-NAME-9",
             true,
@@ -4206,8 +4209,7 @@ fn check_identity(
         );
         return Ok(());
     }
-    let (nk, dk) = loc_keys(&rec.level);
-    let keys: Vec<&str> = rec.strings.iter().map(|x| x.0.as_str()).collect();
+    let keys: Vec<&str> = named.iter().map(|x| x.0.as_str()).collect();
     // each text in each language's encoding (round EX1: names per language)
     let langs = crate::names::Languages::read(game);
     let all_langs: Vec<String> = if langs.tables.is_empty() {
@@ -4232,7 +4234,7 @@ fn check_identity(
         .strings_by_language
         .values()
         .flatten()
-        .all(|(k, _)| *k == nk || *k == dk);
+        .all(|(k, _)| *k == nk || *k == dk || rec.strings.iter().any(|x| x.0 == *k));
     let desc = ours.iter().find(|(n, _)| n.eq_ignore_ascii_case(&rec.description.1));
     let lvl = ours
         .iter()

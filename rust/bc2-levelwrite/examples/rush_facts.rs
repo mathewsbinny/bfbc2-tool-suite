@@ -8,7 +8,13 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::too_many_lines
+    clippy::too_many_lines,
+    clippy::needless_range_loop,
+    clippy::iter_over_hash_type,
+    clippy::uninlined_format_args,
+    clippy::cast_possible_wrap,
+    clippy::similar_names,
+    clippy::many_single_char_names
 )]
 
 use std::collections::{BTreeMap, HashSet};
@@ -63,18 +69,21 @@ fn main() {
                         || "?".into(),
                         |e| {
                             let t = w.type_of(e);
-                            t.rsplit('.').next().unwrap_or(&t).trim_end_matches("EntityData").to_owned()
+                            t.rsplit('.')
+                                .next()
+                                .unwrap_or(&t)
+                                .trim_end_matches("EntityData")
+                                .to_owned()
                         },
                     )
                 };
                 let enabled = |g: &str| w.find(g).and_then(|e| modelayer::bool_field(&w, e, b"Enabled"));
                 let (play, unc) = modelayer::rush_play(&w);
-                let lifes: Vec<String> = w
-                    .d
-                    .of_type(b".LifeCounterEntityData")
-                    .into_iter()
-                    .map(|e| named(w.d.attr(e, b"guid").unwrap()))
-                    .collect();
+                let lifes: Vec<String> =
+                    w.d.of_type(b".LifeCounterEntityData")
+                        .into_iter()
+                        .map(|e| named(w.d.attr(e, b"guid").unwrap()))
+                        .collect();
                 // base counters: the stage counters whose OnTrigger reaches DestructBase
                 let mut bases: Vec<Vec<String>> = Vec::new();
                 for s in &play {

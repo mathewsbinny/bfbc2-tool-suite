@@ -11,6 +11,12 @@
     clippy::too_many_lines,
     clippy::panic,
     clippy::doc_markdown,
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::cast_precision_loss,
+    clippy::iter_over_hash_type,
+    clippy::bool_assert_comparison,
+    clippy::assert_is_empty,
     missing_docs
 )]
 
@@ -103,7 +109,11 @@ fn a_new_flags_texts_on_a_synthetic_level() {
     assert_eq!(msgs.len(), 2);
     for m in &msgs {
         assert_eq!(text(&w, m, b"MessageSid"), "HUD_MP_CQ_TOOK_BASE_C");
-        assert!(text(&w, m, b"Name").ends_with("Taking base C"), "{}", text(&w, m, b"Name"));
+        assert!(
+            text(&w, m, b"Name").ends_with("Taking base C"),
+            "{}",
+            text(&w, m, b"Name")
+        );
     }
     let mut v = w.clone();
     let (names, keys) = gameplay::flag_texts(&mut v, &schema, "MAPEDIT_TEST", &dice_has).unwrap();
@@ -143,7 +153,10 @@ fn a_new_flags_texts_on_valparaiso() {
     let schema = Schema::scan(Some(&w0.d));
     let langs = bc2_levelwrite::names::Languages::read(&game);
     let has = |k: &str| langs.text_of(k).is_some();
-    assert!(has("HUD_MP_CQ_TOOK_BASE_F") && !has("HUD_MP_CQ_TOOK_BASE_G"), "DICE's keys: A to F");
+    assert!(
+        has("HUD_MP_CQ_TOOK_BASE_F") && !has("HUD_MP_CQ_TOOK_BASE_G"),
+        "DICE's keys: A to F"
+    );
     let (w, flags) = add_flags(&w0, &schema, 3);
     let unit = gameplay::unit(&w, &flags[0]);
     let sids: HashSet<String> = of_type(&w, &unit, ".MessageEntityData")
@@ -177,7 +190,10 @@ fn a_new_flags_texts_on_valparaiso() {
     for f in gameplay::flags(&w0) {
         for s in gameplay::spawners(&v, &f) {
             if v.type_of(v.find(&s).unwrap()).ends_with(".SoldierSpawnEntityData") {
-                assert!(text(&v, &s, b"LocationNameSid").starts_with("MP_001_"), "DICE's flags keep theirs");
+                assert!(
+                    text(&v, &s, b"LocationNameSid").starts_with("MP_001_"),
+                    "DICE's flags keep theirs"
+                );
             }
         }
     }
@@ -190,7 +206,10 @@ fn a_new_flags_texts_on_valparaiso() {
     assert_eq!(took(&strings).as_deref(), Some("WE HAVE TAKEN POSITION GOLF"));
     let de = took(by_language.get("german").unwrap()).unwrap();
     assert!(de.starts_with("WIR HABEN POSITION GOLF"), "{de}");
-    assert!(!by_language.contains_key("russian"), "Russian says FOXTROT its own way: the English stands");
+    assert!(
+        !by_language.contains_key("russian"),
+        "Russian says FOXTROT its own way: the English stands"
+    );
 }
 
 /// A soldier spawner added to Valparaiso's flag A (one operation): a copy of the flag's spawner with its spawn
@@ -233,7 +252,11 @@ fn a_spawner_added_to_a_flag_and_deleted() {
             .filter(|c| c.source == g || c.target == g)
             .count()
     };
-    assert_eq!(wires(&w, &new), wires(&w0, &template), "wired as the flag's own spawner");
+    assert_eq!(
+        wires(&w, &new),
+        wires(&w0, &template),
+        "wired as the flag's own spawner"
+    );
     let del = gameplay::delete_unit(&w, &schema, &new).unwrap();
     let back = applied(&w, &schema, &del);
     assert_eq!(back.guids(), w0.guids());

@@ -467,7 +467,8 @@ pub fn place_op(
                     .map(|h| h.point[1])
             };
             let n = rush_stages(doc).len();
-            let s = bc2_levelwrite::rushstage::add_stage(w, &doc.schema, p, &guid, &ground).map_err(|e| e.to_string())?;
+            let s =
+                bc2_levelwrite::rushstage::add_stage(w, &doc.schema, p, &guid, &ground).map_err(|e| e.to_string())?;
             let first = s.mcoms.first().cloned().unwrap_or_default();
             Ok((s.op, format!("Add Rush stage {}", n + 1), first))
         }
@@ -479,7 +480,10 @@ pub fn place_op(
 #[must_use]
 pub fn point_for(doc: &Doc, selection: &[usize], at: crate::math::V3) -> Option<String> {
     let w = doc.writer()?;
-    let is_point = |g: &str| w.find(g).is_some_and(|e| w.type_of(e).ends_with(".CapturePointEntityData"));
+    let is_point = |g: &str| {
+        w.find(g)
+            .is_some_and(|e| w.type_of(e).ends_with(".CapturePointEntityData"))
+    };
     if let Some(g) = selection.iter().filter_map(|&k| doc.guid(k)).find(|g| is_point(g)) {
         return Some(g.to_owned());
     }

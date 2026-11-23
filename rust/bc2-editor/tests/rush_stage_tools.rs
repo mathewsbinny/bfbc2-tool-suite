@@ -11,6 +11,8 @@
     clippy::print_stdout,
     clippy::too_many_lines,
     clippy::panic,
+    clippy::many_single_char_names,
+    clippy::assert_is_empty,
     missing_docs
 )]
 
@@ -103,7 +105,12 @@ fn flag_names_and_refusals_on_the_demo_level() {
         app.theme = theme;
         h.settle(&mut app, 2);
         let gpu = h.gpu.clone();
-        app.open_scene_then(&gpu, "demo", scene, Then::Create("Rename demo".into(), dir.clone(), None));
+        app.open_scene_then(
+            &gpu,
+            "demo",
+            scene,
+            Then::Create("Rename demo".into(), dir.clone(), None),
+        );
         h.settle(&mut app, 6);
         gameplay_workspace(&mut h, &mut app);
         let flag = demo::level_guid(5);
@@ -114,7 +121,9 @@ fn flag_names_and_refusals_on_the_demo_level() {
         h.settle(&mut app, 3);
         let log = ops(&app);
         assert_eq!(log.len(), 1, "{}", app.view().unwrap().message);
-        let Op::SetField { items } = &log[0] else { panic!("{log:?}") };
+        let Op::SetField { items } = &log[0] else {
+            panic!("{log:?}")
+        };
         assert!(items.iter().all(|i| i.to.text().ends_with("Harbor")), "{items:?}");
         assert_eq!(labels(&app), ["Rename flag"]);
         shot(&mut h, &mut app, &format!("gameplay_rename_{}.png", theme.key()));
@@ -162,9 +171,11 @@ fn a_rush_stage_through_the_interface() {
         app.theme = theme;
         h.settle(&mut app, 2);
         let gpu = h.gpu.clone();
-        if let Err(e) =
-            app.open_level_blocking_then(&gpu, "mp_012gr", Then::Create("Port Valdez stages".into(), dir.clone(), None))
-        {
+        if let Err(e) = app.open_level_blocking_then(
+            &gpu,
+            "mp_012gr",
+            Then::Create("Port Valdez stages".into(), dir.clone(), None),
+        ) {
             println!("skipped: {e}");
             return;
         }
