@@ -166,7 +166,8 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [engine/bot_ai.md](engine/bot_ai.md) | bot AI: the AI frame and its time-sliced passes, the bot and player proxy, goals / behaviours / squad behaviours, the control boundary (the AI player, its input object, the actions it sends), perception, combat, movement, vehicles, squads, the game state a bot reads, difficulty; the implementation interface for OPFOR's bot module and the RE still needed |
 | [engine/rendering.md](engine/rendering.md) | the Direct3D 11 renderer: shader databases, draws, order, terrain, water, weather, post-process, shadows |
 | [engine/audio.md](engine/audio.md) | waves, streaming and on-demand audio, the announcer per content set, voice-over events |
-| [engine/network.md](engine/network.md) | the in-process host (`hostMultiplayerLocal`), the transport, the join, the server browser |
+| [engine/network.md](engine/network.md) | the in-process host (`hostMultiplayerLocal`), the transports (in-memory, UDP, the online factory), the connection layer, network settings and start-up options, versions and disconnect reasons, PunkBuster, the server's listen path, the join by address, EA's Plasma back-end and its LAN mode, the server browser |
+| [engine/network_feasibility.md](engine/network_feasibility.md) | study (no rules): what locally hosted play, Direct IP, VLAN and LAN would need, their risks, effort, order and the tests that would prove them |
 | [engine/menus.md](engine/menus.md) | the level catalogue, engine-movie events, movie loading and unloading |
 | [engine/crashes.md](engine/crashes.md) | index: every recorded fault address and its rule |
 | [engine/lighting.md](engine/lighting.md) | baked occlusion, irradiance volumes, reflection cubes, the outdoor light, point lights (`ActAsPointLight`, `PointLightEntityData`), sky props, DICE's night rules (round SPG) |
@@ -256,7 +257,8 @@ the suite's reproduction and its tests. Every recorded crash address is a rule i
 4. **AI / navigation** (`ai.md`): the AI's start, the Kynapse runtime, what bots need.
 5. **Rendering** (`rendering.md`): the Direct3D 11 pipeline as round R5 reproduced it.
 6. **Audio / voice-over** (`audio.md`): waves, streaming and on-demand rules, the announcer per content set.
-7. **Networking / hosting** (`network.md`): the in-process host, the transport, the server browser.
+7. **Networking / hosting** (`network.md`): the in-process host, the transports and the connection layer, the
+   server's listen path, the back-end, the server browser; `network_feasibility.md` studies remote play.
 8. **Menus** (`menus.md`): the level catalogue, engine-movie events, movie unload.
 
 Round SPG (the gap pass, `COVERAGE.md`) wrote lighting, weather, effects, weapons, vehicles, materials,
