@@ -4119,7 +4119,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 533,
+   "lines": 535,
    "note": "read-only probe for spec/transforms/terrain_gen.md (DICE terrain shapes, biomes, playable areas); game tier",
    "path": "spec/probes/terrain_shape.py",
    "retiring": "stays",
@@ -4545,7 +4545,7 @@
  "totals": {
   "all": {
    "files": 373,
-   "lines": 109635
+   "lines": 109637
   },
   "by_folder": {
    "(root)": {
@@ -4770,12 +4770,12 @@
    },
    "spec": {
     "files": 18,
-    "lines": 6074,
+    "lines": 6076,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6074,
+    "stays": 6076,
     "test": 0,
     "twin": 0
    },
@@ -4810,7 +4810,7 @@
    },
    "stays": {
     "files": 66,
-    "lines": 12817
+    "lines": 12819
    },
    "test": {
     "files": 188,

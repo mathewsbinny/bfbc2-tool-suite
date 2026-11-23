@@ -29,9 +29,9 @@ rounds NK4 and NK5.
 | twin | 56 | 19,636 |
 | ported | 21 | 2,584 |
 | retired-pending | 3 | 310 |
-| stays | 66 | 12,817 |
+| stays | 66 | 12,819 |
 | test | 188 | 51,847 |
-| **all** | **373** | **109,635** |
+| **all** | **373** | **109,637** |
 
 | Folder | Files | Lines | live | partly | twin | ported | retired-pending | stays | test |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -55,7 +55,7 @@ rounds NK4 and NK5.
 | `core` | 76 | 20,367 | 757 |  | 2,429 | 1,909 |  |  | 15,272 |
 | `design` | 1 | 53 |  |  |  |  |  | 53 |  |
 | `rust` | 33 | 6,020 |  |  |  |  |  | 5,753 | 267 |
-| `spec` | 18 | 6,074 |  |  |  |  |  | 6,074 |  |
+| `spec` | 18 | 6,076 |  |  |  |  |  | 6,076 |  |
 | `tests` | 29 | 7,619 |  |  |  |  |  |  | 7,619 |
 
 Lines by status in the folder table.
@@ -528,7 +528,7 @@ Lines by status in the folder table.
 
 ## `spec`
 
-18 files, 6,074 lines.
+18 files, 6,076 lines.
 
 | File | Lines | Kind | Status | Rust counterpart | Callers | Retiring | Note |
 |---|---:|---|---|---|---|---|---|
@@ -546,7 +546,7 @@ Lines by status in the folder table.
 | `spec/probes/scripting.py` | 127 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/scripting.md (the level event graph); checked in the game tier |
 | `spec/probes/terrain.py` | 564 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/transforms/terrain_edit.md and terrain.md; checked in the game tier |
 | `spec/probes/terrain_gen_proto.py` | 354 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | round TG0's throw-away terrain generator prototype (spec/transforms/terrain_gen.md); TG1 writes the real one in Rust, then this file goes |
-| `spec/probes/terrain_shape.py` | 533 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/transforms/terrain_gen.md (DICE terrain shapes, biomes, playable areas); game tier |
+| `spec/probes/terrain_shape.py` | 535 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/transforms/terrain_gen.md (DICE terrain shapes, biomes, playable areas); game tier |
 | `spec/probes/vehicles.py` | 359 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/vehicles.md |
 | `spec/probes/weapons.py` | 456 | build or dev script | stays |  | core/tests/test_spec_probes.py (game) | stays | read-only probe for spec/engine/weapons.md |
 | `spec/trace.py` | 374 | build or dev script | stays |  | run_tests.py (quick); tests 1 | proposed: Tests in Rust | the specification's traceability check |
