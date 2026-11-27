@@ -1,0 +1,445 @@
+{
+ "about": "The rules of spec/engine/gamemodes.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: 2 startup bundles (Dist 2010, the Vietnam patch's Package 2012), 10 GameModeData; mode ids conquest, goldrush, singleplayer, squadrush, tdm; query ids CONQUEST, RUSH, SQDM, SQRUSH and empty"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-DATA-1",
+   "status": "verified",
+   "title": "DICE's ten GameModeData partitions",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: live GameModes partitions by place startup 6, common level 9, level 15, main menu 10, eula 80; 168 deletion markers"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the deletion markers keep a mode level's bundle stack from carrying the sibling modes' partitions; no exe reader of a marker was looked for"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-DATA-2",
+   "status": "verified",
+   "title": "Where the mode partitions live; mode levels delete their map's other modes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: 74 descriptions; content sets BC2, VIETNAM; licences ciab, nam, sqr and none"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-DATA-3",
+   "status": "verified",
+   "title": "The descriptions name the mode, the content set and the licence",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x92AB10 (`call 0x920750; mov eax,[eax+0x20"
+    },
+    {
+     "kind": "data",
+     "ref": "scratch operand scan, 2026-11-27: every load of `[reg+0xA4"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-READ-1",
+   "status": "observed",
+   "title": "Who reads each GameModeData field",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: push / mov-imm loads of the literals in the code: conquest 9, goldrush 2, squadrush 3, tdm 7, singleplayer 5"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x749132, 0x749682, 0x749F72, 0x753293, 0x76D575, 0x76E612, 0x7773D4, 0x78642E, 0x786AF0 (conquest); 0x7532B0, 0x787E4F (goldrush); 0x753306, 0x561851, 0x664F7D (squadrush); 0x749162, 0x749F9C, 0x753333, 0x561834, 0x7764A4, 0x959417, 0x95955D (tdm); 0x568177, 0x568640, 0x86509E, 0x949F07, 0x950212 (singleplayer)"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-SW-1",
+   "status": "verified",
+   "title": "The executable compares ModeID with five literals at 26 sites",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x561834 - 0x5618EC (the compares, the allocations, the store to 0x15666C0); readers 0x532AA0, 0x54F4AF, 0x564CF1, 0x569A1B, 0x573F9B"
+    },
+    {
+     "kind": "inferred",
+     "ref": "kind 0's large object holds the flag / objective modes' team and squad rules, the two small ones the squad modes'; their virtual functions were not read"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-SW-2",
+   "status": "observed",
+   "title": "A level's ModeID picks a mode-kind object: Squad Deathmatch, Squad Rush or the rest",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: CONQUEST, RUSH, SQDM, SQRUSH loaded 3 times each"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5680C0 - 0x568197; 0x77C657 (`any` 0x142B6D4 via 0x508160), 0x77C686 / 0x77C73C / 0x77C7F2 / 0x77C8A8; 0x8654A7 / 0x86552C / 0x8655B1 / 0x865636"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-SW-3",
+   "status": "verified",
+   "title": "The matchmaking id: the stats category and the fixed list of four",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x56862F - 0x568665 (`repe cmpsb` with 0x1418768, then [ebx+0xA8"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-SW-4",
+   "status": "observed",
+   "title": "The singleplayer ModeID: no start delay, no server level, its stats category",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x95160F - 0x95169C: `+0x38` (the description's GameMode), `lea [ebp+0x6C"
+    },
+    {
+     "kind": "inferred",
+     "ref": "\"first wins\" from the insert-if-absent shape; the order of the walk is the startup bundle's"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-CAT-1",
+   "status": "observed",
+   "title": "The menus' mode catalogue is keyed by ModeID",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: MP_Template loaded 9 times, SP_Template 8; Persistence/Ons_Template absent from the exe"
+    },
+    {
+     "kind": "data",
+     "ref": "scratch read of DICE's startup bundles, 2026-11-27: PersistenceData MP_Template (2,066 final templates), SP_Template (324), Ons_Template (170)"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-PERS-1",
+   "status": "verified",
+   "title": "The persistence template is chosen by campaign or multiplayer only",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: 65 matchmaking maps, modes CONQUEST, ONSLAUGHT, RUSH, SQDM, SQRUSH; playlists CONQUEST 2, ONSLAUGHT 1, RUSH 2, SQDM 2, SQRUSH 2"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-MM-1",
+   "status": "verified",
+   "title": "DICE's matchmaking data names the modes by query id, Onslaught included",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: +0xC8C8C 33 instructions (cmp 1: 20, cmp reg: 1, load 7, store 5), +0xC8C90 8; the 33 addresses listed"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe every address in the table; extern names from the getters' jump tables (bfbc2-menu-tools/aptrefslib.py GETTERS, the HUD getter 0x777B30's table 0x77BAB8 / 0x77B880)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:59-97"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-MOD-1",
+   "status": "verified",
+   "title": "33 instructions use the game mod, 8 the requested one",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x772DD0 - 0x77333C (0x772E62: 0x459530 with type 0x1BFD69C; 0x772EC2 - 0x772EE5: asset +0x18 kept; 0x773313 - 0x773332); 0x775CE9 - 0x775D10; 0x9563E5"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: the `gameMod` string loaded 5 times, all as a matchmaking attribute key (0x77CA01, 0x77CAA4, 0x77D130, 0x77D1D5, the server's 0x84FD2A)"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:485-505"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-MOD-2",
+   "status": "observed",
+   "title": "The game mod follows the level's MatchmakingModID; the exe keeps no setting",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: the tags BC2 loaded 8 times, VIETNAM 6; the strings PACIFIC, BFBC2143, BFBC2Beach, BC1, BFBC1 absent"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8FF330 (two compares, default 0); 0x75FD8C - 0x75FE42"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-MOD-3",
+   "status": "verified",
+   "title": "Only 0 and 1 exist in the code",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x75AEB2 / 0x75AF15; 0x7584AD / 0x758510; 0x775D1F - 0x775D54 (pointers 0x150A270 - 0x150A27C); 0x751BC2; 0x9208D0; 0x93C4EF; 0x9469E3 / 0x9469EB"
+    },
+    {
+     "kind": "data",
+     "ref": "scratch read, 2026-11-27: MenuConfigAsset in Dist / pristine Package main menu (menuConfig, nam_menuConfig: BackgroundMusic differs), HudConfigAsset hudConfig (mp_common, sp_common) and nam_hudConfig (nam_common), GameTips per level and nam_GameTips in nam_common"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-RES-1",
+   "status": "observed",
+   "title": "Each era's resources, and when they are chosen",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::game_modes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/gamemodes.py, 2026-11-27: Dist UnlocksData 2, WeaponData 134, Vietnam fields 0; Package UnlocksData 2, WeaponData 131, UnlocksDataVietnam 2, WeaponDataVietnam 26"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-RES-2",
+   "status": "verified",
+   "title": "The Vietnam patch adds the era's half of UISharedConfigAsset",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x75FCC0 - 0x75FCE9; 0x920C00 (stores +0xC8C90 at 0x920C0E); 0x76FCDE - 0x76FCF5; 0x649ED0 and its 10 call sites (0x6523A7, 0x6523C8, 0x6524EC, 0x76FCF5, 0x7785FB, 0x8528E3, 0x852904, 0x866E57, 0x951A83, 0x951CC5); 0x75FE32 - 0x75FE42"
+    },
+    {
+     "kind": "data",
+     "ref": "scratch read of DICE's startup bundles, 2026-11-27: EntitlementAsset 1, EntitlementQuery 5 (group names and tags as listed)"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-LIC-1",
+   "status": "observed",
+   "title": "The licence, entitlement and sign-in checks tied to the era",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x77C9A6 - 0x77CA2D, 0x77D0C3 - 0x77D20E (the attribute map 0x775930, posted as message 0x25 at 0x77D24E); 0x84FCA8 - 0x84FD52; 0x864E50 (0x864EAB `LevelListQuery`; 0x865064 - 0x8650F2)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the server's +0xB8 / +0x118 strings come from its settings; their writers were not read"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-MM-1",
+   "status": "observed",
+   "title": "The era online: matchmaking attributes and the server's level list",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from GMD-DATA-1 - GMD-DATA-3, GMD-SW-1 - GMD-SW-4, GMD-CAT-1, GMD-PERS-1; OPFOR's two new modes followed it (ONS-MODE-2, LOAD-START-2)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:35-43"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2675-2676"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-NEW-1",
+   "status": "inferred",
+   "title": "The minimum data set of a new mode",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from GMD-SW-1, GMD-SW-2, GMD-CAT-1 and OPFOR's levelfix hook"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:57-84"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "GMD-NEW-2",
+   "status": "inferred",
+   "title": "What a new ModeID needs in code",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-MOD-1 - ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-LIC-1, GMD-PERS-1"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:257-311"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-NEW-1",
+   "status": "inferred",
+   "title": "What a third game-mod value would touch",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from ERA-NEW-1; OPFOR's module implements (1) - (4) for the Pacific War except the HUD configuration and icon set"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:125-174"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-NEW-2",
+   "status": "inferred",
+   "title": "An era is a host layer over 0 / 1 with per-site own content",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:485-505"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:57-84"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode_rules.h:235-243"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-OPF-1",
+   "status": "implemented",
+   "title": "OPFOR today, and its gaps",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the code of battlefield-opfor read on 2026-11-27 (gamemode.rs detour_parse_game_mod returns the active mode's engine_mode) against ERA-MOD-2"
+    }
+   ],
+   "file": "spec/engine/gamemodes.md",
+   "id": "ERA-OPF-2",
+   "status": "inferred",
+   "title": "battlefield-opfor's host, and its gaps",
+   "variants": "PC"
+  }
+ ]
+}

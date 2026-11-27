@@ -6094,3 +6094,41 @@ Proof:
   still name `stfs.py`.
 - The preview tools (`wake_preview`, `weapon_preview`) and the preview sheets (Pillow's text) stay Python.
 - `attachments.py` still calls `np.linalg.eigh(c.T @ c)` (its own fit, not texwrite's).
+
+## GM0: authoring new game modes and eras - research (2026-11-27, branch `gm0`)
+
+Static only: a linear capstone sweep of a scratch copy of `BFBC2Game.exe` (PC build 795745; 6,575,079 instructions in
+23 s, kept in the scratchpad and deleted after), targeted reading of the functions found, the extern names from the
+getters' jump tables, and `spec/probes/gamemodes.py` over DICE's bundles (the Vietnam patch's startup bundle through
+OPFOR's kept `startup-00.fbrb.opfor-orig`). Nothing was run; nothing was written to `game\`; battlefield-opfor and
+OPFOR were read only.
+
+| Question | Found | Rules |
+|---|---|---|
+| GameModeData's fields | 10 DICE partitions, 5 ModeIDs (Vietnam's reuse BFBC2's), 4 query ids; every field's readers (the loading / HUD roots, `extern.hudMovies`, `extern.gameModeID`, the catalogue, the stats category); the bundle refs have no reader the operand scan finds | GMD-DATA-1, GMD-READ-1 |
+| where modes live | startup 6 + 4, `*_common` 9, main menus 10, eula 80, 15 Package mode levels; 168 deletion markers for a map's other modes | GMD-DATA-2 |
+| code that switches on a mode | 26 ModeID compares (conquest 9, goldrush 2, squadrush 3, tdm 7, singleplayer 5) with what each decides; the mode-kind object at 0x15666C0 (tdm 2, squadrush 1, else 0); the query id's stats category (+ `singleplayer` 1), the "any" search's fixed four; the catalogue keyed by ModeID; SP / MP persistence templates only (`Ons_Template` shipped, never named) | GMD-SW-1 - 4, GMD-CAT-1, GMD-PERS-1, GMD-MM-1 |
+| the game mod's readers | exactly 33 instructions on +0xC8C8C (2 dead, 5 stores, 20 `== 1`, 7 loads / 1 compare) and 8 on +0xC8C90, each named | ERA-MOD-1 |
+| where the mod comes from | the loading screen (0x772DD0, the `_description` asset) and the HUD's start (0x775C00, LevelData) parse the level's `MatchmakingModID`; no profile setting exists (GAME-MODE-6 and OPFOR's first study corrected) | ERA-MOD-2 |
+| a third era | only 0 / 1 in code; no third tag; `UISharedConfigAsset` has a fixed era pair (the Vietnam patch sets it: 2 + 26 items); not data-possible; a host layer over 0 / 1 with a 6-step patch set | ERA-MOD-3, ERA-RES-1, ERA-RES-2, ERA-NEW-1, ERA-NEW-2 |
+| licences | the setter's sign-in gate, `playerHasLicenseToNam`, level licences, `applyLicenses`, the five entitlement queries: described, not designed around | ERA-LIC-1, ERA-MM-1 |
+| OPFOR / battlefield-opfor | OPFOR: Pacific levels keep Vietnam's HUD configuration and icon set; battlefield-opfor's 0x8FF330 detour returns the active era for every level | ERA-OPF-1, ERA-OPF-2 |
+
+Probe and checks (game tier; counts, identifiers and addresses only, nothing of EA's kept): `spec/probes/gamemodes.py`
+(10.6 s: the startup bundles, every bundle's table of contents for the mode partitions and markers, the exe's byte
+search decoded with capstone); `core/tests/test_spec_probes.py::game_modes` checks its 19 answers.
+
+Rules went from 1,606 to 1,630 (gamemodes.md 24: verified 10, observed 8, inferred 5, implemented 1); GAME-MODE-4, -5
+and -6 and RTTI-DBX-1 corrected in place. `spec/trace.py --check`, `spec/probes/census.py --check` (CENSUS.md
+rewritten for the new rules), the spec probes' test, the quick tier, ruff and mypy pass.
+
+### Playtests still pending (in-game tests are paused)
+
+- ERA-MOD-2 (the menu's era after a Vietnam match; a fresh start is BFBC2), ERA-OPF-1 (a Pacific level's victory
+  stings and vignettes), ERA-OPF-2 (battlefield-opfor hosting another era's level), GMD-SW-2 (a new ModeID's kind 0
+  on a squad layer), GMD-CAT-1 (Air Superiority's and Onslaught's menu names), GMD-NEW-2 (a mode reusing `conquest`).
+
+### What is left (GM0)
+
+- Queued as GM1: the readers of the bundle refs and `KickIfLicenseMissing`, the mode-kind objects' virtual functions,
+  the server's game-mod strings; OPFOR's era-aware HUD configuration and icon set; battlefield-opfor's parser fix.
