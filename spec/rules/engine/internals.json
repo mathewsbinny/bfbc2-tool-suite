@@ -1,0 +1,120 @@
+{
+ "about": "The rules of spec/engine/internals.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/census.py --measure, 2026-11-23 (spec/census.json engine): 1,900 records; 630 of 630 DBX classes among them"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe section table: typeinfo VA 0x1BF0000 size 0x22D18, fieldinf VA 0x1C13000 size 0x34E60; e.g. GameEntityData's record 0x1BFAF98, CapturePointEntityData's 0x1BFD8C4 with its field table 0x1C256F0"
+    }
+   ],
+   "file": "spec/engine/internals.md",
+   "id": "ENG-TI-1",
+   "status": "verified",
+   "title": "The `typeinfo` section: one 24-byte record per reflected type",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: kinds class 1,362, value type 289, enumeration 231, array 3, primitive 14, void 1"
+    }
+   ],
+   "file": "spec/engine/internals.md",
+   "id": "ENG-TI-2",
+   "status": "verified",
+   "title": "Kinds: classes, value types, enumerations, arrays, primitives",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the modules and their record counts"
+    }
+   ],
+   "file": "spec/engine/internals.md",
+   "id": "ENG-TI-3",
+   "status": "verified",
+   "title": "Twenty-two modules",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: MemoryReportGroup a member of 117 classes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings CutsceneLargeHeapSize, CutsceneSmallHeapSize, WeaponAsyncHeapSize, AllowAllAnimationsHeaps, SmallBlockAllocatorPool, ThreadCachedSmallBlockAllocator, ObstaclePoolSize, PolylinePoolSize, LocalMapPoolSize, PathObjectsPool, FrameVertexBufferPool, DynamicMaskPoolWidth, DynamicMaskPoolHeight"
+    }
+   ],
+   "file": "spec/engine/internals.md",
+   "id": "ENG-MEM-1",
+   "status": "observed",
+   "title": "Memory report groups, heaps and pools",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings JobThreadCount, JobEnable, JobsEnable, EnableJobs, JobPriority, RenderJobAffinity, ThreadedLoadingEnable, OccluderMeshJobCount, PrioritizeCullJobsEnable, UndergrowthBuildJobCount, SortJobEnable, BuildJobCount, RasterizeJobCount, CollideJobCount, SpuJobEnable, XenonJobThread0Enable ... XenonJobThread5Enable"
+    }
+   ],
+   "file": "spec/engine/internals.md",
+   "id": "ENG-JOB-1",
+   "status": "observed",
+   "title": "The job system's switches; the console paths are compiled in",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above; the Scene module's records SceneData, SceneObjectData, SceneSettings, WorldBuildView, WorldSubSection"
+    }
+   ],
+   "file": "spec/engine/internals.md",
+   "id": "ENG-SCENE-1",
+   "status": "verified",
+   "title": "The menu background is a scene, not a level",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo EmitterSystemSettings 0x1C08604, ClientEmitterEntity 0x1C08654, DebrisContainerEntity 0x1C0866C, OvergrowthSettings 0x1C086F4, TreeMeshEntity 0x1C08744"
+    }
+   ],
+   "file": "spec/engine/internals.md",
+   "id": "ENG-REND-1",
+   "status": "observed",
+   "title": "Effect rendering and overgrowth settings records",
+   "variants": "PC"
+  }
+ ]
+}

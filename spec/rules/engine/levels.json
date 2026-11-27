@@ -1,0 +1,143 @@
+{
+ "about": "The rules of spec/engine/levels.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe host handler 0x77BEC3 builds \"Levels/\" + argument"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's logged level catalogue: every level id Levels/<LV>; 74 stock levels each with a description in the startup bundles and bundles under levels/<lv>/"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:93"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:602-620"
+    }
+   ],
+   "file": "spec/engine/levels.md",
+   "id": "LVL-ID-1",
+   "status": "observed",
+   "title": "A level is `Levels/<LV>` everywhere",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's logged level catalogue of the stock levels: 10 BFBC2 maps with 2-4 mode levels each (MP_009 all four), Harvest Day and Oasis four each, Cold War three, Heavy Metal two, five Vietnam maps four each"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:604-620"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1256-1258"
+    }
+   ],
+   "file": "spec/engine/levels.md",
+   "id": "LVL-MODE-1",
+   "status": "observed",
+   "title": "Each mode of a map is a level of its own",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "stock package.mft: mode levels' level blocks target the base map's bundles after their own (MP_005GR -> MP_005); MP_005GR holds the shader databases, emitter system, model groups and cull trees under its own name"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:841-845"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1220-1228"
+    }
+   ],
+   "file": "spec/engine/levels.md",
+   "id": "LVL-MODE-2",
+   "status": "observed",
+   "title": "A mode level loads its map's bundles after its own",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe LevelData constructor 0x13A6DA0; HasAI tested at 0x575046 as byte [level+0x3AE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:222-223"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:345-347"
+    }
+   ],
+   "file": "spec/engine/levels.md",
+   "id": "LVL-RT-1",
+   "status": "observed",
+   "title": "The level data object at run time",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "descriptions measured: Vietnam's levels MatchmakingModID VIETNAM, Licenses nam, KickIfLicenseMissing true, KIT_*_NAM; BFBC2's levels MatchmakingModID BC2 and no licence"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:98-103"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1015-1021"
+    }
+   ],
+   "file": "spec/engine/levels.md",
+   "id": "LVL-DESC-1",
+   "status": "observed",
+   "title": "The description declares the level's content set",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's records: a _NAME prefix mismatch gave a black loading screen; stock keys such as MP_009_NAME name mp_009's picture"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:135-150"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1951-1961"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1034-1040"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1372"
+    }
+   ],
+   "file": "spec/engine/levels.md",
+   "id": "LVL-DESC-2",
+   "status": "observed",
+   "title": "The loading picture is found by the name key",
+   "variants": "PC"
+  }
+ ]
+}

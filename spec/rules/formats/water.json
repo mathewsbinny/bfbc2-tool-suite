@@ -1,0 +1,202 @@
+{
+ "about": "The rules of spec/formats/water.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:128-151"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/water.rs::bodies_are_joined"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/water.rs::damaged_meshes"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_water.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 53 water meshes, each read to its last byte; every one has 1 body"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-MESH-1",
+   "status": "verified",
+   "title": "Layout",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:141-144"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/water.rs::bodies_are_joined"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-MESH-2",
+   "status": "implemented",
+   "title": "Joining bodies"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:193-204"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::water_mesh_swaps_words"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::quick"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-MESH-3",
+   "status": "verified",
+   "title": "Xbox 360 WaterMesh",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:161-210"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/water.rs::shaders_per_triangle"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/water.rs::damaged_visuals"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::visual_water"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 52 visual waters, (format, stride) = (10, 36) on all 52"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/terrain.py:59-68"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-VIS-1",
+   "status": "verified",
+   "title": "Layout",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:542-557"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:606-633"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::dec3n_zero_vector"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::visual_water"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: the PC visual water is 15,216 bytes larger than the Xbox's, 8 bytes more per vertex over 1,902 vertices; across 20 levels everything but normals and tangents converts byte for byte (whole files on 6), and 91 % of the decoded components are exact, the rest within 1 / 511"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-VIS-2",
+   "status": "verified",
+   "title": "Vertex formats",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:172-200"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/water.rs::damaged_visuals"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-VIS-3",
+   "status": "implemented",
+   "title": "Slot strings"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:216-235"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/water.rs::shaders_per_triangle"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_water.py::main"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-VIS-4",
+   "status": "verified",
+   "title": "The two files' indices agree"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:1-22"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/water.rs::depth_factors_invert_the_projection"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-VIS-5",
+   "status": "implemented",
+   "title": "World positions as stored"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_visual_terrains_and_waters_round_trip"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:240-360"
+    }
+   ],
+   "file": "spec/formats/water.md",
+   "id": "WATER-VIS-6",
+   "status": "verified",
+   "title": "Open water's vertices are their position, up, along x, and x / 512, z / 512",
+   "variants": "PC"
+  }
+ ]
+}

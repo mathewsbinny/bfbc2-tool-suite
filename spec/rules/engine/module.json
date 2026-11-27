@@ -1,0 +1,492 @@
+{
+ "about": "The rules of spec/engine/module.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:1"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:136-158"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:162-188"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:370"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:17-18"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-EXE-1",
+   "status": "implemented",
+   "title": "Every address was read on PC client build 795745; only signatures check it at run time",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.cpp:236-265"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.h:43-49"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:306-335"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/probes.cpp:821-850"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-HOOK-1",
+   "status": "implemented",
+   "title": "A hook is a 5 - 27 byte jump to a 32-byte trampoline, after its bytes are checked",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.cpp:87-138"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.cpp:140-234"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/hook.h:30-32"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-HOOK-2",
+   "status": "implemented",
+   "title": "Patches are committed together, with the game's other threads suspended",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:43-46"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/profile.cpp:122-127"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/boatrelease.cpp:155-160"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:801-805"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:848-853"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:210-225"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:336-337"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-HOOK-3",
+   "status": "implemented",
+   "title": "What is checked before writing, and what is not",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "a read of every file of opfor:src/dll, round SPG2 2026-11-22: addresses the code uses (patched, hooked, called, read or verified), comment-only mentions excluded (about 358 distinct hex values counting comments)"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-CNT-1",
+   "status": "observed",
+   "title": "221 addresses in 27 files",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:15-27"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:52"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:96-108"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:192-211"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:30-72"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:145-149"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:93-98"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-HOST-1",
+   "status": "implemented",
+   "title": "The offline host and the shared engine calls",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:91-108"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:123-132"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:27"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:237"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-PATCH-1",
+   "status": "implemented",
+   "title": "Vietnam without sign-in, and scoring with fewer than four players",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:47-58"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:119-123"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:233-260"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:291-303"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:376-380"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:462-512"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:636-711"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:22-73"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-MODE-1",
+   "status": "implemented",
+   "title": "The Pacific War as a third game mod",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/bc2.h:55-56"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:377-416"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:429-491"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:508-509"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/server_browser.cpp:787-808"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/ui_frame.cpp:15-35"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-BRWS-1",
+   "status": "implemented",
+   "title": "The offline server browser and the mode names",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:32-94"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:192-193"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:254-279"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:323-393"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:492-616"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:757-760"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:812-854"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-FIX-1",
+   "status": "implemented",
+   "title": "Engine guards for levels built from other builds' data",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:61-63"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:211-252"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:930-986"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/prompts.cpp:47-63"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/prompts.cpp:169-194"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/inputframe.cpp:19-59"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:CONTROLLER_PLAN.md:77-102"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-IN-1",
+   "status": "implemented",
+   "title": "Controller input and on-screen prompts",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/repair.cpp:33-37"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/repair.cpp:147-163"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gear.cpp:41-48"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gear.cpp:192-216"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/boatrelease.cpp:34-38"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/boatrelease.cpp:148-166"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/horn.cpp:46-60"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/voprobe.cpp:29-33"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/voprobe.cpp:113-121"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_REPAIR_STATIONS_LANDING_GEAR_RE_2026-11-14.md:186"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-WW2-1",
+   "status": "implemented",
+   "title": "The WW2 gameplay patches",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:48-57"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:210-225"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:517-520"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/profile.cpp:105-130"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/profile.cpp:217"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_screens.cpp:52-64"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_screens.cpp:632-640"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:48-75"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:174-185"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-PERS-1",
+   "status": "implemented",
+   "title": "The offline career, the profile and the stats screens",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/probes.cpp:71-218"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/forceai.cpp:19-47"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/sectoroffsets.cpp:20-58"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navgen.cpp:396-421"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/navsample.cpp:349-398"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/killprobe.cpp:124-143"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-DEV-1",
+   "status": "implemented",
+   "title": "Diagnostics and AI research, off by default",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:321-349"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/net.cpp:400-426"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/userdata.cpp:416-457"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/opfor.cpp:391-396"
+    }
+   ],
+   "file": "spec/engine/module.md",
+   "id": "MOD-IMP-1",
+   "status": "implemented",
+   "title": "The network guard and the user-data redirect patch imports by function",
+   "variants": "PC"
+  }
+ ]
+}

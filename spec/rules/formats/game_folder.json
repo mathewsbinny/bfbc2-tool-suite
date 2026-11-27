@@ -1,0 +1,123 @@
+{
+ "about": "The rules of spec/formats/game_folder.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "test",
+     "ref": "spec/probes/census.py::check"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/census.py --measure on the game copy, 2026-11-23 (spec/census.json): the kinds and counts above"
+    }
+   ],
+   "file": "spec/formats/game_folder.md",
+   "id": "GFILE-KIND-1",
+   "status": "verified",
+   "title": "Sixteen kinds of file",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 1 file, cell 8.0, 512 x 512, origin (-2,048, -2,048), 28 + 2 x 512 x 512 = 524,316 bytes; DICE's 74 LevelData: HasFlyingAI true only in SP_006 (cell size 8, quality 1)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x59A140: push \"/AerialHeightmap.res\" (0x1419CB8), concatenate (0x45AEC0), open through [0x154C444"
+    }
+   ],
+   "file": "spec/formats/game_folder.md",
+   "id": "GFILE-AHM-1",
+   "status": "verified",
+   "title": "The aerial height map: a 28-byte header and 16-bit heights",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: root element Database; the root file equal to build_overlay's entry in 2 of 2 bundles"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe \"database.dbmanifest\" 0x14100BC, pushed at 0x4BA015 for 0x4A8810"
+    }
+   ],
+   "file": "spec/formats/game_folder.md",
+   "id": "GFILE-DBM-1",
+   "status": "verified",
+   "title": "`database.dbmanifest` is DICE's editor database manifest",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: 1,000 bytes, entropy above 7.5 bits per byte; no `dfe` name in BFBC2Game.exe, binkw32.dll, winui.dll or the Support executables (round SPG4 search)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a 1,000-byte random-looking file in the root that the game never opens is a distribution client's token or key"
+    }
+   ],
+   "file": "spec/formats/game_folder.md",
+   "id": "GFILE-DFE-1",
+   "status": "observed",
+   "title": "`dfe` is 1,000 opaque bytes no game file names",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: InstallationData's six elements, CurrentVersion 795745; UpdateHistory one patch line 515195 -> 795745; neither name in BFBC2Game.exe"
+    }
+   ],
+   "file": "spec/formats/game_folder.md",
+   "id": "GFILE-INST-1",
+   "status": "verified",
+   "title": "`InstallationData.xml` and `UpdateHistory.log` are the patcher's record",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: JPEG 128 x 128; \"dialoglogo\" not in BFBC2Game.exe"
+    }
+   ],
+   "file": "spec/formats/game_folder.md",
+   "id": "GFILE-LOGO-1",
+   "status": "verified",
+   "title": "`dialoglogo128x128.jpg` is a 128 x 128 JPEG nothing in the folder names",
+   "variants": "PC"
+  }
+ ]
+}

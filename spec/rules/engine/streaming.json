@@ -1,0 +1,149 @@
+{
+ "about": "The rules of spec/engine/streaming.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x565C79 push \"streaming_sounds\" (0x14185D4); 0x565CC7 push \"/sound/streaming/\" (0x14185C0); 0x565DC6 \"async/ondemand_sounds\"; 0x565E14 \"/sound/ondemand/\"; 0x565F14 \"async/ondemand_awards\"; 0x565F62 \"/async/awards/\"; calls 0x4E48E0 at 0x565D0F, 0x565E5D, 0x565FAC"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-MNT-1",
+   "status": "observed",
+   "title": "The global sound and award bundles are mounted at fixed paths",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5657B0 (records: 0x4245B0 string assigns, flag stores 0x565CFD (0), then 1, 1; 0x1386AE0 the table); 0x4E48E0 (`jmp [vtable + 0xC"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x56EDE0 (0x566050 at 0x56EF03; settings group \"Game\" 0x1410BA0 through 0x4F4C80 at 0x56F033, `cmp byte [+0x94"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-MNT-3",
+   "status": "observed",
+   "title": "The mount table and the mount: a hashed entry index at a virtual path",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x56F3DA call 0xF99E30; jump table 0x56F4F0, default \"en\"; 0x56F422 push \"streaming_vo_%s\"; 0x56F432 push \"/sound/streaming_loc/\"; 0x56F489 call 0x561C10; 0x561FBA push \"async/startup\"; a second copy of the sequence at 0x800267 / 0x800277"
+    },
+    {
+     "kind": "inferred",
+     "ref": "\"only one is opened\" from the code's shape: one formatted name per call"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-MNT-2",
+   "status": "observed",
+   "title": "One streamed voice bundle per session, by language",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x62D9C9 push \"async/\", 0x62D9BF push \"/cutscene/c_\"; 0x8AF66F \"/cutscene/a_\""
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy's Dist async/levels, 2026-11-22: 119 files in 13 level folders, all under cutscene/, none a_*; Package async has no levels folder"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-ASYNC-1",
+   "status": "observed",
+   "title": "A level's async bundles are its cutscenes, named by a hash",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x80F175 / 0x80F2F1 push \"async/weapon/\" (0x1431C64); 0x891535 / 0x8B4532 push \"async/weapon\""
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy, 2026-11-22: Dist async 445 bundles, Package async 50; package.mft's async sources 50; bundleManifest's 445 async lines"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-ASYNC-2",
+   "status": "observed",
+   "title": "A weapon's async bundle, and which registry lists it",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::registries"
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy's Dist bundleManifest and package.mft, 2026-11-22: the lines as described"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-REG-1",
+   "status": "verified",
+   "title": "The registry's spelling of the global bundles",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the suite's bundle lister over the 10 files, 2026-11-22; the game copy includes OPFOR's installs in Package ondemand_awards and startup"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-CNT-1",
+   "status": "observed",
+   "title": "What each global bundle holds",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::streamed_waves_named"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:393-415"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/catalog.rs:140-151"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/plan.rs:117-123"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/post.rs:103-112"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-console-convert/audio.py:46"
+    }
+   ],
+   "file": "spec/engine/streaming.md",
+   "id": "STRM-SUITE-1",
+   "status": "implemented",
+   "title": "The suite reads the global bundles Package first and writes none",
+   "variants": "PC"
+  }
+ ]
+}

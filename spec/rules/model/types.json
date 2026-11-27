@@ -1,0 +1,561 @@
+{
+ "about": "The rules of spec/model/types.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the level corpus (every `.dbx` copy in DICE's `levels/` bundles: 120,466 partitions): six tags, no other"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 26,113,943 field, 3,235,928 complex, 2,313,497 instance, 2,027,833 item, 1,102,409 array, 79,526 partition; no other tag"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ELEM-1",
+   "status": "verified",
+   "title": "Six tags make every partition"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: the nine parent > child pairs listed, no other"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus parent>child counts: instance>field 19,266,821; complex>field 6,847,122; partition>instance 2,313,497; array>item 2,027,833; instance>complex 1,887,137; array>complex 1,134,815; instance>array 1,078,337; complex>complex 213,976; complex>array 24,072; no other pair"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ELEM-2",
+   "status": "verified",
+   "title": "Nesting"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/model.rs:171-183"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/model.rs::lookups"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 79,526 of 79,526 files have one root; in every one the partition's children are all instance"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ELEM-3",
+   "status": "implemented",
+   "title": "One root, the partition, holding only instances"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus tag:kind: field:7 21,629,540; field:2 16,295,493; field:6 9,514,955; instance:0xA 3,916,895; item:2 3,675,001; complex:7 3,262,950; complex:0xA 3,260,507; array:2 1,413,523; array:0xA 548,802; array:7 255,664; partition:0xA 120,466; instance:2 4"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus tag:kind counts: field:7 10,534,080; field:2 9,710,414; field:6 5,869,449; instance:0xA 2,313,493; item:2 2,027,833; complex:7 1,858,095; complex:0xA 1,377,833; array:2 664,969; array:0xA 285,441; array:7 151,999; partition:0xA 79,526; instance:2 4"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ELEM-4",
+   "status": "verified",
+   "title": "Element kinds by tag"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the container byte 0 on all 8,222,821 containers of 124,458 files"
+    },
+    {
+     "kind": "data",
+     "ref": "dbx-tools FORMAT.md section 6: 0 on all 43,289 game files of that count"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:134"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ELEM-5",
+   "status": "verified",
+   "title": "The container byte is always 0"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 4 instances of kind 2, all with empty text"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 4 instances of kind 2, all with empty text"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ELEM-6",
+   "status": "verified",
+   "title": "Empty instances"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: the ten tag:attribute lists of the table, no other"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus tag:attribute-list counts: field:name 20,206,769; field:ref,name 5,907,174; instance:guid,type 2,233,973; instance:guid,type,id 79,524; complex:name 2,101,113; complex:(none) 1,134,815; array:name 1,102,409; item:ref 2,015,781; item:(none) 12,052; partition:guid,primaryInstance,exportMode 79,526"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ATTR-1",
+   "status": "verified",
+   "title": "Attribute sets per tag"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/model.rs:165-169"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:261-288"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/model.rs::lookups"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ATTR-2",
+   "status": "implemented",
+   "title": "The member name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,916,899 types, every one with one dot; 14 namespaces"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 14 distinct namespace prefixes; the largest Emitter 1,378,673 instances, GameSharedResources 357,107, Entity 266,203"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:81-93"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:261-263"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ATTR-3",
+   "status": "verified",
+   "title": "The instance type is `<Namespace>.<Class>`"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: exportMode=All on 120,466 of 120,466"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: exportMode=All on 79,526 of 79,526 partitions"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ATTR-4",
+   "status": "verified",
+   "title": "exportMode"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/schema.rs:36-75"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/schema.rs:114-140"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/schema.rs::types_from_the_data"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-VAL-1",
+   "status": "implemented",
+   "title": "A field's kind follows its type, not its value"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus scalars: kind 6 with 01 00 5,828,726; 01 01 3,684,061; 01 02 1,874; 01 06 292; 01 04 2; no other"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus scalars: kind 6 with bytes 01 00 3,542,382; 01 01 2,325,640; 01 02 1,169; 01 06 256; 01 04 2; no other kind or first byte"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:134"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-VAL-2",
+   "status": "verified",
+   "title": "Booleans and bytes are two-byte scalars"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus non-reference text fields: 5,866,379 non-empty, 522,898 empty"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus non-reference text fields: 3,574,809 non-empty, 228,431 empty"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-VAL-3",
+   "status": "verified",
+   "title": "Text values"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:448-473"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/tests/scene.rs::loads_a_level"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-VAL-4",
+   "status": "implemented",
+   "title": "Enumerations are stored by name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/schema.rs:102-111"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/schema.rs:178-195"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/schema.rs::types_from_the_data"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-NUM-1",
+   "status": "implemented",
+   "title": "A 4-byte value does not say integer or float"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:9-18"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::number_texts"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-NUM-2",
+   "status": "verified",
+   "title": "Hash and id fields are whole numbers"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:189-200"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::number_texts"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:126-137"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-NUM-3",
+   "status": "verified",
+   "title": "The XML form loses the integer / float distinction"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus number elements: size 4 18,381,844, size 2 6,766,070 (one value each, only on SphereKeyX / Y / Z / W, SourceId, TargetId), size 8 240 (one value each, on the AI's sensing times), no other size; 151,371 empty (count 0)"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus number elements by count x size: 1x4 7,145,451; 1x2 3,003,402; 4x4 1,566,863; 16x4 240,726; 2x4 52,087; 1x8 68; empty 0x0 95,341"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005 level bundle: 1x2 only on SphereKeyX/Y/Z/W (24,798 each) and SourceId / TargetId (88 each)"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-NUM-4",
+   "status": "verified",
+   "title": "Sizes 2 and 8"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005 level bundle: 4x4 complexes 103 distinct names; fourth words 3F800000 31,328, CDCDCDCD 9,555, 00000000 8,086, other values on Vec4 colours"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 1,566,863 4x4 and 52,087 2x4 number elements"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-CPLX-1",
+   "status": "observed",
+   "title": "Vectors are `complex` number lists of four floats"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:395-397"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:77-81"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs:795-799"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/tests/scene.rs::loads_a_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005 level bundle: 7,343 Transform complexes, fourth words all 0 on 4,562 and all CDCDCDCD on 2,781"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-CPLX-2",
+   "status": "implemented",
+   "title": "LinearTransform is sixteen floats, four rows"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 494 CompositeHavokAsset instances, Transforms 16 values per Assets item in 494"
+    },
+    {
+     "kind": "data",
+     "ref": "the level corpus's 232 CompositeHavokAsset instances: Transforms has 16 values per Assets item in 232 of 232"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:547-560"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-CPLX-3",
+   "status": "verified",
+   "title": "Transform lists"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,658,063 items with ref and empty text, 16,938 string items, none of another kind"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 2,015,781 items with ref and empty text, 12,052 string items, none of another kind"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ARR-1",
+   "status": "verified",
+   "title": "Items are references or strings"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 1,413,523 arrays of kind 2, all with empty text; 548,802 container arrays, all with children"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 664,969 arrays of kind 2, all with empty text; 285,441 container arrays, all with 1 or more children"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ARR-2",
+   "status": "verified",
+   "title": "An empty array is an empty text element"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 255,664 arrays of kind 7"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 151,999 arrays of kind 7; MP_005: 0-count number arrays on 10 field names, CompositeMeshPartNames 1,656"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ARR-3",
+   "status": "verified",
+   "title": "Number arrays"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::type_values"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: array>complex 2,671,667; unnamed complex elements 2,671,667, all in arrays"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: array>complex 1,134,815; complex elements without a name 1,134,815"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-ARR-4",
+   "status": "verified",
+   "title": "Arrays of structures"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "no tag or attribute names a class definition (TYPE-ELEM-1, TYPE-ATTR-1); the importer's catalogue builds field order, shapes and defaults per class from the partitions themselves, which would be unnecessary with a schema in the files"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/dbxcatalogue.rs:39-59"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-SCH-1",
+   "status": "inferred",
+   "title": "No class schema in the files"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/schema.rs:1-34"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/schema.rs::types_from_the_data"
+    }
+   ],
+   "file": "spec/model/types.md",
+   "id": "TYPE-SCH-2",
+   "status": "verified",
+   "title": "The suite learns types from the data"
+  }
+ ]
+}

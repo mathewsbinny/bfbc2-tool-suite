@@ -123,9 +123,10 @@ level and the PC map, with registration; 2 the console gameplay on the Linux ser
 and kits; 7 shader databases covering every placed and reached mesh; 8 the Mark V (one level); 9 PC input for
 console seats; 10 every referenced but unloaded PC partition copied in; 11 cull-tree places; 12 the loading video;
 13 the HUD; 14 the Mark V's HUD icon (one level). The order is load-bearing: stage 7 follows 6 (the kits' weapons),
-9 and 10 follow 8. A level needing a per-map entry stops at stage 4 with the partitions to list.
+9 and 10 follow 8. Stage 4 takes a level's folder list, if it has one, and the closure of what only PC
+mp2_common provides (XCONS-ONS-4).
 
-[code: opfor:src/tools/onslaught/console_port.py:1-29] [code: opfor:src/tools/onslaught/console_port.py:74-92]
+[code: opfor:src/tools/onslaught/console_port.py:1-30] [code: opfor:src/tools/onslaught/console_port.py:75-93]
 [doc: opfor:DEVELOPMENT_NOTES.md:1256-1279]
 
 ### XCONS-STG-2: What the stages guard against
@@ -153,9 +154,64 @@ folder listing's order, it does not: the shared files are copied in name order, 
 CAMPAIGN's order. The printed count of a stripped bundle's dropped markers is the Python's (markers dropped less
 the renamed copies added; it can be negative).
 
-[code: rust/bc2-install/src/onslaught.rs:541-560] [code: rust/bc2-install/src/onslaught.rs:1041-1050] [code: opfor:src/tools/onslaught/console_onslaught.py:24-72]
+[code: rust/bc2-install/src/onslaught.rs:549-568] [code: rust/bc2-install/src/onslaught.rs:1049-1058] [code: opfor:src/tools/onslaught/console_onslaught.py:24-72]
 [test: rust/bc2-install/src/onslaught.rs::report_text]
 [data: round OR5, 2026-11-23: the user's Update #3 package on ONS_MP_008 / MP_008 and ONS_MP_002 / MP_002, every work file and write of the Rust import identical to the Python's (rust/BENCHMARKS.md "OR5")]
+
+### XCONS-ONS-2: The Linux base stage gives the retired Python's work files; its cull slots
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 2 (`console_linux_base.py`'s build, `bc2_install::onslaught::linux` since round OR9) gives the retired Python's
+work files byte for byte: the Linux level's stamped unpack, the renamed base, the copied Linux files (new partition
+GUIDs `uuid5(URL, 'opfor-linux:<new name>')`), `merge.cmd`, `merge.log`, `enum.cmd`, the merged level and the packed
+bundle. Each merged `ReferenceObjectData` takes the Linux level's cull slot of the same GUID, else of the same
+blueprint at the same position rounded to 0.1 m (the last such Linux object wins), else of the nearest unused
+same-blueprint Linux object under 50 m (ties to the lower slot), else 0. The slots are DICE's (the Linux server
+level's own); the matching is OPFOR's rule, not DICE data, and keeps the Python's arithmetic where a last bit could
+choose another object: the distance is CPython's `math.dist` (its compensated `vector_norm`, `bc2_pyrt::math`),
+the rounding `round(x, 1)`, -0.0 the same key as 0.0. On the user's four levels the Rust stage 2 bundles are the
+Python's, and ONS_MP_002's is the bundle the user's own install made (its `.opfor-mode-orig`).
+
+[code: rust/bc2-install/src/onslaught/linux.rs:244-330] [code: rust/bc2-install/src/onslaught/linux.rs:354-370] [code: opfor:src/tools/onslaught/console_linux_base.py:57-73]
+[test: rust/bc2-install/src/onslaught/linux.rs::cull_slots]
+[data: round OR9, 2026-11-27: the user's ONS_MP_002 / 004 / 005 / 008 on their Linux server levels, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md "OR9")]
+
+### XCONS-ONS-3: The Onslaught mode stage gives the retired Python's work files
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 3 (`console_mode.py`'s plan and apply, `bc2_install::onslaught::mode` since round OR9) gives the retired
+Python's work files byte for byte: the level's partition with the console `GameMode` reference, the console
+`SpawnPointManager` and its data, Nelson Bay's PC aerial heightmap values, every hoisted flag `OnlyTakeableByTeam 0`,
+and the console's pre-destructions within 1.5 m of a placed door's position left out (the distance as Python's
+`** 2` and `** 0.5`: the C library's `pow`); `GameModes/Onslaught.dbx` from the PC install's Conquest with the console
+mode's GUIDs (the console's partition GUID when its mp2_common has the mode, else `uuid5(URL,
+'opfor:gamemodes/onslaught:<instance>')`), its manifest line after Conquest's. Not ported: the explosive objects'
+branch, which the Python never ran (`EXPLOSIVES` off: Nelson Bay crashed at load with them). Only the temporary
+folder's name differs (Python's `mkdtemp`), and it is deleted before the bundle is packed.
+
+[code: rust/bc2-install/src/onslaught/mode.rs:125-170] [code: rust/bc2-install/src/onslaught/mode.rs:221-240] [code: opfor:src/tools/onslaught/console_mode.py:45-54]
+[test: rust/bc2-install/src/onslaught/mode.rs::doors]
+[data: round OR9, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's; ONS_MP_002's bundle is the user's installed one (its `.opfor-loadset-orig`)]
+
+### XCONS-ONS-4: The load set stage gives the retired Python's work files; the closure's order
+
+Status: **verified** · Variants: Xbox 360
+
+Stage 4 (`console_loadset.py`'s plan and apply, `bc2_install::onslaught::loadset` since round OR9) gives the retired
+Python's work files and writes byte for byte: the level's `package.mft` blocks without their `mp2_common` targets
+(the other levels' blocks and the file's line ends as they are), and the PC mp2_common entries the level takes copied
+into its bundle - its folder list (Atacama: a pattern, less what the bundles it loads anyway carry), then every
+partition the level references that only mp2_common provides, what those reference in turn, and each one's
+resources (`<name>.res`, `<name>_*.res`), in the bundle listing's order. The Python visited the closure in a set's
+order; the closure, and the partitions' XML files written on the way, do not depend on it, so the Rust visits in name
+order. Not ported: `mp2_only`, a diagnostic nothing called; a level without a folder list does not stop at this stage
+(XCONS-STG-1's "stops at stage 4" was the docstring's, not the code's): it takes the closure alone.
+
+[code: rust/bc2-install/src/onslaught/loadset.rs:119-140] [code: rust/bc2-install/src/onslaught/loadset.rs:199-305] [code: opfor:src/tools/onslaught/console_loadset.py:46-54]
+[test: rust/bc2-install/src/onslaught/loadset.rs::manifest_blocks]
+[data: round OR9, 2026-11-27: the user's four levels, also with the manifest from before a loadset run (146 mp2_common targets) and damaged inputs, every work and game file of the Rust stage identical to the Python's]
 
 ## Open questions
 

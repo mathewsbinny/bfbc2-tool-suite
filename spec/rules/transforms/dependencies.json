@@ -1,0 +1,465 @@
+{
+ "about": "The rules of spec/transforms/dependencies.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from REF-FORM-4, PART-NAME-1 - PART-NAME-3, BNDL-LOC-1, REG-MFT-2, REG-BM-1"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-NODE-1",
+   "status": "inferred",
+   "title": "The nodes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 1,021 bundles, 124,458 .dbx entries, 84,641 partitions, 266,618 edges, 5,254 without an out-edge, 60,372 without an in-edge"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-REF-1",
+   "status": "verified",
+   "title": "Partition edges are the external references in the string table"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 113,597 dangling edges to 7,652 names; by top folder as above"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-REF-2",
+   "status": "verified",
+   "title": "Two edges in five point at no partition the game ships"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 11 components, sizes 10, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-REF-3",
+   "status": "verified",
+   "title": "The graph has eleven small cycles"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-23: 80,991 resources, the counts per rule above"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-RES-1",
+   "status": "verified",
+   "title": "A resource belongs to a partition by name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::asset_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py, 2026-11-27: the counts above; a name is a C string of 4 - 200 characters of `[A-Za-z0-9_-. /"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG3-rest's one-off comparison, 2026-11-27: of the visual terrains' 3,182 distinct names 338 are strings of a Dx9 shader database, of the mesh sets' none (their entries are `<mesh>/<shader>`); 3,964 of the mesh sets' 4,303 other names are targets of DICE's partitions' unresolved references"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the edges' meaning from MSET-LOD-4, SHDB-NAME-1, SHDB-PB-1, SND-VO-1 and the names' folders"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-RES-2",
+   "status": "verified",
+   "title": "References held inside resources"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from REG-MFT-4, REG-BM-1, REG-NEW-1, REF-RES-2, BNDL-DEL-2, PART-NAME-3"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-REG-1",
+   "status": "inferred",
+   "title": "Bundle and registry edges"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from XEXP-CLO-1, XDEP-REF-1 - XDEP-RES-1, REF-DEL-1, REF-DEL-2; the probe's run time on this PC"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-ALG-1",
+   "status": "inferred",
+   "title": "Computing a closure"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps.py:1-38"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:527-660"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:663-736"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_record_joins_the_hooks_records_and_decides"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::record_names_are_stepstamps_keys"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_listing_digest_is_the_hooks"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-1",
+   "status": "implemented",
+   "title": "Steps, records and what a record holds"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23, OPFOR's 55 step records of the rebuild of 2026-11-22 / 23: the counts above (they change with every rebuild and step change: the probe prints them, its checks() do not hold them)"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-2",
+   "status": "observed",
+   "title": "The measured graph"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:158-171"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:45-53"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:71-76"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:697-704"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_ours_readers_after_every_ours_producer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_a_run_from_an_empty_work_settles"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_the_install_indexes_are_not_tracked"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/dependencies.py --steps, 2026-11-23, before: READ-BEFORE-WRITE 35 -> 36 (33 files), 35 -> 37 (2), 36 -> 38 (2); after, on the 55 records of OPFOR's rebuild from a seeded-empty work\\ww2 (round WW2-ORD1): 0 reads of a later step's output, 362 read-after-write edges (26,529 files), 7 write-after-write (26 files), longest chain 15 steps; rebuild_all --changed --dry afterwards: 0 of 55 steps would run"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-3",
+   "status": "implemented",
+   "title": "No step reads an output a later step writes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from XDEP-STEP-1 - XDEP-STEP-3 and rebuild_all's OUTPUTS / JOBS / MIN_FREE"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/graph.rs:91-181"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:320-577"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-4",
+   "status": "implemented",
+   "title": "What a step-graph runner must keep"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's 55 step records of the rebuild of 2026-11-22 / 23 joined with every step's outputs: inputs under work\\ww2 that no step writes, by folder (install_ports, install_ports_<lv>, install_<lv>\\level\\objects\\vegetation, the caches); a rebuild from a work\\ww2 seeded with fonts\\, weapon_icons\\confirmed, install_ports\\, install_ports_<lv>\\ and install_<lv>\\level\\objects\\vegetation only (599 files, round WW2-ORD1, 2026-11-23) ran all 55 steps in one pass"
+    },
+    {
+     "kind": "data",
+     "ref": "round WW2-ORC1, 2026-11-23: a rebuild from a work\\ww2 seeded with the 14 declared inputs (599 files): 55 steps in 19.0 min, 7,945 files, --changed --dry afterwards 0 of 55; the same 7,945 digests as OPFOR's main checkout after its relics were moved"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:198-219"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:609-619"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_external_inputs_cover_the_hand_placed_files_and_the_plan_staging"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_a_run_stops_on_a_missing_external_input_unless_told"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-5",
+   "status": "implemented",
+   "title": "Inputs inside work\\ww2 that no step writes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round WW2-ORD1, 2026-11-23: compare_oracle on the seeded-empty rebuild's hashes, 7,921 of 10,852 identical, differ 28, missing 2,903, extra 0; each missing or differing file joined to the step records of OPFOR's rebuild of 2026-11-22 / 23 (no writer for the relics, the 18 textures and the pickles); the 18 textures' headers (format 10, flags 2 vs 0, smallest mips) against DICE's format-10 textures of the game copy's level bundles; the pickles unpickled and compared"
+    },
+    {
+     "kind": "data",
+     "ref": "round WW2-ORC1, 2026-11-23: the 18 textures' BF1943 sources (format 3, flags 0), the old files (flags 2, smallest levels 16 / 4 / 1 or 8 / 2 / 1) and today's conversions (flags 0, 16 / 8 / 4 or 8 / 4 / 4); archive_relics against the seeded-empty rebuild's 7,945 digests moved 2,903 files (2,798 wake\\shaders_hlsl, 78 wake\\textures_bf1943, 13 guadal_canal and 14 iwo_jima_s textures_bf1943), 12 emptied folders removed; main's rebuild_all --changed afterwards (30 of 55 steps) and a full rebuild each 7,945 of 7,945 against the seeded-empty rebuild, --changed --dry 0 of 55, a --changed run 0 steps and the same hashes; wake_install.py --plan: 21,117 of 21,197 against the old install oracle (differ 32, missing 48), the 48 missing names searched in every staged file of their level (none), the staged level bundles against the game copy's installed ones entry by entry, Sky_Beach_Generic_RGBA16f equal to mp_common's entry; game\\ sha256 before and after the plan: 0 of 1,582 changed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:192-196"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:734-783"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/archive_relics.py:37-58"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_hashes_leave_out_the_caches_inside_outputs"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_rebuild_inputs.py::test_relics_are_the_files_a_seeded_rebuild_does_not_make"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_textures.py::test_convert_textures_redoes_a_conversion_the_converter_now_writes_otherwise"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_textures.py::test_l8_conversions_follow_dices_level_sizes_and_flags"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-6",
+   "status": "implemented",
+   "title": "The rebuild oracle holds what the steps write"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round WW2-ORC1, 2026-11-23: OPFOR's step records of the Wake shader databases - wake_shaders, the clone pass, wake_translate and wake_sky record them as outputs and none as an input, fidelity_checks reads wake_sky's / wake_translate's versions; a second --changed on main sent back to the clone pass (\"its inputs from wake_shaders.py --clone were rewritten by a later step - back to 8\") and left 9 files differing from the seeded-empty rebuild, which a full rebuild restored (7,945 of 7,945)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:612-620"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:723-736"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:92-171"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_step_editing_a_file_in_place_reruns_on_the_version_it_edited"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-7",
+   "status": "implemented",
+   "title": "A step that edits another step's output in place depends on the version it read"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/graph.rs:91-181"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/mod.rs:187-205"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:580-620"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:357-398"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::the_graph_keeps_every_conflict_in_list_order"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::the_derived_graph_orders_a_reader_after_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_the_declared_graph_knows_every_step_and_keeps_the_order"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_the_levels_run_in_two_parts_and_the_graph_declares_their_reads"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27: rebuild_all --graph on the tracker-4 records of a seeded-empty rebuild: 55 steps, 514 edges, 62 after the reduction, the longest path 6.2 min of measured step times; no edge between two level chains; the graph derived from the main checkout's tracker-3 records ordered the three chains one after another"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-8",
+   "status": "implemented",
+   "title": "The step graph: which step waits for which"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:206-228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/run.rs:320-577"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/sys.rs:1-118"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::independent_steps_run_side_by_side_within_the_budget_and_a_rerun_skips_them"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/rebuild/tests.rs::a_failed_step_stops_the_run_and_keeps_no_record"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_tracker.py::test_independent_steps_run_side_by_side_and_a_failure_stops_the_run"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_writer_a_rerun_leaves_unchanged_is_still_sent_back_to"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27, OPFOR's or7 worktree, work\\ww2 seeded with the 14 declared inputs (599 files), a PC shared with other rounds: seeded-empty runs 9.8 min (3 at once, --memory-gb 7) and 10.5 min (4 at once, defaults), a --changed run of all 55 steps 7.6 min (4 at once), against 11.8 - 14 min one after another; each 7,945 of 7,945 against the oracle; --changed with nothing changed 0 of 55 steps (0.2 min); install_ports\\plans.json touched: 7 of 55 (wake_translate and the writers XDEP-STEP-7 sends back to), 1.7 min; one leaf's code touched: 1 of 55; wake_install --plan afterwards 21,149 of 21,149; game\\ 0 of 1,582 files changed"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-9",
+   "status": "implemented",
+   "title": "Running the graph side by side within a memory budget"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:38-44"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/stepstamps_hook/sitecustomize.py:250-281"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/rebuild/tracker.rs:26-36"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR7, 2026-11-27: OPFOR's main-checkout records of the rebuild of 2026-11-23 (tracker 3): the guadal_canal chain's record held 33,019 inputs, among them 5,051 of install_iwo_jima_s\\level, 1,106 of _qa\\object_audit, 271 of menu_install\\apply and 527 / 422 files of the iwo_jima_s / coral_sea chains' outputs, and work\\ww2\\.pruned as an output; the graph derived from them ordered the three chains one after another (write-after-read)"
+    }
+   ],
+   "file": "spec/transforms/dependencies.md",
+   "id": "XDEP-STEP-10",
+   "status": "implemented",
+   "title": "A folder too big to stamp, and the cache budget's calls, are no step's inputs"
+  }
+ ]
+}

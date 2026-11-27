@@ -5769,3 +5769,202 @@ catalogue are the caller's (`dbxport._native_rules`, `_native_catalogue`), so OP
 
 - `wake_vo.waves` (`convert_waves` over `audio.convert_many`) still converts the voice-over in Python threads.
 - The Type 95 silhouette, the DXT encoders' axes and the preview tools (OR4's list; OR14 has the first).
+
+## SPG2-rest6: reverse engineering for the specification (2026-11-27, branch `spg2r6`)
+
+Static reading of `BFBC2Game.exe` (PC build 795745), read only: capstone over a scratch copy of the executable (as in
+rounds SPG2-rest3 - rest5; REA timed out on it before), with rest5's scratch map of the classes' field descriptors.
+The undergrowth's vertex programs were read from DICE's Dx11 shader databases in memory with D3DCompiler's
+disassembler; nothing of them is kept. DICE's data was read through the suite's readers. Nothing was run in the game,
+and nothing was written to `game\`.
+
+| Item | Found | Rules |
+|---|---|---|
+| `windParams` in the shaders (VEG-UG-9) | the 25 distinct Dx11 programs whose parameter block names `windParams` (register 9, 21 or 25; 780 programs in 74 databases, and 74 Dx9 / 74 Dx10 databases hold such programs) all add s = sin(((x + y + z) x 1000 + w.x) x w.y) x max(y, 0) x w.z to x and z in mesh space: `WindScale` metres of sway per metre of height, `UndergrowthWindSpeed` the angular frequency | VEG-UG-10 new (verified) |
+| `UndergrowthMaxHeight` (VEG-UG-8) | the job 0xA0EB10 keeps each cell's lowest and highest instance base (0xA0EC12 - 0xA0EC44, the generator's 8th / 9th arguments 0xA0E7C6 - 0xA0E823) and writes the cell's box with top = highest + this (0xA0ED08 - 0xA0ED25); the draw's frustum test and distance (0xA1EB9A - 0xA1EC77); the generator never reads it | VEG-UG-11 new |
+| mesh / sample-texture evaluators | mesh 0xB26830: `DistributionData`[trunc(r x n)] x v; sample texture 0xB265F0: one texel of the row baked in `GradientData`, scaled by the colour intensities; DICE: no mesh evaluators, 15 sample-texture ones, all 512 entries for 512 | FX-PROC-6 updated |
+| the vertex fill (0xB27BF0 / 0xB280C0) | the batch 0xB292E0 with set-up 0xB26FB0 and per particle 0xB280C0, quads only: transparency x clamp(1.25 x depth) (a 0.8 m near fade), alpha levels, texture frame, size, the 33-entry clip-scale lookup, four 0x40-byte half-float vertices; 0xB27BF0 has no caller | FX-PROC-9 new |
+| force vectors | 0xB2D7C6 - 0xB2D9BA: turbulence ±`Intensity` x dt x 30, gravity (0, -`Gravity` x dt, 0), local force -dt x `LocalForce`, air resistance v x max(-value x `DragFactor` x dt, -1) | FX-PROC-10 new |
+| 0xB328C0 | the lifetime step of every emitter (0xB32730: `Lifetime` / `LifetimeFrameCount`, then removal); the mesh particles' own code is the spawn 0xB328D0 (`SpawnCompositeMeshParts`, physics bodies) | FX-PROC-11 new, FX-PROC-8 corrected (the update's sizes are the bounds') |
+| FSCommand cases (MENU-RT-7) | each case of the four handlers: a message to the server (client 0x15713D8 +0x58, queue 0xC0A390), a job for the client's dispatcher, a level load (0x75DF60 / 0x956E10 / 0x75EAB0) or a UI manager field (0x19A4CA8) | MENU-RT-8 new |
+| criterion objects | the listener's set-up 0x866DC0 -> per award 0x863DB0 -> the factory 0x8430E0 (0x24-byte objects, seven classes by `CriteriaType` and award ownership), armed by 0x861B90; only all-time criteria write the stats | PERS-AWD-8 new (verified) |
+| event 0x51 | `StatEvent_Suicide` (the enum's 105 values; the kill handler 0x86DC90 pushes 0, 0xB, 2, 0xD, 1, 0xC, 3, 0xE, 0x51) | PERS-AWD-6 updated |
+| node records | the 0x20-byte header (pairs, blend times, index, parent, weight parameter, active byte), the animation node (evaluator 0xF59F90), all 26 types' fields from their evaluators (state vtables 0x14AB8B4 - 0x14AB95C, builder 0xF69140), children as u16 indices | ATREE-NODE-2, 3, 4 new (verified) |
+| blocks B and C | B: the cycle's distance (700 entries, 0.21 - 5.22) and angle (96, 45 - 90), read by 0xF492B0; C: five `PropertyCurveType` curves, each a mode word, a pointer and an interval count (0xF50720 -> 0xF59460 -> 0xF534C0 / 0xF53580, ramp 0xF507D0) | ATREE-BLK-5 new, ATREE-BLK-6 new (verified) |
+
+Probes and checks (game tier; counts, shapes and identifiers only, nothing of EA's kept):
+
+- `spec/probes/terrain.py`: the undergrowth programs per database and the sway's instruction shape (7.9 s);
+  `core/tests/test_spec_probes.py::undergrowth_sway` checks it.
+- `spec/probes/effects_chain.py`: the sample-texture gradients against `TextureDimensions`, the mesh evaluators, the
+  clip-scale lookups' lengths, the fill processors by emittable type, the force fields by sign (54 s for the probe).
+- `spec/probes/persistence.py`: the `StatEvent` enum and the kill handler's event numbers, the criterion factory's
+  type tests and vtable stores (0.1 s).
+- `spec/probes/resources.py`: 7 new checks on the node header, child references, animation flags, block C's curves
+  and block B's cycle values over 1,926 trees (67 of 67 checks, 6.3 s).
+
+Rules went from 1,587 to 1,599 (by status: verified 969, implemented 151, observed 417, inferred 62). `spec/rules.json`
+is 977,029 bytes committed (LF), 23 KB under the repository's 1,000,000-byte limit.
+
+### Playtests still pending (in-game tests are paused)
+
+- `transforms/terrain_edit.md` section 5 (E5 / E7); ONS-CAP-3's patch; MAT-TEX-20's RenderDoc capture; BOT-GS-5;
+  bot_ai.md's plan with the kill probe.
+- After OPFOR's PERS-SCORE-2 fix: a round with kills whose save keeps them; a save with an award (PERS-AWD-5, 7); a
+  burst of one menu event (MENU-EVT-5); `-VisualTerrain.Undergrowth*` overrides (VEG-UG-8, SET-CLI-1).
+- New: a suicide and a team kill with the award log (PERS-AWD-6: the 0x51 test's +0xA8, the per-life reset); a
+  settings dump for the default `UndergrowthWindSpeed` / `UndergrowthMaxHeight`, a `WindScale` 0 type standing still
+  and a mesh taller than `UndergrowthMaxHeight` culled while its top is on screen (VEG-UG-10, 11); `LocalForce`'s sign
+  on a DICE effect (FX-PROC-10).
+
+### What is left (SPG2-rest7)
+
+- The Dx9 undergrowth programs' sway (counted, not read).
+- The particle shaders; other emittable types through the mesh spawn; the turbulence draws' axes; the caller's
+  per-draw byte and vector; who sets the emitter parameters.
+- The server message ids' names and the dispatcher's job numbers (MENU-RT-8).
+- The criterion factory's callers 0x8617B0 / 0x8489A0; the 0x51 test's +0xA8.
+- The anim-tree array elements of types 2, 3, 6, 7, 13, 23, the Selector's group order, the If node's expression
+  record, block C's curve names, the header's pairs.
+- OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
+
+## OR9: OPFOR in Rust - the Onslaught console port, stages 2 - 4 (2026-11-27, branch `or9`, with Project OPFOR's `or9`)
+
+What OR5 left ("OR5", "What is left"): `console_port.py`'s stages 2 - 14 and the Napisal-level fixes, about 5,000
+lines whose tools (DbxEdit, FbrbTool, stfs, the converters, culltree, aptgraft) are Rust already. This round writes
+the plan for all of them (below) and ports its own share, stages 2 - 4. Version 0.32.0 (OPFOR's `SUITE_REQUIRES`
+0.32.0 to below 0.33.0). Nothing was written to OPFOR's `game\`; the game never launched.
+
+### The plan (OR9 - OR13)
+
+| Round | Stages | OPFOR Python | Lines | What is hard |
+|---|---|---|---|---|
+| **OR9** (this) | 2 `console_linux_base`, 3 `console_mode`, 4 `console_loadset` | 310 + 324 + 294 | 928 | ElementTree's tree and `math.dist`; the closure's set order |
+| OR10 | 5 `console_vehicles`, 6 `console_soldiers`, 7 `console_shaders` | 135 + 376 + 248 | 759 | the soldiers' renamed partitions (`opfor_guid('soldier')`); the shader merge through `shaderdb.merger` (Rust since OR3a) and `console_shaders\shared`, which stages 6, 7, 9 and the audit read |
+| OR11 | 8 `console_markv`, 9 `console_input`, 10 `console_deps` | 389 + 314 + 249 | 952 | the Mark V's console conversion (mesh, Havok, textures: `bc2_convert`), the seat action maps, the in-memory reads of the stock bundles |
+| OR12 | 11 `console_cull`, 12 `console_loading`, 13 `console_hud` | 142 + 223 + 237 | 602 | `culltree add` (Rust since O3), startup-00's per-level layers (M11), aptgraft's movie edits (Python API: OR14's area) |
+| OR13 | 14 `console_icons`, `console_shader_audit`, `apply_ai_template`, `apply_combat_squads`, `apply_sector_offsets`; `console_port.py`'s driver, `console_common`'s leftovers | 403 + 509 + 340 + 215 + 267 | 1,734 | the icon's Pillow polygon fill (OR14's `type95_icon` silhouette: shared, OR14 first); the Napisal-level fixes run on Napisal's levels, which only the user's backups hold |
+
+Each round proves its stages as OR9 did (below): the retired Python against the wrapper on the same scratch OPFOR
+root, every work and game file byte for byte, on the levels the user's Xbox package and Linux server levels give,
+plus damaged inputs. What stays Python at the end: the command lines, the install ledger's calls (OPFOR's
+`opforcore.stages`, until OR15's one ledger) and `drop_scratch`.
+
+### What moved
+
+| OPFOR Python (until OR9) | Lines | now | Lines left |
+|---|---|---|---|
+| `console_linux_base.build` (the Linux base, the merge, `enum_cmds`, `slots`) | 310 | `bc2_install::onslaught::linux` (`bc2_native.onsport_linux`) | 92 (command line, `first_stage_source`, the install, revert) |
+| `console_mode.plan` / `apply` / `drop_door_predestruction` / `mode_partition_guid` | 324 | `bc2_install::onslaught::mode` (`onsport_mode`) | 94 (command line, is-top and check before the build, the install, revert, scratch) |
+| `console_loadset.plan` / `apply` / `closure_entries` / `cav_entries` / `manifest_without_mp2` | 294 | `bc2_install::onslaught::loadset` (`onsport_loadset`) | 83 (command line, the install, revert, scratch) |
+| `console_common.find` / `unpack_cached` / `xml_of` / `tree_info` as the stages use them | - | `bc2_install::onslaught::port` | `console_common` keeps them for stages 5 - 14 |
+
+Not ported, with reasons: `console_mode`'s explosive-objects branch (`EXPLOSIVES` was off: Nelson Bay crashed at load
+with them; the Python never ran it) and `console_loadset.mp2_only` (a diagnostic nothing called). The stages' Python
+twins are retired: OPFOR's three scripts are wrappers over `console_common.port_stage`.
+
+### Decided (spec XCONS-ONS-2 - 4)
+
+- **The cull slots** keep the Python's arithmetic: CPython's `math.dist` (its compensated `vector_norm`, now
+  `bc2_pyrt::math`; a plain `sqrt` of the sum can be one unit off and pick another object at a tie), `round(x, 1)`
+  as the position key with -0.0 equal to 0.0. The slots themselves are DICE's (the Linux server level's); the
+  matching is OPFOR's own rule, so there is no DICE answer to decide it against.
+- **The door distance** is Python's `** 2` and `** 0.5`: the C library's `pow`, not a multiply and `sqrt`.
+- **The closure's order**: the Python visited the partitions in a set's order; the closure, and the XML files it
+  writes on the way, are the same in any order, so the Rust visits in name order (no output depends on it).
+- **The temporary folder** of stage 3 is named by the process id (Python's `mkdtemp` is random); it is deleted before
+  the bundle is packed, and only the import line printed names it.
+- XCONS-STG-1 said a level without a folder list "stops at stage 4 with the partitions to list"; no code did that:
+  such a level takes the closure alone. The rule now says so.
+
+### Proof
+
+`scratchpad\or9\stages_parity.py`: one scratch OPFOR root (`C:\Programming\Projects\_rounds\or9\s\<level>`: the
+Linux levels' paths pass Windows' 260 characters under the scratchpad) per side, run one after the other at the same
+path so the paths inside the work files agree; `work\` holds copies of OPFOR main's stage 1 output, `con_level` and
+the console mode partition; `game\` is junctions into OPFOR main's `game\` (read only) with the level's folder and
+`package.mft` real copies; stage 2's input is the user's own stage 1 output (the legacy marker
+`level-00.fbrb.opfor-linux-orig`; Nelson Bay, hand-merged in 2026-10, has none: its `.opfor-mode-orig`). The stages
+install into the scratch game through OPFOR's ledger, as they do for real. The Python twins: OPFOR 0e4d0d3's three
+scripts, loaded by path.
+
+| Level (PC map) | Stage 2 input | Files compared (work and game) | Identical | Python / Rust, stages 2 - 4 |
+|---|---|---|---|---|
+| ONS_MP_002 (MP_002) | `.opfor-linux-orig` | 8,996 | **8,996** | 106 s / 97 s |
+| ONS_MP_004 (MP_004) | `.opfor-linux-orig` | 9,184 | **9,184** | 101 s / 100 s |
+| ONS_MP_005 (MP_005) | `.opfor-linux-orig` | 9,940 | **9,940** | 125 s / 118 s |
+| ONS_MP_008 (MP_008) | `.opfor-mode-orig` | 15,017 | **15,017** | 91 s / 112 s |
+
+The files are every work file of the three stages (the Linux unpack and its stamp, the control partitions and their
+XML, `merge.cmd` / `merge.log` / `enum.cmd`, `ctl_ov`, the packed bundles, `console_mode\<lv>`, `console_loadset\`'s
+mp2_common cache with the XML its closure wrote, the level's unpack) and the scratch game's real files (the level
+bundle as each stage installed it, `package.mft`). The printed lines are the same but for stage 3's import line,
+which names its temporary folder. Beyond the Python: on ONS_MP_002 the Rust's stage 2 and stage 3 bundles are byte for
+byte the ones the user's own install made in October (`level-00.fbrb.opfor-mode-orig`, `.opfor-loadset-orig`).
+
+**The manifest's edit** (stage 4 with `package.mft.opfor-loadset-orig`, the user's manifest from before a loadset
+run, 146 mp2_common targets): ONS_MP_002 7,998 of 7,998, ONS_MP_008 13,901 of 13,901, ONS_MP_005 8,504 of 8,504
+files identical, `package.mft` among them.
+
+**Damaged inputs** (ONS_MP_002, `damage_case.sh`): the level bundle cut to half (stages 2, 3, 4) and to 99.5 %
+(stage 3), one byte changed (stages 2, 3, 4), stage 1's level missing or cut to a third (stage 2), `package.mft`
+empty or with LF line ends (stage 4), the console level missing, its cull tree missing, the console mode partition
+missing (stage 3: the derived GUID): 14 of 14 cases end alike - the same files written, the same refusal with the
+same command and message, or the same success. The one difference: a failing tool's "details:" line names the day's
+tool log under the Python (its `dbx_run` logs) and "(no log file)" under the Rust (as OR5's in-process commands).
+Neither side wrote to `game\`; OPFOR's `game\` was only read through junctions.
+
+### What is left
+
+- Stages 5 - 14, the shader audit, the Napisal-level fixes and the driver: OR10 - OR13 (the plan above).
+- OR5's and OR9's in-process DbxEdit / FbrbTool commands write no tool log (a failure says "details: (no log
+  file)"); the log writer is `bc2-cli`'s `pylog`: a shared place for it, then the stages pass the day's log.
+- `bc2_pyrt::math` and `bc2_navbuild::pymath` both hold CPython's `vector_norm` (navbuild keeps its own so the
+  navigation build does not link the Python-runtime emulation): one to go when navbuild may depend on bc2-pyrt.
+- **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte (and ONS_MP_002's
+  stage 2 and 3 bundles the user's installed ones), so the levels play as they did.
+
+## SPLIT1: the specification's rule index split into shards (2026-11-27, branch `split1`)
+
+`spec/rules.json`, written by `spec/trace.py --emit`, was 977,029 bytes as a committed blob (1,010,926 on disk with
+CRLF), 23 KB under `tests/test_repo.py`'s 1,000,000-byte limit after SPG2-rest6; the next spec round would have
+crossed it. Done the way this file was split on 2026-11-23: nothing lost, every rule's content unchanged.
+
+| | before | after |
+|---|---|---|
+| index files | 1 (`spec/rules.json`) | 90 (`spec/rules/<area>/<file>.json`, one per spec markdown file with rules) |
+| largest file | 977,029 bytes | 40,538 bytes (`spec/rules/transforms/validation.json`); all 90 together 994,730 |
+| rules | 1,599: verified 969, implemented 151, observed 417, inferred 62 | the same |
+| key order | id, title, file, status, variants, evidence (insertion) | sorted keys (`sort_keys=True`; `JSON_ORDER_KEPT` for `spec/trace.py` 2 -> 1) |
+
+Layout: a shard sits at the markdown file's path under `spec/rules/` (`spec/engine/typeinfo/core.md` ->
+`spec/rules/engine/typeinfo/core.json`), `{"about", "rules"}`, its rules in heading order. Per file rather than per
+area: the largest area (engine) is already 385 KB of rules, the largest file 40 KB, so a shard reaches the limit only
+if one markdown file grows about 25 times; a rule's diff lands in the shard named like its markdown file.
+
+Proof:
+- `python spec/trace.py --emit` then `--check`: `ok   1599 rules in 90 files: 969 verified, 151 implemented, 417
+  observed, 62 inferred`, the same line as before the split.
+- A one-off comparison (scratchpad `compare_union.py`, not committed): the shards' rules, concatenated in markdown-path
+  order, equal the old `rules.json`'s list element for element (each rule compared as sorted-key JSON): 1,599 = 1,599,
+  same order, ids unique, the same per-status counts, and every rule in the shard of its own `file`.
+- `--check` fails a shard edited by hand (one line's indentation changed: "spec/rules/model/ai_orders.json is not what
+  --emit writes") and a leftover file (`spec/rules/model/stray.json`: "is not a shard --emit writes"); a shard with
+  CRLF line endings (a `core.autocrlf` checkout, as on this PC and CI's Windows runner) passes, and `--emit` leaves
+  it untouched.
+- `spec/probes/census.py --check` passes (it reads the markdown, not the index). CI runs `trace.py --check` through
+  the quick tier's `spec-trace` entry (`.github/workflows/checks.yml`, `run_tests.py quick --no-game --ci-steps`),
+  unchanged.
+
+Guards against the next surprise: `trace.py --check` fails a shard over 800,000 bytes (80% of the limit: split the
+markdown file); `tests/test_repo.py` prints a `warn` line, without failing, for every file of HEAD between 80% and
+100% of the limit. On main today it warns of nine test fixtures (`granny_golden.json` 802,986 bytes,
+`ports_golden.json` 817,885, `f0_meshdata_replay_game.json` 837,639, the five `f0_wave_replay_game_*.json` at about
+901,500, `cli_o3_cull_golden_0.json` 831,948); they are fixed fixtures, not growing generated files.
+
+Branches that re-emitted `spec/rules.json` (OR14, OR9): after merging main, `git rm spec/rules.json` (take main's
+deletion) and run `python spec/trace.py --emit`; `--check` then confirms the shards.
+
+After merging main with OR9 (da8e3d0a; its `spec/rules.json` 979,615 bytes, 1,602 rules): `git rm spec/rules.json`,
+`--emit` (5 shards changed), `--check` ok with 1,602 rules (972 verified, 151 implemented, 417 observed, 62 inferred),
+and the same comparison against main's `rules.json`: equal element for element, the largest shard still 40,538 bytes.

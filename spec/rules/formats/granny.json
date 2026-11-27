@@ -1,0 +1,238 @@
+{
+ "about": "The rules of spec/formats/granny.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:316-346"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/granny.rs::refuses_what_is_not_granny"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny_native.py::quick"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/granny.py:30-34"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-WRAP-1",
+   "status": "verified",
+   "title": "DICE's wrapper",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:776-821"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:823"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/granny.rs::tables"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny_native.py::quick"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-WRAP-2",
+   "status": "verified",
+   "title": "The per-bone table",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:337-346"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/granny_edit.rs:1"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/granny.py:35-36"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-WRAP-3",
+   "status": "implemented",
+   "title": "Names are string-table indices",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:38-45"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:347-381"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/granny.rs::refuses_what_is_not_granny"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py::crc_ok"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/granny.py:30-34"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-FILE-1",
+   "status": "verified",
+   "title": "The Granny 2 file",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:89-106"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/granny.rs::halves"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny_native.py::game"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/granny.py:34-38"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-TYPE-1",
+   "status": "verified",
+   "title": "Member types",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-anim-tools/granny.py:401-458"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-anim-tools/granny.py:601"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py::tracks"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/granny.py:46-53"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-CURVE-1",
+   "status": "implemented",
+   "title": "Animation curves",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/granny.rs:103-196"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/granny.rs::minimal_resource"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/granny.rs::swaps_like_python_slices"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py::big_endian"
+    },
+    {
+     "kind": "data",
+     "ref": "all 2,654 resources of BFBC2's Xbox 360 mp_common / sp_common with a same-size PC twin: the table, strings and every object value match the PC file, Granny's unused padding members aside (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/granny.py:22-27"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-CONV-1",
+   "status": "verified",
+   "title": "Xbox 360 -> PC",
+   "variants": "Xbox 360 -> PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/granny_edit.rs:1"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny.py::add_tracks"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-anim-tools/granny.py:40-44"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-EDIT-1",
+   "status": "verified",
+   "title": "Adding tracks to a PC animation",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-py/src/granny.rs:159"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/granny.rs:399"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/granny.rs::member_offsets_and_another_copy"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny_native.py::writes"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-anim-tools/tests/test_granny_f2a_native.py::edits"
+    }
+   ],
+   "file": "spec/formats/granny.md",
+   "id": "GRANNY-EDIT-2",
+   "status": "verified",
+   "title": "Writing values in place",
+   "variants": "PC"
+  }
+ ]
+}

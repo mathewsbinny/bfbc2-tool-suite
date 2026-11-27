@@ -1,0 +1,845 @@
+{
+ "about": "The rules of spec/formats/shaderdb.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:354-419"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::errors"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/shaderdb_robustness.rs::databases_read_back"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:20-24"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-HDR-1",
+   "status": "verified",
+   "title": "Primitives and stream form",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:354-405"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy 2026-11-19: version 120 and flag 0 in all 80 distinct Dx9, 80 Dx10 and 80 Dx11 databases read (bundles over 350 MB of payload not read); 270 level databases parse to their last byte (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:26-39"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-HDR-2",
+   "status": "verified",
+   "title": "Header and section order",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:278-296"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::layouts_disagree"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs:38-73"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs::opens_as_shaderdb_py"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_sd1_native.py::area_parse"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:276-283"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-HDR-3",
+   "status": "verified",
+   "title": "The three PC kinds differ only in vertex inputs and code",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:298-308"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:32-167"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:197-212"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs::blocks"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::quick"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:41-91"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-PB-1",
+   "status": "verified",
+   "title": "Parameter blocks (section 1)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "all 16,062 records of mp_005, mp_006, sp_01 Dx9 / Dx10 and BF1943's Wake (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:72-73"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-PB-2",
+   "status": "observed",
+   "title": "Name hashes are Adler-32 of the lower-case name",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:309-316"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/dxbc.rs::globals_size_rounds_to_registers"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:93-110"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-BIND-1",
+   "status": "verified",
+   "title": "Binding tables (section 2)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:317-324"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:112-124"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-REG-1",
+   "status": "verified",
+   "title": "Register tables (section 3)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:261-273"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:406-417"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::errors"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:127-150"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-SH-1",
+   "status": "verified",
+   "title": "Shader records (sections 4 and 5)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:275-296"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:177-195"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:139-145"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-SH-2",
+   "status": "verified",
+   "title": "Vertex input description",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:37-38"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:170-178"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs::program_indices"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x9CC520 the sorted vector-map insert (FORMAT.md)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:152-164"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-PROG-1",
+   "status": "verified",
+   "title": "Program records (section 6a)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:39-42"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:167-171"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:385-390"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::errors"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:166-175"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-KEY-1",
+   "status": "verified",
+   "title": "Program keys (section 6b)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:43-44"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:86-98"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:383-444"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::xbox"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:218-221"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:183-185"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-LAY-1",
+   "status": "verified",
+   "title": "Vertex layouts (section 7)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:251"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:345-351"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-LAY-2",
+   "status": "implemented",
+   "title": "Layout and mesh part strides agree",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:393-403"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:323-330"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:468-485"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs::md5_vectors"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::game"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:225-232"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-NAME-1",
+   "status": "verified",
+   "title": "Entries (section 8.1)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:533-546"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::quick"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:233-234"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-NAME-2",
+   "status": "verified",
+   "title": "Fragments (section 8.2)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:547-560"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::xbox"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:235-238"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:345-351"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-NAME-3",
+   "status": "verified",
+   "title": "Mesh parts (section 8.3)",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:330-351"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:416-417"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:493-531"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::quick"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:240-242"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-GRP-1",
+   "status": "verified",
+   "title": "Entry groups",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:437-562"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs::needed_and_coverage"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb_native.py::main"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:259-274"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-CHK-1",
+   "status": "verified",
+   "title": "What a modified database must satisfy",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:474-531"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::xbox"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::wake"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:9-13"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-WRITE-1",
+   "status": "verified",
+   "title": "Writing gives the bytes back",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::stock_levels_carry_their_meshes_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "the game copy, 2026-11-21: SP_01, MP_005, MP_002 reached and covered by bundle; mp_common, sp_common, ww2_common, nam_common: no database"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS.md"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-LVL-1",
+   "status": "verified",
+   "title": "A level draws through its own databases only",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/shaders.rs:218-316"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:275-306"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3385-3447"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-LVL-2",
+   "status": "verified",
+   "title": "An export adds the entries of the meshes it brings in",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:123-201"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:697-863"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs:918-950"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_renames_ids_keys_and_textures"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/merge.rs::clone_entry_refusals_add_nothing"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb_merge.py::main"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-LVL-3",
+   "status": "implemented",
+   "title": "A cloned entry is the donor's under a new name",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:203-307"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/material.rs::render_states_as_dice_encodes_them"
+    },
+    {
+     "kind": "exe",
+     "ref": "draw setup 0x9BC230; blend 0x98C6D0 (Dx10 0x98C220), depth-stencil 0x99FF00, rasterizer 0x99FD80; factor tables 0x1445C28 / 0x1445C98 (FORMAT.md)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:177-216"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-RS-1",
+   "status": "verified",
+   "title": "The program's state word",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "stock levels' unblended main-pass Dx11 programs with 0x10: 75,718 with the literal test, 432 another discard form, 17,348 none (alpha output literal 1) (doc)"
+    },
+    {
+     "kind": "exe",
+     "ref": "the Dx10 state device's alpha-test call is an empty `ret 8` (vtable 0x1449898 + 0x20)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/dxbc.rs:121"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:188"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-RS-2",
+   "status": "observed",
+   "title": "Alpha test is in the Dx10 / 11 pixel shader",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/dxbc.rs:61-121"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/dxbc.rs::globals_size_rounds_to_registers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/dxbc.rs::discard_found_in_the_instruction_stream"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-DXBC-1",
+   "status": "verified",
+   "title": "Dx10 / 11 code is DXBC",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb.rs:173-178"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::big_endian_detection"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs:38-73"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs::opens_as_shaderdb_py"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_sd1_native.py::area_parse"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb.rs::round_trips"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:318-333"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-X-1",
+   "status": "verified",
+   "title": "Byte order and version",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:376-386"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:420-423"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_shaderdb.py::xbox"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/FORMAT.md:324-327"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-X-2",
+   "status": "verified",
+   "title": "GUIDs have big-endian fields",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/xenos.rs:1914-1975"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/robust.rs::a_blob_cut_anywhere_is_refused_not_a_panic"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xenos_native.py::quick"
+    },
+    {
+     "kind": "data",
+     "ref": "all 735 vertex and 815 pixel shaders of BF1943's Wake database (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/XENOS.md:11-23"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "XENOS-CON-1",
+   "status": "verified",
+   "title": "The XDK shader container",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/xenos.rs:1105"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/XENOS.md:25-50"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "XENOS-CON-2",
+   "status": "implemented",
+   "title": "Constant and literal tables",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/xenos.rs:1237"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xenos_native.py::game"
+    },
+    {
+     "kind": "data",
+     "ref": "3,602 vertex fetches of BF1943's Wake all templates (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/XENOS.md:52-80"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/XENOS.md:178-187"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "XENOS-HDR-1",
+   "status": "implemented",
+   "title": "The shader header",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-shader/src/xenos.rs:1448"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-shader/tests/robust.rs::random_microcode"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-shader-tools/tests/test_xenos_native.py::game"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-shader-tools/XENOS.md:82-110"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "XENOS-UC-1",
+   "status": "verified",
+   "title": "Microcode",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/census.py on DICE's bundles, 2026-11-23 (spec/census.json): the nine types' live entries and distinct names as above"
+    }
+   ],
+   "file": "spec/formats/shaderdb.md",
+   "id": "SHDB-TYPE-1",
+   "status": "verified",
+   "title": "Nine shader resource types",
+   "variants": "PC"
+  }
+ ]
+}

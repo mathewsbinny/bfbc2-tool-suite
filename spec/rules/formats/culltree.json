@@ -1,0 +1,421 @@
+{
+ "about": "The rules of spec/formats/culltree.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22: DICE's 74 level partitions name both trees, each a partition of the level's own bundle holding one World.StaticCullTreeData (148); ClientTreeStaticCullTree null on 74"
+    },
+    {
+     "kind": "data",
+     "ref": "37 of 37 stock levels have both partitions and a null ClientTreeStaticCullTree"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:53-58"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-LVL-1",
+   "status": "verified",
+   "title": "A level's two trees"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:164-201"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:454-490"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree"
+    },
+    {
+     "kind": "exe",
+     "ref": "the type's field table: Right +0, Max +4, SphereKeyX..W +8..+0xE"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:60-66"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-FLD-1",
+   "status": "verified",
+   "title": "Fields"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:205-260"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2300-2309"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "37 of 37 stock tree pairs"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-NODE-1",
+   "status": "verified",
+   "title": "Preorder binary tree"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:837-873"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "37 of 37 stock tree pairs"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-NODE-2",
+   "status": "verified",
+   "title": "Leaf numbering"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:30"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:196-201"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:462"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "256 spare nodes in every stock tree"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-NODE-3",
+   "status": "verified",
+   "title": "Spare nodes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2196-2213"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "263,653 internal nodes of the stock trees, no exception"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-NODE-4",
+   "status": "verified",
+   "title": "Max"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:59"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2215-2219"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x0056C4E0 keeps 128 dwords at +0x20 of the query object, the count at +0x220"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-NODE-5",
+   "status": "implemented",
+   "title": "Depth"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:63-103"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-culltree/culltreelib.py:258-276"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::keys_round_trip_and_contain"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "exe",
+     "ref": "divisors 16.0 at 0x1416D28 and 4.0 at 0x14D943C in the traversal"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-SPH-1",
+   "status": "verified",
+   "title": "Quantization"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22: 516,718 of 516,718 leaves of DICE's 148 trees with W >= 4 x Max + 0.5; above 1.5 m W - ceil(4 x Max) = 0 on 84,356, 1 on 314,876"
+    },
+    {
+     "kind": "data",
+     "ref": "123,585 of 123,585 stock leaves satisfy W >= 4 x Max + 0.5; W - ceil(4 x Max) is 0 or 1 above 1.5 m"
+    },
+    {
+     "kind": "data",
+     "ref": "Linux MP_008, 2,782 leaves: centre in the object's space within 0.14 m of the blueprint's median, 99 % within 0.105 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:94-105"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-SPH-2",
+   "status": "verified",
+   "title": "Leaf spheres"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22: 395,342 of 1,033,140 child spheres (38 %) stick out of their parent's decoded sphere, at most 1.10 m"
+    },
+    {
+     "kind": "data",
+     "ref": "stock trees: 38 % of child spheres stick out of their parent's decoded sphere, at most 1.1 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:106-108"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-SPH-3",
+   "status": "verified",
+   "title": "Internal spheres"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0056C4E0, with 0x0056BE40, 0x0056C820 and 0x00593700 reading the tree the same way"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:110-117"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-TRV-1",
+   "status": "observed",
+   "title": "Traversal"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_008: 5,726 members, leaves 1..5,726 each once; all 37 stock pairs"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:75-76"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-SLOT-1",
+   "status": "observed",
+   "title": "Client tree"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2353-2360"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:442-447"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:66"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "stock trees: 57,308 instances with two leaves (the same sphere in 96 %), 8,337 with one; EnumOffset = client leaf count in 37 of 37 pairs"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-SLOT-2",
+   "status": "verified",
+   "title": "Exclusive tree and an object's slot"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Napisal's ONS_MP_008 port left 14 console-only objects at slot 0, fixed by culltree add (slots 8,611..8,637)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:1-5"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:173-177"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-SLOT-3",
+   "status": "observed",
+   "title": "Slots are unique; slot 0 is a defect for static objects"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:370-447"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:543-597"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::main"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:119-133"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-ADD-1",
+   "status": "verified",
+   "title": "What an addition must keep"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "one console exclusive tree installed on the PC crashed at load; the Onslaught ports run on PC / Linux-server trees"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-culltree/README.md:142-143"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-PLAT-1",
+   "status": "observed",
+   "title": "Trees are per platform"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/culltree.rs:166-236"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/culltree.rs:332-386"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/culltree.rs::reads_a_stream"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/culltree.rs::edges"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/culltree.rs::document_writes_back"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-culltree/tests/test_culltree_native.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "1,269 trees and level partitions of the game copy and OPFOR's work folders read the same by the Rust and the Python"
+    }
+   ],
+   "file": "spec/formats/culltree.md",
+   "id": "CULL-DBX-1",
+   "status": "verified",
+   "title": "Element stream"
+  }
+ ]
+}

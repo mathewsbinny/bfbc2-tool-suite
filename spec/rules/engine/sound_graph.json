@@ -1,0 +1,111 @@
+{
+ "about": "The rules of spec/engine/sound_graph.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ],
+   "file": "spec/engine/sound_graph.md",
+   "id": "SGR-WIRE-1",
+   "status": "verified",
+   "title": "A sound is a node graph wired by ports and connections",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/sound_graph.md",
+   "id": "SGR-NODE-1",
+   "status": "verified",
+   "title": "Samplers play waves; processing nodes shape them",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/sound_graph.md",
+   "id": "SGR-OUT-1",
+   "status": "verified",
+   "title": "Outputs and emitters place the sound in the world",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/sound_graph.md",
+   "id": "SGR-VO-1",
+   "status": "verified",
+   "title": "Voice-over trees, dialog lines and the trigger tables",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/sound_graph.md",
+   "id": "SGR-MIX-1",
+   "status": "verified",
+   "title": "Sound states, the HDR mix, mixer groups, stream pools, master settings",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe SimpleTransformNode's factory vtable 0x14B3DA8: slot 1 0xFE5CC0 `mov eax, 0x1C101E4; ret`, slot 2 0xFEDE70 allocates 0x20 bytes and stores the node vtable 0x14B3E70 (0xFEDE83)"
+    }
+   ],
+   "file": "spec/engine/sound_graph.md",
+   "id": "SGR-NODE-2",
+   "status": "verified",
+   "title": "Each node data class has a factory; the enumerations' numbers",
+   "variants": "PC"
+  }
+ ]
+}

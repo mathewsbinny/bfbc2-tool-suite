@@ -1,0 +1,563 @@
+{
+ "about": "The rules of spec/transforms/ww2.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::mopp_check"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havokport.rs::refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mopp.rs::ray_hits"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-HK-1",
+   "status": "verified",
+   "title": "Physics: BF1943's Kurogane converts to BFBC2's own Kurogane",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshport.rs:27-45"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_meshport.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_meshport.py::renamed_port"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_meshport.py::rigid_sets"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-MESH-1",
+   "status": "verified",
+   "title": "Meshes: BF1943 weapons BFBC2 shipped port to BFBC2's files",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::game"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::quick_havok"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::quick_mesh"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:1598-1606"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PAR-1",
+   "status": "verified",
+   "title": "The Rust ports give the reference's bytes",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the user's BF1943 and game copy, 2026-11-22: 2,353 partitions and 16,249 instances compared, 173 partitions predicted, 148 models (147 ported) - every report, JSON and console line the same SHA-256 as dbxparity.py / portparity.py at 0434c22; the 147 ports' LODs, mesh sets and textures identical to meshport.Porter's"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_parity_reports.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/src/bf1943/argp.rs::every_recorded_answer"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/meshconv.rs::converts_as_mesh_convert"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/dbxparity.rs:151-260"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs:252-360"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshport.rs:450-560"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PAR-2",
+   "status": "verified",
+   "title": "The parity tools measure the importer against DICE's own ports, in Rust",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "portparity over the 148 shared models with the Python's table changed to two singles: the same report, and its element reader was called 0 times for a float2"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs::float2_is_two_singles"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/bf1943/portparity.rs:44-64"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PAR-3",
+   "status": "verified",
+   "title": "A float2 vertex element is compared as two singles",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_ranking.py::quick"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-DBX-1",
+   "status": "verified",
+   "title": "DBX ports take BFBC2's schema of the same class",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:128-156"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_rebuild_step_order"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_every_install_root_has_a_producer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_build.py::test_from_selects_exactly"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_failed_fidelity_gate_stops_rebuild_before_hashes_and_qa"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-RB-1",
+   "status": "verified",
+   "title": "A fixed order; the first failing step stops the run",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/rebuild_all.py:256-275"
+    },
+    {
+     "kind": "data",
+     "ref": "rebuild_all on 2026-11-19 (main and the suite's RT1 branch): 10,852 of 10,852 outputs' sha1 identical to the recorded oracle"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:442-447"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1477-1481"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-RB-2",
+   "status": "observed",
+   "title": "The oracle: the rebuild is deterministic",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_first_run_runs_all_then_nothing"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_code_change_reruns_the_step_and_cuts_off_when_its_output_is_the_same"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_rewritten_input_sends_the_run_back_to_its_writer"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_rebuild_changed.py::test_a_failed_step_has_no_record_and_reruns"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-RB-3",
+   "status": "verified",
+   "title": "Incremental rebuilds run what changed, and only that",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_runs_last_after_all_its_producers"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_missing_flag_skeleton_without_reading_staging"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_fidelity_gate.py::test_fidelity_gate_rejects_opaque_wave_and_bunker_programs"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-RB-4",
+   "status": "verified",
+   "title": "The fidelity gate rejects lost source content",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_decimate.py::parity"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_decimate.py::shapes_parity"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/decimate.rs::blas_forms"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/decimate.rs:54-68"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shapes.rs:33-62"
+    },
+    {
+     "kind": "data",
+     "ref": "200,000 ddot and 100,000 quadric costs, 3,000 dgemv vectors, dgemm rows of n = 2 ... 1,000: all equal to NumPy on the reference machine"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-MOD-1",
+   "status": "verified",
+   "title": "The weapon tools' NumPy products are the reference machine's OpenBLAS kernels, written out",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/weapon.rs:65-73"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/weapon.rs:213-278"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::renderer"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR4: 34 loadout pictures x 3 sizes and 30 seeded part sets identical to the retired NumPy renderer (Project OPFOR test_ww2_pictures_parity, its recorded digests)"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PIC-1",
+   "status": "verified",
+   "title": "The loadout pictures' renderer is NumPy's float64 order, its dgemv written out",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/resample.rs:64-102"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/resample.rs:177-206"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::resize_vs_pillow"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR4: 700 seeded pictures of 1, 3 and 4 channels and the four levels' loading and map pictures identical to Pillow's"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PIC-2",
+   "status": "verified",
+   "title": "Pictures are scaled as Pillow scales them",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/loading.rs:114-188"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/mod.rs:97-164"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::loading"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PIC-3",
+   "status": "verified",
+   "title": "The written pictures are checked against DICE's form",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshview/page.rs:223-270"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::page"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR4: the attachments page of 13 textures under two titles: the text identical, every texture's pixels identical"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PIC-4",
+   "status": "implemented",
+   "title": "The preview pages' textures are PNG files of the same pixels",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/polygon.rs:77-200"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/side.rs:62-222"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/pictures/polygon.rs::random_polygons_are_pillows"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/pictures/side.rs::synthetic_meshes_match_the_python"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_silhouette.py - 20,000 random polygons identical to Pillow 12.3; 85 game-mesh and 300 synthetic pictures identical to the Python with a stable argsort (67 / 84 differ from the default argsort only in pixels a tie can change); the Type 95, MRKV and JETS identical to the shipped Python"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PIC-5",
+   "status": "verified",
+   "title": "A vehicle's side silhouette is Pillow's polygon fill, equal depths drawn in face order",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/eigh3.rs:479-640"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texwrite.rs:1-20"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/eigh3.rs::numpy_axes_to_the_bit"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_texwrite_axes.py - 10,000,000 random covariances, 8,017 degenerate ones and the blocks of 4,495 pictures (111,625,822 blocks) identical to numpy.linalg.eigh's axes; 0 encoded blocks differ"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-PIC-6",
+   "status": "verified",
+   "title": "The DXT encoders' principal axis is LAPACK's dsyevd as the oracle machine computes it",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:229-243"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:880-965"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/effectport.rs::level_copies_the_levels_own_else_the_first_other"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::quick_templates"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: bf1943_fx's 29 effects, the 4 material grids' 44 / 47 / 47 / 38, the 3 level builds' effects, the vehicles' 2: 1,361 files, every report line and record identical to the Python twin; 50 walks at 2 levels identical"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-FX-1",
+   "status": "verified",
+   "title": "An effect's emitters are its level's copies, its templates the first BFBC2 documents naming a type",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:880-965"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: 20 damaged effect inputs, 19 the Python's outcome (the exception's type and message, or the same files), the missing template decided here"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-FX-2",
+   "status": "implemented",
+   "title": "A template partition the game copy lacks is named",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:93-108"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:139-158"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/soundport.rs::skip_duplicates_decides_the_frame_count"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_sound_fills.py::test_fills_rederived_from_dices_conversions"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-SND-1",
+   "status": "verified",
+   "title": "The fields BFBC2's sound classes add are set as DICE set them",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:212-238"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/wavport.rs:172-233"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/soundport.rs::streamed_waves_in_memory"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: the five sound ports of the WW2 builds (bf1943_fx, Wake's grid, Wake's level, the menu music, the stings): 566 files, logs and returns identical to the Python twin"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-SND-2",
+   "status": "verified",
+   "title": "A wave whose audio the port puts in memory is not streaming",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_apply_order_records_and_verify_failure"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_guard_refuses_a_polluted_backup"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_gates_stop_before_the_first_write"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_installer.py::test_revert_refuses_before_changing_anything"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_levels.py::test_a_failing_shared_patch_runs_no_installer"
+    }
+   ],
+   "file": "spec/transforms/ww2.md",
+   "id": "XWW2-INS-1",
+   "status": "verified",
+   "title": "The WW2 install refuses before writing",
+   "variants": "BF1943"
+  }
+ ]
+}

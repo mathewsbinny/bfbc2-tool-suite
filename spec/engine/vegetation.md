@@ -218,7 +218,7 @@ Round SPG2-rest5 traced these fields to their use:
 | `UndergrowthCellSize` | +0x44 | metres per cell (the divisor above) |
 | `UndergrowthUpdateCellCount` | +0x1C | cells kept beyond side^2 |
 | `UndergrowthCellMaskTextureSize` | +0x6C | the mask texture's size |
-| `UndergrowthMaxHeight` | +0x7C | copied into the generator's parameters (+0x0C) each frame; its use not followed |
+| `UndergrowthMaxHeight` | +0x7C | copied into the generator's parameters (+0x0C) each frame; the height added to the top of each generated cell's bounding box (VEG-UG-11) |
 | `UndergrowthWindSpeed` | +0x78 | the second value of `windParams` (VEG-UG-9) |
 | `UndergrowthGenerateEnable`, `UndergrowthRegenerateEnable` | +0xD1, +0xD6 | the generator's flags (bit 0, bit 1), set each frame |
 
@@ -235,11 +235,58 @@ Status: **observed** · Variants: PC
 When the renderer draws an undergrowth type it sets the shader constant `windParams` to (the renderer's clock,
 `UndergrowthWindSpeed`, the type's `WindScale`, 0). The clock (renderer +0xE4) adds each frame's time step and starts
 again from 0 past 10,000 s. So `WindScale` is a per-type sway amount the shader applies with the global wind speed;
-the shaders' use of the three values was not read. The entry's second flag byte (+0x35) is read by nothing but the
+the shaders' use of the three values is VEG-UG-10. The entry's second flag byte (+0x35) is read by nothing but the
 loader and the two record copies (round SPG2-rest5's search of the terrain module for byte reads at +0x35), so it
 changes nothing at run time.
 
 [exe: BFBC2Game.exe the constant names 0xA01480 - 0xA0157C ("windParams" 0x144F5B4 at handle +0x28, renderer +0x98); the draw 0xA0EE10: clock +0xE4 0xA0F0AB, UndergrowthWindSpeed (settings +0x78) 0xA0F0CF, WindScale (type +0x28) 0xA0F0DD, the vector constant set 0x5BB850 at 0xA0F112; the clock 0xA1E88F - 0xA1E8B4 (10,000.0 at 0x14D9480); +0x35 only at 0xA04D08 (copy), 0xA0B9CB / 0xA0BA89 (copies), 0xA2BE63 (loader)]
+
+### VEG-UG-10: The undergrowth vertex programs sway each vertex sideways by its height
+
+Status: **verified** · Variants: PC
+
+Every DICE vertex program with a `windParams` constant (the undergrowth's) moves the mesh's vertex, in the mesh's own
+space and before the instance's transform, by
+
+```
+s = sin(((x + y + z) x 1000 + w.x) x w.y) x max(y, 0) x w.z
+x' = x + s,  z' = z + s,  y' = y
+```
+
+with w = `windParams` = (clock, `UndergrowthWindSpeed`, `WindScale`, 0) (VEG-UG-9). So:
+
+- the sway is diagonal in the mesh's x-z plane (the same s on both axes), and the instance's random rotation about
+  the vertical (VEG-UG-7) turns it with the mesh;
+- its size grows linearly with the vertex's height above the mesh's origin: nothing below y = 0 moves, and `WindScale`
+  is metres of sway per metre of height (DICE's 0 - 0.3: VEG-UG-5); a type with `WindScale` 0 is still;
+- `UndergrowthWindSpeed` is the angular frequency (radians per second of the clock) and scales the per-vertex phase
+  as well; the phase, (x + y + z) x 1000 radians, is in effect a different random offset for each vertex, so the
+  vertices of one plant do not move together;
+- the clock's wrap at 10,000 s (VEG-UG-9) makes every vertex jump once in about 2.8 hours.
+
+A port that draws undergrowth with another level's mesh keeps the donor's `WindScale` (VEG-OPF-1); a mesh whose origin
+is not at its base sways from wherever y = 0 lies.
+
+[test: core/tests/test_spec_probes.py::undergrowth_sway]
+[data: spec/probes/terrain.py, 2026-11-27: DICE's 74 Dx9 / 74 Dx10 / 74 Dx11 level shader databases (all of each) hold vertex programs whose parameter block has a `windParams` constant (Dx11 780 programs, 25 distinct; the constant at register 9, 21 or 25); 25 of 25 distinct Dx11 programs carry the instruction sequence above (dp3 of the position with (1, 1, 1), mad by 1000.0 plus w.x, mul by w.y, sincos, max(y, 0), mul by w.z, mad into x and z)]
+[exe: BFBC2Game.exe "windParams" 0x144F5B4 registered as a named constant 0xA0156F (vtable 0x1572B18 +0x58); written per type at the draw 0xA0F112 (VEG-UG-9)]
+
+### VEG-UG-11: UndergrowthMaxHeight is the height of a cell's bounding box above its highest instance
+
+Status: **observed** · Variants: PC
+
+The generator job (0xA0EB10) keeps, over all the instances it places in a cell, the lowest and highest base heights
+(the generator 0xA0DDC0 writes them through its 8th and 9th arguments, started at FLT_MAX / -FLT_MAX). When the cell
+is done the job writes the cell's bounding box: bottom = the lowest base, top = the highest base +
+`UndergrowthMaxHeight` (the renderer's copy, set each frame: VEG-UG-8), and marks the cell generated (state 5). The
+draw tests that box against each view's frustum (0x4174D0) and takes the distance for the view distance and fade from
+the box's centre (0x40F920; VEG-UG-8). The generator itself does not read it: no instance is cut or scaled by it.
+
+So `UndergrowthMaxHeight` is the engine's bound on how tall an undergrowth plant may be: a mesh taller than it can be
+culled while its top is still on screen, and a larger value moves the box's centre up by half the difference, which
+shifts the fade distances slightly. It is one engine setting for every level, not a level's data.
+
+[exe: BFBC2Game.exe per frame 0xA1E8EC - 0xA1E8F5 (settings +0x7C into renderer +0x1C = the job's parameters +0x0C, the parameters at renderer +0x10 passed at 0xA1E92D); the job 0xA0EB10: min / max started at 0xA0EC12 - 0xA0EC44, the generator called 0xA0ECCF (arguments 8 / 9 = the min / max), the generator's min / max updates 0xA0E7C6 - 0xA0E823; the box 0xA0ED08 - 0xA0ED25 (cell +0x04 = min, +0x14 = max + parameters +0x0C, +0x28 = 5); the draw 0xA1EB9A - 0xA1EC77 (cell = renderer +0x54 + 0x30 x index; frustum 0x4174D0, box centre 0x40F920)]
 
 ### VEG-UG-4: Undergrowth layouts must be in the level's databases
 
@@ -270,8 +317,9 @@ uses most for that mesh (MP_004 uses one block in all 40 of its grass's patch gr
 
 ## Open questions
 
-- How the undergrowth shaders use `windParams` (VEG-UG-9: clock, wind speed, `WindScale`): the shader databases'
-  vertex programs were not read. `UndergrowthMaxHeight`'s use in the generator (VEG-UG-8) was not followed.
+- Answered by round SPG2-rest6: the undergrowth shaders' sway (VEG-UG-10) and `UndergrowthMaxHeight` (VEG-UG-11).
+  Still open: the Dx9 programs' sway was counted, not read (the Dx11 ones were); what the engine's default
+  `UndergrowthWindSpeed` and `UndergrowthMaxHeight` are (a settings dump in a playtest).
 - Whether the engine settings can be set from the command line (SET-CLI-1) and so raise the undergrowth's density
   and reach for every level (VEG-UG-8): a test start (paused).
 - How the undergrowth mask shader fills the mask the generator reads (VEG-UG-7: per layer weight, a noise, the mask

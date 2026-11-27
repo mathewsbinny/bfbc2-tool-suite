@@ -1,0 +1,846 @@
+{
+ "about": "The rules of spec/engine/menus.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe catalogue builder 0x951480 into UiManager+0xC3F34; mode keys CONQUEST, RUSH, SQRUSH, SQDM"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:131-133"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:849-851"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-CAT-1",
+   "status": "observed",
+   "title": "The level catalogue is built from the description partitions",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe event acquire 0x920360, add string 0x588910, add value 0x588940, queue 0x9299B0, simple event 0x929A70; extern switch case 0x95B316; command entry 0x753540 -> 0x95E680"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:110-125"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:584-585"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-EVT-1",
+   "status": "observed",
+   "title": "The engine talks to the movies by events and extern getters",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "dice.Dialog's definition found in main_root, main_nav and main_popups; OPFOR's dialog patches"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: __Packages.dice.Dialog exported by 23 of the 91 distinct movies"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:146-147"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-DLG-1",
+   "status": "verified",
+   "title": "A class defined in several movies is the first-loaded movie's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe movie unload 0x1304690, fault at 0x13046DA (the first Pacific War menu install, 2026-11-06)"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:1094-1104"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_MENU.md:5-8"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-UNL-1",
+   "status": "observed",
+   "title": "A sprite's frames pointer must be 0 when it has no frames (0x13046DA)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 898 entries in 93 DICE bundles, 91 distinct movies, 55 names; 55 UI.UIAsset partitions, 54 with their own source file; UI.UIConfig in main_root, hud_root, nam_hud_root"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-1",
+   "status": "verified",
+   "title": "91 distinct movies under 55 names, each with a UI asset",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 1,854,963 instructions, 91 opcodes, 0 unknown; DefineFunction 5,392, DefineFunction2 28,108; per-opcode counts in the report"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-2",
+   "status": "verified",
+   "title": "Opcode frequencies",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: const entries 160,526 string and 320,102 register; 3,563 ConstantPool, largest 804; 27,247 EA_PushWordConstant"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-3",
+   "status": "verified",
+   "title": "Constants and constant pools",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: PushData lists of more than one item 0; register items 320,102; register constants used by other than exactly one PushData 0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/menus/main_root.patch:14"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-4",
+   "status": "verified",
+   "title": "In DICE's movies a PushData reads one register",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 53 classes; 1,285 registrations guarded, 0 unguarded; dice.Dialog in 23 movies"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-5",
+   "status": "verified",
+   "title": "Classes are `__Packages` exports registered once, guarded",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 9 import sources; imports naming a symbol the source does not export: none"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-6",
+   "status": "verified",
+   "title": "Imports name nine library movies",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 198 externs, 15 parameterised, writes chId and chZA, 133 FSCommands, 148 events; names missing from the exe table: 9 extern, 0 parameterised, 6 FSCommand"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptrefslib.py:105-177"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-7",
+   "status": "verified",
+   "title": "The engine names the movies use",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: <name>.swf constants all name corpus movies; loadMovie literal targets per movie; loadClip, dice.ImageManager, loadTexture and asyncF in the same 34 movies"
+    },
+    {
+     "kind": "inferred",
+     "ref": "dice.ImageManager asks the engine for a texture by FSCommand, waits for asyncF and loads it with a MovieClipLoader: the four always occur together"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-AS-8",
+   "status": "verified",
+   "title": "Which movie loads which",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x7373A0 (\"onStartLoading\" 0x142A71C, \"onStartLoadingSP\" 0x142A708, sent through 0x929A70)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: LoadingMovie set on 40 of 74 DICE level partitions, all under Levels/<level>/UI/; the two read by hand (MP05_CQ, SP_02's LoadingMovie) are Render.BinkMemoryAsset with a BinkMemory resource"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe LevelDescription's field descriptors 0x1C23758 - 0x1C23848 (Name +0xF4, Description +0xE8, LoadingScreens +0x104, LoadingMovie +0x100, LoadingMovieTopLeft / LoadingMovieDimensions +0x8 / +0x0, LoopBeginFrame +0xD4, LoopEndFrame +0xD0, AttackerTeam +0xE4, LoadingTime +0xD8, Music +0x114); 0xFDBE30 (substring test 0x50E8E0 with \"_loading\" 0x14B2710)"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-LOAD-1",
+   "status": "verified",
+   "title": "A level's loading picture is a Bink video its description names",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, round SPG2-rest5 2026-11-27: LoaderName of the 10 DICE GameModeData (loading_mp 8, loading_sp 1, loading_sp01 1), all movie names of the corpus; the three root slots' bytes and the vtables' slot 4"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtables 0x142B4E8 (+0x10 0x753660 `push 0x142AEA0` \"main_root\"; set at 0x77334B with 0x142B4D4 at +0x2C and 0x142B4C8 at +0x30), 0x142B210 (+0x10 0x74EA90; set at 0x75F627), 0x142B7A0 (+0x10 0x74D860; set at 0x782E98); 0x74EA90 / 0x74D860: 0x920750, then +0x20 (GameMode), then +0x30 / +0x90 (GameModeData's LoaderName / HudRootName descriptors); 0x920750 (in a level 0x7FF060 -> +0x38 -> +0x44 -> +0x84, LevelData's LevelDescription; else \"_description\" 0x1425AC0 -> the asset's +0x18); the \"_level0\" slots 0x753690, 0x753510, 0x751B70"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-LOAD-2",
+   "status": "verified",
+   "title": "A screen's root is a virtual; the loading and HUD roots are the game mode's LoaderName and HudRootName",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: interpreter 0x1310F90; movzx of the opcode at 0x1311041; mov edx, dword (edi*4 + 0x1545B00) at 0x1311056, call edx at 0x1311063; End handler 0x13043E0 writes context +0x14"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: the dispatch bytes at 0x1311041 and 0x1311056 as recorded; 185 table entries before the first word that is neither 0 nor code"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-1",
+   "status": "verified",
+   "title": "One opcode byte, a 185-entry handler table, no bound check",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: handler table 0x1545B00, 185 entries, 53 of them 0"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 132 opcodes with a handler; opcodes DICE's movies use without one: none"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-2",
+   "status": "verified",
+   "title": "132 opcodes have a handler; no other may run",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: handlers 0x131F5A0 (GetURL), 0x131F660 (GetURL2), 0x1314B40 (GotoFrame2), 0x130D200 (EA_PushWordConstant, pool at VM +0x44), 0x130D2E0 (EA_PushShort)"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-3",
+   "status": "observed",
+   "title": "The handlers read the operands as the suite does",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: prefix pointer 0x1545AA4 -> 0x14CE540; FSCommand callback pointer 0x1BEAAF8; \".swf\" 0x14CF31C; movie load 0x131F160"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: the prefix as read is 10 characters; GetURL 2,270 and GetURL2 1,921 instructions"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-4",
+   "status": "verified",
+   "title": "FSCommands and movie loads go through GetURL and GetURL2",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/menutree.cpp:1-25"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/menutree.cpp:112-118"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-5",
+   "status": "implemented",
+   "title": "The live display tree",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-23: the callback's install bytes at 0xFA71AD; its table as the start-up's code gives it (ten names and numbers); 4 of the 6 FSCommands missing from the name table are in it"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe start-up 0xFA6BC0 (`mov [0x1BEAAF8"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-6",
+   "status": "verified",
+   "title": "The FSCommand callback answers ten commands itself and passes the rest to the screen",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, round SPG2-rest5 2026-11-27: the handlers' switch maps against the name table and the movies' 133 FSCommands: main menu 28, HUD 29, shared 69; answered by none: cancelJoinServer, clearLocalDeathMessages, g, showAchivementBlade"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the callback's screen call 0xFA4B30 - 0xFA4B3E (UiManager +0x14, vtable +0x30); main menu 0x77BC10 (0x929C40, id - 7 against 0xDD, byte map 0x77D964, jumps 0x77D8B0, default 0x77D88C -> 0x95E680); HUD 0x7764F0 (id - 1 against 0xBA, 0x7772F4, 0x777234, default 0x777210 -> 0x95E680); loading 0x753540 (0x929C40, ids 0 and 0xF dropped, else 0x95E680 at 0x7535AD); shared 0x95E680 (id - 0xB against 0xD7, 0x963F24, 0x963DA4, default 0x963D97)"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-7",
+   "status": "verified",
+   "title": "Each screen answers its own FSCommands; the rest go to the UI manager's shared handler",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "scratch reading of 2026-11-27 (round SPG2-rest6): the 125 answered FSCommands' cases from the three switch tables, each case's calls followed two deep; the message ids from each message's vtable +0x08 (`mov al, id`); the entity types from the type registrations (`push` the type's record, `mov ecx` its run-time record, `call 0x500660`)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the client 0x7FF060 (0x15713D8); the connection stored at 0x65644B (client +0x58); a message's post 0x537980 (0x420DB0; 0x63CB30: vtable 0x141CF88, +0x08 0x63CB50 `mov al, 0x1E`; 0xC0A390 on +0x1E0); a post 0x95EF3F - 0x95EF4D (client +0x18, vtable +0x24, 0x25); the cases at the addresses in the tables"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-RT-8",
+   "status": "observed",
+   "title": "What each FSCommand case does",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: 0x9299C3 and 0x929AB7 store the name 0x143C1E0 - 0x143C1EF; the frame stamp from UiManager+0x82CF8 into record +4 (0x9299D9, 0x929AC9); queue UiManager+0x82CEC (0x929A39)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: gameEvent defined by hud_root (8 params), nam_hud_root (8), main_root (6), loading_mp (6); the event function string as read"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-EVT-2",
+   "status": "verified",
+   "title": "An event is a call of the root's gameEvent, passed to the listeners",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: getters 0x76EC30, 0x777B30, 0x76E780, 0x95A1B0"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_screens.cpp:604-606"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:623-634"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptrefslib.py:11-14"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-EVT-3",
+   "status": "implemented",
+   "title": "An extern read reaches the screen's getter by name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-23: the counter's increments as read, `add dword [ebx+0x82CF8"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe drain 0x918E50 (callers 0x74364A, 0x7647ED, 0x7851BB; 0xF7A320; first pass 0x918E66 - 0x918ED4, the delayed pass 0x918ED6 - 0x918F80 with the name compare 0x42EA40, the free pass 0x918F86 - 0x918FC0); pool 0x9202D0 (`push 0x68`, the fields cleared 0x9202E5 - 0x92030F); senders 0x929A70, 0x9299B0; the value constructors 0xF7C5C0 -> 0x12F1F90, 0xF7C5D0, 0xF7C5E0 -> 0x12F1EE0 (a float at +8), 0xF7C620 (the value at 0x1BE9234), counted over the 84 call sites of 0x9299B0"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-EVT-4",
+   "status": "verified",
+   "title": "Queued events are delivered once a frame, delayed ones deduplicated",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe pool 0x9202D0 (+0x01, +0x02, +0x08 cleared at 0x9202E7 - 0x9202F0); getter 0x920360 (`mov byte [eax"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-EVT-5",
+   "status": "observed",
+   "title": "No code sets an event's delay: every queued event is delivered in the frame it is sent",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 10 GameModeData partitions; every HUD name a corpus movie"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-HUD-1",
+   "status": "verified",
+   "title": "The game mode names the HUD's five movies",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: MOVIE_HUD_SHARED 0, MOVIE_HUD_GAMEMODE 1, MOVIE_HUD_CROSSHAIR 2, MOVIE_HUD_MENU 3; hud_root's getMovieResource and its four loadMovie calls (apt.py dump)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the four ids pair one to one with GameModeData's four layer fields; the root itself is HudRootName"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-HUD-2",
+   "status": "verified",
+   "title": "The HUD root loads the four layers the engine lists",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: 16 HUD_STATE ids from 2 to 19; extern.hudState read by 14 movies"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-HUD-3",
+   "status": "verified",
+   "title": "The HUD states",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:62-75"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:369-377"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/levelfix.cpp:57-70"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:462"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:511"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-HUD-4",
+   "status": "implemented",
+   "title": "What OPFOR's DLL changes in the HUD at run time",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:16-19"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode.cpp:52"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:638"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/input.cpp:679"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-HUD-5",
+   "status": "implemented",
+   "title": "What OPFOR's DLL changes in the menus at run time",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/menus/main_root.patch:9-13"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/menus/main_root.patch:24-30"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/menus/wag.patch:7-13"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/menus/main_nav.patch:88"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-1",
+   "status": "implemented",
+   "title": "A change to a shared class goes into every copy that may register first",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::menus"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: handler table 0x1545B00 (MENU-RT-1)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/menus.py, 2026-11-22: opcodes DICE's movies use without a handler: none"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-2",
+   "status": "verified",
+   "title": "Written code uses only opcodes with a handler",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:2231-2238"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:2962-2972"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_aptgraft.py::quick"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: handler table 0x1545B00 entry 0x4E = 0x1311570"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-3",
+   "status": "verified",
+   "title": "Grafted extern reads must be names the PC engine answers",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:1949-1957"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:1081-1089"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_aptgraft.py::quick"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-4",
+   "status": "verified",
+   "title": "Imported characters stay imports of the same movie and symbol",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:2912-2919"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/onslaught_hud.cpp:62-75"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-5",
+   "status": "implemented",
+   "title": "Event handlers are registered by code that runs, one per name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:build_menus.bat:27-42"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:build_menus.bat:49-50"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-6",
+   "status": "implemented",
+   "title": "OPFOR's menus are rebuilt from DICE's pristine bundle, patches first",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/aptpatch.rs:36-70"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-menu/src/aptpatch.rs::refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-menu/src/aptpatch.rs::patches_and_appends"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR5, 2026-11-23: OPFOR's 12 patch files on DICE's pristine main menu, 12 of 12 movies identical to AptTool.exe's"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-7",
+   "status": "verified",
+   "title": "A menu patch is applied whole or not at all, every expected byte checked",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/modeart.rs:481-704"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pil.rs:1-20"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-menu/src/pil.rs::pillow_answers"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR5, 2026-11-23: rust/parity_menuart.py, 200 random cases of each of 9 operations identical to Pillow / numpy; the menu bundle built from the cache, the user's Xbox 360 package and the fallback identical to onslaught_art.py's"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-8",
+   "status": "verified",
+   "title": "The ONSLAUGHT mode picture is new data appended, its pixels Pillow's",
+   "variants": "PC, Xbox 360 (the source)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pacific.rs:1-60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/parity_pacific_menu.py"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_pacific_menu.py - the menu step's movies at the step's and 40 random label / logo sizes, damaged movies and the dumps identical to menu_install.py's Python on aptgraft.py; menu_install.build old against new: every file and printed line identical"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-9",
+   "status": "verified",
+   "title": "The Pacific War mode is main_nav's third mode, built on Vietnam's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/loc.rs:30-150"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/parity_pacific_menu.py"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR14: rust/parity_pacific_menu.py - every language of the game copy: names.py's texts set, written and read back, every lookup, damaged files and random keys and texts identical to bc2loc.py's"
+    }
+   ],
+   "file": "spec/engine/menus.md",
+   "id": "MENU-ED-10",
+   "status": "verified",
+   "title": "The localization file keeps DICE's texts where they were and appends new ones",
+   "variants": "PC"
+  }
+ ]
+}

@@ -1,0 +1,619 @@
+{
+ "about": "The rules of spec/engine/weapons.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: 359 SoldierWeaponData and 359 SoldierWeaponAsset, 280 SoldierAimingSimulationData, 574 ZoomLevelData, 180 WeaponFiringData and 180 FiringFunctionData, 117 BulletEntityData, 77 GunSwayData in 1,130 partitions; every weapon's WeaponFiring and PrimaryFire resolve (359 of 359), its projectile on 358"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-CLS-1",
+   "status": "verified",
+   "title": "Weapon, firing, projectile, sway, aiming"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: 321 players' weapons by WeaponClass as listed; AnimBaseSet wabsHg on 10 player firearms (wcSmg 9, wcAssault 1), all fltSingleFire"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-CLS-2",
+   "status": "verified",
+   "title": "WeaponClass, and no pistol class"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AnimBaseSet over 227 player firearms wabsRif 197, wabsShg 20, wabsHg 10; wcAt wabsAT 6/6; wcHgr wabsHgr 4/4; wcC4 3/3 and wcATMine 2/2 wabsHgr; wcPowerTool wabsHg 2/2"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-CLS-3",
+   "status": "verified",
+   "title": "Body sets per class"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: 351 weapon partitions have a Package and a Dist copy, 325 of them differ (XML form); 159 firing partitions: 130 have Package copies, each name 1 content over all its Package copies; 93 of the 159 have 2 contents over all copies; of 68 distinct player firings with both copies, the Package one changes the falloff start on assault 8 of 10, SMG 12 of 13, LMG 7 of 7, shotgun 11 of 14 (falloff end 13 of 14); end damage and both falloff distances on sniper 5 of 8; the damage on the power tool 1 of 1"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-PATCH-1",
+   "status": "verified",
+   "title": "DICE's balance patches are Package copies"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-mesh-viewer/meshview.py:54-72"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_weapons.py:393-397"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-PATCH-2",
+   "status": "implemented",
+   "title": "Readers take the Package copy first"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: StartDamage / EndDamage / falloff distances on every BulletEntityData a player weapon fires (293 weapons over 85 partitions); 72 of them name an Explosion"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-DMG-1",
+   "status": "verified",
+   "title": "Damage lives on the projectile"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the fields name two end points and every stock profile is monotonic; the interpolation is not read from BFBC2Game.exe and was not measured in game"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-DMG-2",
+   "status": "inferred",
+   "title": "Falloff between the two distances is linear"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: the damage-profile section, 98 distinct player firearm firings; NumberOfBulletsPerShell 12 on 10 and 6 on 5 shotgun weapons, 1 on the other 212 player firearms"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-DMG-3",
+   "status": "verified",
+   "title": "Damage profiles per class"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcKnife 4 weapons: StartDamage 120 x3, 125 x1, speed 1.75 x2 / 1.8 / 2.25, TimeToLive 1, Gravity 0, RateOfFire 52 x3 / 60, NumberOfMagazines -1; wcNone StartDamage 120 x2 at 1.6; wcPowerTool 2: 6.5 at 900 rpm, speed 2, NumberOfMagazines -1; 8 player bullets with gravity 0, all of these"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:43-45"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-DMG-4",
+   "status": "verified",
+   "title": "Melee and tools are slow bullets"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: Shot.InitialSpeed z over 227 player firearms 600 x189, 300 x26, 200 x11, 400 x1; AI clones 300 x25; MissileEntityData 25 .. 100 mode 75; GrenadeEntityData 20 x4, 40 x1; wcUgl 50 x57"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-PROJ-1",
+   "status": "verified",
+   "title": "Muzzle speed is Shot.InitialSpeed"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: Gravity -9.81 x227 player firearms, -9.81 x25 AI clone firearms; BulletEntityData gravity 0 on 8 player weapons (4 knives, 2 wcNone, 2 power tools); GrenadeEntityData -8 x4, -7 x1; wcUgl buckshot -9.8 x24; MissileEntityData mode -1.5; TimeToLive 2 on every assault, SMG, LMG and sniper weapon, 30 on 5 of 6 wcAt"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-PROJ-2",
+   "status": "verified",
+   "title": "Every player firearm drops at -9.81"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: player weapons whose projectile names an Explosion: wcUgl 50 m/s blast 100 radius 5 inner 0.34 x33, blast 0 radius 5 x24; frag shells blast 20 x10 / 10 x4 at radius 1.1 (one a wcSniper firing); GrenadeEntityData 110 radius 8 x4, 102 radius 7 x1; ExplosionPackEntityData 290 radius 8 x4 / 5 x1; wcAt MissileEntityData 80 .. 100 radius 2 .. 7; wcMortarStrike 200 radius 6"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-PROJ-3",
+   "status": "verified",
+   "title": "Explosive projectiles"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "DICE changed Shot.InitialSpeed (to 600) on every BF1943 firearm it converted and left the bullet's own field; the M24's 2000 on the bullet would make every sniper hit near-instant, which the game's sniper bullet drop contradicts; not read from BFBC2Game.exe"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:25-34"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-PROJ-4",
+   "status": "inferred",
+   "title": "Which of the two speeds flies the bullet"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: 227 player firearms NumberOfMagazines 2 .. 9999, none -1, AmmoPickupMin and Max both 0 on none; per-class values from the damage-profile section; AI clone firearms NumberOfMagazines mode -1"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-AMMO-1",
+   "status": "verified",
+   "title": "Finite magazines and pickups per class"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: NumberOfMagazines 9999 on 2 player firearms, both in beach/ with copies only in sp_* bundles; every other player firearm 2 .. 9"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:318-332"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-AMMO-2",
+   "status": "verified",
+   "title": "9999 spares on two campaign weapons",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: MaxRecoilAngleX 0 on 224 of 227 player firearms, 0.5 on 3 SMG weapons; MaxRecoilFov 0.5 on snipers, 0.6 on most others, 0.8 on 4 LMG weapons"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-SWAY-1",
+   "status": "verified",
+   "title": "Two recoils: gun sway and camera"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: damage-profile section: Stand.NoZoom base per class as listed; bolt-action snipers 10 of 10 firings 7 / 7, RecoilAmplitudeMax 10 / 10, DeviationScaleFactorNoZoom 4; 99 on every assault, SMG, LMG and shotgun firing"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-SWAY-2",
+   "status": "verified",
+   "title": "Class sway values"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AimSteadiness 0 on every stance of every assault, SMG, LMG, shotgun and gadget weapon; wcSniper stand 1 on 8 of 10 bolt-action and 4 of 8 single-fire firings"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-SWAY-3",
+   "status": "verified",
+   "title": "Aim steadiness is a sniper field"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: ZoomLevels 2 on every assault, SMG, shotgun and sniper weapon, 2 x33 / 1 x1 on LMG; zoom[0"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-ZOOM-1",
+   "status": "verified",
+   "title": "Two zoom levels: hip and sights"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: ZoomType over player firearms press 226, hold 1 (wcSniper, bfbc2); AI clone firearms hold 25; wcKnife hold 4; wcLmg hold 1 (the 50 m/s flamethrower, not a firearm); wcHgr hold 2 of 4; wcATMine hold 1 of 2"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-ZOOM-2",
+   "status": "verified",
+   "title": "Press to zoom; hold on AI clones and knives"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: SprintLookSpeedMultiplier 1 on 454 zoom levels of 227 player firearms and 50 of 25 AI clone firearms"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-ZOOM-3",
+   "status": "verified",
+   "title": "Full look speed while sprinting"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AlwaysAimHead true x190 / false x37 over player firearms; wcSniper false 32 of 32 (20 firings); wcSmg false 4 of 44 (beach 3, vietnam 1); wcAssault false 1 of 52 (vietnam); wcAt false 5 of 6"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-ZOOM-4",
+   "status": "verified",
+   "title": "AlwaysAimHead depends on the class"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: UseAutoAiming false x358, true x1 (wcKnife, bfbc2)"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-AIM-1",
+   "status": "verified",
+   "title": "Auto-aim is off"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcUgl 82 weapons (bfbc2 80, vietnam 1, beach 1): BulletEntityData 81 (50 m/s x57, 300 m/s x24), GrenadeEntityData 1; MagazineCapacity 1 x82, NumberOfMagazines 2 x82; SpecializationWeapons items on 47 player weapons"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-GREN-1",
+   "status": "verified",
+   "title": "Underbarrel launchers are weapons of their own"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcHgr 4 weapons: GrenadeEntityData, speed 20, gravity -8, fltHoldAndRelease, NumberOfMagazines 1 x3 / 2 x1; beach type5_rgl: GrenadeEntityData 40 m/s, gravity -7, mags 2, pickup 1 / 2"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-GREN-2",
+   "status": "verified",
+   "title": "Hand grenades and rifle grenades",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: specializations per player weapon 0 x248, 1 x23, 2 x2, 3 x33, 4 x13, 5 x2; weapon-asset swaps 0 x273, 2 x46, 3 x2"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-ATT-1",
+   "status": "verified",
+   "title": "Specializations, and the ones that swap the weapon"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: 76 partitions under beach/; 14 SoldierWeaponData there: mp 4, mp+sp 1, sp 9"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:12-23"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-1",
+   "status": "verified",
+   "title": "DICE's BF1943 weapons, mostly the campaign's",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: the 8 firearms in beach/: Gravity -9.81 x8, InitialSpeed 600 x8, NumberOfMagazines 4 / 6 / 9999, no zero pickup, UseAutoAiming false x8, press x8, SprintLookSpeedMultiplier 1 on 16 of 16 zoom levels, AnimBaseSet wabsRif x6 / wabsHg x2"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:23-36"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-2",
+   "status": "verified",
+   "title": "How DICE converted BF1943's weapons",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/dbxport.py:647-665"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/dbxport.py:2111-2200"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/dbxport/port.rs:1474-1727"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_rules.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_native.py::main"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-3",
+   "status": "verified",
+   "title": "The suite's port applies DICE's conventions",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_weapons"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: wcSniper AlwaysAimHead false 32 of 32; beach/ firearms true 5, false 3 (thompson, thompson_assault, nambu100)"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/dbxport.py:2191-2200"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-4",
+   "status": "verified",
+   "title": "AlwaysAimHead true is not a universal convention",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_weapons.py:209-291"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_balance.py::test_class_overrides_take_the_donors_values"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_balance.py::test_class_overrides_refuse_unknown_shapes"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_balance.py::test_built_bolt_action_rifles_in_dices_class_ranges"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_WEAPON_ANIM_AUDIT.md:40-52"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-5",
+   "status": "verified",
+   "title": "Bolt-action rifles take the M24's class values",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/bf1943_weapons.py:294-332"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_balance.py::test_wrench_on_the_power_tools_rates"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_balance.py::test_built_wrench_on_the_power_tool"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-6",
+   "status": "verified",
+   "title": "The wrench on the power tool's rates",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/weapons.py:318-332"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-7",
+   "status": "implemented",
+   "title": "Campaign weapons in multiplayer take finite copies",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/weapons.py on the game copy, 2026-11-22: AnimBaseSet wabsShg on 20 player weapons, all wcShotgun; 1 AI clone"
+    },
+    {
+     "kind": "data",
+     "ref": "a read of the game copy, 2026-11-22: wcShotgun wabsShg x21 all fltSingleFireWithBoltAction (20 players, 1 AI clone); wabsRif x23 (fltAutomaticFire 9, fltSingleFire 6, fltSingleFireWithBoltAction 8: the SPAS-12); OPFOR's bundles: us_shg_m1897 x3 wcShotgun wabsShg fltSingleFireWithBoltAction, 11 WW2 wcSniper weapons AlwaysAimHead false 11 of 11"
+    },
+    {
+     "kind": "data",
+     "ref": "a read of BF1943's Xbox 360 bundles, 2026-11-22: SoldierWeaponData wabsShg x1 (jap_shingunto_knife, wcKnife); no wcShotgun"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/dbxport.py:2180-2190"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/dbxport/port.rs:1670-1697"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_rules.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_dbxport_native.py::main"
+    }
+   ],
+   "file": "spec/engine/weapons.md",
+   "id": "WPN-WW2-8",
+   "status": "verified",
+   "title": "wabsShg is DICE's shotgun body set",
+   "variants": "PC, BF1943"
+  }
+ ]
+}

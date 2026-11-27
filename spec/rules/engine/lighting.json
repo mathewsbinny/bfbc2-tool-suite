@@ -1,0 +1,455 @@
+{
+ "about": "The rules of spec/engine/lighting.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0 (2026-11-21): MP_005's terrain map R against computed cast-shadow visibility for every azimuth (6 degree steps) and elevation: a flat azimuth profile, best correlation 0.36; the 51 Dx11 terrain shaders tallied sample R and B only; `_SkyOc` channel difference 0.01"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a per-asset bake shared by every level that places the asset rotated cannot encode one level's sun"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-BAKE-1",
+   "status": "observed",
+   "title": "Nothing DICE baked depends on the sun",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: 12 or more levels' maps, 1-4 MB each; 39 patch shaders on MP_005 sample R and B; MP_008's albedo scaled 0.556 .. 0.983 by R; the fit in WX0's ao_model.py"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-BAKE-2",
+   "status": "observed",
+   "title": "The terrain's colour / occlusion map multiplies the albedo",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked on the game copy, 2026-11-22: distinct ITexture names by suffix as listed"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: 267 `_Oc` shader-parameter uses (70 MB of texture), 44 `_SkyOc` uses, 256-512 texels, DXT1; MP_005's 587 textures by suffix"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-BAKE-3",
+   "status": "verified",
+   "title": "Objects carry occlusion textures by DICE's suffixes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: no Enlighten resource in any bundle; MP_005's EnlightenSkyColorIntensity 0; the fields vary over the 355 states (21 colours) without anything that reads them"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-BAKE-4",
+   "status": "observed",
+   "title": "There are no classic lightmaps and no Enlighten data",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the Sub_Pen pixel shaders disassembled"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked: one `_Lightmap` and one `_LightmapColor` texture name in the game copy"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-BAKE-5",
+   "status": "observed",
+   "title": "Interior lightmaps are multipliers, not added light",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "WX0's re-bake design (B.4, B.5); nothing implements it yet; the ROADMAP's E5 row folds it into terrain paint"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-BAKE-6",
+   "status": "inferred",
+   "title": "A re-bake keeps DICE's painting (the suite's rule)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked on the game copy, 2026-11-22: 25 distinct IrradianceVolume resources, 25 of 25 exactly 36 + nx x ny x nz bytes; 8 .. 612,256 voxels a volume; cell size 0.506 .. 1.489 m"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-IRR-1",
+   "status": "verified",
+   "title": "An IrradianceVolume is a 36-byte header and one byte per voxel",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py baked: 1,703,118 voxels, minimum 51 (152,495 voxels), maximum 255 (979,692 voxels)"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: the 25 volumes' owners"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-IRR-2",
+   "status": "verified",
+   "title": "The voxels are scalar sky visibility, 51 .. 255",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "no shader samples a volume texture; the only per-draw scalar visibility input is the .w of parameter 33, which the object pixel shaders multiply into the ambient and envmap terms (WX0's disassembly)"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:29-35"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-IRR-3",
+   "status": "inferred",
+   "title": "Objects inside a volume read it as the hemisphere visibility",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: 79 StaticEnvmapEntityData in 73 of 83 level partitions; InfluenceRadiusInner 5,000 x 62, 20 x 6, 20,000 x 4, 10,000 x 3; InfluenceRadiusOuter 10,000 x 66, 25 x 6, 30,000 x 4, 20,000 x 2; StaticEnvmap null x 7"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/placement.rs:117-118"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-ENV-1",
+   "status": "verified",
+   "title": "One StaticEnvmapEntityData per level names its reflection cube",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the Dx11 object shaders' envmap sample disassembled; WX1: the Xbox ONS_MP_002 places a StaticEnvmapEntityData with the same `mp02_envmap`"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: ReflectionEnvmapScale over DICE's 348 outdoor-light partitions"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:856-890"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-ENV-2",
+   "status": "observed",
+   "title": "The cube is sampled at level 5, faded by the key light and the state's scale",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:29-35"
+    },
+    {
+     "kind": "data",
+     "ref": "BFBC2's Dx11 databases: the binding tables' engine parameter ids, decoded in OPFOR's Xenos translation (2026-11-07)"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-OUT-1",
+   "status": "implemented",
+   "title": "The outdoor light reaches the shaders as engine parameters 30 - 37",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the Dx11 object and terrain pixel shaders disassembled"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: ShadowScale 0.01 .. 1 over DICE's 348 outdoor-light partitions"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:315-357"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-OUT-2",
+   "status": "observed",
+   "title": "Hemisphere ambient by the normal, key light by N.L and the shadow",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: MP_005's Dx11 database, 1,648 of 1,714 entries with the pointLight0 permutation, none with a second light; WX1: the permutation on 40 of MP_002's 68 terrain patches and on the WW2 entries"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:29-35"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-1",
+   "status": "observed",
+   "title": "One point light per draw",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters on the game copy, 2026-11-22: 2,882 EmitterTemplateData, 35 with ActAsPointLight, the field ranges as given"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/overlays.rs:568-581"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/view_toggles.rs::sp_01_lights_collision_states_walk_and_modes"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-2",
+   "status": "verified",
+   "title": "An emitter acts as a point light through its template",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1 (2026-11-21): the Xbox ONS_MP_002 partition under OPFOR's work\\xbox_dlc\\ons_all\\x_002, its 53 GameEffectEntityData named Lightpost<n>; the Package port's level partition: none"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters: one template of colour (0.996, 0.354, 0.004) among the 35 point-light templates"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition (2,861 instances): 0 lamp effects, 2 GameEffectEntityData, OPFOR's stage markers beside it; Napisal's backed-up ONS_MP_002 (4,320 instances): 53 references to the lamp effect"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-3",
+   "status": "observed",
+   "title": "DICE's night lamp: radius 10 m, intensity 26, cut at 100 m",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: lamp_offsets.py and bulbpos.py over the Xbox ONS_MP_002 placements and the lamppost mesh's LOD0"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-4",
+   "status": "observed",
+   "title": "DICE places a lamp's light 2.4 m below and 1.6 m in front of its bulb",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: 68 PointLightEntityData in 12 of 83 level partitions, the field values as given"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-5",
+   "status": "verified",
+   "title": "WorldRender.PointLightEntityData exists, on the Vietnam levels only",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: shaderclass.py over 15 levels' Dx11 databases; the lamppost's three MeshShaderSetAssets"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-6",
+   "status": "observed",
+   "title": "Lamp glass is self-lit and glows in every state",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the data contradicts a hard per-effect cap only if all 53 lights are seen; no capture or RE yet"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py emitters: MaxInstanceCount over 998 EffectEntityData"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-7",
+   "status": "inferred",
+   "title": "The effect's instance cap against 53 lamps is open",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the single permutation forces a choice; to be settled by RE of the light assignment (RE-a in WX1's plan) or a capture"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-8",
+   "status": "inferred",
+   "title": "Which light wins on a draw is open",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:523-525"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/renderqa.py:121-122"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-PT-9",
+   "status": "implemented",
+   "title": "The suite's views draw no point light",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: moon placements in mp_008 and mp_008sdm only"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: DynamicSunData Gain 0 x 35 of 348"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX1: the Xbox ONS_MP_002 placement"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-SKY-1",
+   "status": "verified",
+   "title": "The moon is a mesh prop, MP_008's",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights: 40 god-ray placements in 7 levels"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX1: the Xbox ONS_MP_002 partition lacks MP_002's 4 sp11_godrays"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-SKY-2",
+   "status": "verified",
+   "title": "God rays are props, removed for a night",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: diff_pair.py over the Xbox MP_002 and ONS_MP_002 partitions (1,460 matched, 82 swapped, 1,439 removed, 645 added; the night's share as listed)"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-SKY-3",
+   "status": "observed",
+   "title": "DICE's night recipe is data only",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX1: inventory.py over the four WW2 levels; spec/probes/lighting.py lights: no PointLightEntityData and no camera-proximity or light effect beyond Wake's 21 placed effects"
+    }
+   ],
+   "file": "spec/engine/lighting.md",
+   "id": "LIGHT-SKY-4",
+   "status": "observed",
+   "title": "BF1943 shipped no night and no light",
+   "variants": "BF1943"
+  }
+ ]
+}

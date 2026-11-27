@@ -1,0 +1,749 @@
+{
+ "about": "The rules of spec/transforms/kynapse_generation.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "build driver 0x00F299A0 (no caller), step classes created by 0x00F194F0, map-builder callbacks installed by 0x00F13570 (+0x868 point 0x00EFE7F0, +0x870 ray 0x00EFE840, +0x874 capsule 0x00EFE920 or box 0x00EFE980)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:294-332"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:140-166"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-IN-1",
+   "status": "observed",
+   "title": "The generator samples the running engine's collision"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the run on sp_01 (1,044,900 point queries on the perimeter lines); DICE's isolated upper-floor islands of 5-8 nodes each hold `SoldierSpawnEntityData` positions; vehicle sectors with ground holding a spline control point or vehicle spawn: sp_04 63 of 65, sp_01 30 of 33, sp_006 75 of 77"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:205-222"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:362-366"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:108-118"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-SEED-1",
+   "status": "observed",
+   "title": "Seeds: sector perimeters on terrain, and soldier spawns"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the parser 0x011483D0 (`SeedPoint` pushed at 0x011485A1 into +0x41C; `PropagationSeedPoint` +0x42C, exploration only; `SeedGraph` +0x44C loaded by 0x010A7170; AllowSimplification +0x45C, RemoveOutVertices +0x46C, ConnectSlightlyOutsideSeeds +0x47C; BC2's override 0x00EFF710); the sectors maker 0x0109B260 (`kybcsectorsmakerstep.cpp`: the box test inclusive on x, y, z; a seed graph emitted when any node lies in the box in x and z); BC2's step creator 0x00F194F0 (the `<SeedPoints>` block from its job, the list 0x00F07590 boxes by 25 m, 0x014309B8); the autoseed merge in `kybcmapbuilderstep.cpp` 0x01066BF7-0x01066D18 (\"Could not read autoseed file [%s"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep E, `cargo run --release -p bc2-formats --example kynapse_seeds` over the 35 files: ordinary nodes on the sample grid (5 mm) on the lines two pitches inside a 100 m square / elsewhere: detailed 584 (+ 9 on the 1.6 m lines) / 1,017 of 147,130; coarse 279 / 7,283 of 197,599; vehicle 0 / 84"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-SEED-2",
+   "status": "observed",
+   "title": "A sector's seed list: its spawns and its perimeter autoseeds, snapped, dropped and never locked"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the step's run 0x01062740 (per sector: `GetDoAutoSeed` 0x010617E0 over `AutoSeedGeneration` 0x010611E0 / 0x010606A0 (always / whennoseed / never), `InitSectorInfo` 0x01061260, `ComputeCandidates` 0x010623A0 (four lines; the columns' sweep 0x01062060 through the probe slot +0x1C), the filter pass slot +0x28 (0x01060FD0: each candidate's flag +0x14 = slot +0x30's answer), `FilterFloorMode` slot +0x2C (0x01061070, modes 2-5 on +0xCC), the rejection's propagation 0x01061870 / 0x01061330 (only with +0xD0), the writer 0x01061B40 (flag 0 only)); the constructor 0x010629B0 (+0xC8 AutoSeedGeneration 0, +0xCC 0, +0xD0 false; the parameter parser 0x01060E20); BC2's `FrostbiteAutoSeedStep` (vtable 0x014A838C: probe 0x00EFE360; slot +0x30 0x00F07080: the point lowered by 0.9 m (0x0141BFD8), rejected when any filter of +0x198 answers yes); the filters made by 0x00F0E450: 0x00EA1D10 (test 0x00EA1D60: the point query 0x00B14680, the body's class), 0x00E9C6D0 (test 0x00E95DC0: a ray +-2 m (0x014D9558), the normal against cos(settings +0x5C x pi / 180)), 0x00E9C6A0 (test 0x00E95D30: a ray from 100 m above (0x014D9638))"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep D, `seedsky` (scratch) on the in-game 0.2 m samples of the 15 regression levels: of DICE's detailed ordinary on-grid nodes on the autoseed lines (two pitches inside the square; seeds and propagated nodes alike), 6 of 529 lie under a surface within 100 m and 23 on an object, against 58 and 88 of the 941 elsewhere (1.1 % against 6.2 %, 4.3 % against 9.4 %)"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-SEED-3",
+   "status": "observed",
+   "title": "Which perimeter probes become autoseeds: terrain, within the slope limit, open to the sky"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "per file, the outline box against the outer sector lines (probe): e.g. sp_004_b infantry 37.2 / 73.1 / 13.2 / 62.7 m (min x / max x / min z / max z), sp_005 13.2 / 96.4 / 45.2 / 5.2, ons_mp_004 4.4 / 4.4 / 1.2 / 28.1; a box reaches past the outer grid line on 9 files: 1.5 m on 8 vehicle files, 0.4 m on sp_01 infantry (the margins, KYM-HDR-2)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest (`kynapse_fit`): the vehicle file's ground box lies within 2.5 m of the infantry file's on 13 of 68 sides (17 levels) and 2.6-1,094 m inside it on the other 55, so the vehicle ground (seeded from vehicle spawns) shows no shared level-wide rectangle; on sp_04 all four sides lie 2.3-10.8 m apart"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/tests/kynapse_rect.rs::ground_stops_25_m_beyond_the_spawns"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `rect` fit, 17 prepared levels): the infantry ground's sides against the spawns' box + 25 m, inset per side: sp_007 0.11 / 0.49 / 0.39 / 0.83 m, sp_02 0.20 / 0.50 / 0.41 / 0.19, sp_01 0.48 / 0.33 / 0.53 / 0.76, sp_003_b 0.63 / 0.80 / 0.79 / 0.22; the 45 sides at the box 0.110-0.908 m; vehicle sides at the box sp_003_b 2.33, sp_005_b 2.54, sp_007 2.33, sp_008 2.60 / 2.37, sp_008_b 3.09, sp_04 3.07"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep D, `rect` (scratch) on the 13 campaign levels, the infantry ground's box against the soldier and vehicle spawns' box + 24.5 m per side: without the alternate spawns all 52 sides within -0.39 .. +0.41 m (the band above), none passed; with them 45 of 52 (round NKS-rest2's); without team 1's spawns 37, the ground passing the box on 8 sides; the Onslaught files stay outside the rule (ons_mp_002's -z side 228.7 m past the box)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2, other boxes against the 68 infantry sides (17 levels): the ground lies more than 2 m outside the combat areas' box on 27 sides and outside the placed objects' box on 19; the height field's box ends more than 25 m beyond the ground on 66 sides and inside it on 2; with soldier spawns alone (+ 25 m) the ground passes the box (by more than 0.2 m) on 36 of the 132 sides of the 33 files, with vehicle spawns alone on 34, with both on 2 (Onslaught)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:784-816"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-RECT-1",
+   "status": "verified",
+   "title": "Ground stops at the spawns' box grown by 25 m"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::one_sector_offset_per_file"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::table_bounds_are_the_route_nodes_box"
+    },
+    {
+     "kind": "data",
+     "ref": "3,120 of 3,120 sectors on one offset pair per file and holding a node"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-SEC-1",
+   "status": "verified",
+   "title": "Sectors: a 100 m grid numbered from the file's offsets"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "axis C portals on the first corner line outside the rectangle: 97,720 of 101,418; C directions axis / diagonal / up 101,418 / 89,315 / 70,126"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-SEC-2",
+   "status": "observed",
+   "title": "Sectors overlap by their margins, and C portals close them"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "regrouping DICE's own cells by this rule reproduces 63-79 % of its areas exactly over 8 levels (sp_004_b 72.3 %), against 33-63 % for joining every neighbour; linked steps max 0.591 m, unlinked from 0.62 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:629-652"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-AREA-1",
+   "status": "observed",
+   "title": "Walkable cells link at a raw 0.6 m step"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "probe classification of 386,568 B portals; 325 of 326 cut groups cut along the longer side, 0 of 326 on both axes (sp_004_b, sp_005, sp_007)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest over all 35 files (`kynapse_fit`, groups of areas joined across a tile midline by B portals): cut groups coarse 1,064, detailed 106, vehicle 400; cut across the longer side of the joined box in 711 / 51 / 237 only; the joined ground meets across the midline in two or more separate stretches (it surrounds something that crosses the midline) in 928 / 22 / 6; areas that straddle a midline uncut 22,695 / 20,381 / 1,633"
+    },
+    {
+     "kind": "data",
+     "ref": "features that do not separate cut from uncut (round NKS-rest): the cells' share of the tile (uncut areas from 0 to 100 %, 954 coarse at a full tile; cuts from 1 %), the record size (cut 1-32 KB, uncut 0-14 KB, overlapping), the outline points, the tile (574 uncut straddlers in the 787 coarse tiles with a cut), and a hole crossing the midline (2,635 such holes in uncut coarse areas)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `midline` and `holes` fits): crossings of the midline (stretches where the ground lies on both sides, sampled every half pitch) for coarse cut groups 1 / 2 / 3 / 4 / 5+ = 148 / 241 / 228 / 164 / 283 and for uncut areas 24,108 / 5,409 / 2,656 / 1,231 / 1,050; the gaps between stretches: cut 2,743 without ground and 29 holding another area's ground, uncut 19,192 and 159; holes of single areas (sample points no area holds, enclosed): coarse 99,997 within a quarter tile, 1,492 across the x midline, 1,582 across z, 147 across both (98 % without ground); detailed 36,821 / 2,406 / 2,498 / 675; joined cut groups: 641 of 1,064 coarse hold a hole across a midline, 416 holes in quarters only, 7 none"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:517-531"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-AREA-2",
+   "status": "observed",
+   "title": "Tiles cut areas; a conditional midline cut on the longer side"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the size test 0x011AD550 (MaxLocalMapBinarySize +0x598: default 0x2000 at 0x01146ACB, the reader 0x0114A579 keeps values from 0x1000; the tiles +0x5D4 x +0x5D8, each map's area sizes summed; an area at or over the limit marks its tile and the four side neighbours in +0x6A4 and is listed in +0x698); the split 0x011B4BB0 (the cells' integer box, mid = (min + max) >> 1 at 0x011B4D16 / 0x011B4D18, four groups by x > mid and z > mid at 0x011B4D42-0x011B4D6A); the rebuild loop 0x011B2160 (the size test, then the split and the marked tiles built again)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest: stored records of cut groups 1-32 KB, uncut areas 0-14 KB; cuts on the tile midline 16,159 coarse B portals"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-AREA-4",
+   "status": "observed",
+   "title": "An area too large in bytes is split at its cells' box midlines"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the size call in 0x011AD550 (0x011AD634: the in-place mesh +0x5B4, `FUN_0134EDA0(0, sizes)`); the serialiser 0x0134EDA0 (`sizes[k"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep E, `cargo run --release -p bc2-formats --example kynapse_cut` over the 35 files (C portals not counted; groups by the union's box midline): coarse uncut 115,713 (max 14,428, p99 8,292, 1,211 at or over 8,192), cut groups 872 (p10 9,524, p50 15,184, 65 under 8,192); grouped by the tile midline instead (KYG-AREA-2's groups) 311 of 1,064 coarse cut groups stay under 8,192; detailed uncut 50,624 (p99 7,716, 379 over), box-midline groups 227 (p50 2,536, 199 under); vehicle uncut 15,352 (max 8,396, 2 over), groups 1,022 (p50 1,540, 1,009 under): in the detailed and vehicle files the straight portals on a union's box midline are mostly not size cuts"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-AREA-5",
+   "status": "observed",
+   "title": "The size test counts the in-place record: 100 + 28 per portal segment + 20 per line + 12 per segment"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "sp_004_b normal-pitch areas median +0.000 / +1.520 against the outline heights minus 0.95; vehicle files lowest ground .. highest + 3.2 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:690-696"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-AREA-3",
+   "status": "observed",
+   "title": "Area heights"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "detailed sectors per file from the probe (571 of 2,626 infantry sectors); NeedsDetailedPathfinding within 10 m: 300 of 304 picks detailed, 296 of 498 found"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest: the 571 detailed sectors form 42 blocks of side-adjacent sectors (1-6 per file); only 14 blocks (30 sectors) are rectangles of the file's sectors, the others hold coarse sectors inside their box; so the detailed ground is not one designer box per block"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `detailed` fit; 544 detailed of 2,561 sectors, ONS_MP_005 not prepared): best single thresholds, share right: placed objects with collision >= 28 91.8 %, collision triangles >= 16,300 90.1 %, DICE ground on objects >= 1 sample 87.6 %, AI spawns >= 1 87.1 %, AI orders >= 1 86.5 %, stacked ground 84.8 %, vehicle spawns 84.5 %, objectives 81.5 %, ladders 81.3 %, capture points 79.7 %; best two-feature rule 92.2 % (objects in the 3 x 3 block >= 66 and in the sector >= 12); per level the best \"ground on objects\" threshold ranges from 1 to 2,757 m2"
+    },
+    {
+     "kind": "inferred",
+     "ref": "no level-data rule reaches 93 % and the blocks are not rectangles, so the detailed sectors come from generator input that is not shipped (designer zones); a sector is detailed as a whole (KYN-SEC-4)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:532-542"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:596-600"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-DET-1",
+   "status": "observed",
+   "title": "Which sectors are detailed"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "nodes on the cell-centre grid 22,375 and on the corner grid 784 of 596,069; ONS_MP_002 node distance from an outline point p50 / p90 detailed 1.7 / 4.3 m, coarse 2.9 / 6.8 m"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest over all 35 files (`kynapse_fit`), placements that do not hold: a lattice (the fraction of x on periods 0.05, 0.1, 0.2, 0.25, 0.4, 0.5 and 1 m is flat within 15 % but for the cell-centre spike); outline corners offset by the radius along both sides (607 of 197,599 coarse ordinary nodes; 66,494 lie within 2 m of an outline corner); the medial axis (the nodes' nearest-two-obstacles balance has the distribution of control points 0.6 r / 0.9 r away); one node at each area's cell centroid (coarse: 90,367 of 118,937 areas hold no node, 17,936 five or more)"
+    },
+    {
+     "kind": "data",
+     "ref": "vehicle files: 7,324 of 18,590 areas hold one node and 9,939 none; a lone node lies within 0.7 m of its area's cell centroid in 6,557 of 7,324, spread evenly over 0-0.7 m (anywhere in the central 1 m cell)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`bc2-scene` example `kynapse_geom`, `clearance` fit, 17 prepared levels): ordinary nodes against the collision clipped to the height band, nearest distance: coarse 186,858 of 195,699 with none within 3 m (control 186,840), 0.35-0.45 m 162 (control 195); detailed 61,312 of 143,040 none within 3 m (control 61,553), 0.35-0.45 m 3,134 (control 2,714), 0.40-0.60 m 9,145 (control 4,980); vehicle 3,778 of 9,383 none (control 3,814)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `cover` fit): the centroid of a node's share of the ground against the node, for ordinary nodes 10 m or more inside their square: median 0.65 m coarse (144,583 nodes), 0.55 m detailed (100,368), 1.5 m vehicle"
+    },
+    {
+     "kind": "inferred",
+     "ref": "positions on no grid, no lattice, no outline feature and no collision feature point to the generator placing nodes from its own sample cloud by a procedure that leaves the KYG-NODE-4 / KYG-NODE-5 traces (axis steps of GraphAccuracy + 0.35 m; coverage within DistEdgeMax / 2), not from the stored outline or the Havok shapes"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:165"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:891-905"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-1",
+   "status": "observed",
+   "title": "Node placement is off the sampling grid"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::border_ids_have_edges_in_two_sectors"
+    },
+    {
+     "kind": "data",
+     "ref": "113,874 border ids: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4; owners: 107,437 one (103,458 the holding sector), 3,623 none, 2,738 two, 76 three; 0 border ids with edges in fewer than two sectors in 35 of 35 files"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:897-901"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/graphfile.rs::tests::bounds_are_the_node_box_edges_move_to_owners_and_foreign_only_pairs_keep_no_node"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-2",
+   "status": "observed",
+   "title": "Border nodes form a band shared by two to four sectors"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "lists sorted by their coordinate in 3,120 of 3,120 sectors for x, y and z"
+    },
+    {
+     "kind": "inferred",
+     "ref": "equal f32 coordinates whose order follows no rule on the stored values points to a sort on the generator's unrounded coordinates before they were stored as f32"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-3",
+   "status": "observed",
+   "title": "Node ids and the lookup lists"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `spacing` fit): pairs sharing x or z exactly, by gap: coarse 6,578 at 3.350 m (+- 2 mm; the next gap within 20 % 82), detailed 226 at 0.850 m (next 4), vehicle 44 at 15.350 m (next 2); coarse 753 at 6.700 m and 759 at 5.025 m; ordinary nodes joined to another by x and z offsets that are both whole half-steps: coarse 14,956 of 197,599 (12,166 in pairs, 2,313 in threes), detailed 4,176 of 147,130, vehicle 98 of 10,310"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2, the axis gaps of the cell grid (multiples of half the pitch: 0.8, 1.2, 1.6, 2.4, 3.2, 4.0 m coarse) come from the 4 % of nodes on cell centres (KYG-NODE-1)"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-4",
+   "status": "verified",
+   "title": "Step pairs: nodes one step of GraphAccuracy + 0.35 m apart along an axis"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `cover` fit): every sample point of DICE's areas (0.8 m apart; 1 m on vehicle files), the nearest node of the sector at the area's height it sees: coarse 96.53 % within 7.5 m (88.6 % within 6 m, 96.97 % within 8 m) of 19,096,684 points, 1.83 % none within 30 m; detailed 98.31 % within 7.5 m (92.0 % within 6 m, 98.79 % within 8 m) of 5,735,964; vehicle 95.2 % within 25 m (81.0 % within 15 m) of 1,415,580, 2.7 % none within 30 m"
+    },
+    {
+     "kind": "data",
+     "ref": "the same within the sectors' own squares (margins left out): coarse 96.94 % within 8 m, detailed 98.80 %, vehicle 95.5 % within 25 m: the tail is not the margins"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-5",
+   "status": "observed",
+   "title": "The ground sees a node within DistEdgeMax / 2"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::node_ids_count_from_101_in_table_order"
+    },
+    {
+     "kind": "data",
+     "ref": "first id 101 in 35 of 35 files; the new-id ranges of the 3,094 sectors that number new ids (the other 26 hold only border ids numbered in an earlier sector) rise in table order without overlap; 468,913 of 586,397 numbers used; a gap of 0 before 1,136 ranges, 1-9 before 1,835, 10 or more before 123 (the first sector's measured from 100)"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-6",
+   "status": "verified",
+   "title": "Node ids count from 101, sector by sector in table order"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "propagation 0x0115D520 (100 nodes a call; NbSectors +0x55C probes; the angle i x 6.2831855 (double 0x01412670) / NbSectors; sin / cos; the probe 0x01153000 (EntityRadius +0x4E0, EdgeRadius +0x56C, Pitch +0x520, DistPropagation +0x560): reach DistPropagation + 2 x Pitch, the end pulled back 2 x Pitch; NeighbourInfo sorted by its squared distance, farthest first (0x0115BDC0); the candidate test and insertion 0x01158BA0 (ground height 0x011545E0, DistDensityMin +0x568, DistDensityMax +0x564, the straight-walk test 0x013565E0 both ways, a 5 m node grid); the seeds 0x0115AC40 (seed points +0x420, count +0x428: \"No seed defined\" at 0x01143658 when 0; seed graphs +0x450); driver 0x0115D980"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::step_pairs_lie_on_the_nbsectors_probe_directions"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B, `kynapse_place --only angles` over the 35 files: step pairs on the directions coarse 21,709 / detailed 2,272 / vehicle 341, off 175 / 135 / 18, on odd directions 9,396 / 1,138 / 163; control on 243 of 15,521 / 26 of 2,926 / 5 of 3,051"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/propagate.rs:1-40"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-7",
+   "status": "verified",
+   "title": "Nodes propagate from the seeds in NbSectors directions, DistPropagation apart"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "dense edges 0x01154B00 (ConnectionDistance +0x588; set to DistPropagation x 1.2 (double 0x0142EE90) at 0x0114E2B1 when not positive; Kynapse's default -1 at 0x01146AEF); the simplification 0x0115B3C0 (its graph 0x011B81D0, edges sorted by `CSimplifyEdgeLess` 0x011B8030, a new edge dirty with its length 0x01152C00; state word +0x83C: 0 dirty edges, 1 OverSimplify's edges under (2 OneMeter)^2 = 4 with the cell lock +0x28 of the 5 m grid and rerouting, 2 every edge; leaves 0x011B64C0; the two-edge apex 0x011B6500; the collapse test 0x01158510 with 0x01157CA0 / 0x01158100: DistEdgeMax^2 +0x558, MaxDeltaHeight +0x578, the straight walk 0x01351F80 with EdgeRadius); the graph rebuilt 0x011B6740"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B, NavKit with this placement (`Switches::placement`) against DICE's files of the 15 regression levels: the structure counts and parity in `rust/BENCHMARKS.md` \"NKS-deep B\""
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/propagate.rs:1-40"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-8",
+   "status": "observed",
+   "title": "Dense edges, then edges collapsed into their middles"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "Kynapse's probes run over the built mesh (KYG-NODE-7), whose areas join only over interior sides and portals; DICE's graph never crosses between two of its areas that share no portal where NavKit's diagonal steps did (sp_007's island); the exploration's step code itself was not traced"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/propagate.rs:176"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/propagate_tests.rs::mesh_corners_keep_ground_that_meets_at_a_corner_apart"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep D, `bridge` / `spot` (scratch) on sp_007: the NavKit route from the 142-node island to the main group, and the two files' areas, portals and nodes around (567.3, 140.6, 425.9)"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-NODE-9",
+   "status": "inferred",
+   "title": "The probes walk the mesh: no step across a cell corner the mesh does not link"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edge_reach_is_dist_edge_max_across"
+    },
+    {
+     "kind": "data",
+     "ref": "219,500 of 1,694,066 edges one-way; border-to-border edges 425,545"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:982-985"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1009-1016"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-EDGE-1",
+   "status": "verified",
+   "title": "Edges join nodes within DistEdgeMax across"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edge_costs_are_the_f32_length_in_sixteenths"
+    },
+    {
+     "kind": "data",
+     "ref": "1,694,066 of 1,694,066 edges with L computed in f32"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-EDGE-2",
+   "status": "verified",
+   "title": "The stored cost"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/graph_route_tests.rs::spanner_keeps_routes_within_the_stretch"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/graph_route_tests.rs::spanner_drops_a_pair_with_a_route_within_1_2"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edges_are_not_redundant_at_1_2"
+    },
+    {
+     "kind": "data",
+     "ref": "edges between ordinary nodes with another route in their sector at most 1.2 times as long: infantry 946 of 487,308 node pairs, vehicle 427 of 11,814"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest probe (`kynapse_fit`), ordinary pairs within DistEdgeMax across and 3 m in height: coarse 253,010 with an edge (637 cross the outline or a D line) and 651,044 without (142,493 of them in sight); with a route at most 1.2 times as long: coarse edges 186 of 252,373, pairs without 89,966 of 142,493; detailed 742 of 189,995 and 134,546 of 198,161; vehicle 279 of 8,087 and 16,874 of 20,718"
+    },
+    {
+     "kind": "data",
+     "ref": "vehicle edges cross the stored outline in 3,676 of 11,891 ordinary pairs, so the vehicle generator's reach test is not the stored outline"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2 (`kynapse_rules`, `pairs` fit; pairs in sight of the outline and D lines): coarse edges 252,373 and misses (no edge, no route of at most 1.2 x) 52,338; the cell test passed by 244,196 edges and 50,067 misses; an end on a step pair: edges 22,808, misses 16,807; both ends with at most 4 edges: edges 99,269, misses 35,933; detailed misses 50,691 (step-pair end 1,168, cell test passed 46,565); vehicle misses 3,842 (cells off the mesh on 4 or more: 3,271; edges 822 of 8,086)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a greedy spanner's skipped pairs keep their short route, so misses need a later step that removed nodes or edges or added nodes outside the pass; the numbering gaps and the misses' concentration on step-pair and low-degree nodes point to it"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-EDGE-3",
+   "status": "verified",
+   "title": "Edges are added unless the graph already has a route at most 1.2 times as long"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edges_have_a_reverse_by_node_id"
+    },
+    {
+     "kind": "data",
+     "ref": "one-way by id: infantry 14,692 of 1,646,482 edges (border-border 5,533, ordinary-border 7,113, ordinary-ordinary 2,046; 5,921 down, 2,867 level, 5,904 up by more than 0.3 m), vehicle 2,343 of 47,584; one-way in their sector: infantry 212,664 (206,058 into a non-owner copy), vehicle 6,836 (4,815)"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-EDGE-4",
+   "status": "verified",
+   "title": "The graph is symmetric by node id; a sector's one-way edges end at non-owner copies"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the over-connection pass 0x01155FA0 (only when OverConnectionRatio +0x58C > 1; each edge of the table +0x6E0 in order, not a seed graph's; removal 0x010DA6E0 of it and its reverse); the route test 0x01155150 (`CHeuristicEuclidianDistance`, `CMySphereConstraint` of radius ratio x length around the source, the A* 0x010EB1F0, the path's lengths summed against ratio x length); then nodes without an edge removed 0x011578B0 (ComponentSizeMin +0x57C, default 1)"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B: NavKit with the placement and this pass (`Switches::placement`) against DICE's files, `rust/BENCHMARKS.md` \"NKS-deep B\""
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/propagate.rs:1-40"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-EDGE-5",
+   "status": "observed",
+   "title": "The 1.2 rule removes edges in order from the simplified graph"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "coarse D lines 431,972 (98.1 % 2 points, 7,880 with 3, 268 with 4 or more), F records 40,908; detailed 81,158 and 3,472"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKG3, `rust/bc2-navbuild/examples/kynapse_df.rs` on the 15 regression levels: the tables above"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/stage.rs:796-803"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/detail.rs:136-261"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/stage_tests.rs::terrain_slope_across_a_side"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::a_side_test_decides_where_it_answers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-navbuild/src/detail_tests.rs::split_rule_f_by_the_step_d_by_the_test"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:939-1008"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-DF-1",
+   "status": "observed",
+   "title": "Infantry D / F from broken sides"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "vehicle D 8,597 lines (1,612 with 3+ points; 2,746 of 10,515 segments diagonal), F 2,162 records (897 diagonal); 881 areas with F, 311 balanced"
+    },
+    {
+     "kind": "data",
+     "ref": "round NKS-rest2, OPFOR's sample files (`work\\navsample`, `work\\navsample_offline`, `work\\navkit`): pitch 0.8 or 0.2 with capsule radius 0.4 in all but 4 (radius 0.2, 0.25, 0.3); no vehicle-shaped run"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:1009-1016"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-DF-2",
+   "status": "observed",
+   "title": "Vehicle D / F follow another rule"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::link_objects_name_a_tile_item_of_an_adjacent_sector"
+    },
+    {
+     "kind": "data",
+     "ref": "16,450 link entries (6,263 to diagonal neighbours), 55,008 objects all resolved"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-LINK-1",
+   "status": "verified",
+   "title": "Link objects join each C portal run to the neighbour's area"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::nearest_node_at_dist_propagation"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::nodes_pair_one_step_apart_along_an_axis"
+    },
+    {
+     "kind": "exe",
+     "ref": "DICE's configuration writer 0x00F1A94D-0x00F1B028 (GraphAccuracy from settings +0x64 at 0x00F1AC33, EntityRadius from the type's +0x2C at 0x00F1AF72); the map builder's parameter reader 0x011483D0 (one name per call, `ret 4`): GraphAccuracy at 0x011494E7-0x01149553 (DistPropagation +0x560 = value + EntityRadius +0x4E0; DistDensityMax +0x564 = x 0.65 (double 0x014C2820); DistDensityMin +0x568 = EntityRadius or DistDensityMax x 0.5 (0x014D9488)); EntityRadius at 0x0114A742-0x0114A768 stores +0x4E0 only; defaults 0x01146822-0x01146B3D: EntityRadius 0.35 (double 0x0145A4C8), EntityHeight 1.75, DistPropagation 1.5, DistEdgeMax 15, NbSectors 16, OverConnectionRatio 1.2; the generator's info-file format 0x014C2EF8 (printed at 0x0115553D) lists the same fields"
+    },
+    {
+     "kind": "data",
+     "ref": "nearest ordinary node of the same floor exactly at DistPropagation (+- 2 mm): coarse 7,505 (at 1.05 x: 96), detailed 2,455 (199), vehicle 41 (0); coarse nearest-neighbour median 3.350 m; at DistDensityMax: coarse 234 (control 306), detailed 172 (187), vehicle 0"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-PAR-1",
+   "status": "verified",
+   "title": "DistPropagation is GraphAccuracy + 0.35 m, because DICE sets the radius after the accuracy"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "parameter reader 0x011483D0: the names and the fields they store (EdgeRadius +0x56C, EntityHeight +0x4DC, Pitch +0x520, StepLength +0x4E4, StepMax +0x4E8, HoleMax +0x4EC, GroundSlopeMax +0x4F4, GroundSlopeMin +0x4F8, NbSectors +0x55C, DistPropagation +0x560, DistDensityMax +0x564, DistDensityMin +0x568, DistEdgeMax +0x554 and its square +0x558, MaxDeltaHeight +0x578, OverConnectionRatio +0x58C, OverSimplify +0x584, FirstStep +0x5A4, LastStep +0x5A8); DICE's writer 0x00F1A94D-0x00F1B028 reads them from `PathfindingSettings` +0x48 / +0x54 / +0x58 / +0x5C / +0x4C / +0x50 / +0x68 / +0x60 / +0x64 / +0x44 / +0x24 / +0x28 / +0x73 / +0x70 and the type's +0x20 / +0x2C"
+    },
+    {
+     "kind": "data",
+     "ref": "`AI/Pathfinding/Infantry`, `Vehicles`, `InfantryData`, `VehicleData` read from sp_common and mp_common `level-00.fbrb` (identical): the values in the table; MaxDeltaHeight 1000 and OverConnectionRatio 1.2 in both settings"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-PAR-2",
+   "status": "observed",
+   "title": "DICE's settings, as the generator receives them, and what each explains"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round NKS-deep B, `rust/bc2-navbuild/examples/kynapse_df.rs` (the rule \"step > StepMax / StepLength x pitch\"): detailed terrain true / false 14,616 / 824,630 against the 0.175 m step's 14,010 / 48,791, detailed objects 3,398 / 220,430 against 2,451 / 181,096, normal-pitch objects found 787 / false 2,180 against 865 / 2,331"
+    },
+    {
+     "kind": "inferred",
+     "ref": "three independently measured thresholds (0.62 m link step at pitch 0.8, the 0.775-0.780 slope band, about 0.17 m at pitch 0.2) agree with 0.28 / 0.36 = 0.778 within their measurement steps; the code that applies StepMax / StepLength was not traced"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:629-652"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-PAR-3",
+   "status": "inferred",
+   "title": "The break slope is StepMax / StepLength"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0114DF80 after the parameter loop: Pitch +0x520 from EntityRadius +0x4E0 at 0x0114E1AE; StepLength +0x4E4 from Pitch at 0x0114E1C7; the signed pair 0x0114E1E0-0x0114E240 (FCHS of StepMax into HoleMax +0x4EC); cos(GroundSlopeMax +0x4F4 x pi / 180) into +0x4FC and cos(GroundSlopeMin +0x4F8) into +0x500 at 0x0114E4F9-0x0114E541; StepMax / StepLength into +0x508 and HoleMax / StepLength into +0x504 at 0x0114E547-0x0114E565; sin(90 - +0x510) and sin(90 - +0x514) into +0x518 / +0x51C; then 0x011435B0"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-PAR-4",
+   "status": "observed",
+   "title": "The map builder's derived step and slope values: HoleMax is -StepMax, both as slopes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "five pages opened; each fact checked against DICE's 35 files where it applies (KYN-FILE-2's +20 float contradicted: 2,605 of 3,120 sectors hold a longer edge)"
+    }
+   ],
+   "file": "spec/transforms/kynapse_generation.md",
+   "id": "KYG-DOC-1",
+   "status": "observed",
+   "title": "What public Kynapse documentation adds"
+  }
+ ]
+}

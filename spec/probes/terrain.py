@@ -16,7 +16,9 @@ Prints structure, counts and numeric ranges only:
 - terrain partitions (`Terrains/<T>/<T>.dbx`): `TerrainData`, `TerrainHeightfieldData`, the decal classes, which of
   their references resolve to a partition any bundle holds;
 - level partitions: the vegetation classes (forest, tree members, middlegrowth groups), their instance counts and
-  fields; tree and undergrowth mesh resources.
+  fields; tree and undergrowth mesh resources;
+- the level shader databases' vertex programs with a `windParams` constant (the undergrowth's): counts, the
+  constant's register and whether the Dx11 bytecode holds the sway's instruction sequence (VEG-UG-10).
 """
 from __future__ import annotations
 
@@ -596,6 +598,77 @@ def tails_and_material_maps(bundles: list[Path]) -> None:
                       f'{[int(x) for x in used[:len(mm["names"])]]}')
 
 
+def dxbc_instructions(code: bytes) -> list[list[int]]:
+    """The SHDR / SHEX chunk's instructions, each its tokens (opcode token first)."""
+    if code[:4] != b'DXBC':
+        return []
+    n = struct.unpack_from('<I', code, 28)[0]
+    for k in range(n):
+        o = struct.unpack_from('<I', code, 32 + 4 * k)[0]
+        if code[o:o + 4] in (b'SHDR', b'SHEX'):
+            size = struct.unpack_from('<I', code, o + 4)[0]
+            toks = struct.unpack_from(f'<{size // 4}I', code, o + 8)
+            out, i = [], 2                         # after the version and length tokens
+            while i < len(toks):
+                op = toks[i] & 0x7FF
+                ln = toks[i + 1] if op == 0x35 else (toks[i] >> 24) & 0x7F   # 0x35: dcl_customdata
+                out.append(list(toks[i:i + max(ln, 1)]))
+                i += max(ln, 1)
+            return out
+    return []
+
+
+def undergrowth_shaders(bundles: list[Path]) -> None:
+    """VEG-UG-10: the vertex programs whose parameter block names windParams, and their sway in the bytecode."""
+    sys.path.insert(0, str(SUITE / 'bfbc2-shader-tools'))
+    import shaderdb
+    one_k = 0x447A0000                              # 1000.0
+    seen: set[str] = set()
+    dbs: Counter[str] = Counter()
+    all_dbs: Counter[str] = Counter()
+    vs_n: Counter[str] = Counter()
+    regs: Counter[int] = Counter()
+    shape: Counter[bool] = Counter()
+    codes: set[bytes] = set()
+    for path in bundles:
+        for e in fbrb.entries(path):
+            kind = e.type.replace('ShaderDatabase', '')
+            if e.deleted or kind not in ('Dx9', 'Dx10', 'Dx11') or e.name.lower() + kind in seen:
+                continue
+            seen.add(e.name.lower() + kind)
+            db = shaderdb.ShaderDb.parse(fbrb.read(path, [e.name])[e.name], int(kind[2:]))
+            blocks = {}
+            for i, pb in enumerate(db.params):
+                for c in shaderdb.block_constants(pb, db.e):
+                    if c[0] == 'windParams':
+                        blocks[i] = c[1]
+            hits = [s for s in db.vs if s.param in blocks]
+            dbs[kind] += bool(hits)
+            all_dbs[kind] += 1
+            vs_n[kind] += len(hits)
+            if kind != 'Dx11':
+                continue
+            for s in hits:
+                if s.code in codes:
+                    continue
+                codes.add(s.code)
+                reg = blocks[s.param]
+                regs[reg] += 1
+                ins = dxbc_instructions(s.code)
+                ops = [t[0] & 0x7FF for t in ins]
+                # dp3 (0x10) of the position by (1, 1, 1); mad (0x32) by 1000 plus windParams.x; mul (0x38) by .y;
+                # sincos (0x4D); max (0x34) of y and 0; mul (0x38) by .z; mad (0x32) into x and z (write mask 0b0101)
+                k = next((j for j, t in enumerate(ins) if ops[j] == 0x32 and one_k in t[1:]), -1)
+                shape[0 < k < len(ins) - 5 and ops[k - 1] == 0x10 and ins[k - 1].count(0x3F800000) == 3
+                      and ops[k + 1:k + 6] == [0x38, 0x4D, 0x34, 0x38, 0x32] and (ins[k + 5][1] >> 4) & 0xF == 5
+                      and reg in ins[k] and reg in ins[k + 1] and reg in ins[k + 4]] += 1
+    print('== undergrowth sway (vertex programs with a windParams constant, DICE databases)')
+    print(f'databases with such a program: {dict(sorted(dbs.items()))} of {dict(sorted(all_dbs.items()))}; programs: {dict(sorted(vs_n.items()))}')
+    print(f'distinct Dx11 programs {len(codes)}; windParams register: {dict(sorted(regs.items()))}')
+    print(f'Dx11 programs with the sway sin(((x + y + z) x 1000 + w.x) x w.y) x max(y, 0) x w.z added to x and z: '
+          f'{shape[True]} of {len(codes)}')
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -606,6 +679,7 @@ def main() -> None:
     terrain_resources(bundles)
     partitions(bundles)
     tails_and_material_maps(bundles)
+    undergrowth_shaders(bundles)
 
 
 if __name__ == '__main__':

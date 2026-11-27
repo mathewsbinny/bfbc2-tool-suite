@@ -1,0 +1,714 @@
+{
+ "about": "The rules of spec/formats/dbx.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/strings.rs:9-15"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:111-113"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/strings.rs::is_binary_needs_magic_and_header"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::errors"
+    },
+    {
+     "kind": "data",
+     "ref": "156,533 of 156,533 `.dbx` entries binary"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-HDR-1",
+   "status": "verified",
+   "title": "Magic and minimum size",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:108-110"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::read_from_disk"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::errors"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-HDR-2",
+   "status": "verified",
+   "title": "An empty file is a marker, not a partition"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "word 8 = 24 + word 16 in 156,533 of 156,533 files"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/strings.rs:32-54"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:207-214"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:255-255"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: word 8 = 24 + word 16 in 124,458 of 124,458 `.dbx` entries"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-HDR-3",
+   "status": "verified",
+   "title": "The body offset"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "0 in 156,533 of 156,533 files"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:246-246"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:209"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 0 in 124,458 of 124,458"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-HDR-4",
+   "status": "verified",
+   "title": "The kept word"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/strings.rs:31-55"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/strings.rs::reads_strings_and_body_offset"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/strings.rs::missing_terminator"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/strings.rs::invalid_utf8_replaced"
+    },
+    {
+     "kind": "data",
+     "ref": "every string of the 156,533 files valid UTF-8"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-STR-1",
+   "status": "verified",
+   "title": "Offsets and strings"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "156,533 of 156,533 files"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:86-90"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:246-254"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 124,458 of 124,458"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-STR-2",
+   "status": "verified",
+   "title": "String 0 is the empty string"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "offsets ascending and packed in 156,533 of 156,533 files; 44,510 files with a string twice; 4,756 with an unused string; 305 in first-use order"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_headers_and_strings"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: packed in 124,458 of 124,458; a string twice in 34,819; an unused string in none and first-use order in none (the game copy's other counts came from OPFOR-written files)"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-STR-3",
+   "status": "verified",
+   "title": "DICE's tables are packed but not deduplicated"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs:10-16"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::errors"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-STR-4",
+   "status": "verified",
+   "title": "Indexes must be in range"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/cursor.rs:49-72"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:23-25"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:27-40"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::varints"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs::varints_as_dbxedit"
+    },
+    {
+     "kind": "data",
+     "ref": "no varint of the 156,533 files has a redundant trailing group"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-VAR-1",
+   "status": "verified",
+   "title": "Varints"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:136-143"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:125-134"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::refuses_unwritable_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "attribute counts over 81.3 million elements: 0 3,349,462; 1 60,398,557; 2 17,231,281; 3 313,065"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-ELEM-1",
+   "status": "verified",
+   "title": "The head byte"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:126-149"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:186-188"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::nested_containers_keep_order"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::errors"
+    },
+    {
+     "kind": "data",
+     "ref": "container byte 0 in all 10,056,595 containers"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-ELEM-2",
+   "status": "verified",
+   "title": "Containers and the closing zero"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:127-129"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:255"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::stops_at_a_zero_tag_with_nothing_open"
+    },
+    {
+     "kind": "data",
+     "ref": "one root, `partition`, in 156,533 of 156,533 files; no bytes after the tree in any"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-ELEM-3",
+   "status": "verified",
+   "title": "One root, then the end"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:151"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::tree"
+    },
+    {
+     "kind": "data",
+     "ref": "26,812,339 text elements"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-ELEM-4",
+   "status": "verified",
+   "title": "Text values"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:168-175"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::bodies_follow_the_kind"
+    },
+    {
+     "kind": "data",
+     "ref": "11,796,795 kind-6 scalars: first byte 1 in all; second byte 0 7,242,287, 1 4,551,516, 2 or more 2,992; no other scalar kind"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-ELEM-5",
+   "status": "verified",
+   "title": "Scalars"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "kinds over 81.3 million elements: 7 32,626,636; 2 26,812,339; 6 11,796,795; 0xA 10,056,595; no other"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: kinds over 66.8 million elements: 7 27,177,620; 2 21,857,917; 6 9,575,434; 0xA 8,222,821; no other"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-ELEM-6",
+   "status": "verified",
+   "title": "Only four kinds occur"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "deepest container per file: 2 29,767 files, 3 99,141, 4 14,651, 5 9,655, 6 3,311, 7-9 8"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:21"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: deepest container per file: 2 22,648; 3 80,799; 4 10,852; 5 7,478; 6 2,678; 7, 8 and 9 one each"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-ELEM-7",
+   "status": "verified",
+   "title": "Nesting depth"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/tree.rs:152-167"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:244-255"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::errors"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::huge_counts_are_errors"
+    },
+    {
+     "kind": "data",
+     "ref": "32,626,636 number lists; 186,480 with count 0"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-NUM-1",
+   "status": "verified",
+   "title": "Number lists"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "values of size 4 in 24,578,687 lists, size 2 in 8,047,646, size 8 in 303; size 4 on field 20,298,193, complex 3,963,739, array 316,755"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:189-213"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::dbx_elements"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: size 4 on field 16,882,127, complex 3,273,333, array 104,332; size 2 on field 6,766,214; size 8 on field 240; no other"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-NUM-2",
+   "status": "verified",
+   "title": "Sizes 4, 2 and 8"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:286-296"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::values_and_floats"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::singles_and_doubles"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-NUM-3",
+   "status": "verified",
+   "title": "Floats are IEEE 754, big-endian"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/xml.rs:12-27"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/xml.rs:54-140"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/xml.rs::escaping"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/corpus.rs::corpus_xml_matches_dbxedit"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_native.py::run_corpus"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-XML-1",
+   "status": "verified",
+   "title": "Lines and indentation"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/xml.rs:98-133"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:230-236"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::xml_shows_the_values"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::number_texts"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-XML-2",
+   "status": "verified",
+   "title": "Values"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:9-18"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:188-213"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:91-172"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::number_texts"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::g_formatting"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::ties_and_near_ties"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-XML-3",
+   "status": "verified",
+   "title": "A 4-byte value prints as an integer or a float"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/number.rs:195-200"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/number.rs::number_texts"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::one_byte_numbers_show_two_bytes_in_the_xml"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:126-137"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-XML-4",
+   "status": "verified",
+   "title": "The XML loses information"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:1-7"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:96-107"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:203-219"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::write_then_read_keeps_the_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/writers.rs::writer_calls_agree"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::edge_trees"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-WR-1",
+   "status": "verified",
+   "title": "The suite's writer"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:255-255"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:208-211"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs::empty_file_round_trips"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs::interning_reuses_the_first_entry"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs::unchanged_files_come_back"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::check_dbxedit"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:73-84"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-WR-2",
+   "status": "verified",
+   "title": "The byte-keeping writers"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "suite-written partitions with first-use string tables are in every level OPFOR installs and plays; DICE's own tables are in neither first-use nor sorted order (DBX-STR-3), so no order can be required"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-WR-3",
+   "status": "inferred",
+   "title": "What the game requires of a written file"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/import.rs:1-8"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbxedit/import.rs::reader_keeps_what_dbxedit_keeps"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::golden_edits"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:124-159"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-IMP-1",
+   "status": "verified",
+   "title": "Types come from a reference file"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs:246-254"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbxedit/file.rs::empty_file_round_trips"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:157"
+    }
+   ],
+   "file": "spec/formats/dbx.md",
+   "id": "DBX-IMP-2",
+   "status": "verified",
+   "title": "New files' defaults"
+  }
+ ]
+}

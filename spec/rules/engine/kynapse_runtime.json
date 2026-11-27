@@ -1,0 +1,299 @@
+{
+ "about": "The rules of spec/engine/kynapse_runtime.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "set-up 0x00F20C0E-0x00F20CD9 (size from [obj+0x40"
+    },
+    {
+     "kind": "exe",
+     "ref": "`PathfindingType`'s reflected field table 0x01C39DB8-0x01C39EBF, 24-byte entries {name, type, offset}: OutputName +0x30, EntityRadius +0x2C, MaxGraphHandles +0x3C, SubgraphsToLoad +0x44, SubgraphBoxSize +0x40, DiagramHalfWidth +0x1C, MaxGaps +0x18, DistEdgeMax +0x20, CanGoMaxEntityRadius +0x28, UseLocalPathfinding +0x48; names at 0x014752CC-0x01475364"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:464-471"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-CFG-1",
+   "status": "observed",
+   "title": "Sector size, overlap and offsets are world settings from the level",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "from-file entry 0x01092270, from-memory 0x01092160, state machine 0x01092340; magic 0x0108EC95; word 0 0x0108ECAE; table 0x01091130 / 0x010911A6; word-35 records 0x01091980-0x010919A2; block offset 0x01090193-0x010901D9; buffer sizes 0x0106C770 / 0x0106C7B0; trailer 0x0108E237-0x0108E286"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-LOAD-1",
+   "status": "observed",
+   "title": "The file loader",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0109171B `cmp [+0x3B4"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-LOAD-2",
+   "status": "observed",
+   "title": "Duplicate sectors",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "relocation 0x010A41D0 (marker 0x010A41E4, version 0x010A428E, flags 0x010A42A2-0x010A42A7, loaded 0x010A42B2, tables 0x010A42AD-0x010A42E1, tile table 0x010A42E3-0x010A4310); tiles 0x010A3BB0; areas 0x010A3A70-0x010A3BAC (A 0x010A3A87, B 0x010A3AB0, C 0x010A3AE0); links 0x010A4380, 0x010A43C4, 0x010A43F8; renumbering 0x010A3C10; relative use 0x01073B32-0x01073B3A, 0x01071D21"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-LOAD-3",
+   "status": "observed",
+   "title": "Relocating the runtime mesh",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "point to sector 0x0106D8D0 (floor via 0x00C5286C, `sub [+0x874C"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-SEC-1",
+   "status": "observed",
+   "title": "Point to sector",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x01071BC0 (rectangle test 0x01071430; tiles 0x01071BDF-0x01071C48; the pitch neighbourhood 0x01071C4C-0x01071D02); table index `imul edx, [esi+0x28"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-TILE-1",
+   "status": "observed",
+   "title": "Point to tiles",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0107ADD0 -> 0x010706D0 (cached) / 0x010707A0 (every mesh) -> 0x01073EA0 (item heights 0x01073EF4-0x01073F0F) -> inside test 0x01073B00 (E, B, C; pre-test 0x010739D0 with 1.1 at 0x0143BD08; parity 0x01073740)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the exact maths of 0x01073740 (on-segment band versus crossing) was not followed instruction by instruction"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-AREA-1",
+   "status": "observed",
+   "title": "Point in area",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "resolver 0x00F095C0 -> point query 0x00F09360 / 0x0107ADD0, snap 0x00F01250; node lookup 0x01086CE0 -> gather 0x0105ED80 (R from [status+0x38"
+    },
+    {
+     "kind": "exe",
+     "ref": "the candidates walked one by one from the gather's list: cursor [list+8"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:429-435"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-NODE-1",
+   "status": "observed",
+   "title": "Point to route node",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "box query 0x0105E270: list fields read as `movzx [node+0x1C"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-NODE-2",
+   "status": "observed",
+   "title": "The box query reads the lookup lists, in list order",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "out-edge walk 0x0105C930 (first edge - 1 at 0x0105C9B2-0x0105C9C6); static test 0x01079B3B; cost call `[edi+0xC"
+    },
+    {
+     "kind": "exe",
+     "ref": "RTTI vtables `Kaim::CConstraintShortestPath` 0x014C2D28 (+0xC = 0x01059480: dx, dy, dz of the positions at node +4 / +8 / +0xC, sum of squares, `sqrt` 0x00C521BC, stored as f32), `Kaim::CSphereConstraint` 0x014C2D44 (+0xC = 0x01059970: radius at +0x14 against 0.0, equal: false at 0x01059985; else a squared-distance test against the radius, then `jmp 0x01059480`), `Kaim::CHeuristicEuclidianDistance` 0x014C2D78 (+0x8 = 0x01059210, the same distance); the path finder's own constraint written at +0x43C, 0x010803D1; the AI's pair created at 0x00F0F122-0x00F0F192 (+0x94 sphere, +0x98 shortest path)"
+    },
+    {
+     "kind": "exe",
+     "ref": "heuristic call 0x01079320 (`cmp [edi+0x10"
+    },
+    {
+     "kind": "inferred",
+     "ref": "whether another stage reads the cost word's low bits was not traced"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-PATH-1",
+   "status": "observed",
+   "title": "Graph search costs",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "masked compares 0x0105C066-0x0105C085, 0x0105C148, 0x01079A90-0x01079A96"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:566-570"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-PATH-2",
+   "status": "observed",
+   "title": "Border nodes in the search",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "target filter 0x0105C8C0 (`cmp byte [ebp+0x22"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the chain through node +0x14 is written at load (the file holds DistEdgeMax or 0 there, HPD-NODE-1); the write was not found"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-PATH-3",
+   "status": "observed",
+   "title": "Where the owner bit is read",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "segment test 0x01072A60 (D +0x38 / +0x3C, E +0x40 / +0x44, F +0x48; segment against polyline 0x01071900), variant 0x01072D00; reached from 0x0058EF90 via 0x00F2D170, 0x00F2CF90, 0x01070E60, 0x010756A0, 0x01074B30"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:917-935"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-MOVE-1",
+   "status": "observed",
+   "title": "Straight moves, path following and smoothing",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x010A44D0 (called both ways from 0x01070974 / 0x01070980; 0x010A44F4-0x010A4554); unlink 0x010A3CB0 from 0x01070917"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-LINK-1",
+   "status": "observed",
+   "title": "Joining neighbouring sectors",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "registration 0x0108DAB0 -> 0x01089520 (no table: false); dynamic test 0x0105CE67 -> 0x0108EDA0 -> 0x0105CF20 (0x01087EC0 / 0x01087F80); services registered in 0x00F1B980 (0x00F1BCA3, 0x00F1BD59, 0x00F1C83E, 0x00F1C915); LpfManager profile strings used in 0x010C5E50"
+    },
+    {
+     "kind": "data",
+     "ref": "word 35 = 0 in 35 of 35 files; bit 31 set on 1,694,066 of 1,694,066 edges"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-DYN-1",
+   "status": "observed",
+   "title": "Dynamic edges, and destruction",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "service and layer names 0x014A9360 (`CGapManager`), 0x014A9530 (`Mpd::CLpfManager`), 0x014A95C4 (`CObstaclesLayer`), 0x014A95A4 (`MaxObstacles`), 0x014A94E8 (`CLpfPreMerger_Grid`), 0x014A9800 (the LPF goal refiner), 0x014A9A48 (`Mpd::CGoto_GapDynamicAvoidance_v2`); the obstacle layer configured at 0x00F1F584-0x00F1F600 (and again 0x00F1FA47-0x00F1FADE); the managers registered 0x00F1BCA3 / 0x00F1BD59, their profile names `LpfManager::AreaComputation` / `::PreAggregateComputation` at 0x00F1C915 / 0x00F1C83E and in the service 0x010C69E4-0x010C69F5; `PdtWhenDestroyed` 0x0145C728 and `DestructibleLocalPathfindingParts` 0x01460610 without a code reference found"
+    },
+    {
+     "kind": "inferred",
+     "ref": "from the configuration's class and parameter names only; no LPF method was disassembled and no live probe was run (in-game tests are paused)"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-DYN-2",
+   "status": "inferred",
+   "title": "Local pathfinding: an obstacle layer beside the path data",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "no reads of words 1, 4-7, 34 found outside the swap pass 0x0108EAE0; date / time passed to 0x010C8A30 / 0x010C8A50; A and B walked in 0x01071D10 with 0x010714C0"
+    },
+    {
+     "kind": "inferred",
+     "ref": "\"not read\" covers the functions traced (loader, relocation, point location, search, links); the code was not swept exhaustively"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-IGN-1",
+   "status": "observed",
+   "title": "Unread fields, and A records",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "version refusal 0x010A428E; magic / word 0 0x0108EC95-0x0108ECAE"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:450-461"
+    }
+   ],
+   "file": "spec/engine/kynapse_runtime.md",
+   "id": "KYRT-CRASH-1",
+   "status": "observed",
+   "title": "What bad path data does to the runtime",
+   "variants": "PC"
+  }
+ ]
+}

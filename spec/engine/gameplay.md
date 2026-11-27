@@ -70,7 +70,7 @@ a new mode (OPFOR's Onslaught) keeps `CONQUEST` and changes only its `ModeID`.
 
 [exe: BFBC2Game.exe 0x5680C0 maps MatchmakingQueryID to the stats category]
 [data: OPFOR's Onslaught with the console's ONSLAUGHT query id kept no score or stats (play test 2026-10-29)]
-[doc: opfor:src/tools/onslaught/console_mode.py:57-61] [doc: opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:242-244]
+[doc: rust/bc2-install/src/onslaught/mode.rs:35-43] [doc: opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:242-244]
 
 ### GAME-MODE-5: The UI tests ModeID against "conquest"
 
@@ -281,7 +281,7 @@ raised); every PC Conquest flag has 0. The console's Onslaught rule "the defende
 carry over as data. Why: the update skips a point whose progress belongs to the named team (ONS-CAP-3).
 
 [data: Onslaught play tests 2026-10-29 on PC: a flag with 1 was lowered but not raised by the attackers; with A 0 and B 2, A was captured and B not; every PC Conquest flag 0]
-[doc: opfor:src/tools/onslaught/console_mode.py:43-48] [doc: opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:240-241]
+[doc: rust/bc2-install/src/onslaught/mode.rs:9-11] [doc: opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:240-241]
 
 ### GAME-CQ-9: Objectives are not on hill tops
 

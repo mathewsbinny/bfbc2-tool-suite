@@ -1,0 +1,561 @@
+{
+ "about": "The rules of spec/transforms/projectlog.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:541-589"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-LOG-1",
+   "status": "verified",
+   "title": "Undo, redo and amend"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:222-333"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/xf1.rs::undo_on_a_mode_project"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-LOG-3",
+   "status": "verified",
+   "title": "Undo replays from a checkpoint, not the whole log"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:25-80"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:750-906"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/project_versions.rs::canary_projects_load_as_version_1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/ops.rs::json_shape_and_names"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::versions_and_min_reader"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::a_version_6_project_loads_and_its_member_edit_applies"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-LOG-2",
+   "status": "verified",
+   "title": "The file: whole writes, an autosave, versions"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/journal.rs:1-290"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:880-959"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:775-800"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/journal.rs::a_journal_cut_anywhere_gives_its_last_whole_line"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/journal.rs::written_resumed_and_compacted"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/journal_kill.rs::journal_survives_its_writer_killed"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-AUTO-1",
+   "status": "verified",
+   "title": "The autosave is a journal: crash-safe, resumable, compacted"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/delta.rs:1-430"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/files.rs:270-330"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:800-870"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/delta.rs::rasters_tiles_and_strokes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/delta.rs::tiles_in_a_folder"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/files.rs::strokes_apply_from_their_tiles"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/editor_core.rs::strokes_are_tiles_and_the_autosave_is_a_journal"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/editor_core.rs::stroke_budgets"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-DELTA-1",
+   "status": "verified",
+   "title": "Brush strokes are tiles beside the project, named by sha1"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:272-382"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:755-768"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::lock_and_stamp"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-LOG-4",
+   "status": "implemented",
+   "title": "One editor per project; a save never overwrites another writer's file"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/lib.rs:52-65"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:530-539"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/lib.rs::guids_are_deterministic"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-GUID-1",
+   "status": "verified",
+   "title": "New guids are UUID v5 of the project, the operation and the source"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:641-672"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-BASE-1",
+   "status": "verified",
+   "title": "The base-changed report names, never drops"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/files.rs:20-360"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/ops.rs:410-460"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:1190-1230"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/edit.rs:360-410"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/files.rs::multi_file_operations_apply_whole_or_not_at_all"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/editor_core.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-FILE-1",
+   "status": "verified",
+   "title": "An operation names the files it changes; a multi-file operation is all or nothing"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/project.rs:766-785"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:585-600"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1032-1083"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1215-1255"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-FILE-2",
+   "status": "verified",
+   "title": "A base file is recorded when first edited; the export writes the edited group files"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:36-86"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/memberedit.rs:1-30"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::identities_read_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-MEM-1",
+   "status": "verified",
+   "title": "Static group members are named by identity, never by place"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:405-575"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::members_are_deleted_and_added_in_dices_layout"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/group_members.rs::members_are_edited_like_objects"
+    },
+    {
+     "kind": "data",
+     "ref": "23,780 of 23,780 member transforms of six levels (four WW2 and BFBC2 groups' kinds) with unit rows"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-MEM-2",
+   "status": "verified",
+   "title": "A member's delete and add keep DICE's layout; the last of a kind stays"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/groupexport.rs:1-30"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/culltree.rs:448-500"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::an_export_deletes_moves_and_adds_members"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-MEM-3",
+   "status": "verified",
+   "title": "The export makes the member edits whole: leaves, the client tree, the physics"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:1021-1070"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-232"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-APP-1",
+   "status": "verified",
+   "title": "Operations in order; a failure names the operation"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/real_levels.rs::edits_on_real_levels"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/diff.rs::finds_what_changed"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-APP-2",
+   "status": "verified",
+   "title": "The result differs from the base exactly where the operations say"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/real_levels.rs::python_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/real_levels.rs::edits_on_real_levels"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-APP-3",
+   "status": "verified",
+   "title": "Edits agree with the reference tools byte for byte"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-351"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:352-421"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:645-808"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::deep_duplicate_and_place"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-APP-4",
+   "status": "verified",
+   "title": "A duplicate is wired in; a delete takes its wiring out"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:481-506"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/schema.rs::types_from_the_data"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-APP-5",
+   "status": "verified",
+   "title": "Field values are typed from the data, never guessed"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:106-343"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:1125-1145"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_xf1.rs::typed_gameplay_operations_on_valparaiso"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-APP-6",
+   "status": "verified",
+   "title": "Typed gameplay operations check the data's rules"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/app/tools.rs:1314-1343"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/xf1.rs::paste_is_a_deep_duplicate"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-APP-7",
+   "status": "verified",
+   "title": "Paste is a deep duplicate"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:938-1347"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:935-975"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/tool.rs:347-500"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::the_tools_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::a_spawn_point_added_and_deleted"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::aurora_conquest_with_the_tools_edits_exports"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-GAME-1",
+   "status": "verified",
+   "title": "A gameplay object is added and deleted with its unit, wired as its template"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/gameplay.rs:295-530"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/app/gameplayui.rs:1-60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/gameplay_tools.rs::gameplay_tools_through_the_interface"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-GAME-2",
+   "status": "verified",
+   "title": "The tools in the editor: one operation, one undo step"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-873"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:939-1034"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::connections_added_and_taken_out"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::a_stage_added_and_taken_out_on_port_valdez"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/rush_stage_tools.rs::a_rush_stage_through_the_interface"
+    }
+   ],
+   "file": "spec/transforms/projectlog.md",
+   "id": "XLOG-GAME-3",
+   "status": "verified",
+   "title": "A Rush stage is added and taken out whole, and event connections are operations"
+  }
+ ]
+}

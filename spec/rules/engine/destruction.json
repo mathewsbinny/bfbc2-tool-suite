@@ -1,0 +1,383 @@
+{
+ "about": "The rules of spec/engine/destruction.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py on the game copy, 2026-11-22: 1,262 blueprints, 599 with PartComponentData parts (1 - 107 each; 1 part in 313, 2 in 65), 3,135 parts; object classes as above, 90 without an object instance"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-STATE-1",
+   "status": "verified",
+   "title": "A destructible part is a PartComponentData with health states"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: states per part 0 x 43, 1 x 304, 2 x 2,720, 3 x 64, 4 x 4; lowest first in 2,788 of 2,788 multi-state parts; the lowest at Health 0 in 2,786"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-STATE-2",
+   "status": "verified",
+   "title": "Two states per part, stored lowest health first"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/simple.rs:354-389"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/simple.rs:311-324"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/simple.rs::destruction_states_pick_their_parts"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: healthiest state Health 0 - 100,000, most 100 x 1,545, 1 x 313, 10 x 217, 5 x 152"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-STATE-3",
+   "status": "verified",
+   "title": "A state's Health is where it begins; the healthiest is the part's start"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 2,788 multi-state parts: lowest state MeshName empty 2,512, Effects 2,366; healthiest state Effects 70; Effects items 4,133 over 2,482 states"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-STATE-4",
+   "status": "verified",
+   "title": "The last state shows nothing and plays the destruction effects"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "the part material is read per health state at 0x6D84D0 (vtable+0xE0 at 0xAAED90 for the part)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:17-21"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-STATE-5",
+   "status": "observed",
+   "title": "Each health state has its own part material"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 505 objects with the percentages: DestroyRuinPartPercentage 35 - 100 (75 x 495), ManyPartsDestroyedPercentage 40 - 101 (80 x 489), AboutToBeDestroyedTime 0 - 5 (0 x 494); PartLinks 0 - 165 per object, none on 475 of 568"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-STATE-6",
+   "status": "verified",
+   "title": "Object collapse settings"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the field names, DICE's values (75 / 80 %), the ruin parts' two states (`ruin` / `ruin_downed`) and GAME-DMG-1's onDestroyed triggers; the collapse code was not traced in the executable"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-STATE-7",
+   "status": "inferred",
+   "title": "The ruin takes over when enough parts are gone"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 3,135 parts, the flag counts above"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-PART-1",
+   "status": "verified",
+   "title": "Part flags and links"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: SpawnedBanger on 36 states, 35 targets (20 named *_banger, 16 references to other names); blueprints whose name contains banger 44; the state counts above"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-PART-2",
+   "status": "verified",
+   "title": "Bangers"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the part damage paths (0x722990, 0x8D6730, 0x6A19A0) read the part material and the damage relation (0x6E44A0); the health bookkeeping itself was not traced"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:75-79"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-PART-3",
+   "status": "inferred",
+   "title": "A part loses health by its material's relation"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/simple.rs:395-408"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/simple.rs:330-341"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/simple.rs::destruction_states_pick_their_parts"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 3,423 of 3,431 non-empty MeshNames are PartInfoDatas names of the blueprint's _Havok partition"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MESH-1",
+   "status": "verified",
+   "title": "A state's MeshName is its mesh part and its collision part"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: MeshName over all states: the part name 2,574, part name plus suffix 215, other 642, empty 2,521"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MESH-2",
+   "status": "verified",
+   "title": "State naming"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: blueprint names (last part) containing banger 44, wreck 31, debris 9, ruin 2, destroyed 0"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MESH-3",
+   "status": "verified",
+   "title": "Wrecks and debris are blueprints of their own"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: SootPerPixel and SootPerVertex in 74 of 74 DICE Dx11 databases"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MESH-4",
+   "status": "verified",
+   "title": "Soot"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 30 DICE VisualTerrain resources, 7 - 109 patch mask shaders each, 0 - 72 of them ending _Destruction; every one in 6, none in 9"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-TERR-1",
+   "status": "verified",
+   "title": "Destruction is a rule layer of the patch shaders",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: texture_dynamicMaskTileMap, texture_dynamicMaskIndirectionMap and dynamicMaskAtlasParams in 74 of 74 DICE Dx11 databases; Destruction_factor in 41"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:384-386"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:499"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-TERR-2",
+   "status": "implemented",
+   "title": "The dynamic destruction mask",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_materials"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 3,454 MaterialRelationTerrainDestructionData in DICE's grids: Width 1 - 13 (8 values), Depth 0.1 - 2 (9 values)"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-TERR-3",
+   "status": "verified",
+   "title": "Crater size per material pair"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 30 TerrainData instances, the values above"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-TERR-4",
+   "status": "verified",
+   "title": "TerrainData's destruction fields"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 74 level partitions: member types static 2,583 (97,112 instances), tree 396 (97,190), middle-growth 341 (82,908), rigid 32 (760); PhysicsPartCountPerInstance static 1 x 1,725, 2 x 375, 3 x 91, 4 x 85, 5 x 174, 6 x 88, 8 x 10, 9 x 4, 14 x 31; tree 1 - 5; middle-growth and rigid 1"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MG-1",
+   "status": "verified",
+   "title": "Most static group members are destructible"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:575-790"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:7277-7281"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MG-2",
+   "status": "verified",
+   "title": "A member's parts are the type's parts, laid out per instance"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: health-state arrays empty in all 3,352 member types of 74 level partitions; NetworkIdCountPerInstance equal to PhysicsPartCountPerInstance in 1,150, not in 1,433"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MG-3",
+   "status": "verified",
+   "title": "The members' health-state arrays are empty in the files"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_destruction"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/destruction.py, 2026-11-22: 1,283 DamageAreaTriggerEntityData in 74 level partitions"
+    }
+   ],
+   "file": "spec/engine/destruction.md",
+   "id": "DSTR-MG-4",
+   "status": "verified",
+   "title": "Collapse kill zones"
+  }
+ ]
+}

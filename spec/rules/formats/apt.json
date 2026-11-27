@@ -1,0 +1,736 @@
+{
+ "about": "The rules of spec/formats/apt.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "all 1,027 SwfMovie entries of the game copy (105 bundles: 99 in Package, 6 in Dist) have exactly these three members in this order, every member offset a multiple of 4, gaps of 0 - 3 bytes, the last member ending at the archive's end; 92 distinct movies (aptgraft.py's 2026-10-29 count, 982 entries then)"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-readers/tests/test_console_readers.py::apt_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-console-readers/apt/apt.py:174-191"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:100-101"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-RES-1",
+   "status": "verified",
+   "title": "A SwfMovie resource is a BIGF archive of .apt, .const and .geo",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "all 1,027 SwfMovies of the PC game copy little-endian; the 17 Xbox 360 HUD movies OPFOR imported big-endian, written back byte for byte in both orders (aptgraft.py 2026-10-29)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptmodel.rs::parse_and_write_back"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_aptgraft.py::quick"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/apt/apt.py:25-28"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-RES-2",
+   "status": "verified",
+   "title": "The byte order of a movie is the platform's",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-console-readers/apt/apt.py:229-235"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:1776-1784"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:305-316"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:107-108"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-RES-3",
+   "status": "implemented",
+   "title": "The byte order is detected from the .const header's movie offset",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,027 of 1,027 SwfMovies of the game copy start .const with these 20 bytes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptmodel.rs::refuses_what_python_raises"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:1773-1775"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CONST-1",
+   "status": "verified",
+   "title": ".const signature",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:409-413"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:941-952"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:93-94"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CONST-2",
+   "status": "verified",
+   "title": ".const header",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the game copy's 1,027 movies hold 4,554,390 constants: 2,996,536 of type 4, 1,557,854 of type 1, no other type"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:409-440"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:383-391"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CONST-3",
+   "status": "verified",
+   "title": "Constant entries",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "aptgraft.py writes .const packed after grafting \"the shape of the game's own constant files\"; the game copy's .const files place the entry table before the strings, and no game file is known whose strings precede the table"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:120-124"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CONST-4",
+   "status": "inferred",
+   "title": "The game's constant files keep their strings behind the entry table",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,027 of 1,027 SwfMovies of the game copy start .apt with \"Apt Data:\""
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptmodel.rs::refuses_what_python_raises"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:920-933"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-HDR-1",
+   "status": "verified",
+   "title": ".apt signature",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_aptgraft.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:1095-1100"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:69"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-HDR-2",
+   "status": "verified",
+   "title": "Every pointer is a file offset into its own member",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the game copy's 1,027 movies: 72,638 shapes, 59,399 sprites, 51,285 images, 2,246 static texts, 1,114 sounds, 1,027 movies (each movie's root, one per file), 801 text fields, 580 fonts, 6,105 null slots; no other type; every non-null slot carries the signature"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:821-833"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:572-588"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/apt/apt.py:14-20"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CHR-1",
+   "status": "verified",
+   "title": "Character records start with a type and the signature 0x09876543",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,027 of 1,027 game-copy movies have type 9 and the signature at the .const movie offset, which is a multiple of 4"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:797-834"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:946-949"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:70-72"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-MOV-1",
+   "status": "verified",
+   "title": "The movie character",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:578-626"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:835-858"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:76-81"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CHR-2",
+   "status": "implemented",
+   "title": "Character layouts",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "every one of the 128 movie-set movies (menus, HUDs, loaders) and the Xbox 360 menus decode with known item types only (aptcheck, 2026-10-26)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_apt_e3n.py::game"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:718-795"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:630-668"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:73-76"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-FRM-1",
+   "status": "verified",
+   "title": "Frames and frame items",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's menu patches hide controls this way in its installed movies (DEVELOPMENT_NOTES.md section 3), confirmed in game"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:740-743"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-FRM-2",
+   "status": "observed",
+   "title": "A control is hidden by moving it far off screen",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:657-708"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:74-207"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/apt/apt.py:21-24"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CODE-1",
+   "status": "verified",
+   "title": "Action streams are AVM1 plus EA opcodes",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "with these layouts every function body of the 56 PC and Xbox 360 menu and HUD movies checked on 2026-10-26 decodes exactly to its end; 1,924,750 instructions of the 128 movie-set movies decode (BENCHMARKS E3n)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_apt_e3n.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:513-646"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:216-231"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:82-87"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CODE-2",
+   "status": "verified",
+   "title": "Operand layouts",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_apt_e3n.py::game"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:524-526"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/apt/apt.py:21-24"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CODE-3",
+   "status": "verified",
+   "title": "Differences from Flash",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/apt.rs::dump_and_records"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:624-645"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:88-91"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CODE-4",
+   "status": "verified",
+   "title": "Function definitions",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "every movie of the game copy's movie sets (128) and the Xbox 360 menus pass; patched menus that broke these crashed while loading (OPFOR DEVELOPMENT_NOTES section 3)"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_menu_tools.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptscan.rs::findings_sorted"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptscan.rs:120-130"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptscan.rs:199-209"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/README.md:44-53"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CODE-5",
+   "status": "verified",
+   "title": "A function body decodes exactly to its end",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_menu_tools.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:540-555"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/apt.rs:590-603"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptscan.rs:140-165"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:730-734"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CODE-6",
+   "status": "verified",
+   "title": "Constant indices: global lists and the constant pool",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_menu_tools.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptscan.rs:131-139"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-CODE-7",
+   "status": "verified",
+   "title": "Branches land on an instruction of their own stream",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x1309880 (byte code offsets to pointers), 0x1319730 (character walk and its inverse)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/apt/apt.py:37-39"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-LOAD-1",
+   "status": "observed",
+   "title": "The loader converts offsets to pointers in place, once",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's menu patches crashed the menus when two PushData shared a list (DEVELOPMENT_NOTES.md section 3); no movie of the game copy shares one"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_menu_tools.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptscan.rs:170-184"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:735-738"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-LOAD-2",
+   "status": "verified",
+   "title": "Every PushData list has exactly one user",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe build 795745: name table 0x0143C898; main menu getter 0x76EC30; UI manager getter 0x95A1B0; HUD getter 0x777B30"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_menu_tools.py::game"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptscan.rs:296"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/README.md:59-82"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-LOAD-3",
+   "status": "observed",
+   "title": "Externs, FSCommands and events are names the engine resolves",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "1,027 of 1,027 game-copy movies start .geo with this text"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptmodel.rs::parse_and_write_back"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:959-975"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:95-99"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-GEO-1",
+   "status": "verified",
+   "title": ".geo header",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:959-980"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:95-99"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/apt/apt.py:29-33"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-GEO-2",
+   "status": "implemented",
+   "title": "Geometry parts",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-menu-tools/aptgraft.py:1983"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/apt/apt.py:33-36"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:109-115"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-ATL-1",
+   "status": "implemented",
+   "title": "Image pixels are in the menu's texture atlas",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "every distinct SwfMovie of the game copy and OPFOR's Xbox 360 HUD copies: 1,463 writes byte-identical to the Python reference (BENCHMARKS E3n); 92 + 17 movies byte for byte, packed and through the other byte order (2026-10-29)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptmodel.rs::parse_and_write_back"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_apt_e4c.py::game"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-WR-1",
+   "status": "verified",
+   "title": "An unchanged movie writes back byte for byte",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptmodel.rs::grown_node_moves_in_keep"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:1131-1146"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:61-64"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-WR-2",
+   "status": "verified",
+   "title": "The keep layout",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/aptmodel.rs::parse_and_write_back"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-menu-tools/tests/test_aptgraft.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/aptmodel.rs:1147-1160"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:65"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-WR-3",
+   "status": "verified",
+   "title": "The pack layout",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "4 of OPFOR's installed movies with dead data, their 4 pristine copies with none (aptgraft.py roundtrip, 2026-10-29)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-menu-tools/aptgraft.py:103-106"
+    }
+   ],
+   "file": "spec/formats/apt.md",
+   "id": "APT-WR-4",
+   "status": "observed",
+   "title": "Dead data in patched movies",
+   "variants": "PC"
+  }
+ ]
+}

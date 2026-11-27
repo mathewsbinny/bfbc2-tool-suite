@@ -1,0 +1,581 @@
+{
+ "about": "The rules of spec/transforms/terrain_edit.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 terrain partitions: TerrainData 30, TerrainHeightfieldData 53, TerrainHeightfieldGridCellInfo 43, TerrainFullDecal 314 (MaskTextureType TmttStandard 194, TmttArea 69, TmttNone 51), TerrainGroupDecal 80, TerrainSplineDecal 416, TerrainQuadDecal 40; every decal material / spline reference in no bundle"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:390-398"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-SRC-1",
+   "status": "verified",
+   "title": "The terrain partition is DICE's editor source; the game draws the baked resources",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from RNDR-TERR-2 (normals from height samples), RNDR-TERR-5 (the engine writes the height scale), DSTR-TERR-2 (the engine writes the destruction mask), TERR-VT-3 (rule layers have no tile) and TEDIT-SRC-1 (the resources are what is drawn)"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-SRC-2",
+   "status": "inferred",
+   "title": "What an edit writes, and what the game makes itself",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_fields"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 main blocks: n 1,024 x 11, 2,048 x 19; grid spacing 1 m on 30; min y 0 on 30"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-HF-1",
+   "status": "verified",
+   "title": "DICE's main blocks are 1,024 or 2,048 samples of 1 m, starting at height 0",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_fields"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_rings_stitched_after_a_sculpt"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:47-64"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: per main block (terrain, n, range) as listed; TerrainHeightfieldData.SizeY counts as listed"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-HF-2",
+   "status": "verified",
+   "title": "The height range is per level; DICE's are 395 - 1,700 m",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::height_field_tails"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::terrain_resources_written_from_strokes"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain_codec.rs:1-40"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:1-60"
+    },
+    {
+     "kind": "inferred",
+     "ref": "TERR-HF-4 - TERR-HF-11's grammars; the console and BF1943 converters keep the tails as they are (TERR-HF-7, TERR-HF-8)"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-HF-3",
+   "status": "verified",
+   "title": "The derived parts of a height field are rewritten from the heights",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "RNDR-TERR-5; pcbuild.ENGINE_NAMED lists the constant among those the engine writes by name"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:47-52"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island install, 2026-11-07 onward: its patch shaders cloned from mp_009cq (range 500 m) draw its 1,000 m terrain; spec/probes/terrain.py: MP_009 500 m"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-HF-4",
+   "status": "inferred",
+   "title": "The height scale the patch shaders use is the engine's, not the database's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: (W, non-zero flags = tiled count): (128, yes) 305,154, (128, no) 6,142, (64, yes) 41,608, (64, no) 3,448, (16 / 8 / 4, yes) 3,072 / 5,376 / 3,072; every mismatch a rule-only shader (tiled 0) with 1 flag (MP_002 343, SP_009 4,804, NAM_MP_002R 3,000 ...)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::mp_005_paint_written"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-VT-1",
+   "status": "verified",
+   "title": "A painted cell writes its shader index, its tiles and its flags together",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:75-112"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs on the game copy, 2026-11-23: 23 Dist visual terrains, 7 one kind per layer; slot order 1,131 of 1,131 blocks and layers in name order, 1,063 of 1,463 reversed"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-VT-2",
+   "status": "verified",
+   "title": "A shader's layers come from its name; a cell's tile slots are its tiled layers in that order",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:289-300"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 visual terrains, 1 atlas each; atlas (size, format, mips) against the header: 2048 x 1024 fmt 10 1 mip / (31, 15) x 5, 1024 x 512 / (15, 7) x 13, 1024 x 1024 / (15, 15) x 12, each = size / 64 - 1"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-ATL-1",
+   "status": "verified",
+   "title": "One mask-tile atlas per terrain, laid out as its patch maps' header says",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py and a per-terrain count (SPG2 scratch), 2026-11-22: 94,603 tiled masks, 79,973 in their tile's one block; per terrain the flags and the one shared tile as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:800-811"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-ATL-2",
+   "status": "verified",
+   "title": "A tile covers a block of flag x flag cells; DICE's flags are 2 - 64",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:475-532"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::mp_005_paint_written"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: patch shaders per terrain 7 - 109; layer counts 1: 48, 2: 194, 3: 344, 4: 424, 5: 328, 6: 152, 7: 24, 8: 1; tiled counts 0: 177, 1: 410, 2: 478, 3: 321, 4: 129"
+    },
+    {
+     "kind": "inferred",
+     "ref": "RNDR-TERR-1 (the entry per cell) and SHDB-LVL-1 (a level draws through its own databases only)"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:226-245"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-SH-1",
+   "status": "implemented",
+   "title": "A painted layer combination needs a patch shader entry in every database",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:226-269"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:408-410"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/fidelity_checks.py:317"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_dx9_donor_textures_never_another_level"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-SH-2",
+   "status": "implemented",
+   "title": "A donor patch shader must match the tiled layers and the atlas layout",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:273-282"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:290-293"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_patch_layouts_and_tiles"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-SH-3",
+   "status": "implemented",
+   "title": "Rule-only patches need both patch layouts",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:135-180"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::material_maps"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::terrain_resources_written_from_strokes"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain_codec.rs:1-40"
+    },
+    {
+     "kind": "inferred",
+     "ref": "TERR-MM-2 - TERR-MM-4; the pairing of visual layers with materials is the editor's choice (no field links them in DICE's resources)"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-MM-1",
+   "status": "verified",
+   "title": "Painting a physics material writes the material map's cells",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:858-870"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs on the game copy, 2026-11-23: MP_005's five tiled layers paired as listed"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-MM-2",
+   "status": "verified",
+   "title": "The visual / material pairing is measured on the terrain's own cells",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: blocks per terrain {1: 14, 13: 12, 25: 1, 37: 2, 49: 1}; 318 patch maps"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-BLK-1",
+   "status": "verified",
+   "title": "Main block, then a ring of 12 per ring",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_rings_stitched_after_a_sculpt"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/terrain_tools.rs::terrain_brushes_through_the_interface"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:230-290"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-RING-1",
+   "status": "verified",
+   "title": "A sculpt that reaches the ring is stitched as DICE stitches its rings",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "LIGHT-BAKE-2 and LIGHT-BAKE-6"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:967-1030"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_colour_maps_written_in_place"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-OCC-1",
+   "status": "implemented",
+   "title": "The colour / occlusion map under an edit is re-baked by ratio",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/sculpt.rs:1-20"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:704-760"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/sculpt.rs:402-470"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/terrain_tools.rs::terrain_brushes_through_the_interface"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-BR-1",
+   "status": "implemented",
+   "title": "The editor's brushes write stored heights and cells, clamped to the range",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_path_data_end_to_end"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/sample.rs:296-325"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:350-365"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the terrain bundle's entries (heightfield, material map, visual terrain, water, atlas) hold no collision resource; the sampler reads the height field (`inputs::heightfield_of`)"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-NAV-1",
+   "status": "verified",
+   "title": "A sculpted level's path data is sampled on the staged height field",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::dice_heights_through_the_import"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs::tests::a_height_map_read_and_written"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:119-160"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs on the game copy, 2026-11-27: 30 of 30 DICE main blocks (Dist's and Package's levels, bundles before 2013) through the import give DICE's stored samples, bounds and min / max tree"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-NEW-1",
+   "status": "verified",
+   "title": "A height map is stored from 0 m, its values kept as they are",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:1-30"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1423-1465"
+    },
+    {
+     "kind": "inferred",
+     "ref": "TGEN-REQ-4, TGEN-REQ-5, XEXP-BLD-2, LVL-MODE-2"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-NEW-2",
+   "status": "implemented",
+   "title": "A new level carries its own terrain under its own name, its base's left out",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_path_data"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/pathdata.rs:189-192"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs on the game copy with MP_005 prepared for NavKit, 2026-11-27: as given; rust/BENCHMARKS.md E7-TG3"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/navkit/sample.rs:296-325"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-NEW-3",
+   "status": "verified",
+   "title": "A new level's path data is sampled and built on its own ground",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/project.rs::a_version_13_create_levels_strokes_stay_on_the_base"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/newterrain_view.rs::a_new_terrain_replaces_the_scenes_under_the_bases_names"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1417-1565"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:1277-1342"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/newterrain_view.rs:1-68"
+    }
+   ],
+   "file": "spec/transforms/terrain_edit.md",
+   "id": "TEDIT-NEW-4",
+   "status": "verified",
+   "title": "A new terrain is sculpted and painted as the base's is, under the base's names",
+   "variants": "PC"
+  }
+ ]
+}

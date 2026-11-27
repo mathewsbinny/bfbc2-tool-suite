@@ -1,0 +1,605 @@
+{
+ "about": "The rules of spec/formats/havok.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::resource_names"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 2,584 `_Havok.res`, 448 `_HavokAsset.res`, 3 `_Havok_Havok.res`, no other name; all in level bundles"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 3,595 `_Havok.res`, 529 `_HavokAsset.res`, 4 `_Havok_Havok.res`; all 4,128 of type HavokPhysicsData in level bundles"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-RES-1",
+   "status": "verified",
+   "title": "Names"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/havok.rs:38"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/havok.rs:213-217"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/havok.rs::reads_meshes_and_boxes"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: magic found in 4,128 of 4,128; packfile offsets 56 - 74,206 bytes, offset mod 4 = 0 x 3,051, 1 x 266, 2 x 535, 3 x 276"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-RES-2",
+   "status": "verified",
+   "title": "Wrapper, then packfile",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:934-963"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:745-794"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_converter_units.py::part_materials"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_havok.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: n equals the second count in 4,128 of 4,128; the 1, k, hashes tail found in 4,128; n 1 - 14,752, a 0 - 60, c 1 - 115, k 1 - 22"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-WRAP-1",
+   "status": "verified",
+   "title": "Layout",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:745-794"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_havok.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::wrapper_x"
+    },
+    {
+     "kind": "data",
+     "ref": "358 HavokPhysicsData the console and PC share: 355 converted with identical wrappers (3 are different assets)"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-WRAP-2",
+   "status": "verified",
+   "title": "Xbox 360 -> PC wrapper",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:976-1012"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:1015-1034"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_converter_units.py::part_materials"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::material_slots"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 3,599 runs in this form (every `_Havok.res`), 2,652 with d = 1, 947 one byte per part, every one of the stated length"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-RUN-1",
+   "status": "verified",
+   "title": "Part run, index form",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:561-601"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:605-632"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 529 runs whose first u16 is not 0; all 529 are `_HavokAsset.res` files and all 529 have a valid little-endian table (m not equal to n); the undecoded bytes after the table are 8 - 8,506 bytes"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-RUN-2",
+   "status": "observed",
+   "title": "Part run, material-table form (model groups)",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:575-790"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/members.rs::the_physics_reads_and_relays"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "data",
+     "ref": "131 of 131 groups of 31 levels: part words = the owners' leaves per part, m = the member types, ends = the cumulative per-instance parts, c = k2 = the last end, run d / t then n bytes or none; 78 of 78 long runs the same bytes per instance of a type"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-RUN-3",
+   "status": "verified",
+   "title": "The model groups' wrapper decoded",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:1037-1060"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_converter_units.py::part_materials"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::material_slots"
+    },
+    {
+     "kind": "data",
+     "ref": "on every object HavokAsset BFBC2 ships, HavokMaterials equals MaterialMappings and the part run names PartInfoDatas' materials"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PHYSICS_MATERIALS.md:46-56"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-MAT-1",
+   "status": "observed",
+   "title": "The material list"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "part material read at vtable+0xE0 (0xAAED90) and per health state at 0x6D84D0; face material at 0xAAEEE0 / 0xAADE10; runtime id built at 0x10029E0; bullet part damage 0x722990 (server), 0x8D6730 (client); explosion 0x6A19A0; penetration 0x6F6570; impact effect 0x822D60; contacts 0xAB0710 / 0x70F720"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's 991 object HavokAssets: in 922 the per-part bytes name exactly PartInfoData.MaterialName's materials, 69 share one byte"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/MATERIAL_SLOTS_RE.md:13-48"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-MAT-2",
+   "status": "observed",
+   "title": "Which material slot the game reads"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/havok.rs:218-230"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:513-522"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/havok.rs::classes_are_read"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 4,128 of 4,128 PC packfiles: user tag 0, version 5, layout `04 01 00 01`, 3 sections, `Havok-5.5.0-r1`"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-PF-1",
+   "status": "verified",
+   "title": "Header",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/havok.rs:231-256"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/havok.rs::refusals_and_damage"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 4,128 of 4,128 have exactly (`__classnames__`, `__types__`, `__data__`), byte 19 = 0xFF on all 12,384 headers"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-PF-2",
+   "status": "verified",
+   "title": "Section headers",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/havok.rs:261-284"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/havok.rs::reads_meshes_and_boxes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havok_tests.rs::objects_members_pointers_and_arrays"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-PF-3",
+   "status": "verified",
+   "title": "Fixup tables",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:131-171"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:276-286"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::compare"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 260,287 class-name entries, the separator byte 0x09 on all"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-PF-4",
+   "status": "verified",
+   "title": "Class names section",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "game copy: class-name census over 4,128 packfiles"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:4058"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-PF-5",
+   "status": "observed",
+   "title": "Classes present",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe hkClass initializers, the constructor the most-called target of the `B9 .. E8` sites"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/hkclasses.rs:120-190"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_havok_classes_native.py::build_pe"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_havok.py::main"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:44-56"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-CLS-1",
+   "status": "verified",
+   "title": "Class layouts come from the executable",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:37-63"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havok_tests.rs::objects_members_pointers_and_arrays"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-CLS-2",
+   "status": "implemented",
+   "title": "Member types"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:577-581"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:646-720"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havok_tests.rs::a_byte_converted_as_two_widths_is_refused"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_havok.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "358 shared resources: 355 convert, every other byte identical (51,344 padding, 10,253 bounding-volume, 297 triangle-offset, 69 saved-quality bytes differ); all 594 console HavokPhysicsData of the four Onslaught levels convert"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-X360-1",
+   "status": "verified",
+   "title": "Xbox 360 and PC packfiles differ only in byte order",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/havok.rs:472-535"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/havok.rs::reads_meshes_and_boxes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/havok.rs::subparts_with_indices_out_of_range_are_skipped"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/havok.rs::index_groups_must_be_whole"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_geometry_native.py::main"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-TRI-1",
+   "status": "verified",
+   "title": "Collision triangles as the suite extracts them"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:663-719"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_converter_units.py::havok_model_group"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::model_group_w"
+    },
+    {
+     "kind": "data",
+     "ref": "bit-identical to DICE's on all 299 model-group shapes of BFBC2's levels; translation.w 1.0 on all 277,950 subparts with children"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/HAVOK_AABB_W.md:1-60"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-AABBW-1",
+   "status": "verified",
+   "title": "Model-group w lanes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:174-190"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:250-261"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:394-395"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:513-536"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::compare"
+    },
+    {
+     "kind": "data",
+     "ref": "BF1943's Kurogane converted pairs BFBC2's own Kurogane object for object (62 objects) and field for field (floats within 0.1 %) but for values rebuilt at load and MOPP lengths DICE rebuilt"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-V461-1",
+   "status": "verified",
+   "title": "The 4.6.1 packfile",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havokport.rs:196-246"
+    },
+    {
+     "kind": "exe",
+     "ref": "the hkUFloat8 decoding table in BFBC2Game.exe: 256 increasing f32, 0.0 first, 0.01 second, the last between 9e5 and 1.1e6"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-V461-2",
+   "status": "implemented",
+   "title": "hkUFloat8 velocity limits",
+   "variants": "BF1943, PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mopp.rs:202-218"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_converter_units.py::mopp_vm"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "MOPP-SPACE-1",
+   "status": "verified",
+   "title": "Quantized space",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mopp.rs:94-193"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mopp.rs::terminals_and_splits"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mopp.rs::errors_and_refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_converter_units.py::mopp_vm"
+    },
+    {
+     "kind": "data",
+     "ref": "every opcode of the 88 physics files both games ship, BF1943's converted and DICE's own, is in this set"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "MOPP-OP-1",
+   "status": "verified",
+   "title": "Opcodes",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mopp.rs:231-262"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_havokport.py::mopp_check"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mopp.rs::ray_hits"
+    },
+    {
+     "kind": "data",
+     "ref": "88 shared physics files: 54,245 triangles of BF1943's 236 converted codes all reach their terminals; 11,800 rays equal brute force; a triangle's own box returns 28.3 % of the keys against DICE's 27.7 %"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "MOPP-KEEP-1",
+   "status": "verified",
+   "title": "BF1943's MOPP code is valid in BFBC2",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 1 distinct RagdollResource (2 live), 16,944 bytes, packfile magic at 0, Havok-5.5.0-r1 at 40"
+    }
+   ],
+   "file": "spec/formats/havok.md",
+   "id": "HAVOK-RAG-1",
+   "status": "verified",
+   "title": "The ragdoll is a bare 5.5.0 packfile",
+   "variants": "PC"
+  }
+ ]
+}

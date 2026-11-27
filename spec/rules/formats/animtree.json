@@ -1,0 +1,257 @@
+{
+ "about": "The rules of spec/formats/animtree.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 1,926 distinct AnimTreeInfo entries (2,594 live), version 6 in all, 20 + A + B + C = size in 1,926, every block a multiple of 16"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo records `AnimTreeInfo` (module Animation, 36 bytes) at 0x1C0B8E4 and `AnimTreeReplacementInfo` (20 bytes) at 0x1C0B8FC"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-HDR-1",
+   "status": "verified",
+   "title": "A 20-byte header and three blocks",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: in 1,926 of 1,926 every word in [base, base + size) is 4-aligned and at most A + B + C from block A"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-PTR-1",
+   "status": "verified",
+   "title": "Pointers are absolute in the compiler's image",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest4 2026-11-23: in 1,926 of 1,926 trees the node table and every node pointer lie in block A and every typed pointer is 0 or in block A (its end included); types 1 - 26, 59,725 nodes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe walker 0xF598E0 (the table +0, count +4; per node +4, then the type minus 1 through the byte map 0xF599D4 and the table 0xF599AC to 0xF59730 (types 2), 0xF59780 (3), 0xF597D0 (4), 0xF597F0 (6), 0xF59820 (7), 0xF59840 (13), 0xF59860 (16), 0xF59890 (23), 0xF598C0 (25)); called at 0xF47798 with block A - base"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-BLK-1",
+   "status": "verified",
+   "title": "Block A is a node table and typed nodes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest4 2026-11-23: block B's first word is 0 or in block B in 1,926 of 1,926; the 10 DICE trees of the first-person weapon sizes (36,292 - 36,836 bytes) all have A 0x4FA0 and B 0x870 bytes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe walker 0xF599F0 (one word), called at 0xF477A9 with block B - A - base"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-BLK-2",
+   "status": "verified",
+   "title": "Block B is flat data behind one pointer",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest4 2026-11-23: 1,926 of 1,926 trees: the table in block C, every record's pointers 0 or in block C (887 at +0x1C, 839 at +0x14 and 4 at +0x38 point at its end)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe walker 0xF59A30 (record stride 0x60 at 0xF59AC6; the counts at +0x10 and +0x24; +0x28, +0x30, +0x38), called at 0xF477BE with block C - A - B - base; the loader's object 0xF3F540 (vtable 0x14AB3E0, 0x24 bytes) filled at 0xF477E6 - 0xF47801"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-BLK-3",
+   "status": "verified",
+   "title": "Block C is a table of 0x60-byte records",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest5 2026-11-27: the 26 names from the executable's function; node counts per type as listed (59,725); the nodes in table order in 1,926 of 1,926 trees"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xF490A0 (type - 1 against 0x19, jump table 0xF4915C, each case `mov eax, <name>`: \"AnimationNodeInfo\" 0x14AB7CC ... \"RagdollNodeInfo\" 0x14AB598)"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-NODE-1",
+   "status": "verified",
+   "title": "The 26 node types are the executable's NodeInfo classes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest5 2026-11-27: B = 16 + 16 n with its head (B + 16, n, 0, 0) and n = C's count = the animation nodes in 1,926 of 1,926; the +0x20 index in 1,926 of 1,926; 28,254 lengths, 0.0333 - 182.3333 s; C +0x54 never zero (scratch read), unique within 822 of 1,926 trees"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-BLK-4",
+   "status": "verified",
+   "title": "Blocks B and C hold one entry per animation node",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest6 2026-11-27: in 1,926 of 1,926 trees every node's +0x14 is its table index, +0x16 0xFFFF exactly for node 0 and below the node's own index otherwise, +0x1A 1, +0x1B - +0x1F zero, +0x08 at most 3 and the pairs inside the record"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the node update 0xF5A380 (+0x18 0xF5A3AA, written as max(old, weight) 0xF5A3D5 - 0xF5A3F8; the pairs +0x04 / +0x08 0xF5A40B - 0xF5A43E into 0xF50C60, which keeps 16; +0x1A 0xF5A443 before the vtable's slot 2 0xF5A464); the blend times +0x0C / +0x10 read by the parents 0xF38750 / 0xF38759 and 0xF3916D / 0xF39174 into 0xF48E60 (1 / t); the state objects made by type in 0xF69280 - 0xF695AE"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-NODE-2",
+   "status": "verified",
+   "title": "Every node starts with a 0x20-byte header",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest6 2026-11-27: +0x24 / +0x28 at most 2 and +0x2C 0 or -1 in 1,926 of 1,926 trees; +0x24 = 1 on 332 of the 332 animation nodes of the `_atgen_looping` trees"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe evaluator 0xF59F90 (vtable 0x14AB8B4 slot 2): +0x20 into the B lookup 0xF506D0 at 0xF59FC4, +0x30 0xF59FCE - 0xF5A000, +0x28 / +0x24 0xF5A067 - 0xF5A08B (2 keeps the default, else == 1), +0x2C with +0x20 into 0xF50D30 at 0xF5A172 / 0xF5A191, +0x32 written 0xF5A217 - 0xF5A244"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo `AnimationNodeData` (IsCyclic and PlayFromBegining `TripleBool`, CallbackId Int32, the two `FloatParameter`s) and `TripleBool` (TB_FALSE 0, TB_TRUE 1, TB_NONE 2)"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-NODE-3",
+   "status": "verified",
+   "title": "The animation node's fields",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest6 2026-11-27: every child word of `ATREE_CHILDREN` (the table's) names a node whose +0x16 is this node, or is 0xFFFF where allowed, in 1,926 of 1,926 trees; the other ranges from a scratch read of all 59,725 nodes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the evaluators (vtable slot 2) and their fields: 2 0xF5D710 (+0x38, +0x3C); 3 0xF42DC0 (+0x20 - +0x2C); 4 0xF39830 (+0x20) and 0xF3E9F0 (+0x24, +0x28); 5 0xF59F30 (+0x20, +0x24); 6 0xF41360 (+0x20 - +0x2C, +0x30, +0x32); 7 0xF41510 (+0x28, +0x2A, +0x2C); 8 0xF41860 (+0x22, +0x26, +0x28, +0x2A, +0x2B); 9 0xF3E4F0 (+0x20 - +0x30); 10 0xF39450 (+0x20); 11 0xF40AA0; 12 0xF3D010; 13 0xF415D0 (+0x20 - +0x2E); 14 0xF3D140 (+0x20 - +0x26); 15 0xF60B60 (+0x22, +0x24, +0x26); 16 0xF5D820 (+0xC0, +0xC4, +0x110); 17 0xF5A4C0; 18 0xF51530 (+0x60, +0x64); 19 0xF3E3D0 (+0x20 - +0x28); 21 0xF5A5D0 (+0x20 - +0x2C); 22 0xF3E770 (+0x20 - +0x2C); 23 0xF40F90 (+0x20, +0x28, +0x30); 24 0xF3DD20 (+0x70, +0x72, +0x74); 25 0xF41210 (+0x20 - +0x28)"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-NODE-4",
+   "status": "verified",
+   "title": "Each type's fields; child nodes are u16 indices",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest6 2026-11-27: of 28,254 entries 700 with +4 (0.2083 - 5.2213), 96 with +8 (45 - 90), none with +12"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xF59F90 passes the entry's +4 and +8 (0xF5A0EF, 0xF5A102) with the length to 0xF492B0, whose modes (jump table 0xF49348) divide dt by the length (0xF492CC - 0xF492E1), the speed's |+0x18| x dt by +4 (0xF492E3 - 0xF492F4) or by +8 (0xF492FA - 0xF4930B)"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-BLK-5",
+   "status": "observed",
+   "title": "Block B's second and third floats are the cycle's distance and angle",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, round SPG2-rest6 2026-11-27: in 1,926 of 1,926 trees every record's modes are 0 - 4, 4 only at +0x50, the curve counts 2 exactly when animated, the pointers set exactly when animated; modes over 28,254 records: +0x40 3 in 12,272, +0x50 4 in 1,155 and 3 in 949, +0x4C 3 in 55"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the C lookup 0xF50720 (record stride 0x60 from block C's table, or a replacement's), called by 0xF59460: curves 1 and 2 through 0xF534C0 (0xF594AD - 0xF59500; modes by the jump table 0xF53570: 1 0xF50910 with 1.0, 2 with 0, 3 / 4 0xF50990 with the weight), curves 3 - 5 through 0xF53580 (0xF59510 - 0xF595B2); the interval test 0xF507D0; +0x54 copied at 0xF509E8"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe typeinfo `PropertyCurveType` (PCT_NO_EFFECT 0, PCT_ALWAYS_ON 1, PCT_ALWAYS_OFF 2, PCT_ANIMATED 3, PCT_MANUAL_INPUT 4), `DisableInterval` (four Float32, 16 bytes)"
+    }
+   ],
+   "file": "spec/formats/animtree.md",
+   "id": "ATREE-BLK-6",
+   "status": "verified",
+   "title": "A block C record is the animation node's five property curves",
+   "variants": "PC"
+  }
+ ]
+}

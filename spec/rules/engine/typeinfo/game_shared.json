@@ -1,0 +1,141 @@
+{
+ "about": "The rules of spec/engine/typeinfo/game_shared.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources enumerations 131"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-1",
+   "status": "verified",
+   "title": "The 131 enumerations and their values",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources value types 182"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-2",
+   "status": "verified",
+   "title": "The 182 value types",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameSharedResources classes below EntityData 188"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-3",
+   "status": "verified",
+   "title": "The entity data classes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-4",
+   "status": "verified",
+   "title": "Weapons, firing and damage",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-5",
+   "status": "verified",
+   "title": "AI, cover, squads and voice-over",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-6",
+   "status": "verified",
+   "title": "The HUD, menus and screen effects",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-7",
+   "status": "verified",
+   "title": "Persistence, online, settings and modes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27"
+    }
+   ],
+   "file": "spec/engine/typeinfo/game_shared.md",
+   "id": "RTTI-GSR-8",
+   "status": "verified",
+   "title": "The rest of the module",
+   "variants": "PC"
+  }
+ ]
+}

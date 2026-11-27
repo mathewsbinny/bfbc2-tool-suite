@@ -1,0 +1,148 @@
+{
+ "about": "The rules of spec/formats/bf1943.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/paths.py:56-57"
+    },
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/paths.py:154-161"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:17-18"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:79-82"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:35"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BF1943_WW2_ASSETS.md:7-21"
+    }
+   ],
+   "file": "spec/formats/bf1943.md",
+   "id": "B43-SRC-1",
+   "status": "implemented",
+   "title": "The suite reads BF1943 from the user's extracted copy, read only",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the extraction listed on 2026-11-22 (round SPG2): 86 files, 85 .fbrb and config.zz; 5 level folders of 9 bundles each; 22 async/weapon bundles"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:19-23"
+    }
+   ],
+   "file": "spec/formats/bf1943.md",
+   "id": "B43-BNDL-1",
+   "status": "observed",
+   "title": "BF1943's bundle set: 85 bundles, no registry files",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the suite's bundle lister over the 85 bundles, 2026-11-22: compressed / stored and entry counts as listed"
+    }
+   ],
+   "file": "spec/formats/bf1943.md",
+   "id": "B43-BNDL-2",
+   "status": "observed",
+   "title": "The same container; the same stored / compressed split",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the extraction's level folders, 2026-11-22: the five listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:73-81"
+    }
+   ],
+   "file": "spec/formats/bf1943.md",
+   "id": "B43-LVL-1",
+   "status": "observed",
+   "title": "Five levels, one mode each",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "name comparison, 2026-11-22: BF1943's 22 async/weapon bundles against the game copy's 323 Dist async/weapon bundles"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BF1943_WW2_ASSETS.md:125-152"
+    }
+   ],
+   "file": "spec/formats/bf1943.md",
+   "id": "B43-WPN-1",
+   "status": "observed",
+   "title": "12 of BF1943's 22 weapon bundles have a BFBC2 namesake",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:126-133"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/DBXPORT_DEEP_AUDIT.md:35-49"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's port audit (2026-11): BFBC2's and BF1943's copies of the shared weapon and soldier partitions compared: the renamed fields, the 24 BoneFakePhysicsData (15 BoneIds differ), the moved aimer partition with its GUIDs"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-bf1943-import/bf1943import.py:31-33"
+    }
+   ],
+   "file": "spec/formats/bf1943.md",
+   "id": "B43-DBX-1",
+   "status": "observed",
+   "title": "The class differences DICE resolved, and BF1943 classes BFBC2 lacks",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:94-104"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_FIELD_PARITY_AUDIT.md:14"
+    },
+    {
+     "kind": "data",
+     "ref": "the three vehicle pairs' physics file sizes as listed; BF1943's packfiles with an empty __types__ section"
+    }
+   ],
+   "file": "spec/formats/bf1943.md",
+   "id": "B43-HK-1",
+   "status": "observed",
+   "title": "Havok 4.6.1 carries no reflection; layouts come from data",
+   "variants": "BF1943"
+  }
+ ]
+}

@@ -1,0 +1,1058 @@
+{
+ "about": "The rules of spec/engine/rendering.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:217"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:596-599"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:841-845"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DB-1",
+   "status": "verified",
+   "title": "A level draws with its own database, found by its name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005 Dx11_Single.res: 1,714 entries, 12,850 programs, 1,527 vertex and 2,166 pixel shaders, all vs_5_0 / ps_5_0 from that compiler, 2,112 parameter blocks, 114 vertex layouts, 31 render-state words"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's built Dx9_Single.res: 1,723 vertex and 4,668 pixel shaders, all vs_3_0 / ps_3_0"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:596-612"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:26-32"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DB-2",
+   "status": "observed",
+   "title": "The databases hold compiled code only",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Wake Island, Iwo Jima and Guadalcanal: 33 BF1943 terrain patch entries declare 17-22 pixel samplers; DICE's Dx9 programs: s0 the shadow map in 4,360 pixel shaders; patches with stream 0 SHORT2 grid and stream 1 SHORT2N height"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:33-40"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:60"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DB-3",
+   "status": "observed",
+   "title": "Dx9 limits what a program may use",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:503-528"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:674-695"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/warehouse.rs::warehouse_as_the_harness_draws_it"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:610-616"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-1",
+   "status": "verified",
+   "title": "One draw per part: the entry `<mesh>/<shader>`, the main-pass program for the part's layout",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/placement.rs:84-155"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: 554 of 3,915 drawn objects and members with an override (31 concrete blocks, 193 fences among the group members)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:719-723"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-2",
+   "status": "verified",
+   "title": "A placement may choose another shader set",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:192-228"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::cbuffer_places_values_by_name_and_material_by_register"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:601-609"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-3",
+   "status": "verified",
+   "title": "Constants by name, material values by register",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:307-320"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/water.rs:14-19"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-4",
+   "status": "implemented",
+   "title": "Engine values written over block placeholders",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:286-305"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::bones_are_placed_by_the_world_matrix"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:724-725"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-5",
+   "status": "verified",
+   "title": "Bone-placed programs carry the world in their bones",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x98BD6E, renderer; 0x98BCE0-0x98BD7B: `mov edx,[ebx+8"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR: the WallWooden port (fixed by giving its parts a same-stride layout and its instanced variant); ONS_MP_004's road / stop signs (open)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:1416-1429"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1350"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:586"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1371"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-6",
+   "status": "observed",
+   "title": "A part with no program for its layout crashes the renderer (0x98BD6E)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8D59FB, null read in the client's mesh set-up"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-install/src/levelbuild/closure.rs:233-236"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_SUBSTITUTION_AUDIT.md:48"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-7",
+   "status": "observed",
+   "title": "A mesh set's LOD settings must resolve (0x8D59FB)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/deep_sea_materials.rs::block_windows_are_the_material_registers"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::a_shader_without_constants_takes_the_material_in_its_block_window"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs::material_registers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:181-228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/query.rs:151-162"
+    },
+    {
+     "kind": "data",
+     "ref": "the six levels' Dx11 databases: every program with a `constants` array has the header window of its registers"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-DRAW-8",
+   "status": "verified",
+   "title": "A program's material registers are its block header's window",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:322-337"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/dxbc.rs:121"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/dxbc.rs::discard_found_in_the_instruction_stream"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-ORD-1",
+   "status": "implemented",
+   "title": "Three draw classes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:400-401"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/live.rs:613"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/live.rs::mp_005_live_list_is_the_frame_edits_and_picks"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:751-763"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-ORD-2",
+   "status": "verified",
+   "title": "Opaque, then tested, then blended farthest first",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/live.rs:648-649"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:36-48"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/water.rs::depth_factors_invert_the_projection"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/post.rs:10-12"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:726-737"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-ORD-3",
+   "status": "verified",
+   "title": "The depth buffer holds view distances, made before its first reader",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/live.rs:436-461"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/live.rs::boxes_outside_the_frustum"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/live.rs::mp_005_live_list_is_the_frame_edits_and_picks"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-ORD-4",
+   "status": "verified",
+   "title": "Frustum culling changes nothing drawn",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:164-299"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/whole_terrain.rs::the_whole_terrain_is_drawn"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:624-640"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-TERR-1",
+   "status": "verified",
+   "title": "Patches of 16 m, each cell's shader from the patch map",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:334-360"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/terrain.rs:4-20"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005's patch shaders' disassembly: the inputs, constants and per-layer weights (0.7025 / 0.6755 / 0.648 on one patch)"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-TERR-2",
+   "status": "implemented",
+   "title": "Height from the height map in the vertex shader",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005 patch map header (66, 1, 15, 7, 128); Wake Island in R5c: tiled-mask cells black, everything else drawn"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:627-632"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3672-3680"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1298"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-TERR-3",
+   "status": "observed",
+   "title": "Tiled layers read the mask atlas; rule layers are computed",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:286-289"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:639-640"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-TERR-4",
+   "status": "verified",
+   "title": "Roads and decals are baked strips; undergrowth has its own entries",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:359-364"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's lagoon view: 52.8 % near-black pixels before round R5d, 0.0 % after; Coral Sea's 10.2 % -> 0.3 %"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island's `Wake_Grey` cells (12,803, one constant black layer) lie 165.9 - 203.4 m: 11.6 m or more under the water"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: DICE main blocks' ranges 500 x 16, 1,000 x 8, 750 x 2, 1,700, 1,500, 650, 395"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-TERR-5",
+   "status": "verified",
+   "title": "The height map's world scale is the height field's range",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:50-116"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/water.rs:1-22"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:642-644"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WATER-1",
+   "status": "verified",
+   "title": "Visual water, range by range, in world positions",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::wake_island_draws_its_beach_and_lagoon"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:168-190"
+    },
+    {
+     "kind": "data",
+     "ref": "NAM_MP_005R's two water entries and Wake Island's `Wake_Water` bind `heightmap`; MP_005's water reads none"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WATER-2",
+   "status": "verified",
+   "title": "Water that reads the height map takes the terrain's world scale and offset",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/deep_sea_materials.rs::the_ww2_open_sea_is_drawn"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/water.rs:193-226"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island 600 m out: 53.5 % near-black pixels before round R5e, 0.0 % after; a deep-sea pixel (0, 0, 0, 0) -> (0.034, 0.110, 0.220, 1.0) HDR; Guadalcanal and Iwo Jima 1,200 m out: 48.6 % and 56.7 % of the view darker than 40 / 255 -> 0.0 %"
+    },
+    {
+     "kind": "data",
+     "ref": "the Wake water's pixel shader disassembled (`entry_probe`, `fxc /dumpbin`): `o0 = (colour x a, a)`; `t` from `texture_DepthBuffer` and `cb0[13"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WATER-3",
+   "status": "verified",
+   "title": "The WW2 water's alpha is its depth below the water, from the depth factors",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:231-265"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/weather.rs::fields_and_refs_read_as_renderqa_does"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/warehouse.rs::warehouse_as_the_harness_draws_it"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:646-649"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-1",
+   "status": "verified",
+   "title": "The active weather state names the light, fog, sky and post-process",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:315-357"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/weather.rs::light_multiplies_colours_by_their_intensities"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-2",
+   "status": "verified",
+   "title": "Light colours are colour times intensity",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's Dx11 database: no main-pass program's reflection names a fog variable; EnvironmentMain's reflection: the twelve g_* constants, the depth buffer and mp05_Skydome"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:649-653"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3678-3679"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-3",
+   "status": "observed",
+   "title": "No object reads fog; the sky and haze are one pass over the depth",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's states: no stored light direction; the Wake formula gives a direction below the horizon"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/weather.rs:6-9"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:671-677"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-4",
+   "status": "observed",
+   "title": "The sun's direction is the engine's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:161-228"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:151-196"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/weather_refs.rs::ww2_levels_find_their_weather_through_the_entity"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/weather_refs.rs::stock_levels_resolve_as_their_folder_did"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/game_view_ww2.rs::ww2_levels_open_in_the_game_accurate_view"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's game copy: guadal_canal's level-00.fbrb holds weather/wake_island/guadal_canal_e, guadal_canal (ActiveState 2) and weathersystem_wake (states sunny_day, iwo_jima, guadal_canal, default, coral_sea); coral_sea's level partition holds its own WeatherSystemEntityData naming weathersettings_wake (ActiveState 0)"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-5",
+   "status": "verified",
+   "title": "The weather is found through the level's weather entity, by reference",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/weather.rs::weather_entities_and_spawn_states_read_from_a_partition"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::game_view_opens_on_the_spawn_switch"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "data",
+     "ref": "weather_refs.rs's run on OPFOR's game copy and prepared levels: the first spawn-transition State per level, printed beside the drawn state"
+    },
+    {
+     "kind": "data",
+     "ref": "WX0's inventory of 83 levels: 70 with an enabled spawn switch, 45 naming another state than ActiveState"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/weather.rs:163-179"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-6",
+   "status": "observed",
+   "title": "A level's state entities may move the weather on spawn",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:415-447"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/world.rs:338-370"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::weather_states_in_both_views"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-7",
+   "status": "verified",
+   "title": "A state's look from its values",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:546-815"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:969-1060"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "data",
+     "ref": "examples/vw2_canaries.rs on OPFOR's game copy: six canaries, each stage against its baseline byte for byte but the intended changes, every mapexport check line passing; OPFOR's mapedit_install --apply and --revert on a scratch copy of the shared files, back byte for byte"
+    },
+    {
+     "kind": "data",
+     "ref": "WX0: the WeatherSystem resource of all 28 systems is 4 bytes, value 72"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-8",
+   "status": "verified",
+   "title": "An exported level's weather: ActiveState and the spawn switch together, in partitions of its own",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:50-62"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:856-890"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::the_night_template_resolves"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-WTHR-9",
+   "status": "verified",
+   "title": "Night: DICE's one night state as the template",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's 587 textures by DICE's suffixes; 19 IrradianceVolume resources in mp_common; MP_005's EnlightenSkyColorIntensity 0"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:614-622"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/placement.rs:14-15"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-LIGHT-1",
+   "status": "observed",
+   "title": "Baked occlusion, irradiance volumes and Enlighten instead of lightmaps",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::the_sky_dome_is_drawn_behind_the_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/sky.rs:220-345"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005's and Wake Island's databases: 8 programs each, the four main-pass variants, state 0x481, the 44-byte layout"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-SKY-1",
+   "status": "verified",
+   "title": "The sky is EnvironmentMain on a dome at 0.9 of the view distance",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the constants' names pair with the fields' names, and the shader's use fits each (a cubic horizon gradient in the elevation, a Gaussian halo with a power, a Henyey-Greenstein sun disc of g = 1 - Size)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/sky.rs::values_follow_the_sky_state_by_name"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/sky.rs:122-200"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-SKY-2",
+   "status": "inferred",
+   "title": "The sky's constants are the state's Sky, Sun and Clouds values by name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's Sunny state: AdditiveThreshhold 0.3, Trancparency 1, UV range 0 .. 0.3; the texture's rows 111 - 130 of 255 on average; the alpha texture white"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-SKY-3",
+   "status": "observed",
+   "title": "The panoramic cloud layer's composite is open",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/post.rs:104-143"
+    },
+    {
+     "kind": "data",
+     "ref": "Dist startup-00: 112 Dx11PixelShader and 14 Dx11VertexShader resources, among them psFilmicTonemap and its variants, HorizonBasedAO / HorizonBasedAOBlur, psDrawParticleVertexShadows*, psDrawEnlightenShadows"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:655-661"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-POST-1",
+   "status": "implemented",
+   "title": "The post shaders are in the startup bundle",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/post.rs:257-357"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/post.rs::neutral_settings_give_the_identity_matrix"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/post.rs::the_chain_goes_down_to_one_pixel"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/world.rs::mp_005_world_draws_and_matches_the_harness"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/post.rs:1-32"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-POST-2",
+   "status": "verified",
+   "title": "The chain: luminance, exposure, bloom, filmic tonemap",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe: the Hsao* setting names and defaults"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-render/src/post.rs:30-32"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:658-659"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-POST-3",
+   "status": "observed",
+   "title": "Ambient occlusion is HBAO with settings in the executable",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "MP_005's binding tables: outdoorLightShadowTransform0..2; entries' depth-only programs; Dx9 objects: four texldp taps averaged"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:659-661"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:39"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-SHAD-1",
+   "status": "observed",
+   "title": "Three shadow cascades drawn with the depth-only programs",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the field names; the distances rise with the level (40 / 70 / 100 / 150 / 200 m on ObjectsLodSettings_1); the per-object assets with ShortCull / LongCull variants differ only in MinScreenArea"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: every placed mesh set names settings, 2 - 4 levels"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/r5d.rs::levels_of_detail_draw_fewer_indices"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/material.rs:615-700"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-LOD-1",
+   "status": "inferred",
+   "title": "A mesh's levels of detail switch at its LOD settings' distances",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe: execution at 0x00F30005, outside the image's code, render path"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/PACIFIC_GAP_ANALYSIS.md:349-351"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/QA_SWEEP_2026-11-14.md:76"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-CRASH-1",
+   "status": "observed",
+   "title": "A jump to 0x00F30005 after a plane death (Coral Sea)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe state flush 0x9BC230: PSSetShaderResources at 0x9BC68E, VSSetShaderResources at 0x9BC661; Wake Island's first spawn, 2026-11-06"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:619-626"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-CRASH-2",
+   "status": "observed",
+   "title": "A released texture view left in a slot crashes the state flush (0x9BC68E)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/frame.rs::a_point_behind_drawn_depth_is_occluded"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/game_view_r5d.rs::game_view_draws_the_sky_and_hides_labels_behind_the_frame"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/frame.rs:405-445"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-VIEW-1",
+   "status": "verified",
+   "title": "Labels behind the game frame are hidden",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::patch_levels_cover_the_patch_and_keep_full_edges"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/whole_terrain.rs::the_whole_terrain_is_drawn_with_levels_of_detail"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:560-649"
+    }
+   ],
+   "file": "spec/engine/rendering.md",
+   "id": "RNDR-VIEW-2",
+   "status": "verified",
+   "title": "The view's terrain levels keep their edges in full",
+   "variants": "PC"
+  }
+ ]
+}

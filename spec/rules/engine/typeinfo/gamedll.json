@@ -1,0 +1,60 @@
+{
+ "about": "The rules of spec/engine/typeinfo/gamedll.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --measure, 2026-11-27: factories server 148, client 100; resolved pairs server 110, client 75; 173 classes made"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory registries 0x157041C (register 0x71C790) and 0x1572768 (0x8B6A60); the server's create 0x711740 calls slot 4 (e.g. the factory vtable 0x1427568: slot 3 `mov eax, 0x30; ret 4`, slot 4 0x6FBDA0 allocates 0x30 and jumps to the constructor 0x586AC0), the client's create 0x8A07F0 calls slot 6 (`call [eax+0x18"
+    }
+   ],
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "id": "RTTI-FAC-1",
+   "status": "verified",
+   "title": "Which run-time class each data class makes, from the factories' constructors",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameDll records not named Client* 163"
+    }
+   ],
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "id": "RTTI-GDLL-1",
+   "status": "verified",
+   "title": "The server's run-time classes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: GameDll records named Client* 99"
+    }
+   ],
+   "file": "spec/engine/typeinfo/gamedll.md",
+   "id": "RTTI-GDLL-2",
+   "status": "verified",
+   "title": "The client's run-time classes",
+   "variants": "PC"
+  }
+ ]
+}
