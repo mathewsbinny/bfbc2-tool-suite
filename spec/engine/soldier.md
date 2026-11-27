@@ -47,6 +47,41 @@ The executable's poses and transitions are named `Stand`/`Crouch`/`Prone` with `
 [data: spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes' instances, partitions and members above]
 [exe: BFBC2Game.exe typeinfo module Physics: CharacterPhysicsData, CharacterPoseData, CharacterStatePoseInfo and the nine *StateData classes; strings StandToCrouch, CrouchToProne, ProneToCrouch, ProneToStand, ProneToStandOnJump, StandToProne, CrouchToStand]
 
+### SOLD-PHYS-2: The controller's nine states: their ids, how they are built, their transitions
+
+Status: **verified** · Variants: PC
+
+The character's state manager is built from `CharacterPhysicsData.States` (+0x6C, RTTI-PHYS-1) by 0xB08CE0: each
+entry is matched by its class (its type against each state's data class, `isKindOf` 0x4E6100; the first test pushes
+`OnGroundStateData`'s class info at 0xB08D5C), not by its position in the array, and its state object is added to
+the manager (+0x48, built 0xD4DD40, added 0xD4DDD0); an entry of no known class is skipped. The context (+0x44,
+0xD40AC0) starts in state 0 and takes `OnGroundStateData.JumpDelay` (+0x28). The states and their ids (each state's
+slot 3: `mov eax, <id>; ret`; Havok's character state numbering, with falling in Havok's "flying" slot):
+
+| Id | State (data class) | Its update | Goes to |
+|---|---|---|---|
+| 0 | OnGround (`OnGroundStateData`) | 0xAB7BD0 | 2 (0xAB7E41); 8 when the ground is steeper than `MaxAscendAngle` (+0x80, degrees, 0xAB8178 - 0xAB81BF) |
+| 1 | Jump (`JumpStateData`) | 0xA9D5A0 | 2 after two updates (its counter +0x54 against 2 at 0xA9D700) |
+| 2 | InAir (`InAirStateData`) | 0xAB44E0 | 0, 3, 4, 6, 8 |
+| 3 | Climbing (`ClimbingStateData`) | 0xAACB90 | 0, 2, 6 |
+| 4 | Falling (`FallingStateData`) | 0xAB42B0 | 0, 5, 6, 8 |
+| 5 | Parachute (`ParachuteStateData`) | 0xAA4D60 | 0, 6, 8 |
+| 6 | Swimming (`SwimmingStateData`) | 0xAAD3E0 | 0, 3 |
+| 7 | AnimationControlled (`AnimationControlledStateData`) | 0xAA3BA0 | none of its own |
+| 8 | Sliding (`SlidingStateData`) | 0xAA4FC0 | 0, 2, 6 |
+
+The transitions are each update's calls of the context's `setState` (0xD40B80). From outside the controller the
+character's `setState` (0xB095C0) is called by: the parachute's open (0x6F7900: 5) and close (0x6F7930: 5 becomes
+4, falling); scripted moves (0x6977F4, 0x69E80F: 7); returns to the ground (0x68DA3E, 0x68DD52, 0x8ADDE4: 0;
+0x6C17A2 only from 7); and the network (0xB0F760 applies a snapshot's state, +0x54), so the state is replicated.
+Each of DICE's two `CharacterPhysicsData` lists all nine state classes once. For a converter or OPFOR's controller
+patch: a `States` array may be in any order, a missing state class is simply absent (its transitions then find no
+state; not traced), and a tenth class would be ignored.
+
+[test: core/tests/test_spec_probes.py::run_time]
+[data: spec/probes/runtime.py on DICE's partitions, 2026-11-27: the nine state classes 2 each among the States of DICE's 2 CharacterPhysicsData]
+[exe: BFBC2Game.exe state builder 0xB08CE0 (`push 0x1BF90D8` at 0xB08D5C), state ids at 0xAB7B70 (`xor eax, eax; ret`), 0xA9D590, 0xA9D580, 0xA9D150, 0xA9D570, 0xA9DAC0, 0xA9DAE0, 0xA9CCC0, 0xA9DAD0 (`mov eax, 1` - `8; ret`); factories 0xAB7B00, 0xAB7A90, 0xAB7A20, 0xAB7920, 0xAB79B0, 0xAB8310, 0xAB83F0, 0xABA950, 0xAB8380; context setState 0xD40B80, character setState 0xB095C0]
+
 ### SOLD-SPR-1: Sprint is a power budget and a field-of-view change
 
 Status: **verified** · Variants: PC
@@ -208,4 +243,6 @@ orders (`CanSpotAndOrder`), the score (`SpotAssistScore`) and the voice-over eve
 - The order the engine applies the FOV sources (SOLD-FOV-1) and whether `settings.ini`'s `Fov` replaces or scales
   `DefaultFOV`.
 - How the spotting cone's angles combine with `SpottingConeFov` / `SpottingDistance` (SOLD-SPOT-1).
-- The character controller's runtime (the states' transitions are in the executable, not traced).
+- The character controller (SOLD-PHYS-2): where Jump (1) is entered (OnGround's input path), the conditions behind
+  InAir's and Falling's exits (`WaterDepthLimit` to swimming), what a `States` array missing a class does; a playtest
+  of the parachute closing into falling.

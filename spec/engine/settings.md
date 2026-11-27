@@ -169,7 +169,7 @@ That file holds: `GstInput` 3 (the hidden `Scheme1Sensitivity`, `Scheme1FlipY`, 
 `GstGameplay` 3, `GstPlayerProfile` 5, `GstPersistence` 2,302 strings, `GstBinary` 2 (`header` 50 bytes and `body`:
 the campaign save, the two names the single-player code uses, among others 0x55D250, 0x6E5900, 0x75FFA0 near
 `onStartLoadingSP`, and 0x951E00), `GstMenuTracker` 4, `GstStatsCache` 701 strings; the other categories 0. The
-campaign save's own layout is left to the campaign's rules (SPG4-rest).
+campaign save's own layout is CAMP-SAVE-1.
 
 [test: core/tests/test_spec_probes.py::options]
 [exe: BFBC2Game.exe category enumeration 0x01C38890 - 0x01C38998 (GstAudio 0 ... GstStatsCache 10, GstCount 11); serializer 0x80DA10 (`mov [esp+0x24], 11` at 0x80DA2E, `cmp byte [esi+0x28], 0` at 0x80DA8F, type 4 at 0x80DAE4 -> 0x80D660, else 0x80D4B0); write 0x815940 (caller 0x83449E, job id +0xB18); read 0x815870 (caller 0x832191, job id +0xB14); reader 0x832270 (`mov [esp+0x28], 11` at 0x832292, type 4 at 0x832309 -> 0x82FFA0, else 0x82FCF0; caller 0x834A8F in the job completion 0x8345A0, checks 0x834A48 / 0x834A5B); INI writer 0x833FD0 (`cmp eax, 11` at 0x83431C); "header" 0x141841C / "body" 0x1418414 read by 0x55D250, 0x75FFA0, 0x6E5900 and the binary getter 0x80D660's other callers]

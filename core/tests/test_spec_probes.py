@@ -7,7 +7,8 @@ lines of their output that hold a rule's counts (EXPECT; `<head>§<line>` for a 
 `dependencies.py`, round TG0's `terrain_shape.py` (round TG0's throw-away generator prototype `terrain_gen_proto.py`
 was retired by round TG2: the generator and its proofs are Rust's, `rust/bc2-terragen`), and round SPG4's
 `resources.py` and `census.py` (the census as spec/census.json holds it) and round SPG2-rest5's `persistence.py`
-by their own `checks()`.
+and round SPG4-rest's `typeinfo.py` (the executable's reflection as spec/typeinfo.json holds it) and `runtime.py`
+(the run-time code's constants and the data they read) by their own `checks()`.
 
   python core\tests\test_spec_probes.py [--opfor <folder>]
 
@@ -874,6 +875,17 @@ def persistence(game: Path) -> None:
     probe_checks('persistence', game)
 
 
+# spec: RTTI-REG-1, RTTI-MEM-1, RTTI-DBX-1, RTTI-DBX-2, RTTI-FAC-1, RTTI-CORE-1, RTTI-GDLL-1, RTTI-GDLL-2
+# spec: RTTI-GSR-1, RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-4, RTTI-GSR-5, RTTI-GSR-6, RTTI-GSR-7, RTTI-GSR-8
+def typeinfo(game: Path) -> None:
+    probe_checks('typeinfo', game)
+
+
+# spec: SOLD-PHYS-2, SQD-PLAY-2, HUD-KILL-2, CAMP-SAVE-1, SGR-NODE-2, OCC-TRI-1, SOOT-FLAG-1, SOOT-SLOT-1, IR-PART-1
+def run_time(game: Path) -> None:
+    probe_checks('runtime', game)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -898,7 +910,8 @@ def main() -> int:
                                        lambda: options(game), lambda: event_graph(game), lambda: asset_graph(game),
                                        lambda: terrain_shapes(game),
                                        lambda: resources(game), lambda: census(game),
-                                       lambda: persistence(game)]
+                                       lambda: persistence(game), lambda: typeinfo(game),
+                                       lambda: run_time(game)]
     for step in steps:
         step()
     print(f'{"FAILED " + str(len(FAILED)) if FAILED else "passed"}: the specification probes\' counts '

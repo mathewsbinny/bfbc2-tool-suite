@@ -169,8 +169,35 @@ carries the data (inferred unused on PC).
 [test: core/tests/test_spec_probes.py::census]
 [data: spec/census.json, 2026-11-23: the classes above]
 
+### CAMP-SAVE-1: The campaign save: a `header` and a `body` stream in `GameSettings.bin`
+
+Status: **verified** · Variants: PC
+
+A save is written when a `SaveEntityData` entity receives its `Save` input event (the handler compares the hash
+0x7C8A0784 at 0x67AB37; the entity's `SaveDelayTime` is 0 in 179 of DICE's 183, 1.5 in 2, 0.1 and 1 in one each).
+`ServerSaveEntity`'s save 0x687EC0 writes two little-endian streams (stream vtable 0x1412888: a u32 at slot +0x24, a
+bool byte +0x2C, a u16 +0x3C, a u64 +0x28, raw bytes +0xC; a string is its bytes and the NUL, 0x50E4A0; a GUID is
+u32, u16, u16 and 8 bytes, 0x507480), which 0x6E5930 stores as the two `GstBinary` settings `header` and `body`
+of `GameSettings.bin` (SET-BIN-1):
+
+| Stream | In order |
+|---|---|
+| `body` (a 1,200,000-byte buffer) | u32 `Game.GameVersion`; u32 70 (the save entity's version, set by its constructor 0x67AAD0 at 0x67AB11 and written nowhere else); the save entity's GUID (+0x14); a u32 count, then per persistent entry its GUID, a bool and the object's own serialisation (vtable +0x88); a manager's state (0x66EFF0: flags, counts, bools); three subsystems' states (vtable +0xC); an optional global's state (0x5B1DF0); the player's state (vtable +0x88) |
+| `header` | u64 the save time, `_time64()` + 210,866,803,200 (seconds counted from 2,440,588 days before 1970, a Julian-day epoch; 0x509400); a string, the level to load (the game context's level object +0x48); a string, `SaveEntityData.SaveNameSID` (+0x80); a bool and, when the player's +0x9C is set, a string; a u32 from 0x18903EC's slot +0x34 (default 1: inferred the difficulty); u32 3 (0x6882A0: inferred the header's version) |
+
+The readers (0x55D250, 0x951E00; 0x75FFA0 on `onStartLoadingSP`) read the header's time and level string, load that
+level (0x952280 -> 0x55C780) and pass the body on as a message (channel 0x28); the restore side is not traced. SET-BIN-1's
+file holds a 50-byte `header`, which fits this layout (17 fixed bytes and two short strings; inferred, the file's
+strings were not read). So a profile holds one save, the last checkpoint's: a new save replaces both settings (inferred from the two fixed names).
+
+[test: core/tests/test_spec_probes.py::run_time]
+[data: spec/probes/runtime.py on DICE's partitions, 2026-11-27: SaveEntityData.SaveDelayTime 0 x 179, 1.5 x 2, 0.1 x 1, 1 x 1]
+[exe: BFBC2Game.exe the Save hash `push 0x7C8A0784` at 0x67AB37; ServerSaveEntity's constructor 0x67AAD0 (`mov dword [esi+0x50], 70` at 0x67AB11) and save 0x687EC0 (GameVersion 0x688002, header's last `push 3` at 0x6882A0); the time 0x509400 (`add ecx, 0x18A41200; adc edx, 0x31` at 0x50941A); stream vtable 0x1412888, string 0x50E4A0, GUID 0x507480; the settings store 0x6E5930; readers 0x55D250, 0x951E00, 0x75FFA0]
+
 ## Open questions
 
-- The save file's layout (`SaveFileName`) and where it is written (PERS-SAVE).
+- The save's body beyond its framing (CAMP-SAVE-1): the per-entry objects' serialisations, which manager and
+  subsystems write their state, and the restore side; a save and its reload in game (paused) would confirm the
+  header's difficulty word.
 - How the level order of the campaign is defined (the menus' mission list, MENU-CAT-1, against the levels' own
   descriptions).
