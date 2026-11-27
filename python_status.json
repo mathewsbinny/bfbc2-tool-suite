@@ -3519,7 +3519,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 836,
+   "lines": 837,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -4011,7 +4011,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 228,
+   "lines": 297,
    "note": "read-only probe for spec/transforms/dependencies.md (the asset graph; --steps the WW2 step graph); game tier",
    "path": "spec/probes/dependencies.py",
    "retiring": "stays",
@@ -4119,7 +4119,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 227,
+   "lines": 318,
    "note": "read-only probe for spec/engine/settings.md and input.md; checked in the game tier",
    "path": "spec/probes/options.py",
    "retiring": "stays",
@@ -4167,7 +4167,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 127,
+   "lines": 213,
    "note": "read-only probe for spec/engine/scripting.md (the level event graph); checked in the game tier",
    "path": "spec/probes/scripting.py",
    "retiring": "stays",
@@ -4617,7 +4617,7 @@
  "totals": {
   "all": {
    "files": 379,
-   "lines": 111164
+   "lines": 111411
   },
   "by_folder": {
    "(root)": {
@@ -4809,13 +4809,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20400,
+    "lines": 20401,
     "live": 761,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15301,
+    "test": 15302,
     "twin": 2429
    },
    "design": {
@@ -4842,12 +4842,12 @@
    },
    "spec": {
     "files": 20,
-    "lines": 6701,
+    "lines": 6947,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6701,
+    "stays": 6947,
     "test": 0,
     "twin": 0
    },
@@ -4882,11 +4882,11 @@
    },
    "stays": {
     "files": 69,
-    "lines": 13568
+    "lines": 13814
    },
    "test": {
     "files": 191,
-    "lines": 52667
+    "lines": 52668
    },
    "twin": {
     "files": 56,

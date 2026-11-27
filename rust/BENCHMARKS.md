@@ -5304,6 +5304,58 @@ left out) removed inland ground under 56.5 m. With DICE's water mesh in the copy
   bundle is its own and whose base's is not registered, the renamed terrain partitions and cloned entries, a
   height-map terrain and a generated one in game, the bots on them. Nothing was installed or launched.
 
+## SPG3-rest: settings, input, scripting and the asset graph, statically (2026-11-27, branch `spg3r`)
+
+What round SPG3 left (`spec/COVERAGE.md` section 2, its items 1, 2 and 4; item 3, the WW2 rebuild's step items
+XDEP-STEP-3 / 5 / 6, is round OR7's). Static reading of `BFBC2Game.exe` (PC build 795745), read only: REA started,
+but its Ghidra provider timed out (330 s) decompiling one function of the 19 MB executable, so the reading was done
+with capstone over a scratch copy, as in rounds SPG2-rest3 to rest5. Event names were found from the hashes the
+handlers compare (`h = h * 33 ^ c` from 5381) against the executable's strings, DICE's 186 event names and their
+two-part combinations. DICE's data was read through the suite's readers; one `GameSettings.bin` the game wrote was
+walked for its structure (names and sizes, no value). Nothing was run in the game, nothing written to `game\`.
+
+| Item | Found | Rules |
+|---|---|---|
+| `GameSettings.bin` | written by the INI's save (0x833FD0 -> 0x815940 -> serializer 0x80DA10), read after the INI (0x815870, job completion 0x8345A0 -> 0x832270): 11 categories (`GstCount`), each a u32 count and per not-user-exposed setting {u32 type 1 - 4, u32 name length, name, value: binary as size + bytes, else as text}; the file the game wrote (242,795 bytes) walks to its last byte; its `GstBinary` holds the campaign save (`header`, `body`) | SET-BIN-1 new (verified) |
+| bad values | int parse: sign and digits, trailing text ignored, fails without a digit or past 32 bits; float: `strtod`; a failed parse gives 0 (the INI reader's fallback), an empty value keeps the default, no range check on store; `DxVersion` 9 / 10 / 11 -> Dx9 / Dx10 / Dx11, anything else `SelectedRenderer_None` | SET-PARSE-1 new |
+| `-<Object>.<Field>` | the argument list is read only by the finder (41 sites, each a fixed name) and the log line; the registry's `<Object>.<Field> <value>` text reader 0x5017C0 and adder 0x501AB0 are reached only through two thunks nothing names | SET-CLI-2 new (verified), SET-CLI-1 updated |
+| the sliders | `controlsSliderMoved "<value>,<slider>"`: `mouse_sensitive` / `mouse_yaw_factor` / `mouse_pitch_factor` -> `Sensitivity0` / `1` / `2`, `joy_*` -> `3` - `5`; `controlInvertToggle`: `look` -> `Scheme0FlipY` + `Scheme1FlipY`, `fly` -> `Scheme2FlipY`, `wheel`, `accelerate` | INP-SET-2 new (verified) |
+| setting / console entities | `ServerGameSettingEntity` on `ChangeSetting` sends message 0x13 (2 bits) to every connected player; the client flips `Scheme1FlipY`, `Scheme2FlipY`, `Scheme4FlipY` for `CGSInvertVerticalLookAxis`; `ServerConsoleCommandEntity`'s handler is `ret 4` | SCR-CMD-2 new (verified) |
+| the 107 unused classes | factories: server 148 registrations, client 100, exact-class lookup; 45 of the 107 have none (no entity), 62 have one; their handlers' input events named (static models, pickups, event memory, sequence trigger, speed gate, continue, tactical objective, tests) | SCR-EVT-3 new (verified) |
+| document server | six providers register through 0x4D06B0; the only server add 0x4D07D0 is named by nothing: no server, no pages, no socket | SCR-DEV-2 new (verified), SCR-DEV-1 updated |
+| references in resources | mesh sets: LOD settings partitions, `<mesh>/<guid>` instances, shader names (the unshipped material partitions); Dx9 shader databases: 37,210 texture names; terrain visuals: height fields, undergrowth mesh sets, atlases; Flash movies: image partitions; voice-over waves: 41,393 of 41,463 named `<node>[_<n>]_wave` by the line banks | XDEP-RES-2 new (verified) |
+
+Probes (game tier; counts, identifiers and code bytes only, nothing of EA's kept):
+
+- `spec/probes/options.py` (0.6 s): the finder's call sites and their pushed names, the registry's text path and the
+  document server's add reached by nothing (an E8 / E9 rel32 scan of the code sections and a stored-pointer search),
+  the `.bin` loops and checks and `DxVersion`'s map as bytes, the sliders' and switches' pushed names, the category
+  enumeration (25 checks, 9 new).
+- `spec/probes/scripting.py` (12 s): the factory registrations per side, the data classes they make, the unused
+  classes with and without one, each named event's hash in its handler, the console command handler's bytes (19
+  checks, 6 new).
+- `spec/probes/dependencies.py` (40 s, 22 s before: the 76 Dx9 shader databases are read whole): the names inside
+  the eight name-bearing resource types by resolution, the voice-over waves the banks name (15 checks, 3 new).
+
+Rules went from 1,524 to 1,532 (by status: verified 911, implemented 145, observed 412, inferred 64); the census's
+typeinfo records with a rule 811 -> 816.
+
+### Playtests still pending (in-game tests are paused)
+
+- `transforms/terrain_edit.md` section 5 (E5 / E7); ONS-CAP-3's patch; MAT-TEX-20's RenderDoc capture; BOT-GS-5;
+  bot_ai.md's plan, the kill probe; a save with kills after OPFOR's PERS-SCORE-2 fix; PERS-AWD-5 / 7; MENU-EVT-5;
+  `-VisualTerrain.Undergrowth*` (now answered statically: SET-CLI-2 says it does nothing, a start would confirm it).
+- New: a level with a game setting entity sent `ChangeSetting` (every player's look inverted, SCR-CMD-2); a
+  `GameSettings.ini` with a word for a number (expected 0) and an unknown `DxVersion` (SET-PARSE-1).
+
+### What is left (SPG3-rest2)
+
+- What the renderer does with `SelectedRenderer_None`; a damaged `.bin` (a count past the end); what else writes
+  `Scheme0Sensitivity`.
+- The factories SCR-EVT-3 did not follow to a handler (lights, emitters, meshes, bangers, `WeaponCallback`); five
+  unnamed event hashes; the events the unused classes raise; their fields.
+- The 70 voice-over waves no bank names.
+
 ## OR6: OPFOR in Rust - the map export's install side (2026-11-27, branch `or6`, with Project OPFOR's `or6`)
 
 Version 0.29.0 (OPFOR's `SUITE_REQUIRES` 0.29.0 to below 0.30.0).

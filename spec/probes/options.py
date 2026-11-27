@@ -11,7 +11,11 @@ Reads, from Project OPFOR BFBC2's game copy (DICE's files only):
 - `game/Dist/win32/levels/mp_common/level-00.fbrb`: the `Input/InputMappings/*` partitions (concept -> entry input
   action);
 - `game/BFBC2Game.exe` (PC build 795745 only, data read, no code run): the menu name table's ids of the settings and
-  controls names, the `settings.ini` and `GameSettings.ini` section and key names, the enumerations' field tables.
+  controls names, the `settings.ini` and `GameSettings.ini` section and key names, the enumerations' field tables;
+  and (round SPG3-rest) the code bytes the rules cite: who asks the command line for which name (SET-CLI-2), that
+  the settings registry's text path and the document server's add are never reached (SET-CLI-2, SCR-DEV-2), the
+  `GameSettings.bin` loops and checks (SET-BIN-1), `DxVersion`'s mapping (SET-PARSE-1) and the controls sliders' and
+  switches' setting names (INP-SET-2).
 
 Prints structure, counts and identifiers only (class, field, setting and enumeration names; no values beyond the
 setting types). `checks(game)` recomputes the stable answers the rules cite for core/tests/test_spec_probes.py.
@@ -21,6 +25,7 @@ from __future__ import annotations
 import argparse
 import collections
 import os
+import re
 import struct
 import sys
 import time
@@ -67,7 +72,28 @@ CATEGORIES = ['GstAudio', 'GstGraphics', 'GstRender', 'GstInput', 'GstAI', 'GstG
               'GstPersistence', 'GstBinary']
 CATEGORY_NAMES = 0x80D970
 # INP-ENUM-1 / INP-ENUM-2: the enumerations' field tables (records of 0x18 bytes: name at +0, value at +0x10)
-ENUMS = {'EntryInputAction': 0x01C27C58, 'InputConcept': 0x01C2F140}
+ENUMS = {'EntryInputAction': 0x01C27C58, 'InputConcept': 0x01C2F140, 'GameSettingsCategory': 0x01C38890}
+# SET-CLI-2: the command line's finder (every caller names its option with a `push imm32` string) and the settings
+# registry's text path (the "<Object>.<Field> <value>" reader and adder and their this-adjusting thunks)
+CLI_FINDER = 0x4F4CF0
+REGISTRY_TEXT = {'reader': 0x5017C0, 'adder': 0x501AB0, 'reader_thunk': 0x501CF0, 'adder_thunk': 0x501D10}
+# SCR-DEV-2: the debug document server's set: the provider registration and the only function that adds a server
+DOC_PROVIDER_ADD, DOC_SERVER_ADD = 0x4D06B0, 0x4D07D0
+# SET-BIN-1 / SET-PARSE-1: code bytes (va, bytes) the rules cite
+CODE_BYTES = {
+    'bin_writer_categories': (0x83431C, '83f80b'),            # cmp eax, 11 (GstCount)
+    'bin_serializer_categories': (0x80DA2E, 'c74424240b000000'),
+    'bin_reader_categories': (0x832292, 'c74424280b000000'),
+    'bin_serializer_hidden_only': (0x80DA8F, '807e2800'),      # cmp byte [esi+0x28], 0 (UserExposed)
+    'bin_serializer_binary_type': (0x80DAE4, '837c241c04'),    # type 4: size + bytes
+    'bin_reader_binary_type': (0x832309, '837c242c04'),
+    'bin_job_result_kind': (0x834A48, '83f808'),
+    'bin_job_result_sub': (0x834A5B, '8378040d'),
+    'dxversion_map': (0x7DCCFA, '83e809741683e801740a83e80175158d7804'),
+}
+# INP-SET-2: the string pushes of controlsSliderMoved's and controlInvertToggle's name compares, in code order
+SLIDER_PUSHES = (0x963000, 0x9630CB)
+TOGGLE_PUSHES = (0x962DCE, 0x962ECA)
 
 EXPECTED: dict[str, Any] = {
     'gs_categories': ['GstAudio', 'GstRender', 'GstAI', 'GstInput', 'GstGameplay', 'GstPlayerProfile',
@@ -94,6 +120,17 @@ EXPECTED: dict[str, Any] = {
     'exe_categories': CATEGORIES,
     'enum_EntryInputAction': (50, 'EiaThrottle', 'EiaUndefined', 49),
     'enum_InputConcept': (77, 'ConceptMoveFB', 'ConceptUndefined', 76),
+    'enum_GameSettingsCategory': (12, 'GstAudio', 'GstCount', 11),
+    'exe_cli_callers': 41, 'exe_cli_named': 41,
+    'exe_registry_text_reached': {'adder': ['adder_thunk'], 'adder_thunk': [], 'reader': ['reader_thunk'],
+                                  'reader_thunk': []},
+    'exe_doc_providers': 6, 'exe_doc_server_added': 0,
+    'exe_code_bytes_wrong': [],
+    'exe_slider_pushes': ['mouse_sensitive', 'Sensitivity0', 'mouse_yaw_factor', 'Sensitivity1', 'mouse_pitch_factor',
+                          'Sensitivity2', 'joy_sensitive', 'Sensitivity3', 'joy_yaw_factor', 'Sensitivity4',
+                          'joy_pitch_factor', 'Sensitivity5', 'SensitivityUnknown'],
+    'exe_toggle_pushes': ['look', 'true', 'Scheme0FlipY', 'Scheme1FlipY', 'fly', 'true', 'Scheme2FlipY', 'wheel',
+                          'true', 'InvertScrollWheel', 'accelerate', 'true', 'InputAcceleration'],
 }
 
 
@@ -225,6 +262,66 @@ def engine(exe: Path, out: dict[str, Any]) -> None:
     out['exe_categories'] = cats
     for name, rec in ENUMS.items():
         out['enum_' + name] = enum(img, rec)
+    code(img, out)
+
+
+def rel_sites(img: Any, targets: set[int]) -> dict[int, list[int]]:
+    """Every `call` / `jmp rel32` (E8 / E9) in the code sections whose target is one of targets: {target: [site]}.
+    A byte scan, not a disassembly: a site is any E8 / E9 byte whose rel32 lands on a target."""
+    out: dict[int, list[int]] = {t: [] for t in targets}
+    for _name, sva, vs, ra, rs, fl in img.sections:
+        if not fl & 0x20000000:
+            continue
+        body = img.b[ra:ra + min(vs, rs)]
+        for m in re.finditer(rb'[\xe8\xe9]', body):
+            p = m.start()
+            if p + 5 > len(body):
+                break
+            t = sva + p + 5 + struct.unpack_from('<i', body, p + 1)[0]
+            if t in out:
+                out[t].append(sva + p)
+    return out
+
+
+def pushed_strings(img: Any, lo: int, hi: int) -> list[str]:
+    """The C strings `push imm32` (68) names between lo and hi, in code order (a byte scan)."""
+    b, o, e = img.b, img.off(lo), img.off(hi)
+    got = []
+    while o < e:
+        if b[o] == 0x68:
+            s = img.cstr(struct.unpack_from('<I', b, o + 1)[0])
+            if s and s.replace('_', 'a').isalnum():
+                got.append(s)
+                o += 5
+                continue
+        o += 1
+    return got
+
+
+def code(img: Any, out: dict[str, Any]) -> None:
+    """SET-CLI-2, SET-BIN-1, SET-PARSE-1, SCR-DEV-2, INP-SET-2: the code facts, by byte scans of build 795745."""
+    fns = set(REGISTRY_TEXT.values()) | {CLI_FINDER, DOC_PROVIDER_ADD, DOC_SERVER_ADD}
+    sites = rel_sites(img, fns)
+    cli = sites[CLI_FINDER]
+    out['exe_cli_callers'] = len(cli)
+    # the option's name is the last argument pushed: a `push imm32` naming a string in the 16 bytes before the call
+    out['exe_cli_named'] = sum(1 for s in cli if any(
+        img.b[img.off(s) - k] == 0x68 and img.cstr(struct.unpack_from('<I', img.b, img.off(s) - k + 1)[0])
+        for k in range(5, 17)))
+    name_of = {v: k for k, v in REGISTRY_TEXT.items()}
+    reached = {}
+    for name, fn in REGISTRY_TEXT.items():
+        by = sorted({name_of.get(next((f for f in REGISTRY_TEXT.values() if f <= s < f + 0x10), -1), hex(s))
+                     for s in sites[fn]})
+        pointers = img.find_dword(fn)
+        reached[name] = by + [f'pointer {p:#x}' for p in pointers]
+    out['exe_registry_text_reached'] = reached
+    out['exe_doc_providers'] = len(sites[DOC_PROVIDER_ADD])
+    out['exe_doc_server_added'] = len(sites[DOC_SERVER_ADD]) + len(img.find_dword(DOC_SERVER_ADD))
+    out['exe_code_bytes_wrong'] = sorted(k for k, (va, hx) in CODE_BYTES.items()
+                                         if img.b[img.off(va):img.off(va) + len(hx) // 2].hex() != hx)
+    out['exe_slider_pushes'] = pushed_strings(img, *SLIDER_PUSHES)
+    out['exe_toggle_pushes'] = pushed_strings(img, *TOGGLE_PUSHES)
 
 
 def analyse(game: Path) -> dict[str, Any]:

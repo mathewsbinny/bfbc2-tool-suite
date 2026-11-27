@@ -9,6 +9,9 @@ partition its string table names as an external reference (`<partition>/<guid>`,
 every reference a partition makes, DBX-STR-1). Resources (`.res` entries) are nodes too; each is tied to the partition
 of the same name, else of its name less a last `_<word>` or `.<word>` (PART-NAME-2). Prints node and edge counts, the
 edges that resolve in no bundle (REF-RES-3) by their target's top folder, and the strongly connected components.
+Round SPG3-rest added the references held inside resources (XDEP-RES-2): the names the mesh sets, the Dx9 shader
+databases, the Flash movies and the terrains' and water's visual resources hold, by what they resolve to, and the
+voice-over waves the line banks name (about 20 seconds more: the shader databases are read whole).
 
 `--steps` (Project OPFOR BFBC2 only, its `work/ww2/_rebuild/track` records as the last rebuild left them; they change
 with every rebuild, so `checks()` does not hold them): the steps of `rebuild_all.STEPS` in order, and for each file a
@@ -42,6 +45,14 @@ OWNER_RULES = (('same name', lambda r: r), ('less _wavedatasns_<n>', lambda r: r
                ('less _lod<n>_data', lambda r: re.sub(r'_lod\d+_data$', '', r)),
                ('less a last _<word> or .<word>', lambda r: SUFFIX.sub('', r)))
 
+# XDEP-RES-2: the resource types whose bytes name other assets, and the name forms
+NAME_BEARING = {'RigidMeshSet', 'CompositeMeshSet', 'SkinnedMeshSet', 'TreeMeshSet', 'Dx9ShaderDatabase', 'SwfMovie',
+                'VisualTerrain', 'VisualWater'}
+NAME = re.compile(rb'(?<=[\x00-\x1f])[A-Za-z0-9_][A-Za-z0-9_\-. /]{3,199}(?=\x00)')
+INSTANCE = re.compile(r'^(.+)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+VO_BANK = re.compile(r'^sound/vo/vo_[a-z_]+\.dbx$')
+WAVE = re.compile(r'^(.*?)(?:_\d+)?_wave$')
+
 EXPECTED: dict[str, Any] = {
     'bundles': 1021, 'dbx_entries': 124458, 'partitions': 84641, 'resources': 80991,
     'edges': 266618, 'dangling_edges': 113597, 'dangling_targets': 7652,
@@ -49,6 +60,22 @@ EXPECTED: dict[str, Any] = {
     'res_owner': {'less _lod<n>_data': 4119, 'less _wavedatasns_<n>': 479, 'less a last _<word> or .<word>': 840,
                   'none: level shader database': 222, 'none: other': 1500, 'none: texture': 3064,
                   'none: voice-over wave': 54404, 'same name': 16363},
+    'res_files': {'CompositeMeshSet': 353, 'Dx9ShaderDatabase': 76, 'RigidMeshSet': 1741, 'SkinnedMeshSet': 326,
+                  'SwfMovie': 55, 'TreeMeshSet': 92, 'VisualTerrain': 30, 'VisualWater': 30},
+    'res_refs': {
+        'CompositeMeshSet': {'instance': 587, 'instance of an unshipped partition': 4, 'partition': 353,
+                             'unresolved': 4, 'unshipped partition': 1945},
+        'Dx9ShaderDatabase': {'partition': 625, 'resource ITexture': 37210, 'unresolved': 47055},
+        'RigidMeshSet': {'instance': 1927, 'instance of an unshipped partition': 179, 'partition': 1741,
+                         'unresolved': 179, 'unshipped partition': 3192},
+        'SkinnedMeshSet': {'instance': 323, 'partition': 326, 'unresolved': 146, 'unshipped partition': 1472},
+        'SwfMovie': {'partition': 103, 'resource ITexture': 3, 'unresolved': 92},
+        'TreeMeshSet': {'instance': 92, 'partition': 92, 'unresolved': 60, 'unshipped partition': 293},
+        'VisualTerrain': {'instance of an unshipped partition': 1, 'partition': 1, 'resource ITexture': 30,
+                          'resource RigidMeshSet': 167, 'resource TerrainHeightfield': 318, 'unresolved': 2731},
+        'VisualWater': {'unresolved': 145},
+    },
+    'vo_waves': {'named by a bank': 41393, 'no bank names it': 70},
 }
 
 
@@ -67,6 +94,51 @@ def strings(b: bytes) -> list[bytes]:
 
 def dice(p: Path) -> bool:
     return time.gmtime(p.stat().st_mtime).tm_year < 2013
+
+
+def classify(name: str, nodes: set[str], res: dict[str, str], unshipped: set[str]) -> str:
+    """XDEP-RES-2: what a name held inside a resource resolves to."""
+    if name in nodes:
+        return 'partition'
+    m = INSTANCE.match(name)
+    if m:
+        return 'instance' if m.group(1) in nodes else 'instance of an unshipped partition'
+    if name in res:
+        return 'resource ' + res[name]
+    return 'unshipped partition' if name in unshipped else 'unresolved'
+
+
+def resource_refs(bundles: list[Path], nodes: set[str], res: dict[str, str], unshipped: set[str]) -> dict[str, Any]:
+    """XDEP-RES-2: the names the name-bearing resources hold (a C string with a '/' in the resource's bytes), each
+    resource once (the first bundle in path order), per resource type and resolution; and the voice-over waves the
+    line banks name (a wave `.../<node>[_<n>]_wave` whose `<node>` is a string of a `sound/vo/vo_*` bank)."""
+    refs: dict[str, collections.Counter[str]] = collections.defaultdict(collections.Counter)
+    files: collections.Counter[str] = collections.Counter()
+    seen: set[str] = set()
+    bank: set[str] = set()
+    for p in bundles:
+        es = [e for e in fbrb.entries(p) if not e.deleted]
+        want = [e for e in es if e.type in NAME_BEARING and e.name.lower() not in seen]
+        banks = [e.name for e in es if VO_BANK.match(e.name.lower())]
+        if not want and not banks:
+            continue
+        types = {e.name: e.type for e in want}
+        for n, b in fbrb.read(p, [e.name for e in want] + banks).items():
+            if n in types:
+                seen.add(n.lower())
+                files[types[n]] += 1
+                for name in {m.group().decode('latin-1').lower() for m in NAME.finditer(b)}:
+                    if '/' in name:
+                        refs[types[n]][classify(name, nodes, res, unshipped)] += 1
+            else:
+                bank.update(s.decode('latin-1').lower() for s in strings(b))
+    waves: collections.Counter[str] = collections.Counter()
+    for r, ty in res.items():
+        if r.startswith('sound/vo/') and ty == 'Wave':
+            m = WAVE.match(r.rsplit('/', 1)[-1])
+            waves['named by a bank' if m and m.group(1) in bank else 'no bank names it'] += 1
+    return {'files': dict(sorted(files.items())), 'refs': {k: dict(sorted(v.items())) for k, v in sorted(refs.items())},
+            'vo_waves': dict(sorted(waves.items()))}
 
 
 def cycles(nodes: set[str], adj: dict[str, list[str]]) -> list[list[str]]:
@@ -154,7 +226,9 @@ def analyse(game: Path) -> dict[str, Any]:
                               'voice-over wave' if '/vo/' in r and ty in ('Wave', '<non-resource>') else
                               'texture' if ty == 'ITexture' else 'other')] += 1
     top = collections.Counter(d.split('/')[0] for d in dangling)
+    inside = resource_refs(bundles, nodes, res, set(dangling))
     return {
+        'res_files': inside['files'], 'res_refs': inside['refs'], 'vo_waves': inside['vo_waves'],
         'bundles': len(bundles), 'dbx_entries': entries, 'partitions': len(nodes), 'resources': len(res),
         'edges': len(edges), 'dangling_edges': len(dangling), 'dangling_targets': len(set(dangling)),
         'no_out': len(nodes - {s for s, _ in edges}), 'no_in': len(nodes - {d for _, d in edges}),

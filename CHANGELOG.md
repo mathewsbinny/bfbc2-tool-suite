@@ -76,6 +76,9 @@ OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs
 - Specification (round SPG2-rest5): MENU-LOAD-1 no longer says the Flash loading roots are named by no data
   (MENU-LOAD-2), and round SPG2-rest4's "slot 12 of vtable 0x142B4C8" is the main menu's third vtable; FX-PROC-4's
   inferred "the input is an offset" is the `EmittableField` enumeration.
+- Specification (round SPG3-rest): round SPG3's guess that the three mouse sliders are the infantry, land and air
+  sensitivities is replaced by the code's names (INP-SET-2); SET-CLI-1's finder has 41 callers, not 40; SCR-DEV-1
+  points at SCR-DEV-2 for the document server.
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
@@ -125,6 +128,22 @@ OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs
   wiring between the two stages is split as DICE's chain is read; every stage plays as before. Checked on every stock
   Rush and Squad Rush level between every two stages, and Port Valdez with a stage inserted exports and passes the
   stage check.
+- **Specification (round SPG3-rest): settings, input, scripting and the asset graph, read from the executable and
+  checked on DICE's data** (`rust/BENCHMARKS.md` "SPG3-rest"; 1,524 -> 1,532 rules):
+  - `GameSettings.bin` is 11 typed lists, one per settings category, of the settings that are not user-exposed (the
+    INI holds the rest; SET-BIN-1, checked against a file the game wrote); a number in `GameSettings.ini` that does
+    not parse becomes 0, an empty value keeps the default, an unknown `DxVersion` selects no renderer (SET-PARSE-1);
+  - no `-<Object>.<Field> <value>` command-line option sets an engine setting: the settings registry's own text path
+    is never reached in the retail build (SET-CLI-2);
+  - the controls page's sliders: `Sensitivity0` - `2` are the mouse's sensitivity, yaw factor and pitch factor, and
+    the invert switches' settings (INP-SET-2);
+  - a level's game setting entity inverts every player's vertical look over the network; the console command entity
+    does nothing (SCR-CMD-2); of the 107 entity classes DICE's level graphs do not use, 45 make no entity at all and
+    62 do, with their input events (SCR-EVT-3); the debug document server (`/settings`, `/stats` ...) is never made
+    (SCR-DEV-2);
+  - the references held inside resources (mesh sets, shader databases, Flash movies, terrain and water visuals) and
+    the voice-over waves the line banks name (XDEP-RES-2); the probes `options.py`, `scripting.py` and
+    `dependencies.py` hold the new counts (the game tier about 20 seconds longer).
 - **Specification (round SPG2-rest5), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`
   "SPG2-rest5"; 1,506 -> 1,518 rules):
   - the render settings that scale the undergrowth (`VisualTerrainSettings`: density, view distance and its fade,
