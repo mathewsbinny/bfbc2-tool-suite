@@ -540,14 +540,23 @@ pub fn material_colour(k: u8) -> eframe::egui::Color32 {
         (204, 121, 167),
         (160, 160, 160),
     ];
-    let (r, g, b) = HUES[usize::from(k) % HUES.len()];
+    let (r, g, b) = HUES
+        .get(usize::from(k) % HUES.len())
+        .copied()
+        .unwrap_or((160, 160, 160));
     eframe::egui::Color32::from_rgb(r, g, b)
 }
 
 /// The material map's cells around world (`x`, `z`) as quads on the ground (`extent` metres each way, at most 32
 /// quads a side), for the overlay.
 #[must_use]
-pub fn material_overlay(heights: &Raster, g: &Ground, cells: &Raster, (x, z): (f64, f64), extent: f64) -> Vec<([V3; 4], u8)> {
+pub fn material_overlay(
+    heights: &Raster,
+    g: &Ground,
+    cells: &Raster,
+    (x, z): (f64, f64),
+    extent: f64,
+) -> Vec<([V3; 4], u8)> {
     let size = cell_size(g, cells.width());
     let step = (extent * 2.0 / 32.0).max(size);
     let k = (extent / step).ceil() as i64;

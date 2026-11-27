@@ -98,11 +98,7 @@ impl ViewState {
                 .preview_terrain(&gpu.gpu, &d.scene, &w.raster, &g, region);
         }
         // the game-accurate view takes the stroke's heights while it is made (at most every LIVE_EVERY)
-        let due = self
-            .tools
-            .terrain
-            .live_at
-            .is_none_or(|t| t.elapsed() >= LIVE_EVERY);
+        let due = self.tools.terrain.live_at.is_none_or(|t| t.elapsed() >= LIVE_EVERY);
         if due
             && let (Some(game), Some(w)) = (self.game_view.game.as_mut(), self.tools.terrain.stroke.as_ref())
             && game.set_terrain_heights(&w.raster.samples())
@@ -157,7 +153,11 @@ impl ViewState {
                 if on {
                     let pairs = d.pairing();
                     match pairs.get(&layer) {
-                        Some(p) => match d.material_names().iter().position(|n| n.eq_ignore_ascii_case(&p.material)) {
+                        Some(p) => match d
+                            .material_names()
+                            .iter()
+                            .position(|n| n.eq_ignore_ascii_case(&p.material))
+                        {
                             Some(k) => {
                                 self.tools.terrain.settings.pair = Some(k as u8);
                                 format!(

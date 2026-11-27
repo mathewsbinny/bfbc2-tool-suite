@@ -4679,98 +4679,74 @@ Still Python in `wake_install.py`: the shader glue (stage 3: `shader_dbs`, `auto
 
 - Stage 3c (OR3c, in parallel) and the shader glue named above; stages 4 and 5.
 - `meshport`'s renames, donors and poses (OPFOR's soldier and kit builds: stage 4).
-## E5-rest (paused): what round E5 left - RESUME note (2026-11-23, branch `e5r`)
+## E5-rest: the terrain's other layers (2026-11-27, branch `e5r`)
 
-Paused by the coordinator (the user's request). Committed as WIP on `e5r`; everything builds (`cargo check` of
-bc2-levelwrite, bc2-editor, bc2-cli with tests). Worktree `C:\Programming\Projects\bfbc2-tool-suite-e5r`, build
-folder `C:\Programming\Projects\rust-targets\bfbc2-tool-suite-e5r` kept.
+What round E5 left ("E5", "Left"): the visual paint layers, the colour / occlusion paint and its re-shade, widening the
+height range, a material the map lacks and the visual / material pairing, the material map in the views, strokes on
+the sub-terrain ring, the game-accurate view during a drag, and a sculpted export's path data end to end. Built on
+TG2's pieces (`itexture`, `visual_terrain`, `shaderdb::terrain::clone_entries`, `sky_visibility`). Spec TEDIT-VT-2,
+TEDIT-MM-2, TEDIT-RING-1, XVAL-TERR-3 new; TEDIT-SH-1, TEDIT-OCC-1 implemented; TEDIT-NAV-1 verified; TEDIT-HF-2,
+TEDIT-VT-1, TEDIT-ATL-1 / -2, TEDIT-MM-1, TEDIT-BR-1, XVAL-EDIT-5, XVAL-TERR-2 extended. Paused 2026-11-23, resumed
+2026-11-27.
 
-### Done (code, with tests passing)
+**What was written** (one API for the Terrain workspace and a second tool, round RD1's roads):
 
-- `bc2_formats::itexture::splice` (+ `Rect`, `pack565` / `unpack565`): rewrites only the DXT1 blocks / L8 texels
-  under a region and the mip texels below it; unit test.
-- `bc2_terragen::visual::sky_visibility_over` (the editor's adapter: any height function, an area of texels; TG2's
-  `sky_visibility` calls it); `bc2_terragen::ring::stitch` made public.
-- `bc2_levelwrite::terrainpaint` (new): `LayerModel` (patch shader names split into layers by their stored layer
-  counts, rule / tiled kinds, DICE's order), `paint` (each reached cell: its own combination's shader, else a tiled
-  superset with empty masks, else a clone of a same-kinds shader with the swapped layer's own textures retargeted;
-  one tile per aligned block and layer in free atlas slots, clamp borders, flags = tiled count), `pairing`,
-  `colour_raster` / `write_colour` / `reshade` (ratio of sky visibility), `check_visual`, `check_colour`,
-  `entry_textures`, `layer_textures`. 4 unit tests pass.
-- `bc2_levelwrite::terrainedit`: `rescale`, `write_heights_in` (widened range: envelope floored by the ratio, full
-  rebuild), `write_materials_named` (names added, at most 16), `grid_terrain_materials` (Terrain / Default /
-  Construction), the ring: `ring_raster` (256 x 256 composite), `split_ring`, `write_ring` (rescaled with the range,
-  DICE's stitching, the main block rebuilt where stitched); `check_heights` allows a grown max y, `check_materials`
-  added names. Unit tests pass.
-- Ops / files: `Target::Colour`, `Target::Ring`; `Op::Stroke.also: Vec<StrokePart>` (one operation over several
-  rasters, all or nothing); `Op::TerrainRange`, `Op::MaterialAdd`; `LevelFiles.ranges` / `material_names` (and in
-  `AppliedFiles`); project format 12; path data counts ring strokes and the range as collision changes.
-- Export: `terrain_writes` (main + range + ring, material maps + names, visual paint + clones, the colour map into
-  the level bundle), clones into every staged database after the shaders step, `ExportSources` rasters for Colour /
-  Ring, record `colour_edits` / `shader_clones`; XVAL-TERR-2 extended (ring stitching), new XVAL-TERR-3 (registry and
-  check); XVAL-EDIT-5 now build-only (a paint that cannot be written); validate's edit-time paint finding removed.
-- Scene: `TerrainExtra` (visual terrain, atlas, ring blocks beside the height field; the colour map from the bases'
-  `Terrains/<T>/Textures/*occ*.res`).
-- Editor: `terraindoc.rs` (a child module of edit.rs: colour / ring targets, `layer_model`, `paint_layers`,
-  `terrain_range`, `widen_range`, `material_names` with the added ones, `materials_to_add` (the grid, via the game
-  copy), `add_material`, `pairing`, `stroke_parts`, `reshade`); the scene follows a widened range and its undo;
-  brushes Paint (layer, paired material in the same stroke) and Shade (new `Brush::Shade`), sculpt dabs reaching the
-  ring (`ring_ground`, `reaches_ring`), `Outcome::Stroke(Vec<(Target, Raster)>, ..)`, the material overlay around the
-  brush (`material_overlay`, `material_colour`), the game-accurate view following the drag every 150 ms
-  (`terrain_preview`); toolbar: layer combo, Paired material, Lighten, Re-shade sculpted area, Widen range, Add
-  material. `terrain_tools::terrain_brushes_through_the_interface` passes (paint, pair, shade, ring, re-shade, widen,
-  undo).
+| Layer | Writer | Log / editor |
+|---|---|---|
+| visual paint | `terrainpaint::paint`: a terrain's layers from its patch shader names (`LayerModel`), each reached 16 m cell's new shader (its own combination's; else a wider one with empty extra masks; else a clone of a same-kinds shader with one tiled layer's own textures retargeted), one tile per aligned block and layer in free atlas slots | `Target::Paint`; Paint layer brush |
+| pairing | `terrainpaint::pairing`: the material under each tiled layer's strong mask | "Paired material": the material painted in the same stroke (`also`) |
+| colour / occlusion | `terrainpaint::write_colour` (through `itexture::splice`), `reshade` (ratio of `sky_visibility_over` on the new and DICE's ground) | `Target::Colour`; Shade brush, "Re-shade sculpted area" |
+| height range | `terrainedit::write_heights_in`, `rescale` | `terrain-range`; "Widen range" |
+| materials | `terrainedit::write_materials_named`, `grid_terrain_materials` | `material-add`; "Add material" |
+| ring | `terrainedit::ring_raster`, `split_ring`, `write_ring` (DICE's stitching) | `Target::Ring`; sculpt dabs past the main block's edge |
 
-### Measured on DICE's data (game tier, `tests/terrain_layers.rs`, 4 of 4 pass)
+Project format 12. The export makes every terrain resource from the log (`terrain_writes`), clones new patch shaders
+into each staged database, stages the colour map in the level's own bundle; `mapexport check` reads them back
+(XVAL-TERR-2 with the ring, XVAL-TERR-3). The editor draws the material map around the brush and gives the
+game-accurate view a stroke's heights every 150 ms while it is made.
 
-- Layer model: 7 of 23 Dist visual terrains have one kind per layer (MP_005, MP_006, MP_007, SP_005, SP_005_B,
-  SP_006, SP_04); the others are refused: names that do not split (MP_001, MP_003, MP_004, MP_009, SP_007,
-  SP_004_B) or a layer tiled in one shader and a rule layer in another (MP_002, MP_008, MP_012, SP_003_B, SP_008,
-  SP_008_B, SP_009, SP_01, SP_02, SP_03).
-- Slot order (TEDIT-VT-2, to write): one tile per aligned block and layer in name order 1,131 of 1,131; reversed
-  1,063 of 1,463. Atlas border texels equal their nearest inside texel: 94.9 % (270,434 of 284,928).
-- Material maps: 155 of 155 names are their grid's Terrain / Default / Construction materials (Stone and Concrete
-  are Construction). MP_005 pairing: Asphalt -> Tarmac 85 %, Dirtfloor -> Dirt 63 %, DryGrass -> Sand 98 %, Rubble ->
-  Sand 98 %, Trash -> Gravel 99 %.
-- MP_005, a tiled layer painted on each patch shader's cells: 67 own combination, 19 tiled superset, 7 clone, 55
-  refused (layers with no texture of their own: DryGrass, Rubble share theirs). Three paints written in 0.08 s: 47
-  cells, 8 tiles, 2 clones; only the written tiles differ; `check_visual` clean.
-- Colour maps: 18 DXT1 / L8 maps; nothing painted gives DICE's bytes; a 64 x 64 shade rewrites 611 - 4,096 level-0
-  bytes; SP_04's and SP_006's maps are another format (left).
-- Rings: 7 single-ring terrains: unedited gives DICE's bytes; a raise on the west edge rewrites 2 of 12 blocks, seams
-  512 / 512 and 768 / 768, edges 0.50 units off straight; the range x 1.5 within 0.0038 - 0.0076 m.
-- Export: `sculpted_export_stages_and_checks` still passes (39 s).
+**On DICE's data** (`rust/bc2-levelwrite/tests/terrain_layers.rs`, game tier, `Dist\win32`'s levels):
 
-### In progress
+| What | Result |
+|---|---|
+| terrains whose layers have one kind each (paintable) | 7 of 23 (MP_005, MP_006, MP_007, SP_005, SP_005_B, SP_006, SP_04); 6 names do not split, 10 use a layer as tiled and as a rule layer |
+| tile slot order = tiled layers in the name's order | 1,131 of 1,131 aligned blocks and layers (reversed: 1,063 of 1,463) |
+| atlas border texels = nearest inside texel | 94.9 % (270,434 of 284,928) |
+| material map names in their level's grid (Terrain / Default / Construction) | 155 of 155 |
+| MP_005 pairing | Asphalt -> Tarmac 85 %, Dirtfloor -> Dirt 63 %, DryGrass -> Sand 98 %, Rubble -> Sand 98 %, Trash -> Gravel 99 % |
+| MP_005, a tiled layer on each shader's cells | 67 own combination, 19 wider shader, 7 cloned, 55 refused (DryGrass, Rubble: no texture of their own) |
+| MP_005, three paints | 0.08 s; 47 cells, 8 tiles, 2 clones; only the written tiles differ; `check_visual` clean |
+| colour / occlusion maps (DXT1 / L8) | 18: nothing painted = DICE's bytes; a 64 x 64 shade rewrites 611 - 4,096 level-0 bytes; SP_04's and SP_006's are another format |
+| single rings | 7: nothing edited = DICE's 13 blocks; a 30 m raise on the west edge: 2 of 12 blocks rewritten, seams 512 / 512 and 768 / 768, edges 0.50 units off straight |
+| range x 1.5 | every sample within 0.0038 - 0.0076 m (under a stored unit of the new range) |
 
-- `terrain_edits::painted_export_stages_and_checks` builds (44.5 s) and writes everything; it fails only on its
-  `rec.terrain_edits` order assertion: the order is `[materialmap, heightfield-000, masktileatlas, visual]` (name
-  order). Its "material the map lacks" picks `Default` (the grid's first): pick a Terrain-category name instead.
-  Then see XVAL-TERR-3 in its output.
+**The exports** (`terrain_edits.rs`, game tier):
 
-### Next steps
+| Test | Result |
+|---|---|
+| `painted_export_stages_and_checks` (MP_005GR as Conquest: a sculpt, range 500 -> 650 m, `Metal` added from the grid, DryGrass with it under it in one stroke, a 64 x 64 shade) | built in 30 - 45 s; XVAL-TERR-1 / -2 / -3 pass; the sculpted ground within a stored unit in the wider range; 28 cells rewritten, 2 tiles |
+| `sculpted_path_data_end_to_end` (MP_005 as Conquest, a hill and a pit, `path_data: true`) | the stage sampled offline and its path data built in process: 34 - 59 s, 25 sectors, 8,384 route nodes; every check but XVAL-PLACE-5, which the same layer fails unsculpted too (10 points against 11) |
+| `sculpted_export_stages_and_checks` (round E5's) | still passes (39 s) |
 
-1. Fix the painted export test (above); run `export_rules_stage::v1_build_refusals` (XVAL-EDIT-5 now refuses the
-   64 x 64 paint by its size) and `export_rules` (the edit-time XVAL-EDIT-5 expectation was removed; check no
-   registry test needs every Edit-stage rule covered).
-2. Path data end to end: build `bin\bfbc2.exe` (`python rust\build_native.py`; note `--help` starts a real build),
-   export a sculpted project on base `mp_005` (prepared: `work\navkit\mp_005\navkit.json`) with `path_data: true`;
-   time it.
-3. Spec (ids free on main 054cb1db: TEDIT-VT-2, TEDIT-MM-2, TEDIT-RING-1, XVAL-TERR-3): `transforms/terrain_edit.md`
-   (VT-1, ATL-1 / -2, SH-1 and OCC-1 to implemented, HF-2, MM-1, BR-1; new VT-2, MM-2, RING-1),
-   `transforms/validation.md` (XVAL-EDIT-5 text, XVAL-TERR-2, new XVAL-TERR-3; fix the shifted code line refs), then
-   `spec/trace.py --emit` and `--check`.
-4. Docs: CHANGELOG [Unreleased], this section rewritten as the round's, ROADMAP E5-rest to Done, EDITOR_ARCHITECTURE's
-   terrain part, the new brushes' help text.
-5. Full checks: cargo fmt; clippy -D warnings on bc2-formats, bc2-terragen, bc2-levelwrite, bc2-scene, bc2-editor,
-   bc2-cli and the 19 bfbc2.exe groups alone; the crates' tests with the game tier; `run_tests.py quick -j 2`; merge
-   main (BENCHMARKS: main's file plus this section); recheck the new rule ids.
+The editor's `terrain_tools::terrain_brushes_through_the_interface` (both themes, synthetic visual terrain, atlas,
+colour map and ring) runs the Paint layer brush with and without its pair, Shade, a raise reaching the ring (one
+operation, two rasters), the re-shade, the range widened and undone.
+
+### Left
+
+- The 16 terrains whose layers are not one kind each: a per-shader tiled-slot model (the shader's tiled layers from
+  its cells' flags) before they can be painted; layers with no texture of their own cannot be cloned (MP_005's 55).
+- Growing the mask atlas (a paint that needs more tiles is refused); clones have no undergrowth.
+- SP_04's and SP_006's colour maps (another format).
+- The stage sampler's main route network on MP_005 (7,341 nodes against the base samples' 15,090): a NavKit question,
+  not measured unsculpted on the stage sampler.
+- XVAL-PLACE-5 on MP_005's Conquest layer (10 - 11 points off the main network), the layer's, not the sculpt's.
+- **Unproven until a playtest** (`spec/transforms/terrain_edit.md` section 5): everything in game - painted cells and
+  their tiles, cloned patch shaders' look, the colour map, the ring's seams, a widened range, the paired materials.
+  Nothing was installed or launched.
 
 ### Learned
 
-- Patch shader layer names contain underscores (`Cliff_m`, `SP_03_Cliff`): split by the stored layer count.
-- On 16 of 23 terrains a layer is tiled in some shaders and a rule layer in others: the one-kind model does not hold
-  there and the paint refuses (XVAL-EDIT-5); a per-shader tiled-slot model is the next step if those levels matter.
-- The Bash tool breaks long heredocs with quotes: edit through scratch Python scripts or the Write tool.
-- Unproven until a playtest: everything in game (painted cells, clones, the colour map, the ring seams, a widened
-  range).
+- Patch shader layer names hold underscores (`Cliff_m`, `SP_03_Cliff`): split by the stored layer count.
+- DICE's material maps name construction materials (`Stone`, `Concrete`) beside the terrain ones.
+- `build_native.py --help` starts a real build.

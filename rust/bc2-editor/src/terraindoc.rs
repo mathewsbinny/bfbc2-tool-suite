@@ -72,9 +72,10 @@ impl Doc {
     /// The visual layers a paint can lay (the terrain's tiled layers), in DICE's order; empty when none.
     #[must_use]
     pub fn paint_layers(&self) -> Vec<String> {
-        self.layer_model()
-            .map(|m| m.paintable().into_iter().map(str::to_owned).collect())
-            .unwrap_or_default()
+        self.layer_model().map_or_else(
+            |_| Vec::new(),
+            |m| m.paintable().into_iter().map(str::to_owned).collect(),
+        )
     }
 
     /// The height range of the main height field: the base's max y and the max y the log leaves, metres.
@@ -85,7 +86,10 @@ impl Doc {
         let Some(Target::Terrain { file }) = self.terrain_target() else {
             return Some((base, base));
         };
-        Some((base, self.files.ranges.get(&file).map_or(hf.max[1], |r| r[1]) - hf.min[1]))
+        Some((
+            base,
+            self.files.ranges.get(&file).map_or(hf.max[1], |r| r[1]) - hf.min[1],
+        ))
     }
 
     /// Widens the main height field's range to `to` metres (TEDIT-HF-2): one operation; every stored height scaled so
@@ -143,8 +147,7 @@ impl Doc {
         };
         let lv = self.project.base.level.to_ascii_lowercase();
         bc2_levelwrite::export::base_terrain_file(g, &lv, &format!("levels/{lv}/materials_win32.dbx"))
-            .map(|b| terrainedit::grid_terrain_materials(&b))
-            .unwrap_or_default()
+            .map_or_else(Vec::new, |b| terrainedit::grid_terrain_materials(&b))
     }
 
     /// Adds a material to the terrain's material map (TEDIT-MM-1: one of [`Doc::materials_to_add`]); its index for
@@ -265,9 +268,11 @@ impl Doc {
         let Some(region) = terrainedit::changed_region(&old, &new, n) else {
             return Ok(None);
         };
-        let base_scale = self.base.heightfield.as_deref().map_or(g.scale, |b| {
-            (f64::from(b.max[1]) - f64::from(b.min[1])) / 65535.0
-        });
+        let base_scale = self
+            .base
+            .heightfield
+            .as_deref()
+            .map_or(g.scale, |b| (f64::from(b.max[1]) - f64::from(b.min[1])) / 65535.0);
         let height = |raw: Vec<u16>, scale: f64| {
             move |x: f64, z: f64| {
                 let (gi, gj) = g.grid(x, z);
@@ -277,7 +282,10 @@ impl Doc {
             }
         };
         let (h_old, h_new) = (height(old, base_scale), height(new, g.scale));
-        let (a, b) = (g.world(region.x0 as u32, region.z0 as u32), g.world(region.x1 as u32, region.z1 as u32));
+        let (a, b) = (
+            g.world(region.x0 as u32, region.z0 as u32),
+            g.world(region.x1 as u32, region.z1 as u32),
+        );
         let base_colour = self
             .terrain_extra()
             .and_then(|x| x.colour.as_ref())

@@ -175,11 +175,7 @@ pub const HORIZON_TEXELS: usize = 64;
 /// whole grid when `None`), row by row. Only the heights within [`HORIZON_TEXELS`] of the area are read, so a re-bake
 /// of an edited region costs that region.
 #[must_use]
-pub fn sky_visibility_over(
-    height: &(dyn Fn(f64, f64) -> f64 + Sync),
-    w: usize,
-    area: Option<[usize; 4]>,
-) -> Vec<f64> {
+pub fn sky_visibility_over(height: &(dyn Fn(f64, f64) -> f64 + Sync), w: usize, area: Option<[usize; 4]>) -> Vec<f64> {
     let [ax0, az0, ax1, az1] = area.map_or([0, 0, w, w], |a| a.map(|v| v.min(w)));
     // the heights read: the area and the horizon around it
     let (hx0, hz0) = (ax0.saturating_sub(HORIZON_TEXELS), az0.saturating_sub(HORIZON_TEXELS));

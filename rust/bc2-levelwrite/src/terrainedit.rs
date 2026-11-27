@@ -183,7 +183,12 @@ pub fn grid_terrain_materials(grid: &[u8]) -> Vec<String> {
     };
     d.of_type(b".MaterialData")
         .into_iter()
-        .filter(|&e| matches!(text(e, b"Category").as_deref(), Some("Terrain" | "Default" | "Construction")))
+        .filter(|&e| {
+            matches!(
+                text(e, b"Category").as_deref(),
+                Some("Terrain" | "Default" | "Construction")
+            )
+        })
         .filter_map(|e| text(e, b"Name"))
         .collect()
 }
@@ -296,7 +301,7 @@ pub fn write_ring(
     let n = m.size as usize;
     let edge = |h: &[u16]| -> Vec<u16> {
         (0..n)
-            .flat_map(|k| [h[k], h[(n - 1) * n + k], h[k * n], h[k * n + n - 1]])
+            .flat_map(|k| [k, (n - 1) * n + k, k * n, k * n + n - 1].map(|i| h.get(i).copied().unwrap_or(0)))
             .collect()
     };
     let widened = (m.max[1] - b0.max[1]).abs() > f32::EPSILON;
@@ -390,8 +395,7 @@ pub fn check_materials(base: &[u8], edited: &[u8]) -> Vec<String> {
         (Err(e), _) => return vec![format!("the base does not read: {e}")],
     };
     let mut out = Vec::new();
-    if e.width != b.width || e.names.get(..b.names.len()) != Some(b.names.as_slice()) || e.names.len() > MAX_MATERIALS
-    {
+    if e.width != b.width || e.names.get(..b.names.len()) != Some(b.names.as_slice()) || e.names.len() > MAX_MATERIALS {
         out.push("its width or names are not the base's (the base's names first, then those added)".to_owned());
     }
     if e.cells.iter().any(|&c| usize::from(c) >= e.names.len()) {
@@ -414,10 +418,13 @@ mod tests {
         let blocks = PLACES
             .iter()
             .map(|&(px, pz)| {
-                let (x0, z0) = (px as f32 * 512.0, pz as f32 * 512.0);
-                SubBlock::new([x0, 0.0, z0, x0 + 512.0, 500.0, z0 + 512.0], vec![10_000; RING_N * RING_N])
-                    .unwrap()
-                    .encode()
+                let (x0, z0) = (f32::from(px as i16) * 512.0, f32::from(pz as i16) * 512.0);
+                SubBlock::new(
+                    [x0, 0.0, z0, x0 + 512.0, 500.0, z0 + 512.0],
+                    vec![10_000; RING_N * RING_N],
+                )
+                .unwrap()
+                .encode()
             })
             .collect();
         (main, blocks)
@@ -454,7 +461,10 @@ mod tests {
         assert_eq!(s.main_seams.0, s.main_seams.1);
         assert_eq!(s.ring_seams.0, s.ring_seams.1);
         assert!(s.straight <= 0.5, "{}", s.straight);
-        assert!(r3.iter().zip(&ring).any(|(a, b)| a != b), "a ring block took the hill's edge");
+        assert!(
+            r3.iter().zip(&ring).any(|(a, b)| a != b),
+            "a ring block took the hill's edge"
+        );
         assert!(check_heights(&main, &m3).is_empty(), "{:?}", check_heights(&main, &m3));
         // a stroke on the ring itself: the dug block rewritten, the others stitched to it
         let mut dug = r.clone();
@@ -466,8 +476,12 @@ mod tests {
         let (_, r4) = write_ring(&main, &main, &ring, Some(&dug)).unwrap();
         assert_eq!(SubBlock::decode(&r4[0]).unwrap().heights[5 * 64 + 5], 2_000);
         // a widened main block: the ring's stored values scaled with it
-        let wide = write_heights_in(&main, &rescale(&Raster::from_samples(1024, 1024, &m.heights), 500.0, 1000.0), Some(1000.0))
-            .unwrap();
+        let wide = write_heights_in(
+            &main,
+            &rescale(&Raster::from_samples(1024, 1024, &m.heights), 500.0, 1000.0),
+            Some(1000.0),
+        )
+        .unwrap();
         let (_, r5) = write_ring(&main, &wide, &ring, None).unwrap();
         let b5 = SubBlock::decode(&r5[0]).unwrap();
         assert_eq!((b5.max[1], b5.heights[100]), (1000.0, 5_000));
@@ -522,13 +536,10 @@ mod tests {
         let back = MaterialMap::decode(&out).unwrap();
         assert_eq!(back.names, ["defaultmaterial", "grass", "tarmac"]);
         assert_eq!(back.get(0, 0), 2);
-        assert!(check_materials(&mb, &out).is_empty());
+        assert_eq!(check_materials(&mb, &out), Vec::<String>::new());
         let many: Vec<String> = (0..15).map(|k| format!("m{k}")).collect();
         assert!(write_materials_named(&mb, &cells, &many).is_err());
-        assert_eq!(
-            grid_terrain_materials(b"not a partition"),
-            Vec::<String>::new()
-        );
+        assert_eq!(grid_terrain_materials(b"not a partition"), Vec::<String>::new());
         // round E5-rest: the range widened (TEDIT-HF-2): the ground stays, the max y grows, the parts rebuilt
         let wide = rescale(&r, 500.0, 800.0);
         let out = write_heights_in(&base, &wide, Some(800.0)).unwrap();
@@ -541,7 +552,11 @@ mod tests {
             .map(|(a, b)| (f64::from(*a) * 800.0 - f64::from(*b) * 500.0).abs() / 65535.0)
             .fold(0.0, f64::max);
         assert!(worst < 0.01, "{worst} m");
-        assert!(check_heights(&base, &out).is_empty(), "{:?}", check_heights(&base, &out));
+        assert!(
+            check_heights(&base, &out).is_empty(),
+            "{:?}",
+            check_heights(&base, &out)
+        );
         assert!(write_heights_in(&base, &r, Some(400.0)).is_err(), "never narrowed");
         assert_eq!(
             changed_region(&[1, 2, 3, 4], &[1, 2, 9, 4], 2),

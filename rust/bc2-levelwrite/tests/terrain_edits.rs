@@ -307,7 +307,7 @@ fn painted_export_stages_and_checks() {
         .unwrap();
     let add = bc2_levelwrite::terrainedit::grid_terrain_materials(&grid)
         .into_iter()
-        .find(|g| !m.names.iter().any(|n| n.eq_ignore_ascii_case(g)))
+        .find(|g| !m.names.iter().any(|n| n.eq_ignore_ascii_case(g)) && !g.to_ascii_lowercase().starts_with("default"))
         .unwrap();
     p.push(
         Op::MaterialAdd {
@@ -371,7 +371,11 @@ fn painted_export_stages_and_checks() {
         },
         "Shade",
     );
-    assert_eq!(p.reader_needed(), 12, "the new terrain operations need project format 12");
+    assert_eq!(
+        p.reader_needed(),
+        12,
+        "the new terrain operations need project format 12"
+    );
     p.save(&project_file).unwrap();
     let back = MapProject::load(&project_file).unwrap();
     assert_eq!(back.operations.len(), 6);
@@ -396,14 +400,18 @@ fn painted_export_stages_and_checks() {
     let t = std::time::Instant::now();
     let rec = export::build(&game, &back, &project_file.display().to_string(), &spec, &stage).unwrap();
     println!("built in {:.1} s", t.elapsed().as_secs_f64());
-    for l in rec.report.iter().filter(|l| l.starts_with("project:") || l.contains("patch shader entr")) {
+    for l in rec
+        .report
+        .iter()
+        .filter(|l| l.starts_with("project:") || l.contains("patch shader entr"))
+    {
         println!("{l}");
     }
     let vname = format!("{stem}.visual.res");
     let aname = format!("{stem}.masktileatlas.res");
     assert_eq!(
         rec.terrain_edits,
-        vec![mname.clone(), aname.clone(), hname.clone(), vname.clone()],
+        vec![mname.clone(), hname.clone(), aname.clone(), vname.clone()],
         "in name order"
     );
     assert_eq!(rec.colour_edits, vec![cname.clone()]);
@@ -442,12 +450,20 @@ fn painted_export_stages_and_checks() {
         "the paired material under the paint"
     );
     let vt = bc2_formats::visual_terrain::VisualTerrain::decode(&get(&vname)).unwrap();
-    let base_vt =
-        bc2_formats::visual_terrain::VisualTerrain::decode(&export::base_terrain_file(&game, "mp_005gr", &vname).unwrap())
-            .unwrap();
+    let base_vt = bc2_formats::visual_terrain::VisualTerrain::decode(
+        &export::base_terrain_file(&game, "mp_005gr", &vname).unwrap(),
+    )
+    .unwrap();
     let cell = (1000 / 16) * 128 + 1100 / 16;
-    assert_ne!(vt.maps[0].shader[cell], base_vt.maps[0].shader[cell], "the painted cell's shader");
-    assert!(vt.shaders[usize::from(vt.maps[0].shader[cell])].name.contains("DryGrass"));
+    assert_ne!(
+        vt.maps[0].shader[cell], base_vt.maps[0].shader[cell],
+        "the painted cell's shader"
+    );
+    assert!(
+        vt.shaders[usize::from(vt.maps[0].shader[cell])]
+            .name
+            .contains("DryGrass")
+    );
     let (lh, ld) = fbrb::extract_path_uncached(stage.join("level-00.fbrb")).unwrap();
     let staged_c = lh
         .entries
@@ -460,4 +476,128 @@ fn painted_export_stages_and_checks() {
     assert!(back_c.get(1130, 1030) != cr.get(1130, 1030), "the shaded texel");
     assert_eq!(back_c.get(10, 10), cr.get(10, 10), "a far texel DICE's");
     let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+#[ignore = "game tier: a sculpted export of MP_005 with its path data sampled on the stage (needs bin\\bfbc2.exe and \
+            MP_005 prepared for NavKit); run_tests.py game runs it"]
+// spec: TEDIT-NAV-1
+fn sculpted_path_data_end_to_end() {
+    let _gate = crate::gate();
+    let Some(dir) = game_dir() else {
+        eprintln!("skipped: no game copy");
+        return;
+    };
+    let opfor = dir.parent().unwrap().to_path_buf();
+    if !opfor
+        .join("work")
+        .join("navkit")
+        .join("mp_005")
+        .join("navkit.json")
+        .is_file()
+    {
+        eprintln!("skipped: MP_005 is not prepared for NavKit");
+        return;
+    }
+    let game = Game::open(&dir).unwrap();
+    let tmp = std::env::temp_dir().join(format!("bc2_e5r_path_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
+    let project_file = tmp.join("PathData.mapedit.json");
+    let tiles = DirStore::of(&project_file);
+    let base = export::level_partition(&game, "mp_005").unwrap();
+    let mut p = MapProject::new("E5-rest path data", "mp_005", "levels/MP_005", &base, Profile::Bfbc2);
+    let c = export::choose_mode(&game, &p, Profile::Bfbc2, "conquest", None).unwrap();
+    p.push(Op::SetMode { to: Box::new(c) }, "target");
+    let plain = p.clone();
+    let w = bc2_levelwrite::write::LevelWriter::parse(&base).unwrap();
+    let hname = export::heightfield_name(&w).unwrap();
+    let hb = export::base_terrain_file(&game, "mp_005", &hname).unwrap();
+    let hf = terrain::parse(&hb).unwrap();
+    let before = Raster::from_samples(hf.size, hf.size, &hf.raw);
+    let mut after = before.clone();
+    sculpt(&mut after, &hf);
+    let dt = bc2_levelwrite::delta::stroke(&before, &after, &tiles).unwrap();
+    p.push(
+        Op::Stroke {
+            target: Target::Terrain { file: hname.clone() },
+            size: [hf.size, hf.size],
+            tiles: dt,
+            also: Vec::new(),
+        },
+        "Raise",
+    );
+    p.save(&project_file).unwrap();
+    let spec = ExportSpec {
+        format: export::FORMAT.into(),
+        version: export::VERSION,
+        level: "MAPEDIT_E5R_PATH".into(),
+        folder: String::new(),
+        title: "E5-rest path data".into(),
+        mode: "Conquest".into(),
+        layer: LayerSpec {
+            donor: p.mode().unwrap().donor.clone(),
+            bases: Vec::new(),
+            flags: Vec::new(),
+            combat_area: String::new(),
+        },
+        profile: Profile::Bfbc2,
+        identity: None,
+        path_data: true,
+    };
+    let stage = tmp.join("stage");
+    let t = std::time::Instant::now();
+    let rec = export::build(&game, &p, &project_file.display().to_string(), &spec, &stage).unwrap();
+    println!("built with its path data in {:.1} s", t.elapsed().as_secs_f64());
+    let pd = rec.path_data.as_ref().unwrap();
+    println!("path data: {} ({} files)", pd.source, pd.files.len());
+    for f in &pd.files {
+        println!("  {} {} bytes", f.path, f.size);
+    }
+    assert!(pd.source.contains("offline sampler on the stage"), "{}", pd.source);
+    let r = export::check(&game, &stage).unwrap();
+    for (ok, l) in r
+        .checks
+        .iter()
+        .filter(|c| c.1.contains("path data") || c.1.starts_with("terrain"))
+    {
+        println!("{} {l}", if *ok { "ok    " } else { "FAILED" });
+    }
+    // the same Conquest layer without the sculpt, its path data the base's samples built: what fails there is the
+    // layer's, not the sculpt's
+    let plain_stage = tmp.join("plain");
+    let t = std::time::Instant::now();
+    let plain_spec = ExportSpec {
+        level: "MAPEDIT_E5R_PLAIN".into(),
+        ..spec.clone()
+    };
+    let prec = export::build(&game, &plain, "plain", &plain_spec, &plain_stage).unwrap();
+    println!(
+        "unsculpted: built in {:.1} s, path data {}",
+        t.elapsed().as_secs_f64(),
+        prec.path_data.as_ref().map_or("none", |d| d.source.as_str())
+    );
+    let pr = export::check(&game, &plain_stage).unwrap();
+    let failed =
+        |r: &export::CheckReport| -> Vec<String> { r.lines().filter(|l| !l.1).map(|l| l.0.to_owned()).collect() };
+    for (ok, l) in pr.checks.iter().filter(|c| !c.0) {
+        println!("unsculpted: {} {l}", if *ok { "ok    " } else { "FAILED" });
+    }
+    let (sculpted, unsculpted) = (failed(&r), failed(&pr));
+    println!("failed rules: sculpted {sculpted:?}, unsculpted {unsculpted:?}");
+    assert!(
+        sculpted.iter().all(|c| unsculpted.contains(c)),
+        "the sculpt fails a rule the layer passes without it: {:#?}",
+        r.checks.iter().filter(|c| !c.0).collect::<Vec<_>>()
+    );
+    assert!(
+        r.checks
+            .iter()
+            .filter(|c| c.1.contains("pathdata.hpd: the path data recorded"))
+            .all(|c| c.0),
+        "the staged path data reads"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+    // the stage sampler's tree (about 1 GB, plain folders the sampler made)
+    let _ = std::fs::remove_dir_all(bc2_levelwrite::pathdata::stage_tree(&opfor, "MAPEDIT_E5R_PATH"));
 }

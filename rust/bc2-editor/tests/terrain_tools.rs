@@ -134,7 +134,7 @@ fn extra() -> bc2_scene::scene::TerrainExtra {
     let ring = places
         .iter()
         .map(|&(px, pz)| {
-            let (x0, z0) = (px as f32 * 128.0, pz as f32 * 128.0);
+            let (x0, z0) = (f32::from(px as i16) * 128.0, f32::from(pz as i16) * 128.0);
             bc2_formats::terrain_codec::SubBlock::new([x0, 0.0, z0, x0 + 128.0, 100.0, z0 + 128.0], vec![6000; 64 * 64])
                 .unwrap()
                 .encode()
@@ -151,7 +151,12 @@ fn extra() -> bc2_scene::scene::TerrainExtra {
         ring,
         colour: Some((
             "terrains/demo/textures/demo_occlusion.res".into(),
-            bc2_formats::itexture::encode(&pic(256, 256, [128, 128, 128]), bc2_formats::itexture::Format::Dxt1, 2, true),
+            bc2_formats::itexture::encode(
+                &pic(256, 256, [128, 128, 128]),
+                bc2_formats::itexture::Format::Dxt1,
+                2,
+                true,
+            ),
         )),
     }
 }
@@ -226,7 +231,10 @@ fn terrain_brushes_through_the_interface() {
         h.settle(&mut app, 2);
         let log = ops(&app);
         assert_eq!(log.len(), 1, "{} {log:?}", app.view().unwrap().message);
-        let Op::Stroke { target, size, tiles, .. } = &log[0] else {
+        let Op::Stroke {
+            target, size, tiles, ..
+        } = &log[0]
+        else {
             panic!("{log:?}")
         };
         assert!(matches!(target, Target::Terrain { .. }), "{target:?}");
@@ -300,7 +308,11 @@ fn terrain_brushes_through_the_interface() {
         // ------------------------------------------------------------------ round E5-rest: the visual paint
         brush(&mut h, &mut app, Brush::Paint);
         assert_eq!(app.view().unwrap().tools.terrain.brush, Some(Brush::Paint));
-        assert_eq!(app.view().unwrap().tools.terrain.settings.layer, "Grass", "the first paintable layer");
+        assert_eq!(
+            app.view().unwrap().tools.terrain.settings.layer,
+            "Grass",
+            "the first paintable layer"
+        );
         let (a, c) = (ground(&app, -10.0, 60.0), ground(&app, 10.0, 60.0));
         h.drag(&mut app, a, c, 6, Modifiers::NONE);
         let log = ops(&app);
@@ -319,7 +331,10 @@ fn terrain_brushes_through_the_interface() {
             panic!("{log:?}")
         };
         assert!(matches!(target, Target::Paint { .. }));
-        assert!(matches!(also.as_slice(), [p] if matches!(p.target, Target::Material { .. })), "{also:?}");
+        assert!(
+            matches!(also.as_slice(), [p] if matches!(p.target, Target::Material { .. })),
+            "{also:?}"
+        );
         shot(&mut h, &mut app, &format!("terrain_paint_{}.png", theme.key()));
 
         // ------------------------------------------------------------------ the shade brush
@@ -328,7 +343,17 @@ fn terrain_brushes_through_the_interface() {
         h.drag(&mut app, a, c, 6, Modifiers::NONE);
         let log = ops(&app);
         assert_eq!(log.len(), 9, "{}", app.view().unwrap().message);
-        assert!(matches!(&log[8], Op::Stroke { target: Target::Colour { .. }, .. }), "{:?}", log[8]);
+        assert!(
+            matches!(
+                &log[8],
+                Op::Stroke {
+                    target: Target::Colour { .. },
+                    ..
+                }
+            ),
+            "{:?}",
+            log[8]
+        );
 
         // ------------------------------------------------------------------ a raise at the edge reaches the ring
         brush(&mut h, &mut app, Brush::Raise);
@@ -340,7 +365,10 @@ fn terrain_brushes_through_the_interface() {
             panic!("{log:?}")
         };
         assert!(matches!(target, Target::Terrain { .. }));
-        assert!(matches!(also.as_slice(), [p] if matches!(p.target, Target::Ring { .. })), "{also:?}");
+        assert!(
+            matches!(also.as_slice(), [p] if matches!(p.target, Target::Ring { .. })),
+            "{also:?}"
+        );
 
         // ------------------------------------------------------------------ the re-shade and the range
         let (here, top) = (height(&app, 10.0, 10.0), height(&app, 120.0, 5.0));

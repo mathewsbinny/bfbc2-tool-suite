@@ -28578,6 +28578,14 @@
      "ref": "core/tests/test_spec_probes.py::height_fields"
     },
     {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_rings_stitched_after_a_sculpt"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:47-64"
+    },
+    {
      "kind": "data",
      "ref": "spec/probes/terrain.py, 2026-11-22: per main block (terrain, n, range) as listed; TerrainHeightfieldData.SizeY counts as listed"
     }
@@ -28651,6 +28659,31 @@
     {
      "kind": "data",
      "ref": "spec/probes/terrain.py, 2026-11-22: (W, non-zero flags = tiled count): (128, yes) 305,154, (128, no) 6,142, (64, yes) 41,608, (64, no) 3,448, (16 / 8 / 4, yes) 3,072 / 5,376 / 3,072; every mismatch a rule-only shader (tiled 0) with 1 flag (MP_002 343, SP_009 4,804, NAM_MP_002R 3,000 ...)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::mp_005_paint_written"
+    }
+   ]
+  },
+  {
+   "id": "TEDIT-VT-2",
+   "title": "A shader's layers come from its name; a cell's tile slots are its tiled layers in that order",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:75-112"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs on the game copy, 2026-11-23: 23 Dist visual terrains, 7 one kind per layer; slot order 1,131 of 1,131 blocks and layers in name order, 1,063 of 1,463 reversed"
     }
    ]
   },
@@ -28664,6 +28697,14 @@
     {
      "kind": "test",
      "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:289-300"
     },
     {
      "kind": "data",
@@ -28696,9 +28737,21 @@
    "id": "TEDIT-SH-1",
    "title": "A painted layer combination needs a patch shader entry in every database",
    "file": "spec/transforms/terrain_edit.md",
-   "status": "inferred",
+   "status": "implemented",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:475-532"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::mp_005_paint_written"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks"
+    },
     {
      "kind": "data",
      "ref": "spec/probes/terrain.py, 2026-11-22: patch shaders per terrain 7 - 109; layer counts 1: 48, 2: 194, 3: 344, 4: 424, 5: 328, 6: 152, 7: 24, 8: 1; tiled counts 0: 177, 1: 410, 2: 478, 3: 321, 4: 129"
@@ -28768,6 +28821,14 @@
    "evidence": [
     {
      "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:135-180"
+    },
+    {
+     "kind": "test",
      "ref": "core/tests/test_spec_probes.py::material_maps"
     },
     {
@@ -28789,6 +28850,27 @@
    ]
   },
   {
+   "id": "TEDIT-MM-2",
+   "title": "The visual / material pairing is measured on the terrain's own cells",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_paint_layers"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:858-870"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs on the game copy, 2026-11-23: MP_005's five tiled layers paired as listed"
+    }
+   ]
+  },
+  {
    "id": "TEDIT-BLK-1",
    "title": "Main block, then a ring of 12 per ring",
    "file": "spec/transforms/terrain_edit.md",
@@ -28806,15 +28888,44 @@
    ]
   },
   {
+   "id": "TEDIT-RING-1",
+   "title": "A sculpt that reaches the ring is stitched as DICE stitches its rings",
+   "file": "spec/transforms/terrain_edit.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_rings_stitched_after_a_sculpt"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/terrain_tools.rs::terrain_brushes_through_the_interface"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:230-290"
+    }
+   ]
+  },
+  {
    "id": "TEDIT-OCC-1",
    "title": "The colour / occlusion map under an edit is re-baked by ratio",
    "file": "spec/transforms/terrain_edit.md",
-   "status": "inferred",
+   "status": "implemented",
    "variants": "PC",
    "evidence": [
     {
      "kind": "inferred",
      "ref": "LIGHT-BAKE-2 and LIGHT-BAKE-6"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:967-1030"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_layers.rs::dice_colour_maps_written_in_place"
     }
    ]
   },
@@ -28831,11 +28942,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1175-1210"
+     "ref": "rust/bc2-levelwrite/src/export.rs:704-760"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1764-1790"
+     "ref": "rust/bc2-editor/src/sculpt.rs:402-470"
     },
     {
      "kind": "test",
@@ -28851,9 +28962,13 @@
    "id": "TEDIT-NAV-1",
    "title": "A sculpted level's path data is sampled on the staged height field",
    "file": "spec/transforms/terrain_edit.md",
-   "status": "implemented",
+   "status": "verified",
    "variants": "PC",
    "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_path_data_end_to_end"
+    },
     {
      "kind": "code",
      "ref": "rust/bc2-cli/src/navkit/sample.rs:296-325"
@@ -29662,7 +29777,7 @@
   },
   {
    "id": "XVAL-EDIT-5",
-   "title": "Visual paint layers are not exported yet",
+   "title": "A visual paint layer cannot be written",
    "file": "spec/transforms/validation.md",
    "status": "verified",
    "evidence": [
@@ -29672,15 +29787,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:1142"
-    },
-    {
-     "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/validate.rs:69"
-    },
-    {
-     "kind": "test",
-     "ref": "rust/bc2-levelwrite/tests/export_rules.rs::each_edit_rule_has_a_broken_project_that_raises_it"
+     "ref": "rust/bc2-levelwrite/src/export.rs:815"
     },
     {
      "kind": "test",
@@ -30680,11 +30787,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:642"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:644"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3526"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3778"
     },
     {
      "kind": "test",
@@ -30704,19 +30811,47 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rules.rs:654"
+     "ref": "rust/bc2-levelwrite/src/rules.rs:656"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/export.rs:3568"
+     "ref": "rust/bc2-levelwrite/src/export.rs:3869"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:110-168"
+     "ref": "rust/bc2-levelwrite/src/terrainedit.rs:343-400"
     },
     {
      "kind": "test",
      "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::sculpted_export_stages_and_checks"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks"
+    }
+   ]
+  },
+  {
+   "id": "XVAL-TERR-3",
+   "title": "A painted terrain's visual side reads back whole",
+   "file": "spec/transforms/validation.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rules.rs:668"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3947"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:1066-1100"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks"
     }
    ]
   },

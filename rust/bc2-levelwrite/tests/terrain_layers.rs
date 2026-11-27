@@ -104,7 +104,9 @@ fn read(bundle: &Path, name: &str) -> Option<Vec<u8>> {
         .entries
         .iter()
         .find(|e| !e.is_deleted() && e.name.eq_ignore_ascii_case(name))?;
-    fbrb::read_path_uncached(bundle, std::slice::from_ref(&e.name)).ok()?.pop()
+    fbrb::read_path_uncached(bundle, std::slice::from_ref(&e.name))
+        .ok()?
+        .pop()
 }
 
 #[test]
@@ -238,7 +240,12 @@ fn dice_paint_layers() {
     );
     assert_eq!(held, names, "every material map name is its grid's");
     // MP_005's pairing
-    let t = game.join("Dist").join("win32").join("levels").join("mp_005").join("terrain-00.fbrb");
+    let t = game
+        .join("Dist")
+        .join("win32")
+        .join("levels")
+        .join("mp_005")
+        .join("terrain-00.fbrb");
     let v = read(&t, "Terrains/MP_005/MP_005.Visual.res").unwrap();
     let a = read(&t, "Terrains/MP_005/MP_005.MaskTileAtlas.res").unwrap();
     let mm = MaterialMap::decode(&read(&t, "Terrains/MP_005/MP_005-MaterialMap.res").unwrap()).unwrap();
@@ -335,9 +342,18 @@ fn mp_005_paint_written() {
     };
     let (g, asph, trash) = (disc(1100, 1000, 40.0), disc(1180, 1000, 30.0), disc(1140, 1000, 25.0));
     let layers = [
-        PaintLayer { layer: "DryGrass", weights: &g },
-        PaintLayer { layer: "Asphalt", weights: &asph },
-        PaintLayer { layer: "Trash", weights: &trash },
+        PaintLayer {
+            layer: "DryGrass",
+            weights: &g,
+        },
+        PaintLayer {
+            layer: "Asphalt",
+            weights: &asph,
+        },
+        PaintLayer {
+            layer: "Trash",
+            weights: &trash,
+        },
     ];
     let t0 = std::time::Instant::now();
     let p = terrainpaint::paint(&v, &a, 2048, &layers, Some(&textures)).unwrap();
@@ -345,26 +361,50 @@ fn mp_005_paint_written() {
     assert_eq!(check_visual(&v, &p.visual, &a, &p.atlas), Vec::<String>::new());
     let pv = VisualTerrain::decode(&p.visual).unwrap();
     assert_eq!(pv.roads, vt.roads, "the road blocks DICE's");
-    assert_eq!(&pv.shaders[..vt.shaders.len()], &vt.shaders[..], "DICE's patch shaders kept");
+    assert_eq!(
+        &pv.shaders[..vt.shaders.len()],
+        &vt.shaders[..],
+        "DICE's patch shaders kept"
+    );
     let changed = pv.maps[0]
         .shader
         .iter()
         .zip(&vt.maps[0].shader)
         .filter(|(x, y)| x != y)
         .count();
-    println!("{changed} cells draw another patch shader, {} cells rewritten, {} tiles", p.cells, p.tiles);
+    println!(
+        "{changed} cells draw another patch shader, {} cells rewritten, {} tiles",
+        p.cells, p.tiles
+    );
     assert!(changed > 0 && p.tiles > 0);
     // the atlas: only the tiles the paint wrote differ
     let at = Atlas::of(&a, vt.maps[0].header).unwrap();
     let span = at.span();
     let differ = (0..at.capacity())
-        .filter(|&t| (0..span * span).any(|i| Atlas::of(&p.atlas, vt.maps[0].header).unwrap().get(t, i % span, i / span) != at.get(t, i % span, i / span)))
+        .filter(|&t| {
+            (0..span * span).any(|i| {
+                Atlas::of(&p.atlas, vt.maps[0].header)
+                    .unwrap()
+                    .get(t, i % span, i / span)
+                    != at.get(t, i % span, i / span)
+            })
+        })
         .count();
     println!("atlas: {differ} tiles differ from DICE's ({} written)", p.tiles);
     assert!(differ <= p.tiles);
     // nothing painted: DICE's bytes
     let none_r = Raster::new(2048, 2048, 0);
-    let p0 = terrainpaint::paint(&v, &a, 2048, &[PaintLayer { layer: "DryGrass", weights: &none_r }], None).unwrap();
+    let p0 = terrainpaint::paint(
+        &v,
+        &a,
+        2048,
+        &[PaintLayer {
+            layer: "DryGrass",
+            weights: &none_r,
+        }],
+        None,
+    )
+    .unwrap();
     assert!(p0.visual == v && p0.atlas == a);
 }
 
@@ -387,7 +427,10 @@ fn dice_colour_maps_written_in_place() {
             continue;
         };
         checked += 1;
-        assert!(write_colour(data, &r).unwrap() == *data, "{name}: nothing painted, DICE's bytes");
+        assert!(
+            write_colour(data, &r).unwrap() == *data,
+            "{name}: nothing painted, DICE's bytes"
+        );
         let grey = terrainpaint::colour_is_grey(data);
         let mut s = r.clone();
         let (cx, cz) = (r.width() / 2, r.height() / 2);
@@ -484,7 +527,11 @@ fn dice_rings_stitched_after_a_sculpt() {
         assert_eq!(s.main_seams.0, s.main_seams.1, "{name}");
         assert_eq!(s.ring_seams.0, s.ring_seams.1, "{name}");
         assert!(s.straight <= 0.5, "{name}");
-        assert!(check_heights(data, &m3).is_empty(), "{name}: {:?}", check_heights(data, &m3));
+        assert!(
+            check_heights(data, &m3).is_empty(),
+            "{name}: {:?}",
+            check_heights(data, &m3)
+        );
         // the range widened by half: every sample within a stored unit of its height
         let base = MainBlock::decode(data).unwrap();
         let (from, to) = (f64::from(base.max[1]), f64::from(base.max[1]) * 1.5);
@@ -502,10 +549,17 @@ fn dice_rings_stitched_after_a_sculpt() {
             .map(|(a, b)| (f64::from(*a) * to - f64::from(*b) * from).abs() / 65535.0)
             .fold(0.0, f64::max);
         assert!(worst <= to / 65535.0, "{name}: {worst} m");
-        assert!(check_heights(data, &wide).is_empty(), "{name}: {:?}", check_heights(data, &wide));
+        assert!(
+            check_heights(data, &wide).is_empty(),
+            "{name}: {:?}",
+            check_heights(data, &wide)
+        );
         let (_, r4) = write_ring(data, &wide, &ring, None).unwrap();
         let b4 = SubBlock::decode(&r4[0]).unwrap();
-        assert!((f64::from(b4.max[1]) - to).abs() < 0.01, "{name}: the ring takes the range");
+        assert!(
+            (f64::from(b4.max[1]) - to).abs() < 0.01,
+            "{name}: the ring takes the range"
+        );
         println!("{name}: range {from} -> {to} m, worst {worst:.4} m off");
     }
     assert!(rings >= 6, "{rings}");

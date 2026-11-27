@@ -47,7 +47,11 @@ pub enum Outcome {
     /// A brush stroke finished (round E5): the rasters as it leaves them (round E5-rest: the first the brush's, then
     /// the ring or the paired material it reached), committed as one operation with its History label; whether a
     /// height was clamped to the level's range.
-    Stroke(Vec<(bc2_levelwrite::files::Target, bc2_levelwrite::delta::Raster)>, String, bool),
+    Stroke(
+        Vec<(bc2_levelwrite::files::Target, bc2_levelwrite::delta::Raster)>,
+        String,
+        bool,
+    ),
 }
 
 /// Where in a view's overlays a tool draws (the order the views draw them in).

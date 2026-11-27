@@ -512,11 +512,7 @@ mod tests {
             // level 0's bytes outside the region's blocks unchanged; level 1 darker under it
             let hd = Header::read(&res).unwrap();
             let l0 = hd.level_start(0)..hd.level_start(1);
-            let changed = out[l0.clone()]
-                .iter()
-                .zip(&res[l0])
-                .filter(|(a, b)| a != b)
-                .count();
+            let changed = out[l0.clone()].iter().zip(&res[l0]).filter(|(a, b)| a != b).count();
             let most = if f == Format::Dxt1 { 4 * 8 } else { 64 };
             assert!(changed > 0 && changed <= most, "{f:?}: {changed}");
             assert!(decode_level(&out, 1).unwrap().at(5, 5)[0] < 30);

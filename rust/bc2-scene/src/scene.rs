@@ -1113,16 +1113,18 @@ pub fn terrain_extra(heightfield: &Path, bases: &[PathBuf]) -> Option<TerrainExt
             continue;
         };
         let Some(t) = std::fs::read_dir(&terrains).ok().and_then(|rd| {
-            rd.flatten()
-                .map(|e| e.path())
-                .find(|p| p.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(&folder)))
+            rd.flatten().map(|e| e.path()).find(|p| {
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(&folder))
+            })
         }) else {
             continue;
         };
         let Some(tex) = std::fs::read_dir(&t).ok().and_then(|rd| {
-            rd.flatten()
-                .map(|e| e.path())
-                .find(|p| p.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("textures")))
+            rd.flatten().map(|e| e.path()).find(|p| {
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("textures"))
+            })
         }) else {
             continue;
         };
@@ -1131,17 +1133,18 @@ pub fn terrain_extra(heightfield: &Path, bases: &[PathBuf]) -> Option<TerrainExt
             .flatten()
             .map(|e| e.path())
             .filter(|p| {
-                p.file_name().is_some_and(|n| {
-                    let n = n.to_string_lossy().to_ascii_lowercase();
-                    n.ends_with(".res") && n.contains("occ")
-                })
+                p.extension().is_some_and(|e| e.eq_ignore_ascii_case("res"))
+                    && p.file_name()
+                        .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().contains("occ"))
             })
             .collect();
         cands.sort();
         if let Some(c) = cands.first()
             && let Ok(bytes) = std::fs::read(c)
         {
-            let file = c.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+            let file = c
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().to_ascii_lowercase());
             x.colour = Some((
                 format!("terrains/{}/textures/{file}", folder.to_ascii_lowercase()),
                 bytes,

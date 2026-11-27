@@ -797,12 +797,18 @@ impl Op {
             },
             Self::InsertPoint { after, .. } => format!("Insert an outline point after {after}"),
             Self::RemovePoint { guid } => format!("Remove outline point {guid}"),
-            Self::Stroke { target, tiles, also, .. } => {
+            Self::Stroke {
+                target, tiles, also, ..
+            } => {
                 let n = tiles.len() + also.iter().map(|p| p.tiles.len()).sum::<usize>();
                 format!(
                     "Stroke on {}{}: {n} tile{}",
                     target.describe(),
-                    also.iter().map(|p| format!(" and {}", p.target.describe())).collect::<String>(),
+                    also.iter().fold(String::new(), |mut out, p| {
+                        out.push_str(" and ");
+                        out.push_str(&p.target.describe());
+                        out
+                    }),
                     if n == 1 { "" } else { "s" }
                 )
             }

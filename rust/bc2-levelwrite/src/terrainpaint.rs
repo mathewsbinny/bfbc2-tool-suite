@@ -24,6 +24,10 @@
 //!
 //! **The pairing** ([`pairing`]): which physics material lies under each tiled layer where its mask is strong, from
 //! the terrain's own material map: the editor's visual / material pairing (TEDIT-MM-2).
+#![allow(
+    clippy::cast_precision_loss,
+    reason = "texel, cell and sample counts as f64: far below 2^52"
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -265,9 +269,7 @@ impl LayerModel {
             .enumerate()
             .filter(|(_, ls)| {
                 set.iter().all(|l| ls.contains(l))
-                    && ls
-                        .iter()
-                        .all(|l| set.contains(l) || self.tiled.get(*l) == Some(&true))
+                    && ls.iter().all(|l| set.contains(l) || self.tiled.get(*l) == Some(&true))
             })
             .min_by_key(|(k, ls)| (ls.len(), *k))
             .map(|(k, _)| k)
@@ -540,7 +542,10 @@ pub fn paint(
 ) -> Result<Painted, LevelWriteError> {
     let mut vt = VisualTerrain::decode(visual).map_err(|e| refused(format!("the visual terrain: {e}")))?;
     let model = LayerModel::of(&vt).map_err(|e| refused(format!("the terrain's paint layers: {e}")))?;
-    let map = vt.maps.first().ok_or_else(|| refused("the visual terrain has no patch map"))?;
+    let map = vt
+        .maps
+        .first()
+        .ok_or_else(|| refused("the visual terrain has no patch map"))?;
     let mut at = Atlas::of(atlas, map.header).map_err(refused)?;
     let w = map.header[4] as usize;
     let n = hf_size as usize;
@@ -605,7 +610,10 @@ pub fn paint(
     let mut padded = 0usize;
     for (&k, ls) in &reach {
         let s = usize::from(map.shader.get(k).copied().unwrap_or(0));
-        let mut want: BTreeSet<usize> = model.shaders.get(s).map(|v| v.iter().copied().collect()).unwrap_or_default();
+        let mut want: BTreeSet<usize> = model
+            .shaders
+            .get(s)
+            .map_or_else(BTreeSet::new, |v| v.iter().copied().collect());
         want.extend(ls.iter().copied());
         let pick = if let Some(x) = model.find(&want) {
             x
@@ -615,7 +623,9 @@ pub fn paint(
         } else {
             let name = model.name(&want);
             let own = own.as_ref().ok_or_else(|| {
-                refused(format!("{name}: the terrain has no patch shader for this layer combination (TEDIT-SH-1)"))
+                refused(format!(
+                    "{name}: the terrain has no patch shader for this layer combination (TEDIT-SH-1)"
+                ))
             })?;
             let (donor, tex) = clone_for(&model, &want, own).ok_or_else(|| {
                 refused(format!(
@@ -718,8 +728,7 @@ pub fn paint(
                             ((cx as f64 + u) * q as f64).floor() as u32,
                             ((cz as f64 + v) * q as f64).floor() as u32,
                         );
-                        let wgt =
-                            f64::from(r.get(sx.min(hf_size - 1), sz.min(hf_size - 1)).min(255)) / 255.0;
+                        let wgt = f64::from(r.get(sx.min(hf_size - 1), sz.min(hf_size - 1)).min(255)) / 255.0;
                         m += (255.0 - m) * wgt;
                     }
                     if let Some(slot) = inside.get_mut(y * span + x) {
@@ -923,7 +932,7 @@ pub fn colour_is_grey(map: &[u8]) -> bool {
 }
 
 /// A colour / occlusion map's level 0 as a raster (DXT1: each texel's 5:6:5 colour; L8: its grey level); `None` for
-/// another format (SP_04's: TGEN-OCC-1).
+/// another format (`SP_04`'s: TGEN-OCC-1).
 #[must_use]
 pub fn colour_raster(map: &[u8]) -> Option<Raster> {
     let grey = colour_is_grey(map);
@@ -1021,7 +1030,12 @@ pub fn reshade(
     let w = colour.width() as usize;
     let per_m = w as f64 / OCCLUSION_M;
     let tex = |v: f64| ((v + OCCLUSION_M / 2.0) * per_m).floor().clamp(0.0, w as f64) as usize;
-    let a = [tex(area[0]), tex(area[1]), (tex(area[2]) + 1).min(w), (tex(area[3]) + 1).min(w)];
+    let a = [
+        tex(area[0]),
+        tex(area[1]),
+        (tex(area[2]) + 1).min(w),
+        (tex(area[3]) + 1).min(w),
+    ];
     let mut out = colour.clone();
     if a[2] <= a[0] || a[3] <= a[1] {
         return (out, Reshaded::default());
@@ -1078,8 +1092,7 @@ pub fn check_visual(base: &[u8], edited: &[u8], atlas_base: &[u8], atlas: &[u8])
         (Err(e), _) => return vec![format!("the base visual terrain does not decode: {e}")],
     };
     let mut out = Vec::new();
-    if e.roads != b.roads || e.maps.len() != b.maps.len() || e.shaders.get(..b.shaders.len()) != Some(&b.shaders[..])
-    {
+    if e.roads != b.roads || e.maps.len() != b.maps.len() || e.shaders.get(..b.shaders.len()) != Some(&b.shaders[..]) {
         out.push("its road blocks, block count or the base's patch shaders are not the base's".into());
     }
     match (itexture::Header::read(atlas_base), itexture::Header::read(atlas)) {
@@ -1087,7 +1100,10 @@ pub fn check_visual(base: &[u8], edited: &[u8], atlas_base: &[u8], atlas: &[u8])
         _ => out.push("the mask atlas's header or size is not the base's".into()),
     }
     for (bm, em) in b.maps.iter().zip(&e.maps) {
-        if bm.header != em.header || bm.bounds != em.bounds || bm.heightfield != em.heightfield {
+        if bm.header != em.header
+            || bm.bounds.map(f32::to_bits) != em.bounds.map(f32::to_bits)
+            || bm.heightfield != em.heightfield
+        {
             out.push("a patch map's header, bounds or height field is not the base's".into());
             continue;
         }
@@ -1211,7 +1227,10 @@ mod tests {
         // Base + Destr + Grass, drawn by Base_Grass_Rock_Destr with an empty Rock mask
         assert_eq!(m.find_superset(&[0, 1, 5].into_iter().collect()), Some(1));
         assert_eq!(m.find_superset(&[0, 1, 3, 5].into_iter().collect()), None);
-        assert_eq!(m.name(&[0, 3, 5].into_iter().collect()), format!("{PRE}Base_Sand_Destr"));
+        assert_eq!(
+            m.name(&[0, 3, 5].into_iter().collect()),
+            format!("{PRE}Base_Sand_Destr")
+        );
         // a layer tiled in one shader and a rule layer in another: not one kind each
         let mut bad = VisualTerrain::decode(&v).unwrap();
         bad.shaders.push(shader("Grass_Destr", 2, 0));
@@ -1239,12 +1258,36 @@ mod tests {
         let n = 256;
         // nothing painted: the base's bytes
         let none = Raster::new(n, n, 0);
-        let p = paint(&v, &a, n, &[PaintLayer { layer: "Grass", weights: &none }], None).unwrap();
+        let p = paint(
+            &v,
+            &a,
+            n,
+            &[PaintLayer {
+                layer: "Grass",
+                weights: &none,
+            }],
+            None,
+        )
+        .unwrap();
         assert_eq!((p.visual == v, p.atlas == a), (true, true));
         // grass on a 20 m disc around (64, 64): the cells it reaches draw Base_Grass_Destr
         let grass = disc(n, 64.0, 64.0, 20.0);
-        let p = paint(&v, &a, n, &[PaintLayer { layer: "Grass", weights: &grass }], None).unwrap();
-        assert!(check_visual(&v, &p.visual, &a, &p.atlas).is_empty(), "{:?}", check_visual(&v, &p.visual, &a, &p.atlas));
+        let p = paint(
+            &v,
+            &a,
+            n,
+            &[PaintLayer {
+                layer: "Grass",
+                weights: &grass,
+            }],
+            None,
+        )
+        .unwrap();
+        assert!(
+            check_visual(&v, &p.visual, &a, &p.atlas).is_empty(),
+            "{:?}",
+            check_visual(&v, &p.visual, &a, &p.atlas)
+        );
         let vt = VisualTerrain::decode(&p.visual).unwrap();
         let m = &vt.maps[0];
         let k = 4 * 16 + 4; // the cell at (64, 64)
@@ -1265,7 +1308,10 @@ mod tests {
             &p.visual,
             &p.atlas,
             n,
-            &[PaintLayer { layer: "Rock", weights: &rock }],
+            &[PaintLayer {
+                layer: "Rock",
+                weights: &rock,
+            }],
             None,
         )
         .unwrap();
@@ -1277,10 +1323,34 @@ mod tests {
         // texel (32, 32) of the block's tile is sample (65, 65), near the discs' centre
         assert_eq!(at2.get(usize::from(m2.tiles[k][0]), 32, 32), 255, "the grass kept");
         assert_eq!(at2.get(usize::from(m2.tiles[k][1]), 32, 32), 255, "the rock laid");
-        assert!(check_visual(&v, &p2.visual, &a, &p2.atlas).is_empty());
+        assert_eq!(check_visual(&v, &p2.visual, &a, &p2.atlas), Vec::<String>::new());
         // a rule layer and an unknown layer are refused
-        assert!(paint(&v, &a, n, &[PaintLayer { layer: "Base", weights: &grass }], None).is_err());
-        assert!(paint(&v, &a, n, &[PaintLayer { layer: "Mud", weights: &grass }], None).is_err());
+        assert!(
+            paint(
+                &v,
+                &a,
+                n,
+                &[PaintLayer {
+                    layer: "Base",
+                    weights: &grass
+                }],
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            paint(
+                &v,
+                &a,
+                n,
+                &[PaintLayer {
+                    layer: "Mud",
+                    weights: &grass
+                }],
+                None
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1288,9 +1358,22 @@ mod tests {
         let (v, a) = terrain();
         let n = 256;
         let grass = disc(n, 64.0, 64.0, 20.0);
-        let p = paint(&v, &a, n, &[PaintLayer { layer: "Grass", weights: &grass }], None).unwrap();
+        let p = paint(
+            &v,
+            &a,
+            n,
+            &[PaintLayer {
+                layer: "Grass",
+                weights: &grass,
+            }],
+            None,
+        )
+        .unwrap();
         let sand = disc(n, 64.0, 64.0, 6.0);
-        let layer = [PaintLayer { layer: "Sand", weights: &sand }];
+        let layer = [PaintLayer {
+            layer: "Sand",
+            weights: &sand,
+        }];
         // Base_Grass_Sand_Destr is not a shader of the terrain, and no superset draws it: refused without textures
         let e = paint(&p.visual, &p.atlas, n, &layer, None).unwrap_err().to_string();
         assert!(e.contains("TEDIT-SH-1"), "{e}");
@@ -1319,10 +1402,14 @@ mod tests {
         assert_eq!(vt.shaders.len(), 7);
         assert_eq!((vt.shaders[6].layers, vt.shaders[6].tiled), (4, 2));
         assert_eq!(vt.maps[0].shader[4 * 16 + 4], 6);
-        assert!(check_visual(&v, &p2.visual, &a, &p2.atlas).is_empty());
+        assert_eq!(check_visual(&v, &p2.visual, &a, &p2.atlas), Vec::<String>::new());
         let own = layer_textures(&LayerModel::of(&VisualTerrain::decode(&v).unwrap()).unwrap(), &textures);
         assert_eq!(own[3], tex(&["sand_c"]));
-        assert_eq!(own[0], tex(&["ao", "base_c"]), "Base is in every shader: every shared texture is its own");
+        assert_eq!(
+            own[0],
+            tex(&["ao", "base_c"]),
+            "Base is in every shader: every shared texture is its own"
+        );
     }
 
     #[test]
@@ -1344,7 +1431,7 @@ mod tests {
             let (shaded, done) = reshade(&r, grey, &flat, &pit, [-40.0, -40.0, 40.0, 40.0]);
             assert!(done.texels > 0 && done.mean_ratio < 1.0, "{f:?}: {done:?}");
             let out = write_colour(&map, &shaded).unwrap();
-            assert!(check_colour(&map, &out).is_empty());
+            assert_eq!(check_colour(&map, &out), Vec::<String>::new());
             let hd = itexture::Header::read(&map).unwrap();
             let l0 = hd.level_start(0)..hd.level_start(1);
             let changed = out[l0.clone()].iter().zip(&map[l0]).filter(|(a, b)| a != b).count();
