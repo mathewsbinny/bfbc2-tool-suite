@@ -28,6 +28,22 @@ landed on `main`.
 
 ## [Unreleased]
 
+Round OR12 ("OPFOR in Rust", the Onslaught console port's stages 11 - 13) gives Project OPFOR new `bc2_native`
+functions it now requires: this merge releases a minor version, and OPFOR's `SUITE_REQUIRES` moves with it.
+
+### Added
+
+- `bc2_native.onsport_cull` / `onsport_loading` / `onsport_hud` / `onsport_hud_movie` (round OR12):
+  `bc2_install::onslaught::{cull, loading, hud}`, the console port's stages 11 - 13 - cull-tree places for the
+  console layout's objects (`bfbc2 culltree add`), the console loading video and the description's game mode, the
+  Onslaught stopwatch and Onslaught's texts in the PC HUD and loading-screen movies (`bc2_menu::graft` in process).
+  Every work and game file is the retired Python's byte for byte on the user's four console levels (spec
+  XCONS-ONS-11 - 13). A failing stage prints the lines it printed before the failure, as the Python did.
+
+### Changed
+
+- bc2-install's `onslaught` feature takes bc2-menu (stage 13's movie edits).
+
 ## [0.33.0] - 2026-11-27
 
 Round OR14 ("OPFOR in Rust", the picture and menu leftovers) moves Project OPFOR's WW2 and Onslaught menu tools onto
