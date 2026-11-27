@@ -73,7 +73,6 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BFBC2_DBXPORT_DUAL': ('switch', '1: dbxport runs both and raises DualMismatch where they differ (parity runs)'),
     'BFBC2_DBXPORT_REFERENCE': ('switch', '1: dbxport ranks with the reference scan instead of the index (parity)'),
     'BFBC2_DBXPORT_STATS': ('switch', "1: dbxport prints its ranking's statistics"),
-    'BFBC2_EFFECTPORT_REFERENCE': ('switch', "1: effectport's Python reference (parity)"),
     'BFBC2_EMITTERATLAS_REFERENCE': ('switch', "1: emitteratlas' Python reference (parity)"),
     'BFBC2_MESHPORT_REFERENCE': ('switch', "1: meshport's Python reference (parity)"),
     'BFBC2_HARNESS_PYTHON': ('switch', "1: the test harness's Python instead of the Rust core"),

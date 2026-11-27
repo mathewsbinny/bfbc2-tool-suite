@@ -5607,3 +5607,66 @@ byte-identical to the oracle.
   (`rebuild_all.py --graph --write` after a full rebuild).
 
 Checks on the final tree (main bceb84f4 and 6d95c313 merged): cargo fmt; `cargo clippy --all-targets -D warnings` on bc2-install (feature `rebuild`) and bc2-py, and bc2-cli's 19 tool groups alone and together, clean; bc2-install's tests 41 passed (the rebuild module's 8 among them); the quick tier 134 of 137 on the first merge - the three failures were the new `OPFOR_REBUILD_TRACK` (now registered) and the spec / native-census checks reading OPFOR's main checkout, which does not have OR7's OPFOR side yet (against OPFOR's `or7`: `trace.py --check` ok, 1,574 rules, XDEP-STEP-8 - 10 unused on main; `native_census.py --check` 378 exports, 0 without a caller); OPFOR's `run_tests.py quick` 372 passed, 15 skipped; ruff and mypy clean on OPFOR's `ww2` and `tests`.
+
+## OR8: OPFOR in Rust, the leftovers - the WW2 effect porter and the sound porter (2026-11-27, branch `or8`, with Project OPFOR's `or8`)
+
+What OR4 left of stage 4 ("OR4", "What is left"): `effectport` (the material grid's, the level builds' and the
+vehicles' effects; its emitter template search) and the sound porter (Project OPFOR's `wake_level.port_sounds`).
+Version **0.31.0** (removed: `effectport.EmitterIndex`, `templates_reference`, `REFERENCE`, `EMITTER_BATCH`,
+`cache_dir`, `_read_many`, `port`'s `shared` / `plan`; `BFBC2_EFFECTPORT_REFERENCE`); OPFOR's `SUITE_REQUIRES` 0.31.0 -
+0.32.0. Nothing was written to OPFOR's `game\`; the game never launched.
+
+### Inventory
+
+| Python until OR8 | now | |
+|---|---|---|
+| suite `effectport.py`: `walk`, `levels_of`, `level_copy`, `_effect_with_emitters`, `refs` | `bc2_convert::effectport` (`walk`, `levels_of`, `level_copy`, `effect_with_emitters`, `refs`) | ported |
+| `EmitterIndex` (a pickle per game copy), `templates`, `templates_reference`, `_read_many`, `_read_parallel` | `effectport::EmitterIndex` (JSON, sorted keys, in the same `effectport` cache; `.pkl` left to the pruning), `templates` | ported, the reference scan retired |
+| `port`, `port_many`, `check_defaults`, `Record.line` for the shown records | `effectport::port` / `port_many` (each effect's partitions and textures ported side by side), `check_defaults`, `Record::line` | ported |
+| OPFOR `wake_level.port_sounds`, `sound_fills`, `fill_sound_instance`, `SOUND_FILLS`, `not_streaming`, `UNTEMPLATED` | `bc2_convert::soundport` (`port_sounds`, `walk`, `pool`, `fills`, `fill_instance`, `sound_fills`, `not_streaming`); waves converted side by side, 64 at a time | ported; `wake_level.port_sounds` a 6-line call of `effectport.port_sounds` with its donors |
+| `audio.convert`'s `AudioError` for the report's `FAILED` lines | `wavport::convert_checked` (the reason a Wave does not convert; `convert` is it without the reason) | ported |
+| `wake_level.convert_waves` (`wake_vo`'s waves) | stays | wake_vo is not part of this round |
+
+The game data stays the caller's objects: `bc2_native.effectport_*` / `soundport_port` read a `bf1943import.Source`'s
+`entries` once a call and ask its `data(key)`, and a `meshview.Index`'s (or a hiding view's, OPFOR's `WithoutOurs`)
+`where` once a call and its `read(name)`; the emitter index reads the bundles itself. The dbxport rules and the
+catalogue are the caller's (`dbxport._native_rules`, `_native_catalogue`), so OPFOR's table edits still apply.
+
+### Proof
+
+- **Twins side by side** (suite main's `effectport.py` and OPFOR main's `wake_level.py` loaded by path, against this
+  worktree's; one process, the game copy read only):
+  - effects: `port_many` of `bf1943_fx`'s 29 effects, the four material grids' 44 / 47 / 47 / 38, the three level
+    builds' 2 / 3 / 2, `port` of the vehicles' two: **1,361 files, every report line and record (all nine fields)
+    identical**; 50 `walk`s at Wake and Coral Sea and `levels_of` identical (59 of 59). Times about the Python's
+    (1.2 - 3.2 s a set against 1.6 - 3.6 s: the index was on disk for both).
+  - sounds: the five real `port_sounds` calls (`bf1943_fx`'s 33 roots, Wake's grid, Wake's level with `later`, the
+    menu music and the stings through `WithoutOurs`): **566 files, the log lines and the returned lists identical**
+    (bf1943_fx's 474 files 11.4 s against 14.9 s).
+  - damaged: 20 effect cases (8 partitions cut at 0 - 200 bytes, 4 textures cut, 4 partitions with 40 bytes flipped,
+    a dropped partition, a cut template, 300 cut emitter documents, a missing template) and 12 sound cases (6 waves
+    cut to a third, the first donor and the last donor missing (twice each), 2 cut sound partitions): every outcome the Python's (the
+    exception's type and message, or the same files and lines) but one: a missing template raises
+    `MissingTemplate` naming it where the Python raised `DeletedEntry` (XWW2-FX-2).
+- Suite: `bc2-convert`'s unit tests (effectport 5, soundport 6), `test_ports_native.py`'s emitter search against the
+  rule written out (120 searches cold and from disk, the index read back, a damaged document, a changed bundle),
+  `test_dbxport_rules.py`'s effect references. OPFOR: `test_ww2_sound_fills` re-derives the fills from DICE's
+  conversions through the Rust.
+- **WW2 rebuild** in OPFOR's `or8` worktree with its own `work\ww2` seeded with the 14 declared inputs (599 files;
+  `game\`, the other `work\` folders and `research\ww2 models` junctions to the main checkout, read only),
+  `OPFOR_SUITE_STRICT=1`, defaults: **all 55 steps in 16.0 min**, `compare_oracle` **7,945 of 7,945 identical**,
+  `qa_checks` exit 0. Peaks: `bf1943_fx` 2.8 GB, `material_grid` 4.0 GB, a level chain 4.3 - 4.5 GB.
+- **Install oracle**: `wake_install.py --plan` exit 0; `compare_oracle --install` **21,149 of 21,149 identical**.
+- `game\`: its 1,582 files (11.6 GB) hashed (path, size, time, SHA-256) before and after: 0 changed.
+
+### Decided
+
+- XWW2-FX-2: a missing template is named (`MissingTemplate`), not the reader's `DeletedEntry` for an empty read.
+- XWW2-SND-2: a wave that does not convert is reported with the Rust converter's reason, not the Python's
+  `AudioError` text (no real wave fails; the cut waves above still convert, as the Python's did).
+- Nothing else against DICE: every output and line is the Python's.
+
+### What is left
+
+- `wake_vo.waves` (`convert_waves` over `audio.convert_many`) still converts the voice-over in Python threads.
+- The Type 95 silhouette, the DXT encoders' axes and the preview tools (OR4's list; OR14 has the first).

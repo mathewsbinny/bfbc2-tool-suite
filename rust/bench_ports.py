@@ -163,8 +163,9 @@ def main(argv):
     top = int(opt('--top', '30'))
     what = args or ['mesh', 'havok', 'effects']
     native = backend == 'rust'
-    # the reference searches E3g replaced by indexes (meshport's layouts, effectport's emitter templates)
-    meshport.REFERENCE = effectport.REFERENCE = not native
+    # the reference search E3g replaced by an index (meshport's layouts; effectport's is the Rust core's alone since
+    # round OR8)
+    meshport.REFERENCE = not native
     if '--no-cache' in args:
         args.remove('--no-cache')
         os.environ['BFBC2_EFFECTPORT_CACHE'] = '0'

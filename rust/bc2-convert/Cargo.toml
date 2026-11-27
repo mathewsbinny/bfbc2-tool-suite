@@ -21,6 +21,8 @@ memchr.workspace = true
 flate2.workspace = true
 # meshview::page: the preview pages' textures (round OR4)
 png.workspace = true
+# effectport's emitter index on disk (round OR8)
+serde_json.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

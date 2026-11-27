@@ -33388,6 +33388,102 @@
    ]
   },
   {
+   "id": "XWW2-FX-1",
+   "title": "An effect's emitters are its level's copies, its templates the first BFBC2 documents naming a type",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:229-243"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:880-965"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/effectport.rs::level_copies_the_levels_own_else_the_first_other"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-bf1943-import/tests/test_ports_native.py::quick_templates"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: bf1943_fx's 29 effects, the 4 material grids' 44 / 47 / 47 / 38, the 3 level builds' effects, the vehicles' 2: 1,361 files, every report line and record identical to the Python twin; 50 walks at 2 levels identical"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-FX-2",
+   "title": "A template partition the game copy lacks is named",
+   "file": "spec/transforms/ww2.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/effectport.rs:880-965"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: 20 damaged effect inputs, 19 the Python's outcome (the exception's type and message, or the same files), the missing template decided here"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-SND-1",
+   "title": "The fields BFBC2's sound classes add are set as DICE set them",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:93-108"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:139-158"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/soundport.rs::skip_duplicates_decides_the_frame_count"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_sound_fills.py::test_fills_rederived_from_dices_conversions"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-SND-2",
+   "title": "A wave whose audio the port puts in memory is not streaming",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "BF1943",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/soundport.rs:212-238"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/wavport.rs:172-233"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/soundport.rs::streamed_waves_in_memory"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR8: the five sound ports of the WW2 builds (bf1943_fx, Wake's grid, Wake's level, the menu music, the stings): 566 files, logs and returns identical to the Python twin"
+    }
+   ]
+  },
+  {
    "id": "XWW2-INS-1",
    "title": "The WW2 install refuses before writing",
    "file": "spec/transforms/ww2.md",
