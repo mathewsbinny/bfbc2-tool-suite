@@ -6132,3 +6132,110 @@ rewritten for the new rules), the spec probes' test, the quick tier, ruff and my
 
 - Queued as GM0-rest (beside the user's native-era rounds GM1 - GM3): the readers of the bundle refs and `KickIfLicenseMissing`, the mode-kind objects' virtual functions,
   the server's game-mod strings; OPFOR's era-aware HUD configuration and icon set; battlefield-opfor's parser fix.
+
+## OR11: OPFOR in Rust - the Onslaught console port, stages 8 - 10 (2026-11-27, branch `or11`, with Project OPFOR's `or11`)
+
+The plan's third round ("OR9", "The plan"): `console_port.py`'s stages 8 (`console_markv`, the Mark V), 9
+(`console_input`, the seats' PC input) and 10 (`console_deps`, the referenced but unloaded PC partitions) in the
+suite's Rust. Version 0.34.0 (OPFOR's `SUITE_REQUIRES` 0.34.0 to below 0.35.0). Nothing was written to OPFOR's
+`game\`; the game never launched.
+
+### What moved
+
+| OPFOR Python (until OR11) | Lines | now | Lines left |
+|---|---|---|---|
+| `console_markv.build` / `install` / `restore_spawn` / `choose` / `console_layouts` / `pc_resource` / `MATERIALS` | 389 | `bc2_install::onslaught::markv` (`bc2_native.onsport_markv`) | 74 (command line, the ledger's check before the build, the level before stage 5, the install, revert, scratch) |
+| `console_input.build` / `apply` / `role_inputs` / `seat_edits` / `seat_input` / `counterpart_xml` | 314 | `bc2_install::onslaught::input` (`onsport_input`; `onsport_role_inputs` / `onsport_seat_edits` for the shader audit) | 105 (command line, the audit's two wrappers, the install, revert, scratch) |
+| `console_deps.build` / `apply` / `listing` / `refs_of` | 249 | `bc2_install::onslaught::deps` (`onsport_deps`) | 68 (command line, the install, revert, scratch) |
+
+The tools under them were Rust already and are now called as libraries: the Havok conversion
+(`bc2_convert::havok::convert`, `classes_of` over `hkclasses`: `convert.py havok`'s path), the mesh relayout
+(`bc2_convert::meshconv`, `pair_by_kind` now public), the mesh set (`bc2_formats::meshdata`), the shader merge
+(`bc2_formats::shaderdb::merge`, with a new `ArenaStore` for a crate without an arena of its own), DbxEdit and FbrbTool
+in process. OR10's shared helpers in `onslaught::port` (`xml_of`, `drop_xml`, `write_manifest`, `manifest_lines`,
+`under`) were not on main yet: private copies live in `onslaught/files.rs`, to be dropped when OR10 merges.
+
+### Decided (spec XCONS-ONS-8 - 10)
+
+- **Stock sources only.** Stage 8's search for the Mark V's missing textures (the user's PC bundles) and stage 10's
+  partition sources skip a folder holding Project OPFOR's install record (`opfor-<name>-installed.json`: the WW2
+  levels and `ww2_common`), the rule the suite's stock mesh index already uses. Those are BF1943 conversions, not
+  BFBC2 data; the user's October install, on which the port was made and checked, had none.
+- **A redo builds on the ledger's bundle.** Stage 8's shader databases and texture check, and stage 10's "loaded"
+  set for the level's own Package bundle, read the bundle the install ledger hands the stage, not the game copy.
+  The Python read the game copy, which on a redo already holds the stage's own output (stage 10 then found nothing
+  missing and dropped its earlier copies).
+- **The texture check per material.** The Python applied each material's renames to every texture name collected so
+  far, so Main's `Humvee/HumveeWreck` went unchecked; the Rust checks each material's names with its own renames, as
+  its cloned entry names them. The same textures on the user's level.
+- **The ledger's check before stage 8's build**, as the Python's comment said and its code did not (it built first):
+  a bundle changed outside the ledger is refused in the ledger's words instead of failing in the build's reader.
+- Nothing decided for stage 9.
+
+### Proof
+
+`scratchpad\or11\parity.py`: one scratch OPFOR root per level (`C:\Programming\Projects\_rounds\or11\s\<level>`),
+the retired Python (OPFOR 5f6fdac's scripts, a snapshot) and the Rust wrappers run one after the other at the same
+path; `work\` holds copies of OPFOR main's `con_level` (and ONS_MP_002's `con_mp2`), the T-90 partition stage 9 reads
+from `console_shaders\shared` and the mesh index; `game\` is junctions into OPFOR main's `game\` (read only) with the
+level's folder, `package.mft` and `BFBC2Game.exe` real copies. The input is the Python's own output of the earlier
+stages, as the user's install left it: ONS_MP_002 from its `.opfor-markv-orig` (stage 7's bundle, with the level before
+stage 5 in the scratch ledger for the spawn), ONS_MP_005 from `.opfor-input-orig`, ONS_MP_004 and ONS_MP_008 from
+`.opfor-deps-orig` (the Mark V is Valparaiso's alone, so stage 8 runs there only). The stages install into the
+scratch game through OPFOR's ledger, as they do for real, with `--keep` so their work folders are compared.
+
+Stages 8 - 10 chained, the scratch game as the user's October install (no WW2 levels):
+
+| Level (PC map) | Stages | Files compared (work and game) | Identical | Python / Rust, per stage |
+|---|---|---|---|---|
+| ONS_MP_002 (MP_002) | 8, 9, 10 | 12,342 | **12,342** | 19.2 / 10.2 s, 8.8 / 8.5 s, 52.6 / 39.3 s |
+| ONS_MP_004 (MP_004) | 9, 10 | 3,264 | **3,264** | 4.4 / 3.4 s, 52.2 / 42.5 s |
+| ONS_MP_005 (MP_005) | 9, 10 | 4,035 | **4,035** | 11.3 / 8.7 s, 49.2 / 36.9 s |
+| ONS_MP_008 (MP_008) | 9, 10 | 9,254 | **9,254** | 6.0 / 3.5 s, 67.4 / 46.0 s |
+
+**With the WW2 levels installed** (the scratch game as OPFOR's `game\` is today: Coral Sea, Guadalcanal, Iwo Jima,
+Wake Island and `ww2_common` junctioned in), stages 9 - 10: the Rust's files are its stock run's, every one (ONS_MP_004
+3,264, ONS_MP_005 4,035, ONS_MP_008 9,254 of the same SHA-256); the retired Python's stage 10 copied the WW2 levels'
+partitions into the Onslaught levels (the decision above, XCONS-ONS-10):
+
+| Level | Python: files copied in (from WW2 levels) | Rust: files copied in | Python only / differ |
+|---|---|---|---|
+| ONS_MP_004 | 827 (coral_sea 519, guadal_canal 131, wake_island_s 20, iwo_jima_s 6) | 54 | 773 / 5 |
+| ONS_MP_005 | 766 (coral_sea 526, guadal_canal 132, wake_island_s 11) | 0 | 768 / 2 |
+| ONS_MP_008 | 837 (coral_sea 502, guadal_canal 122, iwo_jima_s 8, wake_island_s 2) | 108 | 729 / 5 |
+
+Among them BF1943's Thompson and the WW2 builds of BFBC2's hand-held weapon animations (`at_mine`, `handgrenade`,
+`knife`, `defibrillator` 1P sets: found nowhere on the stock install, which the levels loaded without), and two
+shed Havok resources taken from a WW2 level's converted copy instead of sp_005's.
+
+The files are every work file of the three stages (the boat's converted resources, unpacks with their XML, the
+pre-stage-5 unpack, `spawn.cmd`, the merged shader databases, the packed bundles; stage 9's seat partitions and
+imports; stage 10's unpack and copies) and the scratch game's real files (each level bundle as the stages installed
+it, the ledger's blobs). The printed lines are the same.
+
+**Damaged inputs** (`parity.py damaged`): 21 cases, each run by both sides on a fresh scratch root, end alike - the
+same files written (or none), the same printed lines, the same exit code: ONS_MP_002 stage 8 with the level bundle cut
+to half or one byte changed, the Mark V's LOD 0 mesh data missing or cut to 1 %, its Havok resource cut to 30 %, the
+console level's manifest missing, `BFBC2Game.exe` cut to 5 % (no hkClass layouts); stage 10 with the bundle cut to half
+or one byte changed; ONS_MP_004 stage 9 without the T-90 partition, with the bundle cut to half or one byte changed,
+and stage 10 with the bundle cut to half. The error's last line: the same words, with the Rust's exception class
+`ValueError` (or `OSError`) in front of the Python's own (`ValueError: KeyError: '...'`, `ValueError: ConvertError:
+...`); a failing FbrbTool names the day's tool log under the Python and "(no log file)" under the in-process Rust
+(OR9's open item). Stage 8's bundle cut or changed: the Python failed in its build's reader (a damaged bundle, a
+shader database it does not read), the Rust is refused by the ledger before the build ("changed outside the install
+ledger since vehicles:ons_mp_002 installed it"), the decision above; neither writes to `game\`.
+
+`game\`'s registration files (`Package` and `Dist\win32`'s top-level files: `package.mft`, `bundleManifest`, the
+overlays and their markers) and the four console levels' `level-00.fbrb` have the same SHA-256 and times before and
+after the runs.
+
+### What is left
+
+- OR10's helpers: when OR10 merges, `onslaught/files.rs`'s copies of `xml_of`, `drop_xml`, `manifest_lines`,
+  `write_manifest` and `under` go in favour of `onslaught::port`'s.
+- The in-process tools still write no tool log (a failing stage 10 says "details: (no log file)", the Python named
+  the day's FbrbTool log): OR9's open item.
+- Stages 11 - 14, the shader audit, the Napisal-level fixes and the driver: OR12, OR13.
+- **Unproven until a playtest**: nothing new in game on the stock install - the bundles are the Python's byte for
+  byte. With the WW2 levels installed, a rerun of stages 8 / 10 now differs from what the Python would have built
+  there (stock sources only), by design.
