@@ -4970,6 +4970,19 @@ off (`mesh_corners` at area boundaries only is the next test). navregress's refe
 the new default (the old one kept as `regression_before_2026-11-27_nksdd.json`): its 15 rows equal the scratch
 `lip_object_flat_all` run above in every value.
 
+Files the ruling changed, and why:
+- `navbuild_golden.json` (`test_navbuild_native.py --record --game`): the four golden builds, old -> new SHA-1
+  (bytes) - sp_009 65e1f51d... (331,212) -> 5c3fc9f6... (333,728), sp_004_b 20f9b284... (8,046,096) -> ae128206...
+  (7,926,916), sp_008_b 2774bb3f... (7,977,168) -> 99539f0d... (7,914,296), ons_mp_004 dc870cc8... (7,297,064) ->
+  bf442008... (7,333,176): object lips with sloped sides no longer join ground. The recorded answers of the retired
+  Python (e2a 331, e3c 456, e3h 29, stage 10) are unchanged: the 9 `walkable` cases among them now run with the
+  rule they were recorded with (`retired_lips()`, `LIP_OBJECT_FLAT_ALL` off), as they test the port, not the rule.
+- `navtools_golden.json` (`test_navtools_native.py --record --game --only measures`): the parity rows of sp_009 and
+  sp_004_b, whose candidates are the new golden builds (sp_004_b `connectivity` 99.90 -> 99.86, within navregress's
+  0.05 tolerance).
+- OPFOR's `work
+avkit\parityegression.json` (not in the repository): re-recorded, the old one kept dated.
+
 ### 4. navregress and the harness
 
 The old exact-match measures (`nodes_same`, `edges_same`, `costs`) left navregress's failing set (`INFO`: listed when

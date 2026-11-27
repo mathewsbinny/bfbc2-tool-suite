@@ -3,16 +3,16 @@
   "measures": {
    "got": {
     "sp_004_b": {
-     "candidate": "20f9b284871d45babd98d92d232de96693601421",
-     "connectivity": 99.9,
+     "candidate": "ae1282064d95b50bbe7d8d73a0bfa275d575d8fc",
+     "connectivity": 99.86,
      "ground": 98.49,
-     "row": "a68e3883fbef6b59818201b495a76befab654975"
+     "row": "99fe4d93900fa9eca02ba76fd465535601927c9f"
     },
     "sp_009": {
-     "candidate": "65e1f51d18c32350f6f549f86536081da2a69735",
+     "candidate": "5c3fc9f6c59a1d9ccc947a94cbc767d72ad888b5",
      "connectivity": 100.0,
      "ground": 99.97,
-     "row": "77e7e4cbd55d6f4ade6e9039683c23c98365bff5"
+     "row": "c19bee762fe2caf1687e9de67b9bbcbb24988247"
     }
    },
    "inputs": {
@@ -55,5 +55,5 @@
    }
   }
  },
- "recorded": "2026-11-23"
+ "recorded": "2026-11-27"
 }
