@@ -57,7 +57,7 @@ imports: this merge releases a minor version, and OPFOR's `SUITE_REQUIRES` moves
   `bc2_native.effectport_port` / `effectport_port_many` / `effectport_walk` / `soundport_port`. `effectport.py` keeps
   its API as a wrapper and gains `port_sounds`, `sound_fills`, `not_streaming`; every WW2 effect and sound port gave the
   retired Python's files, report lines and records (spec XWW2-FX-1, XWW2-SND-1 - 2). A wave that does not convert is
-  reported with the Rust converter's reason (`wavport::convert_checked`, `bc2_native.audio_convert_checked`).
+  reported with the Rust converter's reason (`wavport::convert_checked`).
 - A missing effect template now raises `dbxport.MissingTemplate` naming it (spec XWW2-FX-2), where the Python raised
   the reader's `DeletedEntry`.
 - Round TG4: a Create Level project opens on its new terrain (it showed the base's), so the Terrain workspace's

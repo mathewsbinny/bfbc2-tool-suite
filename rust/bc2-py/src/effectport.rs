@@ -469,24 +469,3 @@ pub fn soundport_not_streaming<'py>(py: Python<'py>, data: &[u8]) -> PyResult<(B
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok((PyBytes::new(py, &d), c))
 }
-
-/// `audio.convert` with the reason a Wave does not convert: `(bytes, None)` or `(None, why)`.
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "PyO3 extracts the arguments as owned values"
-)]
-#[pyfunction]
-#[pyo3(signature = (b, source, streams, word14=0))]
-pub fn audio_convert_checked<'py>(
-    py: Python<'py>,
-    b: &[u8],
-    source: &str,
-    streams: [Option<Vec<u8>>; 3],
-    word14: u32,
-) -> (Option<Bound<'py, PyBytes>>, Option<String>) {
-    let views = [streams[0].as_deref(), streams[1].as_deref(), streams[2].as_deref()];
-    match py.detach(|| bc2_convert::wavport::convert_checked(b, source, &views, word14)) {
-        Ok(d) => (Some(PyBytes::new(py, &d)), None),
-        Err(e) => (None, Some(e)),
-    }
-}

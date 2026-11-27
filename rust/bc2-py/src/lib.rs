@@ -491,8 +491,8 @@ mod bc2_native {
     // round OR8: the WW2 effect porter and sound porter (effectport.py's and OPFOR's port_sounds' Python retired)
     #[pymodule_export]
     use super::effectport::{
-        audio_convert_checked, effectport_forget, effectport_levels, effectport_port, effectport_port_many,
-        effectport_templates, effectport_walk, soundport_fills, soundport_not_streaming, soundport_port,
+        effectport_forget, effectport_levels, effectport_port, effectport_port_many, effectport_templates,
+        effectport_walk, soundport_fills, soundport_not_streaming, soundport_port,
     };
 
     // round OR4: OPFOR's material grid and pictures (physmat, the texture glue, the pictures)
