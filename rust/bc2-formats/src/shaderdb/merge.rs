@@ -140,6 +140,24 @@ pub trait Store<'a> {
     fn keep(&self, b: &[u8]) -> &'a [u8];
 }
 
+/// A [`Store`] that owns its arena (round OR11: a merge in a crate with no arena of its own - Project OPFOR's Mark V
+/// stage, `bc2_install::onslaught::markv`). `&ArenaStore` is the store; the merged file's records live as long as it.
+#[derive(Default)]
+pub struct ArenaStore(bumpalo::Bump);
+
+impl ArenaStore {
+    /// An empty arena.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<'a> Store<'a> for &'a ArenaStore {
+    fn keep(&self, b: &[u8]) -> &'a [u8] {
+        self.0.alloc_slice_copy(b)
+    }
+}
+
 /// `retexture(block, textures, where, hits)`: a parameter block with texture names replaced in place. Each old name
 /// (a whole field's text, starting the field: the byte before it a zero, or the block's start; NUL-terminated)
 /// becomes the new one, padded with zeros to the same span (the old name, its terminator and the zeros after it,

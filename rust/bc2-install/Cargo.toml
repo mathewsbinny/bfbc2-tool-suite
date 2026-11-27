@@ -36,8 +36,9 @@ windows-sys = { workspace = true, optional = true }
 # the WW2 level build (OPFOR's wake_install.build, round OR2): bc2_native's ww2build_* functions; bfbc2.exe's
 # installer does not need it
 levelbuild = ["dep:bc2-tools", "dep:bc2-convert", "dep:bc2-menu", "dep:bc2-pyrt", "dep:sha1_smol"]
-# the console Onslaught import (OPFOR's console_onslaught.build / install, round OR5): bc2_native's onslaught_*
-onslaught = ["dep:bc2-tools", "dep:bc2-pyrt", "dep:thiserror"]
+# the console Onslaught import (OPFOR's console_onslaught.build / install, round OR5): bc2_native's onslaught_*; the
+# console port's stages (OR9, OR10: stage 7 merges shader databases and reads the mesh index through bc2-convert)
+onslaught = ["dep:bc2-tools", "dep:bc2-pyrt", "dep:thiserror", "dep:bc2-convert"]
 # the map export's install (Project OPFOR's mapedit_install.py, round OR6): `bfbc2 install mapedit` and the map
 # editor's Install dialog
 mapedit = ["dep:bc2-pyrt"]

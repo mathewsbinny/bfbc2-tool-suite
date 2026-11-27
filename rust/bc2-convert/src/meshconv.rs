@@ -716,7 +716,8 @@ pub fn relayout(b: &[u8], old: &[&[u8]], new: &[&[u8]]) -> Res<Vec<u8>> {
 }
 
 /// `pair_by_kind(ec, ep, leftovers=True)`: the console element for each PC element (the k-th of a kind the k-th).
-fn pair_by_kind(ec: &[Element], ep: &[Element]) -> Option<Vec<usize>> {
+#[must_use]
+pub fn pair_by_kind(ec: &[Element], ep: &[Element]) -> Option<Vec<usize>> {
     let mut pools: Vec<((u8, u8, u8), std::collections::VecDeque<usize>)> = Vec::new();
     for (i, &(f, u, _, s)) in ec.iter().enumerate() {
         let k = (pc_format(f), u, s);
