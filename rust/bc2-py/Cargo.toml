@@ -24,6 +24,8 @@ bc2-navbuild = { workspace = true, features = ["graphedit"] }
 bc2-shader.workspace = true
 bc2-stockmp.workspace = true
 bc2-harness.workspace = true
+# round OR5: the menu art's picture pieces (bc2_menu::modeart / pil) for OPFOR's Pacific War menu step
+bc2-menu.workspace = true
 # round F4: xenos.disasm's header formats floats as Python's %g does
 bc2-pyrt.workspace = true
 iced-x86.workspace = true
@@ -33,7 +35,7 @@ bumpalo.workspace = true
 self_cell.workspace = true
 rayon.workspace = true
 # OPFOR's WW2 level build (round OR2): its bindings arrive as JSON
-bc2-install = { workspace = true, features = ["levelbuild"] }
+bc2-install = { workspace = true, features = ["levelbuild", "onslaught"] }
 serde.workspace = true
 serde_json.workspace = true
 

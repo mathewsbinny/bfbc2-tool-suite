@@ -12,6 +12,10 @@ repository.workspace = true
 bc2-formats.workspace = true
 bc2-gamefs.workspace = true
 bc2-pyrt.workspace = true
+# round OR5: OPFOR's menu art (DbxEdit / FbrbTool in process, the cached PNG, the atlas index's patterns)
+bc2-tools.workspace = true
+png.workspace = true
+regex.workspace = true
 thiserror.workspace = true
 
 [lints]

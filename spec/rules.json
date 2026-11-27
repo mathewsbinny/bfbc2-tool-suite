@@ -7333,11 +7333,61 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:build_menus.bat:32-41"
+     "ref": "opfor:build_menus.bat:27-42"
     },
     {
      "kind": "code",
-     "ref": "opfor:build_menus.bat:54-55"
+     "ref": "opfor:build_menus.bat:49-50"
+    }
+   ]
+  },
+  {
+   "id": "MENU-ED-7",
+   "title": "A menu patch is applied whole or not at all, every expected byte checked",
+   "file": "spec/engine/menus.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/aptpatch.rs:36-70"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-menu/src/aptpatch.rs::refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-menu/src/aptpatch.rs::patches_and_appends"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR5, 2026-11-23: OPFOR's 12 patch files on DICE's pristine main menu, 12 of 12 movies identical to AptTool.exe's"
+    }
+   ]
+  },
+  {
+   "id": "MENU-ED-8",
+   "title": "The ONSLAUGHT mode picture is new data appended, its pixels Pillow's",
+   "file": "spec/engine/menus.md",
+   "status": "verified",
+   "variants": "PC, Xbox 360 (the source)",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/modeart.rs:481-704"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-menu/src/pil.rs:1-20"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-menu/src/pil.rs::pillow_answers"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR5, 2026-11-23: rust/parity_menuart.py, 200 random cases of each of 9 operations identical to Pillow / numpy; the menu bundle built from the cache, the user's Xbox 360 package and the fallback identical to onslaught_art.py's"
     }
    ]
   },
@@ -8465,11 +8515,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_onslaught.py:261-278"
+     "ref": "rust/bc2-install/src/onslaught.rs:696-728"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_onslaught.py:350-355"
+     "ref": "rust/bc2-install/src/onslaught.rs:812-891"
     },
     {
      "kind": "data",
@@ -24654,6 +24704,35 @@
     {
      "kind": "doc",
      "ref": "opfor:DEVELOPMENT_NOTES.md:1350"
+    }
+   ]
+  },
+  {
+   "id": "XCONS-ONS-1",
+   "title": "The console Onslaught import gives the retired Python's work files",
+   "file": "spec/transforms/console.md",
+   "status": "verified",
+   "variants": "Xbox 360",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught.rs:541-560"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught.rs:1041-1050"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_onslaught.py:24-72"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught.rs::report_text"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR5, 2026-11-23: the user's Update #3 package on ONS_MP_008 / MP_008 and ONS_MP_002 / MP_002, every work file and write of the Rust import identical to the Python's (rust/BENCHMARKS.md \"OR5\")"
     }
    ]
   },

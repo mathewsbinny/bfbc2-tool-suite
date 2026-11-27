@@ -224,6 +224,7 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      mods list|status|enable|disable|install|uninstall|verify|restore-original|migrate ...   OPFOR's mod manager\n  \
      terrain generate --biome <b> --size 1024|2048 --seed <n> --out <folder> ...   a new terrain from a seed\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
+     aptpatch, menuart onslaught ...   Project OPFOR's menu build: its patch files applied, the Onslaught mode picture\n  \
      exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
      hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
      caches, stockmp, aptgraft, audio, meshview, culltree ...   the caches, stock-MP AI, APT grafting, sounds, meshes, cull trees\n  \
@@ -353,6 +354,14 @@ fn main() -> ExitCode {
     #[cfg(feature = "mods")]
     if first == "mods" {
         return mods_cli::main(rest);
+    }
+    #[cfg(feature = "menu")]
+    if first == "aptpatch" {
+        return menu::opfor::aptpatch_main(rest);
+    }
+    #[cfg(feature = "menu")]
+    if first == "menuart" {
+        return menu::opfor::menuart_main(rest);
     }
     #[cfg(feature = "terrain")]
     if first == "terrain" {
