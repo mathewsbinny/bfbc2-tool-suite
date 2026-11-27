@@ -66,7 +66,7 @@ keeps BF1943's the same way (not remapped, not nulled).
 
 [test: core/tests/test_spec_probes.py::terrain_partitions]
 [data: spec/probes/terrain.py, 2026-11-22: 30 terrain partitions: the class counts and references as listed; Enable true on every group, spline and quad decal, 280 of 314 full decals]
-[doc: opfor:src/tools/ww2/wake_install.py:473-481]
+[doc: opfor:src/tools/ww2/wake_install.py:410-418]
 
 ### DECAL-SRC-2: The level partition's terrain splines
 

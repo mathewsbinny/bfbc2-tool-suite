@@ -4526,6 +4526,160 @@ So the rule layers shade by the ground's height (TGEN-VIS-2): the generator take
   visual terrain, the cloned entries, the visual water, the colour / occlusion map, the donor's rule layers in game.
   Nothing was installed or launched.
 
+## OR3c: OPFOR in Rust, stage 3c - the shader translation driver (2026-11-23, branch `or3c`, with Project OPFOR's `or3c`)
+
+What OR3b left ("OR3b", "What is left"): `wake_translate`'s translation driver, `ww2_char_shaders`' soldier glue and
+`wake_install.index_templates`' scan. Version **0.25.0** (added: the driver; nothing of the suite removed; a round
+merged first may take the number). Nothing was written to OPFOR's `game\`; the game never launched.
+
+### What moved
+
+- **`bc2_convert::shadertranslate`** (new), through `bc2_native.shadertranslate_*` and `shaderdb.py`'s thin wrappers:
+  - `translate_plan` (`plan`): `translate_db`'s todo list (filters, excludes, `only`, the materials kept on their
+    donor, the meshes drawn with DICE's shaders) and per entry BF1943's programs (main by point light, depth-only),
+    the layouts it is drawn with (its mesh's parts, the strip layout, a terrain patch's two layouts, the parts the
+    install will register - asked of the caller once), and per layout and permutation BF1943's program: by layout
+    (`element_map`, each fetch in the layout's own Xenos format), by role (`by_role`) or by element order, scored by
+    mesh kind, variant without the fade, no fade, rank and completeness; its vertex inputs, renderer fragment
+    (`mesh_fragment` / the terrain's by name), key (`program_key`) and id. BF1943's vertex shaders are read with
+    `bc2_shader::xenos::parse` (their usage indices) and their fetch records. Where the Python stopped an entry the
+    plan puts the exception it raised (`TranslateError`, `XenosError`, `KeyError` of the GUID / format / offset,
+    `ValueError`), after the programs before it; what the Python could not have run is an error of the call.
+  - the soldiers (`soldier=True`, which replaces `ww2_char_shaders.soldier_wiring`'s patching of `element_map`):
+    `soldier_layouts`, `soldier_element_map`; the glue `match_entries`, `perms`, `part_users`, `offer_kinds` (the
+    copies returned, applied by the wrapper), `entry_blocks`, `entry_mesh`.
+  - `missing_entries` and `foreign_entries`' choices (the clones stay the Rust merger's), `other_level_variant`, and
+    `discards_code`: a compiled Dx10 / Dx11 shader's `discard_z` / `discard_nz` found in its SHDR / SHEX chunk - what
+    `'discard' in pcbuild.disassemble(code)` answered, without `d3dcompiler`.
+- **`level_scan`** gives each entry's layout record bodies (`LevelScan.layout_records`, the last record of a GUID).
+- **Project OPFOR**: `wake_translate.translate_db` walks the plan (pass 1: the translation jobs; pass 2: compiles,
+  blocks, records), keeping the translation (`xenos_hlsl`), the compiles and parameter blocks (`pcbuild`) and OPFOR's
+  render-state rules (`wake_samplers`, `wake_material_states`, `wake_shore`); `add_missing_entries` /
+  `foreign_entries` take their choices from the suite; `ww2_char_shaders`' glue and `wake_install.index_templates`
+  are the suite's. `source_fragment` / `translated_program_key` retired (the plan makes the key).
+  SUITE_REQUIRES 0.25.0 to below 0.26.0.
+
+### Proof
+
+- **Twins side by side** (the Python at OPFOR `02278c8` against the new, in one process, nothing written):
+  Wake's translation as `main()` runs it - Dx10 and Dx11 (the objects, the foreign entries of the other BF1943
+  levels, the 8 terrain strips and 34 patches), then Dx9's foreign entries with the Dx10 templates: the databases
+  byte for byte, the entries kept, the wiring record, the templates chosen and the log identical. 44 damaged copies of
+  the Dx11 input (seeded: layouts, fragments, BF1943's fragments, entry groups both sides, mesh parts, half-cut
+  vertex shaders, keys' kind / variant / point light, part layouts, BF1943's layout records, fetch records; objects
+  and terrain): every outcome identical (31 databases, 12 exceptions). `ww2_char_shaders.translate` on Wake's staged
+  Dx10 / Dx11 databases (42 soldier entries) and the WW2 levels' builds: identical. `index_templates` on the game
+  copy's 79 stock levels: the same 141 signatures and records. `discards` against the disassembler: **40,744 of
+  40,744** distinct shaders (Wake's databases and every stock level's Dx10 / Dx11 database). Recorded as digests in
+  OPFOR's `src\tools\tests\data\ww2_translate_golden.json` (`test_ww2_translate_parity`, SLOW) before the deletion.
+- Suite: `test_shadertranslate.py` (quick, `shadertranslate`: a built BF1943 / PC pair with a seeded Xenos vertex
+  shader - the plan, its wiring, fragment, key and id; its stops; the entries left out; missing / foreign entries;
+  the soldier glue); `test_shaderdb_levels.py` checks the layout records against the old query on its 450 stand-in
+  databases; 14 Rust unit tests.
+- **WW2 rebuild** from OPFOR's main checkout detached at `or3c`, `OPFOR_TOOLKIT` a scratch folder of junctions (this
+  worktree, the module of `58489ba4`), `OPFOR_ROOT` the main checkout (a scratch toolkit has no OPFOR beside it:
+  `bf1943_fx`'s `find_opfor(None)` stops step 0 without it), `OPFOR_SUITE_STRICT=1`, `--jobs 2`: all 55 steps in 24.3 min; `compare_oracle`
+  **7,945 of 7,945 identical**. QA: one regression outside this round (below).
+- **Install oracle**: `wake_install.py --plan` 7.3 min, `compare_oracle --install` **21,149 of 21,149 identical**.
+- `game\`: its 1,582 files (11.6 GB) hashed (path, size, time, SHA-256) before the rebuild, before the plan and after
+  it: identical. OPFOR's main checkout back on `main` afterwards.
+
+### Timings
+
+| | Python | Rust plan |
+|---|---:|---:|
+| Wake's Dx10 translation (objects, foreign, strips, patches; compiles cached) | 18.1 s | 4.4 s |
+| Wake's Dx11 translation | 10.2 s | 3.3 s |
+| `index_templates`, 79 stock levels | 9.1 s | 1.9 s |
+
+In the rebuild `wake_translate` took 39 s (18 s in OR3b's): the step also loads the stock index and converts the
+named textures (`convert_named`), and this rebuild's `install_index.pkl` had been rebuilt by a parity run the same
+day; not looked into further - the translation itself is the table's.
+
+### Decided
+
+- Nothing against DICE: the plan is the Python's rule for rule (a Python-only quirk kept as it is: the terrain
+  fragment message's "stripes", from `f'{kind}es'`).
+
+### What is left (stage 3)
+
+- OR3a's self-clone accident (PY1).
+- The HLSL compiles, the parameter blocks and binding tables stay `pcbuild` (Python over `d3dcompiler_47`), the
+  render-state rules OPFOR's (`wake_samplers`, `wake_material_states`, `wake_shore`).
+- `bfbc2-shader-tools`' Python: renderqa, xdiff, pcbuild, xenos_exec (and `shaderdb.py`'s / `xenos.py`'s /
+  `xenos_hlsl.py`'s thin wrappers).
+- The QA texture regression this rebuild reported (`install/level/textures/sky/sky_beach_generic_rgba16f.res`,
+  psnr against BF1943's source 99.0 -> 21.22 dB): round WW2-ORC1 put DICE's PC copy of Sky_Beach_Generic in the
+  levels instead of the relic BF1943 conversion; the QA baseline still holds the old texture. Not this round's.
+
+### Tests
+
+- cargo fmt; clippy `--all-targets -D warnings` on bc2-formats, bc2-convert, bc2-py and each of `bfbc2.exe`'s tool
+  groups alone; `cargo test` of the new modules; the quick tier; ruff and mypy (results in the round's report).
+
+## OR2: OPFOR in Rust, stage 2 - the level build (2026-11-23, branch `or2`, with Project OPFOR's `or2`)
+
+What OR1 left ("Left for stage 2"): `wake_install.build` and its parts that are not the shader glue. Version
+**0.26.0** (removals: `terrain._Walk` / `ROAD_VERTEX`, the `install_index.pkl` cache; RELEASING.md). The round was
+paused once (the user, 2026-11-23) and resumed; the WIP commits stay in the history. Nothing was written to OPFOR's
+`game\`; the game never launched.
+
+### What moved
+
+The new module `bc2_install::levelbuild` (feature `levelbuild`, which `bc2-py` enables; `bfbc2.exe`'s installer does
+not build it) and its bindings `rust/bc2-py/src/ww2build.rs` (`bc2_native.ww2build_*`, `Ww2Index`, `Ww2PackJob`).
+OPFOR's `wake_install.py` keeps its entry points as thin callers that pass its decisions as data (the level's
+bindings, its roots and skips, REMAP, WEAPON_PERSISTENCE, TEAMS, KIT_VOICE, ROOT_FILES, UG_STANDIN, the loaded and
+masked bundles): about 1,500 lines of its Python retired.
+
+| Project OPFOR (`wake_install.py`, Python until OR2) | `bc2_install::levelbuild` |
+|---|---|
+| `stock_bundles`, `ondemand_bundles`, `stock_index` (the pickle `install_index.pkl`), `masked_names`, `live_entries`, `our_files` (`file_sha`, `same_file_content`), `primary_type` | `index` (the stock index read on all cores and kept for the process while every bundle keeps its size and date) |
+| `closure` | `closure` |
+| `write_stage` (`_STAGED`), `fetch_stock`, `pack_level` / `finish_packs` (the packing thread), `patch_bundle`, `build_ww2_common` / `common_signature` | `stage` |
+| `model_group_check` (`havok_parts`, `group_ids`, `group_members`, `group_expects`, `member_mismatch`, `GroupError`), `loaded_names`, `level_names`, `icon_gate` (on `bc2_menu::graft`) | `gates` |
+| `description`, `air_superiority_mode`, `level_list_items` / `level_list_xml` / `level_list_query` (DbxEdit in process) | `describe` |
+| `edit_level` (`team_refs`, `vo_from`, the test aids `test_drop` / `test_spawn`), `remap_targets`, `patch_refs`, `persistence_ids`, `weapon_persistence`, `patch_ours`, `kit_voices`, `sky_patch` (its own branch; the sky's Option B stays `wake_sky`'s), `root_files`, `mesh_flags`, `ondemand_waves`, `emitter_atlas`, `undergrowth_files` | `levelfiles` |
+| `terrain_files`, `undergrowth_scales`, `undergrowth_blocks`, `_undergrowth_uses` (and the suite's `terrain._Walk` / `ROAD_VERTEX`, retired) | `terrainfiles` |
+| `port_missing` (`port_mesh`, `_PORTED`) | `ports` on `meshport::Porter::port_with` (new: the shader plan - each part's layout choice, the materials -, and a bare mesh skinned to no soldier) and `granny::to_pc`; PORT_PARTS' template ports stay `dbxport.port`'s (the suite's Rust core already) |
+
+Still Python in `wake_install.py`: the shader glue (stage 3: `shader_dbs`, `autoclone`, `fix_layouts`,
+`register_parts`, `zonly_programs`, `index_templates` - OR3c's), `res_type`, `stage_textures`, `ww2_common_files`,
+`build_shared`'s gathering, `terrain_names`, `drop_instances` (wake_vo uses it) and `build()`'s orchestration.
+
+### Decided (Python-only accidents against DICE's data)
+
+- The closure's Python set orders (the partition names in our mesh sets, the reached partitions' order in the take,
+  `level_names`' partitions) are first-seen and sorted orders: every staged file and report line came out the
+  same (below), so no output depended on them.
+- A model group's `Enums` holding something that is not a number is a group problem (reported, the gate fails); the
+  Python stopped the build with a `ValueError`.
+- The staging record knows a bytes source by the object's identity kept alive with the record, as `rec[0] is src`
+  did.
+
+### Proof
+
+- **Wake, Rust against Python** (`scratchpad\or2\parity_build.py`: `wake_install.build` and the shared patches into a
+  scratch folder, OPFOR main's Python with main's suite against this branch; the game copy and `work\ww2` read only):
+  **6,260 of 6,260 staged files identical** (the level, terrain, ingame, loader and vo bundles and folders, the root
+  files, the description, the level list, ww2_common, the startup / overlay / ondemand_awards patches, the patched
+  copies, report.json); report.txt identical but for the scratch folder's own name in the DbxEdit check line. Python
+  290 s, Rust 239 s (the shader pass, still Python, is most of both).
+- **WW2 rebuild** (OPFOR main detached at `or2`, `OPFOR_TOOLKIT` a scratch folder of junctions to this worktree,
+  `OPFOR_SUITE_STRICT=1`, `--jobs 2`): all steps in 24.5 min; `compare_oracle` **7,945 of 7,945 identical**. `rebuild_all` exits 1 on one QA texture check only (`sky_beach_generic_rgba16f.res` psnr 21.22 dB against the BF1943 source: DICE's PC sky since WW2-ORC1, a stale QA baseline, not this round's).
+- **Install oracle** (`wake_install.py --plan` on the four levels): 4.7 min; `compare_oracle --install` **21,149 of 21,149 identical** (the install-time ports in Rust: 11 for Wake, the plans.json among them).
+- `game\`: its 1,582 files (11.6 GB) hashed (path, size, time, SHA-256) before the rebuild, before the plan and after it: identical; OPFOR main back on main (02278c8).
+- Tests: `bc2-install/tests/levelbuild.rs` (7 on a fake game copy: the stock bundles' order and the index, our files,
+  the closure with every case, the staging and patches, ww2_common, the model groups, the level edits and remaps,
+  the description and level list through DbxEdit, mesh flags and on-demand waves) and the module's unit tests;
+  OPFOR's test_model_groups, test_ww2_packing, test_ww2_install, test_ww2_terrain_strips, test_ww2_loading on the
+  Rust core.
+
+### Left
+
+- Stage 3c (OR3c, in parallel) and the shader glue named above; stages 4 and 5.
+- `meshport`'s renames, donors and poses (OPFOR's soldier and kit builds: stage 4).
+
 ## NKS-deep D (paused): walkability and extent - RESUME note (2026-11-23, branch `nksdd`)
 
 Paused by the coordinator (the user's ruling: every round but one paused). Work in progress, committed as WIP; no

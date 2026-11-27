@@ -32,6 +32,10 @@ pyo3.workspace = true
 bumpalo.workspace = true
 self_cell.workspace = true
 rayon.workspace = true
+# OPFOR's WW2 level build (round OR2): its bindings arrive as JSON
+bc2-install = { workspace = true, features = ["levelbuild"] }
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

@@ -28,7 +28,42 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-23
+
+Round OR2 retires the suite's `terrain._Walk` and `ROAD_VERTEX` (a Python API Project OPFOR used) and the
+`install_index.pkl` cache file, so this merge releases a minor version (`RELEASING.md`, "A merge that removes
+something"). Project OPFOR's `SUITE_REQUIRES` moves to 0.26.0 - 0.27.0.
+
 ### Added
+- **Project OPFOR's WW2 level build in Rust** ("OPFOR in Rust" stage 2, round OR2): the new module
+  `bc2_install::levelbuild` (feature `levelbuild`) and `bc2_native.ww2build_*` / `Ww2Index` / `Ww2PackJob` -
+  `wake_install.build`'s stock index (kept for the process; the `install_index.pkl` pickle retired), our builds'
+  files, the closure, the level partition's and our copies' edits (teams, material grid, sky dome, voice-over,
+  remaps, weapon unlock entries, kit voices, sky states), the level-root files, the install-time BF1943 ports
+  (`meshport::Porter::port_with`: the shader plan and a bare mesh), the terrain files and undergrowth stand-ins, the
+  staging folders and their packs, ww2_common, the shared bundles' patches, the description, the Air Superiority
+  mode, the menus' level list and the model-group and icon gates. Project OPFOR's Python keeps thin callers; on the
+  real game copy a Wake build gives every staged file of the Python build (6,260 files) byte for byte, and the WW2
+  oracles stay 7,945 of 7,945 and 21,149 of 21,149 (`rust/BENCHMARKS.md` "OR2").
+
+### Removed
+- `terrain._Walk` and `terrain.ROAD_VERTEX` (bfbc2-console-convert, round OR2): only Project OPFOR's
+  `wake_install` used them; its VisualTerrain walk is `bc2_install::levelbuild::terrainfiles`.
+
+## [0.25.0] - 2026-11-23
+
+### Added
+- **Project OPFOR's BF1943 shader translation driver in the Rust core** (round OR3c, "OPFOR in Rust" stage 3c):
+  `bc2_convert::shadertranslate` through `shaderdb.translate_plan` - which of BF1943's programs each mesh-part layout
+  and permutation of an entry is made from (by layout, by role or by element order; the soldiers' layouts by
+  meaning), its vertex inputs, renderer fragment, key and id, and where the Python driver stopped an entry (its
+  `TranslateError` / `XenosError` / `KeyError` / `ValueError`, in place) - and `missing_entries`, `foreign_entries`,
+  `discards` (a compiled shader's discard from its shader chunk, without the disassembler: 40,744 of 40,744 shaders as
+  the disassembly said), `match_entries`, `entry_perms`, `part_users`, `offer_kinds`, `entry_blocks`, `element_map`,
+  `soldier_element_map`, `vertex_elements`, `by_role`, `mesh_of`, `patch_inputs`. `level_scan` gives each entry's
+  layout record bodies too (`LevelScan.layout_records`). Project OPFOR's `wake_translate` / `ww2_char_shaders` /
+  `wake_install.index_templates` call them: Wake's translation as the retired Python made it, byte for byte, about 3-4
+  times as fast (`rust/BENCHMARKS.md` "OR3c"). New quick test `shadertranslate`.
 - **NavKit: the graph measured over every DICE node and edge** (round NKS-deep E, spec XNAV-MEAS-1): `navparity`
   and `navregress` pair each DICE route node one to one with its nearest NavKit node of the sector (within half a
   propagation step: 1.675 m coarse, 0.425 m detailed) and report `nodes_paired`, `nodes_paired_candidate` (the

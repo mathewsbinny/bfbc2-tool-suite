@@ -71,8 +71,8 @@ Every function here runs in the suite's Rust core (round F2a: bc2_convert::terra
 NativeMissing, saying how to get it, without it). Their Python (the *_reference functions) was retired in round RT2
 against its recorded answers (bfbc2-console-convert\\tests\\f2a_console_replay*.json): where it raised another error
 than a TerrainError (a read past the data: a resource cut short or damaged), a TerrainError that is also a
-bfbc2core.native.Refused says so. _Walk (the field walker) and ROAD_VERTEX stay: OPFOR's wake_install walks a
-VisualTerrain with them.
+bfbc2core.native.Refused says so. _Walk (the field walker) and ROAD_VERTEX, which only OPFOR's wake_install
+used, were retired in round OR2 (bc2_install::levelbuild::terrainfiles walks the VisualTerrain).
 """
 import os
 import sys
@@ -145,55 +145,6 @@ def water_mesh(x):
 def material_map(x):
     """An Xbox TerrainMaterialMap (BFBC2's or BF1943's) as BFBC2's PC file."""
     return _run('material_map', x)[0]
-
-
-class _Walk:
-    """(OPFOR's wake_install walks a PC VisualTerrain with it.) Walks a resource field by field (e: '>' an Xbox file, '<' a PC file), writing each field little-endian into a
-    copy of the same size; mark() names the parts walked (for comparing files part by part)."""
-
-    def __init__(self, x, what, e='>'):
-        self.x, self.out, self.o, self.what, self.e = x, bytearray(x), 0, what, e
-        self.parts, self.at, self.name = [], 0, None
-
-    def mark(self, name):
-        if self.name is not None:
-            self.parts.append((self.name, self.at, self.o))
-        self.name, self.at = name, self.o
-
-    def need(self, n):
-        if self.o + n > len(self.x):
-            raise TerrainError(f'{self.what}: runs past the end at {self.o:#x} (+{n} > {len(self.x)} bytes)')
-
-    def arr(self, dt, count):
-        """count values of numpy type dt ('u4', 'f4', 'u2', 'u1', or a structured list [(type, count), ...])."""
-        be = np.dtype([(f'f{i}', self.e + t, c) for i, (t, c) in enumerate(dt)]) if isinstance(dt, list) \
-            else np.dtype(self.e + dt)
-        size = count * be.itemsize
-        self.need(size)
-        v = np.frombuffer(self.x, be, count, self.o)
-        self.out[self.o:self.o + size] = v.astype(be.newbyteorder('<')).tobytes()
-        self.o += size
-        return v
-
-    def u32(self):
-        return int(self.arr('u4', 1)[0])
-
-    def string(self):
-        e = self.x.find(b'\0', self.o)
-        if e < 0:
-            raise TerrainError(f'{self.what}: a name at {self.o:#x} has no end')
-        s = self.x[self.o:e].decode('latin-1')
-        self.o = e + 1
-        return s
-
-    def done(self):
-        self.mark(None)
-        if self.o != len(self.x):
-            raise TerrainError(f'{self.what}: the data ends at {self.o:#x}, the file at {len(self.x):#x}')
-        return bytes(self.out)
-
-
-ROAD_VERTEX = [('f4', 5), ('u2', 4)]        # 28 bytes: 5 x f32, 4 x f16 (half floats, swapped as u16)
 
 
 def visual_terrain(x):
