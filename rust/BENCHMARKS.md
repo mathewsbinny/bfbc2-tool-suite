@@ -5173,3 +5173,8 @@ Proofs:
   stage's end does not stop where no counterpart is found.
 - The 42 connections without a counterpart to split stay as they were (each the stage before's object acting on the
   next stage's: at worst a timer or message of the stage before reaching the next stage during the inserted one).
+
+Checks on the final tree (main d6bad8f3 merged): `cargo clippy --all-targets -D warnings` on bc2-editor and
+bc2-levelwrite, and bc2-cli's 19 tool groups alone, clean; bc2-editor's tests 58 passed (28 game-tier ignored) and
+80 unit tests; the rush stage module with the game tier (5 of 5); gr2 and rush_stage_tools with the game copy; the
+quick tier 137 of 137; `spec/trace.py --check` ok (1,519 rules, GAME-RUSH-12 unused on main).
