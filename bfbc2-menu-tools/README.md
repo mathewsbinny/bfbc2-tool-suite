@@ -11,6 +11,8 @@ never write into it. There is no menu viewer here.
 | `bc2loc.py` | the game's localized texts: look up a key, search the texts, the keys a movie uses; write texts |
 | `aptgraft.py` | writing APT movies (round trip, the other byte order) and grafting between movies: a character with what it uses, the Onslaught HUD timer, mode cases and aliases, frame-label aliases, crosshairs; its commands and model are in its docstring (`python aptgraft.py` prints them) |
 
+Since round OR14 no Project OPFOR code imports this folder's Python: its WW2 and Onslaught movie tools edit movies through `bc2_native.AptMovie` (`bc2_menu::graft`), the Pacific War menu through `bc2_native.pacific_main_nav` / `pacific_main_root` (`bc2_menu::pacific`), and the texts through `bc2_native.LocFile` (`bc2_menu::loc`). `aptgraft.py`, `bc2loc.py`, `aptcheck.py` and `menucommon.py` are the Rust's test references until PR1c.
+
 Project OPFOR's menu build steps are `bfbc2.exe` commands with no Python (round OR5): `bfbc2 aptpatch <in.res>
 <file.patch> <out.res>` applies one of OPFOR's patch files (the format `aptcheck lint` reads; OPFOR's AptTool.cs gave
 the same bytes) and `bfbc2 menuart onslaught <unpacked mainmenu> [--xbox DIR] [--refresh] [--cache FILE]` adds the

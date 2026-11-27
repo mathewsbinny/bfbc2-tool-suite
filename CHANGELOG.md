@@ -28,6 +28,45 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-27
+
+Round OR14 ("OPFOR in Rust", the picture and menu leftovers) moves Project OPFOR's WW2 and Onslaught menu tools onto
+new `bc2_native` APIs (`AptMovie`, `LocFile`, `pacific_main_nav` ...), which OPFOR now requires: this merge releases
+a minor version, and OPFOR's `SUITE_REQUIRES` moves to 0.33.0 - 0.34.0.
+
+### Added
+
+- `bc2_native.AptMovie` / `AptError` / `apt_split_image_part` (round OR14): `aptgraft.py`'s movie API over
+  `bc2_menu::graft` - loading and writing a movie (`GRAFT_LAYOUT`), its timelines' labels, places and geometry, and
+  the edits OPFOR's icon and crosshair tools make (`add_label`, `add_label_alias`, `add_icon_frame`,
+  `rename_constants`, `add_crosshair` with image tiles). New in `bc2_menu::graft`: `icon` (`add_icon_frame`, label
+  hiding), `tiles` (`split_image_part`), `consts`, `add_crosshair_tiles`.
+- `bc2_native.pacific_main_nav` / `pacific_main_root` / `apt_dump_text` (`bc2_menu::pacific`): Project OPFOR's
+  Pacific War main-menu edits, the bytes `menu_install.py`'s Python wrote (spec MENU-ED-9).
+- `bc2_native.LocFile` / `loc_languages` / `loc_load` (`bc2_menu::loc`, out of `bfbc2 bc2loc`): the localization
+  files as `bc2loc.LocFile` read and writes them (spec MENU-ED-10).
+- `bc2_native.pictures_side_silhouette` / `pictures_side_ties` / `pictures_polygon` (`bc2_convert::pictures::side`,
+  `polygon`): a vehicle mesh's DICE-style side silhouette with Pillow's polygon fill (spec XWW2-PIC-5).
+- `bc2_convert::eigh3` (`eigh`, `principal_axis`), `TexWriteJob.axes()` / `encode()`, `texwrite_principal_axes`.
+- Parity scripts `rust/parity_silhouette.py`, `parity_texwrite_axes.py`, `parity_menu_movies.py`,
+  `parity_pacific_menu.py`.
+
+### Changed
+
+- **texwrite's DXT encoders compute their principal axes in Rust** (`bc2_convert::eigh3`): LAPACK `dsyevd` as NumPy
+  2.5 with scipy-openblas computes it on the oracle machine, the same bits on any processor (spec XWW2-PIC-6);
+  `texwrite.py` no longer calls `numpy.linalg.eigh` on the native path. Every encoded block is the same as before;
+  a texture is encoded about 15 x faster. The editor's award and loading-screen exports
+  (`bc2_levelwrite::awards`) use the same axes instead of their own Jacobi solver, so their DXT blocks may differ
+  in rare blocks from 0.32.0's.
+- **One Pillow resize**: `bc2_menu::pil::Rgba::resize_lanczos` runs `bc2_convert::pictures::resample` (its own copy
+  retired); `bc2-menu` depends on `bc2-convert`.
+- The console readers' tests (`bfbc2-console-readers/tests`) run on the Rust core against answers recorded from
+  `stfs.py` / `xisolib.py` (`console_readers_answers.json`, `record_console_readers_answers.py`); the two twins can be
+  deleted in PR1c.
+- `aptgraft.py` and `bc2loc.py` are test references only: no Project OPFOR code imports them.
+- An APT movie cut short is refused with the reference's words (`... runs past the end of the file`, an `AptError`)
+  by the Rust model too.
 ### Changed
 
 - **The specification's rule index is split, one shard per spec file** (round SPLIT1, `rust/BENCHMARKS.md`

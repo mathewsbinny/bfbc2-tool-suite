@@ -19,6 +19,9 @@
 //! APT movies (`apt.rs`, round E3n): `apt_constants`, `apt_decode` / `apt_decode_many`, for
 //! `bfbc2-console-readers/apt/apt.py`; the menu tools' movie model `AptModel` and `apt_roundtrip_many`,
 //! `apt_check_many`, `apt_refs_many` (`aptmodel.rs`, round E4c) for aptgraft, aptcheck and aptrefs.
+//! `pacific_main_nav` / `pacific_main_root` / `apt_dump_text` / `LocFile` / `loc_languages` / `loc_load`
+//! (`menuedits.rs`, round OR14); `AptMovie` / `AptError` / `apt_split_image_part` (`aptmovie.rs`, round OR14): aptgraft.py's movie API over
+//! `bc2_menu::graft` for Project OPFOR's WW2 and Onslaught icon / crosshair tools.
 //!
 //! BF1943's bundles (`bf1943.rs`, round PR1b-1-rest): `bf1943_check`, `bf1943_read` (restart points),
 //! `bf1943_reader`, `bf1943_restarts` / `bf1943_restarts_clear`, for `bfbc2-bf1943-import/bf1943import.py`'s `Source`.
@@ -63,6 +66,7 @@
 mod aim_pathmesh_audio;
 mod apt;
 mod aptmodel;
+mod aptmovie;
 mod bf1943;
 mod budget;
 mod console;
@@ -83,6 +87,7 @@ mod importer;
 mod kymesh;
 mod loc;
 mod menuart;
+mod menuedits;
 mod meshdata;
 mod meshindex;
 mod navapply;
@@ -507,6 +512,9 @@ mod bc2_native {
         pictures_loading_check, pictures_loading_picture, pictures_paint, pictures_resize, pictures_silhouette,
         pictures_weapon_framed, pictures_weapon_render,
     };
+    // round OR14: type95_icon.silhouette (a mesh from the side) and Pillow's polygon fill
+    #[pymodule_export]
+    use super::pictures::{pictures_polygon, pictures_side_silhouette, pictures_side_ties};
     #[pymodule_export]
     use super::ww2build::{
         ww2build_grid_merge, ww2build_grid_names, ww2build_grid_redirect, ww2build_grid_roots, ww2build_res_types,
@@ -565,6 +573,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::aptmodel::{AptModel, apt_check_many, apt_refs_many, apt_roundtrip_many};
+    // round OR14: aptgraft's movie API for OPFOR's WW2 / Onslaught tools (bc2_menu::graft)
+    #[pymodule_export]
+    use super::aptmovie::{AptError, AptMovie, apt_split_image_part};
+    // round OR14: menu_install.py's edits, the dump, bc2loc's LocFile (bc2_menu::pacific / loc)
+    #[pymodule_export]
+    use super::menuedits::{LocFile, apt_dump_text, loc_languages, loc_load, pacific_main_nav, pacific_main_root};
 
     #[pymodule_export]
     use super::granny::{Granny, granny_root, granny_roots_many, granny_to_pc, granny_to_pc_many};
@@ -630,8 +644,8 @@ mod bc2_native {
         havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks, skin_bounds,
         skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert, terrain_heightfield,
         terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts, terrain_visual_water_parts,
-        texture_check, texwrite_alpha, texwrite_l8_bytes, texwrite_l8_down, texwrite_levels, texwrite_resource,
-        texwrite_wrapped,
+        texture_check, texwrite_alpha, texwrite_l8_bytes, texwrite_l8_down, texwrite_levels, texwrite_principal_axes,
+        texwrite_resource, texwrite_wrapped,
     };
 
     // round PR1b-2-rest2: decimate.py's edge collapses and shapes.py's products, tangents and windings

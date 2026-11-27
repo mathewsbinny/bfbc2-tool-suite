@@ -10,6 +10,8 @@ repository.workspace = true
 
 [dependencies]
 bc2-formats.workspace = true
+# round OR14: the suite's one Pillow resize (bc2_convert::pictures::resample)
+bc2-convert.workspace = true
 bc2-gamefs.workspace = true
 bc2-pyrt.workspace = true
 # round OR5: OPFOR's menu art (DbxEdit / FbrbTool in process, the cached PNG, the atlas index's patterns)

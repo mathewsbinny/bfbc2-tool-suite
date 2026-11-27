@@ -2,8 +2,8 @@
 //! (through premultiplied alpha, as `Image.resize` does an RGBA image), cropping, pasting through a picture's own
 //! alpha, `alpha_composite`, DXT5 (BC3) decoding as Pillow's DDS reader decodes it, and PNG in and out.
 //!
-//! Pillow's C code is the reference: `Resample.c` (the filter's coefficients in doubles, normalised to 22-bit fixed
-//! point, a horizontal pass then a vertical one), `Convert.c` (`rgba2rgbA` / `rgbA2rgba`), `Paste.c`
+//! Pillow's C code is the reference: `Resample.c` (since round OR14 the suite's one copy,
+//! `bc2_convert::pictures::resample`, which the WW2 pictures use too), `Convert.c` (`rgba2rgbA` / `rgbA2rgba`), `Paste.c`
 //! (`paste_mask_RGBA`), `AlphaComposite.c` and `BcnDecode.c`. `tests/pil_parity.py` holds them against the installed
 //! Pillow on random pictures.
 
@@ -29,6 +29,7 @@
 )]
 
 use crate::error::{MenuError, MenuResult};
+use bc2_convert::pictures::resample;
 
 /// An RGBA picture, 8 bits a channel, rows top to bottom.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -157,151 +158,28 @@ impl Rgba {
         }
     }
 
-    /// `resize((w, h), Image.Resampling.LANCZOS)` of an RGBA picture: premultiplied, resampled, unpremultiplied.
+    /// `resize((w, h), Image.Resampling.LANCZOS)` of an RGBA picture: premultiplied, resampled, unpremultiplied -
+    /// the suite's one Pillow resize, `bc2_convert::pictures::resample::resize` (round OR14; OR5's own copy retired).
     #[must_use]
     pub fn resize_lanczos(&self, w: usize, h: usize) -> Self {
-        if (w, h) == (self.w, self.h) {
-            return self.clone();
+        let pic = bc2_convert::pictures::Pic {
+            w: self.w,
+            h: self.h,
+            ch: 4,
+            px: self.px.clone(),
+        };
+        let out = resample::resize(&pic, w, h, resample::Filter::Lanczos);
+        Self {
+            w: out.w,
+            h: out.h,
+            px: out.px,
         }
-        let mut pre = self.clone();
-        for p in pre.px.chunks_exact_mut(4) {
-            let a = u32::from(p[3]);
-            for c in &mut p[..3] {
-                *c = muldiv255(u32::from(*c), a) as u8;
-            }
-        }
-        let out = resample(&pre, w, h);
-        let mut out = out;
-        for p in out.px.chunks_exact_mut(4) {
-            let a = u32::from(p[3]);
-            if a != 255 && a != 0 {
-                for c in &mut p[..3] {
-                    *c = ((255 * u32::from(*c)) / a).min(255) as u8;
-                }
-            }
-        }
-        out
     }
 }
 
 fn div255(v: u32) -> u32 {
     let t = v + 128;
     ((t >> 8) + t) >> 8
-}
-
-fn muldiv255(a: u32, b: u32) -> u32 {
-    div255(a * b)
-}
-
-const PRECISION_BITS: u32 = 32 - 8 - 2;
-
-fn lanczos(x: f64) -> f64 {
-    fn sinc(x: f64) -> f64 {
-        if x == 0.0 {
-            return 1.0;
-        }
-        let x = x * std::f64::consts::PI;
-        x.sin() / x
-    }
-    if (-3.0..3.0).contains(&x) {
-        sinc(x) * sinc(x / 3.0)
-    } else {
-        0.0
-    }
-}
-
-/// `precompute_coeffs` + `normalize_coeffs_8bpc`: (ksize, bounds (min, count), fixed-point coefficients).
-fn coeffs(in_size: usize, out_size: usize) -> (usize, Vec<(usize, usize)>, Vec<i32>) {
-    let scale = in_size as f64 / out_size as f64;
-    let filterscale = scale.max(1.0);
-    let support = 3.0 * filterscale;
-    let ksize = support.ceil() as usize * 2 + 1;
-    let mut bounds = Vec::with_capacity(out_size);
-    let mut kk = vec![0i32; out_size * ksize];
-    let mut k = vec![0f64; ksize];
-    for xx in 0..out_size {
-        let center = (xx as f64 + 0.5) * scale;
-        let ss = 1.0 / filterscale;
-        let xmin = ((center - support + 0.5) as i64).max(0);
-        let xmax = ((center + support + 0.5) as i64).min(in_size as i64) - xmin;
-        let (xmin, xmax) = (xmin as usize, xmax.max(0) as usize);
-        let mut ww = 0.0;
-        for (x, kx) in k.iter_mut().enumerate().take(xmax) {
-            let w = lanczos(((x + xmin) as f64 - center + 0.5) * ss);
-            *kx = w;
-            ww += w;
-        }
-        for (x, kx) in k.iter_mut().enumerate() {
-            let v = if x < xmax {
-                if ww == 0.0 { *kx } else { *kx / ww }
-            } else {
-                0.0
-            };
-            let f = v * f64::from(1u32 << PRECISION_BITS);
-            kk[xx * ksize + x] = if v < 0.0 { (-0.5 + f) as i32 } else { (0.5 + f) as i32 };
-        }
-        bounds.push((xmin, xmax));
-    }
-    (ksize, bounds, kk)
-}
-
-fn clip8(v: i32) -> u8 {
-    (v >> PRECISION_BITS).clamp(0, 255) as u8
-}
-
-/// `ImagingResampleInner` with Lanczos on 4 bands of 8 bits.
-fn resample(src: &Rgba, w: usize, h: usize) -> Rgba {
-    let (kh, bh, kkh) = coeffs(src.w, w);
-    let (kv, bv, kkv) = coeffs(src.h, h);
-    let need_h = w != src.w;
-    let need_v = h != src.h;
-    let first = bv.first().map_or(0, |b| b.0);
-    let last = bv.last().map_or(0, |b| b.0 + b.1);
-    let mut cur = src.clone();
-    let mut off = 0;
-    if need_h {
-        let rows = last - first;
-        let mut t = Rgba::filled(w, rows, [0; 4]);
-        for yy in 0..rows {
-            for (xx, &(xmin, xmax)) in bh.iter().enumerate() {
-                let k = &kkh[xx * kh..xx * kh + kh];
-                let mut ss = [1i32 << (PRECISION_BITS - 1); 4];
-                for x in 0..xmax {
-                    let p = cur.at(x + xmin, yy + first);
-                    for (c, s) in ss.iter_mut().enumerate() {
-                        *s = s.wrapping_add(i32::from(cur.px[p + c]).wrapping_mul(k[x]));
-                    }
-                }
-                let d = t.at(xx, yy);
-                for (c, s) in ss.iter().enumerate() {
-                    t.px[d + c] = clip8(*s);
-                }
-            }
-        }
-        cur = t;
-        off = first;
-    }
-    if need_v {
-        let mut t = Rgba::filled(cur.w, h, [0; 4]);
-        for (yy, &(ymin, ymax)) in bv.iter().enumerate() {
-            let k = &kkv[yy * kv..yy * kv + kv];
-            for xx in 0..cur.w {
-                let mut ss = [1i32 << (PRECISION_BITS - 1); 4];
-                for y in 0..ymax {
-                    let p = cur.at(xx, y + ymin - off);
-                    for (c, s) in ss.iter_mut().enumerate() {
-                        *s = s.wrapping_add(i32::from(cur.px[p + c]).wrapping_mul(k[y]));
-                    }
-                }
-                let d = t.at(xx, yy);
-                for (c, s) in ss.iter().enumerate() {
-                    t.px[d + c] = clip8(*s);
-                }
-            }
-        }
-        cur = t;
-    }
-    cur
 }
 
 // ------------------------------------------------------------------------------------------------ DXT5

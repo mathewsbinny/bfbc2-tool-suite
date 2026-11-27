@@ -487,7 +487,7 @@ pub fn run(plan: &Plan, emit: &(dyn Fn(&str) + Sync)) -> Result<Outcome, String>
                     let need = est[i].1;
                     let fits = sh.running.is_empty()
                         || (sh.running_mb + need + reserved <= budget
-                            && free_mb().is_none_or(|f| f >= need + RESERVE_MB));
+                            && (!plan.free_gate || free_mb().is_none_or(|f| f >= need + RESERVE_MB)));
                     if !fits {
                         if reserved == 0.0 {
                             reserved = need;

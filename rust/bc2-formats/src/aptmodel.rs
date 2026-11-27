@@ -49,6 +49,10 @@ impl std::fmt::Display for Refused {
 
 impl std::error::Error for Refused {}
 
+/// The prefix of a refusal whose reason is the `AptError` `aptgraft.py`'s own parse raises there: its words after
+/// `<label>: ` (round OR14: `bc2_menu::graft::Movie::new` raises them, as the Python does for a movie cut short).
+pub const APT_ERROR: &str = "AptError: ";
+
 type R<T> = Result<T, Refused>;
 
 fn refuse<T>(why: impl Into<String>) -> R<T> {
@@ -385,8 +389,14 @@ impl Parser<'_> {
             return Ok(n);
         }
         let b = self.buf(f);
-        if at < 0 || count < 0 || at + 4 * count > b.len() as i64 {
+        if at < 0 || count < 0 {
             return refuse("words past the end of the file");
+        }
+        if at + 4 * count > b.len() as i64 {
+            let file = FILES.get(usize::from(f)).copied().unwrap_or("?");
+            return refuse(format!(
+                "{APT_ERROR}{tag} at {file} {at:#x} runs past the end of the file"
+            ));
         }
         let mut v = Vec::with_capacity(count as usize);
         for k in 0..count {
@@ -691,6 +701,7 @@ impl Parser<'_> {
     /// exactly; returns where it stopped.
     #[expect(clippy::too_many_lines, reason = "one arm per operand layout, as Movie._stream")]
     fn stream(&mut self, code: &mut Code, s: u32, mut p: i64, end: Option<i64>) -> R<i64> {
+        let start = p;
         self.depth += 1;
         if self.depth > MAX_NESTING {
             return refuse("function bodies nested too deep");
@@ -715,8 +726,11 @@ impl Parser<'_> {
                 }
                 break;
             }
-            if p >= n_a || p < 0 {
+            if p < 0 {
                 return refuse("code runs past the end of the file");
+            }
+            if p >= n_a {
+                return refuse(format!("{APT_ERROR}code from {start:#x} runs past the end of the file"));
             }
             let a = self.buf(APT);
             let op = a.get(p as usize).copied().unwrap_or_default();

@@ -237,6 +237,7 @@ fn plan(t: &Path, steps: &[(&str, &str, &[&str])], mode: &str, budget_mb: Option
         start: 0,
         jobs: 4,
         budget_mb,
+        free_gate: true,
     }
 }
 
