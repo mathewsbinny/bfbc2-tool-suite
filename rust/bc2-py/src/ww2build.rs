@@ -999,3 +999,164 @@ pub fn ww2build_port_missing(
     bc2_install::levelbuild::ports::port_missing(&spec, &ours, &bf, &ix, &mut report).map_err(err)?;
     Ok(report)
 }
+
+fn src_types_from(d: Option<&Bound<'_, PyAny>>) -> PyResult<HashMap<String, String>> {
+    let mut out = HashMap::new();
+    if let Some(d) = d.filter(|d| !d.is_none()) {
+        for (k, v) in d.cast::<PyDict>()?.iter() {
+            let v: Option<String> = v.extract()?;
+            if let Some(v) = v {
+                out.insert(k.extract()?, v);
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn index_opt(index: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Arc<StockIndex>>> {
+    match index {
+        Some(i) if !i.is_none() => Ok(Some(index_of(i)?)),
+        _ => Ok(None),
+    }
+}
+
+/// `res_type(low, ours, index, src_types)` for each of `lows` (round OR4): the bundle type of one of our resources
+/// (`None`: no type known). `index`: the stock index (or `None`: no stock types); `src_types`: BF1943's entry types.
+#[pyfunction]
+#[pyo3(signature = (lows, ours, index=None, src_types=None))]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn ww2build_res_types(
+    lows: Vec<String>,
+    ours: &Bound<'_, PyAny>,
+    index: Option<&Bound<'_, PyAny>>,
+    src_types: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Vec<Option<String>>> {
+    let ours = ours_from(ours)?;
+    let ix = index_opt(index)?;
+    let st = src_types_from(src_types)?;
+    lows.iter()
+        .map(|low| bc2_install::levelbuild::textures::res_type(low, &ours, ix.as_deref(), &st).map_err(err))
+        .collect()
+}
+
+/// `stage_textures(tex, take, have, ours, index, src_types)` (round OR4): the textures the drawn entries name staged
+/// into `take` (ours, else the first stock bundle's); `(missing, copied from stock, staged from ours)`.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn ww2build_stage_textures(
+    py: Python<'_>,
+    tex: Vec<String>,
+    take: &Bound<'_, PyDict>,
+    have: &Bound<'_, PyAny>,
+    ours: &Bound<'_, PyAny>,
+    index: &Bound<'_, PyAny>,
+    src_types: Option<&Bound<'_, PyAny>>,
+) -> PyResult<(Vec<String>, usize, usize)> {
+    let ours = ours_from(ours)?;
+    let ix = index_of(index)?;
+    let st = src_types_from(src_types)?;
+    let mut have = str_set(have)?;
+    for k in take.keys() {
+        have.insert(k.extract()?);
+    }
+    let mut added = OMap::new();
+    let got =
+        bc2_install::levelbuild::textures::stage_textures(&tex, &mut added, &have, &ours, &ix, &st).map_err(err)?;
+    for (k, t) in added.iter() {
+        take.set_item(k, (&t.name, &t.kind, src_to(py, &t.src)?))?;
+    }
+    Ok((got.missing, got.stock, got.mine))
+}
+
+/// `material_grid.build_roots()` (round OR4): `{lower partition name: path}` of the WW2 builds' partitions (spec:
+/// `materialgrid::NamesSpec` as JSON).
+#[pyfunction]
+pub fn ww2build_grid_roots<'py>(py: Python<'py>, spec_json: &str) -> PyResult<Bound<'py, PyDict>> {
+    let spec: bc2_install::levelbuild::materialgrid::NamesSpec = spec(spec_json, "the names spec")?;
+    let roots = py
+        .detach(|| bc2_install::levelbuild::materialgrid::build_roots(&spec))
+        .map_err(err)?;
+    let d = PyDict::new(py);
+    for (k, v) in roots.iter() {
+        d.set_item(k, v)?;
+    }
+    Ok(d)
+}
+
+/// `material_grid.wake_names()` (round OR4): `(the byte tokens of the partitions the level reaches, the line)`.
+#[pyfunction]
+pub fn ww2build_grid_names<'py>(
+    py: Python<'py>,
+    spec_json: &str,
+    index: &Bound<'py, PyAny>,
+) -> PyResult<(Bound<'py, PySet>, String)> {
+    let spec: bc2_install::levelbuild::materialgrid::NamesSpec = spec(spec_json, "the names spec")?;
+    let ix = index_of(index)?;
+    let (tokens, line) = py
+        .detach(|| bc2_install::levelbuild::materialgrid::level_names(&spec, &ix))
+        .map_err(err)?;
+    let mut v: Vec<Vec<u8>> = tokens.into_iter().collect();
+    v.sort_unstable();
+    let set = PySet::empty(py)?;
+    for t in v {
+        set.add(PyBytes::new(py, &t))?;
+    }
+    Ok((set, line))
+}
+
+/// `material_grid.redirect` (round OR4): `(data, lines)`; `primary`: [(old partition, new reference, new name)].
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn ww2build_grid_redirect<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    primary: Vec<(String, String, String)>,
+) -> PyResult<(Bound<'py, PyBytes>, Vec<String>)> {
+    let (d, lines) = py
+        .detach(|| bc2_install::levelbuild::materialgrid::redirect(data, &primary))
+        .map_err(err)?;
+    Ok((PyBytes::new(py, &d), lines))
+}
+
+/// `material_grid.main`'s merge (round OR4): `(data, report lines, instances)`. `others`: [(name, bytes)];
+/// `names_in`: the level's byte tokens; `stand_in`: [(material, stand-in)] in order.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts list arguments as owned Vecs"
+)]
+pub fn ww2build_grid_merge<'py>(
+    py: Python<'py>,
+    base: (String, Vec<u8>),
+    others: Vec<(String, Vec<u8>)>,
+    bf: (String, Vec<u8>),
+    names_in: &Bound<'py, PyAny>,
+    stand_in: Vec<(String, String)>,
+    clone: &str,
+) -> PyResult<(Bound<'py, PyBytes>, Vec<String>, usize)> {
+    let mut tokens: HashSet<Vec<u8>> = HashSet::new();
+    for t in names_in.try_iter()? {
+        tokens.insert(t?.extract::<Vec<u8>>()?);
+    }
+    let spec = bc2_install::levelbuild::materialgrid::MergeSpec {
+        base: (&base.0, &base.1),
+        others: others.iter().map(|(n, d)| (n.as_str(), d.as_slice())).collect(),
+        bf: (&bf.0, &bf.1),
+        names_in: &tokens,
+        stand_in: &stand_in,
+        clone,
+    };
+    let m = py
+        .detach(|| bc2_install::levelbuild::materialgrid::merge(&spec))
+        .map_err(err)?;
+    Ok((PyBytes::new(py, &m.data), m.report, m.instances))
+}

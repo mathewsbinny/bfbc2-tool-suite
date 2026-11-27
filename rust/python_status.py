@@ -290,6 +290,7 @@ TABLE: tuple[Row, ...] = (
     T(f'{IMP}/tests/test_emitteratlas.py'),
     T(f'{IMP}/tests/test_emitteratlas_native.py'),
     T(f'{IMP}/tests/test_havokport.py'),
+    T(f'{IMP}/tests/test_physmat_native.py'),
     T(f'{IMP}/tests/test_havokport_native.py'),
     T(f'{IMP}/tests/test_meshport.py'),
     T(f'{IMP}/tests/test_ports_native.py'),
@@ -422,12 +423,12 @@ TABLE: tuple[Row, ...] = (
     T('bfbc2-menu-tools/tests/test_pe_native.py'),
 
     # --- bfbc2-mesh-viewer
-    R('bfbc2-mesh-viewer/meshview.py', TOOL, 'partly', 'bc2_convert::meshview; bfbc2 meshview; the editor\'s preview',
+    R('bfbc2-mesh-viewer/meshview.py', TOOL, 'ported', 'bc2_convert::meshview; bfbc2 meshview; the editor\'s preview',
       '25 suite modules (shaderdb, bf1943import, texqa ...); tests 31; OPFOR 47', 'PR1b-2',
       "PR1b-2-rest: Index / load_mesh / mesh_surfaces / stack_models / render on the Rust port through bc2_native "
-      "(MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); left in Python: the NumPy "
-      "arrays and dicts, _bundles (OPFOR's step tracker sees its walk), the partition cache of read(), page() (OPFOR's "
-      "WW2 preview pages)"),
+      "(MeshViewIndex, meshview_render), the pickle cache retired (meshview_index.bin); page() retired in OR4 "
+      "(bc2_convert::meshview::page, OPFOR's preview pages); left in Python: the NumPy arrays and dicts, _bundles "
+      "(OPFOR's step tracker sees its walk), the partition cache of read()"),
     R('bfbc2-mesh-viewer/tests/record_preview_parity.py', HELPER, 'stays', '', 'by hand (gr3.rs reads its output)',
       'PR1b-2', "recorded meshview's answers for the editor's asset preview (GR3); the recording is the retired Python's "
       "(since PR1b-2-rest meshview.py is the Rust port: running it again records the port)"),
@@ -448,6 +449,7 @@ TABLE: tuple[Row, ...] = (
     T('bfbc2-model-tools/tests/test_decimate.py'),
     T('bfbc2-model-tools/tests/test_model_f2a_native.py'),
     T('bfbc2-model-tools/tests/test_models.py'),
+    T('bfbc2-model-tools/tests/test_pictures_native.py'),
     T('bfbc2-model-tools/tests/test_texwrite.py'),
 
     # --- bfbc2-navigation-studio (retired in GR2)

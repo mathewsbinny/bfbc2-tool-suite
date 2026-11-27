@@ -30,7 +30,7 @@ stay as DICE has them (OPFOR's Wake Island keeps BF1943's the same way).
 
 [test: core/tests/test_spec_probes.py::terrain_partitions]
 [data: spec/probes/terrain.py, 2026-11-22: 30 terrain partitions: TerrainData 30, TerrainHeightfieldData 53, TerrainHeightfieldGridCellInfo 43, TerrainFullDecal 314 (MaskTextureType TmttStandard 194, TmttArea 69, TmttNone 51), TerrainGroupDecal 80, TerrainSplineDecal 416, TerrainQuadDecal 40; every decal material / spline reference in no bundle]
-[doc: opfor:src/tools/ww2/wake_install.py:410-418]
+[doc: opfor:src/tools/ww2/wake_install.py:390-398]
 
 ### TEDIT-SRC-2: What an edit writes, and what the game makes itself
 

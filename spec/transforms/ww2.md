@@ -166,6 +166,62 @@ the check.
 [test: rust/bc2-convert/src/decimate.rs::blas_forms] [code: rust/bc2-convert/src/decimate.rs:54-68] [code: rust/bc2-convert/src/shapes.rs:33-62]
 [data: 200,000 ddot and 100,000 quadric costs, 3,000 dgemv vectors, dgemm rows of n = 2 ... 1,000: all equal to NumPy on the reference machine]
 
+### XWW2-PIC-1: The loadout pictures' renderer is NumPy's float64 order, its dgemv written out
+
+Status: **verified** · Variants: PC
+
+The WW2 weapons' loadout pictures (OPFOR's `pictures.py`, the Rust core since round OR4: `bc2_convert::pictures::weapon`)
+are drawn in `float64` in NumPy's order of operations: per triangle the barycentric weights of the box's pixel centres,
+the depth test, the normal (interpolated, or the face's cross product) normalised as `sqrt((x0^2 + x1^2) + x2^2)` and
+turned to the camera; the hit pixels' `n @ light` / `n @ half` as OpenBLAS's `dgemv` gives them - for one pixel
+`fma(a2, b2, fma(a1, b1, a0 b0))`, for more `fma(a2, b2, fma(a0, b0, a1 b1))`; `pow` the C runtime's. The supersampled
+means: the colour summed over the block in row order from +0, the coverage as NumPy's pairwise rows (each row from -0,
+then added from +0); the colour bled into the transparent texels six times over the four neighbours (wrapping, as
+`np.roll`). The DXT5 encoding stays `texwrite`'s.
+
+[code: rust/bc2-convert/src/pictures/weapon.rs:65-73] [code: rust/bc2-convert/src/pictures/weapon.rs:213-278]
+[test: bfbc2-model-tools/tests/test_pictures_native.py::renderer]
+[data: round OR4: 34 loadout pictures x 3 sizes and 30 seeded part sets identical to the retired NumPy renderer (Project OPFOR test_ww2_pictures_parity, its recorded digests)]
+
+### XWW2-PIC-2: Pictures are scaled as Pillow scales them
+
+Status: **verified** · Variants: PC
+
+The loading and map pictures and the weapon icons are scaled as Pillow 12's `resize` (`Resample.c`) scales them: per
+output sample the filter's weights (Lanczos of 3 lobes, box of 0.5) over `[center - support, center + support)`
+rounded to whole samples, normalised, in 22-bit fixed point rounded away from zero; each pass sums from `1 << 21` and
+clips `>> 22` to 0 - 255; the horizontal pass first, over the rows the vertical pass reads. RGBA is premultiplied first
+(`MULDIV255`) and divided back after (`255 c / a`, kept where `a` is 0 or 255).
+
+[code: rust/bc2-convert/src/pictures/resample.rs:64-102] [code: rust/bc2-convert/src/pictures/resample.rs:177-206]
+[test: bfbc2-model-tools/tests/test_pictures_native.py::resize_vs_pillow]
+[data: round OR4: 700 seeded pictures of 1, 3 and 4 channels and the four levels' loading and map pictures identical to Pillow's]
+
+### XWW2-PIC-3: The written pictures are checked against DICE's form
+
+Status: **verified** · Variants: PC
+
+A loading picture is read back as DICE's: version 3, DXT1, flags 1, 1280 x 720, one level, 460,956 bytes wrapped, and
+at least 30 dB against its source; a map picture DXT5, flags 1, 512 x 256, one level, 131,228 bytes wrapped, at least
+28 dB over its 295 x 196, its alpha 250 or more there and 0 from four texels past it. The PSNR's mean is NumPy's
+pairwise sum of the squared differences.
+
+[code: rust/bc2-convert/src/pictures/loading.rs:114-188] [code: rust/bc2-convert/src/pictures/mod.rs:97-164]
+[test: bfbc2-model-tools/tests/test_pictures_native.py::loading]
+
+### XWW2-PIC-4: The preview pages' textures are PNG files of the same pixels
+
+Status: **implemented** · Variants: PC
+
+OPFOR's three.js preview pages (`ww2_attachments.html`, `ww2_scopes.html`; `meshview.page()` until round OR4) hold each
+part's colour texture as a PNG file. The page is the Python's character for character but for those files: the `png`
+crate encodes them instead of Pillow, so their bytes differ and their pixels do not. A preview is neither game data nor
+a rebuild output (the oracle leaves `work\ww2\preview` out), so no DICE rule decides it: the pixels are the rule.
+
+[code: rust/bc2-convert/src/meshview/page.rs:223-270]
+[test: bfbc2-model-tools/tests/test_pictures_native.py::page]
+[data: round OR4: the attachments page of 13 textures under two titles: the text identical, every texture's pixels identical]
+
 ## 3. The install
 
 ### XWW2-INS-1: The WW2 install refuses before writing

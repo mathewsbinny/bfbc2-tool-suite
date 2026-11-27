@@ -4751,3 +4751,71 @@ The logic that can be proven - opfor.ini's edits and the log's notes - is Rust.
 - `playtest.py` and testrun's process handling (above).
 - `bfbc2-menu-tools`' and `bfbc2-console-readers`' Python: retired when OPFOR's WW2 menu tools move off aptgraft's
   and bc2loc's Python API (PR1c), and `stfs.py` / `xisolib.py` with their tests on recorded answers.
+## OR4: OPFOR in Rust, stage 4 - the material grid and the pictures (2026-11-27, branch `or4`, with Project OPFOR's `or4`)
+
+What OR2 and OR3c left for stage 4 ("OR2", "Left"; ROADMAP "OPFOR in Rust"): the material grid, the pictures and the
+texture glue (`res_type`, `stage_textures`). Version **0.27.0** (removed: `meshview.page()`, `PAGE`, `_png()`; a round
+merged first may take the number). Nothing was written to OPFOR's `game\`; the game never launched.
+
+### Inventory (OPFOR's `src\tools\ww2` and what it calls in the suite)
+
+| Python until OR4 | now | |
+|---|---|---|
+| `material_grid.py`: `Grid`, `key`, `clone`, `redirect`, `build_roots`, `wake_names`, `main`'s merge and check | `bc2_install::levelbuild::materialgrid` | ported |
+| `physmat.py`: `havok_lists`, `list_hashes`, `set_parts`, `group_faces` | `bc2_convert::physmat` | ported (thin callers kept: four modules use them) |
+| `wake_install.py`: `res_type`, `stage_textures` | `bc2_install::levelbuild::textures` | ported |
+| `pictures.py`: `render`, `framed`, `bleed`, `down` | `bc2_convert::pictures::weapon` | ported |
+| `ww2_loading.py`: `picture`, `level_picture`, `check`, `level_check` | `bc2_convert::pictures::loading` | ported |
+| `weapon_icons.py`: `dxt5_alpha`, `picture`, `silhouette`, `fit` | `bc2_convert::pictures::icons` (`texwrite::alpha5`) | ported |
+| `minimap_icons.py`: `box_colours`, `paint` | `bc2_convert::pictures::icons` | ported |
+| suite `meshview.page()` (OPFOR's `attachments.py` / `scopes.py` preview pages) | `bc2_convert::meshview::page` (`attachments.preview_page`) | ported, Python retired |
+| the DXT encoders (`texwrite.dxt1` / `dxt5`: `numpy.linalg.eigh`'s axes) | stay the suite's `texwrite` | not this stage |
+| `effectport.port_many` (the grid's effects, cached 35 min), `wake_level.port_sounds`, `dbxport.port` | stay (the suite's importer; `dbxport` is Rust already) | effectport: PY1 / the importer |
+| `type95_icon.silhouette` (Pillow's `ImageDraw.polygon`; OR5's `console_icons` uses it too) | stays | left: Pillow's polygon fill |
+| `weapon_icons`' movie edits (`aptgraft`), `menu_*` art, `ww2_crosshairs` | stay | stage 5 (menus) |
+| the preview sheets (Pillow's text), `wake_preview.py` / `weapon_preview.py` (they launch `shaderview.exe`; one opens a window) | stay | process launching and GUI: not Rust's |
+| `bf1943_hud_icons.py`, `grime_sheet.py`, `emitter_atlas.py` (already `bc2_convert::emitteratlas`) | stay | |
+
+### Proof
+
+- **Twins side by side** (the Python at OPFOR main `169944d` loaded by path against the new, one process, nothing
+  written to `work\ww2`):
+  - loadout pictures: the 34 pictures `pictures.py` draws (from the WW2 builds' parts), size1 / size2 / size3:
+    **102 of 102 identical**; 30 seeded part sets (float32 and float64 positions, normals or none, uvs and images of
+    3 / 4 channels or none, bad triangles): 60 of 60. The NumPy took 0.9 - 3.9 s a picture, the Rust 0.2 - 0.5 s.
+  - Pillow's resize: 400 seeded pictures (L, RGB, RGBA with alphas 0 / 128 / 255; Lanczos and box): identical; the four
+    levels' loading and map pictures, their checks (wrapped bytes, PSNR to the tenth), 6 damaged cases (headers,
+    format, a far picture, a load image of another format): identical; every weapon icon at 4 heights and in 4 boxes,
+    100 random fits, 3 cut pictures, the minimap's 4 boxes and 60 random boxes: **169 of 169**.
+  - physmat: 500 seeded stock physics assets and the WW2 builds' (lists, hashes, 5 part edits each - an existing
+    material, every part, a new one, a missing part, a material without a hash -, face remaps, a wrong member count,
+    an unknown face) and 120 damaged copies: **5,075 of 5,075 outcomes**.
+  - `res_type` on 9,635 names (ours, stock, BF1943's, made-up), 3,000 without types, `stage_textures` 6 x 930
+    textures: identical; the preview page under 2 titles (13 textures): the text identical, every PNG's pixels identical.
+  - the material grid: `material_grid.main` old and new into scratch folders (the effects caches copied): Wake **333 of
+    333** files, Guadalcanal 342 of 342, Iwo Jima 342 of 342, Coral Sea 305 of 305; 13 damaged grids (Isla Inocentes' grid with instances dropped, names changed, relations nulled; BF1943's cut): every outcome the
+    Python's (the same exception and message).
+  - Recorded as digests in OPFOR's `src\tools\tests\data\ww2_pictures_golden.json` (`record_ww2_pictures_golden.py`,
+    `test_ww2_pictures_parity`, SLOW) before the deletion: 5 of 5 pass on the Rust.
+- Suite: `pictures-native` (quick), `physmat-native` (quick: 600 seeded resources), `bc2-install/tests/materialgrid.rs`,
+  the modules' unit tests.
+- **WW2 rebuild** from OPFOR's main checkout detached at `or4` (`OPFOR_TOOLKIT` a scratch folder of junctions to this
+  worktree, `OPFOR_ROOT` the main checkout, `OPFOR_SUITE_STRICT=1`, `--jobs 2`): all 55 steps in 14.2 min;
+  `compare_oracle` **7,945 of 7,945 identical**; `qa_checks` exit 0, all 8 checks ok. Peaks: `material_grid.py` 3.7 GB,
+  each level chain 4.1 - 4.4 GB.
+- **Install oracle**: `wake_install.py --plan` exit 0; `compare_oracle --install` **21,149 of 21,149 identical**.
+- `game\`: its 1,582 files (11.6 GB) hashed (path, size, time, SHA-256) before and after: identical; OPFOR's main
+  checkout back on `main` (169944d).
+
+### Decided
+
+- Nothing against DICE: every output is the Python's byte for byte. The preview pages' PNG files are the `png` crate's
+  (XWW2-PIC-4: a preview, no game data, no oracle file). A material-grid check failure now raises before the grid is
+  written (the Python wrote it, then raised): no output of a run that fails is kept either way.
+
+### What is left (stage 4)
+
+- `effectport` (the grid's ported effects; the suite's importer, its 35-minute template scan) and the sound porter.
+- `type95_icon`'s silhouette: Pillow's polygon rasteriser (shared with OR5's Onslaught icons).
+- The DXT encoders' principal axes (`numpy.linalg.eigh`) in `texwrite`.
+- The preview tools (`wake_preview`, `weapon_preview`: process launching and a window) and the preview sheets.

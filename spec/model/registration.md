@@ -95,7 +95,7 @@ repairs it).
 
 [data: stock: 835 lines, 3 tab-separated fields on all 835, the zero GUID on 835, third field 1 on 835, no CR, no BOM]
 [code: rust/bc2-levelwrite/src/export.rs:603-613] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
-[code: opfor:src/tools/ww2/wake_install.py:2457-2460]
+[code: opfor:src/tools/ww2/wake_install.py:2422-2425]
 
 ### REG-BM-2: What stock lists
 

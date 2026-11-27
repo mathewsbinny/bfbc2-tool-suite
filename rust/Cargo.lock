@@ -442,6 +442,7 @@ dependencies = [
  "bc2-xma",
  "flate2",
  "memchr",
+ "png",
  "proptest",
  "rayon",
  "regex",

@@ -2284,7 +2284,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:410-418"
+     "ref": "opfor:src/tools/ww2/wake_install.py:390-398"
     }
    ]
   },
@@ -5485,7 +5485,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:2710-2711"
+     "ref": "opfor:src/tools/ww2/wake_install.py:2675-2676"
     },
     {
      "kind": "doc",
@@ -5770,7 +5770,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/material_grid.py:333-334"
+     "ref": "rust/bc2-install/src/levelbuild/materialgrid.rs:634-643"
     }
    ]
   },
@@ -5902,7 +5902,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/physmat.py:62-109"
+     "ref": "rust/bc2-convert/src/physmat.rs:146-312"
     },
     {
      "kind": "doc",
@@ -5974,7 +5974,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/physmat.py:112-140"
+     "ref": "rust/bc2-convert/src/physmat.rs:324-385"
     },
     {
      "kind": "doc",
@@ -6580,11 +6580,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/material_grid.py:343-369"
+     "ref": "rust/bc2-install/src/levelbuild/materialgrid.rs:656-742"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/material_grid.py:55-63"
+     "ref": "opfor:src/tools/ww2/material_grid.py:53-61"
     },
     {
      "kind": "data",
@@ -9181,7 +9181,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:1436-1449"
+     "ref": "opfor:src/tools/ww2/wake_install.py:1416-1429"
     },
     {
      "kind": "doc",
@@ -23676,7 +23676,7 @@
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:2457-2460"
+     "ref": "opfor:src/tools/ww2/wake_install.py:2422-2425"
     }
    ]
   },
@@ -28404,7 +28404,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/ww2/wake_install.py:1660-1664"
+     "ref": "opfor:src/tools/ww2/wake_install.py:1640-1644"
     }
    ]
   },
@@ -28611,7 +28611,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/ww2/wake_install.py:410-418"
+     "ref": "opfor:src/tools/ww2/wake_install.py:390-398"
     }
    ]
   },
@@ -31547,6 +31547,98 @@
     {
      "kind": "data",
      "ref": "200,000 ddot and 100,000 quadric costs, 3,000 dgemv vectors, dgemm rows of n = 2 ... 1,000: all equal to NumPy on the reference machine"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PIC-1",
+   "title": "The loadout pictures' renderer is NumPy's float64 order, its dgemv written out",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/weapon.rs:65-73"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/weapon.rs:213-278"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::renderer"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR4: 34 loadout pictures x 3 sizes and 30 seeded part sets identical to the retired NumPy renderer (Project OPFOR test_ww2_pictures_parity, its recorded digests)"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PIC-2",
+   "title": "Pictures are scaled as Pillow scales them",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/resample.rs:64-102"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/resample.rs:177-206"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::resize_vs_pillow"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR4: 700 seeded pictures of 1, 3 and 4 channels and the four levels' loading and map pictures identical to Pillow's"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PIC-3",
+   "title": "The written pictures are checked against DICE's form",
+   "file": "spec/transforms/ww2.md",
+   "status": "verified",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/loading.rs:114-188"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/pictures/mod.rs:97-164"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::loading"
+    }
+   ]
+  },
+  {
+   "id": "XWW2-PIC-4",
+   "title": "The preview pages' textures are PNG files of the same pixels",
+   "file": "spec/transforms/ww2.md",
+   "status": "implemented",
+   "variants": "PC",
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshview/page.rs:223-270"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-model-tools/tests/test_pictures_native.py::page"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR4: the attachments page of 13 textures under two titles: the text identical, every texture's pixels identical"
     }
    ]
   },

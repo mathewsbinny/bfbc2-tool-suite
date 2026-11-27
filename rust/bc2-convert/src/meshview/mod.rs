@@ -13,6 +13,7 @@
 #![allow(clippy::many_single_char_names, reason = "pixel and colour names: x, y, r, g, b")]
 
 pub mod cache;
+pub mod page;
 pub mod render;
 
 use std::collections::HashMap;
