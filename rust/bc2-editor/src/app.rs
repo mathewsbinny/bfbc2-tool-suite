@@ -1484,7 +1484,24 @@ impl EditorApp {
     fn load_level(&mut self, lv: &str, then: Then) {
         let Ok(root) = self.opfor.clone() else { return };
         let name = lv.to_owned();
-        let rx = Task::spawn("Loading the level", move || load(&root, &name));
+        // round TG4: a Create Level project opens on its new terrain (TEDIT-NEW-4)
+        let project = match &then {
+            Then::Open(p, _) => Some(p.clone()),
+            _ => None,
+        };
+        let rx = Task::spawn("Loading the level", move || {
+            let mut l = load(&root, &name)?;
+            if let Some(p) = project {
+                match crate::newterrain_view::apply_project(&mut l.0, &root, &p) {
+                    Ok(Some(notes)) => l.1.extend(notes),
+                    Ok(None) => {}
+                    Err(e) => {
+                        l.1.push(format!("The project's new terrain is not shown (the base's is): {e}"))
+                    }
+                }
+            }
+            Ok(l)
+        });
         self.error = None;
         self.mode = Mode::Loading {
             lv: lv.to_owned(),

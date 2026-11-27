@@ -139,6 +139,8 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BC2_TEST_HANG_STACKS': ('test', "1: the hang guard prints every thread's stack first (rust\\hang_stacks.py)"),
     'BC2_XF1_STAGE': ('test', "XF1's cross-set export test keeps its staged export in this folder"),
     'BC2_MEMBER_EDIT_STAGE': ('test', "the member-edit export test keeps its staged exports (one folder per level) here"),
+    'BC2_VEG_TABLE': ('test', "the vegetation statistics test writes DICE's per-biome table's source to this file "
+                              "instead of holding the kept table equal (round TG4)"),
     'BC2_EDITOR_PREPARE': ('test', "the editor's level prepare test on this level (a stand-in OPFOR folder)"),
     'BC2_EDITOR_G3': ('test', "G3's real Package levels test on these levels"),
     'BC2_EDITOR_G3_ART': ('test', "G3's content browser art test on"),

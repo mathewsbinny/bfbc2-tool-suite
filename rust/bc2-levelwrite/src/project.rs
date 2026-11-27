@@ -46,7 +46,10 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 ///   a material name added (`material-add`); a version-11 file loads as it is.
 /// - 13: round E7 / TG3, Create Level: a new level's terrain from a height map or the generator, on a base level
 ///   (`terrain_import` with `base.level` set, its `generate` settings); a version-12 file loads as it is.
-pub const VERSION: u32 = 13;
+/// - 14: round TG4, a new terrain's vegetation (`terrain_import.vegetation`) and the terrain strokes of a Create Level
+///   project made on its new terrain; a version-13 project with terrain strokes made them on the base's terrain (the
+///   editor showed the base's), so its migration marks them so (`terrain_import.strokes_on_base`).
+pub const VERSION: u32 = 14;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
@@ -91,6 +94,10 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 11 -> 12: the colour, ring and multi-raster strokes, terrain-range and material-add (round E5-rest); a
         //   version-11 log has none
         // 12 -> 13: a new level's terrain on a base level (round E7 / TG3); a version-12 project has none
+        // 13 -> 14: (round TG4) a Create Level project's terrain strokes were made on the base's terrain until now
+        if at == 13 {
+            mark_base_strokes(&mut v);
+        }
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {
@@ -103,6 +110,34 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
     }
     v
 }
+/// Round TG4's 13 -> 14 step: a Create Level project (a terrain import on a base level) whose log holds terrain
+/// strokes, a widened range or an added material made them on the base's terrain, which E7's editor showed: marked
+/// `strokes_on_base`, so the export keeps refusing them rather than lay them on the new terrain.
+fn mark_base_strokes(v: &mut serde_json::Value) {
+    let on_base = v
+        .get("base")
+        .and_then(|b| b.get("level"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|l| !l.is_empty());
+    let terrain_ops = v
+        .get("operations")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|ops| {
+            ops.iter().any(|o| {
+                matches!(
+                    o.get("op").and_then(serde_json::Value::as_str),
+                    Some("stroke" | "terrain-range" | "material-add")
+                )
+            })
+        });
+    if on_base
+        && terrain_ops
+        && let Some(t) = v.get_mut("terrain_import").and_then(serde_json::Value::as_object_mut)
+    {
+        t.insert("strokes_on_base".to_owned(), serde_json::Value::Bool(true));
+    }
+}
+
 /// A project file's extension.
 pub const EXTENSION: &str = ".mapedit.json";
 /// The autosave's extension, after the project file's name.
@@ -306,6 +341,38 @@ pub struct TerrainImport {
     /// Round E7: a height map's sub-terrain ring (TGEN-RING-1: its border continued outwards, stitched as DICE's).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ring: bool,
+    /// Round TG4: the base's forests, middlegrowth, rocks and natural props placed again on the new terrain
+    /// (TGEN-VEG-1 - 3); `None`: left where the base has them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vegetation: Option<VegetationSpec>,
+    /// Round TG4: the log's terrain strokes were made on the base's terrain (a version-13 project: E7's editor showed
+    /// the base's), so the export refuses them (XVAL-TERR-4); a version-14 project's are made on its new terrain.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub strokes_on_base: bool,
+}
+
+/// A new terrain's vegetation (round TG4, TGEN-VEG-3): the placement's settings beside the terrain's.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VegetationSpec {
+    /// Every band's instance count times this (1: DICE's densities, and the clustering calibrated to DICE's).
+    #[serde(default = "one")]
+    pub density: f64,
+    /// The placement's seed (`None`: the terrain's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed: Option<u64>,
+}
+
+fn one() -> f64 {
+    1.0
+}
+
+impl Default for VegetationSpec {
+    fn default() -> Self {
+        Self {
+            density: 1.0,
+            seed: None,
+        }
+    }
 }
 
 /// The terrain generator's settings a Create Level project records (round TG3; `bc2_terragen::Settings`): enough to
@@ -908,6 +975,12 @@ impl MapProject {
         let ops = self.operations.iter().chain(&self.redo).map(of).max().unwrap_or(1);
         // round E7 / TG3: a new terrain on a base must not open in an editor that would edit the base's
         let ops = if self.new_terrain().is_some() { ops.max(13) } else { ops };
+        // round TG4: a new terrain's vegetation, or strokes made on the new terrain
+        let ops = match self.new_terrain() {
+            Some(t) if t.vegetation.is_some() => ops.max(14),
+            Some(t) if !t.strokes_on_base && self.operations.iter().any(|o| o.op.is_terrain()) => ops.max(14),
+            _ => ops,
+        };
         if self.base.files.is_empty() { ops } else { ops.max(6) }
     }
 
@@ -1382,6 +1455,8 @@ mod tests {
             generate: None,
             biome: None,
             ring: false,
+            vegetation: None,
+            strokes_on_base: false,
         };
         let q = MapProject::new_import("Atoll", Profile::Ww2, import.clone());
         assert!(q.is_import() && q.base.level.is_empty() && q.operations.is_empty());
@@ -1497,5 +1572,27 @@ mod tests {
             "{e}"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // spec: TEDIT-NEW-4
+    #[test]
+    fn a_version_13_create_levels_strokes_stay_on_the_base() {
+        let v13 = |ops: serde_json::Value| {
+            serde_json::json!({
+                "format": FORMAT, "version": 13, "base": {"level": "mp_005"},
+                "terrain_import": {"content_set": "BFBC2"},
+                "operations": ops,
+            })
+        };
+        let marked = |v: &serde_json::Value| v["terrain_import"]["strokes_on_base"].as_bool();
+        let with = migrate(v13(serde_json::json!([{"op": "stroke"}])), 13);
+        assert_eq!(marked(&with), Some(true));
+        assert_eq!(with["version"], VERSION);
+        let without = migrate(v13(serde_json::json!([{"op": "set-names"}])), 13);
+        assert_eq!(marked(&without), None);
+        // a version-14 file is not migrated: its strokes are on its new terrain
+        let mut now = v13(serde_json::json!([{"op": "stroke"}]));
+        now["version"] = serde_json::Value::from(14);
+        assert_eq!(marked(&migrate(now, 14)), None);
     }
 }

@@ -130,6 +130,48 @@ impl Biome {
             Self::Vietnam => ["defaultmaterial", "grass", "stone", "water_solid", "dirt"],
         }
     }
+
+    /// The biome of one of DICE's 30 terrains by its name (`MP_005`, `sp_003_b`; TGEN-BIOME-1's table), `None` for
+    /// any other.
+    #[must_use]
+    pub fn of_dice_terrain(name: &str) -> Option<Self> {
+        const TABLE: [(&str, Biome); 30] = [
+            ("mp_005", Biome::Arid),
+            ("mp_006", Biome::Arid),
+            ("sp_006", Biome::Arid),
+            ("sp_009", Biome::Arid),
+            ("bc1_oasis", Biome::Arid),
+            ("mp_001", Biome::Jungle),
+            ("mp_002", Biome::Jungle),
+            ("mp_009", Biome::Jungle),
+            ("sp_01", Biome::Jungle),
+            ("sp_03", Biome::Jungle),
+            ("sp_003_b", Biome::Jungle),
+            ("sp_007", Biome::Jungle),
+            ("sp_008", Biome::Jungle),
+            ("sp_008_b", Biome::Jungle),
+            ("mp_007", Biome::Snow),
+            ("mp_008", Biome::Snow),
+            ("mp_012", Biome::Snow),
+            ("sp_02", Biome::Snow),
+            ("sp_04", Biome::Snow),
+            ("sp_004_b", Biome::Snow),
+            ("mp_003", Biome::Temperate),
+            ("mp_004", Biome::Temperate),
+            ("sp_005", Biome::Temperate),
+            ("sp_005_b", Biome::Temperate),
+            ("bc1_harvest_day", Biome::Temperate),
+            ("nam_mp_002r", Biome::Vietnam),
+            ("nam_mp_003", Biome::Vietnam),
+            ("nam_mp_005", Biome::Vietnam),
+            ("nam_mp_006", Biome::Vietnam),
+            ("nam_mp_007", Biome::Vietnam),
+        ];
+        TABLE
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|&(_, b)| b)
+    }
 }
 
 impl fmt::Display for Biome {

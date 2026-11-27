@@ -58,6 +58,7 @@ pub mod site;
 pub mod terrainedit;
 pub mod terrainpaint;
 pub mod validate;
+pub mod vegetation;
 pub mod vehicles;
 pub mod weather;
 pub mod write;
