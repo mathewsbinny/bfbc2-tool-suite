@@ -332,7 +332,8 @@ mod tests {
             let mut man = String::new();
             for rel in files {
                 write(&join(&root, &rel.replace('/', "\\")), b"<partition />").unwrap();
-                man.push_str(&format!("{rel}|x|1\n"));
+                man.push_str(rel);
+                man.push_str("|x|1\n");
             }
             write(&join(&root, "fbrb.manifest"), man.as_bytes()).unwrap();
             root
@@ -343,7 +344,11 @@ mod tests {
         let startup = bundle("startup", &["Levels/ONS_MP_008_description.dbx"]);
         let ch = add_movie(&con, [&level, &loader, &startup], movie).unwrap();
         assert_eq!(ch, [true, true, true]);
-        let man = |f: &str| String::from_utf8(read(&join(f, "fbrb.manifest")).unwrap()).unwrap().to_lowercase();
+        let man = |f: &str| {
+            String::from_utf8(read(&join(f, "fbrb.manifest")).unwrap())
+                .unwrap()
+                .to_lowercase()
+        };
         let m = movie.to_lowercase();
         assert!(man(&startup).contains(&format!("{m}.dbx")) && !man(&startup).contains(&format!("{m}.res")));
         assert!(man(&level).contains(&format!("{m}.dbx")) && man(&loader).contains(&format!("{m}.res")));
