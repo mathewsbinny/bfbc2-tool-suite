@@ -732,6 +732,10 @@ fn terrain_writes(
 /// [`terrain_writes`] over any terrain's files (round TG4: a new terrain's built resources under the base's names):
 /// `src` a file by its lower-case name, `main` the main height field's name, `textures` the Dx9 database's patch
 /// entries' textures.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the terrain's layers in order: heights and ring, materials, paint, colour"
+)]
 fn terrain_writes_from(
     src: &dyn Fn(&str) -> Option<Vec<u8>>,
     main: &dyn Fn() -> Option<String>,

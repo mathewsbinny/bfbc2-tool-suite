@@ -1496,7 +1496,7 @@ impl EditorApp {
                     Ok(Some(notes)) => l.1.extend(notes),
                     Ok(None) => {}
                     Err(e) => {
-                        l.1.push(format!("The project's new terrain is not shown (the base's is): {e}"))
+                        l.1.push(format!("The project's new terrain is not shown (the base's is): {e}"));
                     }
                 }
             }

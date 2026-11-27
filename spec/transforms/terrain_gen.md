@@ -678,25 +678,184 @@ Status: **implemented** · Variants: PC
 
 The prototype paints each 0.5 m cell from the height field: under the water the sea bed, over 35 degrees stone or rock,
 25 - 35 degrees gravel or dirt, else the biome's ground; the visual terrain's rule layers make the same split in the
-shader (TGEN-VIS-1), so what a soldier walks on and what is drawn agree. TG2 adds the biome's other materials by noise
-and distance to water, the visual tiled layers painted to match (TEDIT-MM-1: the editor pairs visual layers with
-materials by its own table), roads and paths as both.
+shader (TGEN-VIS-1), so what a soldier walks on and what is drawn agree. Round TG4 lays the donor's tiled layers and paints
+their paired materials under them (TGEN-MAT-3); the biome's other materials by noise and distance to water, and roads
+and paths as both (RD1), are later.
 
 [code: rust/bc2-terragen/src/paint.rs:27-53]
 [test: rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds]
 
+### TGEN-MAT-3: The donor's tiled layers are laid on new ground as the donor lays them
+
+Status: **verified** · Variants: PC
+
+Round TG4 (`bc2_levelwrite::newterrain::paint_tiled`): each tiled layer of the donor (its weights read back from its
+patch maps and mask atlas, `terrainpaint::layer_weights`) is measured on the donor's own ground - its mean weight
+over the dry ground, its weight's share per slope and height-over-water band (TGEN-VEG-2's bands) over the ground's,
+and its paired material (TEDIT-MM-2, when over half of its strong mask lies on one) - and laid on the new terrain: a
+seeded value noise (four octaves, 128 - 16 m) plus the logs of the layer's preferences, its edge 0.5 wide, the
+threshold found so its mean weight over the dry ground is the donor's. The layers go through E5-rest's paint
+(`terrainpaint::paint`: each reached cell the donor's shader of its new combination, or a clone, TEDIT-SH-1 / -2;
+tiles in free atlas slots, TEDIT-ATL-1 / -2): a layer it refuses on its own (no shader to clone) is left out, and
+when the atlas has no room every layer's coverage is cut by a third until it fits. Where a layer's weight is 200 or
+more its paired material is painted in the material map (the name added when the map lacks it: the donor's names
+are its level grid's, MAT-GRID-2), so what a soldier walks on follows what is drawn. A donor whose layers are not
+one kind each (TEDIT-VT-2: 16 of DICE's 23) paints nothing and draws with its rule layers (TGEN-VIS-1).
+
+MP_005 (paintable: its layers one kind each) as the donor of a generated arid 1,024 terrain (seed 7, round TG4's
+export test): Dirtfloor, DryGrass, Rubble and Trash laid over 307 cells in 21 blocks, 47 tiles written (105 atlas
+slots left), no shader cloned, 42 cells drawn by a shader with more tiled layers (their extra masks empty); Asphalt
+left out (its cells with the sea floor need `Dunes_Asphalt_Seafloor_Destruction`, which MP_005 has not and cannot
+clone); `Dirt` added to the material map for Dirtfloor's pair; `export::check` passes XVAL-TERR-4 (every patch map's
+shader in each staged database). How the painted layers look in game is unproven until a playtest.
+
+[test: rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks]
+[code: rust/bc2-levelwrite/src/newterrain.rs:889-1276]
+[code: rust/bc2-levelwrite/src/terrainpaint.rs:842-885]
+
 ### TGEN-VEG-1: Vegetation and props are placed as the level's model groups
 
-Status: **inferred** · Variants: PC
+Status: **implemented** · Variants: PC
 
-Undergrowth needs no placement: it grows from the donor's patch shaders (VEG-UG-1, VEG-UG-3). Trees, bushes and rocks
-are placed by the generator as members of the level's forest and middlegrowth groups and as static model-group members
-(VEG-CLS-1, VEG-CLS-2: the editor's group edits apply unchanged), each kind from its biome's blueprints (TGEN-BIOME-2),
-with density by slope, height, distance to water and the playable area (DICE's biomes place 8 - 36 thousand forest and
-12 - 23 thousand middlegrowth instances over their levels), seeded like the terrain. Each placed member brings its
-physics (COLL-MG-2) and the export reslots it into the cull trees (XCULL-RES-1).
+Undergrowth needs no placement: it grows from the donor's patch shaders (VEG-UG-1, VEG-UG-3). Trees, bushes, rocks
+and natural props are the level's model-group members (VEG-CLS-1, VEG-CLS-2), and a new terrain's are its base
+level's placed again (round TG4, `bc2_levelwrite::vegetation`): a member's kind is its group's and its blueprint's -
+every member of the forest (`ForestEntityData`) a tree, of a middlegrowth group a bush, a static or rigid group's
+member a rock when its blueprint is named rock, cliff, stone or boulder (TGEN-BIOME-2) and a prop when its blueprint
+lies under `vegetation/`, `objects/vegetation/` or a terrain's folder (stumps, logs, dead plants); every other member
+(buildings, man-made props, gameplay) stays where the base has it (TG5 / A3). The base's member types of the kinds
+are the placement's types: no type is added (a new type needs its collision in the group's physics), each type's
+share of its kind is the base's, and each keeps at least one instance (DICE ships no type without one, LEVEL-MG-7).
+The placement is written as round SG1's member edits after the project's own (each type's members moved first, so
+they keep their leaves, then the rest deleted or its first copied: XLOG-MEM-2), so the export's group staging gives
+the added members leaves, lays the groups' physics out again and reslots the cull trees (XCULL-RES-1) as for any
+member edit, and `export::check`'s group rules hold them (TGEN-VEG-4). Each placed member brings its physics by its
+type (COLL-MG-2). A Create Level project asks for it with `terrain_import.vegetation` (project format 14; the
+editor's Vegetation box, on by default): density (a scale of every band's count) and seed (the terrain's by default).
 
-[inferred: VEG-CLS-1 / -2, VEG-UG-1 / -3, COLL-MG-2, XCULL-RES-1; the per-biome instance counts of TGEN-BIOME-2]
+[code: rust/bc2-levelwrite/src/vegetation.rs:23-45]
+[code: rust/bc2-levelwrite/src/vegetation.rs:378-590]
+[code: rust/bc2-levelwrite/src/export.rs:1566-1624]
+[inferred: VEG-CLS-1 / -2, LEVEL-MG-7, XLOG-MEM-2, COLL-MG-2, XCULL-RES-1]
+
+### TGEN-VEG-2: DICE's vegetation per biome: dense in the playable area, clustered, by slope and height
+
+Status: **verified** · Variants: PC
+
+Measured on DICE's 19 multiplayer terrains (the 30 of TGEN-BIOME-1 that have multiplayer levels; per terrain its
+multiplayer level with the most forest and middlegrowth instances, the playable area the union of all its
+multiplayer levels' combat areas): per kind, the instances per hectare of dry ground inside the playable area and in
+bands 0 - 50, 50 - 150, 150 - 300, 300 - 600 and beyond 600 m outside it; the nearest-neighbour distance; the
+neighbour ratio (Ripley's K over the occupied 64 m cells' density) at 3, 10, 30 and 100 m; the preference for slope
+(0 - 5, 5 - 10, 10 - 20, 20 - 30, 30 - 45, over 45 degrees) and for height over the water (0 - 2, 2 - 10, 10 - 30,
+30 - 60, 60 - 120, over 120 m), each the instances' share over the ground's; the up axis's tilt from the vertical and
+from the ground's normal; the yaw; the scale; the height over the ground. The biome's statistics are the medians
+over its terrains (`bc2_terragen::vegetation::BiomeStats::dice`, the table the game tier measures again and holds
+equal):
+
+| Biome | Kind | Terrains placing | Count | Per ha inside / 0-50 / 50-150 / 150-300 m | NN p10 / p50 / p90 m | K at 3 / 10 / 30 m | Slope preference 0-5 / 5-10 / 10-20 / 20-30 / 30-45 / 45+ | Tilt p50 / p90 deg |
+|---|---|---|---|---|---|---|---|---|
+| arid | forest | 1.00 | 444 | 14.8 / 2.6 / 0.6 / 0.1 | 1.7 / 6.2 / 16.3 | 4.65 / 2.32 / 1.57 | 0.77 / 1.13 / 1.26 / 1.40 / 1.07 / 0.38 | 2 / 11 |
+| arid | middlegrowth | 1.00 | 576 | 20.3 / 2.5 / 0.4 / 0.0 | 2.2 / 5.1 / 15.9 | 5.98 / 4.09 / 2.31 | 0.90 / 1.10 / 1.26 / 1.18 / 0.68 / 0.34 | 1 / 14 |
+| arid | rock | 0.67 | 68 | 2.5 / 0.3 / 0.0 / 0.0 | 4.0 / 14.6 / 108.2 | 3.76 / 2.60 / 1.38 | 0.27 / 0.80 / 1.20 / 1.31 / 2.62 / 0.68 | 78 / 118 |
+| arid | prop | 0.33 | 66 | 2.5 / 0.0 / 0.0 / 0.0 | 2.8 / 11.0 / 27.9 | 6.57 / 1.87 / 1.41 | 1.59 / 0.00 / 0.10 / 0.00 / 0.00 / - | 0 / 3 |
+| jungle | forest | 1.00 | 1534 | 87.9 / 62.6 / 2.0 / 0.6 | 1.3 / 2.6 / 7.0 | 4.60 / 2.52 / 1.54 | 0.60 / 0.95 / 1.23 / 1.50 / 1.08 / 0.57 | 0 / 2 |
+| jungle | middlegrowth | 1.00 | 1649 | 99.6 / 38.0 / 1.0 / 0.0 | 1.5 / 2.9 / 5.2 | 4.03 / 2.47 / 1.68 | 0.73 / 1.10 / 1.18 / 1.40 / 1.04 / 0.49 | 0 / 16 |
+| jungle | rock | 0.67 | 59 | 4.7 / 0.0 / 0.0 / 0.0 | 4.2 / 16.9 / 36.3 | 2.99 / 1.40 / 1.06 | 0.52 / 1.18 / 1.61 / 1.36 / 1.43 / 0.07 | 2 / 37 |
+| jungle | prop | 0.33 | 2 | 0.1 / 0.0 / 0.0 / 0.0 | 3.0 / 3.0 / 3.0 | 0.00 / 6.19 / 0.69 | 2.43 / 0.00 / 0.00 / 0.00 / 0.00 / 0.00 | 0 / 0 |
+| snow | forest | 1.00 | 2764 | 85.3 / 70.8 / 40.6 / 15.8 | 2.5 / 4.4 / 7.3 | 1.24 / 2.11 / 1.70 | 0.71 / 1.05 / 1.23 / 1.24 / 0.91 / 0.33 | 0 / 0 |
+| snow | middlegrowth | 1.00 | 942 | 67.6 / 22.2 / 6.1 / 5.0 | 2.4 / 4.9 / 10.3 | 2.06 / 2.33 / 1.83 | 0.79 / 1.22 / 1.42 / 1.34 / 0.89 / 0.36 | 1 / 2 |
+| snow | rock | 1.00 | 135 | 14.3 / 1.4 / 0.0 / 0.0 | 2.3 / 6.1 / 21.2 | 4.81 / 3.37 / 1.76 | 0.47 / 1.17 / 1.46 / 1.45 / 0.90 / 0.36 | 42 / 96 |
+| temperate | forest | 1.00 | 1359 | 44.6 / 27.9 / 5.5 / 1.3 | 2.2 / 4.0 / 8.9 | 3.60 / 3.12 / 1.74 | 0.57 / 0.87 / 1.21 / 1.33 / 1.07 / 0.58 | 1 / 4 |
+| temperate | middlegrowth | 0.75 | 1387 | 25.7 / 6.2 / 1.4 / 0.1 | 0.8 / 2.4 / 10.8 | 9.77 / 4.18 / 2.25 | 0.68 / 0.88 / 1.09 / 1.13 / 1.19 / 0.54 | 0 / 9 |
+| temperate | rock | 0.25 | 1 | 0.0 / 0.0 / 0.0 / 0.0 | 0.0 / 0.0 / 0.0 | 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 12.19 / 0.00 / 0.00 / 0.00 | 8 / 8 |
+| temperate | prop | 0.25 | 110 | 3.1 / 0.0 / 0.0 / 0.0 | 1.3 / 3.5 / 13.6 | 24.93 / 6.79 / 3.07 | 2.06 / 0.90 / 0.15 / 0.09 / 0.00 / 0.00 | 6 / 97 |
+| vietnam | forest | 1.00 | 363 | 41.3 / 7.7 / 0.4 / 0.0 | 1.5 / 5.5 / 14.9 | 3.53 / 2.10 / 1.32 | 0.52 / 0.90 / 1.24 / 1.17 / 0.89 / 0.57 | 5 / 13 |
+| vietnam | middlegrowth | 1.00 | 1119 | 116.4 / 17.1 / 0.7 / 0.0 | 1.3 / 2.7 / 7.2 | 4.34 / 2.42 / 1.63 | 0.73 / 0.76 / 1.13 / 1.31 / 1.21 / 0.53 | 0 / 20 |
+| vietnam | rock | 1.00 | 68 | 13.1 / 1.1 / 0.0 / 0.0 | 6.3 / 10.5 / 30.3 | 0.86 / 2.06 / 0.92 | 0.41 / 0.82 / 0.91 / 1.20 / 1.41 / 0.58 | 85 / 117 |
+
+DICE never scales a member (every axis 1.0 long on all 19 terrains: there is no scale range to learn), turns its
+trees and bushes about the vertical with no favoured direction (the yaw's mean resultant length 0.03 - 0.42; tilt
+p50 0 - 15 degrees, nearer the vertical than the ground's normal on every terrain) and its rocks freely (tilt p50
+40 - 120 degrees outside the jungle: a rock's pose is its own), sinks its rocks 0.4 - 4.4 m (medians) and stands
+its trees and bushes on the ground (median within 0.3 m but MP_003's and SP_005's sunk trees). Everything falls off
+steeply outside the playable area (forest: 14.8 / 2.6 / 0.6 per hectare inside / to 50 m / to 150 m on arid; snow's
+forests the exception, still 41 per hectare 50 - 150 m out), is clustered (neighbour ratios 1.2 - 10 at 3 m and
+1.9 - 4.2 at 10 m, Clark and Evans 0.4 - 0.9), avoids flat ground under 5 degrees (preference 0.5 - 0.9) and
+slopes over 45 (0.3 - 0.7) and likes 20 - 30 degrees (1.2 - 1.5). Props are rare (one or two terrains a biome).
+
+[test: rust/bc2-levelwrite/tests/vegetation.rs::dice_biome_statistics]
+[code: rust/bc2-terragen/src/vegetation.rs:490-690]
+[data: rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 19 terrains (arid 3, jungle 3, snow 4, temperate 4, vietnam 5), each kind's statistics per terrain and the medians as tabled; rust/BENCHMARKS.md TG4]
+
+### TGEN-VEG-3: The placement falls on its biome's statistics
+
+Status: **verified** · Variants: PC
+
+`bc2_terragen::vegetation::place_biome`: per kind DICE's biome places and the level's types hold, as many instances
+in each band as the band's DICE density gives on the new terrain's dry ground (outside the level's combat areas; a
+level with none takes the central square of half the side, TGEN-PLAY-1), each from a cluster (a Thomas process: a
+parent uniform on the band's dry ground, offspring at a Gaussian spread around it) kept with the ground's slope and
+height preference (over its largest; each cluster as much larger as the thinning keeps less) and when no other
+instance of the kind is nearer than half DICE's 10th-percentile nearest-neighbour distance; its type by the base's
+shares, its pose one of the type's own DICE instances' on the base's ground (its axes in the vertical frame, or the
+normal's when the type's instances stand nearer the normal, and its height over the ground; instances more than 1 m
+over the ground, on structures, left out) turned to a uniform yaw. The cluster's count and spread start from the
+Thomas fit to DICE's neighbour ratios and are calibrated on the new ground in six rounds (the count by the
+neighbour ratio's excess at 10 m, the spread by the nearest-neighbour median; the round nearest DICE's kept), since
+the thinning and the bands change a Thomas process's clustering. Every random value is a seeded stream's
+(TGEN-GEN-1): the same terrain, types and seed give the same instances.
+
+On generated 1,024 terrains of every biome (seed 7, the central square; three types a kind), measured as DICE's
+levels are (generated / DICE's median; 632 - 5,224 instances in 1.9 - 3.2 s a terrain): the playable area's density
+within 10 % (a fifth for kinds of under 100 instances), the nearest neighbour within a factor 1.6 and the neighbour
+ratio's excess at 10 m within a factor 3 for every kind of 50 or more (the test's bounds). The slope medians differ
+by the ground (a generated snow terrain is steeper than DICE's playable areas: TGEN-PLAY-1's flatter playable area
+is TG5's); the preference is DICE's.
+
+| Biome | Kind | Per ha inside (generated / DICE) | NN p50 m | K at 10 m | K at 30 m | Slope p50 deg |
+|---|---|---|---|---|---|---|
+| arid | forest | 14.5 / 14.8 | 5.9 / 6.2 | 4.22 / 2.32 | 1.43 / 1.57 | 7.8 / 10.3 |
+| arid | middlegrowth | 18.8 / 20.3 | 5.1 / 5.1 | 4.31 / 4.09 | 2.03 / 2.31 | 5.5 / 8.4 |
+| arid | rock | 2.2 / 2.5 | 17.3 / 14.6 | 2.58 / 2.60 | 0.65 / 1.38 | 10.3 / 19.9 |
+| arid | prop | 2.4 / 2.5 | 10.2 / 11.0 | 2.65 / 1.87 | 1.22 / 1.41 | 3.2 / 0.8 |
+| jungle | forest | 88.1 / 87.9 | 3.4 / 2.6 | 3.53 / 2.52 | 2.42 / 1.54 | 20.4 / 19.8 |
+| jungle | middlegrowth | 98.2 / 99.6 | 3.3 / 2.9 | 3.02 / 2.47 | 2.31 / 1.68 | 17.8 / 20.2 |
+| jungle | rock | 4.5 / 4.7 | 12.3 / 16.9 | 1.28 / 1.40 | 1.53 / 1.06 | 14.1 / 16.5 |
+| jungle | prop | 0.1 / 0.1 | 2.0 / 3.0 | 5.79 / 6.19 | 0.64 / 0.69 | 4.8 / 0.0 |
+| snow | forest | 78.9 / 85.3 | 4.6 / 4.4 | 2.12 / 2.11 | 1.95 / 1.70 | 28.7 / 18.2 |
+| snow | middlegrowth | 65.5 / 67.6 | 5.4 / 4.9 | 3.04 / 2.33 | 2.55 / 1.83 | 24.8 / 17.0 |
+| snow | rock | 14.1 / 14.3 | 7.1 / 6.1 | 3.38 / 3.37 | 2.37 / 1.76 | 25.1 / 15.3 |
+| temperate | forest | 45.1 / 44.6 | 4.9 / 4.0 | 2.99 / 3.12 | 1.67 / 1.74 | 20.7 / 15.9 |
+| temperate | middlegrowth | 25.6 / 25.7 | 2.9 / 2.4 | 3.66 / 4.18 | 1.55 / 2.25 | 20.0 / 14.6 |
+| temperate | prop | 3.1 / 3.1 | 3.2 / 3.5 | 14.52 / 6.79 | 2.38 / 3.07 | 4.4 / 1.6 |
+| vietnam | forest | 41.1 / 41.3 | 5.6 / 5.5 | 2.24 / 2.10 | 1.53 / 1.32 | 13.2 / 18.2 |
+| vietnam | middlegrowth | 115.4 / 116.4 | 2.9 / 2.7 | 2.48 / 2.42 | 1.63 / 1.63 | 13.0 / 13.9 |
+| vietnam | rock | 12.8 / 13.1 | 10.2 / 10.5 | 1.91 / 2.06 | 1.66 / 0.92 | 15.7 / 23.4 |
+
+[test: rust/bc2-terragen/tests/vegetation.rs::every_biome_falls_on_dices_statistics]
+[test: rust/bc2-terragen/tests/vegetation.rs::a_placement_is_its_seeds]
+[test: rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks]
+[code: rust/bc2-terragen/src/vegetation.rs:692-1230]
+
+### TGEN-VEG-4: DICE's model groups written again through the member writer are DICE's bytes
+
+Status: **verified** · Variants: PC
+
+The vegetation step's writer is round SG1's member edits. DICE's groups of one multiplayer level per biome (MP_005,
+MP_009CQ, MP_007, MP_004, NAM_MP_003CQ: forests, middlegrowth, static and rigid groups) written again through it -
+every type's members but its first deleted, then each added back at DICE's transform in DICE's order as a copy of
+the first (its `SpawnDatas` record copied, `InstanceCount` and the cumulative part and network numbers made again),
+each added member given DICE's leaf - give DICE's group file and level partition byte for byte, and the group's
+physics laid out again for the result is DICE's: 17 of 17 groups, 15,699 members, 15,499 of them added again. A copy
+takes its source's `SpawnDatas` record, and DICE's records of one type are not all alike: on MP_005's static group 17
+records name another `MeshShaderSet` than their type's first, so a copy of the type's first member differed there
+(the first version of the test). So the step copies, for each instance it adds, the DICE instance whose pose it took
+(its asset item and record), and adds before it deletes.
+
+[test: rust/bc2-levelwrite/tests/vegetation.rs::dice_groups_round_trip_through_the_member_writer]
+[code: rust/bc2-levelwrite/src/members.rs:420-560]
+[data: rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 17 of 17 groups of MP_005, MP_009CQ, MP_007, MP_004 and NAM_MP_003CQ byte for byte (group file, partition, physics), 15,499 members added again, in 200 s]
 
 ## 6. Output and proof
 
@@ -769,8 +928,9 @@ Status: **inferred** · Variants: PC
 Unproven until an in-game test: that the engine loads a main block whose envelope is the generator's (TERR-HF-11's
 use), a terrain other than the donor's under the donor's rule-layer literals in the engine itself (TGEN-VIS-2 holds in the
 game-accurate view), the sub-terrain ring (TGEN-RING-1), the visual water and the colour / occlusion map, a level without the base's
-terrain bundle (TGEN-REQ-5), a water mesh of our own (what the game uses it for), and that the depth map of 255 lets
-craters form as on DICE's ground (TERR-HF-9).
+terrain bundle (TGEN-REQ-5), a water mesh of our own (what the game uses it for), that the depth map of 255 lets
+craters form as on DICE's ground (TERR-HF-9), and round TG4's vegetation and tiled layers (their look, collision and
+the trees' destruction on new ground; the bots among them beyond the path data's measures).
 
 [inferred: terrain_edit.md section 5; XEXP-CHK-1; XNAV-BLD-1 - 4; NavKit's parity target (navkit.md)]
 
@@ -788,10 +948,10 @@ Status: **inferred** · Variants: PC
 | generator to DICE's medians | feasible now (TGEN-GEN-2) | small |
 | generator to DICE's tails and skew | done in round TG1 (TGEN-GEN-3 / -4: slope matching, remapping, erosion); temperate's rough relief in round TG2 (TGEN-GEN-6) | medium |
 | visual terrain, rule layers only | done (TGEN-VIS-1, -3; drawn in the game-accurate view, TGEN-VIS-2); unproven in game | small |
-| visual terrain, tiled layers and atlas | feasible (TEDIT-ATL-1 / TEDIT-VT-1 decoded); needs E5's paint path | medium |
+| visual terrain, tiled layers and atlas | done in round TG4 for donors whose layers are one kind each (TGEN-MAT-3, E5-rest's paint); unproven in game | medium |
 | patch / undergrowth shader entries renamed and retargeted in three databases | done (TGEN-VIS-4) | medium |
 | colour / occlusion map | done (TGEN-OCC-1: the donor's values placed by sky visibility) | small |
-| vegetation and props | feasible: model-group members (TGEN-VEG-1, SG1's edits) | medium |
+| vegetation and props | done in round TG4 (TGEN-VEG-1 - 4: DICE's statistics per biome, the placement, SG1's member edits); unproven in game | medium |
 | export as a new level | done in round TG3 (TGEN-REQ-5, TEDIT-NEW-2, XVAL-TERR-4); unproven in game | medium |
 | path data | done in round TG3 (TEDIT-NEW-3: sampled on the stage, built, measured); quality bounded by NavKit's parity | small (wiring) |
 | in-game acceptance | blocked by the in-game pause (TGEN-OUT-5) | - |
@@ -804,8 +964,9 @@ shaders renamed into a new terrain's databases, rule-layer patch maps, the visua
 the game-accurate view of a generated terrain (`bc2_render::world::World::load_generated`, the editor's
 `gameview::read_generated`); the prototype retired. **TG3** E7's Create Level path A wired to the generator (a "Generate"
 choice beside "From a height map": the same `TerrainImport` then written by the generator), the export with the
-level's own terrain bundle, `export::check`, NavKit from the offline sampler. **TG4** vegetation, rocks and props
-placed per biome, with E5's sculpt and paint working on the generated terrain (the same writers). **TG5** gameplay on
+level's own terrain bundle, `export::check`, NavKit from the offline sampler. **TG4** (done 2026-11-27) vegetation, rocks and
+props placed per biome (TGEN-VEG-1 - 4), the donor's tiled layers (TGEN-MAT-3), E5's sculpt and paint working on the
+generated terrain (TEDIT-NEW-4). **TG5** gameplay on
 the generated terrain through A3 (objectives on its pads, combat areas from its flat region), and the WW2 (pacific)
 biome. Each round reports the TGEN-SHAPE / TGEN-PLAY statistics of its output against DICE's.
 

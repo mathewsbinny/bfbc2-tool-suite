@@ -65,3 +65,35 @@ pub fn apply_project(scene: &mut Scene, root: &Path, path: &Path) -> Result<Opti
         .map_err(|e| EditorError::Level(format!("the project's new terrain: {e}")))?;
     apply(scene, &view, 2).map(Some)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+
+    // spec: TEDIT-NEW-4
+    #[test]
+    fn a_new_terrain_replaces_the_scenes_under_the_bases_names() {
+        let t = bc2_terragen::Terrain::new(&bc2_terragen::Settings::new(bc2_terragen::Biome::Arid, 1024, 7)).unwrap();
+        let stem = "terrains/mp_005/mp_005";
+        let mut view = View {
+            stem: stem.into(),
+            ..View::default()
+        };
+        for r in t.resources("NEWTERRAIN").unwrap() {
+            let low = r.name.to_ascii_lowercase();
+            let rest = low.strip_prefix("terrains/newterrain/newterrain").unwrap().to_owned();
+            view.files.insert(format!("{stem}{rest}"), r.data);
+        }
+        let mut scene = Scene::default();
+        let notes = apply(&mut scene, &view, 4).unwrap();
+        assert!(notes[0].contains("1024 x 1024"), "{notes:?}");
+        let hf = scene.heightfield.as_ref().unwrap();
+        assert_eq!((hf.size, hf.raw.len()), (1024, 1024 * 1024));
+        assert_eq!(hf.raw, t.height.raw);
+        assert_eq!(scene.terrain.as_ref().unwrap().0.len(), 256 * 256);
+        assert_eq!(scene.material_map.as_ref().unwrap().width, 2048);
+        assert_eq!(scene.terrain_extra.as_ref().unwrap().ring.len(), 12);
+        assert!(scene.water.is_some());
+    }
+}

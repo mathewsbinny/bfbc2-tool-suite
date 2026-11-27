@@ -180,7 +180,6 @@ pub type Outside<'a> = &'a (dyn Fn(f64, f64) -> f64 + Sync);
 
 /// The distance outside the central square of half a terrain's `side` (the playable area of a level with no combat
 /// area: DICE's lie near the middle, TGEN-PLAY-1).
-#[must_use]
 pub fn central(side: f64) -> impl Fn(f64, f64) -> f64 + Sync {
     move |x: f64, z: f64| {
         let h = side / 4.0;
@@ -295,7 +294,7 @@ fn median_of(v: &mut Vec<f64>) -> f64 {
         v.get((n - 1) / 2).copied().unwrap_or(0.0),
         v.get(n / 2).copied().unwrap_or(0.0),
     );
-    (a + b) / 2.0
+    f64::midpoint(a, b)
 }
 
 fn med<const N: usize>(all: &[&KindStats], f: impl Fn(&KindStats) -> [f64; N]) -> [f64; N] {
@@ -507,6 +506,10 @@ pub fn band_areas(g: &Ground, outside: Outside<'_>) -> [f64; 6] {
 
 /// One kind's statistics of `instances` (all of one kind) on `g`; `areas` the dry ground's [`band_areas`].
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "each statistic of KindStats in its order, from one pass over the instances"
+)]
 pub fn kind_stats(g: &Ground, instances: &[Instance], outside: Outside<'_>, areas: &[f64; 6]) -> Option<KindStats> {
     if instances.is_empty() {
         return None;
@@ -846,7 +849,12 @@ impl Pose {
         let turn = |v: [f64; 3]| [c * v[0] + s * v[2], v[1], -s * v[0] + c * v[2]];
         let world = |v: [f64; 3]| {
             let t = turn(v);
-            std::array::from_fn(|k| (t[0] * b[0][k] + t[1] * b[1][k] + t[2] * b[2][k]) as f32)
+            let [r, u, f] = b;
+            [
+                (t[0] * r[0] + t[1] * u[0] + t[2] * f[0]) as f32,
+                (t[0] * r[1] + t[1] * u[1] + t[2] * f[1]) as f32,
+                (t[0] * r[2] + t[1] * u[2] + t[2] * f[2]) as f32,
+            ]
         };
         [
             world(self.axes[0]),

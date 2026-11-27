@@ -223,7 +223,7 @@ pub fn ground_of(h: &bc2_formats::terrain::Heightfield, water: Option<f64>) -> b
 #[must_use]
 pub fn dice_levels(game: &Game) -> Vec<String> {
     // 2013-01-01 in hours since 1970
-    let before = std::time::UNIX_EPOCH + std::time::Duration::from_secs(376_944 * 3600);
+    let before = std::time::UNIX_EPOCH + std::time::Duration::from_hours(376_944);
     let mut out: Vec<String> = [
         game.root.join("Dist").join("win32").join("levels"),
         game.root.join("Package").join("levels"),
@@ -305,7 +305,6 @@ pub fn is_multiplayer(lv: &str) -> bool {
 
 /// The distance outside the union of `polys` (0 inside); with no polygon, the distance outside the central square of
 /// half the terrain's side (TGEN-PLAY-1: DICE's combat areas lie near the middle).
-#[must_use]
 pub fn outside_fn(polys: Vec<Vec<[f64; 2]>>, side: f64) -> impl Fn(f64, f64) -> f64 + Sync {
     move |x: f64, z: f64| {
         if polys.is_empty() {
@@ -316,6 +315,9 @@ pub fn outside_fn(polys: Vec<Vec<[f64; 2]>>, side: f64) -> impl Fn(f64, f64) -> 
     }
 }
 
+/// A multiplayer level of a terrain: its name, its forest and middlegrowth instances, its combat areas.
+type TerrainLevel = (String, usize, Vec<Vec<[f64; 2]>>);
+
 /// DICE's multiplayer terrains of the game copy with their vegetation statistics (TGEN-VEG-2): per terrain of
 /// TGEN-BIOME-1's table that has multiplayer levels, its level with the most forest and middlegrowth instances
 /// measured on the terrain's ground, the playable area the union of all its multiplayer levels' combat areas.
@@ -323,7 +325,7 @@ pub fn outside_fn(polys: Vec<Vec<[f64; 2]>>, side: f64) -> impl Fn(f64, f64) -> 
 /// # Errors
 /// A level that does not read.
 pub fn dice_terrain_stats(game: &Game) -> crate::export::Result<Vec<TerrainStats>> {
-    let mut by_terrain: BTreeMap<String, Vec<(String, usize, Vec<Vec<[f64; 2]>>)>> = BTreeMap::new();
+    let mut by_terrain: BTreeMap<String, Vec<TerrainLevel>> = BTreeMap::new();
     for lv in dice_levels(game).into_iter().filter(|l| is_multiplayer(l)) {
         let Ok(part) = crate::export::level_partition(game, &lv) else {
             continue;
@@ -433,7 +435,9 @@ pub fn poses_of(
 /// A group file that does not read or whose members its types do not count.
 #[allow(
     clippy::too_many_arguments,
-    reason = "the level as the log leaves it, the two grounds and the step's settings"
+    clippy::too_many_lines,
+    clippy::cast_precision_loss,
+    reason = "the level, the two grounds and the settings; types, placement and edits in order; counts below 2^52"
 )]
 pub fn place_on(
     w: &LevelWriter,

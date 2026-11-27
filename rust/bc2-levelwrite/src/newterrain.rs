@@ -908,6 +908,7 @@ pub struct LayerLay {
 /// Each tiled layer of a terrain as it lies on its ground (its weights from [`crate::terrainpaint::layer_weights`],
 /// the ground sampled every 4 m).
 #[must_use]
+#[allow(clippy::cast_precision_loss, reason = "sample and cell counts, far below 2^52")]
 pub fn layer_lays(
     weights: &BTreeMap<String, crate::delta::Raster>,
     g: &bc2_terragen::vegetation::Ground,
@@ -991,6 +992,7 @@ fn noise(seed: u64, stream: u64, x: f64, z: f64) -> f64 {
 /// preferences, its edge 0.5 wide, its threshold found by bisection so its mean weight over the dry ground is the
 /// donor's coverage times `scale`; 0 under the water.
 #[must_use]
+#[allow(clippy::cast_precision_loss, reason = "sample and cell counts, far below 2^52")]
 pub fn lay_layer(
     lay: &LayerLay,
     g: &bc2_terragen::vegetation::Ground,
@@ -1078,6 +1080,11 @@ pub struct Tiled {
 /// shader to clone: TEDIT-SH-2) is left out; when the atlas has no room, every layer's coverage is cut by a third
 /// until it fits. A donor whose layers are not one kind each (TEDIT-VT-2) paints nothing: its rule layers draw alone
 /// (TGEN-VIS-1).
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::too_many_lines,
+    reason = "sample counts far below 2^52; the paint's steps in order: measure, lay, paint, fit the atlas, pair the materials"
+)]
 pub fn paint_tiled(
     built: &mut Built,
     t: &Terrain,

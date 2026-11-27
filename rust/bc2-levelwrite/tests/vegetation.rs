@@ -17,6 +17,7 @@
 )]
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use bc2_formats::{fbrb, terrain};
@@ -85,10 +86,7 @@ fn dice_biome_statistics() {
             }
         }
         let stats = BiomeStats::of(&of.iter().map(|t| t.stats.clone()).collect::<Vec<_>>()).rounded();
-        src.push_str(&format!(
-            "        Biome::{b:?} => {stats:?},
-"
-        ));
+        writeln!(src, "        Biome::{b:?} => {stats:?},").unwrap();
         let kept = BiomeStats::dice(b);
         if std::env::var_os("BC2_VEG_TABLE").is_none() {
             assert_eq!(
@@ -198,11 +196,11 @@ fn dice_groups_round_trip_through_the_member_writer() {
             let (fb, wb) = (f.write().unwrap(), w.write().unwrap());
             let file_same = fb == dice_file;
             let part_same = wb == base_part;
-            let ge = members::group_entity(&w, &g.file).unwrap();
-            let counts: Vec<usize> = members::runs(&w, &ge).unwrap().iter().map(|r| r.count).collect();
-            let res_same = dice_res.as_ref().is_none_or(|r| {
+            let group = members::group_entity(&w, &g.file).unwrap();
+            let counts: Vec<usize> = members::runs(&w, &group).unwrap().iter().map(|r| r.count).collect();
+            let physics_same = dice_res.as_ref().is_none_or(|r| {
                 let phys = members::GroupPhysics::read(r).unwrap();
-                phys.relaid(&counts, &members::layout(&w, &ge).unwrap())
+                phys.relaid(&counts, &members::layout(&w, &group).unwrap())
                     .unwrap()
                     .write()
                     == *r
@@ -214,7 +212,7 @@ fn dice_groups_round_trip_through_the_member_writer() {
                 added.len(),
                 if file_same { "DICE's bytes" } else { "DIFFERS" },
                 if part_same { "DICE's bytes" } else { "DIFFERS" },
-                if res_same { "DICE's bytes" } else { "DIFFERS" }
+                if physics_same { "DICE's bytes" } else { "DIFFERS" }
             );
             if !part_same {
                 // which records of a type differ besides their leaf
@@ -269,10 +267,10 @@ fn dice_groups_round_trip_through_the_member_writer() {
                     show(&base_part)
                 );
             }
-            assert!(file_same && part_same && res_same, "{lv} {}", g.file);
+            assert!(file_same && part_same && physics_same, "{lv} {}", g.file);
             groups += 1;
             members_n += g.members.len();
-            same += usize::from(file_same && part_same && res_same);
+            same += usize::from(file_same && part_same && physics_same);
         }
     }
     println!("{same} of {groups} groups ({members_n} members) round-trip byte for byte");
@@ -511,7 +509,7 @@ fn a_generated_level_with_vegetation_exports_and_checks() {
     let t = std::time::Instant::now();
     let r = export::check(&game, &stage).unwrap();
     println!("{level}: checked in {:.1} s", t.elapsed().as_secs_f64());
-    for (ok, l) in r.checks.iter() {
+    for (ok, l) in &r.checks {
         if !*ok || l.contains("group") || l.starts_with("new terrain") || l.starts_with("terrain") {
             println!(
                 "  {} {}",

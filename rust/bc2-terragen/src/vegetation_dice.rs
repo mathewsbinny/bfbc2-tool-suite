@@ -6,6 +6,7 @@
     clippy::unreadable_literal,
     clippy::too_many_lines,
     clippy::neg_multiply,
+    clippy::approx_constant,
     reason = "a measured table, as the test prints it"
 )]
 
