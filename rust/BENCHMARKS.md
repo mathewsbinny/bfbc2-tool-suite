@@ -4980,7 +4980,13 @@ Files the ruling changed, and why:
 - `navtools_golden.json` (`test_navtools_native.py --record --game --only measures`): the parity rows of sp_009 and
   sp_004_b, whose candidates are the new golden builds (sp_004_b `connectivity` 99.90 -> 99.86, within navregress's
   0.05 tolerance).
+- `test_lips.py`: its "a 50 deg strip needs no flat floor (the old cap)" check is now the ruled behaviour (not
+  crossed between 30-degree floors, crossed between flat ones), the old cap checked with the switch off.
 - OPFOR's `work/navkit/parity/regression.json` (not in the repository): re-recorded, the old one kept dated.
+
+Checks on the final tree (main e4da9408 merged): the quick tier 136 of 137 (the one failure `test_lips.py`'s old-cap
+check, fixed above and passing alone); `test_navbuild_native.py --game` all passed (sp_009 as recorded);
+`spec/trace.py --check` ok (1,506 rules).
 egression.json` (not in the repository): re-recorded, the old one kept dated.
 
 ### 4. navregress and the harness
