@@ -28,6 +28,22 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-27
+
+Round OR9 retires Project OPFOR's Python of the console Onslaught port's stages 2 - 4: OPFOR now needs this version's
+`bc2_native.onsport_linux` / `onsport_mode` / `onsport_loadset`, so its `SUITE_REQUIRES` moves to 0.31.0 - 0.32.0.
+
+### Added
+- **The console Onslaught port's stages 2 - 4 in Rust** (round OR9, "OPFOR in Rust"): `bc2_install::onslaught::linux`
+  (the console gameplay put on the PC map's Linux server level: the merge, the renamed Linux files, the cull slots as
+  the Linux level's), `onslaught::mode` (the Onslaught game mode from PC Conquest, the console spawn manager, every
+  flag takeable, the doorway pre-destructions left out) and `onslaught::loadset` (the level's manifest blocks without
+  PC mp2_common, the files it takes only from there copied in), through `bc2_native.onsport_linux`, `onsport_mode`
+  and `onsport_loadset`. OPFOR's `console_linux_base.py`, `console_mode.py` and `console_loadset.py` keep their
+  command lines and the install ledger; their work files are the retired Python's byte for byte on the four console
+  levels (spec XCONS-ONS-2 - 4).
+- `bc2_pyrt::math`: CPython's `math.dist` (its compensated `vector_norm`), `x ** 2` and `x ** y` bit for bit.
+
 ## [0.30.0] - 2026-11-27
 
 Round OR7 retires Project OPFOR's Python rebuild runner (`rebuild_all.run_chains` / `run_step`, `stepstamps.Tracker.begin` / `finish` / `why`): OPFOR now needs this version's `bc2_native.rebuild_run`, so its `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0.

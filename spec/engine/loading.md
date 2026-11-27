@@ -141,7 +141,7 @@ leave the object out).
 
 [exe: BFBC2Game.exe 0x5A5A00, fault at 0x5A5A61 on a null asset pointer (Valparaiso Onslaught load test, 2026-10-30)]
 [doc: opfor:src/dll/levelfix.cpp:249-251] [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:186-191]
-[doc: opfor:src/tools/onslaught/console_vehicles.py:8] [doc: opfor:src/tools/onslaught/console_loadset.py:155]
+[doc: opfor:src/tools/onslaught/console_vehicles.py:8] [doc: opfor:src/tools/onslaught/console_loadset.py:18-20]
 
 ### LOAD-PART-4: The voice-over set-up walks each kit's objects (0x6EA3F0)
 
