@@ -5192,6 +5192,13 @@ Version 0.29.0 (OPFOR's `SUITE_REQUIRES` 0.29.0 to below 0.30.0).
 | `mapexport overlay / awards`' reading of the stages | ~60 | the texts and pictures from stage folders | `bc2_levelwrite::installpatch`, shared by `mapexport` and the install |
 | the editor's `run_logged` (python + the script, its output through a log file: AU4-DS-13) | ~30 | the Install dialog | `export_ui::install_step`: the install in process on a worker |
 
+**The crates.** The install's check and patches are `bc2_levelwrite`'s, behind a trait (`bc2_install::mapedit::Patches`,
+implemented by `bc2_levelwrite::installpatch::LevelWrite`): with `bc2-levelwrite` as a dependency of `bc2-install`,
+the Python module's source fingerprint (`bfbc2core.native.crates`, which follows optional dependencies too) took in
+the export's crates, so every editor round would have made the module stale - the quick tier's "Rust core required"
+entry caught it (its copy of the checkout leaves out `tests\`, which `bc2-levelwrite` includes recorded projects
+from). The module's crates are as before.
+
 AU1-G-N8 (installing an export needs OPFOR's Python): fixed - the editor's Install, Install now and Uninstall run
 `bc2_install::mapedit` in process; `bfbc2 install mapedit` is the command line.
 
@@ -5231,9 +5238,9 @@ AU1-G-N8 (installing an export needs OPFOR's Python): fixed - the editor's Insta
   (78 to 85 a step) but the Rust's one line on the kept copy, exit codes; the kept copies (2 to 8 files) the Rust's
   alone. After each full revert the copy is the migrated base, files and records.
 - **Kills** (`scratchpad\or6\kill.py`, `BC2_INSTALL_CRASH_AT=<n>`, exit 9, then the same command again): from the state with export A installed, an apply of export N beside it - 18 write steps (the level folder, its record, 4 kept files, 4 bundles, the ledger commit's journal, 6 files and record) - and from the state with both, a revert of A - 17 steps (8 ledger steps, 9 removals, the record last): **35 of 35 kills finished identically** (files and ledger records those of an uninterrupted run; the ledger steps resumed by "an interrupted install was rolled back"). A long scratch path stopped the first parallel attempt: the bundle unpack refuses paths of 260 characters or more as FbrbTool (.NET) did - a real game folder is far shorter.
-  On synthetic stages (`rust/bc2-install/tests/mapedit.rs`) every write step of an apply, an apply beside it and a
+  On synthetic stages (`rust/bc2-levelwrite/tests/install_mapedit.rs`) every write step of an apply, an apply beside it and a
   revert (29 kills) is finished with the files and records of an uninterrupted run.
-- **Tests**: `rust/bc2-install/tests/mapedit.rs` (5 tests: the text patches, an install beside another and every
+- **Tests**: `rust/bc2-levelwrite/tests/install_mapedit.rs` (5 tests: the text patches, an install beside another and every
   revert back byte for byte, the kept copy, the path data's owner, a kill at every step); OPFOR's
   `test_mapedit_install.py` (the wrapper's command lines, its refusals through the binary, a real export installed and
   reverted when the newest stage passes the check).

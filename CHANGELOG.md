@@ -82,7 +82,8 @@ OPFOR's `SUITE_REQUIRES` moves to 0.29.0 - 0.30.0: its `mapedit_install.py` runs
 - **`bc2_install::stages`**: `opforcore.stages`' whole-file operations (resume, the old markers' refusal,
   `check_install`, `install`, `check_revert`, `revert`, `source`) for an installer owning shared files - what IN1's
   installer builds on; `bc2_levelwrite::installpatch`: the overlay's texts and the awards bundle's pictures from
-  stages (`mapexport overlay | awards` and the install share it).
+  stages (`mapexport overlay | awards` and the install share it), and `LevelWrite`, the install's check and patches
+  (`bc2_install::mapedit::Patches`: the install itself does not depend on the export's crates).
 - **The map editor inserts a Rush stage between two** (round E4-rest2, spec GAME-RUSH-12): the Gameplay panel's
   **Insert after** on a stage, then a click on the ground, puts a copy of the next stage there, played between the
   two (`bc2_levelwrite::rushstage::insert_stage`; one undo step, the `connect` operation of project format 10). The

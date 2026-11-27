@@ -8,6 +8,62 @@ use std::path::{Path, PathBuf};
 
 use crate::export::{self, Result};
 
+/// The map export's install's check and patches (`bc2_install::mapedit::Patches`): `mapexport check`, `startup`,
+/// `overlay` and `awards` in process.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LevelWrite;
+
+impl bc2_install::mapedit::Patches for LevelWrite {
+    fn check(&self, check_root: &Path, stage: &Path) -> std::result::Result<(bool, Vec<String>), String> {
+        let g = export::Game::open(check_root).map_err(|e| e.to_string())?;
+        let r = export::check(&g, stage).map_err(|e| e.to_string())?;
+        let lines = r
+            .lines()
+            .map(|(code, ok, what)| export::CheckReport::line(code, ok, what))
+            .collect();
+        Ok((r.ok(), lines))
+    }
+
+    fn startup(
+        &self,
+        source: &Path,
+        add: &[(String, Vec<u8>)],
+        remove: &[String],
+        work: &Path,
+        out: &Path,
+    ) -> std::result::Result<(), String> {
+        export::patch_startup(source, add, remove, work, out)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    fn overlay(
+        &self,
+        source: &Path,
+        stages: &[PathBuf],
+        remove: &[String],
+        work: &Path,
+        out: &Path,
+    ) -> std::result::Result<(), String> {
+        overlay(source, stages, remove, work, out)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    fn awards(
+        &self,
+        source: &Path,
+        stages: &[PathBuf],
+        remove: &[String],
+        work: &Path,
+        out: &Path,
+    ) -> std::result::Result<(), String> {
+        awards(source, stages, remove, work, out)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+}
+
 /// The overlay bundle with the texts of `stages` (each stage's `strings` in every language, its
 /// `strings_by_language` in their own) and without the keys of `remove`'s levels (their names, descriptions and
 /// flags' spawn names): [`export::patch_overlay_langs`]. Returns the languages written and the texts added.

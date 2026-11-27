@@ -3,9 +3,9 @@
 //! a second export beside the first and one taken out of two, the shared patches built from each install's kept copy
 //! and never from the editor's live stage (audit AU4-DS-12), and a kill at every write step of an install and a revert
 //! finished by the next run. Project OPFOR's `src\tools\tests\test_mapedit_install.py` runs the same command line on
-//! real exports.
+//! real exports. Here (in bc2-levelwrite) because the install's check and patches are this crate's
+//! (`installpatch::LevelWrite`).
 
-#![cfg(feature = "mapedit")]
 #![allow(
     clippy::indexing_slicing,
     clippy::panic,
@@ -21,16 +21,29 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
 
 use bc2_formats::dbx::{self, DbxFile, Element};
 use bc2_formats::fbrb;
 use bc2_install::mapedit::{self, Game, Installer, KEPT, RECORD};
 use bc2_install::stages::{CRASHED, CrashAt, Steps};
+use bc2_levelwrite::installpatch::LevelWrite;
 use bc2_pyrt::json::{self, Value};
 
-/// A ledger record's transaction id and time (masked: they differ from run to run).
-static TXN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#""(txn|installed)": "[^"]*""#).unwrap());
+/// A ledger record with its transaction id and time masked (they differ from run to run).
+fn mask(t: &str) -> String {
+    t.lines()
+        .map(|l| {
+            let k = l.trim_start();
+            if k.starts_with("\"txn\": \"") || k.starts_with("\"installed\": \"") {
+                let cut = l.find(": \"").map_or(l.len(), |i| i + 3);
+                format!("{}*\",", &l[..cut])
+            } else {
+                l.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 const G1: &str = "11111111-2222-3333-4444-555555555555";
 const G2: &str = "66666666-7777-8888-9999-AAAAAAAAAAAA";
@@ -223,7 +236,7 @@ fn files(g: &Path) -> BTreeMap<String, Vec<u8>> {
             let mut data = fs::read(&p).unwrap();
             if rel.starts_with("opfor/ledger/") && rel.ends_with(".json") {
                 let t = String::from_utf8(data).unwrap();
-                let t = TXN.replace_all(&t, "\"$1\": \"*\"").into_owned();
+                let t = mask(&t);
                 data = t.into_bytes();
             }
             out.insert(rel, data);
@@ -238,7 +251,7 @@ fn game_files(g: &Path) -> BTreeMap<String, Vec<u8>> {
 }
 
 fn installer<'a>(g: &Path, work: &Path, log: &'a mut dyn FnMut(&str), at: Option<CrashAt>) -> Installer<'a> {
-    Installer::with_steps(Game::new(&s(g), None), &s(work), Steps::new(at), log).without_check()
+    Installer::with_steps(Game::new(&s(g), None), &s(work), Steps::new(at), &LevelWrite, log).without_check()
 }
 
 fn apply(g: &Path, work: &Path, st: &Path) -> Vec<String> {
@@ -266,6 +279,7 @@ fn entries(bundle: &Path) -> BTreeMap<String, Vec<u8>> {
 
 #[test]
 fn text_patches_add_and_take_out() {
+    let _gate = crate::gate();
     let d = tmp("text");
     let st = stage(&d, "MAPEDIT_X_CQ", false, b"x");
     let rec = mapedit::read_stage(&s(&st)).unwrap();
@@ -308,6 +322,7 @@ fn text_patches_add_and_take_out() {
 
 #[test]
 fn install_beside_and_revert_give_every_file_back() {
+    let _gate = crate::gate();
     let d = tmp("apply");
     let g = game(&d);
     let work = d.join("work");
@@ -388,6 +403,7 @@ fn install_beside_and_revert_give_every_file_back() {
 
 #[test]
 fn the_patches_come_from_each_installs_kept_copy() {
+    let _gate = crate::gate();
     let d = tmp("kept");
     let g = game(&d);
     let work = d.join("work");
@@ -447,6 +463,7 @@ fn kill(g: &Path) {
 
 #[test]
 fn a_kill_at_every_write_step_is_finished_by_the_next_run() {
+    let _gate = crate::gate();
     let d = tmp("kill");
     let a = stage(&d, "MAPEDIT_A_CQ", true, b"description of A");
     let b = stage(&d, "MAPEDIT_B_CQ", true, b"description of B");
@@ -500,6 +517,7 @@ fn a_kill_at_every_write_step_is_finished_by_the_next_run() {
 
 #[test]
 fn path_data_goes_through_the_ledger_under_its_own_owner() {
+    let _gate = crate::gate();
     let d = tmp("ai");
     let g = game(&d);
     let work = d.join("work");

@@ -24032,7 +24032,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:976-993"
+     "ref": "rust/bc2-install/src/mapedit.rs:1038-1055"
     },
     {
      "kind": "code",
@@ -26216,11 +26216,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:599-636"
+     "ref": "rust/bc2-install/src/mapedit.rs:663-700"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:856-898"
+     "ref": "rust/bc2-install/src/mapedit.rs:918-960"
     },
     {
      "kind": "code",
@@ -26228,11 +26228,11 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::the_patches_come_from_each_installs_kept_copy"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::text_patches_add_and_take_out"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
     }
    ]
   },
@@ -26244,27 +26244,27 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:856-898"
+     "ref": "rust/bc2-install/src/mapedit.rs:918-960"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:900-937"
+     "ref": "rust/bc2-install/src/mapedit.rs:962-999"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:520-597"
+     "ref": "rust/bc2-install/src/mapedit.rs:579-661"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:976-993"
+     "ref": "rust/bc2-install/src/mapedit.rs:1038-1055"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::install_beside_and_revert_give_every_file_back"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::path_data_goes_through_the_ledger_under_its_own_owner"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::path_data_goes_through_the_ledger_under_its_own_owner"
     }
    ]
   },
@@ -26276,15 +26276,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:1009-1068"
+     "ref": "rust/bc2-install/src/mapedit.rs:1071-1130"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:1070-1084"
+     "ref": "rust/bc2-install/src/mapedit.rs:1132-1146"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::install_beside_and_revert_give_every_file_back"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     },
     {
      "kind": "test",
@@ -26300,19 +26300,19 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:281-307"
+     "ref": "rust/bc2-install/src/mapedit.rs:332-358"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:309-322"
+     "ref": "rust/bc2-install/src/mapedit.rs:360-373"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:324-338"
+     "ref": "rust/bc2-install/src/mapedit.rs:375-389"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::text_patches_add_and_take_out"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
     },
     {
      "kind": "test",
@@ -26328,15 +26328,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:939-974"
+     "ref": "rust/bc2-install/src/mapedit.rs:1001-1036"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:505-518"
+     "ref": "rust/bc2-install/src/mapedit.rs:564-577"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::the_patches_come_from_each_installs_kept_copy"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::the_patches_come_from_each_installs_kept_copy"
     }
    ]
   },
@@ -26356,11 +26356,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:438-449"
+     "ref": "rust/bc2-install/src/mapedit.rs:490-501"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::a_kill_at_every_write_step_is_finished_by_the_next_run"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::a_kill_at_every_write_step_is_finished_by_the_next_run"
     },
     {
      "kind": "data",
@@ -26376,11 +26376,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/mapedit.rs:281-307"
+     "ref": "rust/bc2-install/src/mapedit.rs:332-358"
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::text_patches_add_and_take_out"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::text_patches_add_and_take_out"
     },
     {
      "kind": "data",
@@ -26404,7 +26404,7 @@
     },
     {
      "kind": "test",
-     "ref": "rust/bc2-install/tests/mapedit.rs::install_beside_and_revert_give_every_file_back"
+     "ref": "rust/bc2-levelwrite/tests/install_mapedit.rs::install_beside_and_revert_give_every_file_back"
     }
    ]
   },

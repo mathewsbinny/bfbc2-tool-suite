@@ -29,6 +29,7 @@ mod export_xf1;
 mod flag_texts;
 mod gameplay_tools;
 mod gameplay_xf1;
+mod install_mapedit;
 mod journal_kill;
 mod model_group_members;
 mod project_versions;

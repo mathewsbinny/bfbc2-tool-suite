@@ -14,6 +14,8 @@ autotests = false
 bc2-formats.workspace = true
 bc2-tools.workspace = true
 bc2-gamefs.workspace = true
+# the map export's install (round OR6): `installpatch::LevelWrite` is its check and patches
+bc2-install = { workspace = true, features = ["mapedit"] }
 thiserror.workspace = true
 # culltree.py's model (culltool, round O3): its exceptions and value texts; the reference levels read on all cores
 bc2-pyrt.workspace = true

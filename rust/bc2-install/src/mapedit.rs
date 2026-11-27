@@ -28,7 +28,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use bc2_gamefs::sha256;
-use bc2_levelwrite::{export, installpatch};
 use bc2_pyrt::fmt::{str_repr, thousands};
 use bc2_pyrt::json::{self, Value};
 use bc2_pyrt::py::join;
@@ -53,6 +52,58 @@ pub const MAPS_MARK: &str =
     "; --- Map editor: exported levels (mapedit_install.py writes this part; --revert takes it out) ---";
 /// The null GUID of a `bundleManifest` line.
 pub const ZERO: &str = "00000000-0000-0000-0000-000000000000";
+
+/// What the install needs from the map export (`bc2_levelwrite`, which implements it: `installpatch::LevelWrite`):
+/// the stage's check and the shared bundles' patches. A trait, so this crate - which Project OPFOR's Python module
+/// links - does not depend on the export's crates (the module's source fingerprint would follow theirs).
+pub trait Patches {
+    /// `mapexport check`: the stage checked against the game copy `check_root` (only read): whether every check
+    /// passed and its lines (`ok     XVAL-REG-1  ...`), without the closing `check:` line.
+    ///
+    /// # Errors
+    /// The game copy or the stage cannot be read.
+    fn check(&self, check_root: &Path, stage: &Path) -> Result<(bool, Vec<String>), String>;
+
+    /// `mapexport startup`: the startup bundle `source` with `add`'s descriptions (level id, the partition's bytes) and
+    /// level list items, without `remove`'s, built into `out` (`work`: the unpack, removed).
+    ///
+    /// # Errors
+    /// The bundle does not unpack, has no level list, or the pack fails.
+    fn startup(
+        &self,
+        source: &Path,
+        add: &[(String, Vec<u8>)],
+        remove: &[String],
+        work: &Path,
+        out: &Path,
+    ) -> Result<(), String>;
+
+    /// `mapexport overlay`: the overlay with the texts of `stages`, without `remove`'s levels' keys.
+    ///
+    /// # Errors
+    /// A stage without its record, a text a language cannot hold, a bundle that does not unpack or pack.
+    fn overlay(
+        &self,
+        source: &Path,
+        stages: &[PathBuf],
+        remove: &[String],
+        work: &Path,
+        out: &Path,
+    ) -> Result<(), String>;
+
+    /// `mapexport awards`: the on-demand awards bundle with the pictures of `stages`, without `remove`'s levels'.
+    ///
+    /// # Errors
+    /// A stage without its record or a picture, a bundle that does not unpack or pack.
+    fn awards(
+        &self,
+        source: &Path,
+        stages: &[PathBuf],
+        remove: &[String],
+        work: &Path,
+        out: &Path,
+    ) -> Result<(), String>;
+}
 
 /// The game copy's files this installer reads and writes.
 #[derive(Debug, Clone)]
@@ -383,6 +434,7 @@ pub struct Installer<'a> {
     game: Game,
     work: String,
     stages: Stages,
+    patches: &'a dyn Patches,
     log: &'a mut dyn FnMut(&str),
     checked: bool,
 }
@@ -452,18 +504,25 @@ impl<'a> Installer<'a> {
     /// An installer on `game`, building the shared files under `work` (`<opfor>\work\mapedit`: `<lv>\shared`,
     /// `_revert`, removed when the run ends), its lines given to `log`; `BC2_INSTALL_CRASH_AT` read for the tests.
     #[must_use]
-    pub fn new(game: Game, work: &str, log: &'a mut dyn FnMut(&str)) -> Self {
-        Self::with_steps(game, work, Steps::from_env(), log)
+    pub fn new(game: Game, work: &str, patches: &'a dyn Patches, log: &'a mut dyn FnMut(&str)) -> Self {
+        Self::with_steps(game, work, Steps::from_env(), patches, log)
     }
 
     /// [`Installer::new`] with its write steps counted (and stopped) by `steps` (tests).
     #[must_use]
-    pub fn with_steps(game: Game, work: &str, steps: Steps, log: &'a mut dyn FnMut(&str)) -> Self {
+    pub fn with_steps(
+        game: Game,
+        work: &str,
+        steps: Steps,
+        patches: &'a dyn Patches,
+        log: &'a mut dyn FnMut(&str),
+    ) -> Self {
         let stages = Stages::new(&game.root, steps);
         Self {
             game,
             work: work.to_owned(),
             stages,
+            patches,
             log,
             checked: true,
         }
@@ -546,7 +605,8 @@ impl<'a> Installer<'a> {
             add.push((level_of(lv).to_owned(), bytes));
         }
         let dst = join(out, &["startup-00.fbrb"]);
-        export::patch_startup(Path::new(&src), &add, &remove, Path::new(&unpack), Path::new(&dst))
+        self.patches
+            .startup(Path::new(&src), &add, &remove, Path::new(&unpack), Path::new(&dst))
             .map_err(|e| tool_failed("startup", &e))?;
         built.push((self.game.startup(), dst));
         // the levels' own names (every language) and pictures: built from the copy before this owner, like startup
@@ -569,9 +629,13 @@ impl<'a> Installer<'a> {
                 .collect();
             let (s, w, d) = (Path::new(&src), Path::new(&unpack), Path::new(&dst));
             if cmd == "overlay" {
-                installpatch::overlay(s, &with, &remove, w, d).map_err(|e| tool_failed(cmd, &e))?;
+                self.patches
+                    .overlay(s, &with, &remove, w, d)
+                    .map_err(|e| tool_failed(cmd, &e))?;
             } else {
-                installpatch::awards(s, &with, &remove, w, d).map_err(|e| tool_failed(cmd, &e))?;
+                self.patches
+                    .awards(s, &with, &remove, w, d)
+                    .map_err(|e| tool_failed(cmd, &e))?;
             }
             built.push((path, dst));
         }
@@ -637,14 +701,12 @@ impl<'a> Installer<'a> {
 
     /// The stage's check (`mapexport check`): its lines, then `check: ok`, or a stop with every line.
     fn check(&mut self, stage: &str) -> Result<(), Stop> {
-        let g = export::Game::open(Path::new(&self.game.check_root)).map_err(|e| tool_failed("check", &e))?;
-        let r = export::check(&g, Path::new(stage)).map_err(|e| tool_failed("check", &e))?;
-        let mut lines: Vec<String> = r
-            .lines()
-            .map(|(code, ok, what)| export::CheckReport::line(code, ok, what))
-            .collect();
-        lines.push(if r.ok() { "check: ok" } else { "check: FAILED" }.to_owned());
-        if !r.ok() {
+        let (ok, mut lines) = self
+            .patches
+            .check(Path::new(&self.game.check_root), Path::new(stage))
+            .map_err(|e| tool_failed("check", &e))?;
+        lines.push(if ok { "check: ok" } else { "check: FAILED" }.to_owned());
+        if !ok {
             return Err(format!("mapexport check failed:\n{}\n\n", lines.join("\n")));
         }
         for l in &lines {

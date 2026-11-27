@@ -75,7 +75,8 @@ pub fn main(args: &[String]) -> ExitCode {
         return usage();
     };
     let mut log = out;
-    let mut inst = Installer::new(Game::new(&game, check.as_deref()), &work, &mut log);
+    let patches = bc2_levelwrite::installpatch::LevelWrite;
+    let mut inst = Installer::new(Game::new(&game, check.as_deref()), &work, &patches, &mut log);
     let r = match (cmd.as_str(), names) {
         ("plan", [stage]) => inst.plan_only(stage),
         ("apply", [stage]) => inst.apply(stage),

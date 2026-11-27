@@ -251,7 +251,8 @@ pub fn install_step(opfor: &Path, step: &str, target: &str) -> (bool, String) {
         let mut log = |l: &str| lines.push(l.to_owned());
         // the test hook (BC2_INSTALL_CRASH_AT) is never read here: an editor run is never stopped by it
         let steps = bc2_install::stages::Steps::new(None);
-        let mut inst = Installer::with_steps(Game::new(&game, None), &work, steps, &mut log);
+        let patches = bc2_levelwrite::installpatch::LevelWrite;
+        let mut inst = Installer::with_steps(Game::new(&game, None), &work, steps, &patches, &mut log);
         match step {
             "plan" => inst.plan_only(target),
             "apply" => inst.apply(target),
