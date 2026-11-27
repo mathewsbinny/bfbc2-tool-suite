@@ -285,7 +285,7 @@
    "embedded_by": [],
    "folder": "bfbc2-auto-navkit",
    "kind": "test",
-   "lines": 809,
+   "lines": 818,
    "note": "navkit.py's orchestration without the game: a stand-in Project OPFOR BFBC2 folder built in a temp folder (a...",
    "path": "bfbc2-auto-navkit/tests/test_navkit_offline.py",
    "retiring": "Tests in Rust",
@@ -3531,7 +3531,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 861,
+   "lines": 865,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -4047,7 +4047,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 908,
+   "lines": 910,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4098,6 +4098,18 @@
    "lines": 194,
    "note": "read-only probe for spec/engine/effects.md (the processor chain); checked in the game tier",
    "path": "spec/probes/effects_chain.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 304,
+   "note": "read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier",
+   "path": "spec/probes/gamemodes.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4700,8 +4712,8 @@
  ],
  "totals": {
   "all": {
-   "files": 386,
-   "lines": 114182
+   "files": 387,
+   "lines": 114501
   },
   "by_folder": {
    "(root)": {
@@ -4728,13 +4740,13 @@
    },
    "bfbc2-auto-navkit": {
     "files": 56,
-    "lines": 14851,
+    "lines": 14860,
     "live": 1873,
     "partly": 4418,
     "ported": 273,
     "retired-pending": 0,
     "stays": 0,
-    "test": 5466,
+    "test": 5475,
     "twin": 2821
    },
    "bfbc2-automated-map-and-bot-test-harness": {
@@ -4893,13 +4905,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20429,
+    "lines": 20433,
     "live": 764,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15326,
+    "test": 15330,
     "twin": 2430
    },
    "design": {
@@ -4915,23 +4927,23 @@
    },
    "rust": {
     "files": 38,
-    "lines": 7830,
+    "lines": 7832,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7563,
+    "stays": 7565,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 22,
-    "lines": 7943,
+    "files": 23,
+    "lines": 8247,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 7943,
+    "stays": 8247,
     "test": 0,
     "twin": 0
    },
@@ -4965,12 +4977,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 75,
-    "lines": 16496
+    "files": 76,
+    "lines": 16802
    },
    "test": {
     "files": 192,
-    "lines": 53058
+    "lines": 53071
    },
    "twin": {
     "files": 57,

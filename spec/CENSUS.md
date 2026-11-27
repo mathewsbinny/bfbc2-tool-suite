@@ -31,13 +31,13 @@ DICE's files of the game folder by kind (a `.opfor-orig` backup counts as DICE's
 | aerial height map (Output/win32/levels/*/aerialheightmap.res) | 1 | 524,316 | GFILE-AHM-1 |
 | binkw32.dll (RAD Bink) | 1 | 175,616 | BINK-DLL-1, BINK-HDR-1, GFILE-DFE-1 |
 | bundle (.fbrb) | 1,022 | 6,225,186,692 | FBRB-HDR-1 |
-| bundle registry: bundleManifest | 1 | 58,296 | B43-BNDL-1, CSUM-CHK-1, ONS-REG-1, REG-BM-1, REG-BM-2, REG-NEW-1 (+19) |
-| bundle registry: package.mft | 1 | 136,251 | AI-NEED-3, B43-BNDL-1, BNDL-KIND-1, BNDL-LOC-1, BNDL-LOC-3, CSUM-CHK-1 (+29) |
+| bundle registry: bundleManifest | 1 | 58,296 | B43-BNDL-1, CSUM-CHK-1, GMD-NEW-1, ONS-REG-1, REG-BM-1, REG-BM-2 (+20) |
+| bundle registry: package.mft | 1 | 136,251 | AI-NEED-3, B43-BNDL-1, BNDL-KIND-1, BNDL-LOC-1, BNDL-LOC-3, CSUM-CHK-1 (+31) |
 | database.dbmanifest | 1 | 1,868 | GFILE-DBM-1, RES-NAME-2 |
 | dfe | 1 | 1,000 | GFILE-DFE-1 |
 | dialoglogo128x128.jpg | 1 | 21,369 | GFILE-LOGO-1 |
 | movie (Output/win32/movies/**.res) | 33 | 293,728,468 | BINK-OUT-1, RES-WRAP-2 |
-| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-BLK-6, ATREE-HDR-1, ATREE-NODE-3, ENG-REND-1, ENG-TI-1, HUD-KILL-1 (+37) |
+| the executable (BFBC2Game.exe) | 1 | 19,322,816 | ATREE-BLK-6, ATREE-HDR-1, ATREE-NODE-3, ENG-REND-1, ENG-TI-1, ERA-RES-1 (+38) |
 | winui.dll | 1 | 262,144 | out of scope: an MFC 8 dialog library (resource-only UI helpers: rich edit, HTML help); no file of the game folder names it (not imported by BFBC2Game.exe or binkw32.dll), so it belongs to the installer / support tools |
 
 ## 2. Bundle entry types
@@ -94,7 +94,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | RandomEvaluatorData | 202,922 | 58,737 | 7 | FX-PROC-2, FX-PROC-6, RTTI-EMIT-1 |
 | MaterialRelationData | 163,984 | 74 | 3 | MAT-GRID-1, MAT-GRID-5, RTTI-ENT-1 |
 | MaterialRelationDamageData | 162,950 | 74 | 9 | MAT-GRID-5, MAT-GRID-6, MAT-GRID-7, RTTI-GSR-4 |
-| ReferenceObjectData | 141,725 | 230 | 11 | CULL-SLOT-2, GAME-RUSH-1, LEVEL-PART-3, LEVEL-SLOT-1 (+12) |
+| ReferenceObjectData | 141,725 | 230 | 11 | CULL-SLOT-2, GAME-RUSH-1, LEVEL-PART-3, LEVEL-SLOT-1 (+13) |
 | MaterialRelationEffectData | 70,241 | 74 | 2 | MAT-GRID-5, RTTI-GSR-8 |
 | SoundNodePort | 59,593 | 1,312 | 3 | RTTI-AUDIO-1, SGR-WIRE-1 |
 | EmitterDocument | 58,899 | 58,899 | 7 | FX-CLS-1, RTTI-EMIT-1 |
@@ -359,7 +359,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | VehicleAsset | 98 | 98 | 7 | RTTI-GSR-2, RTTI-GSR-3, RTTI-GSR-8, VEH-ENT-1 |
 | VehicleComponentData | 98 | 98 | 18 | RTTI-GSR-3, VEH-ENT-1 |
 | VehicleEntityData | 98 | 98 | 57 | MAT-TEX-8, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 (+6) |
-| WeaponData | 98 | 22 | 39 | BOT-CMB-1, BOT-CMB-2, BOT-PER-5, HUD-CFG-1 (+3) |
+| WeaponData | 98 | 22 | 39 | BOT-CMB-1, BOT-CMB-2, BOT-PER-5, ERA-RES-1 (+5) |
 | TreeHealthStateData | 97 | 17 | 12 | DATA-DSTR-1, RTTI-GSR-8 |
 | BoxFloatPhysicsData | 96 | 83 | 2 | DATA-VEH-1, RTTI-PHYS-1 |
 | MiddlegrowthModelGroupEntityData | 93 | 71 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+2) |
@@ -389,7 +389,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | EmitterSystemAsset | 74 | 74 | 4 | DATA-FX-1, RTTI-EMIT-1 |
 | ForestEntityData | 74 | 74 | 10 | LEVEL-MG-1, LEVEL-OBJ-1, RTTI-GDLL-1, RTTI-GDLL-2 (+3) |
 | HumanPlayerEntityData | 74 | 74 | 8 | RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3, SQD-TEAM-1 |
-| LevelData | 74 | 74 | 49 | AI-START-3, BOT-CMB-5, COLL-MG-3, CULL-LVL-1 (+30) |
+| LevelData | 74 | 74 | 49 | AI-START-3, BOT-CMB-5, COLL-MG-3, CULL-LVL-1 (+33) |
 | LevelDescriptionAsset | 74 | 74 | 4 | CAMP-DESC-1, RTTI-GSR-8 |
 | MaterialGridData | 74 | 74 | 5 | MAT-GRID-1, MAT-GRID-2, RTTI-ENT-1 |
 | SearchAndDestroyOrderEntityData | 74 | 10 | 30 | AIO-CLS-1, RTTI-GSR-3 |
@@ -501,7 +501,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | EdgeModelInstances | 21 | 21 | 3 | DATA-DSTR-1, RTTI-GSR-3, RTTI-GSR-5 |
 | TurretData | 21 | 2 | 5 | BOT-VEH-2, RTTI-GSR-4, RTTI-GSR-8 |
 | WeaponEffectsData | 21 | 20 | 4 | DATA-VEH-2, DATA-WPN-1, RTTI-GSR-3, RTTI-GSR-4 (+1) |
-| MatchMakingMap | 20 | 1 | 7 | DATA-MM-1, RTTI-GSR-2, RTTI-GSR-7, RTTI-GSR-8 |
+| MatchMakingMap | 20 | 1 | 7 | DATA-MM-1, GMD-MM-1, RTTI-GSR-2, RTTI-GSR-7 (+1) |
 | TrackComponentData | 20 | 10 | 9 | RTTI-GSR-3, VEH-ENT-1 |
 | WeaponInputRouterComponentData | 19 | 19 | 7 | DATA-VEH-2, RTTI-GSR-3 |
 | EventIfSwitchEntityData | 18 | 3 | 7 | RTTI-GDLL-1, RTTI-GSR-3, SCR-EVT-2 |
@@ -536,7 +536,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | SoundState | 11 | 2 | 8 | RTTI-AUDIO-1, SGR-MIX-1 |
 | AnimationEntityData | 10 | 3 | 9 | CAMP-WORLD-1, RTTI-GDLL-1, RTTI-GDLL-2, RTTI-GSR-3 |
 | DetailedTreeBangerEntityData | 10 | 10 | 17 | DSTR-STATE-1, RTTI-FAC-1, RTTI-GDLL-1, RTTI-GSR-3 |
-| GameModeData | 10 | 10 | 19 | GAME-MODE-1, MENU-HUD-1, MENU-HUD-2, MENU-LOAD-2 (+4) |
+| GameModeData | 10 | 10 | 19 | GAME-MODE-1, GMD-DATA-1, GMD-READ-1, MENU-HUD-1 (+6) |
 | JetEngineConfigData | 10 | 10 | 21 | RTTI-PHYS-1, VEH-PHYS-1 |
 | MobilityData | 10 | 1 | 2 | BOT-VEH-2, RTTI-GSR-8 |
 | TeamData | 10 | 10 | 6 | RTTI-GSR-3, RTTI-GSR-8, SQD-PLAY-2, SQD-TEAM-1 |
@@ -579,7 +579,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | CharacterPoseData | 4 | 2 | 7 | RTTI-PHYS-1, SOLD-PHYS-1 |
 | CutsceneCameraData | 4 | 2 | 18 | CAMP-CUT-1, RTTI-GSR-8 |
 | DisablePropertyCurve_ManualInput_EndsAbsoluteTime | 4 | 1 | 1 | DATA-ANIM-1, RTTI-ANIM-1 |
-| EntitlementQuery | 4 | 1 | 9 | PERS-DATA-1, RTTI-GSR-7 |
+| EntitlementQuery | 4 | 1 | 9 | ERA-LIC-1, PERS-DATA-1, RTTI-GSR-7 |
 | FirstPersonCameraData | 4 | 4 | 24 | RTTI-GSR-4, RTTI-GSR-8, SOLD-CAM-1 |
 | MatchMakingPlaylist | 4 | 1 | 5 | DATA-MM-1, RTTI-GSR-7, RTTI-GSR-8 |
 | MonophonicSamplerGroup | 4 | 4 | 15 | RTTI-AUDIO-1, SGR-NODE-1 |
@@ -622,7 +622,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | FallingStateData | 2 | 2 | 1 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
 | GameTipAsset | 2 | 2 | 3 | HUD-MENU-1, RTTI-GSR-6 |
 | HdrSetting | 2 | 2 | 10 | RTTI-AUDIO-1, SGR-MIX-1 |
-| HudConfigAsset | 2 | 2 | 27 | HUD-CFG-1, RTTI-GSR-6 |
+| HudConfigAsset | 2 | 2 | 27 | ERA-RES-1, HUD-CFG-1, RTTI-GSR-6 |
 | InAirStateData | 2 | 2 | 2 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
 | JoinSquadOrderEntityData | 2 | 1 | 25 | AIO-CLS-1, RTTI-GSR-3, SQD-PLAY-1 |
 | JumpStateData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
@@ -634,7 +634,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | ParachuteStateData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
 | PathfindingSettings | 2 | 2 | 33 | AI-START-3, KYG-IN-1, KYG-PAR-2, LVL-RT-1 (+2) |
 | PathfindingType | 2 | 2 | 13 | HPD-USE-1, KYN-WORLD-1, KYRT-CFG-1, RTTI-GSR-5 |
-| PersistenceData | 2 | 2 | 14 | PERS-AWD-7, PERS-DATA-1, PERS-DATA-2, PERS-SCORE-2 (+1) |
+| PersistenceData | 2 | 2 | 14 | GMD-PERS-1, PERS-AWD-7, PERS-DATA-1, PERS-DATA-2 (+2) |
 | PowerToolWeaponEffectsData | 2 | 2 | 8 | DATA-WPN-1, RTTI-GSR-4 |
 | RemoteEntryComponentData | 2 | 2 | 27 | DATA-VEH-2, RTTI-GSR-3 |
 | SlidingStateData | 2 | 2 | 3 | RTTI-PHYS-1, SOLD-PHYS-1, SOLD-PHYS-2 |
@@ -661,7 +661,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | CoverConstantData | 1 | 1 | 45 | BOT-CMB-5, RTTI-GSR-5 |
 | DebugConstantData | 1 | 1 | 7 | BOT-CMB-1, RTTI-GSR-5, RTTI-GSR-6 |
 | DifficultyModesData | 1 | 1 | 3 | CAMP-FLOW-1, RTTI-GSR-7 |
-| EntitlementAsset | 1 | 1 | 1 | PERS-DATA-1, RTTI-GSR-7 |
+| EntitlementAsset | 1 | 1 | 1 | ERA-LIC-1, PERS-DATA-1, RTTI-GSR-7 |
 | EnvironmentConstantData | 1 | 1 | 1 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
 | FakeAnimatedSoldierCollisionData | 1 | 1 | 7 | RTTI-GSR-3, RTTI-GSR-8, SOLD-COL-1 |
 | FileQueryData | 1 | 1 | 7 | DATA-LVL-1, RTTI-GSR-8 |
@@ -678,7 +678,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | LocalizationAsset | 1 | 1 | 5 | RTTI-UI-1, TEXT-DB-1 |
 | LookConstantData | 1 | 1 | 11 | DATA-AI-1, RTTI-GSR-5, RTTI-GSR-8 |
 | MatchMakerAsset | 1 | 1 | 7 | DATA-MM-1, RTTI-GSR-8 |
-| MenuConfigAsset | 1 | 1 | 16 | HUD-MENU-1, RTTI-GSR-6 |
+| MenuConfigAsset | 1 | 1 | 16 | ERA-RES-1, HUD-MENU-1, RTTI-GSR-6 |
 | MeshAsset | 1 | 1 | 34 | DATA-DSTR-1, FX-PROC-6, RTTI-EMIT-1, RTTI-GSR-2 (+2) |
 | MixerAsset | 1 | 1 | 3 | RTTI-AUDIO-1, SGR-MIX-1 |
 | NavigationConstantData | 1 | 1 | 41 | BOT-MOV-1, BOT-MOV-3, BOT-MOV-4, BOT-VEH-4 (+1) |
@@ -713,7 +713,7 @@ Every instance class of DICE's partitions (each partition name once), by instanc
 | UI3DSystemAsset | 1 | 1 | 5 | HUD-MENU-1, RTTI-UI-1 |
 | UIMenuConfig | 1 | 1 | 1 | MENU-AS-1, RTTI-UI-1 |
 | UIShaderAsset | 1 | 1 | 2 | HUD-MENU-1, RTTI-UI-1 |
-| UISharedConfigAsset | 1 | 1 | 10 | HUD-CFG-1, RTTI-DBX-1, RTTI-GSR-6 |
+| UISharedConfigAsset | 1 | 1 | 10 | ERA-MOD-1, ERA-RES-1, ERA-RES-2, HUD-CFG-1 (+2) |
 | UnlockTokenData | 1 | 1 | 3 | PERS-DATA-1, RTTI-GSR-7 |
 | VOConstantData | 1 | 1 | 16 | RTTI-GSR-5, SGR-VO-1 |
 | VOTypesAsset | 1 | 1 | 5 | RTTI-GSR-5, SGR-VO-1 |

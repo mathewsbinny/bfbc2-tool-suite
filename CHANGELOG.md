@@ -28,6 +28,22 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+
+- `spec/engine/gamemodes.md` (round GM0, research): how game modes and eras are authored - every reader of
+  `GameModeData`'s fields and of the game mod in `BFBC2Game.exe` (33 + 8 instructions, the 26 mode-id compares, the
+  mode-kind object, the catalogue keyed by ModeID), each era's resources and licence checks, and a design for a new
+  mode and a new era with the patch set each needs (24 rules GMD-* / ERA-*).
+- `spec/probes/gamemodes.py` (game tier, read only): DICE's game modes, descriptions, matchmaking data and per-era
+  shared config, and the executable's game-mod and literal sites; `core/tests/test_spec_probes.py::game_modes` checks
+  its 19 answers.
+
+### Fixed
+
+- Spec GAME-MODE-6: the game mod is parsed from the loaded level's `MatchmakingModID` at the loading screen and the
+  HUD's start, not from a stored setting (ERA-MOD-2); GAME-MODE-4 / -5 name the `singleplayer` category and the nine
+  `conquest` compares.
+
 ## [0.33.0] - 2026-11-27
 
 Round OR14 ("OPFOR in Rust", the picture and menu leftovers) moves Project OPFOR's WW2 and Onslaught menu tools onto
