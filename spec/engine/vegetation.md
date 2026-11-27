@@ -135,12 +135,13 @@ order, and the code that uses them names each one (VEG-UG-7):
 | 4, 5 | +0x10, +0x14 | `MinScale` (x, y) | 0.3 - 55 | the scale at random r = 0 |
 | 6, 7 | +0x18, +0x1C | `MaxScale` (x, y) | 0.5 - 80 | the scale at random r = 1 |
 | 8, 9 | +0x20, +0x24 | `MinMaskScaleFactor` (x, y) | 0.3 - 1.2 | the scale factor at mask 0 (1 at mask 1) |
-| 10 | +0x28 | `WindScale` | 0 - 0.3 | copied with the record; no reader found (named by count and order) |
+| 10 | +0x28 | `WindScale` | 0 - 0.3 | the third value of the undergrowth shader's `windParams` (VEG-UG-9) |
 | 11 | +0x2C | `ViewDistance` | 18 - 100 | metres: the terrain keeps the largest over its types, the draw scales it |
 
 Then two bytes: the first (+0x34, 1 on all 3,069 DICE entries) turns each instance's up axis to the terrain's normal
-(presumably `SkewEnable`); the second (+0x35, 0 on all) is only copied, no reader found (presumably `RotateEnable`;
-the generator turns every instance by one of 32 fixed angles about the vertical whatever it holds). Within a pair the
+(presumably `SkewEnable`); the second (+0x35, 0 on all) has no reader in the executable: round SPG2-rest5 found it
+only in the loader and the record copies (VEG-UG-9; presumably `RotateEnable`, which the generator ignores: every
+instance turns by one of 32 fixed angles about the vertical). Within a pair the
 first float is x. MaxMask is over MinMask on every DICE entry, by 0.0001 at least (MinMask 0.9999, MaxMask 1, which
 makes the mask a near step); an entry with the two equal gets the factor 1.0, so its mask ramps over a width of 1 from
 MinMask, not a step. A port that uses another level's undergrowth mesh copies that level's 12 numbers for it (OPFOR:
@@ -178,7 +179,8 @@ Status: **observed** · Variants: PC
 
 The cell generator 0xA0DDC0 places one type's instances in a terrain cell:
 
-- **Grid**: `Density` times a render setting times the cell's x and z extents gives the sample counts along each axis,
+- **Grid**: `Density` times `UndergrowthDensityScale` (VEG-UG-8) times the cell's x and z extents gives the sample
+  counts along each axis,
   so the instances per area grow with the square of `Density`; each sample moves from its grid point by a random
   offset scaled by `Variation`.
 - **Mask**: m = clamp((mask byte / 255 - `MinMask`) x the stored 1 / (`MaxMask` - `MinMask`), 0, 1), from the cell's
@@ -190,12 +192,54 @@ The cell generator 0xA0DDC0 places one type's instances in a terrain cell:
 - **Orientation**: one of 32 rotations about the vertical, picked by 5 random bits, always; with the first flag byte
   set the up axis is the terrain normal (three bytes of the normal map) and the other two are rebuilt from it.
 - **Distance**: the terrain keeps the largest `ViewDistance` over its types (0xA2460A, 0xA278F0); the draw multiplies
-  a type's by a render setting (0xA1ECBE).
+  a type's by `UndergrowthViewDistanceScale` (0xA1ECBE; VEG-UG-8).
 
 So a generated terrain that clones a donor's entries gets the donor's density per metre, mask response and sizes; the
 mask the patch's layers give decides where (VEG-UG-1).
 
 [exe: BFBC2Game.exe generator 0xA0DDC0 (called from 0xA0ECCF): Density 0xA0DDF7 - 0xA0DE94, Variation 0xA0E0D6 - 0xA0E13E, the mask 0xA0E2E3 - 0xA0E326 (1/255 at 0x144F770) and the keep test 0xA0E34A - 0xA0E371 (255.0 at 0x14116F8), the scale 0xA0E57B - 0xA0E66F (1/31 at 0x144F778), the 32 rotations 0xA0DF5B - 0xA0E027, the normal 0xA0E386 - 0xA0E570; the same mask formula in 0xA08580; ViewDistance 0xA2460A, 0xA278F0, 0xA1ECBE (times setting +0x48)]
+
+### VEG-UG-8: The render settings that scale the undergrowth
+
+Status: **observed** · Variants: PC
+
+The undergrowth renderer reads `VisualTerrainSettings` (TerrainRender, 0xE0 bytes; its pointer at renderer +0xDC).
+Round SPG2-rest5 traced these fields to their use:
+
+| Setting | Offset | Use |
+|---|---|---|
+| `UndergrowthDensityScale` | +0x4C | copied at set-up into the generator's parameters (+0x10); samples per metre = `Density` x this (VEG-UG-7) |
+| `UndergrowthViewDistanceScale` | +0x48 | the draw's distance: D = floor(`ViewDistance` x this / `UndergrowthCellSize`) x `UndergrowthCellSize` |
+| `UndergrowthPoplessDistanceRatio` | +0x24 | the fade: a cell at distance x draws trunc((1 - t) x (n + 0.99)) of its n instances, t = clamp((x - pD) / (D - pD), 0, 1), p this ratio |
+| `UndergrowthViewDistanceScaleMax` | +0x54 | the cell grid's reach: side = trunc(2 x the largest `ViewDistance` x this / `UndergrowthCellSize`), made odd |
+| `UndergrowthForceCellSideCount` | +0x64 | replaces that side count unless -1 |
+| `UndergrowthMaxCellSideCount` | +0x70 | caps the side count |
+| `UndergrowthOverlapDensityScale` | +0x60 | a cell's instance capacity: `UndergrowthCellSize`^2 x the largest `Density` x `UndergrowthDensityScale` x this, rounded up to even |
+| `UndergrowthCellSize` | +0x44 | metres per cell (the divisor above) |
+| `UndergrowthUpdateCellCount` | +0x1C | cells kept beyond side^2 |
+| `UndergrowthCellMaskTextureSize` | +0x6C | the mask texture's size |
+| `UndergrowthMaxHeight` | +0x7C | copied into the generator's parameters (+0x0C) each frame; its use not followed |
+| `UndergrowthWindSpeed` | +0x78 | the second value of `windParams` (VEG-UG-9) |
+| `UndergrowthGenerateEnable`, `UndergrowthRegenerateEnable` | +0xD1, +0xD6 | the generator's flags (bit 0, bit 1), set each frame |
+
+So a level cannot raise its undergrowth's density or reach in its own data beyond the 12 numbers: the scales are the
+engine's settings (`-VisualTerrain.UndergrowthDensityScale` style overrides: SET-CLI-1, untested), the same for every
+level.
+
+[exe: BFBC2Game.exe field descriptors of VisualTerrainSettings 0x1C19CA8 - 0x1C1A590 (UndergrowthDensityScale +0x4C 0x1C1A3F8, ViewDistanceScale +0x48 0x1C1A410, WindSpeed +0x78 0x1C1A3B0 ...); set-up 0xA24370: +0x4C into renderer +0x20 at 0xA24585 - 0xA24591, the largest Density and ViewDistance over the types 0xA245D0 - 0xA246A9, +0x54 / +0x60 at 0xA246B5 - 0xA246E1, +0x1C 0xA246E7, +0x44 0xA246ED, the side count 0xA24742 - 0xA247B8 (+0x64, odd, +0x70), +0x6C 0xA247BD, the capacity 0xA247AE - 0xA24802; per frame 0xA1E880: +0x7C into renderer +0x1C 0xA1E8EC, +0xD6 / +0xD1 flags 0xA1E8F8 - 0xA1E910, the generator job 0xA0EB10 at 0xA1E9EE; the draw 0xA1EA70: ViewDistance x +0x48 0xA1ECBE, floor by the cell size 0xA1ECD2 - 0xA1ED3F, +0x24 fade 0xA1ED4D - 0xA1EDE3 (0.99 at 0x14D96E0)]
+
+### VEG-UG-9: WindScale feeds the undergrowth shader's windParams; the second flag byte has no reader
+
+Status: **observed** · Variants: PC
+
+When the renderer draws an undergrowth type it sets the shader constant `windParams` to (the renderer's clock,
+`UndergrowthWindSpeed`, the type's `WindScale`, 0). The clock (renderer +0xE4) adds each frame's time step and starts
+again from 0 past 10,000 s. So `WindScale` is a per-type sway amount the shader applies with the global wind speed;
+the shaders' use of the three values was not read. The entry's second flag byte (+0x35) is read by nothing but the
+loader and the two record copies (round SPG2-rest5's search of the terrain module for byte reads at +0x35), so it
+changes nothing at run time.
+
+[exe: BFBC2Game.exe the constant names 0xA01480 - 0xA0157C ("windParams" 0x144F5B4 at handle +0x28, renderer +0x98); the draw 0xA0EE10: clock +0xE4 0xA0F0AB, UndergrowthWindSpeed (settings +0x78) 0xA0F0CF, WindScale (type +0x28) 0xA0F0DD, the vector constant set 0x5BB850 at 0xA0F112; the clock 0xA1E88F - 0xA1E8B4 (10,000.0 at 0x14D9480); +0x35 only at 0xA04D08 (copy), 0xA0B9CB / 0xA0BA89 (copies), 0xA2BE63 (loader)]
 
 ### VEG-UG-4: Undergrowth layouts must be in the level's databases
 
@@ -226,12 +270,10 @@ uses most for that mesh (MP_004 uses one block in all 40 of its grass's patch gr
 
 ## Open questions
 
-- `WindScale` (+0x28) and the second flag byte (+0x35) are copied with the record, but no reader was found in the
-  terrain module (VEG-UG-5). The wind is likely read through the undergrowth's shader constants, which were not
-  followed.
-- Which render settings scale `Density` (generator argument +0x10, read at 0xA0DDF7) and `ViewDistance` (setting
-  +0x48): presumably `UndergrowthDensityScale` and `UndergrowthViewDistanceScale` (VEG-UG-3's list), not traced to
-  their fields.
+- How the undergrowth shaders use `windParams` (VEG-UG-9: clock, wind speed, `WindScale`): the shader databases'
+  vertex programs were not read. `UndergrowthMaxHeight`'s use in the generator (VEG-UG-8) was not followed.
+- Whether the engine settings can be set from the command line (SET-CLI-1) and so raise the undergrowth's density
+  and reach for every level (VEG-UG-8): a test start (paused).
 - How the undergrowth mask shader fills the mask the generator reads (VEG-UG-7: per layer weight, a noise, the mask
   tiles) and what the per-entry shader name changes.
 - The undergrowth cache: the generator (VEG-UG-7) runs per cell from the terrain's jobs; whether its output is kept in
