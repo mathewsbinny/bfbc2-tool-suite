@@ -93,6 +93,7 @@ pub mod nav;
 pub mod navdata;
 pub mod navtool;
 pub mod navview;
+pub mod newterrain_view;
 pub mod overlays;
 pub mod package;
 pub mod placetool;

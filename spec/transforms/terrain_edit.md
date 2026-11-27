@@ -431,8 +431,8 @@ with the base's other entries, never the base terrain's own (`terrains/<b>/<b>.*
 undergrowth, cache and water entries under the new name into each staged database after the export's merges
 (TGEN-VIS-4) and stages the new colour / occlusion map (TGEN-OCC-1); registers its terrain bundle without the base
 level's terrain bundles (TGEN-REQ-5: the commons stay); and counts the terrain as a collision change, so the
-path-data step samples the stage (TEDIT-NAV-1). Strokes on the base's terrain in the same project are refused (the
-base's terrain is not the level's; sculpt and paint on a new terrain are round TG4's). XVAL-TERR-4 reads it back.
+path-data step samples the stage (TEDIT-NAV-1). Its strokes are made on the new terrain (TEDIT-NEW-4). XVAL-TERR-4
+reads it back.
 Objects, gameplay and combat areas stay the base's, placed for the base's ground (TG5 places them on the new one).
 
 Whether the engine loads a level whose terrain bundle is its own and whose base's is not registered is unproven
@@ -462,6 +462,32 @@ water mesh into its tree with the height field (a new terrain's water is under t
 [code: rust/bc2-levelwrite/src/pathdata.rs:189-192]
 [data: rust/bc2-levelwrite/tests/new_terrain.rs on the game copy with MP_005 prepared for NavKit, 2026-11-27: as given; rust/BENCHMARKS.md E7-TG3]
 [code: rust/bc2-cli/src/navkit/sample.rs:296-325]
+
+### TEDIT-NEW-4: A new terrain is sculpted and painted as the base's is, under the base's names
+
+Status: **verified** · Variants: PC
+
+Round TG4: a Create Level project opens on its new terrain - the editor builds what the export builds
+(`bc2_levelwrite::newterrain::view`: the generator's or the height map's terrain, its visual side from the base,
+the base's tiled layers laid, TGEN-MAT-3) and puts it in the scene in place of the base's main height field, mesh,
+material map, visual terrain, mask atlas, ring, colour / occlusion map and water. The level's partition names the
+base's terrain until the export renames it (TGEN-REQ-4), so the Terrain workspace's targets keep the base's file
+names (`terrains/mp_005/mp_005.heightfield-000.res`, its material map, its colour map) with the new terrain's sizes;
+the export reads those names from the new terrain's built resources (the log's rasters start from them) and writes
+the strokes, a widened range, an added material, a ring stroke and a visual paint (with its patch shaders cloned
+after the new terrain's own entries, TEDIT-SH-1) into them, then places the vegetation on the final ground
+(TGEN-VEG-1). A version-13 project's terrain strokes were made on the base's terrain (E7's editor showed the base's):
+its migration to version 14 marks them (`terrain_import.strokes_on_base`), the editor keeps showing the base's
+terrain for it and the export refuses them (XVAL-TERR-4), as before. On MP_005 as Conquest with a generated arid
+1,024 terrain: a 15 m hill and an Asphalt paint stroke on one 16 m cell made on the new terrain's view, exported:
+the staged main block 15.00 m higher at the hill's centre, `export::check` passes every rule.
+
+[test: rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks]
+[test: rust/bc2-levelwrite/src/project.rs::a_version_13_create_levels_strokes_stay_on_the_base]
+[test: rust/bc2-editor/src/newterrain_view.rs::a_new_terrain_replaces_the_scenes_under_the_bases_names]
+[code: rust/bc2-levelwrite/src/export.rs:1417-1565]
+[code: rust/bc2-levelwrite/src/newterrain.rs:1277-1342]
+[code: rust/bc2-editor/src/newterrain_view.rs:1-68]
 
 ## 5. The playtest plan (E5 / E7)
 
