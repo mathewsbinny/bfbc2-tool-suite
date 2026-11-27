@@ -115,8 +115,9 @@ CACHES: dict[str, Spec] = {s.name: s for s in (
          markers=('.seen',)),
     Spec('collision', 'BFBC2_COLLISION_CACHE', ('.bin',), 'BFBC2_COLLISION_CACHE_MB', MB, 256,
          "each data folder's mesh aliases (collision.index, level.load)"),
-    Spec('effectport', 'BFBC2_EFFECTPORT_CACHE', ('.pkl',), 'BFBC2_EFFECTPORT_CACHE_MB', MB, 256,
-         "BFBC2's emitter documents' instance types per game copy (effectport.EmitterIndex)"),
+    Spec('effectport', 'BFBC2_EFFECTPORT_CACHE', ('.json', '.pkl'), 'BFBC2_EFFECTPORT_CACHE_MB', MB, 256,
+         "BFBC2's emitter documents' instance types per game copy (the Rust effectport's emitter index; .pkl: "
+         "the retired Python's)"),
     Spec('culltree', 'BFBC2_CULLTREE_CACHE', ('.pkl',), 'BFBC2_CULLTREE_CACHE_MB', MB, 2048,
          "reference levels' cull tree rows (culltree ref_rows)"),
     Spec('bf1943source', 'BF1943_SOURCE_INDEX', ('.pkl', '.points'), 'BF1943_SOURCE_INDEX_MB', MB, 64,

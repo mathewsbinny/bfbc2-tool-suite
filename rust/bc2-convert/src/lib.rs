@@ -36,6 +36,9 @@
 //! - Round `OR4`: [`physmat`] (Project OPFOR's `physmat.py`: part and face materials) and [`pictures`] (its picture
 //!   tools' NumPy and Pillow work: the loadout renderer, Pillow's resize, the loading pictures, the icons), and
 //!   `meshview::page` (the preview page).
+//! - Round `OR8`: [`effectport`] (`bfbc2-bf1943-import/effectport.py`: BF1943's effects, their emitters and
+//!   textures, the emitter index) and [`soundport`] (Project OPFOR's `wake_level.port_sounds`: BF1943's sound
+//!   partitions with their waves), their Python retired.
 //! - Round GR3: [`meshview`] (`bfbc2-mesh-viewer/meshview.py`'s index and its cache, `load_mesh`, `stack_models` and
 //!   `render`, pixel for pixel), for the map editor's asset preview.
 //! - Round PR1b-2-rest2: [`decimate`] (`bfbc2-model-tools/decimate.py`'s edge collapses) and [`shapes`]
@@ -47,6 +50,7 @@ pub mod audio;
 pub mod dbxcatalogue;
 pub mod dbxport;
 pub mod decimate;
+pub mod effectport;
 pub mod emitteratlas;
 pub mod granny;
 pub mod granny_edit;
@@ -65,6 +69,7 @@ pub mod shaderlevels;
 pub mod shadertranslate;
 pub mod shapes;
 pub mod skinmesh;
+pub mod soundport;
 pub mod terrain;
 pub mod texcheck;
 pub mod texqa;

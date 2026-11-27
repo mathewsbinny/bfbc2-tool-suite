@@ -540,24 +540,14 @@ def main() -> int:
     check(raises(lambda: dbxport.port(bf, odd), dbxport.SchemaError),
           'WeaponSlots: an item with a field the map does not name is no conversion - a schema error')
 
-    # ---------------------------------------------------------------- effectport: level copies, particle sounds
-    import effectport
-
-    class Src:
-        entries: dict[str, tuple[None, dict]] = {k: (None, {}) for k in ('levels/wake_island_s/emitters/a.dbx', 'levels/guadal_canal/emitters/b.dbx',
-                                          'levels/iwo_jima_s/emitters/b.dbx', 'levels/wake_island_s/fx/x/emitter_m/em_c.dbx')}
-    w = 'levels/wake_island_s'
-    got = [effectport.level_copy(Src, 'emitters/a', w), effectport.level_copy(Src, 'emitters/b', w),
-           effectport.level_copy(Src, 'emitters/b', w, fallback=False), effectport.level_copy(Src, 'fx/x/emitter_m/em_c', w)]
-    check(got == ['levels/wake_island_s/emitters/a.dbx', 'levels/guadal_canal/emitters/b.dbx', None,
-                  'levels/wake_island_s/fx/x/emitter_m/em_c.dbx'],
-          "effectport.level_copy: the level's copy, else the first other level's; fx/ emitter folders too", got)
-    check(effectport._effect_with_emitters(b'..Entity.EffectAsset..Emitter.EmitterEntityData..') and
-          not effectport._effect_with_emitters(b'..Entity.EffectAsset..Audio.SoundEntityData..'),
-          "effectport: a sound/ effect drawing particles is an effect; a plain sound wrapper the sound porter's")
+    # effectport: level copies and particle sounds are the Rust core's unit tests since round OR8
+    # (rust/bc2-convert/src/effectport.rs: level_copies_the_levels_own_else_the_first_other,
+    # effects_with_emitters_and_plain_sounds)
 
     # dbxcatalogue: a bundle it cannot read (locked by the running game, say) is reported and the catalogue not cached
     import tempfile
+
+    import effectport
     with tempfile.TemporaryDirectory() as tmp:
         bad = os.path.join(tmp, 'locked.fbrb')
         open(bad, 'wb').write(b'not a bundle')
@@ -578,26 +568,33 @@ def main() -> int:
     effect = part(A + '1', [inst(A + '1', 'X.Fx', [ref('Emitter', f'emitters/smoke/{G1}')])])
 
     class FxSrc:
-        entries: dict[str, tuple[None, dict]] = {'effects/fx.dbx': (None, {}), 'emitters/smoke.dbx': (None, {})}
+        entries: dict[str, tuple[None, dict]] = {'effects/fx.dbx': (None, {'name': 'effects/fx.dbx'}),
+                                                 'emitters/smoke.dbx': (None, {'name': 'emitters/smoke.dbx'})}
 
         @staticmethod
         def data(k: str) -> bytes:
             return {'effects/fx.dbx': effect, 'emitters/smoke.dbx': emitter}[k]
 
+    # BFBC2's template partition (effectport.TEMPLATES) holds both types: the search needs no emitter document
+    template = part(B + '1', [inst(B + '1', 'X.Fx', [ref('Emitter', 'null')]), inst(B + '2', 'X.Emitter', [txt('Name', '')])],
+                    '22222222-2222-2222-2222-222222222222')
+
     class FxIx:
-        where = {'emitters/smoke.dbx': ('bundle', 'emitters/smoke.dbx')}
-    shared: tuple[dbxport.Templates, str, set[str]] = (tmpl(inst(B + '1', 'X.Fx', [ref('Emitter', 'null')]), inst(B + '2', 'X.Emitter', [txt('Name', '')])),
-              'tpl', set())
+        where = {'emitters/smoke.dbx': ('bundle', 'emitters/smoke.dbx'),
+                 effectport.TEMPLATES[0] + '.dbx': ('bundle', effectport.TEMPLATES[0] + '.dbx')}
+
+        @staticmethod
+        def read(n: str) -> bytes | None:
+            return template if n.lower() == effectport.TEMPLATES[0] + '.dbx' else None
     cat = catalogue(guids={H1: 'emitters/smoke'}, primary={'emitters/smoke': H1})
-    plan = [('effects/fx', 'effects/fx.dbx', 'port'), ('emitters/smoke', 'emitters/smoke.dbx', 'port')]
-    files, rep = effectport.port(FxSrc, FxIx, 'effects/fx', 'levels/x', shared=shared, plan=plan, catalogue=cat)
+    files, rep = effectport.port(FxSrc, FxIx, 'effects/fx', 'levels/x', catalogue=cat)
     got = parsed(files['effects/fx.dbx']).instances[0].child('Emitter').attr('ref')
     check(got == f'emitters/smoke/{G1}' and not rep.of('nulled'),
           'effectport: a reference into a ported emitter BFBC2 has under the same name (without the guid) is kept',
           (got, [r.line() for r in rep.of('nulled')]))
     # ... while a guid the ported partition lacks still does not resolve
     effect = part(A + '1', [inst(A + '1', 'X.Fx', [ref('Emitter', f'emitters/smoke/{A}9')])])
-    files, rep = effectport.port(FxSrc, FxIx, 'effects/fx', 'levels/x', shared=shared, plan=plan, catalogue=cat)
+    files, rep = effectport.port(FxSrc, FxIx, 'effects/fx', 'levels/x', catalogue=cat)
     got = parsed(files['effects/fx.dbx']).instances[0].child('Emitter').attr('ref')
     check(got == 'null', 'effectport: ... a guid neither the ported partition nor BFBC2 has is nulled', got)
 

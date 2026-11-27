@@ -73,6 +73,7 @@ mod culltree;
 mod culltree_audio_havok;
 mod dbxedit;
 mod dbxport;
+mod effectport;
 mod fbrb_cache;
 mod fbrbtool;
 mod geometry;
@@ -485,6 +486,13 @@ mod bc2_native {
         ww2build_patch_refs, ww2build_port_missing, ww2build_primary_type, ww2build_remap_targets, ww2build_root_files,
         ww2build_sky_patch, ww2build_stage_reset, ww2build_stock_bundles, ww2build_stock_index, ww2build_terrain_files,
         ww2build_undergrowth_files, ww2build_undergrowth_scales, ww2build_write_stage, ww2build_ww2_common,
+    };
+
+    // round OR8: the WW2 effect porter and sound porter (effectport.py's and OPFOR's port_sounds' Python retired)
+    #[pymodule_export]
+    use super::effectport::{
+        effectport_forget, effectport_levels, effectport_port, effectport_port_many, effectport_templates,
+        effectport_walk, soundport_fills, soundport_not_streaming, soundport_port,
     };
 
     // round OR4: OPFOR's material grid and pictures (physmat, the texture glue, the pictures)

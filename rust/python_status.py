@@ -260,9 +260,10 @@ TABLE: tuple[Row, ...] = (
     R(f'{IMP}/dbxport.py', LIB, 'twin', 'bc2_convert::dbxport (port, rules)',
       'effectport; tests 9; OPFOR 10', 'PR1b-1c',
       'the partition port is Rust (E4d); port_python kept as reference and fallback'),
-    R(f'{IMP}/effectport.py', LIB, 'live', '', 'tests 3; rust/bench_ports; OPFOR 5',
-      'proposed: OPFOR in Rust stage 2 (its only users are OPFOR\'s WW2 steps)',
-      'BF1943 effects with their emitters and textures; no Rust port (its *_reference is a faster Python algorithm)'),
+    R(f'{IMP}/effectport.py', LIB, 'ported', 'bc2_convert::effectport, bc2_convert::soundport (bc2_native.effectport_*, '
+      'soundport_port)', 'tests 3; rust/bench_ports; OPFOR 9 (wake_level.port_sounds among them)', 'OR8 (done)',
+      "BF1943 effects with their emitters and textures, and the sound porter (OPFOR's port_sounds): a wrapper over "
+      'the Rust core since OR8, the Python twin retired after the parity proof (rust/BENCHMARKS.md "OR8")'),
     R(f'{IMP}/emitteratlas.py', LIB, 'twin', 'bc2_convert::emitteratlas',
       'texqa, texwrite; tests 3; OPFOR 3', 'PR1b-1c',
       'Rust since F2b; the Python kept (an unreadable chunk is recorded, float near-ties by design)'),
