@@ -251,7 +251,7 @@ fn e2b_through_the_interface() {
     shots(&mut h, &mut app, "e2b_place_picker");
     h.key(&mut app, Key::Enter, Modifiers::NONE);
     assert!(
-        app.view().unwrap().browser.placing.is_some(),
+        app.view().unwrap().tools.place.placing.is_some(),
         "Enter takes the first match"
     );
     // the object follows the pointer; Shift+wheel turns it 15 degrees a notch, Alt+wheel sinks it
@@ -263,7 +263,7 @@ fn e2b_through_the_interface() {
     h.wheel(&mut app, g, -3);
     h.modifiers = Modifiers::NONE;
     {
-        let p = app.view().unwrap().browser.placing.as_ref().unwrap();
+        let p = app.view().unwrap().tools.place.placing.as_ref().unwrap();
         assert_eq!(p.yaw, 30.0);
         assert!((p.placement.sink - 0.3).abs() < 1e-9, "{}", p.placement.sink);
         assert!(p.at.is_some(), "it is on the ground under the pointer");
@@ -314,7 +314,7 @@ fn e2b_through_the_interface() {
         panic!("{log:?}")
     };
     assert_eq!(items[0].template, demo::level_guid(1));
-    assert!(app.view().unwrap().browser.placing.is_none());
+    assert!(app.view().unwrap().tools.place.placing.is_none());
     // ---------------------------------------------------------------- Objectives: a flag with its capture area
     app.view_mut().unwrap().browser.browser_mode = BrowserMode::Objectives;
     app.view_mut().unwrap().browser.place_team = 2;

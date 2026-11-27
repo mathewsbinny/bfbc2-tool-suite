@@ -6,7 +6,10 @@
 //! What a site does with the answer (its project generation check, its messages) stays at the site. A job that streams
 //! lines while it runs (a tool's output read from its pipes: `prepare`, NavKit's build) keeps its own threads. Round
 //! PR1b-2 moved the rest onto it: the start screen's catalog, a level's load and its game-accurate view, the export's
-//! profiles, preview and run, the install's run, NavKit's comparison read.
+//! profiles, preview and run, the install's run, NavKit's comparison read; round E4-rest2 the last one, a Package
+//! level's preparation in the editor (`prepare::Job::start_package`: its lines stream on the job's own channel, its
+//! answer - a panic among them - is the Task's). What keeps a bare thread is a pipe reader: a child's stdout or stderr
+//! read line by line while it runs (`prepare`'s two, NavKit's two in `nav::start_navkit`).
 
 use std::sync::mpsc::{Receiver, RecvTimeoutError, TryRecvError, channel};
 use std::time::Duration;

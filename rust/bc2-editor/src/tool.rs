@@ -13,6 +13,10 @@
 //! - [`ViewTool::enter`], [`ViewTool::transient`] / [`ViewTool::cancel`] (Esc) and [`ViewTool::left`] (another
 //!   tool chosen) on every tool.
 //!
+//! Round E4-rest2 moved PR1b-0's leftovers here: the AI workspace's nine navigation edit tools are one implementor
+//! ([`crate::navtool::NavDrawTool`], [`Tool::Nav`]) and placing from the content browser another
+//! ([`crate::placetool::PlaceTool`], [`Tool::Place`], the views' tool while an object is placed).
+//!
 //! The gizmo tools (Move, Rotate) keep the gizmo's drag in the views (its handles, snapping and surface placement are
 //! shared by both: [`crate::gizmo`]); [`ViewTool::gizmo`] says a tool uses it, [`ViewTool::boxes`] that a drag on
 //! empty ground draws a selection box.
@@ -52,6 +56,11 @@ pub enum Outcome {
         String,
         bool,
     ),
+    /// The AI workspace's drawing changed (round E4-rest2, [`crate::navtool::NavDrawTool`]): the navigation edit it
+    /// made when it is complete, and a note for the Navigation edits panel; the navigation's lines are drawn again.
+    NavDrawing(Option<Box<bc2_levelwrite::navedit::NavEdit>>, Option<String>),
+    /// The object being placed put down where it is (round E4-rest2, [`crate::placetool::PlaceTool`]).
+    Place,
 }
 
 /// Where in a view's overlays a tool draws (the order the views draw them in).
@@ -90,6 +99,8 @@ pub struct Pointer {
     pub down: bool,
     /// A document is open in the Terrain workspace (round E5: the brushes' input is live).
     pub terrain: bool,
+    /// A content browser entry or tile dragged was released over the view this frame (round E4-rest2: placing).
+    pub dropped: bool,
 }
 
 /// What a tool draws with: a view's painter (clipped to it) and where things are on it.
@@ -493,7 +504,7 @@ impl ViewTool for GameplayTool {
             GameplayKind::SpawnPoint => "S",
             GameplayKind::Mcom(_) => "M",
             GameplayKind::Spawner => "P",
-            GameplayKind::Stage => "R",
+            GameplayKind::Stage | GameplayKind::InsertStage(_) => "R",
             GameplayKind::Carry => "",
         };
         if let Some((_, _, from)) = &self.carrying
@@ -538,6 +549,10 @@ pub struct Tools {
     pub gameplay: GameplayTool,
     /// The Terrain workspace's brushes (round E5).
     pub terrain: crate::sculpt::TerrainTool,
+    /// The AI workspace's navigation edit tools (round E4-rest2).
+    pub nav: crate::navtool::NavDrawTool,
+    /// Placing from the content browser (round E4-rest2).
+    pub place: crate::placetool::PlaceTool,
 }
 
 impl Default for Tools {
@@ -550,6 +565,8 @@ impl Default for Tools {
             polygon: PolygonTool::default(),
             gameplay: GameplayTool::default(),
             terrain: crate::sculpt::TerrainTool::default(),
+            nav: crate::navtool::NavDrawTool::default(),
+            place: crate::placetool::PlaceTool::default(),
         }
     }
 }
@@ -566,6 +583,8 @@ impl Tools {
             Tool::Polygon => &self.polygon,
             Tool::Gameplay => &self.gameplay,
             Tool::Terrain => &self.terrain,
+            Tool::Nav => &self.nav,
+            Tool::Place => &self.place,
         }
     }
 
@@ -579,12 +598,14 @@ impl Tools {
             Tool::Polygon => &mut self.polygon,
             Tool::Gameplay => &mut self.gameplay,
             Tool::Terrain => &mut self.terrain,
+            Tool::Nav => &mut self.nav,
+            Tool::Place => &mut self.place,
         }
     }
 
     /// Every tool, in the toolbar's order.
     #[must_use]
-    pub fn all(&self) -> [&dyn ViewTool; 7] {
+    pub fn all(&self) -> [&dyn ViewTool; 9] {
         [
             &self.select,
             &self.moving,
@@ -593,11 +614,13 @@ impl Tools {
             &self.polygon,
             &self.gameplay,
             &self.terrain,
+            &self.nav,
+            &self.place,
         ]
     }
 
     /// Every tool, to tell each of them something.
-    pub fn all_mut(&mut self) -> [&mut dyn ViewTool; 7] {
+    pub fn all_mut(&mut self) -> [&mut dyn ViewTool; 9] {
         [
             &mut self.select,
             &mut self.moving,
@@ -606,6 +629,8 @@ impl Tools {
             &mut self.polygon,
             &mut self.gameplay,
             &mut self.terrain,
+            &mut self.nav,
+            &mut self.place,
         ]
     }
 
@@ -689,6 +714,8 @@ mod tests {
             Tool::Polygon,
             Tool::Gameplay,
             Tool::Terrain,
+            Tool::Nav,
+            Tool::Place,
         ] {
             assert_eq!(tools.get(t).id(), t);
         }

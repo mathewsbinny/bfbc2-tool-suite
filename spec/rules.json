@@ -3809,7 +3809,39 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-873"
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-702"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1054-1173"
+    }
+   ]
+  },
+  {
+   "id": "GAME-RUSH-12",
+   "title": "A stage inserted between two splits the wiring between them",
+   "file": "spec/engine/gameplay.md",
+   "status": "verified",
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest2 sweep, 2026-11-27: on all 30 Rush and Squad Rush levels a stage inserted between every two stages (57 insertions, 72 - 900 copies and 15 - 238 connections a level): each plays between the two with every old stage as before and, taken out again, gives back every instance, stage state and connection; 42 connections had no counterpart to split (0 - 5 a level); MP_006's dormant sixth forward base is not copied with its last stage; Port Valdez (mp_012gr) with a stage inserted after the first built in 28 - 37 s and held by `export::check`"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::port_valdez_with_a_stage_inserted_exports"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:703-1053"
     }
    ]
   },

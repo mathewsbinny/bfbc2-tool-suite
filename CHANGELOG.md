@@ -29,6 +29,16 @@ landed on `main`.
 ## [Unreleased]
 
 ### Changed
+- **The map editor's navigation edit tools and placing are view tools** (round E4-rest2, PR1b-0's leftovers): the AI
+  workspace's nine edit tools are the views' tool while chosen (`Tool::Nav`; choosing Select, Move, Rotate or another
+  tool turns them off, and the gizmo is not shown while one is chosen); placing from the content browser, a tile or
+  the picker is the views' tool while it lasts (`Tool::Place`), the tool chosen before comes back once the object is
+  placed or dropped, and choosing another tool drops it. `NavState`'s drawing fields moved to `Tools::nav`
+  (`NavDrawTool`), `BrowserState::placing` to `Tools::place.placing`. A Package level's preparation in the editor runs
+  on `Task` (a panic is its error line); only the pipe readers keep bare threads.
+- **Taking out a Rush stage** also hands what the next stage's objects did to it (a hold-back timer disabling its
+  combat area) on to the stage before's counterparts (round E4-rest2), so a stage inserted and taken out gives the
+  level back connection for connection.
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7
@@ -50,6 +60,12 @@ landed on `main`.
   it cannot write (with why); the editor's edit-time finding for paint strokes is gone.
 
 ### Added
+- **The map editor inserts a Rush stage between two** (round E4-rest2, spec GAME-RUSH-12): the Gameplay panel's
+  **Insert after** on a stage, then a click on the ground, puts a copy of the next stage there, played between the
+  two (`bc2_levelwrite::rushstage::insert_stage`; one undo step, the `connect` operation of project format 10). The
+  wiring between the two stages is split as DICE's chain is read; every stage plays as before. Checked on every stock
+  Rush and Squad Rush level between every two stages, and Port Valdez with a stage inserted exports and passes the
+  stage check.
 - **NavKit: four walkability and placement switches, measured for the user's ruling** (round NKS-deep D,
   `rust/BENCHMARKS.md` "NKS-deep D"): `navregress.RECT_ON_DICE_LEVELS` (the rectangle in place of DICE's extent on
   campaign levels), `navwalk.TERRAIN_FILL` / `Switches::terrain_fill` (XNAV-BLD-5: the height field's surface in

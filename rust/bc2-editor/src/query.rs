@@ -31,6 +31,21 @@ pub struct Hit {
     pub tri: [V3; 3],
 }
 
+impl Hit {
+    /// A point met with nothing known of its surface (round E4-rest2: the navigation ground under the pointer, which
+    /// the navigation edit tool takes as a click): facing up, no entity, a degenerate triangle.
+    #[must_use]
+    pub fn at(point: V3) -> Self {
+        Self {
+            t: 0.0,
+            point,
+            normal: [0.0, 1.0, 0.0],
+            entity: None,
+            tri: [point; 3],
+        }
+    }
+}
+
 /// Möller-Trumbore: the distance along the ray to the triangle, if it meets it in front of the origin.
 fn ray_triangle(o: V3, d: V3, tri: [V3; 3]) -> Option<(f64, V3)> {
     let [a, b, c] = tri;

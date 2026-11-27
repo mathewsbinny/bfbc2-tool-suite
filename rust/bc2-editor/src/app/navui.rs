@@ -582,12 +582,13 @@ impl ViewState {
                 edit_lines(e, palette, &mut lines);
             }
         }
-        let n = &self.navs;
+        // round E4-rest2: the drawing is the navigation edit tool's
+        let n = &self.tools.nav;
         for p in &n.clicks {
             cross(*p, 0.5, palette.view_nav_edit_mark, &mut lines);
             post(*p, 1.0, palette.view_nav_edit_mark, &mut lines);
         }
-        if n.clicks.len() >= 2 && n.polygon && matches!(n.tool, Some(NavTool::Walkable | NavTool::Unwalkable)) {
+        if n.clicks.len() >= 2 && n.outlining() {
             let y = n.clicks.iter().map(|p| p[1]).sum::<f64>() / n.clicks.len() as f64 + 0.3;
             for (a, b) in n.clicks.iter().zip(n.clicks.iter().skip(1)) {
                 lines.push(line([a[0], y, a[2]], [b[0], y, b[2]], palette.view_nav_edit_mark));
@@ -622,9 +623,9 @@ impl ViewState {
         None
     }
 
-    /// A click in a view while the navigation is drawn: the path test's points, an edit tool's clicks, a reference
-    /// marker (`marker`: the one under the pointer), else the area under it is selected. `true` when the click was
-    /// the navigation's (nothing else selects).
+    /// A click in a view while the navigation is drawn: the path test's points, a reference marker (`marker`: the one
+    /// under the pointer), else the area under it is selected. `true` when the click was the navigation's (nothing
+    /// else selects). An edit tool's clicks are the views' tool's (round E4-rest2: [`crate::navtool::NavDrawTool`]).
     pub(super) fn nav_click(
         &mut self,
         gpu: &GpuCtx,
@@ -642,17 +643,6 @@ impl ViewState {
                     1 => "Path test: now click the end".to_owned(),
                     _ => "Path test: the routes are in the Navigation panel".to_owned(),
                 };
-                self.nav_refresh(gpu, palette);
-            }
-            return true;
-        }
-        if let Some(tool) = self.navs.tool
-            && self.workspace == Workspace::Ai
-            && self.doc.is_some()
-        {
-            if let Some(p) = point {
-                self.navs.clicks.push(p);
-                self.nav_try_commit(gpu, palette, tool, false);
                 self.nav_refresh(gpu, palette);
             }
             return true;
@@ -682,27 +672,26 @@ impl ViewState {
         false
     }
 
-    /// Makes the edit of the drawing when it is complete (`finish`: a polygon's Enter).
-    pub(super) fn nav_try_commit(&mut self, gpu: &GpuCtx, palette: &Palette, tool: NavTool, finish: bool) {
-        let n = &self.navs;
-        let Some(edit) = nav::edit_of(
-            tool,
-            &n.clicks,
-            n.polygon,
-            finish,
-            n.margin,
-            n.traversal,
-            n.two_way,
-            &n.note,
-            &n.by,
-        ) else {
-            if tool == NavTool::Note && n.note.trim().is_empty() && !n.clicks.is_empty() {
-                self.navs.message = "Type the note first".into();
-                self.navs.clicks.clear();
-            }
-            return;
-        };
-        self.navs.clicks.clear();
+    /// What the navigation edit tool's drawing came to (round E4-rest2, [`crate::tool::Outcome::NavDrawing`]): a
+    /// note for the panel, and the edit when the drawing is complete - checked against the base, then committed.
+    pub(super) fn nav_drawing(
+        &mut self,
+        gpu: &GpuCtx,
+        palette: &Palette,
+        edit: Option<Box<NavEdit>>,
+        note: Option<String>,
+    ) {
+        if let Some(m) = note {
+            self.navs.message = m;
+        }
+        if let Some(edit) = edit {
+            self.nav_add(gpu, palette, *edit);
+        }
+        self.nav_refresh(gpu, palette);
+    }
+
+    /// A drawn edit checked against the base and committed (`nav-add`).
+    fn nav_add(&mut self, gpu: &GpuCtx, palette: &Palette, edit: NavEdit) {
         let kind = self.nav_kind();
         let problems = nav::problems(&edit, &kind);
         if !problems.is_empty() {
@@ -884,8 +873,7 @@ impl ViewState {
             Action::PathTest => {
                 self.navs.path.active = !self.navs.path.active;
                 if self.navs.path.active {
-                    self.navs.tool = None;
-                    self.navs.clicks.clear();
+                    self.nav_tool_off();
                     self.measures.measuring = false;
                     if let Some(p) = self.menus.menu_point.take() {
                         self.navs.path.points.clear();
@@ -899,18 +887,38 @@ impl ViewState {
                 self.nav_refresh(gpu, palette);
             }
             Action::NavTool(t) => {
-                self.navs.tool = if self.navs.tool == Some(t) { None } else { Some(t) };
-                self.navs.clicks.clear();
+                // round E4-rest2: the edit tools are the views' tool (Tool::Nav); the same tool again turns it off
+                if self.nav_tool() == Some(t) {
+                    self.nav_tool_off();
+                } else {
+                    self.tools.nav.kind = Some(t);
+                    self.tools.nav.clicks.clear();
+                    if self.tool != Tool::Nav {
+                        self.tool = Tool::Nav;
+                        let kind = self.tools.nav.kind;
+                        self.tools.choose(Tool::Nav);
+                        self.tools.nav.kind = kind;
+                    }
+                }
                 self.navs.path.active = false;
                 self.measures.measuring = false;
                 // from the context menu: the point there is the first click
-                if let (Some(t), Some(p)) = (self.navs.tool, self.menus.menu_point.take()) {
-                    self.navs.clicks.push(p);
-                    self.nav_try_commit(gpu, palette, t, false);
+                if self.nav_tool().is_some()
+                    && let Some(p) = self.menus.menu_point.take()
+                {
+                    let outcome = self.tools.nav.add(Some(p), false);
+                    if let crate::tool::Outcome::NavDrawing(edit, note) = outcome {
+                        if let Some(m) = note {
+                            self.navs.message = m;
+                        }
+                        if let Some(edit) = edit {
+                            self.nav_add(gpu, palette, *edit);
+                        }
+                    }
                 }
-                self.message = self.navs.tool.map_or_else(
+                self.message = self.nav_tool().map_or_else(
                     || "Navigation tool off".to_owned(),
-                    |t| format!("{}: {}", t.name(), t.how(self.navs.polygon)),
+                    |t| format!("{}: {}", t.name(), t.how(self.tools.nav.polygon)),
                 );
                 self.nav_refresh(gpu, palette);
             }
@@ -934,6 +942,26 @@ impl ViewState {
             _ => return false,
         }
         true
+    }
+
+    /// The navigation edit tool chosen, when the views' tool is it (round E4-rest2).
+    #[must_use]
+    pub fn nav_tool(&self) -> Option<NavTool> {
+        if self.tool == Tool::Nav {
+            self.tools.nav.kind
+        } else {
+            None
+        }
+    }
+
+    /// The navigation edit tool turned off: the views' tool is Select again (its drawing dropped).
+    pub(super) fn nav_tool_off(&mut self) {
+        if self.tool == Tool::Nav {
+            self.tool = Tool::Select;
+            self.tools.choose(Tool::Select);
+        }
+        self.tools.nav.kind = None;
+        self.tools.nav.clicks.clear();
     }
 
     /// Why a navigation action cannot run now, or `None` (with the general reasons in `why_not_in`).
@@ -1765,7 +1793,7 @@ impl Tabs<'_> {
                 }
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Recorded as").color(p.ink));
-                    ui.add(egui::TextEdit::singleline(&mut self.view.navs.by).desired_width(140.0));
+                    ui.add(egui::TextEdit::singleline(&mut self.view.tools.nav.by).desired_width(140.0));
                 });
                 title(ui, &p, "Tools");
                 ui.horizontal_wrapped(|ui| {
@@ -1774,22 +1802,23 @@ impl Tabs<'_> {
                         let why = why_not_in(Some(self.view), action);
                         let r = ui.add_enabled(
                             why.is_none(),
-                            egui::Button::selectable(self.view.navs.tool == Some(t), t.name()),
+                            egui::Button::selectable(self.view.nav_tool() == Some(t), t.name()),
                         );
                         self.view.navs.rects.push((format!("tool {}", t.name()), r.rect));
                         let clicked = r.clicked();
                         if let Some(w) = why {
                             r.on_disabled_hover_text(w);
                         } else {
-                            r.on_hover_text(t.how(self.view.navs.polygon));
+                            r.on_hover_text(t.how(self.view.tools.nav.polygon));
                         }
                         if clicked {
                             self.view.pending.push(action);
                         }
                     }
                 });
-                let n = &mut self.view.navs;
-                match n.tool {
+                let chosen = self.view.nav_tool();
+                let n = &mut self.view.tools.nav;
+                match chosen {
                     Some(t @ (NavTool::Walkable | NavTool::Unwalkable)) => {
                         ui.horizontal(|ui| {
                             if ui.add(egui::Button::selectable(n.polygon, "Polygon")).clicked() {
@@ -1830,8 +1859,9 @@ impl Tabs<'_> {
                     Some(t) => muted(ui, &p, t.how(true)),
                     None => muted(ui, &p, "Choose a tool; clicks in the view then draw instead of selecting."),
                 }
-                if !n.message.is_empty() {
-                    ui.add(egui::Label::new(RichText::new(n.message.clone()).color(p.ink)).wrap());
+                let said = &self.view.navs.message;
+                if !said.is_empty() {
+                    ui.add(egui::Label::new(RichText::new(said.clone()).color(p.ink)).wrap());
                 }
                 title(ui, &p, "Side file and build");
                 ui.horizontal_wrapped(|ui| {
@@ -1919,18 +1949,7 @@ impl Tabs<'_> {
 
     /// Over a view: the hover's area (the area under the pointer, NavKit's first).
     pub(super) fn nav_overlay(&mut self, ui: &egui::Ui, rect: Rect) {
-        // Enter finishes a region's outline
-        let typing = ui.ctx().memory(|mem| mem.focused().is_some());
-        if !typing
-            && ui.input(|i| i.key_pressed(Key::Enter))
-            && let Some(t @ (NavTool::Walkable | NavTool::Unwalkable)) = self.view.navs.tool
-            && self.view.navs.polygon
-            && self.view.navs.clicks.len() >= 3
-        {
-            let palette = self.palette;
-            self.view.nav_try_commit(self.gpu, &palette, t, true);
-            self.view.nav_refresh(self.gpu, &palette);
-        }
+        // (Enter finishing a region's outline is the navigation edit tool's: round E4-rest2)
         if !self.view.nav_active() || self.view.navs.data().is_none() {
             return;
         }

@@ -1399,22 +1399,6 @@ pub struct NavState {
     pub compare_error: Option<String>,
     /// The Islands and spawns panel's file.
     pub islands_file: usize,
-    /// The edit tool.
-    pub tool: Option<NavTool>,
-    /// Regions are drawn as polygons (else boxes).
-    pub polygon: bool,
-    /// The drawing's clicks.
-    pub clicks: Vec<[f64; 3]>,
-    /// A region's height range below and above the clicked points.
-    pub margin: [f64; 2],
-    /// The traversal kind (index into `navtune::TRAVERSALS`).
-    pub traversal: usize,
-    /// Route edges and traversals both ways.
-    pub two_way: bool,
-    /// A note's text.
-    pub note: String,
-    /// Who the edits are recorded as.
-    pub by: String,
     /// The last edit message.
     pub message: String,
     /// The build, install or restore running or done.
@@ -1446,14 +1430,10 @@ pub struct NavState {
 }
 
 impl NavState {
-    /// Default settings (the Studio's: polygons, 2 m below and 4 m above, two-way, the PC's name).
+    /// Default settings (the layers shown; the edit tools' settings are [`crate::navtool::NavDrawTool`]'s).
     #[must_use]
     pub fn new() -> Self {
         Self {
-            polygon: true,
-            margin: [2.0, 4.0],
-            two_way: true,
-            by: bc2_levelwrite::project::author(),
             hidden: [
                 "DICE ground",
                 "NavKit outlines",
