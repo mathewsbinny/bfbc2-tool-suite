@@ -6294,3 +6294,101 @@ ruff and mypy.
 - For GM2, first: the new-item tracker's tag writer, and 0x9381F0's keys for the Vietnam weapon maps.
 - For GM0-rest: the server's mod strings.
 - Whether a lookup of a missing asset returns a null handle.
+## OR12: OPFOR in Rust - the Onslaught console port, stages 11 - 13 (2026-11-27, branch `or12`, with Project OPFOR's `or12`)
+
+OR12's share of the plan ("OR9", "The plan"): `console_cull`, `console_loading` and `console_hud`, 602 lines of OPFOR
+Python, now `bc2_install::onslaught::{cull, loading, hud}` through `bc2_native.onsport_cull` / `onsport_loading` /
+`onsport_hud` / `onsport_hud_movie`. Version **0.35.0** (OPFOR's `SUITE_REQUIRES` 0.35.0 to below 0.36.0; renumbered at merge, OR12 landed before OR10).
+Nothing was written to OPFOR's `game\`; the game never launched.
+
+### What moved
+
+| OPFOR Python (until OR12) | Lines | now | Lines left |
+|---|---|---|---|
+| `console_cull.build` / `apply`'s copy, manifest sizes and pack (`run`, `sha`, `REF_DIRS`, `MISPLACED`) | 142 | `bc2_install::onslaught::cull` (`onsport_cull`, two calls: the build, then after the ledger's check the pack) | 92 (command line, the check, the install, revert, scratch) |
+| `console_loading.console_setup` / `add_entry` / `retarget` / `build` up to the ledger | 223 | `bc2_install::onslaught::loading` (`onsport_loading`) | 106 (command line, the install, the per-level startup layers and their reverts, scratch) |
+| `console_hud.build` / `unpatched` / `legacy_record` / `entry_record` / `patch_movie`, `PATCHES`, `LOADING_SCREEN` | 237 | `bc2_install::onslaught::hud` (`onsport_hud`, `onsport_hud_movie`) | 128 (command line, the check, each bundle's source and prior from the ledger, the install, then the kept originals and entry records, revert, scratch) |
+
+The stages use only what OR9 put on main in `port.rs` (`find`, `read_text_utf8`, `write_text_utf8`, `StageOut`);
+OR10's additions there are not needed; DbxEdit's `xml_of` is a private copy in `loading.rs` (it switches to a shared
+one if OR10 lands one first). Cargo: the `onslaught` feature
+is OR10's line plus `dep:bc2-menu` (the coordinator resolves that one-line conflict).
+
+**Why `culltree add` stays a subprocess.** The cull tool's library is `bc2_levelwrite::culltool`; bc2-levelwrite
+depends on bc2-install, so bc2-install cannot call it in process without a dependency cycle. The stage runs the
+command line OPFOR passes (`console_common.cli_command('culltree')`, i.e. `bin\bfbc2.exe culltree add ...`), as the
+Python did. Moving the culltool library below bc2-install (or the stage above bc2-levelwrite) would end that.
+
+**The HUD's movie edits in process.** The Python ran `bfbc2 aptgraft onslaught-timer / mode-case / mode-alias` for each
+of the 7 steps; the Rust calls the same library (`bc2_menu::graft::edit`, OR14's `AptMovie` model) and writes the movie
+with `GRAFT_LAYOUT`, so the movies are the same bytes; each step's printed line is the one the command printed last.
+
+### Decided (spec XCONS-ONS-11 - 13)
+
+- **culltree's report** is read as UTF-8 (the Python's `text=True` read it in the ANSI code page): a difference only for
+  a non-ASCII blueprint name, and DICE's names are ASCII (every name in the four levels' trees is).
+- **A movie the Rust model cannot read** refuses with the model's words. `bfbc2 aptgraft` handed such a movie to the
+  retired `aptgraft.py`; OR14 made OPFOR's movie tools `bc2_native.AptMovie`, and every movie DICE ships (the PC HUD,
+  objectives, root, loading screens and the console HUD) reads in the model.
+- **A failing HUD step** names its command (`aptgraft <command> ...`) and the model's message, not the binary's path,
+  its "error:" line and its log's path (the damaged console HUD cases below).
+- The entry record's JSON is `json.dumps(indent=1)`'s text, in the order the entries are patched (the Python's dict
+  order).
+
+### Proof
+
+`scratchpad\or12\stages_parity.py` (+ `pair2.ps1`): one scratch OPFOR root (`C:\Programming\Projects\_rounds\or12\s\r`)
+per side, run one after the other at the same path; `game\` is junctions into OPFOR main's `game\` (read only) with the
+level's folder and `startup-00.fbrb` real copies taken from the user's own pre-stage files (`level-00` from
+`.opfor-cull-orig`, `loader-00` from `.opfor-loading-orig`, `ingame-00` from `.opfor-hud-orig`, `startup-00` from the
+earliest kept copy that holds the level's description) - the earlier stages' output, as the Python made it; `work\`
+holds a copy of `con_level` and hard links of the console loader, the console HUD movie and (junctions) the Linux level
+and `work\levels`. The Python twins: OPFOR a3fd230's three scripts, loaded by path. Steps, chained: cull, loading, hud
+`--apply`; the three again (nothing to add / already applied / the HUD's redo on its entry record, built on the
+ledger's prior and its kept originals); then the main menu's loading screen (`--loading-screen`). The stages install
+into the scratch game through OPFOR's ledger, as they do for real.
+
+| Level (PC map) | Files compared (work and game) | Identical | Printed lines | Python / Rust, the seven steps |
+|---|---|---|---|---|
+| ONS_MP_002 (MP_002) | 3,445 | **3,445** | same | 21 s / 21 s |
+| ONS_MP_004 (MP_004) | 3,596 | **3,596** | same | 26 s / 25 s |
+| ONS_MP_005 (MP_005) | 4,256 | **4,256** | same | 26 s / 27 s |
+| ONS_MP_008 (MP_008) | 9,498 | **9,498** | same | 28 s / 24 s |
+
+(ONS_MP_005's description is not in `startup-00.fbrb.opfor-loading-orig`: the level was imported after the first
+loading install; its run starts from `.opfor-wake-orig`, the earliest kept copy that has it.) The time is the stage
+tools' own (`culltree add`, the unpacks and packs); the movie edits are milliseconds either way.
+
+Every work file (the unpacks, `add_report.txt`, `tree.dbx` / `level.dbx`, the console loader's unpack, the retargeted
+partitions, the movie steps' `.res`, the kept originals `<name>.orig\`, the packed bundles) and the scratch game's real
+files (`level-00`, `loader-00`, `ingame-00`, `startup-00` as installed, the entry records); the printed lines of every
+step identical.
+
+**Damaged inputs** (ONS_MP_002; the first 14 on the build from before `cargo fmt` reflowed one test): 19 cases end
+alike - the same files written (2,216 to 3,451 files a case, all identical) and the same printed lines, the same refusal, or the same success:
+
+- the level bundle cut to half / one byte changed (stage 11's unpack refuses), `loader-00` cut to half and `startup-00`
+  cut to half (stage 12's unpack), the console loader missing (stage 12 falls back to the u3 extract and its unpack
+  refuses, as the Python) or cut to half, `ingame-00` cut to half / one byte changed (stage 13's unpack);
+- the console level's XML missing (stage 12 writes it first, as the Python), the console level naming no
+  `LoadingMovie` (refused), no Linux reference level (`culltree` runs without `--ref`), no `work\levels` (without
+  `--ref-dir`): all identical;
+- the console HUD movie cut to half or missing: stage 13 refuses in the same step on both sides;
+- the HUD's entry record exercised: a redo after the kept original was deleted or changed (the redo builds on the
+  ledger's prior, so both succeed alike), and with a later stage's layer on `ingame-00` a `--plan` that reads the
+  record: with the kept original intact it is put back first; deleted or changed, both refuse "not patched twice".
+
+The two kinds of difference are the words of a failure, not files: a failing FbrbTool / DbxEdit command's "details:"
+line names the day's tool log under the Python and "(no log file)" under the Rust (as OR9), and a failing HUD step
+names `aptgraft <command> ...` and the model's message where the Python printed the binary's path, "error: AptError:
+...", "what to do" and the log (spec XCONS-ONS-13). Neither side wrote to `game\`; OPFOR's `game\` was only read
+through junctions: no file under it is dated 2026-11-27 (the registration files `package.mft` 2026-11-14, the
+bundle manifests and `startup-00` untouched).
+
+### What is left
+
+- Stages 5 - 7 (OR10), stage 14, the shader audit, the Napisal-level fixes and the driver (OR13).
+- `culltree add` in process: needs the cull tool's library below bc2-install (the cycle above).
+- The private copies of OR10's `port.rs` helpers in `cull.rs` / `loading.rs` / `hud.rs`, once OR10 is on main.
+- The in-process FbrbTool / DbxEdit commands still write no tool log ("details: (no log file)", as OR9).
+- **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte.

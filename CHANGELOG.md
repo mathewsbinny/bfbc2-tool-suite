@@ -51,6 +51,24 @@ landed on `main`.
 - `spec/engine/gamemodes.md` ERA-MOD-1: the unlock-tree reader 0x93D14F is in 0x93D120, which `extern.playerStats`
   reaches through 0x944D50. It is not in 0x93CF40.
 
+## [0.35.0] - 2026-11-27
+
+Round OR12 ("OPFOR in Rust", the Onslaught console port's stages 11 - 13) gives Project OPFOR new `bc2_native`
+functions it now requires: this merge releases a minor version, and OPFOR's `SUITE_REQUIRES` moves with it.
+
+### Added
+
+- `bc2_native.onsport_cull` / `onsport_loading` / `onsport_hud` / `onsport_hud_movie` (round OR12):
+  `bc2_install::onslaught::{cull, loading, hud}`, the console port's stages 11 - 13 - cull-tree places for the
+  console layout's objects (`bfbc2 culltree add`), the console loading video and the description's game mode, the
+  Onslaught stopwatch and Onslaught's texts in the PC HUD and loading-screen movies (`bc2_menu::graft` in process).
+  Every work and game file is the retired Python's byte for byte on the user's four console levels (spec
+  XCONS-ONS-11 - 13). A failing stage prints the lines it printed before the failure, as the Python did.
+
+### Changed
+
+- bc2-install's `onslaught` feature takes bc2-menu (stage 13's movie edits).
+
 ## [0.34.0] - 2026-11-27
 
 Round OR11 retires Project OPFOR's Python of the console Onslaught port's stages 8 - 10: OPFOR now needs this version's

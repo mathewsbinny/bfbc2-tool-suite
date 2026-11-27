@@ -3531,7 +3531,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 865,
+   "lines": 866,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -4107,7 +4107,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 304,
+   "lines": 420,
    "note": "read-only probe for spec/engine/gamemodes.md (game modes, the game mod: data and exe sites); game tier",
    "path": "spec/probes/gamemodes.py",
    "retiring": "stays",
@@ -4713,7 +4713,7 @@
  "totals": {
   "all": {
    "files": 387,
-   "lines": 114501
+   "lines": 114618
   },
   "by_folder": {
    "(root)": {
@@ -4905,13 +4905,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20433,
+    "lines": 20434,
     "live": 764,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15330,
+    "test": 15331,
     "twin": 2430
    },
    "design": {
@@ -4938,12 +4938,12 @@
    },
    "spec": {
     "files": 23,
-    "lines": 8247,
+    "lines": 8363,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 8247,
+    "stays": 8363,
     "test": 0,
     "twin": 0
    },
@@ -4978,11 +4978,11 @@
    },
    "stays": {
     "files": 76,
-    "lines": 16802
+    "lines": 16918
    },
    "test": {
     "files": 192,
-    "lines": 53071
+    "lines": 53072
    },
    "twin": {
     "files": 57,
