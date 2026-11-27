@@ -172,7 +172,8 @@ put its old backup over a later stage).
 [code: opfor:src/tools/opforcore/stages.py:220-238] [code: opfor:src/tools/onslaught/console_linux_base.py:46-54]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_linux_base_redo_builds_on_the_first_stage_and_a_later_stage_refuses]
 [test: opfor:src/tools/tests/test_df2_installs.py::test_hud_source_is_the_current_bundle_unless_a_redo]
-[test: opfor:src/tools/tests/test_onslaught.py::test_hud_builds_on_the_current_movie_and_never_patches_twice]
+[test: rust/bc2-install/src/onslaught/hud.rs::never_patches_twice]
+[test: opfor:src/tools/tests/test_onslaught.py::test_hud_passes_each_bundles_source_and_writes_the_records_after_the_install]
 [data: 2026-10-30, Valparaiso: two stages re-applied from old backups dropped the soldier pass and the Mark V; the rule followed]
 
 ### XINST-STG-4: A revert is refused unless the stage wrote last

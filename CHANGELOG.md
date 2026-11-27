@@ -28,6 +28,8 @@ landed on `main`.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-11-27
+
 Round OR12 ("OPFOR in Rust", the Onslaught console port's stages 11 - 13) gives Project OPFOR new `bc2_native`
 functions it now requires: this merge releases a minor version, and OPFOR's `SUITE_REQUIRES` moves with it.
 
