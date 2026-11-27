@@ -1879,11 +1879,7 @@
 "H:3eba1bf138b6526b",
 "E:PS reads TEXCOORD4, the VS does not write it"
 ],
-"1f8f7c9c634b6377": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
-],
+"1f8f7c9c634b6377": "H:37e0d867a5bce4ae",
 "1f93e5ae6603e674": "H:5e7d38960a5cc7fd",
 "1f94ff6b0b83f062": "H:aeaf4860b780c2da",
 "1fa5c9474e3f8bd0": "H:82f0182e1264678b",
@@ -3098,11 +3094,7 @@
 ],
 "30f291aa4ed4b889": "H:50c57e01f1eab88f",
 "30f460b6e6ba77c9": "H:c008348277fc5885",
-"30f66d70fbbe4e3c": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"30f66d70fbbe4e3c": "H:7fee53da3e7ddda0",
 "30fa44ba870d3d3d": "H:11f3d282a0ad1773",
 "3100230d6621f7a5": "H:bbfa838d09e1e03b",
 "310359e6e8d42c82": "H:19744ea73bf2999f",
@@ -3760,11 +3752,7 @@
 ],
 "3c46fdefb4252328": "H:110b098c5f144efc",
 "3c4c77366c615751": "H:5d1a22a1f8edb8c2",
-"3c509a0b5dc63fce": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
-],
+"3c509a0b5dc63fce": "H:3e17945535ad86ef",
 "3c5aa073bfd5c133": "H:26512e9f92f88fa8",
 "3c7497c55e1ea516": "H:c25bb52769117e1a",
 "3c77226665e1186a": "H:e43e1f0a8eb2fc4a",
@@ -5212,11 +5200,7 @@
 "H:6835b172b5bf1a1f"
 ],
 "53d425f29ea29445": "H:c65f653113a4edef",
-"53d496baff113026": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"53d496baff113026": "H:1f502042b3916e50",
 "53db2305795f7221": "H:ed15a5dcfb395ef5",
 "53dd6d895f2191d3": [
 "H:9fc5455b24e79bf9",
@@ -5715,11 +5699,7 @@
 "E:Sampler register outside the PC range",
 "H:3b553552717d8707"
 ],
-"5b51fd573ccc9b27": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"5b51fd573ccc9b27": "H:b21e4df93396a892",
 "5b63957b01616058": "H:1e7a8dcf76d5cfce",
 "5b694f59f44e5893": "H:155062066d0507be",
 "5b70c0ebdecdebc8": "H:e050edb257fc5441",
@@ -6015,11 +5995,7 @@
 "H:99ab2b99872df060"
 ],
 "609e5e2296ceccc0": "H:42558079e4edd4a7",
-"60ae25cd6a8fe9d9": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"60ae25cd6a8fe9d9": "H:e947169451beabff",
 "60afdda484c3e686": "H:d5062476d1d4eb99",
 "60b75811fa0df5d1": "H:c3b756ed3831c885",
 "60c74b21f5923fb3": [
@@ -6728,11 +6704,7 @@
 "E:engine-named constant '1bad': not a usable name"
 ],
 "6ae884ca3a2e1e11": "H:e5fc931f7fe49765",
-"6afecf03cda33452": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
-],
+"6afecf03cda33452": "H:409f7f2338dca883",
 "6b070939304e42d3": [
 "H:5b09dbc28375d627",
 "E:PS reads TEXCOORD5, the VS does not write it",
@@ -7226,11 +7198,7 @@
 "7346a22565009a3d": "H:13dd4902c8036eb5",
 "73486ef9ccd30f5b": "H:7ec2e9ffeb29afc4",
 "734c6f2fe264c373": "H:e9608cf16eb325b1",
-"736a4132be1d623b": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"736a4132be1d623b": "H:17e7d6b08a6e5d52",
 "736fe835310ba609": "H:b220fe6f8e9693c3",
 "7371426e98545054": "H:ea2af95afb6a1631",
 "7378da935ce952e1": "H:760001c961d442f5",
@@ -8002,11 +7970,7 @@
 ],
 "807f4bb3dc5a3eed": "H:283c807d430e781f",
 "8089cdb47ecded45": "H:c94219583e108dcf",
-"808cb7917c66fe5f": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
-],
+"808cb7917c66fe5f": "H:2906b16d5aa07401",
 "809147a015b3bd4a": "H:7fd051250debf89c",
 "809d38e16d8a9835": "H:b59c288b7ba3704d",
 "809f0b37ae251a9f": "H:7c7705a3deb860d6",
@@ -8533,9 +8497,9 @@
 "H:47b2476801dee694"
 ],
 "899af7bb6cb886a2": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
+"H:5dff58a8a9522457",
+"E:VS writes TEXCOORD2, not in the interface",
+"E:VS writes TEXCOORD8, not in the interface"
 ],
 "89a0a6e8ec4242f7": "H:a6216781f36895ae",
 "89a63079007fef06": "H:274385ca46d63709",
@@ -8800,11 +8764,7 @@
 "H:4cb3d161801d67c9"
 ],
 "8eb91b05dd89eaa9": "H:d5ef9d3324ce33fa",
-"8ec95f1d3c613978": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
-],
+"8ec95f1d3c613978": "H:cfce0aa5e91eab49",
 "8ecc292207e7d7e8": "H:8a7c10a5f3ca8791",
 "8ece083b627366df": "H:816be5f431243ea2",
 "8ece712fb72ac498": "H:98142ecddf68b69b",
@@ -10322,11 +10282,7 @@
 "a61af31f7d478314": "H:668a23a9ed759346",
 "a6231a654fcbcf6a": "H:4c7d7ffdc79a5c7d",
 "a6243eec3c9fbeb7": "H:d23da13a94397516",
-"a62d958bb6189b33": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"a62d958bb6189b33": "H:9993598ebdb557f1",
 "a634cd77570ef165": "H:087a2a42861653c7",
 "a63c73c6224c82bf": "H:0f45bd0672e864c3",
 "a6655d681ef9f6e4": "H:1917be2799665689",
@@ -10559,11 +10515,7 @@
 "aadacdbbe5808af6": "H:acc03d39d7c19e44",
 "aae10c7d09c1c639": "H:21eb40c40c47e291",
 "aaf0728ab9d53e53": "H:bb211a8388e06881",
-"aaf25668930f8790": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"aaf25668930f8790": "H:8c758c7c17417218",
 "aaf9678b4fc6a9d1": "H:1c97da926d91ff55",
 "ab034c57bd19c75e": "H:38ed5fcbd3fe8227",
 "ab03f77803e4a892": "H:7727c2ea20e2f572",
@@ -10767,11 +10719,7 @@
 "ad9ed1a64ae8b02c": "H:bb9ad9270dc76e97",
 "ada3e1acb944431c": "H:95c70aa21c8ff250",
 "adaa4fe40d613415": "H:94ded20e6026558e",
-"adb7e1df15c5ccc9": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"adb7e1df15c5ccc9": "H:44d416e1da2c3a04",
 "add31214e63c3960": [
 "H:8cd2855c734715c4",
 "H:1e6b6853eff02d16",
@@ -12843,11 +12791,7 @@
 "cf7d16eeb69c1eef": "H:686964994c6a239b",
 "cf8079411a48b7b9": "H:b2858dd04c398143",
 "cf83840f27c32abb": "H:bf684a24bf8a7cdc",
-"cf8c4fca5714f766": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
-],
+"cf8c4fca5714f766": "H:32f3d3018bdc91f3",
 "cf8f771d78628cc9": [
 "H:f7d0688fcccccbfc",
 "E:PS reads TEXCOORD5, the VS does not write it",
@@ -14016,11 +13960,7 @@
 "H:4b30e920f8b5a681",
 "E:PS reads TEXCOORD0, the VS does not write it"
 ],
-"e1feefde2f2c2b25": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"e1feefde2f2c2b25": "H:7ce377e6107f5693",
 "e2034e1558fdf8e4": "H:5d9bf93e09bffde1",
 "e2082b2374ef30bf": "H:9a00d3ca2332610c",
 "e21a1802e0388e7e": "H:3df30dd6df15d1b9",
@@ -14278,11 +14218,7 @@
 "E:Sampler register outside the PC range",
 "H:5d2ca3cbd2629812"
 ],
-"e5c022424c33d1da": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
-],
+"e5c022424c33d1da": "H:0e09d4d26fb53679",
 "e5cac160aa07c4d8": "H:498b7bfb67d9a060",
 "e5d4e6854600fea4": "H:dfce2e659450366a",
 "e5d9f4ed103ae701": "H:ce577f6ced2bd860",
@@ -14391,9 +14327,9 @@
 "e83fb5486051dbcb": "H:38ca9c701803d194",
 "e8450b2a391bdb7a": "H:b9c59fbf86e22031",
 "e85687aa2d5b4293": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
+"H:6e561fe73fbf41e8",
+"H:285ec5b41def0f76",
+"E:VS writes TEXCOORD0, not in the interface"
 ],
 "e86b308c8e13ad75": "H:d91852c0a081e9f7",
 "e8753984b86f6476": [
@@ -15460,11 +15396,7 @@
 "E:PS reads TEXCOORD5, the VS does not write it"
 ],
 "f9ccf13c3f70334e": "H:2b1e6a226b6ae4b6",
-"f9d0df9fa78d67e5": [
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump",
-"E:jump to cf 12 is not a nested forward jump"
-],
+"f9d0df9fa78d67e5": "H:bbda524287fae0da",
 "f9d3c6bb68691ee8": "H:1d165da172bd8b12",
 "f9e3838495a35866": "H:b6f5842f7d367ca0",
 "f9f00647f1a6f521": "H:b3207484c00d229d",
@@ -15544,9 +15476,9 @@
 "faed0059abd5dbd3": "H:f2b4b1116566d820",
 "faefb8171305a93f": "H:fddebf559c4d55cc",
 "fafc8e54df968d09": [
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump",
-"E:jump to cf 11 is not a nested forward jump"
+"H:42e64edd5ef07916",
+"H:fd554d12b726222d",
+"E:VS writes TEXCOORD5, not in the interface"
 ],
 "fb11874d897468ba": "H:42c4b40827df4c46",
 "fb120f3bb501ff2e": [

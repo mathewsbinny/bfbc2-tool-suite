@@ -5178,3 +5178,61 @@ Checks on the final tree (main d6bad8f3 merged): `cargo clippy --all-targets -D 
 bc2-levelwrite, and bc2-cli's 19 tool groups alone, clean; bc2-editor's tests 58 passed (28 game-tier ignored) and
 80 unit tests; the rush stage module with the game tier (5 of 5); gr2 and rush_stage_tools with the game copy; the
 quick tier 137 of 137; `spec/trace.py --check` ok (1,519 rules, GAME-RUSH-12 unused on main).
+
+## XD2: the shader translator's differential proof, widened (2026-11-27, branch `xd2`)
+
+The user's forward emitter (ef104ca1, `hlsl.rs` `cfs_forward` / `has_non_nested_forward_jumps`) made 20 of the 8,320
+distinct Xbox programs of `test_xenos_native.py --game` translate that used to fail with "jump to cf N is not a nested
+forward jump". `test_xdiff.py --game-all` proved only Wake's 815 pixel shaders; none of the 20 is among them.
+
+**The 20.** All vertex shaders, one shape (a skinned shader's if / else on a bone's values: CF 3 `(!p0) jmp 6`, CF 4
+`(p0) exec`, CF 5 `(p0) jmp 11 / 12`, 5 or 6 `(!p0) exec` blocks). 4 in BF1943 (`guadal_canal` vs285, vs469;
+`iwo_jima_s` vs255, vs520), 16 only in BFBC2's Xbox levels (`mp_001` vs44, 106, 213, 245, 276, 299, 358, 712;
+`mp_002` vs8, 754; `mp_003` vs14, 153; `mp_004` vs305, 824; `mp_008` vs344, 421) - the task's "BF1943's databases"
+holds for 4 of them. Three translate under fewer than 3 interfaces (iwo_jima_s vs255 and vs520 under 2, mp_002 vs8
+under 1): the seeded random interfaces drop a TEXCOORD the shader writes ("VS writes TEXCOORDn, not in the
+interface"), the same check the nested emitter makes. Exactly 20 programs' plain-interface translations carry the
+`_cf` guard (a scan of the corpus).
+
+**The proof.**
+- `xenos_exec.py` runs vertex shaders: vfetch (the element's value by usage index, before the destination swizzle),
+  oPos and o0-o15 exports (`Result.position`, `Result.outputs`). It records each jump's lanes (taken / not) and the CFs
+  no lane reached, and marks lanes that read `c[k + a0]` outside the array of `c[k]` (`Result.out_of_range`: on both
+  sides the value is the register file's layout, not the shader's; the comparison leaves those lanes out).
+- `xdiff.py --vs [N ...]`: the translation wrapped (`main` renamed `xdiff_vs`, a wrapper's `main` takes a
+  TEXCOORD16 with the pixel and the output slot and passes that output on, `nointerpolation`), each output of each
+  vertex a pixel of its own; `--db <level>`, a resource name or `bfbc2:<level>` (OPFOR's unpacked Xbox copy). Vertex
+  inputs: half the vertices in [-1, 1], half in [0, 20) - with (-1, 1) alone every bone index truncates to 0, every
+  vertex takes the same side of the if / else (first measured: jump taken 0 of 512 or 512 of 512).
+- The 20 on 512 vertices: all exact on oPos and every interpolator; the if's jump taken by 17 to 356 vertices and not
+  by the rest; the else's jump taken by every vertex reaching it (it follows a `(p0)` block: not-taken is
+  impossible); every CF reached; no lane out of range.
+- The jumps in the 20 skip only blocks predicated off for the lanes taking them, so per-lane (the translation, the
+  interpreter, Xenia) and per-wave branching agree; that is also why a jump bug could hide on them. Hence the
+  hand-built if / else of plain execs (below), where the jumps alone decide.
+
+**What was wrong.** `cfs_forward` ran a `cond_exec` / `cond_exec_end` (a bool constant's exec) unconditionally; the
+nested emitter refuses it ("control flow cond_exec is not supported") and no part of the translator has bool
+constants. Now refused as there. No corpus program has one: no recorded translation changed by it. Nothing else was
+wrong: the 20 translations are the user's emitter's text.
+
+**Re-recorded.** `xenos_golden_game.json` (`test_xenos_native.py --record --game`): 20 of 8,320 records changed,
+exactly the 20 program keys above (each from three `E:jump to cf N is not a nested forward jump` to the new digests /
+outcomes); `xenos_golden.json` unchanged. `test_xenos_native.py --game` then passes.
+
+**Tests.**
+- `rust/bc2-shader/tests/forward_jumps.rs` (new): a hand-built pixel shader (`if (r0.w > 0) r1 = r0 * r0 else r1 =
+  r0 + r0` with overlapping jumps 1 -> 4, 3 -> 5) translated line for line with the guards; nested jumps keep the
+  nested emitter; a bool-constant jump, a backward jump and a bool-constant `cond_exec` refused with the nested
+  emitter's errors.
+- `test_xdiff.py` quick: the same program as a pixel and a vertex shader against the interpreter, exact, both
+  branches run (vertex: jump taken 194 / not 62 of 256), and a translation with the jump `1 -> 4` made `1 -> 5`
+  caught (pixel 138 of 256 outputs differ, vertex 194 of 512). `--game`: the 20 by program key, exact, both sides
+  of each if / else run.
+- `--game-all`: every Wake pixel shader still exact (815 of 815; served and reference runs alike, 3,261 files).
+- Not in a test (evidence for the README): Wake's 735 vertex shaders on 256 vertices, 728 exact; vs251 / vs710
+  rounding on values near 1e4 (relative 1e-6), 5 fetch a vertex texture from fetch constant 22 with no sampler.
+- `bfbc2 xdiff` takes `--vs` and no longer refuses another `--db` with `KeyError` (argspecs.rs regenerated;
+  `argfmt_golden.json`, `abbrev_golden.json`, `cli_o5_shader_golden.json` re-recorded: only xdiff's lines changed).
+
+Spec: XSH-CF-1 (verified).
