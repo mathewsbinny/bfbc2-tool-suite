@@ -31,9 +31,24 @@ landed on `main`.
 ## [0.32.0] - 2026-11-27
 
 Round OR9 retires Project OPFOR's Python of the console Onslaught port's stages 2 - 4: OPFOR now needs this version's
-`bc2_native.onsport_linux` / `onsport_mode` / `onsport_loadset`, so its `SUITE_REQUIRES` moves to 0.32.0 - 0.33.0.
+`bc2_native.onsport_linux` / `onsport_mode` / `onsport_loadset`, so its `SUITE_REQUIRES` moves to 0.32.0 - 0.33.0. Round SPG2-rest6, merged before it
+unreleased, is in this version too.
 
 ### Added
+- **Specification (round SPG2-rest6), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`
+  "SPG2-rest6"; 1,587 -> 1,599 rules):
+  - the undergrowth's sway: every DICE vertex program with `windParams` moves x and z by
+    sin(((x + y + z) x 1000 + w.x) x w.y) x max(y, 0) x w.z (VEG-UG-10, verified by a new check in
+    `core/tests/test_spec_probes.py`); `UndergrowthMaxHeight` is how far a cell's bounding box reaches above its
+    highest instance, for culling and the fade (VEG-UG-11);
+  - the mesh and sample-texture particle evaluators (FX-PROC-6), the quad vertex fill and the colour, transparency,
+    alpha, texture-frame, size and clip-scale processors it evaluates (FX-PROC-9), the force vectors (FX-PROC-10),
+    the emitters' lifetime step and the mesh particles' spawn (FX-PROC-11); FX-PROC-8's sizes corrected;
+  - what each menu FSCommand case does (MENU-RT-8); the award criterion objects' factory and its seven classes
+    (PERS-AWD-8, verified), event 0x51 as `StatEvent_Suicide` (PERS-AWD-6);
+  - the compiled anim-tree nodes' header, the animation node's and every type's fields (ATREE-NODE-2 - 4, verified),
+    block B's cycle distance and angle (ATREE-BLK-5) and block C's five property curves (ATREE-BLK-6); the probes
+    `terrain.py`, `effects_chain.py`, `persistence.py` and `resources.py` hold the new counts.
 - **The console Onslaught port's stages 2 - 4 in Rust** (round OR9, "OPFOR in Rust"): `bc2_install::onslaught::linux`
   (the console gameplay put on the PC map's Linux server level: the merge, the renamed Linux files, the cull slots as
   the Linux level's), `onslaught::mode` (the Onslaught game mode from PC Conquest, the console spawn manager, every

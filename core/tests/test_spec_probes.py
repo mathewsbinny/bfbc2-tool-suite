@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import argparse
 import collections
+import contextlib
 import importlib.util
+import io
 import os
 import re
 import struct
@@ -287,6 +289,20 @@ def height_field_tails(t: Terrains) -> None:
     check(shares[0] >= 0.99 and strict == 15,
           f'TERR-HF-11: the finest grid lies under the heights on >= 99 % of samples on all, all of them on 15 '
           f'(lowest {shares[0]:.4f}, all of them on {strict})')
+
+
+# spec: VEG-UG-10
+def undergrowth_sway(bundles: list[Path], tp: ModuleType) -> None:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        tp.undergrowth_shaders(bundles)
+    out = buf.getvalue()
+    check("databases with such a program: {'Dx10': 74, 'Dx11': 74, 'Dx9': 74} of "
+          "{'Dx10': 74, 'Dx11': 74, 'Dx9': 74}" in out,
+          'VEG-UG-10: every DICE level shader database (Dx9 / 10 / 11) has a vertex program with windParams')
+    check('added to x and z: 25 of 25' in out,
+          'VEG-UG-10: the 25 distinct Dx11 windParams programs sway x and z by sin(((x + y + z) x 1000 + w.x) x w.y) '
+          'x max(y, 0) x w.z')
 
 
 # spec: TERR-MM-1, TERR-MM-2, TERR-MM-3, TERR-MM-4, TEDIT-MM-1
@@ -904,6 +920,7 @@ def main() -> int:
     steps: list[Callable[[], None]] = [lambda: height_fields(t), lambda: visual_terrains(t),
                                        lambda: terrain_partitions(t), lambda: emitters(bundles, fx),
                                        lambda: height_field_tails(t), lambda: material_maps(t),
+                                       lambda: undergrowth_sway(bundles, tp),
                                        spg_materials, spg_destruction, spg_lighting, spg_vehicles, spg_weapons,
                                        lambda: grime(game), lambda: menus(game), lambda: modes(game),
                                        lambda: level_partitions(game), lambda: registries(game),

@@ -10,7 +10,11 @@ every `Emitter.EmitterDocument`:
 - the two roots (the document's `RootProcessor`, the template's `RootProcessor`) and the chain each starts by
   `NextProcessor`: length, whether one runs into the other, the processor classes in chain order, `ProcessorType`
   against the class name, `Enable` / `Deprecated` flags, `EvaluatorInput`;
-- the evaluators a processor's `Pre` / `Post` names (classes, nesting).
+- the evaluators a processor's `Pre` / `Post` names (classes, nesting);
+- the evaluators of round SPG2-rest6: the sample-texture evaluators' gradient length against
+  `TextureDimensions`, which processors use them, whether any mesh evaluator exists (FX-PROC-6); the clip-scale
+  lookups' lengths; which emittable types carry the vertex-fill processors (FX-PROC-9); the signs of the force fields
+  (FX-PROC-10).
 
 Prints structure, counts and value ranges only.
 """
@@ -59,6 +63,24 @@ def chain(start: str, by: dict[str, dbx.Element]) -> list[dbx.Element]:
     return out
 
 
+# The processors the quad vertex fill reads (FX-PROC-9) and the force fields with the component printed (FX-PROC-10:
+# Gravity is a float, LocalForce's y).
+FILL = ('UpdateColorData', 'UpdateTransparencyData', 'UpdateTextureCoordsData', 'UpdateAlphaLevelMinData',
+        'UpdateAlphaLevelMaxData', 'UpdateAlphaLevelScaleData', 'UpdateClipScaleData')
+FORCES = {'GravityData': 'Gravity', 'LocalForceData': 'LocalForce', 'AirResistanceData': 'DragFactor',
+          'TurbulanceData': 'Intensity'}
+
+
+def floats(e: dbx.Element | None) -> int:
+    """The number of 4-byte values a NUMBERS array holds (its raw bytes after the count / size varints)."""
+    if e is None or not e.raw:
+        return 0
+    p = 0
+    while e.raw[p] & 0x80:
+        p += 1
+    return (len(e.raw) - p - 2) // 4
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (default: found as the suite finds it)')
@@ -85,6 +107,11 @@ def main() -> None:
     order_spawn_first: Counter[bool] = Counter()
     unchained: Counter[str] = Counter()
     pos_after: Counter[str] = Counter()
+    sample_tex: Counter[str] = Counter()
+    mesh_evals = 0
+    clip_len: Counter[int] = Counter()
+    fill_types: Counter[str] = Counter()
+    signs: Counter[str] = Counter()
     for path in bundles:
         names = [e.name for e in fbrb.entries(path) if not e.deleted and e.name.lower().endswith('.dbx')
                  and re.search(r'(^|/)fx/', e.name.lower()) and e.name.lower() not in seen]
@@ -117,6 +144,8 @@ def main() -> None:
             if tc:
                 tmpl_first[kind(tc[0])] += 1
             both = dc + [x for x in tc if id(x) not in dset]
+            et = text(tmpl.child('EmittableType')) if tmpl is not None else ''
+            mesh_evals += sum(kind(i) == 'MeshEvaluatorData' for i in insts)
             procs = [i for i in insts if i.child('ProcessorType') is not None]
             for p in procs:
                 if id(p) not in {id(x) for x in both}:
@@ -130,8 +159,21 @@ def main() -> None:
                     disabled[k] += 1
                 deprecated += text(p.child('Deprecated')) == 'true'
                 inputs[text(p.child('EvaluatorInput'))] += 1
+                if k in FILL:
+                    fill_types[f'{k} {et}'] += 1
+                if k == 'UpdateClipScaleData':
+                    clip_len[floats(p.child('Lookup')) // 4] += 1
+                for k2, field in FORCES.items():
+                    if k == k2:
+                        v = [float(x) for x in text(p.child(field)).split('/')[:3]]
+                        y = v[1] if len(v) > 1 else v[0]
+                        signs[f'{field} {"<0" if y < 0 else "0" if y == 0 else ">0"}'] += 1
                 for slot in ('Pre', 'Post'):
                     ev = by.get(ref(p.child(slot)).lower())
+                    if ev is not None and kind(ev) == 'SampleTextureData':
+                        dims = text(ev.child('TextureDimensions')).split('/')
+                        sample_tex[f'{k} {slot} {text(p.child("EvaluatorInput"))}: gradient {floats(ev.child("GradientData")) // 4}'
+                                   f' x {dims[0]}'] += 1
                     if ev is not None:
                         evaluators[f'{slot} {kind(ev)}'] += 1
                         params[text(ev.child('EmitterParameter'))] += 1
@@ -166,6 +208,11 @@ def main() -> None:
     print(f'EfVelocity processors (class, Pre evaluator): {dict(velocity.most_common())}')
     print(f'chains with spawn and update processors: every spawn before every update {dict(order_spawn_first)}')
     print(f'processors in no chain: {dict(unchained)}')
+    print(f'sample-texture evaluators (processor, slot, input: gradient entries x TextureDimensions x): '
+          f'{dict(sample_tex)}; mesh evaluators: {mesh_evals}')
+    print(f'clip-scale lookups (Vec4 entries): {dict(clip_len)}')
+    print(f'vertex-fill processors by emittable type: {dict(sorted(fill_types.items()))}')
+    print(f'force fields by sign: {dict(sorted(signs.items()))}')
 
 
 if __name__ == '__main__':
