@@ -28,6 +28,29 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+
+- `spec/engine/eras.md` (round GM1, research): native eras for Project OPFOR. The four values are 0 BFBC2, 1 Vietnam,
+  2 BF1943 / Pacific War (tag `PACIFIC`, label `BFBC2143`) and 3 BFBC1 (tag `BC1`, label `BFBC2Beach`). The file covers:
+  - a decision (as 0, as 1, or the era's own resource), the reason and round GM2's patch for each of the game mod's
+    41 instructions and the values derived from them;
+  - the parser and setter changes (era 1's sign-in path unchanged; no gate for eras 2 / 3);
+  - a `UISharedConfigAsset` per era, chosen at the unlock and weapon slot reads;
+  - DICE's four-era main_nav, every movie's `extern.gameMod` test and the menus' contract for UI0 - UI7;
+  - Vietnam's ownership checks kept byte for byte;
+  - the risks, and what battlefield-opfor and OPFOR must change.
+
+  21 rules: ERA-NAT-*, ERA-SITE-*, ERA-UI-*, ERA-LIC-2 / 3, ERA-RISK-*.
+- `spec/probes/gamemodes.py` now also checks the 45 byte ranges GM2 will patch and the 10 Vietnam check ranges it must
+  not touch. For each range it records the address, length and digest, and checks that the range ends on an
+  instruction boundary and that no patch range overlaps a kept one. `core/tests/test_spec_probes.py::game_modes`
+  checks 24 answers.
+
+### Fixed
+
+- `spec/engine/gamemodes.md` ERA-MOD-1: the unlock-tree reader 0x93D14F is in 0x93D120, which `extern.playerStats`
+  reaches through 0x944D50. It is not in 0x93CF40.
+
 ## [0.34.0] - 2026-11-27
 
 Round OR11 retires Project OPFOR's Python of the console Onslaught port's stages 8 - 10: OPFOR now needs this version's
