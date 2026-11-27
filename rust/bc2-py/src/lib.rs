@@ -463,6 +463,9 @@ mod bc2_native {
     use super::menuart::{menuart_atlas_infos, menuart_dxt5_decode, menuart_dxt5_encode};
     #[pymodule_export]
     use super::onslaught::{onslaught_build, onslaught_install_plan};
+    // round OR9: the console port's stages 2 - 4 (console_linux_base / console_mode / console_loadset)
+    #[pymodule_export]
+    use super::onslaught::{onsport_linux, onsport_loadset, onsport_mode};
     #[pymodule_export]
     use super::testrun::{testrun_ini_get, testrun_ini_restore, testrun_ini_set, testrun_ini_unset, testrun_watch};
     // round OR7: OPFOR's WW2 rebuild as a step graph (rebuild_all's runner, stepstamps' decisions: bc2_install::rebuild)

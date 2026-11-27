@@ -37,6 +37,11 @@ use std::path::Path;
 
 use regex::Regex;
 
+pub mod linux;
+pub mod loadset;
+pub mod mode;
+pub mod port;
+
 /// What went wrong: a tool's failure (its command line and output) or a file.
 #[derive(Debug, thiserror::Error)]
 pub enum OnsError {
@@ -49,11 +54,14 @@ pub enum OnsError {
     /// The data is not what the import reads.
     #[error("{0}")]
     Data(String),
+    /// A refusal in plain words (the Python's `SystemExit(message)`).
+    #[error("{0}")]
+    Exit(String),
 }
 
-type R<T> = Result<T, OnsError>;
+pub(crate) type R<T> = Result<T, OnsError>;
 
-fn io_err(path: &str, e: &std::io::Error) -> OnsError {
+pub(crate) fn io_err(path: &str, e: &std::io::Error) -> OnsError {
     OnsError::Io(format!("{path}: {e}"))
 }
 
@@ -173,7 +181,7 @@ static INST: std::sync::LazyLock<Regex> =
 // ------------------------------------------------------------------------------------------------ paths and files
 
 /// `os.path.join` (ntpath) of two parts.
-fn join(a: &str, b: &str) -> String {
+pub(crate) fn join(a: &str, b: &str) -> String {
     if a.is_empty() || a.ends_with(['\\', '/']) {
         format!("{a}{b}")
     } else {
@@ -181,39 +189,39 @@ fn join(a: &str, b: &str) -> String {
     }
 }
 
-fn joins(a: &str, parts: &[&str]) -> String {
+pub(crate) fn joins(a: &str, parts: &[&str]) -> String {
     parts.iter().fold(a.to_owned(), |acc, p| join(&acc, p))
 }
 
 /// A path without its last 4 characters (`f[:-4]`).
-fn stem4(f: &str) -> &str {
+pub(crate) fn stem4(f: &str) -> &str {
     let n = f.chars().count();
     let cut = f.char_indices().nth(n.saturating_sub(4)).map_or(0, |(i, _)| i);
     &f[..cut]
 }
 
-fn exists(p: &str) -> bool {
+pub(crate) fn exists(p: &str) -> bool {
     !p.is_empty() && Path::new(p).exists()
 }
 
-fn read(path: &str) -> R<Vec<u8>> {
+pub(crate) fn read(path: &str) -> R<Vec<u8>> {
     std::fs::read(path).map_err(|e| io_err(path, &e))
 }
 
 /// A text file as Python's text mode reads it with `errors='replace'`: UTF-8 (bad bytes as U+FFFD), universal newlines.
-fn read_text(path: &str) -> R<String> {
+pub(crate) fn read_text(path: &str) -> R<String> {
     let b = read(path)?;
     Ok(String::from_utf8_lossy(&b).replace("\r\n", "\n").replace('\r', "\n"))
 }
 
 /// A file Python opened with the ANSI code page (the manifests: ASCII in practice), its lines (`splitlines()`).
-fn read_lines(path: &str) -> R<Vec<String>> {
+pub(crate) fn read_lines(path: &str) -> R<Vec<String>> {
     let b = read(path)?;
     let t: String = b.iter().map(|&c| char::from(c)).collect();
     Ok(bc2_pyrt::py::splitlines(&t).into_iter().map(str::to_owned).collect())
 }
 
-fn write(path: &str, data: &[u8]) -> R<()> {
+pub(crate) fn write(path: &str, data: &[u8]) -> R<()> {
     if let Some(d) = Path::new(path).parent() {
         std::fs::create_dir_all(d).map_err(|e| io_err(&d.to_string_lossy(), &e))?;
     }
@@ -227,15 +235,15 @@ fn write_text(path: &str, text: &str) -> R<()> {
     write(path, &b)
 }
 
-fn copy(src: &str, dst: &str) -> R<()> {
+pub(crate) fn copy(src: &str, dst: &str) -> R<()> {
     write(dst, &read(src)?)
 }
 
-fn size(p: &str) -> R<u64> {
+pub(crate) fn size(p: &str) -> R<u64> {
     std::fs::metadata(p).map(|m| m.len()).map_err(|e| io_err(p, &e))
 }
 
-fn rmtree(p: &str) -> R<()> {
+pub(crate) fn rmtree(p: &str) -> R<()> {
     if Path::new(p).is_dir() {
         std::fs::remove_dir_all(p).map_err(|e| io_err(p, &e))?;
     }
@@ -243,7 +251,7 @@ fn rmtree(p: &str) -> R<()> {
 }
 
 /// The files under `d` (recursively, in the folder listing's order) whose names end with `ext` (any case).
-fn walk_files(d: &str, ext: &str, out: &mut Vec<String>) {
+pub(crate) fn walk_files(d: &str, ext: &str, out: &mut Vec<String>) {
     let Ok(rd) = std::fs::read_dir(d) else { return };
     for e in rd.flatten() {
         let name = e.file_name().to_string_lossy().into_owned();
@@ -257,12 +265,12 @@ fn walk_files(d: &str, ext: &str, out: &mut Vec<String>) {
 }
 
 /// `p` relative to `base` (`p` lies under it).
-fn rel(p: &str, base: &str) -> String {
+pub(crate) fn rel(p: &str, base: &str) -> String {
     let b = base.trim_end_matches(['\\', '/']);
     p.get(b.len() + 1..).unwrap_or(p).to_owned()
 }
 
-fn slash(p: &str) -> String {
+pub(crate) fn slash(p: &str) -> String {
     p.replace('\\', "/")
 }
 
@@ -273,7 +281,7 @@ fn args(a: &[&str]) -> Vec<String> {
 }
 
 /// DbxEdit's command line in process; its stdout.
-fn dbx(a: &[&str]) -> R<String> {
+pub(crate) fn dbx(a: &[&str]) -> R<String> {
     let o = bc2_tools::dbxedit::run(&args(a), None);
     if o.code != 0 {
         return Err(OnsError::Tool(format!("{}\n{}{}", a.join(" "), o.stdout, o.stderr)));
@@ -282,7 +290,7 @@ fn dbx(a: &[&str]) -> R<String> {
 }
 
 /// FbrbTool's command line in process; its stdout.
-fn fbrb(a: &[&str]) -> R<String> {
+pub(crate) fn fbrb(a: &[&str]) -> R<String> {
     let o = bc2_tools::fbrbtool::run(&args(a), None);
     if o.code != 0 {
         return Err(OnsError::Tool(format!("{}\n{}{}", a.join(" "), o.stdout, o.stderr)));
@@ -291,7 +299,7 @@ fn fbrb(a: &[&str]) -> R<String> {
 }
 
 /// `cc.stamp_of(*inputs)`.
-fn stamp_of(inputs: &[&str]) -> R<String> {
+pub(crate) fn stamp_of(inputs: &[&str]) -> R<String> {
     let mut lines = Vec::new();
     for p in inputs {
         let name = bc2_pyrt::py::basename(p);
@@ -305,7 +313,7 @@ fn stamp_of(inputs: &[&str]) -> R<String> {
     Ok(lines.join("\n"))
 }
 
-fn stamp_path(out: &str) -> String {
+pub(crate) fn stamp_path(out: &str) -> String {
     format!("{}.opfor-stamp", out.trim_end_matches(['\\', '/']))
 }
 
@@ -989,7 +997,7 @@ fn rename_level_files(c: &Ctx, root: &str, lines: &[String]) -> R<Vec<String>> {
 }
 
 /// FbrbTool's `pack` (`cc.pack`).
-fn pack(folder: &str, out: &str) -> R<()> {
+pub(crate) fn pack(folder: &str, out: &str) -> R<()> {
     fbrb(&["pack", folder, out]).map(|_| ())
 }
 
@@ -1193,7 +1201,7 @@ pub fn install_plan(c: &Ctx, added: &Added) -> R<Plan> {
     })
 }
 
-fn latin1(s: &str) -> Vec<u8> {
+pub(crate) fn latin1(s: &str) -> Vec<u8> {
     s.chars().map(|c| u8::try_from(u32::from(c)).unwrap_or(b'?')).collect()
 }
 

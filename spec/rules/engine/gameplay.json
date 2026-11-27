@@ -69,7 +69,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/onslaught/console_mode.py:57-61"
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:35-43"
     },
     {
      "kind": "doc",
@@ -405,7 +405,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/onslaught/console_mode.py:43-48"
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:9-11"
     },
     {
      "kind": "doc",

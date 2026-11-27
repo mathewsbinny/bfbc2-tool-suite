@@ -6,10 +6,15 @@
 //! Python's shapes: the added files `{rel path: manifest line (str) or size (int)}`; the plan
 //! `([(game path, built path (str) or bytes)], [printed line])`. A failure raises `SystemExit` with the message the
 //! Python's `run()` gave (`failed: <command line>` and the tool's output), else `OSError` / `ValueError`.
+//!
+//! Round `OR9`: the console port's stages 2 - 4 (`onsport_linux`, `onsport_mode`, `onsport_loadset`): each returns
+//! `(writes, printed, fail, after)` - the game copy's writes in order (as above), the lines printed before the ledger's
+//! commit, the refusal to raise after printing them (or `None`), the lines printed after the commit.
 
 use std::collections::BTreeMap;
 
-use bc2_install::onslaught::{self, Ctx, Entry, OnsError, Source};
+use bc2_install::onslaught::port::StageOut;
+use bc2_install::onslaught::{self, Ctx, Entry, OnsError, Source, linux, loadset, mode};
 use pyo3::exceptions::{PyOSError, PySystemExit, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
@@ -19,6 +24,7 @@ fn err(e: OnsError) -> PyErr {
         OnsError::Tool(_) => PySystemExit::new_err(e.to_string()),
         OnsError::Io(m) => PyOSError::new_err(m),
         OnsError::Data(m) => PyValueError::new_err(m),
+        OnsError::Exit(m) => PySystemExit::new_err(m),
     }
 }
 
@@ -78,4 +84,81 @@ pub fn onslaught_install_plan<'py>(
         }
     }
     (writes, plan.printed).into_pyobject(py)
+}
+
+fn stage_out(py: Python<'_>, out: StageOut) -> PyResult<Bound<'_, PyTuple>> {
+    let writes = PyList::empty(py);
+    for (dst, src) in &out.writes {
+        match src {
+            Source::File(p) => writes.append((dst, p))?,
+            Source::Bytes(b) => writes.append((dst, PyBytes::new(py, b)))?,
+        }
+    }
+    (writes, out.printed, out.fail, out.after).into_pyobject(py)
+}
+
+/// `console_linux_base.build(lv, pc, linux_bundle, write)` after the ledger's source bundle (stage 2).
+#[pyfunction]
+#[expect(clippy::too_many_arguments, reason = "the stage's own arguments and its two folders")]
+pub fn onsport_linux<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    pc: &str,
+    linux_bundle: &str,
+    src_bundle: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = linux::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        pc: pc.to_lowercase(),
+        linux_bundle: linux_bundle.to_owned(),
+        src_bundle: src_bundle.to_owned(),
+        write,
+    };
+    let out = py.detach(|| linux::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_mode.plan(lv, console)` / `apply`'s build after the ledger's checks (stage 3).
+#[pyfunction]
+pub fn onsport_mode<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    console: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = mode::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        console: console.to_owned(),
+        write,
+    };
+    let out = py.detach(|| mode::build(&a)).map_err(err)?;
+    stage_out(py, out)
+}
+
+/// `console_loadset.plan(lv)` / `apply`'s build (stage 4).
+#[pyfunction]
+pub fn onsport_loadset<'py>(
+    py: Python<'py>,
+    root: &str,
+    game: &str,
+    lv: &str,
+    write: bool,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let a = loadset::Args {
+        root: root.to_owned(),
+        game: game.to_owned(),
+        lv: lv.to_lowercase(),
+        write,
+    };
+    let out = py.detach(|| loadset::build(&a)).map_err(err)?;
+    stage_out(py, out)
 }

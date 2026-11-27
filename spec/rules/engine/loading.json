@@ -207,7 +207,7 @@
     },
     {
      "kind": "doc",
-     "ref": "opfor:src/tools/onslaught/console_loadset.py:155"
+     "ref": "opfor:src/tools/onslaught/console_loadset.py:18-20"
     }
    ],
    "file": "spec/engine/loading.md",

@@ -37,7 +37,7 @@ id (the mode owner 0x92AB10, +0x6C) through the string compare 0x4304D0; server 
 
 [exe: 0x4304D0 the string compare; 0x142ABD8 the "conquest" literal; 0x92AB10 the mode owner, its id at +0x6C]
 [doc: opfor:DEVELOPMENT_NOTES.md:1279-1285]
-[code: opfor:src/tools/onslaught/console_mode.py:9-20]
+[code: opfor:src/tools/onslaught/console_mode.py:9-22]
 
 ### ONS-MODE-2: OPFOR's GameModes/Onslaught is PC Conquest re-identified, matchmaking CONQUEST
 
@@ -49,8 +49,8 @@ under the console mode's GUIDs (so the console level's reference resolves unchan
 (0x5680C0) maps the matchmaking id to a stats category (RUSH / CONQUEST 0x20, SQDM 0x10, SQRUSH 8, else -1): with
 ONSLAUGHT no score, kills or round-end stats were kept. (`DEVELOPMENT_NOTES.md` still says ONSLAUGHT.)
 
-[code: opfor:src/tools/onslaught/console_mode.py:55-59]
-[code: opfor:src/tools/onslaught/console_mode.py:216-246]
+[code: rust/bc2-install/src/onslaught/mode.rs:35-43]
+[code: rust/bc2-install/src/onslaught/mode.rs:331-353]
 [exe: 0x5680C0 the matchmaking id to stats category]
 
 ### ONS-MODE-3: The UI reads "onslaught" and "airsuperiority" as "conquest"
@@ -77,7 +77,7 @@ ONS-CAP-3, GAME-CQ-10), which explains all three results.
 
 [doc: opfor:DEVELOPMENT_NOTES.md:334]
 [data: OPFOR playtest 2026-10-29 on a console-ported level: flag A with OnlyTakeableByTeam 1, 2 and 0, as described]
-[code: opfor:src/tools/onslaught/console_mode.py:41-46]
+[code: rust/bc2-install/src/onslaught/mode.rs:31-32]
 
 ### ONS-CAP-3: OnlyTakeableByTeam T freezes a point whose progress belongs to team T
 
@@ -113,8 +113,8 @@ walls see-through and doors unusable). The console's explosive objects are not r
 load at 0x56C58A, under the AI sphere query (0x577390 -> 0x574780 -> 0x56C4E0), though SP_01 places 20
 `ExplosiveObjectData` on the PC without trouble.
 
-[code: opfor:src/tools/onslaught/console_mode.py:47-54]
-[code: opfor:src/tools/onslaught/console_mode.py:93-115]
+[code: rust/bc2-install/src/onslaught/mode.rs:9-15]
+[code: rust/bc2-install/src/onslaught/mode.rs:123-170]
 [exe: 0x56C58A the fault; 0x577390 the AI sphere query]
 
 ### ONS-END-1: A round ends at the last flag; the stopwatch is OPFOR's
@@ -190,8 +190,8 @@ PC map's own. The installed level: 0 lamp effects, 2 `GameEffectEntityData`, no 
 null. (WX1 attributed this level to Napisal; it is OPFOR's console port.) A faithful port must convert those
 resources instead of dropping them.
 
-[code: rust/bc2-install/src/onslaught.rs:696-728]
-[code: rust/bc2-install/src/onslaught.rs:812-891]
+[code: rust/bc2-install/src/onslaught.rs:704-736]
+[code: rust/bc2-install/src/onslaught.rs:820-899]
 [data: round SPG2, 2026-11-22: the game copy's Package ONS_MP_002 level partition (2,861 instances, OPFOR's `.opfor-*-applied` stage markers beside it): the counts listed; Napisal's backed-up ONS_MP_002: 53 lamp-effect references, 143 GameEffectEntityData, 10 sound areas with sounds]
 
 ### ONS-PORT-4: The console port rebuilds on the Linux server's level
@@ -203,7 +203,7 @@ Linux dedicated server's levels have them. The port keeps the Linux level's worl
 reference) and grafts every non-world console instance onto it.
 
 [code: opfor:src/tools/onslaught/console_linux_base.py:9-20]
-[code: opfor:src/tools/onslaught/console_linux_base.py:45-48]
+[code: rust/bc2-install/src/onslaught/linux.rs:27-48]
 [doc: opfor:research/BFBC2_NAPISAL_RESEARCH.md:268-271]
 
 ### ONS-REG-1: Registration, and what the game copy lists
@@ -232,7 +232,7 @@ a placeholder: "FAIL No Template", no field of view, so bots aim and never fire;
 without `work\backups\napisal_ons_*`. ONS_MP_005GR exists only as Napisal's.
 
 [code: opfor:import_onslaught.bat:42-103]
-[code: opfor:src/tools/onslaught/console_port.py:74-75]
+[code: opfor:src/tools/onslaught/console_port.py:75-76]
 [code: opfor:src/tools/onslaught/apply_ai_template.py:14-16]
 [test: opfor:src/tools/tests/test_onslaught_qa.py::test_ai_template_plan_follows_the_bundle]
 

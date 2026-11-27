@@ -5828,6 +5828,102 @@ is 977,029 bytes committed (LF), 23 KB under the repository's 1,000,000-byte lim
   record, block C's curve names, the header's pairs.
 - OPFOR's fix for PERS-SCORE-2, as an OPFOR round.
 
+## OR9: OPFOR in Rust - the Onslaught console port, stages 2 - 4 (2026-11-27, branch `or9`, with Project OPFOR's `or9`)
+
+What OR5 left ("OR5", "What is left"): `console_port.py`'s stages 2 - 14 and the Napisal-level fixes, about 5,000
+lines whose tools (DbxEdit, FbrbTool, stfs, the converters, culltree, aptgraft) are Rust already. This round writes
+the plan for all of them (below) and ports its own share, stages 2 - 4. Version 0.32.0 (OPFOR's `SUITE_REQUIRES`
+0.32.0 to below 0.33.0). Nothing was written to OPFOR's `game\`; the game never launched.
+
+### The plan (OR9 - OR13)
+
+| Round | Stages | OPFOR Python | Lines | What is hard |
+|---|---|---|---|---|
+| **OR9** (this) | 2 `console_linux_base`, 3 `console_mode`, 4 `console_loadset` | 310 + 324 + 294 | 928 | ElementTree's tree and `math.dist`; the closure's set order |
+| OR10 | 5 `console_vehicles`, 6 `console_soldiers`, 7 `console_shaders` | 135 + 376 + 248 | 759 | the soldiers' renamed partitions (`opfor_guid('soldier')`); the shader merge through `shaderdb.merger` (Rust since OR3a) and `console_shaders\shared`, which stages 6, 7, 9 and the audit read |
+| OR11 | 8 `console_markv`, 9 `console_input`, 10 `console_deps` | 389 + 314 + 249 | 952 | the Mark V's console conversion (mesh, Havok, textures: `bc2_convert`), the seat action maps, the in-memory reads of the stock bundles |
+| OR12 | 11 `console_cull`, 12 `console_loading`, 13 `console_hud` | 142 + 223 + 237 | 602 | `culltree add` (Rust since O3), startup-00's per-level layers (M11), aptgraft's movie edits (Python API: OR14's area) |
+| OR13 | 14 `console_icons`, `console_shader_audit`, `apply_ai_template`, `apply_combat_squads`, `apply_sector_offsets`; `console_port.py`'s driver, `console_common`'s leftovers | 403 + 509 + 340 + 215 + 267 | 1,734 | the icon's Pillow polygon fill (OR14's `type95_icon` silhouette: shared, OR14 first); the Napisal-level fixes run on Napisal's levels, which only the user's backups hold |
+
+Each round proves its stages as OR9 did (below): the retired Python against the wrapper on the same scratch OPFOR
+root, every work and game file byte for byte, on the levels the user's Xbox package and Linux server levels give,
+plus damaged inputs. What stays Python at the end: the command lines, the install ledger's calls (OPFOR's
+`opforcore.stages`, until OR15's one ledger) and `drop_scratch`.
+
+### What moved
+
+| OPFOR Python (until OR9) | Lines | now | Lines left |
+|---|---|---|---|
+| `console_linux_base.build` (the Linux base, the merge, `enum_cmds`, `slots`) | 310 | `bc2_install::onslaught::linux` (`bc2_native.onsport_linux`) | 92 (command line, `first_stage_source`, the install, revert) |
+| `console_mode.plan` / `apply` / `drop_door_predestruction` / `mode_partition_guid` | 324 | `bc2_install::onslaught::mode` (`onsport_mode`) | 94 (command line, is-top and check before the build, the install, revert, scratch) |
+| `console_loadset.plan` / `apply` / `closure_entries` / `cav_entries` / `manifest_without_mp2` | 294 | `bc2_install::onslaught::loadset` (`onsport_loadset`) | 83 (command line, the install, revert, scratch) |
+| `console_common.find` / `unpack_cached` / `xml_of` / `tree_info` as the stages use them | - | `bc2_install::onslaught::port` | `console_common` keeps them for stages 5 - 14 |
+
+Not ported, with reasons: `console_mode`'s explosive-objects branch (`EXPLOSIVES` was off: Nelson Bay crashed at load
+with them; the Python never ran it) and `console_loadset.mp2_only` (a diagnostic nothing called). The stages' Python
+twins are retired: OPFOR's three scripts are wrappers over `console_common.port_stage`.
+
+### Decided (spec XCONS-ONS-2 - 4)
+
+- **The cull slots** keep the Python's arithmetic: CPython's `math.dist` (its compensated `vector_norm`, now
+  `bc2_pyrt::math`; a plain `sqrt` of the sum can be one unit off and pick another object at a tie), `round(x, 1)`
+  as the position key with -0.0 equal to 0.0. The slots themselves are DICE's (the Linux server level's); the
+  matching is OPFOR's own rule, so there is no DICE answer to decide it against.
+- **The door distance** is Python's `** 2` and `** 0.5`: the C library's `pow`, not a multiply and `sqrt`.
+- **The closure's order**: the Python visited the partitions in a set's order; the closure, and the XML files it
+  writes on the way, are the same in any order, so the Rust visits in name order (no output depends on it).
+- **The temporary folder** of stage 3 is named by the process id (Python's `mkdtemp` is random); it is deleted before
+  the bundle is packed, and only the import line printed names it.
+- XCONS-STG-1 said a level without a folder list "stops at stage 4 with the partitions to list"; no code did that:
+  such a level takes the closure alone. The rule now says so.
+
+### Proof
+
+`scratchpad\or9\stages_parity.py`: one scratch OPFOR root (`C:\Programming\Projects\_rounds\or9\s\<level>`: the
+Linux levels' paths pass Windows' 260 characters under the scratchpad) per side, run one after the other at the same
+path so the paths inside the work files agree; `work\` holds copies of OPFOR main's stage 1 output, `con_level` and
+the console mode partition; `game\` is junctions into OPFOR main's `game\` (read only) with the level's folder and
+`package.mft` real copies; stage 2's input is the user's own stage 1 output (the legacy marker
+`level-00.fbrb.opfor-linux-orig`; Nelson Bay, hand-merged in 2026-10, has none: its `.opfor-mode-orig`). The stages
+install into the scratch game through OPFOR's ledger, as they do for real. The Python twins: OPFOR 0e4d0d3's three
+scripts, loaded by path.
+
+| Level (PC map) | Stage 2 input | Files compared (work and game) | Identical | Python / Rust, stages 2 - 4 |
+|---|---|---|---|---|
+| ONS_MP_002 (MP_002) | `.opfor-linux-orig` | 8,996 | **8,996** | 106 s / 97 s |
+| ONS_MP_004 (MP_004) | `.opfor-linux-orig` | 9,184 | **9,184** | 101 s / 100 s |
+| ONS_MP_005 (MP_005) | `.opfor-linux-orig` | 9,940 | **9,940** | 125 s / 118 s |
+| ONS_MP_008 (MP_008) | `.opfor-mode-orig` | 15,017 | **15,017** | 91 s / 112 s |
+
+The files are every work file of the three stages (the Linux unpack and its stamp, the control partitions and their
+XML, `merge.cmd` / `merge.log` / `enum.cmd`, `ctl_ov`, the packed bundles, `console_mode\<lv>`, `console_loadset\`'s
+mp2_common cache with the XML its closure wrote, the level's unpack) and the scratch game's real files (the level
+bundle as each stage installed it, `package.mft`). The printed lines are the same but for stage 3's import line,
+which names its temporary folder. Beyond the Python: on ONS_MP_002 the Rust's stage 2 and stage 3 bundles are byte for
+byte the ones the user's own install made in October (`level-00.fbrb.opfor-mode-orig`, `.opfor-loadset-orig`).
+
+**The manifest's edit** (stage 4 with `package.mft.opfor-loadset-orig`, the user's manifest from before a loadset
+run, 146 mp2_common targets): ONS_MP_002 7,998 of 7,998, ONS_MP_008 13,901 of 13,901, ONS_MP_005 8,504 of 8,504
+files identical, `package.mft` among them.
+
+**Damaged inputs** (ONS_MP_002, `damage_case.sh`): the level bundle cut to half (stages 2, 3, 4) and to 99.5 %
+(stage 3), one byte changed (stages 2, 3, 4), stage 1's level missing or cut to a third (stage 2), `package.mft`
+empty or with LF line ends (stage 4), the console level missing, its cull tree missing, the console mode partition
+missing (stage 3: the derived GUID): 14 of 14 cases end alike - the same files written, the same refusal with the
+same command and message, or the same success. The one difference: a failing tool's "details:" line names the day's
+tool log under the Python (its `dbx_run` logs) and "(no log file)" under the Rust (as OR5's in-process commands).
+Neither side wrote to `game\`; OPFOR's `game\` was only read through junctions.
+
+### What is left
+
+- Stages 5 - 14, the shader audit, the Napisal-level fixes and the driver: OR10 - OR13 (the plan above).
+- OR5's and OR9's in-process DbxEdit / FbrbTool commands write no tool log (a failure says "details: (no log
+  file)"); the log writer is `bc2-cli`'s `pylog`: a shared place for it, then the stages pass the day's log.
+- `bc2_pyrt::math` and `bc2_navbuild::pymath` both hold CPython's `vector_norm` (navbuild keeps its own so the
+  navigation build does not link the Python-runtime emulation): one to go when navbuild may depend on bc2-pyrt.
+- **Unproven until a playtest**: nothing new in game - the bundles are the Python's byte for byte (and ONS_MP_002's
+  stage 2 and 3 bundles the user's installed ones), so the levels play as they did.
+
 ## SPLIT1: the specification's rule index split into shards (2026-11-27, branch `split1`)
 
 `spec/rules.json`, written by `spec/trace.py --emit`, was 977,029 bytes as a committed blob (1,010,926 on disk with
@@ -5868,3 +5964,7 @@ markdown file); `tests/test_repo.py` prints a `warn` line, without failing, for 
 
 Branches that re-emitted `spec/rules.json` (OR14, OR9): after merging main, `git rm spec/rules.json` (take main's
 deletion) and run `python spec/trace.py --emit`; `--check` then confirms the shards.
+
+After merging main with OR9 (da8e3d0a; its `spec/rules.json` 979,615 bytes, 1,602 rules): `git rm spec/rules.json`,
+`--emit` (5 shards changed), `--check` ok with 1,602 rules (972 verified, 151 implemented, 417 observed, 62 inferred),
+and the same comparison against main's `rules.json`: equal element for element, the largest shard still 40,538 bytes.

@@ -222,11 +222,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_port.py:1-29"
+     "ref": "opfor:src/tools/onslaught/console_port.py:1-30"
     },
     {
      "kind": "code",
-     "ref": "opfor:src/tools/onslaught/console_port.py:74-92"
+     "ref": "opfor:src/tools/onslaught/console_port.py:75-93"
     },
     {
      "kind": "doc",
@@ -264,11 +264,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/onslaught.rs:541-560"
+     "ref": "rust/bc2-install/src/onslaught.rs:549-568"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-install/src/onslaught.rs:1041-1050"
+     "ref": "rust/bc2-install/src/onslaught.rs:1049-1058"
     },
     {
      "kind": "code",
@@ -287,6 +287,93 @@
    "id": "XCONS-ONS-1",
    "status": "verified",
    "title": "The console Onslaught import gives the retired Python's work files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/linux.rs:244-330"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/linux.rs:354-370"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_linux_base.py:57-73"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/linux.rs::cull_slots"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR9, 2026-11-27: the user's ONS_MP_002 / 004 / 005 / 008 on their Linux server levels, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md \"OR9\")"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-2",
+   "status": "verified",
+   "title": "The Linux base stage gives the retired Python's work files; its cull slots",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:125-170"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:221-240"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:45-54"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs::doors"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR9, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's; ONS_MP_002's bundle is the user's installed one (its `.opfor-loadset-orig`)"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-3",
+   "status": "verified",
+   "title": "The Onslaught mode stage gives the retired Python's work files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/loadset.rs:119-140"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/loadset.rs:199-305"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_loadset.py:46-54"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/loadset.rs::manifest_blocks"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR9, 2026-11-27: the user's four levels, also with the manifest from before a loadset run (146 mp2_common targets) and damaged inputs, every work and game file of the Rust stage identical to the Python's"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-4",
+   "status": "verified",
+   "title": "The load set stage gives the retired Python's work files; the closure's order",
    "variants": "Xbox 360"
   }
  ]

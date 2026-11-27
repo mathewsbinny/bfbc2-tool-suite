@@ -39,8 +39,13 @@ landed on `main`.
   (without failing) of any committed file over 80% of the limit. A branch that still writes `spec/rules.json`:
   delete it after merging and run `--emit`.
 
-### Added
+## [0.32.0] - 2026-11-27
 
+Round OR9 retires Project OPFOR's Python of the console Onslaught port's stages 2 - 4: OPFOR now needs this version's
+`bc2_native.onsport_linux` / `onsport_mode` / `onsport_loadset`, so its `SUITE_REQUIRES` moves to 0.32.0 - 0.33.0. Round SPG2-rest6, merged before it
+unreleased, is in this version too.
+
+### Added
 - **Specification (round SPG2-rest6), read from the executable and checked on DICE's data** (`rust/BENCHMARKS.md`
   "SPG2-rest6"; 1,587 -> 1,599 rules):
   - the undergrowth's sway: every DICE vertex program with `windParams` moves x and z by
@@ -55,6 +60,15 @@ landed on `main`.
   - the compiled anim-tree nodes' header, the animation node's and every type's fields (ATREE-NODE-2 - 4, verified),
     block B's cycle distance and angle (ATREE-BLK-5) and block C's five property curves (ATREE-BLK-6); the probes
     `terrain.py`, `effects_chain.py`, `persistence.py` and `resources.py` hold the new counts.
+- **The console Onslaught port's stages 2 - 4 in Rust** (round OR9, "OPFOR in Rust"): `bc2_install::onslaught::linux`
+  (the console gameplay put on the PC map's Linux server level: the merge, the renamed Linux files, the cull slots as
+  the Linux level's), `onslaught::mode` (the Onslaught game mode from PC Conquest, the console spawn manager, every
+  flag takeable, the doorway pre-destructions left out) and `onslaught::loadset` (the level's manifest blocks without
+  PC mp2_common, the files it takes only from there copied in), through `bc2_native.onsport_linux`, `onsport_mode`
+  and `onsport_loadset`. OPFOR's `console_linux_base.py`, `console_mode.py` and `console_loadset.py` keep their
+  command lines and the install ledger; their work files are the retired Python's byte for byte on the four console
+  levels (spec XCONS-ONS-2 - 4).
+- `bc2_pyrt::math`: CPython's `math.dist` (its compensated `vector_norm`), `x ** 2` and `x ** y` bit for bit.
 
 ## [0.31.0] - 2026-11-27
 
