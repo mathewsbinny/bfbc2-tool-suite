@@ -30,6 +30,7 @@ import tempfile
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 GAME_TYPES = re.compile(r'\.(dbx|res|fbrb|hpd|sb|raw|bik|fsb|fev|dds|tga|hkx)$', re.I)
 MAX_BLOB = 1_000_000
+WARN_BLOB = MAX_BLOB * 8 // 10                                         # warned of, not failed (round SPLIT1)
 LARGE_ALLOWED = {'bfbc2-dbx-tools/tests/fingerprints_795745.txt'}       # SHA-1 hashes only
 # single historical blobs, by object id: rust/BENCHMARKS.md's version of 2026-11-23 (1,000,626 bytes, pushed before the
 # file was split into BENCHMARKS.md + BENCHMARKS_ARCHIVE_1.md); the path itself stays under the limit
@@ -271,7 +272,7 @@ JSON_ORDER_KEPT = {
     'bfbc2-console-convert/texqa.py': 4, 'bfbc2-navigation-studio/overlay.py': 1,
     'bfbc2-shader-tools/renderqa.py': 1, 'bfbc2-shader-tools/xdiff.py': 1, 'bfbc2-stockmp-ai/config.py': 2,
     'bfbc2-stockmp-ai/pipeline.py': 1, 'bfbc2-stockmp-ai/validate.py': 1, 'core/bfbc2core/atomicio.py': 1,
-    'core/bfbc2core/gameledger.py': 3, 'core/bfbc2core/navdata.py': 1, 'spec/trace.py': 2,
+    'core/bfbc2core/gameledger.py': 3, 'core/bfbc2core/navdata.py': 1, 'spec/trace.py': 1,
 }
 
 
@@ -352,6 +353,13 @@ def main(argv: list[str]) -> int:
             large.add(f'{path} ({int(size):,} bytes)')
     results.append(('no game file types in the history', sorted(game_files)))
     results.append((f'no files over {MAX_BLOB:,} bytes in the history (allowed: {", ".join(sorted(LARGE_ALLOWED))})', sorted(large)))
+    # round SPLIT1: a warning (not a failure) for any file of HEAD past 80% of the limit, so a growing generated file
+    # (spec/rules.json reached 977,029 bytes) is split before a merge meets the limit
+    for line in git('ls-tree', '-r', '-l', 'HEAD').splitlines():
+        meta, _, path = line.partition('\t')
+        size = meta.split()[3] if len(meta.split()) > 3 else ''
+        if size.isdigit() and WARN_BLOB < int(size) <= MAX_BLOB and path not in LARGE_ALLOWED:
+            print(f'warn {path} is {int(size):,} bytes, over 80% of the {MAX_BLOB:,}-byte limit: split it before it grows')
 
     messages = git('log', '--all', '--format=%H%x00%B%x01').split('\x01')
     bad = [m.split('\x00')[0][:10] for m in messages if '\x00' in m and ATTRIBUTION.search(m.split('\x00', 1)[1])]

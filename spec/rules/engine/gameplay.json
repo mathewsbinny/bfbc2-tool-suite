@@ -1,0 +1,1111 @@
+{
+ "about": "The rules of spec/engine/gameplay.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "stock gamemodes/conquest and gamemodes/namconquest partitions; the WW2 levels' descriptions (GameMode gamemodes/namconquest, MatchmakingModID PACIFIC)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:192-217"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-1",
+   "status": "observed",
+   "title": "A mode is a GameModeData partition and the level's entities"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/profile.rs:385-397"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "data",
+     "ref": "stock levels per mode: BFBC2 Conquest 9, Rush 10, Squad Rush 7, Squad Deathmatch 8, Onslaught 4; BFBC1 2 each; Vietnam 5 each; WW2 Conquest 3, Air Superiority 1"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1152-1165"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-2",
+   "status": "verified",
+   "title": "Each era's modes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:69-92"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-3",
+   "status": "verified",
+   "title": "Mode keys and names"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5680C0 maps MatchmakingQueryID to the stats category"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Onslaught with the console's ONSLAUGHT query id kept no score or stats (play test 2026-10-29)"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:35-43"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:242-244"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-4",
+   "status": "observed",
+   "title": "The stats category comes from MatchmakingQueryID"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe literal at 0x0142ABD8, compared at 7 sites through 0x92AB10"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:245-248"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-5",
+   "status": "observed",
+   "title": "The UI tests ModeID against \"conquest\""
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe parser 0x8FF330; setter 0x75FCB0; start-up writer 0x775D0A; HUD icon set 0x775D02 -> 0xF9C9E0; icon lookup 0xF88510"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake Island before OPFOR's parser hook: every icon id looked up as 0 and the flag pass drew no diamonds; stock Atacama unchanged"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:15-56"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/QA_SWEEP_2026-11-14.md:52"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-6",
+   "status": "observed",
+   "title": "The game mod is BC2 or VIETNAM"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe multiplayerMaps builder 0x9421F0 (compare at 0x942247 via 0x508440); server 0x865087 in 0x864E50"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_THIRD_MODE.md:84-90"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-7",
+   "status": "observed",
+   "title": "The offline level list is filtered by MatchmakingModID"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:94-103"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1162-1165"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-MODE-8",
+   "status": "verified",
+   "title": "Modes the suite does not offer for export"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's offline-MP host of stock SP_005: the whole AI chain ran, the session stalled in state 14 (2026-10-19 on); sp_004_b once reached state 3"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AUDIT.md:26"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:145-156"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1677-1680"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-LAYER-1",
+   "status": "observed",
+   "title": "Without a mode layer the session waits in state 14"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:46-67"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs:333-362"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:253-288"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1182-1190"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-LAYER-2",
+   "status": "verified",
+   "title": "What a layer is"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the Conquest layer compared on every stock Conquest level and DICE's MP_SP_005CQ conversion (round E3)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:818-829"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-LAYER-3",
+   "status": "observed",
+   "title": "Every stock Conquest layer has the same types"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:545-576"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:587-680"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs::mode_names_and_keys"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-LAYER-4",
+   "status": "verified",
+   "title": "A layer complete for its mode"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:289-306"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::rush_to_conquest_as_a_project_operation"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-LAYER-5",
+   "status": "verified",
+   "title": "A new mode replaces the old layer"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/mpconvert.rs:541-560"
+    },
+    {
+     "kind": "data",
+     "ref": "L1: every Conquest level's capture points; flag counts match the maps (Panama Canal 4: A-D)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:132-144"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-1",
+   "status": "implemented",
+   "title": "Bases and flags are capture points"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 DICE Conquest levels 3-4 flags; 3 WW2 levels 5 each"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:46-48"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-2",
+   "status": "observed",
+   "title": "Three or four flags (WW2 five)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags, 32 HQs on 16 levels; min nearest-flag distance 58 m mp_006cq, max HQ-HQ 1,358 m mp_sp_005cq; WW2 15 flags, 6 HQs"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:211-234"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:331-341"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-3",
+   "status": "observed",
+   "title": "Flags and HQs keep their distance"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 67 of 67 flags (DICE and WW2) at 0.1-0.9; 52 of 52 DICE flags within 0.4 sideways"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:52-53"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:266-270"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-4",
+   "status": "observed",
+   "title": "Every flag lies between the HQs"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags by zone kind 30 / 2 / 4 / 16; 39 zones measured without the boxes"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:236-245"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:177-185"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-5",
+   "status": "observed",
+   "title": "Capture zones of 7.5-37 m"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: TimeToGetControl read as an integer from its raw bits: DICE 51 x 20, 1 x 25; WW2 15 x 10"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:55-56"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-6",
+   "status": "observed",
+   "title": "Capture takes 20 seconds (WW2 ten)"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags, 67 flags with WW2, 38 HQs"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:57-59"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:226-229"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-7",
+   "status": "observed",
+   "title": "Flag and HQ spawns"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Onslaught play tests 2026-10-29 on PC: a flag with 1 was lowered but not raised by the attackers; with A 0 and B 2, A was captured and B not; every PC Conquest flag 0"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:9-11"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:240-241"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-8",
+   "status": "observed",
+   "title": "Any team takes a PC flag only with OnlyTakeableByTeam 0"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 52 DICE flags prominence -6.5 to +7.4 m; 60 flag pairs up to 24 m; 118 M-COMs; 15 WW2 flags"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:79-83"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-9",
+   "status": "observed",
+   "title": "Objectives are not on hill tops"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x726B60 (update: +0xAD, data +0x13A, data +0x84, 0x724060, 0x725D40, data +0x136); 0x725D40 (factor > 0 -> 0x725630, < 0 -> 0x711AA0, 0 -> +0x98 = 0); 0x7066B0 (data +0x80 ReturnMultiplier, +0x88 MinNrToTakeControl, +0x134 SeesawCapturing, +0xB8 MaxCaptureMultiplier, +0xBC AddedMultiplierPerPlayer; constants 1.0 at 0x14D94F0, -1.0 at 0x14D9420); 0x725630 (100.0 at 0x14D9638 over data +0x9C); 0x711AA0 (data +0xA0); 0x7118E0 (+0x9C = 0 when data +0x132 StartAtBottom, else 100); field descriptors 0x1C25750 - 0x1C25A68"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-10",
+   "status": "observed",
+   "title": "How a capture point moves, frame by frame",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4: 19 Conquest levels of every set, 67 flags: no unit shares an instance with another capture point's; 246 team filters in the units; Valparaiso's flag C (MP_01_Factory): 31 instances - its box, marker, spawner, 10 spawn points, 4 team filters, 4 messages, 4 voice-over entities and their lines, one vehicle spawner"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::every_conquest_flag_has_a_unit_of_its_own"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::a_flag_added_wired_and_deleted_on_valparaiso"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:435-450"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-11",
+   "status": "verified",
+   "title": "A flag's unit is its own"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest, 2026-11-22: every stock Conquest level of each set, 67 lettered flags: 208 of 208 capture messages name their flag's letter, 103 of 103 soldier spawners' LocationNameSid end in it, all 103 with a text; HUD_MP_CQ_TOOK_BASE_A - F and LOST_BASE_A - F in all 8 languages, G on none"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::every_conquest_flags_texts_name_its_letter"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_valparaiso"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/flag_texts.rs::a_new_flags_texts_on_a_synthetic_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:1115-1283"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/names.rs:227-322"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-CQ-12",
+   "status": "verified",
+   "title": "A flag's texts are keyed by its letter"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 32 DICE Conquest ticket counters; WW2 3 levels; Coral Sea's two counters"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:60-61"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:84-97"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-TKT-1",
+   "status": "observed",
+   "title": "Conquest tickets"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Atacama Conquest, Wake Island (BF1943) and Coral Sea counters compared field by field"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe: TicketCountPercentage {VOEvent +0, TicketLossPerMin +4, MaxPercentOfTicketsLeft +8}, TicketCounterEntityData.TicketPercentages at +0x84"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:84-103"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:24-28"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-TKT-2",
+   "status": "observed",
+   "title": "The ticket counter's bleed fields"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x67E3F0 (calls 0x67E53A, 0x67E5AC), reached from 0x6805B0 and 0x548324"
+    },
+    {
+     "kind": "data",
+     "ref": "Coral Sea's and BF1943's Conquest event graphs: the same end chain"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:67-68"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:104-113"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-TKT-3",
+   "status": "observed",
+   "title": "A counter at zero ends the round on the server"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8E9AF0 (calls 0x8E9B7C, 0x8E9B9C), index change 0x8F0610"
+    },
+    {
+     "kind": "data",
+     "ref": "Wake (BF1943) puts ETTicketsLow at 20 % and ETReachTicketPercentage at 80 %; Atacama's entry is 15 % with no event"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:69-71"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-TKT-4",
+   "status": "observed",
+   "title": "Ticket percentages raise their own voice-over"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x8C7190 (calls 0x8C71DD, 0x8C71FF), from 0x8ECD94"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:65-66"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-TKT-5",
+   "status": "observed",
+   "title": "Capture voice-over is the client's"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:219-232"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:499-520"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1192-1194"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-1",
+   "status": "verified",
+   "title": "M-COMs and stages from the event graph"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1 stage simulation: 30 of 30 Rush and Squad Rush levels resolved without ambiguity, stage count = BaseCount on 30 of 30, base names in the game's order"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-159"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-2",
+   "status": "observed",
+   "title": "Stage order follows the counters' enable chain"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 Rush levels, 59 of 59 stages with 2 M-COMs; 14 Squad Rush levels, 28 of 28 stages with 1"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:22-29"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-3",
+   "status": "observed",
+   "title": "Three to five stages of two M-COMs"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 59 M-COM pairs (min 11.7 m mp_007gr s1, max 91 m nam_mp_006r s1); 43 Rush steps (93 m mp_sp_002gr s3 to 316 m bc1_oasis_gr s2); 14 Squad Rush steps"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:272-293"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-4",
+   "status": "observed",
+   "title": "A stage's M-COMs and the step between stages"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 59 Rush and 28 Squad Rush stages"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:30-37"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-5",
+   "status": "observed",
+   "title": "Defenders spawn close behind, attackers far in front"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 30 of 30 Rush and Squad Rush levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:38-41"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-6",
+   "status": "observed",
+   "title": "The attackers' first base is outside the defenders' area"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 41 of 43 stage steps keep 99 % or more; 146 M-COM margins"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:42-44"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:295-298"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-7",
+   "status": "observed",
+   "title": "Combat areas grow stage by stage"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 of 16 Rush and 14 of 14 Squad Rush levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:292"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:470"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-8",
+   "status": "observed",
+   "title": "Attacker lives"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:594-725"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/modelayer.rs:729-780"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::rush_stages_as_played_match_l1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/tests/vw2.rs::mode_view_layer_hides_by_mode_and_rush_stage"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:146-163"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-9",
+   "status": "verified",
+   "title": "A stage as it is played: the counters' events from the start state"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4: 31 Rush and Squad Rush levels of every set, 221 stage counters, all equal"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::every_rush_stage_counter_counts_its_mcoms"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::an_mcom_added_to_a_rush_stage_and_taken_out"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:479-500"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-10",
+   "status": "verified",
+   "title": "A stage's counters count its M-COMs"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest: rust/bc2-levelwrite/examples/rush_facts.rs on 31 Rush and Squad Rush levels, 2026-11-22: 30 levels with one base counter per stage and the exact chain (87 stages), BaseCount equal on 30 of 30; base counters' `OnTrigger` CapturePoint `Enable` of the next stage's 54 of 57 middle stages, CombatArea `Enable` 43, `Disable` of its own 36 (0 on the last); 78 later stages' other counters enabled from the start, 3 not; `ons_mp_005gr` (the Onslaught install's) has no defenders' life counter"
+    },
+    {
+     "kind": "data",
+     "ref": "E4-rest sweep, 2026-11-22: on all 30 levels a stage added after the last plays last with its copies as the last stage's objects (72 - 323 copies, 7 - 62 connections added) and, taken out again, gives back every instance and stage state; each of the 87 stages taken out leaves the others in their order and states but one hold-back combat area on nam_mp_002r"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1-702"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:1054-1173"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-11",
+   "status": "verified",
+   "title": "A stage is wired to the next by its base counter"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "E4-rest2 sweep, 2026-11-27: on all 30 Rush and Squad Rush levels a stage inserted between every two stages (57 insertions, 72 - 900 copies and 15 - 238 connections a level): each plays between the two with every old stage as before and, taken out again, gives back every instance, stage state and connection; 42 connections had no counterpart to split (0 - 5 a level); MP_006's dormant sixth forward base is not copied with its last stage; Port Valdez (mp_012gr) with a stage inserted after the first built in 28 - 37 s and held by `export::check`"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::every_rush_level_is_wired_stage_by_stage"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::stages_added_and_taken_out_on_a_synthetic_level"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/rush_stages.rs::port_valdez_with_a_stage_inserted_exports"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/rushstage.rs:703-1053"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RUSH-12",
+   "status": "verified",
+   "title": "A stage inserted between two splits the wiring between them"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings: Server.IsHardcore, Server.FriendlyFireEnabled, Server.KillCam, Server.Minimap, Server.MinimapSpotting, Server.ThreeDSpotting, Server.Crosshair, Server.ThirdPersonVehicleCameras; no ticket or round-length setting"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/gameplay_tools.rs::round_rules_stock_set_and_refused"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/gameplay.rs:656-760"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-RULES-1",
+   "status": "verified",
+   "title": "The round's rules and DICE's values for them"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3d.rs::each_eras_modes_and_their_layers"
+    },
+    {
+     "kind": "data",
+     "ref": "L1: 15 of 15 DICE levels 4 squads, one vehicle, MaxKillCount 50; on 13 of 15 the squads' capture points stand at one spot"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:70-74"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:303-316"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-SDM-1",
+   "status": "verified",
+   "title": "Four squads, one pool of spawns, one vehicle"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 15 levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:74"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:189-194"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-SDM-2",
+   "status": "observed",
+   "title": "A small area around the spawns"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 441 spawners; Squad Deathmatch spawners stacked 2.5 m apart while their alternatives spread over the map"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:189-194"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:231-234"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-SPAWN-1",
+   "status": "observed",
+   "title": "Spawners and their alternative points"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 410 spawners on the stock levels"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:78"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:202-205"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-SPAWN-2",
+   "status": "observed",
+   "title": "Spawners check for enemies within 20 m"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "A1: 1,475 spawn points of 27 levels (mp_001 to mp_012sr of game Dist; mp_005gr, nam_mp_002cq, nam_mp_005r, and OPFOR's WW2 ports wake_island_s, guadal_canal, iwo_jima_s) against their height field, water mesh and static collision: 0 over water deeper than 1.2 m, 0 outside the terrain, deepest under the ground 4.6 m, 13 buried 0.01 to 4.24 m"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:8167-8186"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-SPAWN-3",
+   "status": "observed",
+   "title": "DICE's spawn points stand on open ground"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "A1: 707 vehicle spawners of the same 27 levels by L1's vehicle class (247 emplacements, 111 ambient, 64 tanks, 54 helicopters, 52 quads, 48 boats, 42 IFVs, 37 cars, 36 UAV stations, 15 planes): the tightest room per class as above"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:8167-8186"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-VEH-1",
+   "status": "observed",
+   "title": "Vehicle spawners have their vehicle's room and domain"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "A2: rust/bc2-editor/examples/vehicle_sites.rs on 707 vehicle spawners of 27 levels (21 Dist, 6 Package), 2026-11-22: way out per land class 40 m (the limit) on all; boats 30.5 m least; helicopters 60 m (the limit) within 3.5 m; planes 34 m least; owners and AutoSpawn as above"
+    },
+    {
+     "kind": "data",
+     "ref": "bfbc2-map-editor/placement/l1_a1_params.json: hq_vehicle_pool_150m median 4 (CQ DICE) and 8 (CQ WW2), flag_vehicle_pool_150m 2, attacker_vehicles_per_stage 3, defender_vehicles_per_stage 2, SR 0, SDM vehicles 1"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-VEH-2",
+   "status": "observed",
+   "title": "DICE's vehicles can leave their spawners, in counts per mode"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: every combat area of the 70 levels read and rasterised; SurroundingGeometry on mp_005 410,000 m2 against 356,000"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:143"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:235-239"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-AREA-1",
+   "status": "observed",
+   "title": "A combat area is a union of outlines, per team or shared"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: 16 DICE Conquest levels, 67 flags, 38 HQs, 1,146 spawn points inside their team's area, 16 of 16 per-team HQs outside the enemy's area"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:62-66"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-AREA-2",
+   "status": "observed",
+   "title": "Conquest areas and spawn protection"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "L1: every DamageAreaTrigger of the stock levels (l1_dmg.py)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/L1_placement_report.md:202-205"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-DMG-1",
+   "status": "observed",
+   "title": "Damage area triggers are collapse kill zones"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x943B20 weaponProficiency$; stats download handler 0x9644A0; extern getter 0x76EC30"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1099-1107"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1128-1129"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-AWARD-1",
+   "status": "observed",
+   "title": "weaponProficiency$ crashes without the EA stats copy"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe CapturePointEntityData field table 0x01C25870 (40 fields); ServerCapturePointEntity type info 0x1BF2E88"
+    },
+    {
+     "kind": "data",
+     "ref": "Coral Sea's partition against BFBC2's class catalogue"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/AIR_SUPERIORITY_RE_2026-11-14.md:209-230"
+    }
+   ],
+   "file": "spec/engine/gameplay.md",
+   "id": "GAME-AS-1",
+   "status": "observed",
+   "title": "BF1943 mode classes BFBC2 lacks",
+   "variants": "BF1943"
+  }
+ ]
+}

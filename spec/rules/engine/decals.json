@@ -1,0 +1,115 @@
+{
+ "about": "The rules of spec/engine/decals.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 DICE visual terrains, 1,424 strips; per-terrain 0 - 188; kinds by the shader name's last part; layers and second / mask shader counts as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:183-205"
+    }
+   ],
+   "file": "spec/engine/decals.md",
+   "id": "DECAL-STRIP-1",
+   "status": "observed",
+   "title": "Roads and terrain decals are strips in the visual terrain",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-shader-tools/pcbuild.py:36-52"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_shaders.py:298-320"
+    },
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_terrain_patches.py::test_strip_and_patch_position_contracts"
+    },
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island, 2026-11-12: 60 quad-decal strips cloned from shaders of other layouts drew as sheets across the sky until the strip donors were chosen by layout"
+    }
+   ],
+   "file": "spec/engine/decals.md",
+   "id": "DECAL-STRIP-2",
+   "status": "implemented",
+   "title": "Strips draw on the strip layout, over the patches, reading the height map",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "DECAL-STRIP-1 (world positions in the strip) and DECAL-SRC-1 (the sources are not in any bundle)"
+    }
+   ],
+   "file": "spec/engine/decals.md",
+   "id": "DECAL-STRIP-3",
+   "status": "inferred",
+   "title": "A road edit rewrites the strips; nothing re-bakes them in game",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 30 terrain partitions: the class counts and references as listed; Enable true on every group, spline and quad decal, 280 of 314 full decals"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:390-398"
+    }
+   ],
+   "file": "spec/engine/decals.md",
+   "id": "DECAL-SRC-1",
+   "status": "verified",
+   "title": "The terrain partition's decals are editor sources",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions: TerrainSplineData 1,360, TerrainSplinePointData 14,449, TerrainSplinePlaneData 1,372 (all with the water fields), TerrainSplinePlanePointData 44,132 (all with WaterSpeed)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: the four spline classes' counts and fields as listed"
+    }
+   ],
+   "file": "spec/engine/decals.md",
+   "id": "DECAL-SRC-2",
+   "status": "verified",
+   "title": "The level partition's terrain splines",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/materials.py, 2026-11-22: 19,730 MaterialRelationDecalData in DICE's grids, Decal set on 17,338"
+    }
+   ],
+   "file": "spec/engine/decals.md",
+   "id": "DECAL-IMP-1",
+   "status": "observed",
+   "title": "Bullet and blast decals come from the material grid",
+   "variants": "PC"
+  }
+ ]
+}

@@ -1,0 +1,102 @@
+{
+ "about": "The rules of spec/engine/typeinfo/core.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --measure, 2026-11-27 (spec/typeinfo.json): 1,900 of 1,900 records registered: data class 961, class 400, value type 289, enumeration 231, built-in 19"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe register functions 0x500880, 0x500660, 0x43C390, 0x5008E0, 0x4FE260 (templates 0x5007C0); CapturePointEntityData's initialiser 0x13ACAA0 (record 0x1BFD8C4, class info 0x1BFE0FC), ServerSoldierEntity's 0x13710A0 (record 0x1BF1D90, class info 0x1BF2390), CharacterPoseType's 0x13D1220 (0x5008E0), Vec3's 0x136F3D0 (0x43C390)"
+    }
+   ],
+   "file": "spec/engine/typeinfo/core.md",
+   "id": "RTTI-REG-1",
+   "status": "verified",
+   "title": "Every record is registered by a static initialiser, five ways",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py, 2026-11-27: 7,087 members (564 arrays), 1,952 enumeration values; offset + size inside the record 7,087 of 7,087; own members at or past the parent's size in every class"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe `fieldinf` VA 0x1C13000: CapturePointEntityData's table 0x1C256F0 (35 descriptors), SoldierWeaponDispersion's 0x1C205A8, CharacterPoseType's 0x1C36610"
+    }
+   ],
+   "file": "spec/engine/typeinfo/core.md",
+   "id": "RTTI-MEM-1",
+   "status": "verified",
+   "title": "A member is a 24-byte descriptor; a record lists only its own",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --dbx against spec/census.json (DICE's partitions), 2026-11-27: 630 classes: the same 398, DBX more 230, differ 2; 118 DBX-only names"
+    }
+   ],
+   "file": "spec/engine/typeinfo/core.md",
+   "id": "RTTI-DBX-1",
+   "status": "verified",
+   "title": "The run-time members are DICE's DBX fields, less the pipeline's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/typeinfo.py --dbx, 2026-11-27: the fields above in the DBX classes and in no run-time member of the class or its parents; instances from spec/census.json"
+    },
+    {
+     "kind": "inferred",
+     "ref": "a member the run-time class lacks cannot be read by the loader, which fills objects through the member tables (RTTI-MEM-1)"
+    }
+   ],
+   "file": "spec/engine/typeinfo/core.md",
+   "id": "RTTI-DBX-2",
+   "status": "verified",
+   "title": "The pathfinding switches and the AI's sensing template are pipeline-only",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Core 40 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/core.md",
+   "id": "RTTI-CORE-1",
+   "status": "verified",
+   "title": "`Core`'s records",
+   "variants": "PC"
+  }
+ ]
+}

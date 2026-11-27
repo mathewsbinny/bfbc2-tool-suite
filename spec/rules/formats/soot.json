@@ -1,0 +1,110 @@
+{
+ "about": "The rules of spec/formats/soot.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:647-704"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-23: 40 distinct SootMesh entries (90 live), 40 of 40 fit to the last byte; first word 18 in all; boxes 2, 4, 8, 10 or 27; indices below the vertex count in 40"
+    }
+   ],
+   "file": "spec/formats/soot.md",
+   "id": "SOOT-HDR-1",
+   "status": "verified",
+   "title": "Header, boxes, buffer sizes, buffers, a 256-byte tail",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:678-683"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: stride 12 x 34, 16 x 6"
+    }
+   ],
+   "file": "spec/formats/soot.md",
+   "id": "SOOT-VTX-1",
+   "status": "verified",
+   "title": "Two vertex forms: half positions or float positions",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-23: tail = (0, n, triangles, 60) in 40 of 40"
+    }
+   ],
+   "file": "spec/formats/soot.md",
+   "id": "SOOT-TAIL-1",
+   "status": "verified",
+   "title": "The tail: the box count, the triangle count, 60 words",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py on DICE's bundles, 2026-11-27: (word 8, word 12, stride) = (1, 1, 12) x 22, (0, 1, 12) x 12, (1, 0, 16) x 6"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory vtable 0x147E990 (type 0xC409E0, load 0xC48670: a 0x80-byte object, constructor 0xC45850, vtable 0x147E9CC, its loader slot +0xC 0xC4EDD0); the stride into +0x40, the flags +0x44 / +0x48, the name chosen 0xC4EE44 - 0xC4EE9A (strings 0x147EAE8, 0x147EAD4, 0x147EAC4, 0x147EAB0), the declaration into +0x4C"
+    }
+   ],
+   "file": "spec/formats/soot.md",
+   "id": "SOOT-FLAG-1",
+   "status": "verified",
+   "title": "The two flag words pick the soot vertex declaration",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::resources"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/resources.py, 2026-11-27: in 40 of 40: part indices first then padding, distinct, below 192; every vertex's slot below the used count and every used slot referenced; every vertex's box below n, every box referenced, every vertex inside its box"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0xC4EDD0: boxes into +0x60 / +0x64 (0xC4EF00 - 0xC4EF36), sub-meshes +0x50 (0x24 bytes each), the buffers through the manager's slots +0x58 / +0x5C, the two words +0x1C / +0x20, the primitive count 0xC4F1F6, the slot words into +0xC; the draw 0xC4D44C (60 constants) -> 0xC431C0 (masks +0x84 and +0x9C); the mask copy 0xC3CF40 from the mesh's part show / hide 0xB99380"
+    }
+   ],
+   "file": "spec/formats/soot.md",
+   "id": "SOOT-SLOT-1",
+   "status": "verified",
+   "title": "Each vertex names a box and a part slot; the trailer maps slots to parts",
+   "variants": "PC"
+  }
+ ]
+}

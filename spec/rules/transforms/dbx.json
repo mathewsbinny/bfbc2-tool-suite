@@ -1,0 +1,217 @@
+{
+ "about": "The rules of spec/transforms/dbx.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::any_bytes_never_panic"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::damaged_copies_never_panic"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::every_truncation_of_a_file_is_an_error_or_a_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/reader.rs::huge_counts_are_errors"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/dbxedit_robustness.rs::deep_nesting_is_refused"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-RD-1",
+   "status": "verified",
+   "title": "Refusals, never a panic"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/xml.rs:54"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/batch.rs:31"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_native.py::run_corpus"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_native.py::built_files"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-RD-2",
+   "status": "verified",
+   "title": "The XML is the reference reader's"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs:268"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::round_trip_keeps_the_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/writer.rs::refuses_unwritable_elements"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/robustness.rs::write_then_read_keeps_the_tree"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::edge_trees"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::random_trees"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:331-333"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-WR-1",
+   "status": "verified",
+   "title": "parse(write(t)) = t, with the reference writer's bytes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs:942"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs::unchanged_files_come_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/edit.rs::edits_and_clones"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbx_write_native.py::check_dbxedit"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-WR-2",
+   "status": "verified",
+   "title": "The byte-keeping writers return an unchanged file exactly"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/dbxedit_robustness.rs::built_files_round_trip_and_import_back"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/dbxedit_robustness.rs::any_text_imports_or_fails"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::game"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::quick"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-IMP-1",
+   "status": "verified",
+   "title": "import(xml(f), like f) = f"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-tools/src/dbxedit.rs:91-109"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::golden_edits"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::game"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-CMD-1",
+   "status": "verified",
+   "title": "In process, DbxEdit.exe's answers"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:121-130"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:151-183"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:251-271"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:418-433"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::battery"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-CMD-2",
+   "status": "verified",
+   "title": "What each edit does"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-tools/src/dbxedit.rs:54-66"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-gamefs/src/atomic.rs::a_lasting_lock_is_returned"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-gamefs/src/atomic.rs::other_errors_are_not_retried"
+    }
+   ],
+   "file": "spec/transforms/dbx.md",
+   "id": "XDBX-CMD-3",
+   "status": "verified",
+   "title": "Output files are written atomically"
+  }
+ ]
+}

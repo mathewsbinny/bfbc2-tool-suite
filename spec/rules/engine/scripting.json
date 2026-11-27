@@ -1,0 +1,201 @@
+{
+ "about": "The rules of spec/engine/scripting.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the rules cited per row and SCR-EVT-1 - SCR-CMD-1"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-LAY-1",
+   "status": "inferred",
+   "title": "Six layers author behaviour, each with its own reach",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: 74 levels, 57,667 connections, 1,739 external ends, 56 source and 72 target classes (77), 82 + 104 event names (186), the eight classes above by connection ends"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-EVT-1",
+   "status": "verified",
+   "title": "DICE's event graphs use 77 classes and 186 event names",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: 180 `...EntityData` type names in the exe; 73 of the graphs' 77 classes"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-EVT-2",
+   "status": "verified",
+   "title": "180 entity data classes exist; DICE's graphs use 73 of them",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe server registry 0x0157041C filled in 0x71C7F0 (`mov ecx, 0x157041C; call 0x71C790` x 148), client registry 0x01572768 in 0x8B6AC0 (`call 0x8B6A60` x 100); factory slot 1 `mov eax, <data class info>; ret`; data class infos from the static initialisers `push <type record>; mov ecx, <info>; call 0x500880`; lookup 0x71DD00 -> 0x716BF0 (exact class: lower bound and equality, 0 when absent); handlers: static models 0x714C90 (client 0x8DD7F0), ammo box / medic bag 0x6FB890, pickups 0x6C73B0, disable team 0x673870, event memory 0x66D9B0, event sequence trigger 0x724FC0, speed event gate 0x674EB0, continue 0x6C3F10, tactical objective 0x674F90, projectile impulse test 0x6987E0, game test 0x681290, game setting 0x67A400, console command 0x68EFF0, debug text 0x698790, base 0xFFE580"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-27: 148 and 100 registrations, 123 data classes with a factory, of the 107 unused 62 with and 45 without; each named event's hash in its handler's first 0x300 bytes"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-EVT-3",
+   "status": "verified",
+   "title": "The 107 classes DICE's graphs do not use: which make an entity, and the events they take",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe type records: ConsoleCommandEntityData 0x01C05DC0, DebugMenuSubMenuEntityData 0x01C05DD8, GameSettingEntityData 0x01BFDF0C, ChangeGameSettingType 0x01BFDEF0, ServerConsoleCommandEntity 0x01BF1DD8"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-23: instance counts of the six classes in DICE's 74 level partitions; DebugMenuItemEntityData in mp_002, mp_004, mp_005gr, mp_006, mp_007gr, mp_008, mp_009gr, mp_012gr and 13 campaign levels"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-CMD-1",
+   "status": "verified",
+   "title": "Entities that set a setting or run a command; the debug menu in DICE's data",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::event_graph"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factories 0x6FCC80 (GameSettingEntityData, class info 0x1BFECB0 -> constructor 0x6690A0, vtable 0x141EA98) and 0x6FDE10 (ConsoleCommandEntityData, 0x1C05EFC -> 0x698680, vtable 0x14230A0); ServerGameSettingEntity handler 0x67A400 (`cmp [edi+0xC"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/scripting.py, 2026-11-27: \"ChangeSetting\" hashed into 0x67A400's bytes; 0x68EFF0 is `ret 4`"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-CMD-2",
+   "status": "verified",
+   "title": "The game setting entity inverts the look axis; the console command entity does nothing",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table entries enableDevOpts 0xF3, debugdata 0xD2, consoleTrace 0x8C; Client field IsMenuDevOptsEnabled +0xF4 (field table 0x01C14338); \"/settings\" 0x14123A0 and \"/settings/*\" 0x1412394 registered in 0x501BF0 (handlers 0x4FFEC0, 0x4FFC60, \"Settings - %s\"); \"/stats\" 0x1411DA4, \"/types\" 0x140FDF8; \"Unknown command - This mopp data has been corrupted\" 0x148EF90 (Havok)"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-DEV-1",
+   "status": "observed",
+   "title": "No developer console in the PC client; developer options and debug pages are switched off",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe provider registration 0x4D06B0 (callers 0x43BFEA, 0x43C022, 0x4A9885, 0x4D09CA, 0x4F7076, 0x4FEDB9 in the settings manager's constructor 0x4FED50, vtable 0x1411CBC = {0x501BF0}); provider set getter 0x4D05D0, server set getter 0x4D0640 (globals 0x155CF3C - 0x155CF5C, referenced only there and in the destructor 0x1381130); add server 0x4D07D0 (no E8 / E9 site, no stored pointer); \"/types\" 0x140FDF8 (0x4AF5D0), \"/db\" 0x140FE10, \"/stats\" 0x1411DA4 (0x5002F0), \"/settings\" 0x14123A0 (0x501BF0); HTML head writer 0x4BADD0"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: 6 provider registrations, 0 references to the add"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-DEV-2",
+   "status": "verified",
+   "title": "The debug document server is never made",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe \"-dedicated\" 0x140982C (0x401F29, 0x401F65), \"-server\" 0x1409824 (0x401F48); \"BFBC2Server-124DD424-...\" pushed at 0x401FA5; \"set_cl_punkbuster\" 0x141AE3C, \"set_sv_punkbuster\" 0x141AF4C, \"punkbuster kick\" 0x1417978; name table kickPlayer 0xB4, voteKickPlayer 0x39, playerKickedReason 0x13F"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-SRV-1",
+   "status": "observed",
+   "title": "Server administration: traces only; the server build is not on this PC",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from MENU-RT-1 - MENU-RT-5, MENU-EVT-1 - MENU-EVT-3, APT-LOAD-3 and MENU-ED-3"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-AS-1",
+   "status": "inferred",
+   "title": "The menus' script reaches the game only through the name table",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from MOD-EXE-1, MOD-CNT-1, MOD-HOOK-1 - MOD-HOOK-3, BOT-CTL-5"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-DLL-1",
+   "status": "inferred",
+   "title": "Hooks reach everything, for one build",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from SCR-LAY-1 - SCR-DLL-1 and the bot module plan (BOT-CTL-4)"
+    }
+   ],
+   "file": "spec/engine/scripting.md",
+   "id": "SCR-NEED-1",
+   "status": "inferred",
+   "title": "What a scripting layer for modders would need",
+   "variants": "PC"
+  }
+ ]
+}

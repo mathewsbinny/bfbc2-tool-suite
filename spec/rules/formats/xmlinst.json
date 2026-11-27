@@ -1,0 +1,89 @@
+{
+ "about": "The rules of spec/formats/xmlinst.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ONS_MP_002: 17,454 fields name-first, 118 ref-first (2026-10-20)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/xmlinst.rs::either_attribute_order"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_xmlinst_native.py::quick"
+    },
+    {
+     "kind": "doc",
+     "ref": "core/bfbc2core/xmlinst.py:4-8"
+    }
+   ],
+   "file": "spec/formats/xmlinst.md",
+   "id": "XMLI-ORD-1",
+   "status": "verified",
+   "title": "Attribute order is not fixed"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/xmlinst.rs::either_attribute_order"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_xmlinst_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_xmlinst_native.py::game"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/xmlinst.rs:62-94"
+    }
+   ],
+   "file": "spec/formats/xmlinst.md",
+   "id": "XMLI-INST-1",
+   "status": "verified",
+   "title": "Instances"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/xmlinst.rs::either_attribute_order"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_xmlinst_native.py::quick"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/xmlinst.rs:99-130"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/xmlinst.rs:26-54"
+    }
+   ],
+   "file": "spec/formats/xmlinst.md",
+   "id": "XMLI-REF-1",
+   "status": "verified",
+   "title": "A field's reference"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/xmlinst.rs:10-21"
+    }
+   ],
+   "file": "spec/formats/xmlinst.md",
+   "id": "XMLI-REF-2",
+   "status": "implemented",
+   "title": "Word characters outside ASCII are decided by the reference"
+  }
+ ]
+}

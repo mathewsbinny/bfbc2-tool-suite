@@ -1,0 +1,213 @@
+{
+ "about": "The rules of spec/engine/weather.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather on the game copy, 2026-11-22: primary classes of the weather/ partitions - WeatherSystemState 355, DynamicOutdoorLightData / DynamicSkyData / DynamicPostProcessData / DynamicSunData / DynamicFogData 353 each, DynamicCloudLayerData 352, DynamicLensFlareData 35, WeatherSystemSettings 30, StaticCloudLayerData / WeatherSystemSetup / WeatherSystemData 28, StaticOutdoorLightData / StaticFogData 27, WeatherSystemEntityData 24, ObjectBlueprint 3, TextureAsset 2, StaticLensFlareData 1"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/weather.rs:231-265"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-CLS-1",
+   "status": "verified",
+   "title": "System, setup, settings, states",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: 355 WeatherSystemState, 353 of each component class, 352 cloud layers"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: the closure of ons_mp_002_night, 8 partitions under weather/, no resources"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::the_night_template_resolves"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-CLS-2",
+   "status": "verified",
+   "title": "A state is values and six component partitions, no textures",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: resources (bytes, first u32) (4, 72) x 28, (524,380, 3) x 1, (8,284, 3) x 1"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:969-1060"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-RES-1",
+   "status": "verified",
+   "title": "Each system has a 4-byte WeatherSystem resource holding 72",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather: 28 systems, 457 states listed, 2 .. 53 per system"
+    },
+    {
+     "kind": "data",
+     "ref": "research round WX0: every system used by at least one of 83 levels; the shared systems as listed"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-STATE-1",
+   "status": "verified",
+   "title": "28 systems, 355 states, 457 slots",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: classify.py over the 355 states (names and values), the counts as listed"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-STATE-2",
+   "status": "observed",
+   "title": "Most states are scripted; one night, two rain, four snow",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::spg_lighting"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py weather on the game copy, 2026-11-22: the ranges as given, over DICE's state and component partitions"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-STATE-3",
+   "status": "verified",
+   "title": "The value ranges of DICE's states",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: per level ActiveState and spawn switches (inventory_tables), the exposure reach of the placeholder states"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-STATE-4",
+   "status": "observed",
+   "title": "Placeholder ActiveStates are dark by value",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the other state entities per level (inventory_tables \"other state entities\")"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-STATE-5",
+   "status": "observed",
+   "title": "Campaign levels switch states by script",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: the weather effects per level (A.5)"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/lighting.py lights on the game copy, 2026-11-22: 13,083 placed GameEffectEntityData in 82 level partitions, 3,024 with IsCameraProximityTriggered in 62"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-FX-1",
+   "status": "observed",
+   "title": "Rain and snow are camera-proximity area effects",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "research round WX0: sound areas per level; the closure sp03_rain_sound"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-FX-2",
+   "status": "observed",
+   "title": "Weather sounds are sound areas",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/weather.rs:546-815"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vw2.rs::levels_weather_as_the_export_reads_it"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:6419-6450"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-SUITE-1",
+   "status": "verified",
+   "title": "The export sets a state; borrowing appends or swaps",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the state holds no texture (WTH-CLS-2) and the static cloud layer is the setup's (WTH-CLS-1); not seen in game"
+    }
+   ],
+   "file": "spec/engine/weather.md",
+   "id": "WTH-SUITE-2",
+   "status": "inferred",
+   "title": "A borrowed state keeps the target's sky",
+   "variants": "PC"
+  }
+ ]
+}

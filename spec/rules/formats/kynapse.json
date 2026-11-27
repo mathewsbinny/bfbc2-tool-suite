@@ -1,0 +1,353 @@
+{
+ "about": "The rules of spec/formats/kynapse.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's 35 files: 18 infantry (2,626 sectors: 2,055 at pitch 0.8, 571 at 0.2), 17 vehicle (494 sectors, all at pitch 1.0); radius 0.4 / 2.5 and DistEdgeMax 15 / 50 on every sector of its type"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:76-98"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-WORLD-1",
+   "status": "observed",
+   "title": "One file and one world per pathfinding type"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::header_words_and_sector_kinds"
+    },
+    {
+     "kind": "exe",
+     "ref": "magic `_stricmp` 0x0108EC95-0x0108ECA1; `cmp [esi+0x3A8"
+    },
+    {
+     "kind": "data",
+     "ref": "word 0 = 2, word 3 = 1, words 32 / 33 = 36 / 12 and word 35 = 0 in 35 of 35 files"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-FILE-1",
+   "status": "verified",
+   "title": "The header words the loader reads"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::header_tables_and_record_layout"
+    },
+    {
+     "kind": "exe",
+     "ref": "the HPD writer 0x011C5140: magic 0x014C7180, words 0 and 1 from linker +0x50, word 2 from +0x10, word 3 from +0x4C, words 4-7 floats +0x18 / +0x1C / +0x20 / +0x24 only when +0x4C = 0 (0x011C52B7), words 8-19 from the arrays at +0x28 / +0x2C / +0x30 and words 20-31 from +0x34 / +0x38 / +0x3C (four entries each, 0x011C54C8-0x011C55C8), words 32-34 from +0x40 / +0x44 / +0x48, word 35 the count at +0x0C of the path-objects data at +0x54 (error string 0x014C72A4); runtime search for descriptor 2 at 0x0108E689-0x0108E69E"
+    },
+    {
+     "kind": "data",
+     "ref": "words 0 = 1 = 2, 3 = 1, 4-7 zero, 8-10 = 2 / 0 / 8, 11-31 zero, 32 = 28 + 8, 34 = 1 in 35 of 35 files; the first node's +20 float equals DistEdgeMax in 3,120 of 3,120 sectors and is shorter than the sector's longest edge in 2,605; 83 end slots 0xBAADF00D"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-FILE-2",
+   "status": "verified",
+   "title": "The header as the generator writes it, and the node record's parts"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::header_words_and_sector_kinds"
+    },
+    {
+     "kind": "exe",
+     "ref": "kind counted 0x01091272-0x010912CA; containers 0x0108FAD7-0x0108FB04; block offset +1 / size -1 for kind != 0 at 0x010901AA-0x010901CA; id range check 0x0106D941-0x0106D960"
+    },
+    {
+     "kind": "data",
+     "ref": "kind 0 in 3,120 of 3,120 sectors; ids within 1..255 on both axes in 35 of 35 files"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-SEC-1",
+   "status": "verified",
+   "title": "The sector table's kind word and the sector id range"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::table_bounds_are_the_route_nodes_box"
+    },
+    {
+     "kind": "exe",
+     "ref": "duplicate test over the six bounds 0x01091791-0x01091807, mode 1 only"
+    },
+    {
+     "kind": "data",
+     "ref": "bounds equal the node box bit for bit in 3,120 of 3,120 sectors; 0 sectors without a node; 0 files with two equal boxes"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-SEC-2",
+   "status": "verified",
+   "title": "The table's bounds are the box of the sector's route nodes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::one_sector_offset_per_file"
+    },
+    {
+     "kind": "data",
+     "ref": "one offset pair per file in 35 of 35 files (3,120 of 3,120 sectors agree); the vehicle pair differs from the infantry pair on 6 of 17 levels"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-SEC-3",
+   "status": "verified",
+   "title": "Sector ids and the file's offsets"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "pitch and radius of every area equal its sector header's in 188,988 of 188,988 areas; detailed sectors per infantry file 4-55 (571 of 2,626)"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-SEC-4",
+   "status": "observed",
+   "title": "Coarse and detailed sectors"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::resolution_is_one_over_the_tile_size"
+    },
+    {
+     "kind": "exe",
+     "ref": "tile range 0x01071BC0: `fsub [mesh+0x14"
+    },
+    {
+     "kind": "data",
+     "ref": "resolution = 1/40, 1/20, 1/50 in 2,055, 571 and 494 sectors; tile counts = ceil(span x resolution) in 3,120 of 3,120"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-TILE-1",
+   "status": "verified",
+   "title": "The resolution field is one over the tile size"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::resolution_is_one_over_the_tile_size"
+    },
+    {
+     "kind": "data",
+     "ref": "6,279,328 of 6,279,328 outline vertices inside their tile's range; with span / tiles as the edge, 1,799,317 outside"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-TILE-2",
+   "status": "verified",
+   "title": "An area lies in the tile that holds its cells"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "sector, tile and index equal the naming tile's in 188,988 of 188,988 areas; tile item heights equal the header's in 188,988 of 188,988"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-AREA-1",
+   "status": "observed",
+   "title": "Areas, their tile items and their index"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "373,053 of 386,568 B portals have a portal back to their area; 13,515 do not"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-B-1",
+   "status": "observed",
+   "title": "Portals between areas (B) are mostly two-way"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "axis C portals on that line: coarse 63,272 of 63,974, detailed 28,781 of 31,767, vehicle 5,667 of 5,677; of the rest, 76 lie on that line of the opposite side and 3,622 elsewhere"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-C-1",
+   "status": "observed",
+   "title": "Border portals (C) sit on the first cell-corner line outside the rectangle"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::link_objects_name_a_tile_item_of_an_adjacent_sector"
+    },
+    {
+     "kind": "exe",
+     "ref": "link resolution 0x010A44D0: tile = neighbour.tiles[x x tilesZ + z"
+    },
+    {
+     "kind": "data",
+     "ref": "55,008 of 55,008 link objects resolved; 16,450 entries, all adjacent; 9,396 cross-pitch objects; 2 entries naming an absent sector"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-LINK-1",
+   "status": "verified",
+   "title": "A link object names a tile item of an adjacent sector"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "probe counts of every D line and F record of DICE's 35 files (section 9)"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-DF-1",
+   "status": "observed",
+   "title": "D and F by pathfinding type"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::infantry_f_records_by_direction_and_twinned"
+    },
+    {
+     "kind": "data",
+     "ref": "10,964 of 10,964 infantry areas with F ordered and twinned; vehicle areas with F 881, twinned 311"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-DF-2",
+   "status": "verified",
+   "title": "Infantry F records come in twins, ordered by direction"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::node_ids_are_unique_in_the_file"
+    },
+    {
+     "kind": "data",
+     "ref": "0 ordinary ids in two sectors and 0 border ids whose low bits equal an ordinary id, in 35 of 35 files; border ids 113,874: 104,448 in 2 sectors, 5,570 in 3, 3,856 in 4"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-NODE-1",
+   "status": "verified",
+   "title": "Node ids are unique in the file, in one number space"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x0108DE60 / 0x0108DEE0 test the word's sign, mask 0x7FFFFFFF and binary-search 0x0108D5E0; results written back at 0x0108E2D0-0x0108E2E8; reader 0x0105C400"
+    },
+    {
+     "kind": "data",
+     "ref": "0x80000000 on 596,069 of 596,069 nodes"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-NODE-2",
+   "status": "observed",
+   "title": "The node's flags word is a link slot"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::edge_reach_is_dist_edge_max_across"
+    },
+    {
+     "kind": "data",
+     "ref": "1,694,066 edges: 0 ordinary pairs over DistEdgeMax across; 29,210 border-to-border and 916 ordinary-to-border edges over DistEdgeMax across, 0 over twice it"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-EDGE-1",
+   "status": "verified",
+   "title": "An edge reaches DistEdgeMax across, twice that at a border"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "`test dword [edge"
+    },
+    {
+     "kind": "data",
+     "ref": "bit 31 set on 1,694,066 of 1,694,066 edges; cost exact with an f32 length on all of them"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-EDGE-2",
+   "status": "observed",
+   "title": "The cost word: a static flag and a dynamic index"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "219,500 of 1,694,066 edges one-way; within a source, target ascending at 656,207 steps and descending at 563,604; one-way edges by their ends (probe `e.one_way_*`)"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-EDGE-3",
+   "status": "observed",
+   "title": "One-way edges and the edge order within a node"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/kynapse_corpus.rs::one_edge_per_source_and_target"
+    },
+    {
+     "kind": "data",
+     "ref": "0 repeated (source, target) pairs in 3,120 of 3,120 sectors"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-EDGE-4",
+   "status": "verified",
+   "title": "One edge per source and target"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "outline vertices on the half-pitch grid: coarse 3,688,293 of 3,699,138, detailed 2,354,344 of 2,364,824, vehicle 212,389 of 215,366; 101,816 nodes lie outside their sector's rectangle, 101,734 of them border copies"
+    }
+   ],
+   "file": "spec/formats/kynapse.md",
+   "id": "KYN-UNIT-1",
+   "status": "observed",
+   "title": "Units and frames"
+  }
+ ]
+}

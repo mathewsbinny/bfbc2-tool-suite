@@ -1,0 +1,380 @@
+{
+ "about": "The rules of spec/transforms/console.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:577-645"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/havok.rs:745"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_havok.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havok_tests.rs::a_byte_converted_as_two_widths_is_refused"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/havok_tests.rs::refusals_and_the_reference"
+    },
+    {
+     "kind": "data",
+     "ref": "400 HavokPhysicsData shared by the four Onslaught builds and the PC: all equivalent; all 594 of the four console levels convert"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:58-73"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-HK-1",
+   "status": "verified",
+   "title": "Havok: wrapper identical, packfile equivalent to the PC twin",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texture.rs:272-310"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::conversions_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texture_tests.rs::refusals_carry_the_reference_messages"
+    },
+    {
+     "kind": "data",
+     "ref": "420 console textures of the Onslaught builds convert; of their PC twins of the same size and format 4 byte-identical, 188 the same picture re-encoded, 1 different art"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:118-134"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-TEX-1",
+   "status": "verified",
+   "title": "Textures: the layout's length, the twin's picture, the console's flags",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mesh.rs:236"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::swaps_by_value_width"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::refuses_what_the_reference_does_not_convert"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::vertices_in_order_with_zeroed_gaps"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::meshes"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-MESH-1",
+   "status": "verified",
+   "title": "Meshes and mesh sets: values swapped, strips unrolled",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:146-245"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:645"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_soot.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::quadtree"
+    },
+    {
+     "kind": "data",
+     "ref": "soot: 30 of 30 BFBC2 twins byte for byte; BF1943 404 of 406 (16-byte vertices refused)"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-TERR-1",
+   "status": "verified",
+   "title": "Terrain, water and soot: the twin's bytes",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/wavport.rs:147-190"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/audio.rs:85-97"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_audio.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::groups_as_the_reference"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/audio_tests.rs::layout_of_frames"
+    },
+    {
+     "kind": "data",
+     "ref": "35,811 BFBC2 twins' wrappers compared"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-SND-1",
+   "status": "verified",
+   "title": "Sounds: EA-XMA in, EA-XAS out, the PC wrapper",
+   "variants": "Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::textures_game"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_texture_native.py::game"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-PAR-1",
+   "status": "verified",
+   "title": "The Rust converters give the retired Python's bytes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texcheck.rs:162-196"
+    },
+    {
+     "kind": "code",
+     "ref": "core/bfbc2core/navpath.py:89-93"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-navbuild/src/astar.rs:26-33"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/texcheck.rs::correlation_exact"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_console_f2a_native.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_e3o_native.py::quick_navpath"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-PAR-2",
+   "status": "verified",
+   "title": "Recorded measures are the same bits on every machine"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_port.py:1-30"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_port.py:75-93"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1256-1279"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-STG-1",
+   "status": "implemented",
+   "title": "Fourteen stages in a fixed order",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5A5A61 (console-only vehicle mesh and physics), 0x4EB538 (null string of a value-less reference), 0x98BD6E (renderer)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1266-1270"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1350"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-STG-2",
+   "status": "observed",
+   "title": "What the stages guard against",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught.rs:549-568"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught.rs:1049-1058"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_onslaught.py:24-72"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught.rs::report_text"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR5, 2026-11-23: the user's Update #3 package on ONS_MP_008 / MP_008 and ONS_MP_002 / MP_002, every work file and write of the Rust import identical to the Python's (rust/BENCHMARKS.md \"OR5\")"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-1",
+   "status": "verified",
+   "title": "The console Onslaught import gives the retired Python's work files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/linux.rs:244-330"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/linux.rs:354-370"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_linux_base.py:57-73"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/linux.rs::cull_slots"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR9, 2026-11-27: the user's ONS_MP_002 / 004 / 005 / 008 on their Linux server levels, every work and game file of the Rust stage identical to the Python's (rust/BENCHMARKS.md \"OR9\")"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-2",
+   "status": "verified",
+   "title": "The Linux base stage gives the retired Python's work files; its cull slots",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:125-170"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs:221-240"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_mode.py:45-54"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/mode.rs::doors"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR9, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's; ONS_MP_002's bundle is the user's installed one (its `.opfor-loadset-orig`)"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-3",
+   "status": "verified",
+   "title": "The Onslaught mode stage gives the retired Python's work files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/loadset.rs:119-140"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/loadset.rs:199-305"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_loadset.py:46-54"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/loadset.rs::manifest_blocks"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR9, 2026-11-27: the user's four levels, also with the manifest from before a loadset run (146 mp2_common targets) and damaged inputs, every work and game file of the Rust stage identical to the Python's"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-4",
+   "status": "verified",
+   "title": "The load set stage gives the retired Python's work files; the closure's order",
+   "variants": "Xbox 360"
+  }
+ ]
+}

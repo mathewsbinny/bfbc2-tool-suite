@@ -1,0 +1,821 @@
+{
+ "about": "The rules of spec/transforms/terrain_gen.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 30 DICE terrains, each with a main block, a material map, a visual terrain and a water mesh read from the same bundle; terrain_edit.md's corpus counts for the rest (TEDIT-SRC-1, TEDIT-BLK-1)"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-REQ-1",
+   "status": "verified",
+   "title": "A level's terrain is eight kinds of data, most of them in the terrain bundle",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: sizes (n, spacing) (1024, 1 m) x 11, (2048, 1 m) x 19; 30 of 30 bounds -n/2 .. n/2 with min y 0"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/heightmap.rs:26-27"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-REQ-2",
+   "status": "verified",
+   "title": "DICE's limits: 1 or 2 km squares of 1 m samples, centred on the origin, heights from 0",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TEDIT-SRC-2's table extended to a whole new terrain; TERR-VT-3 (rule layers are computed), VEG-UG-3 (undergrowth generated at run time), LIGHT-BAKE-1 / -2 (what is baked), XCULL-RES-1 (the export reslots new objects)"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-REQ-3",
+   "status": "inferred",
+   "title": "Generated, derived, reused, or the engine's",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::a_donor_terrains_entries_clone_under_a_new_name"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/visual_terrain.rs:344-395"
+    },
+    {
+     "kind": "inferred",
+     "ref": "TERR-NAME-1 and TERR-VT-3's naming; LVL-MODE-2; OPFOR's Wake Island install retargets cloned patch shaders by name the same way (TEDIT-SH-2)"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-REQ-4",
+   "status": "verified",
+   "title": "A new terrain takes its own name everywhere",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "XEXP-BLD-2 (base bundles read at run time), XEXP-REG-1, XEXP-CHK-1; LVL-MODE-2"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1920-1932"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-REQ-5",
+   "status": "implemented",
+   "title": "The export registers the new level's own terrain bundle",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "COLL-TERR-1, WATER-MESH-1, CULL-LVL-1, XCULL-RES-1; bfbc2-auto-navkit/tools/navsample_offline.py's `stage` command (round NK6)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-auto-navkit/tools/navsample_offline.py:19-21"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-REQ-6",
+   "status": "inferred",
+   "title": "Collision, water, navigation and cull trees",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "LIGHT-BAKE-1, LIGHT-BAKE-2, LIGHT-BAKE-6, LIGHT-IRR-2"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-REQ-7",
+   "status": "inferred",
+   "title": "Lighting: one map to generate, nothing to re-bake",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:48-63"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: biomes {arid 5, jungle 9, snow 6, temperate 5, vietnam 5}; materials agree on 30 of 30"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-BIOME-1",
+   "status": "verified",
+   "title": "A terrain's biome is its levels' vegetation set",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: \"TGEN-ASSET per biome\" (materials, atlas layouts, undergrowth meshes, forest / middlegrowth / blueprint types and instances by folder, rock / cliff names) over the 30 terrains and the 74 DICE level partitions on them"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-BIOME-2",
+   "status": "observed",
+   "title": "What each biome offers a generator",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py --ww2, 2026-11-23: per terrain n, range, under-water share 0.915 - 0.963, atlas, patch shaders, undergrowth meshes, materials, forest / middlegrowth / blueprint folders as printed"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-BIOME-3",
+   "status": "observed",
+   "title": "The pacific biome is OPFOR's conversions of BF1943",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "TERR-VT-5, TEDIT-SH-1 - 3, VEG-UG-1, VEG-UG-4, MAT-GRID-2; the Wake Island install's single donor (MP_009CQ)"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-BIOME-4",
+   "status": "inferred",
+   "title": "One donor visual terrain per generated terrain",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/visual.rs:356-430"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: rule-only patch shaders (tiled count 0) on 30 of 30 terrains, 1 (MP_006, NAM_MP_006, SP_005, SP_005_B) to 20 (SP_01)"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VIS-1",
+   "status": "verified",
+   "title": "Rule-only patch shaders draw a terrain with no atlas tiles",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/generated_terrain.rs::a_generated_terrain_draws_with_its_donors_look"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-render/tests/generated_terrain.rs on OPFOR's prepared MP_005, 2026-11-23: per 20 m band over the water and 5 m band under it, luminance ratios and hues as given; rust/BENCHMARKS.md TG2"
+    },
+    {
+     "kind": "inferred",
+     "ref": "RNDR-TERR-2 (literal weights), RNDR-TERR-5 (Wake Island's sea floor shaded against its water at 215 m); the donor's water level from spec/probes/terrain_shape.py"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VIS-2",
+   "status": "verified",
+   "title": "The donor's rule layers expect the donor's heights",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::the_cell_rule_against_dices_own_cells"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/visual.rs:29-95"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-terragen/tests/visual.rs on DICE's MP_005, MP_001, MP_009, MP_003, MP_004 and six rings, 2026-11-23, as given"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VIS-3",
+   "status": "verified",
+   "title": "Each cell draws the rule-only shader its ground asks for",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::a_donor_terrains_entries_clone_under_a_new_name"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/terrain.rs:70-159"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VIS-4",
+   "status": "verified",
+   "title": "The donor's entries are cloned into the new terrain's databases",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/visual.rs:280-336"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-WATER-1",
+   "status": "verified",
+   "title": "The visual water is one open-water quad over the outer square",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/visual.rs::a_generated_terrain_draws_with_mp_005s_shaders"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_visual_corpus.rs::dice_occlusion_maps_encode_as_dice_lays_them_out"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/visual.rs:160-275"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/itexture.rs:1-30"
+    },
+    {
+     "kind": "data",
+     "ref": "round TG2's scratch fit on DICE's maps (MP_005, MP_009, MP_001, SP_01) against sky visibility, slope and curvature at 2 m, 2026-11-23: r2 0.27 / 0.22 / 0.03 / 0.12"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-OCC-1",
+   "status": "verified",
+   "title": "The colour / occlusion map takes the donor's values where the terrain's sky visibility puts them",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:107-138"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: per terrain elevation percentiles, hypsometric integral, slope percentiles and shares, relief, beta, water level, under-water share, coastline, border minus centre; per biome medians and ranges as tabled; 99th height percentile over the range 0.02 - 0.90, median 0.48"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-SHAPE-1",
+   "status": "verified",
+   "title": "Elevation: low basins and a long upper tail",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: median of median slopes 20.4; per terrain p10 / p90 / p99 as printed; biome medians of the 99th percentile arid 52.8, jungle 75.0, snow 71.1, temperate 75.1, vietnam 64.6; the prototype's five biomes (seed 7, n 1,024): p99 20.1 / 45.9 / 56.1 / 48.3 / 33.5 degrees, 66 m relief 0.87 / 2.46 / 3.23 / 2.80 / 1.52 m"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-SHAPE-2",
+   "status": "verified",
+   "title": "Slopes: a flat floor and a heavy steep tail",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:79-96"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: beta 3.16 (SP_005) - 4.56 (SP_004_B, SP_04); 10 m relief per terrain as printed"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-SHAPE-3",
+   "status": "verified",
+   "title": "The spectrum is steep and the same in every biome",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: under-water share, coastline length, water level and border minus centre per terrain as printed; water meshes with no vertices on SP_006 and SP_009"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-SHAPE-4",
+   "status": "observed",
+   "title": "Water and the border",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "code",
+     "ref": "spec/probes/terrain_shape.py:286-344"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 61 levels (modes from OPFOR's maps.ini); per mode as tabled; inside flatter than outside on 14 / 14 / 10 / 14 levels by mode; under-water share inside, median 0.17 / 0.17 / 0.12 / 0.15"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/placement/l1_distributions.md:42"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-PLAY-1",
+   "status": "verified",
+   "title": "Combat areas are 1 - 22 % of the terrain, roughly convex, near the middle",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::terrain_shapes"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py, 2026-11-23: 50 flags of 16 Conquest levels: slope, height percentile, relief against 100 m and distance to water percentiles as given; 92 % under 10 degrees"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-PLAY-2",
+   "status": "verified",
+   "title": "Conquest flags stand on flat ground at any height",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:649-676"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-PLAY-3",
+   "status": "verified",
+   "title": "The generator flattens objective pads",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/rng.rs:1-46"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/terrain_cli.rs:120-151"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-GEN-1",
+   "status": "verified",
+   "title": "A seed and settings give the same terrain, byte for byte",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_gen_proto.py (retired in round TG2), 2026-11-23: seed 7, 1,024 samples, the five biomes' beta, median slope and under-water share as given; rust/BENCHMARKS.md TG0"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-GEN-2",
+   "status": "observed",
+   "title": "The prototype's pipeline matches DICE's medians",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:146-203"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:209-419"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:426-524"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:564-676"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-GEN-3",
+   "status": "implemented",
+   "title": "What the real generator adds (round TG1)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain_shape.py's shape() on bfbc2 terrain generate's main blocks and the prototype's terrains, 2026-11-23, as tabled; DICE's medians from the same probe's run on the 30 terrains"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-GEN-4",
+   "status": "verified",
+   "title": "TG1's terrains fall on DICE's biome medians",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/lib.rs:118-139"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/terrain_cli.rs:153-216"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-GEN-5",
+   "status": "implemented",
+   "title": "The library the editor and the command line call",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::every_biome_lands_on_its_dice_medians"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/generate.rs:600-645"
+    },
+    {
+     "kind": "data",
+     "ref": "round TG2's scratch measure of DICE's MP_003, MP_004, SP_005, SP_005_B, SP_007 and MP_009 with spec/probes/terrain_shape.py's statistics, 2026-11-23, as given"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-GEN-6",
+   "status": "verified",
+   "title": "Temperate's rough relief is an escarpment over smooth slopes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/ring.rs::a_generated_ring_reads_back_stitched_as_dices"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/ring.rs::dices_single_ring_terrains_are_stitched_so"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/ring.rs:1-150"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-RING-1",
+   "status": "verified",
+   "title": "One ring of twelve 64-sample blocks, stitched as DICE stitches its rings",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/biome.rs:114-122"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-MAT-1",
+   "status": "implemented",
+   "title": "Material names come from the donor level's grid",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/paint.rs:27-53"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-MAT-2",
+   "status": "implemented",
+   "title": "Materials are painted from height and slope; visual layers follow the same rules",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/newterrain.rs:889-1276"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/terrainpaint.rs:842-885"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-MAT-3",
+   "status": "verified",
+   "title": "The donor's tiled layers are laid on new ground as the donor lays them",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vegetation.rs:23-45"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/vegetation.rs:378-590"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1566-1624"
+    },
+    {
+     "kind": "inferred",
+     "ref": "VEG-CLS-1 / -2, LEVEL-MG-7, XLOG-MEM-2, COLL-MG-2, XCULL-RES-1"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VEG-1",
+   "status": "implemented",
+   "title": "Vegetation and props are placed as the level's model groups",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::dice_biome_statistics"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/vegetation.rs:490-690"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 19 terrains (arid 3, jungle 3, snow 4, temperate 4, vietnam 5), each kind's statistics per terrain and the medians as tabled; rust/BENCHMARKS.md TG4"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VEG-2",
+   "status": "verified",
+   "title": "DICE's vegetation per biome: dense in the playable area, clustered, by slope and height",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/vegetation.rs::every_biome_falls_on_dices_statistics"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/vegetation.rs::a_placement_is_its_seeds"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::a_generated_level_with_vegetation_exports_and_checks"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/vegetation.rs:692-1230"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VEG-3",
+   "status": "verified",
+   "title": "The placement falls on its biome's statistics",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs::dice_groups_round_trip_through_the_member_writer"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:420-560"
+    },
+    {
+     "kind": "data",
+     "ref": "rust/bc2-levelwrite/tests/vegetation.rs on the game copy, 2026-11-27: 17 of 17 groups of MP_005, MP_009CQ, MP_007, MP_004 and NAM_MP_003CQ byte for byte (group file, partition, physics), 15,499 members added again, in 200 s"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-VEG-4",
+   "status": "verified",
+   "title": "DICE's model groups written again through the member writer are DICE's bytes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-OUT-1",
+   "status": "verified",
+   "title": "A generated main block reads back in the suite's readers",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-OUT-2",
+   "status": "verified",
+   "title": "A generated material map decodes and re-encodes byte for byte",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-terragen/tests/generated.rs::a_generated_terrain_reads_back_and_is_its_seeds"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-terragen/src/water.rs:7-23"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-OUT-3",
+   "status": "verified",
+   "title": "A generated water mesh reads in the Rust reader",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/terrain_corpus.rs::dice_terrains_round_trip"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/terrain_codec.rs:559-660"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-OUT-4",
+   "status": "verified",
+   "title": "The writer canary: DICE's 30 main blocks written again",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "terrain_edit.md section 5; XEXP-CHK-1; XNAV-BLD-1 - 4; NavKit's parity target (navkit.md)"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-OUT-5",
+   "status": "inferred",
+   "title": "The proof plan",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the verdicts from the rules cited per row; the order from the dependencies (writer, then drawing, then export, then content)"
+    }
+   ],
+   "file": "spec/transforms/terrain_gen.md",
+   "id": "TGEN-PLAN-1",
+   "status": "inferred",
+   "title": "Verdict per part, and rounds TG1 - TG5",
+   "variants": "PC"
+  }
+ ]
+}

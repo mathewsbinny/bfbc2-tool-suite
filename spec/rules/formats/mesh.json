@@ -1,0 +1,623 @@
+{
+ "about": "The rules of spec/formats/mesh.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:117-155"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_header_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_meshdata_native.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "2,255 distinct PC MeshData resources of the game copy parsed with this grammar, 0 failures (2026-11-19); 7,276 game MeshData and 2,571 Xbox 360 Onslaught MeshData parse (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:162-171"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:3158"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-HDR-1",
+   "status": "verified",
+   "title": "MeshData header",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "game copy 2026-11-19: every MeshData named `<set>_lod<i>_data.res` of 1,507 PC mesh sets: RigidMeshSet 1,505 LODs all 0, SkinnedMeshSet 378 all 1, CompositeMeshSet 471 all 2, TreeMeshSet 86 all 4; over 2,255 distinct MeshData: 0 x 1,451, 2 x 466, 1 x 255, 4 x 83"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 4,265 distinct MeshData: h0 0 x 2,610, 2 x 879, 1 x 618, 4 x 158; every mesh set LOD's MeshData has its set's kind (rigid 0, skinned 1, composite 2, tree 4)"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-HDR-2",
+   "status": "verified",
+   "title": "`h0` is the mesh kind",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:142-146"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_header_round_trip"
+    },
+    {
+     "kind": "data",
+     "ref": "2,255 of 2,255 distinct PC MeshData of the game copy (2026-11-19)"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-HDR-3",
+   "status": "verified",
+   "title": "The file is exactly header + V + I",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "wide = 0 and I even in 2,255 of 2,255 distinct PC MeshData (2026-11-19)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:192-194"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:197-198"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: wide = 0 and I even in 4,265 of 4,265 distinct PC MeshData"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-HDR-4",
+   "status": "verified",
+   "title": "PC MeshData use 16-bit indices",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:123-135"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_header_round_trip"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:166-167"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-PART-1",
+   "status": "verified",
+   "title": "Part record",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "7,191 of 7,191 parts of 2,255 distinct PC MeshData (2026-11-19)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:167"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 13,355 of 13,355 parts of 4,265 distinct PC MeshData"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-PART-2",
+   "status": "verified",
+   "title": "`fb` equals the bone count",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/skinmesh.rs:72"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:251"
+    },
+    {
+     "kind": "data",
+     "ref": "vertex offset a multiple of the stride in 7,058 of 7,191 PC parts, not in 133 (2026-11-19)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:173-181"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-PART-3",
+   "status": "implemented",
+   "title": "Vertex addressing",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "PC strides over 7,191 parts: 48 x 3,650, 16 x 1,817, 32 x 988, 64 x 546, 68 x 95, 72 x 65, 76 x 24, 80 x 6 (2026-11-19)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:88-98"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-PART-4",
+   "status": "observed",
+   "title": "Strides",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:100-130"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/meshconv.rs::strips"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_trees.py::quick"
+    },
+    {
+     "kind": "data",
+     "ref": "k = 3 in 7,191 of 7,191 PC parts (2026-11-19)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:173-181"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-PRIM-1",
+   "status": "verified",
+   "title": "Primitive type `k`",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:114-130"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/meshconv.rs::strips"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_trees.py::game"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:177-180"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-PRIM-2",
+   "status": "verified",
+   "title": "A strip as a list",
+   "variants": "BF1943, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:136-141"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_header_round_trip"
+    },
+    {
+     "kind": "data",
+     "ref": "2,255 PC MeshData: list 0 empty in 85, list 1 empty in 1,983, list 2 empty in 2,199, list 3 one entry in 1,951 (2026-11-19)"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-LIST-1",
+   "status": "verified",
+   "title": "The four part lists",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:170-198"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_header_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_meshdata_native.py::main"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-WRITE-1",
+   "status": "verified",
+   "title": "The PC writer",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mesh.rs:37-47"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:161-173"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::refuses_what_the_reference_does_not_convert"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:185-187"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-VTX-1",
+   "status": "verified",
+   "title": "Element formats",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/skinmesh.rs:40-54"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/meshconv.rs:132-150"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_converter_units.py::texcoords"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:187-190"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-VTX-2",
+   "status": "implemented",
+   "title": "Element usages",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's PC weapon meshes, recorded in the converter's format notes"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:191-192"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-VTX-3",
+   "status": "observed",
+   "title": "PC weapons",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mesh.rs:52-59"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mesh.rs:196-217"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::swaps_by_value_width"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-CONV-1",
+   "status": "verified",
+   "title": "Shared formats are byte-swapped per value",
+   "variants": "Xbox 360 -> PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mesh.rs:173-232"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::packed_normals_and_bytes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::halves_round_to_nearest_even_from_the_double"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-CONV-2",
+   "status": "verified",
+   "title": "Console-only formats decode to half4",
+   "variants": "Xbox 360 -> PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/mesh.rs:236"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/mesh_tests.rs::vertices_in_order_with_zeroed_gaps"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_mesh_decode.py::bfbc2_xbox"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:194-200"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/BENCHMARKS_ARCHIVE_1.md:766-767"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MESH-CONV-3",
+   "status": "verified",
+   "title": "Buffers and regions",
+   "variants": "Xbox 360 -> PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:277-351"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_sets_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_meshdata_native.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "1,428 distinct PC mesh sets of the game copy (1,006 rigid, 196 composite, 176 skinned, 50 tree) read to their last byte; a = 42 and z = 0 in all (2026-11-19)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:206-216"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-HDR-1",
+   "status": "verified",
+   "title": "Mesh set header",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:285-345"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_sets_round_trip"
+    },
+    {
+     "kind": "data",
+     "ref": "PC LODs 2026-11-19: x = 0 and extra = 0 in all 2,246; rigid flag 0 x 1,431 / 1 x 20, composite 0 x 370 / 1 x 95, tree 0 x 83; tree value 0 x 79 / 1 x 4"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:206-216"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-LOD-1",
+   "status": "verified",
+   "title": "LOD record",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "game copy 2026-11-19: 2,426 of 2,440 PC LODs with their MeshData (rigid 1,505 / 1,505, composite 471 / 471, tree 86 / 86, skinned 364 / 378 - 14 skinned LODs differ); all 2,463 Xbox 360 and 619 PC mp_common LODs (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:218-219"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 4,265 of 4,265 distinct mesh set LODs with their MeshData (rigid 2,610, composite 879, skinned 618, tree 158): no exception in DICE's files (the 14 skinned LODs of the 2026-11-19 count were not DICE's)"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-LOD-2",
+   "status": "verified",
+   "title": "A LOD's size is its MeshData's buffers + 12",
+   "variants": "PC, Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:278"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:296-302"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_meshdata_native.py::main"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:211"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-LOD-3",
+   "status": "verified",
+   "title": "The flag byte by game",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "n equals the part count in 2,440 of 2,440 PC LODs (2026-11-19)"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the Type 38 port kept a donor's shader names in the .res and drew with the donor's entry, though its partition named its own (OPFOR's 2026-11-08 weapon port notes)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: n equals the part count in 4,265 of 4,265 LODs"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-LOD-4",
+   "status": "verified",
+   "title": "Shader names per part",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "6,916 of 6,916 parts of the game copy's distinct PC composite (6,579) and tree (337) mesh sets (2026-11-19)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::meshes"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 10,894 of 10,894 parts of the distinct composite and tree mesh sets"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-PART-1",
+   "status": "verified",
+   "title": "Composite and tree part hashes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BFBC2's 92 PC tree mesh sets and BF1943's 13 (doc)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:221-223"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-PART-2",
+   "status": "observed",
+   "title": "A tree's parts are its levels",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/meshdata.rs:366-420"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/meshdata.rs::mesh_sets_round_trip"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_trees.py::game"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:219-223"
+    }
+   ],
+   "file": "spec/formats/mesh.md",
+   "id": "MSET-WRITE-1",
+   "status": "verified",
+   "title": "The PC writer",
+   "variants": "PC"
+  }
+ ]
+}

@@ -1,0 +1,462 @@
+{
+ "about": "The rules of spec/engine/persistence.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "FUN_00865D70 join; FUN_0085F7B0 stats defaults; 0x7E9960 stats constructor; 0x8639D0 Unlocks::compute"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:1-13"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:47-64"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-JOIN-1",
+   "status": "observed",
+   "title": "The join makes a stats object and asks EA for its values",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "FUN_0086BEB0 stats handler; Unlocks manager +0x12F8 buckets, +0x1324 / +0x1328 rank table"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:60-64"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:248-265"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-UNLK-1",
+   "status": "observed",
+   "title": "Unlocks come from kit score buckets and the rank table",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x8527D0 Unlocks::applyLicenses"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:345-356"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-LIC-1",
+   "status": "observed",
+   "title": "Licence items are added after the computation",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "FUN_0084CB90 stats finalize; listener global 0x01566B68 (server singleton 0x01566B18 + 0x50), slot +0x20"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:120-130"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-SAVE-1",
+   "status": "observed",
+   "title": "The round's stats are committed through the stats listener",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:104-119"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:210-215"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:15-20"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-OPF-1",
+   "status": "implemented",
+   "title": "Local stats in game\\stats.txt drive the game's own computation",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:348-357"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:401-410"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-OPF-2",
+   "status": "implemented",
+   "title": "Licence items: none on stock levels, Vietnam's on Vietnam, all on WW2 levels",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x53F430 client count; the five tests as listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/patches.cpp:115-123"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-OPF-3",
+   "status": "observed",
+   "title": "Kills of bots score nothing offline",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's reads of DICE's two start-up bundles, 2026-11-22: class counts per partition as listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:170-179"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-DATA-1",
+   "status": "observed",
+   "title": "The persistence and award partitions",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of the patched MP_Template, 2026-11-22: the fields and counts listed"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-DATA-2",
+   "status": "observed",
+   "title": "PersistenceData roots the career; value templates say how a stat is written",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of the patched and Dist Weapons / Specializations, 2026-11-22: the values listed"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence_rules.h:10-21"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-DATA-3",
+   "status": "observed",
+   "title": "Unlock items take their bit by order",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of PointSystemParams in both start-up bundles, 2026-11-22"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_model.h:120-136"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_screens.cpp:172-179"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-RANK-1",
+   "status": "observed",
+   "title": "BFBC2's 50 ranks are inline in PointSystemParams",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of MP_Awards / Ons_Awards in both start-up bundles, 2026-11-22: the splits listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:189-211"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-1",
+   "status": "observed",
+   "title": "BFBC2's awards: stars, insignias, pins and achievements",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "round SPG2's read of the patched MP_Awards, 2026-11-22: 440 criteria as listed"
+    },
+    {
+     "kind": "exe",
+     "ref": "0x843310 the stat-name builder; 0x924070 the proficiency level"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/stats_model.h:55-81"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-2",
+   "status": "observed",
+   "title": "Criteria count stat events over a scope",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:270-290"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG2's read: BFBC2's PointSystemParams has 4 instances, no rank instances; BF1943's table (awards.json) 92 flat PointsFor* / StringFor* keys"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-3",
+   "status": "observed",
+   "title": "BFBC2's award data descends from BF1943's",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x86B4B4 (`push 0x1454`, then 0x86A660(server +0x2C, +0xC, byte +0x1E)); 0x86A660 (+0xC the flag; 0x86A796 call 0x86A0F0); 0x86A0F0 (\"Persistence/MP_Awards\" 0x1433BFC, \"Persistence/SP_Awards\" 0x1433C14 by the flag; 0x869360); 0x869360 (0x863E70 collects the awards, hash by id, 0x8669B0 per criterion: criterion +0xC key, +0x14 flag); 0x8584D0 (listener lookup 0x844410 by (player, event), call vtable +4); callers of 0x8584D0: 0x85A030, 0x8684F0, 0x86DC90"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-4",
+   "status": "observed",
+   "title": "The award tree is loaded at every level start and driven by the per-player stat events",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x865DE8 (0x85AED0 with the player id, the stats from 0x85F7B0 and the record object); 0x85AED0 (`push 0xBD4`, 0x8531B0, insert 0x854A40 at +0x20); 0x8531B0 (vtable 0x1433780, +0x08, +0xBD0, 0x68 lists from +0x74 at 0x853210 - 0x853227); handler 0x85F530 (0x83C170, criterion vtable +0x0C / +0x14 / +0x08 at 0x85F5EB - 0x85F604; 0x852CB0 at 0x85F671, 0x853240 at 0x85F67F; scopes 2 / 0x51 -> 0x85F3E0 at 0x85F769 - 0x85F777); grant 0x852CB0 (\"%s_00\" 0x141D918, \"%s_01\" 0x14333AC with the data's Code +0x90; 0x7D26C0 at 0x85306E and 0x8530B6; 86,400.0 at 0x141DA20; 0x50ED90(2008, 1, 1) into 0x15714C0; Repeat +0x30 through the table 0x853170, MaxRepetitions +0x3C at 0x8530F5; the dependents 0x853124 - 0x85315C); AwardData field descriptors 0x1C32170 - 0x1C322F0 (Code +0x90, Repeat +0x30, MaxRepetitions +0x3C); AwardType 0x1C31D38 - 0x1C31D80"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-5",
+   "status": "observed",
+   "title": "One award listener per player; a finished award is written into a stats object as two values",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::persistence"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/persistence.py, round SPG2-rest5 2026-11-27: CriteriaType over DICE's MP_Awards (GLOBAL 315, IAR 47, IAS 6) and SP_Awards (GLOBAL 30, IAR 40), Dist/win32/async/startup-00.fbrb"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the parking after a grant 0x853240 (called at 0x85F67F; off the event map 0x853270 - 0x8532D1 with 0x8493E0; CriteriaType at criterion +0x10 through the tables 0x853360 / 0x853374: 0 -> +0x28 / +0x4C, 1 -> +0x40 / +0x64, 4 -> +0x34 / +0x58, 2 and 3 none; the append 0x85331E - 0x853355); the reset 0x85F3E0 (the parked lists by the table 0x85F504, each back into its event map by 0x85F330 (lookup 0x844CB0, insert 0x85B610), the type's list by 0x85F518, the parked nodes freed 0x85F4B0 - 0x85F4C6); its callers 0x85F777 (events 2 and 0x51, type 1), 0x86196E (type 0), 0x861A4A (type 1); the listener's vtable 0x1433780 (+0 0x8618B0, +4 0x85F530); CriteriaType's records 0x1C03364"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe round SPG2-rest6: StatEvent's field descriptors (its record 0x1C03348, the table 0x1C312E8: 105 values, 2 `StatEvent_DeathAs_X_By_Y`, 0x51 `StatEvent_Suicide`); the kill handler 0x86DC90's calls of 0x8584D0 with the pushes 0x86DF3E (0), 0x86DF6E (0xB), 0x86DFA5 (2), 0x86DFD9 (0xD), 0x86E07C (1), 0x86E0D5 (0xC), 0x86E135 (3), 0x86E18E (0xE), 0x86E2D2 (0x51; the branch 0x86DECC - 0x86DEDC, the flag 0x86E2AF)"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-6",
+   "status": "observed",
+   "title": "A criterion's CriteriaType decides when its progress is reset",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::persistence"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/persistence.py, round SPG2-rest6 2026-11-27: the factory's type tests and the seven constructors' vtable stores read from the executable; the ownerless met slot's bytes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe factory 0x8430E0 (`cmp esi, 2` 0x8430E5, `test esi, esi` 0x843163, `cmp esi, 3` 0x8431BD, 0x24 bytes from 0x420DB0; the stores 0x843142, 0x83BE59, 0x83BECF, 0x83BF39, 0x83C09F, 0x83BFAF, 0x83C029); its callers 0x863E2A (in 0x863DB0, per award, from 0x866E78), 0x861BBA, 0x8617D0, 0x8489C6; the arming 0x8618D0 (slot +0x18 with the stats 0x8618E6, slot +0x08 0x8618EF, the events of +0x04 or 0x157146C into 0x85F330 0x861903 - 0x86192F, the type's list 0x861940 - 0x861956); the slots 0x83B8C0, 0x83BE70, 0x83B8F0, 0x83B910, 0x83BEE0, 0x83C0E0, 0x83B920, 0x83B7D0, 0x83C0B0"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-8",
+   "status": "verified",
+   "title": "The award listener makes one criterion object per award criterion, its class by CriteriaType",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::persistence"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/persistence.py, round SPG2-rest5 2026-11-27: DICE's Dist/win32/async/startup-00.fbrb (2010): MP 384 awards, 380 codes, 380 / 380 with _00 / _01 in Final; SP 73 awards, 70 codes, 70 / 70; the game copy's patched Package set (rewritten by OPFOR's install) 446 / 446 of 446 codes"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the grant's formats \"%s_00\" 0x141D918 and \"%s_01\" 0x14333AC (probe-checked)"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-AWD-7",
+   "status": "verified",
+   "title": "Every award code's two stats are Final value templates",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "0x86DD97 the scoring-flag test in 0x86DC90; 0x7D27A0 the stats add; 0x86DCAE (null victim), 0x86C12D (AI killer), 0x865D7F (no record for an AI player), 0x86A7EE (no award to an AI player)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:371-377"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-SCORE-1",
+   "status": "observed",
+   "title": "With the scoring patch, bots' deaths are scored in the round",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe record constructor 0x862A90 (+0x24 = 0 at 0x862ABF; 0x570 bytes from 0x8634E0 at 0x863560); 0x866240 (`mov [eax+0x24"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/persistence.cpp:269-277"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy's stats.txt and opfor.log, 2026-11-23: saves after the scoring patch name no kills, deaths or score (the file holds two sc_* values whose origin the log does not show); MP_Template (startup-00): kills, deaths, teamkills Increment / Checkpoint, score a derived template, all in PersistenceData.Final (1,756)"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-SCORE-2",
+   "status": "observed",
+   "title": "The round's scoring writes through the scoring record's stats pointer, which only EA's answer sets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_awards.py::test_the_table_is_bf1943s_set"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_awards.py:154-211"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-WW2-1",
+   "status": "verified",
+   "title": "BF1943's award set as OPFOR's table holds it",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_awards.py::test_the_table_is_bf1943s_set"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_awards.py:212-225"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:129-148"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-WW2-2",
+   "status": "verified",
+   "title": "BF1943's ranks, point scale and dog tags",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "opfor:src/tools/tests/test_ww2_awards.py::test_members_map_onto_opfor_names_and_leave_the_tutorial_out"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/ww2_awards.py:50-97"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-WW2-3",
+   "status": "verified",
+   "title": "BF1943's categories map onto OPFOR's weapons and kits",
+   "variants": "BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/gamemode_rules.h:134-139"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_AWARDS_COMPARISON_2026-11-15.md:62-63"
+    }
+   ],
+   "file": "spec/engine/persistence.md",
+   "id": "PERS-WW2-4",
+   "status": "implemented",
+   "title": "The award stings on Pacific levels",
+   "variants": "PC, BF1943"
+  }
+ ]
+}

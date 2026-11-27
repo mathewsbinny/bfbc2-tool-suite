@@ -1,0 +1,189 @@
+{
+ "about": "The rules of spec/formats/res.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "444,286 live entries of 1,086 bundles grouped by type and extension (round SP1 survey)"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/fbrb/header.rs:20-21"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::fbrb_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: 392,246 live entries: 37 types (`<non-resource>` on .dbx 124,458, .res 14,694, .dbmanifest 2; every other type on .res only)"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-TYPE-1",
+   "status": "verified",
+   "title": "Resource types",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/texqa/run.rs:263-277"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-tools/src/fbrbtool.rs:901-906"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the type catalogue's layouts (texture, mesh, Havok, Wave ...) begin with counts and sizes, not identifiers; only the Havok packfile inside its wrapper, the BIGF archive of a SwfMovie and the RES wrapper have magic numbers"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-TYPE-2",
+   "status": "implemented",
+   "title": "A resource's kind is its entry type, not its bytes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:14"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:79"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:162"
+    },
+    {
+     "kind": "data",
+     "ref": "358 HavokPhysicsData resources shared by the console's and the PC's bundles: same size, byte order the only difference (FORMAT.md 1.3)"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-TYPE-3",
+   "status": "observed",
+   "title": "Byte order follows the platform",
+   "variants": "PC, Xbox 360, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "146 `_HavokAsset.dbx` entries of the Dist level bundles, each with a `_HavokAsset.res` of the same stem (model/bundles.md)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:162"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-NAME-1",
+   "status": "observed",
+   "title": "A resource sits beside its asset"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "Dist streaming_vo_en 7,513, streaming_sounds 4,744; Package streaming_vo_en 1,482, streaming_sounds 955; overlay 25 `.bin`; build_overlay 1 `.dbmanifest` in Dist and 1 in Package"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::res_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: the non-DBX `<non-resource>` entries: streaming_sounds 5,699 and streaming_vo_en 8,995 `.res` under sound/, build_overlay 2 `.dbmanifest` (DICE's overlay bundles are OPFOR-changed, not in this corpus)"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-NAME-2",
+   "status": "verified",
+   "title": "Resources typed `<non-resource>`"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/awards.rs:41-55"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/texqa.rs:387-393"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/catalog.rs::a_texture_decoded"
+    },
+    {
+     "kind": "data",
+     "ref": "1,403 wrapped entries: all version 2, the type name equal to the entry type and zero-padded, both length words equal to size - 64; 1,293 of them (all of DICE's) with size2 = size - 64"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-WRAP-1",
+   "status": "verified",
+   "title": "The 64-byte RES header",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "wrapped: Dist ondemand_awards 889, Package ondemand_awards 295, Dist ondemand_sounds 205, Package ondemand_sounds 14; every `.res` / `.bin` entry of the 1,086 bundles checked, no other begins with `RES`"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::res_entries"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: wrapped: ITexture in ondemand_awards 889, Wave in ondemand_sounds 219; no other `.res` / `.bin` entry begins with `RES`"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-WRAP-2",
+   "status": "verified",
+   "title": "Only the async on-demand bundles wrap",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-editor/src/catalog.rs:185-190"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/awards.rs:58-64"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/texqa/run.rs:268-271"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-editor/src/catalog.rs::a_texture_decoded"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form"
+    }
+   ],
+   "file": "spec/formats/res.md",
+   "id": "RES-WRAP-3",
+   "status": "verified",
+   "title": "Readers strip it, writers of on-demand entries add it"
+  }
+ ]
+}

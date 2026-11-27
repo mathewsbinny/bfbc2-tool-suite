@@ -1,0 +1,349 @@
+{
+ "about": "The rules of spec/engine/audio.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's data: all 75 stock waves in Wake Island's bundle and all 793 waves BFBC2 and BF1943 both ship: IsStreaming true exactly when the audio is streamed; five OPFOR-converted ambiences broke it (in-memory audio, flag true)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:148-156"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-WAVE-1",
+   "status": "observed",
+   "title": "IsStreaming says where the audio is",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "PC loop segments: 34,038 streamed stubs, all voice-over among them (WAVE-SEG-2); SP_01's Japanese chatter: stubs in mp_common's vo/<lang> bundles, data in streaming_sounds-00"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:199-200"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_SHADER_AUDIO_AUDIT.md:170"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-WAVE-2",
+   "status": "observed",
+   "title": "Streamed audio is the global streaming bundles' alone",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x49EDF4, the loader reading streamed wave data as a partition"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:193-197"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2682-2687"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2759-2764"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/export.rs::streamed_waves_named"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-STRM-1",
+   "status": "observed",
+   "title": "Streaming wave data in a level bundle crashes the load (0x49EDF4)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island install: copied on-demand waves of mp_common resolved to a null wave on the client; the unwrapped copies play"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:193-206"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-OD-1",
+   "status": "observed",
+   "title": "On-demand waves play only from their own bundle's partitions",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island: with sp_common in its targets (as the Onslaught ports had) the client set up sp_common's AI XM8 burst, whose waves nam_common's deleted markers hide, and crashed (SND-NULL-1); without sp_common it loads"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:98-101"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-LOAD-1",
+   "status": "observed",
+   "title": "The client sets up the sounds of every bundle a level loads",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0xFF2AC2, client sound set-up"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:98-101"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_install.py:147-149"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:1146-1148"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1369"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-NULL-1",
+   "status": "observed",
+   "title": "A null wave in a sampler crashes the client (0xFF2AC2)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "BF1943's single trigger set ported to Wake Island: 74 events over 22 event types; Vietnam kits list a class person and a nation person; SP_01's Japanese chatter set has 15 event types"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/profile.rs:57-67"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:137-142"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:179-186"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-VO-1",
+   "status": "observed",
+   "title": "Lines, banks and trigger sets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/profile.rs:68-81"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1079-1087"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-VO-2",
+   "status": "verified",
+   "title": "Each content set's announcer",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:245-257"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1096-1107"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-VO-3",
+   "status": "verified",
+   "title": "Voice-over blocks: absent sources, present targets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1795-1806"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:2836-2847"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1231-1235"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-VO-4",
+   "status": "verified",
+   "title": "A level's own banks shadow the commons'",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the stock multiplayer levels' own bundles: deleted markers over other modes' trigger sets among their markers; OPFOR's mp_001 holds two Squad Deathmatch trigger sets in its Package bundle"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1089-1094"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-VO-5",
+   "status": "observed",
+   "title": "Level bundles hide other modes' trigger sets",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe enum table 0x01C33688 (125 entries, ETNone 124); VOEventType TypeInfo 0x01C047BC; VOEvent TypeInfo 0x01C04C54, EventType +0x1C, PauseTime +0x18, Rows +0x20"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:9-28"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_LOADING_SCREENS_VO_RESEARCH_2026-11-14.md:150-155"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-EVT-1",
+   "status": "observed",
+   "title": "The event enum",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe raise 0x637770 (ret 0x14), constructor 0x633330 (0x60 bytes), server system [0x01566B6C"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:30-66"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-EVT-2",
+   "status": "observed",
+   "title": "Two voice-over systems, one raise",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe matcher 0x636010 (ret 0x10, returns the matched row count), play path 0x637380, sink 0x636C80"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:43-48"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:126"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-EVT-3",
+   "status": "observed",
+   "title": "Matching by type, throttled by PauseTime",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe client: capture point 0x8C7190, ticket counter 0x8E9AF0, message handler 0x800CF0, focus points 0x76E430; server: round end 0x67E3F0, kill scoring 0x86C070, message handler 0x5756A0, 0x5ACA80"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VO_EVENTS_RE_2026-11-14.md:61-89"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-EVT-4",
+   "status": "observed",
+   "title": "Which side raises which event",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "DICE's stock vehicles (the M151, the Mi-24) and BF1943's: the same fields in both games; DICE's sp_01 Type 97: three null engine fields"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_VEHICLE_SOUNDS_AUDIT_2026-11-15.md:149-155"
+    }
+   ],
+   "file": "spec/engine/audio.md",
+   "id": "SND-VEH-1",
+   "status": "observed",
+   "title": "Where a vehicle's sounds are named",
+   "variants": "PC, BF1943"
+  }
+ ]
+}

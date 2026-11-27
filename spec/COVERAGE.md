@@ -3,7 +3,7 @@
 Which of BFBC2's systems the specification covers, which tools and rounds touch each one (now or queued in
 `ROADMAP.md`, and Project OPFOR BFBC2's WW2 / Onslaught pipeline and game module), and where the gaps are. Written by
 round SPG (2026-11-22); keep it current when a round adds a spec file or a system gains a tool. Rule counts are
-`rules.json`'s after SPG (`python spec/trace.py --coverage` for the live numbers). Section 4 is round SPV1's
+`rules.json`'s after SPG (the index, split into `rules/` by round SPLIT1 on 2026-11-27) (`python spec/trace.py --coverage` for the live numbers). Section 4 is round SPV1's
 verification census: every file's statuses before and after it, and what would verify each rule still observed.
 
 **Status.** **covered**: the system's data and the engine's use of it are specified to the depth the planned work

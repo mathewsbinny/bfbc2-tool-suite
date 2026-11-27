@@ -1,0 +1,181 @@
+{
+ "about": "The rules of spec/formats/collision.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/collision.rs:113-138"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/src/collision.rs::index_and_aliases"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_geometry_native.py::main"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: 592 packfiles indexed; the same index as NavKit's reference on all 37 prepared levels"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-IDX-1",
+   "status": "verified",
+   "title": "A blueprint's physics resource is named after it"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/collision.rs:129-135"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/src/collision.rs::index_and_aliases"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 4 `_Havok_Havok.res` resources (an animated aircraft door, a wall)"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-IDX-2",
+   "status": "verified",
+   "title": "A doubled suffix names the same blueprint"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/collision.rs:96-110"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/collision.rs:212-225"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/collision.rs:282-290"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/src/collision.rs::mesh_suffixes"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/src/collision.rs::index_and_aliases"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005: 953 aliases, the same table and order as the reference on all 37 prepared levels"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-ALIAS-1",
+   "status": "verified",
+   "title": "Mesh aliases"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/collision.rs:229-241"
+    },
+    {
+     "kind": "data",
+     "ref": "MP_005's `emitter_sw_meshparticle_tow_01`: an empty deleted marker with a left-over XML naming a Mesh"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-ALIAS-2",
+   "status": "observed",
+   "title": "A deleted partition can leave a stale Mesh"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:534-580"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/tests/scene.rs::loads_a_level"
+    },
+    {
+     "kind": "data",
+     "ref": "game copy: 529 `_HavokAsset.res` resources, all in the material-table form"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-MG-1",
+   "status": "verified",
+   "title": "A model group's members share one resource"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "model-group set-up dereferences the reference, crash at 0x00AF7144"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:166-169"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-MG-2",
+   "status": "observed",
+   "title": "Model groups must name their physics"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:171-172"
+    },
+    {
+     "kind": "inferred",
+     "ref": "the level loader walks the Objects list (0x006EFBC0) and loads nothing it does not list"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-MG-3",
+   "status": "inferred",
+   "title": "Model groups must be in the level's Objects"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "no HavokPhysicsData names a terrain; DbxEdit's check exempts terrain from the PhysicsData rule because its collision comes from elsewhere; the in-game samples match the height field (TERR-HF-3)"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_terrain.py::check"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-TERR-1",
+   "status": "inferred",
+   "title": "Terrain collision is the height field"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/water.rs:128-151"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_water.py::main"
+    }
+   ],
+   "file": "spec/formats/collision.md",
+   "id": "COLL-WATER-1",
+   "status": "implemented",
+   "title": "Water surfaces are the WaterMesh"
+  }
+ ]
+}

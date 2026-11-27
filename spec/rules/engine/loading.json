@@ -1,0 +1,308 @@
+{
+ "about": "The rules of spec/engine/loading.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe Session::updateState 0x56A6D0, Session::setState 0x557150; state sequences logged at run time, 2026-10-12 to 10-19"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:102-106"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:272-275"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PH-1",
+   "status": "observed",
+   "title": "A level loads in session states, and a crash's state places it",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe server level load 0x85F8A0 -> 0x574FB0 (strings \"Init AI\", \"Spawn entities\", \"Load save game\")"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:99"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:14"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PH-2",
+   "status": "observed",
+   "title": "The server's level load: AI, entities, save game",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:351-358"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:3111-3470"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:848-852"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:655-659"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-START-1",
+   "status": "implemented",
+   "title": "The startup bundle describes every level before any loads"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x74EAB3, Coral Sea's load, play test 2026-11-14"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/ww2/wake_install.py:2675-2676"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_PORT_PLAN.md:418-420"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-START-2",
+   "status": "observed",
+   "title": "A game mode the description names must be in the startup bundle",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe FUN_006EFBC0; faults at 0x6EFF8A (entry) and 0x6EFCA4 (blueprint); the loop's index at [esp+18h"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:513-521"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:275-277"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_ambience.py:209-212"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:21-22"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-CSUM-1",
+   "status": "observed",
+   "title": "Md5Buffer: an MD5 pass over the level's Objects",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:317-343"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::cases"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/tests/test_crashreader.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-CSUM-2",
+   "status": "verified",
+   "title": "The suite's checks catch both checksum defects before a launch"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe partition load 0x4AAB60 -> stream parse 0x4A3390 -> 0x49EDF0, fault at 0x49EDF4 (state 4)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:272-275"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-install/src/levelbuild/index.rs:156-182"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PART-1",
+   "status": "observed",
+   "title": "A partition that does not parse is a null the loader passes on (0x49EDF4)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reference reader 0x4EB4B0, fault at 0x4EB538 (crash reports of the Valparaiso / Nelson Bay Onslaught ports, 2026-10-30)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:184-189"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:575-576"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1270"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PART-2",
+   "status": "observed",
+   "title": "A reference element must carry its target (0x4EB538)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x5A5A00, fault at 0x5A5A61 on a null asset pointer (Valparaiso Onslaught load test, 2026-10-30)"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:249-251"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:186-191"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/onslaught/console_vehicles.py:8"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/onslaught/console_loadset.py:18-20"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PART-3",
+   "status": "observed",
+   "title": "An object's asset is read without a check (0x5A5A61)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe voice-over walk 0x6EA340 (ReferenceObjectData type 0x1C11E64), fault at 0x6EA3F0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:378-381"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:577-578"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:336-338"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PART-4",
+   "status": "observed",
+   "title": "The voice-over set-up walks each kit's objects (0x6EA3F0)",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x6F2310 material grid set-up (a hang, recorded in the crash reader's symbol table)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:23"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PART-5",
+   "status": "observed",
+   "title": "A level's sub-files must be its own",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe ServerTerrainEntity query 0x5AC3F0 (recorded in the crash reader's symbol table)"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:17"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-PART-6",
+   "status": "observed",
+   "title": "The server needs the level's server-side terrain",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe model-group construction 0x8FC260, part data 0xAF7140 / fault 0xAF7144; part bitset fault 0xAB4E58 (0x62E740's loop); static group part set-up 0x8F4720"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/dll/levelfix.cpp:524"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_NAPISAL_RESEARCH.md:278-280"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-automated-map-and-bot-test-harness/crash-reader/symbols_795745.txt:30-31"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:1535-1537"
+    }
+   ],
+   "file": "spec/engine/loading.md",
+   "id": "LOAD-MG-1",
+   "status": "observed",
+   "title": "Model groups are constructed with their members' physics",
+   "variants": "PC"
+  }
+ ]
+}

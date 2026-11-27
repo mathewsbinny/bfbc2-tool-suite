@@ -1,0 +1,260 @@
+{
+ "about": "The rules of spec/engine/typeinfo/modules.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Entity 74 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-ENT-1",
+   "status": "verified",
+   "title": "`Entity`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Aidll 24 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-AI-1",
+   "status": "verified",
+   "title": "`Aidll`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Game 12 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-GAME-1",
+   "status": "verified",
+   "title": "`Game`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Scene 5, World 3 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-SCENE-1",
+   "status": "verified",
+   "title": "`Scene` and `World`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Physics 85 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-PHYS-1",
+   "status": "verified",
+   "title": "`Physics`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Animation 124 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-ANIM-1",
+   "status": "verified",
+   "title": "`Animation`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Audio 125 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-AUDIO-1",
+   "status": "verified",
+   "title": "`Audio`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Render 128 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-REND-1",
+   "status": "verified",
+   "title": "`Render`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: WorldRender 30 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-WREND-1",
+   "status": "verified",
+   "title": "`WorldRender`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Emitter 76, EmitterRender 3 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-EMIT-1",
+   "status": "verified",
+   "title": "`Emitter` and `EmitterRender`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Decal 10 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-DECAL-1",
+   "status": "verified",
+   "title": "`Decal`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Terrain 34, TerrainRender 8 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-TERR-1",
+   "status": "verified",
+   "title": "`Terrain` and `TerrainRender`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Overgrowth 2, OvergrowthRender 2 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-OVG-1",
+   "status": "verified",
+   "title": "`Overgrowth` and `OvergrowthRender`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: Weather 31 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-WEATH-1",
+   "status": "verified",
+   "title": "`Weather`",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::typeinfo"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/typeinfo.json, 2026-11-27: UI 45 records"
+    }
+   ],
+   "file": "spec/engine/typeinfo/modules.md",
+   "id": "RTTI-UI-1",
+   "status": "verified",
+   "title": "`UI`",
+   "variants": "PC"
+  }
+ ]
+}

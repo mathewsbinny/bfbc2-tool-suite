@@ -1,0 +1,401 @@
+{
+ "about": "The rules of spec/model/references.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 3,916,899 instance and 120,466 partition guid and primaryInstance attributes, all 36-character upper-case GUIDs"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 2,313,497 instance and 79,526 partition guid attributes all 36-character GUIDs, all upper case; primaryInstance upper case on the 25,565 partitions of the mp_0* bundles checked"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-GUID-1",
+   "status": "verified",
+   "title": "GUID text form"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: a duplicate instance GUID in 0 of 120,466 partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: duplicate instance GUIDs in 0 of 79,526 partitions"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-GUID-2",
+   "status": "verified",
+   "title": "Unique within a partition"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus, one copy per partition name (84,143 names): 563,963 distinct instance GUIDs, 125,465 of them in more than one partition name; 27,853 distinct partition GUIDs, 2,049 of them on partitions of different names"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus, one copy per partition name: 439,450 distinct instance GUIDs, 79,802 of them in more than one partition name; 1,567 partition GUIDs shared by partitions of different names"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-GUID-3",
+   "status": "verified",
+   "title": "Not unique across partitions"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbx/model.rs:185-190"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:59-61"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1403-1408"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/dbx/model.rs::lookups"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-GUID-4",
+   "status": "implemented",
+   "title": "GUIDs compare without case"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/guid.rs:17-41"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:499-525"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/guid.rs::python_uuid5"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-GUID-5",
+   "status": "verified",
+   "title": "New GUIDs the suite makes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: primaryInstance names an instance in 120,464 of 120,466 partitions; the first instance in 46,148, a later one in 74,316"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: primaryInstance names an instance of the file in 79,524 of 79,526 partitions; it is the first instance in 30,958, a later one in 48,566"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-PRIM-1",
+   "status": "verified",
+   "title": "Every partition names its primary instance"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 2 partitions, primaryInstance unmatched, no id attribute"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 2 partitions, primaryInstance unmatched, no id attribute in either"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-PRIM-2",
+   "status": "verified",
+   "title": "Two partitions name no instance"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: id on 120,464 instances, once per partition, always the primary instance; equal to the entry's stem in 50,634, ignoring case in 69,830, other 0"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: id on 79,524 instances, 1 per partition, always the primary instance; equal to the entry's stem in 33,062, equal ignoring case in 46,462, other 0"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "INST-PRIM-3",
+   "status": "verified",
+   "title": "The id attribute marks the primary instance"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1389-1401"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:310-316"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 5,907,174 field and 2,015,781 item elements with ref, all kind 2 with empty text"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-FORM-1",
+   "status": "implemented",
+   "title": "References are `ref` attributes"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/spec_corpus.rs::instances_and_references"
+    },
+    {
+     "kind": "data",
+     "ref": "DICE's bundles of the game copy (dated before 2013: 1,021), round SPV1 2026-11-22: level corpus: 6,383,103 local (lower case), 5,535,169 null, 1,646,007 external (lower-case paths ending in a GUID), 0 other"
+    },
+    {
+     "kind": "data",
+     "ref": "level corpus: 3,836,345 local (all lower case), 3,286,524 null, 800,086 external (all lower-case paths, each ending in a 36-character GUID), 0 other"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-FORM-2",
+   "status": "verified",
+   "title": "Three forms"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:315"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:345-347"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1591-1603"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::cases"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-FORM-3",
+   "status": "implemented",
+   "title": "Telling local from external"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1610-1615"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:674-710"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-FORM-4",
+   "status": "implemented",
+   "title": "The partition path is the entry name"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:333-343"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::cases"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-RES-1",
+   "status": "verified",
+   "title": "Local references resolve in the partition"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1572-1631"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:254-273"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:892-896"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-RES-2",
+   "status": "verified",
+   "title": "External references resolve through the bundle stack"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "level corpus: 89,974 external references name a partition path outside the 41 level bundles (they may resolve in ingame, loader, startup or async bundles, or nowhere); SP_01 export: 2 partitions no bundle of the game copy has, both named by DICE's own source"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/export.rs:1631-1671"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:894-896"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-RES-3",
+   "status": "observed",
+   "title": "Stock data has dangling external references"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:674-725"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-scene/src/scene.rs:559"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-scene/tests/scene.rs::loads_a_level"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-RES-4",
+   "status": "implemented",
+   "title": "Two-step blueprint references"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x6EFCA4, null blueprint read in the level checksum"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/closure.rs:167-177"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-map-editor/EDITOR_ARCHITECTURE.md:93-94"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-RES-5",
+   "status": "observed",
+   "title": "A blueprint that resolves nowhere crashes the checksum"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/editor.rs:59-94"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/write.rs:225-244"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/src/write.rs::move_delete_duplicate_set"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::cases"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-dbx-tools/FORMAT.md:95-98"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-DEL-1",
+   "status": "verified",
+   "title": "DbxEdit's drop"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/dbxedit/check.rs:317-331"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_dbxedit.py::cases"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x006EFBC0 reads Objects, faults at 0x006EFF8A; 0x00AF7144 model-group set-up"
+    }
+   ],
+   "file": "spec/model/references.md",
+   "id": "REF-DEL-2",
+   "status": "verified",
+   "title": "A null in a list the game reads unchecked crashes"
+  }
+ ]
+}

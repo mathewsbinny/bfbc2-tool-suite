@@ -1,0 +1,113 @@
+{
+ "about": "The rules of spec/formats/stfs.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/stfs.rs::reads_a_package"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/stfs.rs::refusals"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-readers/tests/test_console_readers.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/stfs.rs:150-176"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/stfs/stfs.py:7-16"
+    }
+   ],
+   "file": "spec/formats/stfs.md",
+   "id": "STFS-HDR-1",
+   "status": "verified",
+   "title": "Header fields the reader uses",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/stfs.rs::reads_a_package"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-readers/tests/test_console_readers_native.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/stfs.rs:196-231"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/stfs.rs:239-255"
+    }
+   ],
+   "file": "spec/formats/stfs.md",
+   "id": "STFS-BLK-1",
+   "status": "verified",
+   "title": "Data blocks and interleaved hash tables",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/stfs.rs::reads_a_package"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/stfs.rs:233-260"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/stfs.rs:262-273"
+    }
+   ],
+   "file": "spec/formats/stfs.md",
+   "id": "STFS-HASH-1",
+   "status": "verified",
+   "title": "Hash entries chain fragmented files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "the 3 BFBC2 Xbox 360 update packages (2,533 MB, every entry read) and the 4 built packages, plus 1,500 damaged ones, give the reference's entries and bytes (BENCHMARKS F0)"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/stfs.rs::reads_a_package"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/stfs.rs::names"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-readers/tests/test_console_readers_native.py::main"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/stfs.rs:275-310"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-readers/stfs/stfs.py:14-16"
+    }
+   ],
+   "file": "spec/formats/stfs.md",
+   "id": "STFS-FT-1",
+   "status": "verified",
+   "title": "File table entries",
+   "variants": "Xbox 360"
+  }
+ ]
+}

@@ -1,0 +1,77 @@
+{
+ "about": "The rules of spec/engine/text.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings UIFontStyle_Regular, UIFontStyle_Bold, UIFontEffect_None, UIFontEffect_Glow, UIFontMapProxy, loadEulaFonts, unloadEulaFonts, unloadStoreFonts, CreateFontIndirectA"
+    }
+   ],
+   "file": "spec/engine/text.md",
+   "id": "TEXT-FONT-1",
+   "status": "verified",
+   "title": "Fonts are pre-rendered glyph sheets per language, size and style",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/text.md",
+   "id": "TEXT-DB-1",
+   "status": "verified",
+   "title": "The text databases and the localization asset",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: UITextureAtlasData 52"
+    }
+   ],
+   "file": "spec/engine/text.md",
+   "id": "TEXT-ATL-1",
+   "status": "verified",
+   "title": "UI texture atlases",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above; LevelData member SubtitleAsset; CutsceneEntityData member Subtitle"
+    }
+   ],
+   "file": "spec/engine/text.md",
+   "id": "TEXT-SUB-1",
+   "status": "verified",
+   "title": "Subtitles map a voice line's wave to timed strings, per language",
+   "variants": "PC"
+  }
+ ]
+}

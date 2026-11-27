@@ -1,0 +1,77 @@
+{
+ "about": "The rules of spec/engine/squads.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json (DICE's partitions, round SPG4, 2026-11-23): the classes above"
+    }
+   ],
+   "file": "spec/engine/squads.md",
+   "id": "SQD-TEAM-1",
+   "status": "verified",
+   "title": "A team is a faction with its kits and player caps",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::census"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: the classes above"
+    }
+   ],
+   "file": "spec/engine/squads.md",
+   "id": "SQD-SQ-1",
+   "status": "verified",
+   "title": "Squad types, formations and the campaign's squad ghosts",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe strings joinSquad, leaveSquad, doJoinSquad, autojoinSquad, isSquadLeader, makeSquadLeader, selectSquadSpawn, SetBestSquadSpawner, SquadSpawnRadius, SquadSpawnCamera, TextChatGroup_Squad, VoiceChannel_Squad, SquadReviveScore, SquadAttackOrderScore, SquadDefendOrderScore, StatEvent_SquadSpawn, SquadManagerEntityData, SquadEntityData, JoinSquadOrderEntityData"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/census.json, 2026-11-23: no DBX class for the players' squads: the six Squad classes with instances (SquadAsset, SquadData, SquadTypeData, SquadEntityData, SquadGhostEntityData, JoinSquadOrderEntityData) are the AI's; SquadManagerEntityData is a typeinfo class with no instance in DICE's partitions"
+    }
+   ],
+   "file": "spec/engine/squads.md",
+   "id": "SQD-PLAY-1",
+   "status": "observed",
+   "title": "The player's squad: join, lead, spawn on, chat, score",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::run_time"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/runtime.py on DICE's partitions, 2026-11-27: TeamData.MaxPlayersPerSquad 4 in 10 of 10"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe request reader 0x83A370, handler 0x83A3C0, checks 0x662F20 (squad test 0x6C9790, `cmp eax, 0x18` at 0x6C9796; anti-spam 0x673FB0 over 0x156F2D0; combat areas 0x547760), placement 0x572CC0 (13 candidates, `cmp eax, 0xD` at 0x5735E9; ground ray to -1000.0 at 0x1418B70; height limit 100.0 at 0x14D9638; fit test 0xB095B0; seat 0x68E7C0)"
+    }
+   ],
+   "file": "spec/engine/squads.md",
+   "id": "SQD-PLAY-2",
+   "status": "verified",
+   "title": "Spawning on a squad mate: the request's checks and the 13 positions",
+   "variants": "PC"
+  }
+ ]
+}

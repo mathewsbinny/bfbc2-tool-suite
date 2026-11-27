@@ -1,0 +1,308 @@
+{
+ "about": "The rules of spec/engine/vegetation.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::level_partitions"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/level.py, round SPV1 2026-11-22, DICE's 74 level partitions (Package's copy where DICE's): ForestEntityData 74 in 74, TreeMemberData 396 (InstanceCount sum 97,199), TreeMeshEntityData 737, MiddlegrowthModelGroupEntityData 93 in 71, MiddlegrowthModelGroupMemberData 341 (82,916); the member folders as listed (the table's 97,190 and 82,908 are the Dist copies'); the undergrowth row is VEG-UG-1's check"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 74 DICE level partitions: ForestEntityData 74, TreeMemberData 396 (InstanceCount sum 97,190), TreeMeshEntityData 737, MiddlegrowthModelGroupEntityData 93 (in 71 partitions), MiddlegrowthModelGroupMemberData 341 (82,908); member types by the MemberType's first folder as listed"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-CLS-1",
+   "status": "verified",
+   "title": "Forest, middlegrowth and undergrowth",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-levelwrite/tests/model_group_members.rs::every_stock_group_keeps_the_rules"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-levelwrite/src/members.rs:185-211"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/placement.rs:8-14"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: the two member classes' fields: FirstPhysicsPart, InstanceCount, MemberType, MeshEntityType, Name, PhysicsPartCount, PhysicsPartCountPerInstance, SpawnDatas, plus PartsToBangerParts (trees) / SoundCollisionScale (middlegrowth)"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-CLS-2",
+   "status": "verified",
+   "title": "Forests and middlegrowth are model groups and keep the group rules",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 92 TreeMeshSet resources, 737 TreeMeshEntityData; TreeMeshAsset's 50 fields as listed"
+    },
+    {
+     "kind": "doc",
+     "ref": "bfbc2-console-convert/FORMAT.md:221-223"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-TREE-1",
+   "status": "observed",
+   "title": "A tree is a TreeMeshSet drawn through a TreeMeshEntityData",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 1,515 patch shaders: (UgMaskShaders named, meshes) 1,068, (neither) 447; mesh entries per patch shader 0 - 12 (0: 447, 1: 372, 4: 231, 2: 182, 5: 99); 142 distinct meshes; 149 RigidMeshSet in undergrowth folders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:245-280"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:src/tools/ww2/wake_audit.py:107"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-1",
+   "status": "verified",
+   "title": "A patch shader with undergrowth names an undergrowth mask shader and its meshes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/src/terrain.rs::undergrowth_entries_read_their_asset_string"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-render/tests/visual_terrains.rs::every_dice_visual_terrain_reads_with_its_undergrowth"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: 3,069 entries, tail 01 00 on all; second string set on 30, all in NAM_MP_003 (Package nam_common); shader name on 1,091"
+    },
+    {
+     "kind": "data",
+     "ref": "SPG2-rest, 2026-11-22: old and new reader over the game copy's 34 visual terrains: the same shaders, maps and roads on 33, NAM_MP_003 refused before (\"runs past the end at 0x2f65c\") and read now; Terrain::load of nam_mp_003cq prepares its 53 patch shaders"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-render/src/terrain.rs:245-280"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/terrain.rs::undergrowth_second_string_is_a_string"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-console-convert/tests/test_terrain.py::pc_visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "SPG2-rest2, 2026-11-22: bc2-convert's walk over DICE's 30 PC visual terrains: main's 29 (NAM_MP_003 refused, \"runs past the end at 0x2f65c\"), this round's 30; the console twins (20 levels) and BF1943's Wake, Iwo Jima, Guadalcanal convert as before"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/terrain.rs:427-436"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-2",
+   "status": "verified",
+   "title": "The undergrowth mesh entry",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe type information: TerrainUndergrowthType's record at file offset 0x11640B0 (size 0x4C), its field descriptors (name, type, offset) at 0x1195940 - 0x1195AA7; the names at 0x10AA880 - 0x10AA9A0; the Undergrowth* settings at 0x10500A0 - 0x10505B4; the cache and mask resource names at 0x104FBBC - 0x104FC4C"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-3",
+   "status": "observed",
+   "title": "An entry is the engine's TerrainUndergrowthType",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::visual_terrains"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-22: the 12 positions' ranges, most frequent values and orderings over 3,069 entries; round SPG2-rest4: MaxMask - MinMask > 0 on 3,069 of 3,069, smallest 0.0001"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe loader 0xA2BA20: the entry's strings 0xA2BC2A / 0xA2BC39 (0x5144F0) and 0xA2BC95 (0x506A00, into a 0x200-byte buffer; a reference to record +0x38 when not empty), the floats 0xA2BD8E - 0xA2BE49 (stream vtable +0x1C into +0x00 - +0x2C, the pairs by two-step loops), the bytes 0xA2BE4B - 0xA2BE6B (vtable +0x24 into +0x34, +0x35), +0x30 = 1 / (+0x0C - +0x08) or 1.0 (0x14D94F0) at 0xA2BE6D - 0xA2BEA3; record stride 0x50 at 0xA2BEE2"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-5",
+   "status": "verified",
+   "title": "The 12 numbers' fields",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x1375A20 (0x500660 with the type 0x1BF80FC, parent 0x1BF808C, the last two arguments zero); factory 0xA2F440 (\".visual\" 0x144FF28, `push 0x2500` at 0xA2F4EB, 0xA27D80 at 0xA2F4FE, the loader 0xA2BA20 at 0xA2F522); constructor 0xA27D80 (vtables 0x144FCF0, +0x0C 0x144FCE0, +0x10 0x144FCDC); loader 0xA2BA20: patch shaders 0xA2BA99 - 0xA2BF65 (count into +0xD08 at 0xA2BA80, stride 0x20 at 0xA2BF55), groups stride 0x10 at 0xA2BF03, entries stride 0x50 at 0xA2BEE2; copies 0xA04CB0, 0xA0AF30"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field descriptors 0x1C3C940 - 0x1C3CA90 (round SPG2-rest2's list); vtable 0x144FCF0's 19 slots as round SPG2-rest3 read them (0xA017E0 ... 0xA091D0)"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-6",
+   "status": "observed",
+   "title": "The entry is read by the visual terrain's factory, not by the class's slots",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe generator 0xA0DDC0 (called from 0xA0ECCF): Density 0xA0DDF7 - 0xA0DE94, Variation 0xA0E0D6 - 0xA0E13E, the mask 0xA0E2E3 - 0xA0E326 (1/255 at 0x144F770) and the keep test 0xA0E34A - 0xA0E371 (255.0 at 0x14116F8), the scale 0xA0E57B - 0xA0E66F (1/31 at 0x144F778), the 32 rotations 0xA0DF5B - 0xA0E027, the normal 0xA0E386 - 0xA0E570; the same mask formula in 0xA08580; ViewDistance 0xA2460A, 0xA278F0, 0xA1ECBE (times setting +0x48)"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-7",
+   "status": "observed",
+   "title": "How the generator uses an undergrowth type",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe field descriptors of VisualTerrainSettings 0x1C19CA8 - 0x1C1A590 (UndergrowthDensityScale +0x4C 0x1C1A3F8, ViewDistanceScale +0x48 0x1C1A410, WindSpeed +0x78 0x1C1A3B0 ...); set-up 0xA24370: +0x4C into renderer +0x20 at 0xA24585 - 0xA24591, the largest Density and ViewDistance over the types 0xA245D0 - 0xA246A9, +0x54 / +0x60 at 0xA246B5 - 0xA246E1, +0x1C 0xA246E7, +0x44 0xA246ED, the side count 0xA24742 - 0xA247B8 (+0x64, odd, +0x70), +0x6C 0xA247BD, the capacity 0xA247AE - 0xA24802; per frame 0xA1E880: +0x7C into renderer +0x1C 0xA1E8EC, +0xD6 / +0xD1 flags 0xA1E8F8 - 0xA1E910, the generator job 0xA0EB10 at 0xA1E9EE; the draw 0xA1EA70: ViewDistance x +0x48 0xA1ECBE, floor by the cell size 0xA1ECD2 - 0xA1ED3F, +0x24 fade 0xA1ED4D - 0xA1EDE3 (0.99 at 0x14D96E0)"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-8",
+   "status": "observed",
+   "title": "The render settings that scale the undergrowth",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe the constant names 0xA01480 - 0xA0157C (\"windParams\" 0x144F5B4 at handle +0x28, renderer +0x98); the draw 0xA0EE10: clock +0xE4 0xA0F0AB, UndergrowthWindSpeed (settings +0x78) 0xA0F0CF, WindScale (type +0x28) 0xA0F0DD, the vector constant set 0x5BB850 at 0xA0F112; the clock 0xA1E88F - 0xA1E8B4 (10,000.0 at 0x14D9480); +0x35 only at 0xA04D08 (copy), 0xA0B9CB / 0xA0BA89 (copies), 0xA2BE63 (loader)"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-9",
+   "status": "observed",
+   "title": "WindScale feeds the undergrowth shader's windParams; the second flag byte has no reader",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::undergrowth_sway"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/terrain.py, 2026-11-27: DICE's 74 Dx9 / 74 Dx10 / 74 Dx11 level shader databases (all of each) hold vertex programs whose parameter block has a `windParams` constant (Dx11 780 programs, 25 distinct; the constant at register 9, 21 or 25); 25 of 25 distinct Dx11 programs carry the instruction sequence above (dp3 of the position with (1, 1, 1), mad by 1000.0 plus w.x, mul by w.y, sincos, max(y, 0), mul by w.z, mad into x and z)"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe \"windParams\" 0x144F5B4 registered as a named constant 0xA0156F (vtable 0x1572B18 +0x58); written per type at the draw 0xA0F112 (VEG-UG-9)"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-10",
+   "status": "verified",
+   "title": "The undergrowth vertex programs sway each vertex sideways by its height",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe per frame 0xA1E8EC - 0xA1E8F5 (settings +0x7C into renderer +0x1C = the job's parameters +0x0C, the parameters at renderer +0x10 passed at 0xA1E92D); the job 0xA0EB10: min / max started at 0xA0EC12 - 0xA0EC44, the generator called 0xA0ECCF (arguments 8 / 9 = the min / max), the generator's min / max updates 0xA0E7C6 - 0xA0E823; the box 0xA0ED08 - 0xA0ED25 (cell +0x04 = min, +0x14 = max + parameters +0x0C, +0x28 = 5); the draw 0xA1EB9A - 0xA1EC77 (cell = renderer +0x54 + 0x30 x index; frustum 0x4174D0, box centre 0x40F920)"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-11",
+   "status": "observed",
+   "title": "UndergrowthMaxHeight is the height of a cell's bounding box above its highest instance",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "OPFOR's Wake Island port, 2026-11-08 onward: BF1943's beach grass and fern meshes have no part layouts in BF1943's five level databases"
+    },
+    {
+     "kind": "doc",
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:405-411"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-UG-4",
+   "status": "observed",
+   "title": "Undergrowth layouts must be in the level's databases",
+   "variants": "PC, BF1943"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/levelfiles.rs:294-415"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/terrainfiles.rs:76-113"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/levelbuild/terrainfiles.rs:125-172"
+    }
+   ],
+   "file": "spec/engine/vegetation.md",
+   "id": "VEG-OPF-1",
+   "status": "implemented",
+   "title": "BF1943's undergrowth is DICE's, by stand-in",
+   "variants": "PC, BF1943"
+  }
+ ]
+}

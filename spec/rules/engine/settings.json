@@ -1,0 +1,263 @@
+{
+ "about": "The rules of spec/engine/settings.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe imports SHGetSpecialFolderPathA (IAT 0x14057C4, called at 0x4E25BB and 0x518174); \"/data/local/\" 0x14107C8, \"/data/local/input/\" 0x1419E08, \"/data/local/GameSettings.ini\" 0x1432448, \"\\settings.ini\" 0x142FABC, \"/data/local/Screenshots/\" 0x147737C, \"/data/local/crashreport.xml\" 0x1419CF8"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/dll/userdata.cpp:170-200"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:DEVELOPMENT_NOTES.md:187-205"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-FILE-1",
+   "status": "observed",
+   "title": "One per-user folder under Documents",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe key table 0x1570FA8 - 0x1571134 (33 records of {begin, end, capacity}); initialisers 0x1372AA0 - 0x13735C0 (\"RefreshRate\", \"Overgrowth\" and \"MSAA\" through records whose push the probe reads as lengths); GetPrivateProfileStringA IAT 0x14051D8, WritePrivateProfileStringA IAT 0x14051D4"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: every section and key name a C string of the exe, the table 33 records"
+    },
+    {
+     "kind": "data",
+     "ref": "the key names of one settings.ini the game wrote (read only, no value read): the four sections and 29 keys above, in this order"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-INI-1",
+   "status": "verified",
+   "title": "settings.ini: four sections, 29 keys",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reader 0x7DBD60 (caller 0x570430 in 0x5703E0); writer 0x7DD1F0 (callers 0x56AE02, 0x570442, 0x9124ED, 0x960946, 0x960FF9); \"low\" / \"medium\" / \"high\" / \"custom\" pushed in 0x7DD100 - 0x7DDA00; \"custom\" -> MainQuality at 0x7D7339 and 0x7D73F0; \"auto\" in the reader"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/WW2_DX9_SHADER_PORT_PLAN_2026-11-15.md:179"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-INI-2",
+   "status": "observed",
+   "title": "settings.ini is read at start-up and written by the options and the recommended settings",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-23: DICE's startup bundle, Settings/GameSettings: the categories, 14 / 34 / 11 / 0 settings per type, 45 UserExposed, the 14 names above"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-GS-1",
+   "status": "verified",
+   "title": "The game settings' defaults are the GameSettings partition",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x80D970 (`cmp eax, 8`, jump table 0x80D9E0; \"unknown\" 0x1431B88)"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-GS-2",
+   "status": "verified",
+   "title": "Nine categories, one INI section each",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe reader 0x831ED0 (0x80D970 section name, flag +0x28 at 0x831FB0, GetPrivateProfileStringA at 0x831FDC, type switch 0x831FEA - 0x832241, \"GameSettings.bin\" 0x83215F -> 0x815870); writer 0x833FD0 (\"/data/local/GameSettings.ini\" 0x834330, \"GameSettings.bin\" 0x83446D; callers 0x8347CF, 0x920623); 0x9205A0 callers 0x932E5C, 0x95993D, 0x95FB65, 0x95FEFD, 0x962D33, 0x962F0D, 0x96316E, 0x963336"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:52-62"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-GS-3",
+   "status": "observed",
+   "title": "GameSettings.ini is read setting by setting, typed, and written whole with GameSettings.bin",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe getters 0x80D2E0 and 0x80D0C0 (call sites listed by the round's call index); \"ToggleCrouch\" pushed at 0x814722 before 0x80D2E0; \"KitConfig_0\" - \"_7\" and \"CurrentKit\" at 0x77898A - 0x778AFA and 0x778970 in 0x777AA0; \"ServerFilterSettings\" / \"ServerDropDownSettings\" at 0x95D5BA / 0x95D495"
+    },
+    {
+     "kind": "data",
+     "ref": "the key names of one GameSettings.ini the game wrote (read only, no value read): GstAudio 10, GstGameplay 19, GstInput 19, GstPersistence 5, GstPlayerProfile 4, GstRender 2 keys; none of the 14 hidden names; the extra names above"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-GS-4",
+   "status": "observed",
+   "title": "Which keys the file holds",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe category enumeration 0x01C38890 - 0x01C38998 (GstAudio 0 ... GstStatsCache 10, GstCount 11); serializer 0x80DA10 (`mov [esp+0x24"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: the enumeration (12 names, GstCount 11) and the code bytes cited"
+    },
+    {
+     "kind": "data",
+     "ref": "one GameSettings.bin the game wrote (`<Documents>\\BFBC2`, 242,795 bytes; a second in OPFOR's user folder, 159,208 bytes), walked by this layout to its last byte; structure, names and sizes only, no value read: the counts above"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-BIN-1",
+   "status": "verified",
+   "title": "GameSettings.bin holds the settings the INI does not: a typed list per category",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe float parse 0x4E5680 (`strtod` IAT 0x14054F0; fails when the end pointer did not move), int parse 0x4E6C90 -> scanner 0x428A40 (`isspace`, sign, digits, 64-bit overflow check) and the 32-bit range check at 0x4E6D07 - 0x4E6D2A; both strip `\"...\"` at 0x4E569F / 0x4E6CB0; 0x512320 / 0x512360 (default on failure); INI reader type switch 0x831FEA with defaults pushed at 0x832227 (0) and 0x832241 (fldz); skip on 0 characters at 0x831FE4; setters 0x82FAB0, 0x82F860; DxVersion: \"auto\" 0x142FBE8 at 0x7DCC87, 0x512360 at 0x7DCCF2, map 0x7DCCFA - 0x7DCD1A, \"Render.Renderer\" 0x142FBD8 set through 0x7DA7E0; enumeration SelectedRenderer_None 0 ... _Ps3 6 (0x01C15370 - 0x01C15400), GameRenderSettings.Renderer +0x6C"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-PARSE-1",
+   "status": "observed",
+   "title": "What a bad value does: a number that does not parse becomes 0",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe lookup 0x4F4C40 (ECX = *(0x0155CFDC); the boolean type object 0x01BF0354); the GameSettings field table around 0x01C15250 (InputConfiguration +0x78, ToggleCrouch +0x8E, HoldToZoom +0x90, InputTapMaxTime +0x1C, InputHoldMinTime +0x84); type names \"CoreSettings\" 0x1412FB8, \"GameSettings\" 0x142CD30, \"ClientSettings\" 0x142CEB4, \"ServerSettings\" 0x142D4C0"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:69-86"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-ENG-1",
+   "status": "observed",
+   "title": "Engine settings are reflected objects looked up by name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe argument list 0x155D008 / 0x155D00C; finder 0x4F4CF0 (`cmp cl, 0x2D` / `0x2B` at 0x4F4D52 / 0x4F4D5B; compare 0x508160); its 41 callers (the names pushed before each; SET-CLI-2); entry tests 0x401F0C, 0x401F29, 0x401F48, 0x401F65; \"-noAsync\" 0x14123AC at 0x501F86, \"-host\" 0x1412418 at 0x5022A8; OptionDescriptor 0x1412E24, its fields from 0x01C13438"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-CLI-1",
+   "status": "observed",
+   "title": "Command-line options",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe finder 0x4F4CF0 (41 E8 sites, each with a `push imm32` naming a string within 16 bytes before it); 0x4FDD10 (one caller, 0x56EF29: the log line); registry text reader 0x5017C0 (`cmp cl, 0x23 / 0x3B / 0x2F` at 0x501859 - 0x50186B, the pending list +0x44, then 0x4F6EC0), adder 0x501AB0, thunks 0x501CF0 / 0x501D10 (no E8 / E9 site, no stored pointer); apply 0x4F4A00 (\".\" 0x140BA68), 0x4F3FA0; field parser 0x4EB0F0 (\"Field '%s' not found in class '%s'\" 0x14117D4, \"Parse error '%s.%s', value = '%s'\" 0x14117B0); OptionDescriptor type record 0x1BF0638 (its only reference the static initialiser at 0x13865D1); value setter thunk 0x4F4C00 -> 0x4F41E0 (callers 0x5595AE and 0x7DA82E - 0x7DA9AE, the latter from the settings.ini reader 0x7DBD60 and 0x7DE0D4); \"Network.Version\" set through 0x4F4BD0 at 0x5658E2, 0x5659C2, 0x565B29"
+    },
+    {
+     "kind": "data",
+     "ref": "spec/probes/options.py, 2026-11-27: 41 finder call sites, 41 with a pushed name; the reader and the adder reached only from their thunks, the thunks from nothing"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-CLI-2",
+   "status": "verified",
+   "title": "No command-line option sets an engine setting by name",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "core/tests/test_spec_probes.py::options"
+    },
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe name table 0x0143C898 (ids as above); command dispatcher 0x95E680 (`id - 0xB`, byte table 0x963F24, jump table 0x963DA4: 0x5B -> 0x9607C5 ... 0x60 -> 0x960934); extern switch in 0x95A1B0 (`id - 1`, byte table 0x95DB68, jump table 0x95D98C: 0x9C - 0xA1 -> 0x95B325 - 0x95B36B, each 0x9430C0(n)); setSetting 0x9607F6 (split at \",\") -> 0x929D30"
+    },
+    {
+     "kind": "data",
+     "ref": "round SPG3's scan of DICE's 91 movies (spec/probes/menus.py's corpus): the settings names in 11 movies' constants; `settings` names _settings, resetSettings, changeResolution, adapterResolutions, confirmKeySwitch and cancelKeySwitch"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-UI-1",
+   "status": "verified",
+   "title": "The options pages talk to the engine by name: getters per category, commands, events",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe 0x929D30 callers 0x961121 - 0x9627AB (37 sites); 0x962F37 / 0x962D45 / 0x9631BC: `push 0x1B; push 0x2B; call [vtable+0x18"
+    }
+   ],
+   "file": "spec/engine/settings.md",
+   "id": "SET-UI-2",
+   "status": "observed",
+   "title": "Graphics pages set items; the controls pages save at once",
+   "variants": "PC"
+  }
+ ]
+}

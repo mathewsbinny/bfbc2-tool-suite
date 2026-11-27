@@ -1,0 +1,274 @@
+{
+ "about": "The rules of spec/model/ai_orders.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe type-name strings 0x0146ADC0..0x0146B070, type-info records 0x01C02434..0x01C025BC (stride 0x18), base name \">@OrderEntityData\" at 0x01419C56"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-CLS-1",
+   "status": "observed",
+   "title": "Fifteen order classes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe over 13 campaign levels (Package copies) and 5 Onslaught levels of the game copy, 2026-11-22"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-CLS-2",
+   "status": "observed",
+   "title": "What DICE's campaign uses",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe field tallies over 4,657 campaign orders; the enumerators listed are every value seen"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:236-241"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-FLD-1",
+   "status": "observed",
+   "title": "The fields every order has",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::campaign_order_shapes_and_events"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe field and array tallies over the 13 campaign levels"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-FLD-2",
+   "status": "verified",
+   "title": "The fields of each order class",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"order Area targets by type\", campaign and Onslaught"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:307-309"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-FLD-3",
+   "status": "observed",
+   "title": "An order's area is a geometry entity",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe: enabled SSAiPlayer spawners 1,497, named 1,340 (campaign); 275 / 246 (Onslaught); Soldiers 0..7, Squads 0..4 per Area order"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:279-291"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-ASN-1",
+   "status": "observed",
+   "title": "Orders name spawners and squads",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe SoldierSpawnEntityData tallies over 1,556 campaign spawners"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:research/BFBC2_DECOMP_RESEARCH.md:229-235"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-ASN-2",
+   "status": "observed",
+   "title": "The spawner fields an AI soldier takes",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::campaign_order_shapes_and_events"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe \"events into AI entities\": IssueOrder per class Patrol 1,180, Area 982, Interlude 275, ShootAtObject 235, SearchAndDestroy 89, Cancel 54, FollowClosestHuman 50, FireAtArea 32, Change 28, AimAt 15, JoinSquad 3"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-EVT-1",
+   "status": "verified",
+   "title": "An order runs when its IssueOrder event fires",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"IssueOrder sources\", campaign and Onslaught"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:303-306"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-EVT-2",
+   "status": "observed",
+   "title": "What issues an order",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"events out of AI entities\", campaign"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-EVT-3",
+   "status": "observed",
+   "title": "Orders report issue, completion and failure",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "ai_probe \"events into / out of AI entities\", campaign and Onslaught"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-EVT-4",
+   "status": "observed",
+   "title": "Spawner events that script soldiers",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe vtable 0x014199C8 (slot 6 0x58DD20 `cmp dword [edi+0xC"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-RT-1",
+   "status": "observed",
+   "title": "One server class runs every order; IssueOrder is an event hash",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/tests/ai_corpus.rs::order_readiness_per_order_type"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe OrderReadiness: 11 instances, OrderType 11 distinct, Initial = Minimum"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-RDY-1",
+   "status": "verified",
+   "title": "One OrderReadiness per order type",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "from the data's shape (per-behaviour default weights, per-order additive modifiers named after the squad behaviours, the 0.01 Idle entries) and the time-sliced decision pass of BOT-RT-4; the summation and the arg-max were not traced in the executable"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-RDY-2",
+   "status": "inferred",
+   "title": "A squad picks its behaviour by weight",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "inferred",
+     "ref": "the set's name and contents against IsUrgent's use; not traced in the executable"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe IsUrgent tallies per class"
+    },
+    {
+     "kind": "doc",
+     "ref": "opfor:STOCK_MP_AI_PLAN.md:307-309"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-RDY-3",
+   "status": "inferred",
+   "title": "IsUrgent drops the order's combat allowance",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "data",
+     "ref": "AI/Settings AISettingsData.ReadinessLevels (sp_common = mp_common); ai_probe SquadEntityData.BaseReadiness"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-RDY-4",
+   "status": "observed",
+   "title": "Readiness levels and their reaction times",
+   "variants": "PC"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "exe",
+     "ref": "BFBC2Game.exe creator registries 0x01C08AB4..0x01C08D0C (goals), 0x01C098C4..0x01C09C3C (behaviours, goals), 0x01C0A4A4..0x01C0AACC (squad behaviours); order type names 0x0146ADC0..0x0146B070"
+    },
+    {
+     "kind": "data",
+     "ref": "ai_probe IssueOrder sources: CapturePointEntityData.OnCaptured 3 (Onslaught), MultipleTriggerEntityData.OnTrigger 32 (Onslaught) / 69 (campaign), MissionObjectiveEntityData.OnSuccess 1 (campaign)"
+    }
+   ],
+   "file": "spec/model/ai_orders.md",
+   "id": "AIO-MODE-1",
+   "status": "observed",
+   "title": "Orders know no game mode",
+   "variants": "PC"
+  }
+ ]
+}

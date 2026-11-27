@@ -1,0 +1,157 @@
+{
+ "about": "The rules of spec/transforms/stockmp.md: one shard of the BFBC2 tool suite specification's rule index, written by spec/trace.py --emit; checked by spec/trace.py --check.",
+ "rules": [
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/config.py:83"
+    },
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/config.py:225"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    }
+   ],
+   "file": "spec/transforms/stockmp.md",
+   "id": "XSMP-CFG-1",
+   "status": "verified",
+   "title": "The configuration is checked before a build"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/author.py:207-260"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_validate.py::main"
+    }
+   ],
+   "file": "spec/transforms/stockmp.md",
+   "id": "XSMP-AUT-1",
+   "status": "verified",
+   "title": "What the layer adds to the level partition"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/guid.rs:1-31"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/guid.rs::python_uuid5"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::game"
+    }
+   ],
+   "file": "spec/transforms/stockmp.md",
+   "id": "XSMP-AUT-2",
+   "status": "verified",
+   "title": "Deterministic guids; a second layer is refused"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::native_parity"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_native_levels.py::main"
+    }
+   ],
+   "file": "spec/transforms/stockmp.md",
+   "id": "XSMP-PAR-1",
+   "status": "verified",
+   "title": "The Rust core answers as the Python"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/validate.py:1-40"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_validate.py::main"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::game"
+    }
+   ],
+   "file": "spec/transforms/stockmp.md",
+   "id": "XSMP-VAL-1",
+   "status": "verified",
+   "title": "The offline checks"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:102-127"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/stockmp/mod.rs:285-412"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_deep_scan_fixes.py::stockmp_rollback"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ],
+   "file": "spec/transforms/stockmp.md",
+   "id": "XSMP-INS-1",
+   "status": "verified",
+   "title": "Install only a complete build, as one journalled commit"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "bfbc2-stockmp-ai/stockmplib.py:130-195"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-cli/src/stockmp/mod.rs:285-412"
+    },
+    {
+     "kind": "test",
+     "ref": "bfbc2-stockmp-ai/tests/test_stockmp.py::quick"
+    },
+    {
+     "kind": "test",
+     "ref": "core/tests/test_gameledger.py::cross"
+    }
+   ],
+   "file": "spec/transforms/stockmp.md",
+   "id": "XSMP-INS-2",
+   "status": "verified",
+   "title": "Revert gives back what was there before stock-MP"
+  }
+ ]
+}
