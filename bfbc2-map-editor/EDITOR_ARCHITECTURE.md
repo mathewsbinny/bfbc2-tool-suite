@@ -702,9 +702,18 @@ opens on three buttons (`rust/bc2-editor/src/app/modes.rs`, `create.rs`; Back an
   the map size in metres, the height of sample values 0 and 65535, the water level, an optional colour map (PNG) and
   the mode whose content is used. The file is checked as it is typed: it reads, it is square, and it is 1024 or 2048
   samples a side - the main height field sizes the terrain reader knows (`bc2_formats::terrain::FIXED`) - or 1025 /
-  2049 (the last row and column dropped). Create saves a project with `terrain_import` (the settings, the sample
-  range) and the height map and colour map copied beside it with their sha1s; its base names no level. Such a
-  project opens on its own page saying "Terrain generation arrives in a later round (E7)"; nothing is generated (the writer and a seeded generator: spec/transforms/terrain_gen.md, rounds TG1 - TG5).
+  2049 (the last row and column dropped); the map size must then be that many metres (1 m samples, TGEN-REQ-2).
+  **Generate** beside it (round TG3) takes the terrain generator's settings instead (`heightmap::GenerateForm`:
+  biome, size, seed, border, share and level of water, rough relief, pads, ring; checked as the generator checks
+  them). Both choose a **base level** (`heightmap::is_base_candidate`: a multiplayer map with its own terrain) and, for
+  a height map, the biome whose materials it is painted with and a ring. Create reads the base's partition from the
+  game copy and saves a project on it (`MapProject::new_level`, format 13) with `terrain_import` (the settings, the
+  sample range, `generate`) and the height map and colour map copied beside it with their sha1s; the project opens on
+  the base level as any project. Round E7's export (`bc2_levelwrite::newterrain`) makes the terrain from the record
+  and writes it as the level's own (`Terrains/<LV>/<LV>`, its own terrain bundle, the base's not registered,
+  XVAL-TERR-4) and samples its path data on it; strokes on the base's terrain in such a project are refused (round
+  TG4). The views show the base's terrain until then (the export's stage is the new terrain). A G4 project saved
+  without a base opens on its own page and asks to be made again.
 - **Multiplayer or campaign, from the data:** each level's description's `GameMode` (read by `catalog.rs`): a
   campaign mode (`gamemodes/singelplayer...`) is campaign, any other mode multiplayer; a level whose description is
   not read is listed under Create level only. On OPFOR's game copy: BFBC2 38 multiplayer + 13 campaign, BFBC1 8 + 0,

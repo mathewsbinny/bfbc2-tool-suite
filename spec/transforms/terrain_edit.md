@@ -397,6 +397,66 @@ the size is NavKit's question, not the sculpt's (not measured unsculpted on the 
 [code: rust/bc2-levelwrite/src/pathdata.rs:350-365]
 [inferred: the terrain bundle's entries (heightfield, material map, visual terrain, water, atlas) hold no collision resource; the sampler reads the height field (`inputs::heightfield_of`)]
 
+### TEDIT-NEW-1: A height map is stored from 0 m, its values kept as they are
+
+Status: **verified** · Variants: PC
+
+Create Level's height map (a 16-bit greyscale PNG or a RAW of 1,024 / 2,048 samples a side, or 1,025 / 2,049 with
+the last row and column dropped) is a main block of 1 m samples (TGEN-REQ-2: the map's size in metres is its samples
+a side, else refused). Its heights are `lo + v / 65535 x (hi - lo)` for the form's range; a main block's heights
+start at 0 (TEDIT-HF-1), so when `lo` is under 0 every height and the water are raised by `-lo`, and the block's
+range is the highest height. With `lo` = 0 each stored value is the map's value itself: a DICE height field written
+out as a height map with its own range and imported again gives DICE's stored samples, bounds and min / max tree back
+(only the lower envelope, built under the heights, and the depth map of 255 are the writer's: TEDIT-HF-3). The water
+lies at the form's level when ground is under it. The material map is painted from height and slope with a biome's
+names (TGEN-MAT-2); a ring (TGEN-RING-1, seeded from the map's sha1) continues the border outwards and straightens
+the main block's edges between its knots (TERR-HF-12).
+
+[test: rust/bc2-levelwrite/tests/new_terrain.rs::dice_heights_through_the_import]
+[test: rust/bc2-levelwrite/src/newterrain.rs::tests::a_height_map_read_and_written]
+[code: rust/bc2-levelwrite/src/newterrain.rs:100-140]
+[data: rust/bc2-levelwrite/tests/new_terrain.rs on the game copy, 2026-11-27: NEWTERRAIN_DICE]
+
+### TEDIT-NEW-2: A new level carries its own terrain under its own name, its base's left out
+
+Status: **implemented** · Variants: PC
+
+A Create Level project (round E7: a height map; round TG3: the generator's settings, TGEN-GEN-5) is made on a base
+level, a multiplayer map with a terrain of its own (TGEN-BIOME-4), and opens on it as any project. Its export builds
+the base into the new level as for any project (XEXP-BLD-2) and, for the terrain: names it after the level,
+`Terrains/<LV>/<LV>` (TGEN-REQ-4), in the level partition's terrain reference and a copy of the base's terrain
+partition (`Terrains/<LV>/<LV>.dbx`, its own partition guid); stages the new main block, ring, material map, water
+mesh, `Terrain` entry, visual terrain, mask atlas and visual water (TGEN-REQ-1) in the level's own terrain bundle
+with the base's other entries, never the base terrain's own (`terrains/<b>/<b>.*`); clones the base terrain's patch,
+undergrowth, cache and water entries under the new name into each staged database after the export's merges
+(TGEN-VIS-4) and stages the new colour / occlusion map (TGEN-OCC-1); registers its terrain bundle without the base
+level's terrain bundles (TGEN-REQ-5: the commons stay); and counts the terrain as a collision change, so the
+path-data step samples the stage (TEDIT-NAV-1). Strokes on the base's terrain in the same project are refused (the
+base's terrain is not the level's; sculpt and paint on a new terrain are round TG4's). XVAL-TERR-4 reads it back.
+Objects, gameplay and combat areas stay the base's, placed for the base's ground (TG5 places them on the new one).
+
+Whether the engine loads a level whose terrain bundle is its own and whose base's is not registered is unproven
+until a playtest (section 5, step 7).
+
+[test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks]
+[code: rust/bc2-levelwrite/src/newterrain.rs:1-30]
+[code: rust/bc2-levelwrite/src/export.rs:1403-1450]
+[inferred: TGEN-REQ-4, TGEN-REQ-5, XEXP-BLD-2, LVL-MODE-2]
+
+### TEDIT-NEW-3: A new level's path data is sampled and built on its own ground
+
+Status: **verified** · Variants: PC
+
+The path-data step samples a new level's stage offline (`bfbc2 navkit sample --offline --stage`: the staged main
+height field, under the new name, written into the stage's terrain unpack) and builds its path data in process. The
+bots' measures on the playable area (the staged level's largest combat area's box): connectivity, the share of
+route nodes on the main route network; coverage, the share of walkable 8 m cells (dry, under 40 degrees) a
+main-network node reaches (15 m in plan, 4 m in height, as XVAL-PLACE-5 reaches a spawn). NEWTERRAIN_PATH
+
+[test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_path_data]
+[code: rust/bc2-levelwrite/src/pathdata.rs:175-180]
+[data: rust/bc2-levelwrite/tests/new_terrain.rs on the game copy with MP_005 prepared for NavKit, 2026-11-27: NEWTERRAIN_PATHDATA]
+
 ## 5. The playtest plan (E5 / E7)
 
 Written by round SPG2-rest2 (2026-11-22); not run: in-game tests are paused. Every rule above that a writer relies on

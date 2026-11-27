@@ -295,8 +295,9 @@ fn stage_level(py: &mut Py, pr: &Project, stage: &str, lv: &str, base: &str) -> 
 }
 
 /// The staged terrain bundle's main height field (`*.heightfield-000.res`) written over the stage tree's terrain unpack
-/// (round E5): the sampler then reads the sculpted ground, not the base's. Nothing when the stage has no terrain
-/// bundle.
+/// (round E5): the sampler then reads the sculpted ground, not the base's; and its water mesh (`*.water.mesh.res`,
+/// round E7: a new terrain's water is under the new terrain's name, which the base's unpack does not have, so without
+/// it the build saw no water and walked the sea floor). Nothing when the stage has no terrain bundle.
 fn staged_heightfield(py: &mut Py, stage: &str, tt: &str) -> PyResult<()> {
     let bundle = std::path::Path::new(stage).join("terrain-00.fbrb");
     if !bundle.is_file() {
@@ -306,7 +307,10 @@ fn staged_heightfield(py: &mut Py, stage: &str, tt: &str) -> PyResult<()> {
     let names: Vec<String> = h
         .entries
         .iter()
-        .filter(|e| !e.is_deleted() && e.name.to_ascii_lowercase().ends_with(".heightfield-000.res"))
+        .filter(|e| {
+            let low = e.name.to_ascii_lowercase();
+            !e.is_deleted() && (low.ends_with(".heightfield-000.res") || low.ends_with(".water.mesh.res"))
+        })
         .map(|e| e.name.clone())
         .collect();
     let datas = bc2_formats::fbrb::read_path_uncached(&bundle, &names)
@@ -318,7 +322,7 @@ fn staged_heightfield(py: &mut Py, stage: &str, tt: &str) -> PyResult<()> {
         }
         bc2_gamefs::atomic::write(&to, &[data.as_slice()])
             .map_err(|e| navkit_error(format!("{}: {e}", to.display())))?;
-        py.print(&format!("  the stage's height field {name}"))?;
+        py.print(&format!("  the stage's {name}"))?;
     }
     Ok(())
 }

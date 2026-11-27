@@ -28,7 +28,25 @@ landed on `main`.
 
 ## [Unreleased]
 
+### Added
+- **Map editor: Create Level writes the new level's terrain** (rounds E7 and TG3; spec `transforms/terrain_edit.md`
+  TEDIT-NEW-1 - 3, XVAL-TERR-4): "From a height map" (a 16-bit PNG or RAW of 1024 / 2048 samples; the map is as many
+  metres across) and **Generate** beside it (the terrain generator's biome, size, seed, border, water share, water
+  level, rough relief, objective pads and ring, `bfbc2 terrain generate`'s settings) make a project on a **base
+  level** (a multiplayer map: its mode layer, objects, weather and its terrain's look) that opens like any project.
+  Its export writes the new terrain under the level's own name (`Terrains/<LV>/<LV>`: height field, ring, material
+  map, water, visual terrain, colour / occlusion map, the base's patch shaders cloned into its databases, its terrain
+  partitions) in the level's **own terrain bundle**, registered without the base's (TGEN-REQ-5), and its path data is
+  sampled on the new ground. `mapexport check` reads it back (XVAL-TERR-4). DICE's 30 main height fields written out
+  as height maps import as DICE's samples, bounds and min / max tree. Nothing is loaded in game yet.
+- `bc2_levelwrite::newterrain` (the height-map import and the new terrain's entries), `pathdata::bot_measures`
+  (connectivity and coverage of path data on a playable area), `bc2_terragen::visual::clone_database`.
+
 ### Changed
+- **Map project format 13**: a Create Level project records its base level and, for Generate, the generator's
+  settings (`terrain_import.generate`); older editors refuse it. A G4 height-map project without a base shows its
+  page and asks to be made again.
+- **Create Level's map size must be 1024 or 2048 m**, the height map's samples a side (TGEN-REQ-2: 1 m samples).
 - **NavKit: DICE's generator rectangle leaves out the player's alternate spawns** (round NKS-deep D, spec KYG-RECT-1
   corrected): `navregress.spawn_bounds` and `bc2_navbuild::inputs::spawn_bounds` box the soldier and vehicle spawns
   without `AlternateSpawnEntityData`. All 52 campaign sides of DICE's ground now end at the box (45 before: the "7

@@ -606,6 +606,23 @@ TEDIT-OCC-1.
 [code: rust/bc2-levelwrite/src/rules.rs:668] [code: rust/bc2-levelwrite/src/export.rs:3947] [code: rust/bc2-levelwrite/src/terrainpaint.rs:1066-1100]
 [test: rust/bc2-levelwrite/tests/terrain_edits.rs::painted_export_stages_and_checks]
 
+### XVAL-TERR-4: A new level's terrain is its own, read back whole and registered alone
+
+Status: **verified**
+
+Error (rounds E7 / TG3); checked by `mapexport check`. A level made by Create Level (a height map or the terrain
+generator) carries its own terrain `Terrains/<LV>/<LV>` in its own terrain bundle: every new resource staged and
+none of the base terrain's; the main block encodes back byte for byte, 1,024 or 2,048 samples from 0 m, its min /
+max tree its heights', its lower envelope under every sample; a ring stitched to it (TERR-HF-12); the material map
+round-trips at 0.5 m; the visual terrain's patch maps name the new height field and its patch shaders, each present
+in every staged shader database; the renamed terrain partition staged; the terrain block of `package.mft` names no
+bundle of the base level. A project that also strokes the base's terrain is refused at export. The base terrain's
+partitions copied under the new name keep DICE's references to editor partitions that never ship (TEDIT-SRC-1),
+renamed: XVAL-REF-2 lists them as the base's own. Rests on TEDIT-NEW-1, TEDIT-NEW-2, TGEN-REQ-4, TGEN-REQ-5.
+
+[code: rust/bc2-levelwrite/src/rules.rs:680] [code: rust/bc2-levelwrite/src/newterrain.rs:540-560]
+[test: rust/bc2-levelwrite/tests/new_terrain.rs::new_level_exports_and_checks]
+
 ### XVAL-CONS-1: No Xbox 360 resource in a PC level
 
 Status: **verified**

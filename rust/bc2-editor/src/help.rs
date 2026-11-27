@@ -247,8 +247,11 @@ pub const GETTING_STARTED: [(&str, &str); 15] = [
         "From existing levels lists every level of every mode, multiplayer and campaign, with a search: choose one, \
          give the new level a name and a folder, and edit it; when it is exported, a campaign base's campaign parts \
          are stripped (the export's checklist). From a height map takes a 16-bit PNG or RAW height map (1024 or 2048 \
-         samples a side, or 1025 / 2049), the map's size, height range and water level, an optional colour map and \
-         the mode its content comes from; the project records them, and the terrain is generated in a later round.",
+         samples a side, or 1025 / 2049: the map is as many metres across), the height range and water level, an \
+         optional colour map, the materials and a ring; Generate takes the terrain generator's biome, size, seed, \
+         border, water share, water level, rough relief, pads and ring. Both build on a base level (a multiplayer \
+         map: its mode layer, objects, weather and its terrain's look) and open on it; Export writes the new terrain \
+         as the level's own terrain bundle, and its path data is sampled on it.",
     ),
     (
         "Look around",

@@ -797,6 +797,15 @@ impl Routes {
         self.nodes.len()
     }
 
+    /// The share of route nodes on the main network (the largest island; round E7's connectivity measure).
+    #[must_use]
+    pub fn main_share(&self) -> f64 {
+        if self.nodes.is_empty() {
+            return 0.0;
+        }
+        self.island.iter().filter(|&&i| i == 0).count() as f64 / self.nodes.len() as f64
+    }
+
     /// Whether there are none.
     #[must_use]
     pub fn is_empty(&self) -> bool {

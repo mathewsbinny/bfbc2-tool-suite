@@ -31,6 +31,7 @@ mod gameplay_tools;
 mod gameplay_xf1;
 mod journal_kill;
 mod model_group_members;
+mod new_terrain;
 mod project_versions;
 mod real_levels;
 mod rush_stages;
