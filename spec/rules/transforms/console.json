@@ -375,6 +375,105 @@
    "status": "verified",
    "title": "The load set stage gives the retired Python's work files; the closure's order",
    "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/vehicles.rs:52-90"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/vehicles.rs:94-150"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_vehicles.py:30-40"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/vehicles.rs::gone_follows_the_vehicle_name"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR10, 2026-11-27: the user's ONS_MP_002 / 004 / 005 / 008, stages 5 - 7 chained, every work and game file of the Rust stages identical to the Python's (rust/BENCHMARKS.md \"OR10\")"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-5",
+   "status": "verified",
+   "title": "The vehicles stage gives the retired Python's work files",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/soldiers.rs:132-245"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/soldiers.rs:355-420"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught.rs:79-144"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_soldiers.py:45-60"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/soldiers.rs::blueprint_takes_the_console_kit"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR10, 2026-11-27: the user's four levels (the Python twin given the pre-OR5 class map), every work and game file of the Rust stage identical to the Python's"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-6",
+   "status": "verified",
+   "title": "The soldiers stage gives the retired Python's work files; its class map and notes' order",
+   "variants": "Xbox 360"
+  },
+  {
+   "evidence": [
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/shaders.rs:94-120"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-install/src/onslaught/shaders.rs:240-330"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-convert/src/shadercmd.rs:560-700"
+    },
+    {
+     "kind": "code",
+     "ref": "opfor:src/tools/onslaught/console_shaders.py:38-55"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-install/src/onslaught/shaders.rs::patterns_and_donors"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-convert/src/shadercmd.rs::needs_from_a_file"
+    },
+    {
+     "kind": "data",
+     "ref": "round OR10, 2026-11-27: the user's four levels, every work and game file of the Rust stage identical to the Python's, the merged databases among them"
+    }
+   ],
+   "file": "spec/transforms/console.md",
+   "id": "XCONS-ONS-7",
+   "status": "verified",
+   "title": "The shaders stage merges as shaderdb.py does and translates nothing",
+   "variants": "Xbox 360"
   }
  ]
 }
