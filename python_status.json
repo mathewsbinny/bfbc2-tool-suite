@@ -2451,7 +2451,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "test",
-   "lines": 279,
+   "lines": 417,
    "note": "The shader translator's differential test (xdiff.py) and its reference interpreter (xenos_exec.py).",
    "path": "bfbc2-shader-tools/tests/test_xdiff.py",
    "retiring": "Tests in Rust",
@@ -2475,7 +2475,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "tool entry point",
-   "lines": 394,
+   "lines": 562,
    "note": "the translator's differential test (xenos_exec, WARP draws)",
    "path": "bfbc2-shader-tools/xdiff.py",
    "retiring": "OPFOR in Rust stage 3",
@@ -2499,7 +2499,7 @@
    "embedded_by": [],
    "folder": "bfbc2-shader-tools",
    "kind": "library",
-   "lines": 492,
+   "lines": 551,
    "note": "the NumPy reference interpreter of Xenos microcode (kept Python since E3f by measurement)",
    "path": "bfbc2-shader-tools/xenos_exec.py",
    "retiring": "OPFOR in Rust stage 3",
@@ -3519,7 +3519,7 @@
    "embedded_by": [],
    "folder": "core",
    "kind": "test",
-   "lines": 836,
+   "lines": 846,
    "note": "The specification's probe counts as checks (rounds SPG2, SPG2-rest, SPV1): the stable facts the probes of `...",
    "path": "core/tests/test_spec_probes.py",
    "retiring": "Tests in Rust",
@@ -3579,7 +3579,7 @@
    "embedded_by": [],
    "folder": "(root)",
    "kind": "build or dev script",
-   "lines": 1384,
+   "lines": 1387,
    "note": "the test runner: tiers, ids, scheduling",
    "path": "run_tests.py",
    "retiring": "Tests in Rust",
@@ -3987,7 +3987,7 @@
    "embedded_by": [],
    "folder": "rust",
    "kind": "build or dev script",
-   "lines": 885,
+   "lines": 889,
    "note": "this inventory",
    "path": "rust/python_status.py",
    "retiring": "stays",
@@ -4011,7 +4011,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 228,
+   "lines": 297,
    "note": "read-only probe for spec/transforms/dependencies.md (the asset graph; --steps the WW2 step graph); game tier",
    "path": "spec/probes/dependencies.py",
    "retiring": "stays",
@@ -4119,7 +4119,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 227,
+   "lines": 318,
    "note": "read-only probe for spec/engine/settings.md and input.md; checked in the game tier",
    "path": "spec/probes/options.py",
    "retiring": "stays",
@@ -4155,7 +4155,7 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 370,
+   "lines": 427,
    "note": "read-only probe for the SPG4 resource and loose-file formats (occluder, soot, animtree, bink, game_folder); game tier",
    "path": "spec/probes/resources.py",
    "retiring": "stays",
@@ -4167,7 +4167,19 @@
    "embedded_by": [],
    "folder": "spec",
    "kind": "build or dev script",
-   "lines": 127,
+   "lines": 158,
+   "note": "read-only probe for the run-time rules of SPG4-rest (controller states, squad spawn, kill cam, save); game tier",
+   "path": "spec/probes/runtime.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 213,
    "note": "read-only probe for spec/engine/scripting.md (the level event graph); checked in the game tier",
    "path": "spec/probes/scripting.py",
    "retiring": "stays",
@@ -4194,6 +4206,18 @@
    "lines": 535,
    "note": "read-only probe for spec/transforms/terrain_gen.md (DICE terrain shapes, biomes, playable areas); game tier",
    "path": "spec/probes/terrain_shape.py",
+   "retiring": "stays",
+   "rust": "",
+   "status": "stays"
+  },
+  {
+   "callers": "run_tests.py (quick: --check); core/tests/test_spec_probes.py (game)",
+   "embedded_by": [],
+   "folder": "spec",
+   "kind": "build or dev script",
+   "lines": 472,
+   "note": "the executable's reflection record by record (spec/typeinfo.json, spec/engine/typeinfo/*.md tables)",
+   "path": "spec/probes/typeinfo.py",
    "retiring": "stays",
    "rust": "",
    "status": "stays"
@@ -4616,19 +4640,19 @@
  ],
  "totals": {
   "all": {
-   "files": 379,
-   "lines": 110798
+   "files": 381,
+   "lines": 112113
   },
   "by_folder": {
    "(root)": {
     "files": 2,
-    "lines": 1440,
+    "lines": 1443,
     "live": 56,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
     "stays": 0,
-    "test": 1384,
+    "test": 1387,
     "twin": 0
    },
    "bfbc2-anim-tools": {
@@ -4787,13 +4811,13 @@
    },
    "bfbc2-shader-tools": {
     "files": 18,
-    "lines": 11171,
-    "live": 1430,
+    "lines": 11536,
+    "live": 1657,
     "partly": 3775,
     "ported": 126,
     "retired-pending": 0,
     "stays": 0,
-    "test": 4856,
+    "test": 4994,
     "twin": 984
    },
    "bfbc2-stockmp-ai": {
@@ -4809,13 +4833,13 @@
    },
    "core": {
     "files": 76,
-    "lines": 20399,
+    "lines": 20409,
     "live": 760,
     "partly": 0,
     "ported": 1909,
     "retired-pending": 0,
     "stays": 0,
-    "test": 15301,
+    "test": 15311,
     "twin": 2429
    },
    "design": {
@@ -4831,23 +4855,23 @@
    },
    "rust": {
     "files": 34,
-    "lines": 6144,
+    "lines": 6148,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 5877,
+    "stays": 5881,
     "test": 267,
     "twin": 0
    },
    "spec": {
-    "files": 20,
-    "lines": 6701,
+    "files": 22,
+    "lines": 7634,
     "live": 0,
     "partly": 0,
     "ported": 0,
     "retired-pending": 0,
-    "stays": 6701,
+    "stays": 7634,
     "test": 0,
     "twin": 0
    },
@@ -4866,7 +4890,7 @@
   "by_status": {
    "live": {
     "files": 18,
-    "lines": 5301
+    "lines": 5528
    },
    "partly": {
     "files": 20,
@@ -4881,12 +4905,12 @@
     "lines": 310
    },
    "stays": {
-    "files": 69,
-    "lines": 13568
+    "files": 71,
+    "lines": 14505
    },
    "test": {
     "files": 191,
-    "lines": 52529
+    "lines": 52680
    },
    "twin": {
     "files": 56,

@@ -5356,6 +5356,61 @@ typeinfo records with a rule 811 -> 816.
   unnamed event hashes; the events the unused classes raise; their fields.
 - The 70 voice-over waves no bank names.
 
+## SPG4-rest: every typeinfo record with its layout, the run-time behind SPG4's data side, the opaque insides (2026-11-27, branch `spg4r`)
+
+What round SPG4 left (`spec/CENSUS.md` section 5, `spec/COVERAGE.md` section 2). Static reading of `BFBC2Game.exe`
+(PC build 795745), read only, with capstone over a scratch copy (REA was not used: its Ghidra provider timed out on
+the executable in the round before). DICE's data was read through the suite's readers (DICE's files only, dated
+before 2013; counts, identifiers and code bytes only). Nothing was run in the game and nothing written to `game\`.
+Two research forks read the run-time and the resources' insides in parallel; every finding they reported was
+re-checked here by the probes before it became a rule.
+
+| Item | Found | Rules |
+|---|---|---|
+| the typeinfo records | each of the 1,900 registered once by a static initialiser `push <args>; push <record>; mov ecx, <class info>; call <register>`: 0x500880 (961 data classes: member table, creator, parent), 0x500660 (400 run-time classes: parent), 0x43C390 (289 value types), 0x5008E0 (231 enumerations), 0x4FE260 (19 built-ins); a member is a 24-byte descriptor {name, flags 0x48 for arrays, type, element type, offset or value, 0}, a class's table its own members only; every one of the 7,087 members lies inside its record and past its parent's size | RTTI-REG-1, RTTI-MEM-1 new; ENG-TI-1 corrected (the table address) |
+| the tables | every record's parent, size, own members with run-time offsets, or an enumeration's numbers (1,952 values; 20 enumerations not numbered in declaration order), by module | RTTI-CORE-1, RTTI-GSR-1 - 8, RTTI-GDLL-1, 2, and 15 module rules (RTTI-ENT-1 ... RTTI-UI-1) |
+| DICE's DBX against the run time | 630 classes: the same 398, the DBX more 230, both ways 2 (`SubtitleWaveHashPair`, `UISharedConfigAsset`'s Vietnam members); 118 pipeline-only names: `MemoryReportGroup`, the mesh build's settings, the static models' pathfinding switches, the AI's sensing template, the sound nodes' `Name` | RTTI-DBX-1, RTTI-DBX-2 new |
+| the factories | each factory's construct slot (server 4, client 6) to the constructor's last vtable, its `getType` to the class, the size slot against the record: 110 of 148 server and 75 of 100 client factories, 173 run-time classes | RTTI-FAC-1 new |
+| the controller | `CharacterPhysicsData.States` matched by class (0xB08CE0), nine states with ids 0 - 8 (Havok's numbering), each update's transitions, the outside setters (parachute, scripted moves, network) | SOLD-PHYS-2 new |
+| spawn on a squad mate | the request's checks (same team and squad, not `SquadNone`, not dying, anti-spam, combat area), the 13 offsets tried, the vehicle seat; `MaxPlayersPerSquad` / `SquadSpawnRadius` not on this path | SQD-PLAY-2 new |
+| the kill cam | `ServerSettings.KillCam` (`Server.KillCam`), the spectate entities' test: dying, hardcore unless `UseInHardcoreMode`, the switch, the target's health | HUD-KILL-2 new; HUD-KILL-1 corrected |
+| the campaign save | the `Save` event, `body` (version, 70, the entity's GUID, the persistent entries, subsystems, the player) and `header` (Julian-epoch time, level, save name, difficulty, 3) into `GameSettings.bin`'s `GstBinary` | CAMP-SAVE-1 new |
+| the sound nodes | a factory per node data class (`SimpleTransformNode`'s), the enumerations' numbers (`MathOp`, `ConditionType`, `FaderType`, `LoopType`); the evaluation not traced | SGR-NODE-2 new |
+| the occluder | the triangle block: one 192-bit part mask a triangle, padded to an even count (SPG4's "more records" were the padding); the job drops a triangle whose mask meets the instance's hidden parts | OCC-TRI-1 rewritten (verified), OCC-VTX-1 updated |
+| the soot | the flag words pick `SootPerVertex` / `_Half` / `SootPerPixel` / `_Half`; a vertex's last word is (slot, box); the trailer's 60 words map slots to parts, one constant each at draw | SOOT-FLAG-1, SOOT-SLOT-1 new; SOOT-HDR-1, VTX-1, TAIL-1 updated |
+| the impulse responses | two channel blocks a partition: a block scale 2^k - 1 and 1,024 (re, im) bins; the PC loader keeps the file as a blob, no reader found | IR-PART-1 new |
+
+Probes (counts, identifiers and code bytes only):
+
+- `spec/probes/typeinfo.py` (new; `--measure` 1.6 s): re-reads the executable into `spec/typeinfo.json` (546 KB) and
+  writes the tables of `spec/engine/typeinfo/*.md`; `--check` (the quick tier's new `spec-typeinfo`, no game) fails
+  when a table is not current or a record is in no group; the game tier compares the executable with the JSON and
+  checks 22 counts (registrations, members, factories, the DBX comparison, the layout invariants).
+- `spec/probes/runtime.py` (new, 14 s): 32 instruction / constant checks at the addresses the run-time rules cite and
+  the DICE values those code paths read (spectate entities, team data, save entities, the controller's states).
+- `spec/probes/resources.py` (4 s): 13 new counts for the occluder masks, the soot's flags and slots, the impulse
+  responses' blocks.
+
+The census: typeinfo records with a rule 816 -> 1,900 (of 1,900). Rules went from 1,532 to 1,571.
+
+### Playtests still pending (in-game tests are paused)
+
+- New: spawn on a mate prone on a ledge, in a full vehicle, outside the combat area, twice in a row (SQD-PLAY-2); a
+  hardcore server with `Server.KillCam` on and off (HUD-KILL-2); a parachute closing into falling (SOLD-PHYS-2); a
+  campaign save and its reload (CAMP-SAVE-1: the header's difficulty word, the body's version 70); a level edited to
+  flip `ExcludeFromPathfinding` without rebuilding the path data (RTTI-DBX-2: expected no change).
+- SPG3-rest's: a level with a game setting entity sending `ChangeSetting`; a `GameSettings.ini` with a word for a
+  number and an unknown `DxVersion`; and the earlier rounds' list (`transforms/terrain_edit.md` section 5, ONS-CAP-3,
+  MAT-TEX-20, BOT-GS-5, bot_ai.md's plan, PERS-SCORE-2, PERS-AWD-5 / 7, MENU-EVT-5).
+
+### What is left (SPG4-rest2)
+
+- The sound nodes' evaluation; the controller's Jump entry and InAir / Falling exits; `MaxPlayersPerSquad`'s and
+  `SquadSpawnRadius`' readers and the a != b spawn form; the kill cam's client camera; the save body's objects and
+  restore.
+- The 22 component and 16 order factories and the client's bangers RTTI-FAC-1 did not resolve.
+- The occluder's fourth vertex word's consumer; the soot's second mask; the impulse responses' reader on PC.
+
 ## OR7: OPFOR in Rust - `rebuild_all` as a step graph (2026-11-27, branch `or7`, with Project OPFOR's `or7`)
 
 The last item of the "OPFOR in Rust" row. OPFOR's WW2 rebuild (55 steps) no longer runs as a fixed list. It runs as a
@@ -5465,3 +5520,5 @@ byte-identical to the oracle.
 - The plan's porting as a rebuild step (XDEP-STEP-5) is still proposed, not done.
 - The graph's measured times were taken side by side on a busy PC. Re-derive them on an idle PC
   (`rebuild_all.py --graph --write` after a full rebuild).
+
+Checks on the final tree (main bceb84f4 and 6d95c313 merged): cargo fmt; `cargo clippy --all-targets -D warnings` on bc2-install (feature `rebuild`) and bc2-py, and bc2-cli's 19 tool groups alone and together, clean; bc2-install's tests 41 passed (the rebuild module's 8 among them); the quick tier 134 of 137 on the first merge - the three failures were the new `OPFOR_REBUILD_TRACK` (now registered) and the spec / native-census checks reading OPFOR's main checkout, which does not have OR7's OPFOR side yet (against OPFOR's `or7`: `trace.py --check` ok, 1,574 rules, XDEP-STEP-8 - 10 unused on main; `native_census.py --check` 378 exports, 0 without a caller); OPFOR's `run_tests.py quick` 372 passed, 15 skipped; ruff and mypy clean on OPFOR's `ww2` and `tests`.

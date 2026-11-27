@@ -144,20 +144,50 @@ and `UseInHardcoreMode`. The executable has `ClientSpectateEntity` / `ServerSpec
 [data: spec/census.json, 2026-11-23: SpectateEntityData 227 instances]
 [exe: BFBC2Game.exe strings ClientSpectateEntity, ServerSpectateEntity, doSpectate, MieSpectate]
 
-### HUD-KILL-1: The kill cam has no data class
+### HUD-KILL-1: The kill cam has no camera class of its own
 
 Status: **observed** · Variants: PC
 
-No DBX class of DICE's partitions and no typeinfo record is a kill camera: the executable names `KillCam` once (a
-string), and the death view is the killed soldier's camera turning to the killer, driven by code. Its only data is
-the HUD art: the `Menu/MP_Killcam_Textures_Win32` texture atlas (a `UITextureAtlasData`, TEXT-ATL-1) the kill cam's
-Flash movie draws from. A tool that wants to change the camera has to patch the executable (not traced).
+No DBX class of DICE's partitions and no typeinfo record is a kill camera, and no data class names `KillCam`. Its
+data is the HUD art (the `Menu/MP_Killcam_Textures_Win32` texture atlas, a `UITextureAtlasData`, TEXT-ATL-1, the
+kill cam's Flash movie draws from) and, as round SPG4-rest found, the level's spectate entities and one server
+switch (HUD-KILL-2). SPG4's reading, "the killed soldier's camera turning to the killer, driven by code", is
+withdrawn: the death view is a `SpectateEntityData` camera chosen by HUD-KILL-2's conditions.
 
 [data: spec/census.json, 2026-11-23: no class or member name containing KillCam; a UITextureAtlasData in Menu/MP_Killcam_Textures_Win32]
-[exe: BFBC2Game.exe one string "KillCam"; no typeinfo record of that name]
+[exe: BFBC2Game.exe no typeinfo record named KillCam; the member `ServerSettings.KillCam` (RTTI-GAME-1) and the setting `Server.KillCam` (HUD-KILL-2)]
+
+### HUD-KILL-2: The kill cam is the level's spectate entities, gated by `Server.KillCam` and hardcore
+
+Status: **verified** · Variants: PC
+
+`ServerSettings.KillCam` (module `Game`, a `Boolean` at 166; the setting `Server.KillCam`) switches the kill cam. The
+server publishes it to the server browser with `AutoBalance`, `Minimap`, `Crosshair` and the spotting switches
+(0x84FE22 - 0x84FF3B), and the browser reads it back from a server's entry (0x603BA6). When a player dies,
+`ServerSpectateEntity`'s test 0x67AEE0 (called from 0x67E26E and 0x681987) decides whether each of the level's
+spectate entities applies to him:
+
+1. unless the call's flag is set, the player's soldier must be dying (component +0xC0, slot +0x2C);
+2. unless the entity's `UseInHardcoreMode` (+0xAC) is set, the round must not be hardcore (the game context's
+   +0x30 object, byte +0x24: inferred the hardcore flag);
+3. `Server.KillCam` must be on;
+4. by `Target` (+0x94, `SpecateTarget`): `StOwnPlayerAndRagdoll` (6) needs the soldier's health at 0,
+   `StOwnPlayerAndVehicleRagdoll` (7) needs health 0 and the soldier's state 5; every other target passes.
+
+DICE's 227 `SpectateEntityData` (HUD-SPEC-1): `Target` `StBestSquadPlayer` 101, `StOwnKiller` 62,
+`StOwnPlayerAndVehicleRagdoll` 62, `StNone` 2; `Mode` `SmFollow` 185, `SmStatic` 42; `UseInHardcoreMode` false 123,
+true 104. So the kill cam proper is the `StOwnKiller` and vehicle-ragdoll entities each mode layer places, off on a
+hardcore server unless the entity says otherwise, and off everywhere with `Server.KillCam` off. Which of the
+entity's cameras the client then uses (`SoldierCameraIndex` ...: `ClientSpectateEntity`) is not traced.
+
+[test: core/tests/test_spec_probes.py::run_time]
+[data: spec/probes/runtime.py on DICE's partitions, 2026-11-27: SpectateEntityData Target, Mode and UseInHardcoreMode as above (227)]
+[exe: BFBC2Game.exe ServerSpectateEntity's test 0x67AEE0: `cmp byte [eax+0xAC], 0` at 0x67AF22, `push "Server.KillCam"` (0x141DC68) at 0x67AF44, `mov eax, [edx+0x94]` at 0x67AF56; callers 0x67E26E, 0x681987; the browser's publish 0x84FE22 - 0x84FF3B and read 0x603BA6]
 
 ## Open questions
 
 - The minimap's settings value type (`LevelData.MinimapSettings`: the typeinfo's `MinimapData`, 80 bytes, and
   `UIMinimapZoomConfig`) member by member.
-- The kill cam's code path.
+- The kill cam's client side: which of a spectate entity's cameras (`SoldierCameraIndex` ...) is used, what the
+  soldier's state 5 and the game context's +0x24 are (HUD-KILL-2); a playtest: a hardcore server with
+  `Server.KillCam` on and off.

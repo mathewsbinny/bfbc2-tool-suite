@@ -55,6 +55,10 @@ landed on `main`.
 - Specification (round SPG2-rest5): MENU-LOAD-1 no longer says the Flash loading roots are named by no data
   (MENU-LOAD-2), and round SPG2-rest4's "slot 12 of vtable 0x142B4C8" is the main menu's third vtable; FX-PROC-4's
   inferred "the input is an offset" is the `EmittableField` enumeration.
+- Specification (round SPG4-rest): ENG-TI-1's class member table (0x1C25870) was 16 descriptors in: the table is
+  0x1C256F0, an argument of the class's registration (RTTI-REG-1); HUD-KILL-1's "the killed soldier's camera turning
+  to the killer, driven by code" is withdrawn (the kill cam is the level's spectate entities, HUD-KILL-2); OCC-TRI-1's
+  "more records than triangles" is the padding to an even count (one 192-bit part mask a triangle).
 - Specification (round SPG3-rest): round SPG3's guess that the three mouse sliders are the infantry, land and air
   sensitivities is replaced by the code's names (INP-SET-2); SET-CLI-1's finder has 41 callers, not 40; SCR-DEV-1
   points at SCR-DEV-2 for the document server.
@@ -97,6 +101,26 @@ landed on `main`.
   wiring between the two stages is split as DICE's chain is read; every stage plays as before. Checked on every stock
   Rush and Squad Rush level between every two stages, and Port Valdez with a stage inserted exports and passes the
   stage check.
+- **Specification (round SPG4-rest): every typeinfo record named with its layout, the run-time behind SPG4's
+  data-side files and the resources' opaque insides, read from the executable and checked on DICE's data**
+  (`rust/BENCHMARKS.md` "SPG4-rest"; 1,532 -> 1,571 rules; the census's typeinfo records with a rule 816 -> 1,900):
+  - `spec/engine/typeinfo/` (four files, 31 rules RTTI-*): how each of the 1,900 records is registered (RTTI-REG-1)
+    and its 24-byte member descriptors (RTTI-MEM-1); tables of every record's parent, size, own members with their
+    run-time offsets, or an enumeration's numbers, by module (written by the new `spec/probes/typeinfo.py` from the
+    new `spec/typeinfo.json`; the quick tier's new `spec-typeinfo` keeps them current);
+  - DICE's DBX fields against the run-time members (RTTI-DBX-1, 2): 118 field names are the content pipeline's and
+    the game cannot read them - among them the static models' pathfinding switches (`ExcludeFromPathfinding`,
+    `ForbidPathfinding`, `AllowPathdataSeeds` ...: they act only through the path data) and the AI's whole sensing
+    template (`SeeingDistance`, `HearingDistance`, `ViewAngle` ...);
+  - which run-time entity class each data class's factory makes, from the constructors (RTTI-FAC-1, 173 classes);
+  - the character controller's nine states, their ids and transitions (SOLD-PHYS-2); spawning on a squad mate: the
+    checks and the 13 positions tried (SQD-PLAY-2); the kill cam is the level's spectate entities gated by
+    `Server.KillCam` and hardcore (HUD-KILL-2); the campaign save's `header` and `body` streams (CAMP-SAVE-1); the
+    sound graph nodes' factories and their enumerations' numbers (SGR-NODE-2);
+  - the occluder's triangle block is one 192-bit part mask a triangle (OCC-TRI-1), the soot's flag words pick its
+    vertex declaration and its vertices name a part slot and a box (SOOT-FLAG-1, SOOT-SLOT-1), the impulse
+    responses' partitions are block-scaled spectra (IR-PART-1);
+  - the new probe `spec/probes/runtime.py` and `resources.py`'s new counts (the game tier about 2 minutes longer).
 - **Specification (round SPG3-rest): settings, input, scripting and the asset graph, read from the executable and
   checked on DICE's data** (`rust/BENCHMARKS.md` "SPG3-rest"; 1,524 -> 1,532 rules):
   - `GameSettings.bin` is 11 typed lists, one per settings category, of the settings that are not user-exposed (the

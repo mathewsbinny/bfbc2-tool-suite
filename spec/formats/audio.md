@@ -307,19 +307,39 @@ PC resource the file is **big-endian**:
 | 20, 24 | 2 x u32 | the partition length: 1,024 (twice) |
 | 28 | u32 | the FFT size: 2,048 |
 | 32 | u32 | 1 |
-| 36 | 3 x u32 | not decoded (the second and third the same in all five files) |
+| 36 | 3 x u32 | no reader (IR-PART-1; the second and third the same in all five files) |
 | 48 | | ceil(frames / 1,024) partitions of 32 + 2,048 x 2 channels x 2 bytes |
 
-The file ends exactly after the last partition. A partition's 32-byte head begins with a word whose high half is 2^k - 1
-(32,767, 16,383, 8,191 ...; inferred: the partition's scale); the rest of the head and the 16-bit data (inferred: the
-partition's spectrum, for a uniformly partitioned convolution) are not decoded.
+The file ends exactly after the last partition. A partition is two channel blocks, each a 16-byte head (a block scale) and the
+channel's spectrum (IR-PART-1).
 
 [test: core/tests/test_spec_probes.py::resources]
 [data: spec/probes/resources.py on DICE's bundles, 2026-11-23: 5 distinct ImpulseResponse entries (17 live): header irf1, 1, 2 channels, 48,000 Hz, 1,024, 1,024, 2,048, 1 in all; 48 + partitions x 8,224 = size in 5 of 5]
 [exe: BFBC2Game.exe typeinfo record `ImpulseResponse` (module Audio, 20 bytes) at 0x1C0E804; settings and fields `ReverbIR`, `ReverbArea`, `SoundAreaReverbs`]
 
+### IR-PART-1: A partition is two channel blocks: a block-scale head and 1,024 spectrum bins
+
+Status: **verified** · Variants: PC
+
+Each 8,224-byte partition (IR-HDR-1) is two blocks of 4,112 bytes, one per channel: a 16-byte head - a big-endian u16
+2^k - 1 (k 10 - 15) and 14 zero bytes - then 1,024 big-endian int16 pairs. The pairs are read as the (real,
+imaginary) bins of the partition's 2,048-point real FFT: the first bin's imaginary value is 0 in every block, as a
+real signal's DC bin is. The u16 is a block scale (block floating point): every block whose scale is below 32,767 has
+its largest value above 16,383, i.e. its values were shifted up to fill the 16-bit range (inferred: a bin is value x
+(scale + 1) / 32,768). The header's three words at 36 have no reader: the second and third are the same in all five
+files and the first differs (inferred: values left by the authoring tool). On PC the loader keeps the file as one
+blob (object +0x0C, its size +0x10) and no reader of its insides was found: no `irf1` compare and no byte swap in the
+sound module's code. A converter can copy the file; one that makes a new response must write this form.
+
+[test: core/tests/test_spec_probes.py::resources]
+[test: core/tests/test_spec_probes.py::run_time]
+[data: spec/probes/resources.py on DICE's bundles, 2026-11-27: 518 channel blocks in 5 files; head = (2^k - 1, 14 zero bytes) in 518; first bin's imaginary 0 in 518; scales 32,767 x 308, 16,383 x 85, 8,191 x 59, 4,095 x 44, 2,047 x 17, 1,023 x 5; peak above 16,383 in 210 of the 210 blocks scaled below 32,767]
+[exe: BFBC2Game.exe factory vtable 0x14B2288 (type 0xFC8CD0, load 0xFD2260): a 20-byte object (vtable 0x14B1EF0), the whole file read into a 16-aligned buffer (+0x0C) of the stream's size (+0x10); load requests 0xFCA9E0 and the reverb table 0xFDC5D6 - 0xFDC63C]
+
 ## Open questions
 
+- The impulse responses' reader on PC (none found, IR-PART-1), the exact meaning of the block scale and of the
+  header's words at 36.
 - The Wave header's flags and id (word 0x00) and word 0x14: what the engine uses them for.
 - The stream-information blob (per platform), and how the game seeks in streamed sounds.
 - EALayer3 (codecs 5 - 7): the suite neither reads nor writes it; streamed PC sounds stay as DICE's.
