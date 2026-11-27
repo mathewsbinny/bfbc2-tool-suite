@@ -211,6 +211,7 @@ fn png_of(w: u32, h: u32, ch: u8, px: &[u8]) -> Option<Vec<u8>> {
         let mut e = png::Encoder::new(&mut out, w, h);
         e.set_color(colour);
         e.set_depth(png::BitDepth::Eight);
+        e.set_compression(png::Compression::High);
         let mut wr = e.write_header().ok()?;
         wr.write_image_data(px).ok()?;
         wr.finish().ok()?;
