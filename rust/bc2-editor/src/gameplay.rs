@@ -306,6 +306,10 @@ pub enum GameplayKind {
     /// Adds a Rush stage after the last: a copy of the last stage with its M-COMs, bases, spawns and combat areas,
     /// its M-COMs' middle where the click is (round E4-rest, GAME-RUSH-11).
     Stage,
+    /// Inserts a Rush stage after stage `k` (play order, from 0) and before the next: a copy of the next stage with its
+    /// M-COMs, bases, spawns and combat areas, its M-COMs' middle where the click is, played between the two (round
+    /// E4-rest2, GAME-RUSH-12).
+    InsertStage(usize),
     /// Carries a flag, base, spawner or M-COM with what moves with it: a click picks it up, the next puts it down.
     Carry,
 }
@@ -320,6 +324,7 @@ impl GameplayKind {
             Self::Mcom(k) => format!("Add M-COM to stage {}", k + 1),
             Self::Spawner => "Add spawner".into(),
             Self::Stage => "Add stage".into(),
+            Self::InsertStage(k) => format!("Insert stage after stage {}", k + 1),
             Self::Carry => "Carry".into(),
         }
     }
@@ -337,7 +342,12 @@ impl GameplayKind {
                 "Click the ground to add a soldier spawner with its spawn points to the selected (or nearest) flag or base"
             }
             Self::Stage => {
-                "Click the ground where the new last stage's M-COMs go: the last stage is copied there with its bases,                  spawns and combat areas, and wired after it"
+                "Click the ground where the new last stage's M-COMs go: the last stage is copied there with its bases, \
+                 spawns and combat areas, and wired after it"
+            }
+            Self::InsertStage(_) => {
+                "Click the ground where the inserted stage's M-COMs go: the next stage is copied there with its \
+                 bases, spawns and combat areas, and played between the two"
             }
             Self::Carry => {
                 "Click a flag, base, spawner or M-COM to pick it up with what moves with it, click again to put it \
@@ -471,6 +481,17 @@ pub fn place_op(
                 bc2_levelwrite::rushstage::add_stage(w, &doc.schema, p, &guid, &ground).map_err(|e| e.to_string())?;
             let first = s.mcoms.first().cloned().unwrap_or_default();
             Ok((s.op, format!("Add Rush stage {}", n + 1), first))
+        }
+        GameplayKind::InsertStage(k) => {
+            let ground = |x: f64, z: f64| -> Option<f64> {
+                crate::query::surface_below_except(&doc.scene, x, z, &|_| true)
+                    .filter(|h| h.entity.is_none())
+                    .map(|h| h.point[1])
+            };
+            let s = bc2_levelwrite::rushstage::insert_stage(w, &doc.schema, k, p, &guid, &ground)
+                .map_err(|e| e.to_string())?;
+            let first = s.mcoms.first().cloned().unwrap_or_default();
+            Ok((s.op, format!("Insert Rush stage {}", k + 2), first))
         }
         GameplayKind::Carry => Err("the carry tool moves objects; it adds none".into()),
     }

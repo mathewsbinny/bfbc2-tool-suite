@@ -117,12 +117,17 @@ editing; `None` lets the click select), `draw` (what it holds, at an overlay `La
 (a message, a selection, an operation committed). `Tools` holds them all; `ViewState::tool` is the chosen one's id
 (`gizmo::Tool`, what the actions and the toolbar name). Select, Move, Rotate (the gizmo's drag stays shared in the
 views: `gizmo()` says a tool uses it), Ruler and Polygon are implementors; E4's gameplay tools and E5's brushes are
-new implementors and a line in `Tools`. Background work is `bc2_editor::task::Task<T>`: a body on its own named
-thread under DF1's `guarded`, one answer on its own channel, `poll` / `wait` / `wait_for`, and a worker that ended
-without an answer is an error; the comparison, the content browser's catalogue, the game-accurate view's world,
-the asset preview's reader and mesh index, the export's preview and the auto layout's proposal run on it (the export window's four jobs, the
-level load, the AI workspace's two and `prepare`'s pipe readers keep their threads: see rust/BENCHMARKS.md
-"PR1b-0").
+new implementors and a line in `Tools`. Since round E4-rest2 the AI workspace's nine navigation edit tools are one
+implementor (`navtool::NavDrawTool`, `Tool::Nav`: the chosen `NavTool`, the drawing's clicks and the panel's
+settings; its clicks take the navigation ground under the pointer, Enter closes a region's outline, a complete
+drawing is `Outcome::NavDrawing`) and placing from the content browser, a Spawners / Objectives tile or the picker
+another (`placetool::PlaceTool`, `Tool::Place`: the views' tool while an object is placed, the tool before chosen
+again when it is placed or dropped; a click or the drop is `Outcome::Place`). Background work is
+`bc2_editor::task::Task<T>`: a body on its own named thread under DF1's `guarded`, one answer on its own channel,
+`poll` / `wait` / `wait_for`, and a worker that ended without an answer is an error; every background job of the
+editor runs on it (rounds PR1b-0, PR1b-2, E4-rest2: the last, a Package level's preparation in the editor). Only
+the pipe readers keep bare threads: a child's stdout and stderr read line by line while it runs (`prepare`'s two,
+NavKit's two in `nav::start_navkit`); see rust/BENCHMARKS.md "PR1b-0" and "E4-rest2".
 
 ### 3.2 The core additions
 
@@ -193,8 +198,14 @@ stage's counterparts. Both adjust `BaseCount` and are one `files` operation with
 messages past F from DICE's F per language; the record's `strings` carry them to the install. `add_spawner` places a
 copy of a flag's soldier spawner unit wired as its own and links it. In the editor: `GameplayKind::Stage` and
 `::Spawner` on the tool, the panel's "Remove stage", "Add stage after the last" and the selected flag's name
-(`app::PanelRequest` lets the interface tests press them). What stays unproven until a playtest: the game playing an
-added or shortened stage chain, the new texts on the HUD and deploy screen, a spawner added to a flag.
+(`app::PanelRequest` lets the interface tests press them). Round E4-rest2 (GAME-RUSH-12): `insert_stage` puts a
+stage **between two**, a copy of the next stage whose wiring with the stage before is split in two (the stage before
+does to the copy what it did to the next stage, the copy does it to the next stage through the counterparts; the next
+stage's objects that acted on the stage before's act on the copy's), checked by playing every stage as before;
+`remove_stage` now also hands what the next stage's objects did to the removed stage on to the stage before's
+counterparts, so an inserted stage taken out gives back every connection. The editor's `GameplayKind::InsertStage`
+and the panel's "Insert after". What stays unproven until a playtest: the game playing an added, inserted or
+shortened stage chain, the new texts on the HUD and deploy screen, a spawner added to a flag.
 
 ### 3.4a The AI workspace (the user, 2026-11-16)
 
