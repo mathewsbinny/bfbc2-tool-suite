@@ -112,7 +112,7 @@ def damaged_discs(discs: list[tuple[str, str, int]], dst: str, n: int) -> Iterat
 
 # ------------------------------------------------------------------------------------------------ the answers
 
-def package_digest(values: list[Any], read: Callable[[dict[str, Any]], bytes | None]) -> str | None:
+def package_digest(values: list[Any], read: Callable[[Any], bytes | None]) -> str | None:
     """A package's answer: its values (PKG_FIELDS, canon) and every entry's bytes (read(e), entries up to READ_LIMIT
     blocks: one damaged to millions of blocks is listed, not read), as one digest; None when read gives None."""
     h = hashlib.sha256(repr(canon(values)).encode('utf-8'))
